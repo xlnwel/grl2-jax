@@ -1,0 +1,59 @@
+import random
+import numpy as np
+import ray
+
+from buffer.ppo_buffer import PPOBuffer
+from utility.utils import standardize
+
+
+kwargs = dict(
+    n_envs=8, 
+    epslen=1000, 
+    n_minibatches=2, 
+    state_shape=[3], 
+    state_dtype=np.float32, 
+    action_shape=[2], 
+    action_dtype=np.float32
+)
+gamma = .99
+gae_discount = gamma * .95
+
+class TestClass:
+    def test_gae(self):
+        buffer = PPOBuffer(**kwargs)
+        d = np.zeros((kwargs['n_envs'], 1))
+        m = np.ones((kwargs['n_envs'], 1))
+        diff = kwargs['epslen'] - kwargs['n_envs']
+        for i in range(kwargs['epslen']):
+            r = np.random.rand(kwargs['n_envs'], 1)
+            v = np.random.rand(kwargs['n_envs'], 1)
+            if np.random.randint(2):
+                d[np.random.randint(kwargs['n_envs'])] = 1
+            buffer.add(reward=r,
+                    value=v,
+                    nonterminal=1-d,
+                    mask=m)
+            mask = 1
+            if np.all(d == 1):
+                break
+        last_value = np.random.rand(kwargs['n_envs'], 1)
+        buffer.finish(last_value, 'gae', gamma, gae_discount)
+        print(buffer['traj_len'][buffer.indices])
+
+        # implementation originally from openai's baselines
+        # modified to add mask
+        mb_returns = np.zeros_like(buffer['reward'])
+        mb_advs = np.zeros_like(buffer['reward'])
+        lastgaelam = 0
+        for t in reversed(range(buffer.idx)):
+            if t == buffer.idx - 1:
+                nextnonterminal = buffer['nonterminal'][:, t]
+                nextvalues = last_value
+            else:
+                nextnonterminal = buffer['nonterminal'][:, t]
+                nextvalues = buffer['value'][:, t+1]
+            delta = buffer['reward'][:, t] + gamma * nextvalues * nextnonterminal - buffer['value'][:, t]
+            mb_advs[:, t] = lastgaelam = delta + gae_discount * nextnonterminal * lastgaelam
+        mb_advs = standardize(mb_advs, mask=buffer['mask'])
+
+        assert np.all(np.abs(mb_advs - buffer['advantage'])<1e-4), f'{mb_advs.flatten()}\n{buffer["advantage"].flatten()}'
