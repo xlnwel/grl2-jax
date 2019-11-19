@@ -9,7 +9,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from run.grid_search import GridSearch
 from utility.utils import str2bool
 from utility.yaml_op import load_config
-from utility.display import assert_colorize
+from utility.display import assert_colorize, pwc
+
 
 
 def parse_cmd_args():
@@ -29,10 +30,10 @@ def parse_cmd_args():
     parser.add_argument('--prefix', '-p',
                         default='',
                         help='prefix for model dir')
-    parser.add_argument('--checkpoint', '-c',
+    parser.add_argument('--directory', '-d',
                         type=str,
                         default='',
-                        help='checkpoint path to restore')
+                        help='directory where checkpoints and "config.yaml" exist')
     parser.add_argument('--grid_search', '-gs',
                         action='store_true')
     args = parser.parse_args()
@@ -66,18 +67,30 @@ if __name__ == '__main__':
         
         render = cmd_args.render
 
-        if cmd_args.checkpoint != '':
+        if cmd_args.directory != '':
+            # load configuration
             config = load_config(arg_file)
             env_config = config['env']
             agent_config = config['agent']
             buffer_config = config['buffer'] if 'buffer' in config else {}
-            checkpoint = cmd_args.checkpoint
-            assert_colorize(os.path.isdir(checkpoint), 'Checkpoint does not exists')
-            agent_config['model_root_dir'] = checkpoint
-            agent_config['log_root_dir'], _ = os.path.split(agent_config['model_root_dir'])
-            agent_config['log_root_dir'] += '/logs'
+            # load model and log path
+            directory = cmd_args.directory
+            config_file = None
+            for root, _, files in os.walk(directory):
+                for f in files:
+                    if f == 'config.yaml' and config_file is None:
+                        config_file = os.path.join(root, f)
+                        break
+                    elif f =='config.yaml' and config_file is not None:
+                        pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
+                        sys.exit()
 
-            main(env_config, agent_config, buffer_config, render=render, checkpoint=checkpoint)
+            config = load_config(config_file)
+            agent_config['model_root_dir'] = config['model_root_dir']
+            agent_config['log_root_dir'] = config['log_root_dir']
+            agent_config['model_name'] = config['model_name']
+
+            main(env_config, agent_config, buffer_config, render=render)
         else:
             prefix = cmd_args.prefix
             if cmd_args.grid_search:
@@ -87,7 +100,7 @@ if __name__ == '__main__':
 
                 # Grid search happens here
                 if algo == 'ppo':
-                    processes += gs(n_minibatches=[4, 8], n_envs=[16, 32])
+                    processes += gs(kl_coef=[.05, .1], reward_scale=[1., 5.])
                 else:
                     raise NotImplementedError()
             else:
@@ -100,7 +113,7 @@ if __name__ == '__main__':
                 dir_fn = lambda filename: f'logs/{prefix}-{algo}-{env_config["name"]}/{filename}'
                 for root_dir in ['model_root_dir', 'log_root_dir']:
                     agent_config[root_dir] = dir_fn(agent_config[root_dir])
-                env_config['video_path'] = f'{dir_fn(env_config["video_path"])}'
+                env_config['video_path'] = dir_fn(env_config['video_path'])
                 if len(algorithm) > 1:
                     p = Process(target=main,
                                 config=(env_config, agent_config, buffer_config, render))

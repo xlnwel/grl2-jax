@@ -39,20 +39,22 @@ class Logger:
         """
         log_file = log_file if log_file.endswith('log.txt') else log_file + '-log.txt'
         self.log_dir = log_dir or f"/tmp/experiments/{time.time()}"
-        if osp.exists(self.log_dir):
+        path = osp.join(self.log_dir, log_file)
+        if osp.exists(path):
             pwc(f'Warning: Log dir "{self.log_dir}" already exists!', 
                 f'Overwrite or Append (o/a)?',
                 color='magenta')
             ans = input()
             if ans.lower() == 'o':
-                self.output_file = open(osp.join(self.log_dir, log_file), 'w')
+                self.output_file = open(path, 'w')
                 pwc(f'"{self.output_file.name}" will be OVERWRITTEN', color='magenta')
             else:
-                self.output_file = open(osp.join(self.log_dir, log_file), 'a')
+                self.output_file = open(path, 'a')
                 pwc(f'New data will be appended to "{self.output_file.name}"', color='magenta')
         else:
-            os.makedirs(self.log_dir)
-            self.output_file = open(osp.join(self.log_dir, log_file), 'w')
+            if not os.path.isdir(self.log_dir):
+                os.makedirs(self.log_dir)
+            self.output_file = open(path, 'w')
         atexit.register(self.output_file.close)
         pwc(f'Logging data to "{self.output_file.name}"', color='green')
 

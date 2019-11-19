@@ -108,7 +108,6 @@ class DNC(layers.Layer):
         # Clip controller's output if needed
         controller_output = self._clip_if_enabled(controller_output)
         controller_state = tf.nest.map_structure(self._clip_if_enabled, controller_state)
-        # tf.summary.histogram('controller_output', controller_output)
 
         # Call the access module
         access_output, access_state = self._access(controller_output,

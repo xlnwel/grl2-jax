@@ -21,7 +21,7 @@ class PPOAC(keras.Model):
         lstm_units = 128
         dnc_config = dict(
             output_size=128,
-            access_config=dict(memory_size=64, word_size=32, num_reads=4, num_writes=1),
+            access_config=dict(memory_size=64, word_size=32, num_reads=1, num_writes=1),
             controller_config=dict(units=128),
             rnn_config=dict(return_sequences=True, stateful=True)
         )
@@ -95,10 +95,10 @@ class PPOAC(keras.Model):
                 `[batch_size, 1]`
             value: state values of shape `[batch_size, 1]`
         """
+        pwc(f'AC call is retracing: x={x}', color='cyan')
         # expand time dimension assuming x has shape `[batch_size, *state_shape]`
         x = tf.expand_dims(x, 1)
         with tf.name_scope('call'):
-            pwc(f'AC call is retracing: x={x}', color='cyan')
             x = self._common_layers(x)
 
             mu = self._head(x, self.actor)
@@ -144,8 +144,8 @@ class PPOAC(keras.Model):
                 `[batch_size, steps, 1]`
             value: state values of shape `[batch_size, steps, 1]`
         """
+        pwc(f'AC logpi_and_entropy is retracing: x={x}, a={a}', color='cyan')
         with tf.name_scope('train_step'):
-            pwc(f'AC logpi_and_entropy is retracing: x={x}, a={a}', color='cyan')
             x = self._common_layers(x)
 
             mu = self._head(x, self.actor)

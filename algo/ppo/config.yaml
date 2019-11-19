@@ -1,6 +1,6 @@
 ---
 env:
-    name:  BipedalWalker-v2 # LunarLanderContinuous-v2, BipedalWalker-v2
+    name: &env_name BipedalWalker-v2 # LunarLanderContinuous-v2, BipedalWalker-v2
     video_path: video
     # max_episode_steps: 1000
     log_video: False
@@ -9,13 +9,14 @@ env:
     seed: 0
 agent:
     algorithm: &algo ppo
+    env_name: *env_name
 
     gamma: .99
     lam: .95
     n_minibatches: 10        # number of minibatches a sequence is divided into 
     # batch size = n_workers * n_envs * seq_len / n_minibatches
     n_updates: 4            # number of updates per epoch
-    n_epochs: 1000
+    n_epochs: 10000
     max_kl: .0              # early stop when max_kl is violated. 0 suggests no bound
     advantage_type: gae     # nae or gae
 
@@ -33,10 +34,10 @@ agent:
     # arguments for ppo loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .0
-    kl_coef: .01
+    kl_coef: .1
     value_coef: .5
 
 buffer:
     # environment hack
     reward_scale: 1.
-    # reward_clip: -50
+    reward_clip: -100

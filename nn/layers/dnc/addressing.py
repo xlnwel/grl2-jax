@@ -330,7 +330,6 @@ class Freeness(tf.Module):
             allocation_weights = []
             for i in range(num_writes):
                 allocation_weights.append(self._allocation(usage))
-                # TODO: make sense of this simulated usage
                 # update usage to take into account writing to this new allocation
                 usage += ((1 - usage) * write_gates[:, i, :] * allocation_weights[i])
 
@@ -407,6 +406,7 @@ class Freeness(tf.Module):
             # This final two lines "unsort" sorted_allocation, so that the indexing
             # corresponds to the original indexing of `usage`.
             inverse_indices = batch_invert_permutation(indices)
+            
             return batch_gather(sorted_allocation, inverse_indices)
 
     @property

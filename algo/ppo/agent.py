@@ -1,12 +1,12 @@
 from multiprocessing import Process
 import numpy as np
 import tensorflow as tf
+import ray
 
 from utility.display import pwc, assert_colorize
 from utility.timer import Timer
 from utility.tf_utils import build, configure_gpu
 from core.base import BaseAgent, agent_config
-from algo.ppo.nn import PPOAC
 
 
 class Agent(BaseAgent):
@@ -15,7 +15,6 @@ class Agent(BaseAgent):
         self.gae_discount = self.gamma * self.lam
 
         self.state_shape = self.env.state_shape
-        self.action_shape = self.env.action_shape
         self.action_dim = self.env.action_dim
         self.max_epslen = self.env.max_episode_steps
 
@@ -33,10 +32,9 @@ class Agent(BaseAgent):
         self.ckpt_models['optimizer'] = self.optimizer
 
         # Explicitly instantiate tf.function to avoid unintended retracing
-        
         TensorSpecs = [
             (self.state_shape, self.env.state_dtype, 'state'),
-            (self.action_shape, self.env.action_dtype, 'action'),
+            ([self.action_dim], self.env.action_dtype, 'action'),
             ([1], tf.float32, 'traj_ret'),
             ([1], tf.float32, 'value'),
             ([1], tf.float32, 'advantage'),
@@ -50,8 +48,6 @@ class Agent(BaseAgent):
             sequential=True, 
             batch_size=self.n_envs
         )
-
-        # process used for evaluation
         self.eval_process = None
 
     def train(self):
@@ -76,7 +72,8 @@ class Agent(BaseAgent):
                     self.log(epoch, 'Train')
                 with Timer(f'{self.model_name} save'):
                     self.save(steps=epoch)
-                # self._evaluate(epoch)
+            if epoch % 100 == 0:
+                self._evaluate(epoch)
 
     def _sample_trajectories(self, epoch):
         self.buffer.reset()
@@ -218,40 +215,22 @@ class Agent(BaseAgent):
         Evaluate the learned policy in another process. 
         This function should only be called at the training time.
         """
-        if self.eval_process:
-            self.eval_process.join()    # join the previous running eval_process
-        self.eval_process = Process(target=eval_process, 
-            args=(self.env, self.ac.get_weights(), self.model_name, self.logger, train_epoch))
-        self.eval_process.start()
+        i = 0
+        while i < 100:
+            i += self.env.n_envs
+            state = self.env.reset()
+            for j in range(self.env.max_episode_steps):
+                action = self.ac.det_action(tf.convert_to_tensor(state, tf.float32))
+                state, _, done, _ = self.env.step(action.numpy())
 
-def eval_process(env, weights, name, logger, step):
-    pwc('eval starts')
-    ac = PPOAC(env.state_shape,
-                env.action_dim,
-                env.is_action_discrete,
-                env.n_envs, 
-                'ac')
-    pwc('model is constructed')
-    ac.set_weights(weights)
-    i = 0
-    while i < 10:
-        i += env.n_envs
-        state = env.reset()
-        for j in range(env.max_episode_steps):
-            print(j)
-            action = ac.det_action(tf.convert_to_tensor(state, tf.float32))
-            state, _, done, _ = env.step(action.numpy())
+                if np.all(done):
+                    break
+            self.store(score=self.env.get_score(), epslen=self.env.get_epslen())
 
-            if np.all(done):
-                break
-        logger.store(score=env.get_score(), epslen=env.get_epslen())
-
-    stats = dict(
-            model_name=f'{name}',
-            timing='Eval',
-            steps=f'{step}',
-            score=logger.get('score', std=True), 
-            epslen=logger.get('epslen', std=True)
-    )
-    [logger.log_tabular(k, v) for k, v in stats.items()]
-    logger.dump_tabular()
+        stats = dict(
+                model_name=f'{self.model_name}',
+                timing='Eval',
+                steps=f'{train_epoch}',
+        )
+        stats.update(self.get_stats(mean=True, std=True))
+        self.log_stats(stats)

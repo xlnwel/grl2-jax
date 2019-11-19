@@ -38,7 +38,6 @@ class TestClass:
                 break
         last_value = np.random.rand(kwargs['n_envs'], 1)
         buffer.finish(last_value, 'gae', gamma, gae_discount)
-        print(buffer['traj_len'][buffer.indices])
 
         # implementation originally from openai's baselines
         # modified to add mask
@@ -56,4 +55,5 @@ class TestClass:
             mb_advs[:, t] = lastgaelam = delta + gae_discount * nextnonterminal * lastgaelam
         mb_advs = standardize(mb_advs, mask=buffer['mask'])
 
-        assert np.all(np.abs(mb_advs - buffer['advantage'])<1e-4), f'{mb_advs.flatten()}\n{buffer["advantage"].flatten()}'
+        np.testing.assert_allclose(mb_advs, buffer['advantage'], atol=1e-6)
+        

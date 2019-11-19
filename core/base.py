@@ -64,8 +64,8 @@ class BaseAgent(ABC):
     def store(self, **kwargs):
         self.logger.store(**kwargs)
 
-    def get_stats(self):
-        return self.logger.get_stats()
+    def get_stats(self, mean=True, std=False, min=False, max=False):
+        return self.logger.get_stats(mean=mean, std=std, min=min, max=max)
 
     def get_value(self, key, mean=True, std=False, min=False, max=False):
         return self.logger.get(key)
@@ -123,7 +123,7 @@ def agent_config(init_fn):
         """
         # preprocessing
         self.name = name
-        """ For the basic configuration, see config.yaml """
+        """ For the basic configuration, see config.yaml in algo/*/ """
         [setattr(self, k, v) for k, v in config.items()]
 
         self.env = env
