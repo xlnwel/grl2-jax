@@ -11,11 +11,12 @@ from algo.ppo.nn import PPOAC
 
 
 def evaluate(env, model):
+    pwc('Evaluation starts', color='cyan')
     i = 0
 
     scores = []
     epslens = []
-    while i < 10:
+    while i < 100:
         i += env.n_envs
         state = env.reset()
         for _ in range(env.max_episode_steps):
@@ -24,10 +25,11 @@ def evaluate(env, model):
 
             if np.all(done):
                 break
+            
         scores.append(env.get_score())
         epslens.append(env.get_score())
 
-    pwc(f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}')
+    return scores, epslens
 
 def main(env_config, agent_config, render=False):
     set_global_seed()
@@ -42,7 +44,7 @@ def main(env_config, agent_config, render=False):
     if env_config['n_workers'] > 1:
         ray.init()
         sigint_shutdown_ray()
-    
+
     env = create_gym_env(env_config)
 
     ac = PPOAC(env.state_shape,
@@ -59,7 +61,8 @@ def main(env_config, agent_config, render=False):
     ckpt.restore(path).expect_partial()
     if path:
         pwc(f'Params are restored from "{path}".', color='cyan')
-        evaluate(env, ac)
+        scores, epslens = evaluate(env, ac)
+        pwc(f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
     else:
         pwc(f'No model is found at "{ckpt_path}"!', color='magenta')
 

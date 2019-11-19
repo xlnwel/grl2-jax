@@ -6,7 +6,6 @@ import tensorflow as tf
 from utility.logger import Logger
 from utility.display import display_var_info, pwc, assert_colorize
 from utility.yaml_op import load_config, save_config
-from env.gym_env import create_gym_env, GymEnv
 
 
 class BaseAgent(ABC):
@@ -34,9 +33,9 @@ class BaseAgent(ABC):
     """ Logging """
     def log(self, step, timing):
         stats = dict(
-                model_name=f'{self.model_name}',
-                timing=timing,
-                steps=f'{step}'
+            model_name=f'{self.model_name}',
+            timing=timing,
+            steps=f'{step}'
         )
         stats.update(self.get_stats())
         self.log_summary(step, stats)
@@ -111,13 +110,11 @@ def agent_config(init_fn):
     """ Decorator for agent's initialization """
     from functools import wraps
     @wraps(init_fn)
-    def wrapper(self, name, config, env=None, buffer=None, models=None, **kwargs):
+    def wrapper(self, name, config, models=None, **kwargs):
         """
         Args:
             name: Agent's name
             config: configuration, should be read from config.yaml
-            env: train environment
-            buffer: buffer for transition storage
             models: a list of models that encapsulate network
             kwargs: optional arguments for each specific agent
         """
@@ -125,9 +122,6 @@ def agent_config(init_fn):
         self.name = name
         """ For the basic configuration, see config.yaml in algo/*/ """
         [setattr(self, k, v) for k, v in config.items()]
-
-        self.env = env
-        self.buffer = buffer
 
         self._setup_logger()
         self.logger.save_config(config)
@@ -141,7 +135,7 @@ def agent_config(init_fn):
                 self.ckpt_models[m.name] = m
 
         # initialization
-        init_fn(self, name, config, env, buffer, models, **kwargs)
+        init_fn(self, name, config, models, **kwargs)
         
         # postprocessing
         self._setup_checkpoint(self.ckpt_models)

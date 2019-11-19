@@ -11,8 +11,6 @@ agent:
     algorithm: &algo ppo
     env_name: *env_name
 
-    gamma: .99
-    lam: .95
     n_minibatches: 10        # number of minibatches a sequence is divided into 
     # batch size = n_workers * n_envs * seq_len / n_minibatches
     n_updates: 4            # number of updates per epoch
@@ -38,6 +36,9 @@ agent:
     value_coef: .5
 
 buffer:
+    advantage_type: gae     # nae or gae
+    gamma: .99
+    lam: .95
     # environment hack
     reward_scale: 1.
     reward_clip: -100

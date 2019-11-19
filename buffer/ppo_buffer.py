@@ -22,6 +22,9 @@ class PPOBuffer(dict):
         self.indices = np.arange(self.n_envs)
         self.minibatch_size = self.epslen // self.n_minibatches
 
+        self.advantage_type = kwargs['advantage_type']
+        self.gamma = kwargs['gamma']
+        self.gae_discount = self.gamma * kwargs['lam'] 
         # Environment hack
         self.reward_scale = kwargs.get('reward_scale', 1.)
         self.reward_clip = kwargs.get('reward_clip', -float('inf'))
@@ -73,7 +76,7 @@ class PPOBuffer(dict):
         return {k: self[k][:, start:end]
                 for k in keys if self[k] is not None}
 
-    def finish(self, last_value, adv_type, gamma, gae_discount):
+    def finish(self, last_value):
         self['value'][:, self.idx] = last_value
         valid_slice = np.s_[:, :self.idx]
         self['mask'][:, self.idx:] = 0
@@ -83,12 +86,12 @@ class PPOBuffer(dict):
         self['reward'] *= self.reward_scale
         self['reward'] = np.maximum(self['reward'], self.reward_clip)
 
-        if adv_type == 'nae':
+        if self.advantage_type == 'nae':
             traj_ret = self['traj_ret'][valid_slice]
             next_return = last_value
             for i in reversed(range(self.idx)):
                 traj_ret[:, i] = next_return = (self['reward'][:, i] 
-                    + self['nonterminal'][:, i] * gamma * next_return)
+                    + self['nonterminal'][:, i] * self.gamma * next_return)
 
             # Standardize traj_ret and advantages
             traj_ret_mean, traj_ret_std = moments(traj_ret, mask=mask)
@@ -97,13 +100,13 @@ class PPOBuffer(dict):
             value = (value + traj_ret_mean) / (traj_ret_std + 1e-8)     
             self['advantage'][valid_slice] = standardize(traj_ret - value, mask=mask)
             self['traj_ret'][valid_slice] = standardize(traj_ret, mask=mask)
-        elif adv_type == 'gae':
+        elif self.advantage_type == 'gae':
             advs = delta = (self['reward'][valid_slice] 
-                + self['nonterminal'][valid_slice] * gamma * self['value'][:, 1:self.idx+1]
+                + self['nonterminal'][valid_slice] * self.gamma * self['value'][:, 1:self.idx+1]
                 - self['value'][valid_slice])
             next_adv = 0
             for i in reversed(range(self.idx)):
-                advs[:, i] = next_adv = delta[:, i] + self['nonterminal'][:, i] * gae_discount * next_adv
+                advs[:, i] = next_adv = delta[:, i] + self['nonterminal'][:, i] * self.gae_discount * next_adv
             self['traj_ret'][valid_slice] = advs + self['value'][valid_slice]
             self['advantage'][valid_slice] = standardize(advs, mask=mask)
             # Code for double check 
@@ -117,8 +120,8 @@ class PPOBuffer(dict):
             #     else:
             #         nextnonterminal = self['nonterminal'][:, t]
             #         nextvalues = self['value'][:, t+1]
-            #     delta = self['reward'][:, t] + gamma * nextvalues * nextnonterminal - self['value'][:, t]
-            #     mb_advs[:, t] = lastgaelam = delta + gae_discount * nextnonterminal * lastgaelam
+            #     delta = self['reward'][:, t] + self.gamma * nextvalues * nextnonterminal - self['value'][:, t]
+            #     mb_advs[:, t] = lastgaelam = delta + self.gae_discount * nextnonterminal * lastgaelam
             # mb_advs = standardize(mb_advs, mask=mask)
             # assert np.all(np.abs(mb_advs - self['advantage'][valid_slice])<1e-4), f'{mb_advs.flatten()}\n{self["advantage"][valid_slice].flatten()}'
         else:
@@ -143,11 +146,11 @@ if __name__ == '__main__':
         state_shape=[3], 
         state_dtype=np.float32, 
         action_shape=[2], 
-        action_dtype=np.float32
+        action_dtype=np.float32,
+        advantage_type='gae',
+        gamma=.99,
+        lam=.95
     )
-    gamma = .99
-    gae_discount = gamma * .95
-
     buffer = PPOBuffer(**kwargs)
     d = np.zeros((kwargs['n_envs'], 1))
     m = np.ones((kwargs['n_envs'], 1))
@@ -165,6 +168,6 @@ if __name__ == '__main__':
         if np.all(d == 1):
             break
     last_value = np.random.rand(kwargs['n_envs'], 1)
-    buffer.finish(last_value, 'gae', gamma, gae_discount)
+    buffer.finish(last_value)
     print(buffer['traj_len'][buffer.indices])
     print(buffer['advantage'][buffer.indices, :10, 0])

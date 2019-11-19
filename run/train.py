@@ -116,7 +116,7 @@ if __name__ == '__main__':
                 env_config['video_path'] = dir_fn(env_config['video_path'])
                 if len(algorithm) > 1:
                     p = Process(target=main,
-                                config=(env_config, agent_config, buffer_config, render))
+                                args=(env_config, agent_config, buffer_config, render))
                     p.start()
                     time.sleep(1)
                     processes.append(p)

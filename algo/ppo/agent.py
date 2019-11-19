@@ -11,15 +11,15 @@ from core.base import BaseAgent, agent_config
 
 class Agent(BaseAgent):
     @agent_config
-    def __init__(self, name, config, env, buffer, models):
-        self.gae_discount = self.gamma * self.lam
-
-        self.state_shape = self.env.state_shape
-        self.action_dim = self.env.action_dim
-        self.max_epslen = self.env.max_episode_steps
-
-        self.n_envs = env.n_envs
-
+    def __init__(self, 
+                name, 
+                config, 
+                models, 
+                state_shape,
+                state_dtype,
+                action_dim,
+                action_dtype,
+                n_envs):
         # optimizer
         if self.optimizer.lower() == 'adam':
             optimizer = tf.keras.optimizers.Adam
@@ -33,8 +33,8 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = [
-            (self.state_shape, self.env.state_dtype, 'state'),
-            ([self.action_dim], self.env.action_dtype, 'action'),
+            (state_shape, state_dtype, 'state'),
+            ([action_dim], action_dtype, 'action'),
             ([1], tf.float32, 'traj_ret'),
             ([1], tf.float32, 'value'),
             ([1], tf.float32, 'advantage'),
@@ -46,80 +46,14 @@ class Agent(BaseAgent):
             self._compute_gradients, 
             TensorSpecs, 
             sequential=True, 
-            batch_size=self.n_envs
+            batch_size=n_envs
         )
-        self.eval_process = None
 
-    def train(self):
-        period = 10
-        profiler_outdir = f'{self.log_root_dir}/{self.model_name}'
-        start_epoch = self.global_steps.numpy()
-        for epoch in range(start_epoch, self.n_epochs+1):
-            self.set_summary_step(epoch)
-            with Timer(f'{self.model_name} sampling', period):
-                score, epslen, last_value = self._sample_trajectories(epoch)
-            with Timer(f'{self.model_name} advantage', period):
-                self._compute_advantages(last_value)
-            # tf.summary.trace_on(profiler=True)
-            with Timer(f'{self.model_name} training', period):
-                # TRICK: we only check kl and early terminate the training epoch 
-                # when score meets some requirement
-                self._train_epoch(epoch, early_terminate=(self.max_kl and score > 250))
-            # with Timer('trace'):
-            #     tf.summary.trace_export(name='ppo', step=epoch, profiler_outdir=profiler_outdir)
-            if epoch % period == 0:
-                with Timer(f'{self.model_name} logging'):
-                    self.log(epoch, 'Train')
-                with Timer(f'{self.model_name} save'):
-                    self.save(steps=epoch)
-            if epoch % 100 == 0:
-                self._evaluate(epoch)
-
-    def _sample_trajectories(self, epoch):
-        self.buffer.reset()
-        self.ac.reset_states()
-        env = self.env
-        state = env.reset()
-
-        for _ in range(self.max_epslen):
-            action, logpi, value = self.ac(tf.convert_to_tensor(state, tf.float32))
-            next_state, reward, done, _ = env.step(action.numpy())
-            self.buffer.add(state=state, 
-                            action=action.numpy(), 
-                            reward=reward, 
-                            value=value.numpy(), 
-                            old_logpi=logpi.numpy(), 
-                            nonterminal=1-done,
-                            mask=env.get_mask())
-            
-            state = next_state
-            if np.all(done):
-                break
-            
-        _, _, last_value = self.ac(state)
-
-        score, epslen = env.get_score(), env.get_epslen()
-        # tf.summary.histogram('epslen', epslen, step=epoch)
-        score_mean = np.mean(score)
-        epslen_mean = np.mean(epslen)
-        self.store(score=score_mean,
-                   score_std=np.std(score),
-                   epslen=epslen_mean,
-                   epslen_std=np.std(epslen))
-
-        return score_mean, epslen_mean, last_value
-
-    def _compute_advantages(self, last_value):
-        self.buffer.finish(last_value.numpy(), 
-                            self.advantage_type, 
-                            self.gamma, 
-                            self.gae_discount)
-
-    def _train_epoch(self, epoch, early_terminate):
+    def train_epoch(self, buffer, early_terminate, epoch):
         for i in range(self.n_updates):
             self.ac.reset_states()
             for j in range(self.n_minibatches):
-                data = self.buffer.get_batch()
+                data = buffer.get_batch()
                 data['n'] = n = np.sum(data['mask'])
                 value = np.mean(data['value'])
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
@@ -132,17 +66,18 @@ class Agent(BaseAgent):
 
                 n_total_trans = np.prod(data['value'].shape)
                 n_valid_trans = n or n_total_trans
-                self.store(ppo_loss=ppo_loss.numpy(), 
-                            value_loss=value_loss.numpy(),
-                            entropy=entropy.numpy(), 
-                            p_clip_frac=p_clip_frac.numpy(),
-                            v_clip_frac=v_clip_frac.numpy(),
-                            value=value,
-                            global_norm=global_norm.numpy(),
-                            n_valid_trans=n_valid_trans,
-                            n_total_trans=n_total_trans,
-                            valid_trans_frac = n_valid_trans / n_total_trans
-                            )
+                self.store(
+                    ppo_loss=ppo_loss.numpy(), 
+                    value_loss=value_loss.numpy(),
+                    entropy=entropy.numpy(), 
+                    p_clip_frac=p_clip_frac.numpy(),
+                    v_clip_frac=v_clip_frac.numpy(),
+                    value=value,
+                    global_norm=global_norm.numpy(),
+                    n_valid_trans=n_valid_trans,
+                    n_total_trans=n_total_trans,
+                    valid_trans_frac = n_valid_trans / n_total_trans
+                )
             
             if self.max_kl and early_terminate and approx_kl > self.max_kl:
                 pwc(f'Eearly stopping at epoch-{epoch} update-{i+1} due to reaching max kl.',
@@ -209,28 +144,3 @@ class Agent(BaseAgent):
             total_loss = policy_loss + value_loss
 
         return ppo_loss, entropy, approx_kl, p_clip_frac, value_loss, v_clip_frac, total_loss
-
-    def _evaluate(self, train_epoch):
-        """
-        Evaluate the learned policy in another process. 
-        This function should only be called at the training time.
-        """
-        i = 0
-        while i < 100:
-            i += self.env.n_envs
-            state = self.env.reset()
-            for j in range(self.env.max_episode_steps):
-                action = self.ac.det_action(tf.convert_to_tensor(state, tf.float32))
-                state, _, done, _ = self.env.step(action.numpy())
-
-                if np.all(done):
-                    break
-            self.store(score=self.env.get_score(), epslen=self.env.get_epslen())
-
-        stats = dict(
-                model_name=f'{self.model_name}',
-                timing='Eval',
-                steps=f'{train_epoch}',
-        )
-        stats.update(self.get_stats(mean=True, std=True))
-        self.log_stats(stats)

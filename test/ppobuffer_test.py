@@ -6,6 +6,9 @@ from buffer.ppo_buffer import PPOBuffer
 from utility.utils import standardize
 
 
+gamma = .99
+lam = .95
+gae_discount = gamma * lam
 kwargs = dict(
     n_envs=8, 
     epslen=1000, 
@@ -13,11 +16,11 @@ kwargs = dict(
     state_shape=[3], 
     state_dtype=np.float32, 
     action_shape=[2], 
-    action_dtype=np.float32
+    action_dtype=np.float32,
+    advantage_type='gae',
+    gamma=gamma,
+    lam=lam
 )
-gamma = .99
-gae_discount = gamma * .95
-
 class TestClass:
     def test_gae(self):
         buffer = PPOBuffer(**kwargs)
@@ -37,7 +40,7 @@ class TestClass:
             if np.all(d == 1):
                 break
         last_value = np.random.rand(kwargs['n_envs'], 1)
-        buffer.finish(last_value, 'gae', gamma, gae_discount)
+        buffer.finish(last_value)
 
         # implementation originally from openai's baselines
         # modified to add mask
