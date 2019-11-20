@@ -110,7 +110,7 @@ def agent_config(init_fn):
     """ Decorator for agent's initialization """
     from functools import wraps
     @wraps(init_fn)
-    def wrapper(self, name, config, models=None, **kwargs):
+    def wrapper(self, *, name, config, models, **kwargs):
         """
         Args:
             name: Agent's name
@@ -135,7 +135,7 @@ def agent_config(init_fn):
                 self.ckpt_models[m.name] = m
 
         # initialization
-        init_fn(self, name, config, models, **kwargs)
+        init_fn(self, name=name, config=config, models=models, **kwargs)
         
         # postprocessing
         self._setup_checkpoint(self.ckpt_models)

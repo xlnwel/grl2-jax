@@ -7,27 +7,26 @@ from utility.utils import moments, standardize
 
 class PPOBuffer(dict):
     def __init__(self, 
+                config,
                 n_envs, 
                 epslen, 
                 n_minibatches, 
                 state_shape, 
                 state_dtype, 
                 action_shape, 
-                action_dtype,
-                **kwargs):
+                action_dtype):
         self.n_envs = n_envs
         self.epslen = epslen
         self.n_minibatches = n_minibatches
 
-        self.indices = np.arange(self.n_envs)
         self.minibatch_size = self.epslen // self.n_minibatches
 
-        self.advantage_type = kwargs['advantage_type']
-        self.gamma = kwargs['gamma']
-        self.gae_discount = self.gamma * kwargs['lam'] 
+        self.advantage_type = config['advantage_type']
+        self.gamma = config['gamma']
+        self.gae_discount = self.gamma * config['lam'] 
         # Environment hack
-        self.reward_scale = kwargs.get('reward_scale', 1.)
-        self.reward_clip = kwargs.get('reward_clip', -float('inf'))
+        self.reward_scale = config.get('reward_scale', 1)
+        self.reward_clip = config.get('reward_clip')
         
         assert_colorize(epslen // n_minibatches * n_minibatches == epslen, 
             f'#envs({n_envs}) is not divisible by #minibatches{n_minibatches}')
@@ -84,7 +83,8 @@ class PPOBuffer(dict):
 
         # Environment hack
         self['reward'] *= self.reward_scale
-        self['reward'] = np.maximum(self['reward'], self.reward_clip)
+        if self.reward_clip:
+            self['reward'] = np.clip(self['reward'], -self.reward_clip, self.reward_clip)
 
         if self.advantage_type == 'nae':
             traj_ret = self['traj_ret'][valid_slice]
@@ -139,7 +139,16 @@ class PPOBuffer(dict):
 
 
 if __name__ == '__main__':
+    gamma = .99
+    lam = .95
+    gae_discount = gamma * lam
+    config = dict(
+        gamma=gamma,
+        lam=lam,
+        advantage_type='gae'
+    )
     kwargs = dict(
+        config=config,
         n_envs=8, 
         epslen=1000, 
         n_minibatches=2, 
@@ -147,9 +156,6 @@ if __name__ == '__main__':
         state_dtype=np.float32, 
         action_shape=[2], 
         action_dtype=np.float32,
-        advantage_type='gae',
-        gamma=.99,
-        lam=.95
     )
     buffer = PPOBuffer(**kwargs)
     d = np.zeros((kwargs['n_envs'], 1))
@@ -169,5 +175,4 @@ if __name__ == '__main__':
             break
     last_value = np.random.rand(kwargs['n_envs'], 1)
     buffer.finish(last_value)
-    print(buffer['traj_len'][buffer.indices])
-    print(buffer['advantage'][buffer.indices, :10, 0])
+    

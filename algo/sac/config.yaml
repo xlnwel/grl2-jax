@@ -1,0 +1,66 @@
+---
+env:
+    name: BipedalWalker-v2
+    video_path: video
+    log_video: False
+    seed: 0
+    clip_reward: none
+
+model:
+    actor:
+        n_noisy: 2
+        noisy_sigma: 0.4                    # standard deviation for noisy layers
+        units_list: [512, 256, 256]
+        norm: layer
+    softq:
+        units_list: [512, 512, 256]
+        norm: layer
+
+    temperature:
+
+agent:
+    algorithm: sac
+    temperature: auto                       # auto or some float, e.g., 0.01
+    gamma: 0.99
+    polyak: .995                            # moving average rate
+    # episodic_learning: False                # whether to update network after each episode. Update after each step if False
+    # max_action_repetitions: 1
+
+    # model path: model_root_dir/model_name/model_name, two model_names ensure each model saved in an independent folder
+    # tensorboard path: log_root_dir/model_name
+    model_root_dir: saved_models            # root path for savinng models
+    log_root_dir: logs                      # root path for tensorboard logs
+    model_name: baseline
+
+    loss_type: mse                          # huber or mse
+    n_epochs: 400
+
+    # arguments for optimizer
+    optimizer: adam
+    actor_lr: 1.e-4
+    softq_lr: 3.e-4
+    temp_lr: 1.e-4
+    epsilon: 1.e-5
+
+    # arguments for PER
+    prio_alpha: 0.5
+    prio_epsilon: 1.e-4
+
+buffer:
+    type: proportional                      # proportional or uniform
+    # arguments for PER
+    beta0: 0.4
+    beta_steps: 5e4
+    to_update_priority: True
+
+    # hacking
+    normalize_reward: False
+    reward_scale: 1
+
+    # arguments for general replay
+    n_steps: 3
+    batch_size: 256
+    min_size: 5e3
+    capacity: 1e6
+
+    tb_capacity: 100    # capacity of the temporal buffer

@@ -6,7 +6,7 @@ from nn.activation.func import get_activation
 from nn.layers.dnc.dnc import DNC
 
 
-def mlp_layers(units_list, out_dim=None, norm=None, name=None, activation=None, **kwargs):
+def mlp_layers(units_list, out_dim=None, norm=None, activation=None, **kwargs):
     """Return a stack of Dense layers
     
     Args:
@@ -23,20 +23,19 @@ def mlp_layers(units_list, out_dim=None, norm=None, name=None, activation=None, 
     if norm is not None:
         ActivationLayer = get_activation(activation)
 
-    with tf.name_scope(name):
-        layer_stack = []
-        for u in units_list:
-            if NormLayer is None:
-                layer_stack.append(layers.Dense(u, activation=activation, **kwargs))
-            else:
-                layer_stack.append(layers.Dense(u, **kwargs))
-                layer_stack.append(NormLayer())
-                layer_stack.append(ActivationLayer())
-        
-        if out_dim:
-            layer_stack.append(layers.Dense(out_dim))
+    layer_stack = []
+    for u in units_list:
+        if NormLayer is None:
+            layer_stack.append(layers.Dense(u, activation=activation, **kwargs))
+        else:
+            layer_stack.append(layers.Dense(u, **kwargs))
+            layer_stack.append(NormLayer())
+            layer_stack.append(ActivationLayer())
+    
+    if out_dim:
+        layer_stack.append(layers.Dense(out_dim))
 
-        return layer_stack
+    return layer_stack
 
 
 def dnc_rnn(output_size, 

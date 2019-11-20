@@ -50,7 +50,8 @@ class EnvBase:
 
 class GymEnv(EnvBase):
     def __init__(self, config):
-        env = gym.make(config['name'])
+        self.name = config['name']
+        env = gym.make(self.name)
         env.seed(config.get('seed', 42))
         self.max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
         if self.max_episode_steps != env.spec.max_episode_steps:
@@ -78,9 +79,9 @@ class GymEnv(EnvBase):
         assert_colorize(action.shape == (self.action_dim, ), 
                         f'Expect action of shape {self.action_dim}, but got shape {action.shape}')
         next_state, reward, done, info=  self.env.step(action)
-        return (np.reshape(next_state, (1, -1)), 
-                np.reshape(reward, (1, -1)), 
-                np.reshape(done, (1, -1)), 
+        return (next_state, 
+                reward, 
+                done, 
                 info)
 
     def render(self):
@@ -100,8 +101,8 @@ class GymEnv(EnvBase):
 class GymEnvVecBase(EnvBase):
     def __init__(self, config):
         self.n_envs = n_envs = config['n_envs']
-
-        envs = [gym.make(config['name']) for i in range(n_envs)]
+        self.name = config['name']
+        envs = [gym.make(self.name) for i in range(n_envs)]
         [env.seed(config['seed'] + i) for i, env in enumerate(envs)]
         # print(config['seed'])
         self.max_episode_steps = config.get('max_episode_steps', envs[0].spec.max_episode_steps)
@@ -141,6 +142,7 @@ class GymEnvVecBase(EnvBase):
 
 class GymEnvVec(EnvBase):
     def __init__(self, EnvType, config):
+        self.name = config['name']
         self.n_workers= config['n_workers']
         self.envsperworker = config['n_envs']
         self.n_envs = self.envsperworker * self.n_workers
@@ -186,7 +188,7 @@ class GymEnvVec(EnvBase):
 
 def create_gym_env(config):
     # manually use GymEnvVecBaes for easy environments
-    EnvType = GymEnv if 'n_envs' not in config or config['n_envs'] == 1 else GymEnvVecBase
+    EnvType = GymEnv if config.get('n_envs', 1) == 1 else GymEnvVecBase
     if 'n_workers' not in config or config['n_workers'] == 1:
         return EnvType(config)
     else:
@@ -203,7 +205,6 @@ if __name__ == '__main__':
         n_envs=4,
         seed=0
     )
-    from time import sleep
 
     ray.init()
     config = default_config.copy()

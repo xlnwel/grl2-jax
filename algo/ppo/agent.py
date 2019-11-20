@@ -1,11 +1,8 @@
-from multiprocessing import Process
 import numpy as np
 import tensorflow as tf
-import ray
 
-from utility.display import pwc, assert_colorize
-from utility.timer import Timer
-from utility.tf_utils import build, configure_gpu
+from utility.display import pwc
+from utility.tf_utils import build
 from core.base import BaseAgent, agent_config
 
 
@@ -22,13 +19,19 @@ class Agent(BaseAgent):
                 n_envs):
         # optimizer
         if self.optimizer.lower() == 'adam':
-            optimizer = tf.keras.optimizers.Adam
+            self.optimizer = tf.keras.optimizers.Adam(
+                learning_rate=self.learning_rate,
+                epsilon=self.epsilon
+            )
         elif self.optimizer.lower() == 'rmsprop':
-            optimizer = tf.keras.optimizers.RMSprop
+            self.optimizer = tf.keras.optimizers.RMSprop(
+                learning_rate=self.learning_rate,
+                rho=.99,
+                epsilon=self.epsilon
+            )
         else:
             raise NotImplementedError()
-        self.optimizer = optimizer(learning_rate=self.learning_rate,
-                                    epsilon=self.epsilon)
+
         self.ckpt_models['optimizer'] = self.optimizer
 
         # Explicitly instantiate tf.function to avoid unintended retracing
@@ -87,7 +90,6 @@ class Agent(BaseAgent):
 
     @tf.function
     def _compute_gradients(self, state, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
-        # self.ac.reset_states()
         with tf.GradientTape() as tape:
             logpi, entropy, v = self.ac.train_step(state, action)
             loss_info = self._loss(logpi, 

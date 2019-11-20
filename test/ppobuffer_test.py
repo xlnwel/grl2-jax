@@ -1,6 +1,5 @@
 import random
 import numpy as np
-import ray
 
 from buffer.ppo_buffer import PPOBuffer
 from utility.utils import standardize
@@ -9,7 +8,13 @@ from utility.utils import standardize
 gamma = .99
 lam = .95
 gae_discount = gamma * lam
+config = dict(
+    gamma=gamma,
+    lam=lam,
+    advantage_type='gae'
+)
 kwargs = dict(
+    config=config,
     n_envs=8, 
     epslen=1000, 
     n_minibatches=2, 
@@ -17,13 +22,12 @@ kwargs = dict(
     state_dtype=np.float32, 
     action_shape=[2], 
     action_dtype=np.float32,
-    advantage_type='gae',
-    gamma=gamma,
-    lam=lam
 )
+
+buffer = PPOBuffer(**kwargs)
+
 class TestClass:
     def test_gae(self):
-        buffer = PPOBuffer(**kwargs)
         d = np.zeros((kwargs['n_envs'], 1))
         m = np.ones((kwargs['n_envs'], 1))
         diff = kwargs['epslen'] - kwargs['n_envs']

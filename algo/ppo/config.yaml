@@ -7,16 +7,26 @@ env:
     n_workers: 1
     n_envs: 16
     seed: 0
+
+model:
+    shared_mlp_units: [128]
+    use_dnc: False
+    lstm_units: 128
+    actor_units: [64]
+    critic_units: [64]
+    norm: none
+    activation: relu
+    kernel_initializer: he
+
 agent:
     algorithm: &algo ppo
     env_name: *env_name
 
-    n_minibatches: 10        # number of minibatches a sequence is divided into 
+    n_minibatches: 8        # number of minibatches a sequence is divided into 
     # batch size = n_workers * n_envs * seq_len / n_minibatches
     n_updates: 4            # number of updates per epoch
-    n_epochs: 10000
-    max_kl: .0              # early stop when max_kl is violated. 0 suggests no bound
-    advantage_type: gae     # nae or gae
+    n_epochs: 1000
+    max_kl: .01              # early stop when max_kl is violated. 0 suggests no bound
 
     # model path: model_root_dir/model_name/model_name, two model_names ensure each model saved in an independent folder
     # tensorboard path: log_root_dir/model_name
@@ -40,5 +50,5 @@ buffer:
     gamma: .99
     lam: .95
     # environment hack
-    reward_scale: 1.
-    reward_clip: -100
+    # reward_scale: 5.
+    # reward_clip: 50

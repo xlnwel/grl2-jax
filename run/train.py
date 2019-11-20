@@ -43,6 +43,8 @@ def parse_cmd_args():
 def import_main(algorithm):
     if algorithm == 'ppo':
         from algo.ppo.train import main
+    elif algorithm == 'sac':
+        from algo.sac.train import main
     else:
         raise NotImplementedError
 
@@ -51,6 +53,8 @@ def import_main(algorithm):
 def get_arg_file(algorithm):
     if algorithm == 'ppo':
         arg_file = 'algo/ppo/config.yaml'
+    elif algorithm == 'sac':
+        arg_file = 'algo/sac/config.yaml'
     else:
         raise NotImplementedError
 
@@ -71,6 +75,7 @@ if __name__ == '__main__':
             # load configuration
             config = load_config(arg_file)
             env_config = config['env']
+            model_config = config['model']
             agent_config = config['agent']
             buffer_config = config['buffer'] if 'buffer' in config else {}
             # load model and log path
@@ -90,7 +95,7 @@ if __name__ == '__main__':
             agent_config['log_root_dir'] = config['log_root_dir']
             agent_config['model_name'] = config['model_name']
 
-            main(env_config, agent_config, buffer_config, render=render)
+            main(env_config, model_config, agent_config, buffer_config, render=render)
         else:
             prefix = cmd_args.prefix
             if cmd_args.grid_search:
@@ -100,7 +105,9 @@ if __name__ == '__main__':
 
                 # Grid search happens here
                 if algo == 'ppo':
-                    processes += gs(kl_coef=[.05, .1], reward_scale=[1., 5.])
+                    processes += gs()
+                elif algo == 'sac':
+                    processes += gs()
                 else:
                     raise NotImplementedError()
             else:
@@ -108,6 +115,7 @@ if __name__ == '__main__':
                     prefix = 'baseline'
                 config = load_config(arg_file)
                 env_config = config['env']
+                model_config = config['model']
                 agent_config = config['agent']
                 buffer_config = config['buffer'] if 'buffer' in config else {}
                 dir_fn = lambda filename: f'logs/{prefix}-{algo}-{env_config["name"]}/{filename}'
@@ -116,10 +124,14 @@ if __name__ == '__main__':
                 env_config['video_path'] = dir_fn(env_config['video_path'])
                 if len(algorithm) > 1:
                     p = Process(target=main,
-                                args=(env_config, agent_config, buffer_config, render))
+                                args=(env_config, 
+                                    model_config,
+                                    agent_config, 
+                                    buffer_config, 
+                                    render))
                     p.start()
                     time.sleep(1)
                     processes.append(p)
                 else:
-                    main(env_config, agent_config, buffer_config, render)
+                    main(env_config, model_config, agent_config, buffer_config, render)
     [p.join() for p in processes]

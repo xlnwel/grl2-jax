@@ -15,14 +15,14 @@ from algo.ppo.eval import evaluate
 
 def train(agent, runner):
     log_period = 10
-    profiler_outdir = f'{agent.log_root_dir}/{agent.model_name}'
-    start_epoch = agent.global_steps.numpy()
+    start_epoch = agent.global_steps.numpy()+1
     for epoch in range(start_epoch, agent.n_epochs+1):
         agent.set_summary_step(epoch)
         with Timer(f'{agent.model_name} sampling', log_period):
             buffer, scores, epslens = runner.sample_trajectories(model=agent.ac)
+            score = np.mean(scores)
             agent.store(
-                score=np.mean(scores),
+                score=score,
                 score_std=np.std(scores),
                 epslen=np.mean(epslens),
                 epslen_std=np.std(epslens)
@@ -53,7 +53,7 @@ def train(agent, runner):
             )
             agent.log_stats(stats)
 
-def main(env_config, agent_config, buffer_config, render=False):
+def main(env_config, model_config, agent_config, buffer_config, render=False):
     set_global_seed()
     configure_gpu()
 
@@ -71,28 +71,29 @@ def main(env_config, agent_config, buffer_config, render=False):
     
     n_minibatches = agent_config['n_minibatches']
     # construct model
-    ac = PPOAC(env.state_shape, 
+    ac = PPOAC(model_config, 
+                env.state_shape, 
                 env.action_dim, 
                 env.is_action_discrete,
                 env.n_envs,
                 'ac')
 
     # construct buffer
-    buffer = PPOBuffer(env.n_envs,
-                       env.max_episode_steps,
-                       n_minibatches,
-                       env.state_shape,
-                       env.state_dtype,
-                       env.action_shape,
-                       env.action_dtype,
-                       **buffer_config)
+    buffer = PPOBuffer(buffer_config, 
+                        env.n_envs,
+                        env.max_episode_steps,
+                        n_minibatches,
+                        env.state_shape,
+                        env.state_dtype,
+                        env.action_shape,
+                        env.action_dtype)
 
     # construct runner for trajectory collection
     runner = Runner(env, buffer)
 
     # construct agent for model update
-    agent = Agent('ppo', 
-                agent_config, 
+    agent = Agent(name='ppo', 
+                config=agent_config, 
                 models=[ac],
                 state_shape=env.state_shape,
                 state_dtype=env.state_dtype,

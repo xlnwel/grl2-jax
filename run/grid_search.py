@@ -11,6 +11,7 @@ class GridSearch:
     def __init__(self, arg_file, train_func, render=False, n_trials=1, dir_prefix='', separate_process=False):
         config = load_config(arg_file)
         self.env_config = config['env']
+        self.model_config = config['model']
         self.agent_config = config['agent']
         self.buffer_config = config['buffer'] if 'buffer' in config else {}
         self.train_func = train_func
@@ -25,7 +26,7 @@ class GridSearch:
         self._dir_setup()
         if kwargs == {} and self.n_trials == 1 and not self.separate_process:
             # if no argument is passed in, run the default setting
-            self.train_func(self.env_config, self.agent_config, self.buffer_config, self.render)        
+            self.train_func(self.env_config, self.model_config, self.agent_config, self.buffer_config, self.render)        
         else:
             # do grid search
             self.agent_config['model_name'] = 'GS'
@@ -35,10 +36,15 @@ class GridSearch:
     def _dir_setup(self):
         # add date to root directory
         now = datetime.now()
-        dir_prefix = f'{self.dir_prefix}-' if self.dir_prefix else self.dir_prefix
+        ans = input('Do you want to add timestamp to directory name?(y/n)\n')
+        if ans.lower() == 'y':
+            timestamp = f'{now.month:02d}{now.day:02d}-' \
+                        f'{now.hour:02d}{now.minute:02d}-'
+        else:
+            timestamp = ''
+        dir_prefix = self.dir_prefix and f'{self.dir_prefix}-'
         dir_fn = lambda filename: (f'logs/'
-                                    f'{now.month:02d}{now.day:02d}-'
-                                    f'{now.hour:02d}{now.minute:02d}-'
+                                    f'{timestamp}'
                                     f'{dir_prefix}'
                                     f'{self.agent_config["algorithm"]}-'
                                     f'{self.env_config["name"]}/'
@@ -58,14 +64,18 @@ class GridSearch:
                 # otherwise config will be reset if sub-process starts after
                 # after the arguments get changed
                 env_config = deepcopy(self.env_config)
+                model_config = deepcopy(self.model_config)
                 agent_config = deepcopy(self.agent_config)
                 buffer_config = deepcopy(self.buffer_config)
                 if self.n_trials > 1:
                     agent_config['model_name'] += f'/trial{i}'
                 env_config['seed'] = 10 * i
                 p = Process(target=self.train_func,
-                            args=(env_config, agent_config, 
-                                  buffer_config, self.render))
+                            args=(env_config, 
+                                model_config,
+                                agent_config, 
+                                buffer_config, 
+                                self.render))
                 p.start()
                 time.sleep(1)   # ensure sub-processs starts in order
                 self.processes.append(p)
@@ -75,7 +85,7 @@ class GridSearch:
             key, value = self._popitem(kwargs_copy)
 
             valid_config = None
-            for config in [self.env_config, self.agent_config, self.buffer_config]:
+            for config in [self.env_config, self.model_config, self.agent_config, self.buffer_config]:
                 if key in config:
                     assert_colorize(valid_config is None, f'Conflict: found {key} in both {valid_config} and {config}!')
                     valid_config = config
