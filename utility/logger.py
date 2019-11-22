@@ -37,7 +37,7 @@ class Logger:
                 hyperparameter configuration with multiple random seeds, you
                 should give them all the same ``exp_name``.)
         """
-        log_file = log_file if log_file.endswith('log.txt') else log_file + '-log.txt'
+        log_file = log_file if log_file.endswith('log.txt') else log_file + '/log.txt'
         self.log_dir = log_dir or f"/tmp/experiments/{time.time()}"
         path = osp.join(self.log_dir, log_file)
         if osp.exists(path):

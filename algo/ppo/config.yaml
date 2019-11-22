@@ -16,7 +16,7 @@ model:
     critic_units: [64]
     norm: none
     activation: relu
-    kernel_initializer: he
+    kernel_initializer: he_uniform
 
 agent:
     algorithm: &algo ppo
@@ -28,7 +28,7 @@ agent:
     n_epochs: 1000
     max_kl: .01              # early stop when max_kl is violated. 0 suggests no bound
 
-    # model path: model_root_dir/model_name/model_name, two model_names ensure each model saved in an independent folder
+    # model path: model_root_dir/model_name
     # tensorboard path: log_root_dir/model_name
     model_root_dir: saved_models            # root path for savinng models
     log_root_dir: logs      # root path for tensorboard logs

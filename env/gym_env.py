@@ -73,12 +73,14 @@ class GymEnv(EnvBase):
         action = self.env.action_space.sample()
         return np.reshape(action, (1, -1))
         
-    def step(self, action):
+    def step(self, action, auto_reset=False):
         if action.shape != self.action_shape:
             action = np.reshape(action, self.action_shape)
         assert_colorize(action.shape == (self.action_dim, ), 
                         f'Expect action of shape {self.action_dim}, but got shape {action.shape}')
-        next_state, reward, done, info=  self.env.step(action)
+        next_state, reward, done, info = self.env.step(action)
+        if auto_reset and done:
+            next_state = self.env.reset()
         return (next_state, 
                 reward, 
                 done, 

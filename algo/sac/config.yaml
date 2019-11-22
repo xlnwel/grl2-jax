@@ -8,12 +8,10 @@ env:
 
 model:
     actor:
-        n_noisy: 2
-        noisy_sigma: 0.4                    # standard deviation for noisy layers
-        units_list: [512, 256, 256]
+        units_list: [512, 256]
         norm: layer
     softq:
-        units_list: [512, 512, 256]
+        units_list: [512, 256]
         norm: layer
 
     temperature:
@@ -23,10 +21,10 @@ agent:
     temperature: auto                       # auto or some float, e.g., 0.01
     gamma: 0.99
     polyak: .995                            # moving average rate
-    # episodic_learning: False                # whether to update network after each episode. Update after each step if False
+    # episodic_learning: False              # whether to update network after each episode. Update after each step if False
     # max_action_repetitions: 1
 
-    # model path: model_root_dir/model_name/model_name, two model_names ensure each model saved in an independent folder
+    # model path: model_root_dir/model_name
     # tensorboard path: log_root_dir/model_name
     model_root_dir: saved_models            # root path for savinng models
     log_root_dir: logs                      # root path for tensorboard logs

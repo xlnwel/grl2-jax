@@ -6,6 +6,10 @@ class Runner():
     def __init__(self, env):
         self.env = env
 
+    @property
+    def env_name(self):
+        return self.env.name
+        
     def sample_trajectory(self, actor, fn=None):
         """ Sample trajectories
         Args:

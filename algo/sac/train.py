@@ -9,10 +9,10 @@ from utility.timer import Timer
 from env.gym_env import create_gym_env
 from buffer.replay.proportional_replay import ProportionalPrioritizedReplay
 from algo.sac.runner import Runner
-from algo.sac.data_pipline import Dataset
-from algo.sac import nn
 from algo.sac.agent import Agent
-from algo.ppo.eval import evaluate
+from algo.sac.eval import evaluate
+from algo.sac.data_pipline import Dataset
+from algo.sac.nn import create_model
 
 
 def train(agent, runner, buffer):
@@ -21,12 +21,12 @@ def train(agent, runner, buffer):
         agent.train_log()
 
     eval_env = create_gym_env(dict(
-        name=runner.env.name, 
+        name=runner.env_name, 
         video_path='video',
         log_video=False,
         n_workers=1,
         n_envs=100,
-        seed=0
+        seed=np.random.randint(100, 10000)
     ))
     log_period = 10
     start_epoch = agent.global_steps.numpy() + 1
@@ -64,35 +64,27 @@ def train(agent, runner, buffer):
             )
             agent.log_stats(stats)
 
-def main(env_config, model_config, agent_config, buffer_config, render=False):
+def main(env_config, model_config, agent_config, buffer_config, restore=False, render=False):
     set_global_seed()
     configure_gpu()
 
     env = create_gym_env(env_config)
-    state_shape = env.state_shape
-    action_dim = env.action_dim
-    is_action_discrete = env.is_action_discrete
 
     # construct runner
     runner = Runner(env)
 
     # construct buffer
     buffer = ProportionalPrioritizedReplay(
-        buffer_config, state_shape, action_dim, 
+        buffer_config, env.state_shape, env.action_dim, 
         agent_config['gamma'])
-    dataset = Dataset(buffer, state_shape, action_dim)
-    
+    dataset = Dataset(buffer, env.state_shape, env.action_dim)
+
     # construct models
-    actor_config = model_config['actor']
-    softq_config = model_config['softq']
-    temperature_config = model_config['temperature']
-    actor = nn.SoftPolicy(actor_config, state_shape, action_dim, is_action_discrete, 'actor')
-    softq1 = nn.SoftQ(softq_config, state_shape, action_dim, 'softq1')
-    softq2 = nn.SoftQ(softq_config, state_shape, action_dim, 'softq2')
-    target_softq1 = nn.SoftQ(softq_config, state_shape, action_dim, 'target_softq1')
-    target_softq2 = nn.SoftQ(softq_config, state_shape, action_dim, 'target_softq2')
-    temperature = nn.Temperature(temperature_config, state_shape, action_dim, 'temperature')
-    models = [actor, softq1, softq2, target_softq1, target_softq2, temperature]
+    models = create_model(
+        model_config, 
+        state_shape=env.state_shape, 
+        action_dim=env.action_dim, 
+        is_action_discrete=env.is_action_discrete)
 
     # construct agent
     agent = Agent(name='sac', 
@@ -102,9 +94,17 @@ def main(env_config, model_config, agent_config, buffer_config, render=False):
                 state_shape=env.state_shape,
                 state_dtype=env.state_dtype,
                 action_dim=env.action_dim,
-                action_dtype=env.action_dtype,)
+                action_dtype=env.action_dtype)
+    
+    agent.save_config(dict(
+        env=env_config,
+        model=model_config,
+        agent=agent_config,
+        buffer=buffer_config
+    ))
 
-    agent.restore()
+    if restore:
+        agent.restore()
 
     runner.random_sampling(buffer)
     train(agent, runner, buffer)

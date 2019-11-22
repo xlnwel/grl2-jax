@@ -7,10 +7,10 @@ from utility.signal import sigint_shutdown_ray
 from utility.timer import Timer
 from env.gym_env import create_gym_env
 from buffer.ppo_buffer import PPOBuffer
-from algo.ppo.nn import PPOAC
 from algo.ppo.agent import Agent
 from algo.ppo.runner import Runner
 from algo.ppo.eval import evaluate
+from algo.ppo.nn import create_model
 
 
 def train(agent, runner):
@@ -53,7 +53,7 @@ def train(agent, runner):
             )
             agent.log_stats(stats)
 
-def main(env_config, model_config, agent_config, buffer_config, render=False):
+def main(env_config, model_config, agent_config, buffer_config, restore=False, render=False):
     set_global_seed()
     configure_gpu()
 
@@ -70,14 +70,6 @@ def main(env_config, model_config, agent_config, buffer_config, render=False):
     n_envs = env.n_envs
     
     n_minibatches = agent_config['n_minibatches']
-    # construct model
-    ac = PPOAC(model_config, 
-                env.state_shape, 
-                env.action_dim, 
-                env.is_action_discrete,
-                env.n_envs,
-                'ac')
-
     # construct buffer
     buffer = PPOBuffer(buffer_config, 
                         env.n_envs,
@@ -91,17 +83,35 @@ def main(env_config, model_config, agent_config, buffer_config, render=False):
     # construct runner for trajectory collection
     runner = Runner(env, buffer)
 
+    # construct model
+    models = create_model(
+        model_config, 
+        state_shape=state_shape, 
+        action_dim=action_dim, 
+        is_action_discrete=is_action_discrete,
+        n_envs=n_envs
+    )
+    
     # construct agent for model update
     agent = Agent(name='ppo', 
                 config=agent_config, 
-                models=[ac],
+                models=models, 
                 state_shape=env.state_shape,
                 state_dtype=env.state_dtype,
                 action_dim=env.action_dim,
                 action_dtype=env.action_dtype,
                 n_envs=n_envs)
 
-    # agent.restore()
+    agent.save_config(dict(
+        env=env_config,
+        model=model_config,
+        agent=agent_config,
+        buffer=buffer_config
+    ))
+
+    if restore:
+        agent.restore()
+
     train(agent, runner)
 
     if use_ray:

@@ -31,6 +31,9 @@ class BaseAgent(ABC):
         pwc(f'Model saved at {path} {message}', color='cyan')
 
     """ Logging """
+    def save_config(self, config):
+        self.logger.save_config(config)
+
     def log(self, step, timing):
         stats = dict(
             model_name=f'{self.model_name}',
@@ -77,8 +80,8 @@ class BaseAgent(ABC):
 
     """ TF configurations """                
     def _setup_logger(self):
-        # logger save stats in '{self.log_root_dir}/{self.model_name}-log.txt'
-        self.logger = Logger(self.log_root_dir, self.model_name)
+        # logger save stats in f'{self.log_root_dir}/{self.model_name}/log.txt'
+        self.logger = Logger(f'{self.log_root_dir}/{self.model_name}')
 
     def _setup_checkpoint(self, ckpt_models):
         # checkpoint & manager
@@ -89,14 +92,15 @@ class BaseAgent(ABC):
     
     def _setup_tensorboard(self):
         # writer for tensorboard summary
+        # stats are saved in directory f'{self.log_root_dir}/{self.model_name}'
         self.writer = tf.summary.create_file_writer(f'{self.log_root_dir}/{self.model_name}')
         self.writer.set_as_default()
         
     def _display_var_info(self):
         tvars = []
         for name, model in self.ckpt_models.items():
-            if 'opt' in name:
-                pass # ignore variables in the optimizer
+            if 'opt' in name or 'target' in name:
+                pass # ignore variables in the optimizer and target networks
             else:
                 tvars += model.trainable_variables
             
@@ -114,8 +118,9 @@ def agent_config(init_fn):
         """
         Args:
             name: Agent's name
-            config: configuration, should be read from config.yaml
-            models: a list of models that encapsulate network
+            config: configuration for agent, 
+                should be read from config.yaml
+            models: a dict of models
             kwargs: optional arguments for each specific agent
         """
         # preprocessing
@@ -124,15 +129,12 @@ def agent_config(init_fn):
         [setattr(self, k, v) for k, v in config.items()]
 
         self._setup_logger()
-        self.logger.save_config(config)
         self._setup_tensorboard()
 
         # track models and optimizers for Checkpoint
-        self.ckpt_models = {}
-        if models:
-            for m in models:
-                setattr(self, m.name, m)
-                self.ckpt_models[m.name] = m
+        self.ckpt_models = models
+        for name, model in models.items():
+            setattr(self, name, model)
 
         # initialization
         init_fn(self, name=name, config=config, models=models, **kwargs)

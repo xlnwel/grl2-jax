@@ -15,9 +15,12 @@ class Agent(BaseAgent):
                 models,
                 dataset,
                 state_shape,
-                state_dtype,
+                state_dtype, 
                 action_dim,
                 action_dtype):
+        # dataset for optimizing input pipline
+        self.dataset = dataset
+        
         # optimizer
         if self.optimizer.lower() == 'adam':
             optimizer = tf.keras.optimizers.Adam
@@ -49,16 +52,14 @@ class Agent(BaseAgent):
         ]
         self.train_step = build(self._train_step, TensorSpecs)
 
-        self.ds = dataset
-
     def train_log(self):
-        data = self.ds.get_data()
+        data = self.dataset.get_data()
         saved_indices = data['saved_indices']
         del data['saved_indices']
         # tf.summary.trace_on()
         temp_loss, actor_loss, q1_loss, q2_loss, softq_loss, priority = self.train_step(**data)
         # tf.summary.trace_export('train')
-        self.ds.update_priorities(priority.numpy(), saved_indices.numpy())
+        self.dataset.update_priorities(priority.numpy(), saved_indices.numpy())
         self.store(
             temp_loss=temp_loss.numpy(), 
             actor_loss=actor_loss.numpy(),

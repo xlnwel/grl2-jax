@@ -35,7 +35,7 @@ class PPOAC(tf.Module):
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
-        initializer_name = config.get('kernel_initializer', 'he')
+        initializer_name = config.get('kernel_initializer', 'he_uniform')
         kernel_initializer = get_initializer(initializer_name)
 
         self.batch_size = batch_size
@@ -85,12 +85,12 @@ class PPOAC(tf.Module):
             self.rnn(inputs=fake_inputs, initial_state=initial_state)
             self.rnn.reset_states()
 
-        TensorSpecs = [(state_shape, tf.float32, 'state')]
-        self.step = build(self._step, TensorSpecs, sequential=False, batch_size=batch_size)
+        # TensorSpecs = [(state_shape, tf.float32, 'state')]
+        # self.step = build(self._step, TensorSpecs, sequential=False, batch_size=batch_size)
 
     @tf.function
     @tf.Module.with_name_scope
-    def _step(self, x):
+    def step(self, x):
         """ Run PPOAC in the real-time mode
         
         Args:
@@ -189,6 +189,16 @@ class PPOAC(tf.Module):
         self.rnn.reset_states(states)
 
 
+def create_model(model_config, state_shape, action_dim, is_action_discrete, n_envs):
+    ac = PPOAC(model_config, 
+                state_shape, 
+                action_dim, 
+                is_action_discrete,
+                n_envs,
+                'ac')
+
+    return dict(ac=ac)
+
 if __name__ == '__main__':
     config = dict(
         shared_mlp_units=[4],
@@ -206,8 +216,6 @@ if __name__ == '__main__':
     is_action_discrete = False
     seq_len = 2
     ac = PPOAC(config, state_shape, action_dim, is_action_discrete, batch_size, 'ac')
-    # to print proper summary, comment out @tf.function related to call
-    # ac.summary()
 
     from utility.display import display_var_info
 

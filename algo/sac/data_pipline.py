@@ -16,6 +16,10 @@ class Dataset:
     def type(self):
         return self.buffer.type
 
+    @property
+    def good_to_learn(self):
+        return self.buffer.good_to_learn
+        
     def get_data(self):
         return next(self.iterator)
 

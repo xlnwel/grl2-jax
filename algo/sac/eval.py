@@ -7,13 +7,13 @@ from utility.utils import set_global_seed
 from utility.tf_utils import configure_gpu
 from utility.signal import sigint_shutdown_ray
 from env.gym_env import create_gym_env
-from algo.ppo.nn import create_model
+from algo.sac.nn import SoftPolicy
 
 
 def evaluate(env, model):
     pwc('Evaluation starts', color='cyan')
-    i = 0
 
+    i = 0
     scores = []
     epslens = []
     while i < 100:
@@ -37,15 +37,13 @@ def main(env_config, model_config, agent_config, render=False):
 
     env = create_gym_env(env_config)
 
-    ac = create_model(
-        model_config, 
-        state_shape=env.state_shape, 
-        action_dim=env.action_dim, 
-        is_action_discrete=env.is_action_discrete,
-        n_envs=env.n_envs
-    )['ac']
+    actor = SoftPolicy(model_config['actor'],
+                        env.state_shape,
+                        env.action_dim,
+                        env.is_action_discrete,
+                        'actor')
 
-    ckpt = tf.train.Checkpoint(ac=ac)
+    ckpt = tf.train.Checkpoint(actor=actor)
     ckpt_path = f'{agent_config["model_root_dir"]}/{agent_config["model_name"]}'
     ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, 5)
 
@@ -53,8 +51,10 @@ def main(env_config, model_config, agent_config, render=False):
     ckpt.restore(path).expect_partial()
     if path:
         pwc(f'Params are restored from "{path}".', color='cyan')
-        scores, epslens = evaluate(env, ac)
-        pwc(f'After running 100 episodes',
+        scores, epslens = evaluate(env, actor)
+        pwc(f'After running 100 episodes:',
             f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
     else:
         pwc(f'No model is found at "{ckpt_path}"!', color='magenta')
+
+    ray.shutdown()

@@ -95,10 +95,10 @@ if __name__ == '__main__':
             agent_config['log_root_dir'] = config['log_root_dir']
             agent_config['model_name'] = config['model_name']
 
-            main(env_config, model_config, agent_config, buffer_config, render=render)
+            main(env_config, model_config, agent_config, buffer_config, restore=True, render=render)
         else:
             prefix = cmd_args.prefix
-            if cmd_args.grid_search:
+            if cmd_args.grid_search or cmd_args.trials > 1:
                 gs = GridSearch(arg_file, main, render=render, 
                                 n_trials=cmd_args.trials, dir_prefix=prefix, 
                                 separate_process=len(algorithm) > 1)

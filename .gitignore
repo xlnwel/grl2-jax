@@ -5,7 +5,6 @@ __pycache__
 **logs**
 vs.code-workspace
 algo/seed
-algo/sac
 algo/exploration
 layers
 conventions.md

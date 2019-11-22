@@ -19,13 +19,13 @@ class SoftPolicy(tf.Module):
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
-        initializer_name = config.get('kernel_initializer', 'he')
+        initializer_name = config.get('kernel_initializer', 'he_uniform')
         kernel_initializer = get_initializer(initializer_name)
         
         self.LOG_STD_MIN = -20
         self.LOG_STD_MAX = 2
         
-        """ Network definition"""
+        """ Network definition """
         self.intra_layers = mlp_layers(units_list, 
                                         norm=norm, 
                                         activation=activation, 
@@ -44,7 +44,7 @@ class SoftPolicy(tf.Module):
     @tf.function
     @tf.Module.with_name_scope
     def _step(self, x):
-        # pwc(f'{self.name} "step" is retracing: x={x}', color='cyan')
+        pwc(f'{self.name} "step" is retracing: x={x}', color='cyan')
         for l in self.intra_layers:
             x = l(x)
 
@@ -63,7 +63,7 @@ class SoftPolicy(tf.Module):
     @tf.function
     @tf.Module.with_name_scope
     def det_action(self, x):
-        # pwc(f'{self.name} "det_action" is retracing: x={x}', color='cyan')
+        pwc(f'{self.name} "det_action" is retracing: x={x}', color='cyan')
         with tf.name_scope('det_action'):
             for l in self.intra_layers:
                 x = l(x)
@@ -74,7 +74,7 @@ class SoftPolicy(tf.Module):
 
     @tf.Module.with_name_scope
     def train_step(self, x):
-        # pwc(f'{self.name} "train_step" is retracing: x={x}', color='cyan')
+        pwc(f'{self.name} "train_step" is retracing: x={x}', color='cyan')
         for l in self.intra_layers:
             x = l(x)
 
@@ -102,7 +102,7 @@ class SoftQ(tf.Module):
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
-        initializer_name = config.get('kernel_initializer', 'he')
+        initializer_name = config.get('kernel_initializer', 'he_uniform')
         kernel_initializer = get_initializer(initializer_name)
 
         """ Network definition """
@@ -134,7 +134,6 @@ class SoftQ(tf.Module):
         return x
 
     
-
 class Temperature(tf.Module):
     def __init__(self, config, state_shape, action_dim, name, **kwargs):
         super().__init__(name=name)
@@ -162,3 +161,23 @@ class Temperature(tf.Module):
             temp = tf.exp(log_temp)
         
         return log_temp, temp
+
+def create_model(model_config, state_shape, action_dim, is_action_discrete):
+    actor_config = model_config['actor']
+    softq_config = model_config['softq']
+    temperature_config = model_config['temperature']
+    actor = SoftPolicy(actor_config, state_shape, action_dim, is_action_discrete, 'actor')
+    softq1 = SoftQ(softq_config, state_shape, action_dim, 'softq1')
+    softq2 = SoftQ(softq_config, state_shape, action_dim, 'softq2')
+    target_softq1 = SoftQ(softq_config, state_shape, action_dim, 'target_softq1')
+    target_softq2 = SoftQ(softq_config, state_shape, action_dim, 'target_softq2')
+    temperature = Temperature(temperature_config, state_shape, action_dim, 'temperature')
+    
+    return dict(
+        actor=actor,
+        softq1=softq1,
+        softq2=softq2,
+        target_softq1=target_softq1,
+        target_softq2=target_softq2,
+        temperature=temperature,
+    )
