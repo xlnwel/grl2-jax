@@ -3,11 +3,12 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 from utility.display import pwc
-from utility.tf_utils import build
+from core.tf_config import build
 from utility.rl_utils import clip_but_pass_gradient, logpi_correction
 from utility.tf_distributions import DiagGaussian, Categorical
 from nn.layers.func import mlp_layers, dnc_rnn
 from nn.initializers import get_initializer
+from nn.cnn import get_cnn
 
 
 class PPOAC(tf.Module):
@@ -21,7 +22,8 @@ class PPOAC(tf.Module):
         super().__init__(name=name)
         
         # network parameters
-        shared_mlp_units = config['shared_mlp_units']
+        cnn_name = config.get('cnn')
+        shared_mlp_units = config.get('shared_mlp_units')
         use_dnc = config['use_dnc']
         lstm_units = config['lstm_units']
         dnc_config = dict(
@@ -41,11 +43,16 @@ class PPOAC(tf.Module):
         self.batch_size = batch_size
 
         """ Network definition """
+        if cnn_name:
+            self.cnn = get_cnn('ftw')
         # shared mlp layers
-        self.shared_mlp = mlp_layers(shared_mlp_units, 
-                                    norm=norm, 
-                                    activation=activation, 
-                                    kernel_initializer=kernel_initializer())
+        if shared_mlp_units:
+            self.shared_mlp = mlp_layers(
+                shared_mlp_units, 
+                norm=norm, 
+                activation=activation, 
+                kernel_initializer=kernel_initializer()
+            )
 
         # RNN layer
         if use_dnc:
@@ -172,8 +179,11 @@ class PPOAC(tf.Module):
     def _common_layers(self, x):
         pwc(f'{self.name} "common_layer" is retracing', color='cyan')
         
-        for l in self.shared_mlp:
-            x = l(x)
+        if hasattr(self, 'cnn'):
+            x = self.cnn(x)
+        if hasattr(self, 'shared_mlp'):
+            for l in self.shared_mlp:
+                x = l(x)
 
         x = self.rnn(x)
         
@@ -188,14 +198,18 @@ class PPOAC(tf.Module):
     def reset_states(self, states=None):
         self.rnn.reset_states(states)
 
+    def get_initial_state(self, inputs):
+        return self.rnn.get_initial_state(inputs)
+
 
 def create_model(model_config, state_shape, action_dim, is_action_discrete, n_envs):
-    ac = PPOAC(model_config, 
-                state_shape, 
-                action_dim, 
-                is_action_discrete,
-                n_envs,
-                'ac')
+    ac = PPOAC(
+        model_config, 
+        state_shape, 
+        action_dim, 
+        is_action_discrete,
+        n_envs,
+        'ac')
 
     return dict(ac=ac)
 
@@ -208,7 +222,7 @@ if __name__ == '__main__':
         critic_units=[2],
         norm='none',
         activation='relu',
-        kernel_initializer='he'
+        kernel_initializer='he_uniform'
     )
     state_shape = [5]
     action_dim = 1
@@ -228,6 +242,7 @@ if __name__ == '__main__':
     # # ac.reset_states()
     # test rnn
     x = np.random.rand(batch_size, seq_len, *state_shape)
+
     pwc(ac.rnn.states)
     for i in range(seq_len):
         y = ac.step(tf.convert_to_tensor(x[:, i], tf.float32))

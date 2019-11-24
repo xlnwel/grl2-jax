@@ -3,15 +3,45 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 from utility.display import pwc
-from utility.tf_utils import build
+from core.tf_config import build
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import DiagGaussian, Categorical
 from nn.layers.func import mlp_layers
 from nn.initializers import get_initializer
 
 
+class SAC(tf.Module):
+    """ This class groups all models used by SAC together
+    so that one can easily manipulate variables """
+    def __init__(self, config, state_shape, action_dim, is_action_discrete, name='sac'):
+        super().__init__(name=name)
+
+        self.models = create_model(config, state_shape, action_dim, is_action_discrete)
+
+    def get_weights(self):
+        return [v.numpy() for v in self.variables]
+
+    def set_weights(self, weights):
+        [v.assign(w) for v, w in zip(self.variables, weights)]
+
+    def __len__(self):
+        return len(self.models)
+    
+    def __iter__(self):
+        return self.models.__iter__()
+
+    def keys(self):
+        return self.keys()
+
+    def values(self):
+        return self.models.values()
+    
+    def items(self):
+        return self.models.items()
+
+
 class SoftPolicy(tf.Module):
-    def __init__(self, config, state_shape, action_dim, is_action_discrete, name, **kwargs):
+    def __init__(self, config, state_shape, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
 
         # network parameters
@@ -29,8 +59,7 @@ class SoftPolicy(tf.Module):
         self.intra_layers = mlp_layers(units_list, 
                                         norm=norm, 
                                         activation=activation, 
-                                        kernel_initializer=kernel_initializer(),
-                                        **kwargs)
+                                        kernel_initializer=kernel_initializer())
         self.mu = layers.Dense(action_dim, name='mu')
         self.logstd = layers.Dense(action_dim, name='logstd')
 
@@ -44,7 +73,7 @@ class SoftPolicy(tf.Module):
     @tf.function
     @tf.Module.with_name_scope
     def _step(self, x):
-        pwc(f'{self.name} "step" is retracing: x={x}', color='cyan')
+        # pwc(f'{self.name} "step" is retracing: x={x}', color='cyan')
         for l in self.intra_layers:
             x = l(x)
 
@@ -63,7 +92,7 @@ class SoftPolicy(tf.Module):
     @tf.function
     @tf.Module.with_name_scope
     def det_action(self, x):
-        pwc(f'{self.name} "det_action" is retracing: x={x}', color='cyan')
+        # pwc(f'{self.name} "det_action" is retracing: x={x}', color='cyan')
         with tf.name_scope('det_action'):
             for l in self.intra_layers:
                 x = l(x)
@@ -74,7 +103,7 @@ class SoftPolicy(tf.Module):
 
     @tf.Module.with_name_scope
     def train_step(self, x):
-        pwc(f'{self.name} "train_step" is retracing: x={x}', color='cyan')
+        # pwc(f'{self.name} "train_step" is retracing: x={x}', color='cyan')
         for l in self.intra_layers:
             x = l(x)
 
@@ -92,9 +121,15 @@ class SoftPolicy(tf.Module):
 
         return action, logpi
 
+    def get_weights(self):
+        return [v.numpy() for v in self.variables]
+
+    def set_weights(self, weights):
+        [v.assign(w) for v, w in zip(self.variables, weights)]
+
 
 class SoftQ(tf.Module):
-    def __init__(self, config, state_shape, action_dim, name, **kwargs):
+    def __init__(self, config, state_shape, action_dim, name='softq'):
         super().__init__(name=name)
 
         # parameters
@@ -133,9 +168,15 @@ class SoftQ(tf.Module):
             
         return x
 
-    
+    def get_weights(self):
+        return [v.numpy() for v in self.variables]
+
+    def set_weights(self, weights):
+        [v.assign(w) for v, w in zip(self.variables, weights)]
+
+
 class Temperature(tf.Module):
-    def __init__(self, config, state_shape, action_dim, name, **kwargs):
+    def __init__(self, config, state_shape, action_dim, name='temperature'):
         super().__init__(name=name)
 
         """ Network definition """
@@ -162,16 +203,23 @@ class Temperature(tf.Module):
         
         return log_temp, temp
 
+    def get_weights(self):
+        return [v.numpy() for v in self.variables]
+
+    def set_weights(self, weights):
+        [v.assign(w) for v, w in zip(self.variables, weights)]
+
+
 def create_model(model_config, state_shape, action_dim, is_action_discrete):
     actor_config = model_config['actor']
     softq_config = model_config['softq']
     temperature_config = model_config['temperature']
-    actor = SoftPolicy(actor_config, state_shape, action_dim, is_action_discrete, 'actor')
+    actor = SoftPolicy(actor_config, state_shape, action_dim, is_action_discrete)
     softq1 = SoftQ(softq_config, state_shape, action_dim, 'softq1')
     softq2 = SoftQ(softq_config, state_shape, action_dim, 'softq2')
     target_softq1 = SoftQ(softq_config, state_shape, action_dim, 'target_softq1')
     target_softq2 = SoftQ(softq_config, state_shape, action_dim, 'target_softq2')
-    temperature = Temperature(temperature_config, state_shape, action_dim, 'temperature')
+    temperature = Temperature(temperature_config, state_shape, action_dim)
     
     return dict(
         actor=actor,
@@ -181,3 +229,23 @@ def create_model(model_config, state_shape, action_dim, is_action_discrete):
         target_softq2=target_softq2,
         temperature=temperature,
     )
+    
+if __name__ == '__main__':
+    from utility.yaml_op import load_config
+    config = load_config('algo/sac/config.yaml')
+    config = config['model']
+    state_shape = (2,)
+    action_dim = 4
+    is_action_discrete = False
+
+    sac = SAC(config, state_shape, action_dim, is_action_discrete)
+
+    assert len(sac.get_weights()) == len(sac.trainable_variables)
+    target_vars = np.array([v.numpy() for v in sac.variables])
+
+    for var, tvar in zip(sac.get_weights(), target_vars):
+        np.testing.assert_allclose(var, tvar)
+
+    for k, v in sac.items():
+        print('model name:', k, v.name)
+

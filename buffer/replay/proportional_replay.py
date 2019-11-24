@@ -8,8 +8,8 @@ from buffer.replay.prioritized_replay import PrioritizedReplay
 
 class ProportionalPrioritizedReplay(PrioritizedReplay):
     """ Interface """
-    def __init__(self, config, state_shape, action_dim, gamma):
-        super().__init__(config, state_shape, action_dim, gamma)
+    def __init__(self, config, state_shape, state_dtype, action_dim, action_dtype, gamma):
+        super().__init__(config, state_shape, state_dtype, action_dim, action_dtype, gamma)
         self.data_structure = SumTree(self.capacity)        # mem_idx    -->     priority
 
     """ Implementation """

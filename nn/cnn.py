@@ -3,6 +3,12 @@ from tensorflow.keras import layers
 from tensorflow.keras.activations import relu
 
 
+def get_cnn(name):
+    if name.lower() == 'ftw':
+        return FTWCNN()
+    else:
+        raise NotImplementedError('Unknown CNN structure: {name}')
+
 class FTWCNN(layers.Layer):
     def __init__(self, name='ftw'):
         super().__init__(name=name)

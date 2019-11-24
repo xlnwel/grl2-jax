@@ -16,7 +16,6 @@ model:
     critic_units: [64]
     norm: none
     activation: relu
-    kernel_initializer: he_uniform
 
 agent:
     algorithm: &algo ppo

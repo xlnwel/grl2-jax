@@ -141,6 +141,8 @@ class GymEnvVecBase(EnvBase):
     def get_epslen(self):
         return np.asarray([env.get_epslen() for env in self.envs])
 
+    def close(self):
+        del self
 
 class GymEnvVec(EnvBase):
     def __init__(self, EnvType, config):
@@ -198,13 +200,13 @@ def create_gym_env(config):
 
 
 if __name__ == '__main__':
-    # test efficiency
+    # performance test
     default_config = dict(
         name='BipedalWalker-v2', # Pendulum-v0, CartPole-v0
         video_path='video',
         log_video=False,
         n_workers=8,
-        n_envs=4,
+        n_envs=2,
         seed=0
     )
 
@@ -212,29 +214,30 @@ if __name__ == '__main__':
     config = default_config.copy()
     n = config['n_workers']
     envvec = create_gym_env(config)
+    print('Env type', type(envvec))
     actions = envvec.random_action()
     with Timer(f'envvec {n} workers'):
         states = envvec.reset()
         for _ in range(envvec.max_episode_steps):
             states, rewards, dones, _ = envvec.step(actions)
-            states = np.asarray(states)
-            rewards = np.asarray(rewards)
-            dones = np.asarray(dones)
     print(envvec.get_epslen())
     envvec.close()
     ray.shutdown()
 
-    # config = default_config.copy()
-    # config['n_envs'] *= config['n_workers']
-    # del config['n_workers']
-    # envs = create_gym_env(config)
-    # actions = envs.random_action()
-    # with Timer('envvecbase'):
-    #     states = envs.reset()
-    #     for _ in range(envs.max_episode_steps):
-    #         states, rewards, dones, _ = envs.step(actions)
-    #         states = np.asarray(states)
-    #         rewards = np.asarray(rewards)
-    #         dones = np.asarray(dones)
-    # print(envs.get_epslen())
+    config = default_config.copy()
+    config['n_envs'] *= config['n_workers']
+    del config['n_workers']
+    envs = create_gym_env(config)
+    print('Env type', type(envs))
+    actions = envs.random_action()
+    with Timer('envvecbase'):
+        states = envs.reset()
+        for _ in range(envs.max_episode_steps):
+            state, reward, done, _ = envs.step(actions)
+            
+            if np.all(done):
+                break
+            
+    print(envs.get_epslen())
     
+    # ray.shutdown()

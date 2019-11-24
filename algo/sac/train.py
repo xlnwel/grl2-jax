@@ -3,25 +3,25 @@ import numpy as np
 import ray
 
 from utility.utils import set_global_seed
-from utility.tf_utils import configure_gpu
+from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
 from utility.timer import Timer
 from env.gym_env import create_gym_env
 from buffer.replay.proportional_replay import ProportionalPrioritizedReplay
-from algo.sac.runner import Runner
+from algo.sac.run import run_trajectory, random_sampling
 from algo.sac.agent import Agent
 from algo.sac.eval import evaluate
 from algo.sac.data_pipline import Dataset
 from algo.sac.nn import create_model
 
 
-def train(agent, runner, buffer):
+def train(agent, env, buffer):
     def collect_and_learn(state, action, reward, done):
         buffer.add(state, action, reward, done)
         agent.train_log()
 
     eval_env = create_gym_env(dict(
-        name=runner.env_name, 
+        name=env.name, 
         video_path='video',
         log_video=False,
         n_workers=1,
@@ -35,7 +35,7 @@ def train(agent, runner, buffer):
     for epoch in range(start_epoch, agent.n_epochs+1):
         agent.set_summary_step(epoch)
         with Timer('trajectory', log_period):
-            score, epslen = runner.sample_trajectory(agent.actor, collect_and_learn)
+            score, epslen = run_trajectory(env, agent.actor, collect_and_learn)
         scores.append(score)
         epslens.append(epslen)
         
@@ -43,6 +43,7 @@ def train(agent, runner, buffer):
             agent.store(
                 score=np.mean(scores),
                 score_std=np.std(scores),
+                score_max=np.amax(scores),
                 epslen=np.mean(epslens),
                 epslen_std=np.std(epslens),
             )
@@ -52,15 +53,16 @@ def train(agent, runner, buffer):
                 agent.save(steps=epoch)
         if epoch % 100 == 0:
             with Timer(f'{agent.model_name} evaluation'):
-                scores, epslens = evaluate(eval_env, agent.actor)
+                eval_scores, eval_epslens = evaluate(eval_env, agent.actor)
             stats = dict(
                 model_name=f'{agent.model_name}',
                 timing='Eval',
                 steps=f'{epoch}', 
-                score=np.mean(scores),
-                score_std=np.std(scores),
-                epslen=np.mean(epslens),
-                epslen_std=np.std(epslens)
+                score=np.mean(eval_scores),
+                score_std=np.std(eval_scores),
+                score_max=np.amax(eval_scores),
+                epslen=np.mean(eval_epslens),
+                epslen_std=np.std(eval_epslens)
             )
             agent.log_stats(stats)
 
@@ -70,13 +72,11 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
 
     env = create_gym_env(env_config)
 
-    # construct runner
-    runner = Runner(env)
-
     # construct buffer
     buffer = ProportionalPrioritizedReplay(
-        buffer_config, env.state_shape, env.action_dim, 
-        agent_config['gamma'])
+        buffer_config, env.state_shape, 
+        env.state_dtype, env.action_dim, 
+        env.action_dtype, agent_config['gamma'])
     dataset = Dataset(buffer, env.state_shape, env.action_dim)
 
     # construct models
@@ -90,7 +90,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     agent = Agent(name='sac', 
                 config=agent_config, 
                 models=models, 
-                dataset=dataset,
+                dataset=dataset, 
                 state_shape=env.state_shape,
                 state_dtype=env.state_dtype,
                 action_dim=env.action_dim,
@@ -106,5 +106,5 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     if restore:
         agent.restore()
 
-    runner.random_sampling(buffer)
-    train(agent, runner, buffer)
+    random_sampling(env, buffer)
+    train(agent, env, buffer)

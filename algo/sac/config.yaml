@@ -13,7 +13,6 @@ model:
     softq:
         units_list: [512, 256]
         norm: layer
-
     temperature:
 
 agent:
@@ -41,8 +40,8 @@ agent:
     epsilon: 1.e-5
 
     # arguments for PER
-    prio_alpha: 0.5
-    prio_epsilon: 1.e-4
+    per_alpha: 0.5
+    per_epsilon: 1.e-4
 
 buffer:
     type: proportional                      # proportional or uniform

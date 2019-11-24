@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from nn.layers.dnc.dnc import DNC
-from utility.tf_utils import configure_gpu
+from core.tf_config import configure_gpu
 
 BATCH_SIZE = 2
 MEMORY_SIZE = 20

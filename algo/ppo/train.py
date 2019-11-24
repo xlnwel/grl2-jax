@@ -2,24 +2,24 @@ import numpy as np
 import ray
 
 from utility.utils import set_global_seed
-from utility.tf_utils import configure_gpu
+from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
 from utility.timer import Timer
 from env.gym_env import create_gym_env
 from buffer.ppo_buffer import PPOBuffer
 from algo.ppo.agent import Agent
-from algo.ppo.runner import Runner
+from algo.ppo.run import run_trajectory
 from algo.ppo.eval import evaluate
 from algo.ppo.nn import create_model
 
 
-def train(agent, runner):
+def train(agent, env, buffer):
     log_period = 10
     start_epoch = agent.global_steps.numpy()+1
     for epoch in range(start_epoch, agent.n_epochs+1):
         agent.set_summary_step(epoch)
         with Timer(f'{agent.model_name} sampling', log_period):
-            buffer, scores, epslens = runner.sample_trajectories(model=agent.ac)
+            scores, epslens = run_trajectory(env, agent.ac, buffer)
             score = np.mean(scores)
             agent.store(
                 score=score,
@@ -41,7 +41,7 @@ def train(agent, runner):
         # evaluation
         if epoch % 100 == 0:
             with Timer(f'{agent.model_name} evaluation'):
-                scores, epslens = evaluate(runner.env, agent.ac)
+                scores, epslens = evaluate(env, agent.ac)
             stats = dict(
                 model_name=f'{agent.model_name}',
                 timing='Eval',
@@ -80,9 +80,6 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
                         env.action_shape,
                         env.action_dtype)
 
-    # construct runner for trajectory collection
-    runner = Runner(env, buffer)
-
     # construct model
     models = create_model(
         model_config, 
@@ -112,7 +109,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     if restore:
         agent.restore()
 
-    train(agent, runner)
+    train(agent, env, buffer)
 
     if use_ray:
         ray.shutdown()

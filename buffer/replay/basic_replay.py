@@ -23,7 +23,8 @@ class Replay(ABC):
 
         # reward hacking
         self.reward_scale = config.get('reward_scale', 1)
-        self.normalize_reward = config.get('normalize_reward', False)
+        self.reward_clip = config.get('reward_clip')
+        self.normalize_reward = config.get('normalize_reward')
         if self.normalize_reward:
             self.running_reward_stats = RunningMeanStd()
         self.gamma = gamma
@@ -119,7 +120,7 @@ class Replay(ABC):
 
         # memory is full, recycle buffer via FIFO
         if not self.is_full and end_idx >= self.capacity:
-            pwc('Memory is full', 'green')
+            pwc('Memory is full', color='blue')
             self.is_full = True
         
         self.mem_idx = end_idx % self.capacity
@@ -143,6 +144,8 @@ class Replay(ABC):
         if self.normalize_reward:
             reward = self.running_reward_stats.normalize(reward)
         reward *= np.where(done, 1, self.reward_scale)
+        if self.reward_clip:
+            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
         
         return (
             state,

@@ -4,7 +4,7 @@ import ray
 
 from utility.display import pwc
 from utility.utils import set_global_seed
-from utility.tf_utils import configure_gpu
+from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
 from env.gym_env import create_gym_env
 from algo.ppo.nn import create_model

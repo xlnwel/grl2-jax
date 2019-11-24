@@ -2,8 +2,9 @@ import numpy as np
 import tensorflow as tf
 
 from utility.display import pwc
-from utility.tf_utils import build
-from core.base import BaseAgent, agent_config
+from core.tf_config import build
+from core.base import BaseAgent
+from core.decorator import agent_config
 
 
 class Agent(BaseAgent):
@@ -58,7 +59,7 @@ class Agent(BaseAgent):
             for j in range(self.n_minibatches):
                 data = buffer.get_batch()
                 data['n'] = n = np.sum(data['mask'])
-                value = np.mean(data['value'])
+                value = data['value']
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 with tf.name_scope('train'):
                     loss_info  = self.compute_gradients(**data)
@@ -67,7 +68,7 @@ class Agent(BaseAgent):
                         grads, global_norm = tf.clip_by_global_norm(grads, self.clip_norm)
                     self.optimizer.apply_gradients(zip(grads, self.ac.trainable_variables))
 
-                n_total_trans = np.prod(data['value'].shape)
+                n_total_trans = value.shape
                 n_valid_trans = n or n_total_trans
                 self.store(
                     ppo_loss=ppo_loss.numpy(), 
@@ -75,7 +76,7 @@ class Agent(BaseAgent):
                     entropy=entropy.numpy(), 
                     p_clip_frac=p_clip_frac.numpy(),
                     v_clip_frac=v_clip_frac.numpy(),
-                    value=value,
+                    value=np.mean(value),
                     global_norm=global_norm.numpy(),
                     n_valid_trans=n_valid_trans,
                     n_total_trans=n_total_trans,
@@ -92,16 +93,10 @@ class Agent(BaseAgent):
     def _compute_gradients(self, state, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
         with tf.GradientTape() as tape:
             logpi, entropy, v = self.ac.train_step(state, action)
-            loss_info = self._loss(logpi, 
-                                    old_logpi,
-                                    advantage,
-                                    v, 
-                                    traj_ret, 
-                                    value,
-                                    self.clip_range,
-                                    entropy,
-                                    mask=mask,
-                                    n=n)
+            loss_info = self._loss(
+                logpi, old_logpi, advantage, v, 
+                traj_ret, value, self.clip_range,
+                entropy, mask=mask, n=n)
             ppo_loss, entropy, approx_kl, p_clip_frac, value_loss, v_clip_frac, total_loss = loss_info
 
         with tf.name_scope('gradient'):

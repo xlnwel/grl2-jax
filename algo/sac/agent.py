@@ -2,8 +2,10 @@ import numpy as np
 import tensorflow as tf
 
 from utility.display import pwc
-from utility.tf_utils import build, n_step_target
-from core.base import BaseAgent, agent_config
+from core.tf_config import build
+from utility.tf_utils import n_step_target
+from core.base import BaseAgent
+from core.decorator import agent_config
 
 
 class Agent(BaseAgent):
@@ -57,14 +59,14 @@ class Agent(BaseAgent):
         saved_indices = data['saved_indices']
         del data['saved_indices']
         # tf.summary.trace_on()
-        temp_loss, actor_loss, q1_loss, q2_loss, softq_loss, priority = self.train_step(**data)
+        temp, actor_loss, q1, q1_loss, softq_loss, priority = self.train_step(**data)
         # tf.summary.trace_export('train')
         self.dataset.update_priorities(priority.numpy(), saved_indices.numpy())
         self.store(
-            temp_loss=temp_loss.numpy(), 
+            temp=temp.numpy(), 
             actor_loss=actor_loss.numpy(),
+            q1=q1.numpy(),
             q1_loss=q1_loss.numpy(),
-            q2_loss=q2_loss.numpy(),
             softq_loss=softq_loss.numpy(),
             priority=priority.numpy(),
         )
@@ -72,7 +74,7 @@ class Agent(BaseAgent):
     @tf.function
     def _train_step(self, IS_ratio, state, action, reward, next_state, done, steps):
         with tf.name_scope('temp_train'):
-            temp_loss, temp_grads = self._compute_temp_grads(state, IS_ratio)
+            temp, temp_grads = self._compute_temp_grads(state, IS_ratio)
             if hasattr(self, 'clip_norm'):
                 temp_grads, temp_norm = tf.clip_by_global_norm(temp_grads, self.clip_norm)
             self.temp_opt.apply_gradients(zip(temp_grads, self.temperature.trainable_variables))
@@ -82,7 +84,7 @@ class Agent(BaseAgent):
                 actor_grads, actor_norm = tf.clip_by_global_norm(actor_grads, self.clip_norm)
             self.actor_opt.apply_gradients(zip(actor_grads, self.actor.trainable_variables))
         with tf.name_scope('softq_train'):
-            priority, q1_loss, q2_loss, softq_loss, softq_grads = self._compute_softq_grads(
+            priority, q1, q1_loss, softq_loss, softq_grads = self._compute_softq_grads(
                 state, action, next_state, reward, 
                 done, steps, IS_ratio)
             if hasattr(self, 'clip_norm'):
@@ -92,13 +94,13 @@ class Agent(BaseAgent):
 
         self._update_target_nets()
 
-        return temp_loss, actor_loss, q1_loss, q2_loss, softq_loss, priority
+        return temp, actor_loss, q1, q1_loss, softq_loss, priority
 
     def _compute_temp_grads(self, state, IS_ratio):
         target_entropy = -self.action_dim
         with tf.GradientTape() as tape:
             action, logpi = self.actor.train_step(state)
-            log_temp, _ = self.temperature.train_step(state, action)
+            log_temp, temp = self.temperature.train_step(state, action)
 
             with tf.name_scope('temp_loss'):
                 loss = -tf.reduce_mean(IS_ratio * log_temp 
@@ -107,7 +109,7 @@ class Agent(BaseAgent):
         with tf.name_scope('temp_grads'):
             grads = tape.gradient(loss, self.temperature.trainable_variables)
 
-        return loss, grads
+        return temp, grads
 
     def _compute_actor_grads(self, state, IS_ratio):
         with tf.GradientTape() as tape:
@@ -150,13 +152,13 @@ class Agent(BaseAgent):
             grads = tape.gradient(loss, 
                 self.softq1.trainable_variables + self.softq2.trainable_variables)
 
-        return priority, q1_loss, q2_loss, loss, grads
+        return priority, q1, q1_loss, loss, grads
 
     def _compute_priority(self, priority):
         """ p = (p + 𝝐)**𝛼 """
         with tf.name_scope('priority'):
-            priority += self.prio_epsilon
-            priority **= self.prio_alpha
+            priority += self.per_epsilon
+            priority **= self.per_alpha
         
         return priority
 

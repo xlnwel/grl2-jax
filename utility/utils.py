@@ -70,6 +70,29 @@ def set_global_seed(seed=42):
 def timeformat(t):
     return f'{t:.2e}'
 
+def get_and_unpack(x):
+    """
+    This function is used to decompose a list of remote objects 
+    that corresponds to a tuple of lists.
+
+    For example:
+    @ray.remote
+    def f():
+        return ['a', 'a'], ['b', 'b']
+
+    get_and_unpack(ray.get([f.remote() for _ in range(2)]))
+    >>> [['a', 'a', 'a', 'a'], ['b', 'b', 'b', 'b']]
+    """
+    list_of_lists = list(zip(*x))
+    results = []
+    for item_list in list_of_lists:
+        tmp = []
+        for item in item_list:
+            tmp += item
+        results.append(tmp)
+
+    return results
+
 def squarest_grid_size(num_images, more_on_width=True):
     """Calculates the size of the most square grid for num_images.
 
