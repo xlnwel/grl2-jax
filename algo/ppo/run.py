@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def run_trajectory(env, model, buffer):
+def run_trajectories(env, model, buffer):
     buffer.reset()
     model.reset_states()
     state = env.reset()

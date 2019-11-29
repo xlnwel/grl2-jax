@@ -1,3 +1,8 @@
+"""
+This file defines general CNN architectures used in RL
+All CNNs eventually return a tensor of shape `[batch_size, n_features]`
+"""
+
 import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras.activations import relu

@@ -1,7 +1,7 @@
 import random
 import numpy as np
 
-from buffer.ppo_buffer import PPOBuffer
+from algo.ppo.buffer import PPOBuffer
 from utility.utils import standardize
 
 

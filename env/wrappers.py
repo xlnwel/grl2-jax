@@ -79,7 +79,7 @@ class EnvStats(gym.Wrapper):
 
     @property
     def action_dtype(self):
-        return np.int8 if self.is_action_discrete else (self.env.action_space.dtype)
+        return np.float32
 
     @property
     def action_dim(self):

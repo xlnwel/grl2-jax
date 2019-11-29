@@ -23,6 +23,8 @@ def parse_cmd_args():
 def import_main(algorithm):
     if algorithm == 'ppo':
         from algo.ppo.eval import main
+    elif algorithm == 'ppo2':
+        from algo.ppo2.eval import main
     elif algorithm == 'sac':
         from algo.sac.eval import main
     else:

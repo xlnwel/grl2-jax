@@ -22,7 +22,8 @@ def parse_cmd_args():
                         type=str,
                         default='')
     parser.add_argument('--render', '-r',
-                        action='store_true')
+                        action='store_true',
+                        help='render the environment. This currently does not work for EnvVec')
     parser.add_argument('--trials', '-t',
                         type=int,
                         default=1,
@@ -43,22 +44,38 @@ def parse_cmd_args():
 def import_main(algorithm):
     if algorithm == 'ppo':
         from algo.ppo.train import main
+    elif algorithm == 'ppo2':
+        from algo.ppo2.train import main
     elif algorithm == 'sac':
         from algo.sac.train import main
+    elif algorithm == 'apex-sac':
+        from algo.apex_sac.train import main
+    elif algorithm == 'seed-sac':
+        from algo.seed_sac.train import main
+    elif algorithm == 'dee':
+        from algo.dee.train import main
     else:
         raise NotImplementedError
 
     return main
     
-def get_arg_file(algorithm):
+def get_config_file(algorithm):
     if algorithm == 'ppo':
-        arg_file = 'algo/ppo/config.yaml'
+        config_file = 'algo/ppo/config.yaml'
+    elif algorithm == 'ppo2':
+        config_file = 'algo/ppo2/config.yaml'
     elif algorithm == 'sac':
-        arg_file = 'algo/sac/config.yaml'
+        config_file = 'algo/sac/config.yaml'
+    elif algorithm == 'apex-sac':
+        config_file = 'algo/apex_sac/config.yaml'
+    elif algorithm == 'seed-sac':
+        config_file = 'algo/seed_sac/config.yaml'
+    elif algorithm == 'dee':
+        config_file = 'algo/dee/config.yaml'
     else:
         raise NotImplementedError
 
-    return arg_file
+    return config_file
 
 if __name__ == '__main__':
     cmd_args = parse_cmd_args()
@@ -66,18 +83,12 @@ if __name__ == '__main__':
 
     processes = []
     for algo in algorithm:
-        arg_file = get_arg_file(algo)
+        config_file = get_config_file(algo)
         main = import_main(algo)
         
         render = cmd_args.render
 
         if cmd_args.directory != '':
-            # load configuration
-            config = load_config(arg_file)
-            env_config = config['env']
-            model_config = config['model']
-            agent_config = config['agent']
-            buffer_config = config['buffer'] if 'buffer' in config else {}
             # load model and log path
             directory = cmd_args.directory
             config_file = None
@@ -91,29 +102,41 @@ if __name__ == '__main__':
                         sys.exit()
 
             config = load_config(config_file)
-            agent_config['model_root_dir'] = config['model_root_dir']
-            agent_config['log_root_dir'] = config['log_root_dir']
-            agent_config['model_name'] = config['model_name']
+            env_config = config['env']
+            model_config = config['model']
+            agent_config = config['agent']
+            buffer_config = config['buffer']
 
             main(env_config, model_config, agent_config, buffer_config, restore=True, render=render)
         else:
             prefix = cmd_args.prefix
+            config = load_config(config_file)
+            env_config = config['env']
+            model_config = config['model']
+            agent_config = config['agent']
+            buffer_config = config['buffer'] if 'buffer' in config else {}
             if cmd_args.grid_search or cmd_args.trials > 1:
-                gs = GridSearch(arg_file, main, render=render, 
-                                n_trials=cmd_args.trials, dir_prefix=prefix, 
+                gs = GridSearch(env_config, model_config, agent_config, buffer_config, 
+                                main, render=render, n_trials=cmd_args.trials, dir_prefix=prefix, 
                                 separate_process=len(algorithm) > 1)
 
                 # Grid search happens here
                 if algo == 'ppo':
                     processes += gs()
+                elif algo == 'ppo2':
+                    processes += gs(learning_rate=[1e-4, 3e-4], n_updates=[4, 8])
                 elif algo == 'sac':
+                    processes += gs()
+                elif algo == 'apex-sac':
+                    processes += gs()
+                elif algo == 'seed_sac':
                     processes += gs()
                 else:
                     raise NotImplementedError()
             else:
                 if prefix == '':
                     prefix = 'baseline'
-                config = load_config(arg_file)
+                config = load_config(config_file)
                 env_config = config['env']
                 model_config = config['model']
                 agent_config = config['agent']
@@ -128,10 +151,11 @@ if __name__ == '__main__':
                                     model_config,
                                     agent_config, 
                                     buffer_config, 
+                                    False,
                                     render))
                     p.start()
                     time.sleep(1)
                     processes.append(p)
                 else:
-                    main(env_config, model_config, agent_config, buffer_config, render)
+                    main(env_config, model_config, agent_config, buffer_config, False, render=render)
     [p.join() for p in processes]

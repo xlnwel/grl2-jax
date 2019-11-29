@@ -3,13 +3,16 @@ import numpy as np
 from utility.decorators import override
 from utility.display import assert_colorize
 from utility.schedule import PiecewiseSchedule
-from buffer.replay.basic_replay import Replay
-from buffer.replay.utils import init_buffer, add_buffer, copy_buffer
+from replay.basic_replay import Replay
+from replay.utils import init_buffer, add_buffer, copy_buffer
+from replay.ds.sum_tree import SumTree
 
 
-class PrioritizedReplay(Replay):
-    """ Interface """
-    def __init__(self, config, state_shape, state_dtype, action_dim, action_dtype, gamma):
+class PERBase(Replay):
+    """ Base class for PER, left in case one day I implement rank-based PER """
+    def __init__(self, config, state_shape, state_dtype, 
+                action_dim, action_dtype, gamma, 
+                has_next_state=False):
         super().__init__(config, state_shape, action_dim, gamma)
         self.data_structure = None            
 
@@ -23,15 +26,19 @@ class PrioritizedReplay(Replay):
 
         self.sample_i = 0   # count how many times self.sample is called
 
-        init_buffer(self.memory, self.capacity, state_shape, state_dtype, action_dim, action_dtype, self.n_steps == 1)
+        init_buffer(self.memory, self.capacity, state_shape, state_dtype, 
+                    action_dim, action_dtype, self.n_steps == 1, 
+                    has_next_state=has_next_state)
 
         # Code for single agent
-        if self.n_steps > 1:
+        if 'tb_capacity' in config and self.n_steps > 1:
             self.tb_capacity = config['tb_capacity']
             self.tb_idx = 0
             self.tb_full = False
             self.tb = {}
-            init_buffer(self.tb, self.tb_capacity, state_shape, state_dtype, action_dim, action_dtype, True)
+            init_buffer(self.tb, self.tb_capacity, state_shape, state_dtype, 
+                        action_dim, action_dtype, True, 
+                        has_next_state=has_next_state)
 
     @override(Replay)
     def sample(self):
@@ -46,13 +53,14 @@ class PrioritizedReplay(Replay):
         return samples
 
     @override(Replay)
-    def add(self, state, action, reward, done):
+    def add(self, state, action, reward, done, next_state=None):
         if self.n_steps > 1:
+            assert_colorize(hasattr(self, 'tb'), 'please specify tb_capacity in config.yaml')
             self.tb['priority'][self.tb_idx] = self.top_priority
         else:
             self.memory['priority'][self.mem_idx] = self.top_priority
             self.data_structure.update(self.top_priority, self.mem_idx)
-        super()._add(state, action, reward, done)
+        super()._add(state, action, reward, done, next_state=next_state)
 
     def update_priorities(self, priorities, saved_indices):
         with self.locker:
@@ -78,3 +86,33 @@ class PrioritizedReplay(Replay):
         IS_ratios = (np.min(probabilities) / probabilities)**self.beta
 
         return IS_ratios
+
+
+class ProportionalPER(PERBase):
+    """ Interface """
+    def __init__(self, config, state_shape, state_dtype, 
+                action_dim, action_dtype, gamma,
+                has_next_state=False):
+        super().__init__(config, state_shape, state_dtype, 
+                        action_dim, action_dtype, gamma, 
+                        has_next_state=has_next_state)
+        self.data_structure = SumTree(self.capacity)        # mem_idx    -->     priority
+
+    """ Implementation """
+    @override(PERBase)
+    def _sample(self):
+        total_priorities = self.data_structure.total_priorities
+        
+        segment = total_priorities / self.batch_size
+
+        priorities, indexes = list(zip(*[self.data_structure.find(np.random.uniform(i * segment, (i+1) * segment))
+                                        for i in range(self.batch_size)]))
+
+        priorities = np.array(priorities)
+        probabilities = priorities / total_priorities
+
+        # compute importance sampling ratios
+        IS_ratios = self._compute_IS_ratios(probabilities)
+        samples = self._get_samples(indexes)
+        
+        return IS_ratios, indexes, samples

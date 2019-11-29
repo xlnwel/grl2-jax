@@ -24,6 +24,13 @@ class SAC(tf.Module):
     def set_weights(self, weights):
         [v.assign(w) for v, w in zip(self.variables, weights)]
 
+    """ Auxiliary functions that make SAC like a dict """
+    def __setitem__(self, key, item):
+        self.models[key] = item
+
+    def __getitem__(self, key):
+        return self.models[key]
+
     def __len__(self):
         return len(self.models)
     
@@ -31,7 +38,7 @@ class SAC(tf.Module):
         return self.models.__iter__()
 
     def keys(self):
-        return self.keys()
+        return self.models.keys()
 
     def values(self):
         return self.models.values()
@@ -60,10 +67,16 @@ class SoftPolicy(tf.Module):
                                         norm=norm, 
                                         activation=activation, 
                                         kernel_initializer=kernel_initializer())
-        self.mu = layers.Dense(action_dim, name='mu')
-        self.logstd = layers.Dense(action_dim, name='logstd')
+        self.is_action_discrete = is_action_discrete
 
-        # action distribution type
+        if is_action_discrete:
+            self.logits = layers.Dense(action_dim, name='logits')
+            self.tau = tf.Variable(1., dtype=tf.float32, name='softmax_tau')
+        else:
+            self.mu = layers.Dense(action_dim, name='mu')
+            self.logstd = layers.Dense(action_dim, name='logstd')
+
+        # action distribution type    
         self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
 
         # build for variable initialization
@@ -77,15 +90,18 @@ class SoftPolicy(tf.Module):
         for l in self.intra_layers:
             x = l(x)
 
-        mu = self.mu(x)
-        logstd = self.logstd(x)
-        logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+        if self.is_action_discrete:
+            logits = self.logits(x)
+            action_distribution = self.ActionDistributionType(logits, self.tau)
+            action = action_distribution.sample(reparameterize=True)
+        else:
+            mu = self.mu(x)
+            logstd = self.logstd(x)
+            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
 
-        action_distribution = self.ActionDistributionType((mu, logstd))
-        
-        raw_action = action_distribution.sample()
-
-        action = tf.tanh(raw_action)
+            action_distribution = self.ActionDistributionType((mu, logstd))
+            raw_action = action_distribution.sample()
+            action = tf.tanh(raw_action)
 
         return action
 
@@ -97,27 +113,36 @@ class SoftPolicy(tf.Module):
             for l in self.intra_layers:
                 x = l(x)
 
-            mu = self.mu(x)
-
-            return tf.tanh(mu)
-
+            if self.is_action_discrete:
+                logits = self.logits(x)
+                action_distribution = self.ActionDistributionType(logits, self.tau)
+                return action_distribution.sample(reparameterize=True, hard=True)
+            else:
+                mu = self.mu(x)
+                return tf.tanh(mu)
+           
     @tf.Module.with_name_scope
     def train_step(self, x):
         # pwc(f'{self.name} "train_step" is retracing: x={x}', color='cyan')
         for l in self.intra_layers:
             x = l(x)
 
-        mu = self.mu(x)
-        logstd = self.logstd(x)
-        logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+        if self.is_action_discrete:
+            logits = self.logits(x)
+            action_distribution = self.ActionDistributionType(logits, self.tau)
+            action = action_distribution.sample(reparameterize=True)
+            logpi = action_distribution.logp(action)
+        else:
+            mu = self.mu(x)
+            logstd = self.logstd(x)
+            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
 
-        action_distribution = self.ActionDistributionType((mu, logstd))
-        
-        raw_action = action_distribution.sample()
-        logpi = action_distribution.logp(raw_action)
-
-        action = tf.tanh(raw_action)
-        logpi = logpi_correction(raw_action, logpi, is_action_squashed=False)
+            action_distribution = self.ActionDistributionType((mu, logstd))
+            
+            raw_action = action_distribution.sample()
+            logpi = action_distribution.logp(raw_action)
+            action = tf.tanh(raw_action)
+            logpi = logpi_correction(raw_action, logpi, is_action_squashed=False)
 
         return action, logpi
 

@@ -16,8 +16,8 @@ def setup_checkpoint(ckpt_models, model_root_dir, model_name):
     ckpt = tf.train.Checkpoint(step=global_steps, **ckpt_models)
     ckpt_path = f'{model_root_dir}/{model_name}'
     ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, 5)
-    return global_steps, ckpt, ckpt_path, ckpt_manager
 
+    return global_steps, ckpt, ckpt_path, ckpt_manager
 
 def restore(ckpt_manager, ckpt, ckpt_path, name='model'):
     """ Restore the latest parameter recorded by ckpt_manager
@@ -29,7 +29,7 @@ def restore(ckpt_manager, ckpt, ckpt_path, name='model'):
         name: optional name for print
     """
     path = ckpt_manager.latest_checkpoint
-    ckpt.restore(path)
+    ckpt.restore(path).assert_consumed()
     if path:
         pwc(f'Params for {name} are restored from "{path}".', color='cyan')
     else:
@@ -53,4 +53,4 @@ def save(ckpt_manager, global_steps, steps, message=''):
     """
     global_steps.assign(steps)
     path = ckpt_manager.save()
-    pwc(f'Model saved at {path} {message}', color='cyan')
+    pwc(f'Model saved at {path}: {message}', color='cyan')

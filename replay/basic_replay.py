@@ -6,7 +6,7 @@ from utility.display import assert_colorize
 from utility.display import pwc
 from utility.utils import to_int
 from utility.run_avg import RunningMeanStd
-from buffer.replay.utils import add_buffer, copy_buffer
+from replay.utils import add_buffer, copy_buffer
 
 
 class Replay(ABC):
@@ -67,12 +67,12 @@ class Replay(ABC):
         raise NotImplementedError
 
     """ Implementation """
-    def _add(self, state, action, reward, done):
+    def _add(self, state, action, reward, done, next_state=None):
         """ add is only used for single agent, no multiple adds are expected to run at the same time
             but it may fight for resource with self.sample if background learning is enabled """
         if self.n_steps > 1:
             add_buffer(self.tb, self.tb_idx, state, action, reward, 
-                        done, self.n_steps, self.gamma)
+                        done, self.n_steps, self.gamma, next_state=next_state)
             
             if not self.tb_full and self.tb_idx == self.tb_capacity - 1:
                 self.tb_full = True
@@ -96,7 +96,7 @@ class Replay(ABC):
         else:
             with self.locker:
                 add_buffer(self.memory, self.mem_idx, state, action, reward,
-                            done, self.n_steps, self.gamma)
+                            done, self.n_steps, self.gamma, next_state=next_state)
                 self.mem_idx = (self.mem_idx + 1) % self.capacity
 
     def _sample(self):
@@ -134,11 +134,14 @@ class Replay(ABC):
         done = self.memory['done'][indexes]
         steps = self.memory['steps'][indexes]
         
-        # squeeze steps since it is of shape [None, 1]
-        next_indexes = (indexes + np.squeeze(steps)) % self.capacity
-        assert indexes.shape == next_indexes.shape
-        # using zero state as the terminal state
-        next_state = np.where(done, np.zeros_like(state), self.memory['state'][next_indexes])
+        if 'next_state' in self.memory:
+            next_state = self.memory['next_state'][indexes]
+        else:
+            # squeeze steps since it is of shape [None, 1]
+            next_indexes = (indexes + np.squeeze(steps)) % self.capacity
+            assert indexes.shape == next_indexes.shape
+            # using zero state as the terminal state
+            next_state = np.where(done, np.zeros_like(state), self.memory['state'][next_indexes])
 
         # process rewards
         if self.normalize_reward:

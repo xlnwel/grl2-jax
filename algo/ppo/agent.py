@@ -5,6 +5,7 @@ from utility.display import pwc
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
+from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
 class Agent(BaseAgent):
@@ -46,14 +47,14 @@ class Agent(BaseAgent):
             ([1], tf.float32, 'mask'),
             ((), tf.float32, 'n'),
         ]
-        self.compute_gradients = build(
-            self._compute_gradients, 
+        self.train_step = build(
+            self._train_step, 
             TensorSpecs, 
             sequential=True, 
             batch_size=n_envs
         )
 
-    def train_epoch(self, buffer, early_terminate, epoch):
+    def train_log(self, buffer, early_terminate, epoch):
         for i in range(self.n_updates):
             self.ac.reset_states()
             for j in range(self.n_minibatches):
@@ -62,13 +63,10 @@ class Agent(BaseAgent):
                 value = data['value']
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 with tf.name_scope('train'):
-                    loss_info  = self.compute_gradients(**data)
-                    entropy, approx_kl, p_clip_frac, v_clip_frac, ppo_loss, value_loss, grads = loss_info
-                    if hasattr(self, 'clip_norm'):
-                        grads, global_norm = tf.clip_by_global_norm(grads, self.clip_norm)
-                    self.optimizer.apply_gradients(zip(grads, self.ac.trainable_variables))
-
-                n_total_trans = value.shape
+                    loss_info  = self.train_step(**data)
+                    entropy, approx_kl, p_clip_frac, v_clip_frac, ppo_loss, value_loss, global_norm = loss_info
+    
+                n_total_trans = value.size
                 n_valid_trans = n or n_total_trans
                 self.store(
                     ppo_loss=ppo_loss.numpy(), 
@@ -90,54 +88,30 @@ class Agent(BaseAgent):
         self.store(approx_kl=approx_kl)
 
     @tf.function
-    def _compute_gradients(self, state, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
+    def _train_step(self, state, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
         with tf.GradientTape() as tape:
-            logpi, entropy, v = self.ac.train_step(state, action)
-            loss_info = self._loss(
-                logpi, old_logpi, advantage, v, 
-                traj_ret, value, self.clip_range,
+            old_value = value
+            logpi, entropy, value = self.ac.train_step(state, action)
+            # policy loss
+            ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
+                logpi, old_logpi, advantage, self.clip_range,
                 entropy, mask=mask, n=n)
-            ppo_loss, entropy, approx_kl, p_clip_frac, value_loss, v_clip_frac, total_loss = loss_info
+            # value loss
+            value_loss, v_clip_frac = compute_value_loss(
+                value, traj_ret, old_value, self.clip_range,
+                mask=mask, n=n)
+
+            with tf.name_scope('total_loss'):
+                policy_loss = (ppo_loss 
+                        - self.entropy_coef * entropy # TODO: adaptive entropy regularizer
+                        + self.kl_coef * approx_kl)
+                value_loss = self.value_coef * value_loss
+                total_loss = policy_loss + value_loss
 
         with tf.name_scope('gradient'):
             grads = tape.gradient(total_loss, self.ac.trainable_variables)
+            if hasattr(self, 'clip_norm'):
+                grads, global_norm = tf.clip_by_global_norm(grads, self.clip_norm)
+            self.optimizer.apply_gradients(zip(grads, self.ac.trainable_variables))
 
-        return entropy, approx_kl, p_clip_frac, v_clip_frac, ppo_loss, value_loss, grads 
-
-    def _loss(self, logpi, old_logpi, advantages, value, traj_ret, old_value, clip_range, entropy, mask=None, n=None):
-        assert (mask is None) == (n is None), f'Both/Neither mask and/nor n should be None, but get \nmask:{mask}\nn:{n}'
-
-        def reduce_mean(x, name, n):
-            with tf.name_scope(name):        
-                return tf.reduce_mean(x) if n is None else tf.reduce_sum(x) / n
-
-        m = 1. if mask is None else mask
-        with tf.name_scope('ppo_loss'):
-            ratio = tf.exp(logpi - old_logpi, name='ratio')
-            loss1 = -advantages * ratio
-            loss2 = -advantages * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
-            
-            ppo_loss = reduce_mean(tf.maximum(loss1, loss2) * m, 'ppo_loss', n)
-            entropy = tf.reduce_mean(entropy, name='entropy_loss')
-            # debug stats: KL between old and current policy and fraction of data being clipped
-            approx_kl = .5 * reduce_mean((old_logpi - logpi)**2 * m, 'approx_kl', n)
-            p_clip_frac = reduce_mean(tf.cast(tf.greater(tf.abs(ratio - 1.), clip_range), tf.float32) * m, 
-                                    'clip_frac', n)
-            policy_loss = (ppo_loss 
-                        - self.entropy_coef * entropy # TODO: adaptive entropy regularizer
-                        + self.kl_coef * approx_kl)
-
-        with tf.name_scope('value_loss'):
-            value_clipped = old_value + tf.clip_by_value(value - old_value, -clip_range, clip_range)
-            loss1 = (value - traj_ret)**2
-            loss2 = (value_clipped - traj_ret)**2
-            
-            value_loss = self.value_coef * reduce_mean(tf.maximum(loss1, loss2) * m, 'value_loss', n)
-            v_clip_frac = reduce_mean(
-                tf.cast(tf.greater(tf.abs(value-old_value), clip_range), tf.float32) * m,
-                'clip_frac', n)
-        
-        with tf.name_scope('total_loss'):
-            total_loss = policy_loss + value_loss
-
-        return ppo_loss, entropy, approx_kl, p_clip_frac, value_loss, v_clip_frac, total_loss
+        return entropy, approx_kl, p_clip_frac, v_clip_frac, ppo_loss, value_loss, global_norm 

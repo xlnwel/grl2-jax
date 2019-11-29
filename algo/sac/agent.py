@@ -25,16 +25,16 @@ class Agent(BaseAgent):
         
         # optimizer
         if self.optimizer.lower() == 'adam':
-            optimizer = tf.keras.optimizers.Adam
+            Optimizer = tf.keras.optimizers.Adam
         elif self.optimizer.lower() == 'rmsprop':
-            optimizer = tf.keras.optimizers.RMSprop
+            Optimizer = tf.keras.optimizers.RMSprop
         else:
             raise NotImplementedError()
-        self.actor_opt = optimizer(learning_rate=self.actor_lr,
+        self.actor_opt = Optimizer(learning_rate=self.actor_lr,
                                     epsilon=self.epsilon)
-        self.softq_opt = optimizer(learning_rate=self.softq_lr,
+        self.softq_opt = Optimizer(learning_rate=self.softq_lr,
                                 epsilon=self.epsilon)
-        self.temp_opt = optimizer(learning_rate=self.temp_lr,
+        self.temp_opt = Optimizer(learning_rate=self.temp_lr,
                                 epsilon=self.epsilon)
         self.ckpt_models['actor_opt'] = self.actor_opt
         self.ckpt_models['softq_opt'] = self.softq_opt

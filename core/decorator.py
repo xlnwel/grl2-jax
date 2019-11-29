@@ -3,7 +3,7 @@ from core.checkpoint import setup_checkpoint
 from core.log import setup_logger, setup_tensorboard
 
 
-""" Functions for print useful information """                    
+""" Functions used to print useful information """                    
 def display_model_var_info(models):
     tvars = []
     for name, model in models.items():
@@ -16,7 +16,6 @@ def display_model_var_info(models):
 
 def print_construction_complete(name):
     pwc(f'{name} has been constructed', color='cyan')
-
 
 def agent_config(init_fn):
     """ Decorator for agent's initialization """
@@ -40,17 +39,18 @@ def agent_config(init_fn):
         self.writer = setup_tensorboard(self.log_root_dir, self.model_name)
 
         # track models and optimizers for Checkpoint
-        self.ckpt_models = models
-        for name, model in models.items():
-            setattr(self, name, model)
+        self.ckpt_models = {}
+        self.ckpt_models.update(models)
+        for name_, model in models.items():
+            setattr(self, name_, model)
 
         # Agent initialization
-        init_fn(self, name=name, config=config, models=models, **kwargs)
+        init_fn(self, name=self.name, config=config, models=models, **kwargs)
         
         # postprocessing
         self.global_steps, self.ckpt, self.ckpt_path, self.ckpt_manager = \
             setup_checkpoint(self.ckpt_models, self.model_root_dir, self.model_name)
         display_model_var_info(self.ckpt_models)
-        print_construction_complete(name)
+        print_construction_complete(self.name)
     
     return wrapper

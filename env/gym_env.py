@@ -71,27 +71,18 @@ class GymEnv(EnvBase):
 
     def random_action(self):
         action = self.env.action_space.sample()
-        return np.reshape(action, (1, -1))
+        return action
         
-    def step(self, action, auto_reset=False):
-        if action.shape != self.action_shape:
-            action = np.reshape(action, self.action_shape)
-        assert_colorize(action.shape == (self.action_dim, ), 
-                        f'Expect action of shape {self.action_dim}, but got shape {action.shape}')
+    def step(self, action):
         next_state, reward, done, info = self.env.step(action)
-        if auto_reset and done:
-            next_state = self.env.reset()
-        return (next_state, 
-                reward, 
-                done, 
-                info)
+        return next_state, reward, done, info
 
     def render(self):
         return self.env.render()
 
     def get_mask(self):
         """ Get mask at the current step. Should only be called after self.step """
-        return np.reshape(self.env.get_mask(), (1, -1))
+        return self.env.get_mask()
 
     def get_score(self):
         return self.env.get_score()
@@ -120,8 +111,6 @@ class GymEnvVecBase(EnvBase):
         return np.asarray([env.reset() for env in self.envs])
     
     def step(self, actions):
-        if actions.shape != (self.n_envs, *self.action_shape):
-            actions = np.reshape(actions, (self.n_envs, *self.action_shape))
         step_imp = lambda envs, actions: list(zip(*[env.step(a) for env, a in zip(envs, actions)]))
         
         state, reward, done, info = step_imp(self.envs, actions)

@@ -5,9 +5,9 @@ EPSILON = 1e-8
 
 
 def tf_scope(func):
-    def name_scope(*args):
+    def name_scope(*args, **kwargs):
         with tf.name_scope(func.__name__):
-            return func(*args)
+            return func(*args, **kwargs)
     return name_scope
 
 class Distribution(tf.Module):
@@ -46,13 +46,13 @@ class Distribution(tf.Module):
 
 
 class Categorical(Distribution):
-    def __init__(self, logits):
+    def __init__(self, logits, tau=None):
         self.logits = logits
-        self.tau = tf.Variable(0, name='softmax_tau')
+        self.tau = tau
 
     def _neglogp(self, x):
         if len(x.shape.as_list()) == len(self.logits.shape.as_list()) and x.shape.as_list()[-1] != 1:
-            return tf.nn.softmax_cross_entropy_with_logits_v2(labels=tf.stop_gradient(x), logits=self.logits)[..., None]
+            return tf.nn.softmax_cross_entropy_with_logits(labels=tf.stop_gradient(x), logits=self.logits)[..., None]
         else:
             x = tf.squeeze(x)
             return tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x, logits=self.logits)[..., None]
@@ -64,9 +64,10 @@ class Categorical(Distribution):
          and code: https://github.com/ericjang/gumbel-softmax/blob/master/Categorical%20VAE.ipynb
         """
         if reparameterize:
+            assert self.tau is not None
             # sample Gumbel(0, 1)
-            U = tf.random_uniform(tf.shape(self.logits), minval=0, maxval=1)
-            g = -tf.log(-tf.log(U+epsilon)+epsilon)
+            U = tf.random.uniform(tf.shape(self.logits), minval=0, maxval=1)
+            g = -tf.math.log(-tf.math.log(U+epsilon)+epsilon)
             # Draw a sample from the Gumbel-Softmax distribution
             y = tf.nn.softmax((self.logits + g) / self.tau)
             # draw one-hot encoded sample from the softmax
@@ -75,19 +76,20 @@ class Categorical(Distribution):
                 y = tf.stop_gradient(y_hard - y) + y
         else:
             y = tf.random.categorical(self.logits, 1, dtype=tf.int32)
+            y = tf.one_hot(y)
 
         return y
 
     def _entropy(self):
         probs = self._compute_probs()
-        entropy = tf.reduce_sum(-probs * tf.log(probs), axis=-1)
+        entropy = tf.reduce_sum(-probs * tf.math.log(probs), axis=-1)
 
         return entropy
 
     def _kl(self, other):
         probs = self._compute_probs()
         other_probs = other._compute_probs()
-        kl = tf.reduce_sum(probs * (tf.log(probs) - tf.log(other_probs)), axis=-1)
+        kl = tf.reduce_sum(probs * (tf.math.log(probs) - tf.math.log(other_probs)), axis=-1)
 
         return kl
 

@@ -1,0 +1,61 @@
+---
+env:
+    name: BipedalWalker-v2
+    video_path: video
+    log_video: False
+    n_envs: 4
+    seed: 0
+model:
+    actor:
+        units_list: [512, 256]
+        norm: none
+    softq:
+        units_list: [512, 256]
+        norm: none
+    temperature:
+
+agent:
+    algorithm: &algo apex-sac
+    temperature: auto                       # auto or some float, e.g., 0.01
+    gamma: 0.99
+    polyak: .995                            # moving average rate
+    
+    # distributed algo params
+    n_workers: 8
+
+    # model path: model_root_dir/model_name
+    # tensorboard path: log_root_dir/model_name
+    model_root_dir: saved_models            # root path for savinng models
+    log_root_dir: logs                      # root path for tensorboard logs
+    model_name: *algo
+
+    loss_type: mse                          # huber or mse
+
+    # arguments for optimizer
+    optimizer: adam
+    actor_lr: 1.e-4
+    softq_lr: 3.e-4
+    temp_lr: 1.e-4
+    epsilon: 1.e-5
+
+    # arguments for PER
+    per_alpha: 0.5
+    per_epsilon: 1.e-4
+
+buffer:
+    type: proportional                      # proportional or uniform
+    # arguments for PER
+    beta0: 0.4
+    beta_steps: 5e4
+    to_update_priority: False
+
+    # hacking
+    normalize_reward: False
+    # reward_scale: 5
+    # reward_clip: 50
+
+    # arguments for general replay
+    n_steps: 3
+    batch_size: 256
+    min_size: 5e4
+    capacity: 1e6

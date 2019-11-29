@@ -24,17 +24,16 @@ def set_summary_step(step):
     tf.summary.experimental.set_step(step)
 
 def log_summary(writer, stats, step=None):
-    if step:
-        tf.summary.experimental.set_step(step)
-    for k, v in stats.items():
-        if isinstance(v, str):
-            continue
-        if tf.rank(v).numpy() == 0:
-            tf.summary.scalar(f'stats/{k}', v)
-        else:
-            v = tf.convert_to_tensor(v, dtype=tf.float32)
-            tf.summary.scalar(f'stats/{k}_mean', tf.reduce_mean(v))
-            tf.summary.scalar(f'stats/{k}_std', tf.math.reduce_std(v))
+    with writer.as_default():
+        for k, v in stats.items():
+            if isinstance(v, str):
+                continue
+            if tf.rank(v).numpy() == 0:
+                tf.summary.scalar(f'stats/{k}', v, step=step)
+            else:
+                v = tf.convert_to_tensor(v, dtype=tf.float32)
+                tf.summary.scalar(f'stats/{k}_mean', tf.reduce_mean(v), step=step)
+                tf.summary.scalar(f'stats/{k}_std', tf.math.reduce_std(v), step=step)
 
     writer.flush()
 
@@ -57,5 +56,4 @@ def setup_tensorboard(log_root_dir, model_name):
     # writer for tensorboard summary
     # stats are saved in directory f'{log_root_dir}/{model_name}'
     writer = tf.summary.create_file_writer(f'{log_root_dir}/{model_name}')
-    writer.set_as_default()
     return writer

@@ -38,7 +38,7 @@ agent:
     learning_rate: 3.e-4
     epsilon: 1.e-5
     clip_norm: .5
-    # arguments for ppo loss
+    # arguments for loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .0
     kl_coef: .1

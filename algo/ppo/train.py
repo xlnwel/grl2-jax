@@ -6,20 +6,21 @@ from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
 from utility.timer import Timer
 from env.gym_env import create_gym_env
-from buffer.ppo_buffer import PPOBuffer
-from algo.ppo.agent import Agent
-from algo.ppo.run import run_trajectory
-from algo.ppo.eval import evaluate
+from algo.ppo.buffer import PPOBuffer
 from algo.ppo.nn import create_model
+from algo.ppo.agent import Agent
+from algo.ppo.run import run_trajectories
+from algo.ppo.eval import evaluate
 
+
+LOG_PERIOD = 10
 
 def train(agent, env, buffer):
-    log_period = 10
     start_epoch = agent.global_steps.numpy()+1
     for epoch in range(start_epoch, agent.n_epochs+1):
         agent.set_summary_step(epoch)
-        with Timer(f'{agent.model_name} sampling', log_period):
-            scores, epslens = run_trajectory(env, agent.ac, buffer)
+        with Timer(f'{agent.model_name} sampling', LOG_PERIOD):
+            scores, epslens = run_trajectories(env, agent.ac, buffer)
             score = np.mean(scores)
             agent.store(
                 score=score,
@@ -28,12 +29,12 @@ def train(agent, env, buffer):
                 epslen_std=np.std(epslens)
             )
 
-        with Timer(f'{agent.model_name} training', log_period):
+        with Timer(f'{agent.model_name} training', LOG_PERIOD):
             # TRICK: we only check kl and early terminate the training epoch 
             # when score meets some requirement
-            agent.train_epoch(buffer, early_terminate=(agent.max_kl and score > 280), epoch=epoch)
+            agent.train_log(buffer, early_terminate=(agent.max_kl and score > 280), epoch=epoch)
 
-        if epoch % log_period == 0:
+        if epoch % LOG_PERIOD == 0:
             with Timer(f'{agent.model_name} logging'):
                 agent.log(epoch, 'Train')
             with Timer(f'{agent.model_name} save'):

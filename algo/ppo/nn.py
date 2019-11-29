@@ -34,6 +34,7 @@ class PPOAC(tf.Module):
         )
         actor_units = config['actor_units']
         critic_units = config['critic_units']
+        self.rnn_input_size = shared_mlp_units[-1]
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
@@ -85,7 +86,6 @@ class PPOAC(tf.Module):
             # this has to be done for DNC, for some obscure reason, we have to pass
             # in initial_state for the first time so that the RNN can know a 
             # high-order state_size
-            tf.summary.experimental.set_step(0)
             input_size = shared_mlp_units[-1]
             fake_inputs = tf.zeros([batch_size, 1, input_size])
             initial_state = self.rnn.get_initial_state(fake_inputs)
@@ -198,8 +198,11 @@ class PPOAC(tf.Module):
     def reset_states(self, states=None):
         self.rnn.reset_states(states)
 
-    def get_initial_state(self, inputs):
-        return self.rnn.get_initial_state(inputs)
+    def get_initial_state(self):
+        """ Get the initial states of rnn, 
+        should only be called after the model is built """
+        fake_inputs = tf.zeros([self.batch_size, 1, self.rnn_input_size])
+        return self.rnn.get_initial_state(fake_inputs)
 
 
 def create_model(model_config, state_shape, action_dim, is_action_discrete, n_envs):

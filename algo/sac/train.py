@@ -7,10 +7,9 @@ from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
 from utility.timer import Timer
 from env.gym_env import create_gym_env
-from buffer.replay.proportional_replay import ProportionalPrioritizedReplay
-from algo.sac.run import run_trajectory, random_sampling
+from replay.func import create_replay
+from algo import run
 from algo.sac.agent import Agent
-from algo.sac.eval import evaluate
 from algo.sac.data_pipline import Dataset
 from algo.sac.nn import create_model
 
@@ -35,7 +34,7 @@ def train(agent, env, buffer):
     for epoch in range(start_epoch, agent.n_epochs+1):
         agent.set_summary_step(epoch)
         with Timer('trajectory', log_period):
-            score, epslen = run_trajectory(env, agent.actor, collect_and_learn)
+            score, epslen = run.run_trajectory(env, agent.actor, collect_and_learn)
         scores.append(score)
         epslens.append(epslen)
         
@@ -53,7 +52,7 @@ def train(agent, env, buffer):
                 agent.save(steps=epoch)
         if epoch % 100 == 0:
             with Timer(f'{agent.model_name} evaluation'):
-                eval_scores, eval_epslens = evaluate(eval_env, agent.actor)
+                eval_scores, eval_epslens = run.run_trajectories(eval_env, agent.actor, evaluation=True)
             stats = dict(
                 model_name=f'{agent.model_name}',
                 timing='Eval',
@@ -73,7 +72,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     env = create_gym_env(env_config)
 
     # construct buffer
-    buffer = ProportionalPrioritizedReplay(
+    buffer = create_replay(
         buffer_config, env.state_shape, 
         env.state_dtype, env.action_dim, 
         env.action_dtype, agent_config['gamma'])
@@ -105,6 +104,9 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
 
     if restore:
         agent.restore()
-
-    random_sampling(env, buffer)
+        collect_fn = lambda state, action, reward, done: buffer.add(state, action, reward, done)
+        while len(buffer) < 1e5:
+            run.run_trajectory(env, agent.actor, collect_fn)
+    else:
+        run.random_sampling(env, buffer)
     train(agent, env, buffer)
