@@ -24,7 +24,7 @@ def main(env_config, model_config, agent_config, render=False):
                         'actor')
 
     ckpt = tf.train.Checkpoint(actor=actor)
-    ckpt_path = f'{agent_config["model_root_dir"]}/{agent_config["model_name"]}'
+    ckpt_path = f'{agent_config["root_dir"]}/{agent_config["model_name"]}/models'
     ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, 5)
 
     path = ckpt_manager.latest_checkpoint

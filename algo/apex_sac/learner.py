@@ -13,14 +13,6 @@ from algo.sac.data_pipline import Dataset
 
 
 def create_learner(BaseAgent, name, model_fn, config, model_config, env_config, buffer_config):
-    config = config.copy()
-    model_config = model_config.copy()
-    env_config = env_config.copy()
-    buffer_config = buffer_config.copy()
-    
-    config['model_name'] += '_learner'
-    env_config['n_workers'] = env_config['n_envs'] = 1
-    
     @ray.remote(num_gpus=0.3, num_cpus=2)
     class Learner(BaseAgent):
         """ Interface """
@@ -39,8 +31,7 @@ def create_learner(BaseAgent, name, model_fn, config, model_config, env_config, 
             self.buffer = create_replay(
                 buffer_config, env.state_shape, 
                 env.state_dtype, env.action_dim, 
-                env.action_dtype, config['gamma'], 
-                has_next_state=True)
+                env.action_dtype, config['gamma'])
             dataset = Dataset(self.buffer, env.state_shape, env.action_dim)
             self.model = model_fn(model_config, env.state_shape, env.action_dim, env.is_action_discrete)
             
@@ -73,10 +64,28 @@ def create_learner(BaseAgent, name, model_fn, config, model_config, env_config, 
             self.writer.set_as_default()
             while True:
                 step += 1
-                self.train_log()
+                with Timer(f'{self.name} train', 1000):
+                    self.train_log()
                 if step % 1000 == 0:
                     self.log_summary(self.logger.get_stats(), step)
-                    self.save(steps=step)
+                    self.save(steps=step, print_terminal_info=False)
 
+    config = config.copy()
+    model_config = model_config.copy()
+    env_config = env_config.copy()
+    buffer_config = buffer_config.copy()
+    
+    config['model_name'] = 'learner'
+    # learner only define a env to get necessary env info, 
+    # it does not actually interact with env
+    env_config['n_workers'] = env_config['n_envs'] = 1
 
-    return Learner.remote(name, model_fn, config, model_config, env_config, buffer_config)
+    learner = Learner.remote(name, model_fn, config, model_config, env_config, buffer_config)
+    learner.save_config.remote(dict(
+        env=env_config,
+        model=model_config,
+        agent=config,
+        buffer=buffer_config
+    ))
+
+    return learner

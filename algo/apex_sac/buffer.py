@@ -118,14 +118,21 @@ class EnvVecBuffer:
         
         self.idx = 0
 
-    def sample(self):
-        mask = self.buffer['mask']
-        state = self.buffer['state'][mask]
-        action = self.buffer['action'][mask]
-        reward = np.copy(self.buffer['reward'][mask])
-        done = self.buffer['done'][mask]
-        steps = self.buffer['steps'][mask]
-        next_state = self.buffer['next_state'][mask]
+    def sample(self, env_mask=None):
+        state = self.buffer['state'][env_mask]
+        action = self.buffer['action'][env_mask]
+        reward = np.copy(self.buffer['reward'][env_mask])
+        done = self.buffer['done'][env_mask]
+        steps = self.buffer['steps'][env_mask]
+        next_state = self.buffer['next_state'][env_mask]
+        mask = self.buffer['mask'][env_mask]
+
+        state = state[mask]
+        action = action[mask]
+        reward = reward[mask]
+        done = done[mask]
+        steps = steps[mask]
+        next_state = next_state[mask]
 
         # process rewards
         if self.normalize_reward:

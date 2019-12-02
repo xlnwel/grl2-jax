@@ -6,7 +6,7 @@ from utility.logger import Logger
 def save_config(logger, config):
     logger.save_config(config)
 
-def log(logger, writer, model_name, step, timing):
+def log(logger, writer, model_name, step, timing='Train', print_terminal_info=True):
     stats = dict(
         model_name=f'{model_name}',
         timing=timing,
@@ -14,11 +14,11 @@ def log(logger, writer, model_name, step, timing):
     )
     stats.update(logger.get_stats())
     log_summary(writer, stats, step)
-    log_stats(logger, stats)
+    log_stats(logger, stats, print_terminal_info=print_terminal_info)
 
-def log_stats(logger, stats):
+def log_stats(logger, stats, print_terminal_info=True):
     [logger.log_tabular(k, v) for k, v in stats.items()]
-    logger.dump_tabular()
+    logger.dump_tabular(print_terminal_info=print_terminal_info)
 
 def set_summary_step(step):
     tf.summary.experimental.set_step(step)
@@ -46,14 +46,14 @@ def get_stats(logger, mean=True, std=False, min=False, max=False):
 def get_value(logger, key, mean=True, std=False, min=False, max=False):
     return logger.get(key, mean=mean, std=std, min=min, max=max)
 
-""" Functions for configurations """                
-def setup_logger(log_root_dir, model_name):
-    # logger save stats in f'{log_root_dir}/{model_name}/log.txt'
-    logger = Logger(f'{log_root_dir}/{model_name}')
+""" Functions for setup logging """                
+def setup_logger(root_dir, model_name):
+    # logger save stats in f'{root_dir}/{model_name}/logs/log.txt'
+    logger = Logger(f'{root_dir}/{model_name}/logs')
     return logger
 
-def setup_tensorboard(log_root_dir, model_name):
+def setup_tensorboard(root_dir, model_name):
     # writer for tensorboard summary
-    # stats are saved in directory f'{log_root_dir}/{model_name}'
-    writer = tf.summary.create_file_writer(f'{log_root_dir}/{model_name}')
+    # stats are saved in directory f'{root_dir}/{model_name}'
+    writer = tf.summary.create_file_writer(f'{root_dir}/{model_name}/logs')
     return writer

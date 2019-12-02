@@ -24,9 +24,11 @@ def timeit(func, *args, name=None, to_print=False, **kwargs):
 class Timer:
     aggregators = defaultdict(Aggregator)
 
-    def __init__(self, summary_name, period=1):
+    def __init__(self, summary_name, period=1, mode='average'):
         self.summary_name = summary_name
         self.period = period
+        assert mode in ['average', 'sum']
+        self.mode = mode
 
     def __enter__(self):
         self.start = time()
@@ -37,10 +39,13 @@ class Timer:
         aggregator = self.aggregators[self.summary_name]
         aggregator.add(duration)
         if aggregator.count >= self.period:
-            duration_mean = aggregator.average()
-            duration_mean = (f'{duration_mean*1000:.3g}ms' if duration_mean < 1e-1 
-                             else f'{duration_mean:.3g}s')
-            pwc(f'{self.summary_name} duration: "{duration_mean}"', color='blue')
+            if self.mode == 'average':
+                duration = aggregator.average()
+            else:
+                duration = aggregator.sum()
+            duration = (f'{duration*1000:.3g}ms' if duration < 1e-1 
+                             else f'{duration:.3g}s')
+            pwc(f'{self.summary_name} duration: "{duration}"', color='blue')
             aggregator.reset()
 
 

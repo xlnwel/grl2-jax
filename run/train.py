@@ -23,7 +23,7 @@ def parse_cmd_args():
                         default='')
     parser.add_argument('--render', '-r',
                         action='store_true',
-                        help='render the environment. This currently does not work for EnvVec')
+                        help='render the environment. this currently does not work for EnvVec')
     parser.add_argument('--trials', '-t',
                         type=int,
                         default=1,
@@ -52,8 +52,8 @@ def import_main(algorithm):
         from algo.apex_sac.train import main
     elif algorithm == 'seed-sac':
         from algo.seed_sac.train import main
-    elif algorithm == 'dee':
-        from algo.dee.train import main
+    elif algorithm == 'dee-sac':
+        from algo.dee_sac.train import main
     else:
         raise NotImplementedError
 
@@ -70,8 +70,8 @@ def get_config_file(algorithm):
         config_file = 'algo/apex_sac/config.yaml'
     elif algorithm == 'seed-sac':
         config_file = 'algo/seed_sac/config.yaml'
-    elif algorithm == 'dee':
-        config_file = 'algo/dee/config.yaml'
+    elif algorithm == 'dee-sac':
+        config_file = 'algo/dee_sac/config.yaml'
     else:
         raise NotImplementedError
 
@@ -79,36 +79,36 @@ def get_config_file(algorithm):
 
 if __name__ == '__main__':
     cmd_args = parse_cmd_args()
-    algorithm = list(cmd_args.algorithm)
-
+    render = cmd_args.render
     processes = []
-    for algo in algorithm:
-        config_file = get_config_file(algo)
+    if cmd_args.directory != '':
+        # load model and log path
+        directory = cmd_args.directory
+        config_file = None
+        for root, _, files in os.walk(directory):
+            for f in files:
+                if f == 'config.yaml' and config_file is None:
+                    config_file = os.path.join(root, f)
+                    break
+                elif f =='config.yaml' and config_file is not None:
+                    pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
+                    sys.exit()
+
+        config = load_config(config_file)
+        env_config = config['env']
+        model_config = config['model']
+        agent_config = config['agent']
+        buffer_config = config['buffer']
+        algo = agent_config['algorithm']
         main = import_main(algo)
-        
-        render = cmd_args.render
 
-        if cmd_args.directory != '':
-            # load model and log path
-            directory = cmd_args.directory
-            config_file = None
-            for root, _, files in os.walk(directory):
-                for f in files:
-                    if f == 'config.yaml' and config_file is None:
-                        config_file = os.path.join(root, f)
-                        break
-                    elif f =='config.yaml' and config_file is not None:
-                        pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
-                        sys.exit()
+        main(env_config, model_config, agent_config, buffer_config, restore=True, render=render)
+    else:
+        algorithm = list(cmd_args.algorithm)
+        for algo in algorithm:
+            config_file = get_config_file(algo)
+            main = import_main(algo)
 
-            config = load_config(config_file)
-            env_config = config['env']
-            model_config = config['model']
-            agent_config = config['agent']
-            buffer_config = config['buffer']
-
-            main(env_config, model_config, agent_config, buffer_config, restore=True, render=render)
-        else:
             prefix = cmd_args.prefix
             config = load_config(config_file)
             env_config = config['env']
@@ -124,27 +124,27 @@ if __name__ == '__main__':
                 if algo == 'ppo':
                     processes += gs()
                 elif algo == 'ppo2':
-                    processes += gs(learning_rate=[1e-4, 3e-4], n_updates=[4, 8])
+                    processes += gs(learn_freq=[100, 200])
                 elif algo == 'sac':
                     processes += gs()
                 elif algo == 'apex-sac':
                     processes += gs()
-                elif algo == 'seed_sac':
+                elif algo == 'seed-sac':
                     processes += gs()
                 else:
                     raise NotImplementedError()
             else:
-                if prefix == '':
-                    prefix = 'baseline'
+                if prefix != '':
+                    prefix = f'{prefix}-'
                 config = load_config(config_file)
                 env_config = config['env']
                 model_config = config['model']
                 agent_config = config['agent']
                 buffer_config = config['buffer'] if 'buffer' in config else {}
-                dir_fn = lambda filename: f'logs/{prefix}-{algo}-{env_config["name"]}/{filename}'
-                for root_dir in ['model_root_dir', 'log_root_dir']:
-                    agent_config[root_dir] = dir_fn(agent_config[root_dir])
-                env_config['video_path'] = dir_fn(env_config['video_path'])
+                agent_config['root_dir'] = f'logs/{prefix}{algo}-{env_config["name"]}'
+                env_config['video_path'] = (f'{agent_config["root_dir"]}/'
+                                            f'{agent_config["model_name"]}/'
+                                            f'{env_config["video_path"]}')
                 if len(algorithm) > 1:
                     p = Process(target=main,
                                 args=(env_config, 

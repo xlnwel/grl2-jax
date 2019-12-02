@@ -2,8 +2,8 @@ import numpy as np
 import tensorflow as tf
 
 from utility.display import pwc
-from core.tf_config import build
 from utility.tf_utils import n_step_target
+from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
 
@@ -32,12 +32,12 @@ class Agent(BaseAgent):
             raise NotImplementedError()
         self.actor_opt = Optimizer(learning_rate=self.actor_lr,
                                     epsilon=self.epsilon)
-        self.softq_opt = Optimizer(learning_rate=self.softq_lr,
+        self.q_opt = Optimizer(learning_rate=self.q_lr,
                                 epsilon=self.epsilon)
         self.temp_opt = Optimizer(learning_rate=self.temp_lr,
                                 epsilon=self.epsilon)
         self.ckpt_models['actor_opt'] = self.actor_opt
-        self.ckpt_models['softq_opt'] = self.softq_opt
+        self.ckpt_models['q_opt'] = self.q_opt
         self.ckpt_models['temp_opt'] = self.temp_opt
 
         # for temperature loss
@@ -59,7 +59,7 @@ class Agent(BaseAgent):
         saved_indices = data['saved_indices']
         del data['saved_indices']
         # tf.summary.trace_on()
-        temp, actor_loss, q1, q1_loss, softq_loss, priority = self.train_step(**data)
+        temp, actor_loss, q1, q1_loss, q_loss, priority = self.train_step(**data)
         # tf.summary.trace_export('train')
         self.dataset.update_priorities(priority.numpy(), saved_indices.numpy())
         self.store(
@@ -67,7 +67,7 @@ class Agent(BaseAgent):
             actor_loss=actor_loss.numpy(),
             q1=q1.numpy(),
             q1_loss=q1_loss.numpy(),
-            softq_loss=softq_loss.numpy(),
+            q_loss=q_loss.numpy(),
             priority=priority.numpy(),
         )
 
@@ -83,18 +83,18 @@ class Agent(BaseAgent):
             if hasattr(self, 'clip_norm'):
                 actor_grads, actor_norm = tf.clip_by_global_norm(actor_grads, self.clip_norm)
             self.actor_opt.apply_gradients(zip(actor_grads, self.actor.trainable_variables))
-        with tf.name_scope('softq_train'):
-            priority, q1, q1_loss, softq_loss, softq_grads = self._compute_softq_grads(
+        with tf.name_scope('q_train'):
+            priority, q1, q1_loss, q_loss, q_grads = self._compute_q_grads(
                 state, action, next_state, reward, 
                 done, steps, IS_ratio)
             if hasattr(self, 'clip_norm'):
-                softq_grads, softq_norm = tf.clip_by_global_norm(softq_grads, self.clip_norm)
-            self.softq_opt.apply_gradients(
-                zip(softq_grads, self.softq1.trainable_variables + self.softq2.trainable_variables))
+                q_grads, q_norm = tf.clip_by_global_norm(q_grads, self.clip_norm)
+            self.q_opt.apply_gradients(
+                zip(q_grads, self.q1.trainable_variables + self.q2.trainable_variables))
 
         self._update_target_nets()
 
-        return temp, actor_loss, q1, q1_loss, softq_loss, priority
+        return temp, actor_loss, q1, q1_loss, q_loss, priority
 
     def _compute_temp_grads(self, state, IS_ratio):
         target_entropy = -self.action_dim
@@ -115,7 +115,7 @@ class Agent(BaseAgent):
         with tf.GradientTape() as tape:
             action, logpi = self.actor.train_step(state)
             _, temp = self.temperature.train_step(state, action)
-            q1_with_actor = self.softq1.train_step(state, action)
+            q1_with_actor = self.q1.train_step(state, action)
 
             with tf.name_scope('actor_loss'):
                 loss = tf.reduce_mean(
@@ -126,17 +126,17 @@ class Agent(BaseAgent):
 
         return loss, grads
 
-    def _compute_softq_grads(self, state, action, next_state, reward, done, steps, IS_ratio):
+    def _compute_q_grads(self, state, action, next_state, reward, done, steps, IS_ratio):
         with tf.GradientTape() as tape:
             next_action, next_logpi = self.actor.train_step(next_state)
-            next_q1_with_actor = self.target_softq1.train_step(next_state, next_action)
-            next_q2_with_actor = self.target_softq2.train_step(next_state, next_action)
+            next_q1_with_actor = self.target_q1.train_step(next_state, next_action)
+            next_q2_with_actor = self.target_q2.train_step(next_state, next_action)
             next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
             _, next_temp = self.temperature.train_step(next_state, next_action)
         
-            q1 = self.softq1.train_step(state, action)
-            q2 = self.softq2.train_step(state, action)
-            with tf.name_scope('softq_loss'):
+            q1 = self.q1.train_step(state, action)
+            q2 = self.q2.train_step(state, action)
+            with tf.name_scope('q_loss'):
                 nth_value = tf.subtract(next_q_with_actor, next_temp * next_logpi, name='nth_value')
                 target_q = n_step_target(reward, done, 
                                         nth_value, self.gamma, steps)
@@ -148,9 +148,9 @@ class Agent(BaseAgent):
                 loss = q1_loss + q2_loss
 
         priority = self._compute_priority((q1_error + q2_error) / 2.)
-        with tf.name_scope('softq_grads'):
+        with tf.name_scope('q_grads'):
             grads = tape.gradient(loss, 
-                self.softq1.trainable_variables + self.softq2.trainable_variables)
+                self.q1.trainable_variables + self.q2.trainable_variables)
 
         return priority, q1, q1_loss, loss, grads
 
@@ -163,12 +163,12 @@ class Agent(BaseAgent):
         return priority
 
     def _initialize_target_nets(self):
-        self.target_softq1.set_weights(self.soft_q1.get_weights())
-        self.target_softq2.set_weights(self.soft_q2.get_weights())
+        self.target_q1.set_weights(self.soft_q1.get_weights())
+        self.target_q2.set_weights(self.soft_q2.get_weights())
 
     def _update_target_nets(self):
-        tvars = self.target_softq1.trainable_variables + self.target_softq2.trainable_variables
-        mvars = self.softq1.trainable_variables + self.softq2.trainable_variables
+        tvars = self.target_q1.trainable_variables + self.target_q2.trainable_variables
+        mvars = self.q1.trainable_variables + self.q2.trainable_variables
         [tvar.assign(self.polyak * tvar + (1. - self.polyak) * mvar) 
             for tvar, mvar in zip(tvars, mvars)]
 

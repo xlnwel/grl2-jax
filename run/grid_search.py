@@ -41,19 +41,12 @@ class GridSearch:
                         f'{now.hour:02d}{now.minute:02d}-'
         else:
             timestamp = ''
-        dir_prefix = self.dir_prefix and f'{self.dir_prefix}-'
-        dir_fn = lambda filename: (f'logs/'
-                                    f'{timestamp}'
-                                    f'{dir_prefix}'
-                                    f'{self.agent_config["algorithm"]}-'
-                                    f'{self.env_config["name"]}/'
-                                    f'{filename}')
-                                    
-        dirs = ['model_root_dir', 'log_root_dir']
-        for root_dir in dirs:
-            self.agent_config[root_dir] = dir_fn(self.agent_config[root_dir])
-        if 'video_path' in self.env_config:
-            self.env_config['video_path'] = f"{dir_fn(self.env_config['video_path'])}/{self.agent_config['model_name']}"
+        dir_prefix = self.dir_prefix and f'{self.dir_prefix}-'                                    
+        self.agent_config['root_dir'] = (f'logs/'
+                                        f'{timestamp}'
+                                        f'{dir_prefix}'
+                                        f'{self.agent_config["algorithm"]}-'
+                                        f'{self.env_config["name"]}')
 
     def _change_config(self, **kwargs):
         if kwargs == {}:
@@ -69,6 +62,9 @@ class GridSearch:
                 if self.n_trials > 1:
                     agent_config['model_name'] += f'/trial{i}'
                 env_config['seed'] = 10 * i
+                env_config['video_path'] = (f'{agent_config["root_dir"]}/'
+                                            f'{agent_config["model_name"]}/'
+                                            f'{env_config["video_path"]}')
                 p = Process(target=self.train_func,
                             args=(env_config, 
                                 model_config,

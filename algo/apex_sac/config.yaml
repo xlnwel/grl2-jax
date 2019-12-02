@@ -9,7 +9,7 @@ model:
     actor:
         units_list: [512, 256]
         norm: none
-    softq:
+    q:
         units_list: [512, 256]
         norm: none
     temperature:
@@ -23,18 +23,18 @@ agent:
     # distributed algo params
     n_workers: 8
 
-    # model path: model_root_dir/model_name
-    # tensorboard path: log_root_dir/model_name
-    model_root_dir: saved_models            # root path for savinng models
-    log_root_dir: logs                      # root path for tensorboard logs
-    model_name: *algo
+    # model path: root_dir/model_name/models
+    # tensorboard path: root_dir/model_name/logs
+    # the following names are just examples; they will be reset in our training process
+    root_dir: *algo                         # root path for tensorboard logs
+    model_name: agent
 
     loss_type: mse                          # huber or mse
 
     # arguments for optimizer
     optimizer: adam
     actor_lr: 1.e-4
-    softq_lr: 3.e-4
+    q_lr: 3.e-4
     temp_lr: 1.e-4
     epsilon: 1.e-5
 

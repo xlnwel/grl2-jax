@@ -27,6 +27,8 @@ def import_main(algorithm):
         from algo.ppo2.eval import main
     elif algorithm == 'sac':
         from algo.sac.eval import main
+    elif algorithm == 'dee-sac':
+        from algo.dee_sac.eval import main
     else:
         raise NotImplementedError
 

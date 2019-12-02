@@ -2,26 +2,28 @@
 env:
     name: BipedalWalker-v2
     video_path: video
+    n_envs: &n_envs 8                           # number of envs for each worker
     log_video: False
     seed: 0
-    clip_reward: none
-
 model:
     actor:
         units_list: [512, 256]
-        norm: layer
+        norm: none
     q:
         units_list: [512, 256]
-        norm: layer
+        norm: none
     temperature:
 
 agent:
-    algorithm: &algo sac
+    algorithm: &algo seed-sac
     temperature: auto                       # auto or some float, e.g., 0.01
     gamma: 0.99
     polyak: .995                            # moving average rate
-    # episodic_learning: False              # whether to update network after each episode. Update after each step if False
-    # max_action_repetitions: 1
+    
+    # distributed algo args, following args should be tuned together for each environment
+    # in order to achieve high performance.
+    n_workers: 4
+    # n_envs: *n_envs                       # n_envs repeated here only to show connection to n_workers
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -30,7 +32,6 @@ agent:
     model_name: agent
 
     loss_type: mse                          # huber or mse
-    n_epochs: 400
 
     # arguments for optimizer
     optimizer: adam
@@ -52,12 +53,13 @@ buffer:
 
     # hacking
     normalize_reward: False
-    reward_scale: 1
+    # reward_scale: 5
+    # reward_clip: 50
 
     # arguments for general replay
     n_steps: 3
     batch_size: 256
-    min_size: 5e3
+    min_size: 5e4
     capacity: 1e6
 
     tb_capacity: 100    # capacity of the temporal buffer

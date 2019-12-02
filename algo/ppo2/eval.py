@@ -10,7 +10,7 @@ from env.gym_env import create_gym_env
 from algo.ppo.nn import create_model
 
 
-def evaluate(env, model):
+def evaluate(env, agent):
     pwc('Evaluation starts', color='cyan')
     i = 0
 
@@ -18,9 +18,10 @@ def evaluate(env, model):
     epslens = []
     while i < 100:
         i += env.n_envs
+        agent.reset_states()
         state = env.reset()
         for _ in range(env.max_episode_steps):
-            action = model.det_action(tf.convert_to_tensor(state, tf.float32))
+            action = agent.det_action(state)
             state, _, done, _ = env.step(action.numpy())
 
             if np.all(done):

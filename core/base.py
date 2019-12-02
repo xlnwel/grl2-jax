@@ -9,15 +9,17 @@ class BaseAgent(ABC):
     def restore(self):
         restore(self.ckpt_manager, self.ckpt, self.ckpt_path)
 
-    def save(self, steps, message=''):
-        save(self.ckpt_manager, self.global_steps, steps, message)
+    def save(self, steps, message='', print_terminal_info=True):
+        save(self.ckpt_manager, self.global_steps, steps, message, 
+            print_terminal_info=print_terminal_info)
 
     """ Logging """
     def save_config(self, config):
         save_config(self.logger, config)
 
-    def log(self, step, timing):
-        log(self.logger, self.writer, self.model_name, step, timing)
+    def log(self, step, timing='Train', print_terminal_info=True):
+        log(self.logger, self.writer, self.model_name, step, 
+            timing=timing, print_terminal_info=print_terminal_info)
 
     def log_stats(self, stats):
         log_stats(self.logger, stats)

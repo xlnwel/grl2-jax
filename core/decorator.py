@@ -35,8 +35,8 @@ def agent_config(init_fn):
         """ For the basic configuration, see config.yaml in algo/*/ """
         [setattr(self, k, v) for k, v in config.items()]
 
-        self.logger = setup_logger(self.log_root_dir, self.model_name)
-        self.writer = setup_tensorboard(self.log_root_dir, self.model_name)
+        self.logger = setup_logger(self.root_dir, self.model_name)
+        self.writer = setup_tensorboard(self.root_dir, self.model_name)
 
         # track models and optimizers for Checkpoint
         self.ckpt_models = {}
@@ -49,7 +49,7 @@ def agent_config(init_fn):
         
         # postprocessing
         self.global_steps, self.ckpt, self.ckpt_path, self.ckpt_manager = \
-            setup_checkpoint(self.ckpt_models, self.model_root_dir, self.model_name)
+            setup_checkpoint(self.ckpt_models, self.root_dir, self.model_name)
         display_model_var_info(self.ckpt_models)
         print_construction_complete(self.name)
     

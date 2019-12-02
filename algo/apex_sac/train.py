@@ -30,7 +30,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
             name='worker', worker_id=worker_id, 
             model_fn=SAC, config=agent_config, 
             model_config=model_config, env_config=env_config, 
-            buffer_config=buffer_config, to_log=worker_id==0)
+            buffer_config=buffer_config)
         workers.append(worker)
     
     if restore:

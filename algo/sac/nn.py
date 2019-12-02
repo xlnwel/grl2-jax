@@ -154,7 +154,7 @@ class SoftPolicy(tf.Module):
 
 
 class SoftQ(tf.Module):
-    def __init__(self, config, state_shape, action_dim, name='softq'):
+    def __init__(self, config, state_shape, action_dim, name='q'):
         super().__init__(name=name)
 
         # parameters
@@ -237,21 +237,21 @@ class Temperature(tf.Module):
 
 def create_model(model_config, state_shape, action_dim, is_action_discrete):
     actor_config = model_config['actor']
-    softq_config = model_config['softq']
+    q_config = model_config['q']
     temperature_config = model_config['temperature']
     actor = SoftPolicy(actor_config, state_shape, action_dim, is_action_discrete)
-    softq1 = SoftQ(softq_config, state_shape, action_dim, 'softq1')
-    softq2 = SoftQ(softq_config, state_shape, action_dim, 'softq2')
-    target_softq1 = SoftQ(softq_config, state_shape, action_dim, 'target_softq1')
-    target_softq2 = SoftQ(softq_config, state_shape, action_dim, 'target_softq2')
+    q1 = SoftQ(q_config, state_shape, action_dim, 'q1')
+    q2 = SoftQ(q_config, state_shape, action_dim, 'q2')
+    target_q1 = SoftQ(q_config, state_shape, action_dim, 'target_q1')
+    target_q2 = SoftQ(q_config, state_shape, action_dim, 'target_q2')
     temperature = Temperature(temperature_config, state_shape, action_dim)
     
     return dict(
         actor=actor,
-        softq1=softq1,
-        softq2=softq2,
-        target_softq1=target_softq1,
-        target_softq2=target_softq2,
+        q1=q1,
+        q2=q2,
+        target_q1=target_q1,
+        target_q2=target_q2,
         temperature=temperature,
     )
     
