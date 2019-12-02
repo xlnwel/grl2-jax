@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-EPSILON = 1e-8
+EPSILON = 1e-7
 
 
 def tf_scope(func):
@@ -46,64 +46,63 @@ class Distribution(tf.Module):
 
 
 class Categorical(Distribution):
-    def __init__(self, logits, tau=None):
+    def __init__(self, logits, tau=1):
         self.logits = logits
         self.tau = tau
 
     def _neglogp(self, x):
-        if len(x.shape.as_list()) == len(self.logits.shape.as_list()) and x.shape.as_list()[-1] != 1:
-            return tf.nn.softmax_cross_entropy_with_logits(labels=tf.stop_gradient(x), logits=self.logits)[..., None]
+        if len(x.shape) == len(self.logits.shape) and x.shape[-1] != 1:
+            # when x is one-hot encoded
+            return tf.nn.softmax_cross_entropy_with_logits(labels=x, logits=self.logits)[..., None]
         else:
-            x = tf.squeeze(x)
             return tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x, logits=self.logits)[..., None]
 
-    def _sample(self, reparameterize=False, hard=True, epsilon=1e-20):
+    def _sample(self, reparameterize=False, hard=True, one_hot=True):
         """
          A differentiable sampling method for categorical distribution
          reference paper: Categorical Reparameterization with Gumbel-Softmax
          and code: https://github.com/ericjang/gumbel-softmax/blob/master/Categorical%20VAE.ipynb
         """
         if reparameterize:
-            assert self.tau is not None
             # sample Gumbel(0, 1)
             U = tf.random.uniform(tf.shape(self.logits), minval=0, maxval=1)
-            g = -tf.math.log(-tf.math.log(U+epsilon)+epsilon)
+            g = -tf.math.log(-tf.math.log(U+EPSILON)+EPSILON)
+            # g = tfp.distributions.Gumbel(0, 1).sample(self.logits.shape)
             # Draw a sample from the Gumbel-Softmax distribution
-            y = tf.nn.softmax((self.logits + g) / self.tau)
+            y = tf.nn.softmax((tf.nn.log_softmax(self.logits) + g) / self.tau)
             # draw one-hot encoded sample from the softmax
             if hard:
-                y_hard = tf.cast(tf.equal(y, tf.reduce_max(y, 1, keepdims=True)), y.dtype)
+                y_hard = tf.one_hot(tf.argmax(y, -1), self.logits.shape[-1])
                 y = tf.stop_gradient(y_hard - y) + y
+            if not one_hot:
+                y = tf.argmax(y, -1)
         else:
             y = tf.random.categorical(self.logits, 1, dtype=tf.int32)
-            y = tf.one_hot(y)
+            y = tf.squeeze(y, -1)
+            if one_hot:
+                y = tf.one_hot(y, self.logits.shape[-1])
 
         return y
 
     def _entropy(self):
-        probs = self._compute_probs()
-        entropy = tf.reduce_sum(-probs * tf.math.log(probs), axis=-1)
+        probs = tf.nn.softmax(self.logits)
+        log_probs = tf.math.log(probs + EPSILON)
+        entropy = tf.reduce_sum(-probs * log_probs, axis=-1)
 
         return entropy
 
     def _kl(self, other):
-        probs = self._compute_probs()
-        other_probs = other._compute_probs()
-        kl = tf.reduce_sum(probs * (tf.math.log(probs) - tf.math.log(other_probs)), axis=-1)
+        probs = tf.nn.softmax(self.logits)
+        log_probs = tf.math.log(probs)
+        other_log_probs = tf.nn.log_softmax(other.logits)
+        kl = tf.reduce_sum(probs * (log_probs - other_log_probs), axis=-1)
 
         return kl
 
-    def _compute_probs(self):
-        logits = self.logits - tf.reduce_max(self.logits, axis=-1, keepdims=True)
-        exp_logits = tf.exp(logits)
-        sum_exp_logits = tf.reduce_sum(exp_logits, axis=-1, keepdims=True)
-        probs = exp_logits / sum_exp_logits
-
-        return probs
 
 class DiagGaussian(Distribution):
-    def __init__(self, params):
-        self.mean, self.logstd = params
+    def __init__(self, mean, logstd):
+        self.mean, self.logstd = mean, logstd
         self.std = tf.exp(self.logstd)
 
     def _neglogp(self, x):
@@ -134,7 +133,7 @@ def compute_sample_mean_variance(samples, name='sample_mean_var'):
         covariance = 1 / (sample_size - 1.) * tf.matmul(samples_shifted, samples_shifted, transpose_a=True)
 
         # Take into account case of zero covariance
-        almost_zero_covariance = tf.fill(tf.shape(covariance), 1e-8)
+        almost_zero_covariance = tf.fill(tf.shape(covariance), EPSILON)
         is_zero = tf.equal(tf.reduce_sum(tf.abs(covariance)), 0)
         covariance = tf.where(is_zero, almost_zero_covariance, covariance)
 

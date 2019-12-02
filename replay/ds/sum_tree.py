@@ -1,10 +1,10 @@
 import numpy as np
-from replay.ds.container import Container
 
-class SumTree(Container):
+
+class SumTree:
     """ Interface """
     def __init__(self, capacity):
-        super().__init__(capacity)
+        self.capacity = capacity
         self.tree_size = capacity - 1
         
         self.container = np.zeros(self.tree_size + self.capacity)
@@ -30,13 +30,8 @@ class SumTree(Container):
         idx = mem_idx + self.tree_size
         self.container[idx] = priority
 
-        self._propagate(idx)
-
-    def _propagate(self, idx):
         while idx > 0:
             idx = (idx - 1) // 2    # update idx to its parent idx
-
-            left = idx * 2 + 1
-            right = idx * 2 + 2
+            left, right = 2 * idx + 1, 2 * idx + 2
 
             self.container[idx] = self.container[left] + self.container[right]

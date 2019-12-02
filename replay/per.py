@@ -1,19 +1,16 @@
 import numpy as np
 
 from utility.decorators import override
-from utility.display import assert_colorize
+from utility.display import pwc
 from utility.schedule import PiecewiseSchedule
-from replay.basic_replay import Replay
-from replay.utils import init_buffer, add_buffer, copy_buffer
+from replay.base import Replay
 from replay.ds.sum_tree import SumTree
 
 
 class PERBase(Replay):
     """ Base class for PER, left in case one day I implement rank-based PER """
-    def __init__(self, config, state_shape, state_dtype, 
-                action_dim, action_dtype, gamma, 
-                has_next_state=False):
-        super().__init__(config, state_shape, action_dim, gamma)
+    def __init__(self, config, *keys, state_shape=None):
+        super().__init__(config, *keys, state_shape=state_shape)
         self.data_structure = None            
 
         # params for prioritized replay
@@ -22,52 +19,35 @@ class PERBase(Replay):
                                                 outside_value=1.)
 
         self.top_priority = 2.
-        self.to_update_priority = config['to_update_priority'] if 'to_update_priority' in config else True
+        self.to_update_top_priority = config['to_update_top_priority'] if 'to_update_top_priority' in config else True
 
         self.sample_i = 0   # count how many times self.sample is called
 
-        init_buffer(self.memory, self.capacity, state_shape, state_dtype, 
-                    action_dim, action_dtype, self.n_steps == 1, 
-                    has_next_state=has_next_state)
-
-        # Code for single agent
-        if 'tb_capacity' in config and self.n_steps > 1:
-            self.tb_capacity = config['tb_capacity']
-            self.tb_idx = 0
-            self.tb_full = False
-            self.tb = {}
-            init_buffer(self.tb, self.tb_capacity, state_shape, state_dtype, 
-                        action_dim, action_dtype, True, 
-                        has_next_state=has_next_state)
-
     @override(Replay)
     def sample(self):
-        assert_colorize(self.good_to_learn, 'There are not sufficient transitions to start learning --- '
-                                            f'transitions in buffer: {len(self)}\t'
-                                            f'minimum required size: {self.min_size}')
-        with self.locker:        
-            samples = self._sample()
-            self.sample_i += 1
-            self._update_beta()
+        assert self.good_to_learn, (
+            'There are not sufficient transitions to start learning --- '
+            f'transitions in buffer({len(self)}) vs '
+            f'minimum required size({self.min_size})')
+        # with self.locker:
+        samples = self._sample()
+        self.sample_i += 1
+        self._update_beta()
 
         return samples
 
     @override(Replay)
-    def add(self, state, action, reward, done, next_state=None):
-        if self.n_steps > 1:
-            assert_colorize(hasattr(self, 'tb'), 'please specify tb_capacity in config.yaml')
-            self.tb['priority'][self.tb_idx] = self.top_priority
-        else:
-            self.memory['priority'][self.mem_idx] = self.top_priority
-            self.data_structure.update(self.top_priority, self.mem_idx)
-        super()._add(state, action, reward, done, next_state=next_state)
+    def add(self, **kwargs):
+        self.data_structure.update(self.top_priority, self.mem_idx)
+        super().add(**kwargs)
 
     def update_priorities(self, priorities, saved_indices):
-        with self.locker:
-            if self.to_update_priority:
-                self.top_priority = max(self.top_priority, np.max(priorities))
-            for priority, idx in zip(priorities, saved_indices):
-                self.data_structure.update(priority, idx)
+        assert not np.any(np.isnan(priorities)), priorities
+        # with self.locker:
+        if self.to_update_top_priority:
+            self.top_priority = max(self.top_priority, np.max(priorities))
+        for priority, idx in zip(priorities, saved_indices):
+            self.data_structure.update(priority, idx)
 
     """ Implementation """
     def _update_beta(self):
@@ -76,7 +56,7 @@ class PERBase(Replay):
     @override(Replay)
     def _merge(self, local_buffer, length):
         end_idx = self.mem_idx + length
-        assert np.all(local_buffer['priority'][: length])
+        assert np.all(local_buffer['priority'][: length] != 0)
         for idx, mem_idx in enumerate(range(self.mem_idx, end_idx)):
             self.data_structure.update(local_buffer['priority'][idx], mem_idx % self.capacity)
             
@@ -90,12 +70,8 @@ class PERBase(Replay):
 
 class ProportionalPER(PERBase):
     """ Interface """
-    def __init__(self, config, state_shape, state_dtype, 
-                action_dim, action_dtype, gamma,
-                has_next_state=False):
-        super().__init__(config, state_shape, state_dtype, 
-                        action_dim, action_dtype, gamma, 
-                        has_next_state=has_next_state)
+    def __init__(self, config, *keys, state_shape=None):
+        super().__init__(config, *keys, state_shape=state_shape)
         self.data_structure = SumTree(self.capacity)        # mem_idx    -->     priority
 
     """ Implementation """
@@ -105,8 +81,25 @@ class ProportionalPER(PERBase):
         
         segment = total_priorities / self.batch_size
 
-        priorities, indexes = list(zip(*[self.data_structure.find(np.random.uniform(i * segment, (i+1) * segment))
-                                        for i in range(self.batch_size)]))
+        # priorities, indexes = [], []
+        # for k in range(self.batch_size):
+        #     try:
+        #         v = np.random.uniform(k * segment, (k+1) * segment)
+        #         p, i = self.data_structure.find(v)
+        #         priorities.append(p)
+        #         indexes.append(i)
+        #     except:
+        #         print('k', k)
+        #         print('segment', segment, k * segment, (k+1) * segment)
+        #         print('v', v)
+        #         print('priority', p)
+        #         print('i', i)
+        #         import sys
+        #         sys.exit()
+
+        priorities, indexes = list(zip(
+            *[self.data_structure.find(np.random.uniform(i * segment, (i+1) * segment))
+                for i in range(self.batch_size)]))
 
         priorities = np.array(priorities)
         probabilities = priorities / total_priorities

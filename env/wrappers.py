@@ -10,8 +10,8 @@ class TimeLimit(gym.Wrapper):
         self._max_episode_steps = max_episode_steps
         self._elapsed_steps = 0
 
-    def step(self, ac):
-        observation, reward, done, info = self.env.step(ac)
+    def step(self, action):
+        observation, reward, done, info = self.env.step(action)
         self._elapsed_steps += 1
         if self._elapsed_steps >= self._max_episode_steps:
             done = True
@@ -34,20 +34,25 @@ class ClipActionsWrapper(gym.Wrapper):
 
 class EnvStats(gym.Wrapper):
     """ Provide Environment Stats Records """
+    def __init__(self, env):
+        super().__init__(env)
+        self.already_done = True
+
     def reset(self):
-        self.score = 0
-        self.epslen = 0
-        self.early_done = 0
-        self.mask = 1
-        
+        if getattr(self, 'was_real_done', True):
+            self.score = 0
+            self.epslen = 0
+            self.already_done = False
+            self.mask = 1
+
         return self.env.reset()
 
     def step(self, action):
-        self.mask = 1 - self.early_done
+        self.mask = 1 - self.already_done
         next_state, reward, done, info = self.env.step(action)
-        self.score += 0 if self.early_done else reward
-        self.epslen += 0 if self.early_done else 1
-        self.early_done = done
+        self.score += 0 if self.already_done else reward
+        self.epslen += 0 if self.already_done else 1
+        self.already_done = done and getattr(self, 'was_real_done', True)
 
         return next_state, reward, done, info
 
@@ -71,7 +76,7 @@ class EnvStats(gym.Wrapper):
 
     @property
     def state_dtype(self):
-        return self.observation_space.dtype
+        return np.float32 if len(self.state_shape) == 1 else self.observation_space.dtype
 
     @property
     def action_shape(self):
@@ -79,7 +84,7 @@ class EnvStats(gym.Wrapper):
 
     @property
     def action_dtype(self):
-        return np.float32
+        return np.uint8 if self.is_action_discrete else np.float32
 
     @property
     def action_dim(self):
@@ -91,8 +96,9 @@ def get_wrapper_by_name(env, classname):
     while True:
         if classname in currentenv.__class__.__name__:
             return currentenv
-        elif isinstance(env, gym.Wrapper):
+        elif isinstance(env, gym.Wrapper) and hasattr(currentenv, 'env'):
             currentenv = currentenv.env
         else:
-            raise ValueError("Couldn't find wrapper named %s"%classname)
+            # don't raise error here, only return None
+            return None
             

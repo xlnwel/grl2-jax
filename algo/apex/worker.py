@@ -3,16 +3,17 @@ import numpy as np
 import tensorflow as tf
 import ray
 
-from core import log
 from core import tf_config
+from core.ensemble import Ensemble
 from utility.display import pwc
+from utility.timer import Timer
 from env.gym_env import create_gym_env
-from algo.apex_sac.buffer import create_local_buffer
-from algo.apex_sac.per_worker import PERWorker
+from algo.apex.buffer import create_local_buffer
+from algo.apex.base_worker import BaseWorker
 
 
 @ray.remote(num_cpus=1)
-class Worker(PERWorker):
+class Worker(BaseWorker):
     """ Interface """
     def __init__(self, 
                 name,
@@ -28,12 +29,12 @@ class Worker(PERWorker):
 
         env = create_gym_env(env_config)
         
-        models = model_fn(model_config, env.state_shape, env.action_dim, env.is_action_discrete)
+        models = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
         
-        buffer_config['epslen'] = env.max_episode_steps
+        buffer_config['seqlen'] = env.max_episode_steps
         buffer = buffer_fn(
             buffer_config, env.state_shape, 
-            env.state_dtype, env.action_dim, 
+            env.state_dtype, env.action_shape, 
             env.action_dtype, config['gamma'])
 
         super().__init__(
@@ -47,14 +48,19 @@ class Worker(PERWorker):
             target_value=models['target_q1'],
             config=config)
 
-    def run(self, learner):
-        episode_i = 0
+    def run(self, learner, replay):
+        episode = 0
         step = 0
         while True:
-            weights = self.pull_weights(learner)
-            episode_i, step, _ = self.eval_model(weights, episode_i, step)
-            self.send_data(learner)
+            with Timer(f'{self.name} pull weights', self.TIME_PERIOD):
+                weights = self.pull_weights(learner)
+            episode, step, _ = self.eval_model(weights, episode, step, replay)
 
+            self._periodic_logging(episode, step)
+
+    def _periodic_logging(self, episode, step):
+        if episode % self.LOG_PERIOD == 0:
+            self.log(step=step, print_terminal_info=False)
 
 def create_worker(name, worker_id, model_fn, config, model_config, 
                 env_config, buffer_config):
@@ -63,19 +69,26 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     env_config = env_config.copy()
     buffer_config = buffer_config.copy()
 
-    config['model_name'] = f'worker_{worker_id}'
     buffer_config['n_envs'] = env_config.get('n_envs', 1)
     buffer_config['type'] = 'env' if buffer_config['n_envs'] == 1 else 'envvec'
     buffer_fn = create_local_buffer
-    env_config['n_workers'] = 1
-    env_config['seed'] = 100 * worker_id
 
-    return Worker.remote(
-        name,
-        worker_id, 
-        model_fn,
-        buffer_fn,
-        config,
-        model_config, 
-        env_config, 
-        buffer_config)
+    env_config['efficient_envvec'] = True
+    env_config['seed'] = 100 * worker_id
+    
+    config['model_name'] = f'worker_{worker_id}'
+    config['LOG_PERIOD'] = 20
+    config['TIME_PERIOD'] = 1000
+
+    name = f'{name}_{worker_id}'
+    worker = Worker.remote(name, worker_id, model_fn, buffer_fn, config, 
+                        model_config, env_config, buffer_config)
+
+    ray.get(worker.save_config.remote(dict(
+        env=env_config,
+        model=model_config,
+        agent=config,
+        replay=buffer_config
+    )))
+
+    return worker

@@ -9,7 +9,7 @@ from utility.display import pwc
 from utility.timer import Timer
 from env.gym_env import create_gym_env
 from replay.func import create_replay
-from algo.sac.data_pipline import Dataset
+from replay.data_pipline import Dataset
 from algo.sac.nn import create_model
 from algo.sac.agent import Agent
 
@@ -31,14 +31,11 @@ def create_learner(name, config, model_config, env_config, buffer_config):
             configure_threads(2, 2)
             configure_gpu()
  
-            env = create_gym_env(env_config)   
-            self.buffer = create_replay(
-                buffer_config, env.state_shape, 
-                env.state_dtype, env.action_dim, 
-                env.action_dtype, config['gamma'], 
-                has_next_state=True)
-            dataset = Dataset(self.buffer, env.state_shape, env.action_dim)
-            models = create_model(model_config, env.state_shape, env.action_dim, env.is_action_discrete)
+            env = create_gym_env(env_config)
+            buffer_keys = ['state', 'action', 'reward', 'done', 'steps']
+            self.buffer = create_replay(buffer_config, *buffer_keys, env.state_shape)
+            dataset = Dataset(buffer, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype)
+            models = create_model(model_config, env.state_shape, env.action_shape, env.is_action_discrete)
             
             self.n_workers = config['n_workers']
             # we don't use a queue here since we want to retrieve all states at once
@@ -52,7 +49,7 @@ def create_learner(name, config, model_config, env_config, buffer_config):
                 dataset=dataset,
                 state_shape=env.state_shape,
                 state_dtype=env.state_dtype,
-                action_dim=env.action_dim,
+                action_shape=env.action_shape,
                 action_dtype=env.action_dtype,
             )
 
@@ -72,15 +69,15 @@ def create_learner(name, config, model_config, env_config, buffer_config):
             self.buffer.add(state, action, reward, done, next_state)
 
         def _learning(self):
-            while not self.dataset.good_to_learn:
+            while not self.dataset.good_to_learn():
                 time.sleep(1)
             pwc('Learner start learning...', color='blue')
             step = 0
             self.writer.set_as_default()
             while True:
                 step += 1
-                with Timer('train_log', TRAIN_TIME_PERIOD):
-                    self.train_log()
+                with Timer('learn_log', TRAIN_TIME_PERIOD):
+                    self.learn_log()
                 if step % 1000 == 0:
                     self.log_summary(self.logger.get_stats(), step)
                     self.save(step)
@@ -89,16 +86,15 @@ def create_learner(name, config, model_config, env_config, buffer_config):
             # TODO: consider making an actor for this method
             pwc('Action loop starts...', color='blue')
             while True:
-                with Timer(f'{self.name} dequeue', STEP_TIME_PERIOD):
+                with Timer(f'{self.name} dequeue', TRAIN_TIME_PERIOD):
                     while len(self.state_queue) < self.n_workers:
                         # pwc('Learner is going to sleep', color='magenta')
                         time.sleep(.01)
                     worker_ids, env_ids, states = list(zip(*self.state_queue))
                     self.state_queue = []
-                states = tf.convert_to_tensor(states, tf.float32)
                 
                 with Timer(f'{self.name} action', STEP_TIME_PERIOD):
-                    actions = self.actor.step(states)
+                    actions = self.actor.step(tf.convert_to_tensor(states, tf.float32))
                 [workers[wid].enqueue_action.remote(eid, a) 
                     for wid, eid, a in 
                     zip(worker_ids, env_ids, actions.numpy())]

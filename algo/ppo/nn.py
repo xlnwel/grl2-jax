@@ -20,6 +20,9 @@ class PPOAC(tf.Module):
                 batch_size, 
                 name):
         super().__init__(name=name)
+
+        self.is_action_discrete = is_action_discrete
+        self.batch_size = batch_size
         
         # network parameters
         cnn_name = config.get('cnn')
@@ -40,8 +43,6 @@ class PPOAC(tf.Module):
         activation = config.get('activation', 'relu')
         initializer_name = config.get('kernel_initializer', 'he_uniform')
         kernel_initializer = get_initializer(initializer_name)
-
-        self.batch_size = batch_size
 
         """ Network definition """
         if cnn_name:
@@ -79,7 +80,7 @@ class PPOAC(tf.Module):
                                 kernel_initializer=kernel_initializer())
 
         # policy distribution type
-        self.PolicyDistributionType = Categorical if is_action_discrete else DiagGaussian
+        self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
         
         # build for variable initialization
         if use_dnc:
@@ -92,12 +93,12 @@ class PPOAC(tf.Module):
             self.rnn(inputs=fake_inputs, initial_state=initial_state)
             self.rnn.reset_states()
 
-        # TensorSpecs = [(state_shape, tf.float32, 'state')]
-        # self.step = build(self._step, TensorSpecs, sequential=False, batch_size=batch_size)
+        TensorSpecs = [(state_shape, tf.float32, 'state')]
+        self.step = build(self._step, TensorSpecs, sequential=False, batch_size=batch_size)
 
-    @tf.function
+    @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
-    def step(self, x):
+    def _step(self, x):
         """ Run PPOAC in the real-time mode
         
         Args:
@@ -109,26 +110,39 @@ class PPOAC(tf.Module):
                 `[batch_size, 1]`
             value: state values of shape `[batch_size, 1]`
         """
-        pwc(f'{self.name} "step" is retracing: x={x}', color='cyan')
+        pwc(f'{self.name} "step" is retracing: x={x.shape}', color='cyan')
         # expand time dimension assuming x has shape `[batch_size, *state_shape]`
         x = tf.expand_dims(x, 1)
         x = self._common_layers(x)
+        x = tf.squeeze(x, 1)
 
-        mu = self._head(x, self.actor)
+        actor_output = self._head(x, self.actor)
         value = self._head(x, self.critic)
+        assert len(actor_output.shape) == 2
+        assert len(value.shape) == 2
 
-        policy_distribution = self.PolicyDistributionType((mu, self.logstd))
+        if self.is_action_discrete:
+            action_distribution = self.ActionDistributionType(actor_output)
 
-        raw_action = policy_distribution.sample()
-        logpi = policy_distribution.logp(tf.stop_gradient(raw_action))
+            action = action_distribution.sample(one_hot=False)
+            logpi = action_distribution.logp(action)
+            assert len(action.shape) == 1
+            assert len(logpi.shape) == 2
+        else:
+            action_distribution = self.ActionDistributionType(actor_output, self.logstd)
 
-        # squash action
-        action = tf.tanh(raw_action)
-        logpi = logpi_correction(raw_action, logpi, is_action_squashed=False)
+            raw_action = action_distribution.sample()
+            logpi = action_distribution.logp(raw_action)
+
+            # squash action
+            action = tf.tanh(raw_action)
+            logpi = logpi_correction(raw_action, logpi, is_action_squashed=False)
+            assert len(action.shape) == 2
+            assert len(logpi.shape) == 2
         
-        return tf.squeeze(action, 1), tf.squeeze(logpi, 1), tf.squeeze(value, 1)
+        return action, logpi, value
 
-    @tf.function
+    @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
     def det_action(self, x):
         """ Get the deterministic actions given state x 
@@ -136,15 +150,21 @@ class PPOAC(tf.Module):
         Args:
             x: a batch of states of shape `[batch_size, *state_shape]
         Returns:
-            determinitistic action of shape `[batch_size, action_dim]`
+            action: determinitistic action of shape `[batch_size, action_dim]`
         """
-        pwc(f'{self.name} "det_action" is retracing: x={x}', color='cyan')
+        pwc(f'{self.name} "det_action" is retracing: x={x.shape}', color='cyan')
         with tf.name_scope('det_action'):
             x = tf.expand_dims(x, 1)
             x = self._common_layers(x)
-            action = self._head(x, self.actor)
+            x = tf.squeeze(x, 1)
 
-            return tf.squeeze(tf.tanh(action), 1)
+            actor_output = self._head(x, self.actor)
+            assert len(actor_output.shape) == 2
+
+            if self.is_action_discrete:
+                return tf.argmax(actor_output, -1)
+            else:
+                return tf.tanh(actor_output)
     
     def train_step(self, x, a):
         """ Run PPOAC in the training mode
@@ -158,27 +178,29 @@ class PPOAC(tf.Module):
                 `[batch_size, steps, 1]`
             value: state values of shape `[batch_size, steps, 1]`
         """
-        pwc(f'{self.name} "train_step" is retracing: x={x}, a={a}', color='cyan')
+        pwc(f'{self.name} "train_step" is retracing: x={x.shape}, a={a.shape}', color='cyan')
         with tf.name_scope('train_step'):
             x = self._common_layers(x)
 
-            mu = self._head(x, self.actor)
+            actor_output = self._head(x, self.actor)
             value = self._head(x, self.critic)
 
-            policy_distribution = DiagGaussian((mu, self.logstd))
-            # correction for squashed action
-            # clip_but_pass_gradient is used to avoid case when a == -1, 1
-            raw_action = tf.math.atanh(clip_but_pass_gradient(a, -1+1e-7, 1-1e-7))
-            logpi = policy_distribution.logp(tf.stop_gradient(raw_action))
-            logpi = logpi_correction(raw_action, logpi, is_action_squashed=False)
+            if self.is_action_discrete:
+                action_distribution = self.ActionDistributionType(actor_output)
+                logpi = action_distribution.logp(a)
+            else:
+                action_distribution = self.ActionDistributionType(actor_output, self.logstd)
+                # correction for squashed action
+                # clip_but_pass_gradient is used to avoid case when a == -1, 1
+                raw_action = tf.math.atanh(clip_but_pass_gradient(a, -1+1e-7, 1-1e-7))
+                logpi = action_distribution.logp(tf.stop_gradient(raw_action))
+                logpi = logpi_correction(raw_action, logpi, is_action_squashed=False)
 
-            entropy = policy_distribution.entropy()
+            entropy = action_distribution.entropy()
 
             return logpi, entropy, value
 
     def _common_layers(self, x):
-        pwc(f'{self.name} "common_layer" is retracing', color='cyan')
-        
         if hasattr(self, 'cnn'):
             x = self.cnn(x)
         if hasattr(self, 'shared_mlp'):
@@ -227,31 +249,36 @@ if __name__ == '__main__':
         activation='relu',
         kernel_initializer='he_uniform'
     )
+
+    batch_size = np.random.randint(1, 10)
+    seq_len = np.random.randint(1, 10)
     state_shape = [5]
-    action_dim = 1
-    batch_size = 3
-    is_action_discrete = False
-    seq_len = 2
-    ac = PPOAC(config, state_shape, action_dim, is_action_discrete, batch_size, 'ac')
+    action_dim = np.random.randint(1, 10)
+    for is_action_discrete in [True, False]:
+        action_dtype = np.int32 if is_action_discrete else np.float32
+        
+        ac = PPOAC(config, state_shape, action_dim, is_action_discrete, batch_size, 'ac')
 
-    from utility.display import display_var_info
+        from utility.display import display_var_info
 
-    display_var_info(ac.trainable_variables)
+        display_var_info(ac.trainable_variables)
 
-    # for _ in range(2):
-    #     pwc(ac.rnn[0].states)
-    #     x = np.random.rand(3, 1, 4)
-    #     y = ac.value(x)
-    # # ac.reset_states()
-    # test rnn
-    x = np.random.rand(batch_size, seq_len, *state_shape)
+        # test rnn state
+        x = np.random.rand(batch_size, seq_len, *state_shape)
+        
+        states = [s.numpy() for s in ac.rnn.states]
+        np.testing.assert_allclose(states, 0.)
+        for i in range(seq_len):
+            y = ac.step(tf.convert_to_tensor(x[:, i], tf.float32))
+        step_states = [s.numpy() for s in ac.rnn.states]
+        ac.reset_states()
+        states = [s.numpy() for s in ac.rnn.states]
+        np.testing.assert_allclose(states, 0.)
+        if is_action_discrete:
+            a = np.random.randint(low=0, high=action_dim, size=(batch_size, seq_len))
+        else:
+            a = np.random.rand(batch_size, seq_len, action_dim)
+        ac.train_step(tf.convert_to_tensor(x, tf.float32), tf.convert_to_tensor(a, action_dtype))
+        train_step_states = [s.numpy() for s in ac.rnn.states]
+        np.testing.assert_allclose(step_states, train_step_states)
 
-    pwc(ac.rnn.states)
-    for i in range(seq_len):
-        y = ac.step(tf.convert_to_tensor(x[:, i], tf.float32))
-    pwc(ac.rnn.states)
-    ac.reset_states()
-    pwc(ac.rnn.states)
-    a = np.random.rand(batch_size, seq_len, action_dim)
-    ac.train_step(tf.convert_to_tensor(x, tf.float32), tf.convert_to_tensor(a, tf.float32))
-    pwc(ac.rnn.states)

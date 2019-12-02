@@ -10,9 +10,9 @@ from env.gym_env import create_gym_env
 from core import log
 
 
-TIME_PERIOD = 1000000
+TIME_PERIOD = 10000
 
-@ray.remote
+@ray.remote(num_cpus=1)
 class Worker:
     def __init__(self, worker_id, env_config):
         self.id = worker_id
@@ -38,7 +38,7 @@ class Worker:
             self.action_queue.put((env_id, action))
 
     def _step_loop(self, learner):
-        episode_i = 0
+        episode = 0
         scores = []
         epslens = []
         while True:
@@ -53,8 +53,8 @@ class Worker:
             if done:
                 scores.append(self.envs[env_id].get_score())
                 epslens.append(self.envs[env_id].get_epslen())
-                episode_i += 1
-                self.states[env_id] = self.envs[env_id].reset()
+                episode += 1
+                next_state = self.envs[env_id].reset()
                 if self.id == 1 and len(scores) > 10:
                     stats = {
                         f'score': np.mean(scores), 
@@ -63,11 +63,11 @@ class Worker:
                         f'epslen': np.mean(epslens), 
                         f'epslen_std': np.std(epslens), 
                     }
-                    learner.log_summary.remote(stats, episode_i)
+                    learner.log_summary.remote(stats, episode)
                     scores = []
                     epslens = []
-            else:
-                self.states[env_id] = next_state
+
+            self.states[env_id] = next_state
 
 def create_worker(worker_id, env_config):
     env_config = env_config.copy()

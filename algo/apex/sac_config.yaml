@@ -1,29 +1,26 @@
 ---
 env:
-    name: BipedalWalker-v2
+    name: BipedalWalkerHardcore-v2
     video_path: video
-    n_envs: &n_envs 8                           # number of envs for each worker
     log_video: False
+    n_envs: 4
     seed: 0
 model:
     actor:
         units_list: [512, 256]
-        norm: none
     q:
         units_list: [512, 256]
-        norm: none
     temperature:
-
+        temp_type: 'state-action'
+        value: .2
 agent:
-    algorithm: &algo seed-sac
-    temperature: auto                       # auto or some float, e.g., 0.01
-    gamma: 0.99
+    algorithm: &algo apex-sac
+    gamma: &gamma 0.99
     polyak: .995                            # moving average rate
+    # target_entropy: -4
     
-    # distributed algo args, following args should be tuned together for each environment
-    # in order to achieve high performance.
-    n_workers: 4
-    # n_envs: *n_envs                       # n_envs repeated here only to show connection to n_workers
+    # distributed algo params
+    n_workers: 2
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -41,7 +38,7 @@ agent:
     epsilon: 1.e-5
 
     # arguments for PER
-    per_alpha: 0.5
+    per_alpha: 0.7
     per_epsilon: 1.e-4
 
 replay:
@@ -49,17 +46,16 @@ replay:
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4
-    to_update_top_priority: True
+    to_update_top_priority: False
 
     # hacking
     normalize_reward: False
-    # reward_scale: 5
-    # reward_clip: 50
+    reward_scale: 5
+    reward_clip: 50
 
     # arguments for general replay
-    n_steps: 1  # currently don't support multi step for SEED -- it needs a buffer for each env
+    n_steps: 3
+    gamma: *gamma
     batch_size: 256
     min_size: 5e4
     capacity: 1e6
-
-    tb_capacity: 100    # capacity of the temporal buffer

@@ -32,7 +32,7 @@ def train(agent, env, buffer):
         with Timer(f'{agent.model_name} training', LOG_PERIOD):
             # TRICK: we only check kl and early terminate the training epoch 
             # when score meets some requirement
-            agent.train_log(buffer, early_terminate=(agent.max_kl and score > 280), epoch=epoch)
+            agent.learn_log(buffer, early_terminate=(agent.max_kl and score > 280), epoch=epoch)
 
         if epoch % LOG_PERIOD == 0:
             with Timer(f'{agent.model_name} logging'):
@@ -65,10 +65,6 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
 
     # construct environment
     env = create_gym_env(env_config)
-    state_shape = env.state_shape
-    action_dim = env.action_dim
-    is_action_discrete = env.is_action_discrete
-    n_envs = env.n_envs
     
     n_minibatches = agent_config['n_minibatches']
     # construct buffer
@@ -84,10 +80,10 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     # construct model
     models = create_model(
         model_config, 
-        state_shape=state_shape, 
-        action_dim=action_dim, 
-        is_action_discrete=is_action_discrete,
-        n_envs=n_envs
+        state_shape=env.state_shape, 
+        action_dim=env.action_dim, 
+        is_action_discrete=env.is_action_discrete,
+        n_envs=env.n_envs
     )
     
     # construct agent for model update
@@ -98,7 +94,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
                 state_dtype=env.state_dtype,
                 action_dim=env.action_dim,
                 action_dtype=env.action_dtype,
-                n_envs=n_envs)
+                n_envs=env.n_envs)
 
     agent.save_config(dict(
         env=env_config,

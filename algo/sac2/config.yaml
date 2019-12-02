@@ -1,21 +1,18 @@
 ---
 env:
-    name: BipedalWalker-v2
+    name: LunarLander-v2
     video_path: video
     log_video: False
-    efficient_envvec: True
     seed: 0
 model:
     actor:
-        units_list: [512, 256]
-        norm: layer
-        activation: relu
+        units_list: [64, 64]
+        activation: tanh
     q:
-        units_list: [512, 256]
-        norm: layer
-        activation: relu
+        units_list: [64, 64]
+        activation: tanh
     temperature:
-        temp_type: 'state-action'
+        temp_type: 'constant'
         value: .2
 agent:
     algorithm: &algo sac
@@ -36,10 +33,9 @@ agent:
 
     # arguments for optimizer
     optimizer: adam
-    actor_lr: 1.e-4
-    q_lr: 3.e-4
-    temp_lr: 1.e-4
-    clip_norm: 10
+    actor_lr: 5.e-4
+    q_lr: 1.e-3
+    temp_lr: 5.e-4
     epsilon: 1.e-5
 
     # arguments for PER
@@ -47,15 +43,15 @@ agent:
     per_epsilon: 1.e-4
 
 replay:
-    type: proportional                      # proportional or uniform
+    type: uniform                      # proportional or uniform
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4
-    to_update_top_priority: True
+    to_update_top_priority: False
 
     # hacking
-    # normalize_reward: False
-    # reward_scale: 1
+    normalize_reward: False
+    reward_scale: 1
 
     # arguments for general replay
     n_steps: 3

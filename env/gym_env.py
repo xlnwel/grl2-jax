@@ -4,10 +4,12 @@ import gym
 import ray
 
 from utility import tf_distributions
-from utility.display import pwc, assert_colorize
+from utility.display import pwc
 from utility.utils import to_int
 from utility.timer import Timer
 from env.wrappers import TimeLimit, EnvStats
+from env.deepmind_wrappers import make_deepmind_env
+
 
 def action_dist_type(env):
     if isinstance(env.action_space, gym.spaces.Discrete):
@@ -17,8 +19,28 @@ def action_dist_type(env):
     else:
         raise NotImplementedError
 
+def _make_env(config):
+    if config.get('is_deepmind_env', False):
+        env = make_deepmind_env(config)
+    else:
+        env = gym.make(config['name'])
+        max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
+        if max_episode_steps < env.spec.max_episode_steps:
+            env = TimeLimit(env, max_episode_steps)
+        if config.get('log_video', False):
+            pwc(f'video will be logged at {config["video_path"]}', color='cyan')
+            env = gym.wrappers.Monitor(env, config['video_path'], force=True)
+    env.seed(config.get('seed', 42))
+    env = EnvStats(env)
+
+    return env
+
 
 class EnvBase:
+    @property
+    def already_done(self):
+        return self.env.already_done
+
     @property
     def is_action_discrete(self):
         return self.env.is_action_discrete
@@ -48,19 +70,11 @@ class EnvBase:
         return self.env.action_dim
 
 
-class GymEnv(EnvBase):
+class Env(EnvBase):
     def __init__(self, config):
         self.name = config['name']
-        env = gym.make(self.name)
-        env.seed(config.get('seed', 42))
-        self.max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
-        if self.max_episode_steps != env.spec.max_episode_steps:
-            env = TimeLimit(env, self.max_episode_steps)
-        if 'log_video' in config and config['log_video']:
-            pwc(f'video will be logged at {config["video_path"]}', color='cyan')
-            env = gym.wrappers.Monitor(env, config['video_path'], force=True)
-    
-        self.env = env = EnvStats(env)
+        self.env = _make_env(config)
+        self.max_episode_steps = self.env.spec.max_episode_steps
 
     @property
     def n_envs(self):
@@ -75,7 +89,7 @@ class GymEnv(EnvBase):
         
     def step(self, action):
         next_state, reward, done, info = self.env.step(action)
-        return next_state, reward, done, info
+        return next_state, reward, np.bool(done), info
 
     def render(self):
         return self.env.render()
@@ -90,39 +104,39 @@ class GymEnv(EnvBase):
     def get_epslen(self):
         return self.env.get_epslen()
 
+    def close(self):
+        del self
 
-class GymEnvVecBase(EnvBase):
+
+class EnvVec(EnvBase):
     def __init__(self, config):
         self.n_envs = n_envs = config['n_envs']
         self.name = config['name']
-        envs = [gym.make(self.name) for i in range(n_envs)]
-        [env.seed(config['seed'] + i) for i, env in enumerate(envs)]
+        self.envs = [_make_env(config) for i in range(n_envs)]
+        [env.seed(config['seed'] + i) for i, env in enumerate(self.envs)]
         # print(config['seed'])
-        self.max_episode_steps = config.get('max_episode_steps', envs[0].spec.max_episode_steps)
-        if self.max_episode_steps != envs[0].spec.max_episode_steps:
-            envs = [TimeLimit(env, self.max_episode_steps) for env in envs]
-        self.envs = [EnvStats(env) for env in envs]
         self.env = self.envs[0]
-    
+        self.max_episode_steps = self.env.spec.max_episode_steps
+
     def random_action(self):
         return np.asarray([env.action_space.sample() for env in self.envs])
 
     def reset(self):
-        return np.asarray([env.reset() for env in self.envs])
+        return np.asarray([env.reset() for env in self.envs], dtype=self.state_dtype)
     
     def step(self, actions):
         step_imp = lambda envs, actions: list(zip(*[env.step(a) for env, a in zip(envs, actions)]))
         
         state, reward, done, info = step_imp(self.envs, actions)
         
-        return (np.asarray(state), 
-                np.reshape(reward, [self.n_envs, 1]), 
-                np.reshape(done, [self.n_envs, 1]), 
+        return (np.asarray(state, dtype=self.state_dtype), 
+                np.asarray(reward, dtype=np.float32), 
+                np.asarray(done, dtype=np.bool), 
                 info)
 
     def get_mask(self):
         """ Get mask at the current step. Should only be called after self.step """
-        return np.reshape([env.get_mask() for env in self.envs], (self.n_envs, 1))
+        return np.asarray([env.get_mask() for env in self.envs], dtype=np.bool)
 
     def get_score(self):
         return np.asarray([env.get_score() for env in self.envs])
@@ -133,7 +147,27 @@ class GymEnvVecBase(EnvBase):
     def close(self):
         del self
 
-class GymEnvVec(EnvBase):
+class EfficientEnvVec(EnvVec):
+    def random_action(self):
+        valid_envs = [env for env in self.envs if not env.already_done]
+        return [env.action_space.sample() for env in valid_envs]
+        
+    def step(self, actions):
+        valid_env_ids, valid_envs = zip(*[(i, env) for i, env in enumerate(self.envs) if not env.already_done])
+        assert len(valid_envs) == len(actions), f'valid_env({len(valid_envs)}) vs actions({len(actions)})'
+        
+        step_imp = lambda envs, actions: list(zip(*[env.step(a) for env, a in zip(envs, actions)]))
+        
+        state, reward, done, info = step_imp(valid_envs, actions)
+        for i in range(len(info)):
+            info[i]['env_id'] = valid_env_ids[i]
+        
+        return (np.asarray(state, dtype=self.state_dtype), 
+                np.asarray(reward, dtype=np.float32), 
+                np.asarray(done, dtype=np.bool), 
+                info)
+
+class RayEnvVec(EnvBase):
     def __init__(self, EnvType, config):
         self.name = config['name']
         self.n_workers= config['n_workers']
@@ -141,11 +175,11 @@ class GymEnvVec(EnvBase):
         self.n_envs = self.envsperworker * self.n_workers
 
         RayEnvType = ray.remote(num_cpus=1)(EnvType)
-        # leave the name envs for consistency, albeit workers seems more appropriate
+        # leave the name "envs" for consistency, albeit workers seems more appropriate
         self.envs = [config.update({'seed': 100*i}) or RayEnvType.remote(config.copy()) 
                     for i in range(self.n_workers)]
 
-        self.env = GymEnv(config)
+        self.env = Env(config)
         self.max_episode_steps = self.env.max_episode_steps
 
     def reset(self):
@@ -160,14 +194,14 @@ class GymEnvVec(EnvBase):
         actions = np.reshape(actions, (self.n_workers, self.envsperworker, *self.action_shape))
         state, reward, done, info = list(zip(*ray.get([env.step.remote(a) for a, env in zip(actions, self.envs)])))
 
-        return (np.reshape(state, (self.n_envs, *self.state_shape)), 
-                np.reshape(reward, (self.n_envs, 1)), 
-                np.reshape(done, (self.n_envs, 1)),
+        return (np.reshape(state, (self.n_envs, *self.state_shape)).astype(self.state_dtype), 
+                np.reshape(reward, self.n_envs).astype(np.float32), 
+                np.reshape(done, self.n_envs).astype(bool),
                 info)
 
     def get_mask(self):
         """ Get mask at the current step. Should only be called after self.step """
-        return np.reshape(ray.get([env.get_mask.remote() for env in self.envs]), (self.n_envs, 1))
+        return np.reshape(ray.get([env.get_mask.remote() for env in self.envs]), self.n_envs)
 
     def get_score(self):
         return np.reshape(ray.get([env.get_score.remote() for env in self.envs]), self.n_envs)
@@ -181,11 +215,13 @@ class GymEnvVec(EnvBase):
 
 def create_gym_env(config):
     # manually use GymEnvVecBaes for easy environments
-    EnvType = GymEnv if config.get('n_envs', 1) == 1 else GymEnvVecBase
-    if 'n_workers' not in config or config['n_workers'] == 1:
+    EnvType = Env if config.get('n_envs', 1) == 1 else EnvVec
+    if config.get('n_workers', 1) == 1:
+        if EnvType == EnvVec and config.get('efficient_envvec', False):
+            EnvType = EfficientEnvVec
         return EnvType(config)
     else:
-        return GymEnvVec(EnvType, config)
+        return RayEnvVec(EnvType, config)
 
 
 if __name__ == '__main__':
@@ -218,10 +254,10 @@ if __name__ == '__main__':
     del config['n_workers']
     envs = create_gym_env(config)
     print('Env type', type(envs))
-    actions = envs.random_action()
-    with Timer('envvecbase'):
+    with Timer('EnvVec'):
         states = envs.reset()
         for _ in range(envs.max_episode_steps):
+            actions = envs.random_action()
             state, reward, done, _ = envs.step(actions)
             
             if np.all(done):
@@ -229,4 +265,18 @@ if __name__ == '__main__':
             
     print(envs.get_epslen())
     
-    # ray.shutdown()
+    config = default_config.copy()
+    config['n_envs'] *= config['n_workers']
+    del config['n_workers']
+    envs = EfficientEnvVec(config)
+    print('Env type', type(envs))
+    with Timer('EfficientEnvVec'):
+        states = envs.reset()
+        for _ in range(envs.max_episode_steps):
+            actions = envs.random_action()
+            state, reward, done, info = envs.step(actions)
+            print([info_['env_id'] for info_ in info])
+            if np.all(done):
+                break
+            
+    print(envs.get_epslen())

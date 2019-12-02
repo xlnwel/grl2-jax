@@ -12,7 +12,7 @@ from replay.func import create_replay
 from replay.data_pipline import Dataset
 from algo import run
 from algo.sac.agent import Agent
-from algo.sac.nn import create_model
+from algo.sac.nn import SAC
 
 
 LOG_PERIOD = 100
@@ -28,7 +28,7 @@ def train(agent, env, replay):
         video_path='video',
         log_video=False,
         n_workers=1,
-        n_envs=50,
+        n_envs=10,
         seed=np.random.randint(100, 10000)
     ))
     start_step = agent.global_steps.numpy() + 1
@@ -50,11 +50,11 @@ def train(agent, env, replay):
             agent.save(steps=step)
 
             with Timer(f'{agent.model_name} evaluation'):
-                eval_scores, eval_epslens = run.run_trajectories2(eval_env, agent.actor, evaluation=True)
+                eval_scores, eval_epslens = run.run_trajectories(eval_env, agent.actor, evaluation=True)
             agent.store(
                 score=np.mean(eval_scores),
                 score_std=np.std(eval_scores),
-                score_max=np.max(eval_scores),
+                score_max=np.amax(eval_scores),
                 epslen=np.mean(eval_epslens),
                 epslen_std=np.std(eval_epslens)
             )
@@ -66,7 +66,7 @@ def train(agent, env, replay):
                 steps=step_str(step), 
                 score=np.mean(scores),
                 score_std=np.std(scores),
-                score_max=np.max(scores),
+                score_max=np.amax(scores),
                 epslen=np.mean(epslens),
                 epslen_std=np.std(epslens),
             )
@@ -84,7 +84,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     dataset = Dataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype)
 
     # construct models
-    models = create_model(
+    models = SAC(
         model_config, 
         state_shape=env.state_shape, 
         action_dim=env.action_dim, 

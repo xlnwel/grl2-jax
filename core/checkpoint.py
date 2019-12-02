@@ -32,10 +32,12 @@ def save(ckpt_manager, global_steps, steps, message='', print_terminal_info=True
     Args:
         ckpt_manager: An instance of tf.train.CheckpointManager
         global_steps: A tensor that records step
-        steps: An int that assigns to global_steps
+        steps: An int that assigns to global_steps. 
+            If it's None, we leave global_steps unchanged
         message: optional message for print
     """
-    global_steps.assign(steps)
+    if steps:
+        global_steps.assign(steps)
     path = ckpt_manager.save()
     if print_terminal_info:
         pwc(f'Model saved at {path}: {message}', color='cyan')
@@ -49,7 +51,7 @@ def setup_checkpoint(ckpt_models, root_dir, model_name):
         model_name: The name of the model
     """
     # checkpoint & manager
-    global_steps = tf.Variable(1)
+    global_steps = tf.Variable(0, dtype=tf.int64)
     ckpt = tf.train.Checkpoint(step=global_steps, **ckpt_models)
     ckpt_path = f'{root_dir}/{model_name}/models'
     ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, 5)

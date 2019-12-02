@@ -45,9 +45,11 @@ class RunningMeanStd(object):
             self.var = new_var
             self.count = new_count
 
-    def normalize(self, x):
+    def normalize(self, x, subtract_mean=False):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
         # print(f'before normalization:\tmean:{np.mean(x)}\tstd:{np.std(x)}')
-        x = (x - self.mean) / (self.var + self.epsilon)
+        if subtract_mean:
+            x = x - self.mean
+        x = x / (self.var + self.epsilon)
         # print(f'after normalization:\tmean:{np.mean(x)}\tstd:{np.std(x)}')
         return x

@@ -4,88 +4,77 @@ import numpy as np
 import tensorflow as tf
 import ray
 
+from core.ensemble import Ensemble
 from core.tf_config import configure_gpu, configure_threads
 from utility.display import pwc
 from utility.timer import Timer
 from env.gym_env import create_gym_env
-from replay.func import create_replay
-from algo.sac.data_pipline import Dataset
+from replay.data_pipline import RayDataset
 
 
-def create_learner(BaseAgent, name, model_fn, config, model_config, env_config, buffer_config):
-    @ray.remote(num_gpus=0.3, num_cpus=2)
+def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_config, replay_config):
+    @ray.remote(num_cpus=2)
     class Learner(BaseAgent):
         """ Interface """
         def __init__(self,
                     name, 
                     model_fn,
+                    replay,
                     config, 
                     model_config,
-                    env_config,
-                    buffer_config):
+                    env_config):
             # tf.debugging.set_log_device_placement(True)
             configure_threads(2, 2)
             configure_gpu()
 
             env = create_gym_env(env_config)
-            self.buffer = create_replay(
-                buffer_config, env.state_shape, 
-                env.state_dtype, env.action_dim, 
-                env.action_dtype, config['gamma'])
-            dataset = Dataset(self.buffer, env.state_shape, env.action_dim)
-            self.model = model_fn(model_config, env.state_shape, env.action_dim, env.is_action_discrete)
+            dataset = RayDataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype)
+            self.model = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
             
             super().__init__(
                 name=name, 
                 config=config, 
                 models=self.model,
                 dataset=dataset,
-                state_shape=env.state_shape,
-                state_dtype=env.state_dtype,
-                action_dim=env.action_dim,
-                action_dtype=env.action_dtype,
+                env=env,
             )
             
+        def start_learning(self):
             self._learning_thread = threading.Thread(target=self._learning, daemon=True)
             self._learning_thread.start()
             
-        def get_weights(self):
-            return self.model.get_weights()
-
-        def merge_buffer(self, local_buffer, length):
-            self.buffer.merge(local_buffer, length)
+        def get_weights(self, name=None):
+            return self.model.get_weights(name=name)
 
         def _learning(self):
-            while not self.buffer.good_to_learn:
-                time.sleep(1)
             pwc(f'{self.name} starts learning...', color='blue')
-
             step = 0
             self.writer.set_as_default()
             while True:
                 step += 1
                 with Timer(f'{self.name} train', 1000):
-                    self.train_log()
+                    self.learn_log()
                 if step % 1000 == 0:
-                    self.log_summary(self.logger.get_stats(), step)
+                    self.log(step, print_terminal_info=False)
                     self.save(steps=step, print_terminal_info=False)
 
     config = config.copy()
     model_config = model_config.copy()
     env_config = env_config.copy()
-    buffer_config = buffer_config.copy()
+    replay_config = replay_config.copy()
     
     config['model_name'] = 'learner'
     # learner only define a env to get necessary env info, 
     # it does not actually interact with env
     env_config['n_workers'] = env_config['n_envs'] = 1
 
-    learner = Learner.remote(name, model_fn, config, model_config, env_config, buffer_config)
-    learner.save_config.remote(dict(
+    learner = Learner.remote(name, model_fn, replay, config, 
+                            model_config, env_config)
+    ray.get(learner.save_config.remote(dict(
         env=env_config,
         model=model_config,
         agent=config,
-        buffer=buffer_config
-    ))
+        replay=replay_config
+    )))
 
     return learner

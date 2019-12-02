@@ -53,11 +53,11 @@ class Agent(BaseAgent):
             ([1], tf.float32, 'mask'),
             ((), tf.float32, 'n'),
         ]
-        self.train_step = build(
-            self._train_step, 
+        self.learn = build(
+            self._learn, 
             TensorSpecs, 
             sequential=True, 
-            batch_size=n_envs
+            batch_size=n_envs,
         )
 
     def reset_states(self):
@@ -77,14 +77,14 @@ class Agent(BaseAgent):
             self.curr_states = states
         return action
 
-    def train_log(self, buffer, epoch):
+    def learn_log(self, buffer, epoch):
         for i in range(self.n_updates):
-            data = buffer.get_batch()
+            data = buffer.sample()
             data['n'] = n = np.sum(data['mask'])
             value = data['value']
             data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
             with tf.name_scope('train'):
-                loss_info  = self.train_step(**data)
+                loss_info  = self.learn(**data)
                 entropy, approx_kl, p_clip_frac, v_clip_frac, ppo_loss, value_loss, global_norm = loss_info
 
             n_total_trans = value.size
@@ -113,7 +113,7 @@ class Agent(BaseAgent):
         self.prev_states = self.curr_states = states
 
     @tf.function
-    def _train_step(self, state, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
+    def _learn(self, state, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
         with tf.GradientTape() as tape:
             old_value = value
             logpi, entropy, value, _ = self.ac.train_step(state, action, self.prev_states)

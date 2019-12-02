@@ -2,15 +2,16 @@ import numpy as np
 import tensorflow as tf
 import ray
 
-from utility.timer import Timer
+from utility.timer import TBTimer
+from utility.tf_utils import n_step_target
 from core import tf_config
 from core.decorator import agent_config
 from core.base import BaseAgent
 from env.gym_env import create_gym_env
-from algo.run import run_trajectory, run_trajectories
+from algo import run
 
 
-class PERWorker(BaseAgent):
+class BaseWorker(BaseAgent):
     """ This Base class defines some auxiliary functions for workers using PER
     """
     # currently, we have to define a separate base class in another file 
@@ -30,10 +31,10 @@ class PERWorker(BaseAgent):
         self.id = worker_id
 
         self.env = env
+        self.n_envs = env.n_envs
 
         # models
         self.model = models
-        self.ckpt_models.update(self.model)
         self.actor = actor
         self.value = value
         self.target_value = target_value
@@ -45,8 +46,8 @@ class PERWorker(BaseAgent):
         self.per_epsilon = config['per_epsilon']
         
         TensorSpecs = [
-            (env.state_shape, env.state_dtype, 'state'),
-            ([env.action_dim], env.action_dtype, 'action'),
+            (env.state_shape, tf.float32, 'state'),
+            (env.action_shape, env.action_dtype, 'action'),
             ([1], tf.float32, 'reward'),
             (env.state_shape, tf.float32, 'next_state'),
             ([1], tf.float32, 'done'),
@@ -56,17 +57,19 @@ class PERWorker(BaseAgent):
             self._compute_priorities, 
             TensorSpecs)
 
-    def eval_model(self, weights, episode_i, step):
+    def eval_model(self, weights, episode, step, replay):
         """ collects data, logs stats, and saves models """
-        def collect_fn(state, action, reward, done, next_state=None, mask=None):
-            mask = np.squeeze(mask)
-            self.buffer.add_data(state, action, reward, done, next_state, mask)
-        run_fn = run_trajectory if self.env.n_envs == 1 else run_trajectories
+        def collect_fn(**kwargs):
+            kwargs['mask'] = np.squeeze(kwargs['mask'])
+            self.buffer.add_data(**kwargs)
+            if self.buffer.is_full():
+                self._send_data(replay)
+        run_fn = run.run_trajectory if self.env.n_envs == 1 else run.run_trajectories2
 
-        episode_i += 1
+        episode += 1
         self.model.set_weights(weights)
 
-        with Timer(f'Worker {self.id} -- eval', 10):
+        with TBTimer(f'{self.name} -- eval model', self.TIME_PERIOD):
             scores, epslens = run_fn(self.env, self.actor, fn=collect_fn)
             step += np.sum(epslens)
             self.store(
@@ -75,37 +78,35 @@ class PERWorker(BaseAgent):
                 score_max=np.max(scores), 
                 epslen=np.mean(epslens), 
                 epslen_std=np.std(epslens))
-
-        if episode_i % 10 == 0:
-            # record stats
-            self.log(step=episode_i, print_terminal_info=False)
-            self.save(episode_i, print_terminal_info=False)
         
-        return episode_i, step, scores
-                    
-    def send_data(self, learner, env_mask=None):
-        """ sends data to learner """
-        data = self.buffer.sample(env_mask)
-        data_tesnors = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
-        data['priority'] = self.compute_priorities(**data_tesnors).numpy()
-        learner.merge_buffer.remote(data, data['state'].shape[0])
-        self.buffer.reset()
+        return episode, step, scores
 
     def pull_weights(self, learner):
         """ pulls weights from learner """
-        return ray.get(learner.get_weights.remote())
+        with TBTimer(f'{self.name} pull weights', self.TIME_PERIOD):
+            return ray.get(learner.get_weights.remote(name=['actor', 'q1', 'target_q1']))
 
     @tf.function
     def _compute_priorities(self, state, action, reward, next_state, done, steps):
         gamma = self.buffer.gamma
-        value = self.value.train_step(state, action)
-        next_action, next_logpi = self.actor.train_step(next_state)
-        next_value = self.target_value.train_step(next_state, next_action)
-        # for brevity, we don't compute n-th value and use n-th q directly here
-        target_value = reward + gamma**steps * (1-done) * next_value
+        value = self.value.train_value(state, action)
+        next_action = self.actor.train_action(next_state)
+        next_value = self.target_value.train_value(next_state, next_action)
+        
+        target_value = n_step_target(reward, done, next_value, gamma, steps)
         
         priority = tf.abs(target_value - value)
         priority += self.per_epsilon
         priority **= self.per_alpha
 
         return priority
+
+    def _send_data(self, replay, env_mask=None):
+        """ sends data to replay """
+        data = self.buffer.sample(env_mask)
+        data_tesnors = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+        data['priority'] = self.compute_priorities(**data_tesnors).numpy()
+        for k, v in data.items():
+            data[k] = np.squeeze(v)
+        replay.merge.remote(data, data['state'].shape[0])
+        self.buffer.reset()

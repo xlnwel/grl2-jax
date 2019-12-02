@@ -3,7 +3,7 @@ import tensorflow as tf
 
 from utility.display import pwc
 from utility.tf_utils import n_step_target
-from utility.schedule import TFPiecewiseSchedule
+from utility.schedule import PiecewiseSchedule
 from utility.timer import Timer
 from core.tf_config import build
 from core.base import BaseAgent
@@ -29,12 +29,17 @@ class Agent(BaseAgent):
             Optimizer = tf.keras.optimizers.RMSprop
         else:
             raise NotImplementedError()
-        if getattr(self, 'schedule_lr', False):
-            self.actor_lr = TFPiecewiseSchedule(
-                [(5e5, self.actor_lr), (1.5e6, 1e-5)])
-            self.q_lr = TFPiecewiseSchedule(
-                [(5e5, self.q_lr), (1.5e6, 3e-5)])
-
+        if hasattr(self, 'schedule_lr') and self.schedule_lr:
+            self.actor_lr_scheduler = PiecewiseSchedule(
+                [(5e5, self.actor_lr), (1.5e6, 1e-5)], outside_value=1e-5)
+            self.q_lr_scheduler = PiecewiseSchedule(
+                [(5e5, self.q_lr), (1.5e6, 3e-5)], outside_value=3e-5)
+            self.temp_lr_scheduler = PiecewiseSchedule(
+                [(5e5, self.temp_lr), (1.5e6, 1e-5)], outside_value=1e-5)
+            self.actor_lr = tf.Variable(self.actor_lr, trainable=False)
+            self.q_lr = tf.Variable(self.q_lr, trainable=False)
+        else:
+            self.schedule_lr = False
         self.actor_opt = Optimizer(learning_rate=self.actor_lr,
                                     epsilon=self.epsilon)
         self.q_opt = Optimizer(learning_rate=self.q_lr,
@@ -42,9 +47,8 @@ class Agent(BaseAgent):
         self.ckpt_models['actor_opt'] = self.actor_opt
         self.ckpt_models['q_opt'] = self.q_opt
         if not isinstance(self.temperature, float):
-            if getattr(self, 'schedule_lr', False):
-                self.temp_lr = TFPiecewiseSchedule(
-                    [(5e5, self.temp_lr), (1.5e6, 1e-5)])
+            if self.schedule_lr:
+                self.temp_lr = tf.Variable(self.temp_lr, trainable=False)
             self.temp_opt = Optimizer(learning_rate=self.temp_lr,
                                     epsilon=self.epsilon)
             self.ckpt_models['temp_opt'] = self.temp_opt
@@ -69,14 +73,17 @@ class Agent(BaseAgent):
     def learn_log(self, step=None):
         if step:
             self.global_steps.assign(step)
+        if self.schedule_lr:
+            self.actor_lr.assign(self.actor_lr_scheduler.value(self.global_steps.numpy()))
+            self.q_lr.assign(self.q_lr_scheduler.value(self.global_steps.numpy()))
+            if isinstance(self.temp_lr, tf.Variable):
+                self.temp_lr.assign(self.temp_lr_scheduler.value(self.global_steps.numpy()))
         with Timer(f'{self.model_name}: sample', 10000):
             data = self.dataset.sample()
         if self.dataset.buffer_type() != 'uniform':
             saved_indices = data['saved_indices']
             del data['saved_indices']
-
         temp, entropy, actor_loss, q1, q1_loss, q_loss, priority = self.learn(**data)
-
         if self.dataset.buffer_type() != 'uniform':
             self.dataset.update_priorities(priority.numpy(), saved_indices.numpy())
         self.store(
@@ -96,17 +103,17 @@ class Agent(BaseAgent):
         if isinstance(self.temperature, float):
             temp = tf.convert_to_tensor(self.temperature)
         else:
-            with tf.name_scope('temp_update'):
+            with tf.name_scope('temp_train'):
                 temp, temp_grads = self._compute_temp_grads(state, IS_ratio)
                 if hasattr(self, 'clip_norm'):
                     temp_grads, temp_norm = tf.clip_by_global_norm(temp_grads, self.clip_norm)
                 self.temp_opt.apply_gradients(zip(temp_grads, self.temperature.trainable_variables))
-        with tf.name_scope('actor_update'):
+        with tf.name_scope('actor_train'):
             entropy, actor_loss, actor_grads = self._compute_actor_grads(state, IS_ratio)
             if hasattr(self, 'clip_norm'):
                 actor_grads, actor_norm = tf.clip_by_global_norm(actor_grads, self.clip_norm)
             self.actor_opt.apply_gradients(zip(actor_grads, self.actor.trainable_variables))
-        with tf.name_scope('q_update'):
+        with tf.name_scope('q_train'):
             priority, q1, q1_loss, q_loss, q_grads = self._compute_q_grads(
                 state, action, next_state, reward, 
                 done, steps, IS_ratio)
@@ -120,7 +127,7 @@ class Agent(BaseAgent):
         return temp, entropy, actor_loss, q1, q1_loss, q_loss, priority
 
     def _compute_temp_grads(self, state, IS_ratio):
-        target_entropy = getattr(self, 'target_entropy', -self.action_dim)
+        target_entropy = self.target_entropy if hasattr(self, 'target_entropy') else -self.action_dim
         with tf.GradientTape() as tape:
             action, logpi, _ = self.actor.train_step(state)
             log_temp, temp = self.temperature.train_step(state, action)
@@ -166,10 +173,9 @@ class Agent(BaseAgent):
             q1 = self.q1.train_value(state, action)
             q2 = self.q2.train_value(state, action)
             with tf.name_scope('q_loss'):
-                nth_value = tf.subtract(
-                    next_q_with_actor, next_temp * next_logpi, name='nth_value')
-                target_q = n_step_target(
-                    reward, done, nth_value, self.gamma, steps)
+                nth_value = tf.subtract(next_q_with_actor, next_temp * next_logpi, name='nth_value')
+                target_q = n_step_target(reward, done, 
+                                        nth_value, self.gamma, steps)
                 q1_error = tf.abs(target_q - q1, name='q1_error')
                 q2_error = tf.abs(target_q - q2, name='q2_error')
 

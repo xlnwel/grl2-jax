@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from utility.display import pwc, assert_colorize
+from utility.display import pwc
 
 
 def configure_gpu(idx=0):
@@ -40,7 +40,7 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
         as they are in TensorSpecs. Otherwise, return a list of TensorSpecs
     """
     if sequential:
-        assert_colorize(batch_size, 
+        assert batch_size, (
             f'For sequential data, please specify batch size for RNN states')
         default_shape = [batch_size, None]
     else:
@@ -51,10 +51,10 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
     else:
         name = None
         tensorspecs = TensorSpecs
-    assert_colorize(isinstance(tensorspecs, (list, tuple)), 
+    assert isinstance(tensorspecs, (list, tuple)), (
         'Expect tensorspecs to be a dict/list/tuple of arguments for tf.TensorSpec, '
         f'but get {TensorSpecs}\n')
-    tensorspecs = [tf.TensorSpec(shape=default_shape+list(s) if s else s, dtype=d, name=n)
+    tensorspecs = [tf.TensorSpec(shape=default_shape+list(s), dtype=d, name=n)
          for s, d, n in tensorspecs]
     if name:
         return dict(zip(name, tensorspecs))

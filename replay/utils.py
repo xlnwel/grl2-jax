@@ -1,55 +1,34 @@
 import numpy as np
 
-from utility.display import assert_colorize
+def init_buffer(buffer, *keys, capacity=0, state_shape=None):
+    buffer.clear()
+    buffer.update(dict([(key, [None] * capacity) for key in keys]))
+    if 'next_state' not in buffer and state_shape is not None:
+        default_state = np.zeros(state_shape)
+        buffer['state'] = [default_state] * capacity
 
+def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
+    for k in buffer.keys():
+        if k == 'steps':
+            buffer[k][idx] = 1
+        else:
+            buffer[k][idx] = kwargs[k]
 
-def init_buffer(buffer, capacity, state_shape, state_dtype, 
-                action_dim, action_dtype, has_priority, 
-                has_next_state=False):
-    action_shape = (capacity, ) if action_dim == 1 else (capacity, action_dim)
-
-    buffer.update({
-        'state': np.zeros((capacity, *state_shape), dtype=state_dtype),
-        'action': np.zeros(action_shape, dtype=action_dtype),
-        'reward': np.zeros((capacity, 1), dtype=np.float32),
-        'done': np.zeros((capacity, 1), dtype=np.bool),
-        'steps': np.zeros((capacity, 1), dtype=np.uint8)
-    })
-    if has_next_state:
-        buffer['next_state'] = np.zeros((capacity, *state_shape), dtype=state_dtype)
-    if has_priority:
-        buffer['priority'] = np.zeros((capacity, 1))
-
-def reset_buffer(buffer):
-    target_buffer = {}
-    for k, v in buffer.items():
-        target_buffer[k] = np.zeros_like(v)
-
-    buffer.update(target_buffer)
-
-def add_buffer(buffer, idx, state, action, reward, done, n_steps, gamma, next_state=None):
-    buffer['state'][idx] = state
-    buffer['action'][idx] = action
-    buffer['reward'][idx] = reward
-    buffer['done'][idx] = done
-    buffer['steps'][idx] = 1
-    if next_state is not None:
-        buffer['next_state'][idx] = next_state
     # Update previous experience if multi-step is required
     for i in range(1, n_steps):
         k = idx - i
-        if buffer['done'][k] == True:
-            # Do not continue updating when done is encountered
+        if (k < 0 and not cycle) or buffer['done'][k]:
             break
-        buffer['reward'][k] += gamma**i * reward
-        buffer['done'][k] = done
+        buffer['reward'][k] += gamma**i * kwargs['reward']
+        buffer['done'][k] = kwargs['done']
         buffer['steps'][k] += 1
-        if next_state is not None:
-            buffer['next_state'][k] = next_state
+        if 'next_state' in buffer:
+            buffer['next_state'][k] = kwargs['next_state']
 
 def copy_buffer(dest_buffer, dest_start, dest_end, orig_buffer, orig_start, orig_end, dest_keys=True):
-    assert_colorize(dest_end - dest_start == orig_end - orig_start, 
-                    'Inconsistent lengths of dest_buffer and orig_buffer.')
+    assert dest_end - dest_start == orig_end - orig_start, (
+            f'Inconsistent lengths of dest_buffer(dest_end - dest_start)'
+            f'and orig_buffer({orig_end - orig_start}).')
     if dest_end - dest_start == 0:
         return
     

@@ -4,8 +4,8 @@ env:
     video_path: video
     # max_episode_steps: 1000
     log_video: False
-    n_workers: 8
-    n_envs: 8
+    n_workers: 1
+    n_envs: 16
     seed: 0
 
 model:
@@ -23,7 +23,7 @@ agent:
 
     learn_freq: 200         # learning interval, measured in steps
     # batch size = n_workers * n_envs * learn_freq
-    n_updates: 8            # number of updates per epoch
+    n_updates: 8            # number of updates per step
     n_epochs: 1000
     max_kl: .0             # early stop when max_kl is violated. 0 suggests no bound
 
@@ -31,7 +31,7 @@ agent:
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
-    model_name: agent
+    model_name: *algo
     
     # arguments for optimizer
     optimizer: adam
@@ -42,7 +42,7 @@ agent:
     clip_range: .2          # clip range for ppo
     entropy_coef: .0
     kl_coef: .0
-    value_coef: .5
+    value_coef: .01
 
 buffer:
     advantage_type: gae     # nae or gae

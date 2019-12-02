@@ -6,8 +6,6 @@ import multiprocessing
 import numpy as np
 import sympy
 
-from utility.display import assert_colorize
-
 
 def to_int(s):
     return int(float(s))
@@ -15,6 +13,13 @@ def to_int(s):
 def isscalar(x):
     return isinstance(x, (int, float))
     
+def step_str(step):
+    if step < 1000:
+        return f'{step}'
+    elif step < 1000000:
+        return f'{step/1000:.3g}k'
+    else:
+        return f'{step/1000000:.3g}m'
 def moments(x, mask=None):
     if mask is None:
         x_mean = np.mean(x)
@@ -27,7 +32,7 @@ def moments(x, mask=None):
         n = np.sum(mask)
         for i in range(len(mask.shape)):
             if mask.shape[i] != 1:
-                assert_colorize(mask.shape[i] == x.shape[i], 
+                assert mask.shape[i] == x.shape[i], (
                         f'{i}th dimension of mask{mask.shape[i]} does not match'
                         f'that of x{x.shape[i]}')
             else:

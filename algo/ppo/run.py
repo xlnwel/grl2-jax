@@ -12,11 +12,11 @@ def run_trajectories(env, model, buffer):
         next_state, reward, done, _ = env.step(action.numpy())
         buffer.add(state=state, 
                     action=action.numpy(), 
-                    reward=reward, 
+                    reward=np.expand_dims(reward, 1), 
                     value=value.numpy(), 
                     old_logpi=logpi.numpy(), 
-                    nonterminal=1-done, 
-                    mask=env.get_mask())
+                    nonterminal=np.expand_dims(1-done, 1), 
+                    mask=np.expand_dims(env.get_mask(), 1))
         
         state = next_state
         if np.all(done):

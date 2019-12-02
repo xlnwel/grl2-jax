@@ -1,7 +1,5 @@
-"""
-Code from homeworks of Berkeley cs231-112 
+import tensorflow as tf
 
-"""
 
 def linear_interpolation(l, r, alpha):
     return l + alpha * (r - l)
@@ -11,7 +9,7 @@ def schedule(start_value, step, decay_steps, decay_rate):
     return start_value * decay_rate**(step // decay_steps)
 
 
-class PiecewiseSchedule(object):
+class PiecewiseSchedule:
     def __init__(self, endpoints, interpolation=linear_interpolation, outside_value=None):
         """Piecewise schedule.
         endpoints: [(int, int)]
@@ -34,14 +32,16 @@ class PiecewiseSchedule(object):
         assert idxes == sorted(idxes)
         self._interpolation = interpolation
         self._outside_value = outside_value
-        self._endpoints      = endpoints
+        self._endpoints = endpoints
 
     def value(self, t):
-        """See Schedule.value"""
-        for (l_t, l), (r_t, r) in zip(self._endpoints[:-1], self._endpoints[1:]):
-            if l_t <= t and t < r_t:
-                alpha = float(t - l_t) / (r_t - l_t)
-                return self._interpolation(l, r, alpha)
+        if t < self._endpoints[0][0]:
+            return self._endpoints[0][1]
+        else:
+            for (l_t, l), (r_t, r) in zip(self._endpoints[:-1], self._endpoints[1:]):
+                if l_t <= t and t < r_t:
+                    alpha = float(t - l_t) / (r_t - l_t)
+                    return self._interpolation(l, r, alpha)
 
         # t does not belong to any of the pieces, so doom.
         assert self._outside_value is not None
@@ -70,3 +70,46 @@ class LinearSchedule(object):
         """See Schedule.value"""
         fraction  = min(float(t) / self.schedule_timesteps, 1.0)
         return self.initial_p + fraction * (self.final_p - self.initial_p)
+
+
+class TFPiecewiseSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+    def __init__(self, endpoints, end_learning_rate=None, name=None):
+        """Piecewise schedule.
+        endpoints: [(int, int)]
+            list of pairs `(time, value)` meanining that schedule should output
+            `value` when `t==time`. All the values for time must be sorted in
+            an increasing order. When t is between two times, e.g. `(time_a, value_a)`
+            and `(time_b, value_b)`, such that `time_a <= t < time_b` then value outputs
+            `interpolation(value_a, value_b, alpha)` where alpha is a fraction of
+            time passed between `time_a` and `time_b` for time `t`.
+        outside_value: float
+            if the value is requested outside of all the intervals sepecified in
+            `endpoints` this value is returned. If None then AssertionError is
+            raised when outside value is requested.
+        """
+        super().__init__()
+        idxes = [e[0] for e in endpoints]
+        assert idxes == sorted(idxes)
+        self.end_learning_rate = end_learning_rate or endpoints[-1][1]
+        self.endpoints = endpoints
+        self.name=name
+
+    def __call__(self, step):
+        if step < self.endpoints[0][0]:
+            return self.endpoints[0][1]
+        else:
+            for (l_t, l), (r_t, r) in zip(self.endpoints[:-1], self.endpoints[1:]):
+                if l_t <= step and step < r_t:
+                    alpha = float(step - l_t) / (r_t - l_t)
+                    return linear_interpolation(l, r, alpha)
+
+        # t does not belong to any of the pieces, so doom.
+        assert self.end_learning_rate is not None
+        return self.end_learning_rate
+
+    def get_config(self):
+        return dict(
+            endpoints=self.endpoints,
+            end_learning_rate=self.end_learning_rate,
+            name=self._name,
+        )

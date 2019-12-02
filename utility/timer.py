@@ -41,11 +41,12 @@ class Timer:
         if aggregator.count >= self.period:
             if self.mode == 'average':
                 duration = aggregator.average()
-            else:
-                duration = aggregator.sum()
-            duration = (f'{duration*1000:.3g}ms' if duration < 1e-1 
+                duration = (f'{duration*1000:.3g}ms' if duration < 1e-1 
                              else f'{duration:.3g}s')
-            pwc(f'{self.summary_name} duration: "{duration}"', color='blue')
+                pwc(f'{self.summary_name} duration: "{duration}" averaged over {self.period} times', color='blue')
+            else:
+                duration = aggregator.sum
+                pwc(f'{self.summary_name} duration: "{duration}" for {self.period} times')
             aggregator.reset()
 
 
