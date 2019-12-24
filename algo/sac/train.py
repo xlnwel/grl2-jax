@@ -50,7 +50,7 @@ def train(agent, env, replay):
             agent.save(steps=step)
 
             with Timer(f'{agent.model_name} evaluation'):
-                eval_scores, eval_epslens = run.run_trajectories2(eval_env, agent.actor, evaluation=True)
+                eval_scores, eval_epslens = run.run_trajectories(eval_env, agent.actor, evaluation=True)
             agent.store(
                 score=np.mean(eval_scores),
                 score_std=np.std(eval_scores),

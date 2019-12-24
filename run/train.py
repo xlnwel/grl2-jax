@@ -140,9 +140,9 @@ if __name__ == '__main__':
                 elif algo == 'ppo2':
                     processes += gs(value_coef=[1e-2, 1e-3])
                 elif algo == 'sac':
-                    processes += gs(temperature=dict(value=[0.1, 0.01]))
+                    processes += gs(type=['uniform', 'proportional'])
                 elif algo == 'd3qn':
-                    processes += gs(type=['proportional', 'uniform'])
+                    processes += gs()
                 else:
                     raise NotImplementedError()
             else:

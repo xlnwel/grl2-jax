@@ -15,8 +15,6 @@ class SoftPolicy(tf.Module):
     def __init__(self, config, state_shape, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
 
-        self.action_dim = action_dim
-
         # network parameters
         self.is_action_discrete = is_action_discrete
         units_list = config['units_list']
@@ -26,8 +24,8 @@ class SoftPolicy(tf.Module):
         initializer_name = config.get('kernel_initializer', 'he_uniform')
         kernel_initializer = get_initializer(initializer_name)
         
-        self.LOG_STD_MIN = -20
-        self.LOG_STD_MAX = 2
+        self.LOG_STD_MIN = config.get('LOG_STD_MIN', -20)
+        self.LOG_STD_MAX = config.get('LOG_STD_MAX', 2)
         
         """ Network definition """
         self.intra_layers = mlp_layers(units_list, 
@@ -37,7 +35,7 @@ class SoftPolicy(tf.Module):
 
         if is_action_discrete:
             self.logits = layers.Dense(action_dim, name='logits')
-            self.tau = 1.#tf.Variable(1., dtype=tf.float32, name='softmax_tau')
+            self.tau = 1    #tf.Variable(1., dtype=tf.float32, name='softmax_tau')
         else:
             self.mu = layers.Dense(action_dim, name='mu')
             self.logstd = layers.Dense(action_dim, name='logstd')

@@ -14,8 +14,8 @@ class PERBase(Replay):
         self.data_structure = None            
 
         # params for prioritized replay
-        self.beta = float(config['beta0']) if 'beta0' in config else .4
-        self.beta_schedule = PiecewiseSchedule([(0, config['beta0']), (float(config['beta_steps']), 1.)], 
+        self.beta = float(config.get('beta0', .4))
+        self.beta_schedule = PiecewiseSchedule([(0, self.beta), (float(config['beta_steps']), 1.)], 
                                                 outside_value=1.)
 
         self.top_priority = 2.

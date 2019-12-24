@@ -5,7 +5,7 @@ env:
     # max_episode_steps: 1000
     log_video: False
     n_workers: 1
-    n_envs: 16
+    n_envs: 32
     seed: 0
 
 model:

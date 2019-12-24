@@ -64,7 +64,7 @@ class BaseWorker(BaseAgent):
             self.buffer.add_data(**kwargs)
             if self.buffer.is_full():
                 self._send_data(replay)
-        run_fn = run.run_trajectory if self.env.n_envs == 1 else run.run_trajectories2
+        run_fn = run.run_trajectory if self.env.n_envs == 1 else run.run_trajectories
 
         episode += 1
         self.model.set_weights(weights)

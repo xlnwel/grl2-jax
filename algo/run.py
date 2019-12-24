@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from utility.timer import TBTimer
-
+from env.gym_env import EnvVec, EfficientEnvVec
 
 LOG_PERIOD = 10000
 
@@ -37,10 +37,18 @@ def run_trajectory(env, actor, fn=None, evaluation=False, step=0, render=False):
         # print(env.env.lives, env.get_score(), env.get_epslen())
         if env.already_done:
             break
+        else:
+            print(f'not already done, {env.get_epslen()}')
         
     return env.get_score(), env.get_epslen()
 
 def run_trajectories(envvec, actor, fn=None, evaluation=False):
+    if isinstance(envvec, EnvVec):
+        return run_trajectories1(envvec, actor, fn, evaluation)
+    elif isinstance (envvec, EfficientEnvVec):
+        return run_trajectories2(envvec, actor, fn, evaluation)
+        
+def run_trajectories1(envvec, actor, fn=None, evaluation=False):
     """ Sample trajectories
 
     Args:
