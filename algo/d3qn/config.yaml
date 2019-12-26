@@ -5,7 +5,7 @@ env:
     video_path: video
     log_video: False
     efficient_envvec: True
-    max_episode_steps: 27000
+    max_episode_steps: 27000    # 108000 frames / 4 frame-skips
     seed: 0
 model:
     q:

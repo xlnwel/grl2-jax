@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name BipedalWalker-v2 # LunarLanderContinuous-v2, BipedalWalker-v2
+    name: &env_name BipedalWalkerHardcore-v2 # LunarLanderContinuous-v2, BipedalWalker-v2
     video_path: video
     # max_episode_steps: 1000
     log_video: False
@@ -9,11 +9,11 @@ env:
     seed: 0
 
 model:
-    shared_mlp_units: [128]
+    shared_mlp_units: [256]
     use_dnc: False
-    lstm_units: 128
-    actor_units: [64]
-    critic_units: [64]
+    lstm_units: 256
+    actor_units: [128]
+    critic_units: [128]
     norm: none
     activation: relu
 
@@ -49,5 +49,5 @@ buffer:
     gamma: .99
     lam: .95
     # environment hack
-    # reward_scale: 5.
-    # reward_clip: 50
+    reward_scale: 5.
+    reward_clip: 50

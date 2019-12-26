@@ -31,17 +31,17 @@ class PPOBuffer:
         assert_colorize(epslen // n_minibatches * n_minibatches == epslen, 
             f'#envs({n_envs}) is not divisible by #minibatches{n_minibatches}')
 
-        self.basic_shape = (n_envs, epslen)
+        basic_shape = (n_envs, epslen)
         self.memory = dict(
-            state=np.zeros((*self.basic_shape, *state_shape), dtype=state_dtype),
-            action=np.zeros((*self.basic_shape, *action_shape), dtype=action_dtype),
-            reward=np.zeros((*self.basic_shape, 1), dtype=np.float32),
-            nonterminal=np.zeros((*self.basic_shape, 1), dtype=np.float32),
+            state=np.zeros((*basic_shape, *state_shape), dtype=state_dtype),
+            action=np.zeros((*basic_shape, *action_shape), dtype=action_dtype),
+            reward=np.zeros((*basic_shape, 1), dtype=np.float32),
+            nonterminal=np.zeros((*basic_shape, 1), dtype=np.float32),
             value=np.zeros((n_envs, epslen+1, 1), dtype=np.float32),
-            traj_ret=np.zeros((*self.basic_shape, 1), dtype=np.float32),
-            advantage=np.zeros((*self.basic_shape, 1), dtype=np.float32),
-            old_logpi=np.zeros((*self.basic_shape, 1), dtype=np.float32),
-            mask=np.zeros((*self.basic_shape, 1), dtype=np.float32),
+            traj_ret=np.zeros((*basic_shape, 1), dtype=np.float32),
+            advantage=np.zeros((*basic_shape, 1), dtype=np.float32),
+            old_logpi=np.zeros((*basic_shape, 1), dtype=np.float32),
+            mask=np.zeros((*basic_shape, 1), dtype=np.float32),
         )
 
         self.reset()
@@ -49,11 +49,9 @@ class PPOBuffer:
     def add(self, **data):
         assert_colorize(self.idx < self.epslen, 
             f'Out-of-range idx {self.idx}. Call "self.reset" beforehand')
-        idx = self.idx
-
         for k, v in data.items():
             if v is not None:
-                self.memory[k][:, idx] = v
+                self.memory[k][:, self.idx] = v
 
         self.idx += 1
 

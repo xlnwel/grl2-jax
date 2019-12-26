@@ -124,11 +124,16 @@ class EnvVec(EnvBase):
     def reset(self):
         return np.asarray([env.reset() for env in self.envs], dtype=self.state_dtype)
     
-    def step(self, actions):
+    def step(self, actions, auto_reset=False):
         step_imp = lambda envs, actions: list(zip(*[env.step(a) for env, a in zip(envs, actions)]))
         
         state, reward, done, info = step_imp(self.envs, actions)
         
+        if auto_reset:
+            for i, d in enumerate(done):
+                if d:
+                    state[i] = self.envs[i].reset()
+
         return (np.asarray(state, dtype=self.state_dtype), 
                 np.asarray(reward, dtype=np.float32), 
                 np.asarray(done, dtype=np.bool), 
@@ -214,7 +219,6 @@ class RayEnvVec(EnvBase):
 
 
 def create_gym_env(config):
-    # manually use GymEnvVecBaes for easy environments
     EnvType = Env if config.get('n_envs', 1) == 1 else EnvVec
     if config.get('n_workers', 1) == 1:
         if EnvType == EnvVec and config.get('efficient_envvec', False):

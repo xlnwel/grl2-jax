@@ -21,12 +21,13 @@ def run_trajectories(env, agent, buffer, learn_freq, epoch):
                     mask=np.expand_dims(env.get_mask(), 1))
         state = next_state
         if np.all(done):
-            _, _, last_value = agent.step(state, update_curr_states=False)
-            buffer.finish(last_value.numpy())
-            agent.learn_log(buffer, epoch)
+            if buffer.good_to_learn():
+                _, _, last_value = agent.step(state, update_curr_states=False)
+                buffer.finish(last_value.numpy())
+                agent.learn_log(buffer, epoch)
             break
 
-        if i % learn_freq == 0:
+        if i % learn_freq == 0 and buffer.good_to_learn():
             _, _, last_value = agent.step(state, update_curr_states=False)
             buffer.finish(last_value.numpy())
             agent.learn_log(buffer, epoch)

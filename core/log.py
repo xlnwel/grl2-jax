@@ -41,8 +41,6 @@ def log_summary(writer, stats, step=None):
                 tf.summary.scalar(f'stats/{k}_mean', tf.reduce_mean(v), step=step)
                 tf.summary.scalar(f'stats/{k}_std', tf.math.reduce_std(v), step=step)
 
-    writer.flush()
-
 def store(logger, **kwargs):
     logger.store(**kwargs)
 
@@ -61,7 +59,8 @@ def setup_logger(root_dir, model_name):
 def setup_tensorboard(root_dir, model_name):
     # writer for tensorboard summary
     # stats are saved in directory f'{root_dir}/{model_name}'
-    writer = tf.summary.create_file_writer(f'{root_dir}/{model_name}/logs')
+    writer = tf.summary.create_file_writer(
+        f'{root_dir}/{model_name}/logs', max_queue=100)
     writer.set_as_default()
     return writer
 

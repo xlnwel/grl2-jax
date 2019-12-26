@@ -20,21 +20,22 @@ class PPOBuffer(dict):
         self.advantage_type = config['advantage_type']
         self.gamma = config['gamma']
         self.gae_discount = self.gamma * config['lam'] 
+        self.min_transitions = config['min_transitions']
         # Environment hack
         self.reward_scale = config.get('reward_scale', 1)
         self.reward_clip = config.get('reward_clip')
 
-        self.basic_shape = (n_envs, seqlen)
+        basic_shape = (n_envs, seqlen)
         self.memory = dict(
-            state=np.zeros((*self.basic_shape, *state_shape), dtype=state_dtype),
-            action=np.zeros((*self.basic_shape, *action_shape), dtype=action_dtype),
-            reward=np.zeros((*self.basic_shape, 1), dtype=np.float32),
-            nonterminal=np.zeros((*self.basic_shape, 1), dtype=np.float32),
+            state=np.zeros((*basic_shape, *state_shape), dtype=state_dtype),
+            action=np.zeros((*basic_shape, *action_shape), dtype=action_dtype),
+            reward=np.zeros((*basic_shape, 1), dtype=np.float32),
+            nonterminal=np.zeros((*basic_shape, 1), dtype=np.float32),
             value=np.zeros((n_envs, seqlen+1, 1), dtype=np.float32),
-            traj_ret=np.zeros((*self.basic_shape, 1), dtype=np.float32),
-            advantage=np.zeros((*self.basic_shape, 1), dtype=np.float32),
-            old_logpi=np.zeros((*self.basic_shape, 1), dtype=np.float32),
-            mask=np.zeros((*self.basic_shape, 1), dtype=np.float32),
+            traj_ret=np.zeros((*basic_shape, 1), dtype=np.float32),
+            advantage=np.zeros((*basic_shape, 1), dtype=np.float32),
+            old_logpi=np.zeros((*basic_shape, 1), dtype=np.float32),
+            mask=np.zeros((*basic_shape, 1), dtype=np.float32),
         )
 
         self.reset()
@@ -42,11 +43,9 @@ class PPOBuffer(dict):
     def add(self, **data):
         assert_colorize(self.idx < self.seqlen, 
             f'Out-of-range idx {self.idx}. Call "self.reset" beforehand')
-        idx = self.idx
-
         for k, v in data.items():
             if v is not None:
-                self.memory[k][:, idx] = v
+                self.memory[k][:, self.idx] = v
 
         self.idx += 1
 
@@ -122,7 +121,7 @@ class PPOBuffer(dict):
         self.ready = False      # Whether the buffer is ready to be read
 
     def good_to_learn(self):
-        return np.sum(self.memory['mask']) > 500
+        return np.sum(self.memory['mask']) > self.min_transitions
 
 
 if __name__ == '__main__':
@@ -132,13 +131,13 @@ if __name__ == '__main__':
     config = dict(
         gamma=gamma,
         lam=lam,
-        advantage_type='gae'
+        advantage_type='gae',
+        min_transitions=500
     )
     kwargs = dict(
         config=config,
         n_envs=8, 
         seqlen=1000, 
-        n_minibatches=2, 
         state_shape=[3], 
         state_dtype=np.float32, 
         action_shape=[2], 

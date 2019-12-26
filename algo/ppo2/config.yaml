@@ -21,9 +21,9 @@ agent:
     algorithm: &algo ppo2
     env_name: *env_name
 
-    learn_freq: 200         # learning interval, measured in steps
+    learn_freq: 100         # learning interval, measured in steps
     # batch size = n_workers * n_envs * learn_freq
-    n_updates: 8            # number of updates per step
+    n_updates: 4            # number of updates per step
     n_epochs: 1000
     max_kl: .0             # early stop when max_kl is violated. 0 suggests no bound
 
@@ -35,19 +35,20 @@ agent:
     
     # arguments for optimizer
     optimizer: adam
-    learning_rate: 1.e-4
+    learning_rate: 3.e-4
     epsilon: 1.e-5
     clip_norm: .5
     # arguments for loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .0
-    kl_coef: .0
-    value_coef: .01
+    kl_coef: .1
+    value_coef: .001
 
 buffer:
     advantage_type: gae     # nae or gae
     gamma: .99
     lam: .95
+    min_transitions: 800      # the minimum number of transitions for learning
     # environment hack
     # reward_scale: 5.
     # reward_clip: 50
