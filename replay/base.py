@@ -109,10 +109,6 @@ class Replay(ABC):
             copy_buffer(self.memory, 0, second_part, local_buffer, first_part, length)
         else:
             copy_buffer(self.memory, self.mem_idx, end_idx, local_buffer, 0, length)
-            
-        if self.normalize_reward:
-            # compute running reward statistics
-            self.running_reward_stats.update(local_buffer['reward'][:length])
 
         # memory is full, recycle buffer via FIFO
         if not self.is_full and end_idx >= self.capacity:
@@ -138,12 +134,15 @@ class Replay(ABC):
             next_state = np.asarray([self.memory['state'][i] for i in next_indexes])
 
         # process rewards
-        if self.normalize_reward:
-            reward = self.running_reward_stats.normalize(reward)
         if self.reward_scale != 1:
             reward *= np.where(done, 1, self.reward_scale)
         if self.reward_clip:
             reward = np.clip(reward, -self.reward_clip, self.reward_clip)
+        if self.normalize_reward:
+            # we update running reward statistics at sampling time
+            # since this is when the rewards contribute to the learning process
+            self.running_reward_stats.update(reward)
+            reward = self.running_reward_stats.normalize(reward)
         # assert not np.any(np.isnan(state))
         # assert not np.any(np.isnan(action))
         # assert not np.any(np.isnan(reward))

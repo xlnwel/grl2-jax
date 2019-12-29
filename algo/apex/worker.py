@@ -52,7 +52,7 @@ class Worker(BaseWorker):
 
     def run(self, learner, replay):
         step = 0
-        while True:
+        while step < 1e7:
             self.set_summary_step(step)
             with Timer(f'{self.name} pull weights', self.TIME_PERIOD):
                 weights = self.pull_weights(learner)

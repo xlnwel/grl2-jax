@@ -24,7 +24,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
                     model_config,
                     env_config):
             # tf.debugging.set_log_device_placement(True)
-            configure_threads(2, 2)
+            configure_threads(1, 1)
             configure_gpu()
 
             env = create_gym_env(env_config)

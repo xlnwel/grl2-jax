@@ -61,3 +61,5 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     learner.start_learning.remote()
 
     ray.get(pids)
+
+    ray.shutdown()

@@ -3,7 +3,7 @@ import tensorflow as tf
 import ray
 
 from utility.timer import TBTimer
-from utility.tf_utils import n_step_target
+from utility.rl_utils import n_step_target
 from core import tf_config
 from core.decorator import agent_config
 from core.base import BaseAgent

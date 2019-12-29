@@ -10,9 +10,9 @@ from utility.utils import step_str
 from env.gym_env import create_gym_env
 from replay.func import create_replay
 from replay.data_pipline import Dataset
-from algo import run
+from algo.run import run, random_sampling
 from algo.sac.agent import Agent
-from algo.sac.nn import SAC
+from algo.sac.nn import create_model
 
 
 LOG_STEP = 10000
@@ -27,7 +27,7 @@ def train(agent, env, replay):
         video_path='video',
         log_video=False,
         n_workers=1,
-        n_envs=10,
+        n_envs=50,
         seed=np.random.randint(100, 10000)
     ))
     start_step = agent.global_steps.numpy() + 1
@@ -39,7 +39,7 @@ def train(agent, env, replay):
     while step < int(agent.max_steps):
         agent.set_summary_step(step)
         with Timer(f'{agent.model_name}: trajectory', agent.LOG_INTERVAL):
-            score, epslen = run.run_trajectory(env, agent.actor, collect_and_learn)
+            score, epslen = run(env, agent.actor, collect_and_learn)
         step += epslen
         scores.append(score)
         epslens.append(epslen)
@@ -49,11 +49,11 @@ def train(agent, env, replay):
             agent.save(steps=step)
 
             with Timer(f'{agent.model_name} evaluation'):
-                eval_scores, eval_epslens = run.run_trajectories(eval_env, agent.actor, evaluation=True)
+                eval_scores, eval_epslens = run(eval_env, agent.actor, evaluation=True)
             agent.store(
                 score=np.mean(eval_scores),
                 score_std=np.std(eval_scores),
-                score_max=np.amax(eval_scores),
+                score_max=np.max(eval_scores),
                 epslen=np.mean(eval_epslens),
                 epslen_std=np.std(eval_epslens)
             )
@@ -65,7 +65,7 @@ def train(agent, env, replay):
                 steps=step_str(step), 
                 score=np.mean(scores),
                 score_std=np.std(scores),
-                score_max=np.amax(scores),
+                score_max=np.max(scores),
                 epslen=np.mean(epslens),
                 epslen_std=np.std(epslens),
             )
@@ -83,7 +83,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     dataset = Dataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype)
 
     # construct models
-    models = SAC(
+    models = create_model(
         model_config, 
         state_shape=env.state_shape, 
         action_dim=env.action_dim, 
@@ -110,8 +110,8 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
             replay.add(state=state, action=action, 
             reward=reward, done=done, next_state=next_state))        
         while not replay.good_to_learn():
-            run.run_trajectory(env, agent.actor, collect_fn)
+            run(env, agent.actor, collect_fn)
     else:
-        run.random_sampling(env, replay)
+        random_sampling(env, replay)
 
     train(agent, env, replay)

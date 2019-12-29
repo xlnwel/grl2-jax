@@ -32,7 +32,7 @@ agent:
     model_name: *algo
 
     loss_type: mse                          # huber or mse
-    tbo: True                               # transformed Bellman Operator
+    tbo: False                               # transformed Bellman Operator
     max_steps: 3.e+6
 
     # arguments for optimizer
