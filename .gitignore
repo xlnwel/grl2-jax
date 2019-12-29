@@ -11,3 +11,4 @@ conventions.md
 env/gym_env2.py
 **ray_test.pyw
 **dew**
+.pytest_cache*

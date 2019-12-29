@@ -7,7 +7,7 @@ from utility import tf_distributions
 from utility.display import pwc
 from utility.utils import to_int
 from utility.timer import Timer
-from env.wrappers import TimeLimit, EnvStats
+from env.wrappers import TimeLimit, EnvStats, AutoReset
 from env.deepmind_wrappers import make_deepmind_env
 
 
@@ -30,8 +30,10 @@ def _make_env(config):
         if config.get('log_video', False):
             pwc(f'video will be logged at {config["video_path"]}', color='cyan')
             env = gym.wrappers.Monitor(env, config['video_path'], force=True)
+        env = EnvStats(env)
+    if config.get('auto_reset'):
+        env = AutoReset(env)
     env.seed(config.get('seed', 42))
-    env = EnvStats(env)
 
     return env
 
@@ -87,9 +89,13 @@ class Env(EnvBase):
         action = self.env.action_space.sample()
         return action
         
-    def step(self, action):
-        next_state, reward, done, info = self.env.step(action)
-        return next_state, reward, np.bool(done), info
+    def step(self, action, auto_reset=False):
+        state, reward, done, info = self.env.step(action)
+
+        if done and auto_reset:
+            state = self.env.reset()
+
+        return state, reward, np.bool(done), info
 
     def render(self):
         return self.env.render()
@@ -114,7 +120,6 @@ class EnvVec(EnvBase):
         self.name = config['name']
         self.envs = [_make_env(config) for i in range(n_envs)]
         [env.seed(config['seed'] + i) for i, env in enumerate(self.envs)]
-        # print(config['seed'])
         self.env = self.envs[0]
         self.max_episode_steps = self.env.spec.max_episode_steps
 
@@ -152,6 +157,7 @@ class EnvVec(EnvBase):
     def close(self):
         del self
 
+
 class EfficientEnvVec(EnvVec):
     def random_action(self):
         valid_envs = [env for env in self.envs if not env.already_done]
@@ -171,6 +177,7 @@ class EfficientEnvVec(EnvVec):
                 np.asarray(reward, dtype=np.float32), 
                 np.asarray(done, dtype=np.bool), 
                 info)
+
 
 class RayEnvVec(EnvBase):
     def __init__(self, EnvType, config):

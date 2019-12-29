@@ -8,7 +8,7 @@ from core import tf_config
 from core.decorator import agent_config
 from core.base import BaseAgent
 from env.gym_env import create_gym_env
-from algo import run
+from algo.run import run
 
 
 class BaseWorker(BaseAgent):
@@ -57,29 +57,25 @@ class BaseWorker(BaseAgent):
             self._compute_priorities, 
             TensorSpecs)
 
-    def eval_model(self, weights, episode, step, replay):
+    def eval_model(self, weights, step, replay):
         """ collects data, logs stats, and saves models """
         def collect_fn(**kwargs):
-            kwargs['mask'] = np.squeeze(kwargs['mask'])
             self.buffer.add_data(**kwargs)
-            if self.buffer.is_full():
-                self._send_data(replay)
-        run_fn = run.run_trajectory if self.env.n_envs == 1 else run.run_trajectories
 
-        episode += 1
         self.model.set_weights(weights)
 
         with TBTimer(f'{self.name} -- eval model', self.TIME_PERIOD):
-            scores, epslens = run_fn(self.env, self.actor, fn=collect_fn)
+            scores, epslens = run(self.env, self.actor, fn=collect_fn)
             step += np.sum(epslens)
-            self.store(
-                score= np.mean(scores), 
-                score_std=np.std(scores),
-                score_max=np.max(scores), 
-                epslen=np.mean(epslens), 
-                epslen_std=np.std(epslens))
+            if scores is not None:
+                self.store(
+                    score= np.mean(scores), 
+                    score_std=np.std(scores),
+                    score_max=np.max(scores), 
+                    epslen=np.mean(epslens), 
+                    epslen_std=np.std(epslens))
         
-        return episode, step, scores
+        return step, scores
 
     def pull_weights(self, learner):
         """ pulls weights from learner """

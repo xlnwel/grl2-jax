@@ -13,7 +13,7 @@ from replay.data_pipline import RayDataset
 
 
 def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_config, replay_config):
-    @ray.remote(num_cpus=2)
+    @ray.remote#(num_cpus=2)
     class Learner(BaseAgent):
         """ Interface """
         def __init__(self,

@@ -43,10 +43,10 @@ class Agent(BaseAgent):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = [
             ([1], tf.float32, 'IS_ratio'),
-            (env.state_shape, np.float32, 'state'),
+            (env.state_shape, tf.float32, 'state'),
             (env.action_shape, env.action_dtype, 'action'),
             ([1], tf.float32, 'reward'),
-            (env.state_shape, np.float32, 'next_state'),
+            (env.state_shape, tf.float32, 'next_state'),
             ([1], tf.float32, 'done'),
             ([1], tf.float32, 'steps'),
         ]

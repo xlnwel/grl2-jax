@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from utility.display import pwc
+from utility.schedule import PiecewiseSchedule
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
@@ -20,6 +21,10 @@ class Agent(BaseAgent):
                 action_dtype,
                 n_envs):
         # optimizer
+        if getattr(self, 'schedule_lr', False):
+            self.learning_rate = tf.Variable(self.learning_rate, trainable=False)
+            self.schedule = PiecewiseSchedule(
+                [(300, self.learning_rate), (1000, 5e-5)])
         if self.optimizer.lower() == 'adam':
             self.optimizer = tf.keras.optimizers.Adam(
                 learning_rate=self.learning_rate,
@@ -78,35 +83,36 @@ class Agent(BaseAgent):
         return action
 
     def learn_log(self, buffer, epoch):
+        if not isinstance(self.learning_rate, float):
+            self.learning_rate.assign(self.schedule.value(epoch))
         for i in range(self.n_updates):
             data = buffer.sample()
             data['n'] = n = np.sum(data['mask'])
             value = data['value']
             data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
             with tf.name_scope('train'):
-                loss_info  = self.learn(**data)
-                entropy, approx_kl, p_clip_frac, v_clip_frac, ppo_loss, value_loss, global_norm = loss_info
-
+                terms  = self.learn(**data)
+                
             n_total_trans = value.size
             n_valid_trans = n or n_total_trans
-            self.store(
-                ppo_loss=ppo_loss.numpy(), 
-                value_loss=value_loss.numpy(),
-                entropy=entropy.numpy(), 
-                p_clip_frac=p_clip_frac.numpy(),
-                v_clip_frac=v_clip_frac.numpy(),
-                value=np.mean(value),
-                global_norm=global_norm.numpy(),
-                n_valid_trans=n_valid_trans,
-                n_total_trans=n_total_trans,
-                valid_trans_frac = n_valid_trans / n_total_trans
-            )
-        
-            if self.max_kl and approx_kl > self.max_kl:
+
+            terms['value'] = np.mean(value)
+            terms['n_valid_trans'] = n_valid_trans
+            terms['n_total_trans'] = n_total_trans
+            terms['valid_trans_frac'] = n_valid_trans / n_total_trans
+            
+            approx_kl = terms['approx_kl']
+            del terms['approx_kl']
+
+            self.store(**terms)
+
+            if getattr(self, 'max_kl', 0) > 0 and approx_kl > self.max_kl:
                 pwc(f'Eearly stopping at update-{i+1} due to reaching max kl.',
                     f'Current kl={approx_kl:.3g}', color='blue')
                 break
         self.store(approx_kl=approx_kl)
+        if not isinstance(self.learning_rate, float):
+            self.store(learning_rate=self.learning_rate.numpy())
 
         # update the states with the newest weights 
         states = self.ac.rnn_states(data['state'], *self.prev_states)
@@ -116,7 +122,7 @@ class Agent(BaseAgent):
     def _learn(self, state, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
         with tf.GradientTape() as tape:
             old_value = value
-            logpi, entropy, value, _ = self.ac.train_step(state, action, self.prev_states)
+            logpi, entropy, value, logstd = self.ac.train_step(state, action, self.prev_states)
             # policy loss
             ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
                 logpi, old_logpi, advantage, self.clip_range,
@@ -139,4 +145,15 @@ class Agent(BaseAgent):
                 grads, global_norm = tf.clip_by_global_norm(grads, self.clip_norm)
             self.optimizer.apply_gradients(zip(grads, self.ac.trainable_variables))
 
-        return entropy, approx_kl, p_clip_frac, v_clip_frac, ppo_loss, value_loss, global_norm 
+        terms = dict(
+            entropy=entropy, 
+            approx_kl=approx_kl, 
+            p_clip_frac=p_clip_frac,
+            v_clip_frac=v_clip_frac,
+            ppo_loss=ppo_loss,
+            value_loss=value_loss,
+            global_norm=global_norm,
+        )
+        if logstd is not None:
+            terms['std'] = tf.exp(logstd)
+        return terms

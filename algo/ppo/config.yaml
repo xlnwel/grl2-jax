@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name BipedalWalkerHardcore-v2 # LunarLanderContinuous-v2, BipedalWalker-v2
+    name: &env_name BipedalWalker-v2 # LunarLanderContinuous-v2, BipedalWalker-v2
     video_path: video
     # max_episode_steps: 1000
     log_video: False
@@ -9,11 +9,12 @@ env:
     seed: 0
 
 model:
-    shared_mlp_units: [256]
+    # cnn: impala
+    shared_mlp_units: [128]
     use_dnc: False
-    lstm_units: 256
-    actor_units: [128]
-    critic_units: [128]
+    lstm_units: 128
+    actor_units: [64]
+    critic_units: [64]
     norm: none
     activation: relu
 
@@ -25,7 +26,8 @@ agent:
     # batch size = n_workers * n_envs * seq_len / n_minibatches
     n_updates: 4            # number of updates per epoch
     n_epochs: 1000
-    max_kl: .01              # early stop when max_kl is violated. 0 suggests no bound
+    max_kl: .1              # early stop when max_kl is violated. 0 suggests no bound
+    LOG_INTERVAL: 10
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -35,6 +37,7 @@ agent:
     
     # arguments for optimizer
     optimizer: adam
+    schedule_lr: True
     learning_rate: 3.e-4
     epsilon: 1.e-5
     clip_norm: .5
@@ -49,5 +52,5 @@ buffer:
     gamma: .99
     lam: .95
     # environment hack
-    reward_scale: 5.
-    reward_clip: 50
+    # reward_scale: 5.
+    # reward_clip: 50

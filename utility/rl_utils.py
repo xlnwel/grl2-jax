@@ -23,3 +23,23 @@ def logpi_correction(action, logpi, is_action_squashed):
     logpi -= sub
 
     return logpi
+
+def n_step_target(reward, done, nth_value, gamma, steps):
+    with tf.name_scope('n_step_target'):
+        return tf.stop_gradient(reward + gamma**steps * (1 - done) * nth_value)
+
+def h(x, epsilon=1e-2):
+    """h function defined in Ape-X DQfD"""
+    sqrt_term = tf.math.sqrt(tf.math.abs(x) + 1)
+    return tf.math.sign(x) * (sqrt_term - 1) + epsilon * x
+
+def inverse_h(x, epsilon=1e-2):
+    """h^{-1} function defined in Ape-X DQfD"""
+    sqrt_term = tf.math.sqrt(1 + 4 * epsilon * (tf.math.abs(x) + 1 + epsilon))
+    frac_term = (sqrt_term - 1) / (2 * epsilon)
+    return tf.math.sign(x) * (frac_term ** 2 - 1)
+
+def transformed_n_step_target(reward, done, nth_value, gamma, steps):
+    """Transformed Bellman operator defined in Ape-X DQfD"""
+    with tf.name_scope('n_step_target'):
+        return tf.stop_gradient(h(reward + gamma**steps * (1 - done) * inverse_h(nth_value)))

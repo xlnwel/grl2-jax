@@ -15,6 +15,7 @@ class PPOAC(tf.Module):
     def __init__(self, 
                 config, 
                 state_shape, 
+                state_dtype,
                 action_dim, 
                 is_action_discrete, 
                 batch_size, 
@@ -37,7 +38,6 @@ class PPOAC(tf.Module):
         )
         actor_units = config['actor_units']
         critic_units = config['critic_units']
-        self.rnn_input_size = shared_mlp_units[-1]
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
@@ -46,7 +46,7 @@ class PPOAC(tf.Module):
 
         """ Network definition """
         if cnn_name:
-            self.cnn = get_cnn('ftw')
+            self.cnn = get_cnn(cnn_name, time_distributed=True, batch_size=self.batch_size)
         # shared mlp layers
         if shared_mlp_units:
             self.shared_mlp = mlp_layers(
@@ -57,6 +57,7 @@ class PPOAC(tf.Module):
             )
         
         # RNN layer
+        self.rnn_input_size = self.cnn.out_size if cnn_name else shared_mlp_units[-1]
         if use_dnc:
             self.rnn = dnc_rnn(**dnc_config)
         else:
@@ -69,10 +70,11 @@ class PPOAC(tf.Module):
                                 name='actor',
                                 activation=activation, 
                                 kernel_initializer=kernel_initializer())
-        self.logstd = tf.Variable(initial_value=np.zeros(action_dim), 
-                                    dtype=tf.float32, 
-                                    trainable=True, 
-                                    name=f'actor/logstd')
+        if not self.is_action_discrete:
+            self.logstd = tf.Variable(initial_value=np.zeros(action_dim), 
+                                        dtype=tf.float32, 
+                                        trainable=True, 
+                                        name=f'actor/logstd')
         self.critic = mlp_layers(critic_units, 
                                 out_dim=1,
                                 norm=norm, 
@@ -81,20 +83,20 @@ class PPOAC(tf.Module):
                                 kernel_initializer=kernel_initializer())
 
         # policy distribution type
-        self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
+        self.ActionDistributionType = Categorical if self.is_action_discrete else DiagGaussian
         
         # build for variable initialization
         if use_dnc:
-            # fake_inputs = tf.zeros([batch_size, 1, self.rnn_input_size])
+            # fake_inputs = tf.zeros([self.batch_size, 1, self.rnn_input_size])
             # initial_state = self.rnn.get_initial_state(fake_inputs)
             # self.rnn(inputs=fake_inputs, initial_state=initial_state)
             # self.rnn.reset_states()
             raise NotImplementedError('tf.function requires different initial states for dnc')
 
-        TensorSpecs = [([None, *state_shape], tf.float32, 'state'),
+        TensorSpecs = [([None, *state_shape], state_dtype, 'state'),
                         ([lstm_units], tf.float32, 'h'),
                         ([lstm_units], tf.float32, 'c')]
-        self.rnn_states = build(self._rnn_states, TensorSpecs, sequential=False, batch_size=batch_size)
+        self.rnn_states = build(self._rnn_states, TensorSpecs, sequential=False, batch_size=self.batch_size)
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
@@ -211,10 +213,12 @@ class PPOAC(tf.Module):
 
             entropy = action_distribution.entropy()
 
-            return logpi, entropy, value, states
+            return logpi, entropy, value, getattr(self, 'logstd', None)
 
     def _common_layers(self, x, initial_state):
         if hasattr(self, 'cnn'):
+            x = tf.cast(x, tf.float32)
+            x = x / 255.
             x = self.cnn(x)
         if hasattr(self, 'shared_mlp'):
             for l in self.shared_mlp:
@@ -240,10 +244,11 @@ class PPOAC(tf.Module):
         return self.rnn.get_initial_state(fake_inputs)
 
 
-def create_model(model_config, state_shape, action_dim, is_action_discrete, n_envs):
+def create_model(model_config, state_shape, state_dtype, action_dim, is_action_discrete, n_envs):
     ac = PPOAC(
         model_config, 
         state_shape, 
+        state_dtype,
         action_dim, 
         is_action_discrete,
         n_envs,
@@ -270,7 +275,7 @@ if __name__ == '__main__':
     for is_action_discrete in [True, False]:
         action_dtype = np.int32 if is_action_discrete else np.float32
         
-        ac = PPOAC(config, state_shape, action_dim, is_action_discrete, batch_size, 'ac')
+        ac = PPOAC(config, state_shape, np.float32, action_dim, is_action_discrete, batch_size, 'ac')
 
         from utility.display import display_var_info
 
@@ -290,8 +295,7 @@ if __name__ == '__main__':
             a = np.random.randint(low=0, high=action_dim, size=(batch_size, seq_len))
         else:
             a = np.random.rand(batch_size, seq_len, action_dim)
-        _, _, _, states = ac.train_step(tf.convert_to_tensor(x, tf.float32), 
-            tf.convert_to_tensor(a, action_dtype), states)
+        _, states = ac._common_layers(tf.convert_to_tensor(x, tf.float32), states)
         train_step_states = states
-        np.testing.assert_allclose(step_states, train_step_states)
+        np.testing.assert_allclose(step_states, train_step_states, atol=1e-5, rtol=1e-5)
 

@@ -40,17 +40,6 @@ def logsumexp(value, axis=None, keepdims=False):
 
 def square_sum(x):
     return 2 * tf.nn.l2_loss(x)
-    
-
-def n_step_target(reward, done, nth_value, gamma, steps):
-    with tf.name_scope('n_step_target'):
-        n_step_target = tf.stop_gradient(reward 
-                                        + gamma**steps
-                                        * (1 - done)
-                                        * nth_value)
-
-    return n_step_target
-
 
 def padding(x, kernel_size, strides, mode='constant', name=None):
     """ This function pads x so that a convolution with the same args downsamples x by a factor of strides.

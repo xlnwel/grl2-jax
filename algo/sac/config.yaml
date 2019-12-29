@@ -22,7 +22,7 @@ agent:
     gamma: &gamma 0.99
     polyak: .995                            # moving average rate
     # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
-    # episodic_learning: False              # whether to update network after each episode. Update after each step if False
+    LOG_INTERVAL: 10
     # max_action_repetitions: 1
 
     # model path: root_dir/model_name/models
@@ -32,6 +32,7 @@ agent:
     model_name: *algo
 
     loss_type: mse                          # huber or mse
+    tbo: True                               # transformed Bellman Operator
     max_steps: 3.e+6
 
     # arguments for optimizer

@@ -10,12 +10,11 @@ from utility.utils import step_str
 from env.gym_env import create_gym_env
 from replay.func import create_replay
 from replay.data_pipline import Dataset
-from algo import run
+from algo.run import run, random_sampling
 from algo.sac.agent import Agent
 from algo.sac.nn import create_model
 
 
-LOG_PERIOD = 100
 LOG_STEP = 10000
 
 def train(agent, env, replay):
@@ -39,8 +38,8 @@ def train(agent, env, replay):
     log_step = LOG_STEP
     while step < int(agent.max_steps):
         agent.set_summary_step(step)
-        with Timer(f'{agent.model_name}: trajectory', LOG_PERIOD):
-            score, epslen = run.run_trajectory(env, agent.actor, collect_and_learn)
+        with Timer(f'{agent.model_name}: trajectory', agent.LOG_INTERVAL):
+            score, epslen = run(env, agent.actor, collect_and_learn)
         step += epslen
         scores.append(score)
         epslens.append(epslen)
@@ -50,7 +49,7 @@ def train(agent, env, replay):
             agent.save(steps=step)
 
             with Timer(f'{agent.model_name} evaluation'):
-                eval_scores, eval_epslens = run.run_trajectories(eval_env, agent.actor, evaluation=True)
+                eval_scores, eval_epslens = run(eval_env, agent.actor, evaluation=True)
             agent.store(
                 score=np.mean(eval_scores),
                 score_std=np.std(eval_scores),
@@ -111,8 +110,8 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
             replay.add(state=state, action=action, 
             reward=reward, done=done, next_state=next_state))        
         while not replay.good_to_learn():
-            run.run_trajectory(env, agent.actor, collect_fn)
+            run(env, agent.actor, collect_fn)
     else:
-        run.random_sampling(env, replay)
+        random_sampling(env, replay)
 
     train(agent, env, replay)

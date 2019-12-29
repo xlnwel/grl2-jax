@@ -14,7 +14,7 @@ class Ensemble(tf.Module):
         Returns:
             If name is provided, it returns a dict of weights for models specified by keys.
             Otherwise it returns a list of all weights
-        Return a dict that maps model name to weights """
+        """
         if name is None:
             return [v.numpy() for v in self.variables]
         elif isinstance(name, str):
@@ -32,9 +32,9 @@ class Ensemble(tf.Module):
         """
         if isinstance(weights, dict):
             for n, w in weights.items():
-                self[n] = w
+                self[n].set_weights(w)
         else:
-            assert len(self.variables) == len(weights0)
+            assert len(self.variables) == len(weights)
             [v.assign(w) for v, w in zip(self.variables, weights)]
     
     """ Auxiliary functions that make SAC like a dict """

@@ -13,13 +13,11 @@ from algo.ppo2.run import run_trajectories
 from algo.ppo2.eval import evaluate
 
 
-LOG_PERIOD = 10
-
 def train(agent, env, buffer):
     start_epoch = agent.global_steps.numpy()+1
     for epoch in range(start_epoch, agent.n_epochs+1):
         agent.set_summary_step(epoch)
-        with Timer(f'{agent.model_name} run', LOG_PERIOD):
+        with Timer(f'{agent.model_name} run', agent.LOG_INTERVAL):
             scores, epslens = run_trajectories(env, agent, buffer, agent.learn_freq, epoch)
         score = np.mean(scores)
         agent.store(
@@ -29,7 +27,7 @@ def train(agent, env, buffer):
             epslen_std=np.std(epslens)
         )
 
-        if epoch % LOG_PERIOD == 0:
+        if epoch % agent.LOG_INTERVAL == 0:
             with Timer(f'{agent.model_name} logging'):
                 agent.log(epoch, 'Train')
             with Timer(f'{agent.model_name} save'):
@@ -60,10 +58,6 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
 
     # construct environment
     env = create_gym_env(env_config)
-    state_shape = env.state_shape
-    action_dim = env.action_dim
-    is_action_discrete = env.is_action_discrete
-    n_envs = env.n_envs
 
     # construct buffer
     buffer = PPOBuffer(buffer_config, 
@@ -77,10 +71,11 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     # construct model
     models = create_model(
         model_config, 
-        state_shape=state_shape, 
-        action_dim=action_dim, 
-        is_action_discrete=is_action_discrete,
-        n_envs=n_envs
+        state_shape=env.state_shape, 
+        state_dtype=env.state_dtype,
+        action_dim=env.action_dim, 
+        is_action_discrete=env.is_action_discrete,
+        n_envs=env.n_envs
     )
     
     # construct agent for model update
@@ -91,7 +86,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
                 state_dtype=env.state_dtype,
                 action_dim=env.action_dim,
                 action_dtype=env.action_dtype,
-                n_envs=n_envs)
+                n_envs=env.n_envs)
 
     agent.save_config(dict(
         env=env_config,

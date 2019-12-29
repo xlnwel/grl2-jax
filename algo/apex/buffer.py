@@ -7,11 +7,8 @@ from replay.utils import init_buffer, add_buffer, copy_buffer
 
 
 def create_local_buffer(config, *keys):
-    buffer_type = config['type']
-    if buffer_type == 'env':
-        return EnvBuffer(config, *keys)
-    elif buffer_type == 'envvec':
-        return EnvVecBuffer(config, *keys)
+    buffer_type = EnvBuffer if config.get('n_envs', 1) == 1 else EnvVecBuffer
+    return buffer_type(config, *keys)
 
 
 class LocalBuffer(ABC):
@@ -63,14 +60,14 @@ class EnvBuffer(LocalBuffer):
             next_state = next_state / 255.
             
         # process rewards
+        reward *= np.where(done, 1, self.reward_scale)
+        if self.reward_clip:
+            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
         if self.normalize_reward:
             # since we only expect rewards to be used once
             # we update the running stats when we use them
             self.running_reward_stats.update(reward)
             reward = self.running_reward_stats.normalize(reward)
-        reward *= np.where(done, 1, self.reward_scale)
-        if self.reward_clip:
-            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
 
         return dict(
             state=state.astype(np.float32),
@@ -155,14 +152,14 @@ class EnvVecBuffer:
             next_state = next_state / 255.
 
         # process rewards
+        reward *= np.where(done, 1, self.reward_scale)
+        if self.reward_clip:
+            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
         if self.normalize_reward:
             # since we only expect rewards to be used once
             # we update the running stats when we use them
             self.running_reward_stats.update(reward)
             reward = self.running_reward_stats.normalize(reward)
-        reward *= np.where(done, 1, self.reward_scale)
-        if self.reward_clip:
-            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
 
         return dict(
             state=state.astype(np.float32),

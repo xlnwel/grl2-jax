@@ -37,7 +37,6 @@ class PPOAC(tf.Module):
         )
         actor_units = config['actor_units']
         critic_units = config['critic_units']
-        self.rnn_input_size = shared_mlp_units[-1]
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
@@ -46,7 +45,7 @@ class PPOAC(tf.Module):
 
         """ Network definition """
         if cnn_name:
-            self.cnn = get_cnn('ftw')
+            self.cnn = get_cnn(cnn_name, time_distributed=True, batch_size=batch_size)
         # shared mlp layers
         if shared_mlp_units:
             self.shared_mlp = mlp_layers(
@@ -57,6 +56,7 @@ class PPOAC(tf.Module):
             )
 
         # RNN layer
+        self.rnn_input_size = self.cnn.out_size if cnn_name else shared_mlp_units[-1]
         if use_dnc:
             self.rnn = dnc_rnn(**dnc_config)
         else:
@@ -198,10 +198,12 @@ class PPOAC(tf.Module):
 
             entropy = action_distribution.entropy()
 
-            return logpi, entropy, value
+            return logpi, entropy, value, getattr(self, 'logstd', None)
 
     def _common_layers(self, x):
         if hasattr(self, 'cnn'):
+            x = tf.cast(x, tf.float32)
+            x = x / 255.
             x = self.cnn(x)
         if hasattr(self, 'shared_mlp'):
             for l in self.shared_mlp:

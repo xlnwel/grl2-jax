@@ -21,7 +21,7 @@ seq_len = np.random.randint(1, 10)
 class TestClass:
     def test_rnn_states_with_initial_zeros(self):
         for is_action_discrete in [True, False]:
-            ac = PPOAC(config, state_shape, action_dim, is_action_discrete, batch_size, 'ac')
+            ac = PPOAC(config, state_shape, np.float32, action_dim, is_action_discrete, batch_size, 'ac')
 
             # step states
             x = np.random.rand(batch_size, seq_len, *state_shape)
@@ -60,15 +60,14 @@ class TestClass:
             else:
                 a = np.random.rand(batch_size, seq_len, action_dim)
             action_dtype = np.int32 if is_action_discrete else np.float32
-            _, _, _, states = ac.train_step(tf.convert_to_tensor(x, tf.float32), 
-                tf.convert_to_tensor(a, action_dtype), states)
+            _, states = ac._common_layers(tf.convert_to_tensor(x, tf.float32), states)
             train_step_states = states
 
             np.testing.assert_allclose(step_states, train_step_states)
 
     def test_rnn_states_with_random_initial_states(self):
         for is_action_discrete in [True, False]:
-            ac = PPOAC(config, state_shape, action_dim, is_action_discrete, batch_size, 'ac')
+            ac = PPOAC(config, state_shape, np.float32, action_dim, is_action_discrete, batch_size, 'ac')
 
             # step states
             x = np.random.rand(batch_size, seq_len, *state_shape)
@@ -107,8 +106,7 @@ class TestClass:
             else:
                 a = np.random.rand(batch_size, seq_len, action_dim)
             action_dtype = np.int32 if is_action_discrete else np.float32
-            _, _, _, states = ac.train_step(tf.convert_to_tensor(x, tf.float32), 
-                tf.convert_to_tensor(a, action_dtype), states)
+            _, states = ac._common_layers(tf.convert_to_tensor(x, tf.float32), states)
             train_step_states = states
 
             np.testing.assert_allclose(step_states, train_step_states)

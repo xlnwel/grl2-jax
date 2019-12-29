@@ -33,7 +33,7 @@ class ClipActionsWrapper(gym.Wrapper):
         return self.env.reset(**kwargs)
 
 class EnvStats(gym.Wrapper):
-    """ Provide Environment Stats Records """
+    """ Provide Environment Statistics Recording """
     def __init__(self, env):
         super().__init__(env)
         self.already_done = True
@@ -48,13 +48,17 @@ class EnvStats(gym.Wrapper):
         return self.env.reset()
 
     def step(self, action):
-        self.mask = 1 - self.already_done
-        next_state, reward, done, info = self.env.step(action)
-        self.score += 0 if self.already_done else reward
-        self.epslen += 0 if self.already_done else 1
-        self.already_done = done and getattr(self, 'was_real_done', True)
+        if self.already_done:
+            self.mask = 0
+            return np.zeros(self.state_shape), 0, True, {}
+        else:
+            self.mask = 1 - self.already_done
+            state, reward, done, info = self.env.step(action)
+            self.score += 0 if self.already_done else reward
+            self.epslen += 0 if self.already_done else 1
+            self.already_done = done and getattr(self, 'was_real_done', True)
 
-        return next_state, reward, done, info
+            return state, reward, done, info
 
     def get_mask(self):
         """ Get mask at the current step. Should only be called after self.step """
@@ -84,11 +88,20 @@ class EnvStats(gym.Wrapper):
 
     @property
     def action_dtype(self):
-        return np.uint8 if self.is_action_discrete else np.float32
+        return np.int32 if self.is_action_discrete else np.float32
 
     @property
     def action_dim(self):
         return self.action_space.n if self.is_action_discrete else self.env.action_space.shape[0]
+
+
+class AutoReset(gym.Wrapper):
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+        if done:
+            state = self.env.reset()
+        
+        return state, reward, done, info
 
 
 def get_wrapper_by_name(env, classname):

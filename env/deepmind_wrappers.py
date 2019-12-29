@@ -12,7 +12,7 @@ import cv2
 cv2.ocl.setUseOpenCL(False)
 
 from utility.display import pwc
-from env.wrappers import TimeLimit
+from env.wrappers import TimeLimit, EnvStats
 
 
 class NoopResetEnv(gym.Wrapper):
@@ -100,6 +100,7 @@ class EpisodicLifeEnv(gym.Wrapper):
         self.lives = self.env.unwrapped.ale.lives()
         return obs
 
+
 class MaxAndSkipEnv(gym.Wrapper):
     def __init__(self, env, skip=4):
         """Return only every `skip`-th frame"""
@@ -127,6 +128,7 @@ class MaxAndSkipEnv(gym.Wrapper):
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
+
 
 class ClipRewardEnv(gym.RewardWrapper):
     def __init__(self, env):
@@ -222,6 +224,7 @@ class FrameStack(gym.Wrapper):
         assert len(self.frames) == self.k
         return LazyFrames(list(self.frames))
 
+
 class ScaledFloatFrame(gym.ObservationWrapper):
     def __init__(self, env):
         gym.ObservationWrapper.__init__(self, env)
@@ -231,6 +234,7 @@ class ScaledFloatFrame(gym.ObservationWrapper):
         # careful! This undoes the memory optimization, use
         # with smaller replay buffers only.
         return np.array(observation).astype(np.float32) / 255.0
+
 
 class LazyFrames(object):
     def __init__(self, frames):
@@ -271,6 +275,7 @@ class LazyFrames(object):
     def frame(self, i):
         return self._force()[..., i]
 
+
 def make_video_env(env_id, max_episode_steps=None):
     env = gym.make(env_id)
     assert 'NoFrameskip' in env.spec.id
@@ -280,7 +285,8 @@ def make_video_env(env_id, max_episode_steps=None):
         env = TimeLimit(env, max_episode_steps=max_episode_steps)
     return env
 
-def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=False, scale=False):
+
+def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=True, scale_frame=False, **kwargs):
     """Configure environment for DeepMind-style Atari.
     """
     if episode_life:
@@ -288,7 +294,7 @@ def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=False, 
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)
     env = WarpFrame(env)
-    if scale:
+    if scale_frame:
         env = ScaledFloatFrame(env)
     if clip_rewards:
         env = ClipRewardEnv(env)
@@ -296,13 +302,15 @@ def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=False, 
         env = FrameStack(env, 4)
     return env
 
+
 def make_deepmind_env(config):
     env = make_video_env(config['name'], config.get('max_episode_steps'))
     if config.get('log_video', False):
         # put monitor in middle to properly record episodic information
         pwc(f'video will be logged at {config["video_path"]}', color='cyan')
         env = gym.wrappers.Monitor(env, config['video_path'], force=True)
-    env = wrap_deepmind(env, episode_life=config.get('episode_life', True), frame_stack=True)
+    env = wrap_deepmind(env, **config)
+    env = EnvStats(env)
     
     return env
 

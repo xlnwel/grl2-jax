@@ -31,7 +31,7 @@ class PiecewiseSchedule:
         idxes = [e[0] for e in endpoints]
         assert idxes == sorted(idxes)
         self._interpolation = interpolation
-        self._outside_value = outside_value
+        self._outside_value = outside_value or endpoints[-1][1]
         self._endpoints = endpoints
 
     def value(self, t):
@@ -73,6 +73,7 @@ class LinearSchedule(object):
 
 
 class TFPiecewiseSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+    # This class currently cannot be used in @tf.function
     def __init__(self, endpoints, end_learning_rate=None, name=None):
         """Piecewise schedule.
         endpoints: [(int, int)]
@@ -95,17 +96,19 @@ class TFPiecewiseSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         self.name=name
 
     def __call__(self, step):
-        if step < self.endpoints[0][0]:
-            return self.endpoints[0][1]
-        else:
+        def compute_lr(step):
             for (l_t, l), (r_t, r) in zip(self.endpoints[:-1], self.endpoints[1:]):
                 if l_t <= step and step < r_t:
                     alpha = float(step - l_t) / (r_t - l_t)
                     return linear_interpolation(l, r, alpha)
+            # t does not belong to any of the pieces, so doom.
+            assert self.end_learning_rate is not None
+            return self.end_learning_rate
 
-        # t does not belong to any of the pieces, so doom.
-        assert self.end_learning_rate is not None
-        return self.end_learning_rate
+        if step < self.endpoints[0][0]:
+            return seld.endpoints[0][1]
+        else:
+            return compute_lr(step)
 
     def get_config(self):
         return dict(

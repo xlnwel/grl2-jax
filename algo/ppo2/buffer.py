@@ -74,7 +74,7 @@ class PPOBuffer(dict):
             traj_ret = self.memory['traj_ret'][valid_slice]
             next_return = last_value
             for i in reversed(range(self.idx)):
-                traj_ret[:, i] = next_return = (self.memory['reward'][:, i] 
+                traj_ret[:, i] = next_return = (self.memory['reward'][:, i]
                     + self.memory['nonterminal'][:, i] * self.gamma * next_return)
 
             # Standardize traj_ret and advantages
@@ -112,7 +112,8 @@ class PPOBuffer(dict):
             raise NotImplementedError
 
         for k, v in self.memory.items():
-            v[valid_slice] = (v[valid_slice].T * mask.T).T
+            shape = v[valid_slice].shape
+            v[valid_slice] = np.reshape((v[valid_slice].T * mask.T).T, shape)
         
         self.ready = True
 

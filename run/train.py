@@ -134,17 +134,20 @@ if __name__ == '__main__':
                                 main, render=render, n_trials=cmd_args.trials, dir_prefix=prefix, 
                                 separate_process=len(algo_env) > 1)
 
-                # Grid search happens here
-                if algo == 'ppo':
-                    processes += gs()
-                elif algo == 'ppo2':
-                    processes += gs(value_coef=[1e-2, 1e-3])
-                elif algo == 'sac':
-                    processes += gs(type=['uniform', 'proportional'])
-                elif algo == 'd3qn':
-                    processes += gs()
+                if cmd_args.grid_search:
+                    # Grid search happens here
+                    if algo == 'ppo':
+                        processes += gs()
+                    elif algo == 'ppo2':
+                        processes += gs(value_coef=[0.01, 0.001])
+                    elif algo == 'sac':
+                        processes += gs(type=['uniform', 'proportional'])
+                    elif algo == 'd3qn':
+                        processes += gs()
+                    else:
+                        raise NotImplementedError()
                 else:
-                    raise NotImplementedError()
+                    processes += gs()
             else:
                 if prefix != '':
                     prefix = f'{prefix}-'

@@ -126,7 +126,8 @@ class PPOBuffer:
             raise NotImplementedError
 
         for k, v in self.memory.items():
-            v[valid_slice] = (v[valid_slice].T * mask.T).T
+            shape = v[valid_slice].shape
+            v[valid_slice] = np.reshape((v[valid_slice].T * mask.T).T, shape)
         
         self.ready = True
 

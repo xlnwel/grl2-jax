@@ -15,7 +15,6 @@ from algo.sac.agent import Agent
 from algo.sac.nn import SAC
 
 
-LOG_PERIOD = 100
 LOG_STEP = 10000
 
 def train(agent, env, replay):
@@ -39,7 +38,7 @@ def train(agent, env, replay):
     log_step = LOG_STEP
     while step < int(agent.max_steps):
         agent.set_summary_step(step)
-        with Timer(f'{agent.model_name}: trajectory', LOG_PERIOD):
+        with Timer(f'{agent.model_name}: trajectory', agent.LOG_INTERVAL):
             score, epslen = run.run_trajectory(env, agent.actor, collect_and_learn)
         step += epslen
         scores.append(score)

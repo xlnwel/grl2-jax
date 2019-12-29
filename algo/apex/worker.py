@@ -6,13 +6,15 @@ import ray
 from core import tf_config
 from core.ensemble import Ensemble
 from utility.display import pwc
-from utility.timer import Timer
+from utility.timer import Timer, TBTimer
 from env.gym_env import create_gym_env
 from algo.apex.buffer import create_local_buffer
 from algo.apex.base_worker import BaseWorker
 
 
-@ray.remote(num_cpus=1)
+LOG_STEPS = 10000
+
+@ray.remote#(num_cpus=1)
 class Worker(BaseWorker):
     """ Interface """
     def __init__(self, 
@@ -49,18 +51,24 @@ class Worker(BaseWorker):
             config=config)
 
     def run(self, learner, replay):
-        episode = 0
         step = 0
         while True:
+            self.set_summary_step(step)
             with Timer(f'{self.name} pull weights', self.TIME_PERIOD):
                 weights = self.pull_weights(learner)
-            episode, step, _ = self.eval_model(weights, episode, step, replay)
 
-            self._periodic_logging(episode, step)
+            with TBTimer(f'{self.name} eval model', self.TIME_PERIOD):
+                step, _ = self.eval_model(weights, step, replay)
 
-    def _periodic_logging(self, episode, step):
-        if episode % self.LOG_PERIOD == 0:
+            with Timer(f'{self.name} send data', self.TIME_PERIOD):
+                self._send_data(replay)
+
+            self._periodic_logging(step)
+
+    def _periodic_logging(self, step):
+        if step > self.log_steps:
             self.log(step=step, print_terminal_info=False)
+            self.log_steps += LOG_STEPS
 
 def create_worker(name, worker_id, model_fn, config, model_config, 
                 env_config, buffer_config):
@@ -70,14 +78,12 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     buffer_config = buffer_config.copy()
 
     buffer_config['n_envs'] = env_config.get('n_envs', 1)
-    buffer_config['type'] = 'env' if buffer_config['n_envs'] == 1 else 'envvec'
     buffer_fn = create_local_buffer
 
-    env_config['efficient_envvec'] = True
     env_config['seed'] = 100 * worker_id
     
     config['model_name'] = f'worker_{worker_id}'
-    config['LOG_PERIOD'] = 20
+    config['log_steps'] = LOG_STEPS
     config['TIME_PERIOD'] = 1000
 
     name = f'{name}_{worker_id}'

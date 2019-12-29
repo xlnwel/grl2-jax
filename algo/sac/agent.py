@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from utility.display import pwc
-from utility.tf_utils import n_step_target
+from utility.rl_utils import n_step_target, transformed_n_step_target
 from utility.schedule import TFPiecewiseSchedule
 from utility.timer import Timer
 from core.tf_config import build
@@ -75,18 +75,12 @@ class Agent(BaseAgent):
             saved_indices = data['saved_indices']
             del data['saved_indices']
 
-        temp, entropy, actor_loss, q1, q1_loss, q_loss, priority = self.learn(**data)
+        terms = self.learn(**data)
 
         if self.dataset.buffer_type() != 'uniform':
-            self.dataset.update_priorities(priority.numpy(), saved_indices.numpy())
+            self.dataset.update_priorities(terms['priority'].numpy(), saved_indices.numpy())
         self.store(
-            temp=temp.numpy(),
-            entropy=entropy.numpy(),
-            actor_loss=actor_loss.numpy(),
-            q1=q1.numpy(),
-            q1_loss=q1_loss.numpy(),
-            q_loss=q_loss.numpy(),
-            priority=priority.numpy(),
+            **dict((k, v.numpy()) for k, v in terms.items())
         )
 
     @tf.function
@@ -117,7 +111,15 @@ class Agent(BaseAgent):
 
         self._update_target_nets()
 
-        return temp, entropy, actor_loss, q1, q1_loss, q_loss, priority
+        return dict(
+            temp=temp, 
+            entropy=entropy, 
+            actor_loss=actor_loss, 
+            q1=q1, 
+            q1_loss=q1_loss, 
+            q_loss=q_loss, 
+            priority=priority
+        )
 
     def _compute_temp_grads(self, state, IS_ratio):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
@@ -168,7 +170,9 @@ class Agent(BaseAgent):
             with tf.name_scope('q_loss'):
                 nth_value = tf.subtract(
                     next_q_with_actor, next_temp * next_logpi, name='nth_value')
-                target_q = n_step_target(
+                
+                target_fn = transformed_n_step_target if getattr(self, 'tbo', False) else n_step_target
+                target_q = target_fn(
                     reward, done, nth_value, self.gamma, steps)
                 q1_error = tf.abs(target_q - q1, name='q1_error')
                 q2_error = tf.abs(target_q - q2, name='q2_error')
