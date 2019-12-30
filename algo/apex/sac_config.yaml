@@ -51,8 +51,8 @@ replay:
 
     # hacking
     # normalize_reward: False
-    reward_scale: 5
-    reward_clip: 50
+    # reward_scale: 5
+    reward_clip: 10
 
     # arguments for general replay
     n_steps: 3
