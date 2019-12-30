@@ -35,7 +35,7 @@ class SoftPolicy(tf.Module):
 
         if is_action_discrete:
             self.logits = layers.Dense(action_dim, name='logits')
-            self.tau = 1    #tf.Variable(1., dtype=tf.float32, name='softmax_tau')
+            self.tau = tf.Variable(1., dtype=tf.float32, name='softmax_tau')
         else:
             self.mu = layers.Dense(action_dim, name='mu')
             self.logstd = layers.Dense(action_dim, name='logstd')
@@ -95,6 +95,7 @@ class SoftPolicy(tf.Module):
             if self.is_action_discrete:
                 action = action_distribution.sample(reparameterize=True, hard=True)
                 logpi = action_distribution.logp(action)
+                assert len(action.shape) == len(logpi.shape)
             else:                
                 raw_action = action_distribution.sample()
                 raw_logpi = action_distribution.logp(raw_action)
@@ -177,8 +178,14 @@ class Temperature(tf.Module):
     def __init__(self, config, state_shape, action_dim, name='temperature'):
         super().__init__(name=name)
 
+        self.temp_type = config['temp_type']
         """ Network definition """
-        self.intra_layer = layers.Dense(1)
+        if self.temp_type == 'state-action':
+            self.intra_layer = layers.Dense(1)
+        elif self.temp_type == 'variable':
+            self.log_temp = tf.Variable(1.)
+        else:
+            raise NotImplementedError(f'Error temp type: {self.temp_type}')
 
         # build for variable initialization
         TensorSpecs = [
@@ -194,9 +201,13 @@ class Temperature(tf.Module):
     @tf.Module.with_name_scope
     def train_step(self, x, a):
         with tf.name_scope('step'):
-            x = tf.concat([x, a], axis=1)
-            log_temp = self.intra_layer(x)
-            temp = tf.exp(log_temp)
+            if self.temp_type == 'state-action':
+                x = tf.concat([x, a], axis=1)
+                log_temp = self.intra_layer(x)
+                temp = tf.exp(log_temp)
+            else:
+                log_temp = self.log_temp
+                temp = tf.exp(log_temp)
         
         return log_temp, temp
 
@@ -216,12 +227,11 @@ def create_model(model_config, state_shape, action_dim, is_action_discrete):
     q2 = SoftQ(q_config, state_shape, action_dim, 'q2')
     target_q1 = SoftQ(q_config, state_shape, action_dim, 'target_q1')
     target_q2 = SoftQ(q_config, state_shape, action_dim, 'target_q2')
-    if temperature_config['temp_type'] == 'state-action':
+    if temperature_config['temp_type'] == 'constant':
+        temperature = temperature_config['value']
+    else:
         temperature = Temperature(temperature_config, state_shape, action_dim)
-    elif temperature_config['temp_type'] == 'variable':
-        temperature = tf.Variable(1)
-    elif temperature_config['temp_type'] == 'constant':
-        temperature = temperature_config.get('value', .2)
+        
     return dict(
         actor=actor,
         q1=q1,
