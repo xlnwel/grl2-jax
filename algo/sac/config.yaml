@@ -1,21 +1,21 @@
 ---
 env:
-    name: BipedalWalker-v2
+    name: MountainCar-v0
     video_path: video
     log_video: False
     efficient_envvec: True
     seed: 0
 model:
     actor:
-        units_list: [512, 256]
-        norm: layer
-        activation: relu
+        units_list: [64, 64]
+        # norm: layer
+        activation: tanh
     q:
-        units_list: [512, 256]
-        norm: layer
-        activation: relu
+        units_list: [64, 64]
+        # norm: layer
+        activation: tanh
     temperature:
-        temp_type: 'state-action'
+        temp_type: 'constant'
         value: .2
 agent:
     algorithm: &algo sac
@@ -23,7 +23,6 @@ agent:
     polyak: .995                            # moving average rate
     # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
     LOG_INTERVAL: 10
-    # max_action_repetitions: 1
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -40,8 +39,8 @@ agent:
     actor_lr: 1.e-4
     q_lr: 3.e-4
     temp_lr: 1.e-4
-    clip_norm: 10
     epsilon: 1.e-5
+    clip_norm: 10
 
     # arguments for PER
     per_alpha: 0.5
@@ -57,6 +56,7 @@ replay:
     # hacking
     # normalize_reward: False
     # reward_scale: 1
+    # reward_clip: 10
 
     # arguments for general replay
     n_steps: 3

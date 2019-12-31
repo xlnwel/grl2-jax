@@ -140,7 +140,7 @@ class Agent(BaseAgent):
 
     def _compute_actor_grads(self, state, IS_ratio):
         with tf.GradientTape() as tape:
-            action, logpi, entropy, logstd = self.actor.train_step(state)
+            action, logpi, entropy, std = self.actor.train_step(state)
             if isinstance(self.temperature, float):
                 temp = self.temperature
             else:
@@ -159,7 +159,7 @@ class Agent(BaseAgent):
             actor_loss=actor_loss, 
         )
         if not self.is_action_discrete:
-            terms['action_std'] = tf.exp(logstd)
+            terms['action_std'] = std
 
         return actor_grads, terms
 

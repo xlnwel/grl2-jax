@@ -82,6 +82,9 @@ class Env(EnvBase):
     def n_envs(self):
         return 1
 
+    def seed(self, i):
+        self.env.seed(i)
+
     def reset(self):
         return self.env.reset()
 
@@ -118,13 +121,13 @@ class EnvVec(EnvBase):
     def __init__(self, config):
         self.n_envs = n_envs = config['n_envs']
         self.name = config['name']
-        self.envs = [_make_env(config) for i in range(n_envs)]
+        self.envs = [Env(config) for i in range(n_envs)]
         [env.seed(config['seed'] + i) for i, env in enumerate(self.envs)]
         self.env = self.envs[0]
-        self.max_episode_steps = self.env.spec.max_episode_steps
+        self.max_episode_steps = self.env.max_episode_steps
 
     def random_action(self):
-        return np.asarray([env.action_space.sample() for env in self.envs])
+        return np.asarray([env.random_action() for env in self.envs])
 
     def reset(self):
         return np.asarray([env.reset() for env in self.envs], dtype=self.state_dtype)

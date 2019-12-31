@@ -35,12 +35,15 @@ class SoftPolicy(tf.Module):
 
         if is_action_discrete:
             self.logits = layers.Dense(action_dim, name='logits')
-            self.tau = 1    #tf.Variable(1., dtype=tf.float32, name='softmax_tau')
+            self.tau = tf.Variable(1., dtype=tf.float32, name='softmax_tau')
         else:
             self.mu = layers.Dense(action_dim, name='mu')
             self.logstd = layers.Dense(action_dim, name='logstd')
+        
+        self.action_repetition = layers.Dense(config['max_ar'], name='ar')
+        self.ar_tau = tf.Variable(1., dtype=tf.float32, name='ar_softmax_tau')
 
-        # action distribution type    
+        # action distribution type
         self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
 
         # build for variable initialization
@@ -51,14 +54,20 @@ class SoftPolicy(tf.Module):
     @tf.function(experimental_relax_shapes=True)
     def _action(self, x):
         with tf.name_scope('action'):
-            action_distribution, _ = self._action_distribution(x)
+            action_distribution, x, _ = self._action_distribution(x)
 
             if self.is_action_discrete:
-                action = action_distribution.sample(one_hot=False)
+                action = action_distribution.sample(reparameterize=False, one_hot=False)
+                action_one_hot = tf.one_hot(action)
             else:
                 raw_action = action_distribution.sample()
                 action = tf.tanh(raw_action)
-            return action
+
+            ar_logits = self.action_repetition(tf.concat([x, action_one_hot], axis=-1))
+            ar_distribution = Categorical(ar_logits, self.ar_tau)
+            n = ar_distribution.sample(one_hot=False)
+
+            return action, n
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
@@ -69,31 +78,41 @@ class SoftPolicy(tf.Module):
 
             if self.is_action_discrete:
                 logits = self.logits(x)
-                return tf.argmax(logits, axis=1)
+                action = tf.argmax(logits, axis=-1)
+                action_one_hot = tf.one_hot(action)
             else:
                 mu = self.mu(x)
-                return tf.tanh(mu)
+                action = tf.tanh(mu)
+
+            ar_logits = self.action_repetition(tf.concat([x, action_one_hot], axis=-1))
+            n = tf.argmax(ar_logits, axis=1)
+
+            return action, n
 
     @tf.Module.with_name_scope
     def train_action(self, x):
         with tf.name_scope('train_action'):
-            action_distribution, _ = self._action_distribution(x)
+            action_distribution, x, _ = self._action_distribution(x)
 
             if self.is_action_discrete:
-                action = action_distribution.sample(reparameterize=True, hard=True)
+                action = action_distribution.sample(reparameterize=True, hard=True, one_hot=True)
             else:
                 raw_action = action_distribution.sample()
                 action = tf.tanh(raw_action)
+            
+            ar_logits = self.action_repetition(tf.concat([x, action], axis=-1))
+            ar_distribution = Categorical(ar_logits, self.ar_tau)
+            n = ar_distribution.sample(one_hot=False)
 
-        return action
+        return action, n
 
     @tf.Module.with_name_scope
     def train_step(self, x):
         with tf.name_scope('train_step'):
-            action_distribution, logstd = self._action_distribution(x)
+            action_distribution, x, std = self._action_distribution(x)
 
             if self.is_action_discrete:
-                action = action_distribution.sample(reparameterize=True, hard=True)
+                action = action_distribution.sample(reparameterize=True, hard=True, one_hot=True)
                 logpi = action_distribution.logp(action)
             else:                
                 raw_action = action_distribution.sample()
@@ -101,7 +120,15 @@ class SoftPolicy(tf.Module):
                 action = tf.tanh(raw_action)
                 logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
-            return action, logpi, action_distribution.entropy(), logstd
+            # TODO: stop gradient to action
+            ar_logits = self.action_repetition(tf.concat([x, action], axis=-1))
+            ar_distribution = Categorical(ar_logits, self.ar_tau)
+            n = ar_distribution.sample(reparameterize=True, hard=True)
+            ar_logpi = ar_distribution.logp(n)
+
+            entropy = action_distribution.entropy()
+
+        return action, n, logpi, ar_logpi, entropy, std
 
     def _action_distribution(self, x):
         for l in self.intra_layers:
@@ -110,7 +137,6 @@ class SoftPolicy(tf.Module):
         if self.is_action_discrete:
             logits = self.logits(x)
             action_distribution = self.ActionDistributionType(logits, self.tau)
-            logstd = None
         else:
             mu = self.mu(x)
             logstd = self.logstd(x)
@@ -118,7 +144,7 @@ class SoftPolicy(tf.Module):
 
             action_distribution = self.ActionDistributionType(mu, logstd)
 
-        return action_distribution, logstd
+        return action_distribution, x, None if self.is_action_discrete else action_distribution.std
 
     def get_weights(self):
         return [v.numpy() for v in self.variables]
@@ -177,8 +203,14 @@ class Temperature(tf.Module):
     def __init__(self, config, state_shape, action_dim, name='temperature'):
         super().__init__(name=name)
 
+        self.temp_type = config['temp_type']
         """ Network definition """
-        self.intra_layer = layers.Dense(1)
+        if self.temp_type == 'state-action':
+            self.intra_layer = layers.Dense(1)
+        elif self.temp_type == 'variable':
+            self.log_temp = tf.Variable(1.)
+        else:
+            raise NotImplementedError(f'Error temp type: {self.temp_type}')
 
         # build for variable initialization
         TensorSpecs = [
@@ -194,9 +226,13 @@ class Temperature(tf.Module):
     @tf.Module.with_name_scope
     def train_step(self, x, a):
         with tf.name_scope('step'):
-            x = tf.concat([x, a], axis=1)
-            log_temp = self.intra_layer(x)
-            temp = tf.exp(log_temp)
+            if self.temp_type == 'state-action':
+                x = tf.concat([x, a], axis=1)
+                log_temp = self.intra_layer(x)
+                temp = tf.exp(log_temp)
+            else:
+                log_temp = self.log_temp
+                temp = tf.exp(log_temp)
         
         return log_temp, temp
 
@@ -211,17 +247,17 @@ def create_model(model_config, state_shape, action_dim, is_action_discrete):
     actor_config = model_config['actor']
     q_config = model_config['q']
     temperature_config = model_config['temperature']
+    action_dim += actor_config['max_ar']
     actor = SoftPolicy(actor_config, state_shape, action_dim, is_action_discrete)
     q1 = SoftQ(q_config, state_shape, action_dim, 'q1')
     q2 = SoftQ(q_config, state_shape, action_dim, 'q2')
     target_q1 = SoftQ(q_config, state_shape, action_dim, 'target_q1')
     target_q2 = SoftQ(q_config, state_shape, action_dim, 'target_q2')
-    if temperature_config['temp_type'] == 'state-action':
+    if temperature_config['temp_type'] == 'constant':
+        temperature = temperature_config['value']
+    else:
         temperature = Temperature(temperature_config, state_shape, action_dim)
-    elif temperature_config['temp_type'] == 'variable':
-        temperature = tf.Variable(1)
-    elif temperature_config['temp_type'] == 'constant':
-        temperature = temperature_config.get('value', .2)
+        
     return dict(
         actor=actor,
         q1=q1,

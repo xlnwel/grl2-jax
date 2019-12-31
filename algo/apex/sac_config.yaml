@@ -7,9 +7,9 @@ env:
     seed: 0
 model:
     actor:
-        units_list: [512, 256]
-    q:
         units_list: [512, 256, 128]
+    q:
+        units_list: [512, 256, 256]
     temperature:
         temp_type: 'state-action'
         value: .2
@@ -37,6 +37,7 @@ agent:
     q_lr: 3.e-4
     temp_lr: 1.e-4
     epsilon: 1.e-5
+    clip_norm: 10
 
     # arguments for PER
     per_alpha: 0.7
@@ -50,9 +51,9 @@ replay:
     to_update_top_priority: False
 
     # hacking
-    # normalize_reward: False
+    # normalize_reward: True
     # reward_scale: 5
-    reward_clip: 5
+    reward_clip: 10
 
     # arguments for general replay
     n_steps: 3

@@ -69,7 +69,7 @@ class Categorical(Distribution):
             g = -tf.math.log(-tf.math.log(U+EPSILON)+EPSILON)
             # g = tfp.distributions.Gumbel(0, 1).sample(self.logits.shape)
             # Draw a sample from the Gumbel-Softmax distribution
-            y = tf.nn.softmax((tf.nn.log_softmax(self.logits) + g) / self.tau)
+            y = tf.nn.softmax((self.logits + g) / self.tau)
             # draw one-hot encoded sample from the softmax
             if hard:
                 y_hard = tf.one_hot(tf.argmax(y, -1), self.logits.shape[-1])

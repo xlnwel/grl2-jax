@@ -7,6 +7,7 @@ env:
     seed: 0
 model:
     actor:
+        max_ar: 5
         units_list: [512, 256]
         norm: layer
         activation: relu
@@ -59,7 +60,7 @@ replay:
     # reward_scale: 1
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: 1
     gamma: *gamma
     batch_size: 256
     min_size: 5e3

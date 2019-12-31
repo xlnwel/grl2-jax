@@ -51,14 +51,15 @@ class SoftPolicy(tf.Module):
     @tf.function(experimental_relax_shapes=True)
     def _action(self, x):
         with tf.name_scope('action'):
-            action_distribution, _ = self._action_distribution(x)
+            action_distribution, _, _ = self._action_distribution(x)
 
             if self.is_action_discrete:
-                action = action_distribution.sample(one_hot=False)
+                action = action_distribution.sample(reparameterize=False, one_hot=False)
             else:
                 raw_action = action_distribution.sample()
                 action = tf.tanh(raw_action)
-            return action
+
+        return action
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
@@ -69,15 +70,17 @@ class SoftPolicy(tf.Module):
 
             if self.is_action_discrete:
                 logits = self.logits(x)
-                return tf.argmax(logits, axis=1)
+                action = tf.argmax(logits, axis=-1)
             else:
                 mu = self.mu(x)
-                return tf.tanh(mu)
+                action = tf.tanh(mu)
+
+        return action
 
     @tf.Module.with_name_scope
     def train_action(self, x):
         with tf.name_scope('train_action'):
-            action_distribution, _ = self._action_distribution(x)
+            action_distribution, _, _ = self._action_distribution(x)
 
             if self.is_action_discrete:
                 action = action_distribution.sample(reparameterize=True, hard=True)
@@ -90,19 +93,21 @@ class SoftPolicy(tf.Module):
     @tf.Module.with_name_scope
     def train_step(self, x):
         with tf.name_scope('train_step'):
-            action_distribution, logstd = self._action_distribution(x)
+            action_distribution, x, std = self._action_distribution(x)
 
             if self.is_action_discrete:
                 action = action_distribution.sample(reparameterize=True, hard=True)
                 logpi = action_distribution.logp(action)
-                assert len(action.shape) == len(logpi.shape)
+                assert len(action.shape) == len(logpi.shape) == 2
             else:                
                 raw_action = action_distribution.sample()
                 raw_logpi = action_distribution.logp(raw_action)
                 action = tf.tanh(raw_action)
                 logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
-            return action, logpi, action_distribution.entropy(), logstd
+            entropy = action_distribution.entropy()
+            
+        return action, logpi, entropy, std
 
     def _action_distribution(self, x):
         for l in self.intra_layers:
@@ -111,7 +116,6 @@ class SoftPolicy(tf.Module):
         if self.is_action_discrete:
             logits = self.logits(x)
             action_distribution = self.ActionDistributionType(logits, self.tau)
-            logstd = None
         else:
             mu = self.mu(x)
             logstd = self.logstd(x)
@@ -119,7 +123,7 @@ class SoftPolicy(tf.Module):
 
             action_distribution = self.ActionDistributionType(mu, logstd)
 
-        return action_distribution, logstd
+        return action_distribution, x, None if self.is_action_discrete else action_distribution.std
 
     def get_weights(self):
         return [v.numpy() for v in self.variables]

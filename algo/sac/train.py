@@ -15,7 +15,7 @@ from algo.sac.agent import Agent
 from algo.sac.nn import create_model
 
 
-LOG_STEP = 10000
+LOG_INTERVAL = 1000
 
 def train(agent, env, replay):
     def collect_and_learn(state, action, reward, done, next_state, **kwargs):
@@ -35,7 +35,7 @@ def train(agent, env, replay):
     epslens = deque(maxlen=100)
     print('Training started...')
     step = start_step
-    log_step = LOG_STEP
+    log_step = LOG_INTERVAL
     while step < int(agent.max_steps):
         agent.set_summary_step(step)
         with Timer(f'{agent.model_name}: trajectory', agent.LOG_INTERVAL):
@@ -45,7 +45,7 @@ def train(agent, env, replay):
         epslens.append(epslen)
         
         if step > log_step:
-            log_step += LOG_STEP
+            log_step += LOG_INTERVAL
             agent.save(steps=step)
 
             with Timer(f'{agent.model_name} evaluation'):
