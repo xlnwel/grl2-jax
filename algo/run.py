@@ -33,7 +33,7 @@ def run(env, actor, *, fn=None, evaluation=False, timer=False, **kwargs):
             evaluation=evaluation, timer=timer)
 
 def run_trajectory(env, actor, *, fn=None, evaluation=False, 
-                    timer=False, step=0, render=False):
+                    timer=False, step=None, render=False):
     """ Sample a trajectory
 
     Args:
@@ -55,8 +55,12 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
             with TBTimer('env_step', LOG_INTERVAL, to_log=timer):
                 next_state, reward, done, _ = env.step(action)
             if fn:
-                fn(state=state, action=action, reward=reward, 
-                    done=done, next_state=next_state, step=step+i)
+                if step is None:
+                    fn(state=state, action=action, reward=reward, 
+                        done=done, next_state=next_state)
+                else:
+                    fn(state=state, action=action, reward=reward,
+                        done=done, next_state=next_state, step=step+i)
             state = next_state
             if done:
                 break

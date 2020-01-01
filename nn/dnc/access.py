@@ -24,7 +24,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras import activations
 
-from nn.layers.dnc import addressing
+from nn.dnc import addressing
 
 
 AccessState = namedtuple('AccessState', 

@@ -39,7 +39,7 @@ def train(agent, env, replay):
     while step < int(agent.max_steps):
         agent.set_summary_step(step)
         with Timer(f'{agent.model_name}: trajectory', agent.LOG_INTERVAL):
-            score, epslen = run(env, agent.actor, collect_and_learn)
+            score, epslen = run(env, agent.actor, fn=collect_and_learn)
         step += epslen
         scores.append(score)
         epslens.append(epslen)

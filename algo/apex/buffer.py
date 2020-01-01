@@ -121,30 +121,21 @@ class EnvVecBuffer:
     def is_full(self):
         return self.idx == self.seqlen
         
-    def sample(self, env_mask=None):
-        if env_mask is None:
-            state = self.memory['state']
-            action = self.memory['action']
-            reward = np.copy(self.memory['reward'])
-            done = self.memory['done']
-            steps = self.memory['steps']
-            next_state = self.memory['next_state']
-            mask = self.memory['mask']
-        else:
-            state = self.memory['state'][env_mask]
-            action = self.memory['action'][env_mask]
-            reward = np.copy(self.memory['reward'][env_mask])
-            done = self.memory['done'][env_mask]
-            steps = self.memory['steps'][env_mask]
-            next_state = self.memory['next_state'][env_mask]
-            mask = self.memory['mask'][env_mask]
+    def sample(self):
+        state = self.memory['state']
+        action = self.memory['action']
+        reward = np.copy(self.memory['reward'])
+        done = self.memory['done']
+        steps = self.memory['steps']
+        next_state = self.memory['next_state']
+        mask = self.memory['mask']
             
-        state = np.stack(state[mask], axis=0)
-        action = np.stack(action[mask], axis=0)
+        state = np.stack(state[mask])
+        action = np.stack(action[mask])
         reward = reward[mask]
         done = done[mask]
         steps = steps[mask]
-        next_state = np.stack(next_state[mask], axis=0)
+        next_state = np.stack(next_state[mask])
         
         assert len(state.shape) == 2 or state.dtype == np.uint8
         if state.dtype == np.uint8:
@@ -161,7 +152,7 @@ class EnvVecBuffer:
             self.running_reward_stats.update(reward)
             reward = self.running_reward_stats.normalize(reward)
 
-        return dict(
+        return mask, dict(
             state=state.astype(np.float32),
             action=action,
             reward=np.expand_dims(reward, -1).astype(np.float32), 

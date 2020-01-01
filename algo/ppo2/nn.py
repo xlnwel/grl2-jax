@@ -6,9 +6,9 @@ from utility.display import pwc
 from core.tf_config import build
 from utility.rl_utils import clip_but_pass_gradient, logpi_correction
 from utility.tf_distributions import DiagGaussian, Categorical
-from nn.layers.func import mlp_layers, dnc_rnn
+from nn.func import mlp, dnc_rnn
 from nn.initializers import get_initializer
-from nn.cnn import get_cnn
+from nn.func import cnn
 
 
 class PPOAC(tf.Module):
@@ -46,10 +46,10 @@ class PPOAC(tf.Module):
 
         """ Network definition """
         if cnn_name:
-            self.cnn = get_cnn(cnn_name, time_distributed=True, batch_size=self.batch_size)
+            self.cnn = cnn(cnn_name, time_distributed=True, batch_size=self.batch_size)
         # shared mlp layers
         if shared_mlp_units:
-            self.shared_mlp = mlp_layers(
+            self.shared_mlp = mlp(
                 shared_mlp_units, 
                 norm=norm, 
                 activation=activation, 
@@ -64,7 +64,7 @@ class PPOAC(tf.Module):
             self.rnn = layers.LSTM(lstm_units, return_sequences=True, return_state=True)
 
         # actor/critic head
-        self.actor = mlp_layers(actor_units, 
+        self.actor = mlp(actor_units, 
                                 out_dim=action_dim, 
                                 norm=norm, 
                                 name='actor',
@@ -75,7 +75,7 @@ class PPOAC(tf.Module):
                                         dtype=tf.float32, 
                                         trainable=True, 
                                         name=f'actor/logstd')
-        self.critic = mlp_layers(critic_units, 
+        self.critic = mlp(critic_units, 
                                 out_dim=1,
                                 norm=norm, 
                                 name='critic', 
@@ -120,8 +120,8 @@ class PPOAC(tf.Module):
         x, states = self._common_layers(x, initial_state)
         x = tf.squeeze(x, 1)
 
-        actor_output = self._head(x, self.actor)
-        value = self._head(x, self.critic)
+        actor_output = self.actor(x)
+        value = self.critic(x)
         assert len(actor_output.shape) == 2
         assert len(value.shape) == 2
 
@@ -164,7 +164,7 @@ class PPOAC(tf.Module):
             x, states = self._common_layers(x, initial_state)
             x = tf.squeeze(x, 1)
 
-            actor_output = self._head(x, self.actor)
+            actor_output = self.actor(x)
             assert len(actor_output.shape) == 2
 
             if self.is_action_discrete:
@@ -198,8 +198,8 @@ class PPOAC(tf.Module):
         with tf.name_scope('train_step'):
             x, states = self._common_layers(x, initial_state)
 
-            actor_output = self._head(x, self.actor)
-            value = self._head(x, self.critic)
+            actor_output = self.actor(x)
+            value = self.critic(x)
             if self.is_action_discrete:
                 action_distribution = self.ActionDistributionType(actor_output)
                 logpi = action_distribution.logp(a)
@@ -221,18 +221,11 @@ class PPOAC(tf.Module):
             x = x / 255.
             x = self.cnn(x)
         if hasattr(self, 'shared_mlp'):
-            for l in self.shared_mlp:
-                x = l(x)
+            x = self.shared_mlp(x)
 
         x, h, c = self.rnn(x, initial_state=initial_state)
         
         return x, [h, c]
-
-    def _head(self, x, layers):
-        for l in layers:
-            x = l(x)
-        
-        return x
 
     def reset_states(self, states=None):
         self.rnn.reset_states(states)

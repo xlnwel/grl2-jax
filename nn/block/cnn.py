@@ -8,14 +8,6 @@ from tensorflow.keras.layers import Layer, Dense, Conv2D, MaxPooling2D, TimeDist
 from tensorflow.keras.activations import relu
 
 
-def get_cnn(name, **kwargs):
-    if name.lower() == 'ftw':
-        return FTWCNN(**kwargs)
-    elif name.lower() == 'impala':
-        return IMPALACNN(**kwargs)
-    else:
-        raise NotImplementedError(f'Unknown CNN structure: {name}')
-
 class FTWCNN(Layer):
     def __init__(self, *, time_distributed=False, batch_size=None, name='ftw'):
         super().__init__(name=name)
@@ -46,7 +38,10 @@ class FTWCNN(Layer):
         y = self.conv4(y)
         x = x + y
         x = relu(x)
-        x = tf.reshape(x, (self.batch_size, -1, tf.reduce_prod(x.shape[2:])))
+        if isinstance(self.conv1, TimeDistributed):
+            x = tf.reshape(x, (self.batch_size, -1, tf.reduce_prod(x.shape[2:])))
+        else:
+            x = tf.reshape(x, (self.batch_size, tf.reduce_prod(x.shape[1:])))
         x = self.dense(x)
         x = relu(x)
 
@@ -106,7 +101,10 @@ class IMPALACNN(Layer):
         for l in self.cnn_layers:
             x = l(x)
         x = relu(x)
-        x = tf.reshape(x, (self.batch_size, -1, tf.reduce_prod(x.shape[2:])))
+        if isinstance(self.conv1, TimeDistributed):
+            x = tf.reshape(x, (self.batch_size, -1, tf.reduce_prod(x.shape[2:])))
+        else:
+            x = tf.reshape(x, (self.batch_size, tf.reduce_prod(x.shape[1:])))
         x = self.dense(x)
         x = relu(x)
 

@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from utility.display import pwc
-from utility.tf_utils import n_step_target
+from utility.rl_utils import n_step_target
 from utility.losses import huber_loss
 from utility.schedule import PiecewiseSchedule
 from utility.timer import Timer
@@ -62,24 +62,20 @@ class Agent(BaseAgent):
             self.learning_rate.assign(self.lr_scheduler.value(step))
 
         data = self.dataset.sample()
-        if self.dataset.buffer_type() != 'uniform':
+        if not self.dataset.buffer_type().endswith('uniform'):
             saved_indices = data['saved_indices']
             del data['saved_indices']
-        q, loss, priority = self.learn(**data)
+        terms = self.learn(**data)
         if step % self.target_update_freq == 0:
             self._sync_target_nets()
-        if self.dataset.buffer_type() != 'uniform':
-            self.dataset.update_priorities(priority.numpy(), saved_indices.numpy())
-        self.store(
-            q=q.numpy(),
-            loss=loss.numpy(),
-            priority=priority.numpy(), 
-        )
+        if not self.dataset.buffer_type().endswith('uniform'):
+            self.dataset.update_priorities(terms['priority'].numpy(), saved_indices.numpy())
+        self.store(**terms)
 
     @tf.function
     def _learn(self, IS_ratio, state, action, reward, next_state, done, steps):
         with tf.name_scope('q_train'):
-            q, loss, priority, grads = self._compute_grads(
+            grads, terms = self._compute_grads(
                 state, action, next_state, reward, 
                 done, steps, IS_ratio)
             if hasattr(self, 'clip_norm'):
@@ -87,7 +83,7 @@ class Agent(BaseAgent):
             self.optimizer.apply_gradients(
                 zip(grads, self.q1.trainable_variables))
 
-        return q, loss, priority
+        return terms
 
     def _compute_grads(self, state, action, next_state, reward, done, steps, IS_ratio):
         with tf.GradientTape() as tape:
@@ -98,15 +94,23 @@ class Agent(BaseAgent):
             loss_fn = tf.square if self.loss_type == 'mse' else huber_loss
             with tf.name_scope('q_loss'):
                 target_q = n_step_target(reward, done, next_q, self.gamma, steps)
-                error = tf.abs(target_q - q, name='q_error')
+                error = target_q - q
                 
                 loss = tf.reduce_mean(IS_ratio * loss_fn(error))
-                
-        priority = self._compute_priority(error)
+        
+        if self.dataset.buffer_type().endswith('uniform'):
+            priority = 1
+        else:
+            priority = self._compute_priority(tf.abs(error))
+        
         with tf.name_scope('q_grads'):
             grads = tape.gradient(loss, self.q1.trainable_variables)
 
-        return q, loss, priority, grads
+        return grads, dict(
+            q=q, 
+            loss=loss, 
+            priority=priority,
+        )
 
     def _compute_priority(self, priority):
         """ p = (p + 𝝐)**𝛼 """

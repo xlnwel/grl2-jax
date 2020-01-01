@@ -2,6 +2,38 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 
+from nn.utils import get_norm, get_activation, get_initializer
+
+
+class Layer(layers.Layer):
+    def __init__(self, units, layer_type=layers.Dense, norm=None, 
+                activation=None, kernel_initializer='he_uniform', 
+                name=None, **kwargs):
+        super().__init__(name=name)
+
+        norm=get_norm(norm)
+        activation=get_activation(activation)
+        kernel_initializer = get_initializer(kernel_initializer)
+
+        self.intra_layers = [layer_type(units, kernel_initializer=kernel_initializer, **kwargs)]
+        if norm is not None:
+            self.intra_layers.append(norm())
+
+        self.activation=activation
+    
+    def call(self, x, **kwargs):
+        for l in self.intra_layers:
+            x = l(x, **kwargs)
+        if self.activation is not None:
+            x = self.activation(x)
+        
+        return x
+    
+    def reset(self):
+        for l in self.intra_layers:
+            # reset noisy layer
+            if isinstance(l, Noisy):
+                l.reset()
 
 class Noisy(layers.Dense):
     def __init__(self, units, **kwargs):
@@ -14,7 +46,7 @@ class Noisy(layers.Dense):
         self.noisy_w = self.add_weight(
             'noise_kernel',
             shape=(self.last_dim, self.units),
-            initializer=tf.keras.initializers.he_normal(),
+            initializer=get_initializer('he_normal'),
             regularizer=self.kernel_regularizer,
             constraint=self.kernel_constraint,
             trainable=True)

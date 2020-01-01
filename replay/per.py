@@ -1,7 +1,6 @@
 import numpy as np
 
 from utility.decorators import override
-from utility.display import pwc
 from utility.schedule import PiecewiseSchedule
 from replay.base import Replay
 from replay.ds.sum_tree import SumTree
@@ -25,7 +24,7 @@ class PERBase(Replay):
 
     @override(Replay)
     def sample(self):
-        assert self.good_to_learn, (
+        assert self.good_to_learn(), (
             'There are not sufficient transitions to start learning --- '
             f'transitions in buffer({len(self)}) vs '
             f'minimum required size({self.min_size})')

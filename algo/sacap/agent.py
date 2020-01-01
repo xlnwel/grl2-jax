@@ -71,13 +71,13 @@ class Agent(BaseAgent):
             self.global_steps.assign(step)
         with Timer(f'{self.model_name}: sample', 10000):
             data = self.dataset.sample()
-        if self.dataset.buffer_type() != 'uniform':
+        if not self.dataset.buffer_type().endswith('uniform'):
             saved_indices = data['saved_indices']
             del data['saved_indices']
 
         terms = self.learn(**data)
 
-        if self.dataset.buffer_type() != 'uniform':
+        if not self.dataset.buffer_type().endswith('uniform'):
             self.dataset.update_priorities(terms['priority'].numpy(), saved_indices.numpy())
         self.store(**terms)
 
@@ -190,10 +190,10 @@ class Agent(BaseAgent):
             q_grads = tape.gradient(q_loss, 
                 self.q1.trainable_variables + self.q2.trainable_variables)
 
-        if self.dataset.buffer_type() != 'uniform':
-            priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
-        else:
+        if self.dataset.buffer_type().endswith('uniform'):
             priority = 1
+        else:
+            priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
             
         return q_grads, dict(
             priority=priority, 

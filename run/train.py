@@ -52,6 +52,8 @@ def import_main(algorithm):
         from algo.sac.train import main
     elif algorithm == 'd3qn':
         from algo.d3qn.train import main
+    elif algorithm.startswith('apex-dr'):
+        from algo.apex_dr.train import main
     elif algorithm.startswith('apex'):
         from algo.apex.train import main
     elif algorithm == 'seed-sac':
@@ -76,6 +78,8 @@ def get_config_file(algorithm):
         config_file = 'algo/apex/d3qn_config.yaml'
     elif algorithm == 'apex-sac':
         config_file = 'algo/apex/sac_config.yaml'
+    elif algorithm == 'apex-dr-sac':
+        config_file = 'algo/apex_dr/sac_config.yaml'
     elif algorithm == 'seed-sac':
         config_file = 'algo/seed/config.yaml'
     elif algorithm == 'dew-sac':

@@ -6,9 +6,9 @@ from utility.display import pwc
 from core.tf_config import build
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import DiagGaussian, Categorical
-from nn.layers.func import mlp_layers
+from nn.func import mlp
 from nn.initializers import get_initializer
-from nn.cnn import get_cnn
+from nn.func import cnn
 
 
 class SoftPolicy(tf.Module):
@@ -28,7 +28,7 @@ class SoftPolicy(tf.Module):
         self.LOG_STD_MAX = config.get('LOG_STD_MAX', 2)
         
         """ Network definition """
-        self.intra_layers = mlp_layers(units_list, 
+        self.intra_layers = mlp(units_list, 
                                         norm=norm, 
                                         activation=activation, 
                                         kernel_initializer=kernel_initializer())
@@ -166,7 +166,7 @@ class SoftQ(tf.Module):
         kernel_initializer = get_initializer(initializer_name)
 
         """ Network definition """
-        self.intra_layers = mlp_layers(units_list, 
+        self.intra_layers = mlp(units_list, 
                                         out_dim=1,
                                         norm=norm, 
                                         activation=activation, 

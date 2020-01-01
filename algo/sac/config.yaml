@@ -1,13 +1,13 @@
 ---
 env:
-    name: MountainCar-v0
+    name: LunarLander-v2
     video_path: video
     log_video: False
     efficient_envvec: True
     seed: 0
 model:
     actor:
-        units_list: [64, 64]
+        units_list: [128, 128]
         # norm: layer
         activation: tanh
     q:
@@ -15,13 +15,13 @@ model:
         # norm: layer
         activation: tanh
     temperature:
-        temp_type: 'constant'
+        temp_type: 'state-action'
         value: .2
 agent:
     algorithm: &algo sac
     gamma: &gamma 0.99
     polyak: .995                            # moving average rate
-    # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
+    target_entropy: 0.01                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
     LOG_INTERVAL: 10
 
     # model path: root_dir/model_name/models

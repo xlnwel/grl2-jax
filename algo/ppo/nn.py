@@ -6,9 +6,9 @@ from utility.display import pwc
 from core.tf_config import build
 from utility.rl_utils import clip_but_pass_gradient, logpi_correction
 from utility.tf_distributions import DiagGaussian, Categorical
-from nn.layers.func import mlp_layers, dnc_rnn
+from nn.func import mlp, dnc_rnn
 from nn.initializers import get_initializer
-from nn.cnn import get_cnn
+from nn.func import cnn
 
 
 class PPOAC(tf.Module):
@@ -40,19 +40,18 @@ class PPOAC(tf.Module):
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
-        initializer_name = config.get('kernel_initializer', 'he_uniform')
-        kernel_initializer = get_initializer(initializer_name)
+        kernel_initializer = config.get('kernel_initializer', 'he_uniform')
 
         """ Network definition """
         if cnn_name:
-            self.cnn = get_cnn(cnn_name, time_distributed=True, batch_size=batch_size)
+            self.cnn = cnn(cnn_name, time_distributed=True, batch_size=batch_size)
         # shared mlp layers
         if shared_mlp_units:
-            self.shared_mlp = mlp_layers(
+            self.shared_mlp = mlp(
                 shared_mlp_units, 
                 norm=norm, 
                 activation=activation, 
-                kernel_initializer=kernel_initializer()
+                kernel_initializer=kernel_initializer
             )
 
         # RNN layer
@@ -63,21 +62,21 @@ class PPOAC(tf.Module):
             self.rnn = layers.LSTM(lstm_units, return_sequences=True, stateful=True)
 
         # actor/critic head
-        self.actor = mlp_layers(actor_units, 
+        self.actor = mlp(actor_units, 
                                 out_dim=action_dim, 
                                 norm=norm, 
                                 activation=activation, 
-                                kernel_initializer=kernel_initializer())
+                                kernel_initializer=kernel_initializer)
         self.logstd = tf.Variable(initial_value=np.zeros(action_dim), 
                                     dtype=tf.float32, 
                                     trainable=True, 
                                     name=f'actor/logstd')
-        self.critic = mlp_layers(critic_units, 
+        self.critic = mlp(critic_units, 
                                 out_dim=1,
                                 norm=norm, 
                                 name='critic', 
                                 activation=activation, 
-                                kernel_initializer=kernel_initializer())
+                                kernel_initializer=kernel_initializer)
 
         # policy distribution type
         self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
@@ -116,8 +115,8 @@ class PPOAC(tf.Module):
         x = self._common_layers(x)
         x = tf.squeeze(x, 1)
 
-        actor_output = self._head(x, self.actor)
-        value = self._head(x, self.critic)
+        actor_output = self.actor(x)
+        value = self.critic(x)
         assert len(actor_output.shape) == 2
         assert len(value.shape) == 2
 
@@ -158,7 +157,7 @@ class PPOAC(tf.Module):
             x = self._common_layers(x)
             x = tf.squeeze(x, 1)
 
-            actor_output = self._head(x, self.actor)
+            actor_output = self.actor(x)
             assert len(actor_output.shape) == 2
 
             if self.is_action_discrete:
@@ -182,8 +181,8 @@ class PPOAC(tf.Module):
         with tf.name_scope('train_step'):
             x = self._common_layers(x)
 
-            actor_output = self._head(x, self.actor)
-            value = self._head(x, self.critic)
+            actor_output = self.actor(x)
+            value = self.critic(x)
 
             if self.is_action_discrete:
                 action_distribution = self.ActionDistributionType(actor_output)
@@ -206,16 +205,9 @@ class PPOAC(tf.Module):
             x = x / 255.
             x = self.cnn(x)
         if hasattr(self, 'shared_mlp'):
-            for l in self.shared_mlp:
-                x = l(x)
+            x = self.shared_mlp(x)
 
         x = self.rnn(x)
-        
-        return x
-
-    def _head(self, x, layers):
-        for l in layers:
-            x = l(x)
         
         return x
 

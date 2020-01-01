@@ -1,41 +1,29 @@
-import tensorflow as tf
+
 from tensorflow.keras import layers
 
-from nn.norm.func import get_norm
-from nn.activation.func import get_activation
-from nn.layers.dnc.dnc import DNC
+from nn.block.cnn import *
+from nn.block.mlp import *
+from nn.dnc.dnc import DNC
 
 
-def mlp_layers(units_list, out_dim=None, norm=None, activation=None, **kwargs):
-    """Return a stack of Dense layers
-    
-    Args:
-        units_list: A list of units for each layer
-        out_dim: Output dimension, no activation is applied
-        norm: Normalization layer following each hidden layer
-        kwargs: kwargs for tf.keras.layers.Dense
-    """
-    if isinstance(norm, str):
-        NormLayer = get_norm(norm)
+def mlp(units_list, 
+        out_dim=None, 
+        norm=None, 
+        activation=None, 
+        layer_type=layers.Dense, 
+        kernel_initializer='he_uniform', 
+        **kwargs):
+    return MLP(units_list, out_dim=out_dim, layer_type=layer_type, 
+                norm=norm, activation=activation, **kwargs)
+
+
+def cnn(name, **kwargs):
+    if name.lower() == 'ftw':
+        return FTWCNN(**kwargs)
+    elif name.lower() == 'impala':
+        return IMPALACNN(**kwargs)
     else:
-        NormLayer = norm    # norm is a layer class
-    
-    if norm is not None:
-        ActivationLayer = get_activation(activation)
-
-    layer_stack = []
-    for u in units_list:
-        if NormLayer is None:
-            layer_stack.append(layers.Dense(u, activation=activation, **kwargs))
-        else:
-            layer_stack.append(layers.Dense(u, **kwargs))
-            layer_stack.append(NormLayer())
-            layer_stack.append(ActivationLayer())
-    
-    if out_dim:
-        layer_stack.append(layers.Dense(out_dim))
-
-    return layer_stack
+        raise NotImplementedError(f'Unknown CNN structure: {name}')
 
 
 def dnc_rnn(output_size, 

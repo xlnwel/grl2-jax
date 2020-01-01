@@ -39,6 +39,8 @@ class Worker(BaseWorker):
             env.state_dtype, env.action_shape, 
             env.action_dtype, config['gamma'])
 
+        self.threshold = -float('inf')
+
         super().__init__(
             name=name,
             worker_id=worker_id,
@@ -58,24 +60,49 @@ class Worker(BaseWorker):
                 weights = self.pull_weights(learner)
 
             with TBTimer(f'{self.name} eval model', self.TIME_PERIOD):
-                step, _ = self.eval_model(weights, step, replay)
+                step, scores, epslens = self.eval_model(weights, step, replay)
 
             with Timer(f'{self.name} send data', self.TIME_PERIOD):
-                self._send_data(replay)
+                self._send_data(replay, scores, epslens)
 
             self._periodic_logging(step)
+        
+    def _send_data(self, replay, scores=None, epslens=None):
+        self.threshold = max(np.max(scores) - self.SLACK, self.threshold)
+        env_mask = scores > self.threshold
 
-    def _send_data(self, replay):
         """ sends data to replay """
         mask, data = self.buffer.sample()
         data_tesnors = {k: tf.convert_to_tensor(v) for k, v in data.items()}
         data['priority'] = self.compute_priorities(**data_tesnors).numpy()
-        
+
         # squeeze since many terms in data is of shape [None, 1]
         for k, v in data.items():
             data[k] = np.squeeze(v)
 
-        replay.merge.remote(data, data['state'].shape[0])
+        good_mask = np.zeros_like(mask, dtype=np.bool)
+        good_mask[env_mask] = 1
+        good_mask = good_mask[mask]
+        regular_mask = (1 - good_mask).astype(np.bool)
+
+        good_data = {}
+        regular_data = {}
+        for k, v in data.items():
+            good_data[k] = v[good_mask]
+            regular_data[k] = v[regular_mask]
+        self.store(
+            good_frac=np.mean(env_mask), 
+            threshold=self.threshold,
+            good_scores=np.mean(scores[env_mask]),
+            good_epslens=np.mean(epslens[env_mask]),
+            regular_scores=np.mean(scores[(1-env_mask).astype(np.bool)]),
+            regular_epslens=np.mean(epslens[(1-env_mask).astype(np.bool)]),
+        )
+        
+        if np.any(env_mask):
+            replay.merge.remote(good_data, good_data['state'].shape[0], 'good_replay')
+        if not np.all(env_mask):
+            replay.merge.remote(regular_data, regular_data['state'].shape[0], 'regular_replay')
 
         self.buffer.reset()
 
@@ -95,6 +122,7 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     config['model_name'] = f'worker_{worker_id}'
     config['TIME_PERIOD'] = 1000
     config['LOG_STEPS'] = 10000
+    config['SLACK'] = 10
 
     name = f'{name}_{worker_id}'
     worker = Worker.remote(name, worker_id, model_fn, buffer_fn, config, 

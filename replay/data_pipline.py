@@ -83,14 +83,14 @@ class Dataset:
                 (None),
                 (None)
             )
-            if self.buffer_type() != 'uniform':
+            if not self.buffer_type().endswith('uniform'):
                 sample_types = (tf.float32, tf.int32, sample_types)
                 sample_shapes =((None), (None), sample_shapes)
 
             ds = tf.data.Dataset.from_generator(
                 self._sample, output_types=sample_types, output_shapes=sample_shapes)
-            ds = ds.map(map_func=transform_data_per if self.buffer_type() != 'uniform' 
-                        else transform_data_uniform, 
+            ds = ds.map(map_func=transform_data_uniform if self.buffer_type().endswith('uniform') 
+                        else transform_data_per, 
                         num_parallel_calls=tf.data.experimental.AUTOTUNE)
             ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
             iterator = iter(ds)

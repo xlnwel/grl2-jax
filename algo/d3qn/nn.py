@@ -5,10 +5,9 @@ from tensorflow.keras.activations import relu
 
 from utility.display import pwc
 from core.tf_config import build
-from nn.layers.func import mlp_layers
-from nn.initializers import get_initializer
-from nn.layers.noisy import Noisy
-from nn.cnn import get_cnn
+from nn.func import mlp
+from nn.layers import Noisy
+from nn.func import cnn
         
 
 class Q(tf.Module):
@@ -19,18 +18,14 @@ class Q(tf.Module):
 
         # parameters
         cnn_name = config.get('cnn')
+        activation = config.get('activation', 'relu')
 
         """ Network definition """
         if cnn_name:
-            self.cnn = get_cnn(cnn_name)
-        self.v_head = [
-            Noisy(256),
-            Noisy(1),
-        ]
-        self.a_head = [
-            Noisy(256),
-            Noisy(n_actions),
-        ]
+            self.cnn = cnn(cnn_name)
+
+        self.v_head = mlp(config['v_units'], out_dim=1, layer_type=Noisy, activation=activation, name='v')
+        self.a_head = mlp(config['a_units'], out_dim=n_actions, layer_type=Noisy, activation=activation, name='a')
 
         # build for variable initialization
         TensorSpecs = [
@@ -90,27 +85,20 @@ class Q(tf.Module):
             return action
             
     def _step(self, x, reset=True, noisy=True, name=None):
-        print(name)
         if hasattr(self, 'cnn'):
             x = self.cnn(x)
 
-        v = x
-        v = self.v_head[0](v, reset=reset, noisy=noisy)
-        v = relu(v)
-        v = self.v_head[1](v, reset=reset, noisy=noisy)
+        v = self.v_head(x, reset=reset, noisy=noisy)
         
-        a = x
-        a = self.a_head[0](a, reset=reset, noisy=noisy)
-        a = relu(a)
-        a = self.a_head[1](a, reset=reset, noisy=noisy)
+        a = self.a_head(x, reset=reset, noisy=noisy)
         
         q = v + a - tf.reduce_mean(a, axis=1, keepdims=True)
 
         return q
 
     def reset_noisy(self):
-        for l in self.v_head + self.a_head:
-            l.reset()
+        self.v_head.reset()
+        self.a_head.reset()
 
     def get_weights(self):
         return [v.numpy() for v in self.variables]

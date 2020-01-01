@@ -6,9 +6,7 @@ from utility.display import pwc
 from core.tf_config import build
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import DiagGaussian, Categorical
-from nn.layers.func import mlp_layers
-from nn.initializers import get_initializer
-from nn.cnn import get_cnn
+from nn.func import mlp
 
 
 class SoftPolicy(tf.Module):
@@ -21,24 +19,38 @@ class SoftPolicy(tf.Module):
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
-        initializer_name = config.get('kernel_initializer', 'he_uniform')
-        kernel_initializer = get_initializer(initializer_name)
+        kernel_initializer = config.get('kernel_initializer', 'he_uniform')
         
         self.LOG_STD_MIN = config.get('LOG_STD_MIN', -20)
         self.LOG_STD_MAX = config.get('LOG_STD_MAX', 2)
         
         """ Network definition """
-        self.intra_layers = mlp_layers(units_list, 
-                                        norm=norm, 
-                                        activation=activation, 
-                                        kernel_initializer=kernel_initializer())
+        self.intra_layers = mlp(units_list, 
+                                norm=norm, 
+                                activation=activation, 
+                                kernel_initializer=kernel_initializer)
 
         if is_action_discrete:
-            self.logits = layers.Dense(action_dim, name='logits')
+            self.logits = mlp([],
+                            out_dim=action_dim, 
+                            norm=norm, 
+                            activation=activation, 
+                            kernel_initializer=kernel_initializer, 
+                            name='logits')
             self.tau = tf.Variable(1., dtype=tf.float32, name='softmax_tau')
         else:
-            self.mu = layers.Dense(action_dim, name='mu')
-            self.logstd = layers.Dense(action_dim, name='logstd')
+            self.mu = mlp([],
+                        out_dim=action_dim, 
+                        norm=norm, 
+                        activation=activation, 
+                        kernel_initializer=kernel_initializer, 
+                        name='mu')
+            self.logstd = mlp([],
+                        out_dim=action_dim, 
+                        norm=norm, 
+                        activation=activation, 
+                        kernel_initializer=kernel_initializer, 
+                        name='logstd')
 
         # action distribution type    
         self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
@@ -65,8 +77,7 @@ class SoftPolicy(tf.Module):
     @tf.Module.with_name_scope
     def _det_action(self, x):
         with tf.name_scope('det_action'):
-            for l in self.intra_layers:
-                x = l(x)
+            x = self.intra_layers(x)
 
             if self.is_action_discrete:
                 logits = self.logits(x)
@@ -106,12 +117,11 @@ class SoftPolicy(tf.Module):
                 logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
             entropy = action_distribution.entropy()
-            
+
         return action, logpi, entropy, std
 
     def _action_distribution(self, x):
-        for l in self.intra_layers:
-            x = l(x)
+        x = self.intra_layers(x)
         
         if self.is_action_discrete:
             logits = self.logits(x)
@@ -141,15 +151,14 @@ class SoftQ(tf.Module):
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
-        initializer_name = config.get('kernel_initializer', 'he_uniform')
-        kernel_initializer = get_initializer(initializer_name)
+        kernel_initializer = config.get('kernel_initializer', 'he_uniform')
 
         """ Network definition """
-        self.intra_layers = mlp_layers(units_list, 
-                                        out_dim=1,
-                                        norm=norm, 
-                                        activation=activation, 
-                                        kernel_initializer=kernel_initializer())
+        self.intra_layers = mlp(units_list, 
+                                out_dim=1,
+                                norm=norm, 
+                                activation=activation, 
+                                kernel_initializer=kernel_initializer)
 
         # build for variable initialization
         TensorSpecs = [
@@ -166,8 +175,7 @@ class SoftQ(tf.Module):
     def train_value(self, x, a):
         with tf.name_scope('step'):
             x = tf.concat([x, a], axis=1)
-            for l in self.intra_layers:
-                x = l(x)
+            x = self.intra_layers(x)
             
         return x
 

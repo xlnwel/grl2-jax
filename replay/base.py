@@ -2,7 +2,6 @@ from abc import ABC
 import threading
 import numpy as np
 
-from utility.display import pwc
 from utility.utils import to_int
 from utility.run_avg import RunningMeanStd
 from replay.utils import *
@@ -43,7 +42,7 @@ class Replay(ABC):
         
         self.memory = {}
         init_buffer(self.memory, *keys, capacity=self.capacity, state_shape=state_shape)
-        pwc(f'buffer keys: {list(self.memory.keys())}', color='cyan')
+        print(f'"{self.buffer_type()}" keys: {list(self.memory.keys())}')
 
         # locker used to avoid conflict introduced by tf.data.Dataset
         # self.locker = threading.Lock()
@@ -62,7 +61,7 @@ class Replay(ABC):
             yield self.sample()
 
     def sample(self):
-        assert self.good_to_learn, (
+        assert self.good_to_learn(), (
             'There are not sufficient transitions to start learning --- '
             f'transitions in buffer({len(self)}) vs '
             f'minimum required size({self.min_size})')
@@ -85,7 +84,7 @@ class Replay(ABC):
         # with self.locker:
         if not self.is_full:
             if self.mem_idx == self.capacity - 1:
-                pwc(f'Memory is full({len(self.memory["reward"])})', color='blue')
+                print(f'Memory is full({len(self.memory["reward"])})')
                 self.is_full = True
         next_state = kwargs['next_state']
         add_buffer(
@@ -112,13 +111,12 @@ class Replay(ABC):
 
         # memory is full, recycle buffer via FIFO
         if not self.is_full and end_idx >= self.capacity:
-            pwc(f'Memory is full({len(self.memory["reward"])})', color='blue')
+            print(f'Memory is full({len(self.memory["reward"])})')
             self.is_full = True
         
         self.mem_idx = end_idx % self.capacity
 
     def _get_samples(self, indexes):
-        # original_state = [self.memory['state'][i] for i in indexes]
         state = np.asarray([np.array(self.memory['state'][i], copy=False) for i in indexes])
         action = np.asarray([np.array(self.memory['action'][i], copy=False) for i in indexes])
         reward = np.asarray([self.memory['reward'][i] for i in indexes])
@@ -126,12 +124,12 @@ class Replay(ABC):
         steps = np.asarray([self.memory['steps'][i] for i in indexes], dtype=np.int32)
         
         if 'next_state' in self.memory:
-            next_state = np.asarray([np.array(self.memory['next_state'][i], copy=False) for i in indexes])
+            next_state = np.asarray([np.array(self.memory['next_state'][i], copy=False) for i in indexes], dtype=state.dtype)
         else:
             indexes = np.asarray(indexes)
             next_indexes = (indexes + steps) % self.capacity
-            assert indexes.shape == next_indexes.shape == (self.batch_size, )
-            next_state = np.asarray([self.memory['state'][i] for i in next_indexes])
+            assert indexes.shape == next_indexes.shape == (self.batch_size, ), f'{indexes.shape} vs {next_indexes.shape}'
+            next_state = np.asarray([self.memory['state'][i] for i in next_indexes], dtype=state.dtype)
 
         # process rewards
         if self.reward_scale != 1:

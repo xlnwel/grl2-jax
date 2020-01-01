@@ -45,6 +45,8 @@ class BaseWorker(BaseAgent):
         self.per_alpha = config['per_alpha']
         self.per_epsilon = config['per_epsilon']
         
+        self.log_steps = self.LOG_STEPS
+
         TensorSpecs = [
             (env.state_shape, tf.float32, 'state'),
             (env.action_shape, env.action_dtype, 'action'),
@@ -69,13 +71,13 @@ class BaseWorker(BaseAgent):
             step += np.sum(epslens)
             if scores is not None:
                 self.store(
-                    score= np.mean(scores), 
+                    score=np.mean(scores), 
                     score_std=np.std(scores),
                     score_max=np.max(scores), 
                     epslen=np.mean(epslens), 
                     epslen_std=np.std(epslens))
         
-        return step, scores
+        return step, scores, epslens
 
     def pull_weights(self, learner):
         """ pulls weights from learner """
@@ -97,12 +99,7 @@ class BaseWorker(BaseAgent):
 
         return priority
 
-    def _send_data(self, replay, env_mask=None):
-        """ sends data to replay """
-        data = self.buffer.sample(env_mask)
-        data_tesnors = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-        data['priority'] = self.compute_priorities(**data_tesnors).numpy()
-        for k, v in data.items():
-            data[k] = np.squeeze(v)
-        replay.merge.remote(data, data['state'].shape[0])
-        self.buffer.reset()
+    def _periodic_logging(self, step):
+        if step > self.log_steps:
+            self.log(step=step, print_terminal_info=False)
+            self.log_steps += self.LOG_STEPS
