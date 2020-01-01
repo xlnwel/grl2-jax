@@ -95,9 +95,23 @@ class EnvStats(gym.Wrapper):
         return self.action_space.n if self.is_action_discrete else self.env.action_space.shape[0]
 
 
+class ActionRepetition(gym.Wrapper):
+    def step(self, action, n_ar, gamma=1):
+        rewards = 0
+        for i in range(1, n_ar+1):
+            state, reward, done, info = self.env.step(action)
+
+            rewards += gamma**(i-1) * reward
+            if done:
+                break
+        info['n_ar'] = i
+        
+        return state, rewards, done, info
+
+
 class AutoReset(gym.Wrapper):
-    def step(self, action):
-        state, reward, done, info = self.env.step(action)
+    def step(self, action, **kwargs):
+        state, reward, done, info = self.env.step(action, **kwargs)
         if done:
             state = self.env.reset()
         

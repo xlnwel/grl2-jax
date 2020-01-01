@@ -34,7 +34,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     actor_lr: 1.e-4
-    q_lr: 3.e-4
+    q_lr: 1.e-4
     temp_lr: 1.e-4
     epsilon: 1.e-5
     # clip_norm: 10

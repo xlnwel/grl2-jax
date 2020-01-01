@@ -50,6 +50,8 @@ def import_main(algorithm):
         from algo.ppo2.train import main
     elif algorithm == 'sac':
         from algo.sac.train import main
+    elif algorithm == 'sacar':
+        from algo.sacar.train import main
     elif algorithm == 'd3qn':
         from algo.d3qn.train import main
     elif algorithm.startswith('apex-dr'):
@@ -72,6 +74,8 @@ def get_config_file(algorithm):
         config_file = 'algo/ppo2/config.yaml'
     elif algorithm == 'sac':
         config_file = 'algo/sac/config.yaml'
+    elif algorithm == 'sacar':
+        config_file = 'algo/sacar/config.yaml'
     elif algorithm == 'd3qn':
         config_file = 'algo/d3qn/config.yaml'
     elif algorithm == 'apex-d3qn':
@@ -146,6 +150,8 @@ if __name__ == '__main__':
                         processes += gs(value_coef=[0.01, 0.001])
                     elif algo == 'sac':
                         processes += gs(type=['uniform', 'proportional'])
+                    elif algo == 'sacar':
+                        processes += gs(actor=dict(max_ar=[5, 10]))
                     elif algo == 'd3qn':
                         processes += gs()
                     else:

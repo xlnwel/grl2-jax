@@ -57,7 +57,7 @@ class Timer:
 class TBTimer:
     aggregators = defaultdict(Aggregator)
 
-    def __init__(self, summary_name, period, to_log=True):
+    def __init__(self, summary_name, period=1, to_log=True):
         self.to_log = to_log
         if self.to_log:
             self.summary_name = summary_name

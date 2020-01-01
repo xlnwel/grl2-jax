@@ -52,13 +52,13 @@ class Worker(BaseWorker):
 
     def run(self, learner, replay):
         step = 0
-        while step < 1e7:
+        while step < self.MAX_STEPS:
             self.set_summary_step(step)
             with Timer(f'{self.name} pull weights', self.TIME_PERIOD):
                 weights = self.pull_weights(learner)
 
             with TBTimer(f'{self.name} eval model', self.TIME_PERIOD):
-                step, _ = self.eval_model(weights, step, replay)
+                step, _, _ = self.eval_model(weights, step, replay)
 
             with Timer(f'{self.name} send data', self.TIME_PERIOD):
                 self._send_data(replay)
@@ -95,6 +95,7 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     config['model_name'] = f'worker_{worker_id}'
     config['TIME_PERIOD'] = 1000
     config['LOG_STEPS'] = 10000
+    config['MAX_STEPS'] = int(1e8)
 
     name = f'{name}_{worker_id}'
     worker = Worker.remote(name, worker_id, model_fn, buffer_fn, config, 

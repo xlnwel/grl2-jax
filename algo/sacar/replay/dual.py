@@ -1,9 +1,9 @@
 import numpy as np
 
 from utility.utils import to_int
-from replay.base import Replay
-from replay.uniform import UniformReplay
-from replay.per import ProportionalPER
+from algo.sacar.replay.base import Replay
+from algo.sacar.replay.uniform import UniformReplay
+from algo.sacar.replay.per import ProportionalPER
 
 
 class DualReplay(Replay):

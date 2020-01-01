@@ -107,7 +107,7 @@ class Agent(BaseAgent):
 
         with tf.name_scope('q_update'):
             q_grads, q_terms = self._compute_q_grads(
-                state, action, next_state, reward, 
+                state, action, reward, next_state, 
                 done, steps, IS_ratio)
             if hasattr(self, 'clip_norm'):
                 q_grads, q_norm = tf.clip_by_global_norm(q_grads, self.clip_norm)
@@ -163,7 +163,7 @@ class Agent(BaseAgent):
 
         return actor_grads, terms
 
-    def _compute_q_grads(self, state, action, next_state, reward, done, steps, IS_ratio):
+    def _compute_q_grads(self, state, action, reward, next_state, done, steps, IS_ratio):
         with tf.GradientTape() as tape:
             next_action, next_logpi, _, _ = self.actor.train_step(next_state)
             next_q1_with_actor = self.target_q1.train_value(next_state, next_action)

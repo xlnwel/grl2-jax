@@ -8,7 +8,7 @@ from env.wrappers import get_wrapper_by_name
 
 LOG_INTERVAL = 10000
 
-def random_sampling(env, buffer):
+def random_sampling(env, buffer, max_ar):
     """ Interact with the environment with random actions to 
     collect data for buffer initialization 
     """
@@ -16,13 +16,17 @@ def random_sampling(env, buffer):
         state = env.reset()
         for _ in range(env.max_episode_steps):
             action = env.random_action()
-            next_state, reward, done, _ = env.step(action)
-            buffer.add(state=state, action=action, reward=reward, done=done, next_state=next_state)
+            n_ar = np.random.randint(1, max_ar+1)
+            next_state, reward, done, _ = env.step(action, n_ar=n_ar)
+            buffer.add(state=state, action=action, reward=reward, done=done, 
+                next_state=next_state, n_ar=n_ar-1)
             state = next_state
             if done:
                 break
 
 def run(env, actor, *, fn=None, evaluation=False, timer=False, **kwargs):
+    assert get_wrapper_by_name(env.env, 'ActionRepetition') is not None
+
     if isinstance(env, Env):
         return run_trajectory(env, actor, fn=fn, 
             evaluation=evaluation, timer=timer, **kwargs)
@@ -52,16 +56,19 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
                 env.render()
             state_expanded = np.expand_dims(state, 0)
             with TBTimer('agent_step', LOG_INTERVAL, to_log=timer):
-                action = action_fn(tf.convert_to_tensor(state_expanded, tf.float32)).numpy()[0]
+                action, n_ar = action_fn(tf.convert_to_tensor(state_expanded, tf.float32))
+            action = action.numpy()[0]
+            n_ar = n_ar.numpy()
             with TBTimer('env_step', LOG_INTERVAL, to_log=timer):
-                next_state, reward, done, _ = env.step(action)
+                next_state, reward, done, info = env.step(action, n_ar=n_ar+1)
+                n_ar = info['n_ar'] - 1
             if fn:
                 if step is None:
                     fn(state=state, action=action, reward=reward, 
-                        done=done, next_state=next_state)
+                        done=done, next_state=next_state, n_ar=n_ar)
                 else:
                     fn(state=state, action=action, reward=reward,
-                        done=done, next_state=next_state, step=step+i)
+                        done=done, next_state=next_state, n_ar=n_ar, step=step+i)
             state = next_state
             if done:
                 break
@@ -87,64 +94,15 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False, timer=False):
 
     for _ in range(envvec.max_episode_steps):
         with TBTimer('agent_step', LOG_INTERVAL, to_log=timer):
-            action = action_fn(tf.convert_to_tensor(state, tf.float32))
+            action, n_ar = action_fn(tf.convert_to_tensor(state, tf.float32))
         with TBTimer('env_step', LOG_INTERVAL, to_log=timer):
-            next_state, reward, done, _ = envvec.step(action.numpy())
+            next_state, reward, done, info = envvec.step(action, n_ar=n_ar+1)
+            n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
             fn(state=state, action=action, reward=reward, done=done, 
-                next_state=next_state, mask=envvec.get_mask())
+                next_state=next_state, mask=envvec.get_mask(), n_ar=n_ar)
         state = next_state
         if np.all(done):
             break
 
     return envvec.get_score(), envvec.get_epslen()
-
-def run_trajectories2(envvec, actor, fn=None, evaluation=False, timer=False):
-    """ Sample trajectories
-
-    Args:
-        envvec: an EfficientEnvVec instance
-        actor: the model responsible for taking actions
-        fn: a function that specifies what to do after each env step
-    """
-    state = envvec.reset()
-    action_fn = actor.det_action if evaluation else actor.action
-
-    for _ in range(envvec.max_episode_steps):
-        with TBTimer('agent_step', LOG_INTERVAL, to_log=timer):
-            action = action_fn(tf.convert_to_tensor(state, tf.float32))
-        with TBTimer('env_step', LOG_INTERVAL, to_log=timer):
-            next_state, reward, done, info = envvec.step(action.numpy())
-        if fn:
-            env_ids = [i['env_id'] for i in info]
-            fn(state=state, action=action, reward=reward, done=done, 
-                next_state=next_state, mask=envvec.get_mask(), env_ids=env_ids)
-        state = next_state[(1 - done).astype(np.bool)]
-        if np.all(done):
-            break
-
-    return envvec.get_score(), envvec.get_epslen()
-
-def run_steps(envvec, actor, state, steps=None, fn=None, evaluation=False, timer=False):
-    # assume the envvec is resetted before, 
-    # and step will automatically reset at done
-    assert get_wrapper_by_name(envvec, 'AutoReset')
-    steps = steps or envvec.max_episode_steps
-    action_fn = actor.det_action if evaluation else actor.action
-
-    scores, epslens = [], []
-    for _ in range(steps):
-        with TBTimer('agent_step', LOG_INTERVAL, to_log=timer):
-            action = action_fn(tf.convert_to_tensor(state, tf.float32))
-        with TBTimer('env_step', LOG_INTERVAL, to_log=timer):
-            next_state, reward, done, _ = envvec.step(action.numpy())
-        if np.any(done):
-            scores.append(envvec.get_score()[done])
-            epslens.append(envvec.get_epslen()[done])
-        if fn:
-            to_return = fn(state=state, action=action, reward=reward, done=done, 
-                next_state=next_state, mask=envvec.get_mask())
-            if to_return:
-                break
-                
-    return scores or None, epslens or None

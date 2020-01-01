@@ -1,4 +1,5 @@
 """ Implementation of single process environment """
+import itertools
 import numpy as np
 import gym
 import ray
@@ -7,7 +8,7 @@ from utility import tf_distributions
 from utility.display import pwc
 from utility.utils import to_int
 from utility.timer import Timer
-from env.wrappers import TimeLimit, EnvStats, AutoReset
+from env.wrappers import *
 from env.deepmind_wrappers import make_deepmind_env
 
 
@@ -19,23 +20,14 @@ def action_dist_type(env):
     else:
         raise NotImplementedError
 
-def _make_env(config):
-    if config.get('is_deepmind_env', False):
-        env = make_deepmind_env(config)
+def create_gym_env(config):
+    EnvType = Env if config.get('n_envs', 1) == 1 else EnvVec
+    if config.get('n_workers', 1) == 1:
+        if EnvType == EnvVec and config.get('efficient_envvec', False):
+            EnvType = EfficientEnvVec
+        return EnvType(config)
     else:
-        env = gym.make(config['name'])
-        max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
-        if max_episode_steps < env.spec.max_episode_steps:
-            env = TimeLimit(env, max_episode_steps)
-        if config.get('log_video', False):
-            pwc(f'video will be logged at {config["video_path"]}', color='cyan')
-            env = gym.wrappers.Monitor(env, config['video_path'], force=True)
-        env = EnvStats(env)
-    if config.get('auto_reset'):
-        env = AutoReset(env)
-    env.seed(config.get('seed', 42))
-
-    return env
+        return RayEnvVec(EnvType, config)
 
 
 class EnvBase:
@@ -92,11 +84,8 @@ class Env(EnvBase):
         action = self.env.action_space.sample()
         return action
         
-    def step(self, action, auto_reset=False):
-        state, reward, done, info = self.env.step(action)
-
-        if done and auto_reset:
-            state = self.env.reset()
+    def step(self, action, **kwargs):
+        state, reward, done, info = self.env.step(action, **kwargs)
 
         return state, reward, np.bool(done), info
 
@@ -121,26 +110,19 @@ class EnvVec(EnvBase):
     def __init__(self, config):
         self.n_envs = n_envs = config['n_envs']
         self.name = config['name']
-        self.envs = [Env(config) for i in range(n_envs)]
+        self.envs = [_make_env(config) for i in range(n_envs)]
         [env.seed(config['seed'] + i) for i, env in enumerate(self.envs)]
         self.env = self.envs[0]
-        self.max_episode_steps = self.env.max_episode_steps
+        self.max_episode_steps = self.env.spec.max_episode_steps
 
     def random_action(self):
-        return np.asarray([env.random_action() for env in self.envs])
+        return np.asarray([env.action_space.sample() for env in self.envs])
 
     def reset(self):
         return np.asarray([env.reset() for env in self.envs], dtype=self.state_dtype)
     
-    def step(self, actions, auto_reset=False):
-        step_imp = lambda envs, actions: list(zip(*[env.step(a) for env, a in zip(envs, actions)]))
-        
-        state, reward, done, info = step_imp(self.envs, actions)
-        
-        if auto_reset:
-            for i, d in enumerate(done):
-                if d:
-                    state[i] = self.envs[i].reset()
+    def step(self, actions, **kwargs):
+        state, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
 
         return (np.asarray(state, dtype=self.state_dtype), 
                 np.asarray(reward, dtype=np.float32), 
@@ -166,13 +148,13 @@ class EfficientEnvVec(EnvVec):
         valid_envs = [env for env in self.envs if not env.already_done]
         return [env.action_space.sample() for env in valid_envs]
         
-    def step(self, actions):
+    def step(self, actions, **kwargs):
         valid_env_ids, valid_envs = zip(*[(i, env) for i, env in enumerate(self.envs) if not env.already_done])
         assert len(valid_envs) == len(actions), f'valid_env({len(valid_envs)}) vs actions({len(actions)})'
+        for k, v in kwargs.items():
+            assert len(actions) == len(v), f'valid_env({len(actions)}) vs {k}({len(v)})'
         
-        step_imp = lambda envs, actions: list(zip(*[env.step(a) for env, a in zip(envs, actions)]))
-        
-        state, reward, done, info = step_imp(valid_envs, actions)
+        state, reward, done, info = _envvec_step(valid_envs, actions, **kwargs)
         for i in range(len(info)):
             info[i]['env_id'] = valid_env_ids[i]
         
@@ -194,7 +176,7 @@ class RayEnvVec(EnvBase):
         self.envs = [config.update({'seed': 100*i}) or RayEnvType.remote(config.copy()) 
                     for i in range(self.n_workers)]
 
-        self.env = Env(config)
+        self.env = EnvType(config)
         self.max_episode_steps = self.env.max_episode_steps
 
     def reset(self):
@@ -205,9 +187,19 @@ class RayEnvVec(EnvBase):
         return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
                           (self.n_envs, *self.action_shape))
 
-    def step(self, actions):
-        actions = np.reshape(actions, (self.n_workers, self.envsperworker, *self.action_shape))
-        state, reward, done, info = list(zip(*ray.get([env.step.remote(a) for a, env in zip(actions, self.envs)])))
+    def step(self, actions, **kwargs):
+        actions = np.squeeze(actions.reshape(self.n_workers, self.envsperworker, *self.action_shape))
+        if kwargs:
+            kwargs = dict([(k, np.squeeze(v.reshape(self.n_workers, self.envsperworker, -1))) for k, v in kwargs.items()])
+            kwargs = [dict(v) for v in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
+            state, reward, done, info = list(zip(*ray.get([env.step.remote(a, **kw) for env, a, kw in zip(self.envs, actions, kwargs)])))
+        else:
+            state, reward, done, info = list(zip(*ray.get([env.step.remote(a) for env, a in zip(self.envs, actions)])))
+        if not isinstance(self.env, Env):
+            info_lists = info
+            info = []
+            for i in info_lists:
+                info += i
 
         return (np.reshape(state, (self.n_envs, *self.state_shape)).astype(self.state_dtype), 
                 np.reshape(reward, self.n_envs).astype(np.float32), 
@@ -228,15 +220,32 @@ class RayEnvVec(EnvBase):
         del self
 
 
-def create_gym_env(config):
-    EnvType = Env if config.get('n_envs', 1) == 1 else EnvVec
-    if config.get('n_workers', 1) == 1:
-        if EnvType == EnvVec and config.get('efficient_envvec', False):
-            EnvType = EfficientEnvVec
-        return EnvType(config)
+def _make_env(config):
+    if config.get('is_deepmind_env', False):
+        env = make_deepmind_env(config)
     else:
-        return RayEnvVec(EnvType, config)
+        env = gym.make(config['name'])
+        max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
+        if max_episode_steps < env.spec.max_episode_steps:
+            env = TimeLimit(env, max_episode_steps)
+        if config.get('log_video', False):
+            pwc(f'video will be logged at {config["video_path"]}', color='cyan')
+            env = gym.wrappers.Monitor(env, config['video_path'], force=True)
+        env = EnvStats(env)
+    if config.get('action_repetition'):
+        env = ActionRepetition(env)
+    if config.get('auto_reset'):
+        env = AutoReset(env)
+    env.seed(config.get('seed', 42))
 
+    return env
+    
+def _envvec_step(envvec, actions, **kwargs):
+    if kwargs:
+        kwargs = [dict(v) for v in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
+        return list(zip(*[env.step(a, **kw) for env, a, kw in zip(envvec, actions, kwargs)]))
+    else:
+        return list(zip(*[env.step(a) for env, a in zip(envvec, actions)]))
 
 if __name__ == '__main__':
     # performance test

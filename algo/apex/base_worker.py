@@ -70,7 +70,7 @@ class BaseWorker(BaseAgent):
             scores, epslens = run(self.env, self.actor, fn=collect_fn)
             step += np.sum(epslens)
             if scores is not None:
-                self.store(
+                self.store(  
                     score=np.mean(scores), 
                     score_std=np.std(scores),
                     score_max=np.max(scores), 

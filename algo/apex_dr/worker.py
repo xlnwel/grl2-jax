@@ -93,11 +93,20 @@ class Worker(BaseWorker):
         self.store(
             good_frac=np.mean(env_mask), 
             threshold=self.threshold,
-            good_scores=np.mean(scores[env_mask]),
-            good_epslens=np.mean(epslens[env_mask]),
-            regular_scores=np.mean(scores[(1-env_mask).astype(np.bool)]),
-            regular_epslens=np.mean(epslens[(1-env_mask).astype(np.bool)]),
+            good_scores=np.mean(scores[env_mask]) if np.any(env_mask) else 0,
+            good_epslens=np.mean(epslens[env_mask]) if np.any(env_mask) else 0,
         )
+        if np.any(env_mask):
+            self.store(
+                good_scores=np.mean(scores[env_mask]) if np.any(env_mask) else 0,
+                good_epslens=np.mean(epslens[env_mask]) if np.any(env_mask) else 0,
+            )
+        if not np.all(env_mask):
+            self.store(
+                regular_scores=np.mean(scores[(1-env_mask).astype(np.bool)]),
+                regular_epslens=np.mean(epslens[(1-env_mask).astype(np.bool)]),
+            )
+        
         
         if np.any(env_mask):
             replay.merge.remote(good_data, good_data['state'].shape[0], 'good_replay')

@@ -57,6 +57,7 @@ class Agent(BaseAgent):
             ([1], tf.float32, 'IS_ratio'),
             (env.state_shape, tf.float32, 'state'),
             (env.action_shape, env.action_dtype, 'action'),
+            ((), tf.int32, 'n_ar'),
             ([1], tf.float32, 'reward'),
             (env.state_shape, tf.float32, 'next_state'),
             ([1], tf.float32, 'done'),
@@ -82,10 +83,12 @@ class Agent(BaseAgent):
         self.store(**terms)
 
     @tf.function
-    def _learn(self, IS_ratio, state, action, reward, next_state, done, steps):
+    def _learn(self, IS_ratio, state, action, n_ar, reward, next_state, done, steps):
         terms = {}
         if self.is_action_discrete:
             action = tf.one_hot(action, self.action_dim)
+        tf.debugging.assert_less(n_ar, self.max_ar)
+        n_ar = tf.one_hot(n_ar, self.max_ar)
         if isinstance(self.temperature, float):
             temp = tf.convert_to_tensor(self.temperature)
         else:
@@ -107,7 +110,7 @@ class Agent(BaseAgent):
 
         with tf.name_scope('q_update'):
             q_grads, q_terms = self._compute_q_grads(
-                state, action, next_state, reward, 
+                state, action, n_ar, reward, next_state,  
                 done, steps, IS_ratio)
             if hasattr(self, 'clip_norm'):
                 q_grads, q_norm = tf.clip_by_global_norm(q_grads, self.clip_norm)
@@ -123,8 +126,8 @@ class Agent(BaseAgent):
     def _compute_temp_grads(self, state, IS_ratio):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
         with tf.GradientTape() as tape:
-            action, n, logpi, ar_logpi, _, _ = self.actor.train_step(state)
-            log_temp, temp = self.temperature.train_step(state, action)
+            action, n_ar, logpi, ar_logpi, _, _ = self.actor.train_step(state)
+            log_temp, temp = self.temperature.train_step(state, action, n_ar)
 
             with tf.name_scope('temp_loss'):
                 temp_loss = -tf.reduce_mean(log_temp 
@@ -140,12 +143,12 @@ class Agent(BaseAgent):
 
     def _compute_actor_grads(self, state, IS_ratio):
         with tf.GradientTape() as tape:
-            action, n, logpi, ar_logpi, entropy, std = self.actor.train_step(state)
+            action, n_ar, logpi, ar_logpi, entropy, std = self.actor.train_step(state)
             if isinstance(self.temperature, float):
                 temp = self.temperature
             else:
-                _, temp = self.temperature.train_step(state, action)
-            q1_with_actor = self.q1.train_value(state, action)
+                _, temp = self.temperature.train_step(state, action, n_ar)
+            q1_with_actor = self.q1.train_value(state, action, n_ar)
 
             with tf.name_scope('actor_loss'):
                 actor_loss = tf.reduce_mean(
@@ -160,19 +163,19 @@ class Agent(BaseAgent):
             actor_loss=actor_loss, 
         )
 
-    def _compute_q_grads(self, state, action, next_state, reward, done, steps, IS_ratio):
+    def _compute_q_grads(self, state, action, n_ar, reward, next_state, done, steps, IS_ratio):
         with tf.GradientTape() as tape:
-            next_action, next_n, next_logpi, next_ar_logpi, _, _ = self.actor.train_step(next_state)
-            next_q1_with_actor = self.target_q1.train_value(next_state, next_action)
-            next_q2_with_actor = self.target_q2.train_value(next_state, next_action)
+            next_action, next_n_ar, next_logpi, next_ar_logpi, _, _ = self.actor.train_step(next_state)
+            next_q1_with_actor = self.target_q1.train_value(next_state, next_action, next_n_ar)
+            next_q2_with_actor = self.target_q2.train_value(next_state, next_action, next_n_ar)
             next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
             if isinstance(self.temperature, float):
                 next_temp = self.temperature
             else:
-                _, next_temp = self.temperature.train_step(next_state, next_action)
+                _, next_temp = self.temperature.train_step(next_state, next_action, next_n_ar)
         
-            q1 = self.q1.train_value(state, action)
-            q2 = self.q2.train_value(state, action)
+            q1 = self.q1.train_value(state, action, n_ar)
+            q2 = self.q2.train_value(state, action, n_ar)
             with tf.name_scope('q_loss'):
                 nth_value = tf.subtract(
                     next_q_with_actor, next_temp * (next_logpi + next_ar_logpi), name='nth_value')

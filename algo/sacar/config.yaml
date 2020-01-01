@@ -4,6 +4,7 @@ env:
     video_path: video
     log_video: False
     efficient_envvec: True
+    action_repetition: True
     seed: 0
 model:
     actor:
@@ -12,14 +13,14 @@ model:
         norm: layer
         activation: relu
     q:
-        units_list: [512, 256]
+        units_list: [512, 256, 128]
         norm: layer
         activation: relu
     temperature:
         temp_type: 'state-action'
         value: .2
 agent:
-    algorithm: &algo sac
+    algorithm: &algo sacar
     gamma: &gamma 0.99
     polyak: .995                            # moving average rate
     # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
@@ -49,7 +50,7 @@ agent:
     per_epsilon: 1.e-4
 
 replay:
-    type: proportional                      # proportional or uniform
+    type: uniform                      # proportional or uniform
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4
