@@ -16,7 +16,7 @@ from algo.sacar.nn import create_model
 
 
 LOG_INTERVAL = 1000
-TOLOG=True
+TO_LOG = True
 
 def train(agent, env, replay):
     def collect_and_learn(*, state, action, n_ar, reward, done, next_state, **kwargs):
@@ -25,7 +25,8 @@ def train(agent, env, replay):
         agent.learn_log()
 
     def record(mask, n_ar, **kwargs):
-        agent.store(n_ar=np.mean(n_ar[mask]+1))
+        for i in range(1, agent.max_ar+1):
+            agent.store(**dict([(f'ar_{i+1}', np.sum(n_ar[mask]==i)) for i in range(agent.max_ar)]))
 
     eval_env = create_gym_env(dict(
         name=env.name, 
@@ -44,8 +45,8 @@ def train(agent, env, replay):
     log_step = LOG_INTERVAL
     while step < int(agent.max_steps):
         agent.set_summary_step(step)
-        with TBTimer(f'{agent.model_name}: trajectory', agent.LOG_INTERVAL, to_log=TOLOG):
-            score, epslen = run(env, agent.actor, fn=collect_and_learn, timer=TOLOG)
+        with TBTimer(f'trajectory', agent.LOG_INTERVAL, to_log=TO_LOG):
+            score, epslen = run(env, agent.actor, fn=collect_and_learn, timer=TO_LOG, name='train')
         step += epslen
         scores.append(score)
         epslens.append(epslen)
@@ -54,8 +55,8 @@ def train(agent, env, replay):
             log_step += LOG_INTERVAL
             agent.save(steps=step)
 
-            with TBTimer(f'{agent.model_name} evaluation', to_log=TOLOG):
-                eval_scores, eval_epslens = run(eval_env, agent.actor, fn=record, evaluation=True, timer=TOLOG)
+            with TBTimer(f'evaluation', to_log=TO_LOG):
+                eval_scores, eval_epslens = run(eval_env, agent.actor, fn=record, evaluation=True, timer=TO_LOG, name='eval')
             agent.store(
                 score=np.mean(eval_scores),
                 score_std=np.std(eval_scores),

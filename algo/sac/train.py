@@ -5,7 +5,7 @@ import ray
 from utility.utils import set_global_seed
 from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
-from utility.timer import Timer
+from utility.timer import TBTimer
 from utility.utils import step_str
 from env.gym_env import create_gym_env
 from replay.func import create_replay
@@ -16,10 +16,12 @@ from algo.sac.nn import create_model
 
 
 LOG_INTERVAL = 1000
+TO_LOG = True
 
 def train(agent, env, replay):
     def collect_and_learn(state, action, reward, done, next_state, **kwargs):
-        replay.add(state=state, action=action, reward=reward, done=done, next_state=next_state)
+        replay.add(state=state, action=action, 
+                reward=reward, done=done, next_state=next_state)
         agent.learn_log()
 
     eval_env = create_gym_env(dict(
@@ -28,7 +30,7 @@ def train(agent, env, replay):
         log_video=False,
         n_workers=1,
         n_envs=50,
-        seed=np.random.randint(100, 10000)
+        seed=np.random.randint(100, 10000),
     ))
     start_step = agent.global_steps.numpy() + 1
     scores = deque(maxlen=100)
@@ -38,8 +40,8 @@ def train(agent, env, replay):
     log_step = LOG_INTERVAL
     while step < int(agent.max_steps):
         agent.set_summary_step(step)
-        with Timer(f'{agent.model_name}: trajectory', agent.LOG_INTERVAL):
-            score, epslen = run(env, agent.actor, fn=collect_and_learn)
+        with TBTimer(f'trajectory', agent.LOG_INTERVAL, to_log=TO_LOG):
+            score, epslen = run(env, agent.actor, fn=collect_and_learn, timer=TO_LOG)
         step += epslen
         scores.append(score)
         epslens.append(epslen)
@@ -48,8 +50,8 @@ def train(agent, env, replay):
             log_step += LOG_INTERVAL
             agent.save(steps=step)
 
-            with Timer(f'{agent.model_name} evaluation'):
-                eval_scores, eval_epslens = run(eval_env, agent.actor, evaluation=True)
+            with TBTimer(f'evaluation', to_log=TO_LOG):
+                eval_scores, eval_epslens = run(eval_env, agent.actor, evaluation=True, timer=TO_LOG, name='eval')
             agent.store(
                 score=np.mean(eval_scores),
                 score_std=np.std(eval_scores),

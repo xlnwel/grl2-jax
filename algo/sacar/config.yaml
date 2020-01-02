@@ -12,8 +12,10 @@ model:
         units_list: [512, 256]
         norm: layer
         activation: relu
+        logits_units: []
+        ar_units: [128]
     q:
-        units_list: [512, 256, 128]
+        units_list: [512, 256]
         norm: layer
         activation: relu
     temperature:
@@ -40,10 +42,10 @@ agent:
     # arguments for optimizer
     optimizer: adam
     actor_lr: 1.e-4
-    q_lr: 3.e-4
+    q_lr: 1.e-4
     temp_lr: 1.e-4
-    clip_norm: 10
     epsilon: 1.e-5
+    # clip_norm: 10
 
     # arguments for PER
     per_alpha: 0.5

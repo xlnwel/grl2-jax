@@ -56,6 +56,7 @@ class Timer:
 
 class TBTimer:
     aggregators = defaultdict(Aggregator)
+    steps = defaultdict(int)
 
     def __init__(self, summary_name, period=1, to_log=True):
         self.to_log = to_log
@@ -72,10 +73,12 @@ class TBTimer:
         if self.to_log:
             duration = time() - self.start
             aggregator = self.aggregators[self.summary_name]
+            step = self.steps[self.summary_name]
             aggregator.add(duration)
             if aggregator.count >= self.period:
-                tf.summary.scalar(f'timer/{self.summary_name}', aggregator.average())
+                tf.summary.scalar(f'timer/{self.summary_name}', aggregator.average(), step=step)
                 aggregator.reset()
+                self.steps[self.summary_name] += 1
 
 class LoggerTimer:
     def __init__(self, logger, summary_name, to_log=True):

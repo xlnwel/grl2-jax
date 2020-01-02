@@ -17,7 +17,6 @@ class SoftPolicy(tf.Module):
 
         # network parameters
         self.is_action_discrete = is_action_discrete
-        units_list = config['units_list']
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
@@ -27,46 +26,46 @@ class SoftPolicy(tf.Module):
         self.LOG_STD_MAX = config.get('LOG_STD_MAX', 2)
         
         """ Network definition """
-        self.intra_layers = mlp(units_list, 
-                                        norm=norm, 
-                                        activation=activation, 
-                                        kernel_initializer=kernel_initializer)
+        self.intra_layers = mlp(config['units_list'], 
+                                norm=norm, 
+                                activation=activation, 
+                                kernel_initializer=kernel_initializer)
 
         if is_action_discrete:
-            self.logits = mlp([],
+            self.logits = mlp(config.get('logits_units', []),
                             out_dim=action_dim, 
                             norm=norm, 
                             activation=activation, 
                             kernel_initializer=kernel_initializer, 
                             name='logits')
-            self.tau = tf.Variable(1., dtype=tf.float32, name='softmax_tau')
+            self.tau = 1    # tf.Variable(1., dtype=tf.float32, name='softmax_tau')
         else:
-            self.mu = mlp([],
+            self.mu = mlp(config.get('mu_units', []),
                         out_dim=action_dim, 
                         norm=norm, 
                         activation=activation, 
                         kernel_initializer=kernel_initializer, 
                         name='mu')
-            self.logstd = mlp([],
+            self.logstd = mlp(config.get('logstd_units', []),
                         out_dim=action_dim, 
                         norm=norm, 
                         activation=activation, 
                         kernel_initializer=kernel_initializer, 
                         name='logstd')
         
-        self.action_repetition = mlp([64], out_dim=self.max_ar, name='ar')
-        self.ar_tau = tf.Variable(1., dtype=tf.float32, name='ar_softmax_tau')
+        self.action_repetition = mlp(config.get('ar_units', []), out_dim=self.max_ar, name='ar')
+        self.ar_tau = 1 # tf.Variable(1., dtype=tf.float32, name='ar_softmax_tau')
 
         # action distribution type
         self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
 
         # build for variable initialization
-        TensorSpecs = [(state_shape, tf.float32, 'state')]
-        self.action = build(self._action, TensorSpecs)
-        self.det_action = build(self._det_action, TensorSpecs)
+        # TensorSpecs = [(state_shape, tf.float32, 'state')]
+        # self.action = build(self._action, TensorSpecs)
+        # self.det_action = build(self._det_action, TensorSpecs)
 
     @tf.function(experimental_relax_shapes=True)
-    def _action(self, x):
+    def action(self, x):
         with tf.name_scope('action'):
             action_distribution, _, _ = self._action_distribution(x)
 
@@ -85,7 +84,7 @@ class SoftPolicy(tf.Module):
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
-    def _det_action(self, x):
+    def det_action(self, x):
         with tf.name_scope('det_action'):
             y = self.intra_layers(x)
 
@@ -115,14 +114,14 @@ class SoftPolicy(tf.Module):
             
             ar_logits = self.action_repetition(tf.concat([x, tf.stop_gradient(action)], axis=-1))
             ar_distribution = Categorical(ar_logits, self.ar_tau)
-            n = ar_distribution.sample(one_hot=False)
+            n = ar_distribution.sample(reparameterize=True)
 
         return action, n
 
     @tf.Module.with_name_scope
     def train_step(self, x):
         with tf.name_scope('train_step'):
-            action_distribution, _, std = self._action_distribution(x)
+            action_distribution, _, terms = self._action_distribution(x)
 
             if self.is_action_discrete:
                 action = action_distribution.sample(reparameterize=True, hard=True)
@@ -133,15 +132,14 @@ class SoftPolicy(tf.Module):
                 action = tf.tanh(raw_action)
                 logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
-            # TODO: stop gradient to action
             ar_logits = self.action_repetition(tf.concat([x, tf.stop_gradient(action)], axis=-1))
             ar_distribution = Categorical(ar_logits, self.ar_tau)
             n = ar_distribution.sample(reparameterize=True, hard=True)
             ar_logpi = ar_distribution.logp(n)
 
-            entropy = action_distribution.entropy()
+            terms['entropy'] = action_distribution.entropy()
 
-        return action, n, logpi, ar_logpi, entropy, std
+        return action, n, logpi, ar_logpi, terms
 
     def _action_distribution(self, x):
         x = self.intra_layers(x)
@@ -156,7 +154,8 @@ class SoftPolicy(tf.Module):
 
             action_distribution = self.ActionDistributionType(mu, logstd)
 
-        return action_distribution, x, None if self.is_action_discrete else action_distribution.std
+        terms = dict(action_tau=self.tau) if self.is_action_discrete else dict(std=action_distribution.std)
+        return action_distribution, x, terms
 
     def get_weights(self):
         return [v.numpy() for v in self.variables]

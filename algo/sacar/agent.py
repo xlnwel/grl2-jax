@@ -94,7 +94,7 @@ class Agent(BaseAgent):
         else:
             with tf.name_scope('temp_update'):
                 temp_grads, temp_terms = self._compute_temp_grads(state, IS_ratio)
-                if hasattr(self, 'clip_norm'):
+                if getattr(self, 'clip_norm', None):
                     temp_grads, temp_norm = tf.clip_by_global_norm(temp_grads, self.clip_norm)
                     temp_terms['temp_norm'] = temp_norm
                 self.temp_opt.apply_gradients(zip(temp_grads, self.temperature.trainable_variables))
@@ -102,7 +102,7 @@ class Agent(BaseAgent):
 
         with tf.name_scope('actor_update'):
             actor_grads, actor_terms = self._compute_actor_grads(state, IS_ratio)
-            if hasattr(self, 'clip_norm'):
+            if getattr(self, 'clip_norm', None):
                 actor_grads, actor_norm = tf.clip_by_global_norm(actor_grads, self.clip_norm)
                 actor_terms['actor_norm'] = actor_norm
             self.actor_opt.apply_gradients(zip(actor_grads, self.actor.trainable_variables))
@@ -112,7 +112,7 @@ class Agent(BaseAgent):
             q_grads, q_terms = self._compute_q_grads(
                 state, action, n_ar, reward, next_state,  
                 done, steps, IS_ratio)
-            if hasattr(self, 'clip_norm'):
+            if getattr(self, 'clip_norm', None):
                 q_grads, q_norm = tf.clip_by_global_norm(q_grads, self.clip_norm)
                 q_terms['q_norm'] = q_norm
             self.q_opt.apply_gradients(
@@ -126,7 +126,7 @@ class Agent(BaseAgent):
     def _compute_temp_grads(self, state, IS_ratio):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
         with tf.GradientTape() as tape:
-            action, n_ar, logpi, ar_logpi, _, _ = self.actor.train_step(state)
+            action, n_ar, logpi, ar_logpi, _ = self.actor.train_step(state)
             log_temp, temp = self.temperature.train_step(state, action, n_ar)
 
             with tf.name_scope('temp_loss'):
@@ -143,7 +143,7 @@ class Agent(BaseAgent):
 
     def _compute_actor_grads(self, state, IS_ratio):
         with tf.GradientTape() as tape:
-            action, n_ar, logpi, ar_logpi, entropy, std = self.actor.train_step(state)
+            action, n_ar, logpi, ar_logpi, terms = self.actor.train_step(state)
             if isinstance(self.temperature, float):
                 temp = self.temperature
             else:
@@ -157,15 +157,13 @@ class Agent(BaseAgent):
         with tf.name_scope('actor_grads'):
             actor_grads = tape.gradient(actor_loss, self.actor.trainable_variables)
 
-        return actor_grads, dict(
-            entropy=entropy, 
-            actor_std=std,
-            actor_loss=actor_loss, 
-        )
+        terms['actor_loss'] = actor_loss
+
+        return actor_grads, terms
 
     def _compute_q_grads(self, state, action, n_ar, reward, next_state, done, steps, IS_ratio):
         with tf.GradientTape() as tape:
-            next_action, next_n_ar, next_logpi, next_ar_logpi, _, _ = self.actor.train_step(next_state)
+            next_action, next_n_ar, next_logpi, next_ar_logpi, _ = self.actor.train_step(next_state)
             next_q1_with_actor = self.target_q1.train_value(next_state, next_action, next_n_ar)
             next_q2_with_actor = self.target_q2.train_value(next_state, next_action, next_n_ar)
             next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
@@ -176,6 +174,7 @@ class Agent(BaseAgent):
         
             q1 = self.q1.train_value(state, action, n_ar)
             q2 = self.q2.train_value(state, action, n_ar)
+
             with tf.name_scope('q_loss'):
                 nth_value = tf.subtract(
                     next_q_with_actor, next_temp * (next_logpi + next_ar_logpi), name='nth_value')

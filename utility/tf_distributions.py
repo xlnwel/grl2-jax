@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 
 EPSILON = 1e-7
 
@@ -51,7 +52,7 @@ class Categorical(Distribution):
         self.tau = tau  # tau in Gumbel-Softmax
 
     def _neglogp(self, x):
-        if len(x.shape) == len(self.logits.shape) and x.shape[-1] != 1:
+        if len(x.shape) == len(self.logits.shape) and x.shape[-1] == self.logits.shape[-1]:
             # when x is one-hot encoded
             return tf.nn.softmax_cross_entropy_with_logits(labels=x, logits=self.logits)[..., None]
         else:
@@ -65,24 +66,25 @@ class Categorical(Distribution):
         """
         if reparameterize:
             # sample Gumbel(0, 1)
-            U = tf.random.uniform(tf.shape(self.logits), minval=0, maxval=1)
-            g = -tf.math.log(-tf.math.log(U+EPSILON)+EPSILON)
-            # g = tfp.distributions.Gumbel(0, 1).sample(self.logits.shape)
+            # U = tf.random.uniform(tf.shape(self.logits), minval=0, maxval=1)
+            # g = -tf.math.log(-tf.math.log(U+EPSILON)+EPSILON)
+            g = tfp.distributions.Gumbel(0, 1).sample(tf.shape(self.logits))
             # Draw a sample from the Gumbel-Softmax distribution
             y = tf.nn.softmax((self.logits + g) / self.tau)
             # draw one-hot encoded sample from the softmax
-            if hard:
+            if not one_hot:
+                y = tf.argmax(y, -1)
+            elif hard:
                 y_hard = tf.one_hot(tf.argmax(y, -1), self.logits.shape[-1])
                 y = tf.stop_gradient(y_hard - y) + y
             assert len(y.shape) == len(self.logits.shape)
-            if not one_hot:
-                y = tf.argmax(y, -1)
         else:
-            y = tf.random.categorical(self.logits, 1, dtype=tf.int32)
-            y = tf.squeeze(y, -1)
+            y = tfp.distributions.Categorical(self.logits).sample()
             assert len(y.shape) == len(self.logits.shape) - 1
             if one_hot:
                 y = tf.one_hot(y, self.logits.shape[-1])
+                assert len(y.shape) == len(self.logits.shape)
+                assert y.shape[-1] == self.logits.shape[-1]
 
         return y
 
