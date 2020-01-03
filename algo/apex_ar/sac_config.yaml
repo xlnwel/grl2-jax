@@ -8,7 +8,7 @@ env:
     seed: 0
 model:
     actor:
-        max_ar: 5
+        max_ar: 10
         units_list: [512, 256]
         ar_units: [128]
     q:
