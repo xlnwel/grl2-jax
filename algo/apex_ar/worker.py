@@ -13,7 +13,6 @@ from algo.apex_ar.base_worker import BaseWorker
 
 
 LOG_STEPS = 10000
-TO_LOG = True
 
 @ray.remote#(num_cpus=1)
 class Worker(BaseWorker):
@@ -55,13 +54,13 @@ class Worker(BaseWorker):
         step = 0
         while step < self.MAX_STEPS:
             self.set_summary_step(step)
-            with TBTimer(f'{self.name} pull weights', self.TIME_PERIOD, to_log=TO_LOG):
+            with TBTimer(f'{self.name} pull weights', self.TIME_PERIOD, to_log=self.timer):
                 weights = self.pull_weights(learner)
 
-            with TBTimer(f'{self.name} eval model', self.TIME_PERIOD, to_log=TO_LOG):
+            with TBTimer(f'{self.name} eval model', self.TIME_PERIOD, to_log=self.timer):
                 step, _, _ = self.eval_model(weights, step, replay)
 
-            with TBTimer(f'{self.name} send data', self.TIME_PERIOD, to_log=TO_LOG):
+            with TBTimer(f'{self.name} send data', self.TIME_PERIOD, to_log=self.timer):
                 self._send_data(replay)
 
             self._periodic_logging(step)
@@ -70,7 +69,7 @@ class Worker(BaseWorker):
         """ sends data to replay """
         mask, data = self.buffer.sample()
         data_tesnors = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-        if not self.replay_type.endswith('uniform')
+        if not self.replay_type.endswith('uniform'):
             data['priority'] = self.compute_priorities(**data_tesnors).numpy()
         
         # squeeze since many terms in data is of shape [None, 1]
@@ -98,10 +97,9 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     config['TIME_PERIOD'] = 1000
     config['LOG_STEPS'] = 10000
     config['MAX_STEPS'] = int(1e8)
-    config['max_ar'] = model_config['actor']['max_ar']
     config['replay_type'] = buffer_config['type']
+    config['max_ar'] = model_config['actor']['max_ar']
 
-    name = f'{name}_{worker_id}'
     worker = Worker.remote(name, worker_id, model_fn, buffer_fn, config, 
                         model_config, env_config, buffer_config)
 

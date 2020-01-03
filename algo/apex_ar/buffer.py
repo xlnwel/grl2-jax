@@ -49,6 +49,7 @@ class EnvBuffer(LocalBuffer):
     def sample(self):
         state = self.memory['state']
         action = self.memory['action']
+        n_ar = self.memory['n_ar']
         reward = np.copy(self.memory['reward'])
         done = self.memory['done']
         steps = self.memory['steps']
@@ -72,6 +73,7 @@ class EnvBuffer(LocalBuffer):
         return dict(
             state=state.astype(np.float32),
             action=action,
+            n_ar=n_ar,
             reward=np.expand_dims(reward, -1).astype(np.float32), 
             done=np.expand_dims(done, -1).astype(np.float32),
             steps=np.expand_dims(steps, -1).astype(np.float32),
@@ -81,12 +83,12 @@ class EnvBuffer(LocalBuffer):
     def reset(self):
         self.idx = 0
         
-    def add_data(self, state, action, reward, done, next_state):
+    def add_data(self, state, action, n_ar, reward, done, next_state):
         """ Add experience to local memory, 
         next_state and mask here are only for interface consistency 
         """
         add_buffer(self.memory, self.idx, self.n_steps, self.gamma, 
-                    state=state, action=action, reward=reward,
+                    state=state, action=action, n_ar=n_ar, reward=reward,
                     done=done, next_state=next_state)
         self.idx = self.idx + 1
 
@@ -103,6 +105,7 @@ class EnvVecBuffer:
         self.memory = dict(
             state=np.ndarray((n_envs, seqlen), dtype=object),
             action=np.ndarray((n_envs, seqlen), dtype=object),
+            n_ar=np.ndarray((n_envs, seqlen), dtype=np.uint8),
             reward=np.ndarray((n_envs, seqlen), dtype=np.float32),
             done=np.zeros((n_envs, seqlen), dtype=np.bool),
             steps=np.zeros((n_envs, seqlen), dtype=np.uint8),
@@ -124,6 +127,7 @@ class EnvVecBuffer:
     def sample(self):
         state = self.memory['state']
         action = self.memory['action']
+        n_ar = self.memory['n_ar']
         reward = np.copy(self.memory['reward'])
         done = self.memory['done']
         steps = self.memory['steps']
@@ -132,6 +136,7 @@ class EnvVecBuffer:
             
         state = np.stack(state[mask])
         action = np.stack(action[mask])
+        n_ar = n_ar[mask]
         reward = reward[mask]
         done = done[mask]
         steps = steps[mask]
@@ -155,6 +160,7 @@ class EnvVecBuffer:
         return mask, dict(
             state=state.astype(np.float32),
             action=action,
+            n_ar=n_ar,
             reward=np.expand_dims(reward, -1).astype(np.float32), 
             done=np.expand_dims(done, -1).astype(np.float32),
             steps=np.expand_dims(steps, -1).astype(np.float32),
@@ -165,13 +171,14 @@ class EnvVecBuffer:
         self.idx = 0
         self.memory['mask'] = np.zeros_like(self.memory['mask'], dtype=np.bool)
         
-    def add_data(self, state, action, reward, done, next_state, mask, env_ids=None):
+    def add_data(self, state, action, n_ar, reward, done, next_state, mask, env_ids=None):
         """ Add experience to local memory """
         env_ids = env_ids or range(self.n_envs)
         idx = self.idx
         for i, env_id in enumerate(env_ids):
             self.memory['state'][env_id, idx] = state[i]
             self.memory['action'][env_id, idx] = action[i]
+            self.memory['n_ar'][env_id, idx] = n_ar[i]
             self.memory['reward'][env_id, idx] = reward[i]
             self.memory['done'][env_id, idx] = done[i]
             self.memory['steps'][env_id, idx] = 1

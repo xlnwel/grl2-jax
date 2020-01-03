@@ -4,7 +4,7 @@ import tensorflow as tf
 from utility.display import pwc
 from utility.rl_utils import n_step_target, transformed_n_step_target
 from utility.schedule import TFPiecewiseSchedule
-from utility.timer import Timer
+from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
@@ -69,7 +69,7 @@ class Agent(BaseAgent):
     def learn_log(self, step=None):
         if step:
             self.global_steps.assign(step)
-        with Timer(f'{self.model_name}: sample', 10000):
+        with TBTimer(f'{self.model_name}: sample', 10000, to_log=self.timer):
             data = self.dataset.sample()
         if not self.dataset.buffer_type().endswith('uniform'):
             saved_indices = data['saved_indices']

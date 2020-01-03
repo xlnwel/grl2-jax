@@ -11,8 +11,8 @@ from algo.apex_ar.worker import create_worker
 def import_agent(config):
     algo = config['algorithm']
     if algo.endswith('sac'):
-        from algo.sac.nn import create_model
-        from algo.sac.agent import Agent
+        from algo.sacar.nn import create_model
+        from algo.sacar.agent import Agent
     elif algo.endswith('dqn'):
         from algo.d3qn.nn import create_model
         from algo.d3qn.agent import Agent
@@ -29,7 +29,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     env_config_copy['n_workers'] = env_config_copy['n_envs'] = 1
     env = create_gym_env(env_config)
 
-    replay_keys = ['state', 'action', 'reward', 'done', 'steps']
+    replay_keys = ['state', 'action', 'n_ar', 'reward', 'done', 'steps']
     replay = create_replay_center(replay_config, *replay_keys, state_shape=env.state_shape)
     env.close()
 

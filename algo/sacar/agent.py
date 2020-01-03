@@ -3,8 +3,8 @@ import tensorflow as tf
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target, transformed_n_step_target
-from utility.schedule import TFPiecewiseSchedule
-from utility.timer import Timer
+from utility.schedule import PiecewiseSchedule
+from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
@@ -30,10 +30,12 @@ class Agent(BaseAgent):
         else:
             raise NotImplementedError()
         if getattr(self, 'schedule_lr', False):
-            self.actor_lr = TFPiecewiseSchedule(
-                [(5e5, self.actor_lr), (1.5e6, 1e-5)])
-            self.q_lr = TFPiecewiseSchedule(
-                [(5e5, self.q_lr), (1.5e6, 3e-5)])
+            self.actor_lr = tf.Variable(self.learning_rate, trainable=False)
+            self.actor_schedule = PiecewiseSchedule(
+                [(1e5, self.actor_lr), (5e5, 1e-5)])
+            self.q_lr = tf.Variable(self.learning_rate, trainable=False)
+            self.q_schedule = PiecewiseSchedule(
+                [(1e5, self.q_lr), (5e5, 3e-5)])
 
         self.actor_opt = Optimizer(learning_rate=self.actor_lr,
                                     epsilon=self.epsilon)
@@ -70,13 +72,20 @@ class Agent(BaseAgent):
     def learn_log(self, step=None):
         if step:
             self.global_steps.assign(step)
-        with Timer(f'{self.model_name}: sample', 10000):
+        if self.schedule_lr:
+            self.actor_lr.assign(self.actor_schedule.value(self.global_steps.numpy()))
+            self.q_lr.assign(self.q_schedule.value(self.global_steps.numpy()))
+        with TBTimer(f'{self.model_name} sample', 10000):
             data = self.dataset.sample()
         if not self.dataset.buffer_type().endswith('uniform'):
             saved_indices = data['saved_indices']
             del data['saved_indices']
 
         terms = self.learn(**data)
+
+        if self.schedule_lr:
+            terms['actor_lr'] = self.actor_lr.numpy()
+            terms['q_lr'] = self.q_lr.numpy()
 
         if not self.dataset.buffer_type().endswith('uniform'):
             self.dataset.update_priorities(terms['priority'].numpy(), saved_indices.numpy())

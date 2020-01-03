@@ -12,8 +12,6 @@ from env.gym_env import create_gym_env
 from algo.sacar.replay.data_pipline import RayDataset
 
 
-TO_LOG = True
-
 def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_config, replay_config):
     @ray.remote#(num_cpus=2)
     class Learner(BaseAgent):
@@ -54,7 +52,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             self.writer.set_as_default()
             while True:
                 step += 1
-                with TBTimer(f'{self.name} train', 10000, to_log=TOLOG):
+                with TBTimer(f'{self.name} train', 10000, to_log=self.to_log):
                     self.learn_log()
                 if step % 1000 == 0:
                     self.log(step, print_terminal_info=False)
@@ -66,6 +64,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
     replay_config = replay_config.copy()
     
     config['model_name'] = 'learner'
+    config['max_ar'] = model_config['actor']['max_ar']
     # learner only define a env to get necessary env info, 
     # it does not actually interact with env
     env_config['n_workers'] = env_config['n_envs'] = 1

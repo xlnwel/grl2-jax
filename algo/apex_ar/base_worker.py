@@ -50,7 +50,7 @@ class BaseWorker(BaseAgent):
         TensorSpecs = [
             (env.state_shape, tf.float32, 'state'),
             (env.action_shape, env.action_dtype, 'action'),
-            ([self.max_ar], tf.float32, 'n_ar')
+            ([self.max_ar], tf.float32, 'n_ar'),
             ([1], tf.float32, 'reward'),
             (env.state_shape, tf.float32, 'next_state'),
             ([1], tf.float32, 'done'),
@@ -64,11 +64,11 @@ class BaseWorker(BaseAgent):
         """ collects data, logs stats, and saves models """
         def collect_fn(**kwargs):
             self.buffer.add_data(**kwargs)
-            agent.store(**dict([(f'ar_{i+1}', np.sum(n_ar[mask]==i)) for i in range(agent.max_ar)]))
+            self.store(**dict([(f'ar_{i+1}', np.sum(kwargs['n_ar'][kwargs['mask']]==i)) for i in range(self.max_ar)]))
 
         self.model.set_weights(weights)
 
-        with TBTimer(f'{self.name} -- eval model', self.TIME_PERIOD):
+        with TBTimer(f'{self.name} -- eval model', self.TIME_PERIOD, to_log=self.timer):
             scores, epslens = run(self.env, self.actor, fn=collect_fn)
             step += np.sum(epslens)
             if scores is not None:
@@ -83,7 +83,7 @@ class BaseWorker(BaseAgent):
 
     def pull_weights(self, learner):
         """ pulls weights from learner """
-        with TBTimer(f'{self.name} pull weights', self.TIME_PERIOD):
+        with TBTimer(f'{self.name} pull weights', self.TIME_PERIOD, to_log=self.timer):
             return ray.get(learner.get_weights.remote(name=['actor', 'q1', 'target_q1']))
 
     @tf.function

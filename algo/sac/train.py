@@ -16,7 +16,6 @@ from algo.sac.nn import create_model
 
 
 LOG_INTERVAL = 1000
-TO_LOG = True
 
 def train(agent, env, replay):
     def collect_and_learn(state, action, reward, done, next_state, **kwargs):
@@ -40,8 +39,8 @@ def train(agent, env, replay):
     log_step = LOG_INTERVAL
     while step < int(agent.max_steps):
         agent.set_summary_step(step)
-        with TBTimer(f'trajectory', agent.LOG_INTERVAL, to_log=TO_LOG):
-            score, epslen = run(env, agent.actor, fn=collect_and_learn, timer=TO_LOG)
+        with TBTimer(f'trajectory', agent.LOG_INTERVAL, to_log=agent.timer):
+            score, epslen = run(env, agent.actor, fn=collect_and_learn, timer=agent.timer)
         step += epslen
         scores.append(score)
         epslens.append(epslen)
@@ -50,8 +49,8 @@ def train(agent, env, replay):
             log_step += LOG_INTERVAL
             agent.save(steps=step)
 
-            with TBTimer(f'evaluation', to_log=TO_LOG):
-                eval_scores, eval_epslens = run(eval_env, agent.actor, evaluation=True, timer=TO_LOG, name='eval')
+            with TBTimer(f'evaluation', to_log=agent.timer):
+                eval_scores, eval_epslens = run(eval_env, agent.actor, evaluation=True, timer=agent.timer, name='eval')
             agent.store(
                 score=np.mean(eval_scores),
                 score_std=np.std(eval_scores),

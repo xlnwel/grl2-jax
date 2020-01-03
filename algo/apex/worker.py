@@ -6,7 +6,7 @@ import ray
 from core import tf_config
 from core.ensemble import Ensemble
 from utility.display import pwc
-from utility.timer import Timer, TBTimer
+from utility.timer import TBTimer, TBTimer
 from env.gym_env import create_gym_env
 from algo.apex.buffer import create_local_buffer
 from algo.apex.base_worker import BaseWorker
@@ -54,13 +54,13 @@ class Worker(BaseWorker):
         step = 0
         while step < self.MAX_STEPS:
             self.set_summary_step(step)
-            with Timer(f'{self.name} pull weights', self.TIME_PERIOD):
+            with TBTimer(f'{self.name} pull weights', self.TIME_PERIOD, to_log=self.timer):
                 weights = self.pull_weights(learner)
 
-            with TBTimer(f'{self.name} eval model', self.TIME_PERIOD):
+            with TBTimer(f'{self.name} eval model', self.TIME_PERIOD, to_log=self.timer):
                 step, _, _ = self.eval_model(weights, step, replay)
 
-            with Timer(f'{self.name} send data', self.TIME_PERIOD):
+            with TBTimer(f'{self.name} send data', self.TIME_PERIOD, to_log=self.timer):
                 self._send_data(replay)
 
             self._periodic_logging(step)
@@ -69,7 +69,8 @@ class Worker(BaseWorker):
         """ sends data to replay """
         mask, data = self.buffer.sample()
         data_tesnors = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-        data['priority'] = self.compute_priorities(**data_tesnors).numpy()
+        if not self.replay_type.endswith('uniform'):
+            data['priority'] = self.compute_priorities(**data_tesnors).numpy()
         
         # squeeze since many terms in data is of shape [None, 1]
         for k, v in data.items():
@@ -96,8 +97,8 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     config['TIME_PERIOD'] = 1000
     config['LOG_STEPS'] = 10000
     config['MAX_STEPS'] = int(1e8)
+    config['replay_type'] = buffer_config['type']
 
-    name = f'{name}_{worker_id}'
     worker = Worker.remote(name, worker_id, model_fn, buffer_fn, config, 
                         model_config, env_config, buffer_config)
 
