@@ -7,7 +7,7 @@ import ray
 from core.ensemble import Ensemble
 from core.tf_config import configure_gpu, configure_threads
 from utility.display import pwc
-from utility.timer import Timer
+from utility.timer import TBTimer
 from env.gym_env import create_gym_env
 from replay.data_pipline import RayDataset
 
@@ -52,7 +52,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             self.writer.set_as_default()
             while True:
                 step += 1
-                with Timer(f'{self.name} train', 10000):
+                with TBTimer(f'{self.name} train', 10000, to_log=self.timer):
                     self.learn_log()
                 if step % 1000 == 0:
                     self.log(step, print_terminal_info=False)

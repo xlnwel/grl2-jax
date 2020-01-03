@@ -42,6 +42,8 @@ agent:
     epsilon: 1.e-5
     # clip_norm: 10
 
+    timer: True
+    
     # arguments for PER
     per_alpha: 0.5
     per_epsilon: 1.e-4

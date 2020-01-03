@@ -30,12 +30,12 @@ class Agent(BaseAgent):
         else:
             raise NotImplementedError()
         if getattr(self, 'schedule_lr', False):
-            self.actor_lr = tf.Variable(self.learning_rate, trainable=False)
             self.actor_schedule = PiecewiseSchedule(
                 [(1e5, self.actor_lr), (5e5, 1e-5)])
-            self.q_lr = tf.Variable(self.learning_rate, trainable=False)
             self.q_schedule = PiecewiseSchedule(
                 [(1e5, self.q_lr), (5e5, 3e-5)])
+            self.actor_lr = tf.Variable(self.actor_lr, trainable=False)
+            self.q_lr = tf.Variable(self.q_lr, trainable=False)
 
         self.actor_opt = Optimizer(learning_rate=self.actor_lr,
                                     epsilon=self.epsilon)
@@ -45,8 +45,9 @@ class Agent(BaseAgent):
         self.ckpt_models['q_opt'] = self.q_opt
         if not isinstance(self.temperature, float):
             if getattr(self, 'schedule_lr', False):
-                self.temp_lr = TFPiecewiseSchedule(
+                self.temp_schedule = PiecewiseSchedule(
                     [(5e5, self.temp_lr), (1.5e6, 1e-5)])
+                self.temp_lr = tf.Variable(self.temp_lr, trainable=False)
             self.temp_opt = Optimizer(learning_rate=self.temp_lr,
                                     epsilon=self.epsilon)
             self.ckpt_models['temp_opt'] = self.temp_opt

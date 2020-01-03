@@ -52,7 +52,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             self.writer.set_as_default()
             while True:
                 step += 1
-                with TBTimer(f'{self.name} train', 10000, to_log=self.to_log):
+                with TBTimer(f'{self.name} train', 10000, to_log=self.timer):
                     self.learn_log()
                 if step % 1000 == 0:
                     self.log(step, print_terminal_info=False)

@@ -10,7 +10,6 @@ model:
     actor:
         max_ar: 5
         units_list: [512, 256]
-        logits_units: []
         ar_units: [128]
     q:
         units_list: [512, 256, 256]
