@@ -47,7 +47,6 @@ class Worker(BaseWorker):
             buffer=buffer,
             actor=models['actor'],
             value=models['q1'],
-            target_value=models['target_q1'],
             config=config)
 
     def run(self, learner, replay):
@@ -91,7 +90,7 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     buffer_config['n_envs'] = env_config.get('n_envs', 1)
     buffer_fn = create_local_buffer
 
-    env_config['seed'] = 100 * worker_id
+    env_config['seed'] = worker_id
     
     config['model_name'] = f'worker_{worker_id}'
     config['TIME_PERIOD'] = 1000

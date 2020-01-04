@@ -6,7 +6,7 @@ import ray
 from core import tf_config
 from core.ensemble import Ensemble
 from utility.display import pwc
-from utility.timer import TBTimer, TBTimer
+from utility.timer import TBTimer
 from env.gym_env import create_gym_env
 from algo.apex.buffer import create_local_buffer
 from algo.apex.base_worker import BaseWorker
@@ -47,7 +47,6 @@ class Worker(BaseWorker):
             buffer=buffer,
             actor=models['actor'],
             value=models['q1'],
-            target_value=models['target_q1'],
             config=config)
 
     def run(self, learner, replay):
@@ -91,12 +90,12 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     buffer_config['n_envs'] = env_config.get('n_envs', 1)
     buffer_fn = create_local_buffer
 
-    env_config['seed'] = 100 * worker_id
+    env_config['seed'] = worker_id
     
     config['model_name'] = f'worker_{worker_id}'
     config['TIME_PERIOD'] = 1000
-    config['LOG_STEPS'] = 10000
-    config['MAX_STEPS'] = int(3e7)
+    config['LOG_STEPS'] = 1e5
+    config['MAX_STEPS'] = int(1e8)
     config['replay_type'] = buffer_config['type']
 
     worker = Worker.remote(name, worker_id, model_fn, buffer_fn, config, 

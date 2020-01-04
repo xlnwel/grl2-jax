@@ -10,7 +10,7 @@ def init_buffer(buffer, *keys, capacity=0, state_shape=None):
 def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
     for k in buffer.keys():
         if k == 'steps':
-            buffer[k][idx] = kwargs['n_ar']
+            buffer[k][idx] = 1#kwargs['n_ar']
         else:
             buffer[k][idx] = kwargs[k]
 
@@ -21,7 +21,7 @@ def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
             break
         buffer['reward'][k] += gamma**i * kwargs['reward']
         buffer['done'][k] = kwargs['done']
-        buffer['steps'][k] += kwargs['n_ar']
+        buffer['steps'][k] += 1#kwargs['n_ar']
         if 'next_state' in buffer:
             buffer['next_state'][k] = kwargs['next_state']
 

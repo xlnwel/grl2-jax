@@ -12,9 +12,9 @@ model:
         units_list: [512, 256, 256]
     temperature:
         temp_type: 'state-action'
-        value: 0.1
+        value: .2
 agent:
-    algorithm: &algo apex-sac
+    algorithm: &algo apex-es-sac
     gamma: &gamma 0.99
     polyak: .995                            # moving average rate
     # target_entropy: -4

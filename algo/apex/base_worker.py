@@ -26,7 +26,6 @@ class BaseWorker(BaseAgent):
                 buffer,
                 actor,
                 value,
-                target_value,
                 config):        
         self.id = worker_id
 
@@ -37,7 +36,6 @@ class BaseWorker(BaseAgent):
         self.model = models
         self.actor = actor
         self.value = value
-        self.target_value = target_value
 
         self.buffer = buffer
 
@@ -82,14 +80,14 @@ class BaseWorker(BaseAgent):
     def pull_weights(self, learner):
         """ pulls weights from learner """
         with TBTimer(f'{self.name} pull weights', self.TIME_PERIOD, to_log=self.timer):
-            return ray.get(learner.get_weights.remote(name=['actor', 'q1', 'target_q1']))
+            return ray.get(learner.get_weights.remote(name=['actor', 'q1']))
 
     @tf.function
     def _compute_priorities(self, state, action, reward, next_state, done, steps):
         gamma = self.buffer.gamma
         value = self.value.train_value(state, action)
         next_action = self.actor.train_action(next_state)
-        next_value = self.target_value.train_value(next_state, next_action)
+        next_value = self.value.train_value(next_state, next_action)
         
         target_value = n_step_target(reward, done, next_value, gamma, steps)
         

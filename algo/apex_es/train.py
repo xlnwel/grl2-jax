@@ -4,8 +4,8 @@ import ray
 from utility.signal import sigint_shutdown_ray
 from env.gym_env import create_gym_env
 from replay.func import create_replay_center
-from algo.apex.learner import create_learner
-from algo.apex.worker import create_worker
+from algo.apex_es.learner import create_learner
+from algo.apex_es.worker import create_worker
 
 
 def import_agent(config):
@@ -22,7 +22,7 @@ def import_agent(config):
     return create_model, Agent
 
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
-    ray.init(memory=8*1024**3, object_store_memory=4*1024**3, num_cpus=6)
+    ray.init(memory=8*1024**3, object_store_memory=4*1024**3)
     sigint_shutdown_ray()
 
     env_config_copy = env_config.copy()
