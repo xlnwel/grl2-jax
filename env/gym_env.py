@@ -6,7 +6,7 @@ import ray
 
 from utility import tf_distributions
 from utility.display import pwc
-from utility.utils import to_int
+from utility.utils import isscalar
 from utility.timer import Timer
 from env.wrappers import *
 from env.deepmind_wrappers import make_deepmind_env
@@ -242,6 +242,9 @@ def _make_env(config):
     
 def _envvec_step(envvec, actions, **kwargs):
     if kwargs:
+        for k, v in kwargs.items():
+            if isscalar(v):
+                kwargs[k] = np.tile(v, actions.shape[0])
         kwargs = [dict(v) for v in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
         return list(zip(*[env.step(a, **kw) for env, a, kw in zip(envvec, actions, kwargs)]))
     else:

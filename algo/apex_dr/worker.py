@@ -123,6 +123,8 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     env_config = env_config.copy()
     buffer_config = buffer_config.copy()
 
+    model_config['actor']['gamma'] = config['gamma']
+
     buffer_config['n_envs'] = env_config.get('n_envs', 1)
     buffer_fn = create_local_buffer
 

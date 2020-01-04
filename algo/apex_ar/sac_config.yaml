@@ -23,7 +23,7 @@ agent:
     # target_entropy: -4
     
     # distributed algo params
-    n_workers: 8
+    n_workers: 4
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -62,7 +62,7 @@ replay:
     reward_clip: 10
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: 1
     gamma: *gamma
     batch_size: 256
     min_size: 5e4

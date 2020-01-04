@@ -181,7 +181,7 @@ class EnvVecBuffer:
             self.memory['n_ar'][env_id, idx] = n_ar[i]
             self.memory['reward'][env_id, idx] = reward[i]
             self.memory['done'][env_id, idx] = done[i]
-            self.memory['steps'][env_id, idx] = 1
+            self.memory['steps'][env_id, idx] = n_ar[i]
             self.memory['mask'][env_id, idx] = mask[i]
             self.memory['next_state'][env_id, idx] = next_state[i]
             # Update previous experience if multi-step is required
@@ -192,7 +192,7 @@ class EnvVecBuffer:
                     break
                 self.memory['reward'][i, k] += self.gamma**i * reward[i]
                 self.memory['done'][i, k] = done[i]
-                self.memory['steps'][i, k] += 1
+                self.memory['steps'][i, k] += n_ar[i]
                 self.memory['next_state'][i, k] = next_state[i]
 
         self.idx = self.idx + 1

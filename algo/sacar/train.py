@@ -89,6 +89,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     dataset = Dataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype)
 
     # construct models
+    model_config['actor']['gamma'] = agent_config['gamma']
     models = create_model(
         model_config, 
         state_shape=env.state_shape, 
@@ -113,7 +114,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     if restore:
         agent.restore()
         collect_fn = (
-            lambda state, action, reward, done, next_state, **kwargs: 
+            lambda state, action, n_ar, reward, done, next_state, **kwargs: 
             replay.add(state=state, action=action, 
             reward=reward, done=done, next_state=next_state))        
         while not replay.good_to_learn():

@@ -60,7 +60,7 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
             action = action.numpy()[0]
             n_ar = n_ar.numpy()
             with TBTimer(f'{name} env_step', LOG_INTERVAL, to_log=timer):
-                next_state, reward, done, info = env.step(action, n_ar=n_ar+1)
+                next_state, reward, done, info = env.step(action, n_ar=n_ar+1, gamma=actor.gamma)
             n_ar = info['n_ar'] - 1
             if fn:
                 if step is None:
@@ -96,7 +96,7 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False, timer=False, nam
         with TBTimer(f'{name} agent_step', LOG_INTERVAL, to_log=timer):
             action, n_ar = action_fn(tf.convert_to_tensor(state, tf.float32))
         with TBTimer(f'{name} env_step', LOG_INTERVAL, to_log=timer):
-            next_state, reward, done, info = envvec.step(action.numpy(), n_ar=n_ar.numpy()+1)
+            next_state, reward, done, info = envvec.step(action.numpy(), n_ar=n_ar.numpy()+1, gamma=actor.gamma)
             n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
             fn(state=state, action=action, reward=reward, done=done, 

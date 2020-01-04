@@ -173,7 +173,7 @@ class Agent(BaseAgent):
 
     def _compute_q_grads(self, state, action, n_ar, reward, next_state, done, steps, IS_ratio):
         with tf.GradientTape() as tape:
-            next_action, next_n_ar, next_logpi, next_ar_logpi, _ = self.actor.train_step(next_state)
+            next_action, next_n_ar, next_logpi, next_ar_logpi = self.actor.train_det_step(next_state)
             next_q1_with_actor = self.target_q1.train_value(next_state, next_action, next_n_ar)
             next_q2_with_actor = self.target_q2.train_value(next_state, next_action, next_n_ar)
             next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)

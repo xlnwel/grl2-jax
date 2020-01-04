@@ -14,6 +14,7 @@ class SoftPolicy(tf.Module):
         super().__init__(name=name)
 
         self.max_ar = config['max_ar']
+        self.gamma = config['gamma']
         self.action_dim = action_dim
 
         # network parameters
@@ -65,18 +66,28 @@ class SoftPolicy(tf.Module):
         # self.action = build(self._action, TensorSpecs)
 
     @tf.function(experimental_relax_shapes=True)
-    def action(self, x):
+    @tf.Module.with_name_scope
+    def action(self, state):
+        x = state
         with tf.name_scope('action'):
-            action_distribution, _, _ = self._action_distribution(x)
+            x = self.intra_layers(x)
 
             if self.is_action_discrete:
+                logits = self.logits(x)
+                
+                action_distribution = self.ActionDistributionType(logits, self.tau)
                 action = action_distribution.sample(reparameterize=False, one_hot=False)
                 action_repr = tf.one_hot(action, self.action_dim)
             else:
+                mu = self.mu(x)
+                logstd = self.logstd(x)
+                logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+
+                action_distribution = self.ActionDistributionType(mu, logstd)
                 raw_action = action_distribution.sample()
                 action_repr = action = tf.tanh(raw_action)
 
-            ar_logits = self.action_repetition(tf.concat([x, action_repr], axis=-1))
+            ar_logits = self.action_repetition(tf.concat([state, action_repr], axis=-1))
             ar_distribution = Categorical(ar_logits, self.ar_tau)
             n = ar_distribution.sample(one_hot=False)
 
@@ -84,79 +95,111 @@ class SoftPolicy(tf.Module):
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
-    def det_action(self, x):
+    def det_action(self, state):
+        x = state
         with tf.name_scope('det_action'):
-            y = self.intra_layers(x)
+            x = self.intra_layers(x)
 
             if self.is_action_discrete:
-                logits = self.logits(y)
+                logits = self.logits(x)
                 action = tf.argmax(logits, axis=-1)
                 action_repr = tf.one_hot(action, self.action_dim)
             else:
-                mu = self.mu(y)
+                mu = self.mu(x)
                 action_repr = action = tf.tanh(mu)
 
-            ar_logits = self.action_repetition(tf.concat([x, action_repr], axis=-1))
+            ar_logits = self.action_repetition(tf.concat([state, action_repr], axis=-1))
             n = tf.argmax(ar_logits, axis=-1)
 
-            return action, tf.squeeze(n)
+        return action, tf.squeeze(n)
 
     @tf.Module.with_name_scope
-    def train_action(self, x):
+    def train_action(self, state):
+        x = state
         with tf.name_scope('train_action'):
-            action_distribution, _, _ = self._action_distribution(x)
+            x = self.intra_layers(x)
 
             if self.is_action_discrete:
-                action = action_distribution.sample(reparameterize=True, hard=True)
+                logits = self.logits(x)
+                action = tf.argmax(logits, axis=-1)
+                action_repr = tf.one_hot(action, self.action_dim)
             else:
-                raw_action = action_distribution.sample()
-                action = tf.tanh(raw_action)
-            
-            ar_logits = self.action_repetition(tf.concat([x, tf.stop_gradient(action)], axis=-1))
-            ar_distribution = Categorical(ar_logits, self.ar_tau)
-            n = ar_distribution.sample(reparameterize=True)
+                mu = self.mu(x)
+                action_repr = action = tf.tanh(mu)
+
+            ar_logits = self.action_repetition(tf.concat([state, action_repr], axis=-1))
+            n = tf.argmax(ar_logits, axis=-1)
+            n = tf.one_hot(n, self.max_ar)
 
         return action, n
 
     @tf.Module.with_name_scope
-    def train_step(self, x):
-        with tf.name_scope('train_step'):
-            action_distribution, _, terms = self._action_distribution(x)
+    def train_det_step(self, state):
+        """ For computing target value """
+        x = state
+        with tf.name_scope('train_det_step'):
+            x = self.intra_layers(x)
 
             if self.is_action_discrete:
-                action = action_distribution.sample(reparameterize=True, hard=True)
+                logits = self.logits(x)
+                action = tf.argmax(x, axis=-1)
+                action = tf.one_hot(action, self.action_dim)
+                
+                action_distribution = self.ActionDistributionType(logits, self.tau)
                 logpi = action_distribution.logp(action)
-            else:                
-                raw_action = action_distribution.sample(reparameterize=True)
+            else:
+                mu = self.mu(x)
+                logstd = self.logstd(x)
+                logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+
+                action_distribution = self.ActionDistributionType(mu, logstd)
+                raw_action = mu
                 raw_logpi = action_distribution.logp(raw_action)
                 action = tf.tanh(raw_action)
                 logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
-            ar_logits = self.action_repetition(tf.concat([x, tf.stop_gradient(action)], axis=-1))
+            ar_logits = self.action_repetition(tf.concat([state, tf.stop_gradient(action)], axis=-1))
+            n = tf.argmax(ar_logits, axis=-1)
+            n = tf.one_hot(n, self.max_ar)
+            ar_distribution = Categorical(ar_logits, self.ar_tau)
+            ar_logpi = ar_distribution.logp(n)
+
+        return action, n, logpi, ar_logpi
+
+    @tf.Module.with_name_scope
+    def train_step(self, state):
+        x = state
+        with tf.name_scope('train_step'):
+            x = self.intra_layers(x)
+            terms = {}
+
+            if self.is_action_discrete:
+                logits = self.logits(x)
+                
+                action_distribution = self.ActionDistributionType(logits, self.tau)
+                action = action_distribution.sample(reparameterize=True, hard=True)
+                logpi = action_distribution.logp(action)
+            else:
+                mu = self.mu(x)
+                logstd = self.logstd(x)
+                logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+
+                action_distribution = self.ActionDistributionType(mu, logstd)
+                raw_action = action_distribution.sample(reparameterize=True)
+                raw_logpi = action_distribution.logp(raw_action)
+                action = tf.tanh(raw_action)
+                logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
+                terms['std'] = action_distribution.std
+
+            ar_logits = self.action_repetition(tf.concat([state, tf.stop_gradient(action)], axis=-1))
             ar_distribution = Categorical(ar_logits, self.ar_tau)
             n = ar_distribution.sample(reparameterize=True, hard=True)
             ar_logpi = ar_distribution.logp(n)
 
-            terms['entropy'] = action_distribution.entropy()
+            terms['action_entropy'] = action_distribution.entropy()
+            terms['ar_entropy'] = ar_distribution.entropy()
 
         return action, n, logpi, ar_logpi, terms
-
-    def _action_distribution(self, x):
-        x = self.intra_layers(x)
-        
-        if self.is_action_discrete:
-            logits = self.logits(x)
-            action_distribution = self.ActionDistributionType(logits, self.tau)
-        else:
-            mu = self.mu(x)
-            logstd = self.logstd(x)
-            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-
-            action_distribution = self.ActionDistributionType(mu, logstd)
-
-        terms = dict(action_tau=self.tau) if self.is_action_discrete else dict(std=action_distribution.std)
-        
-        return action_distribution, x, terms
 
     def get_weights(self):
         return [v.numpy() for v in self.variables]

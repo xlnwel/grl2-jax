@@ -14,7 +14,7 @@ from algo.apex_ar.base_worker import BaseWorker
 
 LOG_STEPS = 10000
 
-@ray.remote#(num_cpus=1)
+@ray.remote(num_cpus=1)
 class Worker(BaseWorker):
     """ Interface """
     def __init__(self, 
