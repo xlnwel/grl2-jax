@@ -3,7 +3,7 @@ import tensorflow as tf
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target, transformed_n_step_target
-from utility.schedule import TFPiecewiseSchedule
+from utility.schedule import PiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
@@ -30,10 +30,12 @@ class Agent(BaseAgent):
         else:
             raise NotImplementedError()
         if getattr(self, 'schedule_lr', False):
-            self.actor_lr = TFPiecewiseSchedule(
-                [(5e5, self.actor_lr), (1.5e6, 1e-5)])
-            self.q_lr = TFPiecewiseSchedule(
-                [(5e5, self.q_lr), (1.5e6, 3e-5)])
+            self.actor_schedule = PiecewiseSchedule(
+                [(1e5, self.actor_lr), (5e5, 1e-5)])
+            self.q_schedule = PiecewiseSchedule(
+                [(1e5, self.q_lr), (5e5, 3e-5)])
+            self.actor_lr = tf.Variable(self.actor_lr, trainable=False)
+            self.q_lr = tf.Variable(self.q_lr, trainable=False)
 
         self.actor_opt = Optimizer(learning_rate=self.actor_lr,
                                     epsilon=self.epsilon)
@@ -43,8 +45,9 @@ class Agent(BaseAgent):
         self.ckpt_models['q_opt'] = self.q_opt
         if not isinstance(self.temperature, float):
             if getattr(self, 'schedule_lr', False):
-                self.temp_lr = TFPiecewiseSchedule(
+                self.temp_schedule = PiecewiseSchedule(
                     [(5e5, self.temp_lr), (1.5e6, 1e-5)])
+                self.temp_lr = tf.Variable(self.temp_lr, trainable=False)
             self.temp_opt = Optimizer(learning_rate=self.temp_lr,
                                     epsilon=self.epsilon)
             self.ckpt_models['temp_opt'] = self.temp_opt
@@ -69,7 +72,10 @@ class Agent(BaseAgent):
     def learn_log(self, step=None):
         if step:
             self.global_steps.assign(step)
-        with TBTimer(f'{self.model_name}: sample', 10000, to_log=self.timer):
+        if self.schedule_lr:
+            self.actor_lr.assign(self.actor_schedule.value(self.global_steps.numpy()))
+            self.q_lr.assign(self.q_schedule.value(self.global_steps.numpy()))
+        with TBTimer(f'{self.model_name} sample', 10000, to_log=self.timer):
             data = self.dataset.sample()
         if not self.dataset.buffer_type().endswith('uniform'):
             saved_indices = data['saved_indices']
@@ -77,6 +83,10 @@ class Agent(BaseAgent):
 
         terms = self.learn(**data)
 
+        if self.schedule_lr:
+            terms['actor_lr'] = self.actor_lr.numpy()
+            terms['q_lr'] = self.q_lr.numpy()
+            
         if not self.dataset.buffer_type().endswith('uniform'):
             self.dataset.update_priorities(terms['priority'].numpy(), saved_indices.numpy())
         self.store(**terms)
@@ -124,7 +134,7 @@ class Agent(BaseAgent):
     def _compute_temp_grads(self, state, IS_ratio):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
         with tf.GradientTape() as tape:
-            action, logpi, _ = self.actor.train_step(state, reparameterize=False)
+            action, logpi, _ = self.actor.train_step(state)
             log_temp, temp = self.temperature.train_step(state, action)
 
             with tf.name_scope('temp_loss'):
@@ -141,7 +151,7 @@ class Agent(BaseAgent):
 
     def _compute_actor_grads(self, state, IS_ratio):
         with tf.GradientTape() as tape:
-            action, logpi, terms = self.actor.train_step(state, reparameterize=True)
+            action, logpi, terms = self.actor.train_step(state)
             if isinstance(self.temperature, float):
                 temp = self.temperature
             else:
@@ -161,7 +171,7 @@ class Agent(BaseAgent):
 
     def _compute_q_grads(self, state, action, reward, next_state, done, steps, IS_ratio):
         with tf.GradientTape() as tape:
-            next_action, next_logpi, _ = self.actor.train_step(next_state, reparameterize=False)
+            next_action, next_logpi, _ = self.actor.train_step(next_state)
             next_q1_with_actor = self.target_q1.train_value(next_state, next_action)
             next_q2_with_actor = self.target_q2.train_value(next_state, next_action)
             next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)

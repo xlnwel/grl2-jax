@@ -14,6 +14,7 @@ class SoftPolicy(tf.Module):
         super().__init__(name=name)
 
         self.max_ar = config['max_ar']
+        self.action_dim = action_dim
 
         # network parameters
         self.is_action_discrete = is_action_discrete
@@ -38,7 +39,7 @@ class SoftPolicy(tf.Module):
                             activation=activation, 
                             kernel_initializer=kernel_initializer, 
                             name='logits')
-            self.tau = 1    # tf.Variable(1., dtype=tf.float32, name='softmax_tau')
+            self.tau = 1.   # tf.Variable(1., dtype=tf.float32, name='softmax_tau')
         else:
             self.mu = mlp(config.get('mu_units', []),
                         out_dim=action_dim, 
@@ -62,7 +63,6 @@ class SoftPolicy(tf.Module):
         # build for variable initialization
         # TensorSpecs = [(state_shape, tf.float32, 'state')]
         # self.action = build(self._action, TensorSpecs)
-        # self.det_action = build(self._det_action, TensorSpecs)
 
     @tf.function(experimental_relax_shapes=True)
     def action(self, x):
@@ -71,7 +71,7 @@ class SoftPolicy(tf.Module):
 
             if self.is_action_discrete:
                 action = action_distribution.sample(reparameterize=False, one_hot=False)
-                action_repr = tf.one_hot(action)
+                action_repr = tf.one_hot(action, self.action_dim)
             else:
                 raw_action = action_distribution.sample()
                 action_repr = action = tf.tanh(raw_action)
@@ -91,7 +91,7 @@ class SoftPolicy(tf.Module):
             if self.is_action_discrete:
                 logits = self.logits(y)
                 action = tf.argmax(logits, axis=-1)
-                action_repr = tf.one_hot(action)
+                action_repr = tf.one_hot(action, self.action_dim)
             else:
                 mu = self.mu(y)
                 action_repr = action = tf.tanh(mu)
@@ -127,7 +127,7 @@ class SoftPolicy(tf.Module):
                 action = action_distribution.sample(reparameterize=True, hard=True)
                 logpi = action_distribution.logp(action)
             else:                
-                raw_action = action_distribution.sample()
+                raw_action = action_distribution.sample(reparameterize=True)
                 raw_logpi = action_distribution.logp(raw_action)
                 action = tf.tanh(raw_action)
                 logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
@@ -155,6 +155,7 @@ class SoftPolicy(tf.Module):
             action_distribution = self.ActionDistributionType(mu, logstd)
 
         terms = dict(action_tau=self.tau) if self.is_action_discrete else dict(std=action_distribution.std)
+        
         return action_distribution, x, terms
 
     def get_weights(self):
@@ -183,21 +184,21 @@ class SoftQ(tf.Module):
                                         kernel_initializer=kernel_initializer)
 
         # build for variable initialization
-        TensorSpecs = [
-            (state_shape, tf.float32, 'state'),
-            ([action_dim], tf.float32, 'action'),
-            ([max_ar], tf.float32, 'max_ar')
-        ]
-        self.step = build(self._step, TensorSpecs)
+        # TensorSpecs = [
+        #     (state_shape, tf.float32, 'state'),
+        #     ([action_dim], tf.float32, 'action'),
+        #     ([max_ar], tf.float32, 'max_ar')
+        # ]
+        # self.step = build(self._step, TensorSpecs)
 
     @tf.function(experimental_relax_shapes=True)
-    def _step(self, x, a, n):
+    def step(self, x, a, n):
         return self.train_value(x, a, n)
 
     @tf.Module.with_name_scope
     def train_value(self, x, a, n):
         with tf.name_scope('step'):
-            x = tf.concat([x, a, n], axis=1)
+            x = tf.concat([x, a, n], axis=-1)
             x = self.intra_layers(x)
             
         return x
@@ -223,22 +224,22 @@ class Temperature(tf.Module):
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
 
         # build for variable initialization
-        TensorSpecs = [
-            (state_shape, tf.float32, 'state'),
-            ([action_dim], tf.float32, 'action'),
-            ([max_ar], tf.float32, 'max_ar')
-        ]
-        self.step = build(self._step, TensorSpecs)
+        # TensorSpecs = [
+        #     (state_shape, tf.float32, 'state'),
+        #     ([action_dim], tf.float32, 'action'),
+        #     ([max_ar], tf.float32, 'max_ar')
+        # ]
+        # self.step = build(self._step, TensorSpecs)
 
     @tf.function(experimental_relax_shapes=True)
-    def _step(self, x, a, n):
+    def step(self, x, a, n):
         return self.train_step(x, a, n)
     
     @tf.Module.with_name_scope
     def train_step(self, x, a, n):
         with tf.name_scope('step'):
             if self.temp_type == 'state-action':
-                x = tf.concat([x, a, n], axis=1)
+                x = tf.concat([x, a, n], axis=-1)
                 log_temp = self.intra_layer(x)
                 temp = tf.exp(log_temp)
             else:

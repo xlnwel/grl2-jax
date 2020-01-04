@@ -96,7 +96,7 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     config['model_name'] = f'worker_{worker_id}'
     config['TIME_PERIOD'] = 1000
     config['LOG_STEPS'] = 10000
-    config['MAX_STEPS'] = int(1e8)
+    config['MAX_STEPS'] = int(3e7)
     config['replay_type'] = buffer_config['type']
     config['max_ar'] = model_config['actor']['max_ar']
 

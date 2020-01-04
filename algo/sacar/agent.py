@@ -76,7 +76,7 @@ class Agent(BaseAgent):
         if self.schedule_lr:
             self.actor_lr.assign(self.actor_schedule.value(self.global_steps.numpy()))
             self.q_lr.assign(self.q_schedule.value(self.global_steps.numpy()))
-        with TBTimer(f'{self.model_name} sample', 10000):
+        with TBTimer(f'{self.model_name} sample', 10000, to_log=self.timer):
             data = self.dataset.sample()
         if not self.dataset.buffer_type().endswith('uniform'):
             saved_indices = data['saved_indices']
