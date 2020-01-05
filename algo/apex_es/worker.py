@@ -144,7 +144,7 @@ class Worker(BaseWorker):
 
     def _store_weights(self, score, tag, weights):
         self.store_map[score] = Weights(tag, weights)
-        while self.store_map and self.best_score - min(self.store_map) > self.SLACK:
+        while len(self.store_map) > self.store_cap:
             remove_worst_weights(self.store_map)
         self._print_store()
 
@@ -179,6 +179,7 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     
     config['model_name'] = f'worker_{worker_id}'
     config['mode_prob'] = [1-.2*worker_id, .2*worker_id, 0]
+    config['store_cap'] = 10
     config['TIME_PERIOD'] = 1000
     config['LOG_STEPS'] = 1e5
     config['MAX_STEPS'] = int(1e8)

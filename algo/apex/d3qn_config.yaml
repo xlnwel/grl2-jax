@@ -1,7 +1,7 @@
 ---
 env:
     is_deepmind_env: True
-    name: PongNoFrameskip-v4
+    name: PongNoFrameskip-v4    # MontezumaRevengeNoFrameskip-v4
     video_path: video
     log_video: False
     n_envs: 4
@@ -12,7 +12,6 @@ model:
 agent:
     algorithm: &algo apex-dqn
     gamma: &gamma 0.99
-    polyak: .995                            # moving average rate
     
     # distributed algo params
     n_workers: 8

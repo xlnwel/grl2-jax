@@ -33,7 +33,7 @@ agent:
 
     # arguments for optimizer
     optimizer: adam
-    schedule_lr: True
+    schedule_lr: False
     actor_lr: 1.e-4
     q_lr: 3.e-4
     temp_lr: 1.e-4
