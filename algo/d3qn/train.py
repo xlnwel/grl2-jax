@@ -5,12 +5,12 @@ import ray
 from utility.utils import set_global_seed
 from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
-from utility.timer import Timer
+from utility.timer import TBTimer
 from utility.utils import step_str
 from env.gym_env import create_gym_env
 from replay.func import create_replay
 from replay.data_pipline import Dataset
-from algo import run
+from algo.run import run
 from algo.d3qn.agent import Agent
 from algo.d3qn.nn import create_model
 
@@ -19,9 +19,9 @@ def evaluate(agent, global_steps, env):
     step = 0
     scores = []
     epslens = []
-    with Timer(f'{agent.model_name} evaluation'):
+    with TBTimer(f'evaluation', agent.LOG_INTERVAL, to_log=agent.timer):
         while step < agent.eval_steps:
-            score, epslen = run.run_trajectory(env, agent.q1, evaluation=True)
+            score, epslen = run(env, agent.q1, evaluation=True, timer=agent.timer)
             scores.append(score)
             epslens.append(epslen)
             step += epslen
@@ -32,7 +32,7 @@ def evaluate(agent, global_steps, env):
         steps=step_str(global_steps), 
         score=np.mean(scores),
         score_std=np.std(scores),
-        score_max=np.amax(scores),
+        score_max=np.max(scores),
         epslen=np.mean(epslens),
         epslen_std=np.std(epslens),
     )
@@ -50,11 +50,11 @@ def train(agent, env, replay):
     episode = 0
     scores = []
     epslens = []
-    with Timer(f'{agent.model_name} training'):
+    with TBTimer(f'training', agent.LOG_INTERVAL, to_log=agent.timer):
         while step < agent.train_steps:
             episode += 1
             agent.q1.reset_noisy()
-            score, epslen = run.run_trajectory(env, agent.q1, fn=collect_and_learn, step=step)
+            score, epslen = run(env, agent.q1, fn=collect_and_learn, step=step, timer=agent.timer)
             scores.append(score)
             epslens.append(epslen)
             step += epslen
@@ -63,7 +63,7 @@ def train(agent, env, replay):
                 agent.store(
                     score=np.mean(scores),
                     score_std=np.std(scores),
-                    score_max=np.amax(scores),
+                    score_max=np.max(scores),
                     epslen=np.mean(epslens),
                     epslen_std=np.std(epslens),
                 )
@@ -83,6 +83,8 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     eval_env_config = env_config.copy()
     # eval_env_config['log_video'] = True
     eval_env_config['seed'] = np.random.randint(100, 1000)
+    eval_env_config['n_envs'] = 50
+    eval_env_config['efficient_envvec'] = True
     eval_env = create_gym_env(eval_env_config)
     # construct replay
     replay_keys = ['state', 'action', 'reward', 'done', 'steps']

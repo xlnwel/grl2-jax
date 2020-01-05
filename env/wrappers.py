@@ -95,8 +95,14 @@ class EnvStats(gym.Wrapper):
 
 
 class ActionRepetition(gym.Wrapper):
-    def step(self, action, n_ar, gamma=1):
+    def __init__(self, env, n_ar=1):
+        print(f'Action repetition({n_ar})')
+        super().__init__(env)
+        self.n_ar = n_ar
+
+    def step(self, action, n_ar=None, gamma=1):
         rewards = 0
+        n_ar = n_ar or self.n_ar
         for i in range(1, n_ar+1):
             state, reward, done, info = self.env.step(action)
 

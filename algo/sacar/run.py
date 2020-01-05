@@ -26,7 +26,7 @@ def random_sampling(env, buffer, max_ar):
 
 def run(env, actor, *, fn=None, evaluation=False, timer=False, name='run', **kwargs):
     assert get_wrapper_by_name(env.env, 'ActionRepetition') is not None
-
+    
     if isinstance(env, Env):
         return run_trajectory(env, actor, fn=fn, 
             evaluation=evaluation, timer=timer, name=name, **kwargs)
@@ -64,11 +64,11 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
             n_ar = info['n_ar'] - 1
             if fn:
                 if step is None:
-                    fn(state=state, action=action, reward=reward, 
-                        done=done, next_state=next_state, n_ar=n_ar)
+                    fn(state=state, action=action, n_ar=n_ar, reward=reward, 
+                        done=done, next_state=next_state)
                 else:
-                    fn(state=state, action=action, reward=reward,
-                        done=done, next_state=next_state, n_ar=n_ar, step=step+i)
+                    fn(state=state, action=action, n_ar=n_ar, reward=reward,
+                        done=done, next_state=next_state, step=step+i)
             state = next_state
             if done:
                 break
@@ -99,9 +99,36 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False, timer=False, nam
             next_state, reward, done, info = envvec.step(action.numpy(), n_ar=n_ar.numpy()+1)#, gamma=actor.gamma)
             n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
-            fn(state=state, action=action, reward=reward, done=done, 
-                next_state=next_state, mask=envvec.get_mask(), n_ar=n_ar)
+            fn(state=state, action=action, n_ar=n_ar, reward=reward, done=done, 
+                next_state=next_state, mask=envvec.get_mask())
         state = next_state
+        if np.all(done):
+            break
+
+    return envvec.get_score(), envvec.get_epslen()
+
+def run_trajectories2(envvec, actor, fn=None, evaluation=False, timer=False, name='trajs'):
+    """ Sample trajectories
+
+    Args:
+        envvec: an EfficientEnvVec instance
+        actor: the model responsible for taking actions
+        fn: a function that specifies what to do after each env step
+    """
+    state = envvec.reset()
+    action_fn = actor.det_action if evaluation else actor.action
+
+    for _ in range(envvec.max_episode_steps):
+        with TBTimer(f'{name} agent_step', LOG_INTERVAL, to_log=timer):
+            action, n_ar = action_fn(tf.convert_to_tensor(state, tf.float32))
+        with TBTimer(f'{name} env_step', LOG_INTERVAL, to_log=timer):
+            next_state, reward, done, info = envvec.step(action.numpy(), n_ar=n_ar.numpy()+1)
+            n_ar = np.array([i['n_ar'] for i in info]) - 1
+        if fn:
+            env_ids = [i['env_id'] for i in info]
+            fn(state=state, action=action, n_ar=n_ar, reward=reward, done=done, 
+                next_state=next_state, mask=envvec.get_mask(), env_ids=env_ids)
+        state = next_state[(1 - done).astype(np.bool)]
         if np.all(done):
             break
 

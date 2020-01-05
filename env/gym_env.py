@@ -233,7 +233,7 @@ def _make_env(config):
             env = gym.wrappers.Monitor(env, config['video_path'], force=True)
         env = EnvStats(env)
     if config.get('action_repetition'):
-        env = ActionRepetition(env)
+        env = ActionRepetition(env, config.get('n_ar'))
     if config.get('auto_reset'):
         env = AutoReset(env)
     env.seed(config.get('seed', 42))

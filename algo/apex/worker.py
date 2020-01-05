@@ -91,6 +91,7 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     buffer_fn = create_local_buffer
 
     env_config['seed'] = worker_id
+    env_config['effective_envvec'] = True
     
     config['model_name'] = f'worker_{worker_id}'
     config['TIME_PERIOD'] = 1000

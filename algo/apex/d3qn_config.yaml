@@ -1,7 +1,7 @@
 ---
 env:
     is_deepmind_env: True
-    name: PongNoFrameskip-v4    # MontezumaRevengeNoFrameskip-v4
+    name: MontezumaRevengeNoFrameskip-v4    # MontezumaRevengeNoFrameskip-v4
     video_path: video
     log_video: False
     n_envs: 4
@@ -14,7 +14,7 @@ agent:
     gamma: &gamma 0.99
     
     # distributed algo params
-    n_workers: 8
+    n_workers: 4
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

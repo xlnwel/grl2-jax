@@ -84,8 +84,6 @@ class Worker(BaseWorker):
             if status == Status.ACCEPTED:
                 self._store_weights(score, tag, weights)
 
-            self._print_store()
-            
             self._periodic_logging(step)
 
     def _send_data(self, replay):
@@ -148,6 +146,7 @@ class Worker(BaseWorker):
         self.store_map[score] = Weights(tag, weights)
         while len(self.store_map) > self.store_cap:
             remove_worst_weights(self.store_map)
+        self._print_store()
 
     def _periodic_logging(self, step):
         if step > self.log_steps:
@@ -177,7 +176,6 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     buffer_fn = create_local_buffer
 
     env_config['seed'] = worker_id
-    env_config['effective_envvec'] = True
     
     config['model_name'] = f'worker_{worker_id}'
     config['mode_prob'] = [1-.2*worker_id, .2*worker_id, 0]

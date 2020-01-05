@@ -64,7 +64,7 @@ class BaseWorker(BaseAgent):
 
         self.model.set_weights(weights)
 
-        with TBTimer(f'{self.name} -- eval model', self.TIME_PERIOD, to_log=self.timer):
+        with TBTimer(f'{self.name} eval model', self.TIME_PERIOD, to_log=self.timer):
             scores, epslens = run(self.env, self.actor, fn=collect_fn)
             step += np.sum(epslens)
             if scores is not None:

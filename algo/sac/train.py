@@ -29,6 +29,7 @@ def train(agent, env, replay):
         log_video=False,
         n_workers=1,
         n_envs=50,
+        effective_envvec=True,
         seed=np.random.randint(100, 10000),
     ))
     start_step = agent.global_steps.numpy() + 1
