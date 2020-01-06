@@ -8,11 +8,11 @@ env:
 model:
     actor:
         units_list: [64, 64]
-        kernel_initializer: glorot_uniform
+        kernel_initializer: orthogonal
         activation: tanh
     q:
         units_list: [64, 64]
-        kernel_initializer: glorot_uniform
+        kernel_initializer: orthogonal
         activation: tanh
     temperature:
         temp_type: 'constant'

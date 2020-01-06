@@ -9,20 +9,20 @@ from tensorflow.keras.activations import relu
 
 
 class FTWCNN(Layer):
-    def __init__(self, *, time_distributed=False, batch_size=None, name='ftw'):
+    def __init__(self, *, time_distributed=False, batch_size=None, name='ftw', **kwargs):
         super().__init__(name=name)
         conv2d = lambda *args, **kwargs: (
             TimeDistributed(Conv2D(*args, **kwargs))
             if time_distributed else
             Conv2D(*args, **kwargs)
         )
-        self.conv1 = conv2d(32, 8, strides=4, padding='same')
-        self.conv2 = conv2d(64, 4, strides=2, padding='same')
-        self.conv3 = conv2d(64, 3, strides=1, padding='same')
-        self.conv4 = conv2d(64, 3, strides=1, padding='same')
+        self.conv1 = conv2d(32, 8, strides=4, padding='same', **kwargs)
+        self.conv2 = conv2d(64, 4, strides=2, padding='same', **kwargs)
+        self.conv3 = conv2d(64, 3, strides=1, padding='same', **kwargs)
+        self.conv4 = conv2d(64, 3, strides=1, padding='same', **kwargs)
 
         self.out_size = 256
-        self.dense = Dense(self.out_size)
+        self.dense = Dense(self.out_size, **kwargs)
 
         if time_distributed:
             assert batch_size is not None
@@ -49,15 +49,15 @@ class FTWCNN(Layer):
 
 
 class IMPALAResidual(Layer):
-    def __init__(self, filters, time_distributed=False, name=None):
+    def __init__(self, filters, time_distributed=False, name=None, **kwargs):
         super().__init__(name=name)
         conv2d = lambda *args, **kwargs: (
             TimeDistributed(Conv2D(*args, **kwargs))
             if time_distributed else
             Conv2D(*args, **kwargs)
         )
-        self.conv1 = conv2d(filters, 3, strides=1, padding='same')
-        self.conv2 = conv2d(filters, 3, strides=1, padding='same')
+        self.conv1 = conv2d(filters, 3, strides=1, padding='same', **kwargs)
+        self.conv2 = conv2d(filters, 3, strides=1, padding='same', **kwargs)
 
     def call(self, x):
         y = relu(x)
@@ -68,7 +68,7 @@ class IMPALAResidual(Layer):
 
 
 class IMPALACNN(Layer):
-    def __init__(self, *, time_distributed=False, batch_size=None, name='impala'):
+    def __init__(self, *, time_distributed=False, batch_size=None, name='impala', **kwargs):
         super().__init__(name=name)
         conv2d = lambda *args, **kwargs: (
             TimeDistributed(Conv2D(*args, **kwargs))
@@ -84,10 +84,10 @@ class IMPALACNN(Layer):
         self.cnn_layers = []
         for filters in [16, 32, 32]:
             self.cnn_layers += [
-                conv2d(filters, 3, strides=1, padding='same'),
+                conv2d(filters, 3, strides=1, padding='same', **kwargs),
                 maxpooling2d(3, strides=2, padding='same'),
-                IMPALAResidual(filters, time_distributed=time_distributed),
-                IMPALAResidual(filters, time_distributed=time_distributed),
+                IMPALAResidual(filters, time_distributed=time_distributed, **kwargs),
+                IMPALAResidual(filters, time_distributed=time_distributed, **kwargs),
             ]
 
         self.out_size = 256
