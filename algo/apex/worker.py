@@ -48,8 +48,11 @@ class Worker(BaseWorker):
 
     def run(self, learner, replay):
         step = 0
+        i = 0
         while step < self.MAX_STEPS:
+            i += 1
             self.set_summary_step(step)
+            
             with TBTimer(f'{self.name} pull weights', self.TIME_INTERVAL, to_log=self.timer):
                 weights = self.pull_weights(learner)
 
@@ -59,7 +62,7 @@ class Worker(BaseWorker):
             with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
                 self._send_data(replay)
 
-            self._periodic_logging(step)
+            self._periodic_logging(step, i)
 
 
 def create_worker(name, worker_id, model_fn, config, model_config, 

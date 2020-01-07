@@ -3,14 +3,16 @@ env:
     name: BipedalWalkerHardcore-v2
     video_path: video
     log_video: False
-    n_envs: 8
+    n_envs: 16
     effective_envvec: True
     seed: 0
 model:
     actor:
         units_list: [512, 256]
+        kernel_initializer: orthogonal
     q:
-        units_list: [512, 256, 256]
+        units_list: [512, 512, 256]
+        kernel_initializer: orthogonal
     temperature:
         temp_type: 'state-action'
         value: .02
@@ -23,8 +25,8 @@ agent:
     
     # timer&interval 
     TIME_INTERVAL: 100
-    LOG_INTERVAL: 1.e+5
-    MAX_STEPS: 1.e+7
+    LOG_INTERVAL: 7
+    MAX_STEPS: 1.e+8
     timer: True
 
     # distributed algo params
@@ -48,7 +50,7 @@ agent:
     optimizer: adam
     schedule_lr: False
     actor_lr: 1.e-4
-    q_lr: 3.e-4
+    q_lr: 1.e-4
     temp_lr: 1.e-4
     epsilon: 1.e-5
     # clip_norm: 10

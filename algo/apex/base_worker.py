@@ -42,8 +42,6 @@ class BaseWorker(BaseAgent):
         # args for priority replay
         self.per_alpha = config['per_alpha']
         self.per_epsilon = config['per_epsilon']
-        
-        self.log_steps = self.LOG_INTERVAL
 
         TensorSpecs = [
             (env.state_shape, tf.float32, 'state'),
@@ -65,7 +63,7 @@ class BaseWorker(BaseAgent):
         self.model.set_weights(weights)
 
         with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
-            scores, epslens = run(self.env, self.actor, fn=collect_fn)
+            scores, epslens = run(self.env, self.actor, fn=collect_fn, evaluation=self.id == 0)
             step += np.sum(epslens)
             if scores is not None:
                 self.store(  
@@ -113,7 +111,7 @@ class BaseWorker(BaseAgent):
 
         return priority
 
-    def _periodic_logging(self, step):
-        if step > self.log_steps:
+    def _periodic_logging(self, step, i):
+        if i % self.LOG_INTERVAL == 0:
             self.log(step=step, print_terminal_info=False)
-            self.log_steps += self.LOG_INTERVAL
+            

@@ -56,18 +56,22 @@ class Worker(BaseWorker):
 
     def run(self, learner, replay):
         step = 0
+        i = 0
         while step < self.MAX_STEPS:
+            i += 1
             self.set_summary_step(step)
+            
             with TBTimer(f'{self.name} pull weights', self.TIME_INTERVAL, to_log=self.timer):
-                mode, tag, weights = self._choose_weights(learner)
+                mode, score, tag, weights, eval_times = self._choose_weights(learner)
 
             with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
                 step, scores, epslens = self.eval_model(weights, step, replay)
+            eval_times = eval_times + self.n_envs
 
             with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
                 self._send_data(replay)
 
-            score = np.mean(scores)
+            score += self.n_envs / eval_times * (np.mean(scores) - score)
             
             status = self._make_decision(score)
             self.raw_bookkeeping.add(tag, status)
@@ -77,11 +81,12 @@ class Worker(BaseWorker):
                 f'Decision: {status}', color='green')
 
             if status == Status.ACCEPTED:
-                self._store_weights(score, tag, weights)
+                store_weights(self.store_map, score, tag, weights, eval_times, self.STORE_CAP)
+            
+            self._update_mode_prob()
 
             print_store(self.store_map, self.model_name)
-            
-            self._periodic_logging(step)
+            self._periodic_logging(step, i)
 
     def _choose_weights(self, learner):
         if len(self.store_map) < self.MIN_EVOLVE_MODELS:
@@ -92,45 +97,41 @@ class Worker(BaseWorker):
         if mode == Mode.LEARNING:
             tag = Tag.LEARNED
             weights = self.pull_weights(learner)
+            score = 0
+            eval_times = 0
         elif mode == Mode.EVOLUTION:
             tag = Tag.EVOLVED
             weights, n = evolve_weights(self.store_map, min_evolv_models=self.MIN_EVOLVE_MODELS)
             pwc(f'{self.name}_{self.id}: {n} models are used for evolution', color='blue')
+            score = 0
+            eval_times = 0
         elif mode == Mode.REEVALUATION:
-            scores = sorted(list(self.store_map.keys()), reverse=True)
-            if len(scores) >= self.min_reeval_models:
-                # starts from the best model in store, we search for a model that has not been evaluated
-                for score in scores:
-                    tag, weights = self.store_map[score]
-                    if tag == Tag.REEVALUATED:
-                        continue
-                    else:
-                        del self.store_map[score]
-                        return mode, tag, weights
-            tag = Tag.EVOLVED
-            weights = self._evolve_weights()
+            score = random.choices(list(self.store_map.keys()))[0]
+            tag = self.store_map[score].tag
+            weights = self.store_map[score].weights
+            eval_times = self.store_map[score].eval_times
+            del self.store_map[score]
         
-        return mode, tag, weights
+        return mode, score, tag, weights, eval_times
 
     def _make_decision(self, score):
         self.best_score = max(score, self.best_score)
         min_score = min(self.store_map.keys()) if self.store_map else -float('inf')
         if score > min_score:
             status = Status.ACCEPTED
-        # elif score > min_score - self.SLACK:
-        #     status = Status.TOLERATED
         else:
             status = Status.REJECTED
         
         return status
 
-    def _store_weights(self, score, tag, weights):
-        self.store_map[score] = Weights(tag, weights)
-        while len(self.store_map) > self.STORE_CAP:
-            remove_worst_weights(self.store_map)
+    def _update_mode_prob(self):
+        fracs = analyze_store(self.store_map)
+        self.mode_prob[0] = 0.1 + fracs['frac_learned'] * .5
+        self.mode_prob[1] = 0.1 + fracs['frac_evolved'] * .5
 
-    def _periodic_logging(self, step):
-        if step > self.log_steps:
+    def _periodic_logging(self, step, i):
+        if i % self.LOG_INTERVAL == 0:
+            self.store(mode_learned=self.mode_prob[0], mode_evolved=self.mode_prob[1])
             self.store(**analyze_store(self.store_map))
             # record stats
             self.store(**self.raw_bookkeeping.stats())
@@ -138,14 +139,6 @@ class Worker(BaseWorker):
             self.raw_bookkeeping.reset()
             # self.reevaluation_bookkeeping.reset()
             self.log(step, print_terminal_info=False)
-            self.log_steps += self.LOG_INTERVAL
-
-    def _print_store(self):
-        store = [(score, weights.tag) for score, weights in self.store_map.items()]
-        store = sorted(store, key=lambda x: x[0], reverse=True)
-        pwc(f"{self.name}_{self.id}: current stored models", 
-            f"{[f'({x[0]:.3g}, {x[1]})' for x in store]}", 
-            color='magenta')
 
 def create_worker(name, worker_id, model_fn, config, model_config, 
                 env_config, buffer_config):
@@ -160,9 +153,11 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     env_config['seed'] += worker_id * 100
     
     config['model_name'] = f'worker_{worker_id}'
-    config['mode_prob'] = [1-.2*worker_id, .2*worker_id, 0]
-    # config['SLACK'] = 10
     config['replay_type'] = buffer_config['type']
+    if worker_id == 0:
+        config['mode_prob'] = [.7, 0, .3]
+    else:
+        config['mode_prob'] = [.5, .1, .3]
 
     worker = Worker.remote(name, worker_id, model_fn, buffer_fn, config, 
                         model_config, env_config, buffer_config)

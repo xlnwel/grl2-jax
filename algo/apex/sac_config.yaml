@@ -24,8 +24,8 @@ agent:
 
     # timer&interval 
     TIME_INTERVAL: 100
-    LOG_INTERVAL: 1.e+5
-    MAX_STEPS: 1.e+7
+    LOG_INTERVAL: 7
+    MAX_STEPS: 1.e+8
     timer: True
 
     # distributed algo params

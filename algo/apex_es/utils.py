@@ -3,7 +3,7 @@ import numpy as np
 
 from utility.display import pwc
 
-Weights = namedtuple('Weights', 'tag weights')
+Weights = namedtuple('Weights', 'tag weights eval_times')
 
 class Status:
     ACCEPTED='Accepted'
@@ -80,14 +80,19 @@ def evolve_weights(store_map, min_evolv_models=2):
     return weights, n
 
 def analyze_store(store_map):
-    n_learned = len([w.tag == Tag.LEARNED for w in store_map.values()])
-    n_evolved = len([w.tag == Tag.EVOLVED for w in store_map.values()])
+    n_learned = sum([w.tag == Tag.LEARNED for w in store_map.values()])
+    n_evolved = sum([w.tag == Tag.EVOLVED for w in store_map.values()])
     n = len(store_map)
     return dict(frac_learned=n_learned / n, frac_evolved=n_evolved / n)
 
+def store_weights(store_map, score, tag, weights, eval_times, store_cap):
+    store_map[score] = Weights(tag, weights, eval_times)
+    while len(store_map) > store_cap:
+        remove_worst_weights(store_map)
+
 def print_store(store, name):
-    store = [(score, weights.tag) for score, weights in store.items()]
+    store = [(score, weights.tag, weights.eval_times) for score, weights in store.items()]
     store = sorted(store, key=lambda x: x[0], reverse=True)
     pwc(f"{name}: current stored models", 
-        f"{[f'({x[0]:.3g}, {x[1]})' for x in store]}", 
+        f"{[f'({x[0]:.3g}, {x[1]}, {x[2]})' for x in store]}", 
         color='magenta')
