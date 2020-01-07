@@ -7,7 +7,7 @@ from utility.utils import set_global_seed
 from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
 from env.gym_env import create_gym_env
-from algo.ppo.nn import create_model
+from algo.ppo2.nn import create_model
 
 
 def evaluate(env, agent):

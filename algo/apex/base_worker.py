@@ -43,7 +43,7 @@ class BaseWorker(BaseAgent):
         self.per_alpha = config['per_alpha']
         self.per_epsilon = config['per_epsilon']
         
-        self.log_steps = self.LOG_STEPS
+        self.log_steps = self.LOG_INTERVAL
 
         TensorSpecs = [
             (env.state_shape, tf.float32, 'state'),
@@ -64,7 +64,7 @@ class BaseWorker(BaseAgent):
 
         self.model.set_weights(weights)
 
-        with TBTimer(f'{self.name} eval model', self.TIME_PERIOD, to_log=self.timer):
+        with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
             scores, epslens = run(self.env, self.actor, fn=collect_fn)
             step += np.sum(epslens)
             if scores is not None:
@@ -79,9 +79,25 @@ class BaseWorker(BaseAgent):
 
     def pull_weights(self, learner):
         """ pulls weights from learner """
-        with TBTimer(f'{self.name} pull weights', self.TIME_PERIOD, to_log=self.timer):
+        with TBTimer(f'{self.name} pull weights', self.TIME_INTERVAL, to_log=self.timer):
             return ray.get(learner.get_weights.remote(name=['actor', 'q1']))
 
+    def _send_data(self, replay):
+        """ sends data to replay """
+        mask, data = self.buffer.sample()
+        data_tesnors = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+            
+        if not self.replay_type.endswith('uniform'):
+            data['priority'] = self.compute_priorities(**data_tesnors).numpy()
+        
+        # squeeze since many terms in data is of shape [None, 1]
+        for k, v in data.items():
+            data[k] = np.squeeze(v)
+
+        replay.merge.remote(data, data['state'].shape[0])
+
+        self.buffer.reset()
+        
     @tf.function
     def _compute_priorities(self, state, action, reward, next_state, done, steps):
         gamma = self.buffer.gamma
@@ -100,4 +116,4 @@ class BaseWorker(BaseAgent):
     def _periodic_logging(self, step):
         if step > self.log_steps:
             self.log(step=step, print_terminal_info=False)
-            self.log_steps += self.LOG_STEPS
+            self.log_steps += self.LOG_INTERVAL

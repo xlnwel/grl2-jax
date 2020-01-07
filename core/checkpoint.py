@@ -42,7 +42,7 @@ def save(ckpt_manager, global_steps, steps, message='', print_terminal_info=True
     if print_terminal_info:
         pwc(f'Model saved at {path}: {message}', color='cyan')
 
-def setup_checkpoint(ckpt_models, root_dir, model_name):
+def setup_checkpoint(ckpt_models, root_dir, model_name, global_steps):
     """ Setup checkpoint
 
     Args:
@@ -56,4 +56,4 @@ def setup_checkpoint(ckpt_models, root_dir, model_name):
     ckpt_path = f'{root_dir}/{model_name}/models'
     ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, 5)
 
-    return global_steps, ckpt, ckpt_path, ckpt_manager
+    return ckpt, ckpt_path, ckpt_manager

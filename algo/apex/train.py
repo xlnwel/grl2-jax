@@ -4,8 +4,6 @@ import ray
 from utility.signal import sigint_shutdown_ray
 from env.gym_env import create_gym_env
 from replay.func import create_replay_center
-from algo.apex.learner import create_learner
-from algo.apex.worker import create_worker
 
 
 def import_agent(config):
@@ -21,6 +19,31 @@ def import_agent(config):
 
     return create_model, Agent
 
+def get_worker_fn(agent_config):
+    if agent_config['algorithm'].startswith('apex-es2'):
+        from algo.apex_es2.worker import create_worker
+    if agent_config['algorithm'].startswith('apex-es'):
+        print('es')
+        from algo.apex_es.worker import create_worker
+    if agent_config['algorithm'].startswith('apex'):
+        from algo.apex.worker import create_worker
+    else:
+        raise NotImplementedError
+
+    return create_worker
+
+def get_learner_fn(agent_config):
+    if agent_config['algorithm'].startswith('apex-es2'):
+        from algo.apex_es2.learner import create_learner
+    if agent_config['algorithm'].startswith('apex-es'):
+        from algo.apex.learner import create_learner
+    if agent_config['algorithm'].startswith('apex'):
+        from algo.apex.learner import create_learner
+    else:
+        raise NotImplementedError
+
+    return create_learner
+
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
     ray.init(memory=8*1024**3, object_store_memory=4*1024**3, num_cpus=6)
     sigint_shutdown_ray()
@@ -33,6 +56,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     replay = create_replay_center(replay_config, *replay_keys, state_shape=env.state_shape)
     env.close()
 
+    create_learner = get_learner_fn(agent_config)
     model_fn, Agent = import_agent(agent_config)
     learner = create_learner(
         BaseAgent=Agent, name='Learner', model_fn=model_fn, 
@@ -42,7 +66,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     if restore:
         ray.get(learner.restore.remote())
-    
+    create_worker = get_worker_fn(agent_config)
     workers = []
     pids = []
     for worker_id in range(agent_config['n_workers']):

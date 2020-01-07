@@ -49,12 +49,15 @@ def agent_config(init_fn):
             if isinstance(model, tf.Module) or isinstance(model, tf.Variable):
                 self.ckpt_models[name_] = model
 
+        # define global steps for train/env step tracking
+        self.global_steps = tf.Variable(0, dtype=tf.int64)
+
         # Agent initialization
         init_fn(self, name=self.name, config=config, models=models, **kwargs)
 
         # postprocessing
-        self.global_steps, self.ckpt, self.ckpt_path, self.ckpt_manager = \
-            setup_checkpoint(self.ckpt_models, self.root_dir, self.model_name)
+        self.ckpt, self.ckpt_path, self.ckpt_manager = \
+            setup_checkpoint(self.ckpt_models, self.root_dir, self.model_name, self.global_steps)
         display_model_var_info(self.ckpt_models)
         print_construction_complete(self.name)
     

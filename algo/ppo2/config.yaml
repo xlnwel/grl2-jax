@@ -12,7 +12,7 @@ env:
 
 model:
     # cnn: impala
-    shared_mlp_units: [256]
+    shared_mlp_units: []
     use_dnc: False
     lstm_units: 128
     actor_units: [64]
@@ -46,7 +46,7 @@ agent:
     # arguments for loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .0
-    kl_coef: .1
+    kl_coef: .0
     value_coef: .01
 
 buffer:

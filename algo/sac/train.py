@@ -40,7 +40,7 @@ def train(agent, env, replay):
     log_step = LOG_INTERVAL
     while step < int(agent.max_steps):
         agent.set_summary_step(step)
-        with TBTimer(f'trajectory', agent.LOG_INTERVAL, to_log=agent.timer):
+        with TBTimer(f'trajectory', agent.TIME_INTERVAL, to_log=agent.timer):
             score, epslen = run(env, agent.actor, fn=collect_and_learn, timer=agent.timer)
         step += epslen
         scores.append(score)
@@ -50,7 +50,7 @@ def train(agent, env, replay):
             log_step += LOG_INTERVAL
             agent.save(steps=step)
 
-            with TBTimer(f'evaluation', to_log=agent.timer):
+            with TBTimer(f'evaluation', agent.TIME_INTERVAL, to_log=agent.timer):
                 eval_scores, eval_epslens = run(eval_env, agent.actor, evaluation=True, timer=agent.timer, name='eval')
             agent.store(
                 score=np.mean(eval_scores),

@@ -58,7 +58,6 @@ def get_initializer(name, gain=np.sqrt(2), **kwargs):
         elif name == 'glorot_uniform':
             return initializers.GlorotUniform()
         elif name == 'orthogonal':
-            print('gain', gain)
             return initializers.Orthogonal(gain)
         else:
             raise NotImplementedError(f'Unknown initializer name {name}')

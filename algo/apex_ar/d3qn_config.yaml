@@ -15,7 +15,9 @@ agent:
     polyak: .995                            # moving average rate
     
     # distributed algo params
-    n_workers: 8
+    n_workers: 4
+    LOG_INTERVAL: 10
+    timer: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

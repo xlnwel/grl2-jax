@@ -6,9 +6,8 @@ from utility.display import pwc
 from core.tf_config import build
 from utility.rl_utils import clip_but_pass_gradient, logpi_correction
 from utility.tf_distributions import DiagGaussian, Categorical
-from nn.func import mlp, dnc_rnn
-from nn.initializers import get_initializer
-from nn.func import cnn
+from nn.func import cnn, mlp, dnc_rnn
+from nn.utils import get_initializer
 
 
 class PPOAC(tf.Module):
@@ -41,46 +40,49 @@ class PPOAC(tf.Module):
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
-        initializer_name = config.get('kernel_initializer', 'he_uniform')
-        kernel_initializer = get_initializer(initializer_name)
+        kernel_initializer = config.get('kernel_initializer', 'orthogonal')
+        kernel_initializer = get_initializer(kernel_initializer)
 
         """ Network definition """
         if cnn_name:
-            self.cnn = cnn(cnn_name, time_distributed=True, batch_size=self.batch_size)
+            self.cnn = cnn(cnn_name, time_distributed=True, batch_size=self.batch_size, 
+                            kernel_initializer=kernel_initializer)
         # shared mlp layers
         if shared_mlp_units:
             self.shared_mlp = mlp(
                 shared_mlp_units, 
                 norm=norm, 
                 activation=activation, 
-                kernel_initializer=kernel_initializer()
+                kernel_initializer=kernel_initializer
             )
-        
+        if not cnn_name and not shared_mlp_units:
+            shared_mlp_units = state_shape
         # RNN layer
         self.rnn_input_size = self.cnn.out_size if cnn_name else shared_mlp_units[-1]
         if use_dnc:
             self.rnn = dnc_rnn(**dnc_config)
         else:
-            self.rnn = layers.LSTM(lstm_units, return_sequences=True, return_state=True)
+            self.rnn = layers.LSTM(lstm_units, return_sequences=True, return_state=True,
+                                    kernel_initializer=kernel_initializer)
 
         # actor/critic head
         self.actor = mlp(actor_units, 
-                                out_dim=action_dim, 
-                                norm=norm, 
-                                name='actor',
-                                activation=activation, 
-                                kernel_initializer=kernel_initializer())
+                        out_dim=action_dim, 
+                        norm=norm, 
+                        name='actor',
+                        activation=activation, 
+                        kernel_initializer=get_initializer('orthogonal', gain=.01))
         if not self.is_action_discrete:
             self.logstd = tf.Variable(initial_value=np.zeros(action_dim), 
                                         dtype=tf.float32, 
                                         trainable=True, 
                                         name=f'actor/logstd')
         self.critic = mlp(critic_units, 
-                                out_dim=1,
-                                norm=norm, 
-                                name='critic', 
-                                activation=activation, 
-                                kernel_initializer=kernel_initializer())
+                            out_dim=1,
+                            norm=norm, 
+                            name='critic', 
+                            activation=activation, 
+                            kernel_initializer=get_initializer('orthogonal', gain=1.))
 
         # policy distribution type
         self.ActionDistributionType = Categorical if self.is_action_discrete else DiagGaussian

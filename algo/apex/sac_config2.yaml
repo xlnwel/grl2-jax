@@ -1,29 +1,31 @@
 ---
 env:
-    name: LunarLanderContinuous-v2
+    name: Hopper-v2
     video_path: video
     log_video: False
+    n_envs: 16
+    efficient_envvec: True
     seed: 0
-
 model:
     actor:
-        units_list: [64, 64]
-        activation: tanh
+        units_list: [256, 256]
     q:
-        units_list: [64, 64]
-        activation: tanh
+        units_list: [256, 256]
     temperature:
         temp_type: 'variable'
-        value: .2
+        value: 0.1
 agent:
-    algorithm: &algo sac
+    algorithm: &algo apex-sac
     gamma: &gamma 0.99
-    polyak: .995                            # moving average rate
     sync: False
-    target_update_freq: 100 
-    # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
+    target_update_freq: 100
+    polyak: .995                            # moving average rate
+    # target_entropy: -4
     TIME_INTERVAL: 100
-    timer: False
+    timer: True
+
+    # distributed algo params
+    n_workers: 4
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -33,18 +35,20 @@ agent:
 
     loss_type: mse                          # huber or mse
     tbo: False                               # transformed Bellman Operator
-    max_steps: 3.e+6
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 1.e-4
+    actor_lr: 3.e-4
     q_lr: 3.e-4
     temp_lr: 1.e-4
     epsilon: 1.e-5
+    # clip_norm: 10
 
+    timer: True
+    
     # arguments for PER
-    per_alpha: 0.5
+    per_alpha: 0.7
     per_epsilon: 1.e-4
 
 replay:
@@ -55,12 +59,13 @@ replay:
     to_update_top_priority: False
 
     # hacking
-    normalize_reward: False
-    reward_scale: 1
+    # normalize_reward: True
+    # reward_scale: 5
+    reward_clip: 10
 
     # arguments for general replay
     n_steps: 3
     gamma: *gamma
-    batch_size: 8192
-    min_size: 5e3
+    batch_size: 256
+    min_size: 5e4
     capacity: 1e6

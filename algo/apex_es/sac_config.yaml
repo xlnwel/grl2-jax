@@ -4,6 +4,7 @@ env:
     video_path: video
     log_video: False
     n_envs: 16
+    effective_envvec: True
     seed: 0
 model:
     actor:
@@ -12,15 +13,27 @@ model:
         units_list: [512, 256, 256]
     temperature:
         temp_type: 'state-action'
-        value: .2
+        value: .02
 agent:
     algorithm: &algo apex-es-sac
     gamma: &gamma 0.99
+    sync: False
+    target_update_freq: 100
     polyak: .995                            # moving average rate
-    # target_entropy: -4
     
+    # timer&interval 
+    TIME_INTERVAL: 100
+    LOG_INTERVAL: 1.e+5
+    MAX_STEPS: 1.e+7
+    timer: True
+
     # distributed algo params
     n_workers: 4
+
+    # evolutionary params
+    STORE_CAP: 10
+    MAX_STEPS: 1.e+7
+    MIN_EVOLVE_MODELS: 2
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -39,15 +52,13 @@ agent:
     temp_lr: 1.e-4
     epsilon: 1.e-5
     # clip_norm: 10
-
-    timer: True
     
     # arguments for PER
-    per_alpha: 0.7
+    per_alpha: 0.5
     per_epsilon: 1.e-4
 
 replay:
-    type: uniform                      # proportional or uniform
+    type: proportional                      # proportional or uniform
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4

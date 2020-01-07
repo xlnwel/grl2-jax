@@ -13,7 +13,7 @@ from replay.data_pipline import RayDataset
 
 
 def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_config, replay_config):
-    @ray.remote(num_cpus=1, num_gpus=.3)
+    @ray.remote(num_cpus=1, num_gpus=.1)
     class Learner(BaseAgent):
         """ Interface """
         def __init__(self,
@@ -53,10 +53,10 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             while True:
                 step += 1
                 with TBTimer(f'{self.name} train', 10000, to_log=self.timer):
-                    self.learn_log()
+                    self.learn_log(step)
                 if step % 1000 == 0:
                     self.log(step, print_terminal_info=False)
-                    self.save(steps=step, print_terminal_info=False)
+                    self.save(print_terminal_info=False)
 
     config = config.copy()
     model_config = model_config.copy()
