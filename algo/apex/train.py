@@ -22,10 +22,9 @@ def import_agent(config):
 def get_worker_fn(agent_config):
     if agent_config['algorithm'].startswith('apex-es2'):
         from algo.apex_es2.worker import create_worker
-    if agent_config['algorithm'].startswith('apex-es'):
-        print('es')
+    elif agent_config['algorithm'].startswith('apex-es'):
         from algo.apex_es.worker import create_worker
-    if agent_config['algorithm'].startswith('apex'):
+    elif agent_config['algorithm'].startswith('apex'):
         from algo.apex.worker import create_worker
     else:
         raise NotImplementedError
@@ -35,9 +34,9 @@ def get_worker_fn(agent_config):
 def get_learner_fn(agent_config):
     if agent_config['algorithm'].startswith('apex-es2'):
         from algo.apex_es2.learner import create_learner
-    if agent_config['algorithm'].startswith('apex-es'):
+    elif agent_config['algorithm'].startswith('apex-es'):
         from algo.apex.learner import create_learner
-    if agent_config['algorithm'].startswith('apex'):
+    elif agent_config['algorithm'].startswith('apex'):
         from algo.apex.learner import create_learner
     else:
         raise NotImplementedError

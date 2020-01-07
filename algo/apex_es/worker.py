@@ -126,7 +126,7 @@ class Worker(BaseWorker):
 
     def _store_weights(self, score, tag, weights):
         self.store_map[score] = Weights(tag, weights)
-        while len(self.store_map) > self.store_cap:
+        while len(self.store_map) > self.STORE_CAP:
             remove_worst_weights(self.store_map)
 
     def _periodic_logging(self, step):

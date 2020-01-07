@@ -3,7 +3,7 @@ env:
     name: BipedalWalkerHardcore-v2
     video_path: video
     log_video: False
-    n_envs: 16
+    n_envs: 8
     effective_envvec: True
     seed: 0
 model:
@@ -54,11 +54,11 @@ agent:
     # clip_norm: 10
     
     # arguments for PER
-    per_alpha: 0.5
+    per_alpha: 0.7
     per_epsilon: 1.e-4
 
 replay:
-    type: proportional                      # proportional or uniform
+    type: uniform                      # proportional or uniform
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4
