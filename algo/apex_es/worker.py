@@ -51,7 +51,7 @@ class Worker(BaseWorker):
         self.store_map = {}                                 # map score to Weights
         self.mode = (Mode.LEARNING, Mode.EVOLUTION, Mode.REEVALUATION)
         self.raw_bookkeeping = BookKeeping('raw')
-        self.best_score = -float('inf')
+        self.info_to_print = []
         # self.reevaluation_bookkeeping = BookKeeping('reeval')
 
     def run(self, learner, replay):
@@ -73,19 +73,15 @@ class Worker(BaseWorker):
 
             score += self.n_envs / eval_times * (np.mean(scores) - score)
             
-            status = self._make_decision(score)
-            self.raw_bookkeeping.add(tag, status)
-
-            pwc(f'{self.name}_{self.id}: {tag} model has been evaluated.', 
-                f'Score: {score:.3g}',
-                f'Decision: {status}', color='green')
+            status = self._make_decision(score, tag)
 
             if status == Status.ACCEPTED:
                 store_weights(self.store_map, score, tag, weights, eval_times, self.STORE_CAP)
             
-            self._update_mode_prob()
+            if self.id != 0:
+                self._update_mode_prob()
 
-            print_store(self.store_map, self.model_name)
+            self.info_to_print = print_store(self.store_map, self.model_name, self.info_to_print)
             self._periodic_logging(step, i)
 
     def _choose_weights(self, learner):
@@ -101,8 +97,8 @@ class Worker(BaseWorker):
             eval_times = 0
         elif mode == Mode.EVOLUTION:
             tag = Tag.EVOLVED
-            weights, n = evolve_weights(self.store_map, min_evolv_models=self.MIN_EVOLVE_MODELS)
-            pwc(f'{self.name}_{self.id}: {n} models are used for evolution', color='blue')
+            weights, n = evolve_weights(self.store_map)
+            self.info_to_print.append(((f'{self.name}_{self.id}: {n} models are used for evolution', ), 'blue'))
             score = 0
             eval_times = 0
         elif mode == Mode.REEVALUATION:
@@ -114,14 +110,20 @@ class Worker(BaseWorker):
         
         return mode, score, tag, weights, eval_times
 
-    def _make_decision(self, score):
-        self.best_score = max(score, self.best_score)
-        min_score = min(self.store_map.keys()) if self.store_map else -float('inf')
-        if score > min_score:
+    def _make_decision(self, score, tag):
+        if len(self.store_map) < self.STORE_CAP:
             status = Status.ACCEPTED
         else:
-            status = Status.REJECTED
-        
+            min_score = min(self.store_map.keys()) if self.store_map else -float('inf')
+            if score > min_score:
+                status = Status.ACCEPTED
+            else:
+                status = Status.REJECTED
+        self.raw_bookkeeping.add(tag, status)
+
+        self.info_to_print.append(((f'{self.name}_{self.id}: {tag} model has been evaluated.', 
+                                f'Score: {score:.3g}',
+                                f'Decision: {status}'), 'green'))
         return status
 
     def _update_mode_prob(self):

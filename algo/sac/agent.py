@@ -97,9 +97,7 @@ class Agent(BaseAgent):
         if self.is_action_discrete:
             action = tf.one_hot(action, self.action_dim)
             assert len(action.shape) == 2
-        if isinstance(self.temperature, float):
-            temp = tf.convert_to_tensor(self.temperature)
-        else:
+        if not isinstance(self.temperature, float):
             with tf.name_scope('temp_update'):
                 temp_grads, temp_terms = self._compute_temp_grads(state, IS_ratio)
                 if getattr(self, 'clip_norm', None):
@@ -127,7 +125,7 @@ class Agent(BaseAgent):
                 zip(q_grads, self.q1.trainable_variables + self.q2.trainable_variables))
             terms.update(q_terms)
 
-        if self.sync:
+        if self.sync_target:
             if self.global_steps % self.target_update_freq == 0:
                 self._sync_target_nets()
         else:

@@ -8,7 +8,7 @@ env:
     seed: 0
 model:
     actor:
-        units_list: [512, 256]
+        units_list: [512, 256, 128]
         kernel_initializer: orthogonal
     q:
         units_list: [512, 512, 256]
@@ -19,7 +19,7 @@ model:
 agent:
     algorithm: &algo apex-es-sac
     gamma: &gamma 0.99
-    sync: False
+    sync_target: False
     target_update_freq: 100
     polyak: .995                            # moving average rate
     
@@ -34,7 +34,7 @@ agent:
 
     # evolutionary params
     STORE_CAP: 10
-    MAX_STEPS: 1.e+7
+    MAX_STEPS: 1.e+8
     MIN_EVOLVE_MODELS: 2
 
     # model path: root_dir/model_name/models
@@ -48,7 +48,7 @@ agent:
 
     # arguments for optimizer
     optimizer: adam
-    schedule_lr: False
+    schedule_lr: True
     actor_lr: 1.e-4
     q_lr: 1.e-4
     temp_lr: 1.e-4
@@ -74,6 +74,6 @@ replay:
     # arguments for general replay
     n_steps: 3
     gamma: *gamma
-    batch_size: 256
+    batch_size: 512
     min_size: 5e4
     capacity: 1e6

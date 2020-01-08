@@ -19,7 +19,7 @@ agent:
     algorithm: &algo sac
     gamma: &gamma 0.99
     polyak: .995                            # moving average rate
-    sync: False
+    sync_target: False
     target_update_freq: 100 
     # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
     TIME_INTERVAL: 100

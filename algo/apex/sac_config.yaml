@@ -17,7 +17,7 @@ model:
 agent:
     algorithm: &algo apex-sac
     gamma: &gamma 0.99
-    sync: False
+    sync_target: False
     target_update_freq: 100
     polyak: .995                            # moving average rate
     # target_entropy: -4

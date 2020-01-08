@@ -90,9 +90,12 @@ def store_weights(store_map, score, tag, weights, eval_times, store_cap):
     while len(store_map) > store_cap:
         remove_worst_weights(store_map)
 
-def print_store(store, name):
+def print_store(store, name, info=[]):
+    for msg, color in info:
+        pwc(*msg, color=color)
     store = [(score, weights.tag, weights.eval_times) for score, weights in store.items()]
     store = sorted(store, key=lambda x: x[0], reverse=True)
     pwc(f"{name}: current stored models", 
         f"{[f'({x[0]:.3g}, {x[1]}, {x[2]})' for x in store]}", 
         color='magenta')
+    return []

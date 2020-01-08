@@ -49,7 +49,7 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
         default_shape = [batch_size]
     if isinstance(TensorSpecs, dict):
         name = TensorSpecs.keys()
-        tensorspecs = TensorSpecs.values()
+        tensorspecs = tuple(TensorSpecs.values())
     else:
         name = None
         tensorspecs = TensorSpecs
@@ -79,7 +79,7 @@ def build(func, TensorSpecs, sequential=False, batch_size=None):
     while isinstance(ts, list):
         ts = ts[0]
     while isinstance(ts, dict):
-        ts = ts.values()[0]
+        ts = tuple(ts.values())[0]
     if not isinstance(ts, tf.TensorSpec):
         TensorSpecs = get_TensorSpecs(TensorSpecs, sequential, batch_size)
 
