@@ -3,7 +3,7 @@ import tensorflow as tf
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target, transformed_n_step_target
-from utility.schedule import PiecewiseSchedule
+from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
@@ -31,9 +31,9 @@ class Agent(BaseAgent):
             raise NotImplementedError()
         if getattr(self, 'schedule_lr', False):
             self.actor_schedule = PiecewiseSchedule(
-                [(1e5, self.actor_lr), (5e5, 1e-5)])
+                [(2e5, self.actor_lr), (5e5, 1e-5)])
             self.q_schedule = PiecewiseSchedule(
-                [(1e5, self.q_lr), (5e5, 3e-5)])
+                [(2e5, self.q_lr), (5e5, 1e-5)])
             self.actor_lr = tf.Variable(self.actor_lr, trainable=False)
             self.q_lr = tf.Variable(self.q_lr, trainable=False)
 
@@ -46,7 +46,7 @@ class Agent(BaseAgent):
         if not isinstance(self.temperature, float):
             if getattr(self, 'schedule_lr', False):
                 self.temp_schedule = PiecewiseSchedule(
-                    [(5e5, self.temp_lr), (1.5e6, 1e-5)])
+                    [(2e5, self.temp_lr), (5e5, 1e-5)])
                 self.temp_lr = tf.Variable(self.temp_lr, trainable=False)
             self.temp_opt = Optimizer(learning_rate=self.temp_lr,
                                     epsilon=self.epsilon)
@@ -75,6 +75,8 @@ class Agent(BaseAgent):
         if self.schedule_lr:
             self.actor_lr.assign(self.actor_schedule.value(self.global_steps.numpy()))
             self.q_lr.assign(self.q_schedule.value(self.global_steps.numpy()))
+            if hasattr(self, 'temp_schedule'):
+                self.temp_lr.assign(self.temp_schedule.value(self.global_steps.numpy()))
         with TBTimer(f'{self.model_name} sample', 10000, to_log=self.timer):
             data = self.dataset.sample()
         if not self.dataset.buffer_type().endswith('uniform'):

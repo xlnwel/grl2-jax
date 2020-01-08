@@ -30,7 +30,7 @@ agent:
     timer: True
 
     # distributed algo params
-    n_workers: 4
+    n_workers: 8
 
     # evolutionary params
     STORE_CAP: 10
