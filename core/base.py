@@ -52,3 +52,6 @@ class BaseAgent(ABC):
 
     def get_stats(self, mean=True, std=False, min=False, max=False):
         get_stats(self.logger, mean, std, min, max)
+
+    def print_construction_complete(self):
+        pwc(f'{self.model_name} has been constructed', color='cyan')

@@ -14,8 +14,8 @@ model:
         units_list: [512, 512, 256]
         kernel_initializer: orthogonal
     temperature:
-        temp_type: 'state-action'
-        value: .02
+        temp_type: 'constant'
+        value: .0
 agent:
     algorithm: &algo apex-es-sac
     gamma: &gamma 0.99
@@ -30,7 +30,7 @@ agent:
     timer: True
 
     # distributed algo params
-    n_workers: 8
+    n_workers: 4
 
     # evolutionary params
     STORE_CAP: 10
@@ -48,7 +48,7 @@ agent:
 
     # arguments for optimizer
     optimizer: adam
-    schedule_lr: True
+    schedule_lr: False
     actor_lr: 1.e-4
     q_lr: 1.e-4
     temp_lr: 1.e-4
@@ -72,7 +72,7 @@ replay:
     reward_clip: 10
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: 1
     gamma: *gamma
     batch_size: 512
     min_size: 5e4

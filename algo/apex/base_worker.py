@@ -55,7 +55,7 @@ class BaseWorker(BaseAgent):
             self._compute_priorities, 
             TensorSpecs)
 
-    def eval_model(self, weights, step, replay):
+    def eval_model(self, weights, step, replay, evaluation=False):
         """ collects data, logs stats, and saves models """
         def collect_fn(**kwargs):
             self.buffer.add_data(**kwargs)
@@ -63,7 +63,7 @@ class BaseWorker(BaseAgent):
         self.model.set_weights(weights)
 
         with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
-            scores, epslens = run(self.env, self.actor, fn=collect_fn, evaluation=self.id == 0)
+            scores, epslens = run(self.env, self.actor, fn=collect_fn, evaluation=evaluation)
             step += np.sum(epslens)
             if scores is not None:
                 self.store(  

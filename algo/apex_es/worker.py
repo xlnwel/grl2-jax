@@ -65,9 +65,10 @@ class Worker(BaseWorker):
                 mode, score, tag, weights, eval_times = self._choose_weights(learner)
 
             with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
-                step, scores, epslens = self.eval_model(weights, step, replay)
+                step, scores, epslens = self.eval_model(weights, step, replay, evaluation=self.evaluation)
             eval_times = eval_times + self.n_envs
 
+            # if self.id != 0:
             with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
                 self._send_data(replay)
 
@@ -78,11 +79,14 @@ class Worker(BaseWorker):
             if status == Status.ACCEPTED:
                 store_weights(self.store_map, score, tag, weights, eval_times, self.STORE_CAP)
             
-            if self.id != 0:
-                self._update_mode_prob()
+            # if self.id != 0:
+            self._update_mode_prob()
 
             self.info_to_print = print_store(self.store_map, self.model_name, self.info_to_print)
             self._periodic_logging(step, i)
+
+            if eval_times > 100 and score > 300:
+                self.save()
 
     def _choose_weights(self, learner):
         if len(self.store_map) < self.MIN_EVOLVE_MODELS:
@@ -128,8 +132,14 @@ class Worker(BaseWorker):
 
     def _update_mode_prob(self):
         fracs = analyze_store(self.store_map)
-        self.mode_prob[0] = 0.1 + fracs['frac_learned'] * .5
-        self.mode_prob[1] = 0.1 + fracs['frac_evolved'] * .5
+        if min(self.store_map) > 290:
+            self.mode_prob[2] = .5
+        else:
+            self.mode_prob[2] = 0
+        remain_prob = 1 - self.mode_prob[2] - .2
+
+        self.mode_prob[0] = 0.1 + fracs['frac_learned'] * remain_prob
+        self.mode_prob[1] = 0.1 + fracs['frac_evolved'] * remain_prob
 
     def _periodic_logging(self, step, i):
         if i % self.LOG_INTERVAL == 0:
@@ -156,10 +166,11 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     
     config['model_name'] = f'worker_{worker_id}'
     config['replay_type'] = buffer_config['type']
-    if worker_id == 0:
-        config['mode_prob'] = [.7, 0, .3]
-    else:
-        config['mode_prob'] = [.5, .1, .3]
+    config['evaluation'] = True
+    # if worker_id == 0:
+    #     config['mode_prob'] = [.7, .5, 0]
+    # else:
+    config['mode_prob'] = [1, 0, 0]
 
     worker = Worker.remote(name, worker_id, model_fn, buffer_fn, config, 
                         model_config, env_config, buffer_config)

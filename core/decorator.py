@@ -18,9 +18,6 @@ def display_model_var_info(models):
         
     display_var_info(tvars)
 
-def print_construction_complete(name):
-    pwc(f'{name} has been constructed', color='cyan')
-
 def agent_config(init_fn):
     """ Decorator for agent's initialization """
     from functools import wraps
@@ -35,6 +32,9 @@ def agent_config(init_fn):
             kwargs: optional arguments for each specific agent
         """
         # preprocessing
+        # name is used for better bookkeeping, 
+        # while model_name is used for create save/log files
+        # e.g., all workers share the same name, but with differnt model_names
         self.name = name
         """ For the basic configuration, see config.yaml in algo/*/ """
         [setattr(self, k, v) for k, v in config.items()]
@@ -59,6 +59,6 @@ def agent_config(init_fn):
         self.ckpt, self.ckpt_path, self.ckpt_manager = \
             setup_checkpoint(self.ckpt_models, self.root_dir, self.model_name, self.global_steps)
         display_model_var_info(self.ckpt_models)
-        print_construction_complete(self.name)
+        self.print_construction_complete()
     
     return wrapper

@@ -44,7 +44,10 @@ def get_learner_fn(agent_config):
     return create_learner
 
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
-    ray.init(memory=8*1024**3, object_store_memory=4*1024**3, num_cpus=6)
+    if agent_config['n_workers'] == 4:
+        ray.init(memory=8*1024**3, object_store_memory=4*1024**3, num_cpus=6)
+    else:
+        ray.init()
     sigint_shutdown_ray()
 
     env_config_copy = env_config.copy()
