@@ -1,6 +1,4 @@
-import time
 import threading
-import numpy as np
 import tensorflow as tf
 import ray
 
@@ -28,7 +26,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             configure_gpu()
 
             env = create_gym_env(env_config)
-            dataset = RayDataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype)
+            dataset = RayDataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype, env.action_dim)
             self.model = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
             
             super().__init__(
@@ -43,7 +41,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             self._learning_thread = threading.Thread(target=self._learning, daemon=True)
             self._learning_thread.start()
             
-        def get_weights(self, name=None):
+        def get_weights(self, worker_id, name=None):
             return self.model.get_weights(name=name)
 
         def _learning(self):
@@ -56,6 +54,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
                     self.learn_log(step)
                 if step % 1000 == 0:
                     self.log(step, print_terminal_info=False)
+                if step % 100000 == 0:
                     self.save(print_terminal_info=False)
 
     config = config.copy()

@@ -35,3 +35,4 @@ class SumTree:
             left, right = 2 * idx + 1, 2 * idx + 2
 
             self.container[idx] = self.container[left] + self.container[right]
+            

@@ -25,10 +25,8 @@ def import_main(algorithm):
         from algo.ppo.eval import main
     elif algorithm == 'ppo2':
         from algo.ppo2.eval import main
-    elif algorithm == 'sac':
+    elif algorithm.endswith('sac'):
         from algo.sac.eval import main
-    elif algorithm == 'dew-sac':
-        from algo.dee_sac.eval import main
     else:
         raise NotImplementedError
 

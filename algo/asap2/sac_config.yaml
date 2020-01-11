@@ -1,29 +1,49 @@
 ---
 env:
-    name: BipedalWalker-v2
+    name: Humanoid-v3
     video_path: video
     log_video: False
+    n_envs: 8
+    efficient_envvec: True
     seed: 0
-
 model:
     actor:
-        units_list: [512, 256]
+        units_list: [300, 200]
+        # kernel_initializer: orthogonal
         activation: relu
     q:
-        units_list: [512, 256]
+        units_list: [500, 300]
+        # kernel_initializer: orthogonal
         activation: relu
     temperature:
-        temp_type: 'state-action'
-        value: .2
+        temp_type: 'constant'
+        value: .01
 agent:
-    algorithm: &algo sac
+    algorithm: &algo asap2-sac
     gamma: &gamma 0.99
-    polyak: .995                            # moving average rate
     sync_target: False
-    target_update_freq: 100 
-    # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
+    target_update_freq: 100
+    polyak: .995                            # moving average rate
+    evaluation: False
+    
+    # timer&interval
     TIME_INTERVAL: 100
-    timer: False
+    LOG_INTERVAL: 100000
+    MAX_STEPS: 2.e+7
+    timer: True
+
+    # distributed algo params
+    n_workers: 4
+
+    # evolutionary params
+    REPO_CAP: 10
+    MIN_EVOLVE_MODELS: 2
+    MAX_EVOLVE_MODELS: 10
+    MIN_LEARN_PROB: .3
+    MIN_EVOLVE_PROB: .3
+    EVAL_PROB: .0
+    FIFO: True
+    EVOLVE_WA: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -33,34 +53,35 @@ agent:
 
     loss_type: mse                          # huber or mse
     tbo: False                               # transformed Bellman Operator
-    max_steps: 3.e+6
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 1.e-4
+    actor_lr: 3.e-4
     q_lr: 3.e-4
-    temp_lr: 1.e-4
+    temp_lr: 3.e-4
     epsilon: 1.e-5
-
+    # clip_norm: 10
+    
     # arguments for PER
     per_alpha: 0.5
     per_epsilon: 1.e-4
 
 replay:
-    type: proportional                      # proportional or uniform
+    type: uniform                      # proportional or uniform
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4
     to_update_top_priority: False
 
     # hacking
-    normalize_reward: False
-    reward_scale: 1
+    # normalize_reward: True
+    # reward_scale: 5
+    # reward_clip: 10
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: 1
     gamma: *gamma
-    batch_size: 256
-    min_size: 5e3
+    batch_size: 512
+    min_size: 5e4
     capacity: 1e6

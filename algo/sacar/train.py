@@ -86,7 +86,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     # construct replay
     replay_keys = ['state', 'action', 'n_ar', 'reward', 'done', 'steps']
     replay = create_replay(replay_config, *replay_keys, state_shape=env.state_shape)
-    dataset = Dataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype)
+    dataset = Dataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype, env.action_dim)
 
     # construct models
     model_config['actor']['gamma'] = agent_config['gamma']

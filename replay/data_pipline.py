@@ -4,13 +4,16 @@ import ray
 
 
 class Dataset:
-    def __init__(self, buffer, state_shape, state_dtype, action_shape, action_dtype):
+    def __init__(self, buffer, state_shape, state_dtype, action_shape, action_dtype, action_dim):
         """ Create a tf.data.Dataset for data retrieval
         
         Args:
             buffer: buffer, a callable object that stores data
         """
         self.buffer = buffer
+        self.is_action_discrete = action_shape == ()
+        print('Dataset: is action discrete? ', self.is_action_discrete)
+        self.action_dim = action_dim
         self.iterator = self._prepare_dataset(
             buffer, state_shape, state_dtype, action_shape, action_dtype)
 
@@ -57,6 +60,8 @@ class Dataset:
             if state.dtype == tf.uint8:
                 state = tf.cast(state, tf.float32) / 255.
                 next_state = tf.cast(next_state, tf.float32) / 255.
+            if self.is_action_discrete:
+                action = tf.one_hot(action, self.action_dim)
             
             data['state'] = state
             data['action'] = action

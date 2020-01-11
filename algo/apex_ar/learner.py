@@ -28,7 +28,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             configure_gpu()
 
             env = create_gym_env(env_config)
-            dataset = RayDataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype)
+            dataset = RayDataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype, env.action_dim)
             self.model = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
             
             super().__init__(

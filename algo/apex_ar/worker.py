@@ -34,10 +34,8 @@ class Worker(BaseWorker):
         models = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
         
         buffer_config['seqlen'] = env.max_episode_steps
-        buffer = buffer_fn(
-            buffer_config, env.state_shape, 
-            env.state_dtype, env.action_shape, 
-            env.action_dtype, config['gamma'])
+        buffer_keys = ['state', 'action', 'reward', 'done', 'steps']
+        buffer = buffer_fn(buffer_config, *buffer_keys)
 
         super().__init__(
             name=name,
@@ -52,7 +50,6 @@ class Worker(BaseWorker):
     def run(self, learner, replay):
         step = 0
         while step < self.MAX_STEPS:
-            self.set_summary_step(step)
             with TBTimer(f'{self.name} pull weights', self.TIME_PERIOD, to_log=self.timer):
                 weights = self.pull_weights(learner)
 
@@ -61,8 +58,6 @@ class Worker(BaseWorker):
 
             with TBTimer(f'{self.name} send data', self.TIME_PERIOD, to_log=self.timer):
                 self._send_data(replay)
-
-            self._periodic_logging(step)
 
     def _send_data(self, replay):
         """ sends data to replay """
@@ -93,9 +88,6 @@ def create_worker(name, worker_id, model_fn, config, model_config,
     env_config['seed'] = worker_id
     
     config['model_name'] = f'worker_{worker_id}'
-    config['TIME_PERIOD'] = 1000
-    config['LOG_STEPS'] = 10000
-    config['MAX_STEPS'] = int(3e7)
     config['replay_type'] = buffer_config['type']
     config['max_ar'] = model_config['actor']['max_ar']
 

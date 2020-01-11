@@ -5,7 +5,6 @@ import seaborn as sns
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utility.display import assert_colorize, pwc
 
 
 def plot_data(data, x, y, outdir, tag, title, timing=None):
@@ -33,7 +32,7 @@ def plot_data(data, x, y, outdir, tag, title, timing=None):
     outpath = f'{outdir}/{title}.png'
     ax.set_title(title)
     fig.savefig(outpath)
-    pwc(f'Plot Path: {outpath}')
+    print(f'Plot Path: {outpath}')
 
 def get_datasets(filedir, tag, condition=None):
     unit = 0
@@ -56,11 +55,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('logdir', nargs='*')
     parser.add_argument('--outdir', '-o')
+    parser.add_argument('--title')
     parser.add_argument('--legend', nargs='*')
     parser.add_argument('--legendtag', '-tag', default='Algo')
-    parser.add_argument('--title')
-    parser.add_argument('--x', default='Episodes', nargs='*')
-    parser.add_argument('--y', default='ScoreMean', nargs='*')
+    parser.add_argument('--x', default='Million Steps', nargs='*')
+    parser.add_argument('--y', default='Average Return', nargs='*')
     parser.add_argument('--timing', default=None, choices=['Train', 'Eval', None], 
                         help='select timing to plot; both training and evaluation stats are plotted by default')
     args = parser.parse_args()
@@ -73,7 +72,7 @@ def main():
 
     # set up legends
     if args.legend:
-        assert_colorize(len(args.legend) == len(dirs),
+        assert len(args.legend) == len(dirs), (
             "Must give a legend title for each set of experiments.")
         legends = args.legend
     else:
@@ -81,12 +80,12 @@ def main():
         legends = [l[3:] if l.startswith('GS-') else l for l in legends]
     tag = args.legendtag
 
-    pwc('Directories:')
+    print('Directories:')
     for d in dirs:
-        pwc(f'\t{d}')
-    pwc('Legends:')
+        print(f'\t{d}')
+    print('Legends:')
     for l in legends:
-        pwc(f'\t{l}')
+        print(f'\t{l}')
     data = []
     for logdir, legend_title in zip(dirs, legends):
         data += get_datasets(logdir, tag, legend_title)

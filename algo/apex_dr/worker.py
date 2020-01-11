@@ -34,10 +34,8 @@ class Worker(BaseWorker):
         models = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
         
         buffer_config['seqlen'] = env.max_episode_steps
-        buffer = buffer_fn(
-            buffer_config, env.state_shape, 
-            env.state_dtype, env.action_shape, 
-            env.action_dtype, config['gamma'])
+        buffer_keys = ['state', 'action', 'reward', 'done', 'steps']
+        buffer = buffer_fn(buffer_config, *buffer_keys)
 
         self.threshold = -float('inf')
 
@@ -54,17 +52,15 @@ class Worker(BaseWorker):
     def run(self, learner, replay):
         step = 0
         while step < 1e7:
-            self.set_summary_step(step)
-            with Timer(f'{self.name} pull weights', self.TIME_PERIOD):
+            with Timer(f'{self.name} pull weights', self.TIME_PERIOD, to_log=self.timer):
                 weights = self.pull_weights(learner)
 
-            with TBTimer(f'{self.name} eval model', self.TIME_PERIOD):
+            with TBTimer(f'{self.name} eval model', self.TIME_PERIOD, to_log=self.timer):
                 step, scores, epslens = self.eval_model(weights, step, replay)
 
-            with Timer(f'{self.name} send data', self.TIME_PERIOD):
+            with Timer(f'{self.name} send data', self.TIME_PERIOD, to_log=self.timer):
                 self._send_data(replay, scores, epslens)
 
-            self._periodic_logging(step)
         
     def _send_data(self, replay, scores=None, epslens=None):
         self.threshold = max(np.max(scores) - self.SLACK, self.threshold)

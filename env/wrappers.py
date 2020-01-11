@@ -91,7 +91,7 @@ class EnvStats(gym.Wrapper):
 
     @property
     def action_dim(self):
-        return self.action_space.n if self.is_action_discrete else self.env.action_space.shape[0]
+        return self.action_space.n if self.is_action_discrete else self.action_shape[0]
 
 
 class ActionRepetition(gym.Wrapper):

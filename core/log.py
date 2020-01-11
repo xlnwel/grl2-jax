@@ -16,7 +16,7 @@ def log(logger, writer, model_name, step, timing='Train', print_terminal_info=Tr
     stats = dict(
         model_name=f'{model_name}',
         timing=timing,
-        steps=step_str(step)
+        steps=step
     )
     stats.update(logger.get_stats())
     log_summary(writer, stats, step)
@@ -154,7 +154,6 @@ class Logger:
         return stats
 
     def get_count(self, name):
-        assert_colorize(name in self.store_dict)
         return len(self.store_dict[name])
 
     def _log_tabular(self, key, val):

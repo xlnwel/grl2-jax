@@ -2,6 +2,7 @@ import time
 import ray
 
 from utility.signal import sigint_shutdown_ray
+from utility.yaml_op import load_config
 from env.gym_env import create_gym_env
 from replay.func import create_replay_center
 
@@ -20,10 +21,10 @@ def import_agent(config):
     return create_model, Agent
 
 def get_worker_fn(agent_config):
-    if agent_config['algorithm'].startswith('apex-es2'):
-        from algo.apex_es2.worker import create_worker
-    elif agent_config['algorithm'].startswith('apex-es'):
-        from algo.apex_es.worker import create_worker
+    if agent_config['algorithm'].startswith('asap2'):
+        from algo.asap2.worker import create_worker
+    elif agent_config['algorithm'].startswith('asap'):
+        from algo.asap.worker import create_worker
     elif agent_config['algorithm'].startswith('apex'):
         from algo.apex.worker import create_worker
     else:
@@ -32,9 +33,9 @@ def get_worker_fn(agent_config):
     return create_worker
 
 def get_learner_fn(agent_config):
-    if agent_config['algorithm'].startswith('apex-es2'):
-        from algo.apex_es2.learner import create_learner
-    elif agent_config['algorithm'].startswith('apex-es'):
+    if agent_config['algorithm'].startswith('asap2'):
+        from algo.asap2.learner import create_learner
+    elif agent_config['algorithm'].startswith('asap'):
         from algo.apex.learner import create_learner
     elif agent_config['algorithm'].startswith('apex'):
         from algo.apex.learner import create_learner
@@ -43,11 +44,38 @@ def get_learner_fn(agent_config):
 
     return create_learner
 
+def get_bph_config(agent_config):
+    """ get configure file for BipedalWalkerHardcore-v2 """
+    if agent_config['algorithm'].startswith('asap2'):
+        config_file = 'algo/asap2/bph_sac_config.yaml'
+    elif agent_config['algorithm'].startswith('asap'):
+        config_file = 'algo/asap/bph_sac_config.yaml'
+    elif agent_config['algorithm'].startswith('apex'):
+        config_file = 'algo/apex/bph_sac_config.yaml'
+    else:
+        raise NotImplementedError
+    
+    return config_file
+
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
     if agent_config['n_workers'] == 4:
-        ray.init(memory=8*1024**3, object_store_memory=4*1024**3, num_cpus=6)
+        ray.init(memory=8*1024**3, object_store_memory=6*1024**3, num_cpus=6)
     else:
         ray.init()
+    if env_config['name'] == 'BipedalWalkerHardcore-v2':
+        # Caveat: this keeps most default configuration
+        algorithm = agent_config['algorithm']
+        root_dir = agent_config['root_dir']
+        video_path = env_config['video_path']
+        config_file = get_bph_config(agent_config)
+        config = load_config(config_file)
+        env_config = config['env']
+        model_config = config['model']
+        agent_config = config['agent']
+        replay_config = config.get('buffer') or config.get('replay')
+        agent_config['algorithm'] = algorithm
+        agent_config['root_dir'] = root_dir
+        env_config['video_path'] = video_path
     sigint_shutdown_ray()
 
     env_config_copy = env_config.copy()

@@ -1,27 +1,33 @@
 ---
 env:
-    name: Hopper-v2
+    name: BipedalWalkerHardcore-v2
     video_path: video
     log_video: False
-    n_envs: 16
+    n_envs: 8
     efficient_envvec: True
     seed: 0
 model:
     actor:
-        units_list: [256, 256]
+        units_list: [512, 256, 128]
+        kernel_initializer: orthogonal
     q:
-        units_list: [256, 256]
+        units_list: [512, 512, 256]
+        kernel_initializer: orthogonal
     temperature:
-        temp_type: 'variable'
-        value: .2
+        temp_type: 'constant'
+        value: .01
 agent:
-    algorithm: &algo apex-es-sac
-    gamma: &gamma 0.99
+    algorithm: &algo apex-sac
+    gamma: &gamma 0.999
     sync_target: False
     target_update_freq: 100
     polyak: .995                            # moving average rate
-    # target_entropy: -4
+    evaluation: False
+
+    # timer&interval
     TIME_INTERVAL: 100
+    LOG_INTERVAL: 100000
+    MAX_STEPS: 1.e+8
     timer: True
 
     # distributed algo params
@@ -39,14 +45,12 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 3.e-4
-    q_lr: 3.e-4
+    actor_lr: 1.e-4
+    q_lr: 1.e-4
     temp_lr: 1.e-4
     epsilon: 1.e-5
     # clip_norm: 10
 
-    timer: True
-    
     # arguments for PER
     per_alpha: 0.7
     per_epsilon: 1.e-4
@@ -64,8 +68,8 @@ replay:
     reward_clip: 10
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: 1
     gamma: *gamma
-    batch_size: 256
+    batch_size: 512
     min_size: 5e4
     capacity: 1e6

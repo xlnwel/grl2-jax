@@ -12,7 +12,7 @@ model:
         v_units: [256]
         a_units: [256]
 agent:
-    algorithm: &algo apex-dqn
+    algorithm: &algo asap-dqn
     gamma: &gamma 0.99
 
     # distributed algo params

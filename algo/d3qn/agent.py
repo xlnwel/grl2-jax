@@ -44,7 +44,7 @@ class Agent(BaseAgent):
         TensorSpecs = [
             ([1], tf.float32, 'IS_ratio'),
             (env.state_shape, tf.float32, 'state'),
-            (env.action_shape, env.action_dtype, 'action'),
+            ([env.action_dim], tf.float32, 'action'),
             ([1], tf.float32, 'reward'),
             (env.state_shape, tf.float32, 'next_state'),
             ([1], tf.float32, 'done'),

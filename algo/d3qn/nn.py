@@ -31,40 +31,12 @@ class Q(tf.Module):
         TensorSpecs = [
             (state_shape, tf.float32, 'state')
         ]
+        self.action = build(self._action, TensorSpecs)
         self.det_action = build(self._det_action, TensorSpecs)
-    
-    @tf.Module.with_name_scope
-    def train_det_value(self, x, action):
-        with tf.name_scope('train_det_qs'):
-            qs = self._step(x, False, False, name='train_det_value')
-
-            q = tf.reduce_sum(
-                    tf.one_hot(action, self.n_actions) * qs, 
-                    axis=1, keepdims=True)
-
-        return q
-
-    @tf.Module.with_name_scope
-    def train_action(self, x):
-        with tf.name_scope('train_det_action'):
-            qs = self._step(x, False, False, name='train_action')
-            
-            return tf.argmax(qs, axis=1)
-
-    @tf.Module.with_name_scope
-    def train_value(self, x, action):
-        with tf.name_scope('train_step'):
-            qs = self._step(x, name='train_value')
-
-            q = tf.reduce_sum(
-                    tf.one_hot(action, self.n_actions) * qs, 
-                    axis=1, keepdims=True)
-
-        return q
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
-    def action(self, x):
+    def _action(self, x):
         if len(x.shape) == 4:
             x = x / 255.
         with tf.name_scope('action'):
@@ -83,7 +55,32 @@ class Q(tf.Module):
 
             action = tf.argmax(qs, axis=1)
             return action
+
+    @tf.Module.with_name_scope
+    def train_det_value(self, x, action):
+        with tf.name_scope('train_det_qs'):
+            qs = self._step(x, False, False, name='train_det_value')
+            assert action.shape[1:] == qs.shape[1:], f'action({action.shape}) != qs({qs.shape})'
+            q = tf.reduce_sum(action * qs, axis=1, keepdims=True)
+
+        return q
+
+    @tf.Module.with_name_scope
+    def train_action(self, x):
+        with tf.name_scope('train_det_action'):
+            qs = self._step(x, False, False, name='train_action')
             
+            return tf.argmax(qs, axis=1)
+
+    @tf.Module.with_name_scope
+    def train_value(self, x, action):
+        with tf.name_scope('train_step'):
+            qs = self._step(x, name='train_value')
+            assert action.shape[1:] == qs.shape[1:], f'action({action.shape}) != qs({qs.shape})'
+            q = tf.reduce_sum(action * qs, axis=1, keepdims=True)
+
+        return q
+
     def _step(self, x, reset=True, noisy=True, name=None):
         if hasattr(self, 'cnn'):
             x = self.cnn(x)

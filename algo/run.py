@@ -6,29 +6,29 @@ from env.gym_env import Env, EnvVec, EfficientEnvVec
 from env.wrappers import get_wrapper_by_name
 
 
-TIME_INTERVAL = 10000
+TIME_INTERVAL = 100000
 
 def run(env, actor, *, fn=None, evaluation=False, timer=False, name='run', **kwargs):
     if get_wrapper_by_name(env.env, 'ActionRepetition') is None or env.env.n_ar:
         if isinstance(env, Env):
             return run_trajectory(env, actor, fn=fn, 
                 evaluation=evaluation, timer=timer, name=name, **kwargs)
-        elif isinstance(env, EnvVec):
-            return run_trajectories1(env, actor, fn=fn, 
-                evaluation=evaluation, timer=timer, name=name)
         elif isinstance (env, EfficientEnvVec):
             return run_trajectories2(env, actor, fn=fn, 
-                evaluation=evaluation, timer=timer, name=name)
+                evaluation=evaluation, timer=timer, name=name, **kwargs)
+        elif isinstance(env, EnvVec):
+            return run_trajectories1(env, actor, fn=fn, 
+                evaluation=evaluation, timer=timer, name=name, **kwargs)
     else:
         if isinstance(env, Env):
             return run_trajectory_ar(env, actor, fn=fn, 
                 evaluation=evaluation, timer=timer, name=name, **kwargs)
-        elif isinstance(env, EnvVec):
-            return run_trajectories1_ar(env, actor, fn=fn, 
-                evaluation=evaluation, timer=timer, name=name)
         elif isinstance (env, EfficientEnvVec):
             return run_trajectories2_ar(env, actor, fn=fn, 
-                evaluation=evaluation, timer=timer, name=name)
+                evaluation=evaluation, timer=timer, name=name, **kwargs)
+        elif isinstance(env, EnvVec):
+            return run_trajectories1_ar(env, actor, fn=fn, 
+                evaluation=evaluation, timer=timer, name=name, **kwargs)
 
 def run_trajectory(env, actor, *, fn=None, evaluation=False, 
                     timer=False, step=None, render=False, name='traj'):
@@ -71,7 +71,8 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
         
     return env.get_score(), env.get_epslen()
 
-def run_trajectories1(envvec, actor, fn=None, evaluation=False, timer=False, name='trajs'):
+def run_trajectories1(envvec, actor, fn=None, evaluation=False, 
+                    timer=False, step=None, name='trajs'):
     """ Sample trajectories
 
     Args:
@@ -88,15 +89,22 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False, timer=False, nam
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, _ = envvec.step(action.numpy())
         if fn:
-            fn(state=state, action=action, reward=reward, done=done, 
-                next_state=next_state, mask=envvec.get_mask())
+            if step is None:
+                fn(state=state, action=action, reward=reward, done=done, 
+                    next_state=next_state, mask=envvec.get_mask())
+            else:
+                step += envvec.n_envs
+                fn(state=state, action=action, reward=reward, done=done, 
+                    next_state=next_state, mask=envvec.get_mask(), 
+                    step=step)
         state = next_state
         if np.all(done):
             break
 
     return envvec.get_score(), envvec.get_epslen()
 
-def run_trajectories2(envvec, actor, fn=None, evaluation=False, timer=False, name='trajs'):
+def run_trajectories2(envvec, actor, fn=None, evaluation=False, 
+                    timer=False, step=None, name='trajs'):
     """ Sample trajectories
 
     Args:
@@ -114,8 +122,14 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False, timer=False, nam
             next_state, reward, done, info = envvec.step(action.numpy())
         if fn:
             env_ids = [i['env_id'] for i in info]
-            fn(state=state, action=action, reward=reward, done=done, 
-                next_state=next_state, mask=envvec.get_mask(), env_ids=env_ids)
+            if step is None:
+                fn(state=state, action=action, reward=reward, done=done, 
+                    next_state=next_state, mask=envvec.get_mask(), env_ids=env_ids)
+            else:
+                step += len(env_ids)
+                fn(state=state, action=action, reward=reward, done=done, 
+                    next_state=next_state, mask=envvec.get_mask(), 
+                    env_ids=env_ids, step=step)
         state = next_state[(1 - done).astype(np.bool)]
         if np.all(done):
             break

@@ -47,18 +47,15 @@ class EnvBuffer(LocalBuffer):
         return self.idx == self.seqlen
 
     def sample(self):
-        state = self.memory['state']
-        action = self.memory['action']
-        reward = np.copy(self.memory['reward'])
-        done = self.memory['done']
-        steps = self.memory['steps']
-        next_state = self.memory['next_state']
+        state = self.memory['state'][:self.idx]
+        action = self.memory['action'][:self.idx]
+        reward = np.copy(self.memory['reward'][:self.idx])
+        done = self.memory['done'][:self.idx]
+        steps = np.asarray(self.memory['steps'][:self.idx])
+        indexes = np.arange(self.idx)
+        next_indexes = indexes + steps
+        next_state = [self.memory['state'][i] for i in next_indexes]
 
-        assert len(state.shape) == 2 or state.dtype == np.uint8
-        if state.dtype == np.uint8:
-            state = state / 255.
-            next_state = next_state / 255.
-            
         # process rewards
         reward *= np.where(done, 1, self.reward_scale)
         if self.reward_clip:
@@ -69,26 +66,25 @@ class EnvBuffer(LocalBuffer):
             self.running_reward_stats.update(reward)
             reward = self.running_reward_stats.normalize(reward)
 
-        return dict(
-            state=state.astype(np.float32),
+        return None, dict(
+            state=state,
             action=action,
             reward=np.expand_dims(reward, -1).astype(np.float32), 
             done=np.expand_dims(done, -1).astype(np.float32),
             steps=np.expand_dims(steps, -1).astype(np.float32),
-            next_state=next_state.astype(np.float32),
+            next_state=next_state,
         )
 
     def reset(self):
         self.idx = 0
         
     def add_data(self, state, action, reward, done, next_state):
-        """ Add experience to local memory, 
-        next_state and mask here are only for interface consistency 
-        """
+        """ Add experience to local memory """
         add_buffer(self.memory, self.idx, self.n_steps, self.gamma, 
                     state=state, action=action, reward=reward,
                     done=done, next_state=next_state)
         self.idx = self.idx + 1
+        self.memory['state'][self.idx] = next_state
 
 
 class EnvVecBuffer:
@@ -138,9 +134,6 @@ class EnvVecBuffer:
         next_state = np.stack(next_state[mask])
         
         assert len(state.shape) == 2 or state.dtype == np.uint8
-        if state.dtype == np.uint8:
-            state = state / 255.
-            next_state = next_state / 255.
 
         # process rewards
         reward *= np.where(done, 1, self.reward_scale)
@@ -153,12 +146,12 @@ class EnvVecBuffer:
             reward = self.running_reward_stats.normalize(reward)
 
         return mask, dict(
-            state=state.astype(np.float32),
+            state=state,
             action=action,
             reward=np.expand_dims(reward, -1).astype(np.float32), 
             done=np.expand_dims(done, -1).astype(np.float32),
             steps=np.expand_dims(steps, -1).astype(np.float32),
-            next_state=next_state.astype(np.float32),
+            next_state=next_state,
         )
 
     def reset(self):

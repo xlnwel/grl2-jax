@@ -1,5 +1,4 @@
 from abc import ABC
-import threading
 import numpy as np
 
 from utility.utils import to_int
@@ -22,7 +21,7 @@ class Replay(ABC):
         # params for general replay buffer
         self._type = config['type']
         self.capacity = to_int(config['capacity'])
-        self.min_size = to_int(config['min_size'])
+        self.min_size = max(to_int(config['min_size']), config['batch_size']*10)
         self.batch_size = config['batch_size']
         self.n_steps = config['n_steps']
         self.gamma = config['gamma']
@@ -44,9 +43,6 @@ class Replay(ABC):
         init_buffer(self.memory, *keys, capacity=self.capacity, state_shape=state_shape)
         print(f'"{self.buffer_type()}" keys: {list(self.memory.keys())}')
 
-        # locker used to avoid conflict introduced by tf.data.Dataset
-        # self.locker = threading.Lock()
-
     def buffer_type(self):
         return self._type
 
@@ -65,7 +61,7 @@ class Replay(ABC):
             'There are not sufficient transitions to start learning --- '
             f'transitions in buffer({len(self)}) vs '
             f'minimum required size({self.min_size})')
-        # with self.locker:
+
         samples = self._sample()
 
         return samples
@@ -74,14 +70,10 @@ class Replay(ABC):
         """ Merge a local buffer to the replay buffer, useful for distributed algorithms """
         assert length < self.capacity, (
             f'Local buffer cannot be largeer than the replay: {length} vs. {self.capacity}')
-        # with self.locker:
         self._merge(local_buffer, length)
 
     def add(self, **kwargs):
         """ Add a single transition to the replay buffer """
-        # for k, v in kwargs.items():
-        #     assert not np.any(np.isnan(v)), f'{k}: {v}'
-        # with self.locker:
         if not self.is_full:
             if self.mem_idx == self.capacity - 1:
                 print(f'Memory is full({len(self.memory["reward"])})')

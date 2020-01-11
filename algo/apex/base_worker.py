@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 import ray
 
-from utility.timer import TBTimer
 from utility.rl_utils import n_step_target
 from core import tf_config
 from core.decorator import agent_config
@@ -39,6 +38,8 @@ class BaseWorker(BaseAgent):
 
         self.buffer = buffer
 
+        self.log_steps = self.LOG_INTERVAL
+
         # args for priority replay
         self.per_alpha = config['per_alpha']
         self.per_epsilon = config['per_epsilon']
@@ -55,30 +56,42 @@ class BaseWorker(BaseAgent):
             self._compute_priorities, 
             TensorSpecs)
 
-    def eval_model(self, weights, step, replay, evaluation=False):
+    def eval_model(self, weights, step, replay, evaluation=False, tag='Learned'):
         """ collects data, logs stats, and saves models """
-        def collect_fn(**kwargs):
+        def collect_fn(step, **kwargs):
             self.buffer.add_data(**kwargs)
+            self._periodic_logging(step)
 
         self.model.set_weights(weights)
 
-        with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
-            scores, epslens = run(self.env, self.actor, fn=collect_fn, evaluation=evaluation)
-            step += np.sum(epslens)
-            if scores is not None:
+        scores, epslens = run(self.env, self.actor, fn=collect_fn, 
+                                evaluation=evaluation, step=step, timer=self.timer)
+        step += np.sum(epslens)
+        if scores is not None:
+            if tag == 'Learned':
                 self.store(  
                     score=np.mean(scores), 
                     score_std=np.std(scores),
+                    score_min=np.min(scores),
                     score_max=np.max(scores), 
                     epslen=np.mean(epslens), 
-                    epslen_std=np.std(epslens))
+                    epslen_std=np.std(epslens)
+                )
+            else:
+                self.store(
+                    evolved_score=np.mean(scores), 
+                    evolved_score_std=np.std(scores),
+                    evolved_score_min=np.min(scores),
+                    evolved_score_max=np.max(scores), 
+                    evolved_epslen=np.mean(epslens), 
+                    evolved_epslen_std=np.std(epslens)
+                )
         
         return step, scores, epslens
 
     def pull_weights(self, learner):
         """ pulls weights from learner """
-        with TBTimer(f'{self.name} pull weights', self.TIME_INTERVAL, to_log=self.timer):
-            return ray.get(learner.get_weights.remote(name=['actor', 'q1']))
+        return ray.get(learner.get_weights.remote(self.id, name=['actor', 'q1']))
 
     def _send_data(self, replay):
         """ sends data to replay """
@@ -98,6 +111,9 @@ class BaseWorker(BaseAgent):
         
     @tf.function
     def _compute_priorities(self, state, action, reward, next_state, done, steps):
+        if state.dtype == tf.uint8:
+            state = state / 255.
+            next_state = next_state / 255.
         gamma = self.buffer.gamma
         value = self.value.train_value(state, action)
         next_action = self.actor.train_action(next_state)
@@ -111,7 +127,15 @@ class BaseWorker(BaseAgent):
 
         return priority
 
-    def _periodic_logging(self, step, i):
-        if i % self.LOG_INTERVAL == 0:
-            self.log(step=step, print_terminal_info=False)
-            
+    def _periodic_logging(self, step):
+        if step > self.log_steps:
+            if self._log_condition():
+                self.set_summary_step(self.log_steps)
+                self._logging(step=self.log_steps)
+            self.log_steps += self.LOG_INTERVAL
+
+    def _log_condition(self):
+        raise NotImplementedError
+
+    def _logging(self, step):
+        raise NotImplementedError

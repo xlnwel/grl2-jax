@@ -58,7 +58,7 @@ def import_main(algorithm):
         from algo.apex_dr.train import main
     elif algorithm.startswith('apex-ar'):
         from algo.apex_ar.train import main
-    elif algorithm.startswith('apex'):
+    elif algorithm.startswith('apex') or algorithm.startswith('asap'):
         from algo.apex.train import main
     elif algorithm == 'seed-sac':
         from algo.seed_sac.train import main
@@ -88,12 +88,12 @@ def get_config_file(algorithm):
         config_file = 'algo/apex_dr/sac_config.yaml'
     elif algorithm == 'apex-ar-sac':
         config_file = 'algo/apex_ar/sac_config.yaml'
-    elif algorithm == 'apex-es-sac':
-        config_file = 'algo/apex_es/sac_config.yaml'
-    elif algorithm == 'apex-es2-sac':
-        config_file = 'algo/apex_es2/sac_config.yaml'
-    elif algorithm == 'apex-es-d3qn':
-        config_file = 'algo/apex_es/d3qn_config.yaml'
+    elif algorithm == 'asap-sac':
+        config_file = 'algo/asap/sac_config.yaml'
+    elif algorithm == 'asap2-sac':
+        config_file = 'algo/asap2/sac_config.yaml'
+    elif algorithm == 'asap-d3qn':
+        config_file = 'algo/asap/d3qn_config.yaml'
     elif algorithm == 'seed-sac':
         config_file = 'algo/seed/config.yaml'
     elif algorithm == 'dew-sac':
@@ -126,11 +126,11 @@ if __name__ == '__main__':
         env_config = config['env']
         model_config = config['model']
         agent_config = config['agent']
-        buffer_config = config.get('buffer') or config.get('replay')
+        replay_config = config.get('buffer') or config.get('replay')
         algo = agent_config['algorithm']
         main = import_main(algo)
 
-        main(env_config, model_config, agent_config, buffer_config, restore=True, render=render)
+        main(env_config, model_config, agent_config, replay_config, restore=True, render=render)
     else:
         algorithm = list(cmd_args.algorithm)
         environment = list(cmd_args.environment)
@@ -146,9 +146,9 @@ if __name__ == '__main__':
                 env_config['name'] = env
             model_config = config['model']
             agent_config = config['agent']
-            buffer_config = config.get('buffer') or config.get('replay')
+            replay_config = config.get('buffer') or config.get('replay')
             if cmd_args.grid_search or cmd_args.trials > 1:
-                gs = GridSearch(env_config, model_config, agent_config, buffer_config, 
+                gs = GridSearch(env_config, model_config, agent_config, replay_config, 
                                 main, render=render, n_trials=cmd_args.trials, dir_prefix=prefix, 
                                 separate_process=len(algo_env) > 1)
 
@@ -180,12 +180,12 @@ if __name__ == '__main__':
                                 args=(env_config, 
                                     model_config,
                                     agent_config, 
-                                    buffer_config, 
+                                    replay_config, 
                                     False,
                                     render))
                     p.start()
                     time.sleep(1)
                     processes.append(p)
                 else:
-                    main(env_config, model_config, agent_config, buffer_config, False, render=render)
+                    main(env_config, model_config, agent_config, replay_config, False, render=render)
     [p.join() for p in processes]
