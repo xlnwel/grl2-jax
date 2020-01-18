@@ -1,6 +1,7 @@
 from collections import deque
 import numpy as np
 import ray
+import tensorflow as tf
 
 from utility.utils import set_global_seed
 from core.tf_config import configure_gpu
@@ -10,17 +11,16 @@ from utility.utils import step_str
 from env.gym_env import create_gym_env
 from replay.func import create_replay
 from replay.data_pipline import Dataset
-from algo.run import run, random_sampling
-from algo.sac.agent import Agent
-from algo.sac.nn import create_model
+from algo.sac_il.run import run, random_sampling
+from algo.sac_il.agent import Agent
+from algo.sac_il.nn import create_model
 
 
 LOG_INTERVAL = 1000
 
 def train(agent, env, replay):
-    def collect_and_learn(state, action, reward, done, next_state, **kwargs):
-        replay.add(state=state, action=action, 
-                reward=reward, done=done, next_state=next_state)
+    def collect_and_learn(**kwargs):
+        replay.add(**kwargs)
         agent.learn_log()
 
     eval_env = create_gym_env(dict(
@@ -38,7 +38,7 @@ def train(agent, env, replay):
     print('Training started...')
     step = start_step
     log_step = LOG_INTERVAL
-    while step < int(agent.max_steps):
+    while step < int(agent.MAX_STEPS):
         agent.set_summary_step(step)
         with TBTimer(f'trajectory', agent.TIME_INTERVAL, to_log=agent.timer):
             score, epslen = run(env, agent.actor, fn=collect_and_learn, timer=agent.timer)
@@ -75,14 +75,25 @@ def train(agent, env, replay):
 
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
     set_global_seed()
+    # tf.debugging.set_log_device_placement(True)
     configure_gpu()
 
     env = create_gym_env(env_config)
 
     # construct replay
-    replay_keys = ['state', 'action', 'reward', 'done', 'steps']
+    replay_keys = ['state', 'action', 'reward', 'done', 'steps', 'logpi', 'kl_flag']
     replay = create_replay(replay_config, *replay_keys, state_shape=env.state_shape)
-    dataset = Dataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype, env.action_dim)
+    data_format = dict(
+        state=(env.state_dtype, (None, *env.state_shape)),
+        action=(env.action_dtype, (None, *env.action_shape)),
+        reward=(tf.float32, (None, )), 
+        next_state=(env.state_dtype, (None, *env.state_shape)),
+        done=(tf.float32, (None, )),
+        steps=(tf.float32, (None, )),
+        logpi=(env.action_dtype, (None, 1)), 
+        kl_flag=(env.action_dtype, (None, )),
+    )
+    dataset = Dataset(replay, data_format)
 
     # construct models
     models = create_model(
@@ -107,13 +118,8 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     if restore:
         agent.restore()
-        collect_fn = (
-            lambda state, action, reward, done, next_state, **kwargs: 
-            replay.add(state=state, action=action, 
-            reward=reward, done=done, next_state=next_state))        
-        while not replay.good_to_learn():
-            run(env, agent.actor, collect_fn)
-    else:
-        random_sampling(env, replay)
-
+    collect_fn = lambda **kwargs: replay.add(**kwargs)
+    while not replay.good_to_learn():
+        run(env, agent.actor, collect_fn)
+    
     train(agent, env, replay)

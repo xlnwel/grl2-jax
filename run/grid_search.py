@@ -8,7 +8,8 @@ from utility.display import assert_colorize
 
 class GridSearch:
     def __init__(self, env_config, model_config, agent_config, buffer_config, 
-                train_func, render=False, n_trials=1, dir_prefix='', separate_process=False):
+                train_func, render=False, n_trials=1, dir_prefix='', 
+                separate_process=False, delay=1):
         self.env_config = env_config
         self.model_config = model_config
         self.agent_config = agent_config
@@ -18,6 +19,7 @@ class GridSearch:
         self.n_trials = n_trials
         self.dir_prefix = dir_prefix
         self.separate_process = separate_process
+        self.delay=delay
 
         self.processes = []
 
@@ -72,8 +74,8 @@ class GridSearch:
                                 buffer_config, 
                                 self.render))
                 p.start()
-                time.sleep(1)   # ensure sub-processs starts in order
                 self.processes.append(p)
+                time.sleep(self.delay)   # ensure sub-processs starts in order
         else:
             # recursive case
             kwargs_copy = deepcopy(kwargs)

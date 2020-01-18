@@ -1,7 +1,7 @@
 ---
 env:
     is_deepmind_env: True
-    name: PongNoFrameskip-v4
+    name: BreakoutNoFrameskip-v4
     video_path: video
     log_video: False
     n_envs: 4
@@ -9,13 +9,16 @@ env:
 model:
     q:
         cnn: impala
+        v_units: [256]
+        a_units: [256]
 agent:
-    algorithm: &algo apex-dqn
+    algorithm: &algo asap3-dqn
     gamma: &gamma 0.99
-    polyak: .995                            # moving average rate
-    
+
     # distributed algo params
-    n_workers: 8
+    n_workers: 4
+    LOG_INTERVAL: 10
+    timer: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -38,14 +41,14 @@ agent:
     per_epsilon: 1.e-4
 
 replay:
-    type: proportional                      # proportional or uniform
+    type: uniform                      # proportional or uniform
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4
     to_update_top_priority: False
 
     # hacking
-    normalize_reward: False
+    # normalize_reward: False
     # reward_scale: 5
     # reward_clip: 50
 

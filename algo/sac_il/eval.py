@@ -7,8 +7,8 @@ from utility.display import pwc
 from utility.utils import set_global_seed
 from utility.signal import sigint_shutdown_ray
 from env.gym_env import create_gym_env
-from algo.run import run
-from algo.sac.nn import SoftPolicy
+from algo.sac_il.run import run
+from algo.sac_il.nn import SoftPolicy
 
 
 def main(env_config, model_config, agent_config, render=False):

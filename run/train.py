@@ -1,6 +1,5 @@
 import os, sys
 import time
-import argparse
 import itertools
 from multiprocessing import Process
 from copy import deepcopy
@@ -11,37 +10,8 @@ from run.grid_search import GridSearch
 from utility.utils import str2bool
 from utility.yaml_op import load_config
 from utility.display import assert_colorize, pwc
+from run.cmd_args import parse_cmd_args
 
-
-
-def parse_cmd_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--algorithm', '-a',
-                        type=str,
-                        nargs='*')
-    parser.add_argument('--environment', '-e',
-                        type=str,
-                        nargs='*',
-                        default=[''])
-    parser.add_argument('--render', '-r',
-                        action='store_true',
-                        help='render the environment. this currently does not work for EnvVec')
-    parser.add_argument('--trials', '-t',
-                        type=int,
-                        default=1,
-                        help='number of trials')
-    parser.add_argument('--prefix', '-p',
-                        default='',
-                        help='prefix for model dir')
-    parser.add_argument('--directory', '-d',
-                        type=str,
-                        default='',
-                        help='directory where checkpoints and "config.yaml" exist')
-    parser.add_argument('--grid_search', '-gs',
-                        action='store_true')
-    args = parser.parse_args()
-
-    return args
 
 def import_main(algorithm):
     if algorithm == 'ppo':
@@ -78,6 +48,8 @@ def get_config_file(algorithm):
         config_file = 'algo/sac/config.yaml'
     elif algorithm == 'sacar':
         config_file = 'algo/sacar/config.yaml'
+    elif algorithm == 'sac-il':
+        config_file = 'algo/sac_il/config.yaml'
     elif algorithm == 'd3qn':
         config_file = 'algo/d3qn/config.yaml'
     elif algorithm == 'apex-d3qn':
@@ -92,6 +64,8 @@ def get_config_file(algorithm):
         config_file = 'algo/asap/sac_config.yaml'
     elif algorithm == 'asap2-sac':
         config_file = 'algo/asap2/sac_config.yaml'
+    elif algorithm == 'asap3-sac':
+        config_file = 'algo/asap3/sac_config.yaml'
     elif algorithm == 'asap-d3qn':
         config_file = 'algo/asap/d3qn_config.yaml'
     elif algorithm == 'seed-sac':
@@ -146,11 +120,13 @@ if __name__ == '__main__':
                 env_config['name'] = env
             model_config = config['model']
             agent_config = config['agent']
+            if cmd_args.max_steps:
+                agent_config['MAX_STEPS'] = cmd_args.max_steps
             replay_config = config.get('buffer') or config.get('replay')
             if cmd_args.grid_search or cmd_args.trials > 1:
                 gs = GridSearch(env_config, model_config, agent_config, replay_config, 
                                 main, render=render, n_trials=cmd_args.trials, dir_prefix=prefix, 
-                                separate_process=len(algo_env) > 1)
+                                separate_process=len(algo_env) > 1, delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
                     # Grid search happens here
@@ -159,7 +135,7 @@ if __name__ == '__main__':
                     elif algo == 'ppo2':
                         processes += gs(value_coef=[0.01, 0.001])
                     elif algo == 'sac':
-                        processes += gs(type=['uniform', 'proportional'])
+                        processes += gs(temperature=dict(value=[0.01, 0.2]))
                     elif algo == 'sacar':
                         processes += gs(actor=dict(max_ar=[5, 10]))
                     elif algo == 'd3qn':

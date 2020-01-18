@@ -4,18 +4,18 @@ import ray
 
 
 class Dataset:
-    def __init__(self, buffer, state_shape, state_dtype, action_shape, action_dtype, action_dim):
+    def __init__(self, buffer, data_format):
         """ Create a tf.data.Dataset for data retrieval
         
         Args:
             buffer: buffer, a callable object that stores data
+            data_format: dict, whose keys are keys of returned data
+            values are tuple (type, shape) that passed to 
+            tf.data.Dataset.from_generator
         """
         self.buffer = buffer
-        self.is_action_discrete = action_shape == ()
-        print('Dataset: is action discrete? ', self.is_action_discrete)
-        self.action_dim = action_dim
-        self.iterator = self._prepare_dataset(
-            buffer, state_shape, state_dtype, action_shape, action_dtype)
+        assert isinstance(data_format, dict)
+        self.iterator = self._prepare_dataset(buffer, data_format)
 
     def buffer_type(self):
         return self.buffer.buffer_type()
@@ -29,65 +29,38 @@ class Dataset:
     def update_priorities(self, priorities, indices):
         self.buffer.update_priorities(np.squeeze(priorities), indices)
 
-    def _prepare_dataset(self, buffer, state_shape, state_dtype, action_shape, action_dtype):
-        def transform_data_per(IS_ratio, saved_indices, transition):
-            data = {}
+    def _prepare_dataset(self, buffer, data_format):
+        def process_transition(data):
+            if data['state'].dtype == tf.uint8:
+                data['state'] = tf.cast(data['state'], tf.float32) / 255.
+                data['next_state'] = tf.cast(data['next_state'], tf.float32) / 255.
 
-            state, action, reward, next_state, done, steps = transition
-
-            if state.dtype == tf.uint8:
-                state = tf.cast(state, tf.float32) / 255.
-                next_state = tf.cast(next_state, tf.float32) / 255.
-
-            data['IS_ratio'] = tf.expand_dims(IS_ratio, -1)        # Importance sampling ratio for PER
-            # saved indexes used to index the experience in the buffer when updating priorities
-            data['saved_indices'] = saved_indices
-
-            data['state'] = state
-            data['action'] = action
-            data['reward'] = tf.expand_dims(reward, -1)
-            data['next_state'] = next_state
-            data['done'] = tf.expand_dims(done, -1)
-            data['steps'] = tf.expand_dims(steps, -1)
+            for k in ['reward', 'done', 'steps']:
+                data[k] = tf.expand_dims(data[k], -1)
 
             return data
 
-        def transform_data_uniform(state, action, reward, next_state, done, steps):
-            data = dict(
-                IS_ratio=1.  # fake ratio to avoid complicate the code
-            )
+        def transform_data_per(IS_ratio, saved_indices, retrieved_data):
+            data = {
+                'IS_ratio': tf.expand_dims(IS_ratio, -1), # Importance sampling ratio for PER
+                'saved_indices': saved_indices,     # saved indexes used to index the experience in the buffer when updating priorities
+                **retrieved_data
+            }
 
-            if state.dtype == tf.uint8:
-                state = tf.cast(state, tf.float32) / 255.
-                next_state = tf.cast(next_state, tf.float32) / 255.
-            if self.is_action_discrete:
-                action = tf.one_hot(action, self.action_dim)
-            
-            data['state'] = state
-            data['action'] = action
-            data['reward'] = tf.expand_dims(reward, -1)
-            data['next_state'] = next_state
-            data['done'] = tf.expand_dims(done, -1)
-            data['steps'] = tf.expand_dims(steps, -1)
+            return process_transition(data)
 
-            return data
+        def transform_data_uniform(retrieved_data):
+            data = {
+                'IS_ratio': 1.,  # fake ratio to avoid complicate the code
+                **retrieved_data
+            }
+
+            return process_transition(data)
+
         with tf.name_scope('data'):
-            sample_types = (
-                state_dtype, 
-                action_dtype, 
-                tf.float32, 
-                state_dtype, 
-                tf.float32, 
-                tf.float32
-            )
-            sample_shapes = (
-                (None, *state_shape),
-                (None, *action_shape),
-                (None),
-                (None, *state_shape),
-                (None),
-                (None)
-            )
+            sample_types = dict((k, v[0]) for k, v in data_format.items())
+            sample_shapes = dict((k, v[1]) for k, v in data_format.items())
+
             if not self.buffer_type().endswith('uniform'):
                 sample_types = (tf.float32, tf.int32, sample_types)
                 sample_shapes =((None), (None), sample_shapes)

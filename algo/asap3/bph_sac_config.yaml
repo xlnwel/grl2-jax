@@ -3,24 +3,44 @@ env:
     name: BipedalWalkerHardcore-v2
     video_path: video
     log_video: False
-    n_envs: 16
+    n_envs: 8
+    efficient_envvec: True
     seed: 0
 model:
     actor:
-        units_list: [512, 256]
+        units_list: [512, 256, 128]
     q:
-        units_list: [512, 256, 256]
+        units_list: [512, 512, 256]
     temperature:
-        temp_type: 'state-action'
-        value: .2
+        temp_type: 'constant'
+        value: .02
 agent:
-    algorithm: &algo apex-sac
-    gamma: &gamma 0.99
+    algorithm: &algo asap3-sac
+    gamma: &gamma 0.999
+    sync_target: False
+    target_update_freq: 100
     polyak: .995                            # moving average rate
-    # target_entropy: -4
+    evaluation: False
     
+    # timer&interval 
+    TIME_INTERVAL: 100
+    LOG_INTERVAL: 100000
+    MAX_STEPS: 1.e+8
+    timer: True
+
     # distributed algo params
     n_workers: 4
+
+    # SAP params
+    REPO_CAP: 20
+    MIN_EVOLVE_MODELS: 2
+    MAX_EVOLVE_MODELS: 10
+    MIN_LEARN_PROB: .3
+    MIN_EVOLVE_PROB: .3
+    REEVAL_PROB: 0.
+    FIFO: False
+    WA_SELECTION: False
+    WA_EVOLUTION: False
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -33,23 +53,23 @@ agent:
 
     # arguments for optimizer
     optimizer: adam
+    schedule_lr: False
     actor_lr: 1.e-4
-    q_lr: 3.e-4
+    q_lr: 1.e-4
     temp_lr: 1.e-4
     epsilon: 1.e-5
     # clip_norm: 10
-
+    
     # arguments for PER
-    per_alpha: 0.7
-    per_epsilon: 1.e-4
+    # per_alpha: 0.7
+    # per_epsilon: 1.e-4
 
 replay:
-    type: dual-uniform                      # proportional or uniform
-    good_frac: 0.5
+    type: uniform                      # proportional or uniform
     # arguments for PER
-    beta0: 0.4
-    beta_steps: 5e4
-    to_update_top_priority: False
+    # beta0: 0.4
+    # beta_steps: 5e4
+    # to_update_top_priority: False
 
     # hacking
     # normalize_reward: True
@@ -57,8 +77,8 @@ replay:
     reward_clip: 10
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: 1
     gamma: *gamma
-    batch_size: 256
+    batch_size: 512
     min_size: 5e4
     capacity: 1e6

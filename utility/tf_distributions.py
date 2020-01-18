@@ -124,7 +124,8 @@ class DiagGaussian(Distribution):
 
     def _kl(self, other):
         return tf.reduce_sum(other.logstd - self.logstd - .5
-                             + .5 * (self.std**2 + (self.mean - other.mean)**2) / (other.std + EPSILON)**2, axis=-1)
+                             + .5 * (self.std**2 + (self.mean - other.mean)**2)
+                                / (other.std + EPSILON)**2, axis=-1)
 
 def compute_sample_mean_variance(samples, name='sample_mean_var'):
     """ Compute mean and covariance matrix from samples """

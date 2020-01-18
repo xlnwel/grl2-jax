@@ -8,7 +8,7 @@ def configure_gpu(idx=0):
     Args:
         idx: index(es) of PhysicalDevice objects returned by `list_physical_devices`
     """
-    gpus = tf.config.experimental.list_physical_devices('GPU')
+    gpus = tf.config.list_physical_devices('GPU')
     if gpus:
         try:
             # memory growth

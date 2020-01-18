@@ -1,35 +1,33 @@
 ---
 env:
-    name: Humanoid-v2
+    name: Walker2d-v2
     video_path: video
     log_video: False
-    n_envs: 8
+    n_envs: 1
     efficient_envvec: True
     seed: 0
 model:
     actor:
-        units_list: [300, 200]
-        # kernel_initializer: orthogonal
+        units_list: [256, 256]
         activation: relu
     q:
-        units_list: [500, 300]
-        # kernel_initializer: orthogonal
+        units_list: [256, 256]
         activation: relu
     temperature:
-        temp_type: 'constant'
+        temp_type: 'variable'
         value: .01
 agent:
     algorithm: &algo apex-sac
     gamma: &gamma 0.99
     sync_target: False
     target_update_freq: 100
-    polyak: .995                            # moving average rate
+    polyak: .995
     evaluation: False
 
     # timer&interval 
+    MAX_STEPS: 2.e+7
     TIME_INTERVAL: 100
     LOG_INTERVAL: 100000
-    MAX_STEPS: 1.5e+7
     timer: True
 
     # distributed algo params
@@ -50,19 +48,19 @@ agent:
     actor_lr: 3.e-4
     q_lr: 3.e-4
     temp_lr: 3.e-4
-    epsilon: 1.e-5
+    epsilon: 1.e-8
     # clip_norm: 10
 
     # arguments for PER
-    per_alpha: 0.5
-    per_epsilon: 1.e-4
+    # per_alpha: 0.5
+    # per_epsilon: 1.e-4
 
 replay:
     type: uniform                      # proportional or uniform
     # arguments for PER
-    beta0: 0.4
-    beta_steps: 5e4
-    to_update_top_priority: False
+    # beta0: 0.4
+    # beta_steps: 5e4
+    # to_update_top_priority: False
 
     # hacking
     # normalize_reward: True

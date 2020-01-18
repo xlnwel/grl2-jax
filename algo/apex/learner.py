@@ -11,7 +11,6 @@ from replay.data_pipline import RayDataset
 
 
 def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_config, replay_config):
-    @ray.remote(num_cpus=1, num_gpus=.1)
     class Learner(BaseAgent):
         """ Interface """
         def __init__(self,
@@ -26,7 +25,15 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             configure_gpu()
 
             env = create_gym_env(env_config)
-            dataset = RayDataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype, env.action_dim)
+            data_format = dict(
+                state=(env.state_dtype, (None, *env.state_shape)),
+                action=(env.action_dtype, (None, *env.action_shape)),
+                reward=(tf.float32, (None, )), 
+                next_state=(env.state_dtype, (None, *env.state_shape)),
+                done=(tf.float32, (None, )),
+                steps=(tf.float32, (None, )),
+            )
+            dataset = RayDataset(replay, data_format)
             self.model = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
             
             super().__init__(
@@ -41,9 +48,6 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             self._learning_thread = threading.Thread(target=self._learning, daemon=True)
             self._learning_thread.start()
             
-        def get_weights(self, worker_id, name=None):
-            return self.model.get_weights(name=name)
-
         def _learning(self):
             pwc(f'{self.name} starts learning...', color='blue')
             step = 0
@@ -57,6 +61,10 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
                 if step % 100000 == 0:
                     self.save(print_terminal_info=False)
 
+        def get_weights(self, worker_id, name=None):
+            return self.model.get_weights(name=name)
+
+
     config = config.copy()
     model_config = model_config.copy()
     env_config = env_config.copy()
@@ -67,7 +75,11 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
     # it does not actually interact with env
     env_config['n_workers'] = env_config['n_envs'] = 1
 
-    learner = Learner.remote(name, model_fn, replay, config, 
+    if env_config.get('is_deepmind_env'):
+        RayLearner = ray.remote(num_cpus=1, num_gpus=.5)(Learner)
+    else:
+        RayLearner = ray.remote(num_cpus=1, num_gpus=.1)(Learner)
+    learner = RayLearner.remote(name, model_fn, replay, config, 
                             model_config, env_config)
     ray.get(learner.save_config.remote(dict(
         env=env_config,

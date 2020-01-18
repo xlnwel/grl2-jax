@@ -3,16 +3,16 @@ env:
     name: BipedalWalkerHardcore-v2
     video_path: video
     log_video: False
-    n_envs: 8
+    n_envs: 4
     efficient_envvec: True
     seed: 0
 model:
     actor:
         units_list: [512, 256, 128]
-        kernel_initializer: orthogonal
+        # kernel_initializer: orthogonal
     q:
         units_list: [512, 512, 256]
-        kernel_initializer: orthogonal
+        # kernel_initializer: orthogonal
     temperature:
         temp_type: 'constant'
         value: .01
@@ -25,9 +25,9 @@ agent:
     evaluation: False
 
     # timer&interval
+    MAX_STEPS: 1.e+8
     TIME_INTERVAL: 100
     LOG_INTERVAL: 100000
-    MAX_STEPS: 1.e+8
     timer: True
 
     # distributed algo params
@@ -52,15 +52,15 @@ agent:
     # clip_norm: 10
 
     # arguments for PER
-    per_alpha: 0.7
-    per_epsilon: 1.e-4
+    # per_alpha: 0.7
+    # per_epsilon: 1.e-4
 
 replay:
     type: uniform                      # proportional or uniform
     # arguments for PER
-    beta0: 0.4
-    beta_steps: 5e4
-    to_update_top_priority: False
+    # beta0: 0.4
+    # beta_steps: 5e4
+    # to_update_top_priority: False
 
     # hacking
     # normalize_reward: True

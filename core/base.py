@@ -51,7 +51,10 @@ class BaseAgent(ABC):
         store(self.logger, **kwargs)
 
     def get_stats(self, mean=True, std=False, min=False, max=False):
-        get_stats(self.logger, mean, std, min, max)
+        return get_stats(self.logger, mean=mean, std=std, min=min, max=max)
+
+    def get_value(self, key, mean=True, std=False, min=False, max=False):
+        return get_value(self.logger, key, mean=mean, std=std, min=min, max=max)
 
     def print_construction_complete(self):
         pwc(f'{self.model_name} has been constructed', color='cyan')

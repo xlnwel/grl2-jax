@@ -1,24 +1,24 @@
 ---
 env:
     is_deepmind_env: True
-    name: BreakoutNoFrameskip-v4    # MontezumaRevengeNoFrameskip-v4
+    name: PongNoFrameskip-v4    # MontezumaRevengeNoFrameskip-v4
     video_path: video
     log_video: False
-    n_envs: 4
+    n_envs: 2
     seed: 0
 model:
     q:
-        cnn: impala
+        cnn: ftw
         v_units: [256]
         a_units: [256]
 agent:
     algorithm: &algo apex-dqn
     gamma: &gamma 0.99
     
-    # timer&interval 
-    TIME_INTERVAL: 100
-    LOG_INTERVAL: 1.e+5
+    # timer&interval
     MAX_STEPS: 1.e+7
+    TIME_INTERVAL: 100
+    LOG_INTERVAL: 10000
     timer: True
     
     # distributed algo params

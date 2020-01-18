@@ -24,7 +24,7 @@ agent:
     polyak: .995                            # moving average rate
     evaluation: False
     
-    # timer&interval 
+    # timer&interval
     TIME_INTERVAL: 100
     LOG_INTERVAL: 100000
     MAX_STEPS: 1.e+8
@@ -33,15 +33,18 @@ agent:
     # distributed algo params
     n_workers: 4
 
-    # evolutionary params
+    # SAP params
     REPO_CAP: 10
     MIN_EVOLVE_MODELS: 2
-    MAX_EVOLVE_MODELS: 10
+    MAX_EVOLVE_MODELS: 5
     MIN_LEARN_PROB: .3
     MIN_EVOLVE_PROB: .3
-    EVAL_PROB: .0
+    REEVAL_PROB: 0.2
     FIFO: False
-    EVOLVE_WA: False
+    WA_SELECTION: False
+    WA_EVOLUTION: False
+    fitness_method: lcb
+    cb_c: 1    # coefficient for confidence bound method
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -62,15 +65,15 @@ agent:
     # clip_norm: 10
     
     # arguments for PER
-    per_alpha: 0.7
-    per_epsilon: 1.e-4
+    # per_alpha: 0.7
+    # per_epsilon: 1.e-4
 
 replay:
     type: uniform                      # proportional or uniform
     # arguments for PER
-    beta0: 0.4
-    beta_steps: 5e4
-    to_update_top_priority: False
+    # beta0: 0.4
+    # beta_steps: 5e4
+    # to_update_top_priority: False
 
     # hacking
     # normalize_reward: True

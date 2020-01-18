@@ -18,6 +18,9 @@ class Replay(ABC):
         """
         if 'next_state' not in keys:
             assert state_shape is not None
+            assert keys[:5] == ('state', 'action', 'reward', 'done', 'steps'), keys
+        else:
+            assert keys[:6] == ('state', 'action', 'reward', 'next_state', 'done', 'steps'), keys
         # params for general replay buffer
         self._type = config['type']
         self.capacity = to_int(config['capacity'])
@@ -109,34 +112,41 @@ class Replay(ABC):
         self.mem_idx = end_idx % self.capacity
 
     def _get_samples(self, indexes):
-        state = np.asarray([np.array(self.memory['state'][i], copy=False) for i in indexes])
-        action = np.asarray([np.array(self.memory['action'][i], copy=False) for i in indexes])
-        reward = np.asarray([self.memory['reward'][i] for i in indexes])
-        done = np.asarray([self.memory['done'][i] for i in indexes])
-        steps = np.asarray([self.memory['steps'][i] for i in indexes], dtype=np.int32)
+        """ retrieve samples from replay memory """
+        results = {}
+        for k, v in self.memory.items():
+            if 'state' in k or 'action' in k:
+                results[k] = np.asarray([np.array(v[i], copy=False) for i in indexes])
+            else:
+                results[k] = np.asarray([v[i] for i in indexes])
+        # state = np.asarray([np.array(self.memory['state'][i], copy=False) for i in indexes])
+        # action = np.asarray([np.array(self.memory['action'][i], copy=False) for i in indexes])
+        # reward = np.asarray([self.memory['reward'][i] for i in indexes])
+        # done = np.asarray([self.memory['done'][i] for i in indexes])
+        # steps = np.asarray([self.memory['steps'][i] for i in indexes], dtype=np.int32)
         
-        if 'next_state' in self.memory:
-            next_state = np.asarray([np.array(self.memory['next_state'][i], copy=False) for i in indexes], dtype=state.dtype)
-        else:
+        if 'next_state' not in self.memory:
+            steps = results['steps'].astype(np.int32)
             indexes = np.asarray(indexes)
             next_indexes = (indexes + steps) % self.capacity
             assert indexes.shape == next_indexes.shape == (self.batch_size, ), f'{indexes.shape} vs {next_indexes.shape}'
-            next_state = np.asarray([self.memory['state'][i] for i in next_indexes], dtype=state.dtype)
+            results['next_state'] = np.asarray([self.memory['state'][i] for i in next_indexes])
 
         # process rewards
         if self.reward_scale != 1:
-            reward *= np.where(done, 1, self.reward_scale)
+            results['reward'] *= np.where(done, 1, self.reward_scale)
         if self.reward_clip:
-            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
+            results['reward'] = np.clip(results['reward'], -self.reward_clip, self.reward_clip)
         if self.normalize_reward:
             # we update running reward statistics at sampling time
             # since this is when the rewards contribute to the learning process
-            self.running_reward_stats.update(reward)
-            reward = self.running_reward_stats.normalize(reward)
+            self.running_reward_stats.update(results['reward'])
+            results['reward'] = self.running_reward_stats.normalize(results['reward'])
         # assert not np.any(np.isnan(state))
         # assert not np.any(np.isnan(action))
         # assert not np.any(np.isnan(reward))
         # assert not np.any(np.isnan(next_state))
         # assert not np.any(np.isnan(done))
         # assert not np.any(np.isnan(steps))
-        return state, action, reward, next_state, done, steps
+        # return state, action, reward, next_state, done, steps(, ...)
+        return results

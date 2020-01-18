@@ -28,6 +28,7 @@ class LocalBuffer(ABC):
 class EnvBuffer(LocalBuffer):
     """ Local memory only stores one episode of transitions from each of n environments """
     def __init__(self, config, *keys):
+        self.type = config['type']
         self.seqlen = seqlen = config['seqlen']
         self.n_steps = config['n_steps']
         self.gamma = config['gamma']
@@ -47,49 +48,44 @@ class EnvBuffer(LocalBuffer):
         return self.idx == self.seqlen
 
     def sample(self):
-        state = self.memory['state'][:self.idx]
-        action = self.memory['action'][:self.idx]
-        reward = np.copy(self.memory['reward'][:self.idx])
-        done = self.memory['done'][:self.idx]
-        steps = np.asarray(self.memory['steps'][:self.idx])
+        results = {}
+        for k, v in self.memory.items():
+            if 'state' in k or 'action' in k:
+                results[k] = np.array(v[:self.idx], copy=False)
+            else:
+                results[k] = np.array(v[:self.idx], copy=False, dtype=np.float32)
+        
         indexes = np.arange(self.idx)
+        steps = results['steps'].astype(np.int32)
         next_indexes = indexes + steps
-        next_state = [self.memory['state'][i] for i in next_indexes]
+        results['next_state'] = np.array([self.memory['state'][i] for i in next_indexes], copy=False)
 
         # process rewards
-        reward *= np.where(done, 1, self.reward_scale)
+        results['reward'] *= np.where(results['done'], 1, self.reward_scale)
         if self.reward_clip:
-            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
+            results['reward'] = np.clip(results['reward'], -self.reward_clip, self.reward_clip)
         if self.normalize_reward:
             # since we only expect rewards to be used once
             # we update the running stats when we use them
-            self.running_reward_stats.update(reward)
-            reward = self.running_reward_stats.normalize(reward)
+            self.running_reward_stats.update(results['reward'])
+            results['reward'] = self.running_reward_stats.normalize(results['reward'])
 
-        return None, dict(
-            state=state,
-            action=action,
-            reward=np.expand_dims(reward, -1).astype(np.float32), 
-            done=np.expand_dims(done, -1).astype(np.float32),
-            steps=np.expand_dims(steps, -1).astype(np.float32),
-            next_state=next_state,
-        )
+        return None, results
 
     def reset(self):
         self.idx = 0
         
-    def add_data(self, state, action, reward, done, next_state):
+    def add_data(self, **kwargs):
         """ Add experience to local memory """
-        add_buffer(self.memory, self.idx, self.n_steps, self.gamma, 
-                    state=state, action=action, reward=reward,
-                    done=done, next_state=next_state)
+        add_buffer(self.memory, self.idx, self.n_steps, self.gamma, **kwargs)
         self.idx = self.idx + 1
-        self.memory['state'][self.idx] = next_state
+        self.memory['state'][self.idx] = kwargs['next_state']
 
 
 class EnvVecBuffer:
     """ Local memory only stores one episode of transitions from n environments """
     def __init__(self, config, *keys):
+        self.type = config['type']
         self.n_envs = n_envs = config['n_envs']
         assert n_envs > 1
         self.seqlen = seqlen = config['seqlen']
@@ -118,67 +114,50 @@ class EnvVecBuffer:
         return self.idx == self.seqlen
         
     def sample(self):
-        state = self.memory['state']
-        action = self.memory['action']
-        reward = np.copy(self.memory['reward'])
-        done = self.memory['done']
-        steps = self.memory['steps']
-        next_state = self.memory['next_state']
+        results = {}
         mask = self.memory['mask']
-            
-        state = np.stack(state[mask])
-        action = np.stack(action[mask])
-        reward = reward[mask]
-        done = done[mask]
-        steps = steps[mask]
-        next_state = np.stack(next_state[mask])
-        
-        assert len(state.shape) == 2 or state.dtype == np.uint8
+        for k, v in self.memory.items():
+            if 'state' in k or 'action' in k:
+                results[k] = np.stack(v[mask])
+            elif k == 'mask':
+                continue
+            else:
+                results[k] = v[mask]
 
         # process rewards
-        reward *= np.where(done, 1, self.reward_scale)
+        results['reward'] *= np.where(results['done'], 1, self.reward_scale)
         if self.reward_clip:
-            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
+            results['reward'] = np.clip(results['reward'], -self.reward_clip, self.reward_clip)
         if self.normalize_reward:
             # since we only expect rewards to be used once
             # we update the running stats when we use them
-            self.running_reward_stats.update(reward)
-            reward = self.running_reward_stats.normalize(reward)
+            self.running_reward_stats.update(results['reward'])
+            results['reward'] = self.running_reward_stats.normalize(results['reward'])
 
-        return mask, dict(
-            state=state,
-            action=action,
-            reward=np.expand_dims(reward, -1).astype(np.float32), 
-            done=np.expand_dims(done, -1).astype(np.float32),
-            steps=np.expand_dims(steps, -1).astype(np.float32),
-            next_state=next_state,
-        )
+        return mask, results
 
     def reset(self):
         self.idx = 0
         self.memory['mask'] = np.zeros_like(self.memory['mask'], dtype=np.bool)
         
-    def add_data(self, state, action, reward, done, next_state, mask, env_ids=None):
+    def add_data(self, env_ids=None, **kwargs):
         """ Add experience to local memory """
         env_ids = env_ids or range(self.n_envs)
         idx = self.idx
         for i, env_id in enumerate(env_ids):
-            self.memory['state'][env_id, idx] = state[i]
-            self.memory['action'][env_id, idx] = action[i]
-            self.memory['reward'][env_id, idx] = reward[i]
-            self.memory['done'][env_id, idx] = done[i]
+            for k, v in kwargs.items():
+                self.memory[k][env_id, idx] = v[i]
             self.memory['steps'][env_id, idx] = 1
-            self.memory['mask'][env_id, idx] = mask[i]
-            self.memory['next_state'][env_id, idx] = next_state[i]
+
             # Update previous experience if multi-step is required
             for j in range(1, self.n_steps):
                 k = idx - j
                 k_done = self.memory['done'][i, k]
                 if k_done:
                     break
-                self.memory['reward'][i, k] += self.gamma**i * reward[i]
-                self.memory['done'][i, k] = done[i]
+                self.memory['reward'][i, k] += self.gamma**i * kwargs['reward'][i]
+                self.memory['done'][i, k] = kwargs['done'][i]
                 self.memory['steps'][i, k] += 1
-                self.memory['next_state'][i, k] = next_state[i]
+                self.memory['next_state'][i, k] = kwargs['next_state'][i]
 
         self.idx = self.idx + 1

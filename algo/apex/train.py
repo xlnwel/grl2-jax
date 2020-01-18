@@ -21,7 +21,9 @@ def import_agent(config):
     return create_model, Agent
 
 def get_worker_fn(agent_config):
-    if agent_config['algorithm'].startswith('asap2'):
+    if agent_config['algorithm'].startswith('asap3'):
+        from algo.asap3.worker import create_worker
+    elif agent_config['algorithm'].startswith('asap2'):
         from algo.asap2.worker import create_worker
     elif agent_config['algorithm'].startswith('asap'):
         from algo.asap.worker import create_worker
@@ -33,7 +35,9 @@ def get_worker_fn(agent_config):
     return create_worker
 
 def get_learner_fn(agent_config):
-    if agent_config['algorithm'].startswith('asap2'):
+    if agent_config['algorithm'].startswith('asap3'):
+        from algo.asap3.learner import create_learner
+    elif agent_config['algorithm'].startswith('asap2'):
         from algo.asap2.learner import create_learner
     elif agent_config['algorithm'].startswith('asap'):
         from algo.apex.learner import create_learner
@@ -46,7 +50,9 @@ def get_learner_fn(agent_config):
 
 def get_bph_config(agent_config):
     """ get configure file for BipedalWalkerHardcore-v2 """
-    if agent_config['algorithm'].startswith('asap2'):
+    if agent_config['algorithm'].startswith('asap3'):
+        config_file = 'algo/asap3/bph_sac_config.yaml'
+    elif agent_config['algorithm'].startswith('asap2'):
         config_file = 'algo/asap2/bph_sac_config.yaml'
     elif agent_config['algorithm'].startswith('asap'):
         config_file = 'algo/asap/bph_sac_config.yaml'
@@ -58,10 +64,11 @@ def get_bph_config(agent_config):
     return config_file
 
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
-    if agent_config['n_workers'] == 4:
-        ray.init(memory=8*1024**3, object_store_memory=6*1024**3, num_cpus=6)
-    else:
+    if env_config.get('is_deepmind_env'):
         ray.init()
+    else:
+        ray.init(memory=8*1024**3, object_store_memory=6*1024**3)
+    
     if env_config['name'] == 'BipedalWalkerHardcore-v2':
         # Caveat: this keeps most default configuration
         algorithm = agent_config['algorithm']

@@ -70,14 +70,14 @@ class Worker(BaseWorker):
             score += self.n_envs / eval_times * (np.mean(scores) - score)
             self.best_score = max(self.best_score, score)
 
-            status = self._make_decision(score, tag, eval_times)
+            status = self._make_decision(mode, score, tag, eval_times)
 
             if status == Status.ACCEPTED:
                 store_weights(self.weight_repo, score, tag, weights, eval_times, self.REPO_CAP, fifo=self.FIFO)
             
             self._update_mode_prob()
 
-            self.info_to_print = print_repo(self.weight_repo, self.model_name, self.info_to_print)
+            self.info_to_print = print_repo(self.weight_repo, self.model_name, c=self.cb_c, info=self.info_to_print)
 
             if self.env.name == 'BipedalWalkerHardcore-v2' and eval_times > 100 and score > 300:
                 self.save()
@@ -98,12 +98,17 @@ class Worker(BaseWorker):
         elif mode == Mode.EVOLUTION:
             tag = Tag.EVOLVED
             weights, n = evolve_weights(self.weight_repo, min_evolv_models=self.MIN_EVOLVE_MODELS, 
-                            max_evolv_models=self.MAX_EVOLVE_MODELS, weighted_average=self.EVOLVE_WA)
+                                        max_evolv_models=self.MAX_EVOLVE_MODELS, 
+                                        wa_selection=self.WA_SELECTION,
+                                        wa_evolution=self.WA_EVOLUTION, 
+                                        fitness_method=self.fitness_method,
+                                        c=self.cb_c)
             self.info_to_print.append(((f'{self.name}_{self.id}: {n} models are used for evolution', ), 'blue'))
             score = 0
             eval_times = 0
         elif mode == Mode.REEVALUATION:
-            score = random.choices(list(self.weight_repo.keys()))[0]
+            w = fitness_from_repo(self.weight_repo, 'norm')
+            score = random.choices(list(self.weight_repo.keys()), weights=w)[0]
             tag = self.weight_repo[score].tag
             weights = self.weight_repo[score].weights
             eval_times = self.weight_repo[score].eval_times
@@ -111,7 +116,7 @@ class Worker(BaseWorker):
         
         return mode, score, tag, weights, eval_times
 
-    def _make_decision(self, score, tag, eval_times):
+    def _make_decision(self, mode, score, tag, eval_times):
         if len(self.weight_repo) < self.REPO_CAP:
             status = Status.ACCEPTED
         else:
@@ -122,7 +127,7 @@ class Worker(BaseWorker):
                 status = Status.REJECTED
         self.raw_bookkeeping.add(tag, status)
 
-        self.info_to_print.append(((f'{self.name}_{self.id}: {tag} model has been evaluated({eval_times}).', 
+        self.info_to_print.append(((f'{self.name}_{self.id} Mode({mode}): {tag} model has been evaluated({eval_times}).', 
                                 f'Score: {score:.3g}',
                                 f'Decision: {status}'), 'green'))
         return status
@@ -134,7 +139,7 @@ class Worker(BaseWorker):
             self.mode_prob[0] = self.mode_prob[1] = 0
             return
         else:
-            self.mode_prob[2] = self.EVAL_PROB
+            self.mode_prob[2] = self.REEVAL_PROB
         remain_prob = 1 - self.mode_prob[2] - self.MIN_LEARN_PROB - self.MIN_EVOLVE_PROB
 
         self.mode_prob[0] = self.MIN_LEARN_PROB + fracs['frac_learned'] * remain_prob
@@ -145,6 +150,10 @@ class Worker(BaseWorker):
         return self.logger.get_count('score') > 0 and self.logger.get_count('evolved_score') > 0
 
     def _logging(self, step):
+        self.store(**self.get_value('score', mean=True, std=True, min=True, max=True))
+        self.store(**self.get_value('epslen', mean=True, std=True, min=True, max=True))
+        self.store(**self.get_value('evolved_score', mean=True, std=True, min=True, max=True))
+        self.store(**self.get_value('evolved_epslen', mean=True, std=True, min=True, max=True))
         self.store(mode_learned=self.mode_prob[0], mode_evolved=self.mode_prob[1])
         self.store(**analyze_repo(self.weight_repo))
         # record stats

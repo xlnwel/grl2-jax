@@ -41,7 +41,7 @@ class FTWCNN(Layer):
         if isinstance(self.conv1, TimeDistributed):
             x = tf.reshape(x, (self.batch_size, -1, tf.reduce_prod(x.shape[2:])))
         else:
-            x = tf.reshape(x, (self.batch_size, tf.reduce_prod(x.shape[1:])))
+            x = tf.reshape(x, (-1, tf.reduce_prod(x.shape[1:])))
         x = self.dense(x)
         x = relu(x)
 

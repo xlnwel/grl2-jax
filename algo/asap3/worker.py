@@ -1,3 +1,4 @@
+import random
 import numpy as np
 import tensorflow as tf
 import ray
@@ -9,6 +10,7 @@ from utility.timer import TBTimer
 from env.gym_env import create_gym_env
 from algo.apex.buffer import create_local_buffer
 from algo.apex.base_worker import BaseWorker
+from algo.asap.utils import *
 
 
 class Worker(BaseWorker):
@@ -44,32 +46,41 @@ class Worker(BaseWorker):
             config=config)
 
         self.best_score = -float('inf')
-        
+
     def run(self, learner, replay):
         step = 0
         while step < self.MAX_STEPS:
             with TBTimer(f'{self.name} pull weights', self.TIME_INTERVAL, to_log=self.timer):
-                weights = self.pull_weights(learner)
+                mode, score, tag, weights, eval_times = self.pull_weights(learner)
 
             with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
-                step, scores, _ = self.eval_model(weights, step, replay)
+                step, scores, epslens = self.eval_model(weights, step, replay, tag=tag)
+            eval_times = eval_times + self.n_envs
 
             with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
                 self._send_data(replay)
 
-            score = np.mean(scores)
+            score += self.n_envs / eval_times * (np.mean(scores) - score)
             self.best_score = max(self.best_score, score)
 
-            if score == self.best_score:
+            learner.store_weights.remote(self.id, score, eval_times)
+            
+            if self.env.name == 'BipedalWalkerHardcore-v2' and eval_times > 100 and score > 300:
+                self.save(print_terminal_info=False)
+            elif score == self.best_score:
                 self.save(print_terminal_info=False)
 
     def _log_condition(self):
-        return True
+        return self.logger.get_count('score') > 0 and self.logger.get_count('evolved_score') > 0
 
     def _logging(self, step):
+        # record stats
         self.store(**self.get_value('score', mean=True, std=True, min=True, max=True))
         self.store(**self.get_value('epslen', mean=True, std=True, min=True, max=True))
-        self.log(step=step, print_terminal_info=False)
+        self.store(**self.get_value('evolved_score', mean=True, std=True, min=True, max=True))
+        self.store(**self.get_value('evolved_epslen', mean=True, std=True, min=True, max=True))
+        self.log(step, print_terminal_info=False)
+    
 
 def create_worker(name, worker_id, model_fn, config, model_config, 
                 env_config, buffer_config):

@@ -20,6 +20,7 @@ def step_str(step):
         return f'{step/1000:.3g}k'
     else:
         return f'{step/1000000:.3g}m'
+
 def moments(x, mask=None):
     if mask is None:
         x_mean = np.mean(x)
@@ -49,7 +50,7 @@ def standardize(x, epsilon=1e-8, mask=None):
         while len(mask.shape) < len(x.shape):
             mask = mask[..., None]
     x_mean, x_std = moments(x, mask)
-    x = (x - x_mean) / (x_std + epsilon)
+    x = (np.array(x, copy=False) - x_mean) / (x_std + epsilon)
     if mask is not None:
         x *= mask
     return x

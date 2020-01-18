@@ -8,20 +8,24 @@ env:
 model:
     actor:
         units_list: [512, 256]
+        # kernel_initializer: glorot_uniform
         activation: relu
     q:
         units_list: [512, 256]
+        # kernel_initializer: glorot_uniform
         activation: relu
     temperature:
         temp_type: 'state-action'
-        value: .2
+        value: .01
 agent:
     algorithm: &algo sac
     gamma: &gamma 0.99
-    polyak: .995                            # moving average rate
     sync_target: False
-    target_update_freq: 100 
+    target_update_freq: 100
+    polyak: .995
     # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
+    
+    MAX_STEPS: 3.e+6
     TIME_INTERVAL: 100
     timer: False
 
@@ -33,15 +37,14 @@ agent:
 
     loss_type: mse                          # huber or mse
     tbo: False                               # transformed Bellman Operator
-    max_steps: 3.e+6
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 1.e-4
+    actor_lr: 3.e-4
     q_lr: 3.e-4
-    temp_lr: 1.e-4
-    epsilon: 1.e-5
+    temp_lr: 3.e-4
+    epsilon: 1.e-8
 
     # arguments for PER
     per_alpha: 0.5
@@ -55,8 +58,8 @@ replay:
     to_update_top_priority: False
 
     # hacking
-    normalize_reward: False
-    reward_scale: 1
+    # normalize_reward: False
+    # reward_scale: 1
 
     # arguments for general replay
     n_steps: 3

@@ -39,8 +39,8 @@ def main(env_config, model_config, agent_config, render=False):
                 epslens.append(epslen)
         else:
             scores, epslens = run(env, actor, evaluation=True)
-            if np.any(scores > 300):
-                print(scores[scores>300])
+            print('Scores:')
+            print(scores)
         pwc(f'After running 100 episodes:',
             f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
     else:

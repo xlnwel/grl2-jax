@@ -40,26 +40,31 @@ class BaseWorker(BaseAgent):
 
         self.log_steps = self.LOG_INTERVAL
 
-        # args for priority replay
-        self.per_alpha = config['per_alpha']
-        self.per_epsilon = config['per_epsilon']
+        self.pull_names = ['actor'] if self.replay_type.endswith('uniform') else ['actor', 'q1']
 
-        TensorSpecs = [
-            (env.state_shape, tf.float32, 'state'),
-            (env.action_shape, env.action_dtype, 'action'),
-            ([1], tf.float32, 'reward'),
-            (env.state_shape, tf.float32, 'next_state'),
-            ([1], tf.float32, 'done'),
-            ([1], tf.float32, 'steps')
-        ]
-        self.compute_priorities = tf_config.build(
-            self._compute_priorities, 
-            TensorSpecs)
+        # args for priority replay
+        if not self.replay_type.endswith('uniform'):
+            self.per_alpha = config['per_alpha']
+            self.per_epsilon = config['per_epsilon']
+
+            TensorSpecs = [
+                (env.state_shape, env.state_dtype, 'state'),
+                (env.action_shape, env.action_dtype, 'action'),
+                ([1], tf.float32, 'reward'),
+                (env.state_shape, env.state_dtype, 'next_state'),
+                ([1], tf.float32, 'done'),
+                ([1], tf.float32, 'steps')
+            ]
+            self.compute_priorities = tf_config.build(
+                self._compute_priorities, 
+                TensorSpecs)
 
     def eval_model(self, weights, step, replay, evaluation=False, tag='Learned'):
         """ collects data, logs stats, and saves models """
-        def collect_fn(step, **kwargs):
+        def collect_fn(step, action_std, **kwargs):
             self.buffer.add_data(**kwargs)
+            if np.any(action_std != 0):
+                self.store(**{f'{tag}_action_std': np.mean(action_std)})
             self._periodic_logging(step)
 
         self.model.set_weights(weights)
@@ -69,41 +74,50 @@ class BaseWorker(BaseAgent):
         step += np.sum(epslens)
         if scores is not None:
             if tag == 'Learned':
-                self.store(  
-                    score=np.mean(scores), 
-                    score_std=np.std(scores),
-                    score_min=np.min(scores),
-                    score_max=np.max(scores), 
-                    epslen=np.mean(epslens), 
-                    epslen_std=np.std(epslens)
+                self.store(
+                    score=scores,
+                    epslen=epslens,
                 )
+                # self.store(  
+                #     score=np.mean(scores), 
+                #     score_std=np.std(scores),
+                #     score_min=np.min(scores),
+                #     score_max=np.max(scores), 
+                #     epslen=np.mean(epslens), 
+                #     epslen_std=np.std(epslens)
+                # )
             else:
                 self.store(
-                    evolved_score=np.mean(scores), 
-                    evolved_score_std=np.std(scores),
-                    evolved_score_min=np.min(scores),
-                    evolved_score_max=np.max(scores), 
-                    evolved_epslen=np.mean(epslens), 
-                    evolved_epslen_std=np.std(epslens)
+                    evolved_score=scores,
+                    evolved_epslen=epslens,
                 )
+                # self.store(
+                #     evolved_score=np.mean(scores), 
+                #     evolved_score_std=np.std(scores),
+                #     evolved_score_min=np.min(scores),
+                #     evolved_score_max=np.max(scores), 
+                #     evolved_epslen=np.mean(epslens), 
+                #     evolved_epslen_std=np.std(epslens)
+                # )
         
         return step, scores, epslens
 
     def pull_weights(self, learner):
         """ pulls weights from learner """
-        return ray.get(learner.get_weights.remote(self.id, name=['actor', 'q1']))
+        return ray.get(learner.get_weights.remote(self.id, name=self.pull_names))
+
+    def get_weights(self, name=None):
+        return self.model.get_weights(name=name)
 
     def _send_data(self, replay):
         """ sends data to replay """
         mask, data = self.buffer.sample()
-        data_tesnors = {k: tf.convert_to_tensor(v) for k, v in data.items()}
             
         if not self.replay_type.endswith('uniform'):
-            data['priority'] = self.compute_priorities(**data_tesnors).numpy()
-        
-        # squeeze since many terms in data is of shape [None, 1]
-        for k, v in data.items():
-            data[k] = np.squeeze(v)
+            data_tensors = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
+            for k in ['reward', 'done', 'steps']:
+                data_tensors[k] = tf.expand_dims(data_tensors[k], -1)
+            data['priority'] = np.squeeze(self.compute_priorities(**data_tensors).numpy())
 
         replay.merge.remote(data, data['state'].shape[0])
 
@@ -112,8 +126,10 @@ class BaseWorker(BaseAgent):
     @tf.function
     def _compute_priorities(self, state, action, reward, next_state, done, steps):
         if state.dtype == tf.uint8:
-            state = state / 255.
-            next_state = next_state / 255.
+            state = tf.cast(state, tf.float32) / 255.
+            next_state = tf.cast(next_state, tf.float32) / 255.
+        if self.env.is_action_discrete:
+            action = tf.one_hot(action, self.env.action_dim)
         gamma = self.buffer.gamma
         value = self.value.train_value(state, action)
         next_action = self.actor.train_action(next_state)

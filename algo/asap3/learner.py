@@ -49,7 +49,8 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
                 env=env,
             )
 
-            self.weight_repo = {}                                 # map score to Weights
+            self.best_weight_repo = {}                                 # map score to Weights
+            self.recent_weight_repo = {}
             self.records = {}
             self.mode = (Mode.LEARNING, Mode.EVOLUTION, Mode.REEVALUATION)
             self.bookkeeping = BookKeeping('raw')
@@ -66,10 +67,11 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
                 step += 1
                 with TBTimer(f'{self.name} train', 10000, to_log=self.timer):
                     self.learn_log(step)
-                if self.weight_repo and step % 1000 == 0:
-                    print_repo(self.weight_repo, self.model_name, self.cb_c)
+                if self.best_weight_repo and step % 1000 == 0:
+                    print_repo(self.best_weight_repo, 'Best weight repo')
+                    print_repo(self.recent_weight_repo, 'Recent weight repo')
                     self.store(mode_learned=self.mode_prob[0], model_evolved=self.mode_prob[1])
-                    self.store(**analyze_repo(self.weight_repo))
+                    self.store(**analyze_repo(self.best_weight_repo))
                     self.store(**self.bookkeeping.stats())
                     self.bookkeeping.reset()
                     self.log(step, print_terminal_info=False)
@@ -85,17 +87,21 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
 
         def store_weights(self, worker_id, score, eval_times):
             tag, weights, _ = self.records[worker_id]
-            pop_score, _ = store_weights(
-                self.weight_repo, score, tag, weights, 
-                eval_times, self.REPO_CAP, fifo=self.FIFO,
-                fitness_method=self.fitness_method, c=self.cb_c)
+            score, weights = store_weights(
+                self.recent_weight_repo, score, tag, weights, 
+                eval_times, self.REPO_CAP, fifo=True)
+            if score:
+                tag, weights, eval_times = weights
+                pop_score, _ = store_weights(
+                    self.best_weight_repo, score, tag, weights, 
+                    eval_times, self.REPO_CAP, fifo=False)
 
-            self._make_decision(score, tag, eval_times, pop_score)
+                self._make_decision(score, tag, eval_times, pop_score)
 
-            self._update_mode_prob()
+                self._update_mode_prob()
 
         def _choose_weights(self, worker_id, name=None):
-            if len(self.weight_repo) < self.MIN_EVOLVE_MODELS:
+            if len(self.best_weight_repo) < self.MIN_EVOLVE_MODELS:
                 mode = Mode.LEARNING
             else:
                 mode = random.choices(self.mode, weights=self.mode_prob)[0]
@@ -108,29 +114,27 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             elif mode == Mode.EVOLUTION:
                 tag = Tag.EVOLVED
                 weights, n = evolve_weights(
-                    self.weight_repo, 
+                    {**self.best_weight_repo, **self.recent_weight_repo}, 
                     min_evolv_models=self.MIN_EVOLVE_MODELS, 
                     max_evolv_models=self.MAX_EVOLVE_MODELS, 
                     wa_selection=self.WA_SELECTION,
                     wa_evolution=self.WA_EVOLUTION,
-                    fitness_method=self.fitness_method,
+                    method=self.fitness,
                     c=self.cb_c)
                 score = 0
                 eval_times = 0
             elif mode == Mode.REEVALUATION:
-                # norm helps ensure reevaluation does not happen to weights with 
-                # the lowest score in repo as they have negative fitness
-                w = fitness_from_repo(self.weight_repo, 'norm')
-                score = random.choices(list(self.weight_repo), weights=w)[0]
-                tag = self.weight_repo[score].tag
-                weights = self.weight_repo[score].weights
-                eval_times = self.weight_repo[score].eval_times
-                del self.weight_repo[score]
+                w = fitness_from_repo(self.best_weight_repo, 'norm')
+                score = random.choices(list(self.best_weight_repo), weights=w)[0]
+                tag = self.best_weight_repo[score].tag
+                weights = self.best_weight_repo[score].weights
+                eval_times = self.best_weight_repo[score].eval_times
+                del self.best_weight_repo[score]
             else:
                 raise ValueError(f'Unknown mode: {mode}')
         
             return mode, score, tag, weights, eval_times
-        
+ 
         def _make_decision(self, score, tag, eval_times, pop_score):
             if score != pop_score:
                 status = Status.ACCEPTED
@@ -140,10 +144,10 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             self.bookkeeping.add(tag, status)
 
             return status
- 
+            
         def _update_mode_prob(self):
-            fracs = analyze_repo(self.weight_repo)
-            if self.env_name == 'BipedalWalkerHardcore-v2' and min(self.weight_repo) > 300:
+            fracs = analyze_repo(self.best_weight_repo)
+            if self.env_name == 'BipedalWalkerHardcore-v2' and min(self.best_weight_repo) > 300:
                 self.mode_prob[2] = 1
                 self.mode_prob[0] = self.mode_prob[1] = 0
                 return

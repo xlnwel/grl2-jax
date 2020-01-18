@@ -18,7 +18,7 @@ class SoftPolicy(tf.Module):
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
-        kernel_initializer = config.get('kernel_initializer', 'he_uniform')
+        kernel_initializer = config.get('kernel_initializer', 'glorot_uniform')
         
         self.LOG_STD_MIN = config.get('LOG_STD_MIN', -20)
         self.LOG_STD_MAX = config.get('LOG_STD_MAX', 2)
@@ -70,7 +70,7 @@ class SoftPolicy(tf.Module):
                 raw_action = action_distribution.sample()
                 action = tf.tanh(raw_action)
 
-        return action
+        return action, dict(action_std=action_distribution.std)
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
@@ -85,7 +85,7 @@ class SoftPolicy(tf.Module):
                 mu = self.mu(x)
                 action = tf.tanh(mu)
 
-        return action
+        return action, dict(action_std=0)
 
     @tf.Module.with_name_scope
     def train_action(self, x):
@@ -152,7 +152,7 @@ class SoftQ(tf.Module):
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
-        kernel_initializer = config.get('kernel_initializer', 'he_uniform')
+        kernel_initializer = config.get('kernel_initializer', 'glorot_uniform')
 
         """ Network definition """
         self.intra_layers = mlp(units_list, 
@@ -196,7 +196,7 @@ class Temperature(tf.Module):
         if self.temp_type == 'state-action':
             self.intra_layer = layers.Dense(1)
         elif self.temp_type == 'variable':
-            self.log_temp = tf.Variable(1.)
+            self.log_temp = tf.Variable(0.)
         else:
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
 
@@ -216,7 +216,8 @@ class Temperature(tf.Module):
         with tf.name_scope('step'):
             if self.temp_type == 'state-action':
                 x = tf.concat([x, a], axis=-1)
-                log_temp = self.intra_layer(x)
+                x = self.intra_layer(x)
+                log_temp = -tf.nn.relu(x)
                 temp = tf.exp(log_temp)
             else:
                 log_temp = self.log_temp
