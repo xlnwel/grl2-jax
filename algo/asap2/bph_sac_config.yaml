@@ -35,14 +35,15 @@ agent:
     REPO_CAP: 10
     MIN_EVOLVE_MODELS: 2
     MAX_EVOLVE_MODELS: 5
-    MIN_LEARN_PROB: .5
+    MIN_LEARN_PROB: .2
     MIN_EVOLVE_PROB: .2
-    REEVAL_PROB: 0.1    # this should be small as eval_times affects the UCB score
+    REEVAL_PROB: 0    # this should be small as eval_times affects the UCB score
     FIFO: False
     WA_SELECTION: False
     WA_EVOLUTION: False
-    fitness_method: ucb
-    cb_c: 1    # coefficient for confidence bound method
+    fitness_method: lcb
+    mode_polyak: .99
+    cb_c: 5    # coefficient for confidence bound method
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -59,7 +60,7 @@ agent:
     actor_lr: 1.e-4
     q_lr: 1.e-4
     temp_lr: 1.e-4
-    epsilon: 1.e-5
+    epsilon: 1.e-8
     # clip_norm: 10
     
     # arguments for PER

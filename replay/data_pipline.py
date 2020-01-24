@@ -32,12 +32,20 @@ class Dataset:
     def _prepare_dataset(self, buffer, data_format):
         def process_transition(data):
             if data['state'].dtype == tf.uint8:
+                tf.debugging.assert_shapes([(data['state'], None, 84, 84, 4), (data['next_state'], None, 84, 84, 4)])
+                tf.debugging.assert_type(data['state'], tf.uint8)
+                tf.debugging.assert_type(data['next_state'], tf.uint8)
                 data['state'] = tf.cast(data['state'], tf.float32) / 255.
                 data['next_state'] = tf.cast(data['next_state'], tf.float32) / 255.
 
             for k in ['reward', 'done', 'steps']:
                 data[k] = tf.expand_dims(data[k], -1)
 
+                tf.debugging.assert_shapes([(data[k], (None, 1))])
+
+            for v in data.values():
+                tf.debugging.assert_type(v, tf.float32)
+                
             return data
 
         def transform_data_per(IS_ratio, saved_indices, retrieved_data):

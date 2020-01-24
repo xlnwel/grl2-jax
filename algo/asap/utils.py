@@ -2,9 +2,10 @@ from collections import namedtuple, defaultdict
 import numpy as np
 
 from utility.display import pwc
-from utility.utils import standardize
 
 Weights = namedtuple('Weights', 'tag weights eval_times')
+Records = namedtuple('Records', 'mode tag weights eval_times')
+
 
 class Status:
     ACCEPTED='Accepted'
@@ -60,6 +61,7 @@ def ucb(values, ns, c):
         values: an array of values
         ns: an array that counts the number of visit times for each value
     """
+    c = np.random.uniform(1, c)
     N = np.sum(ns)
     return values + c * (np.log(N)/ns)**.5
     
@@ -70,13 +72,19 @@ def lcb(values, ns, c):
         values: an array of values
         ns: an array that counts the number of visit times for each value
     """
+    c = np.random.uniform(1, c)
     N = np.sum(ns)
     return values - c * (np.log(N)/ns)**.5
 
+def normalize_scores(scores):
+    min_score = np.min(scores)
+    max_score = np.max(scores)
+    scores = (scores - min_score) / (max_score - min_score) * 10
+    return scores
 
 def fitness_from_repo(weight_repo, method, c=1):
     scores = np.array(list(weight_repo))
-    norm_scores = standardize(scores)
+    norm_scores = normalize_scores(scores)
     if method == 'norm':
         return norm_scores
     else:
@@ -107,8 +115,10 @@ def remove_oldest_weights(weight_repo):
     del weight_repo[score]
     return score, weight
 
-def evolve_weights(weight_repo, min_evolv_models=2, max_evolv_models=10, wa_selection=False, wa_evolution=False, fitness_method='lcb', c=1):
-    n = np.random.randint(min_evolv_models, len(weight_repo)+1)
+def evolve_weights(weight_repo, min_evolv_models=2, max_evolv_models=5, 
+                    wa_selection=False, wa_evolution=False, 
+                    fitness_method='lcb', c=1):
+    n = np.random.randint(min_evolv_models, max_evolv_models+1)
     scores = np.array(list(weight_repo))
     if wa_selection or wa_evolution:
         fitness = fitness_from_repo(weight_repo, fitness_method, c=c)
@@ -145,9 +155,10 @@ def analyze_repo(weight_repo):
         repo_score_min=min(weight_repo)
     )
 
-def store_weights(weight_repo, score, tag, weights, eval_times, store_cap, fifo=False, fitness_method='lcb', c=1):
+def store_weights(weight_repo, mode, score, tag, weights, eval_times, store_cap, 
+                fifo=False, fitness_method='lcb', c=1):
     """ store weights to repo, if there is any entry pop out, return the it """
-    if len(weight_repo) < store_cap or score > min(weight_repo):
+    if mode == Mode.REEVALUATION or len(weight_repo) == 0 or score > min(weight_repo):
         weight_repo[score] = Weights(tag, weights, eval_times)
     score = None
     while len(weight_repo) > store_cap:
@@ -165,7 +176,7 @@ def print_repo(repo, name, c=1, info=[]):
     for msg, color in info:
         pwc(*msg, color=color)
     scores = list(repo)
-    norm_scores = standardize(scores)
+    norm_scores = normalize_scores(scores)
     tags, eval_times = list(zip(*[(tag, eval_times) for tag, _, eval_times in repo.values()]))
     eval_times = np.array(eval_times)
     N = np.sum(eval_times)
@@ -173,10 +184,12 @@ def print_repo(repo, name, c=1, info=[]):
     ucb = norm_scores + interval
     lcb = norm_scores - interval
 
-    repo = [(f'score({s:.3g})', f'norm score({ns:.3f})', t, f'eval times({et})', f'interval({i:.3f})', f'ucb({u:.3f})', f'lcb({l:.3f})')
-             for s, ns, t, et, i, u, l in zip(scores, norm_scores, tags, eval_times, interval, ucb, lcb)]
-    idxes = np.argsort(scores)
-    repo = [repo[i] for i in idxes]
+    repo = [(f'{f"score({s:.3g})":<15s}', f'{t:<10s}', f'{f"eval times({et})":<15s}',
+            f'{f"norm score({ns:.2f})":<20s}', f'{f"interval({i:.2f})":<15s}', 
+            f'{f"ucb({u:.2f})":<15s}', f'{f"lcb({l:.2f})":<15s}')
+             for s, t, et, ns, i, u, l in zip(scores, tags, eval_times, norm_scores, interval, ucb, lcb)]
+    idxes = np.argsort(lcb)
+    repo = [repo[i] for i in idxes[::-1]]
     pwc(f"{name}: current stored models(score, normalized score, tag, evaluated times, interval)", color='blue')
-    pwc(*[',\t'.join(v) for v in repo], color='magenta')
+    pwc(*[''.join(v) for v in repo], color='magenta')
     return []

@@ -52,6 +52,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             self.weight_repo = {}                                 # map score to Weights
             self.records = {}
             self.mode = (Mode.LEARNING, Mode.EVOLUTION, Mode.REEVALUATION)
+            self.mode_prob = np.array(self.mode_prob)
             self.bookkeeping = BookKeeping('raw')
             
         def start_learning(self):
@@ -79,14 +80,14 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
         def get_weights(self, worker_id, name=None):
             mode, score, tag, weights, eval_times = self._choose_weights(worker_id, name=name)
             
-            self.records[worker_id] = Weights(tag, weights, eval_times)
+            self.records[worker_id] = Records(mode, tag, weights, eval_times)
 
             return mode, score, tag, weights, eval_times
 
         def store_weights(self, worker_id, score, eval_times):
-            tag, weights, _ = self.records[worker_id]
+            mode, tag, weights, _ = self.records[worker_id]
             pop_score, _ = store_weights(
-                self.weight_repo, score, tag, weights, 
+                self.weight_repo, mode, score, tag, weights, 
                 eval_times, self.REPO_CAP, fifo=self.FIFO,
                 fitness_method=self.fitness_method, c=self.cb_c)
 
@@ -120,7 +121,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             elif mode == Mode.REEVALUATION:
                 # norm helps ensure reevaluation does not happen to weights with 
                 # the lowest score in repo as they have negative fitness
-                w = fitness_from_repo(self.weight_repo, 'norm')
+                w = fitness_from_repo(self.weight_repo, 'ucb', c=self.cb_c)
                 score = random.choices(list(self.weight_repo), weights=w)[0]
                 tag = self.weight_repo[score].tag
                 weights = self.weight_repo[score].weights
@@ -143,17 +144,21 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
  
         def _update_mode_prob(self):
             fracs = analyze_repo(self.weight_repo)
+            mode_prob = np.zeros_like(self.mode_prob)
             if self.env_name == 'BipedalWalkerHardcore-v2' and min(self.weight_repo) > 300:
-                self.mode_prob[2] = 1
-                self.mode_prob[0] = self.mode_prob[1] = 0
-                return
+                mode_prob[2] = 1
+                mode_prob[0] = mode_prob[1] = 0
             else:
-                self.mode_prob[2] = self.REEVAL_PROB
-            remain_prob = 1 - self.mode_prob[2] - self.MIN_LEARN_PROB - self.MIN_EVOLVE_PROB
+                mode_prob[2] = self.REEVAL_PROB
+                remain_prob = 1 - mode_prob[2] - self.MIN_LEARN_PROB - self.MIN_EVOLVE_PROB
 
-            self.mode_prob[0] = self.MIN_LEARN_PROB + fracs['frac_learned'] * remain_prob
-            self.mode_prob[1] = self.MIN_EVOLVE_PROB + fracs['frac_evolved'] * remain_prob
-            np.testing.assert_allclose(sum(self.mode_prob), 1)
+                mode_prob[0] = self.MIN_LEARN_PROB + fracs['frac_learned'] * remain_prob
+                mode_prob[1] = self.MIN_EVOLVE_PROB + fracs['frac_evolved'] * remain_prob
+
+            self.mode_prob = self.mode_polyak * self.mode_prob + (1 - self.mode_polyak) * mode_prob
+            self.mode_prob /= np.sum(self.mode_prob)    # renormalize so that probs sum to one
+
+            np.testing.assert_allclose(np.sum(self.mode_prob), 1)
 
     config = config.copy()
     model_config = model_config.copy()

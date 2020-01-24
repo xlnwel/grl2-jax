@@ -46,12 +46,12 @@ class Agent(BaseAgent):
         if isinstance(self.temperature, float):
             if env.name == 'BipedalWalkerHardcore-v2':
                 self.temp_schedule = PiecewiseSchedule(
-                    [(2.e5, self.temperature), (1.e6, 0)])
+                    [(5e5, self.temperature), (1.e6, 0)])
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
             if getattr(self, 'schedule_lr', False):
                 self.temp_schedule = PiecewiseSchedule(
-                    [(5e5, self.temp_lr), (1e6, 0)])
+                    [(5e5, self.temp_lr), (1e6, 1e-5)])
                 self.temp_lr = tf.Variable(self.temp_lr, trainable=False)
             self.temp_opt = Optimizer(learning_rate=self.temp_lr,
                                     epsilon=self.epsilon)
