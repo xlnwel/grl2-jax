@@ -61,7 +61,6 @@ def ucb(values, ns, c):
         values: an array of values
         ns: an array that counts the number of visit times for each value
     """
-    c = np.random.uniform(1, c)
     N = np.sum(ns)
     return values + c * (np.log(N)/ns)**.5
     
@@ -72,14 +71,13 @@ def lcb(values, ns, c):
         values: an array of values
         ns: an array that counts the number of visit times for each value
     """
-    c = np.random.uniform(1, c)
     N = np.sum(ns)
     return values - c * (np.log(N)/ns)**.5
 
 def normalize_scores(scores):
     min_score = np.min(scores)
     max_score = np.max(scores)
-    scores = (scores - min_score) / (max_score - min_score) * 10
+    scores = (scores - min_score) / (max_score - min_score)
     return scores
 
 def fitness_from_repo(weight_repo, method, c=1):
@@ -118,7 +116,7 @@ def remove_oldest_weights(weight_repo):
 def evolve_weights(weight_repo, min_evolv_models=2, max_evolv_models=5, 
                     wa_selection=False, wa_evolution=False, 
                     fitness_method='lcb', c=1):
-    n = np.random.randint(min_evolv_models, max_evolv_models+1)
+    n = np.random.randint(min_evolv_models, max(len(weight_repo), max_evolv_models) + 1)
     scores = np.array(list(weight_repo))
     if wa_selection or wa_evolution:
         fitness = fitness_from_repo(weight_repo, fitness_method, c=c)
@@ -137,7 +135,8 @@ def average_weights(model_weights, avg_weights=None):
     if isinstance(model_weights[0], dict):
         net_names = model_weights[0].keys()
         model_weights = dict((name, [ws[name] for ws in model_weights]) for name in net_names)
-        weights = dict((name, [np.average(ws, axis=0, weights=avg_weights) for ws in zip(*model_weights[name])]) for name in net_names)
+        weights = dict((name, [np.average(ws, axis=0, weights=avg_weights) 
+                    for ws in zip(*model_weights[name])]) for name in net_names)
         # net_names = model_weights[0].keys()
         # weights = dict((name, np.average([w[name] for w in model_weights], axis=0, weights=avg_weights)) for name in net_names)
     else:

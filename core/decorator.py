@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from utility.display import display_var_info, pwc
 from core.checkpoint import setup_checkpoint
-from core.log import setup_logger, setup_tensorboard
+from core.log import setup_logger, setup_tensorboard, save_code
 
 
 """ Functions used to print useful information """                    
@@ -51,6 +51,8 @@ def agent_config(init_fn):
 
         # define global steps for train/env step tracking
         self.global_steps = tf.Variable(0, dtype=tf.int64)
+
+        save_code(self.root_dir, self.model_name)
 
         # Agent initialization
         init_fn(self, name=self.name, config=config, models=models, **kwargs)

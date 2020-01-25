@@ -1,4 +1,4 @@
-import os, time, atexit
+import os, time, atexit, shutil
 from collections import defaultdict
 import numpy as np
 import tensorflow as tf
@@ -64,6 +64,9 @@ def setup_tensorboard(root_dir, model_name):
     writer.set_as_default()
     return writer
 
+def save_code(root_dir, model_name):
+    dest_dir = f'{root_dir}/{model_name}/src'
+    shutil.copytree('.', dest_dir, ignore=shutil.ignore_patterns('logs', '.*'))
 
 class Logger:
     def __init__(self, log_dir, log_file='log.txt'):

@@ -27,7 +27,7 @@ agent:
     evaluation: False
     
     # timer&interval
-    MAX_STEPS: 1.5e+7
+    MAX_STEPS: 3.e+7
     TIME_INTERVAL: 100
     LOG_INTERVAL: 100000
     timer: True
