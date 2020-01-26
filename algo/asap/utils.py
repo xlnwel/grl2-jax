@@ -77,7 +77,7 @@ def lcb(values, ns, c):
 def normalize_scores(scores):
     min_score = np.min(scores)
     max_score = np.max(scores)
-    scores = (scores - min_score) / (max_score - min_score)
+    scores = (scores - min_score) / (max_score - min_score) * 2 - 1
     return scores
 
 def fitness_from_repo(weight_repo, method, c=1):
@@ -116,7 +116,7 @@ def remove_oldest_weights(weight_repo):
 def evolve_weights(weight_repo, min_evolv_models=2, max_evolv_models=5, 
                     wa_selection=False, wa_evolution=False, 
                     fitness_method='lcb', c=1):
-    n = np.random.randint(min_evolv_models, max(len(weight_repo), max_evolv_models) + 1)
+    n = np.random.randint(min_evolv_models, min(len(weight_repo), max_evolv_models) + 1)
     scores = np.array(list(weight_repo))
     if wa_selection or wa_evolution:
         fitness = fitness_from_repo(weight_repo, fitness_method, c=c)
@@ -124,9 +124,12 @@ def evolve_weights(weight_repo, min_evolv_models=2, max_evolv_models=5,
         w = w / np.sum(w)
     else:
         w = None
-    selected_keys = np.random.choice(scores, size=n, replace=False, p=w)
-    selected_weights = [weight_repo[k].weights for k in selected_keys]
-
+    idxes = np.random.choice(np.arange(len(scores)), size=n, replace=False, p=w)
+    selected_weights = [weight_repo[k].weights for k in scores[idxes]]
+    if wa_evolution:
+        w = w[idxes]
+    else:
+        w = None
     weights = average_weights(selected_weights, w)
 
     return weights, n
@@ -137,10 +140,10 @@ def average_weights(model_weights, avg_weights=None):
         model_weights = dict((name, [ws[name] for ws in model_weights]) for name in net_names)
         weights = dict((name, [np.average(ws, axis=0, weights=avg_weights) 
                     for ws in zip(*model_weights[name])]) for name in net_names)
-        # net_names = model_weights[0].keys()
-        # weights = dict((name, np.average([w[name] for w in model_weights], axis=0, weights=avg_weights)) for name in net_names)
+        # weights = dict((name, np.average([ws[name] for ws in model_weights], axis=0, weights=avg_weights)) for name in net_names)
     else:
         weights = [np.average(ws, axis=0, weights=avg_weights) for ws in zip(model_weights)]
+    
     return weights
 
 def analyze_repo(weight_repo):

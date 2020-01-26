@@ -3,7 +3,7 @@ env:
     name: Walker2d-v2
     video_path: video
     log_video: False
-    n_envs: 4
+    n_envs: 2
     efficient_envvec: True
     seed: 0
 model:
@@ -39,13 +39,13 @@ agent:
     MAX_EVOLVE_MODELS: 5
     MIN_LEARN_PROB: .3
     MIN_EVOLVE_PROB: .3
-    REEVAL_PROB: 0.1    # this should be small as eval_times affects the UCB score
+    REEVAL_PROB: .05    # this should be small as eval_times affects the UCB score
     FIFO: False
     WA_SELECTION: False
     WA_EVOLUTION: False
     fitness_method: lcb
-    mode_polyak: .995
-    cb_c: .1    # coefficient for confidence bound method
+    mode_polyak: 0
+    cb_c: 0.1    # coefficient for confidence bound method
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -84,6 +84,6 @@ replay:
     # arguments for general replay
     n_steps: 1
     gamma: *gamma
-    batch_size: 512
+    batch_size: 256
     min_size: 5e4
     capacity: 1e6

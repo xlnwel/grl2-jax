@@ -116,13 +116,15 @@ if __name__ == '__main__':
             prefix = cmd_args.prefix
             config = load_config(config_file)
             env_config = config['env']
-            if env:
-                env_config['name'] = env
             model_config = config['model']
             agent_config = config['agent']
+            replay_config = config.get('buffer') or config.get('replay')
+            if env:
+                env_config['name'] = env
             if cmd_args.max_steps:
                 agent_config['MAX_STEPS'] = cmd_args.max_steps
-            replay_config = config.get('buffer') or config.get('replay')
+            if cmd_args.n_envs:
+                env_config['n_envs'] = cmd_args.n_envs
             if cmd_args.grid_search or cmd_args.trials > 1:
                 gs = GridSearch(env_config, model_config, agent_config, replay_config, 
                                 main, render=render, n_trials=cmd_args.trials, dir_prefix=prefix, 

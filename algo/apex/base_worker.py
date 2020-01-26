@@ -59,10 +59,11 @@ class BaseWorker(BaseAgent):
                 self._compute_priorities, 
                 TensorSpecs)
 
-    def eval_model(self, weights, step, replay, evaluation=False, tag='Learned'):
+    def eval_model(self, weights, step, replay, evaluation=False, tag='Learned', store_exp=True):
         """ collects data, logs stats, and saves models """
         def collect_fn(step, action_std, **kwargs):
-            self.buffer.add_data(**kwargs)
+            if store_exp:
+                self.buffer.add_data(**kwargs)
             if np.any(action_std != 0):
                 self.store(**{f'{tag}_action_std': np.mean(action_std)})
             self._periodic_logging(step)
@@ -78,27 +79,11 @@ class BaseWorker(BaseAgent):
                     score=scores,
                     epslen=epslens,
                 )
-                # self.store(  
-                #     score=np.mean(scores), 
-                #     score_std=np.std(scores),
-                #     score_min=np.min(scores),
-                #     score_max=np.max(scores), 
-                #     epslen=np.mean(epslens), 
-                #     epslen_std=np.std(epslens)
-                # )
             else:
                 self.store(
                     evolved_score=scores,
                     evolved_epslen=epslens,
                 )
-                # self.store(
-                #     evolved_score=np.mean(scores), 
-                #     evolved_score_std=np.std(scores),
-                #     evolved_score_min=np.min(scores),
-                #     evolved_score_max=np.max(scores), 
-                #     evolved_epslen=np.mean(epslens), 
-                #     evolved_epslen_std=np.std(epslens)
-                # )
         
         return step, scores, epslens
 

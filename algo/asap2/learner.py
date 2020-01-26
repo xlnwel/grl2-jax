@@ -52,7 +52,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             self.weight_repo = {}                                 # map score to Weights
             self.records = {}
             self.mode = (Mode.LEARNING, Mode.EVOLUTION, Mode.REEVALUATION)
-            self.mode_prob = np.array(self.mode_prob)
+            self.mode_prob = np.array(self.mode_prob, dtype=np.float)
             self.mode_prob_backup = self.mode_prob
             self.bookkeeping = BookKeeping('raw')
             
@@ -70,7 +70,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
                     self.learn_log(step)
                 if self.weight_repo and step % 1000 == 0:
                     print_repo(self.weight_repo, self.model_name, self.cb_c)
-                    self.store(mode_learned=self.mode_prob[0], model_evolved=self.mode_prob[1])
+                    self.store(mode_learned=self.mode_prob[0], mode_evolved=self.mode_prob[1])
                     self.store(**analyze_repo(self.weight_repo))
                     self.store(**self.bookkeeping.stats())
                     self.bookkeeping.reset()
@@ -144,22 +144,29 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
         def _update_mode_prob(self):
             fracs = analyze_repo(self.weight_repo)
             mode_prob = np.zeros_like(self.mode_prob)
-            if self.env_name == 'BipedalWalkerHardcore-v2' and min(self.weight_repo) > 300:
-                mode_prob[2] = 1
-                mode_prob[0] = mode_prob[1] = 0
-                self.mode_prob = mode_prob
-            else:
-                self.mode_prob = self.mode_prob_backup
-                mode_prob[2] = self.REEVAL_PROB
-                remain_prob = 1 - mode_prob[2] - self.MIN_LEARN_PROB - self.MIN_EVOLVE_PROB
+            if self.env_name == 'BipedalWalkerHardcore-v2':
+                if min(self.weight_repo) > 300:
+                    mode_prob[2] = 1
+                    mode_prob[0] = mode_prob[1] = 0
+                    self.mode_prob = mode_prob
+                    return
+                elif min(self.weight_repo) > 295:
+                    mode_prob[2] = .5
+                    mode_prob[0] = mode_prob[1] = 0.25
+                    self.mode_prob = mode_prob
+                    return
 
-                mode_prob[0] = self.MIN_LEARN_PROB + fracs['frac_learned'] * remain_prob
-                mode_prob[1] = self.MIN_EVOLVE_PROB + fracs['frac_evolved'] * remain_prob
+            self.mode_prob = self.mode_prob_backup
+            mode_prob[2] = self.REEVAL_PROB
+            remain_prob = 1 - mode_prob[2] - self.MIN_LEARN_PROB - self.MIN_EVOLVE_PROB
 
-                self.mode_prob = self.mode_polyak * self.mode_prob + (1 - self.mode_polyak) * mode_prob
-                self.mode_prob /= np.sum(self.mode_prob)    # renormalize so that probs sum to one
-                self.mode_prob_backup = self.mode_prob
-                np.testing.assert_allclose(np.sum(self.mode_prob), 1)
+            mode_prob[0] = self.MIN_LEARN_PROB + fracs['frac_learned'] * remain_prob
+            mode_prob[1] = self.MIN_EVOLVE_PROB + fracs['frac_evolved'] * remain_prob
+
+            self.mode_prob = self.mode_polyak * self.mode_prob + (1 - self.mode_polyak) * mode_prob
+            self.mode_prob /= np.sum(self.mode_prob)    # renormalize so that probs sum to one
+            self.mode_prob_backup = self.mode_prob
+            np.testing.assert_allclose(np.sum(self.mode_prob), 1)
 
     config = config.copy()
     model_config = model_config.copy()

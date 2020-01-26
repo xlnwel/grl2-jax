@@ -42,11 +42,10 @@ class Worker(BaseWorker):
             actor=models['actor'],
             value=models['q1'],
             config=config)
-
-        self.best_score = -float('inf')
         
     def run(self, learner, replay):
         step = 0
+        log_time = self.LOG_INTERVAL
         while step < self.MAX_STEPS:
             with TBTimer(f'{self.name} pull weights', self.TIME_INTERVAL, to_log=self.timer):
                 weights = self.pull_weights(learner)
@@ -58,10 +57,10 @@ class Worker(BaseWorker):
                 self._send_data(replay)
 
             score = np.mean(scores)
-            self.best_score = max(self.best_score, score)
-
-            if score == self.best_score:
+            
+            if step > log_time:
                 self.save(print_terminal_info=False)
+                log_time += self.LOG_INTERVAL
 
     def _log_condition(self):
         return True

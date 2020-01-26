@@ -29,6 +29,9 @@ def parse_cmd_args():
     parser.add_argument('--max_steps', '-ms',
                         default=None,
                         type=float)
+    parser.add_argument('--n_envs', '-ne',
+                        default=None,
+                        type=int)
     parser.add_argument('--delay',
                         default=1,
                         type=int)
