@@ -84,6 +84,6 @@ replay:
     # arguments for general replay
     n_steps: 1
     gamma: *gamma
-    batch_size: 256
+    batch_size: 512
     min_size: 5e4
     capacity: 1e6

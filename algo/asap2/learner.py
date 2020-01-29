@@ -144,17 +144,17 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
         def _update_mode_prob(self):
             fracs = analyze_repo(self.weight_repo)
             mode_prob = np.zeros_like(self.mode_prob)
-            if self.env_name == 'BipedalWalkerHardcore-v2':
-                if min(self.weight_repo) > 300:
-                    mode_prob[2] = 1
-                    mode_prob[0] = mode_prob[1] = 0
-                    self.mode_prob = mode_prob
-                    return
-                elif min(self.weight_repo) > 295:
-                    mode_prob[2] = .5
-                    mode_prob[0] = mode_prob[1] = 0.25
-                    self.mode_prob = mode_prob
-                    return
+            # if self.env_name == 'BipedalWalkerHardcore-v2':
+            #     if min(self.weight_repo) > 300:
+            #         mode_prob[2] = 1
+            #         mode_prob[0] = mode_prob[1] = 0
+            #         self.mode_prob = mode_prob
+            #         return
+            #     elif min(self.weight_repo) > 295:
+            #         mode_prob[2] = .5
+            #         mode_prob[0] = mode_prob[1] = 0.25
+            #         self.mode_prob = mode_prob
+            #         return
 
             self.mode_prob = self.mode_prob_backup
             mode_prob[2] = self.REEVAL_PROB

@@ -44,9 +44,9 @@ class Agent(BaseAgent):
         self.ckpt_models['actor_opt'] = self.actor_opt
         self.ckpt_models['q_opt'] = self.q_opt
         if isinstance(self.temperature, float):
-            if env.name == 'BipedalWalkerHardcore-v2':
-                self.temp_schedule = PiecewiseSchedule(
-                    [(5e5, self.temperature), (1.e6, 0)])
+            # if env.name == 'BipedalWalkerHardcore-v2':
+            #     self.temp_schedule = PiecewiseSchedule(
+            #         [(5e5, self.temperature), (1.e7, 0)])
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
             if getattr(self, 'schedule_lr', False):
