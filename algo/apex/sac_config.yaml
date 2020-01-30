@@ -3,7 +3,7 @@ env:
     name: Walker2d-v2
     video_path: video
     log_video: False
-    n_envs: 4
+    n_envs: 2
     efficient_envvec: True
     seed: 0
 model:
