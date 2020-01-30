@@ -162,17 +162,14 @@ def store_weights(weight_repo, mode, score, tag, weights, eval_times, store_cap,
     """ store weights to repo, if there is any entry pop out, return the it """
     if mode == Mode.REEVALUATION or len(weight_repo) == 0 or score > min(weight_repo):
         weight_repo[score] = Weights(tag, weights, eval_times)
-    score = None
+
     while len(weight_repo) > store_cap:
         if fifo:
             score, weights = remove_oldest_weights(weight_repo)
         else:
             score, weights = remove_worst_weights(weight_repo, fitness_method, c)
 
-    if score:
-        return score, weights
-    else:
-        return None, None
+    return score
 
 def print_repo(repo, name, c=1, info=[]):
     for msg, color in info:

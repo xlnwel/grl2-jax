@@ -87,7 +87,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
 
         def store_weights(self, worker_id, score, eval_times):
             mode, tag, weights, _ = self.records[worker_id]
-            pop_score, _ = store_weights(
+            pop_score = store_weights(
                 self.weight_repo, mode, score, tag, weights, 
                 eval_times, self.REPO_CAP, fifo=self.FIFO,
                 fitness_method=self.fitness_method, c=self.cb_c)
