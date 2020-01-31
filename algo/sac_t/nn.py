@@ -66,42 +66,26 @@ class SoftPolicy(tf.Module):
 
             if self.is_action_discrete:
                 action = action_distribution.sample(reparameterize=False, one_hot=False)
-                logpi = action_distribution.logp(action)
-                assert len(action.shape) == len(logpi.shape) == 2
             else:
                 raw_action = action_distribution.sample()
-                raw_logpi = action_distribution.logp(raw_action)
                 action = tf.tanh(raw_action)
-                logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
-        terms = dict(
-            logpi=logpi,
-            action_std=action_distribution.std
-        )
-        return action, terms
+        return action, dict(action_std=action_distribution.std)
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
     def _det_action(self, x):
         with tf.name_scope('det_action'):
-            action_distribution, x, _ = self._action_distribution(x)
+            x = self.intra_layers(x)
 
             if self.is_action_discrete:
-                logits = action_distribution.logits
+                logits = self.logits(x)
                 action = tf.argmax(logits, axis=-1)
-                logpi = action_distribution.logp(action)
             else:
                 mu = self.mu(x)
-                raw_logpi = action_distribution.logp(mu)
                 action = tf.tanh(mu)
-                logpi = logpi_correction(mu, raw_logpi, is_action_squashed=False)
 
-        terms = dict(
-            logpi=logpi,
-            action_std=tf.zeros_like(action)
-        )
-
-        return action, terms
+        return action, dict(action_std=0)
 
     @tf.Module.with_name_scope
     def train_action(self, x):
@@ -132,7 +116,7 @@ class SoftPolicy(tf.Module):
                 logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
             terms['entropy'] = action_distribution.entropy()
-        
+
         return action, logpi, terms
 
     def _action_distribution(self, x):
@@ -253,6 +237,7 @@ def create_model(model_config, state_shape, action_dim, is_action_discrete):
     q_config = model_config['q']
     temperature_config = model_config['temperature']
     actor = SoftPolicy(actor_config, state_shape, action_dim, is_action_discrete)
+    target_actor = SoftPolicy(actor_config, state_shape, action_dim, is_action_discrete)
     q1 = SoftQ(q_config, state_shape, action_dim, 'q1')
     q2 = SoftQ(q_config, state_shape, action_dim, 'q2')
     target_q1 = SoftQ(q_config, state_shape, action_dim, 'target_q1')
@@ -266,6 +251,7 @@ def create_model(model_config, state_shape, action_dim, is_action_discrete):
         actor=actor,
         q1=q1,
         q2=q2,
+        target_actor=target_actor,
         target_q1=target_q1,
         target_q2=target_q2,
         temperature=temperature,

@@ -54,18 +54,17 @@ def get_config_file(algorithm):
         config_file = 'algo/d3qn/config.yaml'
     elif algorithm == 'apex-d3qn':
         config_file = 'algo/apex/d3qn_config.yaml'
-    elif algorithm == 'apex-sac':
+    elif algorithm == 'apex-sac' or algorithm == 'apex-t-sac':
         config_file = 'algo/apex/sac_config.yaml'
     elif algorithm == 'apex-dr-sac':
         config_file = 'algo/apex_dr/sac_config.yaml'
     elif algorithm == 'apex-ar-sac':
         config_file = 'algo/apex_ar/sac_config.yaml'
-    elif algorithm == 'asap-sac':
-        config_file = 'algo/asap/sac_config.yaml'
-    elif algorithm == 'asap2-sac':
+    elif algorithm.startswith('asap'):
+        if algorithm.endswith('sac'):
+            config_file = 'algo/asap/sac_config.yaml'
+    elif algorithm == 'asap2-sac' or algorithm == 'asap2-t-sac':
         config_file = 'algo/asap2/sac_config.yaml'
-    elif algorithm == 'asap3-sac':
-        config_file = 'algo/asap3/sac_config.yaml'
     elif algorithm == 'asap-d3qn':
         config_file = 'algo/asap/d3qn_config.yaml'
     elif algorithm == 'seed-sac':
@@ -119,6 +118,7 @@ if __name__ == '__main__':
             model_config = config['model']
             agent_config = config['agent']
             replay_config = config.get('buffer') or config.get('replay')
+            agent_config['algorithm'] = algo
             if env:
                 env_config['name'] = env
             if cmd_args.max_steps:

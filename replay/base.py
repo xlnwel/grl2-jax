@@ -8,19 +8,11 @@ from replay.utils import *
 
 class Replay(ABC):
     """ Interface """
-    def __init__(self, config, *keys, state_shape=None):
+    def __init__(self, config):
         """
         Args:
             config: a dict
-            keys: the keys of buffer
-            state_shape: state_shape is required if 'next_state' is not in keys
-                otherwise, error will arise for distributed algorithms
         """
-        if 'next_state' not in keys:
-            assert state_shape is not None
-            assert keys[:5] == ('state', 'action', 'reward', 'done', 'steps'), keys
-        else:
-            assert keys[:6] == ('state', 'action', 'reward', 'next_state', 'done', 'steps'), keys
         # params for general replay buffer
         self._type = config['type']
         self.capacity = to_int(config['capacity'])
@@ -28,6 +20,7 @@ class Replay(ABC):
         self.batch_size = config['batch_size']
         self.n_steps = config['n_steps']
         self.gamma = config['gamma']
+        self.has_next_state = config.get('has_next_state', False)
 
         # reward hacking
         self.reward_scale = config.get('reward_scale', 1)
@@ -43,8 +36,6 @@ class Replay(ABC):
         self.mem_idx = 0
         
         self.memory = {}
-        init_buffer(self.memory, *keys, capacity=self.capacity, state_shape=state_shape)
-        print(f'"{self.buffer_type()}" keys: {list(self.memory.keys())}')
 
     def buffer_type(self):
         return self._type
@@ -77,11 +68,20 @@ class Replay(ABC):
 
     def add(self, **kwargs):
         """ Add a single transition to the replay buffer """
-        if not self.is_full:
-            if self.mem_idx == self.capacity - 1:
-                print(f'Memory is full({len(self.memory["reward"])})')
-                self.is_full = True
         next_state = kwargs['next_state']
+        if self.memory == {}:
+            if not self.has_next_state:
+                del kwargs['next_state']
+            keys = list(kwargs)
+            keys.append('steps')
+            state_shape = kwargs['state'].shape
+            init_buffer(self.memory, *keys, capacity=self.capacity, state_shape=state_shape)
+            print(f'"{self.buffer_type()}" keys: {list(self.memory.keys())}')
+
+        if not self.is_full and self.mem_idx == self.capacity - 1:
+            print(f'Memory is full({len(self.memory["reward"])})')
+            self.is_full = True
+        
         add_buffer(
             self.memory, self.mem_idx, self.n_steps, self.gamma, cycle=self.is_full, **kwargs)
         self.mem_idx = (self.mem_idx + 1) % self.capacity
@@ -93,6 +93,15 @@ class Replay(ABC):
         raise NotImplementedError
 
     def _merge(self, local_buffer, length):
+        if self.memory == {}:
+            if not self.has_next_state:
+                del local_buffer['next_state']
+            keys = list(local_buffer)
+            keys.append('steps')
+            state_shape = local_buffer['state'].shape[1:]
+            init_buffer(self.memory, *keys, capacity=self.capacity, state_shape=state_shape)
+            print(f'"{self.buffer_type()}" keys: {list(self.memory.keys())}')
+
         end_idx = self.mem_idx + length
 
         if end_idx > self.capacity:

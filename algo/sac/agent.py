@@ -46,7 +46,7 @@ class Agent(BaseAgent):
         if isinstance(self.temperature, float):
             # if env.name == 'BipedalWalkerHardcore-v2':
             #     self.temp_schedule = PiecewiseSchedule(
-            #         [(5e5, self.temperature), (1.e7, 0)])
+            #         [(5e5, self.temperature), (1e7, 0)])
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
             if getattr(self, 'schedule_lr', False):
@@ -92,6 +92,12 @@ class Agent(BaseAgent):
 
         terms = self.learn(**data)
 
+        if self.sync_target:
+            if self.global_steps % self.target_update_freq == 0:
+                self._sync_target_nets()
+        else:
+            self._update_target_nets()
+
         if self.schedule_lr:
             terms['actor_lr'] = self.actor_lr.numpy()
             terms['q_lr'] = self.q_lr.numpy()
@@ -128,12 +134,6 @@ class Agent(BaseAgent):
                 terms['q_norm'] = q_norm
             self.q_opt.apply_gradients(
                 zip(q_grads, self.q1.trainable_variables + self.q2.trainable_variables))
-
-        if self.sync_target:
-            if self.global_steps % self.target_update_freq == 0:
-                self._sync_target_nets()
-        else:
-            self._update_target_nets()
 
         return terms
 
@@ -227,8 +227,8 @@ class Agent(BaseAgent):
         return priority
 
     def _sync_target_nets(self):
-        tvars = self.target_q1.trainable_variables + self.target_q2.trainable_variables
-        mvars = self.q1.trainable_variables + self.q2.trainable_variables
+        tvars = self.target_q1.variables + self.target_q2.variables
+        mvars = self.q1.variables + self.q2.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
 
     def _update_target_nets(self):

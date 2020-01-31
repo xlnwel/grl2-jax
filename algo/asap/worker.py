@@ -33,8 +33,7 @@ class Worker(BaseWorker):
         models = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
         
         buffer_config['seqlen'] = env.max_episode_steps
-        buffer_keys = ['state', 'action', 'reward', 'done', 'steps']
-        buffer = buffer_fn(buffer_config, *buffer_keys)
+        buffer = buffer_fn(buffer_config)
 
         super().__init__(
             name=name,

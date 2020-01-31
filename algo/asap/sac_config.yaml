@@ -23,6 +23,7 @@ agent:
     target_update_freq: 100
     polyak: .995
     evaluation: False
+    kl_coef: 1
     
     # timer&interval
     MAX_STEPS: 3.e+7
@@ -44,7 +45,7 @@ agent:
     WA_SELECTION: False
     WA_EVOLUTION: False
     fitness_method: lcb
-    mode_polyak: .95
+    mode_polyak: 0
     cb_c: .1    # coefficient for confidence bound method
 
     # model path: root_dir/model_name/models

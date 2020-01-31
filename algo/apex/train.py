@@ -9,7 +9,13 @@ from replay.func import create_replay_center
 
 def import_agent(config):
     algo = config['algorithm']
-    if algo.endswith('sac'):
+    if algo.endswith('-t-sac'):
+        from algo.sac_t.nn import create_model
+        from algo.sac_t.agent import Agent
+    elif algo.endswith('-il-sac'):
+        from algo.sac_il.nn import create_model
+        from algo.sac_il.agent import Agent
+    elif algo.endswith('sac'):
         from algo.sac.nn import create_model
         from algo.sac.agent import Agent
     elif algo.endswith('dqn'):
@@ -21,9 +27,7 @@ def import_agent(config):
     return create_model, Agent
 
 def get_worker_fn(agent_config):
-    if agent_config['algorithm'].startswith('asap3'):
-        from algo.asap3.worker import create_worker
-    elif agent_config['algorithm'].startswith('asap2'):
+    if agent_config['algorithm'].startswith('asap2'):
         from algo.asap2.worker import create_worker
     elif agent_config['algorithm'].startswith('asap'):
         from algo.asap.worker import create_worker
@@ -35,9 +39,7 @@ def get_worker_fn(agent_config):
     return create_worker
 
 def get_learner_fn(agent_config):
-    if agent_config['algorithm'].startswith('asap3'):
-        from algo.asap3.learner import create_learner
-    elif agent_config['algorithm'].startswith('asap2'):
+    if agent_config['algorithm'].startswith('asap2'):
         from algo.asap2.learner import create_learner
     elif agent_config['algorithm'].startswith('asap'):
         from algo.apex.learner import create_learner
@@ -50,11 +52,7 @@ def get_learner_fn(agent_config):
 
 def get_bph_config(agent_config):
     """ get configure file for BipedalWalkerHardcore-v2 """
-    if agent_config['algorithm'].startswith('asap3'):
-        config_file = 'algo/asap3/bph_sac_config.yaml'
-    elif agent_config['algorithm'].startswith('asap2'):
-        config_file = 'algo/asap2/bph_sac_config.yaml'
-    elif agent_config['algorithm'].startswith('asap'):
+    if agent_config['algorithm'].startswith('asap'):
         config_file = 'algo/asap/bph_sac_config.yaml'
     elif agent_config['algorithm'].startswith('apex'):
         config_file = 'algo/apex/bph_sac_config.yaml'
@@ -85,13 +83,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         env_config['video_path'] = video_path
     sigint_shutdown_ray()
 
-    env_config_copy = env_config.copy()
-    env_config_copy['n_workers'] = env_config_copy['n_envs'] = 1
-    env = create_gym_env(env_config)
-
-    replay_keys = ['state', 'action', 'reward', 'done', 'steps']
-    replay = create_replay_center(replay_config, *replay_keys, state_shape=env.state_shape)
-    env.close()
+    replay = create_replay_center(replay_config)
 
     create_learner = get_learner_fn(agent_config)
     model_fn, Agent = import_agent(agent_config)

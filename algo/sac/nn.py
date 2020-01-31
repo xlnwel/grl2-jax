@@ -85,7 +85,7 @@ class SoftPolicy(tf.Module):
                 mu = self.mu(x)
                 action = tf.tanh(mu)
 
-        return action, dict(action_std=0)
+        return action, dict(action_std=tf.zeros_like(action))
 
     @tf.Module.with_name_scope
     def train_action(self, x):

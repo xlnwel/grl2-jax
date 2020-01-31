@@ -34,7 +34,7 @@ class EnvBuffer(LocalBuffer):
         self.gamma = config['gamma']
 
         self.memory = {}
-        init_buffer(self.memory, *keys, capacity=self.seqlen+1)
+        # init_buffer(self.memory, *keys, capacity=self.seqlen+1)
         
         self.reward_scale = config.get('reward_scale', 1)
         self.reward_clip = config.get('reward_clip')
@@ -77,6 +77,14 @@ class EnvBuffer(LocalBuffer):
         
     def add_data(self, **kwargs):
         """ Add experience to local memory """
+        next_state = kwargs['next_state']
+        if self.memory == {}:
+            del kwargs['next_state']
+            keys = list(kwargs)
+            keys.append('steps')
+            init_buffer(self.memory, *keys, capacity=self.capacity+1)
+            print(f'Local bufffer keys: {list(self.memory.keys())}')
+            
         add_buffer(self.memory, self.idx, self.n_steps, self.gamma, **kwargs)
         self.idx = self.idx + 1
         self.memory['state'][self.idx] = kwargs['next_state']

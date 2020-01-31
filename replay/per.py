@@ -9,8 +9,8 @@ from replay.ds.sum_tree import SumTree
 
 class PERBase(Replay):
     """ Base class for PER, left in case one day I implement rank-based PER """
-    def __init__(self, config, *keys, state_shape=None):
-        super().__init__(config, *keys, state_shape=state_shape)
+    def __init__(self, config):
+        super().__init__(config)
         self.data_structure = None            
 
         # params for prioritized replay
@@ -77,8 +77,8 @@ class PERBase(Replay):
 
 class ProportionalPER(PERBase):
     """ Interface """
-    def __init__(self, config, *keys, state_shape=None):
-        super().__init__(config, *keys, state_shape=state_shape)
+    def __init__(self, config):
+        super().__init__(config)
         self.data_structure = SumTree(self.capacity)        # mem_idx    -->     priority
 
     """ Implementation """
@@ -87,23 +87,6 @@ class ProportionalPER(PERBase):
         total_priorities = self.data_structure.total_priorities
         
         segment = total_priorities / self.batch_size
-
-        # priorities, indexes = [], []
-        # vs = []
-        # for k in range(self.batch_size):
-        #     v = np.random.uniform(k * segment, (k+1) * segment)
-        #     vs.append(v)
-        #     p, i = self.data_structure.find(v)
-        #     priorities.append(p)
-        #     indexes.append(i)
-        #     if i > self.mem_idx or p == 0:
-        #         print('k', k)
-        #         print('segment', segment, k * segment, (k+1) * segment)
-        #         print('v', v)
-        #         print('priority', p)
-        #         print('i', i, self.mem_idx)
-        #         import sys
-        #         sys.exit()
 
         priorities, indexes = list(zip(
             *[self.data_structure.find(np.random.uniform(i * segment, (i+1) * segment))

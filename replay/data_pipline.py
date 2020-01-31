@@ -42,9 +42,6 @@ class Dataset:
                 data[k] = tf.expand_dims(data[k], -1)
 
                 tf.debugging.assert_shapes([(data[k], (None, 1))])
-
-            for v in data.values():
-                tf.debugging.assert_type(v, tf.float32)
                 
             return data
 
