@@ -176,14 +176,16 @@ class Worker(BaseWorker):
         if self.env.name == 'BipedalWalkerHardcore-v2' and min(self.weight_repo) > 300:
             self.mode_prob[2] = 1
             self.mode_prob[0] = self.mode_prob[1] = 0
-            return
         else:
             self.mode_prob[2] = self.REEVAL_PROB
-        remain_prob = 1 - self.mode_prob[2] - self.MIN_LEARN_PROB - self.MIN_EVOLVE_PROB
+            remain_prob = 1 - self.mode_prob[2] - self.MIN_LEARN_PROB - self.MIN_EVOLVE_PROB
 
-        self.mode_prob[0] = self.MIN_LEARN_PROB + fracs['frac_learned'] * remain_prob
-        self.mode_prob[1] = self.MIN_EVOLVE_PROB + fracs['frac_evolved'] * remain_prob
+            self.mode_prob[0] = self.MIN_LEARN_PROB + fracs['frac_learned'] * remain_prob
+            self.mode_prob[1] = self.MIN_EVOLVE_PROB + fracs['frac_evolved'] * remain_prob
         np.testing.assert_allclose(sum(self.mode_prob), 1)
+        self.info_to_print.append((
+            (f'mode prob: {self.mode_prob[0]:3g}, {self.mode_prob[1]:3g}, {self.mode_prob[2]:3g}', ), 'blue'
+        ))
 
     def _log_condition(self):
         return self.logger.get_count('score') > 0 and self.logger.get_count('evolved_score') > 0

@@ -36,7 +36,7 @@ agent:
     n_workers: 4
 
     # SAP params
-    n_eval_envs: 4
+    n_eval_envs: 1
     REPO_CAP: 10
     MIN_EVOLVE_MODELS: 2
     MAX_EVOLVE_MODELS: 10

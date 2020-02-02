@@ -77,11 +77,9 @@ def lcb(values, ns, c):
 def normalize_scores(scores):
     min_score = np.min(scores)
     max_score = np.max(scores)
-    coef = .9 if min_score >= 0 else 1.1
-    if min_score == max_score:
-        scores = scores - coef * min_score
-    else:
-        scores = (scores - coef * min_score) / (max_score - min_score)
+    diff = max_score - min_score
+    
+    scores = (scores - np.min(scores)) / (max_score - min_score)
     return scores
 
 def fitness_from_repo(weight_repo, method, c=1):
@@ -177,7 +175,10 @@ def store_weights(weight_repo, mode, score, tag, weights, eval_times, store_cap,
 
 def print_repo(repo, name, c=1, info=[]):
     for msg, color in info:
-        pwc(*msg, color=color)
+        if isinstance(msg, (list, tuple)):
+            pwc(*msg, color=color)
+        else:
+            pwc(msg, color=color)
     scores = list(repo)
     norm_scores = normalize_scores(scores)
     tags, eval_times = list(zip(*[(tag, eval_times) for tag, _, eval_times in repo.values()]))
@@ -187,7 +188,7 @@ def print_repo(repo, name, c=1, info=[]):
     ucb = norm_scores + interval
     lcb = norm_scores - interval
 
-    repo = [(f'{f"score({s:.3g})":<15s}', f'{t:<10s}', f'{f"eval times({et})":<15s}',
+    repo = [(f'{f"score({s:.4g})":<15s}', f'{t:<10s}', f'{f"eval times({et})":<15s}',
             f'{f"norm score({ns:.2f})":<20s}', f'{f"interval({i:.2f})":<15s}', 
             f'{f"ucb({u:.2f})":<15s}', f'{f"lcb({l:.2f})":<15s}')
              for s, t, et, ns, i, u, l in zip(scores, tags, eval_times, norm_scores, interval, ucb, lcb)]
