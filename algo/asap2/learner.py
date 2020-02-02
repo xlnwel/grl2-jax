@@ -87,13 +87,14 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
 
         def store_weights(self, worker_id, score, eval_times):
             mode, tag, weights, _ = self.records[worker_id]
-            pop_score = store_weights(
-                self.weight_repo, mode, score, tag, weights, 
-                eval_times, self.REPO_CAP, fifo=self.FIFO,
-                fitness_method=self.fitness_method, c=self.cb_c)
 
-            self._make_decision(score, tag, eval_times, pop_score)
+            status = self._make_decision(score, tag, eval_times)
 
+            if status == Status.ACCEPTED:
+                store_weights(
+                    self.weight_repo, mode, score, tag, weights, 
+                    eval_times, self.REPO_CAP, fifo=self.FIFO,
+                    fitness_method=self.fitness_method, c=self.cb_c)
             self._update_mode_prob()
 
         def _choose_weights(self, worker_id, name=None):
@@ -120,7 +121,7 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
                 score = 0
                 eval_times = 0
             elif mode == Mode.REEVALUATION:
-                w = fitness_from_repo(self.weight_repo, 'ucb', c=self.cb_c)
+                w = fitness_from_repo(self.weight_repo, 'norm', c=self.cb_c)
                 score = random.choices(list(self.weight_repo), weights=w)[0]
                 tag = self.weight_repo[score].tag
                 weights = self.weight_repo[score].weights
@@ -131,11 +132,15 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
         
             return mode, score, tag, weights, eval_times
         
-        def _make_decision(self, score, tag, eval_times, pop_score):
-            if score != pop_score:
+        def _make_decision(self, score, tag, eval_times):
+            if len(self.weight_repo) < self.REPO_CAP:
                 status = Status.ACCEPTED
             else:
-                status = Status.REJECTED
+                min_score = min(self.weight_repo.keys())
+                if score > min_score:
+                    status = Status.ACCEPTED
+                else:
+                    status = Status.REJECTED
 
             self.bookkeeping.add(tag, status)
 

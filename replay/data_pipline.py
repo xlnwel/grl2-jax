@@ -27,7 +27,7 @@ class Dataset:
         return next(self.iterator)
 
     def update_priorities(self, priorities, indices):
-        self.buffer.update_priorities(np.squeeze(priorities), indices)
+        self.buffer.update_priorities(priorities, indices)
 
     def _prepare_dataset(self, buffer, data_format):
         def process_transition(data):
@@ -45,20 +45,11 @@ class Dataset:
                 
             return data
 
-        def transform_data_per(IS_ratio, saved_indices, retrieved_data):
-            data = {
-                'IS_ratio': tf.expand_dims(IS_ratio, -1), # Importance sampling ratio for PER
-                'saved_indices': saved_indices,     # saved indexes used to index the experience in the buffer when updating priorities
-                **retrieved_data
-            }
-
+        def transform_data_per(data):
             return process_transition(data)
 
-        def transform_data_uniform(retrieved_data):
-            data = {
-                'IS_ratio': 1.,  # fake ratio to avoid complicate the code
-                **retrieved_data
-            }
+        def transform_data_uniform(data):
+            data['IS_ratio'] = 1. # fake ratio to avoid complicate the code
 
             return process_transition(data)
 
@@ -67,8 +58,10 @@ class Dataset:
             sample_shapes = dict((k, v[1]) for k, v in data_format.items())
 
             if not self.buffer_type().endswith('uniform'):
-                sample_types = (tf.float32, tf.int32, sample_types)
-                sample_shapes =((None), (None), sample_shapes)
+                sample_types['IS_ratio'] = tf.float32
+                sample_types['saved_indices'] = tf.int32
+                sample_shapes['IS_ratio'] = (None, 1)
+                sample_shapes['saved_indices'] = (None)
 
             ds = tf.data.Dataset.from_generator(
                 self._sample, output_types=sample_types, output_shapes=sample_shapes)
@@ -92,4 +85,4 @@ class RayDataset(Dataset):
             yield ray.get(self.buffer.sample.remote())
 
     def update_priorities(self, priorities, indices):
-        self.buffer.update_priorities.remote(np.squeeze(priorities), indices)
+        self.buffer.update_priorities.remote(priorities, indices)

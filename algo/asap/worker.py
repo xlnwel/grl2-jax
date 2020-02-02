@@ -29,11 +29,15 @@ class Worker(BaseWorker):
         tf_config.configure_gpu()
 
         env = create_gym_env(env_config)
-        
-        models = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
-        
         buffer_config['seqlen'] = env.max_episode_steps
         buffer = buffer_fn(buffer_config)
+
+        env_config['n_envs'] = config['n_eval_envs']
+        self.envvec = create_gym_env(env_config)
+        buffer_config['n_envs'] = env_config['n_envs']
+        self.envvec_buffer = buffer_fn(buffer_config)
+
+        models = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
 
         super().__init__(
             name=name,
@@ -48,31 +52,51 @@ class Worker(BaseWorker):
         self.weight_repo = {}                                 # map score to Weights
         self.mode = (Mode.LEARNING, Mode.EVOLUTION, Mode.REEVALUATION)
         self.raw_bookkeeping = BookKeeping('raw')
-        self.best_score = -float('inf')
         self.info_to_print = []
         # self.reevaluation_bookkeeping = BookKeeping('reeval')
 
     def run(self, learner, replay):
         step = 0
+        log_time = self.LOG_INTERVAL
         while step < self.MAX_STEPS:
             with TBTimer(f'{self.name} pull weights', self.TIME_INTERVAL, to_log=self.timer):
                 mode, score, tag, weights, eval_times = self._choose_weights(learner)
 
             with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
-                step, scores, epslens = self.eval_model(weights, step, replay, 
-                                                        evaluation=mode == Mode.REEVALUATION, tag=tag)
-            eval_times = eval_times + self.n_envs
-
+                step, scores, epslens = self.eval_model(
+                    weights, step, evaluation=False, tag=tag)
+            
+            cur_eval_times = self.n_envs
+            eval_times += self.n_envs
+            
             with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
                 self._send_data(replay)
 
-            score += self.n_envs / eval_times * (np.mean(scores) - score)
-            self.best_score = max(self.best_score, score)
+            if len(self.weight_repo) < self.REPO_CAP or np.mean(scores) > min(self.weight_repo):
+                step, eval_scores, eval_epslens = self.eval_model(
+                    weights, step, env=self.envvec, buffer=self.envvec_buffer, evaluation=False, tag=tag
+                )
+                scores = np.append(scores, eval_scores)
+                epslens = np.append(epslens, eval_epslens)
+                self._send_data(replay, self.envvec_buffer)
+                cur_eval_times += self.n_eval_envs
+                eval_times += self.n_eval_envs
+            else:
+                scores = [scores]
+                epslens = [epslens]
+
+            for s, l in zip(scores, epslens):
+                self._log_episodic_info(tag, s, l)
+
+            score += cur_eval_times / eval_times * (np.mean(scores) - score)
 
             status = self._make_decision(mode, score, tag, eval_times)
 
             if status == Status.ACCEPTED:
-                store_weights(self.weight_repo, score, tag, weights, eval_times, self.REPO_CAP, fifo=self.FIFO)
+                store_weights(
+                    self.weight_repo, mode, score, tag, weights, 
+                    eval_times, self.REPO_CAP, fifo=self.FIFO,
+                    fitness_method=self.fitness_method, c=self.cb_c)
             
             self._update_mode_prob()
 
@@ -80,8 +104,10 @@ class Worker(BaseWorker):
 
             if self.env.name == 'BipedalWalkerHardcore-v2' and eval_times > 100 and score > 300:
                 self.save()
-            elif score == self.best_score:
-                self.save()
+            elif step > log_time:
+                self.set_weights(self.weight_repo[max(self.weight_repo)].weights)
+                self.save(print_terminal_info=False)
+                log_time += self.LOG_INTERVAL
 
     def _choose_weights(self, learner):
         if len(self.weight_repo) < self.MIN_EVOLVE_MODELS:
@@ -96,12 +122,14 @@ class Worker(BaseWorker):
             eval_times = 0
         elif mode == Mode.EVOLUTION:
             tag = Tag.EVOLVED
-            weights, n = evolve_weights(self.weight_repo, min_evolv_models=self.MIN_EVOLVE_MODELS, 
-                                        max_evolv_models=self.MAX_EVOLVE_MODELS, 
-                                        wa_selection=self.WA_SELECTION,
-                                        wa_evolution=self.WA_EVOLUTION, 
-                                        fitness_method=self.fitness_method,
-                                        c=self.cb_c)
+            weights, n = evolve_weights(
+                self.weight_repo, 
+                min_evolv_models=self.MIN_EVOLVE_MODELS, 
+                max_evolv_models=self.MAX_EVOLVE_MODELS, 
+                wa_selection=self.WA_SELECTION,
+                wa_evolution=self.WA_EVOLUTION, 
+                fitness_method=self.fitness_method,
+                c=self.cb_c)
             self.info_to_print.append(((f'{self.name}_{self.id}: {n} models are used for evolution', ), 'blue'))
             score = 0
             eval_times = 0
@@ -115,20 +143,32 @@ class Worker(BaseWorker):
         
         return mode, score, tag, weights, eval_times
 
+    def _log_episodic_info(self, tag, scores, epslens):
+        if scores is not None:
+            if tag == 'Learned':
+                self.store(
+                    score=scores,
+                    epslen=epslens,
+                )
+            else:
+                self.store(
+                    evolved_score=scores,
+                    evolved_epslen=epslens,
+                )
+
     def _make_decision(self, mode, score, tag, eval_times):
-        if len(self.weight_repo) < self.REPO_CAP:
+        if len(self.weight_repo) < self.REPO_CAP or score > min(self.weight_repo):
             status = Status.ACCEPTED
         else:
-            min_score = min(self.weight_repo.keys()) if self.weight_repo else -float('inf')
-            if score > min_score:
-                status = Status.ACCEPTED
-            else:
-                status = Status.REJECTED
+            status = Status.REJECTED
+
         self.raw_bookkeeping.add(tag, status)
 
-        self.info_to_print.append(((f'{self.name}_{self.id} Mode({mode}): {tag} model has been evaluated({eval_times}).', 
-                                f'Score: {score:.3g}',
-                                f'Decision: {status}'), 'green'))
+        self.info_to_print.append((
+            (f'{self.name}_{self.id} Mode({mode}): {tag} model has been evaluated({eval_times}).', 
+            f'Score: {score:.3g}',
+            f'Decision: {status}'), 'green'))
+            
         return status
 
     def _update_mode_prob(self):

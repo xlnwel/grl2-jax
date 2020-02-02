@@ -9,10 +9,7 @@ from replay.func import create_replay_center
 
 def import_agent(config):
     algo = config['algorithm']
-    if algo.endswith('-t-sac'):
-        from algo.sac_t.nn import create_model
-        from algo.sac_t.agent import Agent
-    elif algo.endswith('-il-sac'):
+    if algo.endswith('-il-sac'):
         from algo.sac_il.nn import create_model
         from algo.sac_il.agent import Agent
     elif algo.endswith('sac'):
@@ -65,7 +62,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     if env_config.get('is_deepmind_env'):
         ray.init()
     else:
-        ray.init(memory=8*1024**3, object_store_memory=6*1024**3)
+        ray.init(memory=8*1024**3, object_store_memory=7*1024**3)
     
     if env_config['name'] == 'BipedalWalkerHardcore-v2':
         # Caveat: this keeps most default configuration
@@ -115,4 +112,6 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     ray.get(pids)
 
+    ray.get(learner.save.remote())
+    
     ray.shutdown()

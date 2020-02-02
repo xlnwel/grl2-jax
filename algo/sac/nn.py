@@ -62,7 +62,7 @@ class SoftPolicy(tf.Module):
     @tf.function(experimental_relax_shapes=True)
     def _action(self, x):
         with tf.name_scope('action'):
-            action_distribution, _, _ = self._action_distribution(x)
+            action_distribution, _, terms = self._action_distribution(x)
 
             if self.is_action_discrete:
                 action = action_distribution.sample(reparameterize=False, one_hot=False)
@@ -70,7 +70,7 @@ class SoftPolicy(tf.Module):
                 raw_action = action_distribution.sample()
                 action = tf.tanh(raw_action)
 
-        return action, dict(action_std=action_distribution.std)
+        return action, terms
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope

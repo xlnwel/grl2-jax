@@ -9,10 +9,12 @@ model:
     actor:
         units_list: [512, 256]
         # kernel_initializer: glorot_uniform
+        norm: layer
         activation: relu
     q:
         units_list: [512, 256]
         # kernel_initializer: glorot_uniform
+        norm: layer
         activation: relu
     temperature:
         temp_type: 'state-action'
@@ -41,9 +43,9 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 3.e-4
+    actor_lr: 1.e-4
     q_lr: 3.e-4
-    temp_lr: 3.e-4
+    temp_lr: 1.e-4
     epsilon: 1.e-8
 
     # arguments for PER
@@ -55,7 +57,7 @@ replay:
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4
-    to_update_top_priority: False
+    to_update_top_priority: True
 
     # hacking
     # normalize_reward: False

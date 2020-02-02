@@ -77,7 +77,11 @@ def lcb(values, ns, c):
 def normalize_scores(scores):
     min_score = np.min(scores)
     max_score = np.max(scores)
-    scores = (scores - min_score) / (max_score - min_score) * 2 - 1
+    coef = .9 if min_score >= 0 else 1.1
+    if min_score == max_score:
+        scores = scores - coef * min_score
+    else:
+        scores = (scores - coef * min_score) / (max_score - min_score)
     return scores
 
 def fitness_from_repo(weight_repo, method, c=1):
@@ -120,8 +124,7 @@ def evolve_weights(weight_repo, min_evolv_models=2, max_evolv_models=5,
     scores = np.array(list(weight_repo))
     if wa_selection or wa_evolution:
         fitness = fitness_from_repo(weight_repo, fitness_method, c=c)
-        w = np.exp(fitness)
-        w = w / np.sum(w)
+        w = fitness / np.sum(fitness)
     else:
         w = None
     idxes = np.random.choice(np.arange(len(scores)), size=n, replace=False, p=w)

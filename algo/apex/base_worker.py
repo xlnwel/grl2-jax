@@ -20,12 +20,12 @@ class BaseWorker(BaseAgent):
                 *,
                 name,
                 worker_id,
+                config,
                 models, 
                 env,
                 buffer,
                 actor,
-                value,
-                config):        
+                value):        
         self.id = worker_id
 
         self.env = env
@@ -59,31 +59,25 @@ class BaseWorker(BaseAgent):
                 self._compute_priorities, 
                 TensorSpecs)
 
-    def eval_model(self, weights, step, replay, evaluation=False, tag='Learned', store_exp=True):
+    def set_weights(self, weights):
+        self.model.set_weights(weights)
+
+    def eval_model(self, weights, step, env=None, buffer=None, evaluation=False, tag='Learned', store_exp=True):
         """ collects data, logs stats, and saves models """
+        buffer = buffer or self.buffer
         def collect_fn(step, action_std, **kwargs):
             if store_exp:
-                self.buffer.add_data(**kwargs)
+                buffer.add_data(**kwargs)
             if np.any(action_std != 0):
                 self.store(**{f'{tag}_action_std': np.mean(action_std)})
             self._periodic_logging(step)
 
-        self.model.set_weights(weights)
-
-        scores, epslens = run(self.env, self.actor, fn=collect_fn, 
-                                evaluation=evaluation, step=step, timer=self.timer)
+        self.set_weights(weights)
+        env = env or self.env
+        scores, epslens = run(env, self.actor, fn=collect_fn, 
+                                evaluation=evaluation, step=step, 
+                                timer=self.timer, epsilon=self.act_eps)
         step += np.sum(epslens)
-        if scores is not None:
-            if tag == 'Learned':
-                self.store(
-                    score=scores,
-                    epslen=epslens,
-                )
-            else:
-                self.store(
-                    evolved_score=scores,
-                    evolved_epslen=epslens,
-                )
         
         return step, scores, epslens
 
@@ -94,9 +88,10 @@ class BaseWorker(BaseAgent):
     def get_weights(self, name=None):
         return self.model.get_weights(name=name)
 
-    def _send_data(self, replay):
+    def _send_data(self, replay, buffer=None, tag='Learned'):
         """ sends data to replay """
-        mask, data = self.buffer.sample()
+        buffer = buffer or self.buffer
+        mask, data = buffer.sample()
             
         if not self.replay_type.endswith('uniform'):
             data_tensors = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
@@ -104,9 +99,10 @@ class BaseWorker(BaseAgent):
                 data_tensors[k] = tf.expand_dims(data_tensors[k], -1)
             data['priority'] = np.squeeze(self.compute_priorities(**data_tensors).numpy())
 
-        replay.merge.remote(data, data['state'].shape[0])
+        dest_replay = 'regular_replay' if tag == 'Learned' else 'additional_replay'
+        replay.merge.remote(data, data['state'].shape[0], dest_replay=dest_replay)
 
-        self.buffer.reset()
+        buffer.reset()
         
     @tf.function
     def _compute_priorities(self, state, action, reward, next_state, done, steps):

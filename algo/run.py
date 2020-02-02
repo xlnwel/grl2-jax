@@ -8,30 +8,37 @@ from env.wrappers import get_wrapper_by_name
 
 TIME_INTERVAL = 100000
 
-def run(env, actor, *, fn=None, evaluation=False, timer=False, name='run', **kwargs):
+def run(env, actor, *, fn=None, evaluation=False, timer=False, name='run', epsilon=0, **kwargs):
     if get_wrapper_by_name(env.env, 'ActionRepetition') is None or env.env.n_ar:
         if isinstance(env, Env):
             return run_trajectory(env, actor, fn=fn, 
-                evaluation=evaluation, timer=timer, name=name, **kwargs)
+                evaluation=evaluation, timer=timer, 
+                name=name, epsilon=epsilon, **kwargs)
         elif isinstance (env, EfficientEnvVec):
             return run_trajectories2(env, actor, fn=fn, 
-                evaluation=evaluation, timer=timer, name=name, **kwargs)
+                evaluation=evaluation, timer=timer, 
+                name=name, epsilon=epsilon, **kwargs)
         elif isinstance(env, EnvVec):
             return run_trajectories1(env, actor, fn=fn, 
-                evaluation=evaluation, timer=timer, name=name, **kwargs)
+                evaluation=evaluation, timer=timer, 
+                name=name, epsilon=epsilon, **kwargs)
     else:
         if isinstance(env, Env):
             return run_trajectory_ar(env, actor, fn=fn, 
-                evaluation=evaluation, timer=timer, name=name, **kwargs)
+                evaluation=evaluation, timer=timer, 
+                name=name, epsilon=epsilon, **kwargs)
         elif isinstance (env, EfficientEnvVec):
             return run_trajectories2_ar(env, actor, fn=fn, 
-                evaluation=evaluation, timer=timer, name=name, **kwargs)
+                evaluation=evaluation, timer=timer, 
+                name=name, epsilon=epsilon, **kwargs)
         elif isinstance(env, EnvVec):
             return run_trajectories1_ar(env, actor, fn=fn, 
-                evaluation=evaluation, timer=timer, name=name, **kwargs)
+                evaluation=evaluation, timer=timer, 
+                name=name, epsilon=epsilon, **kwargs)
 
 def run_trajectory(env, actor, *, fn=None, evaluation=False, 
-                    timer=False, step=None, render=False, name='traj'):
+                    timer=False, step=None, render=False, 
+                    name='traj', epsilon=0):
     """ Sample a trajectory
 
     Args:
@@ -51,6 +58,7 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
             with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
                 action, terms = action_fn(tf.convert_to_tensor(state_expanded, tf.float32))
             action = action.numpy()[0]
+            action += np.random.normal(scale=epsilon, size=action.shape)
             terms = dict((k, v.numpy()[0]) for k, v in terms.items())
             with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
                 next_state, reward, done, _ = env.step(action)
@@ -75,7 +83,7 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
     return env.get_score(), env.get_epslen()
 
 def run_trajectories1(envvec, actor, fn=None, evaluation=False, 
-                    timer=False, step=None, name='trajs'):
+                    timer=False, step=None, name='trajs', epsilon=0):
     """ Sample trajectories
 
     Args:
@@ -90,6 +98,7 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False,
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
             action, terms = action_fn(tf.convert_to_tensor(state, tf.float32))
         action = action.numpy()
+        action += np.random.normal(scale=epsilon, size=action.shape)
         terms = dict((k, v.numpy()) for k, v in terms.items())
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, _ = envvec.step(action)
@@ -109,7 +118,7 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False,
     return envvec.get_score(), envvec.get_epslen()
 
 def run_trajectories2(envvec, actor, fn=None, evaluation=False, 
-                    timer=False, step=None, name='trajs'):
+                    timer=False, step=None, name='trajs', epsilon=0):
     """ Sample trajectories
 
     Args:
@@ -124,6 +133,7 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
             action, terms = action_fn(tf.convert_to_tensor(state, tf.float32))
         action = action.numpy()
+        action += np.random.normal(scale=epsilon, size=action.shape)
         terms = dict((k, v.numpy()) for k, v in terms.items())
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, info = envvec.step(action)
@@ -145,7 +155,8 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
     return envvec.get_score(), envvec.get_epslen()
 
 def run_trajectory_ar(env, actor, *, fn=None, evaluation=False, 
-                    timer=False, step=None, render=False, name='traj'):
+                    timer=False, step=None, render=False, 
+                    name='traj', epsilon=0):
     """ Sample a trajectory
 
     Args:
@@ -165,6 +176,7 @@ def run_trajectory_ar(env, actor, *, fn=None, evaluation=False,
             with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
                 action, n_ar = action_fn(tf.convert_to_tensor(state_expanded, tf.float32))
             action = action.numpy()[0]
+            action += np.random.normal(scale=epsilon, size=action.shape)
             n_ar = n_ar.numpy()
             with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
                 next_state, reward, done, info = env.step(action, n_ar=n_ar+1)#, gamma=actor.gamma)
@@ -188,7 +200,8 @@ def run_trajectory_ar(env, actor, *, fn=None, evaluation=False,
         
     return env.get_score(), env.get_epslen()
 
-def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False, timer=False, name='trajs'):
+def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False, 
+                        timer=False, name='trajs', epsilon=0):
     """ Sample trajectories
 
     Args:
@@ -202,8 +215,11 @@ def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False, timer=False, 
     for _ in range(envvec.max_episode_steps):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
             action, n_ar = action_fn(tf.convert_to_tensor(state, tf.float32))
+        action = action.numpy()
+        action += np.random.normal(scale=epsilon, size=action.shape)
+        n_ar.numpy()
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
-            next_state, reward, done, info = envvec.step(action.numpy(), n_ar=n_ar.numpy()+1)#, gamma=actor.gamma)
+            next_state, reward, done, info = envvec.step(action, n_ar=n_ar+1)#, gamma=actor.gamma)
             n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
             fn(state=state, action=action, n_ar=n_ar, reward=reward, done=done, 
@@ -214,7 +230,8 @@ def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False, timer=False, 
 
     return envvec.get_score(), envvec.get_epslen()
 
-def run_trajectories2_ar(envvec, actor, fn=None, evaluation=False, timer=False, name='trajs'):
+def run_trajectories2_ar(envvec, actor, fn=None, evaluation=False, 
+                        timer=False, name='trajs', epsilon=0):
     """ Sample trajectories
 
     Args:
@@ -228,8 +245,11 @@ def run_trajectories2_ar(envvec, actor, fn=None, evaluation=False, timer=False, 
     for _ in range(envvec.max_episode_steps):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
             action, n_ar = action_fn(tf.convert_to_tensor(state, tf.float32))
+        action = action.numpy()
+        action += np.random.normal(scale=epsilon, size=action.shape)
+        n_ar.numpy()
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
-            next_state, reward, done, info = envvec.step(action.numpy(), n_ar=n_ar.numpy()+1)
+            next_state, reward, done, info = envvec.step(action, n_ar=n_ar+1)
             n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
             env_ids = [i['env_id'] for i in info]

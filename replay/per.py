@@ -19,23 +19,23 @@ class PERBase(Replay):
                                                 outside_value=1.)
 
         self.top_priority = 2.
-        self.to_update_top_priority = config['to_update_top_priority'] if 'to_update_top_priority' in config else True
+        self.to_update_top_priority = config.get('to_update_top_priority')
 
         self.sample_i = 0   # count how many times self.sample is called
 
         # locker used to avoid conflict introduced by tf.data.Dataset
-        # used to ensure SumTree update will not happen when sampling
-        # which may cause out-of-range sampling when calling data_structure.find
+        # used to ensure SumTree update will not happen while sampling
+        # which may cause out-of-range sampling in data_structure.find
         self.locker = Lock()
 
     @override(Replay)
-    def sample(self):
+    def sample(self, batch_size=None):
         assert self.good_to_learn(), (
             'There are not sufficient transitions to start learning --- '
             f'transitions in buffer({len(self)}) vs '
             f'minimum required size({self.min_size})')
         with self.locker:
-            samples = self._sample()
+            samples = self._sample(batch_size=batch_size)
             self.sample_i += 1
             self._update_beta()
 
@@ -53,7 +53,7 @@ class PERBase(Replay):
         with self.locker:
             if self.to_update_top_priority:
                 self.top_priority = max(self.top_priority, np.max(priorities))
-            for priority, idx in zip(priorities, saved_indices):
+            for priority, idx in zip(np.squeeze(priorities), saved_indices):
                 self.data_structure.update(priority, idx)
 
     """ Implementation """
@@ -83,16 +83,15 @@ class ProportionalPER(PERBase):
 
     """ Implementation """
     @override(PERBase)
-    def _sample(self):
+    def _sample(self, batch_size=None):
+        batch_size = batch_size or self.batch_size
         total_priorities = self.data_structure.total_priorities
         
         segment = total_priorities / self.batch_size
 
         priorities, indexes = list(zip(
             *[self.data_structure.find(np.random.uniform(i * segment, (i+1) * segment))
-                for i in range(self.batch_size)]))
-
-        np.testing.assert_array_less(np.zeros_like(priorities), priorities)
+                for i in range(batch_size)]))
 
         priorities = np.array(priorities)
         probabilities = priorities / total_priorities
@@ -100,5 +99,7 @@ class ProportionalPER(PERBase):
         # compute importance sampling ratios
         IS_ratios = self._compute_IS_ratios(probabilities)
         samples = self._get_samples(indexes)
+        samples['IS_ratio'] = np.expand_dims(IS_ratios, axis=-1)
+        samples['saved_indices'] = indexes
         
-        return IS_ratios, indexes, samples
+        return samples

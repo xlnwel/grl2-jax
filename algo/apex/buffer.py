@@ -6,9 +6,9 @@ from utility.run_avg import RunningMeanStd
 from replay.utils import init_buffer, add_buffer, copy_buffer
 
 
-def create_local_buffer(config, *keys):
+def create_local_buffer(config):
     buffer_type = EnvBuffer if config.get('n_envs', 1) == 1 else EnvVecBuffer
-    return buffer_type(config, *keys)
+    return buffer_type(config)
 
 
 class LocalBuffer(ABC):
@@ -27,14 +27,13 @@ class LocalBuffer(ABC):
 
 class EnvBuffer(LocalBuffer):
     """ Local memory only stores one episode of transitions from each of n environments """
-    def __init__(self, config, *keys):
+    def __init__(self, config):
         self.type = config['type']
         self.seqlen = seqlen = config['seqlen']
         self.n_steps = config['n_steps']
         self.gamma = config['gamma']
 
         self.memory = {}
-        # init_buffer(self.memory, *keys, capacity=self.seqlen+1)
         
         self.reward_scale = config.get('reward_scale', 1)
         self.reward_clip = config.get('reward_clip')
@@ -92,7 +91,7 @@ class EnvBuffer(LocalBuffer):
 
 class EnvVecBuffer:
     """ Local memory only stores one episode of transitions from n environments """
-    def __init__(self, config, *keys):
+    def __init__(self, config):
         self.type = config['type']
         self.n_envs = n_envs = config['n_envs']
         assert n_envs > 1

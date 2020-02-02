@@ -10,6 +10,10 @@ def parse_cmd_args():
                         type=str,
                         nargs='*',
                         default=[''])
+    parser.add_argument('--kwargs', '-kw',
+                        type=str,
+                        nargs='*',
+                        default=[])
     parser.add_argument('--render', '-r',
                         action='store_true',
                         help='render the environment. this currently does not work for EnvVec')

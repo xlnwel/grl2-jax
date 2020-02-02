@@ -50,16 +50,17 @@ class Worker(BaseWorker):
         while step < self.MAX_STEPS:
             with TBTimer(f'{self.name} pull weights', self.TIME_INTERVAL, to_log=self.timer):
                 mode, score, tag, weights, eval_times = self.pull_weights(learner)
-        
-            # average_weights([weights, self.get_weights(list(weights))])
 
             with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
-                step, scores, epslens = self.eval_model(weights, step, replay, tag=tag, store_exp=mode != Mode.REEVALUATION)
+                step, scores, epslens = self.eval_model(
+                    weights, step, replay, tag=tag, store_exp=mode != Mode.REEVALUATION)
             eval_times = eval_times + self.n_envs
 
-            if mode != Mode.REEVALUATION:
-                with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
-                    self._send_data(replay)
+            self._log_episodic_info(tag, scores, epslens)
+
+            # if mode != Mode.REEVALUATION:
+            with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
+                self._send_data(replay, tag)
 
             score += self.n_envs / eval_times * (np.mean(scores) - score)
 
@@ -70,6 +71,19 @@ class Worker(BaseWorker):
             elif step > log_time and tag == Tag.EVOLVED:
                 self.save(print_terminal_info=False)
                 log_time += self.LOG_INTERVAL
+
+    def _log_episodic_info(self, tag, scores, epslens):
+        if scores is not None:
+            if tag == 'Learned':
+                self.store(
+                    score=scores,
+                    epslen=epslens,
+                )
+            else:
+                self.store(
+                    evolved_score=scores,
+                    evolved_epslen=epslens,
+                )
 
     def _log_condition(self):
         return self.logger.get_count('score') > 0 and self.logger.get_count('evolved_score') > 0

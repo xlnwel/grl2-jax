@@ -1,6 +1,6 @@
 import os, random
+import ast
 import os.path as osp
-import argparse
 import math
 import multiprocessing
 import numpy as np
@@ -63,7 +63,15 @@ def str2bool(v):
     elif v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
     else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+        raise ValueError('Boolean value expected.')
+
+def eval_str(val):
+    try:
+        val = ast.literal_eval(val)
+    except ValueError:
+        print(val)
+        pass
+    return val
 
 def is_main_process():
     return multiprocessing.current_process().name == 'MainProcess'

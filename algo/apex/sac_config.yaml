@@ -24,6 +24,7 @@ agent:
     polyak: .995
     evaluation: False
     kl_coef: 1
+    act_eps: 0
 
     # timer&interval 
     MAX_STEPS: 3.e+7

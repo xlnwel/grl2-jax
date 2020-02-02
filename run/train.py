@@ -7,7 +7,7 @@ import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from run.grid_search import GridSearch
-from utility.utils import str2bool
+from utility.utils import str2bool, eval_str
 from utility.yaml_op import load_config
 from utility.display import assert_colorize, pwc
 from run.cmd_args import parse_cmd_args
@@ -149,6 +149,25 @@ if __name__ == '__main__':
             else:
                 if prefix != '':
                     prefix = f'{prefix}-'
+
+                if cmd_args.kwargs:
+                    for s in cmd_args.kwargs:
+                        key, value = s.split('=')
+                        value = eval_str(value)
+                        if prefix == '':
+                            prefix = s
+                        else:
+                            prefix += '-' + s
+
+                        # change kwargs in config
+                        valid_config = None
+                        for config in [env_config, model_config, agent_config, replay_config]:
+                            if key in config:
+                                assert_colorize(valid_config is None, f'Conflict: found {key} in both {valid_config} and {config}!')
+                                valid_config = config
+                        valid_config[key]  = value
+
+
                 agent_config['root_dir'] = f'logs/{prefix}{algo}-{env_config["name"]}'
                 env_config['video_path'] = (f'{agent_config["root_dir"]}/'
                                             f'{agent_config["model_name"]}/'

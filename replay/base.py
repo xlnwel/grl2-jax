@@ -50,17 +50,17 @@ class Replay(ABC):
         while True:
             yield self.sample()
 
-    def sample(self):
+    def sample(self, batch_size=None):
         assert self.good_to_learn(), (
             'There are not sufficient transitions to start learning --- '
             f'transitions in buffer({len(self)}) vs '
             f'minimum required size({self.min_size})')
 
-        samples = self._sample()
+        samples = self._sample(batch_size)
 
         return samples
 
-    def merge(self, local_buffer, length):
+    def merge(self, local_buffer, length, **kwargs):
         """ Merge a local buffer to the replay buffer, useful for distributed algorithms """
         assert length < self.capacity, (
             f'Local buffer cannot be largeer than the replay: {length} vs. {self.capacity}')
@@ -89,7 +89,7 @@ class Replay(ABC):
             self.memory['state'][self.mem_idx] = next_state
 
     """ Implementation """
-    def _sample(self):
+    def _sample(self, batch_size=None):
         raise NotImplementedError
 
     def _merge(self, local_buffer, length):

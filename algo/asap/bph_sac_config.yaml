@@ -3,7 +3,7 @@ env:
     name: BipedalWalkerHardcore-v2
     video_path: video
     log_video: False
-    n_envs: 2
+    n_envs: 1
     efficient_envvec: True
     seed: 0
 model:
@@ -24,6 +24,7 @@ agent:
     polyak: .995                            # moving average rate
     evaluation: False
     kl_coef: 1
+    act_eps: 0
     
     # timer&interval
     TIME_INTERVAL: 100
@@ -35,9 +36,10 @@ agent:
     n_workers: 4
 
     # SAP params
+    n_eval_envs: 4
     REPO_CAP: 10
     MIN_EVOLVE_MODELS: 2
-    MAX_EVOLVE_MODELS: 5
+    MAX_EVOLVE_MODELS: 10
     MIN_LEARN_PROB: .3
     MIN_EVOLVE_PROB: .3
     REEVAL_PROB: 0.05
@@ -46,7 +48,7 @@ agent:
     WA_EVOLUTION: False
     fitness_method: lcb
     mode_polyak: 0
-    cb_c: 1    # coefficient for confidence bound method
+    cb_c: .1    # coefficient for confidence bound method
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

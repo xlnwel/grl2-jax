@@ -50,7 +50,9 @@ class Worker(BaseWorker):
                 weights = self.pull_weights(learner)
 
             with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
-                step, scores, _ = self.eval_model(weights, step, replay)
+                step, scores, epslens = self.eval_model(weights, step, replay)
+
+            self._log_episodic_info(scores, epslens)
 
             with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
                 self._send_data(replay)
@@ -61,6 +63,13 @@ class Worker(BaseWorker):
                 self.save(print_terminal_info=False)
                 log_time += self.LOG_INTERVAL
 
+    def _log_episodic_info(self, scores, epslens):
+        if scores is not None:
+            self.store(
+                score=scores,
+                epslen=epslens,
+            )
+                
     def _log_condition(self):
         return True
 

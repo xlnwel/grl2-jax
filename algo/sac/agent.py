@@ -232,7 +232,7 @@ class Agent(BaseAgent):
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
 
     def _update_target_nets(self):
-        tvars = self.target_q1.trainable_variables + self.target_q2.trainable_variables
-        mvars = self.q1.trainable_variables + self.q2.trainable_variables
+        tvars = self.target_q1.variables + self.target_q2.variables
+        mvars = self.q1.variables + self.q2.variables
         [tvar.assign(self.polyak * tvar + (1. - self.polyak) * mvar) 
             for tvar, mvar in zip(tvars, mvars)]
