@@ -60,7 +60,7 @@ class Worker(BaseWorker):
 
             # if mode != Mode.REEVALUATION:
             with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
-                self._send_data(replay, tag)
+                self._send_data(replay, tag=tag)
 
             score += self.n_envs / eval_times * (np.mean(scores) - score)
 

@@ -64,29 +64,35 @@ class Worker(BaseWorker):
 
             with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
                 step, scores, epslens = self.eval_model(
-                    weights, step, evaluation=False, tag=tag)
+                    weights, step, evaluation=False, tag=tag,
+                    store_exp=True
+                )
             
             cur_eval_times = self.n_envs
             eval_times += self.n_envs
             
+            self._log_episodic_info(tag, scores, epslens)
+
+            # if mode != Mode.REEVALUATION:
             with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
-                self._send_data(replay)
+                self._send_data(replay, tag=tag)
 
-            if len(self.weight_repo) < self.REPO_CAP or np.mean(scores) > min(self.weight_repo):
-                step, eval_scores, eval_epslens = self.eval_model(
-                    weights, step, env=self.envvec, buffer=self.envvec_buffer, evaluation=False, tag=tag
-                )
-                scores = np.append(scores, eval_scores)
-                epslens = np.append(epslens, eval_epslens)
-                self._send_data(replay, self.envvec_buffer)
-                cur_eval_times += self.n_eval_envs
-                eval_times += self.n_eval_envs
-            else:
-                scores = [scores]
-                epslens = [epslens]
+            # if len(self.weight_repo) < self.REPO_CAP or np.mean(scores) > min(self.weight_repo):
+            #     step, eval_scores, eval_epslens = self.eval_model(
+            #         weights, step, env=self.envvec, buffer=self.envvec_buffer, 
+            #         evaluation=False, tag=tag, store_exp=True
+            #     )
+            #     scores = np.append(scores, eval_scores)
+            #     epslens = np.append(epslens, eval_epslens)
+            #     self._send_data(replay, self.envvec_buffer, tag=tag)
+            #     cur_eval_times += self.n_eval_envs
+            #     eval_times += self.n_eval_envs
+            # else:
+            #     scores = [scores]
+            #     epslens = [epslens]
 
-            for s, l in zip(scores, epslens):
-                self._log_episodic_info(tag, s, l)
+            # for s, l in zip(scores, epslens):
+            #     self._log_episodic_info(tag, s, l)
 
             score += cur_eval_times / eval_times * (np.mean(scores) - score)
 

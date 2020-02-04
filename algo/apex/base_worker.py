@@ -99,7 +99,7 @@ class BaseWorker(BaseAgent):
                 data_tensors[k] = tf.expand_dims(data_tensors[k], -1)
             data['priority'] = np.squeeze(self.compute_priorities(**data_tensors).numpy())
 
-        dest_replay = 'regular_replay' if tag == 'Learned' else 'additional_replay'
+        dest_replay = 'fast_replay' if tag == 'Learned' else 'slow_replay'
         replay.merge.remote(data, data['state'].shape[0], dest_replay=dest_replay)
 
         buffer.reset()

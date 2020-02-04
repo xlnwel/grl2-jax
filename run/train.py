@@ -154,10 +154,8 @@ if __name__ == '__main__':
                     for s in cmd_args.kwargs:
                         key, value = s.split('=')
                         value = eval_str(value)
-                        if prefix == '':
-                            prefix = s
-                        else:
-                            prefix += '-' + s
+                        
+                        prefix += s + '-'
 
                         # change kwargs in config
                         valid_config = None

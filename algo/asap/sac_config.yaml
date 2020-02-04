@@ -29,7 +29,7 @@ agent:
     # timer&interval
     MAX_STEPS: 3.e+7
     TIME_INTERVAL: 100
-    LOG_INTERVAL: 100000
+    LOG_INTERVAL: 10000
     timer: True
 
     # distributed algo params
@@ -73,7 +73,7 @@ agent:
     # per_epsilon: 1.e-4
 
 replay:
-    type: uniform                      # proportional or uniform
+    type: dual-uniform                      # proportional or uniform
     # arguments for PER
     # beta0: 0.4
     # beta_steps: 5e4
@@ -86,7 +86,7 @@ replay:
 
     # arguments for dual replay
     cap_frac: .25
-    bs_frac: .25
+    bs_frac: .5
 
     # arguments for general replay
     n_steps: 1

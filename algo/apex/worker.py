@@ -50,7 +50,7 @@ class Worker(BaseWorker):
                 weights = self.pull_weights(learner)
 
             with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
-                step, scores, epslens = self.eval_model(weights, step, replay)
+                step, scores, epslens = self.eval_model(weights, step)
 
             self._log_episodic_info(scores, epslens)
 
