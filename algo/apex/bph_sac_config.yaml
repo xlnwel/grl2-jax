@@ -21,7 +21,9 @@ agent:
     target_update_freq: 100
     polyak: .995
     evaluation: False
-
+    kl_coef: 1
+    act_eps: 0
+    
     # timer&interval
     MAX_STEPS: 1.e+8
     TIME_INTERVAL: 100

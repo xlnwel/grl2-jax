@@ -78,7 +78,10 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
     if env_config.get('is_deepmind_env'):
         RayLearner = ray.remote(num_cpus=1, num_gpus=.5)(Learner)
     else:
-        RayLearner = ray.remote(num_cpus=1, num_gpus=.1)(Learner)
+        if tf.config.list_physical_devices('GPU'):
+            RayLearner = ray.remote(num_cpus=1, num_gpus=.1)(Learner)
+        else:
+            RayLearner = ray.remote(num_cpus=1)(Learner)
     learner = RayLearner.remote(name, model_fn, replay, config, 
                             model_config, env_config)
     ray.get(learner.save_config.remote(dict(

@@ -48,22 +48,17 @@ def get_config_file(algorithm):
         config_file = 'algo/sac/config.yaml'
     elif algorithm == 'sacar':
         config_file = 'algo/sacar/config.yaml'
-    elif algorithm == 'sac-il':
-        config_file = 'algo/sac_il/config.yaml'
     elif algorithm == 'd3qn':
         config_file = 'algo/d3qn/config.yaml'
     elif algorithm == 'apex-d3qn':
         config_file = 'algo/apex/d3qn_config.yaml'
-    elif algorithm == 'apex-sac' or algorithm == 'apex-t-sac':
-        config_file = 'algo/apex/sac_config.yaml'
-    elif algorithm == 'apex-dr-sac':
-        config_file = 'algo/apex_dr/sac_config.yaml'
-    elif algorithm == 'apex-ar-sac':
-        config_file = 'algo/apex_ar/sac_config.yaml'
+    elif algorithm.startswith('apex'):
+        if 'sac' in algorithm:
+            config_file = 'algo/apex/sac_config.yaml'
     elif algorithm.startswith('asap'):
-        if algorithm.endswith('sac'):
+        if 'sac' in algorithm:
             config_file = 'algo/asap/sac_config.yaml'
-    elif algorithm == 'asap2-sac' or algorithm == 'asap2-t-sac':
+    elif algorithm == 'asap2-sac' or algorithm == 'asap2-sac':
         config_file = 'algo/asap2/sac_config.yaml'
     elif algorithm == 'asap-d3qn':
         config_file = 'algo/asap/d3qn_config.yaml'

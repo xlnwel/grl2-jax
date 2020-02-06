@@ -69,8 +69,10 @@ class Agent(BaseAgent):
             next_state=(env.state_shape, tf.float32, 'next_state'),
             done=([1], tf.float32, 'done'),
             steps=([1], tf.float32, 'steps'),
+            mu=([1], tf.float32, 'mu'),
+            std=([1], tf.float32, 'std'),
             logpi=([1], tf.float32, 'logpi'),
-            kl_flag=([1], tf.float32, 'kl_flag'),
+            # kl_flag=([1], tf.float32, 'kl_flag'),
         )
         self.learn = build(self._learn, TensorSpecs)
 
@@ -139,12 +141,15 @@ class Agent(BaseAgent):
 
         return terms
 
-    def _compute_grads(self, IS_ratio, state, action, reward, next_state, done, steps, logpi, kl_flag):
+    def _compute_grads(self, IS_ratio, state, action, reward, next_state, done, steps,
+                        mu, std, logpi):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
         if self.is_action_discrete:
             old_action = tf.one_hot(action, self.action_dim)
         else:
             old_action = action
+        old_mu = mu
+        old_std = std
         old_logpi = logpi
         target_fn = (transformed_n_step_target if getattr(self, 'tbo', False) 
                     else n_step_target)
@@ -172,18 +177,23 @@ class Agent(BaseAgent):
             q1 = self.q1.train_value(state, old_action)
             q2 = self.q2.train_value(state, old_action)
 
-            kl = .5 * (old_logpi - logpi)**2
+            mu = terms['mu']
+            std = terms['std']
+            kl = tf.reduce_sum(tf.math.log(std) - tf.math.log(old_std) - .5
+                             + .5 * (old_std**2 + (old_mu - mu)**2)
+                                / (std + 1e-7)**2, axis=-1)
+            # kl = .5 * (old_logpi - logpi)**2
 
             # ratio = tf.exp(logpi - old_logpi, name='ratio')
             # clipped_ratio = tf.where(ratio <= 1. + self.clip_range, ratio, - self.clip_range)
             # actor_mask = tf.where(clipped_ratio >= 1. - self.clip_range, 1., 0.)
             
             with tf.name_scope('actor_loss'):
-                actor_loss = tf.reduce_mean(IS_ratio * (tf.stop_gradient(temp) * logpi - q_with_actor
-                    + self.kl_coef * kl_flag * kl))
+                actor_loss = tf.reduce_mean(IS_ratio * (tf.stop_gradient(temp) * logpi - q_with_actor))
+                    # + self.kl_coef * kl_flag * kl))
 
             with tf.name_scope('q_loss'):
-                nth_value = next_q_with_actor- next_temp * next_logpi
+                nth_value = next_q_with_actor - next_temp * next_logpi
                 
                 target_q = target_fn(reward, done, nth_value, self.gamma, steps)
                 q1_error = target_q - q1
@@ -212,7 +222,7 @@ class Agent(BaseAgent):
         terms.update(dict(
             actor_loss=actor_loss,
             # p_clip_frac=tf.reduce_sum(1-mask), 
-            kl=tf.reduce_sum(kl_flag * kl) / tf.reduced_sum(kl_flag), 
+            kl=tf.reduce_mean(kl), 
             q1=q1, 
             q2=q2,
             target_q=target_q,
@@ -244,7 +254,7 @@ class Agent(BaseAgent):
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
 
     def _update_target_nets(self):
-        tvars = self.target_q1.trainable_variables + self.target_q2.trainable_variables
-        mvars = self.q1.trainable_variables + self.q2.trainable_variables
+        tvars = self.target_q1.variables + self.target_q2.variables
+        mvars = self.q1.variables + self.q2.variables
         [tvar.assign(self.polyak * tvar + (1. - self.polyak) * mvar) 
             for tvar, mvar in zip(tvars, mvars)]

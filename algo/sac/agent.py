@@ -170,7 +170,7 @@ class Agent(BaseAgent):
             q2 = self.q2.train_value(state, old_action)
             
             with tf.name_scope('actor_loss'):
-                actor_loss = tf.reduce_mean(IS_ratio * tf.stop_gradient(temp) * logpi - q_with_actor)
+                actor_loss = tf.reduce_mean(IS_ratio * (tf.stop_gradient(temp) * logpi - q_with_actor))
 
             with tf.name_scope('q_loss'):
                 nth_value = next_q_with_actor - next_temp * next_logpi

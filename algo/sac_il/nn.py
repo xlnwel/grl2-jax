@@ -62,7 +62,7 @@ class SoftPolicy(tf.Module):
     @tf.function(experimental_relax_shapes=True)
     def _action(self, x):
         with tf.name_scope('action'):
-            action_distribution, _, _ = self._action_distribution(x)
+            action_distribution, _ = self._action_distribution(x)
 
             if self.is_action_discrete:
                 action = action_distribution.sample(reparameterize=False, one_hot=False)
@@ -75,8 +75,10 @@ class SoftPolicy(tf.Module):
                 logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
         terms = dict(
+            mu=action_distribution.mean,
+            std=action_distribution.std,
             logpi=logpi,
-            action_std=action_distribution.std
+            action_std=tf.zeros_like(action)
         )
         return action, terms
 
@@ -84,7 +86,7 @@ class SoftPolicy(tf.Module):
     @tf.Module.with_name_scope
     def _det_action(self, x):
         with tf.name_scope('det_action'):
-            action_distribution, x, _ = self._action_distribution(x)
+            action_distribution, x = self._action_distribution(x)
 
             if self.is_action_discrete:
                 logits = action_distribution.logits
@@ -97,6 +99,8 @@ class SoftPolicy(tf.Module):
                 logpi = logpi_correction(mu, raw_logpi, is_action_squashed=False)
 
         terms = dict(
+            mu=action_distribution.mean,
+            std=action_distribution.std,
             logpi=logpi,
             action_std=tf.zeros_like(action)
         )
@@ -106,7 +110,7 @@ class SoftPolicy(tf.Module):
     @tf.Module.with_name_scope
     def train_action(self, x):
         with tf.name_scope('train_action'):
-            action_distribution, _, _ = self._action_distribution(x)
+            action_distribution, _ = self._action_distribution(x)
 
             if self.is_action_discrete:
                 action = action_distribution.sample(reparameterize=True, hard=True)
@@ -119,7 +123,7 @@ class SoftPolicy(tf.Module):
     @tf.Module.with_name_scope
     def train_step(self, x):
         with tf.name_scope('train_step'):
-            action_distribution, _, terms = self._action_distribution(x)
+            action_distribution, _ = self._action_distribution(x)
 
             if self.is_action_discrete:
                 action = action_distribution.sample(reparameterize=True, hard=True)
@@ -131,8 +135,12 @@ class SoftPolicy(tf.Module):
                 action = tf.tanh(raw_action)
                 logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
-            terms['entropy'] = action_distribution.entropy()
-        
+        terms = dict(
+            mu=action_distribution.mean,
+            std=action_distribution.std,
+            entropy=action_distribution.entropy()
+        )
+
         return action, logpi, terms
 
     def _action_distribution(self, x):
@@ -148,9 +156,7 @@ class SoftPolicy(tf.Module):
 
             action_distribution = self.ActionDistributionType(mu, logstd)
 
-        terms = dict(action_tau=self.tau) if self.is_action_discrete else dict(action_std=action_distribution.std)
-
-        return action_distribution, x, terms
+        return action_distribution, x
 
     def get_weights(self):
         return [v.numpy() for v in self.variables]

@@ -9,7 +9,7 @@ from replay.func import create_replay_center
 
 def import_agent(config):
     algo = config['algorithm']
-    if algo.endswith('-il-sac'):
+    if algo.endswith('-sac-il'):
         from algo.sac_il.nn import create_model
         from algo.sac_il.agent import Agent
     elif algo.endswith('sac'):

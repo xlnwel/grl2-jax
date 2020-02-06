@@ -1,3 +1,4 @@
+from collections import defaultdict
 from abc import ABC, abstractmethod
 import numpy as np
 
@@ -99,15 +100,7 @@ class EnvVecBuffer:
         self.n_steps = config['n_steps']
         self.gamma = config['gamma']
 
-        self.memory = dict(
-            state=np.ndarray((n_envs, seqlen), dtype=object),
-            action=np.ndarray((n_envs, seqlen), dtype=object),
-            reward=np.ndarray((n_envs, seqlen), dtype=np.float32),
-            done=np.zeros((n_envs, seqlen), dtype=np.bool),
-            steps=np.zeros((n_envs, seqlen), dtype=np.uint8),
-            next_state=np.ndarray((n_envs, seqlen), dtype=object),
-            mask=np.zeros((n_envs, seqlen), dtype=np.bool)
-        )
+        self.memory = {}
         
         self.reward_scale = config.get('reward_scale', 1)
         self.reward_clip = config.get('reward_clip')
@@ -124,7 +117,7 @@ class EnvVecBuffer:
         results = {}
         mask = self.memory['mask']
         for k, v in self.memory.items():
-            if 'state' in k or 'action' in k:
+            if v.dtype == np.object:
                 results[k] = np.stack(v[mask])
             elif k == 'mask':
                 continue
@@ -149,6 +142,14 @@ class EnvVecBuffer:
         
     def add_data(self, env_ids=None, **kwargs):
         """ Add experience to local memory """
+        if self.memory == {}:
+            for k, v in kwargs.items():
+                if len(v.shape) == 1:
+                    self.memory[k] = np.ndarray((self.n_envs, self.seqlen), dtype=v.dtype)
+                else:
+                    self.memory[k] = np.ndarray((self.n_envs, self.seqlen), dtype=object)
+            self['steps'] = np.zeros((self.n_envs, self.seqlen), dtype=np.uint8)
+
         env_ids = env_ids or range(self.n_envs)
         idx = self.idx
         for i, env_id in enumerate(env_ids):
