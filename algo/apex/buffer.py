@@ -116,7 +116,9 @@ class EnvVecBuffer:
     def sample(self):
         results = {}
         mask = self.memory['mask']
+        print('mask', mask.shape, mask.dtype)
         for k, v in self.memory.items():
+            print(k, v.shape, v.dtype)
             if v.dtype == np.object:
                 results[k] = np.stack(v[mask])
             elif k == 'mask':
@@ -147,8 +149,8 @@ class EnvVecBuffer:
                 if len(v.shape) == 1:
                     self.memory[k] = np.ndarray((self.n_envs, self.seqlen), dtype=v.dtype)
                 else:
-                    self.memory[k] = np.ndarray((self.n_envs, self.seqlen), dtype=object)
-            self['steps'] = np.zeros((self.n_envs, self.seqlen), dtype=np.uint8)
+                    self.memory[k] = np.ndarray((self.n_envs, self.seqlen), dtype=np.object)
+            self.memory['steps'] = np.zeros((self.n_envs, self.seqlen), dtype=np.uint8)
 
         env_ids = env_ids or range(self.n_envs)
         idx = self.idx

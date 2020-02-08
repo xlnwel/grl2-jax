@@ -27,9 +27,9 @@ agent:
     act_eps: 0
     
     # timer&interval
-    MAX_STEPS: 3.e+7
+    MAX_STEPS: 4.e+7
     TIME_INTERVAL: 100
-    LOG_INTERVAL: 10000
+    LOG_INTERVAL: 100000
     timer: True
 
     # distributed algo params

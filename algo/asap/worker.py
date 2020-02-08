@@ -139,6 +139,11 @@ class Worker(BaseWorker):
             self.info_to_print.append(((f'{self.name}_{self.id}: {n} models are used for evolution', ), 'blue'))
             score = 0
             eval_times = 0
+            if random.random() < .5:
+                learned_weights = self.pull_weights(learner)
+                weights = [weights, learned_weights]
+                weights = average_weights(weights)
+
         elif mode == Mode.REEVALUATION:
             w = fitness_from_repo(self.weight_repo, 'norm')
             score = random.choices(list(self.weight_repo.keys()), weights=w)[0]
