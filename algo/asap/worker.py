@@ -7,6 +7,7 @@ from core import tf_config
 from core.ensemble import Ensemble
 from utility.display import pwc
 from utility.timer import TBTimer
+from utility.utils import step_str
 from env.gym_env import create_gym_env
 from algo.apex.buffer import create_local_buffer
 from algo.apex.base_worker import BaseWorker
@@ -96,7 +97,7 @@ class Worker(BaseWorker):
 
             score += cur_eval_times / eval_times * (np.mean(scores) - score)
 
-            status = self._make_decision(mode, score, tag, eval_times)
+            status = self._make_decision(mode, score, tag, eval_times, step)
 
             if status == Status.ACCEPTED:
                 store_weights(
@@ -139,11 +140,10 @@ class Worker(BaseWorker):
             self.info_to_print.append(((f'{self.name}_{self.id}: {n} models are used for evolution', ), 'blue'))
             score = 0
             eval_times = 0
-            if random.random() < .5:
+            if random.random() < self.EVOLVE_LEARN_PROB:
                 learned_weights = self.pull_weights(learner)
                 weights = [weights, learned_weights]
                 weights = average_weights(weights)
-
         elif mode == Mode.REEVALUATION:
             w = fitness_from_repo(self.weight_repo, 'norm')
             score = random.choices(list(self.weight_repo.keys()), weights=w)[0]
@@ -167,7 +167,7 @@ class Worker(BaseWorker):
                     evolved_epslen=epslens,
                 )
 
-    def _make_decision(self, mode, score, tag, eval_times):
+    def _make_decision(self, mode, score, tag, eval_times, step):
         if len(self.weight_repo) < self.REPO_CAP or score > min(self.weight_repo):
             status = Status.ACCEPTED
         else:
@@ -176,7 +176,7 @@ class Worker(BaseWorker):
         self.raw_bookkeeping.add(tag, status)
 
         self.info_to_print.append((
-            (f'{self.name}_{self.id} Mode({mode}): {tag} model has been evaluated({eval_times}).', 
+            (f'{self.name}_{self.id} Mode({mode}) Step({step_str(step)}): {tag} model has been evaluated({eval_times}).', 
             f'Score: {score:.3g}',
             f'Decision: {status}'), 'green'))
             

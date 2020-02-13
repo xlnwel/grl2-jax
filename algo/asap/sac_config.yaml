@@ -42,6 +42,7 @@ agent:
     MAX_EVOLVE_MODELS: 10
     MIN_LEARN_PROB: .3
     MIN_EVOLVE_PROB: .3
+    EVOLVE_LEARN_PROB: 0.5  # probability to further average evolved weights with the learned parameter
     REEVAL_PROB: .05    # this should be small as eval_times affects the UCB score
     FIFO: False
     WA_SELECTION: False
