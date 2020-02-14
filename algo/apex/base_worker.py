@@ -66,11 +66,7 @@ class BaseWorker(BaseAgent):
         """ collects data, logs stats, and saves models """
         buffer = buffer or self.buffer
         def collect_fn(step, action_std, **kwargs):
-            if store_exp:
-                buffer.add_data(**kwargs)
-            if np.any(action_std != 0):
-                self.store(**{f'{tag}_action_std': np.mean(action_std)})
-            self._periodic_logging(step)
+            self._collect_data(buffer, store_exp, tag, action_std, step, **kwargs)
 
         self.set_weights(weights)
         env = env or self.env
@@ -87,6 +83,13 @@ class BaseWorker(BaseAgent):
 
     def get_weights(self, name=None):
         return self.model.get_weights(name=name)
+
+    def _collect_data(self, buffer, store_exp, tag, action_std, step, **kwargs):
+        if store_exp:
+            buffer.add_data(**kwargs)
+        if np.any(action_std != 0):
+            self.store(**{f'{tag}_action_std': np.mean(action_std)})
+        self._periodic_logging(step)
 
     def _send_data(self, replay, buffer=None, tag='Learned'):
         """ sends data to replay """

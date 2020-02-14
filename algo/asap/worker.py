@@ -14,7 +14,6 @@ from algo.apex.base_worker import BaseWorker
 from algo.asap.utils import *
 
 
-@ray.remote(num_cpus=1)
 class Worker(BaseWorker):
     """ Interface """
     def __init__(self, 
@@ -214,32 +213,3 @@ class Worker(BaseWorker):
         self.raw_bookkeeping.reset()
         # self.reevaluation_bookkeeping.reset()
         self.log(step, print_terminal_info=False)
-
- 
-def create_worker(name, worker_id, model_fn, config, model_config, 
-                env_config, buffer_config):
-    config = config.copy()
-    model_config = model_config.copy()
-    env_config = env_config.copy()
-    buffer_config = buffer_config.copy()
-
-    buffer_config['n_envs'] = env_config.get('n_envs', 1)
-    buffer_fn = create_local_buffer
-
-    env_config['seed'] += worker_id * 100
-    
-    config['model_name'] = f'worker_{worker_id}'
-    config['replay_type'] = buffer_config['type']
-    config['mode_prob'] = [1, 0, 0]
-
-    worker = Worker.remote(name, worker_id, model_fn, buffer_fn, config, 
-                        model_config, env_config, buffer_config)
-
-    ray.get(worker.save_config.remote(dict(
-        env=env_config,
-        model=model_config,
-        agent=config,
-        replay=buffer_config
-    )))
-
-    return worker

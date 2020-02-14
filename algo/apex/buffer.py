@@ -2,7 +2,6 @@ from collections import defaultdict
 from abc import ABC, abstractmethod
 import numpy as np
 
-from utility.display import assert_colorize
 from utility.run_avg import RunningMeanStd
 from replay.utils import init_buffer, add_buffer, copy_buffer
 
@@ -120,7 +119,7 @@ class EnvVecBuffer:
         for k, v in self.memory.items():
             print(k, v.shape, v.dtype)
             if v.dtype == np.object:
-                results[k] = np.stack(v[mask])
+                results[k] = np.stack(v)[mask]
             elif k == 'mask':
                 continue
             else:

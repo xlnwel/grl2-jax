@@ -77,34 +77,3 @@ class Worker(BaseWorker):
         self.store(**self.get_value('score', mean=True, std=True, min=True, max=True))
         self.store(**self.get_value('epslen', mean=True, std=True, min=True, max=True))
         self.log(step=step, print_terminal_info=False)
-
-def create_worker(name, worker_id, model_fn, config, model_config, 
-                env_config, buffer_config):
-    config = config.copy()
-    model_config = model_config.copy()
-    env_config = env_config.copy()
-    buffer_config = buffer_config.copy()
-
-    buffer_config['n_envs'] = env_config.get('n_envs', 1)
-    buffer_fn = create_local_buffer
-
-    env_config['seed'] += worker_id * 100
-    
-    config['model_name'] = f'worker_{worker_id}'
-    config['replay_type'] = buffer_config['type']
-
-    if env_config.get('is_deepmind_env'):
-        RayWorker = ray.remote(num_cpus=2)(Worker)
-    else:
-        RayWorker = ray.remote(num_cpus=1)(Worker)
-    worker = RayWorker.remote(name, worker_id, model_fn, buffer_fn, config, 
-                        model_config, env_config, buffer_config)
-
-    ray.get(worker.save_config.remote(dict(
-        env=env_config,
-        model=model_config,
-        agent=config,
-        replay=buffer_config
-    )))
-
-    return worker

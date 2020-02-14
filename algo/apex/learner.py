@@ -10,7 +10,7 @@ from env.gym_env import create_gym_env
 from replay.data_pipline import RayDataset
 
 
-def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_config, replay_config):
+def get_learner_class(BaseAgent):
     class Learner(BaseAgent):
         """ Interface """
         def __init__(self,
@@ -33,6 +33,13 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
                 done=(tf.float32, (None, )),
                 steps=(tf.float32, (None, )),
             )
+            if config['algorithm'].endswith('il'):
+                data_format.update(dict(
+                    mu=(tf.float32, (None, *env.action_shape)),
+                    std=(tf.float32, (None, *env.action_shape)),
+                    logpi=(tf.float32, (None, 1)),
+                    kl_flag=(tf.float32, (None, 1)),
+                ))
             dataset = RayDataset(replay, data_format)
             self.model = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
             
@@ -64,31 +71,4 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
         def get_weights(self, worker_id, name=None):
             return self.model.get_weights(name=name)
 
-
-    config = config.copy()
-    model_config = model_config.copy()
-    env_config = env_config.copy()
-    replay_config = replay_config.copy()
-    
-    config['model_name'] = 'learner'
-    # learner only define a env to get necessary env info, 
-    # it does not actually interact with env
-    env_config['n_workers'] = env_config['n_envs'] = 1
-
-    if env_config.get('is_deepmind_env'):
-        RayLearner = ray.remote(num_cpus=1, num_gpus=.5)(Learner)
-    else:
-        if tf.config.list_physical_devices('GPU'):
-            RayLearner = ray.remote(num_cpus=1, num_gpus=.1)(Learner)
-        else:
-            RayLearner = ray.remote(num_cpus=1)(Learner)
-    learner = RayLearner.remote(name, model_fn, replay, config, 
-                            model_config, env_config)
-    ray.get(learner.save_config.remote(dict(
-        env=env_config,
-        model=model_config,
-        agent=config,
-        replay=replay_config
-    )))
-
-    return learner
+    return Learner

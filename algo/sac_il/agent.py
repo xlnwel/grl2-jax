@@ -69,10 +69,10 @@ class Agent(BaseAgent):
             next_state=(env.state_shape, tf.float32, 'next_state'),
             done=([1], tf.float32, 'done'),
             steps=([1], tf.float32, 'steps'),
-            mu=([1], tf.float32, 'mu'),
-            std=([1], tf.float32, 'std'),
+            mu=([env.action_dim], tf.float32, 'mu'),
+            std=([env.action_dim], tf.float32, 'std'),
             logpi=([1], tf.float32, 'logpi'),
-            # kl_flag=([1], tf.float32, 'kl_flag'),
+            kl_flag=([1], tf.float32, 'kl_flag'),
         )
         self.learn = build(self._learn, TensorSpecs)
 
@@ -142,7 +142,7 @@ class Agent(BaseAgent):
         return terms
 
     def _compute_grads(self, IS_ratio, state, action, reward, next_state, done, steps,
-                        mu, std, logpi):
+                        mu, std, logpi, kl_flag):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
         if self.is_action_discrete:
             old_action = tf.one_hot(action, self.action_dim)
@@ -189,8 +189,8 @@ class Agent(BaseAgent):
             # actor_mask = tf.where(clipped_ratio >= 1. - self.clip_range, 1., 0.)
             
             with tf.name_scope('actor_loss'):
-                actor_loss = tf.reduce_mean(IS_ratio * (tf.stop_gradient(temp) * logpi - q_with_actor))
-                    # + self.kl_coef * kl_flag * kl))
+                actor_loss = tf.reduce_mean(IS_ratio * (tf.stop_gradient(temp) * logpi - q_with_actor)
+                    + self.kl_coef * kl_flag * kl)
 
             with tf.name_scope('q_loss'):
                 nth_value = next_q_with_actor - next_temp * next_logpi

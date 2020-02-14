@@ -33,7 +33,7 @@ agent:
     timer: True
 
     # distributed algo params
-    n_workers: 4
+    n_workers: 1
 
     # SAP params
     n_eval_envs: 1
@@ -43,11 +43,11 @@ agent:
     MIN_LEARN_PROB: .3
     MIN_EVOLVE_PROB: .3
     EVOLVE_LEARN_PROB: 0.5  # probability to further average evolved weights with the learned parameter
-    REEVAL_PROB: 0.05
+    REEVAL_PROB: .05
     FIFO: False
     WA_SELECTION: False
     WA_EVOLUTION: False
-    fitness_method: lcb
+    fitness_method: norm
     mode_polyak: 0
     cb_c: .1    # coefficient for confidence bound method
 

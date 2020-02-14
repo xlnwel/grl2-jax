@@ -128,12 +128,7 @@ class Replay(ABC):
                 results[k] = np.asarray([np.array(v[i], copy=False) for i in indexes])
             else:
                 results[k] = np.asarray([v[i] for i in indexes])
-        # state = np.asarray([np.array(self.memory['state'][i], copy=False) for i in indexes])
-        # action = np.asarray([np.array(self.memory['action'][i], copy=False) for i in indexes])
-        # reward = np.asarray([self.memory['reward'][i] for i in indexes])
-        # done = np.asarray([self.memory['done'][i] for i in indexes])
-        # steps = np.asarray([self.memory['steps'][i] for i in indexes], dtype=np.int32)
-        
+
         if 'next_state' not in self.memory:
             steps = results['steps'].astype(np.int32)
             indexes = np.asarray(indexes)
@@ -151,11 +146,5 @@ class Replay(ABC):
             # since this is when the rewards contribute to the learning process
             self.running_reward_stats.update(results['reward'])
             results['reward'] = self.running_reward_stats.normalize(results['reward'])
-        # assert not np.any(np.isnan(state))
-        # assert not np.any(np.isnan(action))
-        # assert not np.any(np.isnan(reward))
-        # assert not np.any(np.isnan(next_state))
-        # assert not np.any(np.isnan(done))
-        # assert not np.any(np.isnan(steps))
-        # return state, action, reward, next_state, done, steps(, ...)
+
         return results

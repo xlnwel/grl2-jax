@@ -5,6 +5,7 @@ from utility.signal import sigint_shutdown_ray
 from utility.yaml_op import load_config
 from env.gym_env import create_gym_env
 from replay.func import create_replay_center
+from algo.apex.actor import create_learner, create_worker
 
 
 def import_agent(config):
@@ -15,37 +16,37 @@ def import_agent(config):
     elif algo.endswith('sac'):
         from algo.sac.nn import create_model
         from algo.sac.agent import Agent
-    elif algo.endswith('dqn'):
-        from algo.d3qn.nn import create_model
-        from algo.d3qn.agent import Agent
     else:
         raise ValueError(f'Unknown algorithm: {algo}')
 
     return create_model, Agent
 
-def get_worker_fn(agent_config):
+def import_worker_class(agent_config):
     if agent_config['algorithm'].startswith('asap2'):
-        from algo.asap2.worker import create_worker
+        from algo.asap2.worker import Worker
     elif agent_config['algorithm'].startswith('asap'):
-        from algo.asap.worker import create_worker
+        if agent_config['algorithm'].endswith('il'):
+            from algo.asap_il.worker import ILWorker as Worker
+        else:
+            from algo.asap.worker import Worker
     elif agent_config['algorithm'].startswith('apex'):
-        from algo.apex.worker import create_worker
+        from algo.apex.worker import Worker
     else:
         raise NotImplementedError
 
-    return create_worker
+    return Worker
 
-def get_learner_fn(agent_config):
+def import_learner_class(agent_config, BaseAgent):
     if agent_config['algorithm'].startswith('asap2'):
-        from algo.asap2.learner import create_learner
+        from algo.asap2.learner import get_learner_class
     elif agent_config['algorithm'].startswith('asap'):
-        from algo.apex.learner import create_learner
+        from algo.apex.learner import get_learner_class
     elif agent_config['algorithm'].startswith('apex'):
-        from algo.apex.learner import create_learner
+        from algo.apex.learner import get_learner_class
     else:
         raise NotImplementedError
 
-    return create_learner
+    return get_learner_class(BaseAgent)
 
 def get_bph_config(agent_config):
     """ get configure file for BipedalWalkerHardcore-v2 """
@@ -82,22 +83,22 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     replay = create_replay_center(replay_config)
 
-    create_learner = get_learner_fn(agent_config)
     model_fn, Agent = import_agent(agent_config)
+    Learner = import_learner_class(agent_config, Agent)
     learner = create_learner(
-        BaseAgent=Agent, name='Learner', model_fn=model_fn, 
+        Learner=Learner, name='Learner', model_fn=model_fn, 
         replay=replay, config=agent_config, 
         model_config=model_config, env_config=env_config,
         replay_config=replay_config)
 
     if restore:
         ray.get(learner.restore.remote())
-    create_worker = get_worker_fn(agent_config)
+    Worker = import_worker_class(agent_config)
     workers = []
     pids = []
     for worker_id in range(agent_config['n_workers']):
         worker = create_worker(
-            name='Worker', worker_id=worker_id, 
+            Worker=Worker, name='Worker', worker_id=worker_id, 
             model_fn=model_fn, config=agent_config, 
             model_config=model_config, env_config=env_config, 
             buffer_config=replay_config)

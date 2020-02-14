@@ -7,12 +7,14 @@ from core import tf_config
 from core.ensemble import Ensemble
 from utility.display import pwc
 from utility.timer import TBTimer
+from utility.utils import step_str
 from env.gym_env import create_gym_env
 from algo.apex.buffer import create_local_buffer
 from algo.apex.base_worker import BaseWorker
 from algo.asap.utils import *
 
 
+@ray.remote(num_cpus=1)
 class Worker(BaseWorker):
     """ Interface """
     def __init__(self, 

@@ -14,7 +14,7 @@ from algo.asap.utils import *
 
 
 
-def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_config, replay_config):
+def get_learner_class(BaseAgent):
     class Learner(BaseAgent):
         """ Interface """
         def __init__(self,
@@ -173,31 +173,4 @@ def create_learner(BaseAgent, name, model_fn, replay, config, model_config, env_
             self.mode_prob_backup = self.mode_prob
             np.testing.assert_allclose(np.sum(self.mode_prob), 1)
 
-    config = config.copy()
-    model_config = model_config.copy()
-    env_config = env_config.copy()
-    replay_config = replay_config.copy()
-    
-    config['model_name'] = 'learner'
-    config['mode_prob'] = [1, 0, 0]
-    # learner only define a env to get necessary env info, 
-    # it does not actually interact with env
-    env_config['n_workers'] = env_config['n_envs'] = 1
-
-    if env_config.get('is_deepmind_env'):
-        RayLearner = ray.remote(num_cpus=2, num_gpus=.5)(Learner)
-    else:
-        if tf.config.list_physical_devices('GPU'):
-            RayLearner = ray.remote(num_cpus=1, num_gpus=.1)(Learner)
-        else:
-            RayLearner = ray.remote(num_cpus=1)(Learner)
-    learner = RayLearner.remote(name, model_fn, replay, config, 
-                            model_config, env_config)
-    ray.get(learner.save_config.remote(dict(
-        env=env_config,
-        model=model_config,
-        agent=config,
-        replay=replay_config
-    )))
-
-    return learner
+    return Learner
