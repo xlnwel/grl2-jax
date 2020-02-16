@@ -19,16 +19,10 @@ class Agent(BaseAgent):
                 models,
                 dataset,
                 env):
-        # dataset for optimizing input pipline
+        # dataset for input pipline optimization
         self.dataset = dataset
         
-        # optimizer
-        if self.optimizer.lower() == 'adam':
-            Optimizer = tf.keras.optimizers.Adam
-        elif self.optimizer.lower() == 'rmsprop':
-            Optimizer = tf.keras.optimizers.RMSprop
-        else:
-            raise NotImplementedError()
+        # learning rate schedule
         if getattr(self, 'schedule_lr', False):
             self.actor_schedule = PiecewiseSchedule(
                 [(2e5, self.actor_lr), (1e6, 1e-5)])
@@ -37,12 +31,20 @@ class Agent(BaseAgent):
             self.actor_lr = tf.Variable(self.actor_lr, trainable=False)
             self.q_lr = tf.Variable(self.q_lr, trainable=False)
 
+        # optimizer
+        if self.optimizer.lower() == 'adam':
+            Optimizer = tf.keras.optimizers.Adam
+        elif self.optimizer.lower() == 'rmsprop':
+            Optimizer = tf.keras.optimizers.RMSprop
+        else:
+            raise NotImplementedError()
         self.actor_opt = Optimizer(learning_rate=self.actor_lr,
                                     epsilon=self.epsilon)
         self.q_opt = Optimizer(learning_rate=self.q_lr,
                                 epsilon=self.epsilon)
         self.ckpt_models['actor_opt'] = self.actor_opt
         self.ckpt_models['q_opt'] = self.q_opt
+
         if isinstance(self.temperature, float):
             # if env.name == 'BipedalWalkerHardcore-v2':
             #     self.temp_schedule = PiecewiseSchedule(
@@ -94,13 +96,10 @@ class Agent(BaseAgent):
             saved_indices = data['saved_indices']
             del data['saved_indices']
 
-        terms = self.learn(**data)
+        with TBTimer(f'{self.model_name} learn', 10000, to_log=self.timer):
+            terms = self.learn(**data)
 
-        if self.sync_target:
-            if self.global_steps % self.target_update_freq == 0:
-                self._sync_target_nets()
-        else:
-            self._update_target_nets()
+        self._update_target_nets()
 
         if self.schedule_lr:
             terms['actor_lr'] = self.actor_lr.numpy()

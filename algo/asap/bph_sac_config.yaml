@@ -3,7 +3,7 @@ env:
     name: BipedalWalkerHardcore-v2
     video_path: video
     log_video: False
-    n_envs: 1
+    n_envs: 8
     efficient_envvec: True
     seed: 0
 model:
@@ -27,13 +27,13 @@ agent:
     act_eps: 0
     
     # timer&interval
+    MAX_STEPS: 1.e+8
     TIME_INTERVAL: 100
     LOG_INTERVAL: 100000
-    MAX_STEPS: 1.e+8
     timer: True
 
     # distributed algo params
-    n_workers: 1
+    n_workers: 4
 
     # SAP params
     n_eval_envs: 1

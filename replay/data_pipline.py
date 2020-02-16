@@ -32,7 +32,7 @@ class Dataset:
     def _prepare_dataset(self, buffer, data_format):
         def process_transition(data):
             if data['state'].dtype == tf.uint8:
-                tf.debugging.assert_shapes([(data['state'], None, 84, 84, 4), (data['next_state'], None, 84, 84, 4)])
+                tf.debugging.assert_shapes([(data['state'], (None, 84, 84, 4)), (data['next_state'], (None, 84, 84, 4))])
                 tf.debugging.assert_type(data['state'], tf.uint8)
                 tf.debugging.assert_type(data['next_state'], tf.uint8)
                 data['state'] = tf.cast(data['state'], tf.float32) / 255.

@@ -134,11 +134,11 @@ class Replay(ABC):
             indexes = np.asarray(indexes)
             next_indexes = (indexes + steps) % self.capacity
             assert indexes.shape == next_indexes.shape == (self.batch_size, ), f'{indexes.shape} vs {next_indexes.shape}'
-            results['next_state'] = np.asarray([self.memory['state'][i] for i in next_indexes])
+            results['next_state'] = np.asarray([np.array(self.memory['state'][i], copy=False) for i in next_indexes])
 
         # process rewards
         if self.reward_scale != 1:
-            results['reward'] *= np.where(done, 1, self.reward_scale)
+            results['reward'] *= np.where(results['done'], 1, self.reward_scale)
         if self.reward_clip:
             results['reward'] = np.clip(results['reward'], -self.reward_clip, self.reward_clip)
         if self.normalize_reward:

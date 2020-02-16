@@ -69,7 +69,6 @@ def eval_str(val):
     try:
         val = ast.literal_eval(val)
     except ValueError:
-        print(val)
         pass
     return val
 

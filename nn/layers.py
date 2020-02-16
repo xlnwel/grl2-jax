@@ -7,33 +7,31 @@ from nn.utils import get_norm, get_activation, get_initializer
 
 class Layer(layers.Layer):
     def __init__(self, units, layer_type=layers.Dense, norm=None, 
-                activation=None, kernel_initializer='he_uniform', 
+                activation=None, kernel_initializer='glorot_uniform', 
                 name=None, **kwargs):
         super().__init__(name=name)
 
-        norm=get_norm(norm)
-        activation=get_activation(activation)
         kernel_initializer = get_initializer(kernel_initializer)
 
-        self.intra_layers = [layer_type(units, kernel_initializer=kernel_initializer, **kwargs)]
+        self.intra_layer = layer_type(units, kernel_initializer=kernel_initializer, **kwargs)
         if norm is not None:
-            self.intra_layers.append(norm())
+            self.norm_layers = get_norm(norm)
 
-        self.activation=activation
-    
+        self.activation = get_activation(activation)
+
     def call(self, x, **kwargs):
-        for l in self.intra_layers:
-            x = l(x, **kwargs)
+        x = self.intra_layer(x, **kwargs)
+        if hasattr(self, 'norm_layer'):
+            x = self.norm_layer(x)
         if self.activation is not None:
             x = self.activation(x)
         
         return x
     
     def reset(self):
-        for l in self.intra_layers:
-            # reset noisy layer
-            if isinstance(l, Noisy):
-                l.reset()
+        # reset noisy layer
+        if isinstance(self.intra_layer, Noisy):
+            self.intra_layer.reset()
 
 class Noisy(layers.Dense):
     def __init__(self, units, **kwargs):

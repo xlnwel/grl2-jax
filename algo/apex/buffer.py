@@ -115,15 +115,14 @@ class EnvVecBuffer:
     def sample(self):
         results = {}
         mask = self.memory['mask']
-        print('mask', mask.shape, mask.dtype)
         for k, v in self.memory.items():
-            print(k, v.shape, v.dtype)
             if v.dtype == np.object:
-                results[k] = np.stack(v)[mask]
+                results[k] = np.stack(v[mask])
             elif k == 'mask':
                 continue
             else:
                 results[k] = v[mask]
+            assert results[k].dtype != np.object, f'{k}, {results[k].dtype}'
 
         # process rewards
         results['reward'] *= np.where(results['done'], 1, self.reward_scale)
@@ -134,7 +133,7 @@ class EnvVecBuffer:
             # we update the running stats when we use them
             self.running_reward_stats.update(results['reward'])
             results['reward'] = self.running_reward_stats.normalize(results['reward'])
-
+            
         return mask, results
 
     def reset(self):
@@ -144,12 +143,17 @@ class EnvVecBuffer:
     def add_data(self, env_ids=None, **kwargs):
         """ Add experience to local memory """
         if self.memory == {}:
+            # initialize memory
             for k, v in kwargs.items():
-                if len(v.shape) == 1:
+                v = np.array(v, copy=False)
+                if k == 'mask':
+                    pass
+                elif len(v.shape) == 1:
                     self.memory[k] = np.ndarray((self.n_envs, self.seqlen), dtype=v.dtype)
                 else:
                     self.memory[k] = np.ndarray((self.n_envs, self.seqlen), dtype=np.object)
             self.memory['steps'] = np.zeros((self.n_envs, self.seqlen), dtype=np.uint8)
+            self.memory['mask'] = np.zeros((self.n_envs, self.seqlen), dtype=np.bool)
 
         env_ids = env_ids or range(self.n_envs)
         idx = self.idx

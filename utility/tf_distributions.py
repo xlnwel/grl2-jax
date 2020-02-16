@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-EPSILON = 1e-7
+EPSILON = 1e-8
 
 
 def tf_scope(func):

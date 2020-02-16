@@ -19,16 +19,11 @@ class Agent(BaseAgent):
                 models,
                 dataset,
                 env):
-        # dataset for optimizing input pipline
+        # dataset for input pipline optimization
         self.dataset = dataset
-        
-        # optimizer
-        if self.optimizer.lower() == 'adam':
-            Optimizer = tf.keras.optimizers.Adam
-        elif self.optimizer.lower() == 'rmsprop':
-            Optimizer = tf.keras.optimizers.RMSprop
-        else:
-            raise NotImplementedError()
+        self.is_per = not self.dataset.buffer_type().endswith('uniform')
+
+        # learning rate schedule
         if getattr(self, 'schedule_lr', False):
             self.actor_schedule = PiecewiseSchedule(
                 [(2e5, self.actor_lr), (1e6, 1e-5)])
@@ -37,12 +32,20 @@ class Agent(BaseAgent):
             self.actor_lr = tf.Variable(self.actor_lr, trainable=False)
             self.q_lr = tf.Variable(self.q_lr, trainable=False)
 
+        # optimizer
+        if self.optimizer.lower() == 'adam':
+            Optimizer = tf.keras.optimizers.Adam
+        elif self.optimizer.lower() == 'rmsprop':
+            Optimizer = tf.keras.optimizers.RMSprop
+        else:
+            raise NotImplementedError()
         self.actor_opt = Optimizer(learning_rate=self.actor_lr,
                                     epsilon=self.epsilon)
         self.q_opt = Optimizer(learning_rate=self.q_lr,
                                 epsilon=self.epsilon)
         self.ckpt_models['actor_opt'] = self.actor_opt
         self.ckpt_models['q_opt'] = self.q_opt
+
         if isinstance(self.temperature, float):
             # if env.name == 'BipedalWalkerHardcore-v2':
             #     self.temp_schedule = PiecewiseSchedule(
@@ -86,17 +89,14 @@ class Agent(BaseAgent):
             self.temperature.assign(self.temp_schedule.value(self.global_steps.numpy()))
         with TBTimer(f'{self.model_name} sample', 10000, to_log=self.timer):
             data = self.dataset.sample()
-        if not self.dataset.buffer_type().endswith('uniform'):
+        if self.is_per:
             saved_indices = data['saved_indices']
             del data['saved_indices']
 
-        terms = self.learn(**data)
+        with TBTimer(f'{self.model_name} learn', 10000, to_log=self.timer):
+            terms = self.learn(**data)
 
-        if self.sync_target:
-            if self.global_steps % self.target_update_freq == 0:
-                self._sync_target_nets()
-        else:
-            self._update_target_nets()
+        self._update_target_nets()
 
         if self.schedule_lr:
             terms['actor_lr'] = self.actor_lr.numpy()
@@ -104,7 +104,7 @@ class Agent(BaseAgent):
             if not isinstance(self.temperature, (float, tf.Variable)):
                 terms['temp_lr'] = self.temp_lr.numpy()
             
-        if not self.dataset.buffer_type().endswith('uniform'):
+        if self.is_per:
             self.dataset.update_priorities(terms['priority'].numpy(), saved_indices.numpy())
         self.store(**terms)
 
@@ -158,7 +158,6 @@ class Agent(BaseAgent):
             
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = next_temp = self.temperature
-                log_temp = tf.math.log(temp)
             else:
                 log_temp, temp = self.temperature.train_step(state, action)
                 _, next_temp = self.temperature.train_step(next_state, next_action)
@@ -179,8 +178,8 @@ class Agent(BaseAgent):
                 q1_error = target_q - q1
                 q2_error = target_q - q2
 
-                q1_loss = .5 * tf.reduce_mean(IS_ratio * tf.square(q1_error))
-                q2_loss = .5 * tf.reduce_mean(IS_ratio * tf.square(q2_error))
+                q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
+                q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
                 q_loss = q1_loss + q2_loss
             
         with tf.name_scope('actor_grads'):
@@ -190,10 +189,9 @@ class Agent(BaseAgent):
             q_grads = tape.gradient(q_loss, 
                 self.q1.trainable_variables + self.q2.trainable_variables)
 
-        if self.dataset.buffer_type().endswith('uniform'):
-            priority = 1
-        else:
+        if self.is_per:
             priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
+            terms['priority'] = priority
             
         grads = dict(
             actor_grads=actor_grads,
@@ -207,7 +205,6 @@ class Agent(BaseAgent):
             q1_loss=q1_loss, 
             q2_loss=q2_loss,
             q_loss=q_loss, 
-            priority=priority,
             temp=temp,
         ))
         if not isinstance(self.temperature, (float, tf.Variable)):

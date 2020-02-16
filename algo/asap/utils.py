@@ -77,9 +77,9 @@ def lcb(values, ns, c):
 def normalize_scores(scores):
     min_score = np.min(scores)
     max_score = np.max(scores)
-    diff = max_score - min_score
+    diff = max_score - min_score or 1
     
-    scores = (scores - np.min(scores)) / (max_score - min_score)
+    scores = (scores - np.min(scores)) / diff
     return scores
 
 def fitness_from_repo(weight_repo, method, c=1):

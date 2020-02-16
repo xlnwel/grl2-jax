@@ -16,10 +16,10 @@ def logpi_correction(action, logpi, is_action_squashed):
     assert len(action.shape) == len(logpi.shape)
     if is_action_squashed:
         # To avoid evil machine precision error, strictly clip 1-action**2 to [0, 1] range
-        sub = tf.reduce_sum(tf.math.log(clip_but_pass_gradient(1 - action**2, l=0, u=1) + 1e-6), axis=-1, keepdims=True)
+        sub = tf.reduce_sum(tf.math.log(clip_but_pass_gradient(1 - action**2, l=0, u=1) + 1e-8), axis=-1, keepdims=True)
     else:
-        sub = 2 * tf.reduce_sum(tf.math.log(2.) + action - tf.nn.softplus(2 * action), axis=-1, keepdims=True)
-    assert logpi.shape[-1] == sub.shape[-1], f'{logpi.shape} vs {sub.shape}'
+        sub = 2 * tf.reduce_sum(tf.math.log(2.) - action - tf.nn.softplus(-2 * action), axis=-1, keepdims=True)
+    assert logpi.shape[-1] == sub.shape[-1] == 1, f'{logpi.shape} vs {sub.shape}'
     logpi -= sub
 
     return logpi

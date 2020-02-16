@@ -16,32 +16,37 @@ from algo.sac.agent import Agent
 from algo.sac.nn import create_model
 
 
-LOG_INTERVAL = 1000
+LOG_INTERVAL = 4000
 
 def train(agent, env, replay):
-    def collect_and_learn(**kwargs):
+    def collect_and_learn(step, **kwargs):
         replay.add(**kwargs)
-        agent.learn_log()
+        if step % 50 == 0:
+            for _ in range(50):
+                agent.learn_log()
 
     eval_env = create_gym_env(dict(
         name=env.name, 
         video_path='video',
         log_video=False,
         n_workers=1,
-        n_envs=50,
+        n_envs=10,
         effective_envvec=True,
-        seed=np.random.randint(100, 10000),
+        seed=0,
     ))
     start_step = agent.global_steps.numpy() + 1
     scores = deque(maxlen=100)
     epslens = deque(maxlen=100)
+    eval_scores = deque(maxlen=10)
+    eval_epslens = deque(maxlen=10)
     print('Training started...')
     step = start_step
     log_step = LOG_INTERVAL
     while step < int(agent.MAX_STEPS):
         agent.set_summary_step(step)
         with TBTimer(f'trajectory', agent.TIME_INTERVAL, to_log=agent.timer):
-            score, epslen = run(env, agent.actor, fn=collect_and_learn, timer=agent.timer)
+            score, epslen = run(
+                env, agent.actor, fn=collect_and_learn, timer=agent.timer, step=step)
         step += epslen
         scores.append(score)
         epslens.append(epslen)
@@ -50,8 +55,13 @@ def train(agent, env, replay):
             log_step += LOG_INTERVAL
             agent.save(steps=step)
 
+            
             with TBTimer(f'evaluation', agent.TIME_INTERVAL, to_log=agent.timer):
-                eval_scores, eval_epslens = run(eval_env, agent.actor, evaluation=True, timer=agent.timer, name='eval')
+                eval_score, eval_epslen = run(
+                    eval_env, agent.actor, evaluation=True, timer=agent.timer, name='eval')
+            eval_scores.append(eval_score)
+            eval_epslens.append(eval_epslen)
+            
             agent.store(
                 score=np.mean(eval_scores),
                 score_std=np.std(eval_scores),
@@ -64,7 +74,7 @@ def train(agent, env, replay):
             stats = dict(
                 model_name=f'{agent.model_name}',
                 timing='Train',
-                steps=step_str(step), 
+                steps=step, 
                 score=np.mean(scores),
                 score_std=np.std(scores),
                 score_max=np.max(scores),

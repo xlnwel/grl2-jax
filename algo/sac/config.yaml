@@ -1,29 +1,27 @@
 ---
 env:
-    name: BipedalWalker-v2
+    name: Hopper-v3
     video_path: video
     log_video: False
     seed: 0
 
 model:
     actor:
-        units_list: [512, 256]
+        units_list: [256, 256]
         # kernel_initializer: glorot_uniform
-        norm: layer
+        # norm: layer
         activation: relu
     q:
-        units_list: [512, 256]
+        units_list: [256, 256]
         # kernel_initializer: glorot_uniform
-        norm: layer
+        # norm: layer
         activation: relu
     temperature:
-        temp_type: 'state-action'
-        value: .01
+        temp_type: 'constant'
+        value: .2
 agent:
     algorithm: &algo sac
     gamma: &gamma 0.99
-    sync_target: False
-    target_update_freq: 100
     polyak: .995
     # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
     
@@ -43,17 +41,17 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 1.e-4
-    q_lr: 3.e-4
-    temp_lr: 1.e-4
+    actor_lr: 1.e-3
+    q_lr: 1.e-3
+    # temp_lr: 1.e-3
     epsilon: 1.e-8
 
     # arguments for PER
-    per_alpha: 0.5
-    per_epsilon: 1.e-4
+    # per_alpha: 0.5
+    # per_epsilon: 1.e-4
 
 replay:
-    type: proportional                      # proportional or uniform
+    type: uniform                      # proportional or uniform
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4
@@ -64,8 +62,9 @@ replay:
     # reward_scale: 1
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: 1
     gamma: *gamma
-    batch_size: 256
-    min_size: 5e3
+    batch_size: 100
+    min_size: 1e4
     capacity: 1e6
+    has_next_state: True
