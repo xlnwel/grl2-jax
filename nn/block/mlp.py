@@ -11,8 +11,8 @@ class MLP(layers.Layer):
 
         self.intra_layers = [
             Layer(u, layer_type=layer_type, norm=norm, 
-                    activation=activation, kernel_initializer=kernel_initializer, 
-                    **kwargs)
+                activation=activation, kernel_initializer=kernel_initializer, 
+                **kwargs)
             for u in units_list]
         if out_dim:
             self.intra_layers.append(layer_type(out_dim))

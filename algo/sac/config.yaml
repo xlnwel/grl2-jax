@@ -10,12 +10,12 @@ model:
         units_list: [256, 256]
         # kernel_initializer: glorot_uniform
         # norm: layer
-        activation: relu
+        # activation: relu
     q:
         units_list: [256, 256]
         # kernel_initializer: glorot_uniform
         # norm: layer
-        activation: relu
+        # activation: relu
     temperature:
         temp_type: 'constant'
         value: .2
@@ -43,7 +43,7 @@ agent:
     schedule_lr: False
     actor_lr: 1.e-3
     q_lr: 1.e-3
-    # temp_lr: 1.e-3
+    temp_lr: 1.e-3
     epsilon: 1.e-8
 
     # arguments for PER

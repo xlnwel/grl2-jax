@@ -79,7 +79,7 @@ class EnvStats(gym.Wrapper):
 
     @property
     def state_dtype(self):
-        return np.float32 if len(self.state_shape) == 1 else self.observation_space.dtype
+        return np.float32 if self.observation_space.dtype == np.float64 else self.observation_space.dtype
 
     @property
     def action_shape(self):

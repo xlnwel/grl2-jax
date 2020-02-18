@@ -14,14 +14,13 @@ class Layer(layers.Layer):
         kernel_initializer = get_initializer(kernel_initializer)
 
         self.intra_layer = layer_type(units, kernel_initializer=kernel_initializer, **kwargs)
-        if norm is not None:
-            self.norm_layers = get_norm(norm)
+        self.norm_layer = get_norm(norm)
 
         self.activation = get_activation(activation)
 
     def call(self, x, **kwargs):
         x = self.intra_layer(x, **kwargs)
-        if hasattr(self, 'norm_layer'):
+        if self.norm_layer is not None:
             x = self.norm_layer(x)
         if self.activation is not None:
             x = self.activation(x)

@@ -28,6 +28,7 @@ class SoftPolicy(tf.Module):
                                 norm=norm, 
                                 activation=activation, 
                                 kernel_initializer=kernel_initializer)
+        # self.intra_layers = [layers.Dense(256, activation=tf.nn.relu) for _ in range(2)]
 
         if is_action_discrete:
             self.logits = mlp(config.get('logits_units', []),
@@ -38,18 +39,20 @@ class SoftPolicy(tf.Module):
                             name='logits')
             self.tau = 1.   # tf.Variable(1., dtype=tf.float32, name='softmax_tau')
         else:
-            self.mu = mlp(config.get('mu_units', []),
-                        out_dim=action_dim, 
-                        norm=norm, 
-                        activation=activation, 
-                        kernel_initializer=kernel_initializer, 
-                        name='mu')
-            self.logstd = mlp(config.get('logstd_units', []),
-                        out_dim=action_dim, 
-                        norm=norm, 
-                        activation=activation, 
-                        kernel_initializer=kernel_initializer, 
-                        name='logstd')
+            # self.mu = mlp(config.get('mu_units', []),
+            #             out_dim=action_dim, 
+            #             norm=norm, 
+            #             activation=activation, 
+            #             kernel_initializer=kernel_initializer, 
+            #             name='mu')
+            # self.logstd = mlp(config.get('logstd_units', []),
+            #             out_dim=action_dim, 
+            #             norm=norm, 
+            #             activation=activation, 
+            #             kernel_initializer=kernel_initializer, 
+            #             name='logstd')
+            self.mu = layers.Dense(action_dim, name='mu')
+            self.logstd = layers.Dense(action_dim, name='logstd')
 
         # action distribution type    
         self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
@@ -79,6 +82,8 @@ class SoftPolicy(tf.Module):
     def _det_action(self, x):
         with tf.name_scope('det_action'):
             x = self.intra_layers(x)
+            # for l in self.intra_layers:
+            #     x = l(x)
 
             if self.is_action_discrete:
                 logits = self.logits(x)
@@ -123,6 +128,8 @@ class SoftPolicy(tf.Module):
 
     def _action_distribution(self, x):
         x = self.intra_layers(x)
+        # for l in self.intra_layers:
+        #     x = l(x)
         
         if self.is_action_discrete:
             logits = self.logits(x)
@@ -160,6 +167,8 @@ class SoftQ(tf.Module):
                                 norm=norm, 
                                 activation=activation, 
                                 kernel_initializer=kernel_initializer)
+        # self.intra_layers = [layers.Dense(256, activation=tf.nn.relu) for _ in range(2)]
+        # self.q_layer = layers.Dense(1)
 
         # build for variable initialization
         # TensorSpecs = [
@@ -177,6 +186,9 @@ class SoftQ(tf.Module):
         with tf.name_scope('step'):
             x = tf.concat([x, a], axis=-1)
             x = self.intra_layers(x)
+            # for l in self.intra_layers:
+            #     x = l(x)
+            # x = self.q_layer(x)
             
         return x
 

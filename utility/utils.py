@@ -75,10 +75,14 @@ def eval_str(val):
 def is_main_process():
     return multiprocessing.current_process().name == 'MainProcess'
 
-def set_global_seed(seed=42):
+def set_global_seed(seed=42, env=None, tf=None):
     os.environ['PYTHONHASHSEED']=str(seed)
     random.seed(seed)
     np.random.seed(seed)
+    if env:
+        env.seed(seed)
+    if tf:
+        tf.random.set_seed(seed)
 
 def timeformat(t):
     return f'{t:.2e}'

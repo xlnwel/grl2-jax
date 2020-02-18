@@ -78,7 +78,7 @@ class Env(EnvBase):
         self.env.seed(i)
 
     def reset(self):
-        return self.env.reset()
+        return self.env.reset().astype(self.state_dtype)
 
     def random_action(self):
         action = self.env.action_space.sample()
@@ -87,7 +87,7 @@ class Env(EnvBase):
     def step(self, action, **kwargs):
         state, reward, done, info = self.env.step(action, **kwargs)
 
-        return state, reward, np.bool(done), info
+        return state.astype(self.state_dtype), np.float32(reward), np.bool(done), info
 
     def render(self):
         return self.env.render()
@@ -116,7 +116,7 @@ class EnvVec(EnvBase):
         self.max_episode_steps = self.env.spec.max_episode_steps
 
     def random_action(self):
-        return np.asarray([env.action_space.sample() for env in self.envs])
+        return np.array([env.action_space.sample() for env in self.envs], copy=False, dtype=self.state_dtype)
 
     def reset(self):
         return np.asarray([env.reset() for env in self.envs], dtype=self.state_dtype)
@@ -124,9 +124,9 @@ class EnvVec(EnvBase):
     def step(self, actions, **kwargs):
         state, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
 
-        return (np.asarray(state, dtype=self.state_dtype), 
-                np.asarray(reward, dtype=np.float32), 
-                np.asarray(done, dtype=np.bool), 
+        return (np.array(state, copy=False, dtype=self.state_dtype), 
+                np.array(reward, dtype=np.float32), 
+                np.array(done, dtype=np.bool), 
                 info)
 
     def get_mask(self):
@@ -158,9 +158,9 @@ class EfficientEnvVec(EnvVec):
         for i in range(len(info)):
             info[i]['env_id'] = valid_env_ids[i]
         
-        return (np.asarray(state, dtype=self.state_dtype), 
-                np.asarray(reward, dtype=np.float32), 
-                np.asarray(done, dtype=np.bool), 
+        return (np.array(state, copy=False, dtype=self.state_dtype), 
+                np.array(reward, dtype=np.float32), 
+                np.array(done, dtype=np.bool), 
                 info)
 
 

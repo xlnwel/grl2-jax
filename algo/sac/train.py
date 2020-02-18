@@ -63,28 +63,22 @@ def train(agent, env, replay):
             eval_epslens.append(eval_epslen)
             
             agent.store(
-                score=np.mean(eval_scores),
-                score_std=np.std(eval_scores),
-                score_max=np.max(eval_scores),
-                epslen=np.mean(eval_epslens),
-                epslen_std=np.std(eval_epslens)
-            )
-            agent.log(step, timing='Eval')
-
-            stats = dict(
-                model_name=f'{agent.model_name}',
-                timing='Train',
-                steps=step, 
                 score=np.mean(scores),
                 score_std=np.std(scores),
                 score_max=np.max(scores),
                 epslen=np.mean(epslens),
                 epslen_std=np.std(epslens),
+                eval_score=np.mean(eval_scores),
+                eval_score_std=np.std(eval_scores),
+                eval_score_max=np.max(eval_scores),
+                eval_epslen=np.mean(eval_epslens),
+                eval_epslen_std=np.std(eval_epslens),
             )
-            agent.log_stats(stats)
+            agent.log(step)
+
 
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
-    set_global_seed()
+    set_global_seed(seed=env_config['seed'], tf=tf)
     # tf.debugging.set_log_device_placement(True)
     configure_gpu()
 

@@ -51,17 +51,11 @@ class Replay(ABC):
             yield self.sample()
 
     def sample(self, batch_size=None):
-        assert self.good_to_learn(), (
-            'There are not sufficient transitions to start learning --- '
-            f'transitions in buffer({len(self)}) vs '
-            f'minimum required size({self.min_size})')
-
-        samples = self._sample(batch_size)
-
-        return samples
+        raise NotImplementedError
 
     def merge(self, local_buffer, length, **kwargs):
-        """ Merge a local buffer to the replay buffer, useful for distributed algorithms """
+        """ Merge a local buffer to the replay buffer, 
+        useful for distributed algorithms """
         assert length < self.capacity, (
             f'Local buffer cannot be largeer than the replay: {length} vs. {self.capacity}')
         self._merge(local_buffer, length)
@@ -72,11 +66,8 @@ class Replay(ABC):
         if self.memory == {}:
             if not self.has_next_state:
                 del kwargs['next_state']
-            keys = list(kwargs)
-            keys.append('steps')
-            state_shape = kwargs['state'].shape
-            init_buffer(self.memory, *keys, capacity=self.capacity, state_shape=state_shape)
-            print(f'"{self.buffer_type()}" keys: {list(self.memory.keys())}')
+            init_buffer(self.memory, pre_dims=self.capacity, **kwargs)
+            print(f"{self.buffer_type()} replay's keys: {list(self.memory.keys())}")
 
         if not self.is_full and self.mem_idx == self.capacity - 1:
             print(f'Memory is full({len(self.memory["reward"])})')
@@ -96,10 +87,7 @@ class Replay(ABC):
         if self.memory == {}:
             if not self.has_next_state:
                 del local_buffer['next_state']
-            keys = list(local_buffer)
-            keys.append('steps')
-            state_shape = local_buffer['state'].shape[1:]
-            init_buffer(self.memory, *keys, capacity=self.capacity, state_shape=state_shape)
+            init_buffer(self.memory, pre_dims=self.capacity, **local_buffer)
             print(f'"{self.buffer_type()}" keys: {list(self.memory.keys())}')
 
         end_idx = self.mem_idx + length
@@ -123,18 +111,15 @@ class Replay(ABC):
     def _get_samples(self, indexes):
         """ retrieve samples from replay memory """
         results = {}
+        indexes = np.array(indexes, copy=False)
         for k, v in self.memory.items():
-            if 'state' in k or 'action' in k:
-                results[k] = np.asarray([np.array(v[i], copy=False) for i in indexes])
-            else:
-                results[k] = np.asarray([v[i] for i in indexes])
-
+            results[k] = v[indexes]
+            
         if 'next_state' not in self.memory:
-            steps = results['steps'].astype(np.int32)
-            indexes = np.asarray(indexes)
+            steps = results['steps']
             next_indexes = (indexes + steps) % self.capacity
             assert indexes.shape == next_indexes.shape == (self.batch_size, ), f'{indexes.shape} vs {next_indexes.shape}'
-            results['next_state'] = np.asarray([np.array(self.memory['state'][i], copy=False) for i in next_indexes])
+            results['next_state'] = self.memory['state'][next_indexes]
 
         # process rewards
         if self.reward_scale != 1:

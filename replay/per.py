@@ -24,7 +24,7 @@ class PERBase(Replay):
         self.sample_i = 0   # count how many times self.sample is called
 
         # locker used to avoid conflict introduced by tf.data.Dataset
-        # used to ensure SumTree update will not happen while sampling
+        # ensuring SumTree update will not happen while sampling
         # which may cause out-of-range sampling in data_structure.find
         self.locker = Lock()
 

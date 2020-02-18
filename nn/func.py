@@ -11,7 +11,7 @@ def mlp(units_list,
         norm=None, 
         activation=None, 
         layer_type=layers.Dense, 
-        kernel_initializer='he_uniform', 
+        kernel_initializer='glorot_uniform', 
         **kwargs):
     return MLP(units_list, out_dim=out_dim, layer_type=layer_type, 
                 norm=norm, activation=activation, 
