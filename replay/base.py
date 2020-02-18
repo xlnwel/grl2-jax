@@ -21,6 +21,7 @@ class Replay(ABC):
         self.n_steps = config['n_steps']
         self.gamma = config['gamma']
         self.has_next_state = config.get('has_next_state', False)
+        self.pre_dims = (self.capacity, )
 
         # reward hacking
         self.reward_scale = config.get('reward_scale', 1)
@@ -66,7 +67,7 @@ class Replay(ABC):
         if self.memory == {}:
             if not self.has_next_state:
                 del kwargs['next_state']
-            init_buffer(self.memory, pre_dims=self.capacity, **kwargs)
+            init_buffer(self.memory, pre_dims=self.pre_dims, **kwargs)
             print(f"{self.buffer_type()} replay's keys: {list(self.memory.keys())}")
 
         if not self.is_full and self.mem_idx == self.capacity - 1:
@@ -87,7 +88,7 @@ class Replay(ABC):
         if self.memory == {}:
             if not self.has_next_state:
                 del local_buffer['next_state']
-            init_buffer(self.memory, pre_dims=self.capacity, **local_buffer)
+            init_buffer(self.memory, pre_dims=self.pre_dims, **local_buffer)
             print(f'"{self.buffer_type()}" keys: {list(self.memory.keys())}')
 
         end_idx = self.mem_idx + length
