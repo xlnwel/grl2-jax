@@ -54,9 +54,9 @@ class Categorical(Distribution):
     def _neglogp(self, x):
         if len(x.shape) == len(self.logits.shape) and x.shape[-1] == self.logits.shape[-1]:
             # when x is one-hot encoded
-            return tf.nn.softmax_cross_entropy_with_logits(labels=x, logits=self.logits)[..., None]
+            return tf.nn.softmax_cross_entropy_with_logits(labels=x, logits=self.logits)
         else:
-            return tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x, logits=self.logits)[..., None]
+            return tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x, logits=self.logits)
 
     def _sample(self, reparameterize=False, hard=True, one_hot=True):
         """
@@ -113,7 +113,7 @@ class DiagGaussian(Distribution):
         return .5 * tf.reduce_sum(np.log(2. * np.pi)
                                   + 2. * self.logstd
                                   + ((x - self.mean) / (self.std + EPSILON))**2, 
-                                  axis=-1, keepdims=True)
+                                  axis=-1)
 
     def _sample(self, reparameterize=True):
         # TODO: implement sampling without reparameterization

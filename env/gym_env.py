@@ -87,7 +87,7 @@ class Env(EnvBase):
     def step(self, action, **kwargs):
         state, reward, done, info = self.env.step(action, **kwargs)
 
-        return state.astype(self.state_dtype), np.float32(reward), np.bool(done), info
+        return state.astype(self.state_dtype), np.float32(reward), done, info
 
     def render(self):
         return self.env.render()

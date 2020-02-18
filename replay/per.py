@@ -99,7 +99,7 @@ class ProportionalPER(PERBase):
         # compute importance sampling ratios
         IS_ratios = self._compute_IS_ratios(probabilities)
         samples = self._get_samples(indexes)
-        samples['IS_ratio'] = np.expand_dims(IS_ratios, axis=-1)
+        samples['IS_ratio'] = IS_ratios
         samples['saved_indices'] = indexes
         
         return samples

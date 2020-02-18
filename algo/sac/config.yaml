@@ -1,6 +1,6 @@
 ---
 env:
-    name: Hopper-v3
+    name: HalfCheetah-v3
     video_path: video
     log_video: False
     seed: 0
@@ -53,9 +53,9 @@ agent:
 replay:
     type: uniform                      # proportional or uniform
     # arguments for PER
-    beta0: 0.4
-    beta_steps: 5e4
-    to_update_top_priority: True
+    # beta0: 0.4
+    # beta_steps: 5e4
+    # to_update_top_priority: True
 
     # hacking
     # normalize_reward: False
@@ -67,4 +67,4 @@ replay:
     batch_size: 100
     min_size: 1e4
     capacity: 1e6
-    has_next_state: False
+    has_next_state: True

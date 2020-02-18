@@ -112,7 +112,7 @@ class Replay(ABC):
     def _get_samples(self, indexes):
         """ retrieve samples from replay memory """
         results = {}
-        indexes = np.array(indexes, copy=False)
+        indexes = np.array(indexes, copy=False, dtype=np.int32)
         for k, v in self.memory.items():
             results[k] = v[indexes]
             

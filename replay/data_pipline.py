@@ -37,11 +37,6 @@ class Dataset:
                 tf.debugging.assert_type(data['next_state'], tf.uint8)
                 data['state'] = tf.cast(data['state'], tf.float32) / 255.
                 data['next_state'] = tf.cast(data['next_state'], tf.float32) / 255.
-
-            for k in ['reward', 'done', 'steps']:
-                data[k] = tf.expand_dims(data[k], -1)
-
-                tf.debugging.assert_shapes([(data[k], (None, 1))])
                 
             return data
 
@@ -60,7 +55,7 @@ class Dataset:
             if not self.buffer_type().endswith('uniform'):
                 sample_types['IS_ratio'] = tf.float32
                 sample_types['saved_indices'] = tf.int32
-                sample_shapes['IS_ratio'] = (None, 1)
+                sample_shapes['IS_ratio'] = (None)
                 sample_shapes['saved_indices'] = (None)
 
             ds = tf.data.Dataset.from_generator(
