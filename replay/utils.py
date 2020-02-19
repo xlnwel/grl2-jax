@@ -46,9 +46,10 @@ def copy_buffer(dest_buffer, dest_start, dest_end, orig_buffer, orig_start, orig
 def infer_info(**kwargs):
     """ infer shape/type from kwargs so that we can use them for buffer initialization """
     info = {}
+    pre_dims_len = len(kwargs['reward'].shape)
     for k, v in kwargs.items():
         if isinstance(v, np.ndarray):
-            info[k] = (v.shape, v.dtype)
+            info[k] = (v.shape[pre_dims_len:], v.dtype)
         elif isinstance(v, (int, float, bool, np.float32)):
             # else assume v is of built-in type
             info[k] = ((), type(v))
@@ -56,3 +57,4 @@ def infer_info(**kwargs):
             raise TypeError(f'v of type({v.dtype}) is not supported here')
     
     return info
+    

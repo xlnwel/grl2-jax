@@ -61,14 +61,13 @@ class SoftPolicy(tf.Module):
 
     @tf.function(experimental_relax_shapes=True)
     def _action(self, x):
-        with tf.name_scope('action'):
-            action_distribution, _ = self._action_distribution(x)
+        action_distribution, _ = self._action_distribution(x)
 
-            if self.is_action_discrete:
-                action = action_distribution.sample(reparameterize=False, one_hot=False)
-            else:
-                raw_action = action_distribution.sample()
-                action = tf.tanh(raw_action)
+        if self.is_action_discrete:
+            action = action_distribution.sample(reparameterize=False, one_hot=False)
+        else:
+            raw_action = action_distribution.sample()
+            action = tf.tanh(raw_action)
 
         terms = dict(action_std=action_distribution.std)
 
@@ -77,47 +76,43 @@ class SoftPolicy(tf.Module):
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
     def _det_action(self, x):
-        with tf.name_scope('det_action'):
-            x = self.intra_layers(x)
+        x = self.intra_layers(x)
 
-            if self.is_action_discrete:
-                logits = self.logits(x)
-                action = tf.argmax(logits, axis=-1)
-            else:
-                mu = self.mu(x)
-                action = tf.tanh(mu)
+        if self.is_action_discrete:
+            logits = self.logits(x)
+            action = tf.argmax(logits, axis=-1)
+        else:
+            mu = self.mu(x)
+            action = tf.tanh(mu)
 
         return action, dict(action_std=tf.zeros_like(action))
 
     @tf.Module.with_name_scope
     def train_action(self, x):
-        with tf.name_scope('train_action'):
-            action_distribution, _ = self._action_distribution(x)
+        action_distribution, _ = self._action_distribution(x)
 
-            if self.is_action_discrete:
-                action = action_distribution.sample(reparameterize=True, hard=True)
-            else:
-                raw_action = action_distribution.sample()
-                action = tf.tanh(raw_action)
+        if self.is_action_discrete:
+            action = action_distribution.sample(reparameterize=True, hard=True)
+        else:
+            raw_action = action_distribution.sample()
+            action = tf.tanh(raw_action)
 
         return action
 
     @tf.Module.with_name_scope
     def train_step(self, x):
-        with tf.name_scope('train_step'):
-            action_distribution, _ = self._action_distribution(x)
+        action_distribution, _ = self._action_distribution(x)
 
-            if self.is_action_discrete:
-                action = action_distribution.sample(reparameterize=True, hard=True)
-                logpi = action_distribution.logp(action)
-                assert len(action.shape) == len(logpi.shape) == 2
-            else:
-                raw_action = action_distribution.sample(reparameterize=True)
-                raw_logpi = action_distribution.logp(raw_action)
-                action = tf.tanh(raw_action)
-                logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
+        if self.is_action_discrete:
+            action = action_distribution.sample(reparameterize=True, hard=True)
+            logpi = action_distribution.logp(action)
+        else:
+            raw_action = action_distribution.sample(reparameterize=True)
+            raw_logpi = action_distribution.logp(raw_action)
+            action = tf.tanh(raw_action)
+            logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
-            terms = dict(entropy=action_distribution.entropy())
+        terms = dict(entropy=action_distribution.entropy())
 
         return action, logpi, terms
 
@@ -168,16 +163,15 @@ class SoftQ(tf.Module):
         # ]
         # self.step = build(self._step, TensorSpecs)
 
-    @tf.function(experimental_relax_shapes=True)
-    def step(self, x, a):
-        return self.train_value(x, a)
+    # @tf.function(experimental_relax_shapes=True)
+    # def step(self, x, a):
+    #     return self.train_value(x, a)
 
     @tf.Module.with_name_scope
     def train_value(self, x, a):
-        with tf.name_scope('step'):
-            x = tf.concat([x, a], axis=-1)
-            x = self.intra_layers(x)
-            x = tf.squeeze(x)
+        x = tf.concat([x, a], axis=-1)
+        x = self.intra_layers(x)
+        x = tf.squeeze(x)
             
         return x
 
@@ -214,16 +208,15 @@ class Temperature(tf.Module):
     
     @tf.Module.with_name_scope
     def train_step(self, x, a):
-        with tf.name_scope('step'):
-            if self.temp_type == 'state-action':
-                x = tf.concat([x, a], axis=-1)
-                x = self.intra_layer(x)
-                log_temp = -tf.nn.relu(x)
-            else:
-                log_temp = self.log_temp
-            log_temp = tf.squeeze(log_temp)
-            temp = tf.exp(log_temp)
-        
+        if self.temp_type == 'state-action':
+            x = tf.concat([x, a], axis=-1)
+            x = self.intra_layer(x)
+            log_temp = -tf.nn.relu(x)
+        else:
+            log_temp = self.log_temp
+        log_temp = tf.squeeze(log_temp)
+        temp = tf.exp(log_temp)
+    
         return log_temp, temp
 
     def get_weights(self):

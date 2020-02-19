@@ -144,7 +144,7 @@ class Agent(BaseAgent):
 
         return terms
 
-    def _compute_grads(self, state, action, reward, next_state, done, steps=1):
+    def _compute_grads(self, IS_ratio, state, action, reward, next_state, done, steps=1):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
         if self.is_action_discrete:
             old_action = tf.one_hot(action, self.action_dim)

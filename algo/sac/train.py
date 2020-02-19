@@ -35,10 +35,7 @@ def train(agent, env, replay):
         seed=0,
     ))
     start_step = agent.global_steps.numpy() + 1
-    scores = deque(maxlen=100)
-    epslens = deque(maxlen=100)
-    eval_scores = deque(maxlen=10)
-    eval_epslens = deque(maxlen=10)
+
     print('Training started...')
     step = start_step
     log_step = LOG_INTERVAL
@@ -47,9 +44,8 @@ def train(agent, env, replay):
         with TBTimer(f'trajectory', agent.TIME_INTERVAL, to_log=agent.timer):
             score, epslen = run(
                 env, agent.actor, fn=collect_and_learn, timer=agent.timer, step=step)
+        agent.store(score=env.get_score(), epslen=env.get_epslen())
         step += epslen
-        scores.append(score)
-        epslens.append(epslen)
         
         if step > log_step:
             log_step += LOG_INTERVAL
@@ -59,21 +55,13 @@ def train(agent, env, replay):
             with TBTimer(f'evaluation', agent.TIME_INTERVAL, to_log=agent.timer):
                 eval_score, eval_epslen = run(
                     eval_env, agent.actor, evaluation=True, timer=agent.timer, name='eval')
-            eval_scores.append(eval_score)
-            eval_epslens.append(eval_epslen)
             
-            agent.store(
-                score=np.mean(scores),
-                score_std=np.std(scores),
-                score_max=np.max(scores),
-                epslen=np.mean(epslens),
-                epslen_std=np.std(epslens),
-                eval_score=np.mean(eval_scores),
-                eval_score_std=np.std(eval_scores),
-                eval_score_max=np.max(eval_scores),
-                eval_epslen=np.mean(eval_epslens),
-                eval_epslen_std=np.std(eval_epslens),
-            )
+            agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
+            agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('epslen', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
+
             agent.log(step)
 
 
@@ -116,6 +104,46 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         agent=agent_config,
         replay=replay_config
     ))
+
+    state = env.reset()
+    eval_env = create_gym_env(dict(
+        name=env.name, 
+        video_path='video',
+        log_video=False,
+        n_workers=1,
+        n_envs=10,
+        effective_envvec=True,
+        seed=0,
+    ))
+
+    for t in range(int(agent.MAX_STEPS)):
+        if t > 1e4:
+            action = agent.actor.action(tf.expand_dims(state, 0))[0]
+        else:
+            action = env.random_action()
+
+        next_state, reward, done, _ = env.step(action)
+        replay.add(state=state, action=action, reward=reward, done=done, next_state=next_state)
+        state = next_state
+
+        if done:
+            agent.store(score=env.get_score(), epslen=env.get_epslen())
+            state = env.reset()
+
+        if t > 1000 and t % 50 == 0:
+            for _ in range(50):
+                agent.learn_log()
+        if (t + 1) % 4000 == 0:
+            eval_score, eval_epslen = run(eval_env, agent.actor)
+
+            agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
+            agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('epslen', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
+            
+            agent.log(step=t)
+
 
     if restore:
         agent.restore()

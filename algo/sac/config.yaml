@@ -65,6 +65,6 @@ replay:
     n_steps: 1
     gamma: *gamma
     batch_size: 100
-    min_size: 1e4
+    min_size: 1e3
     capacity: 1e6
-    has_next_state: True
+    has_next_state: False
