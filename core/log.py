@@ -66,6 +66,9 @@ def setup_tensorboard(root_dir, model_name):
 
 def save_code(root_dir, model_name):
     dest_dir = f'{root_dir}/{model_name}/src'
+    if os.path.isdir(dest_dir):
+        shutil.rmtree(dest_dir)
+    
     shutil.copytree('.', dest_dir, ignore=shutil.ignore_patterns('*logs*', '.*', '*pycache*', '*.md'))
 
 class Logger:

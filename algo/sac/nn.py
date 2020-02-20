@@ -55,58 +55,44 @@ class SoftPolicy(tf.Module):
         self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
 
         # build for variable initialization and avoiding unintended retrace
-        TensorSpecs = [(state_shape, tf.float32, 'state')]
-        self.action = build(self._action, TensorSpecs)
-        self.det_action = build(self._det_action, TensorSpecs)
+        # TensorSpecs = [(state_shape, tf.float32, 'state')]
+        # self.action = build(self._action, TensorSpecs)
 
     @tf.function(experimental_relax_shapes=True)
-    def _action(self, x):
-        action_distribution, _ = self._action_distribution(x)
+    def action(self, x, deterministic=False):
+        print(f'action retrace: {x.shape}, {deterministic}')
+        x = self.intra_layers(x)
+        mu = self.mu(x)
 
-        if self.is_action_discrete:
-            action = action_distribution.sample(reparameterize=False, one_hot=False)
+        if deterministic:
+            action = tf.tanh(mu)
+            terms = dict(action_std=tf.zeros_like(action))
         else:
+            logstd = self.logstd(x)
+            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+
+            action_distribution = self.ActionDistributionType(mu, logstd)
             raw_action = action_distribution.sample()
             action = tf.tanh(raw_action)
 
-        terms = dict(action_std=action_distribution.std)
+            terms = dict(action_std=action_distribution.std)
 
         return action, terms
 
-    @tf.function(experimental_relax_shapes=True)
-    @tf.Module.with_name_scope
-    def _det_action(self, x):
+    def train_step(self, x):
         x = self.intra_layers(x)
 
         if self.is_action_discrete:
             logits = self.logits(x)
-            action = tf.argmax(logits, axis=-1)
-        else:
-            mu = self.mu(x)
-            action = tf.tanh(mu)
-
-        return action, dict(action_std=tf.zeros_like(action))
-
-    @tf.Module.with_name_scope
-    def train_action(self, x):
-        action_distribution, _ = self._action_distribution(x)
-
-        if self.is_action_discrete:
-            action = action_distribution.sample(reparameterize=True, hard=True)
-        else:
-            raw_action = action_distribution.sample()
-            action = tf.tanh(raw_action)
-
-        return action
-
-    @tf.Module.with_name_scope
-    def train_step(self, x):
-        action_distribution, _ = self._action_distribution(x)
-
-        if self.is_action_discrete:
+            action_distribution = self.ActionDistributionType(logits, self.tau)
             action = action_distribution.sample(reparameterize=True, hard=True)
             logpi = action_distribution.logp(action)
         else:
+            mu = self.mu(x)
+            logstd = self.logstd(x)
+            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+
+            action_distribution = self.ActionDistributionType(mu, logstd)
             raw_action = action_distribution.sample(reparameterize=True)
             raw_logpi = action_distribution.logp(raw_action)
             action = tf.tanh(raw_action)
@@ -115,21 +101,6 @@ class SoftPolicy(tf.Module):
         terms = dict(entropy=action_distribution.entropy())
 
         return action, logpi, terms
-
-    def _action_distribution(self, x):
-        x = self.intra_layers(x)
-        
-        if self.is_action_discrete:
-            logits = self.logits(x)
-            action_distribution = self.ActionDistributionType(logits, self.tau)
-        else:
-            mu = self.mu(x)
-            logstd = self.logstd(x)
-            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-
-            action_distribution = self.ActionDistributionType(mu, logstd)
-
-        return action_distribution, x
 
     def get_weights(self):
         return [v.numpy() for v in self.variables]
@@ -167,8 +138,7 @@ class SoftQ(tf.Module):
     # def step(self, x, a):
     #     return self.train_value(x, a)
 
-    @tf.Module.with_name_scope
-    def train_value(self, x, a):
+    def train_step(self, x, a):
         x = tf.concat([x, a], axis=-1)
         x = self.intra_layers(x)
         x = tf.squeeze(x)

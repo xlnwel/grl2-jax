@@ -118,7 +118,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     for t in range(int(agent.MAX_STEPS)):
         if t > 1e4:
-            action = agent.actor.action(tf.expand_dims(state, 0))[0]
+            action, _ = agent.action(state)
         else:
             action = env.random_action()
 
@@ -130,11 +130,11 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
             agent.store(score=env.get_score(), epslen=env.get_epslen())
             state = env.reset()
 
-        if t > 1000 and t % 50 == 0:
+        if replay.good_to_learn() and t % 50 == 0:
             for _ in range(50):
                 agent.learn_log()
         if (t + 1) % 4000 == 0:
-            eval_score, eval_epslen = run(eval_env, agent.actor)
+            eval_score, eval_epslen = run(eval_env, agent.actor, evaluation=True)
 
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
             agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
@@ -145,12 +145,12 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
             agent.log(step=t)
 
 
-    if restore:
-        agent.restore()
-        collect_fn = lambda **kwargs: replay.add(**kwargs)      
-        while not replay.good_to_learn():
-            run(env, agent.actor, collect_fn)
-    else:
-        random_sampling(env, replay)
+    # if restore:
+    #     agent.restore()
+    #     collect_fn = lambda **kwargs: replay.add(**kwargs)      
+    #     while not replay.good_to_learn():
+    #         run(env, agent.actor, collect_fn)
+    # else:
+    #     random_sampling(env, replay)
 
-    train(agent, env, replay)
+    # train(agent, env, replay)

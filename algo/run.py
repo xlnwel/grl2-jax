@@ -56,7 +56,7 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
                 env.render()
             state_expanded = np.expand_dims(state, 0)
             with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-                action, terms = action_fn(tf.convert_to_tensor(state_expanded, tf.float32))
+                action, terms = actor.action(tf.convert_to_tensor(state_expanded, tf.float32), deterministic=evaluation)
             action = action.numpy()[0]
             action += np.random.normal(scale=epsilon, size=action.shape)
             terms = dict((k, v.numpy()[0]) for k, v in terms.items())
@@ -92,11 +92,10 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False,
         fn: a function that specifies what to do after each env step
     """
     state = envvec.reset()
-    action_fn = actor.det_action if evaluation else actor.action
 
     for _ in range(envvec.max_episode_steps):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, terms = action_fn(tf.convert_to_tensor(state, tf.float32))
+            action, terms = actor.action(tf.convert_to_tensor(state, tf.float32), deterministic=evaluation)
         action = action.numpy()
         action += np.random.normal(scale=epsilon, size=action.shape)
         terms = dict((k, v.numpy()) for k, v in terms.items())
@@ -127,11 +126,10 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
         fn: a function that specifies what to do after each env step
     """
     state = envvec.reset()
-    action_fn = actor.det_action if evaluation else actor.action
 
     for _ in range(envvec.max_episode_steps):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, terms = action_fn(tf.convert_to_tensor(state, tf.float32))
+            action, terms = actor.action(tf.convert_to_tensor(state, tf.float32), deterministic=evaluation)
         action = action.numpy()
         action += np.random.normal(scale=epsilon, size=action.shape)
         terms = dict((k, v.numpy()) for k, v in terms.items())
@@ -165,7 +163,6 @@ def run_trajectory_ar(env, actor, *, fn=None, evaluation=False,
         fn: a function that specifies what to do after each env step
         step: environment step
     """
-    action_fn = actor.det_action if evaluation else actor.action
 
     while True:
         state = env.reset()
@@ -174,7 +171,7 @@ def run_trajectory_ar(env, actor, *, fn=None, evaluation=False,
                 env.render()
             state_expanded = np.expand_dims(state, 0)
             with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-                action, n_ar = action_fn(tf.convert_to_tensor(state_expanded, tf.float32))
+                action, n_ar = actor.action(tf.convert_to_tensor(state_expanded, tf.float32), deterministic=evaluation)
             action = action.numpy()[0]
             action += np.random.normal(scale=epsilon, size=action.shape)
             n_ar = n_ar.numpy()
@@ -210,11 +207,10 @@ def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False,
         fn: a function that specifies what to do after each env step
     """
     state = envvec.reset()
-    action_fn = actor.det_action if evaluation else actor.action
 
     for _ in range(envvec.max_episode_steps):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, n_ar = action_fn(tf.convert_to_tensor(state, tf.float32))
+            action, n_ar = actor.action(tf.convert_to_tensor(state, tf.float32), deterministic=evaluation)
         action = action.numpy()
         action += np.random.normal(scale=epsilon, size=action.shape)
         n_ar.numpy()
@@ -240,11 +236,10 @@ def run_trajectories2_ar(envvec, actor, fn=None, evaluation=False,
         fn: a function that specifies what to do after each env step
     """
     state = envvec.reset()
-    action_fn = actor.det_action if evaluation else actor.action
 
     for _ in range(envvec.max_episode_steps):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, n_ar = action_fn(tf.convert_to_tensor(state, tf.float32))
+            action, n_ar = actor.action(tf.convert_to_tensor(state, tf.float32), deterministic=evaluation)
         action = action.numpy()
         action += np.random.normal(scale=epsilon, size=action.shape)
         n_ar.numpy()
@@ -280,12 +275,11 @@ def run_steps(envvec, actor, state, steps=None, fn=None, evaluation=False, timer
     # and step will automatically reset at done
     assert get_wrapper_by_name(envvec, 'AutoReset')
     steps = steps or envvec.max_episode_steps
-    action_fn = actor.det_action if evaluation else actor.action
 
     scores, epslens = [], []
     for _ in range(steps):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action = action_fn(tf.convert_to_tensor(state, tf.float32))
+            action = actor.action(tf.convert_to_tensor(state, tf.float32), deterministic=evaluation)
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, _ = envvec.step(action.numpy())
         if np.any(done):

@@ -39,23 +39,23 @@ def agent_config(init_fn):
         """ For the basic configuration, see config.yaml in algo/*/ """
         [setattr(self, k, v) for k, v in config.items()]
 
-        self.logger = setup_logger(self.root_dir, self.model_name)
-        self.writer = setup_tensorboard(self.root_dir, self.model_name)
-
         # track models and optimizers for Checkpoint
         self.ckpt_models = {}
         for name_, model in models.items():
             setattr(self, name_, model)
             if isinstance(model, tf.Module) or isinstance(model, tf.Variable):
                 self.ckpt_models[name_] = model
+                
+        # Agent initialization
+        init_fn(self, name=self.name, config=config, models=models, **kwargs)
+
+        self.logger = setup_logger(self.root_dir, self.model_name)
+        self.writer = setup_tensorboard(self.root_dir, self.model_name)
 
         # define global steps for train/env step tracking
         self.global_steps = tf.Variable(0, dtype=tf.int64)
 
         save_code(self.root_dir, self.model_name)
-
-        # Agent initialization
-        init_fn(self, name=self.name, config=config, models=models, **kwargs)
 
         # postprocessing
         self.ckpt, self.ckpt_path, self.ckpt_manager = \
