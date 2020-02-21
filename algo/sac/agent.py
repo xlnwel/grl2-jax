@@ -60,7 +60,6 @@ class Agent(BaseAgent):
                                     epsilon=self.epsilon)
             self.ckpt_models['temp_opt'] = self.temp_opt
 
-        self.state_shape = env.state_shape
         self.action_dim = env.action_dim
         self.is_action_discrete = env.is_action_discrete
 
@@ -78,12 +77,8 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
 
-    def action(self, state, deterministic=False):
-        state = np.reshape(state, [-1, *self.state_shape])
-        action, terms = self.actor.action(state, deterministic=deterministic)
-        action = np.squeeze(action.numpy())
-        terms = dict((k, v.numpy()[0]) for k, v in terms.items())
-        return action, terms
+    def action(self, state, deterministic=False, epsilon=0):
+        return self.actor.action(state, deterministic=deterministic, epsilon=epsilon)
 
     def learn_log(self, step=None):
         if step:
@@ -152,7 +147,7 @@ class Agent(BaseAgent):
                 if getattr(self, 'clip_norm', None) is not None:
                     temp_grads, temp_norm = tf.clip_by_global_norm(temp_grads, self.clip_norm)
                     terms['temp_norm'] = temp_norm
-            self.temp_opt.apply_gradients(zip(temp_grads, self.temperature.trainable_variables))
+                self.temp_opt.apply_gradients(zip(temp_grads, self.temperature.trainable_variables))
 
         return terms
 

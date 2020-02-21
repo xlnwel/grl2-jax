@@ -102,6 +102,9 @@ class Env(EnvBase):
     def get_epslen(self):
         return self.env.get_epslen()
 
+    def ge_already_done(self):
+        return self.env.already_done
+
     def close(self):
         del self
 
@@ -138,6 +141,9 @@ class EnvVec(EnvBase):
 
     def get_epslen(self):
         return np.asarray([env.get_epslen() for env in self.envs])
+
+    def get_already_done(self):
+        return np.asarray([env.already_done for env in self.envs], dtype=bool)
 
     def close(self):
         del self

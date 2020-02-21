@@ -47,21 +47,17 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
         fn: a function that specifies what to do after each env step
         step: environment step
     """
-    action_fn = actor.det_action if evaluation else actor.action
-
     while True:
         state = env.reset()
         for i in range(1, env.max_episode_steps+1):
             if render:
                 env.render()
-            state_expanded = np.expand_dims(state, 0)
             with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-                action, terms = actor.action(tf.convert_to_tensor(state_expanded, tf.float32), deterministic=evaluation)
-            action = action.numpy()[0]
-            action += np.random.normal(scale=epsilon, size=action.shape)
-            terms = dict((k, v.numpy()[0]) for k, v in terms.items())
+                action, terms = actor.action(state, evaluation, epsilon)
             with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
                 next_state, reward, done, _ = env.step(action)
+            # ignore done signal if the time limit is reached
+            done = False if i == env.max_episode_steps else done
             if fn:
                 if step is None:
                     fn(state=state, action=action, reward=reward, 
@@ -93,14 +89,13 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False,
     """
     state = envvec.reset()
 
-    for _ in range(envvec.max_episode_steps):
+    for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, terms = actor.action(tf.convert_to_tensor(state, tf.float32), deterministic=evaluation)
-        action = action.numpy()
-        action += np.random.normal(scale=epsilon, size=action.shape)
-        terms = dict((k, v.numpy()) for k, v in terms.items())
+            action, terms = actor.action(state, evaluation, epsilon)
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, _ = envvec.step(action)
+        # ignore done signal if the time limit is reached
+        done = np.where(envvec.get_already_done() | i != envvec.max_episode_steps, done, False)
         if fn:
             if step is None:
                 fn(state=state, action=action, reward=reward, done=done, 
@@ -127,14 +122,13 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
     """
     state = envvec.reset()
 
-    for _ in range(envvec.max_episode_steps):
+    for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, terms = actor.action(tf.convert_to_tensor(state, tf.float32), deterministic=evaluation)
-        action = action.numpy()
-        action += np.random.normal(scale=epsilon, size=action.shape)
-        terms = dict((k, v.numpy()) for k, v in terms.items())
+            action, terms = actor.action(state, evaluation, epsilon)
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, info = envvec.step(action)
+        # ignore done signal if the time limit is reached
+        done = np.where(envvec.get_already_done() | i != envvec.max_episode_steps, done, False)
         if fn:
             env_ids = [i['env_id'] for i in info]
             if step is None:
@@ -169,14 +163,15 @@ def run_trajectory_ar(env, actor, *, fn=None, evaluation=False,
         for i in range(1, env.max_episode_steps+1):
             if render:
                 env.render()
-            state_expanded = np.expand_dims(state, 0)
             with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-                action, n_ar = actor.action(tf.convert_to_tensor(state_expanded, tf.float32), deterministic=evaluation)
+                action, n_ar = actor.action(state, deterministic=evaluation)
             action = action.numpy()[0]
             action += np.random.normal(scale=epsilon, size=action.shape)
             n_ar = n_ar.numpy()
             with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
                 next_state, reward, done, info = env.step(action, n_ar=n_ar+1)#, gamma=actor.gamma)
+            # ignore done signal if the time limit is reached
+            done = False if i == env.max_episode_steps else done
             n_ar = info['n_ar'] - 1
             if fn:
                 if step is None:
@@ -208,15 +203,17 @@ def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False,
     """
     state = envvec.reset()
 
-    for _ in range(envvec.max_episode_steps):
+    for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, n_ar = actor.action(tf.convert_to_tensor(state, tf.float32), deterministic=evaluation)
+            action, n_ar = actor.action(state, deterministic=evaluation)
         action = action.numpy()
         action += np.random.normal(scale=epsilon, size=action.shape)
         n_ar.numpy()
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, info = envvec.step(action, n_ar=n_ar+1)#, gamma=actor.gamma)
-            n_ar = np.array([i['n_ar'] for i in info]) - 1
+        # ignore done signal if the time limit is reached
+        done = np.where(envvec.get_already_done() | i != envvec.max_episode_steps, done, False)
+        n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
             fn(state=state, action=action, n_ar=n_ar, reward=reward, done=done, 
                 next_state=next_state, mask=envvec.get_mask())
@@ -237,15 +234,17 @@ def run_trajectories2_ar(envvec, actor, fn=None, evaluation=False,
     """
     state = envvec.reset()
 
-    for _ in range(envvec.max_episode_steps):
+    for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, n_ar = actor.action(tf.convert_to_tensor(state, tf.float32), deterministic=evaluation)
+            action, n_ar = actor.action(state, deterministic=evaluation)
         action = action.numpy()
         action += np.random.normal(scale=epsilon, size=action.shape)
         n_ar.numpy()
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, info = envvec.step(action, n_ar=n_ar+1)
-            n_ar = np.array([i['n_ar'] for i in info]) - 1
+        # ignore done signal if the time limit is reached
+        done = np.where(envvec.get_already_done() | i != envvec.max_episode_steps, done, False)
+        n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
             env_ids = [i['env_id'] for i in info]
             fn(state=state, action=action, n_ar=n_ar, reward=reward, done=done, 

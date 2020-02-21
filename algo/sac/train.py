@@ -72,7 +72,6 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     env = create_gym_env(env_config)
 
-    # construct replay
     replay = create_replay(replay_config)
     data_format = dict(
         state=(env.state_dtype, (None, *env.state_shape)),
@@ -84,14 +83,12 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     )
     dataset = Dataset(replay, data_format)
 
-    # construct models
     models = create_model(
         model_config, 
         state_shape=env.state_shape, 
         action_dim=env.action_dim, 
         is_action_discrete=env.is_action_discrete)
 
-    # construct agent
     agent = Agent(name='sac', 
                 config=agent_config, 
                 models=models, 
@@ -116,6 +113,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         seed=0,
     ))
 
+    epslen = 0
     for t in range(int(agent.MAX_STEPS)):
         if t > 1e4:
             action, _ = agent.action(state)
@@ -123,12 +121,15 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
             action = env.random_action()
 
         next_state, reward, done, _ = env.step(action)
+        epslen += 1
+        done = False if epslen == env.max_episode_steps else done
         replay.add(state=state, action=action, reward=reward, done=done, next_state=next_state)
         state = next_state
 
         if done:
             agent.store(score=env.get_score(), epslen=env.get_epslen())
             state = env.reset()
+            epslen = 0
 
         if replay.good_to_learn() and t % 50 == 0:
             for _ in range(50):

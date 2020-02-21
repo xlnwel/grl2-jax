@@ -61,7 +61,7 @@ class EnvStats(gym.Wrapper):
 
     def get_mask(self):
         """ Get mask at the current step. Should only be called after self.step """
-        return self.mask
+        return bool(self.mask)
 
     def get_score(self):
         return self.score

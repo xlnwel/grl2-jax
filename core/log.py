@@ -84,12 +84,6 @@ class Logger:
             log_file (string): Name for the tab-separated-value file 
                 containing metrics logged throughout a training run. 
                 Defaults to ``progress.txt``. 
-
-            exp_name (string): Experiment name. If you run multiple training
-                runs and give them all the same ``exp_name``, the plotter
-                will know to group them. (Use case: if you run the same
-                hyperparameter configuration with multiple random seeds, you
-                should give them all the same ``exp_name``.)
         """
         log_file = log_file if log_file.endswith('log.txt') else log_file + '/log.txt'
         self.log_dir = log_dir or f"/tmp/experiments/{time.time()}"

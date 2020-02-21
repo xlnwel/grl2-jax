@@ -15,6 +15,7 @@ class SoftPolicy(tf.Module):
 
         # network parameters
         self.is_action_discrete = is_action_discrete
+        self.state_shape = state_shape
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
@@ -55,11 +56,26 @@ class SoftPolicy(tf.Module):
         self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
 
         # build for variable initialization and avoiding unintended retrace
-        # TensorSpecs = [(state_shape, tf.float32, 'state')]
-        # self.action = build(self._action, TensorSpecs)
+        TensorSpecs = [(state_shape, tf.float32, 'state'), ((), tf.bool, 'deterministic')]
+        self._action = build(self._action_impl, TensorSpecs)
+    
+    def action(self, x, deterministic=False, epsilon=0):
+        x = tf.convert_to_tensor(x, tf.float32)
+        x = tf.reshape(x, [-1, *self.state_shape])
+        deterministic = tf.convert_to_tensor(deterministic, tf.bool)
+
+        action, terms = self._action(x, deterministic)
+
+        action = np.squeeze(action.numpy())
+        terms = dict((k, np.squeeze(v.numpy())) for k, v in terms.items())
+
+        if epsilon:
+            action += np.random.normal(scale=epsilon, size=action.shape)
+
+        return action, terms
 
     @tf.function(experimental_relax_shapes=True)
-    def action(self, x, deterministic=False):
+    def _action_impl(self, x, deterministic=False):
         print(f'action retrace: {x.shape}, {deterministic}')
         x = self.intra_layers(x)
         mu = self.mu(x)
