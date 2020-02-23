@@ -177,7 +177,8 @@ class Agent(BaseAgent):
             next_q2 = self.target_q2.train_step(next_state, next_action)
             next_q = tf.minimum(next_q1, next_q2)
 
-            target_q = tf.stop_gradient(reward + self.gamma * (1. - done) * (next_q - self.temperature * next_logpi))
+            nth_value = next_q - self.temperature * next_logpi
+            target_q = n_step_target(reward, done, nth_value, self.gamma, steps)
 
             q1_loss = .5 * tf.reduce_mean((target_q - q1)**2)
             q2_loss = .5 * tf.reduce_mean((target_q - q2)**2)
@@ -193,6 +194,7 @@ class Agent(BaseAgent):
             )
 
         grads = tape.gradient(q_loss, self.q1.trainable_variables + self.q2.trainable_variables)
+
         return grads, terms
 
     def _compute_grads(self, IS_ratio, state, action, reward, next_state, done, steps=1):
@@ -301,8 +303,8 @@ class Agent(BaseAgent):
 
     @tf.function
     def _update_target_nets(self):
-        tvars = self.target_q1.variables + self.target_q2.variables
-        mvars = self.q1.variables + self.q2.variables
+        tvars = self.target_q1.trainable_variables + self.target_q2.trainable_variables
+        mvars = self.q1.trainable_variables + self.q2.trainable_variables
         assert len(tvars) == len(mvars)
         [tvar.assign(self.polyak * tvar + (1. - self.polyak) * mvar) 
             for tvar, mvar in zip(tvars, mvars)]

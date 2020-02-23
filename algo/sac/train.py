@@ -126,7 +126,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         replay.add(state=state, action=action, reward=reward, done=done, next_state=next_state)
         state = next_state
 
-        if done:
+        if done or epslen == env.max_episode_steps:
             agent.store(score=env.get_score(), epslen=env.get_epslen())
             state = env.reset()
             epslen = 0

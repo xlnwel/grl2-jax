@@ -51,9 +51,9 @@ def import_learner_class(agent_config, BaseAgent):
 def get_bph_config(agent_config):
     """ get configure file for BipedalWalkerHardcore-v2 """
     if agent_config['algorithm'].startswith('asap'):
-        config_file = 'algo/asap/bph_sac_config.yaml'
+        config_file = 'algo/asap/bwh_sac_config.yaml'
     elif agent_config['algorithm'].startswith('apex'):
-        config_file = 'algo/apex/bph_sac_config.yaml'
+        config_file = 'algo/apex/bwh_sac_config.yaml'
     else:
         raise NotImplementedError
     
@@ -65,7 +65,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     else:
         ray.init(memory=8*1024**3, object_store_memory=7*1024**3)
     
-    if env_config['name'] == 'BipedalWalkerHardcore-v2':
+    if env_config['name'].startswith('BipedalWalkerHardcore'):
         # Caveat: this keeps most default configuration
         algorithm = agent_config['algorithm']
         root_dir = agent_config['root_dir']
