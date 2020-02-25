@@ -21,6 +21,7 @@ class Agent(BaseAgent):
                 env):
         # dataset for input pipline optimization
         self.dataset = dataset
+        self.is_per = not self.dataset.buffer_type().endswith('uniform')
         
         # learning rate schedule
         if getattr(self, 'schedule_lr', False):
@@ -64,17 +65,16 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            IS_ratio=([1], tf.float32, 'IS_ratio'),
+            IS_ratio=((), tf.float32, 'IS_ratio'),
             state=(env.state_shape, tf.float32, 'state'),
             action=([env.action_dim], tf.float32, 'action'),
-            reward=([1], tf.float32, 'reward'),
+            reward=((), tf.float32, 'reward'),
             next_state=(env.state_shape, tf.float32, 'next_state'),
-            done=([1], tf.float32, 'done'),
-            steps=([1], tf.float32, 'steps'),
+            done=((), tf.float32, 'done'),
+            steps=((), tf.float32, 'steps'),
             mu=([env.action_dim], tf.float32, 'mu'),
             std=([env.action_dim], tf.float32, 'std'),
-            logpi=([1], tf.float32, 'logpi'),
-            kl_flag=([1], tf.float32, 'kl_flag'),
+            kl_flag=((), tf.float32, 'kl_flag'),
         )
         self.learn = build(self._learn, TensorSpecs)
 
@@ -92,12 +92,15 @@ class Agent(BaseAgent):
             self.temperature.assign(self.temp_schedule.value(self.global_steps.numpy()))
         with TBTimer(f'{self.model_name} sample', 10000, to_log=self.timer):
             data = self.dataset.sample()
-        if not self.dataset.buffer_type().endswith('uniform'):
+        if self.is_per:
             saved_indices = data['saved_indices']
             del data['saved_indices']
 
         with TBTimer(f'{self.model_name} learn', 10000, to_log=self.timer):
             terms = self.learn(**data)
+
+        for k, v in terms.items():
+            terms[k] = v.numpy()
 
         self._update_target_nets()
 
@@ -107,21 +110,14 @@ class Agent(BaseAgent):
             if not isinstance(self.temperature, (float, tf.Variable)):
                 terms['temp_lr'] = self.temp_lr.numpy()
             
-        if not self.dataset.buffer_type().endswith('uniform'):
-            self.dataset.update_priorities(terms['priority'].numpy(), saved_indices.numpy())
+        if self.is_per:
+            self.dataset.update_priorities(terms['priority'], saved_indices.numpy())
         self.store(**terms)
 
     @tf.function
     def _learn(self, **kwargs):
         with tf.name_scope('grads'):
             grads, terms = self._compute_grads(**kwargs)
-        if not isinstance(self.temperature, (float, tf.Variable)):
-            with tf.name_scope('temp_update'):
-                temp_grads = grads['temp_grads']
-                if getattr(self, 'clip_norm', None) is not None:
-                    temp_grads, temp_norm = tf.clip_by_global_norm(temp_grads, self.clip_norm)
-                    terms['temp_norm'] = temp_norm
-            self.temp_opt.apply_gradients(zip(temp_grads, self.temperature.trainable_variables))
 
         with tf.name_scope('actor_update'):
             actor_grads = grads['actor_grads']
@@ -138,10 +134,18 @@ class Agent(BaseAgent):
             self.q_opt.apply_gradients(
                 zip(q_grads, self.q1.trainable_variables + self.q2.trainable_variables))
 
+        if not isinstance(self.temperature, (float, tf.Variable)):
+            with tf.name_scope('temp_update'):
+                temp_grads = grads['temp_grads']
+                if getattr(self, 'clip_norm', None) is not None:
+                    temp_grads, temp_norm = tf.clip_by_global_norm(temp_grads, self.clip_norm)
+                    terms['temp_norm'] = temp_norm
+                self.temp_opt.apply_gradients(zip(temp_grads, self.temperature.trainable_variables))
+
         return terms
 
     def _compute_grads(self, IS_ratio, state, action, reward, next_state, done, steps,
-                        mu, std, logpi, kl_flag):
+                        mu, std, kl_flag):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
         if self.is_action_discrete:
             old_action = tf.one_hot(action, self.action_dim)
@@ -149,57 +153,64 @@ class Agent(BaseAgent):
             old_action = action
         old_mu = mu
         old_std = std
-        old_logpi = logpi
         target_fn = (transformed_n_step_target if getattr(self, 'tbo', False) 
                     else n_step_target)
         with tf.GradientTape(persistent=True) as tape:
             action, logpi, terms = self.actor.train_step(state)
-            q1_with_actor = self.q1.train_value(state, action)
-            q2_with_actor = self.q2.train_value(state, action)
+            q1_with_actor = self.q1.train_step(state, action)
+            q2_with_actor = self.q2.train_step(state, action)
             q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
 
             next_action, next_logpi, _ = self.actor.train_step(next_state)
-            next_q1_with_actor = self.target_q1.train_value(next_state, next_action)
-            next_q2_with_actor = self.target_q2.train_value(next_state, next_action)
+            next_q1_with_actor = self.target_q1.train_step(next_state, next_action)
+            next_q2_with_actor = self.target_q2.train_step(next_state, next_action)
             next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
             
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = next_temp = self.temperature
-                log_temp = tf.math.log(temp)
             else:
                 log_temp, temp = self.temperature.train_step(state, action)
                 _, next_temp = self.temperature.train_step(next_state, next_action)
+                terms['temp'] = temp
                 with tf.name_scope('temp_loss'):
-                    temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
-                                * tf.stop_gradient(logpi + target_entropy))
+                    temp_loss = -tf.reduce_mean(IS_ratio * log_temp * tf.stop_gradient(logpi + target_entropy))
 
-            q1 = self.q1.train_value(state, old_action)
-            q2 = self.q2.train_value(state, old_action)
+            q1 = self.q1.train_step(state, old_action)
+            q2 = self.q2.train_step(state, old_action)
 
             mu = terms['mu']
             std = terms['std']
             kl = tf.reduce_sum(tf.math.log(std) - tf.math.log(old_std) - .5
                              + .5 * (old_std**2 + (old_mu - mu)**2)
                                 / (std + 1e-7)**2, axis=-1)
-            # kl = .5 * (old_logpi - logpi)**2
-
-            # ratio = tf.exp(logpi - old_logpi, name='ratio')
-            # clipped_ratio = tf.where(ratio <= 1. + self.clip_range, ratio, - self.clip_range)
-            # actor_mask = tf.where(clipped_ratio >= 1. - self.clip_range, 1., 0.)
+            tf.debugging.assert_shapes(
+                [(IS_ratio, (None,)),
+                (q1, (None,)), 
+                (q2, (None,)), 
+                (logpi, (None,)), 
+                (q_with_actor, (None,)), 
+                (next_q_with_actor, (None,)),
+                (kl, (None,)),
+                (kl_flag, (None,))]
+            )
             
             with tf.name_scope('actor_loss'):
-                actor_loss = tf.reduce_mean(IS_ratio * (tf.stop_gradient(temp) * logpi - q_with_actor)
-                    + self.kl_coef * kl_flag * kl)
+                actor_loss = tf.reduce_mean(IS_ratio * (tf.stop_gradient(temp) * logpi - q_with_actor
+                    + self.kl_coef * kl_flag * kl))
 
             with tf.name_scope('q_loss'):
                 nth_value = next_q_with_actor - next_temp * next_logpi
+                
+                tf.debugging.assert_shapes([(nth_value, (None,)), (reward, (None,)), (done, (None,)), (steps, (None,))])
                 
                 target_q = target_fn(reward, done, nth_value, self.gamma, steps)
                 q1_error = target_q - q1
                 q2_error = target_q - q2
 
-                q1_loss = .5 * tf.reduce_mean(IS_ratio * tf.square(q1_error))
-                q2_loss = .5 * tf.reduce_mean(IS_ratio * tf.square(q2_error))
+                tf.debugging.assert_shapes([(q1_error, (None,)), (q2_error, (None,))])
+
+                q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
+                q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
                 q_loss = q1_loss + q2_loss
             
         with tf.name_scope('actor_grads'):
@@ -209,10 +220,9 @@ class Agent(BaseAgent):
             q_grads = tape.gradient(q_loss, 
                 self.q1.trainable_variables + self.q2.trainable_variables)
 
-        if self.dataset.buffer_type().endswith('uniform'):
-            priority = 1
-        else:
+        if self.is_per:
             priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
+            terms['priority'] = priority
             
         grads = dict(
             actor_grads=actor_grads,
@@ -228,8 +238,6 @@ class Agent(BaseAgent):
             q1_loss=q1_loss, 
             q2_loss=q2_loss,
             q_loss=q_loss, 
-            priority=priority,
-            temp=temp,
         ))
         if not isinstance(self.temperature, (float, tf.Variable)):
             with tf.name_scope('temp_grads'):
@@ -247,13 +255,17 @@ class Agent(BaseAgent):
         tf.debugging.assert_greater(priority, 0.)
         return priority
 
+    @tf.function
     def _sync_target_nets(self):
         tvars = self.target_q1.variables + self.target_q2.variables
         mvars = self.q1.variables + self.q2.variables
+        assert len(tvars) == len(mvars)
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
 
+    @tf.function
     def _update_target_nets(self):
-        tvars = self.target_q1.variables + self.target_q2.variables
-        mvars = self.q1.variables + self.q2.variables
+        tvars = self.target_q1.trainable_variables + self.target_q2.trainable_variables
+        mvars = self.q1.trainable_variables + self.q2.trainable_variables
+        assert len(tvars) == len(mvars)
         [tvar.assign(self.polyak * tvar + (1. - self.polyak) * mvar) 
             for tvar, mvar in zip(tvars, mvars)]

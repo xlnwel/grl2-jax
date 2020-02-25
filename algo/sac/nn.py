@@ -144,15 +144,15 @@ class SoftQ(tf.Module):
                                 kernel_initializer=kernel_initializer)
 
         # build for variable initialization
-        # TensorSpecs = [
-        #     (state_shape, tf.float32, 'state'),
-        #     ([action_dim], tf.float32, 'action'),
-        # ]
-        # self.step = build(self._step, TensorSpecs)
+        TensorSpecs = [
+            (state_shape, tf.float32, 'state'),
+            ([action_dim], tf.float32, 'action'),
+        ]
+        self.step = build(self._step, TensorSpecs)
 
-    # @tf.function(experimental_relax_shapes=True)
-    # def step(self, x, a):
-    #     return self.train_value(x, a)
+    @tf.function(experimental_relax_shapes=True)
+    def _step(self, x, a):
+        return self.train_step(x, a)
 
     def train_step(self, x, a):
         x = tf.concat([x, a], axis=-1)
@@ -180,17 +180,6 @@ class Temperature(tf.Module):
             self.log_temp = tf.Variable(0.)
         else:
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
-
-        # build for variable initialization
-        # TensorSpecs = [
-        #     (state_shape, tf.float32, 'state'),
-        #     ([action_dim], tf.float32, 'action'),
-        # ]
-        # self.step = build(self._step, TensorSpecs)
-
-    @tf.function(experimental_relax_shapes=True)
-    def step(self, x, a):
-        return self.train_step(x, a)
     
     @tf.Module.with_name_scope
     def train_step(self, x, a):
@@ -198,9 +187,9 @@ class Temperature(tf.Module):
             x = tf.concat([x, a], axis=-1)
             x = self.intra_layer(x)
             log_temp = -tf.nn.relu(x)
+            log_temp = tf.squeeze(log_temp)
         else:
             log_temp = self.log_temp
-        log_temp = tf.squeeze(log_temp)
         temp = tf.exp(log_temp)
     
         return log_temp, temp

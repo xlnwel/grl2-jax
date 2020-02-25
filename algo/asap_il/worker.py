@@ -17,8 +17,7 @@ from algo.asap.utils import *
 class ILWorker(Worker):
     def _collect_data(self, buffer, store_exp, tag, action_std, step, **kwargs):
         if store_exp:
-            n_envs = len(kwargs['state'])
-            buffer.add_data(kl_flag=[tag==Tag.EVOLVED] * n_envs, **kwargs)
+            buffer.add_data(kl_flag=tag==Tag.EVOLVED, **kwargs)
         if np.any(action_std != 0):
             self.store(**{f'{tag}_action_std': np.mean(action_std)})
         self._periodic_logging(step)

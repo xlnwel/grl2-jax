@@ -9,28 +9,26 @@ env:
 model:
     actor:
         units_list: [256, 256]
-        activation: relu
+        # activation: relu
     q:
         units_list: [256, 256]
-        activation: relu
+        # activation: relu
     temperature:
         temp_type: 'variable'
-        value: .01
+        value: .2
 agent:
     algorithm: &algo asap-sac
     gamma: &gamma 0.99
-    sync_target: False
-    target_update_freq: 100
     polyak: .995
     evaluation: False
-    kl_coef: 1
+    kl_coef: .1
     act_eps: 0
     
     # timer&interval
     MAX_STEPS: 4.e+7
     TIME_INTERVAL: 100
     LOG_INTERVAL: 100000
-    timer: True
+    timer: False
 
     # distributed algo params
     n_workers: 4
@@ -63,9 +61,9 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 3.e-4
-    q_lr: 3.e-4
-    temp_lr: 3.e-4
+    actor_lr: 1.e-3
+    q_lr: 1.e-3
+    temp_lr: 1.e-3
     epsilon: 1.e-8
     # clip_norm: 10
     

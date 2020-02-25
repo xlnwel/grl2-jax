@@ -34,7 +34,7 @@ def clipped_value_loss(value, traj_ret, old_value, clip_range, mask=None, n=None
         
         m = 1. if mask is None else mask
         
-        loss = reduce_mean(tf.maximum(loss1, loss2) * m, 'value_loss', n)
+        loss = .5 * reduce_mean(tf.maximum(loss1, loss2) * m, 'value_loss', n)
         clip_frac = reduce_mean(tf.cast(tf.greater(tf.abs(value-old_value), clip_range), tf.float32) * m,
                                 'clip_frac', n)
     

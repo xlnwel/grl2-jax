@@ -54,7 +54,7 @@ def infer_info(**kwargs):
             # else assume v is of built-in type
             info[k] = ((), type(v))
         else:
-            raise TypeError(f'v of type({v.dtype}) is not supported here')
+            raise ValueError(f'key({k}): v of type({type(v)}) is not supported here')
     
     return info
     

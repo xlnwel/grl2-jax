@@ -65,7 +65,7 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            IS_ratio=([1], tf.float32, 'IS_ratio'),
+            IS_ratio=((), tf.float32, 'IS_ratio'),
             state=(env.state_shape, tf.float32, 'state'),
             action=([env.action_dim], tf.float32, 'action'),
             reward=((), tf.float32, 'reward'),
@@ -101,6 +101,7 @@ class Agent(BaseAgent):
 
         for k, v in terms.items():
             terms[k] = v.numpy()
+            
         self._update_target_nets()
 
         if self.schedule_lr:
@@ -116,14 +117,6 @@ class Agent(BaseAgent):
     @tf.function
     def _learn(self, **kwargs):
         with tf.name_scope('grads'):
-            # actor_grads, actor_terms = self._compute_actor_grads(kwargs['state'])
-            # q_grads, q_terms = self._compute_critic_grads(**kwargs)
-            # grads = dict(
-            #     actor_grads=actor_grads,
-            #     q_grads=q_grads,
-            # )
-            # terms = {**actor_terms, **q_terms}
-
             grads, terms = self._compute_grads(**kwargs)
 
         with tf.name_scope('actor_update'):
@@ -151,52 +144,6 @@ class Agent(BaseAgent):
 
         return terms
 
-    def _compute_actor_grads(self, state):
-        with tf.GradientTape() as tape:
-            action, logpi, terms = self.actor.train_step(state)
-            q1_with_actor = self.q1.train_step(state, action)
-            q2_with_actor = self.q2.train_step(state, action)
-            q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
-
-            actor_loss = tf.reduce_mean(self.temperature * logpi - q_with_actor)
-
-        terms.update(dict(
-            actor_loss=actor_loss,
-        ))
-        
-        grads = tape.gradient(actor_loss, self.actor.trainable_variables)
-
-        return grads, terms
-
-    def _compute_critic_grads(self, state, action, reward, next_state, done, steps, **kwargs):
-        with tf.GradientTape() as tape:
-            q1 = self.q1.train_step(state, action)
-            q2 = self.q2.train_step(state, action)
-            next_action, next_logpi, _ = self.actor.train_step(next_state)
-            next_q1 = self.target_q1.train_step(next_state, next_action)
-            next_q2 = self.target_q2.train_step(next_state, next_action)
-            next_q = tf.minimum(next_q1, next_q2)
-
-            nth_value = next_q - self.temperature * next_logpi
-            target_q = n_step_target(reward, done, nth_value, self.gamma, steps)
-
-            q1_loss = .5 * tf.reduce_mean((target_q - q1)**2)
-            q2_loss = .5 * tf.reduce_mean((target_q - q2)**2)
-            q_loss = q1_loss + q2_loss
-
-            terms = dict(
-                q1=q1, 
-                q2=q2,
-                target_q=target_q,
-                q1_loss=q1_loss, 
-                q2_loss=q2_loss,
-                q_loss=q_loss, 
-            )
-
-        grads = tape.gradient(q_loss, self.q1.trainable_variables + self.q2.trainable_variables)
-
-        return grads, terms
-
     def _compute_grads(self, IS_ratio, state, action, reward, next_state, done, steps=1):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
         if self.is_action_discrete:
@@ -222,21 +169,21 @@ class Agent(BaseAgent):
                 log_temp, temp = self.temperature.train_step(state, action)
                 _, next_temp = self.temperature.train_step(next_state, next_action)
                 with tf.name_scope('temp_loss'):
-                    temp_loss = -tf.reduce_mean(log_temp 
-                                * tf.stop_gradient(logpi + target_entropy))
+                    temp_loss = -tf.reduce_mean(IS_ratio * log_temp * tf.stop_gradient(logpi + target_entropy))
 
             q1 = self.q1.train_step(state, old_action)
             q2 = self.q2.train_step(state, old_action)
 
             tf.debugging.assert_shapes(
-                [(q1, (None,)), 
+                [(IS_ratio, (None,)),
+                (q1, (None,)), 
                 (q2, (None,)), 
                 (logpi, (None,)), 
                 (q_with_actor, (None,)), 
                 (next_q_with_actor, (None,))])
             
             with tf.name_scope('actor_loss'):
-                actor_loss = tf.reduce_mean(tf.stop_gradient(temp) * logpi - q_with_actor)
+                actor_loss = tf.reduce_mean(IS_ratio * tf.stop_gradient(temp) * logpi - q_with_actor)
 
             with tf.name_scope('q_loss'):
                 nth_value = next_q_with_actor - next_temp * next_logpi
@@ -249,8 +196,8 @@ class Agent(BaseAgent):
 
                 tf.debugging.assert_shapes([(q1_error, (None,)), (q2_error, (None,))])
 
-                q1_loss = .5 * tf.reduce_mean(q1_error**2)
-                q2_loss = .5 * tf.reduce_mean(q2_error**2)
+                q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
+                q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
                 q_loss = q1_loss + q2_loss
             
         with tf.name_scope('actor_grads'):
@@ -276,7 +223,6 @@ class Agent(BaseAgent):
             q1_loss=q1_loss, 
             q2_loss=q2_loss,
             q_loss=q_loss, 
-            temp=temp,
         ))
         if not isinstance(self.temperature, (float, tf.Variable)):
             with tf.name_scope('temp_grads'):

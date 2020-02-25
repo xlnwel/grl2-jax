@@ -18,7 +18,7 @@ model:
         value: .01
 agent:
     algorithm: &algo asap-sac
-    gamma: &gamma 0.999
+    gamma: &gamma 0.99
     sync_target: False
     target_update_freq: 100
     polyak: .995                            # moving average rate
@@ -74,7 +74,7 @@ agent:
     # per_epsilon: 1.e-4
 
 replay:
-    type: uniform                      # proportional or uniform
+    type: dual-uniform                      # proportional or uniform
     # arguments for PER
     # beta0: 0.4
     # beta_steps: 5e4
@@ -84,6 +84,10 @@ replay:
     # normalize_reward: True
     # reward_scale: 5
     reward_clip: 10
+
+    # arguments for dual replay
+    cap_frac: .25
+    bs_frac: .5
 
     # arguments for general replay
     n_steps: 1

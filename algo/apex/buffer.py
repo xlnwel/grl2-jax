@@ -51,6 +51,7 @@ class EnvBuffer(LocalBuffer):
         next_state = kwargs['next_state']
         if self.memory == {}:
             del kwargs['next_state']
+            print('Local buffer')
             init_buffer(self.memory, pre_dims=self.seqlen+self.n_steps, **kwargs)
             print(f'Local bufffer keys: {list(self.memory.keys())}')
             

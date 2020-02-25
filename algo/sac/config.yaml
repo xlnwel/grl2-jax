@@ -8,12 +8,12 @@ env:
 model:
     actor:
         units_list: [256, 256]
-        kernel_initializer: glorot_uniform
+        # kernel_initializer: glorot_uniform
         # norm: layer
         # activation: relu
     q:
         units_list: [256, 256]
-        kernel_initializer: glorot_uniform
+        # kernel_initializer: glorot_uniform
         # norm: layer
         # activation: relu
     temperature:

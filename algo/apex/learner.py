@@ -37,8 +37,7 @@ def get_learner_class(BaseAgent):
                 data_format.update(dict(
                     mu=(tf.float32, (None, *env.action_shape)),
                     std=(tf.float32, (None, *env.action_shape)),
-                    logpi=(tf.float32, (None, 1)),
-                    kl_flag=(tf.float32, (None, 1)),
+                    kl_flag=(tf.float32, (None, )),
                 ))
             dataset = RayDataset(replay, data_format)
             self.model = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
