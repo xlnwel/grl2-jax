@@ -14,7 +14,7 @@ model:
         units_list: [256, 256]
         # activation: relu
     temperature:
-        temp_type: 'variable'
+        temp_type: 'constant'
         value: .2
 agent:
     algorithm: &algo asap-sac
@@ -25,7 +25,7 @@ agent:
     act_eps: 0
     
     # timer&interval
-    MAX_STEPS: 4.e+7
+    MAX_STEPS: 2.e+7
     TIME_INTERVAL: 100
     LOG_INTERVAL: 100000
     timer: False
