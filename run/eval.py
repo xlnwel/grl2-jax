@@ -41,7 +41,9 @@ if __name__ == '__main__':
     config_file = None
     for root, _, files in os.walk(directory):
         for f in files:
-            if f.endswith('config.yaml') and config_file is None:
+            if 'src' in root:
+                break
+            elif f.endswith('config.yaml') and config_file is None:
                 config_file = os.path.join(root, f)
                 break
             elif f.endswith('config.yaml') and config_file is not None:
@@ -64,7 +66,7 @@ if __name__ == '__main__':
     if render:
         env_config['n_workers'] = env_config['n_envs'] = 1
     else:
-        env_config['n_workers'] = 1
+        env_config['n_workers'] = 10
         env_config['n_envs'] = 100
     env_config['seed'] = np.random.randint(1000)
     

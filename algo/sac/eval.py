@@ -15,6 +15,11 @@ def main(env_config, model_config, agent_config, render=False):
     set_global_seed()
     configure_gpu()
 
+    use_ray = env_config.get('n_workers', 0) > 1
+    if use_ray:
+        ray.init()
+        sigint_shutdown_ray()
+        
     env = create_gym_env(env_config)
 
     actor = SoftPolicy(model_config['actor'],

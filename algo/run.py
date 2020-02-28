@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from utility.timer import TBTimer
-from env.gym_env import Env, EnvVec, EfficientEnvVec
+from env.gym_env import Env, EnvVec, EfficientEnvVec, RayEnvVec
 from env.wrappers import get_wrapper_by_name
 
 
@@ -18,7 +18,7 @@ def run(env, actor, *, fn=None, evaluation=False, timer=False, name='run', epsil
             return run_trajectories2(env, actor, fn=fn, 
                 evaluation=evaluation, timer=timer, 
                 name=name, epsilon=epsilon, **kwargs)
-        elif isinstance(env, EnvVec):
+        elif isinstance(env, EnvVec) or isinstance(env, RayEnvVec):
             return run_trajectories1(env, actor, fn=fn, 
                 evaluation=evaluation, timer=timer, 
                 name=name, epsilon=epsilon, **kwargs)
@@ -128,7 +128,8 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, info = envvec.step(action)
         # ignore done signal if the time limit is reached
-        done = np.where(envvec.get_already_done() | i != envvec.max_episode_steps, done, False)
+        already_done = envvec.get_already_done()
+        done = np.where(np.array([already_done[inf['env_id']] for inf in info]) | i != envvec.max_episode_steps, done, False)
         if fn:
             env_ids = [i['env_id'] for i in info]
             if step is None:

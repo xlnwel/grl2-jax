@@ -102,56 +102,56 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         replay=replay_config
     ))
 
-    state = env.reset()
-    eval_env = create_gym_env(dict(
-        name=env.name, 
-        video_path='video',
-        log_video=False,
-        n_workers=1,
-        n_envs=10,
-        effective_envvec=True,
-        seed=0,
-    ))
+    if restore:
+        agent.restore()
+        collect_fn = lambda **kwargs: replay.add(**kwargs)      
+        while not replay.good_to_learn():
+            run(env, agent.actor, collect_fn)
+    else:
+        random_sampling(env, replay)
 
-    epslen = 0
-    for t in range(int(agent.MAX_STEPS)):
-        if t > 1e4:
-            action, _ = agent.action(state)
-        else:
-            action = env.random_action()
+    train(agent, env, replay)
 
-        next_state, reward, done, _ = env.step(action)
-        epslen += 1
-        done = False if epslen == env.max_episode_steps else done
-        replay.add(state=state, action=action, reward=reward, done=done, next_state=next_state)
-        state = next_state
+    # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup
+    # state = env.reset()
+    # eval_env = create_gym_env(dict(
+    #     name=env.name, 
+    #     video_path='video',
+    #     log_video=False,
+    #     n_workers=1,
+    #     n_envs=10,
+    #     effective_envvec=True,
+    #     seed=0,
+    # ))
 
-        if done or epslen == env.max_episode_steps:
-            agent.store(score=env.get_score(), epslen=env.get_epslen())
-            state = env.reset()
-            epslen = 0
+    # epslen = 0
+    # for t in range(int(agent.MAX_STEPS)):
+    #     if t > 1e4:
+    #         action, _ = agent.action(state)
+    #     else:
+    #         action = env.random_action()
 
-        if replay.good_to_learn() and t % 50 == 0:
-            for _ in range(50):
-                agent.learn_log()
-        if (t + 1) % 4000 == 0:
-            eval_score, eval_epslen = run(eval_env, agent.actor, evaluation=True)
+    #     next_state, reward, done, _ = env.step(action)
+    #     epslen += 1
+    #     done = False if epslen == env.max_episode_steps else done
+    #     replay.add(state=state, action=action, reward=reward, done=done, next_state=next_state)
+    #     state = next_state
 
-            agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-            agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('epslen', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
+    #     if done or epslen == env.max_episode_steps:
+    #         agent.store(score=env.get_score(), epslen=env.get_epslen())
+    #         state = env.reset()
+    #         epslen = 0
+
+    #     if replay.good_to_learn() and t % 50 == 0:
+    #         for _ in range(50):
+    #             agent.learn_log()
+    #     if (t + 1) % 4000 == 0:
+    #         eval_score, eval_epslen = run(eval_env, agent.actor, evaluation=True)
+
+    #         agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
+    #         agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
+    #         agent.store(**agent.get_value('epslen', mean=True, std=True, min=True, max=True))
+    #         agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
+    #         agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
             
-            agent.log(step=t)
-
-
-    # if restore:
-    #     agent.restore()
-    #     collect_fn = lambda **kwargs: replay.add(**kwargs)      
-    #     while not replay.good_to_learn():
-    #         run(env, agent.actor, collect_fn)
-    # else:
-    #     random_sampling(env, replay)
-
-    # train(agent, env, replay)
+    #         agent.log(step=t)

@@ -222,6 +222,9 @@ class RayEnvVec(EnvBase):
     def get_epslen(self):
         return np.reshape(ray.get([env.get_epslen.remote() for env in self.envs]), self.n_envs)
 
+    def get_already_done(self):
+        return np.reshape(ray.get([env.get_already_done.remote() for env in self.envs]), self.n_envs)
+
     def close(self):
         del self
 
