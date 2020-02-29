@@ -56,8 +56,6 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
                 action, terms = actor.action(state, evaluation, epsilon)
             with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
                 next_state, reward, done, _ = env.step(action)
-            # ignore done signal if the time limit is reached
-            done = False if i == env.max_episode_steps else done
             if fn:
                 if step is None:
                     fn(state=state, action=action, reward=reward, 
@@ -71,7 +69,7 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
                 break
         # test the effectiveness of Atari wrappers
         # print(env.env.lives, env.get_score(), env.get_epslen())
-        if env.already_done:
+        if env.already_done or i == env.max_episode_steps:
             break
         else:
             print(f'not already done, {env.get_epslen()}')
@@ -94,8 +92,6 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False,
             action, terms = actor.action(state, evaluation, epsilon)
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, _ = envvec.step(action)
-        # ignore done signal if the time limit is reached
-        done = np.where(envvec.get_already_done() | i != envvec.max_episode_steps, done, False)
         if fn:
             if step is None:
                 fn(state=state, action=action, reward=reward, done=done, 
@@ -123,13 +119,14 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
     state = envvec.reset()
 
     for i in range(1, envvec.max_episode_steps+1):
+        print('i', i)
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
             action, terms = actor.action(state, evaluation, epsilon)
+        # action is squeezed by default, but envvec requires batch dimension
+        if len(action.shape) < len(state.shape):
+            action = np.expand_dims(action, 0)
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, info = envvec.step(action)
-        # ignore done signal if the time limit is reached
-        already_done = envvec.get_already_done()
-        done = np.where(np.array([already_done[inf['env_id']] for inf in info]) | i != envvec.max_episode_steps, done, False)
         if fn:
             env_ids = [i['env_id'] for i in info]
             if step is None:
@@ -171,8 +168,6 @@ def run_trajectory_ar(env, actor, *, fn=None, evaluation=False,
             n_ar = n_ar.numpy()
             with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
                 next_state, reward, done, info = env.step(action, n_ar=n_ar+1)#, gamma=actor.gamma)
-            # ignore done signal if the time limit is reached
-            done = False if i == env.max_episode_steps else done
             n_ar = info['n_ar'] - 1
             if fn:
                 if step is None:
@@ -212,8 +207,6 @@ def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False,
         n_ar.numpy()
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, info = envvec.step(action, n_ar=n_ar+1)#, gamma=actor.gamma)
-        # ignore done signal if the time limit is reached
-        done = np.where(envvec.get_already_done() | i != envvec.max_episode_steps, done, False)
         n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
             fn(state=state, action=action, n_ar=n_ar, reward=reward, done=done, 
@@ -243,8 +236,6 @@ def run_trajectories2_ar(envvec, actor, fn=None, evaluation=False,
         n_ar.numpy()
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, info = envvec.step(action, n_ar=n_ar+1)
-        # ignore done signal if the time limit is reached
-        done = np.where(envvec.get_already_done() | i != envvec.max_episode_steps, done, False)
         n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
             env_ids = [i['env_id'] for i in info]
@@ -270,25 +261,3 @@ def random_sampling(env, buffer):
             if done:
                 break
 
-def run_steps(envvec, actor, state, steps=None, fn=None, evaluation=False, timer=False, name='steps'):
-    # assume the envvec is resetted before, 
-    # and step will automatically reset at done
-    assert get_wrapper_by_name(envvec, 'AutoReset')
-    steps = steps or envvec.max_episode_steps
-
-    scores, epslens = [], []
-    for _ in range(steps):
-        with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action = actor.action(tf.convert_to_tensor(state, tf.float32), deterministic=evaluation)
-        with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
-            next_state, reward, done, _ = envvec.step(action.numpy())
-        if np.any(done):
-            scores.append(envvec.get_score()[done])
-            epslens.append(envvec.get_epslen()[done])
-        if fn:
-            to_return = fn(state=state, action=action, reward=reward, done=done, 
-                next_state=next_state, mask=envvec.get_mask())
-            if to_return:
-                break
-                
-    return scores or None, epslens or None

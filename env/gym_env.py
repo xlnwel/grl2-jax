@@ -143,7 +143,7 @@ class EnvVec(EnvBase):
         return np.asarray([env.get_epslen() for env in self.envs])
 
     def get_already_done(self):
-        return np.asarray([env.already_done for env in self.envs], dtype=bool)
+        return np.asarray([env.already_done for env in self.envs], dtype=np.bool)
 
     def close(self):
         del self

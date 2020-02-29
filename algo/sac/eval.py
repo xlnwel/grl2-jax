@@ -21,6 +21,7 @@ def main(env_config, model_config, agent_config, render=False):
         sigint_shutdown_ray()
         
     env = create_gym_env(env_config)
+    n_envs = env_config['n_envs'] * env_config['n_workers']
 
     actor = SoftPolicy(model_config['actor'],
                         env.state_shape,
@@ -38,7 +39,7 @@ def main(env_config, model_config, agent_config, render=False):
         pwc(f'Params are restored from "{path}".', color='cyan')
         if render:
             scores, epslens = [], []
-            for _ in range(100):
+            for _ in range(n_envs):
                 score, epslen = run(env, actor, evaluation=True, render=True)
                 scores.append(score)
                 epslens.append(epslen)
@@ -46,7 +47,7 @@ def main(env_config, model_config, agent_config, render=False):
             scores, epslens = run(env, actor, evaluation=True)
             print('Scores:')
             print(scores)
-        pwc(f'After running 100 episodes:',
+        pwc(f'After running {n_envs} episodes:',
             f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
     else:
         pwc(f'No model is found at "{ckpt_path}"!', color='magenta')

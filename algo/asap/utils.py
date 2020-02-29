@@ -158,14 +158,14 @@ def analyze_repo(weight_repo):
         repo_score_min=min(weight_repo)
     )
 
-def store_weights(weight_repo, mode, score, tag, weights, eval_times, store_cap, 
+def store_weights(weight_repo, mode, score, tag, weights, eval_times, repo_cap, 
                 fifo=False, fitness_method='lcb', c=1):
     """ store weights to repo, if there is any entry pop out, return the it """
     if mode == Mode.REEVALUATION or len(weight_repo) == 0 or score > min(weight_repo):
         weight_repo[score] = Weights(tag, weights, eval_times)
         score = None
         
-    while len(weight_repo) > store_cap:
+    while len(weight_repo) > repo_cap:
         if fifo:
             score, weights = remove_oldest_weights(weight_repo)
         else:

@@ -48,37 +48,12 @@ def import_learner_class(agent_config, BaseAgent):
 
     return get_learner_class(BaseAgent)
 
-def get_bph_config(agent_config):
-    """ get configure file for BipedalWalkerHardcore-v2 """
-    if agent_config['algorithm'].startswith('asap'):
-        config_file = 'algo/asap/bwh_sac_config.yaml'
-    elif agent_config['algorithm'].startswith('apex'):
-        config_file = 'algo/apex/bwh_sac_config.yaml'
-    else:
-        raise NotImplementedError
-    
-    return config_file
-
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
     if env_config.get('is_deepmind_env'):
         ray.init()
     else:
         ray.init(memory=8*1024**3, object_store_memory=7*1024**3)
     
-    if env_config['name'].startswith('BipedalWalkerHardcore'):
-        # Caveat: this keeps most default configuration
-        algorithm = agent_config['algorithm']
-        root_dir = agent_config['root_dir']
-        video_path = env_config['video_path']
-        config_file = get_bph_config(agent_config)
-        config = load_config(config_file)
-        env_config = config['env']
-        model_config = config['model']
-        agent_config = config['agent']
-        replay_config = config.get('buffer') or config.get('replay')
-        agent_config['algorithm'] = algorithm
-        agent_config['root_dir'] = root_dir
-        env_config['video_path'] = video_path
     sigint_shutdown_ray()
 
     replay = create_replay_center(replay_config)

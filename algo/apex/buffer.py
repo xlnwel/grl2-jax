@@ -46,6 +46,9 @@ class EnvBuffer(LocalBuffer):
     def is_full(self):
         return self.idx == self.seqlen
 
+    def reset(self):
+        self.idx = 0
+
     def add_data(self, **kwargs):
         """ Add experience to local memory """
         next_state = kwargs['next_state']
@@ -84,9 +87,6 @@ class EnvBuffer(LocalBuffer):
 
         return None, results
 
-    def reset(self):
-        self.idx = 0
-
 
 class EnvVecBuffer:
     """ Local memory only stores one episode of transitions from n environments """
@@ -119,7 +119,7 @@ class EnvVecBuffer:
         """ Add experience to local memory """
         if self.memory == {}:
             # initialize memory
-            init_buffer(self.memory, pre_dims=(self.n_envs, self.seqlen), **kwargs)
+            init_buffer(self.memory, pre_dims=(self.n_envs, self.seqlen + self.n_steps), **kwargs)
 
         env_ids = env_ids or range(self.n_envs)
         idx = self.idx

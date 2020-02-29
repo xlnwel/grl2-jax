@@ -55,6 +55,9 @@ class EnvStats(gym.Wrapper):
             state, reward, done, info = self.env.step(action)
             self.score += 0 if self.already_done else reward
             self.epslen += 0 if self.already_done else 1
+            # ignore done signal if the time limit is reached
+            if self.epslen == self.env.spec.max_episode_steps:
+                done = False
             self.already_done = done and getattr(self, 'was_real_done', True)
 
             return state, reward, done, info

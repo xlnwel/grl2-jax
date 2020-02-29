@@ -39,7 +39,7 @@ def import_main(algorithm):
 
     return main
     
-def get_config_file(algorithm):
+def get_config_file(algorithm, environment):
     if algorithm == 'ppo':
         config_file = 'algo/ppo/config.yaml'
     elif algorithm == 'ppo2':
@@ -53,10 +53,14 @@ def get_config_file(algorithm):
     elif algorithm == 'apex-d3qn':
         config_file = 'algo/apex/d3qn_config.yaml'
     elif algorithm.startswith('apex'):
-        if 'sac' in algorithm:
+        if 'BipedalWalkerHardcore' in environment:
+            config_file = 'algo/apex/bwh_sac_config.yaml'
+        else:
             config_file = 'algo/apex/sac_config.yaml'
     elif algorithm.startswith('asap'):
-        if 'sac' in algorithm:
+        if 'BipedalWalkerHardcore' in environment:
+            config_file = 'algo/asap/bwh_sac_config.yaml'
+        else:
             config_file = 'algo/asap/sac_config.yaml'
     elif algorithm == 'asap2-sac' or algorithm == 'asap2-sac':
         config_file = 'algo/asap2/sac_config.yaml'
@@ -104,7 +108,7 @@ if __name__ == '__main__':
         environment = list(cmd_args.environment)
         algo_env = list(itertools.product(algorithm, environment))
         for algo, env in algo_env:
-            config_file = get_config_file(algo)
+            config_file = get_config_file(algo, env)
             main = import_main(algo)
 
             prefix = cmd_args.prefix
