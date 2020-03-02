@@ -119,7 +119,6 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
     state = envvec.reset()
 
     for i in range(1, envvec.max_episode_steps+1):
-        print('i', i)
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
             action, terms = actor.action(state, evaluation, epsilon)
         # action is squeezed by default, but envvec requires batch dimension

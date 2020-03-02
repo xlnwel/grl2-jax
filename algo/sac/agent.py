@@ -170,6 +170,7 @@ class Agent(BaseAgent):
                 _, next_temp = self.temperature.train_step(next_state, next_action)
                 with tf.name_scope('temp_loss'):
                     temp_loss = -tf.reduce_mean(IS_ratio * log_temp * tf.stop_gradient(logpi + target_entropy))
+                terms['temp'] = temp
 
             q1 = self.q1.train_step(state, old_action)
             q2 = self.q2.train_step(state, old_action)
