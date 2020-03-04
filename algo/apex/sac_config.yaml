@@ -21,7 +21,7 @@ agent:
     gamma: &gamma 0.99
     polyak: .995
     evaluation: False
-    kl_coef: 1
+    kl_coef: .1
     act_eps: 0
 
     # timer&interval 

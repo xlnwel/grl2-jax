@@ -32,11 +32,6 @@ class Worker(BaseWorker):
         buffer_config['seqlen'] = env.max_episode_steps
         buffer = buffer_fn(buffer_config)
 
-        # env_config['n_envs'] = config['n_eval_envs']
-        # self.envvec = create_gym_env(env_config)
-        # buffer_config['n_envs'] = env_config['n_envs']
-        # self.envvec_buffer = buffer_fn(buffer_config)
-
         models = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
 
         super().__init__(
@@ -56,8 +51,9 @@ class Worker(BaseWorker):
         # self.reevaluation_bookkeeping = BookKeeping('reeval')
 
     def run(self, learner, replay):
-        def eval_send(score, weights, tag, step, eval_times):
-            step, scores, epslens = self.eval_model(weights, step, tag=tag)
+        def eval_send(score, weights, tag, step, eval_times, evaluation, store_data):
+            step, scores, epslens = self.eval_model(
+                weights, step, tag=tag, evaluation=evaluation, store_data=store_data)
             
             eval_times += self.n_envs
             
@@ -65,20 +61,25 @@ class Worker(BaseWorker):
 
             score += self.n_envs / eval_times * (np.mean(scores) - score)
 
-            self._send_data(replay, tag=tag)
+            if store_data:
+                self._send_data(replay, tag=tag)
 
-            return score, eval_times
+            return score, eval_times, step
 
         step = 0
         log_time = self.LOG_INTERVAL
         while step < self.MAX_STEPS:
-            with TBTimer(f'{self.name} pull weights', self.TIME_INTERVAL, to_log=self.timer):
-                mode, score, tag, weights, eval_times = self._choose_weights(learner)
+            mode, score, tag, weights, eval_times = self._choose_weights(learner)
 
-            score, eval_times = eval_send(score, weights, tag, step, eval_times)
+            is_reeval = mode == Mode.REEVALUATION
+            score, eval_times, step = eval_send(
+                score, weights, tag, step, eval_times, 
+                evaluation=is_reeval, store_data=not is_reeval)
 
-            if len(self.weight_repo) < self.REPO_CAP or score > min(self.weight_repo):
-                score, eval_times = eval_send(score, weights, tag, step, eval_times)
+            if (len(self.weight_repo) < self.REPO_CAP or score > min(self.weight_repo)):
+                score, eval_times, step = eval_send(
+                    score, weights, tag, step, eval_times, 
+                    evaluation=True, store_data=False)
 
             status = self._make_decision(mode, score, tag, eval_times, step)
 
@@ -118,7 +119,6 @@ class Worker(BaseWorker):
                 wa_evolution=self.WA_EVOLUTION, 
                 fitness_method=self.fitness_method,
                 c=self.cb_c)
-            self.info_to_print.append(((f'{self.name}_{self.id}: {n} models are used for evolution', ), 'blue'))
             score = 0
             eval_times = 0
             if random.random() < self.EVOLVE_LEARN_PROB:

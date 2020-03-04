@@ -55,7 +55,7 @@ class Worker(BaseWorker):
 
             with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
                 step, scores, epslens = self.eval_model(
-                    weights, step, replay, tag=tag, store_exp=mode != Mode.REEVALUATION)
+                    weights, step, replay, tag=tag, store_data=mode != Mode.REEVALUATION)
             eval_times = eval_times + self.n_envs
 
             self._log_episodic_info(tag, scores, epslens)

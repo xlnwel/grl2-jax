@@ -62,11 +62,11 @@ class BaseWorker(BaseAgent):
     def set_weights(self, weights):
         self.model.set_weights(weights)
 
-    def eval_model(self, weights, step, env=None, buffer=None, evaluation=False, tag='Learned', store_exp=True):
+    def eval_model(self, weights, step, env=None, buffer=None, evaluation=False, tag='Learned', store_data=True):
         """ collects data, logs stats, and saves models """
         buffer = buffer or self.buffer
         def collect_fn(step, action_std, **kwargs):
-            self._collect_data(buffer, store_exp, tag, action_std, step, **kwargs)
+            self._collect_data(buffer, store_data, tag, action_std, step, **kwargs)
 
         self.set_weights(weights)
         env = env or self.env
@@ -84,8 +84,8 @@ class BaseWorker(BaseAgent):
     def get_weights(self, name=None):
         return self.model.get_weights(name=name)
 
-    def _collect_data(self, buffer, store_exp, tag, action_std, step, **kwargs):
-        if store_exp:
+    def _collect_data(self, buffer, store_data, tag, action_std, step, **kwargs):
+        if store_data:
             buffer.add_data(**kwargs)
         if np.any(action_std != 0):
             self.store(**{f'{tag}_action_std': np.mean(action_std)})

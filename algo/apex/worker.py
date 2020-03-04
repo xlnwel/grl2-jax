@@ -46,16 +46,13 @@ class Worker(BaseWorker):
         step = 0
         log_time = self.LOG_INTERVAL
         while step < self.MAX_STEPS:
-            with TBTimer(f'{self.name} pull weights', self.TIME_INTERVAL, to_log=self.timer):
-                weights = self.pull_weights(learner)
+            weights = self.pull_weights(learner)
 
-            with TBTimer(f'{self.name} eval model', self.TIME_INTERVAL, to_log=self.timer):
-                step, scores, epslens = self.eval_model(weights, step)
+            step, scores, epslens = self.eval_model(weights, step)
 
             self._log_episodic_info(scores, epslens)
 
-            with TBTimer(f'{self.name} send data', self.TIME_INTERVAL, to_log=self.timer):
-                self._send_data(replay)
+            self._send_data(replay)
 
             score = np.mean(scores)
             
