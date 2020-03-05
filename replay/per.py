@@ -66,7 +66,7 @@ class PERBase(Replay):
         assert np.all(local_buffer['priority'][: length] != 0)
         for idx, mem_idx in enumerate(range(self.mem_idx, end_idx)):
             self.data_structure.update(local_buffer['priority'][idx], mem_idx % self.capacity)
-            
+        del local_buffer['priority']
         super()._merge(local_buffer, length)
         
     def _compute_IS_ratios(self, probabilities):

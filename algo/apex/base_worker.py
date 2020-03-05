@@ -44,16 +44,13 @@ class BaseWorker(BaseAgent):
 
         # args for priority replay
         if not self.replay_type.endswith('uniform'):
-            self.per_alpha = config['per_alpha']
-            self.per_epsilon = config['per_epsilon']
-
             TensorSpecs = [
                 (env.state_shape, env.state_dtype, 'state'),
                 (env.action_shape, env.action_dtype, 'action'),
-                ([1], tf.float32, 'reward'),
+                ((), tf.float32, 'reward'),
                 (env.state_shape, env.state_dtype, 'next_state'),
-                ([1], tf.float32, 'done'),
-                ([1], tf.float32, 'steps')
+                ((), tf.float32, 'done'),
+                ((), tf.float32, 'steps')
             ]
             self.compute_priorities = tf_config.build(
                 self._compute_priorities, 
@@ -98,8 +95,6 @@ class BaseWorker(BaseAgent):
             
         if not self.replay_type.endswith('uniform'):
             data_tensors = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
-            for k in ['reward', 'done', 'steps']:
-                data_tensors[k] = tf.expand_dims(data_tensors[k], -1)
             data['priority'] = np.squeeze(self.compute_priorities(**data_tensors).numpy())
 
         dest_replay = 'fast_replay' if tag == 'Learned' else 'slow_replay'
@@ -115,9 +110,9 @@ class BaseWorker(BaseAgent):
         if self.env.is_action_discrete:
             action = tf.one_hot(action, self.env.action_dim)
         gamma = self.buffer.gamma
-        value = self.value.train_value(state, action)
-        next_action = self.actor.train_action(next_state)
-        next_value = self.value.train_value(next_state, next_action)
+        value = self.value.step(state, action)
+        next_action, _ = self.actor._action(next_state, tf.convert_to_tensor(False))
+        next_value = self.value.step(next_state, next_action)
         
         target_value = n_step_target(reward, done, next_value, gamma, steps)
         

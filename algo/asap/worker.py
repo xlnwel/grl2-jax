@@ -74,12 +74,12 @@ class Worker(BaseWorker):
             is_reeval = mode == Mode.REEVALUATION
             score, eval_times, step = eval_send(
                 score, weights, tag, step, eval_times, 
-                evaluation=is_reeval, store_data=not is_reeval)
+                evaluation=False, store_data=not is_reeval)
 
-            if (len(self.weight_repo) < self.REPO_CAP or score > min(self.weight_repo)):
+            if len(self.weight_repo) < self.REPO_CAP or score > min(self.weight_repo):
                 score, eval_times, step = eval_send(
                     score, weights, tag, step, eval_times, 
-                    evaluation=True, store_data=False)
+                    evaluation=False, store_data=False)
 
             status = self._make_decision(mode, score, tag, eval_times, step)
 

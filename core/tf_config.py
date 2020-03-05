@@ -56,7 +56,7 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
     assert isinstance(tensorspecs, (list, tuple)), (
         'Expect tensorspecs to be a dict/list/tuple of arguments for tf.TensorSpec, '
         f'but get {TensorSpecs}\n')
-    tensorspecs = [tf.TensorSpec(shape=default_shape+list(s), dtype=d, name=n)
+    tensorspecs = [tf.TensorSpec(shape=None if s is None else default_shape+list(s), dtype=d, name=n)
          for s, d, n in tensorspecs]
     if name:
         return dict(zip(name, tensorspecs))

@@ -52,20 +52,15 @@ agent:
     # clip_norm: 10
 
     # arguments for PER
-    # per_alpha: 0.5
-    # per_epsilon: 1.e-4
+    per_alpha: 0.5
+    per_epsilon: 1.e-4
 
 replay:
     type: uniform                      # proportional or uniform
     # arguments for PER
-    # beta0: 0.4
-    # beta_steps: 5e4
-    # to_update_top_priority: False
-
-    # hacking
-    # normalize_reward: True
-    # reward_scale: 5
-    # reward_clip: 10
+    beta0: 0.4
+    beta_steps: 5e4
+    to_update_top_priority: False
 
     # arguments for general replay
     n_steps: 1

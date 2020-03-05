@@ -56,7 +56,7 @@ class SoftPolicy(tf.Module):
         self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
 
         # build for variable initialization and avoiding unintended retrace
-        TensorSpecs = [(state_shape, tf.float32, 'state'), ((), tf.bool, 'deterministic')]
+        TensorSpecs = [(state_shape, tf.float32, 'state'), (None, tf.bool, 'deterministic')]
         self._action = build(self._action_impl, TensorSpecs)
     
     def action(self, x, deterministic=False, epsilon=0):
@@ -65,7 +65,6 @@ class SoftPolicy(tf.Module):
         deterministic = tf.convert_to_tensor(deterministic, tf.bool)
 
         action, terms = self._action(x, deterministic)
-
         action = np.squeeze(action.numpy())
         terms = dict((k, np.squeeze(v.numpy())) for k, v in terms.items())
 
