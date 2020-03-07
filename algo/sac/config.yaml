@@ -1,6 +1,6 @@
 ---
 env:
-    name: HalfCheetah-v3
+    name: BipedalWalker-v3
     video_path: video
     log_video: False
     seed: 0
@@ -17,7 +17,7 @@ model:
         # norm: layer
         # activation: relu
     temperature:
-        temp_type: 'constant'
+        temp_type: 'variable'
         value: .01
 agent:
     algorithm: &algo sac
@@ -47,15 +47,15 @@ agent:
     epsilon: 1.e-8
 
     # arguments for PER
-    # per_alpha: 0.5
-    # per_epsilon: 1.e-4
+    per_alpha: 0.5
+    per_epsilon: 1.e-4
 
 replay:
-    type: uniform                      # proportional or uniform
+    type: proportional                      # proportional or uniform
     # arguments for PER
-    # beta0: 0.4
-    # beta_steps: 5e4
-    # to_update_top_priority: True
+    beta0: 0.4
+    beta_steps: 5e4
+    to_update_top_priority: True
 
     # hacking
     # normalize_reward: False

@@ -40,7 +40,7 @@ agent:
     REPO_CAP: 10
     MIN_EVOLVE_MODELS: 2
     MAX_EVOLVE_MODELS: 10
-    MIN_LEARN_PROB: .3
+    MIN_LEARN_PROB: .7
     MIN_EVOLVE_PROB: .3
     EVOLVE_LEARN_PROB: 0.5  # probability to further average evolved weights with the learned parameter
     REEVAL_PROB: .05
@@ -74,7 +74,7 @@ agent:
     # per_epsilon: 1.e-4
 
 replay:
-    type: dual-uniform                      # proportional or uniform
+    type: uniform                      # proportional or uniform
     # arguments for PER
     # beta0: 0.4
     # beta_steps: 5e4
@@ -83,7 +83,7 @@ replay:
     # hacking
     # normalize_reward: True
     # reward_scale: 5
-    reward_clip: 10
+    # reward_clip: 10
 
     # arguments for dual replay
     cap_frac: .25

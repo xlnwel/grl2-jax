@@ -61,10 +61,13 @@ class Worker(BaseWorker):
 
             score += self.n_envs / eval_times * (np.mean(scores) - score)
 
-            if store_data:
-                self._send_data(replay, tag=tag)
+            status = self._make_decision(mode, score, tag, eval_times, step)
 
-            return score, eval_times, step
+            if store_data:
+                self._send_data(replay, target_replay='slow_replay' 
+                    if status == Status.ACCEPTED else 'fast_replay')
+
+            return score, eval_times, step, status
 
         step = 0
         log_time = self.LOG_INTERVAL
@@ -72,18 +75,15 @@ class Worker(BaseWorker):
             mode, score, tag, weights, eval_times = self._choose_weights(learner)
 
             is_reeval = mode == Mode.REEVALUATION
-            score, eval_times, step = eval_send(
+            score, eval_times, step, status = eval_send(
                 score, weights, tag, step, eval_times, 
                 evaluation=False, store_data=not is_reeval)
 
-            if len(self.weight_repo) < self.REPO_CAP or score > min(self.weight_repo):
-                score, eval_times, step = eval_send(
+            if status == Status.ACCEPTED:
+                score, eval_times, step, status = eval_send(
                     score, weights, tag, step, eval_times, 
                     evaluation=False, store_data=False)
 
-            status = self._make_decision(mode, score, tag, eval_times, step)
-
-            if status == Status.ACCEPTED:
                 store_weights(
                     self.weight_repo, mode, score, tag, weights, 
                     eval_times, self.REPO_CAP, fifo=self.FIFO,
@@ -156,24 +156,24 @@ class Worker(BaseWorker):
 
         self.raw_bookkeeping.add(tag, status)
 
-        self.info_to_print.append((
-            (f'{self.name}_{self.id} Mode({mode}) Step({step_str(step)}): {tag} model has been evaluated({eval_times}).', 
-            f'Score: {score:.3g}',
-            f'Decision: {status}'), 'green'))
+        # self.info_to_print.append((
+        #     (f'{self.name}_{self.id} Mode({mode}) Step({step_str(step)}): {tag} model has been evaluated({eval_times}).', 
+        #     f'Score: {score:.3g}',
+        #     f'Decision: {status}'), 'green'))
             
         return status
 
     def _update_mode_prob(self):
         fracs = analyze_repo(self.weight_repo)
-        if self.env.name == 'BipedalWalkerHardcore-v2' and min(self.weight_repo) > 300:
-            self.mode_prob[2] = 1
-            self.mode_prob[0] = self.mode_prob[1] = 0
-        else:
-            self.mode_prob[2] = self.REEVAL_PROB
-            remain_prob = 1 - self.mode_prob[2] - self.MIN_LEARN_PROB - self.MIN_EVOLVE_PROB
+        # if self.env.name == 'BipedalWalkerHardcore-v2' and min(self.weight_repo) > 300:
+        #     self.mode_prob[2] = 1
+        #     self.mode_prob[0] = self.mode_prob[1] = 0
+        # else:
+        self.mode_prob[2] = self.REEVAL_PROB
+        remain_prob = 1 - self.mode_prob[2] - self.MIN_LEARN_PROB - self.MIN_EVOLVE_PROB
 
-            self.mode_prob[0] = self.MIN_LEARN_PROB + fracs['frac_learned'] * remain_prob
-            self.mode_prob[1] = self.MIN_EVOLVE_PROB + fracs['frac_evolved'] * remain_prob
+        self.mode_prob[0] = self.MIN_LEARN_PROB + fracs['frac_learned'] * remain_prob
+        self.mode_prob[1] = self.MIN_EVOLVE_PROB + fracs['frac_evolved'] * remain_prob
         np.testing.assert_allclose(sum(self.mode_prob), 1)
         self.info_to_print.append((
             (f'mode prob: {self.mode_prob[0]:3g}, {self.mode_prob[1]:3g}, {self.mode_prob[2]:3g}', ), 'blue'

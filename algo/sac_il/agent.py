@@ -93,8 +93,8 @@ class Agent(BaseAgent):
         with TBTimer(f'{self.model_name} sample', 10000, to_log=self.timer):
             data = self.dataset.sample()
         if self.is_per:
-            saved_indices = data['saved_indices']
-            del data['saved_indices']
+            saved_idxes = data['saved_idxes']
+            del data['saved_idxes']
 
         with TBTimer(f'{self.model_name} learn', 10000, to_log=self.timer):
             terms = self.learn(**data)
@@ -111,7 +111,7 @@ class Agent(BaseAgent):
                 terms['temp_lr'] = self.temp_lr.numpy()
             
         if self.is_per:
-            self.dataset.update_priorities(terms['priority'], saved_indices.numpy())
+            self.dataset.update_priorities(terms['priority'], saved_idxes.numpy())
         self.store(**terms)
 
     @tf.function

@@ -88,7 +88,7 @@ class BaseWorker(BaseAgent):
             self.store(**{f'{tag}_action_std': np.mean(action_std)})
         self._periodic_logging(step)
 
-    def _send_data(self, replay, buffer=None, tag='Learned'):
+    def _send_data(self, replay, buffer=None, target_replay='fast_replay'):
         """ sends data to replay """
         buffer = buffer or self.buffer
         mask, data = buffer.sample()
@@ -97,8 +97,7 @@ class BaseWorker(BaseAgent):
             data_tensors = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
             data['priority'] = np.squeeze(self.compute_priorities(**data_tensors).numpy())
 
-        dest_replay = 'fast_replay' if tag == 'Learned' else 'slow_replay'
-        replay.merge.remote(data, data['state'].shape[0], dest_replay=dest_replay)
+        replay.merge.remote(data, data['state'].shape[0], target_replay=target_replay)
 
         buffer.reset()
         
@@ -119,6 +118,8 @@ class BaseWorker(BaseAgent):
         priority = tf.abs(target_value - value)
         priority += self.per_epsilon
         priority **= self.per_alpha
+
+        tf.debugging.assert_shapes([(priority, (None,))])
 
         return priority
 

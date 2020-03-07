@@ -71,7 +71,7 @@ agent:
     per_epsilon: 1.e-4
 
 replay:
-    type: dual-uniform                      # proportional or uniform
+    type: uniform                      # proportional or uniform
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4

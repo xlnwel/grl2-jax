@@ -125,7 +125,7 @@ def evolve_weights(weight_repo, min_evolv_models=2, max_evolv_models=5,
         w = fitness / np.sum(fitness)
     else:
         w = None
-    idxes = np.random.choice(np.arange(len(scores)), size=n, replace=False, p=w)
+    idxes = np.random.choice(len(scores), size=n, replace=False, p=w)
     selected_weights = [weight_repo[k].weights for k in scores[idxes]]
     if wa_evolution:
         w = w[idxes]
@@ -139,11 +139,15 @@ def average_weights(model_weights, avg_weights=None):
     if isinstance(model_weights[0], dict):
         net_names = model_weights[0].keys()
         model_weights = dict((name, [ws[name] for ws in model_weights]) for name in net_names)
+        # weights = dict((name, [np.random.normal(np.average(ws, axis=0, weights=avg_weights), np.std(ws, axis=0))
         weights = dict((name, [np.average(ws, axis=0, weights=avg_weights) 
                     for ws in zip(*model_weights[name])]) for name in net_names)
-        # weights = dict((name, np.average([ws[name] for ws in model_weights], axis=0, weights=avg_weights)) for name in net_names)
+        for name in net_names:
+            print(f'{name} std:', np.mean([np.std(ws) for ws in zip(*model_weights[name])]))
     else:
-        weights = [np.average(ws, axis=0, weights=avg_weights) for ws in zip(model_weights)]
+        # weights = [np.random.normal(np.average(ws, axis=0, weights=avg_weights), np.std(ws, axis=0)) for ws in zip(*model_weights)]
+        print(f'std:', np.mean([np.std(ws) for ws in zip(*model_weights)]))
+        weights = [np.average(ws, axis=0, weights=avg_weights) for ws in zip(*model_weights)]
     
     return weights
 
