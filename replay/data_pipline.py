@@ -54,9 +54,9 @@ class Dataset:
 
             if not self.buffer_type().endswith('uniform'):
                 sample_types['IS_ratio'] = tf.float32
-                sample_types['saved_indices'] = tf.int32
+                sample_types['saved_idxes'] = tf.int32
                 sample_shapes['IS_ratio'] = (None)
-                sample_shapes['saved_indices'] = (None)
+                sample_shapes['saved_idxes'] = (None)
 
             ds = tf.data.Dataset.from_generator(
                 self._sample, output_types=sample_types, output_shapes=sample_shapes)

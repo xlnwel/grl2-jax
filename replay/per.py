@@ -46,15 +46,14 @@ class PERBase(Replay):
         # it is okay to add when sampling, so no locker is needed
         super().add(**kwargs)
         # super().add updates self.mem_idx 
-        self.data_structure.update(self.top_priority, self.mem_idx - 1)
+        self.data_structure.update(self.mem_idx - 1, self.top_priority)
 
-    def update_priorities(self, priorities, saved_indices):
+    def update_priorities(self, priorities, saved_idxes):
         assert not np.any(np.isnan(priorities)), priorities
         with self.locker:
             if self.to_update_top_priority:
                 self.top_priority = max(self.top_priority, np.max(priorities))
-            for priority, idx in zip(np.squeeze(priorities), saved_indices):
-                self.data_structure.update(priority, idx)
+            self.data_structure.batch_update(saved_idxes, priorities)
 
     """ Implementation """
     def _update_beta(self):
@@ -62,11 +61,13 @@ class PERBase(Replay):
 
     @override(Replay)
     def _merge(self, local_buffer, length):
-        end_idx = self.mem_idx + length
         assert np.all(local_buffer['priority'][: length] != 0)
-        for idx, mem_idx in enumerate(range(self.mem_idx, end_idx)):
-            self.data_structure.update(local_buffer['priority'][idx], mem_idx % self.capacity)
+        # update sum tree
+        mem_idxes = np.arange(self.mem_idx, self.mem_idx + length) % self.capacity
+        np.testing.assert_equal(len(mem_idxes), len(local_buffer['priority']))
+        self.data_structure.batch_update(mem_idxes, local_buffer['priority'])
         del local_buffer['priority']
+        # update memory
         super()._merge(local_buffer, length)
         
     def _compute_IS_ratios(self, probabilities):
@@ -86,20 +87,17 @@ class ProportionalPER(PERBase):
     def _sample(self, batch_size=None):
         batch_size = batch_size or self.batch_size
         total_priorities = self.data_structure.total_priorities
-        
-        segment = total_priorities / self.batch_size
 
-        priorities, indexes = list(zip(
-            *[self.data_structure.find(np.random.uniform(i * segment, (i+1) * segment))
-                for i in range(batch_size)]))
+        intervals = np.linspace(0, total_priorities, batch_size+1)
+        values = np.random.uniform(intervals[:-1], intervals[1:])
+        priorities, indexes = self.data_structure.batch_find(values)
 
-        priorities = np.array(priorities)
         probabilities = priorities / total_priorities
 
         # compute importance sampling ratios
         IS_ratios = self._compute_IS_ratios(probabilities)
         samples = self._get_samples(indexes)
         samples['IS_ratio'] = IS_ratios
-        samples['saved_indices'] = indexes
+        samples['saved_idxes'] = indexes
         
         return samples

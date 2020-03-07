@@ -69,7 +69,7 @@ def save_code(root_dir, model_name):
     if os.path.isdir(dest_dir):
         shutil.rmtree(dest_dir)
     
-    shutil.copytree('.', dest_dir, ignore=shutil.ignore_patterns('*logs*', '.*', '*pycache*', '*.md'))
+    shutil.copytree('.', dest_dir, ignore=shutil.ignore_patterns('*logs*', '.*', '*pycache*', '*.md', '*test*'))
 
 class Logger:
     def __init__(self, log_dir, log_file='log.txt'):

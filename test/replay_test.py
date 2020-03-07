@@ -2,6 +2,7 @@ import numpy as np
 import gym
 
 from replay.func import create_replay
+from replay.ds.sum_tree import SumTree
 from utility.utils import set_global_seed
 
 
@@ -90,3 +91,37 @@ class TestClass:
 
                 for k in sample1.keys():
                     np.testing.assert_allclose(sample1[k], sample2[k], err_msg=f'{k}')
+
+    def test_sum_tree(self):
+        for _ in range(10):
+            cap = np.random.randint(10, 20)
+            st1 = SumTree(cap)
+            st2 = SumTree(cap)
+
+            # test update
+            bs = np.random.randint(5, cap+1)
+            idxes = np.unique(np.random.randint(cap, size=bs))
+            priorities = np.random.randint(10, size=len(idxes))
+            for idx, p in zip(idxes, priorities):
+                st1.update(idx, p)
+
+            st2.batch_update(idxes, priorities)
+            np.testing.assert_equal(st1.container, st2.container)
+        
+            # test find
+            bs = np.random.randint(2, bs)
+            intervals = np.linspace(0, st1.total_priorities, bs+1)
+            values = np.random.uniform(intervals[:-1], intervals[1:])
+
+            priorities1, indexes1 = list(zip(*[st1.find(v) for v in values]))
+            priorities2, indexes2 = st2.batch_find(values)
+
+            np.testing.assert_equal(priorities1, priorities2)
+            np.testing.assert_equal(indexes1, indexes2)
+
+            # validate sum tree's internal structure
+            nodes = np.arange(st1.tree_size)
+            left, right = 2 * nodes + 1, 2 * nodes + 2
+            np.testing.assert_equal(st1.container[nodes], st1.container[left] + st1.container[right])
+            np.testing.assert_equal(st2.container[nodes], st2.container[left] + st2.container[right])
+            
