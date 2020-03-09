@@ -3,7 +3,7 @@ env:
     name: Walker2d-v2
     video_path: video
     log_video: False
-    n_envs: 1
+    n_envs: 2
     efficient_envvec: True
     seed: 0
 model:
@@ -31,14 +31,14 @@ agent:
     timer: False
 
     # distributed algo params
-    n_workers: 4
+    n_workers: 3
 
     # SAP params
     REPO_CAP: 10
     MIN_EVOLVE_MODELS: 2
     MAX_EVOLVE_MODELS: 10
-    MIN_LEARN_PROB: .5
-    MIN_EVOLVE_PROB: .3
+    MIN_LEARN_PROB: .7
+    MIN_EVOLVE_PROB: .25
     EVOLVE_LEARN_PROB: 0.5  # probability to further average evolved weights with the learned parameter
     REEVAL_PROB: .05
     FIFO: False

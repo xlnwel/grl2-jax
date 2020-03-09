@@ -80,9 +80,9 @@ class Worker(BaseWorker):
                 evaluation=False, store_data=not is_reeval)
 
             if status == Status.ACCEPTED:
-                score, eval_times, step, status = eval_send(
-                    score, weights, tag, step, eval_times, 
-                    evaluation=False, store_data=False)
+                # score, eval_times, step, status = eval_send(
+                #     score, weights, tag, step, eval_times, 
+                #     evaluation=False, store_data=False)
 
                 store_weights(
                     self.weight_repo, mode, score, tag, weights, 
@@ -121,10 +121,6 @@ class Worker(BaseWorker):
                 c=self.cb_c)
             score = 0
             eval_times = 0
-            if random.random() < self.EVOLVE_LEARN_PROB:
-                learned_weights = self.pull_weights(learner)
-                weights = [weights, learned_weights]
-                weights = average_weights(weights)
         elif mode == Mode.REEVALUATION:
             w = fitness_from_repo(self.weight_repo, 'norm')
             score = random.choices(list(self.weight_repo.keys()), weights=w)[0]

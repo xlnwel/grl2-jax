@@ -119,6 +119,7 @@ class ActionRepetition(gym.Wrapper):
 
 class AutoReset(gym.Wrapper):
     def step(self, action, **kwargs):
+        # TODO: consider if done is true because time out
         state, reward, done, info = self.env.step(action, **kwargs)
         if done:
             state = self.env.reset()
