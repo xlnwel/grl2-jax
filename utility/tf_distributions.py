@@ -73,7 +73,7 @@ class Categorical(Distribution):
             y = tf.nn.softmax((self.logits + g) / self.tau)
             # draw one-hot encoded sample from the softmax
             if not one_hot:
-                y = tf.argmax(y, -1)
+                y = tf.cast(tf.argmax(y, -1), tf.int32)
             elif hard:
                 y_hard = tf.one_hot(tf.argmax(y, -1), self.logits.shape[-1])
                 y = tf.stop_gradient(y_hard - y) + y

@@ -1,6 +1,6 @@
 import numpy as np
 
-def init_buffer(buffer, pre_dims, **kwargs):
+def init_buffer(buffer, pre_dims, has_steps=False, **kwargs):
     buffer.clear()
     if isinstance(pre_dims, int):
         pre_dims = [pre_dims]
@@ -12,7 +12,8 @@ def init_buffer(buffer, pre_dims, **kwargs):
             for k, (v_shape, v_dtype) in info.items()]))
     # we define an additional item, steps, that specifies steps in multi-step learning
     # we define it even for 1-step learning to avoid code complication
-    buffer['steps'] = np.ones([*pre_dims], np.uint8)
+    if has_steps:
+        buffer['steps'] = np.ones([*pre_dims], np.uint8)
     print('Buffer info')
     for k, v in buffer.items():
         print(f'{k}: shape({v.shape}), type({v.dtype})')
@@ -29,7 +30,8 @@ def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
             break
         buffer['reward'][k] += gamma**i * kwargs['reward']
         buffer['done'][k] = kwargs['done']
-        buffer['steps'][k] += 1
+        if 'steps' in buffer:
+            buffer['steps'][k] += 1
         if 'next_state' in buffer:
             buffer['next_state'][k] = kwargs['next_state']
 

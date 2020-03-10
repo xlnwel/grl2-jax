@@ -3,7 +3,7 @@ import tensorflow as tf
 import ray
 
 from core import tf_config
-from core.ensemble import Ensemble
+from core.module import Ensemble
 from utility.display import pwc
 from utility.timer import TBTimer
 from env.gym_env import create_gym_env

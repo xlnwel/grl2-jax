@@ -2,14 +2,15 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from utility.display import pwc
 from core.tf_config import build
+from core.module import Module
+from utility.display import pwc
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import DiagGaussian, Categorical
 from nn.func import mlp
 
 
-class SoftPolicy(tf.Module):
+class SoftPolicy(Module):
     def __init__(self, config, state_shape, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
 
@@ -77,20 +78,29 @@ class SoftPolicy(tf.Module):
     def _action_impl(self, x, deterministic=False):
         print(f'action retrace: {x.shape}, {deterministic}')
         x = self.intra_layers(x)
-        mu = self.mu(x)
 
-        if deterministic:
-            action = tf.tanh(mu)
-            terms = dict(action_std=tf.zeros_like(action))
+        if self.is_action_discrete:
+            logits = self.logits(x)
+            if deterministic:
+                action = tf.cast(tf.argmax(logits, -1), tf.int32)
+            else:
+                action_distribution = self.ActionDistributionType(logits, self.tau)
+                action = action_distribution.sample(one_hot=False)
+            terms = {}
         else:
-            logstd = self.logstd(x)
-            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+            mu = self.mu(x)
+            if deterministic:
+                action = tf.tanh(mu)
+                terms = dict(action_std=tf.zeros_like(action))
+            else:
+                logstd = self.logstd(x)
+                logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
 
-            action_distribution = self.ActionDistributionType(mu, logstd)
-            raw_action = action_distribution.sample()
-            action = tf.tanh(raw_action)
+                action_distribution = self.ActionDistributionType(mu, logstd)
+                raw_action = action_distribution.sample()
+                action = tf.tanh(raw_action)
 
-            terms = dict(action_std=action_distribution.std)
+                terms = dict(action_std=action_distribution.std)
 
         return action, terms
 
@@ -117,14 +127,7 @@ class SoftPolicy(tf.Module):
 
         return action, logpi, terms
 
-    def get_weights(self):
-        return [v.numpy() for v in self.variables]
-
-    def set_weights(self, weights):
-        [v.assign(w) for v, w in zip(self.variables, weights)]
-
-
-class SoftQ(tf.Module):
+class SoftQ(Module):
     def __init__(self, config, state_shape, action_dim, name='q'):
         super().__init__(name=name)
 
@@ -160,14 +163,8 @@ class SoftQ(tf.Module):
             
         return x
 
-    def get_weights(self):
-        return [v.numpy() for v in self.variables]
 
-    def set_weights(self, weights):
-        [v.assign(w) for v, w in zip(self.variables, weights)]
-
-
-class Temperature(tf.Module):
+class Temperature(Module):
     def __init__(self, config, state_shape, action_dim, name='temperature'):
         super().__init__(name=name)
 
@@ -180,7 +177,6 @@ class Temperature(tf.Module):
         else:
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
     
-    @tf.Module.with_name_scope
     def train_step(self, x, a):
         if self.temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
@@ -192,12 +188,6 @@ class Temperature(tf.Module):
         temp = tf.exp(log_temp)
     
         return log_temp, temp
-
-    def get_weights(self):
-        return [v.numpy() for v in self.variables]
-
-    def set_weights(self, weights):
-        [v.assign(w) for v, w in zip(self.variables, weights)]
 
 
 def create_model(model_config, state_shape, action_dim, is_action_discrete):

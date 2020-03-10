@@ -55,7 +55,7 @@ class EnvBuffer(LocalBuffer):
         if self.memory == {}:
             del kwargs['next_state']
             print('Local buffer')
-            init_buffer(self.memory, pre_dims=self.seqlen+self.n_steps, **kwargs)
+            init_buffer(self.memory, pre_dims=self.seqlen+self.n_steps, has_steps=self.n_steps>1, **kwargs)
             print(f'Local bufffer keys: {list(self.memory.keys())}')
             
         add_buffer(self.memory, self.idx, self.n_steps, self.gamma, **kwargs)
@@ -119,7 +119,8 @@ class EnvVecBuffer:
         """ Add experience to local memory """
         if self.memory == {}:
             # initialize memory
-            init_buffer(self.memory, pre_dims=(self.n_envs, self.seqlen + self.n_steps), **kwargs)
+            init_buffer(self.memory, pre_dims=(self.n_envs, self.seqlen + self.n_steps), 
+                        has_steps=self.n_steps>1, **kwargs)
 
         env_ids = env_ids or range(self.n_envs)
         idx = self.idx

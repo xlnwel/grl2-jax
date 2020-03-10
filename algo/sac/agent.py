@@ -65,14 +65,16 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            IS_ratio=((), tf.float32, 'IS_ratio'),
             state=(env.state_shape, tf.float32, 'state'),
-            action=([env.action_dim], tf.float32, 'action'),
+            action=(env.action_shape, env.action_dtype, 'action'),
             reward=((), tf.float32, 'reward'),
             next_state=(env.state_shape, tf.float32, 'next_state'),
             done=((), tf.float32, 'done'),
-            steps=((), tf.float32, 'steps'),
         )
+        if not self.dataset.buffer_type().endswith('uniform'):
+            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
+        if 'steps'  in self.dataset.data_format:
+            TensorSpecs['steps'] = ((), tf.float32, 'steps')
         self.learn = build(self._learn, TensorSpecs)
 
         self._sync_target_nets()
@@ -144,7 +146,7 @@ class Agent(BaseAgent):
 
         return terms
 
-    def _compute_grads(self, IS_ratio, state, action, reward, next_state, done, steps=1):
+    def _compute_grads(self, state, action, reward, next_state, done, IS_ratio=1, steps=1):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
         if self.is_action_discrete:
             old_action = tf.one_hot(action, self.action_dim)

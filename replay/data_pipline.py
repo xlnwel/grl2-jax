@@ -1,7 +1,10 @@
+import collections
 import numpy as np
 import tensorflow as tf
 import ray
 
+
+DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 
 class Dataset:
     def __init__(self, buffer, data_format):
@@ -14,6 +17,7 @@ class Dataset:
             tf.data.Dataset.from_generator
         """
         self.buffer = buffer
+        self.data_format = data_format
         assert isinstance(data_format, dict)
         self.iterator = self._prepare_dataset(buffer, data_format)
 
@@ -40,17 +44,9 @@ class Dataset:
                 
             return data
 
-        def transform_data_per(data):
-            return process_transition(data)
-
-        def transform_data_uniform(data):
-            data['IS_ratio'] = 1. # fake ratio to avoid complicate the code
-
-            return process_transition(data)
-
         with tf.name_scope('data'):
-            sample_types = dict((k, v[0]) for k, v in data_format.items())
-            sample_shapes = dict((k, v[1]) for k, v in data_format.items())
+            sample_types = dict((k, v.dtype) for k, v in data_format.items())
+            sample_shapes = dict((k, v.shape) for k, v in data_format.items())
 
             if not self.buffer_type().endswith('uniform'):
                 sample_types['IS_ratio'] = tf.float32
@@ -60,8 +56,7 @@ class Dataset:
 
             ds = tf.data.Dataset.from_generator(
                 self._sample, output_types=sample_types, output_shapes=sample_shapes)
-            ds = ds.map(map_func=transform_data_uniform if self.buffer_type().endswith('uniform') 
-                        else transform_data_per, 
+            ds = ds.map(map_func=process_transition, 
                         num_parallel_calls=tf.data.experimental.AUTOTUNE)
             ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
             iterator = iter(ds)

@@ -2,12 +2,12 @@ import threading
 import tensorflow as tf
 import ray
 
-from core.ensemble import Ensemble
+from core.module import Ensemble
 from core.tf_config import configure_gpu, configure_threads
 from utility.display import pwc
 from utility.timer import TBTimer
 from env.gym_env import create_gym_env
-from replay.data_pipline import RayDataset
+from replay.data_pipline import DataFormat, RayDataset
 
 
 def get_learner_class(BaseAgent):
@@ -26,13 +26,14 @@ def get_learner_class(BaseAgent):
 
             env = create_gym_env(env_config)
             data_format = dict(
-                state=(env.state_dtype, (None, *env.state_shape)),
-                action=(env.action_dtype, (None, *env.action_shape)),
-                reward=(tf.float32, (None, )), 
-                next_state=(env.state_dtype, (None, *env.state_shape)),
-                done=(tf.float32, (None, )),
-                steps=(tf.float32, (None, )),
+                state=DataFormat((None, *env.state_shape), env.state_dtype),
+                action=DataFormat((None, *env.action_shape), env.action_dtype),
+                reward=DataFormat((None, ), tf.float32), 
+                next_state=DataFormat((None, *env.state_shape), env.state_dtype),
+                done=DataFormat((None, ), tf.float32),
             )
+            if replay.n_steps > 1:
+                data_format['steps'] = DataFormat((None, ), tf.float32)
             if config['algorithm'].endswith('il'):
                 data_format.update(dict(
                     mu=(tf.float32, (None, *env.action_shape)),

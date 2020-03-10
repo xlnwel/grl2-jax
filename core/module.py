@@ -1,6 +1,14 @@
 import tensorflow as tf
 
 
+class Module(tf.Module):
+    def get_weights(self):
+        return [v.numpy() for v in self.variables]
+
+    def set_weights(self, weights):
+        [v.assign(w) for v, w in zip(self.variables, weights)]
+
+        
 class Ensemble(tf.Module):
     """ This class groups all models used by off-policy algorithms together
     so that one can easily get and set all variables """
@@ -37,7 +45,7 @@ class Ensemble(tf.Module):
             assert len(self.variables) == len(weights)
             [v.assign(w) for v, w in zip(self.variables, weights)]
     
-    """ Auxiliary functions that make SAC like a dict """
+    """ Auxiliary functions that make Ensemble like a dict """
     def __setitem__(self, key, item):
         self.models[key] = item
 

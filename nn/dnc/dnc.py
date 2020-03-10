@@ -126,8 +126,8 @@ class DNC(layers.Layer):
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=tf.float32):
         if inputs:
-            assert batch_size is None or batch_size == inputs.shape[0]
-            batch_size = inputs.shape[0]
+            assert batch_size is None or batch_size == tf.shape(inputs)[0]
+            batch_size = tf.shape(inputs)[0]
         return DNCState(
             access_output=tf.zeros([batch_size, *self._access.output_size], dtype=dtype),
             access_state=self._access.get_initial_state(batch_size=batch_size, dtype=dtype),

@@ -3,19 +3,21 @@ This file defines general CNN architectures used in RL
 All CNNs eventually return a tensor of shape `[batch_size, n_features]`
 """
 
+import functools
 import tensorflow as tf
 from tensorflow.keras.layers import Layer, Dense, Conv2D, MaxPooling2D, TimeDistributed
 from tensorflow.keras.activations import relu
 
 
+conv2d_fn = lambda time_distributed, *args, **kwargs: (
+    TimeDistributed(Conv2D(*args, **kwargs))
+    if time_distributed else
+    Conv2D(*args, **kwargs)
+)
 class FTWCNN(Layer):
     def __init__(self, *, time_distributed=False, batch_size=None, name='ftw', **kwargs):
         super().__init__(name=name)
-        conv2d = lambda *args, **kwargs: (
-            TimeDistributed(Conv2D(*args, **kwargs))
-            if time_distributed else
-            Conv2D(*args, **kwargs)
-        )
+        conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
         self.conv1 = conv2d(32, 8, strides=4, padding='same', **kwargs)
         self.conv2 = conv2d(64, 4, strides=2, padding='same', **kwargs)
         self.conv3 = conv2d(64, 3, strides=1, padding='same', **kwargs)
@@ -70,11 +72,7 @@ class IMPALAResidual(Layer):
 class IMPALACNN(Layer):
     def __init__(self, *, time_distributed=False, batch_size=None, name='impala', **kwargs):
         super().__init__(name=name)
-        conv2d = lambda *args, **kwargs: (
-            TimeDistributed(Conv2D(*args, **kwargs))
-            if time_distributed else
-            Conv2D(*args, **kwargs)
-        )
+        conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
         maxpooling2d = lambda *args, **kwargs: (
             TimeDistributed(MaxPooling2D(*args, **kwargs))
             if time_distributed else

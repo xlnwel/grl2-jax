@@ -18,7 +18,7 @@ class Replay(ABC):
         self.capacity = to_int(config['capacity'])
         self.min_size = max(to_int(config['min_size']), config['batch_size']*10)
         self.batch_size = config['batch_size']
-        self.n_steps = config['n_steps']
+        self.n_steps = config.get('n_steps', 1)
         self.gamma = config['gamma']
         self.has_next_state = config.get('has_next_state', False)
         self.pre_dims = (self.capacity, )
@@ -67,7 +67,7 @@ class Replay(ABC):
         if self.memory == {}:
             if not self.has_next_state:
                 del kwargs['next_state']
-            init_buffer(self.memory, pre_dims=self.pre_dims, **kwargs)
+            init_buffer(self.memory, pre_dims=self.pre_dims, has_steps=self.n_steps>1, **kwargs)
             print(f"{self.buffer_type()} replay's keys: {list(self.memory.keys())}")
 
         if not self.is_full and self.mem_idx == self.capacity - 1:
@@ -88,7 +88,7 @@ class Replay(ABC):
         if self.memory == {}:
             if not self.has_next_state:
                 del local_buffer['next_state']
-            init_buffer(self.memory, pre_dims=self.pre_dims, **local_buffer)
+            init_buffer(self.memory, pre_dims=self.pre_dims, has_steps=self.n_steps>1, **local_buffer)
             print(f'"{self.buffer_type()}" keys: {list(self.memory.keys())}')
 
         end_idx = self.mem_idx + length
@@ -117,9 +117,8 @@ class Replay(ABC):
             results[k] = v[indexes]
             
         if 'next_state' not in self.memory:
-            steps = results['steps']
+            steps = results['steps'] if 'steps' in results else 1
             next_indexes = (indexes + steps) % self.capacity
-            assert indexes.shape == next_indexes.shape == (self.batch_size, ), f'{indexes.shape} vs {next_indexes.shape}'
             results['next_state'] = self.memory['state'][next_indexes]
 
         # process rewards

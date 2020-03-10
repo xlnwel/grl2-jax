@@ -7,6 +7,10 @@ import numpy as np
 import sympy
 
 
+class AttrDict:
+    __getattr__ = lambda self, k: self.__getitem__(k)
+    __setattr__ = lambda self, k, v: self.__setitem__(k, v)
+
 def to_int(s):
     return int(float(s))
     

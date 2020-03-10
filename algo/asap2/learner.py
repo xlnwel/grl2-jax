@@ -4,12 +4,12 @@ from collections import namedtuple
 import tensorflow as tf
 import ray
 
-from core.ensemble import Ensemble
+from core.module import Ensemble
 from core.tf_config import configure_gpu, configure_threads
 from utility.display import pwc
 from utility.timer import TBTimer
 from env.gym_env import create_gym_env
-from replay.data_pipline import RayDataset
+from replay.data_pipline import DataFormat, RayDataset
 from algo.asap.utils import *
 
 
@@ -31,13 +31,14 @@ def get_learner_class(BaseAgent):
             self.env_name = env_config['name']
             env = create_gym_env(env_config)
             data_format = dict(
-                state=(env.state_dtype, (None, *env.state_shape)),
-                action=(env.action_dtype, (None, *env.action_shape)),
-                reward=(tf.float32, (None, )), 
-                next_state=(env.state_dtype, (None, *env.state_shape)),
-                done=(tf.float32, (None, )),
-                steps=(tf.float32, (None, )),
+                state=DataFormat((None, *env.state_shape), env.state_dtype),
+                action=DataFormat((None, *env.action_shape), env.action_dtype),
+                reward=DataFormat((None, ), tf.float32), 
+                next_state=DataFormat((None, *env.state_shape), env.state_dtype),
+                done=DataFormat((None, ), tf.float32),
             )
+            if replay.n_steps > 1:
+                data_format['steps'] = DataFormat((None, ), tf.float32)
             dataset = RayDataset(replay, data_format)
             self.model = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
             

@@ -10,7 +10,7 @@ from utility.timer import TBTimer
 from utility.utils import step_str
 from env.gym_env import create_gym_env
 from replay.func import create_replay
-from replay.data_pipline import Dataset
+from replay.data_pipline import DataFormat, Dataset
 from algo.run import run, random_sampling
 from algo.sac.agent import Agent
 from algo.sac.nn import create_model
@@ -74,13 +74,14 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     replay = create_replay(replay_config)
     data_format = dict(
-        state=(env.state_dtype, (None, *env.state_shape)),
-        action=(env.action_dtype, (None, *env.action_shape)),
-        reward=(tf.float32, (None, )), 
-        next_state=(env.state_dtype, (None, *env.state_shape)),
-        done=(tf.float32, (None, )),
-        steps=(tf.float32, (None, )),
+        state=DataFormat((None, *env.state_shape), env.state_dtype),
+        action=DataFormat((None, *env.action_shape), env.action_dtype),
+        reward=DataFormat((None, ), tf.float32), 
+        next_state=DataFormat((None, *env.state_shape), env.state_dtype),
+        done=DataFormat((None, ), tf.float32),
     )
+    if replay_config.get('n_steps', 1) > 1:
+        data_format['steps'] = DataFormat((None, ), tf.float32)
     dataset = Dataset(replay, data_format)
 
     models = create_model(

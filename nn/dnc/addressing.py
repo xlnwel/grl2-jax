@@ -235,8 +235,8 @@ class TemporalLinkage(tf.Module):
     def get_initial_state(self, inputs=None, batch_size=None, dtype=tf.float32):
         state_size = self.state_size
         if inputs:
-            assert batch_size is None or batch_size == inputs.shape[0]
-            batch_size = inputs.shape[0]
+            assert batch_size is None or batch_size == tf.shape(inputs)[0]
+            batch_size = tf.shape(inputs)[0]
         return TemporalLinkageState(
             link=tf.zeros([batch_size, *state_size.link], dtype),
             precedence_weights=tf.zeros([batch_size, *state_size.precedence_weights], dtype),
@@ -418,7 +418,7 @@ class Freeness(tf.Module):
     def get_initial_state(self, inputs=None, batch_size=None, dtype=tf.float32):
         state_size = self.state_size
         if inputs:
-            assert batch_size is None or batch_size == inputs.shape[0]
-            batch_size = inputs.shape[0]
+            assert batch_size is None or batch_size == tf.shape(inputs)[0]
+            batch_size = tf.shape(inputs)[0]
         return tf.zeros([batch_size, *state_size])
         
