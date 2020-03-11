@@ -125,7 +125,7 @@ class DNC(layers.Layer):
             controller_state=controller_state)
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=tf.float32):
-        if inputs:
+        if inputs is not None:
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
         return DNCState(
@@ -164,12 +164,13 @@ if __name__ == '__main__':
     }
     dnc_cell = DNC(access_config, controller_config, OUTPUT_SIZE)
     initial_state = dnc_cell.get_initial_state(batch_size=BATCH_SIZE)
-    rnn = layers.RNN(dnc_cell)
+    rnn = layers.RNN(dnc_cell, return_state=True, return_sequences=True)
     inputs = tf.random.normal([BATCH_SIZE, TIME_STEPS, INPUT_SIZE])
 
     targets = np.random.rand(BATCH_SIZE, TIME_STEPS, OUTPUT_SIZE)
     with tf.GradientTape() as tape:
-        output, _ = rnn(inputs=inputs, initial_state=initial_state)
+        x = rnn(inputs=inputs, initial_state=initial_state)
+        output, _ = x[0], x[1:]
         loss = tf.reduce_mean(tf.square(output - targets))
     grads = tape.gradient(loss, rnn.trainable_variables)
     optimizer = tf.keras.optimizers.SGD(1)

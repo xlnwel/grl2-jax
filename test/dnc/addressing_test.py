@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from nn.layers.dnc import addressing
+from nn.dnc import addressing
 
 
 class TestClass:

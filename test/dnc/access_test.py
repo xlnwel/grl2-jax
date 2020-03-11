@@ -21,7 +21,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-from nn.layers.dnc import access
+from nn.dnc import access
 from core.tf_config import configure_gpu
 
 BATCH_SIZE = 2
@@ -125,8 +125,8 @@ class TestClass:
     def test_gradients(self):
         inputs = tf.convert_to_tensor(np.random.randn(BATCH_SIZE, INPUT_SIZE), tf.float32)
         def forward(inputs, memory, read_weights, link, precedence_weights):
-            from nn.layers.dnc.addressing import TemporalLinkageState
-            from nn.layers.dnc.access import AccessState
+            from nn.dnc.addressing import TemporalLinkageState
+            from nn.dnc.access import AccessState
             output, _ = module(inputs, 
                 AccessState(memory, read_weights, initial_state.write_weights,
                     TemporalLinkageState(link, precedence_weights), initial_state.usage))

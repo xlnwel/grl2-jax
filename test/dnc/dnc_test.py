@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from nn.layers.dnc.dnc import DNC
+from nn.dnc.dnc import DNC
 from core.tf_config import configure_gpu
 
 BATCH_SIZE = 2
@@ -43,9 +43,9 @@ class TestClass:
     def test_gradients(self):
         inputs = tf.random.normal([BATCH_SIZE, INPUT_SIZE])
         def forward(inputs, access_output, memory, read_weights, link, precedence_weights, controller_state):
-            from nn.layers.dnc.addressing import TemporalLinkageState
-            from nn.layers.dnc.access import AccessState
-            from nn.layers.dnc.dnc import DNCState
+            from nn.dnc.addressing import TemporalLinkageState
+            from nn.dnc.access import AccessState
+            from nn.dnc.dnc import DNCState
             output, _ = dnc_cell(inputs, 
                 DNCState(access_output,
                         AccessState(memory, read_weights, initial_state.access_state.write_weights,

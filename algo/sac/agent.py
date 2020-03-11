@@ -8,6 +8,7 @@ from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
+from core.optimizers import Optimizer
 
 
 class Agent(BaseAgent):
@@ -31,33 +32,31 @@ class Agent(BaseAgent):
                 [(2e5, self.q_lr), (1e6, 1e-5)])
             self.actor_lr = tf.Variable(self.actor_lr, trainable=False)
             self.q_lr = tf.Variable(self.q_lr, trainable=False)
+            self.lr_pairs = [
+                (self.actor_lr, self.actor_schedule), (self.q_lr, self.q_schedule)]
 
         # optimizer
-        if self.optimizer.lower() == 'adam':
-            Optimizer = tf.keras.optimizers.Adam
-        elif self.optimizer.lower() == 'rmsprop':
-            Optimizer = tf.keras.optimizers.RMSprop
-        else:
-            raise NotImplementedError()
-        self.actor_opt = Optimizer(learning_rate=self.actor_lr,
-                                    epsilon=self.epsilon)
-        self.q_opt = Optimizer(learning_rate=self.q_lr,
-                                epsilon=self.epsilon)
+        clip_norm = getattr(self, 'clip_norm', None)
+        self.actor_opt = Optimizer(
+            'adam', self.actor, self.actor_lr, 
+            clip_norm=clip_norm, epsilon=self.epsilon)
+        self.q_opt = Optimizer(
+            'adam', [self.q1, self.q2], self.q_lr, 
+            clip_norm=clip_norm, epsilon=self.epsilon)
         self.ckpt_models['actor_opt'] = self.actor_opt
         self.ckpt_models['q_opt'] = self.q_opt
 
         if isinstance(self.temperature, float):
-            # if env.name == 'BipedalWalkerHardcore-v2':
-            #     self.temp_schedule = PiecewiseSchedule(
-            #         [(5e5, self.temperature), (1e7, 0)])
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
             if getattr(self, 'schedule_lr', False):
                 self.temp_schedule = PiecewiseSchedule(
                     [(5e5, self.temp_lr), (1e6, 1e-5)])
                 self.temp_lr = tf.Variable(self.temp_lr, trainable=False)
-            self.temp_opt = Optimizer(learning_rate=self.temp_lr,
-                                    epsilon=self.epsilon)
+                self.lr_pairs.append((self.temp_lr, self.temp_schedule))
+            self.temp_opt = Optimizer(
+                'adam', self.temperature, self.temp_lr, 
+                clip_norm=clip_norm, epsilon=self.epsilon)
             self.ckpt_models['temp_opt'] = self.temp_opt
 
         self.action_dim = env.action_dim
@@ -86,12 +85,7 @@ class Agent(BaseAgent):
         if step:
             self.global_steps.assign(step)
         if self.schedule_lr:
-            self.actor_lr.assign(self.actor_schedule.value(self.global_steps.numpy()))
-            self.q_lr.assign(self.q_schedule.value(self.global_steps.numpy()))
-            if not isinstance(self.temperature, (float, tf.Variable)):
-                self.temp_lr.assign(self.temp_schedule.value(self.global_steps.numpy()))
-        if hasattr(self, 'temp_schedule'):
-            self.temperature.assign(self.temp_schedule.value(self.global_steps.numpy()))
+            [lr.assign(sched.value(self.global_steps.numpy())) for lr, sched in self.lr_pairs]
         with TBTimer(f'{self.model_name} sample', 10000, to_log=self.timer):
             data = self.dataset.sample()
         if self.is_per:
@@ -117,36 +111,7 @@ class Agent(BaseAgent):
         self.store(**terms)
 
     @tf.function
-    def _learn(self, **kwargs):
-        with tf.name_scope('grads'):
-            grads, terms = self._compute_grads(**kwargs)
-
-        with tf.name_scope('actor_update'):
-            actor_grads = grads['actor_grads']
-            if getattr(self, 'clip_norm', None) is not None:
-                actor_grads, actor_norm = tf.clip_by_global_norm(actor_grads, self.clip_norm)
-                terms['actor_norm'] = actor_norm
-            self.actor_opt.apply_gradients(zip(actor_grads, self.actor.trainable_variables))
-
-        with tf.name_scope('q_update'):
-            q_grads = grads['q_grads']
-            if getattr(self, 'clip_norm', None) is not None:
-                q_grads, q_norm = tf.clip_by_global_norm(q_grads, self.clip_norm)
-                terms['q_norm'] = q_norm
-            self.q_opt.apply_gradients(
-                zip(q_grads, self.q1.trainable_variables + self.q2.trainable_variables))
-
-        if not isinstance(self.temperature, (float, tf.Variable)):
-            with tf.name_scope('temp_update'):
-                temp_grads = grads['temp_grads']
-                if getattr(self, 'clip_norm', None) is not None:
-                    temp_grads, temp_norm = tf.clip_by_global_norm(temp_grads, self.clip_norm)
-                    terms['temp_norm'] = temp_norm
-                self.temp_opt.apply_gradients(zip(temp_grads, self.temperature.trainable_variables))
-
-        return terms
-
-    def _compute_grads(self, state, action, reward, next_state, done, IS_ratio=1, steps=1):
+    def _learn(self, state, action, reward, next_state, done, IS_ratio=1, steps=1):
         target_entropy = getattr(self, 'target_entropy', -self.action_dim)
         if self.is_action_discrete:
             old_action = tf.one_hot(action, self.action_dim)
@@ -202,22 +167,15 @@ class Agent(BaseAgent):
                 q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
                 q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
                 q_loss = q1_loss + q2_loss
-            
-        with tf.name_scope('actor_grads'):
-            actor_grads = tape.gradient(actor_loss, self.actor.trainable_variables)
-
-        with tf.name_scope('q_grads'):
-            q_grads = tape.gradient(q_loss, 
-                self.q1.trainable_variables + self.q2.trainable_variables)
 
         if self.is_per:
             priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
             terms['priority'] = priority
             
-        grads = dict(
-            actor_grads=actor_grads,
-            q_grads=q_grads,
-        )
+        terms['actor_norm'] = self.actor_opt(tape, actor_loss)
+        terms['q_norm'] = self.q_opt(tape, q_loss)
+        if not isinstance(self.temperature, (float, tf.Variable)):
+            terms['temp_norm'] = self.temp_opt(tape, temp_loss)
         terms.update(dict(
             actor_loss=actor_loss,
             q1=q1, 
@@ -227,13 +185,8 @@ class Agent(BaseAgent):
             q2_loss=q2_loss,
             q_loss=q_loss, 
         ))
-        if not isinstance(self.temperature, (float, tf.Variable)):
-            with tf.name_scope('temp_grads'):
-                temp_grads = tape.gradient(temp_loss, self.temperature.trainable_variables)
-            grads['temp_grads'] = temp_grads
-            terms['temp_loss'] = temp_loss
 
-        return grads, terms
+        return terms
 
     def _compute_priority(self, priority):
         """ p = (p + 𝝐)**𝛼 """

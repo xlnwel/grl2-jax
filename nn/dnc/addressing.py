@@ -234,7 +234,7 @@ class TemporalLinkage(tf.Module):
     @tf.Module.with_name_scope
     def get_initial_state(self, inputs=None, batch_size=None, dtype=tf.float32):
         state_size = self.state_size
-        if inputs:
+        if inputs is not None:
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
         return TemporalLinkageState(
@@ -417,7 +417,7 @@ class Freeness(tf.Module):
     @tf.Module.with_name_scope
     def get_initial_state(self, inputs=None, batch_size=None, dtype=tf.float32):
         state_size = self.state_size
-        if inputs:
+        if inputs is not None:
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
         return tf.zeros([batch_size, *state_size])

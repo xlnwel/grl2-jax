@@ -347,7 +347,7 @@ class MemoryAccess(layers.Layer):
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=tf.float32):
         state_size = self.state_size
-        if inputs:
+        if inputs is not None:
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
         # TODO: initialize memory with small values

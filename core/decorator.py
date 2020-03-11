@@ -5,7 +5,7 @@ from core.checkpoint import setup_checkpoint
 from core.log import setup_logger, setup_tensorboard, save_code
 
 
-""" Functions used to print useful information """                    
+""" Functions used to print model variables """                    
 def display_model_var_info(models):
     displayed_models = []
     tvars = []
