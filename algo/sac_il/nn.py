@@ -25,7 +25,7 @@ class SoftPolicy(tf.Module):
         self.LOG_STD_MAX = config.get('LOG_STD_MAX', 2)
         
         """ Network definition """
-        self.intra_layers = mlp(config['units_list'], 
+        self._layers = mlp(config['units_list'], 
                                 norm=norm, 
                                 activation=activation, 
                                 kernel_initializer=kernel_initializer)
@@ -77,7 +77,7 @@ class SoftPolicy(tf.Module):
     @tf.function(experimental_relax_shapes=True)
     def _action_impl(self, x, deterministic=False):
         print(f'action retrace: {x.shape}, {deterministic}')
-        x = self.intra_layers(x)
+        x = self._layers(x)
         mu = self.mu(x)
 
         if deterministic:
@@ -102,13 +102,13 @@ class SoftPolicy(tf.Module):
         return action, terms
 
     def train_step(self, x):
-        x = self.intra_layers(x)
+        x = self._layers(x)
 
         if self.is_action_discrete:
             logits = self.logits(x)
             action_distribution = self.ActionDistributionType(logits, self.tau)
             action = action_distribution.sample(reparameterize=True, hard=True)
-            logpi = action_distribution.logp(action)
+            logpi = action_distribution.log_prob(action)
         else:
             mu = self.mu(x)
             logstd = self.logstd(x)
@@ -116,7 +116,7 @@ class SoftPolicy(tf.Module):
 
             action_distribution = self.ActionDistributionType(mu, logstd)
             raw_action = action_distribution.sample(reparameterize=True)
-            raw_logpi = action_distribution.logp(raw_action)
+            raw_logpi = action_distribution.log_prob(raw_action)
             action = tf.tanh(raw_action)
             logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
@@ -147,7 +147,7 @@ class SoftQ(tf.Module):
         kernel_initializer = config.get('kernel_initializer', 'glorot_uniform')
 
         """ Network definition """
-        self.intra_layers = mlp(units_list, 
+        self._layers = mlp(units_list, 
                                 out_dim=1,
                                 norm=norm, 
                                 activation=activation, 
@@ -166,7 +166,7 @@ class SoftQ(tf.Module):
 
     def train_step(self, x, a):
         x = tf.concat([x, a], axis=-1)
-        x = self.intra_layers(x)
+        x = self._layers(x)
         x = tf.squeeze(x)
 
         return x

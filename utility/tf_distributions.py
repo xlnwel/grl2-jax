@@ -1,10 +1,10 @@
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
+from tensorflow_probability import distributions as tfd
 
 EPSILON = 1e-8
 
-
+""" Legacy code, use tfp instead """
 def tf_scope(func):
     def name_scope(*args, **kwargs):
         with tf.name_scope(func.__name__):
@@ -13,11 +13,11 @@ def tf_scope(func):
 
 class Distribution(tf.Module):
     @tf_scope
-    def logp(self, x):
+    def log_prob(self, x):
         return -self._neglogp(x)
 
     @tf_scope
-    def neglogp(self, x):
+    def neg_log_prob(self, x):
         return self._neglogp(x)
 
     @tf_scope
@@ -33,6 +33,14 @@ class Distribution(tf.Module):
         assert isinstance(other, type(self))
         return self._kl(other)
 
+    @tf_scope
+    def mean(self):
+        return self._mean()
+
+    @tf_scope
+    def mode(self):
+        return self._mode()
+
     def _neglogp(self, x):
         raise NotImplementedError
 
@@ -43,6 +51,12 @@ class Distribution(tf.Module):
         raise NotImplementedError
 
     def _kl(self, other):
+        raise NotImplementedError
+
+    def _mean(self):
+        raise NotImplementedError
+
+    def _mode(self):
         raise NotImplementedError
 
 
@@ -68,7 +82,7 @@ class Categorical(Distribution):
             # sample Gumbel(0, 1)
             # U = tf.random.uniform(tf.shape(self.logits), minval=0, maxval=1)
             # g = -tf.math.log(-tf.math.log(U+EPSILON)+EPSILON)
-            g = tfp.distributions.Gumbel(0, 1).sample(tf.shape(self.logits))
+            g = tfd.Gumbel(0, 1).sample(tf.shape(self.logits))
             # Draw a sample from the Gumbel-Softmax distribution
             y = tf.nn.softmax((self.logits + g) / self.tau)
             # draw one-hot encoded sample from the softmax
@@ -79,7 +93,7 @@ class Categorical(Distribution):
                 y = tf.stop_gradient(y_hard - y) + y
             assert len(y.shape) == len(self.logits.shape)
         else:
-            y = tfp.distributions.Categorical(self.logits).sample()
+            y = tfd.Categorical(self.logits).sample()
             assert len(y.shape) == len(self.logits.shape) - 1
             if one_hot:
                 y = tf.one_hot(y, self.logits.shape[-1])
@@ -106,26 +120,33 @@ class Categorical(Distribution):
 
 class DiagGaussian(Distribution):
     def __init__(self, mean, logstd):
-        self.mean, self.logstd = mean, logstd
+        self.mu, self.logstd = mean, logstd
         self.std = tf.exp(self.logstd)
 
     def _neglogp(self, x):
         return .5 * tf.reduce_sum(np.log(2. * np.pi)
                                   + 2. * self.logstd
-                                  + ((x - self.mean) / (self.std + EPSILON))**2, 
+                                  + ((x - self.mu) / (self.std + EPSILON))**2, 
                                   axis=-1)
 
     def _sample(self, reparameterize=True):
         # TODO: implement sampling without reparameterization
-        return self.mean + self.std * tf.random.normal(tf.shape(self.mean))
+        return self.mu + self.std * tf.random.normal(tf.shape(self.mu))
 
     def _entropy(self):
         return tf.reduce_sum(.5 * np.log(2. * np.pi) + self.logstd + .5, axis=-1)
 
     def _kl(self, other):
         return tf.reduce_sum(other.logstd - self.logstd - .5
-                             + .5 * (self.std**2 + (self.mean - other.mean)**2)
+                             + .5 * (self.std**2 + (self.mu - other.mean)**2)
                                 / (other.std + EPSILON)**2, axis=-1)
+
+    def _mean(self):
+        return self.mu
+    
+    def _mode(self):
+        return self.mu
+
 
 def compute_sample_mean_variance(samples, name='sample_mean_var'):
     """ Compute mean and covariance matrix from samples """

@@ -94,3 +94,24 @@ def positional_encoding(indices, max_idx, dim, name='positional_encoding'):
         v = tf.nn.embedding_lookup(params, indices)
 
     return v
+
+def static_scan(fn, inputs, start_state, reverse=False):
+    """ sequentially apply fn to inputs, with starting state start_state 
+    inputs are expected to be time-major, and the outputs of fn are expected
+    to have the same structure as start_state """
+    last = start_state
+    outputs = [[] for _ in tf.nest.flatten(start_state)]
+    indices = range(len(tf.nest.flatten(inputs)[0]))
+    if reverse:
+        indices = reversed(indices)
+    for index in indices:
+        # extract inputs at step index
+        inp = tf.nest.map_structure(lambda x: x[index], inputs)
+        last = fn(inp, last)
+        # distribute outputs
+        [o.append(l) for o, l in zip(outputs, tf.nest.flatten(last))]
+    if reverse:
+        outputs = [list(reversed(x)) for x in outputs]
+    outputs = [tf.stack(x, 0) for x in outputs]
+    # reconstruct outputs to have the same structure as start_state
+    return tf.nest.pack_sequence_as(start_state, outputs)

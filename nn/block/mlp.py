@@ -9,20 +9,20 @@ class MLP(layers.Layer):
                 name=None, **kwargs):
         super().__init__(name=name)
 
-        self.intra_layers = [
+        self._layers = [
             Layer(u, layer_type=layer_type, norm=norm, 
                 activation=activation, kernel_initializer=kernel_initializer, 
                 **kwargs)
             for u in units_list]
         if out_dim:
-            self.intra_layers.append(layer_type(out_dim))
+            self._layers.append(layer_type(out_dim))
             
     def call(self, x, **kwargs):
-        for l in self.intra_layers:
+        for l in self._layers:
             x = l(x, **kwargs)
         
         return x
 
     def reset(self):
-        for l in self.intra_layers:
+        for l in self._layers:
             l.reset()

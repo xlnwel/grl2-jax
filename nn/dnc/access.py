@@ -128,7 +128,7 @@ class MemoryAccess(layers.Layer):
         oneplus = lambda x: activations.softplus(x) + 1
         softplus = activations.softplus
 
-        self.intra_layers = dict(
+        self._layers = dict(
             read_keys=Dense(self._num_reads*self._word_size, name='read_keys', dtype=dtype),
             read_strengths=Dense(self._num_reads, name='read_strengths', activation=oneplus, dtype=dtype),
             write_keys=Dense(self._num_writes*self._word_size, name='write_keys', dtype=dtype),
@@ -200,7 +200,7 @@ class MemoryAccess(layers.Layer):
             Returns a linear transformation of `inputs`. If first_dim and second_dim
             are provide, reshape the resulting Tensor
             """
-            linear = self.intra_layers[name](inputs)
+            linear = self._layers[name](inputs)
             if first_dim and second_dim:
                 linear = tf.reshape(linear, [-1, first_dim, second_dim])
             return linear

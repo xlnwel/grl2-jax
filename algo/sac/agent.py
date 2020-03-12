@@ -176,6 +176,7 @@ class Agent(BaseAgent):
         terms['q_norm'] = self.q_opt(tape, q_loss)
         if not isinstance(self.temperature, (float, tf.Variable)):
             terms['temp_norm'] = self.temp_opt(tape, temp_loss)
+            
         terms.update(dict(
             actor_loss=actor_loss,
             q1=q1, 

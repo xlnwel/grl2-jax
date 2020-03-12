@@ -15,7 +15,7 @@ conv2d_fn = lambda time_distributed, *args, **kwargs: (
     Conv2D(*args, **kwargs)
 )
 class FTWCNN(Layer):
-    def __init__(self, *, time_distributed=False, batch_size=None, name='ftw', **kwargs):
+    def __init__(self, *, time_distributed=False, name='ftw', **kwargs):
         super().__init__(name=name)
         conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
         self.conv1 = conv2d(32, 8, strides=4, padding='same', **kwargs)
@@ -25,10 +25,6 @@ class FTWCNN(Layer):
 
         self.out_size = 256
         self.dense = Dense(self.out_size, **kwargs)
-
-        if time_distributed:
-            assert batch_size is not None
-            self.batch_size = batch_size
 
     def call(self, x):
         x = relu(self.conv1(x))
@@ -40,10 +36,8 @@ class FTWCNN(Layer):
         y = self.conv4(y)
         x = x + y
         x = relu(x)
-        if isinstance(self.conv1, TimeDistributed):
-            x = tf.reshape(x, (self.batch_size, -1, tf.reduce_prod(x.shape[2:])))
-        else:
-            x = tf.reshape(x, (-1, tf.reduce_prod(x.shape[1:])))
+        shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
+        x = tf.reshape(x, shape)
         x = self.dense(x)
         x = relu(x)
 
@@ -70,7 +64,7 @@ class IMPALAResidual(Layer):
 
 
 class IMPALACNN(Layer):
-    def __init__(self, *, time_distributed=False, batch_size=None, name='impala', **kwargs):
+    def __init__(self, *, time_distributed=False, name='impala', **kwargs):
         super().__init__(name=name)
         conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
         maxpooling2d = lambda *args, **kwargs: (
@@ -90,19 +84,13 @@ class IMPALACNN(Layer):
 
         self.out_size = 256
         self.dense = Dense(self.out_size)
-
-        if time_distributed:
-            assert batch_size is not None
-            self.batch_size = batch_size
     
     def call(self, x):
         for l in self.cnn_layers:
             x = l(x)
         x = relu(x)
-        if isinstance(self.cnn_layers[0], TimeDistributed):
-            x = tf.reshape(x, (self.batch_size, -1, tf.reduce_prod(x.shape[2:])))
-        else:
-            x = tf.reshape(x, (-1, tf.reduce_prod(x.shape[1:])))
+        shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
+        x = tf.reshape(x, shape)
         x = self.dense(x)
         x = relu(x)
 

@@ -8,8 +8,8 @@ import sympy
 
 
 class AttrDict:
-    __getattr__ = lambda self, k: self.__getitem__(k)
-    __setattr__ = lambda self, k, v: self.__setitem__(k, v)
+    __getattr__ = dict.__getitem__
+    __setattr__ = dict.__setitem__
 
 def to_int(s):
     return int(float(s))

@@ -1,12 +1,13 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
 
 from core.tf_config import build
 from core.module import Module
 from utility.display import pwc
 from utility.rl_utils import logpi_correction
-from utility.tf_distributions import DiagGaussian, Categorical
+from utility.tf_distributions import Categorical
 from nn.func import mlp
 
 
@@ -26,35 +27,18 @@ class SoftPolicy(Module):
         self.LOG_STD_MAX = config.get('LOG_STD_MAX', 2)
         
         """ Network definition """
-        self.intra_layers = mlp(config['units_list'], 
+        self._layers = mlp(config['units_list'], 
                                 norm=norm, 
                                 activation=activation, 
                                 kernel_initializer=kernel_initializer)
 
-        if is_action_discrete:
-            self.logits = mlp(config.get('logits_units', []),
-                            out_dim=action_dim, 
-                            norm=norm, 
-                            activation=activation, 
-                            kernel_initializer=kernel_initializer, 
-                            name='logits')
-            self.tau = 1.   # tf.Variable(1., dtype=tf.float32, name='softmax_tau')
-        else:
-            self.mu = mlp(config.get('mu_units', []),
-                        out_dim=action_dim, 
+        out_dim = action_dim if is_action_discrete else 2*action_dim
+        self._out = mlp([],
+                        out_dim=out_dim, 
                         norm=norm, 
                         activation=activation, 
                         kernel_initializer=kernel_initializer, 
-                        name='mu')
-            self.logstd = mlp(config.get('logstd_units', []),
-                        out_dim=action_dim, 
-                        norm=norm, 
-                        activation=activation, 
-                        kernel_initializer=kernel_initializer, 
-                        name='logstd')
-
-        # action distribution type    
-        self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
+                        name='logits')
 
         # build for variable initialization and avoiding unintended retrace
         TensorSpecs = [(state_shape, tf.float32, 'state'), (None, tf.bool, 'deterministic')]
@@ -77,53 +61,43 @@ class SoftPolicy(Module):
     @tf.function(experimental_relax_shapes=True)
     def _action_impl(self, x, deterministic=False):
         print(f'action retrace: {x.shape}, {deterministic}')
-        x = self.intra_layers(x)
+        x = self._layers(x)
+        x = self._out(x)
 
         if self.is_action_discrete:
-            logits = self.logits(x)
-            if deterministic:
-                action = tf.cast(tf.argmax(logits, -1), tf.int32)
-            else:
-                action_distribution = self.ActionDistributionType(logits, self.tau)
-                action = action_distribution.sample(one_hot=False)
+            dist = tfd.Categorical(x)
+            action = dist.mode() if deterministic else dist.sample()
             terms = {}
         else:
-            mu = self.mu(x)
-            if deterministic:
-                action = tf.tanh(mu)
-                terms = dict(action_std=tf.zeros_like(action))
-            else:
-                logstd = self.logstd(x)
-                logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-
-                action_distribution = self.ActionDistributionType(mu, logstd)
-                raw_action = action_distribution.sample()
-                action = tf.tanh(raw_action)
-
-                terms = dict(action_std=action_distribution.std)
+            mu, logstd = tf.split(x, 2, -1)
+            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+            std = tf.exp(logstd)
+            dist = tfd.MultivariateNormalDiag(mu, std)
+            raw_action = dist.sample()
+            action = tf.tanh(raw_action)
+            terms = dict(action_std=std)
 
         return action, terms
 
     def train_step(self, x):
-        x = self.intra_layers(x)
+        x = self._layers(x)
+        x = self._out(x)
 
         if self.is_action_discrete:
-            logits = self.logits(x)
-            action_distribution = self.ActionDistributionType(logits, self.tau)
-            action = action_distribution.sample(reparameterize=True, hard=True)
-            logpi = action_distribution.logp(action)
+            dist = Categorical(x)
+            action = dist.sample(reparameterize=True)
+            logpi = dist.log_prob(action)
         else:
-            mu = self.mu(x)
-            logstd = self.logstd(x)
+            mu, logstd = tf.split(x, 2, -1)
             logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-
-            action_distribution = self.ActionDistributionType(mu, logstd)
-            raw_action = action_distribution.sample(reparameterize=True)
-            raw_logpi = action_distribution.logp(raw_action)
+            std = tf.exp(logstd)
+            dist = tfd.MultivariateNormalDiag(mu, std)
+            raw_action = dist.sample()
+            raw_logpi = dist.log_prob(raw_action)
             action = tf.tanh(raw_action)
             logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
 
-        terms = dict(entropy=action_distribution.entropy())
+        terms = dict(entropy=dist.entropy())
 
         return action, logpi, terms
 
@@ -139,7 +113,7 @@ class SoftQ(Module):
         kernel_initializer = config.get('kernel_initializer', 'glorot_uniform')
 
         """ Network definition """
-        self.intra_layers = mlp(units_list, 
+        self._layers = mlp(units_list, 
                                 out_dim=1,
                                 norm=norm, 
                                 activation=activation, 
@@ -158,7 +132,7 @@ class SoftQ(Module):
 
     def train_step(self, x, a):
         x = tf.concat([x, a], axis=-1)
-        x = self.intra_layers(x)
+        x = self._layers(x)
         x = tf.squeeze(x)
             
         return x
