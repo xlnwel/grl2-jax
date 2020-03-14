@@ -116,13 +116,11 @@ class Actor(Module):
     def __init__(self, state_shape, action_dim, is_action_discrete, name='actor'):
         """ Network definition """
         self._layers = mlp(self._units_list, 
-                            norm=self._norm, 
                             activation=self._activation)
 
         self._is_action_discrete = is_action_discrete
         out_dim = action_dim if is_action_discrete else 2*action_dim
         self._out = mlp(out_dim=out_dim, 
-                        norm=self._norm, 
                         activation=self._activation)
 
     def __call__(self, x):

@@ -16,7 +16,6 @@ model:
         units_list: [64]
     actor:
         units_list: [64]
-        norm: None
         activation: elu
         init_std: 5
         min_std: 1.e-4
