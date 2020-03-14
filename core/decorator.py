@@ -1,3 +1,4 @@
+from functools import wraps
 import tensorflow as tf
 
 from utility.display import display_var_info, pwc
@@ -20,7 +21,6 @@ def display_model_var_info(models):
 
 def agent_config(init_fn):
     """ Decorator for agent's initialization """
-    from functools import wraps
     @wraps(init_fn)
     def wrapper(self, *, name, config, models, **kwargs):
         """
@@ -37,30 +37,39 @@ def agent_config(init_fn):
         # e.g., all workers share the same name, but with differnt model_names
         self.name = name
         """ For the basic configuration, see config.yaml in algo/*/ """
-        [setattr(self, k, v) for k, v in config.items()]
+        [setattr(self, f'_{k}', v) for k, v in config.items()]
 
         # track models and optimizers for Checkpoint
-        self.ckpt_models = {}
+        self._ckpt_models = {}
         for name_, model in models.items():
             setattr(self, name_, model)
             if isinstance(model, tf.Module) or isinstance(model, tf.Variable):
-                self.ckpt_models[name_] = model
+                self._ckpt_models[name_] = model
                 
         # Agent initialization
         init_fn(self, name=self.name, config=config, models=models, **kwargs)
 
-        self.logger = setup_logger(self.root_dir, self.model_name)
-        self.writer = setup_tensorboard(self.root_dir, self.model_name)
+        self._logger = setup_logger(self._root_dir, self._model_name)
+        self._writer = setup_tensorboard(self._root_dir, self._model_name)
 
         # define global steps for train/env step tracking
         self.global_steps = tf.Variable(0, dtype=tf.int64)
 
-        save_code(self.root_dir, self.model_name)
+        save_code(self._root_dir, self._model_name)
 
         # postprocessing
-        self.ckpt, self.ckpt_path, self.ckpt_manager = \
-            setup_checkpoint(self.ckpt_models, self.root_dir, self.model_name, self.global_steps)
-        display_model_var_info(self.ckpt_models)
+        self._ckpt, self._ckpt_path, self._ckpt_manager = \
+            setup_checkpoint(self._ckpt_models, self._root_dir, self._model_name, self.global_steps)
+        display_model_var_info(self._ckpt_models)
         self.print_construction_complete()
     
+    return wrapper
+
+def config(init_fn):
+    @wraps(init_fn)
+    def wrapper(self, config, *args, **kwargs):
+        [setattr(self, k if k.isupper() else f'_{k}', v) for k, v in config.items()]
+
+        init_fn(self, *args, **kwargs)
+
     return wrapper

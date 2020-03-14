@@ -22,45 +22,45 @@ class Agent(BaseAgent):
                 env):
         # dataset for input pipline optimization
         self.dataset = dataset
-        self.is_per = not self.dataset.buffer_type().endswith('uniform')
+        self._is_per = not self.dataset.buffer_type().endswith('uniform')
 
         # learning rate schedule
-        if getattr(self, 'schedule_lr', False):
-            self.actor_schedule = PiecewiseSchedule(
-                [(2e5, self.actor_lr), (1e6, 1e-5)])
-            self.q_schedule = PiecewiseSchedule(
-                [(2e5, self.q_lr), (1e6, 1e-5)])
-            self.actor_lr = tf.Variable(self.actor_lr, trainable=False)
-            self.q_lr = tf.Variable(self.q_lr, trainable=False)
+        if getattr(self, '_schedule_lr', False):
+            self._actor_sched = PiecewiseSchedule(
+                [(2e5, self._actor_lr), (1e6, 1e-5)])
+            self._q_sched = PiecewiseSchedule(
+                [(2e5, self._q_lr), (1e6, 1e-5)])
+            self._actor_lr = tf.Variable(self._actor_lr, trainable=False)
+            self._q_lr = tf.Variable(self._q_lr, trainable=False)
             self.lr_pairs = [
-                (self.actor_lr, self.actor_schedule), (self.q_lr, self.q_schedule)]
+                (self._actor_lr, self._actor_sched), (self._q_lr, self._q_sched)]
 
         # optimizer
         clip_norm = getattr(self, 'clip_norm', None)
-        self.actor_opt = Optimizer(
-            'adam', self.actor, self.actor_lr, 
-            clip_norm=clip_norm, epsilon=self.epsilon)
-        self.q_opt = Optimizer(
-            'adam', [self.q1, self.q2], self.q_lr, 
-            clip_norm=clip_norm, epsilon=self.epsilon)
-        self.ckpt_models['actor_opt'] = self.actor_opt
-        self.ckpt_models['q_opt'] = self.q_opt
+        self._actor_opt = Optimizer(
+            'adam', self.actor, self._actor_lr, 
+            clip_norm=clip_norm)
+        self._q_opt = Optimizer(
+            'adam', [self.q1, self.q2], self._q_lr, 
+            clip_norm=clip_norm)
+        self._ckpt_models['_actor_opt'] = self._actor_opt
+        self._ckpt_models['q_opt'] = self._q_opt
 
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
-            if getattr(self, 'schedule_lr', False):
-                self.temp_schedule = PiecewiseSchedule(
-                    [(5e5, self.temp_lr), (1e6, 1e-5)])
-                self.temp_lr = tf.Variable(self.temp_lr, trainable=False)
-                self.lr_pairs.append((self.temp_lr, self.temp_schedule))
-            self.temp_opt = Optimizer(
-                'adam', self.temperature, self.temp_lr, 
-                clip_norm=clip_norm, epsilon=self.epsilon)
-            self.ckpt_models['temp_opt'] = self.temp_opt
+            if getattr(self, '_schedule_lr', False):
+                self._temp_sched = PiecewiseSchedule(
+                    [(5e5, self._temp_lr), (1e6, 1e-5)])
+                self._temp_lr = tf.Variable(self._temp_lr, trainable=False)
+                self.lr_pairs.append((self._temp_lr, self._temp_sched))
+            self._temp_opt = Optimizer(
+                'adam', self.temperature, self._temp_lr, 
+                clip_norm=clip_norm)
+            self._ckpt_models['temp_opt'] = self._temp_opt
 
-        self.action_dim = env.action_dim
-        self.is_action_discrete = env.is_action_discrete
+        self._action_dim = env.action_dim
+        self._is_action_discrete = env.is_action_discrete
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
@@ -70,7 +70,7 @@ class Agent(BaseAgent):
             next_state=(env.state_shape, tf.float32, 'next_state'),
             done=((), tf.float32, 'done'),
         )
-        if not self.dataset.buffer_type().endswith('uniform'):
+        if self._is_per:
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
         if 'steps'  in self.dataset.data_format:
             TensorSpecs['steps'] = ((), tf.float32, 'steps')
@@ -84,15 +84,15 @@ class Agent(BaseAgent):
     def learn_log(self, step=None):
         if step:
             self.global_steps.assign(step)
-        if self.schedule_lr:
+        if self._schedule_lr:
             [lr.assign(sched.value(self.global_steps.numpy())) for lr, sched in self.lr_pairs]
-        with TBTimer(f'{self.model_name} sample', 10000, to_log=self.timer):
+        with TBTimer(f'{self._model_name} sample', 10000, to_log=self._timer):
             data = self.dataset.sample()
-        if self.is_per:
+        if self._is_per:
             saved_idxes = data['saved_idxes']
             del data['saved_idxes']
 
-        with TBTimer(f'{self.model_name} learn', 10000, to_log=self.timer):
+        with TBTimer(f'{self._model_name} learn', 10000, to_log=self._timer):
             terms = self.learn(**data)
 
         for k, v in terms.items():
@@ -100,21 +100,21 @@ class Agent(BaseAgent):
             
         self._update_target_nets()
 
-        if self.schedule_lr:
-            terms['actor_lr'] = self.actor_lr.numpy()
-            terms['q_lr'] = self.q_lr.numpy()
+        if self._schedule_lr:
+            terms['_actor_lr'] = self._actor_lr.numpy()
+            terms['_q_lr'] = self._q_lr.numpy()
             if not isinstance(self.temperature, (float, tf.Variable)):
-                terms['temp_lr'] = self.temp_lr.numpy()
+                terms['_temp_lr'] = self._temp_lr.numpy()
             
-        if self.is_per:
+        if self._is_per:
             self.dataset.update_priorities(terms['priority'], saved_idxes.numpy())
         self.store(**terms)
 
     @tf.function
     def _learn(self, state, action, reward, next_state, done, IS_ratio=1, steps=1):
-        target_entropy = getattr(self, 'target_entropy', -self.action_dim)
-        if self.is_action_discrete:
-            old_action = tf.one_hot(action, self.action_dim)
+        target_entropy = getattr(self, 'target_entropy', -self._action_dim)
+        if self._is_action_discrete:
+            old_action = tf.one_hot(action, self._action_dim)
         else:
             old_action = action
         target_fn = (transformed_n_step_target if getattr(self, 'tbo', False) 
@@ -158,7 +158,7 @@ class Agent(BaseAgent):
 
                 tf.debugging.assert_shapes([(nth_value, (None,)), (reward, (None,)), (done, (None,)), (steps, (None,))])
                 
-                target_q = target_fn(reward, done, nth_value, self.gamma, steps)
+                target_q = target_fn(reward, done, nth_value, self._gamma, steps)
                 q1_error = target_q - q1
                 q2_error = target_q - q2
 
@@ -168,14 +168,14 @@ class Agent(BaseAgent):
                 q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
                 q_loss = q1_loss + q2_loss
 
-        if self.is_per:
+        if self._is_per:
             priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
             terms['priority'] = priority
             
-        terms['actor_norm'] = self.actor_opt(tape, actor_loss)
-        terms['q_norm'] = self.q_opt(tape, q_loss)
+        terms['actor_norm'] = self._actor_opt(tape, actor_loss)
+        terms['q_norm'] = self._q_opt(tape, q_loss)
         if not isinstance(self.temperature, (float, tf.Variable)):
-            terms['temp_norm'] = self.temp_opt(tape, temp_loss)
+            terms['temp_norm'] = self._temp_opt(tape, temp_loss)
             
         terms.update(dict(
             actor_loss=actor_loss,
@@ -192,8 +192,8 @@ class Agent(BaseAgent):
     def _compute_priority(self, priority):
         """ p = (p + 𝝐)**𝛼 """
         with tf.name_scope('priority'):
-            priority += self.per_epsilon
-            priority **= self.per_alpha
+            priority += self._per_epsilon
+            priority **= self._per_alpha
         tf.debugging.assert_greater(priority, 0.)
         return priority
 
@@ -209,5 +209,5 @@ class Agent(BaseAgent):
         tvars = self.target_q1.trainable_variables + self.target_q2.trainable_variables
         mvars = self.q1.trainable_variables + self.q2.trainable_variables
         assert len(tvars) == len(mvars)
-        [tvar.assign(self.polyak * tvar + (1. - self.polyak) * mvar) 
+        [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
             for tvar, mvar in zip(tvars, mvars)]

@@ -6,7 +6,7 @@ from nn.block.mlp import *
 from nn.dnc.dnc import DNC
 
 
-def mlp(units_list, 
+def mlp(units_list=[], 
         out_dim=None, 
         norm=None, 
         activation=None, 

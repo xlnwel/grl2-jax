@@ -1,0 +1,60 @@
+---
+env:
+    # is_deepmind_env: True
+    name: PongNoFrameskip-v4    # PongNoFrameskip-v4, MontezumaRevengeNoFrameskip-v0, BreakoutNoFrameskip-v4
+    video_path: video
+    log_video: False
+    efficient_envvec: True
+    max_episode_steps: 27000    # 108000 frames / 4 frame-skips
+    seed: 0
+model:
+    q:
+        cnn: impala
+        v_units: [256]
+        a_units: [256]
+        activation: relu
+agent:
+    algorithm: &algo d3qn
+    gamma: &gamma 0.99
+    MAX_STEPS: 1.e+7          # maximum training steps
+    train_steps: 250000
+    eval_steps: 125000
+
+    LOG_INTERVAL: 10
+    TIME_INTERVAL: 100
+    timer: True
+
+    # model path: root_dir/model_name/models
+    # tensorboard path: root_dir/model_name/logs
+    # the following names are just examples; they will be reset in our training process
+    root_dir: *algo                         # root path for tensorboard logs
+    model_name: *algo
+
+    update_freq: 4
+    loss_type: huber   # huber or mse
+    target_update_freq: 8000    # we count update step, which is frame steps / 4
+    
+    # arguments for optimizer
+    optimizer: adam
+    schedule_lr: False
+    learning_rate: 6.25e-5
+    clip_norm: 10
+    epsilon: 0.0003125
+
+    # arguments for PER
+    per_alpha: 0.5
+    per_epsilon: 1.e-4
+
+replay:
+    type: uniform      # uniform, proportional
+    # arguments for PER
+    beta0: 0.4
+    beta_steps: 1e6
+    to_update_top_priority: True
+
+    # arguments for general replay
+    n_steps: 3
+    gamma: *gamma
+    batch_size: 32
+    min_size: 8e4
+    capacity: 1e5

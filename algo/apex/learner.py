@@ -58,7 +58,7 @@ def get_learner_class(BaseAgent):
         def _learning(self):
             pwc(f'{self.name} starts learning...', color='blue')
             step = 0
-            self.writer.set_as_default()
+            self._writer.set_as_default()
             while True:
                 step += 1
                 with TBTimer(f'{self.name} train', 10000, to_log=self.timer):

@@ -14,7 +14,7 @@ class SoftPolicy(tf.Module):
         super().__init__(name=name)
 
         # network parameters
-        self.is_action_discrete = is_action_discrete
+        self._is_action_discrete = is_action_discrete
         self.state_shape = state_shape
 
         norm = config.get('norm')
@@ -26,30 +26,30 @@ class SoftPolicy(tf.Module):
         
         """ Network definition """
         self._layers = mlp(config['units_list'], 
-                                norm=norm, 
-                                activation=activation, 
-                                kernel_initializer=kernel_initializer)
+                                norm=self._norm, 
+                                activation=self._activation, 
+                                kernel_initializer=self._kernel_initializer)
 
         if is_action_discrete:
             self.logits = mlp(config.get('logits_units', []),
                             out_dim=action_dim, 
-                            norm=norm, 
-                            activation=activation, 
-                            kernel_initializer=kernel_initializer, 
+                            norm=self._norm, 
+                            activation=self._activation, 
+                            kernel_initializer=self._kernel_initializer, 
                             name='logits')
             self.tau = 1.   # tf.Variable(1., dtype=tf.float32, name='softmax_tau')
         else:
             self.mu = mlp(config.get('mu_units', []),
                         out_dim=action_dim, 
-                        norm=norm, 
-                        activation=activation, 
-                        kernel_initializer=kernel_initializer, 
+                        norm=self._norm, 
+                        activation=self._activation, 
+                        kernel_initializer=self._kernel_initializer, 
                         name='mu')
             self.logstd = mlp(config.get('logstd_units', []),
                         out_dim=action_dim, 
-                        norm=norm, 
-                        activation=activation, 
-                        kernel_initializer=kernel_initializer, 
+                        norm=self._norm, 
+                        activation=self._activation, 
+                        kernel_initializer=self._kernel_initializer, 
                         name='logstd')
 
         # action distribution type    
@@ -104,7 +104,7 @@ class SoftPolicy(tf.Module):
     def train_step(self, x):
         x = self._layers(x)
 
-        if self.is_action_discrete:
+        if self._is_action_discrete:
             logits = self.logits(x)
             action_distribution = self.ActionDistributionType(logits, self.tau)
             action = action_distribution.sample(reparameterize=True, hard=True)
@@ -149,9 +149,9 @@ class SoftQ(tf.Module):
         """ Network definition """
         self._layers = mlp(units_list, 
                                 out_dim=1,
-                                norm=norm, 
-                                activation=activation, 
-                                kernel_initializer=kernel_initializer)
+                                norm=self._norm, 
+                                activation=self._activation, 
+                                kernel_initializer=self._kernel_initializer)
 
         # build for variable initialization
         # TensorSpecs = [

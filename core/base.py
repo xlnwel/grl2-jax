@@ -15,7 +15,7 @@ class BaseAgent(ABC):
             ckpt_path: The directory in which to write checkpoints
             name: optional name for print
         """
-        restore(self.ckpt_manager, self.ckpt, self.ckpt_path)
+        restore(self._ckpt_manager, self._ckpt, self._ckpt_path)
 
     def save(self, steps=None, message='', print_terminal_info=True):
         """ Save Model
@@ -27,34 +27,34 @@ class BaseAgent(ABC):
                 If it's None, we leave global_steps unchanged
             message: optional message for print
         """
-        save(self.ckpt_manager, self.global_steps, steps, message, 
+        save(self._ckpt_manager, self.global_steps, steps, message, 
             print_terminal_info=print_terminal_info)
 
     """ Logging """
     def save_config(self, config):
-        save_config(self.logger, config)
+        save_config(self._logger, config)
 
     def log(self, step, timing='Train', print_terminal_info=True):
-        log(self.logger, self.writer, self.model_name, step, 
+        log(self._logger, self._writer, self._model_name, step, 
             timing=timing, print_terminal_info=print_terminal_info)
 
     def log_stats(self, stats, print_terminal_info=True):
-        log_stats(self.logger, stats, print_terminal_info=print_terminal_info)
+        log_stats(self._logger, stats, print_terminal_info=print_terminal_info)
 
     def set_summary_step(self, step):
         set_summary_step(step)
 
     def log_summary(self, stats, step=None):
-        log_summary(self.writer, stats, step=step)
+        log_summary(self._writer, stats, step=step)
 
     def store(self, **kwargs):
-        store(self.logger, **kwargs)
+        store(self._logger, **kwargs)
 
     def get_stats(self, mean=True, std=False, min=False, max=False):
-        return get_stats(self.logger, mean=mean, std=std, min=min, max=max)
+        return get_stats(self._logger, mean=mean, std=std, min=min, max=max)
 
     def get_value(self, key, mean=True, std=False, min=False, max=False):
-        return get_value(self.logger, key, mean=mean, std=std, min=min, max=max)
+        return get_value(self._logger, key, mean=mean, std=std, min=min, max=max)
 
     def print_construction_complete(self):
-        pwc(f'{self.model_name} has been constructed', color='cyan')
+        pwc(f'{self._model_name} has been constructed', color='cyan')

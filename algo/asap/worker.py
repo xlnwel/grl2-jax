@@ -91,7 +91,7 @@ class Worker(BaseWorker):
             
             self._update_mode_prob()
 
-            self.info_to_print = print_repo(self.weight_repo, self.model_name, c=self.cb_c, info=self.info_to_print)
+            self.info_to_print = print_repo(self.weight_repo, self._model_name, c=self.cb_c, info=self.info_to_print)
 
             if step > log_time:
                 self.set_weights(self.weight_repo[max(self.weight_repo)].weights)
@@ -176,7 +176,7 @@ class Worker(BaseWorker):
         ))
 
     def _log_condition(self):
-        return self.logger.get_count('score') > 0 and self.logger.get_count('evolved_score') > 0
+        return self._logger.get_count('score') > 0 and self._logger.get_count('evolved_score') > 0
 
     def _logging(self, step):
         self.store(**self.get_value('score', mean=True, std=True, min=True, max=True))

@@ -84,7 +84,7 @@ class LoggerTimer:
     def __init__(self, logger, summary_name, to_log=True):
         self.to_log = to_log
         if self.to_log:
-            self.logger = logger
+            self._logger = logger
             self.summary_name = summary_name
 
     def __enter__(self):
@@ -95,4 +95,4 @@ class LoggerTimer:
     def __exit__(self, exc_type, exc_value, traceback):
         if self.to_log:
             duration = time() - self.start
-            self.logger.store(**{self.summary_name: duration})
+            self._logger.store(**{self.summary_name: duration})

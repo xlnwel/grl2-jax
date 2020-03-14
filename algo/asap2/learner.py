@@ -64,13 +64,13 @@ def get_learner_class(BaseAgent):
         def _learning(self):
             pwc(f'{self.name} starts learning...', color='blue')
             step = 0
-            self.writer.set_as_default()
+            self._writer.set_as_default()
             while True:
                 step += 1
                 with TBTimer(f'{self.name} train', 10000, to_log=self.timer):
                     self.learn_log(step)
                 if self.weight_repo and step % 1000 == 0:
-                    print_repo(self.weight_repo, self.model_name, self.cb_c)
+                    print_repo(self.weight_repo, self._model_name, self.cb_c)
                     self.store(mode_learned=self.mode_prob[0], mode_evolved=self.mode_prob[1])
                     self.store(**analyze_repo(self.weight_repo))
                     self.store(**self.bookkeeping.stats())

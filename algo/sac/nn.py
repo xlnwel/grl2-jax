@@ -5,6 +5,7 @@ from tensorflow.keras import layers
 
 from core.tf_config import build
 from core.module import Module
+from core.decorator import config
 from utility.display import pwc
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import Categorical
@@ -12,33 +13,25 @@ from nn.func import mlp
 
 
 class SoftPolicy(Module):
-    def __init__(self, config, state_shape, action_dim, is_action_discrete, name='actor'):
+    @config
+    def __init__(self, state_shape, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
 
         # network parameters
-        self.is_action_discrete = is_action_discrete
-        self.state_shape = state_shape
-
-        norm = config.get('norm')
-        activation = config.get('activation', 'relu')
-        kernel_initializer = config.get('kernel_initializer', 'glorot_uniform')
-        
-        self.LOG_STD_MIN = config.get('LOG_STD_MIN', -20)
-        self.LOG_STD_MAX = config.get('LOG_STD_MAX', 2)
+        self._is_action_discrete = is_action_discrete
+        self._state_shape = state_shape
         
         """ Network definition """
-        self._layers = mlp(config['units_list'], 
-                                norm=norm, 
-                                activation=activation, 
-                                kernel_initializer=kernel_initializer)
+        self._layers = mlp(self._units_list, 
+                            norm=self._norm, 
+                            activation=self._activation, 
+                            kernel_initializer=self._kernel_initializer)
 
         out_dim = action_dim if is_action_discrete else 2*action_dim
-        self._out = mlp([],
-                        out_dim=out_dim, 
-                        norm=norm, 
-                        activation=activation, 
-                        kernel_initializer=kernel_initializer, 
-                        name='logits')
+        self._out = mlp(out_dim=out_dim, 
+                        norm=self._norm, 
+                        activation=self._activation, 
+                        kernel_initializer=self._kernel_initializer)
 
         # build for variable initialization and avoiding unintended retrace
         TensorSpecs = [(state_shape, tf.float32, 'state'), (None, tf.bool, 'deterministic')]
@@ -46,7 +39,7 @@ class SoftPolicy(Module):
     
     def action(self, x, deterministic=False, epsilon=0):
         x = tf.convert_to_tensor(x, tf.float32)
-        x = tf.reshape(x, [-1, *self.state_shape])
+        x = tf.reshape(x, [-1, *self._state_shape])
         deterministic = tf.convert_to_tensor(deterministic, tf.bool)
 
         action, terms = self._action(x, deterministic)
@@ -64,7 +57,7 @@ class SoftPolicy(Module):
         x = self._layers(x)
         x = self._out(x)
 
-        if self.is_action_discrete:
+        if self._is_action_discrete:
             dist = tfd.Categorical(x)
             action = dist.mode() if deterministic else dist.sample()
             terms = {}
@@ -83,8 +76,13 @@ class SoftPolicy(Module):
         x = self._layers(x)
         x = self._out(x)
 
-        if self.is_action_discrete:
+        if self._is_action_discrete:
             dist = Categorical(x)
+            # action_int = dist.sample()
+            # action = tf.one_hot(action_int, tf.shape(x)[-1])
+            # probs = dist.probs_parameter()
+            # action += tf.cast(probs - tf.stop_gradient(probs), tf.float32)
+            # logpi = dist.log_prob(action_int)
             action = dist.sample(reparameterize=True)
             logpi = dist.log_prob(action)
         else:
@@ -102,22 +100,16 @@ class SoftPolicy(Module):
         return action, logpi, terms
 
 class SoftQ(Module):
-    def __init__(self, config, state_shape, action_dim, name='q'):
+    @config
+    def __init__(self, state_shape, action_dim, name='q'):
         super().__init__(name=name)
 
-        # parameters
-        units_list = config['units_list']
-
-        norm = config.get('norm')
-        activation = config.get('activation', 'relu')
-        kernel_initializer = config.get('kernel_initializer', 'glorot_uniform')
-
         """ Network definition """
-        self._layers = mlp(units_list, 
-                                out_dim=1,
-                                norm=norm, 
-                                activation=activation, 
-                                kernel_initializer=kernel_initializer)
+        self._layers = mlp(self._units_list, 
+                            out_dim=1,
+                            norm=self._norm, 
+                            activation=self._activation, 
+                            kernel_initializer=self._kernel_initializer)
 
         # build for variable initialization
         TensorSpecs = [

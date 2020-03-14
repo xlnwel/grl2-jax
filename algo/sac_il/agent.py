@@ -39,12 +39,12 @@ class Agent(BaseAgent):
             Optimizer = tf.keras.optimizers.RMSprop
         else:
             raise NotImplementedError()
-        self.actor_opt = Optimizer(learning_rate=self.actor_lr,
+        self._actor_opt = Optimizer(learning_rate=self.actor_lr,
                                     epsilon=self.epsilon)
-        self.q_opt = Optimizer(learning_rate=self.q_lr,
+        self._q_opt = Optimizer(learning_rate=self.q_lr,
                                 epsilon=self.epsilon)
-        self.ckpt_models['actor_opt'] = self.actor_opt
-        self.ckpt_models['q_opt'] = self.q_opt
+        self._ckpt_models['actor_opt'] = self._actor_opt
+        self._ckpt_models['q_opt'] = self._q_opt
 
         if isinstance(self.temperature, float):
             # if env.name == 'BipedalWalkerHardcore-v2':
@@ -56,12 +56,12 @@ class Agent(BaseAgent):
                 self.temp_schedule = PiecewiseSchedule(
                     [(5e5, self.temp_lr), (1e6, 1e-5)])
                 self.temp_lr = tf.Variable(self.temp_lr, trainable=False)
-            self.temp_opt = Optimizer(learning_rate=self.temp_lr,
+            self._temp_opt = Optimizer(learning_rate=self.temp_lr,
                                     epsilon=self.epsilon)
-            self.ckpt_models['temp_opt'] = self.temp_opt
+            self._ckpt_models['temp_opt'] = self._temp_opt
 
-        self.action_dim = env.action_dim
-        self.is_action_discrete = env.is_action_discrete
+        self._action_dim = env.action_dim
+        self._is_action_discrete = env.is_action_discrete
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
@@ -90,13 +90,13 @@ class Agent(BaseAgent):
                 self.temp_lr.assign(self.temp_schedule.value(self.global_steps.numpy()))
         if hasattr(self, 'temp_schedule'):
             self.temperature.assign(self.temp_schedule.value(self.global_steps.numpy()))
-        with TBTimer(f'{self.model_name} sample', 10000, to_log=self.timer):
+        with TBTimer(f'{self._model_name} sample', 10000, to_log=self.timer):
             data = self.dataset.sample()
         if self.is_per:
             saved_idxes = data['saved_idxes']
             del data['saved_idxes']
 
-        with TBTimer(f'{self.model_name} learn', 10000, to_log=self.timer):
+        with TBTimer(f'{self._model_name} learn', 10000, to_log=self.timer):
             terms = self.learn(**data)
 
         for k, v in terms.items():
@@ -124,14 +124,14 @@ class Agent(BaseAgent):
             if getattr(self, 'clip_norm', None) is not None:
                 actor_grads, actor_norm = tf.clip_by_global_norm(actor_grads, self.clip_norm)
                 terms['actor_norm'] = actor_norm
-            self.actor_opt.apply_gradients(zip(actor_grads, self.actor.trainable_variables))
+            self._actor_opt.apply_gradients(zip(actor_grads, self.actor.trainable_variables))
 
         with tf.name_scope('q_update'):
             q_grads = grads['q_grads']
             if getattr(self, 'clip_norm', None) is not None:
                 q_grads, q_norm = tf.clip_by_global_norm(q_grads, self.clip_norm)
                 terms['q_norm'] = q_norm
-            self.q_opt.apply_gradients(
+            self._q_opt.apply_gradients(
                 zip(q_grads, self.q1.trainable_variables + self.q2.trainable_variables))
 
         if not isinstance(self.temperature, (float, tf.Variable)):
@@ -140,15 +140,15 @@ class Agent(BaseAgent):
                 if getattr(self, 'clip_norm', None) is not None:
                     temp_grads, temp_norm = tf.clip_by_global_norm(temp_grads, self.clip_norm)
                     terms['temp_norm'] = temp_norm
-                self.temp_opt.apply_gradients(zip(temp_grads, self.temperature.trainable_variables))
+                self._temp_opt.apply_gradients(zip(temp_grads, self.temperature.trainable_variables))
 
         return terms
 
     def _compute_grads(self, IS_ratio, state, action, reward, next_state, done, steps,
                         mu, std, kl_flag):
-        target_entropy = getattr(self, 'target_entropy', -self.action_dim)
-        if self.is_action_discrete:
-            old_action = tf.one_hot(action, self.action_dim)
+        target_entropy = getattr(self, 'target_entropy', -self._action_dim)
+        if self._is_action_discrete:
+            old_action = tf.one_hot(action, self._action_dim)
         else:
             old_action = action
         old_mu = mu

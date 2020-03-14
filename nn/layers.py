@@ -13,17 +13,17 @@ class Layer(layers.Layer):
 
         kernel_initializer = get_initializer(kernel_initializer)
 
-        self.intra_layer = layer_type(units, kernel_initializer=kernel_initializer, **kwargs)
-        self.norm_layer = get_norm(norm)
-        if self.norm_layer:
-            self.norm_layer = self.norm_layer()
+        self._layer = layer_type(units, kernel_initializer=kernel_initializer, **kwargs)
+        self._norm_layer = get_norm(norm)
+        if self._norm_layer:
+            self._norm_layer = self._norm_layer()
 
         self.activation = get_activation(activation)
 
     def call(self, x, **kwargs):
-        x = self.intra_layer(x, **kwargs)
-        if self.norm_layer:
-            x = self.norm_layer(x)
+        x = self._layer(x, **kwargs)
+        if self._norm_layer:
+            x = self._norm_layer(x)
         if self.activation is not None:
             x = self.activation(x)
         
@@ -31,8 +31,8 @@ class Layer(layers.Layer):
     
     def reset(self):
         # reset noisy layer
-        if isinstance(self.intra_layer, Noisy):
-            self.intra_layer.reset()
+        if isinstance(self._layer, Noisy):
+            self._layer.reset()
 
 class Noisy(layers.Dense):
     def __init__(self, units, **kwargs):

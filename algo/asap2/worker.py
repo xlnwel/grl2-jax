@@ -88,7 +88,7 @@ class Worker(BaseWorker):
                 )
 
     def _log_condition(self):
-        return self.logger.get_count('score') > 0 and self.logger.get_count('evolved_score') > 0
+        return self._logger.get_count('score') > 0 and self._logger.get_count('evolved_score') > 0
 
     def _logging(self, step):
         # record stats

@@ -1,0 +1,65 @@
+---
+env:
+    name: BipedalWalker-v2
+    video_path: video
+    n_envs: &n_envs 8                           # number of envs for each worker
+    log_video: False
+    seed: 0
+model:
+    actor:
+        units_list: [512, 256]
+        norm: none
+    q:
+        units_list: [512, 256]
+        norm: none
+    temperature:
+
+agent:
+    algorithm: &algo seed-sac
+    temperature: auto                       # auto or some float, e.g., 0.01
+    gamma: 0.99
+    polyak: .995                            # moving average rate
+    
+    # distributed algo args, following args should be tuned together for each environment
+    # in order to achieve high performance.
+    n_workers: 4
+    # n_envs: *n_envs                       # n_envs repeated here only to show connection to n_workers
+
+    # model path: root_dir/model_name/models
+    # tensorboard path: root_dir/model_name/logs
+    # the following names are just examples; they will be reset in our training process
+    root_dir: *algo                         # root path for tensorboard logs
+    model_name: agent
+
+    loss_type: mse                          # huber or mse
+
+    # arguments for optimizer
+    optimizer: adam
+    actor_lr: 1.e-4
+    q_lr: 3.e-4
+    temp_lr: 1.e-4
+    epsilon: 1.e-5
+
+    # arguments for PER
+    per_alpha: 0.5
+    per_epsilon: 1.e-4
+
+replay:
+    type: proportional                      # proportional or uniform
+    # arguments for PER
+    beta0: 0.4
+    beta_steps: 5e4
+    to_update_top_priority: True
+
+    # hacking
+    normalize_reward: False
+    # reward_scale: 5
+    # reward_clip: 50
+
+    # arguments for general replay
+    n_steps: 1  # currently don't support multi step for SEED -- it needs a buffer for each env
+    batch_size: 256
+    min_size: 5e4
+    capacity: 1e6
+
+    tb_capacity: 100    # capacity of the temporal buffer
