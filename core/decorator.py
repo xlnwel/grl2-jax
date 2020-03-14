@@ -37,7 +37,7 @@ def agent_config(init_fn):
         # e.g., all workers share the same name, but with differnt model_names
         self.name = name
         """ For the basic configuration, see config.yaml in algo/*/ """
-        [setattr(self, f'_{k}', v) for k, v in config.items()]
+        [setattr(self, k if k.isupper() else f'_{k}', v) for k, v in config.items()]
 
         # track models and optimizers for Checkpoint
         self._ckpt_models = {}
@@ -47,7 +47,7 @@ def agent_config(init_fn):
                 self._ckpt_models[name_] = model
                 
         # Agent initialization
-        init_fn(self, name=self.name, config=config, models=models, **kwargs)
+        init_fn(self, **kwargs)
 
         self._logger = setup_logger(self._root_dir, self._model_name)
         self._writer = setup_tensorboard(self._root_dir, self._model_name)
@@ -55,8 +55,9 @@ def agent_config(init_fn):
         # define global steps for train/env step tracking
         self.global_steps = tf.Variable(0, dtype=tf.int64)
 
-        save_code(self._root_dir, self._model_name)
-
+        if getattr(self, '_save_code', False):
+            save_code(self._root_dir, self._model_name)
+        
         # postprocessing
         self._ckpt, self._ckpt_path, self._ckpt_manager = \
             setup_checkpoint(self._ckpt_models, self._root_dir, self._model_name, self.global_steps)

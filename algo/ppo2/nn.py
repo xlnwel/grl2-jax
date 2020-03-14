@@ -125,15 +125,15 @@ class PPOAC(tf.Module):
         actor_output = self.actor(x)
         value = self.critic(x)
         assert len(actor_output.shape) == 2
-        assert len(value.shape) == 2
+        assert value.shape.ndims == 2
 
         if self._is_action_discrete:
             action_distribution = self.ActionDistributionType(actor_output)
 
             action = action_distribution.sample(one_hot=False)
             logpi = action_distribution.logp(action)
-            assert len(action.shape) == 1
-            assert len(logpi.shape) == 2
+            assert action.shape.ndims == 1
+            assert logpi.shape.ndims == 2
         else:
             action_distribution = self.ActionDistributionType(actor_output, self.logstd)
 
@@ -143,8 +143,8 @@ class PPOAC(tf.Module):
             # squash action
             action = tf.tanh(raw_action)
             logpi = logpi_correction(raw_action, logpi, is_action_squashed=False)
-            assert len(action.shape) == 2
-            assert len(logpi.shape) == 2
+            assert action.shape.ndims == 2
+            assert logpi.shape.ndims == 2
 
         return action, logpi, value, states
 

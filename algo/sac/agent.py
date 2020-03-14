@@ -15,9 +15,6 @@ class Agent(BaseAgent):
     @agent_config
     def __init__(self, 
                 *,
-                name, 
-                config, 
-                models,
                 dataset,
                 env):
         # dataset for input pipline optimization
@@ -86,13 +83,13 @@ class Agent(BaseAgent):
             self.global_steps.assign(step)
         if self._schedule_lr:
             [lr.assign(sched.value(self.global_steps.numpy())) for lr, sched in self.lr_pairs]
-        with TBTimer(f'{self._model_name} sample', 10000, to_log=self._timer):
+        with TBTimer(f'{self._model_name} sample', 10000, to_log=self.TIMER):
             data = self.dataset.sample()
         if self._is_per:
             saved_idxes = data['saved_idxes']
             del data['saved_idxes']
 
-        with TBTimer(f'{self._model_name} learn', 10000, to_log=self._timer):
+        with TBTimer(f'{self._model_name} learn', 10000, to_log=self.TIMER):
             terms = self.learn(**data)
 
         for k, v in terms.items():

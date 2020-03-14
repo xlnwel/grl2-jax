@@ -31,11 +31,11 @@ def moments(x, mask=None):
         x_std = np.std(x)
     else:
         # expand mask to match the dimensionality of x
-        while len(mask.shape) < len(x.shape):
+        while mask.shape.ndims < x.shape.ndims:
             mask = mask[..., None]
         # compute valid entries in x corresponding to True in mask
         n = np.sum(mask)
-        for i in range(len(mask.shape)):
+        for i in range(mask.shape.ndims):
             if mask.shape[i] != 1:
                 assert mask.shape[i] == x.shape[i], (
                         f'{i}th dimension of mask{mask.shape[i]} does not match'
@@ -51,7 +51,7 @@ def moments(x, mask=None):
     
 def standardize(x, epsilon=1e-8, mask=None):
     if mask is not None:
-        while len(mask.shape) < len(x.shape):
+        while mask.shape.ndims < x.shape.ndims:
             mask = mask[..., None]
     x_mean, x_std = moments(x, mask)
     x = (np.array(x, copy=False) - x_mean) / (x_std + epsilon)

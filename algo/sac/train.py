@@ -42,7 +42,7 @@ def train(agent, env, replay):
     while step < int(agent.MAX_STEPS):
         agent.set_summary_step(step)
         score, epslen = run(env, agent.actor, fn=collect_and_learn, 
-            timer=agent._timer, step=step)
+            timer=agent.TIMER, step=step)
         agent.store(score=env.get_score(), epslen=env.get_epslen())
         step += epslen
         
@@ -52,7 +52,7 @@ def train(agent, env, replay):
 
             
             eval_score, eval_epslen = run(eval_env, agent.actor, 
-                evaluation=True, timer=agent._timer, name='eval')
+                evaluation=True, timer=agent.TIMER, name='eval')
             
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
             agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))

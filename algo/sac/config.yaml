@@ -10,14 +10,14 @@ model:
         units_list: [64, 64]
         kernel_initializer: glorot_uniform
         norm: none
-        activation: tanh
+        activation: relu
         LOG_STD_MIN: -20
         LOG_STD_MAX: 2
     q:
         units_list: [64, 64]
         kernel_initializer: glorot_uniform
         norm: none
-        activation: tanh
+        activation: relu
     temperature:
         temp_type: 'variable'
         value: .01

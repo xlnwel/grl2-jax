@@ -37,7 +37,7 @@ class Q(tf.Module):
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
     def _action(self, x):
-        if len(x.shape) == 4:
+        if x.shape.ndims == 4:
             x = x / 255.
         with tf.name_scope('action'):
             qs = self._step(x, reset=False, noisy=True, name='action')
@@ -48,7 +48,7 @@ class Q(tf.Module):
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
     def _det_action(self, x):
-        if len(x.shape) == 4:
+        if x.shape.ndims == 4:
             x = x / 255.
         with tf.name_scope('det_action'):
             qs = self._step(x, reset=False, noisy=False, name='det_action')

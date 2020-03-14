@@ -95,7 +95,7 @@ def positional_encoding(indices, max_idx, dim, name='positional_encoding'):
 
     return v
 
-def static_scan(fn, inputs, start_state, reverse=False):
+def static_scan(fn, start_state, inputs, reverse=False):
     """ sequentially apply fn to inputs, with starting state start_state 
     inputs are expected to be time-major, and the outputs of fn are expected
     to have the same structure as start_state """
@@ -107,7 +107,7 @@ def static_scan(fn, inputs, start_state, reverse=False):
     for index in indices:
         # extract inputs at step index
         inp = tf.nest.map_structure(lambda x: x[index], inputs)
-        last = fn(inp, last)
+        last = fn(last, inp)
         # distribute outputs
         [o.append(l) for o, l in zip(outputs, tf.nest.flatten(last))]
     if reverse:

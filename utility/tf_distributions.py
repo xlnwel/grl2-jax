@@ -67,7 +67,7 @@ class Categorical(Distribution):
         self.tau = tau  # tau in Gumbel-Softmax
 
     def _neglogp(self, x):
-        if len(x.shape) == len(self.logits.shape) and x.shape[-1] == self.logits.shape[-1]:
+        if x.shape.ndims == len(self.logits.shape) and x.shape[-1] == self.logits.shape[-1]:
             # when x is one-hot encoded
             return tf.nn.softmax_cross_entropy_with_logits(labels=x, logits=self.logits)
         else:
@@ -92,13 +92,13 @@ class Categorical(Distribution):
             elif hard:
                 y_hard = tf.one_hot(tf.argmax(y, -1), self.logits.shape[-1])
                 y = tf.stop_gradient(y_hard - y) + y
-            assert len(y.shape) == len(self.logits.shape)
+            assert y.shape.ndims == len(self.logits.shape)
         else:
             y = tfd.Categorical(self.logits).sample()
-            assert len(y.shape) == len(self.logits.shape) - 1
+            assert y.shape.ndims == len(self.logits.shape) - 1
             if one_hot:
                 y = tf.one_hot(y, self.logits.shape[-1])
-                assert len(y.shape) == len(self.logits.shape)
+                assert y.shape.ndims == len(self.logits.shape)
                 assert y.shape[-1] == self.logits.shape[-1]
 
         return y

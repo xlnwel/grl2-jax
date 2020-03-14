@@ -13,20 +13,21 @@ model:
         hidden_size: 64
         activation: elu
     reward:
-        units_list: [64]
+        units_list: [400, 400]
+        activation: elu
     actor:
-        units_list: [64]
+        units_list: [400, 400, 400, 400]
         activation: elu
         init_std: 5
         min_std: 1.e-4
     value:
-        units_list: [64]
+        units_list: [400, 400, 400]
         activation: elu
     temperature:
         temp_type: 'variable'
         value: .2
 agent:
-    algorithm: &algo asap-sac
+    algorithm: &algo dreamer
     gamma: &gamma 0.99
     polyak: .995
     evaluation: False
@@ -37,12 +38,16 @@ agent:
     MAX_STEPS: 2.e+7
     TIME_INTERVAL: 100
     LOG_INTERVAL: 100000
-    timer: True
+    timer: False
 
     # model
     free_nats: 3.
     kl_scale: 1.
     term_scale: 10.
+    # behavior
+    horizon: 15
+    lambda: 
+
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -56,9 +61,9 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
+    model_lr: 1.e-3
     actor_lr: 1.e-3
-    q_lr: 1.e-3
-    temp_lr: 1.e-3
+    value_lr: 1.e-3
     epsilon: 1.e-8
     # clip_norm: 10
     

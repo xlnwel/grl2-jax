@@ -75,8 +75,8 @@ class CosineWeights(tf.Module):
         normalized_memory = tf.math.l2_normalize(memory, axis=2, epsilon=1e-6)
         similarity = tf.matmul(normalized_keys, normalized_memory, adjoint_b=True)
 
-        assert len(strengths.shape) == 2
-        assert len(similarity.shape) == 3
+        assert strengths.shape.ndims == 2
+        assert similarity.shape.ndims == 3
         assert strengths.shape == similarity.shape[:2]
         return keras.activations.softmax(tf.expand_dims(strengths, -1) * similarity)
 

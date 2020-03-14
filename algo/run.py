@@ -122,7 +122,7 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
             action, terms = actor.action(state, evaluation, epsilon)
         # action is squeezed by default, but envvec requires batch dimension
-        if len(action.shape) < len(state.shape):
+        if action.shape.ndims < state.shape.ndims:
             action = np.expand_dims(action, 0)
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_state, reward, done, info = envvec.step(action)

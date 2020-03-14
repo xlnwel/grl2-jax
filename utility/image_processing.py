@@ -29,7 +29,7 @@ def norm_image(image, norm_range=[0, 1]):
         raise NotImplementedError
 
 def save_image(images, path, size=None):
-    assert_colorize(len(images.shape) == 4, f'images should be 4D, but get shape {images.shape}')
+    assert_colorize(images.shape.ndims == 4, f'images should be 4D, but get shape {images.shape}')
     num_images = images.shape[0]
     if size is None:
         size = utils.squarest_grid_size(num_images)
@@ -38,7 +38,7 @@ def save_image(images, path, size=None):
     imsave(path, images)
 
 def merge(images, size):
-    assert_colorize(len(images.shape) == 4, f'images should be 4D, but get shape {images.shape}')
+    assert_colorize(images.shape.ndims == 4, f'images should be 4D, but get shape {images.shape}')
     h, w = images.shape[1], images.shape[2]
     image_type = images.dtype
     if (images.shape[3] in (3,4)):
