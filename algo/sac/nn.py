@@ -77,13 +77,14 @@ class SoftPolicy(Module):
         x = self._out(x)
 
         if self._is_action_discrete:
-            dist = Categorical(x)
+            # dist = tfd.Categorical(x)
             # action_int = dist.sample()
             # action = tf.one_hot(action_int, tf.shape(x)[-1])
             # probs = dist.probs_parameter()
             # action += tf.cast(probs - tf.stop_gradient(probs), tf.float32)
             # logpi = dist.log_prob(action_int)
-            action = dist.sample(reparameterize=True)
+            dist = Categorical(x)
+            action = dist.sample()
             logpi = dist.log_prob(action)
         else:
             mu, logstd = tf.split(x, 2, -1)

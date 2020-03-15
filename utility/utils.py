@@ -7,7 +7,7 @@ import numpy as np
 import sympy
 
 
-class AttrDict:
+class AttrDict(dict):
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
 

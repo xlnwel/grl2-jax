@@ -60,7 +60,7 @@ def setup_tensorboard(root_dir, model_name):
     # writer for tensorboard summary
     # stats are saved in directory f'{root_dir}/{model_name}'
     writer = tf.summary.create_file_writer(
-        f'{root_dir}/{model_name}/logs', max_queue=100)
+        f'{root_dir}/{model_name}/logs', max_queue=1000, flush_millis=20000)
     writer.set_as_default()
     return writer
 

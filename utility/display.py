@@ -50,5 +50,5 @@ def display_var_info(vars, name='trainable'):
         if '/b:' in name or '/biases' in name: continue    # Wx+b, bias is not interesting to look at => count params, but not print
         pwc(f'   {name}{" "*(100-len(name))} {v_params:d} params {v.shape}', color='yellow')
 
-    pwc(f'Total model parameters: {count_params*1e-6:0.3g} million', color='yellow')
+    pwc(f'Total model parameters: {count_params*1e-6:0.4g} million', color='yellow')
 	

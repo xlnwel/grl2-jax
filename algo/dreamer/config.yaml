@@ -7,6 +7,8 @@ env:
     efficient_envvec: True
     seed: 0
 model:
+    encoder:
+        has_cnn: True
     rssm:
         stoch_size: 64
         deter_size: 64
@@ -23,16 +25,14 @@ model:
     value:
         units_list: [400, 400, 400]
         activation: elu
+    decoder:
+        has_cnn: True
     temperature:
         temp_type: 'variable'
         value: .2
 agent:
     algorithm: &algo dreamer
-    gamma: &gamma 0.99
     polyak: .995
-    evaluation: False
-    kl_coef: .1
-    act_eps: 0
     
     # timer&interval
     MAX_STEPS: 2.e+7
@@ -46,7 +46,8 @@ agent:
     term_scale: 10.
     # behavior
     horizon: 15
-    lambda: 
+    gamma: &gamma 0.99
+    lambda: .95
 
 
     # model path: root_dir/model_name/models
@@ -60,7 +61,9 @@ agent:
 
     # arguments for optimizer
     optimizer: adam
-    schedule_lr: False
+    precision: 16
+    clip_norm: 100
+    weight_decay: 0
     model_lr: 1.e-3
     actor_lr: 1.e-3
     value_lr: 1.e-3

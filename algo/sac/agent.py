@@ -33,14 +33,10 @@ class Agent(BaseAgent):
                 (self._actor_lr, self._actor_sched), (self._q_lr, self._q_sched)]
 
         # optimizer
-        clip_norm = getattr(self, 'clip_norm', None)
-        self._actor_opt = Optimizer(
-            'adam', self.actor, self._actor_lr, 
-            clip_norm=clip_norm)
-        self._q_opt = Optimizer(
-            'adam', [self.q1, self.q2], self._q_lr, 
-            clip_norm=clip_norm)
-        self._ckpt_models['_actor_opt'] = self._actor_opt
+        opt_name = getattr(self, '_opt_name', 'adam')
+        self._actor_opt = Optimizer(opt_name, self.actor, self._actor_lr)
+        self._q_opt = Optimizer(opt_name, [self.q1, self.q2], self._q_lr)
+        self._ckpt_models['actor_opt'] = self._actor_opt
         self._ckpt_models['q_opt'] = self._q_opt
 
         if isinstance(self.temperature, float):
@@ -51,9 +47,7 @@ class Agent(BaseAgent):
                     [(5e5, self._temp_lr), (1e6, 1e-5)])
                 self._temp_lr = tf.Variable(self._temp_lr, trainable=False)
                 self.lr_pairs.append((self._temp_lr, self._temp_sched))
-            self._temp_opt = Optimizer(
-                'adam', self.temperature, self._temp_lr, 
-                clip_norm=clip_norm)
+            self._temp_opt = Optimizer(opt_name, self.temperature, self._temp_lr)
             self._ckpt_models['temp_opt'] = self._temp_opt
 
         self._action_dim = env.action_dim

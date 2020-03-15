@@ -8,7 +8,7 @@ from core.tf_config import build
 from core.module import Module
 from core.decorator import config
 from utility.tf_utils import static_scan
-from utility.tf_distributions import Categorical, TanhBijector
+from utility.tf_distributions import Categorical, OneHotDist, TanhBijector
 from nn.func import mlp
 
 RSSMState = collections.namedtuple('RSSMState', ('mean', 'std', 'stoch', 'deter'))
@@ -38,10 +38,21 @@ class RSSM(Module):
     def __init__(self, name='rssm'):
         super().__init__(name)
 
-        self.embed_layer = layers.Dense(self._hidden_size, activation=self._activation)
+        self.embed_layer = layers.Dense(
+            self._hidden_size, 
+            activation=self._activation,
+            name='embed')
         self._cell = layers.GRUCell(self._deter_size)
-        self.img_layers = mlp([self._hidden_size], out_dim=2*self._stoch_size, activation=self._activation)
-        self.obs_layers = mlp([self._hidden_size], out_dim=2*self._stoch_size, activation=self._activation)
+        self.img_layers = mlp(
+            [self._hidden_size], 
+            out_dim=2*self._stoch_size, 
+            activation=self._activation,
+            name='img')
+        self.obs_layers = mlp(
+            [self._hidden_size], 
+            out_dim=2*self._stoch_size,
+            activation=self._activation,
+            name='obs')
 
     # @tf.function
     def observe(self, embed, action, state=None):
@@ -127,7 +138,8 @@ class Actor(Module):
         x = self._out(x)
 
         if self._is_action_discrete:
-            dist = Categorical(x)
+            # dist = Categorical(x)
+            dist = OneHotDist(x)
         else:
             raw_init_std = np.log(np.exp(self._init_std) - 1)
             mean, std = tf.split(x, 2, -1)
@@ -177,8 +189,8 @@ class Decoder(Module):
     
     def __call__(self, x):
         x = self._layers(x)
-        x = tf.squeeze(x)
         if not self._has_cnn:
+            x = tf.squeeze(x)
             if self._dist == 'normal':
                 return tfd.Normal(x, 1)
             if self._dist == 'binary':

@@ -20,20 +20,16 @@ def import_main(algorithm):
         from algo.ppo2.train import main
     elif algorithm == 'sac':
         from algo.sac.train import main
+    elif algorithm == 'dreamer':
+        from algo.dreamer.train import main
     elif algorithm == 'sacar':
         from algo.sacar.train import main
     elif algorithm == 'd3qn':
         from algo.d3qn.train import main
-    elif algorithm.startswith('apex-dr'):
-        from algo.apex_dr.train import main
-    elif algorithm.startswith('apex-ar'):
-        from algo.apex_ar.train import main
     elif algorithm.startswith('apex') or algorithm.startswith('asap'):
         from algo.apex.train import main
     elif algorithm == 'seed-sac':
         from algo.seed_sac.train import main
-    elif algorithm.startswith('dew'):
-        from algo.dew.train import main
     else:
         raise NotImplementedError
 
@@ -46,6 +42,8 @@ def get_config_file(algorithm, environment):
         config_file = 'algo/ppo2/config.yaml'
     elif algorithm == 'sac':
         config_file = 'algo/sac/config.yaml'
+    elif algorithm == 'dreamer':
+        config_file = 'algo/dreamer/config.yaml'
     elif algorithm == 'sacar':
         config_file = 'algo/sacar/config.yaml'
     elif algorithm == 'd3qn':
