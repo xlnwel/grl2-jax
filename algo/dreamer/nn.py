@@ -14,23 +14,23 @@ from nn.func import mlp
 RSSMState = collections.namedtuple('RSSMState', ('mean', 'std', 'stoch', 'deter'))
 
 # Ignore seed to allow parallel execution
-# def _mnd_sample(self, sample_shape=(), seed=None, name='sample'):
-#     return tf.random.normal(
-#         tuple(sample_shape) + tuple(self.event_shape),
-#         self.mean(), self.stddev(), self.dtype, seed, name)
+def _mnd_sample(self, sample_shape=(), seed=None, name='sample'):
+    return tf.random.normal(
+        tuple(sample_shape) + tuple(self.event_shape),
+        self.mean(), self.stddev(), self.dtype, seed, name)
 
-# tfd.MultivariateNormalDiag.sample = _mnd_sample
+tfd.MultivariateNormalDiag.sample = _mnd_sample
 
-# def _cat_sample(self, sample_shape=(), seed=None, name='sample'):
-#     assert len(sample_shape) in (0, 1), sample_shape
-#     indices = tf.random.categorical(
-#         self.logits_parameter(), sample_shape[0] if sample_shape else 1,
-#         self.dtype, seed, name)
-#     if not sample_shape:
-#         indices = indices[..., 0]
-#     return indices
+def _cat_sample(self, sample_shape=(), seed=None, name='sample'):
+    assert len(sample_shape) in (0, 1), sample_shape
+    indices = tf.random.categorical(
+        self.logits_parameter(), sample_shape[0] if sample_shape else 1,
+        self.dtype, seed, name)
+    if not sample_shape:
+        indices = indices[..., 0]
+    return indices
 
-# tfd.Categorical.sample = _cat_sample
+tfd.Categorical.sample = _cat_sample
 
 
 class RSSM(Module):
@@ -123,7 +123,7 @@ class RSSM(Module):
 
 class Actor(Module):
     @config
-    def __init__(self, state_shape, action_dim, is_action_discrete, name='actor'):
+    def __init__(self, obs_shape, action_dim, is_action_discrete, name='actor'):
         """ Network definition """
         self._layers = mlp(self._units_list, 
                             activation=self._activation)
@@ -155,7 +155,8 @@ class Actor(Module):
 
 
 class Encoder(Module):
-    def __init__(self, config, name='encoder'):
+    @config
+    def __init__(self, name='encoder'):
         super().__init__(name=name)
 
         has_cnn = config.get('has_cnn')
@@ -164,7 +165,7 @@ class Encoder(Module):
         if has_cnn:
             self._layers = ConvEncoder(time_distributed=True)
         else:
-            self._layers = mlp(config['units_list'], activation=self._activation)
+            self._layers = mlp(self._units_list, activation=self._activation)
     
     def __call__(self, x):
         x = self._layers(x)
@@ -257,7 +258,7 @@ class ConvDecoder(layers.Layer):
         return tfd.Independent(tfd.Normal(x, 1), 3)
 
 
-def create_model(model_config, state_shape, action_dim, is_action_discrete):
+def create_model(model_config, obs_shape, action_dim, is_action_discrete):
     encoder_config = model_config.get('encoder')
     rssm_config = model_config['rssm']
     decoder_config = model_config.get('decoder')
@@ -269,14 +270,14 @@ def create_model(model_config, state_shape, action_dim, is_action_discrete):
         rssm=RSSM(rssm_config),
         reward=Decoder(reward_config, dist='normal'),
         value=Decoder(value_config, dist='normal'),
-        actor=Actor(actor_config, state_shape, action_dim, is_action_discrete)
+        actor=Actor(actor_config, obs_shape, action_dim, is_action_discrete)
     )
 
-    if encoder_config is not None:
+    if encoder_config:
         models['encoder'] = Encoder(encoder_config)
-    if decoder_config is not None:
+    if decoder_config:
         models['decoder'] = Decoder(decoder_config)
-    if term_config is not None:
+    if term_config:
         models['term'] = Decoder(term_config, dist='binary')
     assert (('encoder' in models and 'decoder' in models) 
         or ('encoder' not in models and 'decoder' not in models))
@@ -285,7 +286,7 @@ def create_model(model_config, state_shape, action_dim, is_action_discrete):
 if __name__ == '__main__':
     bs = 2
     steps = 3
-    state_shape = (3,)
+    obs_shape = (3,)
     act_dim = 2
     embed_dim = 3
     rssm_config = dict(
@@ -310,7 +311,7 @@ if __name__ == '__main__':
     #     init_std=5,
     #     min_std=1e-4,
     # )
-    # actor = Actor(actor_config, state_shape, act_dim, True)
+    # actor = Actor(actor_config, obs_shape, act_dim, True)
     # action = actor(embed).sample()
     # print(action)
 

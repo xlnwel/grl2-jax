@@ -48,23 +48,23 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
         step: environment step
     """
     while True:
-        state = env.reset()
+        obs = env.reset()
         for i in range(1, env.max_episode_steps+1):
             if render:
                 env.render()
             with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-                action, terms = actor.action(state, evaluation, epsilon)
+                action, terms = actor.action(obs, evaluation, epsilon)
             with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
-                next_state, reward, done, _ = env.step(action)
+                next_obs, reward, done, _ = env.step(action)
             if fn:
                 if step is None:
-                    fn(state=state, action=action, reward=reward, 
-                        done=done, next_state=next_state, **terms)
+                    fn(obs=obs, action=action, reward=reward, 
+                        done=done, next_obs=next_obs, **terms)
                 else:
-                    fn(state=state, action=action, reward=reward,
-                        done=done, next_state=next_state, 
+                    fn(obs=obs, action=action, reward=reward,
+                        done=done, next_obs=next_obs, 
                         step=step+i, **terms)
-            state = next_state
+            obs = next_obs
             if done:
                 break
         # test the effectiveness of Atari wrappers
@@ -85,24 +85,24 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False,
         actor: the model responsible for taking actions
         fn: a function that specifies what to do after each env step
     """
-    state = envvec.reset()
+    obs = envvec.reset()
 
     for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, terms = actor.action(state, evaluation, epsilon)
+            action, terms = actor.action(obs, evaluation, epsilon)
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
-            next_state, reward, done, _ = envvec.step(action)
+            next_obs, reward, done, _ = envvec.step(action)
         if fn:
             if step is None:
-                fn(state=state, action=action, reward=reward, done=done, 
-                    next_state=next_state, mask=envvec.get_mask(), 
+                fn(obs=obs, action=action, reward=reward, done=done, 
+                    next_obs=next_obs, mask=envvec.get_mask(), 
                     **terms)
             else:
                 step += envvec.n_envs
-                fn(state=state, action=action, reward=reward, done=done, 
-                    next_state=next_state, mask=envvec.get_mask(), 
+                fn(obs=obs, action=action, reward=reward, done=done, 
+                    next_obs=next_obs, mask=envvec.get_mask(), 
                     step=step, **terms)
-        state = next_state
+        obs = next_obs
         if np.all(done):
             break
     return envvec.get_score(), envvec.get_epslen()
@@ -116,28 +116,28 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
         actor: the model responsible for taking actions
         fn: a function that specifies what to do after each env step
     """
-    state = envvec.reset()
+    obs = envvec.reset()
 
     for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, terms = actor.action(state, evaluation, epsilon)
+            action, terms = actor.action(obs, evaluation, epsilon)
         # action is squeezed by default, but envvec requires batch dimension
-        if action.shape.ndims < state.shape.ndims:
+        if action.shape.ndims < obs.shape.ndims:
             action = np.expand_dims(action, 0)
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
-            next_state, reward, done, info = envvec.step(action)
+            next_obs, reward, done, info = envvec.step(action)
         if fn:
             env_ids = [i['env_id'] for i in info]
             if step is None:
-                fn(state=state, action=action, reward=reward, done=done, 
-                    next_state=next_state, mask=envvec.get_mask(), 
+                fn(obs=obs, action=action, reward=reward, done=done, 
+                    next_obs=next_obs, mask=envvec.get_mask(), 
                     env_ids=env_ids, **terms)
             else:
                 step += len(env_ids)
-                fn(state=state, action=action, reward=reward, done=done, 
-                    next_state=next_state, mask=envvec.get_mask(), 
+                fn(obs=obs, action=action, reward=reward, done=done, 
+                    next_obs=next_obs, mask=envvec.get_mask(), 
                     env_ids=env_ids, step=step, **terms)
-        state = next_state[(1 - done).astype(np.bool)]
+        obs = next_obs[(1 - done).astype(np.bool)]
         if np.all(done):
             break
 
@@ -156,26 +156,26 @@ def run_trajectory_ar(env, actor, *, fn=None, evaluation=False,
     """
 
     while True:
-        state = env.reset()
+        obs = env.reset()
         for i in range(1, env.max_episode_steps+1):
             if render:
                 env.render()
             with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-                action, n_ar = actor.action(state, deterministic=evaluation)
+                action, n_ar = actor.action(obs, deterministic=evaluation)
             action = action.numpy()[0]
             action += np.random.normal(scale=epsilon, size=action.shape)
             n_ar = n_ar.numpy()
             with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
-                next_state, reward, done, info = env.step(action, n_ar=n_ar+1)#, gamma=actor.gamma)
+                next_obs, reward, done, info = env.step(action, n_ar=n_ar+1)#, gamma=actor.gamma)
             n_ar = info['n_ar'] - 1
             if fn:
                 if step is None:
-                    fn(state=state, action=action, n_ar=n_ar, reward=reward, 
-                        done=done, next_state=next_state)
+                    fn(obs=obs, action=action, n_ar=n_ar, reward=reward, 
+                        done=done, next_obs=next_obs)
                 else:
-                    fn(state=state, action=action, n_ar=n_ar, reward=reward,
-                        done=done, next_state=next_state, step=step+i)
-            state = next_state
+                    fn(obs=obs, action=action, n_ar=n_ar, reward=reward,
+                        done=done, next_obs=next_obs, step=step+i)
+            obs = next_obs
             if done:
                 break
         # test the effectiveness of Atari wrappers
@@ -196,21 +196,21 @@ def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False,
         actor: the model responsible for taking actions
         fn: a function that specifies what to do after each env step
     """
-    state = envvec.reset()
+    obs = envvec.reset()
 
     for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, n_ar = actor.action(state, deterministic=evaluation)
+            action, n_ar = actor.action(obs, deterministic=evaluation)
         action = action.numpy()
         action += np.random.normal(scale=epsilon, size=action.shape)
         n_ar.numpy()
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
-            next_state, reward, done, info = envvec.step(action, n_ar=n_ar+1)#, gamma=actor.gamma)
+            next_obs, reward, done, info = envvec.step(action, n_ar=n_ar+1)#, gamma=actor.gamma)
         n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
-            fn(state=state, action=action, n_ar=n_ar, reward=reward, done=done, 
-                next_state=next_state, mask=envvec.get_mask())
-        state = next_state
+            fn(obs=obs, action=action, n_ar=n_ar, reward=reward, done=done, 
+                next_obs=next_obs, mask=envvec.get_mask())
+        obs = next_obs
         if np.all(done):
             break
 
@@ -225,22 +225,22 @@ def run_trajectories2_ar(envvec, actor, fn=None, evaluation=False,
         actor: the model responsible for taking actions
         fn: a function that specifies what to do after each env step
     """
-    state = envvec.reset()
+    obs = envvec.reset()
 
     for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, n_ar = actor.action(state, deterministic=evaluation)
+            action, n_ar = actor.action(obs, deterministic=evaluation)
         action = action.numpy()
         action += np.random.normal(scale=epsilon, size=action.shape)
         n_ar.numpy()
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
-            next_state, reward, done, info = envvec.step(action, n_ar=n_ar+1)
+            next_obs, reward, done, info = envvec.step(action, n_ar=n_ar+1)
         n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
             env_ids = [i['env_id'] for i in info]
-            fn(state=state, action=action, n_ar=n_ar, reward=reward, done=done, 
-                next_state=next_state, mask=envvec.get_mask(), env_ids=env_ids)
-        state = next_state[(1 - done).astype(np.bool)]
+            fn(obs=obs, action=action, n_ar=n_ar, reward=reward, done=done, 
+                next_obs=next_obs, mask=envvec.get_mask(), env_ids=env_ids)
+        obs = next_obs[(1 - done).astype(np.bool)]
         if np.all(done):
             break
 
@@ -251,12 +251,12 @@ def random_sampling(env, buffer):
     collect data for buffer initialization 
     """
     while not buffer.good_to_learn():
-        state = env.reset()
+        obs = env.reset()
         for _ in range(env.max_episode_steps):
             action = env.random_action()
-            next_state, reward, done, _ = env.step(action)
-            buffer.add(state=state, action=action, reward=reward, done=done, next_state=next_state)
-            state = next_state
+            next_obs, reward, done, _ = env.step(action)
+            buffer.add(obs=obs, action=action, reward=reward, done=done, next_obs=next_obs)
+            obs = next_obs
             if done:
                 break
 

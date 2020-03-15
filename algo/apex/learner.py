@@ -26,10 +26,10 @@ def get_learner_class(BaseAgent):
 
             env = create_gym_env(env_config)
             data_format = dict(
-                state=DataFormat((None, *env.state_shape), env.state_dtype),
+                obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
                 action=DataFormat((None, *env.action_shape), env.action_dtype),
                 reward=DataFormat((None, ), tf.float32), 
-                next_state=DataFormat((None, *env.state_shape), env.state_dtype),
+                next_obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
                 done=DataFormat((None, ), tf.float32),
             )
             if replay.n_steps > 1:
@@ -41,7 +41,7 @@ def get_learner_class(BaseAgent):
                     kl_flag=(tf.float32, (None, )),
                 ))
             dataset = RayDataset(replay, data_format)
-            self.model = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
+            self.model = Ensemble(model_fn, model_config, env.obs_shape, env.action_dim, env.is_action_discrete)
             
             super().__init__(
                 name=name, 

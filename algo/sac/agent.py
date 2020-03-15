@@ -13,10 +13,7 @@ from core.optimizers import Optimizer
 
 class Agent(BaseAgent):
     @agent_config
-    def __init__(self, 
-                *,
-                dataset,
-                env):
+    def __init__(self, *, dataset, env):
         # dataset for input pipline optimization
         self.dataset = dataset
         self._is_per = not self.dataset.buffer_type().endswith('uniform')
@@ -33,9 +30,8 @@ class Agent(BaseAgent):
                 (self._actor_lr, self._actor_sched), (self._q_lr, self._q_sched)]
 
         # optimizer
-        opt_name = getattr(self, '_opt_name', 'adam')
-        self._actor_opt = Optimizer(opt_name, self.actor, self._actor_lr)
-        self._q_opt = Optimizer(opt_name, [self.q1, self.q2], self._q_lr)
+        self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
+        self._q_opt = Optimizer(self._optimizer, [self.q1, self.q2], self._q_lr)
         self._ckpt_models['actor_opt'] = self._actor_opt
         self._ckpt_models['q_opt'] = self._q_opt
 
@@ -47,7 +43,7 @@ class Agent(BaseAgent):
                     [(5e5, self._temp_lr), (1e6, 1e-5)])
                 self._temp_lr = tf.Variable(self._temp_lr, trainable=False)
                 self.lr_pairs.append((self._temp_lr, self._temp_sched))
-            self._temp_opt = Optimizer(opt_name, self.temperature, self._temp_lr)
+            self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
             self._ckpt_models['temp_opt'] = self._temp_opt
 
         self._action_dim = env.action_dim
@@ -55,10 +51,10 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            state=(env.state_shape, tf.float32, 'state'),
+            obs=(env.obs_shape, tf.float32, 'obs'),
             action=(env.action_shape, env.action_dtype, 'action'),
             reward=((), tf.float32, 'reward'),
-            next_state=(env.state_shape, tf.float32, 'next_state'),
+            next_obs=(env.obs_shape, tf.float32, 'next_obs'),
             done=((), tf.float32, 'done'),
         )
         if self._is_per:
@@ -69,8 +65,8 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
 
-    def action(self, state, deterministic=False, epsilon=0):
-        return self.actor.action(state, deterministic=deterministic, epsilon=epsilon)
+    def action(self, obs, deterministic=False, epsilon=0):
+        return self.actor.action(obs, deterministic=deterministic, epsilon=epsilon)
 
     def learn_log(self, step=None):
         if step:
@@ -102,7 +98,7 @@ class Agent(BaseAgent):
         self.store(**terms)
 
     @tf.function
-    def _learn(self, state, action, reward, next_state, done, IS_ratio=1, steps=1):
+    def _learn(self, obs, action, reward, next_obs, done, IS_ratio=1, steps=1):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
         if self._is_action_discrete:
             old_action = tf.one_hot(action, self._action_dim)
@@ -111,27 +107,27 @@ class Agent(BaseAgent):
         target_fn = (transformed_n_step_target if getattr(self, 'tbo', False) 
                     else n_step_target)
         with tf.GradientTape(persistent=True) as tape:
-            action, logpi, terms = self.actor.train_step(state)
-            q1_with_actor = self.q1.train_step(state, action)
-            q2_with_actor = self.q2.train_step(state, action)
+            action, logpi, terms = self.actor.train_step(obs)
+            q1_with_actor = self.q1.train_step(obs, action)
+            q2_with_actor = self.q2.train_step(obs, action)
             q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
 
-            next_action, next_logpi, _ = self.actor.train_step(next_state)
-            next_q1_with_actor = self.target_q1.train_step(next_state, next_action)
-            next_q2_with_actor = self.target_q2.train_step(next_state, next_action)
+            next_action, next_logpi, _ = self.actor.train_step(next_obs)
+            next_q1_with_actor = self.target_q1.train_step(next_obs, next_action)
+            next_q2_with_actor = self.target_q2.train_step(next_obs, next_action)
             next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
             
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = next_temp = self.temperature
             else:
-                log_temp, temp = self.temperature.train_step(state, action)
-                _, next_temp = self.temperature.train_step(next_state, next_action)
+                log_temp, temp = self.temperature.train_step(obs, action)
+                _, next_temp = self.temperature.train_step(next_obs, next_action)
                 with tf.name_scope('temp_loss'):
                     temp_loss = -tf.reduce_mean(IS_ratio * log_temp * tf.stop_gradient(logpi + target_entropy))
                 terms['temp'] = temp
 
-            q1 = self.q1.train_step(state, old_action)
-            q2 = self.q2.train_step(state, old_action)
+            q1 = self.q1.train_step(obs, old_action)
+            q2 = self.q2.train_step(obs, old_action)
 
             tf.debugging.assert_shapes(
                 [(IS_ratio, (None,)),

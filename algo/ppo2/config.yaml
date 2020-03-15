@@ -1,17 +1,17 @@
 ---
 env:
     # is_deepmind_env: True
-    name: &env_name BipedalWalker-v2 # LunarLanderContinuous-v2, BipedalWalker-v2
+    name: &env_name BipedalWalker-v3
     video_path: video
     log_video: False
-    n_workers: 1
-    n_envs: 32
+    n_workers: 4
+    n_envs: 8
     # max_episode_steps: 27000    # 108000 frames / 4 frame-skips
     seed: 0
     episode_life: False
 
 model:
-    # cnn: impala
+    cnn_name: none
     shared_mlp_units: []
     use_dnc: False
     lstm_units: 128
@@ -24,10 +24,10 @@ agent:
     algorithm: &algo ppo2
     env_name: *env_name
 
-    learn_freq: 100         # learning interval, measured in steps
+    LEARN_FREQ: 100         # learning interval, measured in steps
     # batch size = n_workers * n_envs * learn_freq
     n_updates: 8            # number of updates per step
-    n_epochs: 200000
+    N_EPOCHS: 200000
     # max_kl: .1             # early stop when max_kl is violated. 0 suggests no bound
     LOG_INTERVAL: 10
 

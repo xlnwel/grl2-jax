@@ -44,14 +44,25 @@ class Agent(BaseAgent):
         self._action_dim = env.action_dim
         self._is_action_discrete = env.is_action_discrete
 
+        self.initial_state = self.rssm.get_initial_state()
+
         TensorSpecs = dict(
-            state=(env.state_shape, tf.float32, 'state'),
+            obs=(env.obs_shape, tf.float32, 'obs'),
             action=(env.action_shape, tf.float32, 'action'),
             reward=((), tf.float32, 'reward'),
             done=((), tf.float32, 'done'),
         )
 
         self.learn = build(self._learn, TensorSpecs)
+
+    def reset_states(self):
+        self.prev_states = self.curr_states = self.initial_state
+    @tf.function
+    def action(self, obs, deterministic=False, epsilon=0):
+        if 
+
+    def learn_log(self, step=None):
+
 
     @tf.function
     def _learn(self, **data):
@@ -103,10 +114,6 @@ class Agent(BaseAgent):
         model_norm = self._model_opt(model_tape, model_loss)
         actor_norm = self._actor_opt(actor_tape, actor_loss)
         value_norm = self._value_opt(value_tape, value_loss)
-        print(model_norm)
-        print(actor_norm)
-        print(value_norm)
-
 
     def _imagine_ahead(self, post):
         if hasattr(self, 'term'):   # Omit the last step as it could be terminal
@@ -136,14 +143,14 @@ if __name__ == '__main__':
     
     replay_config['batch_size'] = bs = 2
     steps = 3
-    state_shape = (3,)
+    obs_shape = (3,)
     act_dim = 2
     embed_dim = 3
     agent_config['horizon'] = 4
     model_config['rssm'] = dict(
         stoch_size=3, deter_size=2, hidden_size=2, activation='elu'
     )
-    models = create_model(model_config, state_shape, act_dim, True)
+    models = create_model(model_config, obs_shape, act_dim, True)
     tf.random.set_seed(0)
     agent = Agent(name='dreamer', config=agent_config, models=models, dataset=None, env=None)
     tf.random.set_seed(0)

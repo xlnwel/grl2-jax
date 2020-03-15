@@ -33,9 +33,9 @@ def create_learner(name, config, model_config, env_config, buffer_config):
  
             env = create_gym_env(env_config)
             buffer_keys = ['state', 'action', 'reward', 'done', 'steps']
-            self.buffer = create_replay(buffer_config, *buffer_keys, env.state_shape)
-            dataset = Dataset(buffer, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype)
-            models = create_model(model_config, env.state_shape, env.action_shape, env.is_action_discrete)
+            self.buffer = create_replay(buffer_config, *buffer_keys, env.obs_shape)
+            dataset = Dataset(buffer, env.obs_shape, env.obs_dtype, env.action_shape, env.action_dtype)
+            models = create_model(model_config, env.obs_shape, env.action_shape, env.is_action_discrete)
             
             self.n_workers = config['n_workers']
             # we don't use a queue here since we want to retrieve all states at once
@@ -47,8 +47,8 @@ def create_learner(name, config, model_config, env_config, buffer_config):
                 config=config, 
                 models=models,
                 dataset=dataset,
-                state_shape=env.state_shape,
-                state_dtype=env.state_dtype,
+                obs_shape=env.obs_shape,
+                obs_dtype=env.obs_dtype,
                 action_shape=env.action_shape,
                 action_dtype=env.action_dtype,
             )

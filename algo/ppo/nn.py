@@ -13,7 +13,7 @@ from nn.utils import get_initializer
 class PPOAC(tf.Module):
     def __init__(self, 
                 config, 
-                state_shape, 
+                obs_shape, 
                 action_dim, 
                 is_action_discrete, 
                 batch_size, 
@@ -96,7 +96,7 @@ class PPOAC(tf.Module):
             self.rnn(inputs=fake_inputs, initial_state=initial_state)
             self.rnn.reset_states()
 
-        TensorSpecs = [(state_shape, tf.float32, 'state')]
+        TensorSpecs = [(obs_shape, tf.float32, 'state')]
         self.step = build(self._step, TensorSpecs, sequential=False, batch_size=batch_size)
 
     @tf.function(experimental_relax_shapes=True)
@@ -105,7 +105,7 @@ class PPOAC(tf.Module):
         """ Run PPOAC in the real-time mode
         
         Args:
-            x: a batch of states of shape `[batch_size, *state_shape]
+            x: a batch of states of shape `[batch_size, *obs_shape]
         Returns: 
             action: actions sampled from the policy distribution of shape
                 `[batch_size, action_dim]`
@@ -114,7 +114,7 @@ class PPOAC(tf.Module):
             value: state values of shape `[batch_size, 1]`
         """
         pwc(f'{self.name} "step" is retracing: x={x.shape}', color='cyan')
-        # expand time dimension assuming x has shape `[batch_size, *state_shape]`
+        # expand time dimension assuming x has shape `[batch_size, *obs_shape]`
         x = tf.expand_dims(x, 1)
         x = self._common_layers(x)
         x = tf.squeeze(x, 1)
@@ -128,14 +128,14 @@ class PPOAC(tf.Module):
             action_distribution = self.ActionDistributionType(actor_output)
 
             action = action_distribution.sample(one_hot=False)
-            logpi = action_distribution.logp(action)
+            logpi = action_distribution.log_prob(action)
             assert action.shape.ndims == 1
             assert logpi.shape.ndims == 2
         else:
             action_distribution = self.ActionDistributionType(actor_output, self.logstd)
 
             raw_action = action_distribution.sample()
-            logpi = action_distribution.logp(raw_action)
+            logpi = action_distribution.log_prob(raw_action)
 
             # squash action
             action = tf.tanh(raw_action)
@@ -151,7 +151,7 @@ class PPOAC(tf.Module):
         """ Get the deterministic actions given state x 
         
         Args:
-            x: a batch of states of shape `[batch_size, *state_shape]
+            x: a batch of states of shape `[batch_size, *obs_shape]
         Returns:
             action: determinitistic action of shape `[batch_size, action_dim]`
         """
@@ -173,7 +173,7 @@ class PPOAC(tf.Module):
         """ Run PPOAC in the training mode
         
         Args:
-            x: a batch of states of shape `[batch_size, steps, *state_shape]
+            x: a batch of states of shape `[batch_size, steps, *obs_shape]
         Returns: 
             action: actions sampled from the policy distribution of shape
                 `[batch_size, steps, action_dim]`
@@ -190,13 +190,13 @@ class PPOAC(tf.Module):
 
             if self._is_action_discrete:
                 action_distribution = self.ActionDistributionType(actor_output)
-                logpi = action_distribution.logp(a)
+                logpi = action_distribution.log_prob(a)
             else:
                 action_distribution = self.ActionDistributionType(actor_output, self.logstd)
                 # correction for squashed action
                 # clip_but_pass_gradient is used to avoid case when a == -1, 1
                 raw_action = tf.math.atanh(clip_but_pass_gradient(a, -1+1e-7, 1-1e-7))
-                logpi = action_distribution.logp(tf.stop_gradient(raw_action))
+                logpi = action_distribution.log_prob(tf.stop_gradient(raw_action))
                 logpi = logpi_correction(raw_action, logpi, is_action_squashed=False)
 
             entropy = action_distribution.entropy()
@@ -225,10 +225,10 @@ class PPOAC(tf.Module):
         return self.rnn.get_initial_state(fake_inputs)
 
 
-def create_model(model_config, state_shape, action_dim, is_action_discrete, n_envs):
+def create_model(model_config, obs_shape, action_dim, is_action_discrete, n_envs):
     ac = PPOAC(
         model_config, 
-        state_shape, 
+        obs_shape, 
         action_dim, 
         is_action_discrete,
         n_envs,
@@ -250,19 +250,19 @@ if __name__ == '__main__':
 
     batch_size = np.random.randint(1, 10)
     seq_len = np.random.randint(1, 10)
-    state_shape = [5]
+    obs_shape = [5]
     action_dim = np.random.randint(1, 10)
     for is_action_discrete in [True, False]:
         action_dtype = np.int32 if is_action_discrete else np.float32
         
-        ac = PPOAC(config, state_shape, action_dim, is_action_discrete, batch_size, 'ac')
+        ac = PPOAC(config, obs_shape, action_dim, is_action_discrete, batch_size, 'ac')
 
         from utility.display import display_var_info
 
         display_var_info(ac.trainable_variables)
 
         # test rnn state
-        x = np.random.rand(batch_size, seq_len, *state_shape)
+        x = np.random.rand(batch_size, seq_len, *obs_shape)
         
         states = [s.numpy() for s in ac.rnn.states]
         np.testing.assert_allclose(states, 0.)

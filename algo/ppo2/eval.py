@@ -18,7 +18,7 @@ def evaluate(env, agent):
     epslens = []
     while i < 100:
         i += env.n_envs
-        agent.reset_states()
+        agent.reset_state(env.n_envs())
         state = env.reset()
         for _ in range(env.max_episode_steps):
             action = agent.det_action(state)
@@ -40,7 +40,7 @@ def main(env_config, model_config, agent_config, render=False):
 
     ac = create_model(
         model_config, 
-        state_shape=env.state_shape, 
+        obs_shape=env.obs_shape, 
         action_dim=env.action_dim, 
         is_action_discrete=env.is_action_discrete,
         n_envs=env.n_envs

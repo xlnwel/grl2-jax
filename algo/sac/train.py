@@ -66,10 +66,10 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     replay = create_replay(replay_config)
     data_format = dict(
-        state=DataFormat((None, *env.state_shape), env.state_dtype),
+        obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
         action=DataFormat((None, *env.action_shape), env.action_dtype),
         reward=DataFormat((None, ), tf.float32), 
-        next_state=DataFormat((None, *env.state_shape), env.state_dtype),
+        next_obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
         done=DataFormat((None, ), tf.float32),
     )
     if replay_config.get('n_steps', 1) > 1:
@@ -78,7 +78,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     models = create_model(
         model_config, 
-        state_shape=env.state_shape, 
+        obs_shape=env.obs_shape, 
         action_dim=env.action_dim, 
         is_action_discrete=env.is_action_discrete)
 
@@ -106,7 +106,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     train(agent, env, replay)
 
     # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup
-    # state = env.reset()
+    # obs = env.reset()
     # eval_env = create_gym_env(dict(
     #     name=env.name, 
     #     video_path='video',
@@ -120,19 +120,19 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     # epslen = 0
     # for t in range(int(agent.MAX_STEPS)):
     #     if t > 1e4:
-    #         action, _ = agent.action(state)
+    #         action, _ = agent.action(obs)
     #     else:
     #         action = env.random_action()
 
-    #     next_state, reward, done, _ = env.step(action)
+    #     next_obs, reward, done, _ = env.step(action)
     #     epslen += 1
     #     done = False if epslen == env.max_episode_steps else done
-    #     replay.add(state=state, action=action, reward=reward, done=done, next_state=next_state)
-    #     state = next_state
+    #     replay.add(obs=obs, action=action, reward=reward, done=done, next_obs=next_obs)
+    #     obs = next_obs
 
     #     if done or epslen == env.max_episode_steps:
     #         agent.store(score=env.get_score(), epslen=env.get_epslen())
-    #         state = env.reset()
+    #         obs = env.reset()
     #         epslen = 0
 
     #     if replay.good_to_learn() and t % 50 == 0:

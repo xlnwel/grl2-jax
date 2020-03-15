@@ -15,10 +15,10 @@ from algo.ppo2.eval import evaluate
 
 def train(agent, env, buffer):
     start_epoch = agent.global_steps.numpy()+1
-    for epoch in range(start_epoch, agent.n_epochs+1):
+    for epoch in range(start_epoch, agent.N_EPOCHS+1):
         agent.set_summary_step(epoch)
-        with Timer(f'{agent.model_name} run', agent.LOG_INTERVAL):
-            scores, epslens = run_trajectories(env, agent, buffer, agent.learn_freq, epoch)
+        with Timer(f'{agent.name} run', agent.LOG_INTERVAL):
+            scores, epslens = run_trajectories(env, agent, buffer, agent.LEARN_FREQ, epoch)
         score = np.mean(scores)
         agent.store(
             score=score,
@@ -28,24 +28,23 @@ def train(agent, env, buffer):
         )
 
         if epoch % agent.LOG_INTERVAL == 0:
-            with Timer(f'{agent.model_name} logging'):
+            with Timer(f'{agent.name} logging'):
                 agent.log(epoch, 'Train')
-            with Timer(f'{agent.model_name} save'):
+            with Timer(f'{agent.name} save'):
                 agent.save(steps=epoch)
         # evaluation
         if epoch % 100 == 0:
-            with Timer(f'{agent.model_name} evaluation'):
+            with Timer(f'{agent.name} evaluation'):
                 scores, epslens = evaluate(env, agent)
-            stats = dict(
-                model_name=f'{agent.model_name}',
+            agent.store(
+                name=f'{agent.name}',
                 timing='Eval',
                 steps=f'{epoch}', 
-                score=np.mean(scores),
-                score_std=np.std(scores),
-                epslen=np.mean(epslens),
-                epslen_std=np.std(epslens)
+                eval_score=np.mean(scores),
+                eval_score_std=np.std(scores),
+                eval_epslen=np.mean(epslens),
+                eval_epslen_std=np.std(epslens)
             )
-            agent.log_stats(stats)
 
 def main(env_config, model_config, agent_config, buffer_config, restore=False, render=False):
     set_global_seed()
@@ -60,19 +59,12 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     env = create_gym_env(env_config)
 
     # construct buffer
-    buffer = PPOBuffer(buffer_config, 
-                        env.n_envs,
-                        env.max_episode_steps,
-                        env.state_shape,
-                        env.state_dtype,
-                        env.action_shape,
-                        env.action_dtype)
+    buffer = PPOBuffer(buffer_config, env.n_envs, env.max_episode_steps,)
 
     # construct model
     models = create_model(
         model_config, 
-        state_shape=env.state_shape, 
-        state_dtype=env.state_dtype,
+        obs_shape=env.obs_shape, 
         action_dim=env.action_dim, 
         is_action_discrete=env.is_action_discrete,
         n_envs=env.n_envs
@@ -82,11 +74,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     agent = Agent(name='ppo', 
                 config=agent_config, 
                 models=models, 
-                state_shape=env.state_shape,
-                state_dtype=env.state_dtype,
-                action_dim=env.action_dim,
-                action_dtype=env.action_dtype,
-                n_envs=env.n_envs)
+                env=env)
 
     agent.save_config(dict(
         env=env_config,

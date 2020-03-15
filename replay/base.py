@@ -20,7 +20,7 @@ class Replay(ABC):
         self.batch_size = config['batch_size']
         self.n_steps = config.get('n_steps', 1)
         self.gamma = config['gamma']
-        self.has_next_state = config.get('has_next_state', False)
+        self.has_next_obs = config.get('has_next_obs', False)
         self.pre_dims = (self.capacity, )
 
         # reward hacking
@@ -63,10 +63,10 @@ class Replay(ABC):
 
     def add(self, **kwargs):
         """ Add a single transition to the replay buffer """
-        next_state = kwargs['next_state']
+        next_obs = kwargs['next_obs']
         if self.memory == {}:
-            if not self.has_next_state:
-                del kwargs['next_state']
+            if not self.has_next_obs:
+                del kwargs['next_obs']
             init_buffer(self.memory, pre_dims=self.pre_dims, has_steps=self.n_steps>1, **kwargs)
             print(f"{self.buffer_type()} replay's keys: {list(self.memory.keys())}")
 
@@ -77,8 +77,8 @@ class Replay(ABC):
         add_buffer(
             self.memory, self.mem_idx, self.n_steps, self.gamma, cycle=self.is_full, **kwargs)
         self.mem_idx = (self.mem_idx + 1) % self.capacity
-        if 'next_state' not in self.memory:
-            self.memory['state'][self.mem_idx] = next_state
+        if 'next_obs' not in self.memory:
+            self.memory['obs'][self.mem_idx] = next_obs
 
     """ Implementation """
     def _sample(self, batch_size=None):
@@ -86,8 +86,8 @@ class Replay(ABC):
 
     def _merge(self, local_buffer, length):
         if self.memory == {}:
-            if not self.has_next_state:
-                del local_buffer['next_state']
+            if not self.has_next_obs:
+                del local_buffer['next_obs']
             init_buffer(self.memory, pre_dims=self.pre_dims, has_steps=self.n_steps>1, **local_buffer)
             print(f'"{self.buffer_type()}" keys: {list(self.memory.keys())}')
 
@@ -116,10 +116,10 @@ class Replay(ABC):
         for k, v in self.memory.items():
             results[k] = v[indexes]
             
-        if 'next_state' not in self.memory:
+        if 'next_obs' not in self.memory:
             steps = results['steps'] if 'steps' in results else 1
             next_indexes = (indexes + steps) % self.capacity
-            results['next_state'] = self.memory['state'][next_indexes]
+            results['next_obs'] = self.memory['obs'][next_indexes]
 
         # process rewards
         if self.reward_scale != 1:

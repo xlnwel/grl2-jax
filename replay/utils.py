@@ -14,9 +14,6 @@ def init_buffer(buffer, pre_dims, has_steps=False, **kwargs):
     # we define it even for 1-step learning to avoid code complication
     if has_steps:
         buffer['steps'] = np.ones([*pre_dims], np.uint8)
-    print('Buffer info')
-    for k, v in buffer.items():
-        print(f'{k}: shape({v.shape}), type({v.dtype})')
 
 def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
     for k in buffer.keys():
@@ -32,8 +29,8 @@ def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
         buffer['done'][k] = kwargs['done']
         if 'steps' in buffer:
             buffer['steps'][k] += 1
-        if 'next_state' in buffer:
-            buffer['next_state'][k] = kwargs['next_state']
+        if 'next_obs' in buffer:
+            buffer['next_obs'][k] = kwargs['next_obs']
 
 def copy_buffer(dest_buffer, dest_start, dest_end, orig_buffer, orig_start, orig_end, dest_keys=True):
     assert dest_end - dest_start == orig_end - orig_start, (
@@ -59,4 +56,8 @@ def infer_info(**kwargs):
             raise ValueError(f'key({k}): v of type({type(v)}) is not supported here')
     
     return info
-    
+
+def print_buffer(buffer):
+    print('Buffer info')
+    for k, v in buffer.items():
+        print(f'{k}: shape({v.shape}), type({v.dtype})')

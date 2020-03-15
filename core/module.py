@@ -12,10 +12,10 @@ class Module(tf.Module):
 class Ensemble(tf.Module):
     """ This class groups all models used by off-policy algorithms together
     so that one can easily get and set all variables """
-    def __init__(self, model_fn, config, state_shape, action_dim, is_action_discrete):
+    def __init__(self, model_fn, config, obs_shape, action_dim, is_action_discrete):
         super().__init__()
 
-        self.models = model_fn(config, state_shape, action_dim, is_action_discrete)
+        self.models = model_fn(config, obs_shape, action_dim, is_action_discrete)
 
     def get_weights(self, name=None):
         """ Return a list/dict of weights

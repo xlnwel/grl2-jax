@@ -11,8 +11,8 @@ class PPOBuffer:
                 n_envs, 
                 epslen, 
                 n_minibatches, 
-                state_shape, 
-                state_dtype, 
+                obs_shape, 
+                obs_dtype, 
                 action_shape, 
                 action_dtype):
         self.n_envs = n_envs
@@ -33,7 +33,7 @@ class PPOBuffer:
 
         basic_shape = (n_envs, epslen)
         self.memory = dict(
-            state=np.zeros((*basic_shape, *state_shape), dtype=state_dtype),
+            state=np.zeros((*basic_shape, *obs_shape), dtype=obs_dtype),
             action=np.zeros((*basic_shape, *action_shape), dtype=action_dtype),
             reward=np.zeros((*basic_shape, 1), dtype=np.float32),
             nonterminal=np.zeros((*basic_shape, 1), dtype=np.float32),
@@ -151,8 +151,8 @@ if __name__ == '__main__':
         n_envs=8, 
         epslen=1000, 
         n_minibatches=2, 
-        state_shape=[3], 
-        state_dtype=np.float32, 
+        obs_shape=[3], 
+        obs_dtype=np.float32, 
         action_shape=[2], 
         action_dtype=np.float32,
     )

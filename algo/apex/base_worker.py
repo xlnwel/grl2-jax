@@ -45,10 +45,10 @@ class BaseWorker(BaseAgent):
         # args for priority replay
         if not self.replay_type.endswith('uniform'):
             TensorSpecs = [
-                (env.state_shape, env.state_dtype, 'state'),
+                (env.obs_shape, env.obs_dtype, 'obs'),
                 (env.action_shape, env.action_dtype, 'action'),
                 ((), tf.float32, 'reward'),
-                (env.state_shape, env.state_dtype, 'next_state'),
+                (env.obs_shape, env.obs_dtype, 'next_obs'),
                 ((), tf.float32, 'done'),
                 ((), tf.float32, 'steps')
             ]
@@ -97,21 +97,21 @@ class BaseWorker(BaseAgent):
             data_tensors = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
             data['priority'] = np.squeeze(self.compute_priorities(**data_tensors).numpy())
 
-        replay.merge.remote(data, data['state'].shape[0], target_replay=target_replay)
+        replay.merge.remote(data, data['obs'].shape[0], target_replay=target_replay)
 
         buffer.reset()
         
     @tf.function
-    def _compute_priorities(self, state, action, reward, next_state, done, steps):
-        if state.dtype == tf.uint8:
-            state = tf.cast(state, tf.float32) / 255.
-            next_state = tf.cast(next_state, tf.float32) / 255.
+    def _compute_priorities(self, obs, action, reward, next_obs, done, steps):
+        if obs.dtype == tf.uint8:
+            obs = tf.cast(obs, tf.float32) / 255.
+            next_obs = tf.cast(next_obs, tf.float32) / 255.
         if self.env.is_action_discrete:
             action = tf.one_hot(action, self.env.action_dim)
         gamma = self.buffer.gamma
-        value = self.value.step(state, action)
-        next_action, _ = self.actor._action(next_state, tf.convert_to_tensor(False))
-        next_value = self.value.step(next_state, next_action)
+        value = self.value.step(obs, action)
+        next_action, _ = self.actor._action(next_obs, tf.convert_to_tensor(False))
+        next_value = self.value.step(next_obs, next_action)
         
         target_value = n_step_target(reward, done, next_value, gamma, steps)
         

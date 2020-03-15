@@ -15,8 +15,8 @@ class Agent(BaseAgent):
                 name, 
                 config, 
                 models, 
-                state_shape,
-                state_dtype,
+                obs_shape,
+                obs_dtype,
                 action_dim,
                 action_dtype,
                 n_envs):
@@ -43,7 +43,7 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = [
-            (state_shape, state_dtype, 'state'),
+            (obs_shape, obs_dtype, 'state'),
             ([action_dim], action_dtype, 'action'),
             ([1], tf.float32, 'traj_ret'),
             ([1], tf.float32, 'value'),

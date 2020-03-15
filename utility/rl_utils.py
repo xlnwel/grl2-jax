@@ -20,7 +20,7 @@ def logpi_correction(action, logpi, is_action_squashed):
         sub = tf.reduce_sum(tf.math.log(clip_but_pass_gradient(1 - action**2, l=0, u=1) + 1e-8), axis=-1)
     else:
         sub = 2 * tf.reduce_sum(tf.math.log(2.) - action - tf.nn.softplus(-2 * action), axis=-1)
-    assert logpi.shape.ndims == sub.shape.ndims == 1, f'{logpi.shape} vs {sub.shape}'
+    assert logpi.shape.ndims == sub.shape.ndims, f'{logpi.shape} vs {sub.shape}'
     logpi -= sub
 
     return logpi

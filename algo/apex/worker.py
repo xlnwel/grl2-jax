@@ -27,7 +27,7 @@ class Worker(BaseWorker):
 
         env = create_gym_env(env_config)
         
-        models = Ensemble(model_fn, model_config, env.state_shape, env.action_dim, env.is_action_discrete)
+        models = Ensemble(model_fn, model_config, env.obs_shape, env.action_dim, env.is_action_discrete)
         
         buffer_config['seqlen'] = env.max_episode_steps
         buffer = buffer_fn(buffer_config)

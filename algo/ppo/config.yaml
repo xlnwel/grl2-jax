@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name BipedalWalker-v2 # LunarLanderContinuous-v2, BipedalWalker-v2
+    name: &env_name BipedalWalker-v3 # LunarLanderContinuous-v2, BipedalWalker-v2
     video_path: video
     # max_episode_steps: 1000
     log_video: False

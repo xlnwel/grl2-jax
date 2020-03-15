@@ -11,7 +11,7 @@ from nn.func import cnn
         
 
 class Q(tf.Module):
-    def __init__(self, config, state_shape, n_actions, name='q'):
+    def __init__(self, config, obs_shape, n_actions, name='q'):
         super().__init__(name=name)
 
         self.n_actions = n_actions
@@ -29,7 +29,7 @@ class Q(tf.Module):
 
         # build for variable initialization
         TensorSpecs = [
-            (state_shape, tf.float32, 'state')
+            (obs_shape, tf.float32, 'obs')
         ]
         self.action = build(self._action, TensorSpecs)
         self.det_action = build(self._det_action, TensorSpecs)
@@ -105,10 +105,10 @@ class Q(tf.Module):
         [v.assign(w) for v, w in zip(self.variables, weights)]
 
 
-def create_model(model_config, state_shape, n_actions, is_action_discrete=True):
+def create_model(model_config, obs_shape, n_actions, is_action_discrete=True):
     q_config = model_config['q']
-    q = Q(q_config, state_shape, n_actions, 'q')
-    target_q = Q(q_config, state_shape, n_actions, 'target_q')
+    q = Q(q_config, obs_shape, n_actions, 'q')
+    target_q = Q(q_config, obs_shape, n_actions, 'target_q')
     return dict(
         actor=q,
         q1=q,

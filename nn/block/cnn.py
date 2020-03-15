@@ -1,6 +1,5 @@
 """
 This file defines general CNN architectures used in RL
-All CNNs eventually return a tensor of shape `[batch_size, n_features]`
 """
 
 import functools

@@ -10,12 +10,12 @@ from nn.func import mlp
 
 
 class SoftPolicy(tf.Module):
-    def __init__(self, config, state_shape, action_dim, is_action_discrete, name='actor'):
+    def __init__(self, config, obs_shape, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
 
         # network parameters
         self._is_action_discrete = is_action_discrete
-        self.state_shape = state_shape
+        self.obs_shape = obs_shape
 
         norm = config.get('norm')
         activation = config.get('activation', 'relu')
@@ -56,12 +56,12 @@ class SoftPolicy(tf.Module):
         self.ActionDistributionType = Categorical if is_action_discrete else DiagGaussian
 
         # build for variable initialization and avoiding unintended retrace
-        TensorSpecs = [(state_shape, tf.float32, 'state'), ((), tf.bool, 'deterministic')]
+        TensorSpecs = [(obs_shape, tf.float32, 'state'), ((), tf.bool, 'deterministic')]
         self._action = build(self._action_impl, TensorSpecs)
     
     def action(self, x, deterministic=False, epsilon=0):
         x = tf.convert_to_tensor(x, tf.float32)
-        x = tf.reshape(x, [-1, *self.state_shape])
+        x = tf.reshape(x, [-1, *self.obs_shape])
         deterministic = tf.convert_to_tensor(deterministic, tf.bool)
 
         action, terms = self._action(x, deterministic)
@@ -136,7 +136,7 @@ class SoftPolicy(tf.Module):
 
 
 class SoftQ(tf.Module):
-    def __init__(self, config, state_shape, action_dim, name='q'):
+    def __init__(self, config, obs_shape, action_dim, name='q'):
         super().__init__(name=name)
 
         # parameters
@@ -155,7 +155,7 @@ class SoftQ(tf.Module):
 
         # build for variable initialization
         # TensorSpecs = [
-        #     (state_shape, tf.float32, 'state'),
+        #     (obs_shape, tf.float32, 'state'),
         #     ([action_dim], tf.float32, 'action'),
         # ]
         # self.step = build(self._step, TensorSpecs)
@@ -179,7 +179,7 @@ class SoftQ(tf.Module):
 
 
 class Temperature(tf.Module):
-    def __init__(self, config, state_shape, action_dim, name='temperature'):
+    def __init__(self, config, obs_shape, action_dim, name='temperature'):
         super().__init__(name=name)
 
         self.temp_type = config['temp_type']
@@ -193,7 +193,7 @@ class Temperature(tf.Module):
 
         # build for variable initialization
         # TensorSpecs = [
-        #     (state_shape, tf.float32, 'state'),
+        #     (obs_shape, tf.float32, 'state'),
         #     ([action_dim], tf.float32, 'action'),
         # ]
         # self.step = build(self._step, TensorSpecs)
@@ -222,19 +222,19 @@ class Temperature(tf.Module):
         [v.assign(w) for v, w in zip(self.variables, weights)]
 
 
-def create_model(model_config, state_shape, action_dim, is_action_discrete):
+def create_model(model_config, obs_shape, action_dim, is_action_discrete):
     actor_config = model_config['actor']
     q_config = model_config['q']
     temperature_config = model_config['temperature']
-    actor = SoftPolicy(actor_config, state_shape, action_dim, is_action_discrete)
-    q1 = SoftQ(q_config, state_shape, action_dim, 'q1')
-    q2 = SoftQ(q_config, state_shape, action_dim, 'q2')
-    target_q1 = SoftQ(q_config, state_shape, action_dim, 'target_q1')
-    target_q2 = SoftQ(q_config, state_shape, action_dim, 'target_q2')
+    actor = SoftPolicy(actor_config, obs_shape, action_dim, is_action_discrete)
+    q1 = SoftQ(q_config, obs_shape, action_dim, 'q1')
+    q2 = SoftQ(q_config, obs_shape, action_dim, 'q2')
+    target_q1 = SoftQ(q_config, obs_shape, action_dim, 'target_q1')
+    target_q2 = SoftQ(q_config, obs_shape, action_dim, 'target_q2')
     if temperature_config['temp_type'] == 'constant':
         temperature = temperature_config['value']
     else:
-        temperature = Temperature(temperature_config, state_shape, action_dim)
+        temperature = Temperature(temperature_config, obs_shape, action_dim)
         
     return dict(
         actor=actor,

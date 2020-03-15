@@ -14,12 +14,12 @@ from nn.func import mlp
 
 class SoftPolicy(Module):
     @config
-    def __init__(self, state_shape, action_dim, is_action_discrete, name='actor'):
+    def __init__(self, obs_shape, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
 
         # network parameters
         self._is_action_discrete = is_action_discrete
-        self._state_shape = state_shape
+        self._obs_shape = obs_shape
         
         """ Network definition """
         self._layers = mlp(self._units_list, 
@@ -33,13 +33,13 @@ class SoftPolicy(Module):
                         activation=self._activation, 
                         kernel_initializer=self._kernel_initializer)
 
-        # build for variable initialization and avoiding unintended retrace
-        TensorSpecs = [(state_shape, tf.float32, 'state'), (None, tf.bool, 'deterministic')]
+        # build for avoiding unintended retrace
+        TensorSpecs = [(obs_shape, tf.float32, 'obs'), (None, tf.bool, 'deterministic')]
         self._action = build(self._action_impl, TensorSpecs)
     
     def action(self, x, deterministic=False, epsilon=0):
         x = tf.convert_to_tensor(x, tf.float32)
-        x = tf.reshape(x, [-1, *self._state_shape])
+        x = tf.reshape(x, [-1, *self._obs_shape])
         deterministic = tf.convert_to_tensor(deterministic, tf.bool)
 
         action, terms = self._action(x, deterministic)
@@ -77,12 +77,6 @@ class SoftPolicy(Module):
         x = self._out(x)
 
         if self._is_action_discrete:
-            # dist = tfd.Categorical(x)
-            # action_int = dist.sample()
-            # action = tf.one_hot(action_int, tf.shape(x)[-1])
-            # probs = dist.probs_parameter()
-            # action += tf.cast(probs - tf.stop_gradient(probs), tf.float32)
-            # logpi = dist.log_prob(action_int)
             dist = Categorical(x)
             action = dist.sample()
             logpi = dist.log_prob(action)
@@ -102,7 +96,7 @@ class SoftPolicy(Module):
 
 class SoftQ(Module):
     @config
-    def __init__(self, state_shape, action_dim, name='q'):
+    def __init__(self, obs_shape, action_dim, name='q'):
         super().__init__(name=name)
 
         """ Network definition """
@@ -114,7 +108,7 @@ class SoftQ(Module):
 
         # build for variable initialization
         TensorSpecs = [
-            (state_shape, tf.float32, 'state'),
+            (obs_shape, tf.float32, 'obs'),
             ([action_dim], tf.float32, 'action'),
         ]
         self.step = build(self._step, TensorSpecs)
@@ -132,7 +126,7 @@ class SoftQ(Module):
 
 
 class Temperature(Module):
-    def __init__(self, config, state_shape, action_dim, name='temperature'):
+    def __init__(self, config, name='temperature'):
         super().__init__(name=name)
 
         self.temp_type = config['temp_type']
@@ -157,19 +151,19 @@ class Temperature(Module):
         return log_temp, temp
 
 
-def create_model(model_config, state_shape, action_dim, is_action_discrete):
+def create_model(model_config, obs_shape, action_dim, is_action_discrete):
     actor_config = model_config['actor']
     q_config = model_config['q']
     temperature_config = model_config['temperature']
-    actor = SoftPolicy(actor_config, state_shape, action_dim, is_action_discrete)
-    q1 = SoftQ(q_config, state_shape, action_dim, 'q1')
-    q2 = SoftQ(q_config, state_shape, action_dim, 'q2')
-    target_q1 = SoftQ(q_config, state_shape, action_dim, 'target_q1')
-    target_q2 = SoftQ(q_config, state_shape, action_dim, 'target_q2')
+    actor = SoftPolicy(actor_config, obs_shape, action_dim, is_action_discrete)
+    q1 = SoftQ(q_config, obs_shape, action_dim, 'q1')
+    q2 = SoftQ(q_config, obs_shape, action_dim, 'q2')
+    target_q1 = SoftQ(q_config, obs_shape, action_dim, 'target_q1')
+    target_q2 = SoftQ(q_config, obs_shape, action_dim, 'target_q2')
     if temperature_config['temp_type'] == 'constant':
         temperature = temperature_config['value']
     else:
-        temperature = Temperature(temperature_config, state_shape, action_dim)
+        temperature = Temperature(temperature_config)
         
     return dict(
         actor=actor,

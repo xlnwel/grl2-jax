@@ -3,17 +3,11 @@ from copy import deepcopy
 
 from utility.display import assert_colorize, pwc
 from utility.utils import moments, standardize
+from replay.utils import init_buffer, print_buffer
 
 
 class PPOBuffer(dict):
-    def __init__(self, 
-                config,
-                n_envs, 
-                seqlen, 
-                state_shape, 
-                state_dtype, 
-                action_shape, 
-                action_dtype):
+    def __init__(self, config, n_envs, seqlen):
         self.n_envs = n_envs
         self.seqlen = seqlen
 
@@ -25,24 +19,19 @@ class PPOBuffer(dict):
         self.reward_scale = config.get('reward_scale', 1)
         self.reward_clip = config.get('reward_clip')
 
-        basic_shape = (n_envs, seqlen)
-        self.memory = dict(
-            state=np.zeros((*basic_shape, *state_shape), dtype=state_dtype),
-            action=np.zeros((*basic_shape, *action_shape), dtype=action_dtype),
-            reward=np.zeros((*basic_shape, 1), dtype=np.float32),
-            nonterminal=np.zeros((*basic_shape, 1), dtype=np.float32),
-            value=np.zeros((n_envs, seqlen+1, 1), dtype=np.float32),
-            traj_ret=np.zeros((*basic_shape, 1), dtype=np.float32),
-            advantage=np.zeros((*basic_shape, 1), dtype=np.float32),
-            old_logpi=np.zeros((*basic_shape, 1), dtype=np.float32),
-            mask=np.zeros((*basic_shape, 1), dtype=np.float32),
-        )
-
+        self.memory = {}
         self.reset()
 
     def add(self, **data):
         assert_colorize(self.idx < self.seqlen, 
             f'Out-of-range idx {self.idx}. Call "self.reset" beforehand')
+        if self.memory == {}:
+            init_buffer(self.memory, pre_dims=(self.n_envs, self.seqlen), **data)
+            self.memory['value'] = np.zeros((self.n_envs, self.seqlen+1), dtype=np.float32)
+            self.memory['traj_ret'] = np.zeros((self.n_envs, self.seqlen+1), dtype=np.float32)
+            self.memory['advantage'] = np.zeros((self.n_envs, self.seqlen+1), dtype=np.float32)
+            print_buffer(self.memory)
+            
         for k, v in data.items():
             if v is not None:
                 self.memory[k][:, self.idx] = v
@@ -53,7 +42,7 @@ class PPOBuffer(dict):
         assert_colorize(self.ready, 
             f'PPOBuffer is not ready to be read. Call "self.finish" first')
 
-        keys = ['state', 'action', 'traj_ret', 'value', 
+        keys = ['obs', 'action', 'traj_ret', 'value', 
                 'advantage', 'old_logpi', 'mask']
 
         return {k: self.memory[k][:, :self.idx]
@@ -139,8 +128,8 @@ if __name__ == '__main__':
         config=config,
         n_envs=8, 
         seqlen=1000, 
-        state_shape=[3], 
-        state_dtype=np.float32, 
+        obs_shape=[3], 
+        obs_dtype=np.float32, 
         action_shape=[2], 
         action_dtype=np.float32,
     )

@@ -40,12 +40,12 @@ class EnvBase:
         return self.env.is_action_discrete
 
     @property
-    def state_shape(self):
-        return self.env.state_shape
+    def obs_shape(self):
+        return self.env.obs_shape
 
     @property
-    def state_dtype(self):
-        return self.env.state_dtype
+    def obs_dtype(self):
+        return self.env.obs_dtype
 
     @property
     def action_space(self):
@@ -78,7 +78,7 @@ class Env(EnvBase):
         self.env.seed(i)
 
     def reset(self):
-        return self.env.reset().astype(self.state_dtype)
+        return self.env.reset().astype(self.obs_dtype)
 
     def random_action(self):
         action = self.env.action_space.sample()
@@ -87,7 +87,7 @@ class Env(EnvBase):
     def step(self, action, **kwargs):
         state, reward, done, info = self.env.step(action, **kwargs)
 
-        return state.astype(self.state_dtype), np.float32(reward), done, info
+        return state.astype(self.obs_dtype), np.float32(reward), done, info
 
     def render(self):
         return self.env.render()
@@ -119,15 +119,15 @@ class EnvVec(EnvBase):
         self.max_episode_steps = self.env.spec.max_episode_steps
 
     def random_action(self):
-        return np.array([env.action_space.sample() for env in self.envs], copy=False, dtype=self.state_dtype)
+        return np.array([env.action_space.sample() for env in self.envs], copy=False, dtype=self.obs_dtype)
 
     def reset(self):
-        return np.asarray([env.reset() for env in self.envs], dtype=self.state_dtype)
+        return np.asarray([env.reset() for env in self.envs], dtype=self.obs_dtype)
     
     def step(self, actions, **kwargs):
         state, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
 
-        return (np.array(state, copy=False, dtype=self.state_dtype), 
+        return (np.array(state, copy=False, dtype=self.obs_dtype), 
                 np.array(reward, dtype=np.float32), 
                 np.array(done, dtype=np.bool), 
                 info)
@@ -164,7 +164,7 @@ class EfficientEnvVec(EnvVec):
         for i in range(len(info)):
             info[i]['env_id'] = valid_env_ids[i]
         
-        return (np.array(state, copy=False, dtype=self.state_dtype), 
+        return (np.array(state, copy=False, dtype=self.obs_dtype), 
                 np.array(reward, dtype=np.float32), 
                 np.array(done, dtype=np.bool), 
                 info)
@@ -187,7 +187,7 @@ class RayEnvVec(EnvBase):
 
     def reset(self):
         return np.reshape(ray.get([env.reset.remote() for env in self.envs]), 
-                          (self.n_envs, *self.state_shape))
+                          (self.n_envs, *self.obs_shape))
 
     def random_action(self):
         return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
@@ -207,7 +207,7 @@ class RayEnvVec(EnvBase):
             for i in info_lists:
                 info += i
 
-        return (np.reshape(state, (self.n_envs, *self.state_shape)).astype(self.state_dtype), 
+        return (np.reshape(state, (self.n_envs, *self.obs_shape)).astype(self.obs_dtype), 
                 np.reshape(reward, self.n_envs).astype(np.float32), 
                 np.reshape(done, self.n_envs).astype(bool),
                 info)

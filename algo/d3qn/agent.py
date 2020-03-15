@@ -45,10 +45,10 @@ class Agent(BaseAgent):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = [
             ([1], tf.float32, 'IS_ratio'),
-            (env.state_shape, tf.float32, 'state'),
+            (env.obs_shape, tf.float32, 'obs'),
             ([env.action_dim], tf.float32, 'action'),
             ([1], tf.float32, 'reward'),
-            (env.state_shape, tf.float32, 'next_state'),
+            (env.obs_shape, tf.float32, 'next_obs'),
             ([1], tf.float32, 'done'),
             ([1], tf.float32, 'steps'),
         ]
@@ -85,12 +85,12 @@ class Agent(BaseAgent):
 
         return terms
 
-    def _compute_grads(self, state, action, next_state, reward, done, steps, IS_ratio):
+    def _compute_grads(self, obs, action, next_obs, reward, done, steps, IS_ratio):
         action = tf.one_hot(action, self._action_dim)
         with tf.GradientTape() as tape:
-            q = self.q1.train_value(state, action)
-            next_action = self.q1.train_action(next_state)
-            next_q = self.target_q1.train_det_value(next_state, next_action)
+            q = self.q1.train_value(obs, action)
+            next_action = self.q1.train_action(next_obs)
+            next_q = self.target_q1.train_det_value(next_obs, next_action)
 
             loss_fn = tf.square if self.loss_type == 'mse' else huber_loss
             with tf.name_scope('q_loss'):

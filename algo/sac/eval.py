@@ -24,7 +24,7 @@ def main(env_config, model_config, agent_config, render=False):
     n_envs = env_config['n_envs'] * env_config['n_workers']
 
     actor = SoftPolicy(model_config['actor'],
-                        env.state_shape,
+                        env.obs_shape,
                         env.action_dim,
                         env.is_action_discrete,
                         'actor')

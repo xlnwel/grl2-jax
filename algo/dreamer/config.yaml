@@ -1,6 +1,6 @@
 ---
 env:
-    name: LunarLander-v2
+    name: BipedalWalker-v3
     video_path: video
     log_video: False
     n_envs: 1
@@ -8,31 +8,32 @@ env:
     seed: 0
 model:
     encoder:
-        has_cnn: True
+        # has_cnn: False
     rssm:
-        stoch_size: 64
-        deter_size: 64
-        hidden_size: 64
+        stoch_size: 128
+        deter_size: 128
+        hidden_size: 128
         activation: elu
     reward:
-        units_list: [400, 400]
+        units_list: [64]
         activation: elu
     actor:
-        units_list: [400, 400, 400, 400]
+        units_list: [128]
         activation: elu
         init_std: 5
         min_std: 1.e-4
     value:
-        units_list: [400, 400, 400]
+        units_list: [128]
+        activation: elu
+    term:
+        units_list: [64]
         activation: elu
     decoder:
-        has_cnn: True
-    temperature:
-        temp_type: 'variable'
-        value: .2
+        # has_cnn: True
 agent:
     algorithm: &algo dreamer
     polyak: .995
+    precision: 32
     
     # timer&interval
     MAX_STEPS: 2.e+7
@@ -45,7 +46,7 @@ agent:
     kl_scale: 1.
     term_scale: 10.
     # behavior
-    horizon: 15
+    horizon: 10
     gamma: &gamma 0.99
     lambda: .95
 
@@ -65,8 +66,8 @@ agent:
     clip_norm: 100
     weight_decay: 0
     model_lr: 1.e-3
-    actor_lr: 1.e-3
-    value_lr: 1.e-3
+    actor_lr: 1.e-4
+    value_lr: 1.e-4
     epsilon: 1.e-8
     # clip_norm: 10
     

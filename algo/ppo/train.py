@@ -70,15 +70,15 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
                         env.n_envs,
                         env.max_episode_steps,
                         n_minibatches,
-                        env.state_shape,
-                        env.state_dtype,
+                        env.obs_shape,
+                        env.obs_dtype,
                         env.action_shape,
                         env.action_dtype)
 
     # construct model
     models = create_model(
         model_config, 
-        state_shape=env.state_shape, 
+        obs_shape=env.obs_shape, 
         action_dim=env.action_dim, 
         is_action_discrete=env.is_action_discrete,
         n_envs=env.n_envs
@@ -88,8 +88,8 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     agent = Agent(name='ppo', 
                 config=agent_config, 
                 models=models, 
-                state_shape=env.state_shape,
-                state_dtype=env.state_dtype,
+                obs_shape=env.obs_shape,
+                obs_dtype=env.obs_dtype,
                 action_dim=env.action_dim,
                 action_dtype=env.action_dtype,
                 n_envs=env.n_envs)

@@ -49,7 +49,7 @@ class EnvStats(gym.Wrapper):
     def step(self, action):
         if self.already_done:
             self.mask = 0
-            return np.zeros(self.state_shape), 0, True, {}
+            return np.zeros(self.obs_shape), 0, True, {}
         else:
             self.mask = 1 - self.already_done
             state, reward, done, info = self.env.step(action)
@@ -77,11 +77,11 @@ class EnvStats(gym.Wrapper):
         return isinstance(self.env.action_space, gym.spaces.Discrete)
 
     @property
-    def state_shape(self):
+    def obs_shape(self):
         return self.observation_space.shape
 
     @property
-    def state_dtype(self):
+    def obs_dtype(self):
         return np.float32 if self.observation_space.dtype == np.float64 else self.observation_space.dtype
 
     @property

@@ -18,8 +18,8 @@ kwargs = dict(
     n_envs=8, 
     epslen=1000, 
     n_minibatches=2, 
-    state_shape=[3], 
-    state_dtype=np.float32, 
+    obs_shape=[3], 
+    obs_dtype=np.float32, 
     action_shape=[2], 
     action_dtype=np.float32,
 )

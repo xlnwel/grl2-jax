@@ -6,92 +6,72 @@ from utility.schedule import PiecewiseSchedule
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
+from core.optimizers import Optimizer
 from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
 class Agent(BaseAgent):
     @agent_config
-    def __init__(self, 
-                name, 
-                config, 
-                models, 
-                state_shape,
-                state_dtype,
-                action_dim,
-                action_dtype,
-                n_envs):
+    def __init__(self, env):
         # optimizer
         if getattr(self, 'schedule_lr', False):
-            self.learning_rate = tf.Variable(self.learning_rate, trainable=False)
-            self.schedule = PiecewiseSchedule(
-                [(300, self.learning_rate), (1000, 5e-5)])
-        if self.optimizer.lower() == 'adam':
-            self.optimizer = tf.keras.optimizers.Adam(
-                learning_rate=self.learning_rate,
-                epsilon=self.epsilon
-            )
-        elif self.optimizer.lower() == 'rmsprop':
-            self.optimizer = tf.keras.optimizers.RMSprop(
-                learning_rate=self.learning_rate,
-                rho=.99,
-                epsilon=self.epsilon
-            )
-        else:
-            raise NotImplementedError()
+            self._lr_sched = PiecewiseSchedule([(300, self._learning_rate), (1000, 5e-5)])
+            self._learning_rate = tf.Variable(self._learning_rate, trainable=False)
 
-        self._ckpt_models['optimizer'] = self.optimizer
+        self._optimizer = Optimizer(
+            self._optimizer, self.ac, self._learning_rate, 
+            epsilon=self._epsilon)
+        self._ckpt_models['optimizer'] = self._optimizer
 
         # initial, previous, and current state of LSTM
-        self.initial_states = self.ac.get_initial_state()
-
-        self.prev_states = self.initial_states   # for training
-        self.curr_states = self.initial_states   # for environment interaction
+        self.prev_state = None   # for training
+        self.curr_state = None   # for environment interaction
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = [
-            (state_shape, state_dtype, 'state'),
-            ([action_dim], action_dtype, 'action'),
-            ([1], tf.float32, 'traj_ret'),
-            ([1], tf.float32, 'value'),
-            ([1], tf.float32, 'advantage'),
-            ([1], tf.float32, 'old_logpi'),
-            ([1], tf.float32, 'mask'),
+            (env.obs_shape, env.obs_dtype, 'obs'),
+            (env.action_shape, env.action_dtype, 'action'),
+            ((), tf.float32, 'traj_ret'),
+            ((), tf.float32, 'value'),
+            ((), tf.float32, 'advantage'),
+            ((), tf.float32, 'old_logpi'),
+            ((), tf.float32, 'mask'),
             ((), tf.float32, 'n'),
         ]
         self.learn = build(
             self._learn, 
             TensorSpecs, 
             sequential=True, 
-            batch_size=n_envs,
+            batch_size=env.n_envs,
         )
 
-    def reset_states(self):
-        self.prev_states = self.curr_states = self.initial_states
+    def reset_state(self, batch_size):
+        self.prev_state = self.curr_state = self.ac.get_initial_state(batch_size=batch_size)
 
-    def step(self, state, update_curr_states=True):
-        state = tf.convert_to_tensor(state, tf.float32)
-        action, logpi, value, states = self.ac.step(state, self.curr_states)
-        if update_curr_states:
-            self.curr_states = states
+    def step(self, obs, update_curr_state=True):
+        obs = tf.convert_to_tensor(obs, tf.float32)
+        action, logpi, value, state = self.ac.step(obs, self.curr_state)
+        if update_curr_state:
+            self.curr_state = state
         return action, logpi, value
 
-    def det_action(self, state, update_curr_states=True):
-        state = tf.convert_to_tensor(state, tf.float32)
-        action, states = self.ac.det_action(state, self.curr_states)
-        if update_curr_states:
-            self.curr_states = states
+    def det_action(self, obs, update_curr_state=True):
+        obs = tf.convert_to_tensor(obs, tf.float32)
+        action, state = self.ac.det_action(obs, self.curr_state)
+        if update_curr_state:
+            self.curr_state = state
         return action
 
     def learn_log(self, buffer, epoch):
-        if not isinstance(self.learning_rate, float):
-            self.learning_rate.assign(self.schedule.value(epoch))
-        for i in range(self.n_updates):
+        if not isinstance(self._learning_rate, float):
+            self._learning_rate.assign(self.schedule.value(epoch))
+        for i in range(self._n_updates):
             data = buffer.sample()
             data['n'] = n = np.sum(data['mask'])
             value = data['value']
-            data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+            data = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
             with tf.name_scope('train'):
-                terms  = self.learn(**data)
+                state, terms = self.learn(**data)
                 
             n_total_trans = value.size
             n_valid_trans = n or n_total_trans
@@ -111,39 +91,34 @@ class Agent(BaseAgent):
                     f'Current kl={approx_kl:.3g}', color='blue')
                 break
         self.store(approx_kl=approx_kl)
-        if not isinstance(self.learning_rate, float):
-            self.store(learning_rate=self.learning_rate.numpy())
+        if not isinstance(self._learning_rate, float):
+            self.store(learning_rate=self._learning_rate.numpy())
 
-        # update the states with the newest weights 
-        states = self.ac.rnn_states(data['state'], *self.prev_states)
-        self.prev_states = self.curr_states = states
+        # update the state with the newest weights 
+        self.prev_state = self.curr_state = state
 
     @tf.function
-    def _learn(self, state, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
+    def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
+        old_value = value
         with tf.GradientTape() as tape:
-            old_value = value
-            logpi, entropy, value, logstd = self.ac.train_step(state, action, self.prev_states)
+            action_dist, value, state = self.ac.train_step(obs, self.prev_state)
+            logpi = action_dist.log_prob(action)
+            entropy = action_dist.entropy()
             # policy loss
             ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
-                logpi, old_logpi, advantage, self.clip_range,
+                logpi, old_logpi, advantage, self._clip_range,
                 entropy, mask=mask, n=n)
             # value loss
             value_loss, v_clip_frac = compute_value_loss(
-                value, traj_ret, old_value, self.clip_range,
+                value, traj_ret, old_value, self._clip_range,
                 mask=mask, n=n)
 
             with tf.name_scope('total_loss'):
                 policy_loss = (ppo_loss 
-                        - self.entropy_coef * entropy # TODO: adaptive entropy regularizer
-                        + self.kl_coef * approx_kl)
-                value_loss = self.value_coef * value_loss
+                        - self._entropy_coef * entropy # TODO: adaptive entropy regularizer
+                        + self._kl_coef * approx_kl)
+                value_loss = self._value_coef * value_loss
                 total_loss = policy_loss + value_loss
-
-        with tf.name_scope('gradient'):
-            grads = tape.gradient(total_loss, self.ac.trainable_variables)
-            if hasattr(self, 'clip_norm'):
-                grads, global_norm = tf.clip_by_global_norm(grads, self.clip_norm)
-            self.optimizer.apply_gradients(zip(grads, self.ac.trainable_variables))
 
         terms = dict(
             entropy=entropy, 
@@ -151,9 +126,8 @@ class Agent(BaseAgent):
             p_clip_frac=p_clip_frac,
             v_clip_frac=v_clip_frac,
             ppo_loss=ppo_loss,
-            value_loss=value_loss,
-            global_norm=global_norm,
+            value_loss=value_loss
         )
-        if logstd is not None:
-            terms['std'] = tf.exp(logstd)
-        return terms
+        terms['grads_norm'] = self._optimizer(tape, total_loss)
+
+        return state, terms

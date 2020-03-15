@@ -29,7 +29,7 @@ def evaluate(agent, global_steps, env):
     stats = dict(
         model_name=f'{agent.model_name}',
         timing='Eval',
-        steps=step_str(global_steps), 
+        steps=global_steps, 
         score=np.mean(scores),
         score_std=np.std(scores),
         score_max=np.max(scores),
@@ -39,8 +39,8 @@ def evaluate(agent, global_steps, env):
     agent.log_stats(stats)
 
 def train(agent, env, replay):
-    def collect_and_learn(state, action, reward, done, next_state, step, **kwargs):
-        replay.add(state=state, action=action, reward=reward, done=done, next_state=next_state)
+    def collect_and_learn(obs, action, reward, done, next_obs, step, **kwargs):
+        replay.add(obs=obs, action=action, reward=reward, done=done, next_obs=next_obs)
         if step % agent.update_freq == 0:
             with TBTimer('learn', agent.LOG_INTERVAL, to_log=agent.TIMER):
                 agent.learn_log(step // agent.update_freq)
@@ -87,12 +87,12 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     eval_env_config['efficient_envvec'] = True
     eval_env = create_gym_env(eval_env_config)
     # construct replay
-    replay_keys = ['state', 'action', 'reward', 'done', 'steps']
-    replay = create_replay(replay_config, *replay_keys, state_shape=env.state_shape)
-    dataset = Dataset(replay, env.state_shape, env.state_dtype, env.action_shape, env.action_dtype, env.action_dim)
+    replay_keys = ['obs', 'action', 'reward', 'done', 'steps']
+    replay = create_replay(replay_config, *replay_keys, obs_shape=env.obs_shape)
+    dataset = Dataset(replay, env.obs_shape, env.obs_dtype, env.action_shape, env.action_dtype, env.action_dim)
 
     # construct models
-    models = create_model(model_config, env.state_shape, env.action_dim)
+    models = create_model(model_config, env.obs_shape, env.action_dim)
 
     # construct agent
     agent = Agent(name='q', 
@@ -110,7 +110,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     if restore:
         agent.restore()
-        collect_fn = lambda state, action, reward, done: replay.add(state, action, reward, done)
+        collect_fn = lambda obs, action, reward, done: replay.add(obs, action, reward, done)
         while not replay.good_to_learn():
             run_trajectory(env, agent.actor, collect_fn)
     else:

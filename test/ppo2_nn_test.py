@@ -13,7 +13,7 @@ config = dict(
     activation='relu',
     kernel_initializer='he_uniform'
 )
-state_shape = [5]
+obs_shape = [5]
 action_dim = np.random.randint(1, 10)
 batch_size = np.random.randint(1, 10)
 seq_len = np.random.randint(1, 10)
@@ -21,10 +21,10 @@ seq_len = np.random.randint(1, 10)
 class TestClass:
     def test_rnn_states_with_initial_zeros(self):
         for is_action_discrete in [True, False]:
-            ac = PPOAC(config, state_shape, np.float32, action_dim, is_action_discrete, batch_size, 'ac')
+            ac = PPOAC(config, obs_shape, np.float32, action_dim, is_action_discrete, batch_size, 'ac')
 
             # step states
-            x = np.random.rand(batch_size, seq_len, *state_shape)
+            x = np.random.rand(batch_size, seq_len, *obs_shape)
             states = ac.get_initial_state()
             np.testing.assert_allclose(states, 0)
             for i in range(seq_len):
@@ -67,10 +67,10 @@ class TestClass:
 
     def test_rnn_states_with_random_initial_states(self):
         for is_action_discrete in [True, False]:
-            ac = PPOAC(config, state_shape, np.float32, action_dim, is_action_discrete, batch_size, 'ac')
+            ac = PPOAC(config, obs_shape, np.float32, action_dim, is_action_discrete, batch_size, 'ac')
 
             # step states
-            x = np.random.rand(batch_size, seq_len, *state_shape)
+            x = np.random.rand(batch_size, seq_len, *obs_shape)
             states = ac.get_initial_state()
             rnn_state_shape = np.shape(states[0])
             initial_state = [tf.random.normal(rnn_state_shape), 

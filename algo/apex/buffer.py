@@ -21,7 +21,7 @@ class LocalBuffer(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def add_data(self, state, action, reward, done, next_state, mask):
+    def add_data(self, obs, action, reward, done, next_obs, mask):
         raise NotImplementedError
 
 
@@ -49,23 +49,23 @@ class EnvBuffer(LocalBuffer):
     def reset(self):
         self.idx = 0
 
-    def add_data(self, **kwargs):
+    def add_data(self, **data):
         """ Add experience to local memory """
-        next_state = kwargs['next_state']
+        next_obs = data['next_obs']
         if self.memory == {}:
-            del kwargs['next_state']
+            del data['next_obs']
             print('Local buffer')
-            init_buffer(self.memory, pre_dims=self.seqlen+self.n_steps, has_steps=self.n_steps>1, **kwargs)
+            init_buffer(self.memory, pre_dims=self.seqlen+self.n_steps, has_steps=self.n_steps>1, **data)
             print(f'Local bufffer keys: {list(self.memory.keys())}')
             
-        add_buffer(self.memory, self.idx, self.n_steps, self.gamma, **kwargs)
+        add_buffer(self.memory, self.idx, self.n_steps, self.gamma, **data)
         self.idx = self.idx + 1
-        self.memory['state'][self.idx] = next_state
+        self.memory['obs'][self.idx] = next_obs
 
     def sample(self):
         results = {}
         for k, v in self.memory.items():
-            if 'state' in k or 'action' in k:
+            if 'obs' in k or 'action' in k:
                 results[k] = v[:self.idx]
             else:
                 results[k] = v[:self.idx]
@@ -73,7 +73,7 @@ class EnvBuffer(LocalBuffer):
         indexes = np.arange(self.idx)
         steps = results['steps']
         next_indexes = indexes + steps
-        results['next_state'] = self.memory['state'][next_indexes]
+        results['next_obs'] = self.memory['obs'][next_indexes]
 
         # process rewards
         results['reward'] *= np.where(results['done'], 1, self.reward_scale)
@@ -115,17 +115,17 @@ class EnvVecBuffer:
         self.idx = 0
         self.memory['mask'] = np.zeros_like(self.memory['mask'], dtype=np.bool)
         
-    def add_data(self, env_ids=None, **kwargs):
+    def add_data(self, env_ids=None, **data):
         """ Add experience to local memory """
         if self.memory == {}:
             # initialize memory
             init_buffer(self.memory, pre_dims=(self.n_envs, self.seqlen + self.n_steps), 
-                        has_steps=self.n_steps>1, **kwargs)
+                        has_steps=self.n_steps>1, **data)
 
         env_ids = env_ids or range(self.n_envs)
         idx = self.idx
         for i, env_id in enumerate(env_ids):
-            for k, v in kwargs.items():
+            for k, v in data.items():
                 try:
                     self.memory[k][env_id, idx] = v[i]
                 except:
@@ -139,10 +139,10 @@ class EnvVecBuffer:
                 k_done = self.memory['done'][i, k]
                 if k_done:
                     break
-                self.memory['reward'][i, k] += self.gamma**i * kwargs['reward'][i]
-                self.memory['done'][i, k] = kwargs['done'][i]
+                self.memory['reward'][i, k] += self.gamma**i * data['reward'][i]
+                self.memory['done'][i, k] = data['done'][i]
                 self.memory['steps'][i, k] += 1
-                self.memory['next_state'][i, k] = kwargs['next_state'][i]
+                self.memory['next_obs'][i, k] = data['next_obs'][i]
 
         self.idx = self.idx + 1
 
