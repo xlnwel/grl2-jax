@@ -3,7 +3,7 @@ import tensorflow as tf
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target, transformed_n_step_target
-from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
+from utility.schedule import TFPiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
@@ -20,14 +20,10 @@ class Agent(BaseAgent):
 
         # learning rate schedule
         if getattr(self, '_schedule_lr', False):
-            self._actor_sched = PiecewiseSchedule(
+            self._actor_lr = TFPiecewiseSchedule(
                 [(2e5, self._actor_lr), (1e6, 1e-5)])
-            self._q_sched = PiecewiseSchedule(
+            self._q_lr = TFPiecewiseSchedule(
                 [(2e5, self._q_lr), (1e6, 1e-5)])
-            self._actor_lr = tf.Variable(self._actor_lr, trainable=False)
-            self._q_lr = tf.Variable(self._q_lr, trainable=False)
-            self.lr_pairs = [
-                (self._actor_lr, self._actor_sched), (self._q_lr, self._q_sched)]
 
         # optimizer
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
@@ -39,10 +35,8 @@ class Agent(BaseAgent):
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
             if getattr(self, '_schedule_lr', False):
-                self._temp_sched = PiecewiseSchedule(
+                self._temp_lr = TFPiecewiseSchedule(
                     [(5e5, self._temp_lr), (1e6, 1e-5)])
-                self._temp_lr = tf.Variable(self._temp_lr, trainable=False)
-                self.lr_pairs.append((self._temp_lr, self._temp_sched))
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
             self._ckpt_models['temp_opt'] = self._temp_opt
 
@@ -68,11 +62,8 @@ class Agent(BaseAgent):
     def action(self, obs, deterministic=False, epsilon=0):
         return self.actor.action(obs, deterministic=deterministic, epsilon=epsilon)
 
-    def learn_log(self, step=None):
-        if step:
-            self.global_steps.assign(step)
-        if self._schedule_lr:
-            [lr.assign(sched.value(self.global_steps.numpy())) for lr, sched in self.lr_pairs]
+    def learn_log(self, step):
+        self.global_steps.assign(step)
         with TBTimer(f'{self._model_name} sample', 10000, to_log=self.TIMER):
             data = self.dataset.sample()
         if self._is_per:
@@ -88,10 +79,11 @@ class Agent(BaseAgent):
         self._update_target_nets()
 
         if self._schedule_lr:
-            terms['_actor_lr'] = self._actor_lr.numpy()
-            terms['_q_lr'] = self._q_lr.numpy()
+            step = tf.convert_to_tensor(step, tf.float32)
+            terms['_actor_lr'] = self._actor_lr(step)
+            terms['_q_lr'] = self._q_lr(step)
             if not isinstance(self.temperature, (float, tf.Variable)):
-                terms['_temp_lr'] = self._temp_lr.numpy()
+                terms['_temp_lr'] = self._temp_lr(step)
             
         if self._is_per:
             self.dataset.update_priorities(terms['priority'], saved_idxes.numpy())

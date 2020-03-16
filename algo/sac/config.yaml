@@ -63,7 +63,7 @@ replay:
     # reward_scale: 1
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: 1
     gamma: *gamma
     batch_size: 100
     min_size: 1e4

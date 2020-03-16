@@ -2,75 +2,66 @@ import numpy as np
 import tensorflow as tf
 
 from utility.display import pwc
-from utility.schedule import PiecewiseSchedule
+from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
+from core.optimizers import Optimizer
 from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
 class Agent(BaseAgent):
     @agent_config
-    def __init__(self, 
-                name, 
-                config, 
-                models, 
-                obs_shape,
-                obs_dtype,
-                action_dim,
-                action_dtype,
-                n_envs):
+    def __init__(self, env):
         # optimizer
         if getattr(self, 'schedule_lr', False):
-            self.learning_rate = tf.Variable(self.learning_rate, trainable=False)
-            self.schedule = PiecewiseSchedule(
-                [(300, self.learning_rate), (500, 1e-4)])
-        if self.optimizer.lower() == 'adam':
-            self.optimizer = tf.keras.optimizers.Adam(
-                learning_rate=self.learning_rate,
-                epsilon=self.epsilon
-            )
-        elif self.optimizer.lower() == 'rmsprop':
-            self.optimizer = tf.keras.optimizers.RMSprop(
-                learning_rate=self.learning_rate,
-                rho=.99,
-                epsilon=self.epsilon
-            )
-        else:
-            raise NotImplementedError()
+            self._learning_rate = TFPiecewiseSchedule([(300, self._learning_rate), (1000, 5e-5)])
 
-        self._ckpt_models['optimizer'] = self.optimizer
+        self._optimizer = Optimizer(
+            self._optimizer, self.ac, self._learning_rate, 
+            epsilon=self._epsilon)
+        self._ckpt_models['optimizer'] = self._optimizer
+
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = [
-            (obs_shape, obs_dtype, 'state'),
-            ([action_dim], action_dtype, 'action'),
-            ([1], tf.float32, 'traj_ret'),
-            ([1], tf.float32, 'value'),
-            ([1], tf.float32, 'advantage'),
-            ([1], tf.float32, 'old_logpi'),
-            ([1], tf.float32, 'mask'),
+            (env.obs_shape, env.obs_dtype, 'obs'),
+            (env.action_shape, env.action_dtype, 'action'),
+            ((), tf.float32, 'traj_ret'),
+            ((), tf.float32, 'value'),
+            ((), tf.float32, 'advantage'),
+            ((), tf.float32, 'old_logpi'),
+            ((), tf.float32, 'mask'),
             ((), tf.float32, 'n'),
         ]
         self.learn = build(
             self._learn, 
             TensorSpecs, 
             sequential=True, 
-            batch_size=n_envs
+            batch_size=env.n_envs,
         )
 
-    def learn_log(self, buffer, early_terminate, epoch):
-        if not isinstance(self.learning_rate, float):
-            self.learning_rate.assign(self.schedule.value(epoch))
-        for i in range(self.n_updates):
+    def reset_states(self, states=None):
+        self.ac.reset_states(states)
+
+    def step(self, obs, deterministic=False):
+        obs = tf.convert_to_tensor(obs, tf.float32)
+        if deterministic:
+            action = self.ac.det_action(obs)
+            return action
+        else:
+            action, logpi, value = self.ac.step(obs)
+            return action, logpi, value
+    def learn_log(self, buffer, epoch):
+        for i in range(self._n_updates):
             self.ac.reset_states()
-            for j in range(self.n_minibatches):
+            for j in range(buffer.n_minibatches):
                 data = buffer.sample()
                 data['n'] = n = np.sum(data['mask'])
                 value = data['value']
-                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+                data = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
                 with tf.name_scope('train'):
-                    terms  = self.learn(**data)
+                    terms = self.learn(**data)
     
                 n_total_trans = value.size
                 n_valid_trans = n or n_total_trans
@@ -85,40 +76,36 @@ class Agent(BaseAgent):
 
                 self.store(**terms)
             
-            if self.max_kl > 0 and approx_kl > self.max_kl:
+            if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
                 pwc(f'Eearly stopping at epoch-{epoch} update-{i+1} due to reaching max kl.',
                     f'Current kl={approx_kl:.3g}', color='blue')
                 break
         self.store(approx_kl=approx_kl)
-        if not isinstance(self.learning_rate, float):
-            self.store(learning_rate=self.learning_rate.numpy())
+        if not isinstance(self._learning_rate, float):
+            self.store(learning_rate=self._learning_rate(tf.cast(self.global_steps, tf.float32)))
 
     @tf.function
-    def _learn(self, state, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
+    def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
+        old_value = value
         with tf.GradientTape() as tape:
-            old_value = value
-            logpi, entropy, value, logstd = self.ac.train_step(state, action)
+            action_dist, value = self.ac.train_step(obs)
+            logpi = action_dist.log_prob(action)
+            entropy = action_dist.entropy()
             # policy loss
             ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
-                logpi, old_logpi, advantage, self.clip_range,
+                logpi, old_logpi, advantage, self._clip_range,
                 entropy, mask=mask, n=n)
             # value loss
             value_loss, v_clip_frac = compute_value_loss(
-                value, traj_ret, old_value, self.clip_range,
+                value, traj_ret, old_value, self._clip_range,
                 mask=mask, n=n)
 
             with tf.name_scope('total_loss'):
                 policy_loss = (ppo_loss 
-                        - self.entropy_coef * entropy # TODO: adaptive entropy regularizer
-                        + self.kl_coef * approx_kl)
-                value_loss = self.value_coef * value_loss
+                        - self._entropy_coef * entropy # TODO: adaptive entropy regularizer
+                        + self._kl_coef * approx_kl)
+                value_loss = self._value_coef * value_loss
                 total_loss = policy_loss + value_loss
-
-        with tf.name_scope('gradient'):
-            grads = tape.gradient(total_loss, self.ac.trainable_variables)
-            if hasattr(self, 'clip_norm'):
-                grads, global_norm = tf.clip_by_global_norm(grads, self.clip_norm)
-            self.optimizer.apply_gradients(zip(grads, self.ac.trainable_variables))
 
         terms = dict(
             entropy=entropy, 
@@ -126,9 +113,8 @@ class Agent(BaseAgent):
             p_clip_frac=p_clip_frac,
             v_clip_frac=v_clip_frac,
             ppo_loss=ppo_loss,
-            value_loss=value_loss,
-            global_norm=global_norm,
+            value_loss=value_loss
         )
-        if logstd is not None:
-            terms['std'] = tf.exp(logstd)
+        terms['grads_norm'] = self._optimizer(tape, total_loss)
+
         return terms

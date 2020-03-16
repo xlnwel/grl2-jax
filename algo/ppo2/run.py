@@ -5,7 +5,7 @@ import tensorflow as tf
 def run_trajectories(env, agent, buffer, learn_freq, epoch):
     buffer.reset()
     obs = env.reset()
-    agent.reset_state(batch_size=env.n_envs)
+    agent.reset_states(batch_size=env.n_envs)
     np.testing.assert_allclose(agent.prev_state, 0.)
     np.testing.assert_allclose(agent.curr_state, 0.)
 

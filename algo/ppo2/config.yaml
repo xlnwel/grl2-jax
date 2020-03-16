@@ -4,19 +4,19 @@ env:
     name: &env_name BipedalWalker-v3
     video_path: video
     log_video: False
-    n_workers: 4
-    n_envs: 8
+    n_workers: 1
+    n_envs: 16
     # max_episode_steps: 27000    # 108000 frames / 4 frame-skips
     seed: 0
     episode_life: False
 
 model:
     cnn_name: none
-    shared_mlp_units: []
+    shared_mlp_units: [256]
     use_dnc: False
     lstm_units: 128
-    actor_units: [64]
-    critic_units: [64]
+    actor_units: [128]
+    critic_units: [128]
     norm: none
     activation: relu
 
@@ -40,9 +40,9 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: True
-    learning_rate: 1.e-4
+    learning_rate: 3.e-4
     epsilon: 1.e-5
-    clip_norm: .5
+    clip_norm: 10
     # arguments for loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .0

@@ -19,32 +19,22 @@ def train(agent, env, buffer):
         agent.set_summary_step(epoch)
         with Timer(f'{agent.name} run', agent.LOG_INTERVAL):
             scores, epslens = run_trajectories(env, agent, buffer, agent.LEARN_FREQ, epoch)
-        score = np.mean(scores)
-        agent.store(
-            score=score,
-            score_std=np.std(scores),
-            epslen=np.mean(epslens),
-            epslen_std=np.std(epslens)
-        )
+        agent.store(score=scores, epslen=epslens)
 
         if epoch % agent.LOG_INTERVAL == 0:
-            with Timer(f'{agent.name} logging'):
-                agent.log(epoch, 'Train')
-            with Timer(f'{agent.name} save'):
-                agent.save(steps=epoch)
-        # evaluation
-        if epoch % 100 == 0:
             with Timer(f'{agent.name} evaluation'):
                 scores, epslens = evaluate(env, agent)
-            agent.store(
-                name=f'{agent.name}',
-                timing='Eval',
-                steps=f'{epoch}', 
-                eval_score=np.mean(scores),
-                eval_score_std=np.std(scores),
-                eval_epslen=np.mean(epslens),
-                eval_epslen_std=np.std(epslens)
-            )
+            agent.store(eval_score=scores, eval_epslen=np.mean(epslens))
+
+            agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('epslen', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
+
+            with Timer(f'{agent.name} logging'):
+                agent.log(epoch)
+            with Timer(f'{agent.name} save'):
+                agent.save(steps=epoch)
 
 def main(env_config, model_config, agent_config, buffer_config, restore=False, render=False):
     set_global_seed()
@@ -55,22 +45,17 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
         ray.init()
         sigint_shutdown_ray()
 
-    # construct environment
     env = create_gym_env(env_config)
 
-    # construct buffer
     buffer = PPOBuffer(buffer_config, env.n_envs, env.max_episode_steps,)
 
-    # construct model
     models = create_model(
         model_config, 
-        obs_shape=env.obs_shape, 
         action_dim=env.action_dim, 
         is_action_discrete=env.is_action_discrete,
         n_envs=env.n_envs
     )
     
-    # construct agent for model update
     agent = Agent(name='ppo', 
                 config=agent_config, 
                 models=models, 

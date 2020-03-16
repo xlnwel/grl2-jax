@@ -15,9 +15,7 @@ LOG_INTERVAL = 4000
 def train(agent, env, replay):
     def collect_and_learn(step, **kwargs):
         replay.add(**kwargs)
-        if step % 50 == 0:
-            for _ in range(50):
-                agent.learn_log()
+        agent.learn_log(step)
 
     eval_env = create_gym_env(dict(
         name=env.name, 

@@ -5,16 +5,16 @@ env:
     # max_episode_steps: 1000
     log_video: False
     n_workers: 1
-    n_envs: 32
+    n_envs: 16
     seed: 0
 
 model:
-    # cnn: impala
+    cnn_name: none
     shared_mlp_units: [256]
     use_dnc: False
     lstm_units: 128
-    actor_units: [64]
-    critic_units: [64]
+    actor_units: [128]
+    critic_units: [128]
     norm: none
     activation: relu
 
@@ -22,10 +22,8 @@ agent:
     algorithm: &algo ppo
     env_name: *env_name
 
-    n_minibatches: 8        # number of minibatches a sequence is divided into 
-    # batch size = n_workers * n_envs * seq_len / n_minibatches
     n_updates: 4            # number of updates per epoch
-    n_epochs: 200000
+    N_EPOCHS: 200000
     max_kl: 0.              # early stop when max_kl is violated. 0 suggests no bound
     LOG_INTERVAL: 10
 
@@ -44,13 +42,15 @@ agent:
     # arguments for loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .0
-    kl_coef: .
+    kl_coef: .0
     value_coef: .01
 
 buffer:
     advantage_type: gae     # nae or gae
     gamma: .99
     lam: .95
+    n_minibatches: 8        # number of minibatches a sequence is divided into 
+    # mini-batch size = n_workers * n_envs * epslen / n_minibatches
     # environment hack
     # reward_scale: 5.
     # reward_clip: 50

@@ -3,23 +3,15 @@ from copy import deepcopy
 
 from utility.display import assert_colorize, pwc
 from utility.utils import moments, standardize
+from replay.utils import init_buffer, print_buffer
 
 
 class PPOBuffer:
-    def __init__(self, 
-                config,
-                n_envs, 
-                epslen, 
-                n_minibatches, 
-                obs_shape, 
-                obs_dtype, 
-                action_shape, 
-                action_dtype):
+    def __init__(self, config, n_envs, seqlen):
         self.n_envs = n_envs
-        self.epslen = epslen
-        self.n_minibatches = n_minibatches
-
-        self.minibatch_size = self.epslen // self.n_minibatches
+        self.seqlen = seqlen
+        self.n_minibatches = config['n_minibatches']
+        self.minibatch_len = self.seqlen // self.n_minibatches
 
         self.advantage_type = config['advantage_type']
         self.gamma = config['gamma']
@@ -28,27 +20,22 @@ class PPOBuffer:
         self.reward_scale = config.get('reward_scale', 1)
         self.reward_clip = config.get('reward_clip')
         
-        assert_colorize(epslen // n_minibatches * n_minibatches == epslen, 
-            f'#envs({n_envs}) is not divisible by #minibatches{n_minibatches}')
+        assert_colorize(seqlen // self.n_minibatches * self.n_minibatches == seqlen, 
+            f'#envs({n_envs}) is not divisible by #minibatches{self.n_minibatches}')
 
-        basic_shape = (n_envs, epslen)
-        self.memory = dict(
-            state=np.zeros((*basic_shape, *obs_shape), dtype=obs_dtype),
-            action=np.zeros((*basic_shape, *action_shape), dtype=action_dtype),
-            reward=np.zeros((*basic_shape, 1), dtype=np.float32),
-            nonterminal=np.zeros((*basic_shape, 1), dtype=np.float32),
-            value=np.zeros((n_envs, epslen+1, 1), dtype=np.float32),
-            traj_ret=np.zeros((*basic_shape, 1), dtype=np.float32),
-            advantage=np.zeros((*basic_shape, 1), dtype=np.float32),
-            old_logpi=np.zeros((*basic_shape, 1), dtype=np.float32),
-            mask=np.zeros((*basic_shape, 1), dtype=np.float32),
-        )
-
+        self.memory = {}
         self.reset()
 
     def add(self, **data):
-        assert_colorize(self.idx < self.epslen, 
+        assert_colorize(self.idx < self.seqlen, 
             f'Out-of-range idx {self.idx}. Call "self.reset" beforehand')
+        if self.memory == {}:
+            init_buffer(self.memory, pre_dims=(self.n_envs, self.seqlen), **data)
+            self.memory['value'] = np.zeros((self.n_envs, self.seqlen+1), dtype=np.float32)
+            self.memory['traj_ret'] = np.zeros((self.n_envs, self.seqlen), dtype=np.float32)
+            self.memory['advantage'] = np.zeros((self.n_envs, self.seqlen), dtype=np.float32)
+            print_buffer(self.memory)
+            
         for k, v in data.items():
             if v is not None:
                 self.memory[k][:, self.idx] = v
@@ -58,16 +45,16 @@ class PPOBuffer:
     def sample(self):
         assert_colorize(self.ready, 
             f'PPOBuffer is not ready to be read. Call "self.finish" first')
-        start = self.batch_idx * self.minibatch_size
-        end = np.minimum((self.batch_idx + 1) * self.minibatch_size, self.idx)
+        start = self.batch_idx * self.minibatch_len
+        end = np.minimum((self.batch_idx + 1) * self.minibatch_len, self.idx)
         if start > self.idx or (end == self.idx and np.sum(self.memory['mask'][:, start:end]) < 500):
             self.batch_idx = 0
-            start = self.batch_idx * self.minibatch_size
-            end = (self.batch_idx + 1) * self.minibatch_size
+            start = self.batch_idx * self.minibatch_len
+            end = np.minimum((self.batch_idx + 1) * self.minibatch_len, self.idx)
         else:
             self.batch_idx = (self.batch_idx + 1) % self.n_minibatches
 
-        keys = ['state', 'action', 'traj_ret', 'value', 
+        keys = ['obs', 'action', 'traj_ret', 'value', 
                 'advantage', 'old_logpi', 'mask']
 
         return {k: self.memory[k][:, start:end]
@@ -144,25 +131,21 @@ if __name__ == '__main__':
     config = dict(
         gamma=gamma,
         lam=lam,
-        advantage_type='gae'
+        advantage_type='gae',
+        n_minibatches=2
     )
     kwargs = dict(
         config=config,
         n_envs=8, 
-        epslen=1000, 
+        seqlen=1000, 
         n_minibatches=2, 
-        obs_shape=[3], 
-        obs_dtype=np.float32, 
-        action_shape=[2], 
-        action_dtype=np.float32,
     )
     buffer = PPOBuffer(**kwargs)
-    d = np.zeros((kwargs['n_envs'], 1))
-    m = np.ones((kwargs['n_envs'], 1))
-    diff = kwargs['epslen'] - kwargs['n_envs']
-    for i in range(kwargs['epslen']):
-        r = np.random.rand(kwargs['n_envs'], 1)
-        v = np.random.rand(kwargs['n_envs'], 1)
+    d = np.zeros((kwargs['n_envs']))
+    m = np.ones((kwargs['n_envs']))
+    for i in range(kwargs['seqlen']):
+        r = np.random.rand(kwargs['n_envs'])
+        v = np.random.rand(kwargs['n_envs'])
         if np.random.randint(2):
             d[np.random.randint(kwargs['n_envs'])] = 1
         buffer.add(reward=r,
@@ -172,6 +155,6 @@ if __name__ == '__main__':
         m = 1-d
         if np.all(d == 1):
             break
-    last_value = np.random.rand(kwargs['n_envs'], 1)
+    last_value = np.random.rand(kwargs['n_envs'])
     buffer.finish(last_value)
     

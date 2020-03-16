@@ -177,7 +177,7 @@ class RayEnvVec(EnvBase):
         self.envsperworker = config['n_envs']
         self.n_envs = self.envsperworker * self.n_workers
 
-        RayEnvType = ray.remote(num_cpus=1)(EnvType)
+        RayEnvType = ray.remote(EnvType)
         # leave the name "envs" for consistency, albeit workers seems more appropriate
         self.envs = [config.update({'seed': 100*i}) or RayEnvType.remote(config.copy()) 
                     for i in range(self.n_workers)]

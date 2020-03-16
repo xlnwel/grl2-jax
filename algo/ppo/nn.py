@@ -1,243 +1,140 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
+from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
+from core.module import Module
 from core.tf_config import build
+from core.decorator import config
 from utility.rl_utils import clip_but_pass_gradient, logpi_correction
-from utility.tf_distributions import DiagGaussian, Categorical
+from utility.tf_distributions import DiagGaussian, Categorical, TanhBijector
 from nn.func import cnn, mlp, dnc_rnn
 from nn.utils import get_initializer
 
 
-class PPOAC(tf.Module):
-    def __init__(self, 
-                config, 
-                obs_shape, 
-                action_dim, 
-                is_action_discrete, 
-                batch_size, 
-                name):
+class PPOAC(Module):
+    @config
+    def __init__(self, action_dim, is_action_discrete, name):
         super().__init__(name=name)
 
         self._is_action_discrete = is_action_discrete
-        self.batch_size = batch_size
         
-        # network parameters
-        cnn_name = config.get('cnn')
-        shared_mlp_units = config.get('shared_mlp_units')
-        use_dnc = config['use_dnc']
-        lstm_units = config['lstm_units']
-        dnc_config = dict(
-            output_size=128,
-            access_config=dict(memory_size=64, word_size=32, num_reads=1, num_writes=1),
-            controller_config=dict(units=128),
-            rnn_config=dict(return_sequences=True, stateful=True)
-        )
-        actor_units = config['actor_units']
-        critic_units = config['critic_units']
-
-        norm = config.get('norm')
-        activation = config.get('activation', 'relu')
-        kernel_initializer = config.get('kernel_initializer', 'orthogonal')
-        kernel_initializer = get_initializer(kernel_initializer)
+        self._cnn_name = None if isinstance(self._cnn_name, str) and self._cnn_name.lower() == 'none' else self._cnn_name
 
         """ Network definition """
-        if cnn_name:
-            self.cnn = cnn(cnn_name, time_distributed=True, batch_size=self.batch_size, 
-                            kernel_initializer=kernel_initializer)
-        # shared mlp layers
-        if shared_mlp_units:
-            self.shared_mlp = mlp(
-                shared_mlp_units, 
-                norm=norm, 
-                activation=activation, 
-                kernel_initializer=kernel_initializer
-            )
-
+        if self._cnn_name:
+            self._shared_layers = cnn(self._cnn_name, time_distributed=True)
+        elif self._shared_mlp_units:
+            self._shared_layers = mlp(
+                self._shared_mlp_units, 
+                norm=self._norm, 
+                activation=self._activation, 
+                kernel_initializer=get_initializer('orthogonal', gain=.01))
         # RNN layer
-        self.rnn_input_size = self.cnn.out_size if cnn_name else shared_mlp_units[-1]
-        if use_dnc:
-            self.rnn = dnc_rnn(**dnc_config)
+        if self._use_dnc:
+            dnc_config = dict(
+                output_size=128,
+                access_config=dict(memory_size=64, word_size=32, num_reads=1, num_writes=1),
+                controller_config=dict(units=128),
+                rnn_config=dict(return_sequences=True, stateful=True))
+            self._rnn = dnc_rnn(**dnc_config)
         else:
-            self.rnn = layers.LSTM(lstm_units, return_sequences=True, stateful=True, 
-                                    kernel_initializer=kernel_initializer)
+            self._rnn = layers.LSTM(self._lstm_units, return_sequences=True, stateful=True)
 
         # actor/critic head
-        self.actor = mlp(actor_units, 
+        self.actor = mlp(self._actor_units, 
                         out_dim=action_dim, 
-                        norm=norm, 
+                        norm=self._norm, 
                         name='actor', 
-                        activation=activation, 
+                        activation=self._activation, 
                         kernel_initializer=get_initializer('orthogonal', gain=.01))
         if not self._is_action_discrete:
             self.logstd = tf.Variable(initial_value=np.zeros(action_dim), 
                                         dtype=tf.float32, 
                                         trainable=True, 
                                         name=f'actor/logstd')
-        self.critic = mlp(critic_units, 
+        self.critic = mlp(self._critic_units, 
                             out_dim=1,
-                            norm=norm, 
+                            norm=self._norm, 
                             name='critic', 
-                            activation=activation, 
+                            activation=self._activation, 
                             kernel_initializer=get_initializer('orthogonal', gain=1.))
-
-        # policy distribution type
-        self.ActionDistributionType = Categorical if self._is_action_discrete else DiagGaussian
-        
-        # build for variable initialization
-        if use_dnc:
-            # this has to be done for DNC, for some obscure reason, we have to pass
-            # in initial_state for the first time so that the RNN can know a 
-            # high-order state_size
-            input_size = shared_mlp_units[-1]
-            fake_inputs = tf.zeros([batch_size, 1, input_size])
-            initial_state = self.rnn.get_initial_state(fake_inputs)
-            self.rnn(inputs=fake_inputs, initial_state=initial_state)
-            self.rnn.reset_states()
-
-        TensorSpecs = [(obs_shape, tf.float32, 'state')]
-        self.step = build(self._step, TensorSpecs, sequential=False, batch_size=batch_size)
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
-    def _step(self, x):
-        """ Run PPOAC in the real-time mode
-        
-        Args:
-            x: a batch of states of shape `[batch_size, *obs_shape]
-        Returns: 
-            action: actions sampled from the policy distribution of shape
-                `[batch_size, action_dim]`
-            logpi: the logarithm of the policy distribution of shape
-                `[batch_size, 1]`
-            value: state values of shape `[batch_size, 1]`
-        """
+    def step(self, x):
         pwc(f'{self.name} "step" is retracing: x={x.shape}', color='cyan')
-        # expand time dimension assuming x has shape `[batch_size, *obs_shape]`
+        # assume x is of shape `[batch_size, *obs_shape]`
         x = tf.expand_dims(x, 1)
-        x = self._common_layers(x)
-        x = tf.squeeze(x, 1)
+        action_dist, value = self.train_step(x)
+        action = action_dist.sample()
+        logpi = tf.squeeze(action_dist.log_prob(action), 1)
+        action = tf.squeeze(action, 1)
 
-        actor_output = self.actor(x)
-        value = self.critic(x)
-        assert len(actor_output.shape) == 2
-        assert value.shape.ndims == 2
-
-        if self._is_action_discrete:
-            action_distribution = self.ActionDistributionType(actor_output)
-
-            action = action_distribution.sample(one_hot=False)
-            logpi = action_distribution.log_prob(action)
-            assert action.shape.ndims == 1
-            assert logpi.shape.ndims == 2
-        else:
-            action_distribution = self.ActionDistributionType(actor_output, self.logstd)
-
-            raw_action = action_distribution.sample()
-            logpi = action_distribution.log_prob(raw_action)
-
-            # squash action
-            action = tf.tanh(raw_action)
-            logpi = logpi_correction(raw_action, logpi, is_action_squashed=False)
-            assert action.shape.ndims == 2
-            assert logpi.shape.ndims == 2
-        
         return action, logpi, value
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope
     def det_action(self, x):
-        """ Get the deterministic actions given state x 
-        
-        Args:
-            x: a batch of states of shape `[batch_size, *obs_shape]
-        Returns:
-            action: determinitistic action of shape `[batch_size, action_dim]`
-        """
         pwc(f'{self.name} "det_action" is retracing: x={x.shape}', color='cyan')
         with tf.name_scope('det_action'):
+            # assume x is of shape [batch_size, *obs_shape]
             x = tf.expand_dims(x, 1)
             x = self._common_layers(x)
             x = tf.squeeze(x, 1)
 
             actor_output = self.actor(x)
-            assert len(actor_output.shape) == 2
+            assert actor_output.shape.ndims == 2
 
             if self._is_action_discrete:
                 return tf.argmax(actor_output, -1)
             else:
                 return tf.tanh(actor_output)
     
-    def train_step(self, x, a):
-        """ Run PPOAC in the training mode
-        
-        Args:
-            x: a batch of states of shape `[batch_size, steps, *obs_shape]
-        Returns: 
-            action: actions sampled from the policy distribution of shape
-                `[batch_size, steps, action_dim]`
-            logpi: the logarithm of the policy distribution of shape
-                `[batch_size, steps, 1]`
-            value: state values of shape `[batch_size, steps, 1]`
-        """
-        pwc(f'{self.name} "train_step" is retracing: x={x.shape}, a={a.shape}', color='cyan')
+    def train_step(self, x):
+        pwc(f'{self.name} "train_step" is retracing: x={x.shape}', color='cyan')
         with tf.name_scope('train_step'):
             x = self._common_layers(x)
-
+            assert x.shape.ndims == 3
             actor_output = self.actor(x)
-            value = self.critic(x)
+            value = tf.squeeze(self.critic(x))
 
             if self._is_action_discrete:
-                action_distribution = self.ActionDistributionType(actor_output)
-                logpi = action_distribution.log_prob(a)
+                action_dist = tfd.Categorical(actor_output)
             else:
-                action_distribution = self.ActionDistributionType(actor_output, self.logstd)
-                # correction for squashed action
-                # clip_but_pass_gradient is used to avoid case when a == -1, 1
-                raw_action = tf.math.atanh(clip_but_pass_gradient(a, -1+1e-7, 1-1e-7))
-                logpi = action_distribution.log_prob(tf.stop_gradient(raw_action))
-                logpi = logpi_correction(raw_action, logpi, is_action_squashed=False)
+                action_dist = tfd.MultivariateNormalDiag(actor_output, tf.exp(self.logstd))
 
-            entropy = action_distribution.entropy()
-
-            return logpi, entropy, value, getattr(self, 'logstd', None)
+            return action_dist, value
 
     def _common_layers(self, x):
-        if hasattr(self, 'cnn'):
-            x = tf.cast(x, tf.float32)
+        if self._cnn_name:
             x = x / 255.
-            x = self.cnn(x)
-        if hasattr(self, 'shared_mlp'):
-            x = self.shared_mlp(x)
+        if hasattr(self, '_shared_layers'):
+            x = self._shared_layers(x)
 
-        x = self.rnn(x)
+        x = self._rnn(x)
         
         return x
 
     def reset_states(self, states=None):
-        self.rnn.reset_states(states)
+        self._rnn.reset_states(states)
 
-    def get_initial_state(self):
-        """ Get the initial states of rnn, 
-        should only be called after the model is built """
-        fake_inputs = tf.zeros([self.batch_size, 1, self.rnn_input_size])
-        return self.rnn.get_initial_state(fake_inputs)
+    def get_initial_state(self, inputs=None, batch_size=None):
+        if inputs is None:
+            assert batch_size is not None
+            inputs = tf.zeros([batch_size, 1, 1])
+        return self._rnn.get_initial_state(inputs)
 
 
-def create_model(model_config, obs_shape, action_dim, is_action_discrete, n_envs):
-    ac = PPOAC(
-        model_config, 
-        obs_shape, 
-        action_dim, 
-        is_action_discrete,
-        n_envs,
-        'ac')
+def create_model(model_config, action_dim, is_action_discrete, n_envs):
+    ac = PPOAC(model_config, action_dim, is_action_discrete, 'ac')
 
     return dict(ac=ac)
 
 if __name__ == '__main__':
     config = dict(
+        cnn_name='none',
         shared_mlp_units=[4],
         use_dnc=False,
         lstm_units=3,
@@ -255,28 +152,31 @@ if __name__ == '__main__':
     for is_action_discrete in [True, False]:
         action_dtype = np.int32 if is_action_discrete else np.float32
         
-        ac = PPOAC(config, obs_shape, action_dim, is_action_discrete, batch_size, 'ac')
+        ac = PPOAC(config, action_dim, is_action_discrete, 'ac')
 
         from utility.display import display_var_info
 
         display_var_info(ac.trainable_variables)
 
         # test rnn state
-        x = np.random.rand(batch_size, seq_len, *obs_shape)
+        x = np.random.rand(batch_size, seq_len, *obs_shape).astype(np.float32)
+        ac.step(tf.convert_to_tensor(x[:, 0]))
+        states = ac.get_initial_state(batch_size=batch_size)
+        ac.reset_states(states)
         
-        states = [s.numpy() for s in ac.rnn.states]
+        states = [s.numpy() for s in ac._rnn.states]
         np.testing.assert_allclose(states, 0.)
         for i in range(seq_len):
             y = ac.step(tf.convert_to_tensor(x[:, i], tf.float32))
-        step_states = [s.numpy() for s in ac.rnn.states]
+        step_states = [s.numpy() for s in ac._rnn.states]
         ac.reset_states()
-        states = [s.numpy() for s in ac.rnn.states]
+        states = [s.numpy() for s in ac._rnn.states]
         np.testing.assert_allclose(states, 0.)
         if is_action_discrete:
             a = np.random.randint(low=0, high=action_dim, size=(batch_size, seq_len))
         else:
             a = np.random.rand(batch_size, seq_len, action_dim)
-        ac.train_step(tf.convert_to_tensor(x, tf.float32), tf.convert_to_tensor(a, action_dtype))
-        train_step_states = [s.numpy() for s in ac.rnn.states]
+        ac.train_step(tf.convert_to_tensor(x, tf.float32))
+        train_step_states = [s.numpy() for s in ac._rnn.states]
         np.testing.assert_allclose(step_states, train_step_states)
 

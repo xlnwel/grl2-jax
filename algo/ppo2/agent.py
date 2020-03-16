@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from utility.display import pwc
-from utility.schedule import PiecewiseSchedule
+from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
@@ -15,8 +15,7 @@ class Agent(BaseAgent):
     def __init__(self, env):
         # optimizer
         if getattr(self, 'schedule_lr', False):
-            self._lr_sched = PiecewiseSchedule([(300, self._learning_rate), (1000, 5e-5)])
-            self._learning_rate = tf.Variable(self._learning_rate, trainable=False)
+            self._learning_rate = TFPiecewiseSchedule([(300, self._learning_rate), (1000, 5e-5)])
 
         self._optimizer = Optimizer(
             self._optimizer, self.ac, self._learning_rate, 
@@ -45,26 +44,23 @@ class Agent(BaseAgent):
             batch_size=env.n_envs,
         )
 
-    def reset_state(self, batch_size):
-        self.prev_state = self.curr_state = self.ac.get_initial_state(batch_size=batch_size)
+    def reset_states(self, inputs=None, batch_size=None):
+        self.prev_state = self.curr_state = self.ac.get_initial_state(inputs=inputs, batch_size=batch_size)
 
-    def step(self, obs, update_curr_state=True):
+    def step(self, obs, deterministic=False, update_curr_state=True):
         obs = tf.convert_to_tensor(obs, tf.float32)
-        action, logpi, value, state = self.ac.step(obs, self.curr_state)
-        if update_curr_state:
-            self.curr_state = state
-        return action, logpi, value
-
-    def det_action(self, obs, update_curr_state=True):
-        obs = tf.convert_to_tensor(obs, tf.float32)
-        action, state = self.ac.det_action(obs, self.curr_state)
-        if update_curr_state:
-            self.curr_state = state
-        return action
+        if deterministic:
+            action, state = self.ac.det_action(obs, self.curr_state)
+            if update_curr_state:
+                self.curr_state = state
+            return action
+        else:
+            action, logpi, value, state = self.ac.step(obs, self.curr_state)
+            if update_curr_state:
+                self.curr_state = state
+            return action, logpi, value
 
     def learn_log(self, buffer, epoch):
-        if not isinstance(self._learning_rate, float):
-            self._learning_rate.assign(self.schedule.value(epoch))
         for i in range(self._n_updates):
             data = buffer.sample()
             data['n'] = n = np.sum(data['mask'])
@@ -86,13 +82,13 @@ class Agent(BaseAgent):
 
             self.store(**terms)
 
-            if getattr(self, 'max_kl', 0) > 0 and approx_kl > self.max_kl:
+            if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
                 pwc(f'Eearly stopping at update-{i+1} due to reaching max kl.',
                     f'Current kl={approx_kl:.3g}', color='blue')
                 break
         self.store(approx_kl=approx_kl)
         if not isinstance(self._learning_rate, float):
-            self.store(learning_rate=self._learning_rate.numpy())
+            self.store(learning_rate=self._learning_rate(tf.cast(self.global_steps, tf.float32)))
 
         # update the state with the newest weights 
         self.prev_state = self.curr_state = state

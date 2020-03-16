@@ -15,19 +15,17 @@ from nn.utils import get_initializer
 
 class PPOAC(Module):
     @config
-    def __init__(self, obs_shape, action_dim, is_action_discrete, name):
+    def __init__(self, action_dim, is_action_discrete, name):
         super().__init__(name=name)
 
         self._is_action_discrete = is_action_discrete
         
-        # network parameters
-        self._cnn_name = None if self._cnn_name.lower() == 'none' else self._cnn_name
+        self._cnn_name = None if isinstance(self._cnn_name, str) and self._cnn_name.lower() == 'none' else self._cnn_name
         
         """ Network definition """
         if self._cnn_name:
-            self._shared_layers = cnn(self._cnn_name, time_action_distributed=True)
-        # shared mlp layers
-        if self._shared_mlp_units:
+            self._shared_layers = cnn(self._cnn_name, time_distributed=True)
+        elif self._shared_mlp_units:
             self._shared_layers = mlp(
                 self._shared_mlp_units, 
                 norm=self._norm, 
@@ -40,9 +38,9 @@ class PPOAC(Module):
                 access_config=dict(memory_size=64, word_size=32, num_reads=1, num_writes=1),
                 controller_config=dict(units=128),
                 rnn_config=dict(return_sequences=True, return_state=True))
-            self.rnn = dnc_rnn(**dnc_config)
+            self._rnn = dnc_rnn(**dnc_config)
         else:
-            self.rnn = layers.LSTM(self._lstm_units, return_sequences=True, return_state=True)
+            self._rnn = layers.LSTM(self._lstm_units, return_sequences=True, return_state=True)
 
         # actor/critic head
         self.actor = mlp(self._actor_units, 
@@ -73,7 +71,6 @@ class PPOAC(Module):
         action = action_dist.sample()
         logpi = tf.squeeze(action_dist.log_prob(action), 1)
         action = tf.squeeze(action, 1)
-        value = tf.squeeze(value, 1)
 
         return action, logpi, value, state
 
@@ -107,53 +104,45 @@ class PPOAC(Module):
         pwc(f'{self.name} "train_step" is retracing: x={x.shape}', color='cyan')
         with tf.name_scope('train_step'):
             x, state = self._common_layers(x, state)
-
+            assert x.shape.ndims == 3
             actor_output = self.actor(x)
-            value = tf.squeeze(self.critic(x), -1)
+            value = tf.squeeze(self.critic(x))
+
             if self._is_action_discrete:
                 action_dist = tfd.Categorical(actor_output)
             else:
-                action_dist = DiagGaussian(actor_output, self.logstd)
-                # action_dist = tfd.TransformedDistribution(action_dist, TanhBijector())
-                # action_dist = tfd.Independent(action_dist, 1)
+                action_dist = tfd.MultivariateNormalDiag(actor_output, tf.exp(self.logstd))
 
             return action_dist, value, state
 
     def _common_layers(self, x, state):
-        if hasattr(self, 'cnn'):
-            x = tf.cast(x, tf.float32)
+        if self._cnn_name:
             x = x / 255.
         if hasattr(self, '_shared_layers'):
             x = self._shared_layers(x)
 
-        x = self.rnn(x, initial_state=state)
+        x = self._rnn(x, initial_state=state)
         x, state = x[0], x[1:]
         return x, state
 
-    def reset_state(self, state=None):
-        self.rnn.reset_state(state)
+    def reset_states(self, state=None):
+        self._rnn.reset_states(state)
 
     def get_initial_state(self, inputs=None, batch_size=None):
-        """ Get the initial state of rnn, 
-        should only be called after the model is built """
         if inputs is None:
             assert batch_size is not None
             inputs = tf.zeros([batch_size, 1, 1])
-        return self.rnn.get_initial_state(inputs)
+        return self._rnn.get_initial_state(inputs)
 
 
-def create_model(model_config, obs_shape, action_dim, is_action_discrete, n_envs):
-    ac = PPOAC(
-        model_config, 
-        obs_shape,
-        action_dim, 
-        is_action_discrete,
-        'ac')
+def create_model(model_config, action_dim, is_action_discrete, n_envs):
+    ac = PPOAC(model_config, action_dim, is_action_discrete, 'ac')
 
     return dict(ac=ac)
 
 if __name__ == '__main__':
     config = dict(
+        cnn_name='none',
         shared_mlp_units=[4],
         use_dnc=False,
         lstm_units=3,
@@ -171,7 +160,7 @@ if __name__ == '__main__':
     for is_action_discrete in [True, False]:
         action_dtype = np.int32 if is_action_discrete else np.float32
         
-        ac = PPOAC(config, obs_shape, action_dim, is_action_discrete, batch_size, 'ac')
+        ac = PPOAC(config, action_dim, is_action_discrete, 'ac')
 
         from utility.display import display_var_info
 
@@ -179,12 +168,12 @@ if __name__ == '__main__':
 
         # test rnn state
         x = np.random.rand(batch_size, seq_len, *obs_shape)
-        state = ac.get_initial_state()
+        state = ac.get_initial_state(batch_size=batch_size)
         np.testing.assert_allclose(state, 0.)
         for i in range(seq_len):
             _, _, _, state = ac.step(tf.convert_to_tensor(x[:, i], tf.float32), state)
         step_state = state
-        state = ac.get_initial_state()
+        state = ac.get_initial_state(batch_size=batch_size)
         np.testing.assert_allclose(state, 0.)
 
         if is_action_discrete:

@@ -131,7 +131,6 @@ class DiagGaussian(Distribution):
                                   axis=-1)
 
     def _sample(self, reparameterize=True):
-        # TODO: implement sampling without reparameterization
         return self.mu + self.std * tf.random.normal(tf.shape(self.mu))
 
     def _entropy(self):
@@ -189,7 +188,38 @@ class OneHotDist:
     return tf.one_hot(indices, self._num_classes, dtype=self._dtype)
 
     
+class SampleDist:
+    """ useful to compute statistics after tfd.Independent,
+    originally from https://github.com/danijar/dreamer """
+    def __init__(self, dist, samples=100):
+        self._dist = dist
+        self._samples = samples
+
+    @property
+    def name(self):
+        return 'SampleDist'
+
+    def __getattr__(self, name):
+        return getattr(self._dist, name)
+
+    def mean(self):
+        samples = self._dist.sample(self._samples)
+        return tf.reduce_mean(samples, 0)
+
+    def mode(self):
+        sample = self._dist.sample(self._samples)
+        logprob = self._dist.log_prob(sample)
+        return tf.gather(sample, tf.argmax(logprob))[0]
+
+    def entropy(self):
+        sample = self._dist.sample(self._samples)
+        logprob = self.log_prob(sample)
+        return -tf.reduce_mean(logprob, 0)
+
+
 class TanhBijector(tfp.bijectors.Bijector):
+    """ Tanh bijector, used to limit Gaussian action to range [-1, 1], 
+    originally from https://github.com/danijar/dreamer"""
     def __init__(self, validate_args=False, name='tanh'):
         super().__init__(
             forward_min_event_ndims=0,

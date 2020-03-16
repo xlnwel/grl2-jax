@@ -6,7 +6,7 @@ from utility.utils import moments, standardize
 from replay.utils import init_buffer, print_buffer
 
 
-class PPOBuffer(dict):
+class PPOBuffer:
     def __init__(self, config, n_envs, seqlen):
         self.n_envs = n_envs
         self.seqlen = seqlen
@@ -28,8 +28,8 @@ class PPOBuffer(dict):
         if self.memory == {}:
             init_buffer(self.memory, pre_dims=(self.n_envs, self.seqlen), **data)
             self.memory['value'] = np.zeros((self.n_envs, self.seqlen+1), dtype=np.float32)
-            self.memory['traj_ret'] = np.zeros((self.n_envs, self.seqlen+1), dtype=np.float32)
-            self.memory['advantage'] = np.zeros((self.n_envs, self.seqlen+1), dtype=np.float32)
+            self.memory['traj_ret'] = np.zeros((self.n_envs, self.seqlen), dtype=np.float32)
+            self.memory['advantage'] = np.zeros((self.n_envs, self.seqlen), dtype=np.float32)
             print_buffer(self.memory)
             
         for k, v in data.items():
@@ -128,18 +128,13 @@ if __name__ == '__main__':
         config=config,
         n_envs=8, 
         seqlen=1000, 
-        obs_shape=[3], 
-        obs_dtype=np.float32, 
-        action_shape=[2], 
-        action_dtype=np.float32,
     )
     buffer = PPOBuffer(**kwargs)
-    d = np.zeros((kwargs['n_envs'], 1))
-    m = np.ones((kwargs['n_envs'], 1))
-    diff = kwargs['seqlen'] - kwargs['n_envs']
+    d = np.zeros((kwargs['n_envs']))
+    m = np.ones((kwargs['n_envs']))
     for i in range(kwargs['seqlen']):
-        r = np.random.rand(kwargs['n_envs'], 1)
-        v = np.random.rand(kwargs['n_envs'], 1)
+        r = np.random.rand(kwargs['n_envs'])
+        v = np.random.rand(kwargs['n_envs'])
         if np.random.randint(2):
             d[np.random.randint(kwargs['n_envs'])] = 1
         buffer.add(reward=r,
@@ -149,6 +144,6 @@ if __name__ == '__main__':
         m = 1-d
         if np.all(d == 1):
             break
-    last_value = np.random.rand(kwargs['n_envs'], 1)
+    last_value = np.random.rand(kwargs['n_envs'])
     buffer.finish(last_value)
     
