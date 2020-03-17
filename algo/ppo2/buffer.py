@@ -20,12 +20,13 @@ class PPOBuffer:
         self.reward_clip = config.get('reward_clip')
 
         self.memory = {}
-        self.reset()
+        self.idx = 0
+        self.ready = False      # Whether the buffer is ready to be read
 
     def add(self, **data):
         assert_colorize(self.idx < self.seqlen, 
             f'Out-of-range idx {self.idx}. Call "self.reset" beforehand')
-        if self.memory == {}:
+        if 'reward' not in self.memory:
             init_buffer(self.memory, pre_dims=(self.n_envs, self.seqlen), **data)
             self.memory['value'] = np.zeros((self.n_envs, self.seqlen+1), dtype=np.float32)
             self.memory['traj_ret'] = np.zeros((self.n_envs, self.seqlen), dtype=np.float32)
@@ -108,7 +109,8 @@ class PPOBuffer:
 
     def reset(self):
         self.idx = 0
-        self.ready = False      # Whether the buffer is ready to be read
+        self.ready = False
+        self.memory['mask'] = np.zeros((self.n_envs, self.seqlen), dtype=bool)
 
     def good_to_learn(self):
         return np.sum(self.memory['mask']) > self.min_transitions

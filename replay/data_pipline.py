@@ -7,7 +7,7 @@ import ray
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 
 class Dataset:
-    def __init__(self, buffer, data_format):
+    def __init__(self, buffer, data_format, process_fn=lambda data: data):
         """ Create a tf.data.Dataset for data retrieval
         
         Args:
@@ -19,7 +19,7 @@ class Dataset:
         self.buffer = buffer
         self.data_format = data_format
         assert isinstance(data_format, dict)
-        self.iterator = self._prepare_dataset(buffer, data_format)
+        self.iterator = self._prepare_dataset(buffer, data_format, process_fn)
 
     def buffer_type(self):
         return self.buffer.buffer_type()
@@ -33,17 +33,7 @@ class Dataset:
     def update_priorities(self, priorities, indices):
         self.buffer.update_priorities(priorities, indices)
 
-    def _prepare_dataset(self, buffer, data_format):
-        def process_transition(data):
-            if data['obs'].dtype == tf.uint8:
-                tf.debugging.assert_shapes([(data['obs'], (None, 84, 84, 4)), (data['next_obs'], (None, 84, 84, 4))])
-                tf.debugging.assert_type(data['obs'], tf.uint8)
-                tf.debugging.assert_type(data['next_obs'], tf.uint8)
-                data['obs'] = tf.cast(data['obs'], tf.float32) / 255.
-                data['next_obs'] = tf.cast(data['next_obs'], tf.float32) / 255.
-                
-            return data
-
+    def _prepare_dataset(self, buffer, data_format, process_fn):
         with tf.name_scope('data'):
             sample_types = dict((k, v.dtype) for k, v in data_format.items())
             sample_shapes = dict((k, v.shape) for k, v in data_format.items())
@@ -56,7 +46,7 @@ class Dataset:
 
             ds = tf.data.Dataset.from_generator(
                 self._sample, output_types=sample_types, output_shapes=sample_shapes)
-            ds = ds.map(map_func=process_transition, 
+            ds = ds.map(map_func=process_fn, 
                         num_parallel_calls=tf.data.experimental.AUTOTUNE)
             ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
             iterator = iter(ds)

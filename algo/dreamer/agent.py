@@ -24,11 +24,10 @@ class Agent(BaseAgent):
                 env):
         # dataset for input pipline optimization
         self.dataset = dataset
+        self._dtype = tf.float32
 
         # optimizer
-        dynamics_models = [self.rssm, self.reward]
-        if hasattr(self, 'encoder'):
-            dynamics_models += [self.encoder, self.decoder]
+        dynamics_models = [self.encoder, self.rssm, self.decoder, self.reward]
         opt_name = getattr(self, '_opt_name', 'adam')
         DreamerOpt = functools.partial(
             Optimizer, weight_decay=self._weight_decay, clip_norm=self._clip_norm
@@ -41,10 +40,10 @@ class Agent(BaseAgent):
         self._ckpt_models['actor_opt'] = self._actor_opt
         self._ckpt_models['value_opt'] = self._value_opt
 
-        self._action_dim = env.action_dim
-        self._is_action_discrete = env.is_action_discrete
+        self.prev_state = None   # for training
+        self.curr_state = None   # for environment interaction
 
-        self.initial_state = self.rssm.get_initial_state()
+        self._action_shape = env.action_shape
 
         TensorSpecs = dict(
             obs=(env.obs_shape, tf.float32, 'obs'),
@@ -55,14 +54,37 @@ class Agent(BaseAgent):
 
         self.learn = build(self._learn, TensorSpecs)
 
-    def reset_states(self):
-        self.prev_states = self.curr_states = self.initial_state
+    def reset_states(self, inputs=None, batch_size=None):
+        if inputs is not None:
+            assert batch_size is None or batch_size == tf.shape(inputs)[0]
+            batch_size = tf.shape(inputs)[0]
+        assert batch_size is not None
+        self.prev_state = self.curr_state = self.rssm.get_initial_state(inputs=inputs, batch_size=batch_size)
+        self.prev_action = tf.zeros((batch_size, *self._action_shape))
+
     @tf.function
-    def action(self, obs, deterministic=False, epsilon=0):
-        if 
+    def action(self, obs, done, deterministic=False, update_curr_state=0, epsilon=0):
+        embed = self.encoder(obs)
+        state, _ = self.rssm.obs_step(self.curr_state, self.prev_action)
+        feature = self.rssm.get_feature(state)
+        if deterministic:
+            action = self.actor(feature).sample()
+            action = tfd.Normal(action, epsilon).sample()
+        else:
+            action = self.actor(feature).mode()
+        
+        if done:
+            mask = tf.cast(1 - done, self._dtype)
+            self.curr_state = tf.nest.map_structure(lambda x: x * mask, state)
+            self.prev_action = action * mask
+        else:
+            self.curr_state = state
+            self.prev_action = action
+        
+        return action
 
     def learn_log(self, step=None):
-
+        
 
     @tf.function
     def _learn(self, **data):

@@ -75,6 +75,25 @@ def get_config_file(algorithm, environment):
 
     return config_file
 
+def change_config(kw, prefix, env_config, model_config, agent_config, replay_config):
+    if prefix != '':
+        prefix = f'{prefix}-'
+    if kw:
+        for s in kw:
+            key, value = s.split('=')
+            value = eval_str(value)
+            
+            prefix += s + '-'
+
+            # change kwargs in config
+            valid_config = None
+            for config in [env_config, model_config, agent_config, replay_config]:
+                if key in config:
+                    assert_colorize(valid_config is None, f'Conflict: found {key} in both {valid_config} and {config}!')
+                    valid_config = config
+            valid_config[key]  = value
+    return prefix
+
 if __name__ == '__main__':
     cmd_args = parse_cmd_args()
     render = cmd_args.render
@@ -118,10 +137,7 @@ if __name__ == '__main__':
             agent_config['algorithm'] = algo
             if env:
                 env_config['name'] = env
-            if cmd_args.max_steps:
-                agent_config['MAX_STEPS'] = cmd_args.max_steps
-            if cmd_args.n_envs:
-                env_config['n_envs'] = cmd_args.n_envs
+            prefix = change_config(cmd_args.kwargs, prefix, env_config, model_config, agent_config, replay_config)
             if cmd_args.grid_search or cmd_args.trials > 1:
                 gs = GridSearch(env_config, model_config, agent_config, replay_config, 
                                 main, render=render, n_trials=cmd_args.trials, dir_prefix=prefix, 
@@ -144,25 +160,6 @@ if __name__ == '__main__':
                 else:
                     processes += gs()
             else:
-                if prefix != '':
-                    prefix = f'{prefix}-'
-
-                if cmd_args.kwargs:
-                    for s in cmd_args.kwargs:
-                        key, value = s.split('=')
-                        value = eval_str(value)
-                        
-                        prefix += s + '-'
-
-                        # change kwargs in config
-                        valid_config = None
-                        for config in [env_config, model_config, agent_config, replay_config]:
-                            if key in config:
-                                assert_colorize(valid_config is None, f'Conflict: found {key} in both {valid_config} and {config}!')
-                                valid_config = config
-                        valid_config[key]  = value
-
-
                 agent_config['root_dir'] = f'logs/{prefix}{algo}-{env_config["name"]}'
                 env_config['video_path'] = (f'{agent_config["root_dir"]}/'
                                             f'{agent_config["model_name"]}/'

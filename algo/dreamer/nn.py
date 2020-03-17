@@ -95,6 +95,7 @@ class RSSM(Module):
         if inputs is not None:
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
+        assert batch_size is not None
         return RSSMState(mean=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
                         std=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
                         stoch=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
@@ -125,17 +126,15 @@ class Actor(Module):
     @config
     def __init__(self, obs_shape, action_dim, is_action_discrete, name='actor'):
         """ Network definition """
+        out_dim = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(self._units_list, 
+                            out_dim=out_dim,
                             activation=self._activation)
 
         self._is_action_discrete = is_action_discrete
-        out_dim = action_dim if is_action_discrete else 2*action_dim
-        self._out = mlp(out_dim=out_dim, 
-                        activation=self._activation)
 
     def __call__(self, x):
         x = self._layers(x)
-        x = self._out(x)
 
         if self._is_action_discrete:
             # dist = Categorical(x)
@@ -267,16 +266,14 @@ def create_model(model_config, obs_shape, action_dim, is_action_discrete):
     actor_config = model_config['actor']
     term_config = model_config.get('term')
     models = dict(
+        encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),
+        decoder=Decoder(decoder_config),
         reward=Decoder(reward_config, dist='normal'),
         value=Decoder(value_config, dist='normal'),
         actor=Actor(actor_config, obs_shape, action_dim, is_action_discrete)
     )
 
-    if encoder_config:
-        models['encoder'] = Encoder(encoder_config)
-    if decoder_config:
-        models['decoder'] = Decoder(decoder_config)
     if term_config:
         models['term'] = Decoder(term_config, dist='binary')
     assert (('encoder' in models and 'decoder' in models) 

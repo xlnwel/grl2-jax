@@ -23,13 +23,14 @@ model:
         value: .01
 agent:
     algorithm: &algo sac
+    precision: 32
     gamma: &gamma 0.99
     polyak: .995
     # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
     
     MAX_STEPS: 3.e+6
     TIME_INTERVAL: 100
-    TIMER: False
+    TIMER: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

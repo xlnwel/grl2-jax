@@ -18,7 +18,7 @@ def evaluate(env, agent):
     epslens = []
     while i < 100:
         i += env.n_envs
-        agent.reset_states(env.n_envs)
+        agent.reset_states(batch_size=env.n_envs)
         state = env.reset()
         for _ in range(env.max_episode_steps):
             action = agent.step(state, deterministic=True)

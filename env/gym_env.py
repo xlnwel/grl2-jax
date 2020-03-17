@@ -198,9 +198,9 @@ class RayEnvVec(EnvBase):
         if kwargs:
             kwargs = dict([(k, np.squeeze(v.reshape(self.n_workers, self.envsperworker, -1))) for k, v in kwargs.items()])
             kwargs = [dict(v) for v in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
-            state, reward, done, info = list(zip(*ray.get([env.step.remote(a, **kw) for env, a, kw in zip(self.envs, actions, kwargs)])))
+            state, reward, done, info = zip(*ray.get([env.step.remote(a, **kw) for env, a, kw in zip(self.envs, actions, kwargs)]))
         else:
-            state, reward, done, info = list(zip(*ray.get([env.step.remote(a) for env, a in zip(self.envs, actions)])))
+            state, reward, done, info = zip(*ray.get([env.step.remote(a) for env, a in zip(self.envs, actions)]))
         if not isinstance(self.env, Env):
             info_lists = info
             info = []

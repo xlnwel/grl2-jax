@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras.mixed_precision import experimental as prec
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target, transformed_n_step_target
@@ -45,10 +46,10 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            obs=(env.obs_shape, tf.float32, 'obs'),
+            obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=(env.action_shape, env.action_dtype, 'action'),
             reward=((), tf.float32, 'reward'),
-            next_obs=(env.obs_shape, tf.float32, 'next_obs'),
+            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
             done=((), tf.float32, 'done'),
         )
         if self._is_per:

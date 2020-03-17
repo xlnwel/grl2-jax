@@ -1,7 +1,9 @@
+import numpy as np
 import tensorflow as tf
+from tensorflow.keras.mixed_precision import experimental as prec
 
 from utility.utils import set_global_seed
-from core.tf_config import configure_gpu
+from core.tf_config import configure_gpu, configure_precision
 from env.gym_env import create_gym_env
 from replay.func import create_replay
 from replay.data_pipline import DataFormat, Dataset
@@ -42,7 +44,6 @@ def train(agent, env, replay):
             log_step += LOG_INTERVAL
             agent.save(steps=step)
 
-            
             eval_score, eval_epslen = run(eval_env, agent.actor, 
                 evaluation=True, timer=agent.TIMER, name='eval')
             
@@ -59,10 +60,11 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     set_global_seed(seed=env_config['seed'], tf=tf)
     # tf.debugging.set_log_device_placement(True)
     configure_gpu()
+    configure_precision(agent_config.get('precision', 32))
 
     env = create_gym_env(env_config)
-
     replay = create_replay(replay_config)
+
     data_format = dict(
         obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
         action=DataFormat((None, *env.action_shape), env.action_dtype),

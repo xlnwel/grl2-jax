@@ -3,7 +3,7 @@ import tensorflow as tf
 import ray
 
 from core.module import Ensemble
-from core.tf_config import configure_gpu, configure_threads
+from core.tf_config import configure_gpu, configure_threads, configure_precision
 from utility.display import pwc
 from utility.timer import TBTimer
 from env.gym_env import create_gym_env
@@ -23,6 +23,7 @@ def get_learner_class(BaseAgent):
             # tf.debugging.set_log_device_placement(True)
             configure_threads(1, 1)
             configure_gpu()
+            configure_precision(getattr(self, 'precision', 16))
 
             env = create_gym_env(env_config)
             data_format = dict(

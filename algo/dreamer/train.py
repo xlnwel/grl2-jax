@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.keras.mixed_precision import experimental as prec
 
 from utility.utils import set_global_seed
-from core.tf_config import configure_gpu
+from core.tf_config import configure_gpu, configure_precision
 from env.gym_env import create_gym_env
 from replay.func import create_replay
 from replay.data_pipline import DataFormat, Dataset
@@ -60,6 +60,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     set_global_seed(seed=env_config['seed'], tf=tf)
     # tf.debugging.set_log_device_placement(True)
     configure_gpu()
+    configure_precision(agent_config['precision'])
 
     env = create_gym_env(env_config)
 
@@ -73,9 +74,6 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     )
     if replay_config.get('n_steps', 1) > 1:
         data_format['steps'] = DataFormat((None, ), tf.float32)
-    
-    if agent_config['precision'] == 16:
-        prec.set_policy(prec.Policy('mixed_float16'))
 
     dataset = Dataset(replay, data_format)
 

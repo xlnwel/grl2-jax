@@ -22,7 +22,7 @@ class Agent(BaseAgent):
             epsilon=self._epsilon)
         self._ckpt_models['optimizer'] = self._optimizer
 
-        # initial, previous, and current state of LSTM
+        # previous and current state of LSTM
         self.prev_state = None   # for training
         self.curr_state = None   # for environment interaction
 

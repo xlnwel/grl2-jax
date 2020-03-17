@@ -52,6 +52,7 @@ class Agent(BaseAgent):
         else:
             action, logpi, value = self.ac.step(obs)
             return action, logpi, value
+            
     def learn_log(self, buffer, epoch):
         for i in range(self._n_updates):
             self.ac.reset_states()

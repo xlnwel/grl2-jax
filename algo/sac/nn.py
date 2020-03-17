@@ -22,16 +22,12 @@ class SoftPolicy(Module):
         self._obs_shape = obs_shape
         
         """ Network definition """
+        out_dim = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(self._units_list, 
+                            out_dim=out_dim,
                             norm=self._norm, 
                             activation=self._activation, 
                             kernel_initializer=self._kernel_initializer)
-
-        out_dim = action_dim if is_action_discrete else 2*action_dim
-        self._out = mlp(out_dim=out_dim, 
-                        norm=self._norm, 
-                        activation=self._activation, 
-                        kernel_initializer=self._kernel_initializer)
 
         # build for avoiding unintended retrace
         TensorSpecs = [(obs_shape, tf.float32, 'obs'), (None, tf.bool, 'deterministic')]
@@ -53,9 +49,8 @@ class SoftPolicy(Module):
 
     @tf.function(experimental_relax_shapes=True)
     def _action_impl(self, x, deterministic=False):
-        print(f'action retrace: {x.shape}, {deterministic}')
+        print(f'Policy action retrace: {x.shape}, {deterministic}')
         x = self._layers(x)
-        x = self._out(x)
 
         if self._is_action_discrete:
             dist = tfd.Categorical(x)
@@ -74,7 +69,6 @@ class SoftPolicy(Module):
 
     def train_step(self, x):
         x = self._layers(x)
-        x = self._out(x)
 
         if self._is_action_discrete:
             dist = Categorical(x)
@@ -111,13 +105,16 @@ class SoftQ(Module):
             (obs_shape, tf.float32, 'obs'),
             ([action_dim], tf.float32, 'action'),
         ]
-        self.step = build(self._step, TensorSpecs)
+        self.train_step = build(self._train_step, TensorSpecs)
+
+    def step(self, x, a):
+        x = tf.convert_to_tensor(x, tf.float32)
+        a = tf.convert_to_tensor(a, tf.float32)
+        return self._train_step(x, a)
 
     @tf.function(experimental_relax_shapes=True)
-    def _step(self, x, a):
-        return self.train_step(x, a)
-
-    def train_step(self, x, a):
+    def _train_step(self, x, a):
+        print(f'SoftQ train_step retrace: {x}, {a}')
         x = tf.concat([x, a], axis=-1)
         x = self._layers(x)
         x = tf.squeeze(x)

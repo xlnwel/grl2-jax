@@ -6,7 +6,7 @@ from nn.layers import Layer
 class MLP(layers.Layer):
     def __init__(self, units_list, out_dim=None, layer_type=layers.Dense, 
                 norm=None, activation=None, kernel_initializer='glorot_uniform', 
-                name=None, **kwargs):
+                name=None, out_dtype='float32', **kwargs):
         super().__init__(name=name)
 
         self._layers = [
@@ -15,7 +15,7 @@ class MLP(layers.Layer):
                 **kwargs)
             for u in units_list]
         if out_dim:
-            self._layers.append(layer_type(out_dim))
+            self._layers.append(layer_type(out_dim, dtype=out_dtype))
             
     def call(self, x, **kwargs):
         for l in self._layers:

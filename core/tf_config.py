@@ -29,6 +29,10 @@ def configure_threads(intra_num_threads, inter_num_threads):
     tf.config.threading.set_intra_op_parallelism_threads(intra_num_threads)
     tf.config.threading.set_inter_op_parallelism_threads(inter_num_threads)
 
+def configure_precision(precision=16):
+    if precision == 16:
+        tf.keras.mixed_precision.experimental.set_policy('mixed_float16')
+
 def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
     """Construct a dict/list of TensorSpecs
     
