@@ -49,7 +49,7 @@ class TestClass:
             # rnn_state states
             states = ac.get_initial_state(batch_size=batch_size)
             np.testing.assert_allclose(states, 0)
-            states = ac.rnn_state(tf.convert_to_tensor(x, tf.float32), *states)
+            states = ac.rnn_state(tf.convert_to_tensor(x, tf.float32), states)
             rnn_state = states
             np.testing.assert_allclose(step_states, rnn_state)
 
@@ -96,7 +96,7 @@ class TestClass:
             
             # rnn_state states
             states = initial_state
-            states = ac.rnn_state(tf.convert_to_tensor(x, tf.float32), *states)
+            states = ac.rnn_state(tf.convert_to_tensor(x, tf.float32), states)
             rnn_state = states
             np.testing.assert_allclose(step_states, rnn_state)
 

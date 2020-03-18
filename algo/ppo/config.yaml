@@ -23,7 +23,7 @@ agent:
 
     n_updates: 4            # number of updates per epoch
     N_EPOCHS: 200000
-    max_kl: 0.              # early stop when max_kl is violated. 0 suggests no bound
+    # max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
     LOG_INTERVAL: 10
 
     # model path: root_dir/model_name/models

@@ -1,7 +1,7 @@
 import numpy as np
-import tensorflow as tf
 
 
+# this training scheme does not work well -_-#
 def run_trajectories(env, agent, buffer, learn_freq, epoch):
     buffer.reset()
     obs = env.reset()

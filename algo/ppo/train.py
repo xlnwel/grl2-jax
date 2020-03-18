@@ -7,11 +7,26 @@ from utility.signal import sigint_shutdown_ray
 from utility.timer import Timer
 from env.gym_env import create_gym_env
 from algo.ppo.buffer import PPOBuffer
-from algo.ppo.nn import create_model
-from algo.ppo.agent import Agent
 from algo.ppo.run import run_trajectories
 from algo.ppo.eval import evaluate
 
+def import_model_fn(algorithm):
+    if algorithm == 'ppo':
+        from algo.ppo.nn import create_model
+    elif algorithm == 'ppo2':
+        from algo.ppo2.nn import create_model
+    else:
+        raise NotImplementedError(algorithm)
+    return create_model
+
+def import_agent(algorithm):
+    if algorithm == 'ppo':
+        from algo.ppo.agent import Agent
+    elif algorithm == 'ppo2':
+        from algo.ppo2.agent import Agent
+    else:
+        raise NotImplementedError(algorithm)
+    return Agent
 
 def train(agent, env, buffer):
     start_epoch = agent.global_steps.numpy()+1
@@ -19,7 +34,7 @@ def train(agent, env, buffer):
         agent.set_summary_step(epoch)
         with Timer(f'{agent.name} run', agent.LOG_INTERVAL):
             scores, epslens = run_trajectories(env, agent, buffer)
-            agent.store(score=scores, epslen=epslens)
+        agent.store(score=scores, epslen=epslens)
 
         with Timer(f'{agent.name} training', agent.LOG_INTERVAL):
             agent.learn_log(buffer, epoch=epoch)
@@ -40,6 +55,10 @@ def train(agent, env, buffer):
                 agent.save(steps=epoch)
 
 def main(env_config, model_config, agent_config, buffer_config, restore=False, render=False):
+    algo = agent_config['algorithm']
+    create_model = import_model_fn(algo)
+    Agent = import_agent(algo)
+
     set_global_seed()
     configure_gpu()
 
@@ -59,7 +78,6 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
         n_envs=env.n_envs
     )
     
-    # construct agent for model update
     agent = Agent(name='ppo', 
                 config=agent_config, 
                 models=models, 

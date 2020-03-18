@@ -16,13 +16,14 @@ def run_trajectories(env, agent, buffer):
                     old_logpi=logpi.numpy(), 
                     nonterminal=1-done, 
                     mask=env.get_mask())
+        
         obs = next_obs
         if np.all(done):
             break
         
     _, _, last_value = agent(obs)
     buffer.finish(last_value.numpy())
-    
+
     score, epslen = env.get_score(), env.get_epslen()
 
     return score, epslen

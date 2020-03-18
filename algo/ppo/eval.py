@@ -7,8 +7,16 @@ from utility.utils import set_global_seed
 from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
 from env.gym_env import create_gym_env
-from algo.ppo.nn import create_model
 
+
+def import_model_fn(algorithm):
+    if algorithm == 'ppo':
+        from algo.ppo.nn import create_model
+    elif algorithm == 'ppo2':
+        from algo.ppo2.nn import create_model
+    else:
+        raise NotImplementedError(algorithm)
+    return create_model
 
 def evaluate(env, agent):
     pwc('Evaluation starts', color='cyan')
@@ -18,9 +26,10 @@ def evaluate(env, agent):
     epslens = []
     while i < 100:
         i += env.n_envs
+        agent.reset_states()
         state = env.reset()
         for _ in range(env.max_episode_steps):
-            action = agent.step(state, deterministic=True)
+            action = agent(state, deterministic=True)
             state, _, done, _ = env.step(action.numpy())
 
             if np.all(done):
@@ -32,6 +41,7 @@ def evaluate(env, agent):
     return scores, epslens
 
 def main(env_config, model_config, agent_config, render=False):
+    create_model = import_model_fn(agent_config['algorithm'])
     set_global_seed()
     configure_gpu()
 

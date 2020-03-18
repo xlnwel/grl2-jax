@@ -74,8 +74,7 @@ class Agent(BaseAgent):
         with TBTimer(f'{self._model_name} learn', 10000, to_log=self.TIMER):
             terms = self.learn(**data)
 
-        for k, v in terms.items():
-            terms[k] = v.numpy()
+        terms = {k: v.numpy() for k, v in terms.items()}
             
         self._update_target_nets()
 

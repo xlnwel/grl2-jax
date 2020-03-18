@@ -48,7 +48,7 @@ class PPOAC(Module):
                         norm=self._norm, 
                         name='actor', 
                         activation=self._activation, 
-                        kernel_initializer=get_initializer('orthogonal', gain=.01))
+                        kernel_initializer=get_initializer('orthogonal'))
         if not self._is_action_discrete:
             self.logstd = tf.Variable(initial_value=np.zeros(action_dim), 
                                         dtype=tf.float32, 
@@ -59,7 +59,7 @@ class PPOAC(Module):
                             norm=self._norm, 
                             name='critic', 
                             activation=self._activation, 
-                            kernel_initializer=get_initializer('orthogonal', gain=1.))
+                            kernel_initializer=get_initializer('orthogonal'))
 
     @tf.function(experimental_relax_shapes=True)
     @tf.Module.with_name_scope

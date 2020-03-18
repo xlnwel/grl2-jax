@@ -84,7 +84,11 @@ class Agent(BaseAgent):
         return action
 
     def learn_log(self, step=None):
-        
+        for i in range(self._n_updates):
+            data = self.dataset.sample()
+            terms = self.learn(**data)
+            terms = {k: v.numpy() for k, v in terms.items()}
+            self.store(**terms)
 
     @tf.function
     def _learn(self, **data):
@@ -95,13 +99,12 @@ class Agent(BaseAgent):
             obs_pred = self.decoder(feature) if hasattr(self, 'decoder') else feature
             reward_pred = self.reward(feature)
             likelihoods = AttrDict()
-            if hasattr(self, 'decoder'):
-                likelihoods.obs = tf.reduce_mean(obs_pred.log_prob(data['obs']))
-            likelihoods.reward = tf.reduce_mean(reward_pred.log_prob(data['reward']))
+            likelihoods.obs_loss = tf.reduce_mean(obs_pred.log_prob(data['obs']))
+            likelihoods.reward_loss = tf.reduce_mean(reward_pred.log_prob(data['reward']))
             if hasattr(self, 'term'):
                 term_pred = self.term(feature)
                 term_target = data['done']
-                likelihoods.term = self.term_scale * tf.reduce_mean(term_pred.log_prob(term_target))
+                likelihoods.term_loss = self.term_scale * tf.reduce_mean(term_pred.log_prob(term_target))
             prior_dist = self.rssm.get_dist(prior.mean, prior.std)
             post_dist = self.rssm.get_dist(post.mean, post.std)
             kl = tf.reduce_mean(tfd.kl_divergence(post_dist, prior_dist))
@@ -130,12 +133,22 @@ class Agent(BaseAgent):
             target = tf.stop_gradient(returns)
             value_loss = -tf.reduce_mean(discount * value_pred.log_prob(target))
 
-        print(model_loss)
-        print(actor_loss)
-        print(value_loss)
         model_norm = self._model_opt(model_tape, model_loss)
         actor_norm = self._actor_opt(actor_tape, actor_loss)
         value_norm = self._value_opt(value_tape, value_loss)
+
+        terms = dict(
+            **likelihoods,
+            kl=kl,
+            model_loss=model_loss,
+            actor_loss=actor_loss,
+            value_loss=value_loss,
+            model_norm=model_norm,
+            actor_norm=actor_norm,
+            value_norm=value_norm,
+        )
+
+        return terms
 
     def _imagine_ahead(self, post):
         if hasattr(self, 'term'):   # Omit the last step as it could be terminal

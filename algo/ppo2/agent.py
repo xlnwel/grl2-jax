@@ -44,10 +44,10 @@ class Agent(BaseAgent):
             batch_size=env.n_envs,
         )
 
-    def reset_states(self, inputs=None, batch_size=None):
-        self.prev_state = self.curr_state = self.ac.get_initial_state(inputs=inputs, batch_size=batch_size)
+    def reset_states(self, states=None):
+        self.prev_state = self.curr_state = states
 
-    def step(self, obs, deterministic=False, update_curr_state=True):
+    def __call__(self, obs, deterministic=False, update_curr_state=True):
         obs = tf.convert_to_tensor(obs, tf.float32)
         if deterministic:
             action, state = self.ac.det_action(obs, self.curr_state)
@@ -62,36 +62,39 @@ class Agent(BaseAgent):
 
     def learn_log(self, buffer, epoch):
         for i in range(self._n_updates):
-            data = buffer.sample()
-            data['n'] = n = np.sum(data['mask'])
-            value = data['value']
-            data = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
-            with tf.name_scope('train'):
-                state, terms = self.learn(**data)
+            self.reset_states()
+            for j in range(buffer.n_minibatches):
+                data = buffer.sample()
+                data['n'] = n = np.sum(data['mask'])
+                value = data['value']
+                data = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
+                with tf.name_scope('train'):
+                    state, terms = self.learn(**data)
+
+                terms = {k: v.numpy() for k, v in terms.items()}
+                n_total_trans = value.size
+                n_valid_trans = n or n_total_trans
+
+                terms['value'] = np.mean(value)
+                terms['n_valid_trans'] = n_valid_trans
+                terms['n_total_trans'] = n_total_trans
+                terms['valid_trans_frac'] = n_valid_trans / n_total_trans
                 
-            n_total_trans = value.size
-            n_valid_trans = n or n_total_trans
+                approx_kl = terms['approx_kl']
+                del terms['approx_kl']
 
-            terms['value'] = np.mean(value)
-            terms['n_valid_trans'] = n_valid_trans
-            terms['n_total_trans'] = n_total_trans
-            terms['valid_trans_frac'] = n_valid_trans / n_total_trans
-            
-            approx_kl = terms['approx_kl']
-            del terms['approx_kl']
+                self.store(**terms)
 
-            self.store(**terms)
-
-            if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
-                pwc(f'Eearly stopping at update-{i+1} due to reaching max kl.',
-                    f'Current kl={approx_kl:.3g}', color='blue')
-                break
-        self.store(approx_kl=approx_kl)
-        if not isinstance(self._learning_rate, float):
-            self.store(learning_rate=self._learning_rate(tf.cast(self.global_steps, tf.float32)))
+                if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
+                    pwc(f'Eearly stopping at update-{i+1} due to reaching max kl.',
+                        f'Current kl={approx_kl:.3g}', color='blue')
+                    break
+            self.store(approx_kl=approx_kl)
+            if not isinstance(self._learning_rate, float):
+                self.store(learning_rate=self._learning_rate(tf.cast(self.global_steps, tf.float32)))
 
         # update the state with the newest weights 
-        self.prev_state = self.curr_state = state
+        # self.prev_state = self.curr_state = state
 
     @tf.function
     def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):

@@ -255,9 +255,9 @@ def _envvec_step(envvec, actions, **kwargs):
             if isscalar(v):
                 kwargs[k] = np.tile(v, actions.shape[0])
         kwargs = [dict(v) for v in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
-        return list(zip(*[env.step(a, **kw) for env, a, kw in zip(envvec, actions, kwargs)]))
+        return zip(*[env.step(a, **kw) for env, a, kw in zip(envvec, actions, kwargs)])
     else:
-        return list(zip(*[env.step(a) for env, a in zip(envvec, actions)]))
+        return zip(*[env.step(a) for env, a in zip(envvec, actions)])
 
 if __name__ == '__main__':
     # performance test

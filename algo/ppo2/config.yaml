@@ -1,14 +1,14 @@
 ---
 env:
-    # is_deepmind_env: True
     name: &env_name BipedalWalker-v3
     video_path: video
     log_video: False
-    n_workers: 4
-    n_envs: 8
-    # max_episode_steps: 27000    # 108000 frames / 4 frame-skips
+    n_workers: 1
+    n_envs: 16
     seed: 0
-    episode_life: False
+    # max_episode_steps: 27000    # 108000 frames / 4 frame-skips
+    # is_deepmind_env: True
+    # episode_life: False
 
 model:
     cnn_name: none
@@ -24,11 +24,9 @@ agent:
     algorithm: &algo ppo2
     env_name: *env_name
 
-    LEARN_FREQ: 100         # learning interval, measured in steps
-    # batch size = n_workers * n_envs * learn_freq
-    n_updates: 8            # number of updates per step
+    n_updates: 4            # number of updates per epoch
     N_EPOCHS: 200000
-    # max_kl: .1             # early stop when max_kl is violated. 0 suggests no bound
+    # max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
     LOG_INTERVAL: 10
 
     # model path: root_dir/model_name/models
@@ -46,14 +44,15 @@ agent:
     # arguments for loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .0
-    kl_coef: .1
+    kl_coef: .0
     value_coef: .001
 
 buffer:
     advantage_type: gae     # nae or gae
     gamma: .99
     lam: .95
-    min_transitions: 800      # the minimum number of transitions for learning
+    n_minibatches: 8        # number of minibatches a sequence is divided into 
+    # mini-batch size = n_workers * n_envs * epslen / n_minibatches
     # environment hack
     # reward_scale: 5.
     # reward_clip: 50

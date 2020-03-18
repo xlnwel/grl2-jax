@@ -20,8 +20,8 @@ class UniformReplay(Replay):
     """ Implementation """
     @override(Replay)
     def _sample(self, batch_size=None):
-        batch_size = batch_size or self.batch_size
-        size = self.capacity if self.is_full else self.mem_idx
+        batch_size = batch_size or self._batch_size
+        size = self._capacity if self._is_full else self._mem_idx
         indexes = np.random.randint(size, size=batch_size)
         # the following code avoids repetitive sampling, but it takes significant more time to run(around 1000x).
         # indexes = np.random.choice(size, size=batch_size, replace=False)

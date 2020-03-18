@@ -44,7 +44,7 @@ class Agent(BaseAgent):
     def reset_states(self, states=None):
         self.ac.reset_states(states)
 
-    def step(self, obs, deterministic=False):
+    def __call__(self, obs, deterministic=False):
         obs = tf.convert_to_tensor(obs, tf.float32)
         if deterministic:
             action = self.ac.det_action(obs)
@@ -55,7 +55,7 @@ class Agent(BaseAgent):
             
     def learn_log(self, buffer, epoch):
         for i in range(self._n_updates):
-            self.ac.reset_states()
+            self.reset_states()
             for j in range(buffer.n_minibatches):
                 data = buffer.sample()
                 data['n'] = n = np.sum(data['mask'])
@@ -63,7 +63,8 @@ class Agent(BaseAgent):
                 data = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
                 with tf.name_scope('train'):
                     terms = self.learn(**data)
-    
+
+                terms = {k: v.numpy() for k, v in terms.items()}
                 n_total_trans = value.size
                 n_valid_trans = n or n_total_trans
 

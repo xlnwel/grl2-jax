@@ -6,10 +6,10 @@ from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
 from utility.timer import Timer
 from env.gym_env import create_gym_env
-from algo.ppo2.buffer import PPOBuffer
+from algo.ppo.buffer import PPOBuffer
 from algo.ppo2.nn import create_model
 from algo.ppo2.agent import Agent
-from algo.ppo2.run import run_trajectories
+from algo.ppo.run import run_trajectories
 from algo.ppo2.eval import evaluate
 
 
@@ -47,7 +47,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
 
     env = create_gym_env(env_config)
 
-    buffer = PPOBuffer(buffer_config, env.n_envs, env.max_episode_steps,)
+    buffer = PPOBuffer(buffer_config, env.n_envs, env.max_episode_steps)
 
     models = create_model(
         model_config, 

@@ -17,7 +17,7 @@ def import_main(algorithm):
     if algorithm == 'ppo':
         from algo.ppo.train import main
     elif algorithm == 'ppo2':
-        from algo.ppo2.train import main
+        from algo.ppo.train import main
     elif algorithm == 'sac':
         from algo.sac.train import main
     elif algorithm == 'dreamer':

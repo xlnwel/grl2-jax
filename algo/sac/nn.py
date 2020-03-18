@@ -33,7 +33,7 @@ class SoftPolicy(Module):
         TensorSpecs = [(obs_shape, tf.float32, 'obs'), (None, tf.bool, 'deterministic')]
         self._action = build(self._action_impl, TensorSpecs)
     
-    def action(self, x, deterministic=False, epsilon=0):
+    def __call__(self, x, deterministic=False, epsilon=0):
         x = tf.convert_to_tensor(x, tf.float32)
         x = tf.reshape(x, [-1, *self._obs_shape])
         deterministic = tf.convert_to_tensor(deterministic, tf.bool)
@@ -107,7 +107,7 @@ class SoftQ(Module):
         ]
         self.train_step = build(self._train_step, TensorSpecs)
 
-    def step(self, x, a):
+    def __call__(self, x, a):
         x = tf.convert_to_tensor(x, tf.float32)
         a = tf.convert_to_tensor(a, tf.float32)
         return self._train_step(x, a)

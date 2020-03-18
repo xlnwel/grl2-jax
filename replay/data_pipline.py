@@ -7,7 +7,7 @@ import ray
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 
 class Dataset:
-    def __init__(self, buffer, data_format, process_fn=lambda data: data):
+    def __init__(self, buffer, data_format, process_fn=lambda data: data, batch_size=False):
         """ Create a tf.data.Dataset for data retrieval
         
         Args:
@@ -16,36 +16,38 @@ class Dataset:
             values are tuple (type, shape) that passed to 
             tf.data.Dataset.from_generator
         """
-        self.buffer = buffer
-        self.data_format = data_format
+        self._buffer = buffer
+        self._data_format = data_format
         assert isinstance(data_format, dict)
-        self.iterator = self._prepare_dataset(buffer, data_format, process_fn)
+        self._iterator = self._prepare_dataset(
+            buffer, data_format, process_fn, batch_size)
 
     def buffer_type(self):
-        return self.buffer.buffer_type()
+        return self._buffer.buffer_type()
 
     def good_to_learn(self):
-        return self.buffer.good_to_learn()
+        return self._buffer.good_to_learn()
         
     def sample(self):
         return next(self.iterator)
 
     def update_priorities(self, priorities, indices):
-        self.buffer.update_priorities(priorities, indices)
+        self._buffer.update_priorities(priorities, indices)
 
-    def _prepare_dataset(self, buffer, data_format, process_fn):
+    def _prepare_dataset(self, buffer, data_format, process_fn, batch_size):
         with tf.name_scope('data'):
-            sample_types = dict((k, v.dtype) for k, v in data_format.items())
-            sample_shapes = dict((k, v.shape) for k, v in data_format.items())
+            types = {k: v.dtype for k, v in data_format.items()}
+            shapes = {k: v.shape for k, v in data_format.items()}
 
             if not self.buffer_type().endswith('uniform'):
-                sample_types['IS_ratio'] = tf.float32
-                sample_types['saved_idxes'] = tf.int32
-                sample_shapes['IS_ratio'] = (None)
-                sample_shapes['saved_idxes'] = (None)
+                types['IS_ratio'] = tf.float32
+                types['saved_idxes'] = tf.int32
+                shapes['IS_ratio'] = (None)
+                shapes['saved_idxes'] = (None)
 
-            ds = tf.data.Dataset.from_generator(
-                self._sample, output_types=sample_types, output_shapes=sample_shapes)
+            ds = tf.data.Dataset.from_generator(self._sample, types, shapes)
+            if batch_size:
+                ds = ds.batch(batch_size, drop_remainder=True)
             ds = ds.map(map_func=process_fn, 
                         num_parallel_calls=tf.data.experimental.AUTOTUNE)
             ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
@@ -54,15 +56,15 @@ class Dataset:
 
     def _sample(self):
         while True:
-            yield self.buffer.sample()
+            yield self._buffer.sample()
 
 class RayDataset(Dataset):
     def buffer_type(self):
-        return ray.get(self.buffer.buffer_type.remote())
+        return ray.get(self._buffer.buffer_type.remote())
 
     def _sample(self):
         while True:
-            yield ray.get(self.buffer.sample.remote())
+            yield ray.get(self._buffer.sample.remote())
 
     def update_priorities(self, priorities, indices):
-        self.buffer.update_priorities.remote(priorities, indices)
+        self._buffer.update_priorities.remote(priorities, indices)
