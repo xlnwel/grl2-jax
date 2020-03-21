@@ -1,6 +1,7 @@
 from abc import ABC
 import numpy as np
 
+from core.decorator import config
 from utility.utils import to_int
 from utility.run_avg import RunningMeanStd
 from replay.utils import *
@@ -8,30 +9,19 @@ from replay.utils import *
 
 class Replay(ABC):
     """ Interface """
-    def __init__(self, config):
-        """
-        Args:
-            config: a dict
-        """
+    @config
+    def __init__(self):
         # params for general replay buffer
-        self._type = config['type']
-        self._capacity = to_int(config['capacity'])
-        self._min_size = max(to_int(config['min_size']), config['batch_size']*10)
-        self._batch_size = config['batch_size']
-        self._n_steps = config.get('n_steps', 1)
-        self._gamma = config['gamma']
-        self._has_next_obs = config.get('has_next_obs', False)
-        self._pre_dims = (self.capacity, )
+        self._capacity = to_int(self._capacity)
+        self._min_size = to_int(max(self._min_size, self._batch_size*10))
+        self._pre_dims = (self._capacity, )
 
         # reward hacking
-        self._reward_scale = config.get('reward_scale', 1)
-        self._reward_clip = config.get('reward_clip')
-        self._normalize_reward = config.get('normalize_reward', False)
-        if self._normalize_reward:
+        if hasattr(self, '_normalize_reward'):
             self._running_reward_stats = RunningMeanStd()
-        print(f'reward hacking: reward scale({self.reward_scale})',
-              f'reward_clip({self.reward_clip})',
-              f'noramlize_reward({self.normalize_reward})')
+        print(f'reward hacking: reward scale({getattr(self, "_reward_scale", 1)})',
+              f'reward_clip({getattr(self, "_reward_clip", None)})',
+              f'noramlize_reward({getattr(self, "_normalize_reward", None)})')
         
         self._is_full = False
         self._mem_idx = 0
@@ -57,8 +47,8 @@ class Replay(ABC):
     def merge(self, local_buffer, length, **kwargs):
         """ Merge a local buffer to the replay buffer, 
         useful for distributed algorithms """
-        assert length < self.capacity, (
-            f'Local buffer cannot be largeer than the replay: {length} vs. {self.capacity}')
+        assert length < self._capacity, (
+            f'Local buffer cannot be largeer than the replay: {length} vs. {self._capacity}')
         self._merge(local_buffer, length)
 
     def add(self, **kwargs):
@@ -67,18 +57,18 @@ class Replay(ABC):
         if self._memory == {}:
             if not self._has_next_obs:
                 del kwargs['next_obs']
-            init_buffer(self.memory, pre_dims=self.pre_dims, has_steps=self.n_steps>1, **kwargs)
+            init_buffer(self._memory, pre_dims=self._pre_dims, has_steps=self._n_steps>1, **kwargs)
             print(f"{self.buffer_type()} replay's keys: {list(self._memory.keys())}")
 
         if not self._is_full and self._mem_idx == self._capacity - 1:
-            print(f'Memory is full({len(self.memory["reward"])})')
+            print(f'Memory is full({len(self._memory["reward"])})')
             self._is_full = True
         
         add_buffer(
-            self.memory, self.mem_idx, self.n_steps, self.gamma, cycle=self.is_full, **kwargs)
+            self._memory, self._mem_idx, self._n_steps, self._gamma, cycle=self._is_full, **kwargs)
         self._mem_idx = (self._mem_idx + 1) % self._capacity
         if 'next_obs' not in self._memory:
-            self.memory['obs'][self.mem_idx] = next_obs
+            self._memory['obs'][self._mem_idx] = next_obs
 
     """ Implementation """
     def _sample(self, batch_size=None):
@@ -88,7 +78,7 @@ class Replay(ABC):
         if self._memory == {}:
             if not self._has_next_obs:
                 del local_buffer['next_obs']
-            init_buffer(self.memory, pre_dims=self.pre_dims, has_steps=self.n_steps>1, **local_buffer)
+            init_buffer(self._memory, pre_dims=self._pre_dims, has_steps=self._n_steps>1, **local_buffer)
             print(f'"{self.buffer_type()}" keys: {list(self._memory.keys())}')
 
         end_idx = self._mem_idx + length
@@ -97,14 +87,14 @@ class Replay(ABC):
             first_part = self._capacity - self._mem_idx
             second_part = length - first_part
             
-            copy_buffer(self.memory, self.mem_idx, self.capacity, local_buffer, 0, first_part)
-            copy_buffer(self.memory, 0, second_part, local_buffer, first_part, length)
+            copy_buffer(self._memory, self._mem_idx, self._capacity, local_buffer, 0, first_part)
+            copy_buffer(self._memory, 0, second_part, local_buffer, first_part, length)
         else:
-            copy_buffer(self.memory, self.mem_idx, end_idx, local_buffer, 0, length)
+            copy_buffer(self._memory, self._mem_idx, end_idx, local_buffer, 0, length)
 
         # memory is full, recycle buffer via FIFO
         if not self._is_full and end_idx >= self._capacity:
-            print(f'Memory is full({len(self.memory["reward"])})')
+            print(f'Memory is full({len(self._memory["reward"])})')
             self._is_full = True
         
         self._mem_idx = end_idx % self._capacity
@@ -119,14 +109,14 @@ class Replay(ABC):
         if 'next_obs' not in self._memory:
             steps = results['steps'] if 'steps' in results else 1
             next_indexes = (indexes + steps) % self._capacity
-            results['next_obs'] = self.memory['obs'][next_indexes]
+            results['next_obs'] = self._memory['obs'][next_indexes]
 
         # process rewards
-        if self._reward_scale != 1:
-            results['reward'] *= np.where(results['done'], 1, self.reward_scale)
-        if self._reward_clip:
-            results['reward'] = np.clip(results['reward'], -self.reward_clip, self.reward_clip)
-        if self._normalize_reward:
+        if getattr(self, '_reward_scale', 1) != 1:
+            results['reward'] *= np.where(results['done'], 1, self._reward_scale)
+        if getattr(self, '_reward_clip', None):
+            results['reward'] = np.clip(results['reward'], -self._reward_clip, self._reward_clip)
+        if getattr(self, '_normalize_reward', None):
             # we update running reward statistics at sampling time
             # since this is when the rewards contribute to the learning process
             self._running_reward_stats.update(results['reward'])

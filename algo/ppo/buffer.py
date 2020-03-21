@@ -94,21 +94,6 @@ class PPOBuffer:
                 advs[:, i] = next_adv = delta[:, i] + self.memory['nonterminal'][:, i] * self.gae_discount * next_adv
             self.memory['traj_ret'][valid_slice] = advs + self.memory['value'][valid_slice]
             self.memory['advantage'][valid_slice] = standardize(advs, mask=mask)
-            # Code for double check 
-            # mb_returns = np.zeros_like(mask)
-            # mb_advs = np.zeros_like(mask)
-            # lastgaelam = 0
-            # for t in reversed(range(self.idx)):
-            #     if t == self.idx - 1:
-            #         nextnonterminal = self.memory['nonterminal'][:, t]
-            #         nextvalues = last_value
-            #     else:
-            #         nextnonterminal = self.memory['nonterminal'][:, t]
-            #         nextvalues = self.memory['value'][:, t+1]
-            #     delta = self.memory['reward'][:, t] + self.gamma * nextvalues * nextnonterminal - self.memory['value'][:, t]
-            #     mb_advs[:, t] = lastgaelam = delta + self.gae_discount * nextnonterminal * lastgaelam
-            # mb_advs = standardize(mb_advs, mask=mask)
-            # assert np.all(np.abs(mb_advs - self.memory['advantage'][valid_slice])<1e-4), f'{mb_advs.flatten()}\n{self.memory["advantage"][valid_slice].flatten()}'
         else:
             raise NotImplementedError
 

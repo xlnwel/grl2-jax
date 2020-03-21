@@ -1,8 +1,9 @@
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras.mixed_precision import experimental as prec
 
-from utility.utils import set_global_seed
 from core.tf_config import configure_gpu, configure_precision
+from utility.utils import set_global_seed, Every
 from env.gym_env import create_gym_env
 from replay.func import create_replay
 from replay.data_pipline import DataFormat, Dataset
@@ -10,15 +11,8 @@ from algo.run import run, random_sampling
 from algo.dreamer.agent import Agent
 from algo.dreamer.nn import create_model
 
-LOG_INTERVAL = 4000
 
 def train(agent, env, replay):
-    def collect_and_learn(step, **kwargs):
-        replay.add(**kwargs)
-        if step % 50 == 0:
-            for _ in range(50):
-                agent.learn_log()
-
     eval_env = create_gym_env(dict(
         name=env.name, 
         video_path='video',
@@ -32,50 +26,61 @@ def train(agent, env, replay):
 
     print('Training started...')
     step = start_step
-    log_step = LOG_INTERVAL
+    should_log = Every(agent.LOG_INTERVAL)
+    should_train = Every(agent.TRAIN_INTERVAL)
+    already_done = np.zeros(env.n_envs, np.bool)
+    obs = env.reset()
     while step < int(agent.MAX_STEPS):
         agent.set_summary_step(step)
-        score, epslen = run(env, agent.actor, fn=collect_and_learn, 
-            timer=agent.TIMER, step=step)
-        agent.store(score=env.get_score(), epslen=env.get_epslen())
-        step += epslen
-        
-        if step > log_step:
-            log_step += LOG_INTERVAL
+        action = agent(obs, already_done)
+        obs, reward, done, info = env.step(action)
+        already_done = env.get_already_done()
+        if already_done.any():
+            idxes = [idx for idx, d in enumerate(already_done) if d]
+            for i in idxes:
+                eps = info[i]['episode']
+                score = np.sum(eps['reward'])
+                epslen = eps['reward'].size
+                agent.store(score=score, epslen=epslen)
+                replay.merge(eps)
+                step += epslen
+        step += env.n_envs
+        if should_train(step):
+            agent.learn_log(step)
+
+        if should_log(step):
             agent.save(steps=step)
 
+            # eval_score, eval_epslen = run(eval_env, agent, 
+            #     evaluation=True, timer=agent.TIMER, name='eval')
             
-            eval_score, eval_epslen = run(eval_env, agent.actor, 
-                evaluation=True, timer=agent.TIMER, name='eval')
-            
-            agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
+            # agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
             agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
             agent.store(**agent.get_value('epslen', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
+            # agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
+            # agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
 
             agent.log(step)
 
-def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
+def main(env_config, model_config, agent_config, 
+        replay_config, restore=False, render=False):
     set_global_seed(seed=env_config['seed'], tf=tf)
-    # tf.debugging.set_log_device_placement(True)
     configure_gpu()
     configure_precision(agent_config['precision'])
 
     env = create_gym_env(env_config)
 
+    replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
+    replay.load_data()
     data_format = dict(
         obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
         action=DataFormat((None, *env.action_shape), env.action_dtype),
-        reward=DataFormat((None, ), tf.float32), 
-        next_state=DataFormat((None, *env.obs_shape), env.obs_dtype),
-        done=DataFormat((None, ), tf.float32),
+        reward=DataFormat((None), tf.float32), 
+        done=DataFormat((None), tf.float32),
     )
-    if replay_config.get('n_steps', 1) > 1:
-        data_format['steps'] = DataFormat((None, ), tf.float32)
-
-    dataset = Dataset(replay, data_format)
+    print(data_format)
+    dataset = Dataset(replay, data_format, batch_size=agent_config['batch_size'])
 
     models = create_model(
         model_config, 
@@ -99,10 +104,15 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     if restore:
         agent.restore()
-        collect_fn = lambda **kwargs: replay.add(**kwargs)      
-        while not replay.good_to_learn():
-            run(env, agent.actor, collect_fn)
-    else:
-        random_sampling(env, replay)
-
+    if not replay.good_to_learn():
+        obs = env.reset()
+        action = env.random_action()
+        obs, reward, done, info = env.step(action)
+        already_done = env.get_already_done()
+        if already_done.any():
+            idxes = [idx for idx, d in enumerate(already_done) if d]
+            for i in idxes:
+                eps = info[i]['episode']
+                replay.merge(eps)
+                
     train(agent, env, replay)

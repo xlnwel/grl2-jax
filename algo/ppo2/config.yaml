@@ -24,9 +24,10 @@ agent:
     algorithm: &algo ppo2
     env_name: *env_name
 
-    n_updates: 4            # number of updates per epoch
+    n_updates: 8            # number of updates per epoch
     N_EPOCHS: 200000
-    # max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
+    LEARN_FREQ: 400
+    max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
     LOG_INTERVAL: 10
 
     # model path: root_dir/model_name/models
@@ -51,7 +52,8 @@ buffer:
     advantage_type: gae     # nae or gae
     gamma: .99
     lam: .95
-    n_minibatches: 8        # number of minibatches a sequence is divided into 
+    n_minibatches: 1        # number of minibatches a sequence is divided into 
+    min_transitions: 1000
     # mini-batch size = n_workers * n_envs * epslen / n_minibatches
     # environment hack
     # reward_scale: 5.

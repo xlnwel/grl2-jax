@@ -9,7 +9,7 @@ from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
-from core.optimizers import Optimizer
+from core.optimizer import Optimizer
 
 
 class Agent(BaseAgent):
@@ -60,22 +60,17 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
 
-    def action(self, obs, deterministic=False, epsilon=0):
-        return self.actor.action(obs, deterministic=deterministic, epsilon=epsilon)
+    def __call__(self, obs, deterministic=False, epsilon=0):
+        return self.actor(obs, deterministic=deterministic, epsilon=epsilon)
 
     def learn_log(self, step):
         self.global_steps.assign(step)
-        with TBTimer(f'{self._model_name} sample', 10000, to_log=self.TIMER):
-            data = self.dataset.sample()
+        data = self.dataset.sample()
         if self._is_per:
             saved_idxes = data['saved_idxes']
             del data['saved_idxes']
 
-        with TBTimer(f'{self._model_name} learn', 10000, to_log=self.TIMER):
-            terms = self.learn(**data)
-
-        terms = {k: v.numpy() for k, v in terms.items()}
-            
+        terms = self.learn(**data)
         self._update_target_nets()
 
         if self._schedule_lr:
@@ -84,7 +79,8 @@ class Agent(BaseAgent):
             terms['_q_lr'] = self._q_lr(step)
             if not isinstance(self.temperature, (float, tf.Variable)):
                 terms['_temp_lr'] = self._temp_lr(step)
-            
+        terms = {k: v.numpy() for k, v in terms.items()}
+
         if self._is_per:
             self.dataset.update_priorities(terms['priority'], saved_idxes.numpy())
         self.store(**terms)

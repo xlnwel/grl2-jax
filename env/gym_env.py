@@ -6,7 +6,7 @@ import ray
 
 from utility import tf_distributions
 from utility.display import pwc
-from utility.utils import isscalar
+from utility.utils import isscalar, convert_dtype
 from utility.timer import Timer
 from env.wrappers import *
 from env.deepmind_wrappers import make_deepmind_env
@@ -119,7 +119,7 @@ class EnvVec(EnvBase):
         self.max_episode_steps = self.env.spec.max_episode_steps
 
     def random_action(self):
-        return np.array([env.action_space.sample() for env in self.envs], copy=False, dtype=self.obs_dtype)
+        return convert_dtype([env.action_space.sample() for env in self.envs], dtype=self.action_dtype, copy=False)
 
     def reset(self):
         return np.asarray([env.reset() for env in self.envs], dtype=self.obs_dtype)
@@ -127,9 +127,9 @@ class EnvVec(EnvBase):
     def step(self, actions, **kwargs):
         state, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
 
-        return (np.array(state, copy=False, dtype=self.obs_dtype), 
-                np.array(reward, dtype=np.float32), 
-                np.array(done, dtype=np.bool), 
+        return (convert_dtype(state, dtype=self.obs_dtype, copy=False), 
+                convert_dtype(reward, dtype=np.float32), 
+                convert_dtype(done, dtype=np.bool), 
                 info)
 
     def get_mask(self):
@@ -164,9 +164,9 @@ class EfficientEnvVec(EnvVec):
         for i in range(len(info)):
             info[i]['env_id'] = valid_env_ids[i]
         
-        return (np.array(state, copy=False, dtype=self.obs_dtype), 
-                np.array(reward, dtype=np.float32), 
-                np.array(done, dtype=np.bool), 
+        return (convert_dtype(state, self._precision, copy=False), 
+                convert_dtype(reward, dtype=np.float32), 
+                convert_dtype(done, dtype=np.bool), 
                 info)
 
 
@@ -240,11 +240,13 @@ def _make_env(config):
         if config.get('log_video', False):
             pwc(f'video will be logged at {config["video_path"]}', color='cyan')
             env = gym.wrappers.Monitor(env, config['video_path'], force=True)
-        env = EnvStats(env)
-    if config.get('action_repetition'):
-        env = ActionRepetition(env, config.get('n_ar'))
-    if config.get('auto_reset'):
-        env = AutoReset(env)
+        if config.get('action_repetition'):
+            env = ActionRepetition(env, config.get('n_ar'))
+        env = EnvStats(env, config.get('precision', 32))
+        if config.get('log_episode'):
+            env = LogEpisode(env)
+        if config.get('auto_reset'):
+            env = AutoReset(env)
     env.seed(config.get('seed', 42))
 
     return env
@@ -262,56 +264,39 @@ def _envvec_step(envvec, actions, **kwargs):
 if __name__ == '__main__':
     # performance test
     default_config = dict(
-        name='BipedalWalker-v2', # Pendulum-v0, CartPole-v0
+        name='LunarLander-v2', # Pendulum-v0, CartPole-v0
         video_path='video',
         log_video=False,
-        n_workers=8,
-        n_envs=2,
+        n_workers=1,
+        n_envs=1,
+        log_episode=True,
+        auto_reset=True,
         seed=0
     )
 
-    ray.init()
-    config = default_config.copy()
-    n = config['n_workers']
-    envvec = create_gym_env(config)
-    print('Env type', type(envvec))
-    actions = envvec.random_action()
-    with Timer(f'envvec {n} workers'):
-        states = envvec.reset()
-        for _ in range(envvec.max_episode_steps):
-            states, rewards, dones, _ = envvec.step(actions)
-    print(envvec.get_epslen())
-    envvec.close()
-    ray.shutdown()
-
-    config = default_config.copy()
-    config['n_envs'] *= config['n_workers']
-    del config['n_workers']
-    envs = create_gym_env(config)
-    print('Env type', type(envs))
-    with Timer('EnvVec'):
-        states = envs.reset()
-        for _ in range(envs.max_episode_steps):
-            actions = envs.random_action()
-            state, reward, done, _ = envs.step(actions)
-            
-            if np.all(done):
-                break
-            
-    print(envs.get_epslen())
-    
-    config = default_config.copy()
-    config['n_envs'] *= config['n_workers']
-    del config['n_workers']
-    envs = EfficientEnvVec(config)
-    print('Env type', type(envs))
-    with Timer('EfficientEnvVec'):
-        states = envs.reset()
-        for _ in range(envs.max_episode_steps):
-            actions = envs.random_action()
-            state, reward, done, info = envs.step(actions)
-            print([info_['env_id'] for info_ in info])
-            if np.all(done):
-                break
-            
-    print(envs.get_epslen())
+    env = create_gym_env(default_config)
+    o = env.reset()
+    eps = [dict(
+        obs=o,
+        action=np.zeros(env.action_shape), 
+        reward=0.,
+        done=False
+    )]
+    for _ in range(3000):
+        a = env.random_action()
+        o, r, d, i = env.step(a)
+        eps.append(dict(
+                obs=o,
+                action=a if r != 0 else 0,
+                reward=r,
+                done=d
+            ))
+        if d or len(eps) == env.max_episode_steps:
+            print('check episodes')
+            eps2 = i['episode']
+            eps = {k: np.array([t[k] for t in eps]) for k in eps2.keys()}
+            print(eps.keys())
+            for k in eps.keys():
+                print(k)
+                np.testing.assert_allclose(eps[k], eps2[k])
+            eps = []

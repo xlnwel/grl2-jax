@@ -53,7 +53,7 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
             if render:
                 env.render()
             with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-                action, terms = actor.action(obs, evaluation, epsilon)
+                action, terms = actor(obs, evaluation, epsilon)
             with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
                 next_obs, reward, done, _ = env.step(action)
             if fn:
@@ -89,7 +89,7 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False,
 
     for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, terms = actor.action(obs, evaluation, epsilon)
+            action, terms = actor(obs, evaluation, epsilon)
         with TBTimer(f'{name} env_step', TIME_INTERVAL, to_log=timer):
             next_obs, reward, done, _ = envvec.step(action)
         if fn:
@@ -120,7 +120,7 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
 
     for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, terms = actor.action(obs, evaluation, epsilon)
+            action, terms = actor(obs, evaluation, epsilon)
         # action is squeezed by default, but envvec requires batch dimension
         if action.shape.ndims < obs.shape.ndims:
             action = np.expand_dims(action, 0)
@@ -161,7 +161,7 @@ def run_trajectory_ar(env, actor, *, fn=None, evaluation=False,
             if render:
                 env.render()
             with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-                action, n_ar = actor.action(obs, deterministic=evaluation)
+                action, n_ar = actor(obs, deterministic=evaluation)
             action = action.numpy()[0]
             action += np.random.normal(scale=epsilon, size=action.shape)
             n_ar = n_ar.numpy()
@@ -200,7 +200,7 @@ def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False,
 
     for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, n_ar = actor.action(obs, deterministic=evaluation)
+            action, n_ar = actor(obs, deterministic=evaluation)
         action = action.numpy()
         action += np.random.normal(scale=epsilon, size=action.shape)
         n_ar.numpy()
@@ -229,7 +229,7 @@ def run_trajectories2_ar(envvec, actor, fn=None, evaluation=False,
 
     for i in range(1, envvec.max_episode_steps+1):
         with TBTimer(f'{name} agent_step', TIME_INTERVAL, to_log=timer):
-            action, n_ar = actor.action(obs, deterministic=evaluation)
+            action, n_ar = actor(obs, deterministic=evaluation)
         action = action.numpy()
         action += np.random.normal(scale=epsilon, size=action.shape)
         n_ar.numpy()

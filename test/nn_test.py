@@ -16,7 +16,9 @@ class TestClass:
         x = tf.random.normal([1, 2])
         
         tf.random.set_seed(layer_seed)
-        plain_layers = [tf.keras.layers.Dense(u, activation=activation, kernel_initializer=kernel_initializer) for u in units_list]
+        plain_layers = [tf.keras.layers.Dense(
+            u, activation=activation, kernel_initializer=kernel_initializer)
+            for u in units_list]
         plain_layers.append(tf.keras.layers.Dense(out_dim))
         plain_y = x
         for l in plain_layers:

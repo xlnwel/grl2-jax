@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def run_trajectories(env, agent, buffer):
+def run_trajectories(env, agent, buffer, **kwargs):
     buffer.reset()
     agent.reset_states()
     obs = env.reset()

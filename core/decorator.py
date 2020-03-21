@@ -74,3 +74,13 @@ def config(init_fn):
         init_fn(self, *args, **kwargs)
 
     return wrapper
+
+def override(cls):
+    @wraps(cls)
+    def check_override(method):
+        if method.__name__ not in dir(cls):
+            raise NameError("{} does not override any method of {}".format(
+                method, cls))
+        return method
+
+    return check_override

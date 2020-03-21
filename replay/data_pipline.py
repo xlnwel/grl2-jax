@@ -7,7 +7,7 @@ import ray
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 
 class Dataset:
-    def __init__(self, buffer, data_format, process_fn=lambda data: data, batch_size=False):
+    def __init__(self, buffer, data_format, process_fn=None, batch_size=False):
         """ Create a tf.data.Dataset for data retrieval
         
         Args:
@@ -17,10 +17,10 @@ class Dataset:
             tf.data.Dataset.from_generator
         """
         self._buffer = buffer
-        self._data_format = data_format
+        self.data_format = data_format
         assert isinstance(data_format, dict)
         self._iterator = self._prepare_dataset(
-            buffer, data_format, process_fn, batch_size)
+            buffer, process_fn, batch_size)
 
     def buffer_type(self):
         return self._buffer.buffer_type()
@@ -29,17 +29,17 @@ class Dataset:
         return self._buffer.good_to_learn()
         
     def sample(self):
-        return next(self.iterator)
+        return next(self._iterator)
 
     def update_priorities(self, priorities, indices):
         self._buffer.update_priorities(priorities, indices)
 
-    def _prepare_dataset(self, buffer, data_format, process_fn, batch_size):
+    def _prepare_dataset(self, buffer, process_fn, batch_size):
         with tf.name_scope('data'):
-            types = {k: v.dtype for k, v in data_format.items()}
-            shapes = {k: v.shape for k, v in data_format.items()}
+            types = {k: v.dtype for k, v in self.data_format.items()}
+            shapes = {k: v.shape for k, v in self.data_format.items()}
 
-            if not self.buffer_type().endswith('uniform'):
+            if self.buffer_type().endswith('proportional'):
                 types['IS_ratio'] = tf.float32
                 types['saved_idxes'] = tf.int32
                 shapes['IS_ratio'] = (None)
@@ -48,8 +48,9 @@ class Dataset:
             ds = tf.data.Dataset.from_generator(self._sample, types, shapes)
             if batch_size:
                 ds = ds.batch(batch_size, drop_remainder=True)
-            ds = ds.map(map_func=process_fn, 
-                        num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            if process_fn:
+                ds = ds.map(map_func=process_fn, 
+                            num_parallel_calls=tf.data.experimental.AUTOTUNE)
             ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
             iterator = iter(ds)
         return iterator

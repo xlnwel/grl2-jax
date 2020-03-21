@@ -3,6 +3,7 @@ https://github.com/openai/baselines/blob/master/baselines/common/wrappers.py
 """
 import numpy as np
 import gym
+from utility.utils import infer_dtype
 
 class TimeLimit(gym.Wrapper):
     def __init__(self, env, max_episode_steps=None):
@@ -31,11 +32,31 @@ class ClipActionsWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
 
+class ActionRepetition(gym.Wrapper):
+    def __init__(self, env, n_ar=1):
+        print(f'Action repetition({n_ar})')
+        super().__init__(env)
+        self.n_ar = n_ar
+
+    def step(self, action, n_ar=None, gamma=1):
+        rewards = 0
+        n_ar = n_ar or self.n_ar
+        for i in range(1, n_ar+1):
+            state, reward, done, info = self.env.step(action)
+
+            rewards += gamma**(i-1) * reward
+            if done:
+                break
+        info['n_ar'] = i
+        
+        return state, rewards, done, info
+
 class EnvStats(gym.Wrapper):
     """ Provide Environment Statistics Recording """
-    def __init__(self, env):
+    def __init__(self, env, precision=32):
         super().__init__(env)
         self.already_done = True
+        self.precision = precision
 
     def reset(self):
         if getattr(self, 'was_real_done', True):
@@ -55,10 +76,10 @@ class EnvStats(gym.Wrapper):
             state, reward, done, info = self.env.step(action)
             self.score += 0 if self.already_done else reward
             self.epslen += 0 if self.already_done else 1
+            self.already_done = done and getattr(self, 'was_real_done', True)
             # ignore done signal if the time limit is reached
             if self.epslen == self.env.spec.max_episode_steps:
                 done = False
-            self.already_done = done and getattr(self, 'was_real_done', True)
 
             return state, reward, done, info
 
@@ -82,7 +103,7 @@ class EnvStats(gym.Wrapper):
 
     @property
     def obs_dtype(self):
-        return np.float32 if self.observation_space.dtype == np.float64 else self.observation_space.dtype
+        return infer_dtype(self.observation_space.dtype, self.precision)
 
     @property
     def action_shape(self):
@@ -90,42 +111,54 @@ class EnvStats(gym.Wrapper):
 
     @property
     def action_dtype(self):
-        return np.int32 if self.is_action_discrete else np.float32
+        return infer_dtype(self.action_space.dtype, self.precision)
 
     @property
     def action_dim(self):
         return self.action_space.n if self.is_action_discrete else self.action_shape[0]
 
 
-class ActionRepetition(gym.Wrapper):
-    def __init__(self, env, n_ar=1):
-        print(f'Action repetition({n_ar})')
-        super().__init__(env)
-        self.n_ar = n_ar
-
-    def step(self, action, n_ar=None, gamma=1):
-        rewards = 0
-        n_ar = n_ar or self.n_ar
-        for i in range(1, n_ar+1):
-            state, reward, done, info = self.env.step(action)
-
-            rewards += gamma**(i-1) * reward
-            if done:
-                break
-        info['n_ar'] = i
-        
-        return state, rewards, done, info
-
+""" The following wrappers rely on already_done defined in EnvStats.
+Therefore, they should only be called after EnvStats """
+class LogEpisode(gym.Wrapper):
+    def reset(self):
+        obs = self.env.reset()
+        transition = dict(
+            obs=obs,
+            action=np.zeros(self.env.action_space.shape),
+            reward=0.,
+            done=False
+        )
+        self._episode = [transition]
+        return obs
+    
+    def step(self, action, **kwargs):
+        obs, reward, done, info = self.env.step(action)
+        transition = dict(
+            obs=obs,
+            action=action,
+            reward=reward,
+            done=done,
+            **kwargs
+        )
+        self._episode.append(transition)
+        if self.already_done:
+            episode = {k: np.array([t[k] for t in self._episode])
+                for k in self._episode[0]}
+            info['episode'] = episode
+        return obs, reward, done, info
 
 class AutoReset(gym.Wrapper):
     def step(self, action, **kwargs):
-        # TODO: consider if done is true because time out
-        state, reward, done, info = self.env.step(action, **kwargs)
-        if done:
+        if self.already_done:
             state = self.env.reset()
+            reward = 0.
+            done = False
+            info = {}
+        else:
+            state, reward, done, info = self.env.step(action, **kwargs)
         
         return state, reward, done, info
-
 
 def get_wrapper_by_name(env, classname):
     currentenv = env

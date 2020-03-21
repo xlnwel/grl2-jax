@@ -47,7 +47,7 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
     """
     if sequential:
         assert batch_size, (
-            f'For sequential data, please specify batch size for RNN states')
+            f'For sequential data, please specify batch size')
         default_shape = [batch_size, None]
     else:
         default_shape = [batch_size]

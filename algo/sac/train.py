@@ -2,8 +2,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.mixed_precision import experimental as prec
 
-from utility.utils import set_global_seed
 from core.tf_config import configure_gpu, configure_precision
+from utility.utils import set_global_seed, Every
 from env.gym_env import create_gym_env
 from replay.func import create_replay
 from replay.data_pipline import DataFormat, Dataset
@@ -11,8 +11,6 @@ from algo.run import run, random_sampling
 from algo.sac.agent import Agent
 from algo.sac.nn import create_model
 
-
-LOG_INTERVAL = 4000
 
 def train(agent, env, replay):
     def collect_and_learn(step, **kwargs):
@@ -32,7 +30,7 @@ def train(agent, env, replay):
 
     print('Training started...')
     step = start_step
-    log_step = LOG_INTERVAL
+    should_log = Every(agent.LOG_INTERVAL)
     while step < int(agent.MAX_STEPS):
         agent.set_summary_step(step)
         score, epslen = run(env, agent.actor, fn=collect_and_learn, 
@@ -40,8 +38,7 @@ def train(agent, env, replay):
         agent.store(score=env.get_score(), epslen=env.get_epslen())
         step += epslen
         
-        if step > log_step:
-            log_step += LOG_INTERVAL
+        if should_log(step):
             agent.save(steps=step)
 
             eval_score, eval_epslen = run(eval_env, agent.actor, 

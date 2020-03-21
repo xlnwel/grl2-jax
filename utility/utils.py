@@ -11,6 +11,17 @@ class AttrDict(dict):
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
 
+class Every:
+    def __init__(self, period):
+        self._period = period
+        self._next = period
+    
+    def __call__(self, step):
+        if step >= self._next:
+            self._next += self._period
+            return True
+        return False
+
 def to_int(s):
     return int(float(s))
     
@@ -185,3 +196,20 @@ def convert_indices(indices, *args):
     res.append(v)
 
     return tuple(res)
+
+def infer_dtype(dtype, precision):
+    if np.issubdtype(dtype, np.floating):
+      dtype = {16: np.float16, 32: np.float32, 64: np.float64}[precision]
+    elif np.issubdtype(dtype, np.signedinteger):
+      dtype = {16: np.int16, 32: np.int32, 64: np.int64}[precision]
+    elif np.issubdtype(dtype, np.uint8):
+      dtype = np.uint8
+    else:
+      raise NotImplementedError(dtype)
+    return dtype
+
+def convert_dtype(value, precision=None, dtype=None, **kwargs):
+    value = np.array(value, **kwargs)
+    if dtype is None:
+        dtype = infer_dtype(value.dtype, precision)
+    return value.astype(dtype)

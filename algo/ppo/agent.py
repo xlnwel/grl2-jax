@@ -6,7 +6,7 @@ from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
-from core.optimizers import Optimizer
+from core.optimizer import Optimizer
 from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
@@ -19,7 +19,7 @@ class Agent(BaseAgent):
 
         self._optimizer = Optimizer(
             self._optimizer, self.ac, self._learning_rate, 
-            epsilon=self._epsilon)
+            clip_norm=self._clip_norm, epsilon=self._epsilon)
         self._ckpt_models['optimizer'] = self._optimizer
 
 
@@ -84,7 +84,9 @@ class Agent(BaseAgent):
                 break
         self.store(approx_kl=approx_kl)
         if not isinstance(self._learning_rate, float):
-            self.store(learning_rate=self._learning_rate(tf.cast(self.global_steps, tf.float32)))
+            step = tf.cast(self.global_steps, tf.float32)
+            self.store(
+                learning_rate=self._learning_rate(step))
 
     @tf.function
     def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):

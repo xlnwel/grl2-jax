@@ -3,12 +3,16 @@ env:
     name: BipedalWalker-v3
     video_path: video
     log_video: False
-    n_envs: 1
-    efficient_envvec: True
+    n_envs: 8
+    efficient_envvec: False
+    log_episode: True
+    auto_reset: True
     seed: 0
 model:
     encoder:
-        # has_cnn: False
+        has_cnn: False
+        units_list: [256]
+        activation: elu
     rssm:
         stoch_size: 128
         deter_size: 128
@@ -22,6 +26,7 @@ model:
         activation: elu
         init_std: 5
         min_std: 1.e-4
+        mean_scale: 5
     value:
         units_list: [128]
         activation: elu
@@ -29,26 +34,35 @@ model:
         units_list: [64]
         activation: elu
     decoder:
-        # has_cnn: True
+        has_cnn: False
+        units_list: [256]
+        activation: elu
+    terminal:
+        units_list: [64]
+        activation: elu
 agent:
     algorithm: &algo dreamer
     polyak: .995
     precision: 32
-    
-    # timer&interval
+    batch_size: &bs 64
+    length: &length 50
+
     MAX_STEPS: 2.e+7
     TIME_INTERVAL: 100
-    LOG_INTERVAL: 100000
-    timer: False
+    LOG_INTERVAL: 10000
+    TRAIN_INTERVAL: 1000
+    TIMER: False
+    n_updates: 8
 
     # model
     free_nats: 3.
     kl_scale: 1.
     term_scale: 10.
     # behavior
-    horizon: 10
+    horizon: 15
     gamma: &gamma 0.99
     lambda: .95
+    epsilon: .3
 
 
     # model path: root_dir/model_name/models
@@ -61,13 +75,13 @@ agent:
     tbo: False                               # transformed Bellman Operator
 
     # arguments for optimizer
-    opt_name: adam
+    optimizer: adam
     precision: 32
-    clip_norm: 100
+    clip_norm: 10
     weight_decay: 0
     model_lr: 1.e-3
-    actor_lr: 1.e-4
-    value_lr: 1.e-4
+    actor_lr: 3.e-4
+    value_lr: 3.e-4
     epsilon: 1.e-8
     # clip_norm: 10
     
@@ -76,11 +90,9 @@ agent:
     per_epsilon: 1.e-4
 
 replay:
-    type: uniform                      # proportional or uniform
+    type: episodic                      # proportional or uniform
 
     # arguments for general replay
-    n_steps: 1
-    gamma: *gamma
-    batch_size: 512
-    min_size: 5e4
-    capacity: 1e6
+    batch_size: *bs
+    length: *length
+    max_episodes: 500

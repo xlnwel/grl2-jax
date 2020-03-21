@@ -1,7 +1,7 @@
 from threading import Lock
 import numpy as np
 
-from utility.decorators import override
+from core.decorator import override
 from utility.schedule import PiecewiseSchedule
 from replay.base import Replay
 from replay.ds.sum_tree import SumTree
@@ -15,8 +15,9 @@ class PERBase(Replay):
 
         # params for prioritized replay
         self._beta = float(config.get('beta0', .4))
-        self._beta_schedule = PiecewiseSchedule([(0, self.beta), (float(config['beta_steps']), 1.)], 
-                                                outside_value=1.)
+        self._beta_schedule = PiecewiseSchedule(
+            [(0, self._beta0), (self._beta_steps, 1.)], 
+            outside_value=1.)
 
         self._top_priority = 2.
         self._to_update_top_priority = config.get('to_update_top_priority')
@@ -46,18 +47,18 @@ class PERBase(Replay):
         # it is okay to add when sampling, so no locker is needed
         super().add(**kwargs)
         # super().add updates self._mem_idx 
-        self._data_structure.update(self._mem_idx - 1, self.top_priority)
+        self._data_structure.update(self._mem_idx - 1, self._top_priority)
 
     def update_priorities(self, priorities, saved_idxes):
         assert not np.any(np.isnan(priorities)), priorities
         with self._locker:
             if self._to_update_top_priority:
-                self._top_priority = max(self.top_priority, np.max(priorities))
+                self._top_priority = max(self._top_priority, np.max(priorities))
             self._data_structure.batch_update(saved_idxes, priorities)
 
     """ Implementation """
     def _update_beta(self):
-        self._beta = self._beta_schedule.value(self.sample_i)
+        self._beta = self._beta_schedule.value(self._sample_i)
 
     @override(Replay)
     def _merge(self, local_buffer, length):
@@ -80,7 +81,7 @@ class ProportionalPER(PERBase):
     """ Interface """
     def __init__(self, config):
         super().__init__(config)
-        self._data_structure = SumTree(self.capacity)        # mem_idx    -->     priority
+        self._data_structure = SumTree(self._capacity)        # mem_idx    -->     priority
 
     """ Implementation """
     @override(PERBase)

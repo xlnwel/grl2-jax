@@ -90,7 +90,7 @@ class SoftPolicy(Module):
 
 class SoftQ(Module):
     @config
-    def __init__(self, obs_shape, action_dim, name='q'):
+    def __init__(self, name='q'):
         super().__init__(name=name)
 
         """ Network definition """
@@ -100,20 +100,11 @@ class SoftQ(Module):
                             activation=self._activation, 
                             kernel_initializer=self._kernel_initializer)
 
-        # build for variable initialization
-        TensorSpecs = [
-            (obs_shape, tf.float32, 'obs'),
-            ([action_dim], tf.float32, 'action'),
-        ]
-        self.train_step = build(self._train_step, TensorSpecs)
-
     def __call__(self, x, a):
-        x = tf.convert_to_tensor(x, tf.float32)
-        a = tf.convert_to_tensor(a, tf.float32)
-        return self._train_step(x, a)
+        return self.train_step(x, a)
 
-    @tf.function(experimental_relax_shapes=True)
-    def _train_step(self, x, a):
+    @tf.function
+    def train_step(self, x, a):
         print(f'SoftQ train_step retrace: {x}, {a}')
         x = tf.concat([x, a], axis=-1)
         x = self._layers(x)
@@ -153,10 +144,10 @@ def create_model(model_config, obs_shape, action_dim, is_action_discrete):
     q_config = model_config['q']
     temperature_config = model_config['temperature']
     actor = SoftPolicy(actor_config, obs_shape, action_dim, is_action_discrete)
-    q1 = SoftQ(q_config, obs_shape, action_dim, 'q1')
-    q2 = SoftQ(q_config, obs_shape, action_dim, 'q2')
-    target_q1 = SoftQ(q_config, obs_shape, action_dim, 'target_q1')
-    target_q2 = SoftQ(q_config, obs_shape, action_dim, 'target_q2')
+    q1 = SoftQ(q_config, 'q1')
+    q2 = SoftQ(q_config, 'q2')
+    target_q1 = SoftQ(q_config, 'target_q1')
+    target_q2 = SoftQ(q_config, 'target_q2')
     if temperature_config['temp_type'] == 'constant':
         temperature = temperature_config['value']
     else:

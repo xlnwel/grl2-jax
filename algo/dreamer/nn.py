@@ -8,8 +8,9 @@ from core.tf_config import build
 from core.module import Module
 from core.decorator import config
 from utility.tf_utils import static_scan
-from utility.tf_distributions import Categorical, OneHotDist, TanhBijector
+from utility.tf_distributions import Categorical, OneHotDist, TanhBijector, SampleDist
 from nn.func import mlp
+
 
 RSSMState = collections.namedtuple('RSSMState', ('mean', 'std', 'stoch', 'deter'))
 
@@ -54,7 +55,7 @@ class RSSM(Module):
             activation=self._activation,
             name='obs')
 
-    # @tf.function
+    @tf.function
     def observe(self, embed, action, state=None):
         if state is None:
             state = self.get_initial_state(batch_size=tf.shape(action)[0])
@@ -67,7 +68,7 @@ class RSSM(Module):
         prior = RSSMState(*[tf.transpose(v, [1, 0, 2]) for v in prior])
         return post, prior
 
-    # @tf.function
+    @tf.function
     def imagine(self, action, state=None):
         if state is None:
             state = self.get_initial_state(batch_size=tf.shape(action)[0])
@@ -76,7 +77,7 @@ class RSSM(Module):
         prior = RSSMState(*[tf.transpose(v, [1, 0, 2]) for v in prior])
         return prior
 
-    # @tf.function
+    @tf.function
     def obs_step(self, prev_state, prev_action, embed):
         prior = self.img_step(prev_state, prev_action)
         x = tf.concat([prior.deter, embed], -1)
@@ -84,7 +85,7 @@ class RSSM(Module):
         post = self._compute_rssm_state(x, prior.deter)
         return post, prior
 
-    # @tf.function
+    @tf.function
     def img_step(self, prev_state, prev_action):
         x, deter = self._compute_deter_state(prev_state, prev_action)
         x = self.img_layers(x)
@@ -96,12 +97,13 @@ class RSSM(Module):
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
         assert batch_size is not None
-        return RSSMState(mean=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
-                        std=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
-                        stoch=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
-                        deter=self._cell.get_initial_state(batch_size=batch_size, dtype=dtype))
+        return RSSMState(
+            mean=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
+            std=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
+            stoch=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
+            deter=self._cell.get_initial_state(inputs, batch_size, dtype))
         
-    def get_feature(self, state):
+    def get_feat(self, state):
         return tf.concat([state.stoch, state.deter], -1)
 
     def get_dist(self, mean, std):
@@ -145,11 +147,13 @@ class Actor(Module):
             # https://www.desmos.com/calculator/rcmcf5jwe7
             # we bound the mean to [-5, +5] to avoid numerical instabilities 
             # as atanh becomes difficult in highly saturated regions
-            mean = 5 * tf.tanh(mean / 5)
+            mean = self._mean_scale * tf.tanh(mean / self._mean_scale)
             std = tf.nn.softplus(std + raw_init_std) + self._min_std
             dist = tfd.Normal(mean, std)
             dist = tfd.TransformedDistribution(dist, TanhBijector())
             dist = tfd.Independent(dist, 1)
+            dist = SampleDist(dist)
+
         return dist
 
 
@@ -158,10 +162,7 @@ class Encoder(Module):
     def __init__(self, name='encoder'):
         super().__init__(name=name)
 
-        has_cnn = config.get('has_cnn')
-        activation = config.get('activation', 'relu')
-
-        if has_cnn:
+        if setattr(self, '_has_cnn', None):
             self._layers = ConvEncoder(time_distributed=True)
         else:
             self._layers = mlp(self._units_list, activation=self._activation)
@@ -174,13 +175,11 @@ class Encoder(Module):
         
 class Decoder(Module):
     @config
-    def __init__(self, out_dim=1, dist=None, name='decoder'):
+    def __init__(self, out_dim=1, dist='normal', name='decoder'):
         super().__init__(name=name)
 
         self._dist = dist
-        self._has_cnn = getattr(self, '_has_cnn', False)
-
-        if self._has_cnn:
+        if setattr(self, '_has_cnn', None):
             self._layers = ConvDecoder(time_distributed=True)
         else:
             self._layers = mlp(self._units_list,
@@ -195,7 +194,7 @@ class Decoder(Module):
                 return tfd.Normal(x, 1)
             if self._dist == 'binary':
                 return tfd.Bernoulli(x)
-            return NotImplementedError(self._dist)
+            raise NotImplementedError(self._dist)
 
         return x
 
@@ -258,17 +257,17 @@ class ConvDecoder(layers.Layer):
 
 
 def create_model(model_config, obs_shape, action_dim, is_action_discrete):
-    encoder_config = model_config.get('encoder')
+    encoder_config = model_config['encoder']
     rssm_config = model_config['rssm']
-    decoder_config = model_config.get('decoder')
+    decoder_config = model_config['decoder']
     reward_config = model_config['reward']
     value_config = model_config['value']
     actor_config = model_config['actor']
-    term_config = model_config.get('term')
+    term_config = model_config.get('terminal')
     models = dict(
         encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),
-        decoder=Decoder(decoder_config),
+        decoder=Decoder(decoder_config, out_dim=obs_shape[0]),
         reward=Decoder(reward_config, dist='normal'),
         value=Decoder(value_config, dist='normal'),
         actor=Actor(actor_config, obs_shape, action_dim, is_action_discrete)
@@ -276,8 +275,6 @@ def create_model(model_config, obs_shape, action_dim, is_action_discrete):
 
     if term_config:
         models['term'] = Decoder(term_config, dist='binary')
-    assert (('encoder' in models and 'decoder' in models) 
-        or ('encoder' not in models and 'decoder' not in models))
     return models
 
 if __name__ == '__main__':
@@ -292,15 +289,23 @@ if __name__ == '__main__':
 
     tf.random.set_seed(0)
     rssm = RSSM(rssm_config)
-    action = tf.random.normal((bs, steps, act_dim))
-    embed = tf.random.normal((bs, steps, embed_dim))
+    # action = tf.random.normal((bs, steps, act_dim))
+    # embed = tf.random.normal((bs, steps, embed_dim))
 
-    prior = rssm.imagine(action)
-    print('prior', prior)
-    post, prior = rssm.observe(embed, action)
-    print('prior', prior)
-    print('post', post)
-
+    # prior = rssm.imagine(action)
+    # print('prior', prior)
+    # post, prior = rssm.observe(embed, action)
+    # print('prior', prior)
+    # print('post', post)
+    from core.tf_config import build
+    TS = dict(
+        embed=([None, embed_dim], tf.float32, 'embed'),
+        action=([None, act_dim], tf.float32, 'action'),
+    )
+    # build(rssm.observe, TS, batch_size=bs)
+    rssm.observe.get_concrete_function(
+        tf.TensorSpec((bs, None, embed_dim), tf.float32, 'embed'),
+        tf.TensorSpec((bs, None, act_dim), tf.float32, 'action'),)
     # actor_config = dict(
     #     units_list=[3, 3],
     #     norm=None, 
@@ -323,3 +328,4 @@ if __name__ == '__main__':
     # )
     # decoder = Decoder(decoder_config, dist='normal')
     # print(decoder(feat).sample())
+    
