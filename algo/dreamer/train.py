@@ -1,8 +1,9 @@
+import os
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.mixed_precision import experimental as prec
 
-from core.tf_config import configure_gpu, configure_precision
+from core.tf_config import configure_gpu, configure_precision, hide_tf_logs
 from utility.utils import set_global_seed, Every
 from env.gym_env import create_gym_env
 from replay.func import create_replay
@@ -24,17 +25,18 @@ def train(agent, env, replay):
     ))
     start_step = agent.global_steps.numpy() + 1
 
-    print('Training started...')
     step = start_step
     should_log = Every(agent.LOG_INTERVAL)
     should_train = Every(agent.TRAIN_INTERVAL)
     already_done = np.zeros(env.n_envs, np.bool)
     obs = env.reset()
+    print('Training started...')
     while step < int(agent.MAX_STEPS):
         agent.set_summary_step(step)
         action = agent(obs, already_done)
         obs, reward, done, info = env.step(action)
         already_done = env.get_already_done()
+        np.testing.assert_equal(env.get_mask(), 1)
         if already_done.any():
             idxes = [idx for idx, d in enumerate(already_done) if d]
             for i in idxes:
@@ -49,24 +51,28 @@ def train(agent, env, replay):
             agent.learn_log(step)
 
         if should_log(step):
-            agent.save(steps=step)
-
-            # eval_score, eval_epslen = run(eval_env, agent, 
-            #     evaluation=True, timer=agent.TIMER, name='eval')
+            train_state, train_action = agent.retrieve_states()
+            agent.reset_states(None, None)
+            eval_score, eval_epslen = run(eval_env, agent, 
+                evaluation=True, timer=agent.TIMER, name='eval')
             
-            # agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
+            agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
             agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
             agent.store(**agent.get_value('epslen', mean=True, std=True, min=True, max=True))
-            # agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
-            # agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
+            agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
 
             agent.log(step)
+            agent.save(steps=step)
+
+            agent.reset_states(train_state, train_action)
 
 def main(env_config, model_config, agent_config, 
         replay_config, restore=False, render=False):
     set_global_seed(seed=env_config['seed'], tf=tf)
     configure_gpu()
     configure_precision(agent_config['precision'])
+    hide_tf_logs()
 
     env = create_gym_env(env_config)
 

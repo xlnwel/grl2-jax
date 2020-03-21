@@ -24,8 +24,9 @@ class Agent(BaseAgent):
         self._ckpt_models['optimizer'] = self._optimizer
 
         # previous and current state of LSTM
-        self.prev_state = None   # for training
-        self.curr_state = None   # for environment interaction
+        self.initial_state = self.ac.get_initial_state(batch_size=env.n_envs)
+        self.prev_state = self.initial_state   # for training
+        self.curr_state = self.initial_state   # for environment interaction
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = [
@@ -37,6 +38,8 @@ class Agent(BaseAgent):
             ((), tf.float32, 'old_logpi'),
             ((), tf.float32, 'mask'),
             ((), tf.float32, 'n'),
+            ((), tf.float32, 'h'),
+            ((), tf.float32, 'c'),
         ]
         self.learn = build(
             self._learn, 
@@ -46,8 +49,10 @@ class Agent(BaseAgent):
         )
 
     def reset_states(self, states=None):
+        if states is None:
+            states = self.initial_state
         self.prev_state = self.curr_state = states
-
+        
     def __call__(self, obs, deterministic=False, update_curr_state=True):
         obs = tf.convert_to_tensor(obs, tf.float32)
         if deterministic:
@@ -68,7 +73,7 @@ class Agent(BaseAgent):
             value = data['value']
             data = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
             with tf.name_scope('train'):
-                state, terms = self.learn(**data, prev_state=self.prev_state)
+                state, terms = self.learn(**data, h=self.prev_state[0], c=self.prev_state[1])
 
             terms = {k: v.numpy() for k, v in terms.items()}
             n_total_trans = value.size
@@ -98,9 +103,10 @@ class Agent(BaseAgent):
         self.prev_state = self.curr_state = state
 
     @tf.function
-    def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask=None, n=None, prev_state=None):
+    def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask=None, n=None, h=None, c=None):
         old_value = value
         with tf.GradientTape() as tape:
+            prev_state = [h, c]
             action_dist, value, state = self.ac.train_step(obs, prev_state)
             logpi = action_dist.log_prob(action)
             entropy = action_dist.entropy()

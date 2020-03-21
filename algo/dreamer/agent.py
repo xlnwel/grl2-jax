@@ -26,6 +26,8 @@ class Agent(BaseAgent):
 
         # optimizer
         dynamics_models = [self.encoder, self.rssm, self.decoder, self.reward]
+        if hasattr(self, 'terminal'):
+            dynamics_models.append(self.terminal)
         opt_name = getattr(self, 'self._optimizer', 'adam')
         DreamerOpt = functools.partial(
             Optimizer, weight_decay=self._weight_decay, clip_norm=self._clip_norm
@@ -41,22 +43,22 @@ class Agent(BaseAgent):
         self.curr_state = None
         self.prev_action = None
 
-        self._obs_shape = env.obs_shape
-        self._action_shape = env.action_shape
+        self._obs_shape = (64, 64, 1)#env.obs_shape
+        self._action_dim = env.action_space.n
 
         # time dimension must be specified explicitly here
         # otherwise, InaccessibleTensorError arises when expanding rssm
-        TensorSpecs = dict(
-            obs=((self._length, *env.obs_shape), env.obs_dtype, 'obs'),
-            action=((self._length, *env.action_shape), env.action_dtype, 'action'),
-            reward=((self._length,), tf.float32, 'reward'),
-            done=((self._length,), tf.float32, 'done'),
-        )
+        # TensorSpecs = dict(
+        #     obs=((self._length, *self._obs_shape), tf.float32, 'obs'),
+        #     action=((self._length, self._action_dim), tf.float32, 'action'),
+        #     reward=((self._length,), tf.float32, 'reward'),
+        #     done=((self._length,), tf.float32, 'done'),
+        # )
 
-        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
+        # self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
-    def reset_states(self, states, prev_action):
-        self.curr_state = states
+    def reset_states(self, state, prev_action):
+        self.curr_state = state
         self.prev_action = prev_action
 
     def retrieve_states(self):
@@ -72,7 +74,7 @@ class Agent(BaseAgent):
     def action(self, obs, done, deterministic=False):
         if self.curr_state is None and self.prev_action is None:
             self.curr_state = self.rssm.get_initial_state(batch_size=len(done))
-            self.prev_action = tf.zeros((len(done), *self._action_shape))
+            self.prev_action = tf.zeros((len(done), self._action_dim))
         obs = tf.expand_dims(obs, 1)
         embed = self.encoder(obs)
         embed = tf.squeeze(embed, 1)
@@ -98,10 +100,11 @@ class Agent(BaseAgent):
             terms = {k: v.numpy() for k, v in terms.items()}
             self.store(**terms)
 
-    @tf.function
+    # @tf.function
     def _learn(self, obs, action, reward, done):
         with tf.GradientTape() as model_tape:
             embed = self.encoder(obs)
+            # print(embed)
             post, prior = self.rssm.observe(embed, action, 
                 self.rssm.get_initial_state(batch_size=tf.shape(obs)[0]))
             feature = self.rssm.get_feat(post)
@@ -109,12 +112,16 @@ class Agent(BaseAgent):
             reward_pred = self.reward(feature)
             likelihoods = AttrDict()
             likelihoods.obs_loss = tf.reduce_mean(obs_pred.log_prob(obs))
+            # print(likelihoods.obs_loss)
             likelihoods.reward_loss = tf.reduce_mean(reward_pred.log_prob(reward))
-            if hasattr(self, 'term'):
-                term_pred = self.term(feature)
-                term_target = done
-                likelihoods.term_loss = (self._term_scale 
-                    * tf.reduce_mean(term_pred.log_prob(term_target)))
+            if hasattr(self, 'terminal'):
+                term_pred = self.terminal(feature)
+                term_target = self._gamma * done
+                # print(term_pred.sample())
+                # print(term_target)
+                # likelihoods.term_loss = (self._term_scale 
+                #     * tf.reduce_mean(term_pred.log_prob(term_target)))
+                # print(self._term_scale * term_pred.log_prob(term_target))
             prior_dist = self.rssm.get_dist(prior.mean, prior.std)
             post_dist = self.rssm.get_dist(post.mean, post.std)
             kl = tf.reduce_mean(tfd.kl_divergence(post_dist, prior_dist))
@@ -124,8 +131,8 @@ class Agent(BaseAgent):
         with tf.GradientTape() as actor_tape:
             imagined_feature = self._imagine_ahead(post)
             reward = self.reward(imagined_feature).mode()
-            if hasattr(self, 'term'):
-                discount = self.term(imagined_feature).mean()
+            if hasattr(self, 'terminal'):
+                discount = self.terminal(imagined_feature).mean()
             else:
                 discount = self._gamma * tf.ones_like(reward)
             value = self.value(imagined_feature).mode()
@@ -139,7 +146,7 @@ class Agent(BaseAgent):
             actor_loss = -tf.reduce_mean(discount * returns)
             
         with tf.GradientTape() as value_tape:
-            value_pred = self.value(imagined_feature[:-1])
+            value_pred = self.value(imagined_feature)[:-1]
             target = tf.stop_gradient(returns)
             value_loss = -tf.reduce_mean(discount * value_pred.log_prob(target))
 
@@ -164,7 +171,7 @@ class Agent(BaseAgent):
         return terms
 
     def _imagine_ahead(self, post):
-        if hasattr(self, 'term'):   # Omit the last step as it could be terminal
+        if hasattr(self, 'terminal'):   # Omit the last step as it could be terminal
             post = RSSMState(*[v[:, :-1] for v in post])
         # we merge the time dimension into the batch dimension 
         # since we treat each state as a starting state when imagining
@@ -183,30 +190,48 @@ class Agent(BaseAgent):
 if __name__ == '__main__':
     from utility.yaml_op import load_config
     from algo.dreamer.nn import create_model
-    from env.gym_env import create_gym_env
+    import gym
+    import os
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    tf.get_logger().setLevel('ERROR')
     config = load_config('algo/dreamer/config.yaml')
     env_config = config['env']
     model_config = config['model']
     agent_config = config['agent']
-    replay_config = config.get('buffer') or config.get('replay')
     
-    env = create_gym_env(env_config)
-    replay_config['batch_size'] = bs = 2
+    env = gym.make('BreakoutNoFrameskip-v4')
+    bs = 2
     steps = 3
-    obs_shape = env.obs_shape
-    act_dim = env.action_dim
-    embed_dim = 3
-    agent_config['horizon'] = 4
-    model_config['rssm'] = dict(
-        stoch_size=3, deter_size=2, hidden_size=2, activation='elu'
-    )
+    obs_shape = (64, 64, 1)
+    act_dim = env.action_space.n
     models = create_model(model_config, obs_shape, act_dim, True)
-    tf.random.set_seed(0)
-    agent = Agent(name='dreamer', config=agent_config, models=models, dataset=None, env=env)
     tf.random.set_seed(0)
     data = {}
     data['obs'] = tf.random.normal((bs, steps, *obs_shape))
     data['action'] = tf.random.normal((bs, steps, act_dim))
     data['reward'] = tf.random.normal((bs, steps))
     data['done'] = tf.random.normal((bs, steps))
-    agent.learn(**data)
+    # print('obs', data['obs'])
+    # print('action', data['action'])
+    # print('reward', data['reward'])
+    # print('done', data['done'])
+    agent = Agent(name='dreamer', config=agent_config, models=models, dataset=None, env=env)
+    terms = agent._learn(**data)
+    print('model_loss', terms['model_loss'])
+    print('actor_loss', terms['actor_loss'])
+    print('value_loss', terms['value_loss'])
+    print('model_norm', terms['model_norm'])
+    print('actor_norm', terms['actor_norm'])
+    print('value_norm', terms['value_norm'])
+    # data['obs'] = tf.random.normal((bs, steps, *obs_shape))
+    # data['action'] = tf.random.normal((bs, steps, act_dim))
+    # data['reward'] = tf.random.normal((bs, steps))
+    # data['done'] = tf.random.normal((bs, steps))
+    # terms = agent._learn(**data)
+    # print('model_loss', terms['model_loss'])
+    # print('actor_loss', terms['actor_loss'])
+    # print('value_loss', terms['value_loss'])
+    # print('model_norm', terms['model_norm'])
+    # print('actor_norm', terms['actor_norm'])
+    # print('value_norm', terms['value_norm'])
+    

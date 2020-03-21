@@ -43,7 +43,7 @@ class GridSearch:
                         f'{now.hour:02d}{now.minute:02d}-'
         else:
             timestamp = ''
-        dir_prefix = self.dir_prefix and f'{self.dir_prefix}-'                                    
+        dir_prefix = self.dir_prefix                                 
         self.agent_config['root_dir'] = (f'logs/'
                                         f'{timestamp}'
                                         f'{dir_prefix}'

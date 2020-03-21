@@ -10,41 +10,38 @@ env:
     seed: 0
 model:
     encoder:
-        has_cnn: False
-        units_list: [256]
-        activation: elu
+        has_cnn: True
+        # units_list: [256]
+        # activation: elu
     rssm:
-        stoch_size: 128
-        deter_size: 128
-        hidden_size: 128
+        stoch_size: 30
+        deter_size: 200
+        hidden_size: 200
         activation: elu
     reward:
-        units_list: [64]
+        units_list: [400, 400]
         activation: elu
     actor:
-        units_list: [128]
+        units_list: [400, 400, 400, 400]
         activation: elu
         init_std: 5
         min_std: 1.e-4
         mean_scale: 5
     value:
-        units_list: [128]
-        activation: elu
-    term:
-        units_list: [64]
+        units_list: [400, 400, 400]
         activation: elu
     decoder:
-        has_cnn: False
-        units_list: [256]
-        activation: elu
+        has_cnn: True
+        # units_list: [256]
+        # activation: elu
     terminal:
-        units_list: [64]
+        units_list: [400, 400, 400]
         activation: elu
 agent:
     algorithm: &algo dreamer
     polyak: .995
     precision: 32
-    batch_size: &bs 64
+    batch_size: &bs 256
     length: &length 50
 
     MAX_STEPS: 2.e+7
@@ -77,17 +74,12 @@ agent:
     # arguments for optimizer
     optimizer: adam
     precision: 32
-    clip_norm: 10
+    clip_norm: 100
     weight_decay: 0
-    model_lr: 1.e-3
-    actor_lr: 3.e-4
-    value_lr: 3.e-4
+    model_lr: 6.e-4
+    actor_lr: 8.e-5
+    value_lr: 8.e-5
     epsilon: 1.e-8
-    # clip_norm: 10
-    
-    # arguments for PER
-    per_alpha: 0.5
-    per_epsilon: 1.e-4
 
 replay:
     type: episodic                      # proportional or uniform

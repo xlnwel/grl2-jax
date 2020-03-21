@@ -1,3 +1,4 @@
+import os
 import tensorflow as tf
 
 from utility.display import pwc
@@ -32,6 +33,10 @@ def configure_threads(intra_num_threads, inter_num_threads):
 def configure_precision(precision=16):
     if precision == 16:
         tf.keras.mixed_precision.experimental.set_policy('mixed_float16')
+
+def hide_tf_logs():
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    tf.get_logger().setLevel('ERROR')
 
 def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
     """Construct a dict/list of TensorSpecs

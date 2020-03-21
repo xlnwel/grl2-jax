@@ -127,6 +127,8 @@ class RSSM(Module):
 class Actor(Module):
     @config
     def __init__(self, obs_shape, action_dim, is_action_discrete, name='actor'):
+        super().__init__(name=name)
+
         """ Network definition """
         out_dim = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(self._units_list, 
@@ -135,6 +137,7 @@ class Actor(Module):
 
         self._is_action_discrete = is_action_discrete
 
+    @tf.Module.with_name_scope
     def __call__(self, x):
         x = self._layers(x)
 
@@ -162,11 +165,12 @@ class Encoder(Module):
     def __init__(self, name='encoder'):
         super().__init__(name=name)
 
-        if setattr(self, '_has_cnn', None):
+        if getattr(self, '_has_cnn', None):
             self._layers = ConvEncoder(time_distributed=True)
         else:
             self._layers = mlp(self._units_list, activation=self._activation)
     
+    @tf.Module.with_name_scope
     def __call__(self, x):
         x = self._layers(x)
         
@@ -179,16 +183,17 @@ class Decoder(Module):
         super().__init__(name=name)
 
         self._dist = dist
-        if setattr(self, '_has_cnn', None):
+        if getattr(self, '_has_cnn', None):
             self._layers = ConvDecoder(time_distributed=True)
         else:
             self._layers = mlp(self._units_list,
                             out_dim=out_dim,
                             activation=self._activation)
     
+    @tf.Module.with_name_scope
     def __call__(self, x):
         x = self._layers(x)
-        if not self._has_cnn:
+        if not getattr(self, '_has_cnn', None):
             x = tf.squeeze(x)
             if self._dist == 'normal':
                 return tfd.Normal(x, 1)
@@ -268,13 +273,13 @@ def create_model(model_config, obs_shape, action_dim, is_action_discrete):
         encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),
         decoder=Decoder(decoder_config, out_dim=obs_shape[0]),
-        reward=Decoder(reward_config, dist='normal'),
-        value=Decoder(value_config, dist='normal'),
+        reward=Decoder(reward_config, dist='normal', name='reward'),
+        value=Decoder(value_config, dist='normal', name='value'),
         actor=Actor(actor_config, obs_shape, action_dim, is_action_discrete)
     )
 
     if term_config:
-        models['term'] = Decoder(term_config, dist='binary')
+        models['terminal'] = Decoder(term_config, dist='binary', name='terminal')
     return models
 
 if __name__ == '__main__':
