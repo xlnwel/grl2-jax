@@ -6,7 +6,7 @@ from core import tf_config
 from core.module import Ensemble
 from utility.display import pwc
 from utility.timer import TBTimer
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from algo.apex.buffer import create_local_buffer
 from algo.apex.base_worker import BaseWorker
 
@@ -25,7 +25,7 @@ class Worker(BaseWorker):
         tf_config.configure_threads(1, 1)
         tf_config.configure_gpu()
 
-        env = create_gym_env(env_config)
+        env = create_env(env_config)
         
         models = Ensemble(model_fn, model_config, env.obs_shape, env.action_dim, env.is_action_discrete)
         

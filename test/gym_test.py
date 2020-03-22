@@ -2,7 +2,7 @@ import random
 import numpy as np
 import ray
 
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from utility.timer import Timer
 
 
@@ -18,7 +18,7 @@ class TestClass:
     def test_Env(self):
         config = default_config.copy()
         config['n_envs'] = 1
-        env = create_gym_env(config)
+        env = create_env(config)
         d = False
         cr = 0
         n = 0
@@ -35,7 +35,7 @@ class TestClass:
     def test_EnVec(self):
         config = default_config.copy()
         config['n_envs'] = 5
-        env = create_gym_env(config)
+        env = create_env(config)
         d = False
         cr = np.zeros(env.n_envs)
         n = np.zeros(env.n_envs)
@@ -52,7 +52,7 @@ class TestClass:
         config = default_config.copy()
         config['n_envs'] = 5
         config['efficient_envvec'] = True
-        env = create_gym_env(config)
+        env = create_env(config)
         d = False
         cr = np.zeros(env.n_envs)
         n = np.zeros(env.n_envs)
@@ -75,7 +75,7 @@ class TestClass:
         config['n_envs'] = 2
         config['n_workers'] = 2
         n = 8
-        env = create_gym_env(config)
+        env = create_env(config)
         cr = np.zeros(env.n_envs)
         n = np.zeros(env.n_envs)
         s = env.reset()
@@ -93,7 +93,7 @@ class TestClass:
         config = default_config.copy()
         config['is_deepmind_env'] = True
         config['name'] = 'BreakoutNoFrameskip-v4'
-        env = create_gym_env(config)
+        env = create_env(config)
         d = False
         cr = 0
         n = 0
@@ -118,7 +118,7 @@ class TestClass:
         config = default_config.copy()
         for name in ['BipedalWalkerHardcore-v2', 'BreakoutNoFrameskip-v4']:
             config['name'] = name
-            env = create_gym_env(config)
+            env = create_env(config)
             
             has_done = False
             s = env.reset()
@@ -139,7 +139,7 @@ class TestClass:
         config['auto_reset'] = True
         for name in ['BipedalWalkerHardcore-v2', 'BreakoutNoFrameskip-v4']:
             config['name'] = name
-            env = create_gym_env(config)
+            env = create_env(config)
             
             has_done = False
             s = env.reset()
@@ -159,7 +159,7 @@ class TestClass:
                 config['n_envs'] = n_envs
                 for name in ['BipedalWalkerHardcore-v2', 'BreakoutNoFrameskip-v4']:
                     config['name'] = name
-                    env = create_gym_env(config)
+                    env = create_env(config)
                     
                     has_done = False
                     s = env.reset()

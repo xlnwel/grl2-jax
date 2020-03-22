@@ -5,16 +5,24 @@ import numpy as np
 import gym
 from utility.utils import infer_dtype
 
-class TimeLimit(gym.Wrapper):
+
+class EnvSpec:
+    def __init__(self, max_episode_steps):
+        self.max_episode_steps = max_episode_steps
+
+class TimeLimit:
     def __init__(self, env, max_episode_steps=None):
-        super(TimeLimit, self).__init__(env)
-        self._max_episode_steps = max_episode_steps
+        self.env = env
+        self.spec = EnvSpec(max_episode_steps)
         self._elapsed_steps = 0
+
+    def __getattr__(self, name):
+        return getattr(self.env, name)
 
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
         self._elapsed_steps += 1
-        if self._elapsed_steps >= self._max_episode_steps:
+        if self._elapsed_steps >= self.spec.max_episode_steps:
             done = True
             info['TimeLimit.truncated'] = True
         return observation, reward, done, info
@@ -23,7 +31,37 @@ class TimeLimit(gym.Wrapper):
         self._elapsed_steps = 0
         return self.env.reset(**kwargs)
 
-class ClipActionsWrapper(gym.Wrapper):
+class NormalizeActions:
+    """ Normalize infinite action dimension in range [-1, 1] """
+    def __init__(self, env):
+        self._env = env
+        self._mask = np.logical_and(
+            np.isfinite(env.action_space.low),
+            np.isfinite(env.action_space.high))
+        self._low = np.where(self._mask, env.action_space.low, -1)
+        self._high = np.where(self._mask, env.action_space.high, 1)
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
+
+    @property
+    def action_space(self):
+        low = np.where(self._mask, -np.ones_like(self._low), self._low)
+        high = np.where(self._mask, np.ones_like(self._low), self._high)
+        return gym.spaces.Box(low, high, dtype=np.float32)
+
+    def step(self, action):
+        original = (action + 1) / 2 * (self._high - self._low) + self._low
+        original = np.where(self._mask, original, action)
+        return self._env.step(original)
+
+class ClipActionsWrapper:
+    def __init__(self, env):
+        self.env = env
+
+    def __getattr__(self, name):
+        return getattr(self.env, name)
+
     def step(self, action):
         action = np.nan_to_num(action)
         action = np.clip(action, self.action_space.low, self.action_space.high)
@@ -32,31 +70,35 @@ class ClipActionsWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
 
-class ActionRepetition(gym.Wrapper):
+class ActionRepeat:
     def __init__(self, env, n_ar=1):
-        print(f'Action repetition({n_ar})')
-        super().__init__(env)
+        self.env = env
         self.n_ar = n_ar
 
-    def step(self, action, n_ar=None, gamma=1):
-        rewards = 0
+    def __getattr__(self, name):
+        return getattr(self.env, name)
+
+    def step(self, action, n_ar=None):
+        total_reward = 0
         n_ar = n_ar or self.n_ar
         for i in range(1, n_ar+1):
             state, reward, done, info = self.env.step(action)
-
-            rewards += gamma**(i-1) * reward
+            total_reward += reward
             if done:
                 break
         info['n_ar'] = i
         
-        return state, rewards, done, info
+        return state, total_reward, done, info
 
-class EnvStats(gym.Wrapper):
+class EnvStats:
     """ Provide Environment Statistics Recording """
     def __init__(self, env, precision=32):
-        super().__init__(env)
+        self.env = env
         self.already_done = True
         self.precision = precision
+
+    def __getattr__(self, name):
+        return getattr(self.env, name)
 
     def reset(self):
         if getattr(self, 'was_real_done', True):
@@ -93,6 +135,9 @@ class EnvStats(gym.Wrapper):
     def get_epslen(self):
         return self.epslen
 
+    def get_already_done(self):
+        return self.already_done
+
     @property
     def is_action_discrete(self):
         return isinstance(self.env.action_space, gym.spaces.Discrete)
@@ -103,6 +148,7 @@ class EnvStats(gym.Wrapper):
 
     @property
     def obs_dtype(self):
+        """ this is not the observation's real dtype, but the desired dtype """
         return infer_dtype(self.observation_space.dtype, self.precision)
 
     @property
@@ -120,7 +166,13 @@ class EnvStats(gym.Wrapper):
 
 """ The following wrappers rely on already_done defined in EnvStats.
 Therefore, they should only be called after EnvStats """
-class LogEpisode(gym.Wrapper):
+class LogEpisode:
+    def __init__(self, env):
+        self.env = env
+
+    def __getattr__(self, name):
+        return getattr(self.env, name)
+
     def reset(self):
         obs = self.env.reset()
         transition = dict(
@@ -148,7 +200,13 @@ class LogEpisode(gym.Wrapper):
             info['episode'] = episode
         return obs, reward, done, info
 
-class AutoReset(gym.Wrapper):
+class AutoReset:
+    def __init__(self, env):
+        self.env = env
+
+    def __getattr__(self, name):
+        return getattr(self.env, name)
+
     def step(self, action, **kwargs):
         if self.already_done:
             state = self.env.reset()

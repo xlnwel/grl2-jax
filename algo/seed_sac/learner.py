@@ -7,7 +7,7 @@ import ray
 from core.tf_config import configure_gpu, configure_threads
 from utility.display import pwc
 from utility.timer import Timer
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import Dataset
 from algo.sac.nn import create_model
@@ -31,7 +31,7 @@ def create_learner(name, config, model_config, env_config, buffer_config):
             configure_threads(2, 2)
             configure_gpu()
  
-            env = create_gym_env(env_config)
+            env = create_env(env_config)
             buffer_keys = ['state', 'action', 'reward', 'done', 'steps']
             self.buffer = create_replay(buffer_config, *buffer_keys, env.obs_shape)
             dataset = Dataset(buffer, env.obs_shape, env.obs_dtype, env.action_shape, env.action_dtype)

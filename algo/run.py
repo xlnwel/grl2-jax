@@ -9,7 +9,7 @@ from env.wrappers import get_wrapper_by_name
 TIME_INTERVAL = 100000
 
 def run(env, actor, *, fn=None, evaluation=False, timer=False, name='run', epsilon=0, **kwargs):
-    if get_wrapper_by_name(env.env, 'ActionRepetition') is None or env.env.n_ar:
+    if get_wrapper_by_name(env.env, 'ActionRepeat') is None or env.env.n_ar:
         if isinstance(env, Env):
             return run_trajectory(env, actor, fn=fn, 
                 evaluation=evaluation, timer=timer, 

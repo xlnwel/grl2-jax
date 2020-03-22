@@ -18,7 +18,7 @@ class EpisodicReplay:
         return self._type
 
     def good_to_learn(self):
-        return len(self._memory) > self._batch_size
+        return len(self._memory) >= self._min_episodes
 
     def __len__(self):
         return len(self._memory)
@@ -85,6 +85,7 @@ class EpisodicReplay:
                 if filename in self._memory:
                     del self._memory[filename]
             filenames = filenames[start:]
+            print(f'{start} files are removed')
 
 if __name__ == '__main__':
     import shutil

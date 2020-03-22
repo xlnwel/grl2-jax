@@ -6,7 +6,7 @@ from core.module import Ensemble
 from core.tf_config import configure_gpu, configure_threads, configure_precision
 from utility.display import pwc
 from utility.timer import TBTimer
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from replay.data_pipline import DataFormat, RayDataset
 
 
@@ -25,7 +25,7 @@ def get_learner_class(BaseAgent):
             configure_gpu()
             configure_precision(getattr(self, 'precision', 16))
 
-            env = create_gym_env(env_config)
+            env = create_env(env_config)
             data_format = dict(
                 obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
                 action=DataFormat((None, *env.action_shape), env.action_dtype),

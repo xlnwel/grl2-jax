@@ -286,10 +286,10 @@ def make_video_env(env_id, max_episode_steps=None):
     return env
 
 
-def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=True, scale_frame=False, **kwargs):
+def wrap_deepmind(env, episodic_life=True, clip_rewards=True, frame_stack=True, scale_frame=False, **kwargs):
     """Configure environment for DeepMind-style Atari.
     """
-    if episode_life:
+    if episodic_life:
         env = EpisodicLifeEnv(env)
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)

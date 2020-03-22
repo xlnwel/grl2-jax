@@ -6,7 +6,7 @@ import ray
 
 from utility.display import pwc
 from utility.timer import Timer
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from core import log
 
 
@@ -18,7 +18,7 @@ class Worker:
         self.id = worker_id
         self.n_envs = env_config['n_envs']
         env_config['n_workers'] = env_config['n_envs'] = 1
-        self.envs = [create_gym_env(env_config) for _ in range(self.n_envs)]
+        self.envs = [create_env(env_config) for _ in range(self.n_envs)]
         self.states = [()] * self.n_envs
         self.action_queue = Queue(self.n_envs)
 

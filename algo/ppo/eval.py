@@ -6,7 +6,7 @@ from utility.display import pwc
 from utility.utils import set_global_seed
 from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 
 
 def import_model_fn(algorithm):
@@ -45,7 +45,7 @@ def main(env_config, model_config, agent_config, render=False):
     set_global_seed()
     configure_gpu()
 
-    env = create_gym_env(env_config)
+    env = create_env(env_config)
 
     ac = create_model(
         model_config, 

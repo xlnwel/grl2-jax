@@ -7,7 +7,7 @@ from core.tf_config import configure_gpu
 from utility.signal import sigint_shutdown_ray
 from utility.timer import TBTimer
 from utility.utils import step_str
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import Dataset
 from algo.run import run, random_sampling
@@ -79,13 +79,13 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     set_global_seed()
     configure_gpu()
 
-    env = create_gym_env(env_config)
+    env = create_env(env_config)
     eval_env_config = env_config.copy()
     # eval_env_config['log_video'] = True
     eval_env_config['seed'] = np.random.randint(100, 1000)
     eval_env_config['n_envs'] = 50
     eval_env_config['efficient_envvec'] = True
-    eval_env = create_gym_env(eval_env_config)
+    eval_env = create_env(eval_env_config)
     # construct replay
     replay_keys = ['obs', 'action', 'reward', 'done', 'steps']
     replay = create_replay(replay_config, *replay_keys, obs_shape=env.obs_shape)

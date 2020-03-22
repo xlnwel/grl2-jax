@@ -5,9 +5,7 @@ import gym
 import ray
 
 from utility import tf_distributions
-from utility.display import pwc
 from utility.utils import isscalar, convert_dtype
-from utility.timer import Timer
 from env.wrappers import *
 from env.deepmind_wrappers import make_deepmind_env
 
@@ -20,67 +18,52 @@ def action_dist_type(env):
     else:
         raise NotImplementedError
 
-def create_gym_env(config):
+def _make_env(config):
+    if config.get('is_deepmind_env', False):
+        env = make_deepmind_env(config)
+    else:
+        env = gym.make(config['name'])
+        max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
+        if max_episode_steps < env.spec.max_episode_steps:
+            env = TimeLimit(env, max_episode_steps)
+        if config.get('log_video', False):
+            print(f'video will be logged at {config["video_path"]}')
+            env = gym.wrappers.Monitor(env, config['video_path'], force=True)
+        if config.get('action_repetition'):
+            env = ActionRepeat(env, config['n_ar'])
+        env = EnvStats(env, config.get('precision', 32))
+        if config.get('log_episode'):
+            env = LogEpisode(env)
+        if config.get('auto_reset'):
+            env = AutoReset(env)
+    env.seed(config.get('seed', 42))
+
+    return env
+
+def create_env(config, env_fn=_make_env):
     EnvType = Env if config.get('n_envs', 1) == 1 else EnvVec
     if config.get('n_workers', 1) == 1:
         if EnvType == EnvVec and config.get('efficient_envvec', False):
             EnvType = EfficientEnvVec
-        return EnvType(config)
+        return EnvType(config, env_fn)
     else:
-        return RayEnvVec(EnvType, config)
+        return RayEnvVec(EnvType, config, env_fn)
 
 
-class EnvBase:
-    @property
-    def already_done(self):
-        return self.env.already_done
-
-    @property
-    def is_action_discrete(self):
-        return self.env.is_action_discrete
-
-    @property
-    def obs_shape(self):
-        return self.env.obs_shape
-
-    @property
-    def obs_dtype(self):
-        return self.env.obs_dtype
-
-    @property
-    def action_space(self):
-        return self.env.action_space
-
-    @property
-    def action_shape(self):
-        return self.env.action_shape
-
-    @property
-    def action_dtype(self):
-        return self.env.action_dtype
-
-    @property
-    def action_dim(self):
-        return self.env.action_dim
-
-
-class Env(EnvBase):
-    def __init__(self, config):
+class Env:
+    def __init__(self, config, env_fn=_make_env):
         self.name = config['name']
-        self.env = _make_env(config)
+        self.env = env_fn(config)
         self.max_episode_steps = self.env.spec.max_episode_steps
+
+    def __getattr__(self, name):
+        return getattr(self.env, name)
 
     @property
     def n_envs(self):
         return 1
 
-    def seed(self, i):
-        self.env.seed(i)
-
-    def reset(self):
-        return self.env.reset().astype(self.obs_dtype)
-
-    def random_action(self):
+    def random_action(self, **kwargs):
         action = self.env.action_space.sample()
         return action
         
@@ -89,36 +72,24 @@ class Env(EnvBase):
 
         return state.astype(self.obs_dtype), np.float32(reward), done, info
 
-    def render(self):
-        return self.env.render()
-
-    def get_mask(self):
-        """ Get mask at the current step. Should only be called after self.step """
-        return self.env.get_mask()
-
-    def get_score(self):
-        return self.env.get_score()
-
-    def get_epslen(self):
-        return self.env.get_epslen()
-
-    def ge_already_done(self):
-        return self.env.already_done
-
     def close(self):
         del self
 
 
-class EnvVec(EnvBase):
-    def __init__(self, config):
+class EnvVec:
+    def __init__(self, config, env_fn=_make_env):
         self.n_envs = n_envs = config['n_envs']
         self.name = config['name']
-        self.envs = [_make_env(config) for i in range(n_envs)]
-        [env.seed(config['seed'] + i) for i, env in enumerate(self.envs)]
+        self.envs = [env_fn(config) for i in range(n_envs)]
+        if 'seed' in config:
+            [env.seed(config['seed'] + i) for i, env in enumerate(self.envs)]
         self.env = self.envs[0]
         self.max_episode_steps = self.env.spec.max_episode_steps
 
-    def random_action(self):
+    def __getattr__(self, name):
+        return getattr(self.env, name)
+
+    def random_action(self, **kwargs):
         return convert_dtype([env.action_space.sample() for env in self.envs], dtype=self.action_dtype, copy=False)
 
     def reset(self):
@@ -170,8 +141,8 @@ class EfficientEnvVec(EnvVec):
                 info)
 
 
-class RayEnvVec(EnvBase):
-    def __init__(self, EnvType, config):
+class RayEnvVec:
+    def __init__(self, EnvType, config, env_fn=_make_env):
         self.name = config['name']
         self.n_workers= config['n_workers']
         self.envsperworker = config['n_envs']
@@ -179,17 +150,24 @@ class RayEnvVec(EnvBase):
 
         RayEnvType = ray.remote(EnvType)
         # leave the name "envs" for consistency, albeit workers seems more appropriate
-        self.envs = [config.update({'seed': 100*i}) or RayEnvType.remote(config.copy()) 
+        if 'seed' in config:
+            self.envs = [config.update({'seed': 100*i}) or RayEnvType.remote(config.copy(), env_fn) 
+                    for i in range(self.n_workers)]
+        else:
+            self.envs = [RayEnvType.remote(config.copy(), env_fn) 
                     for i in range(self.n_workers)]
 
-        self.env = EnvType(config)
+        self.env = EnvType(config, env_fn)
         self.max_episode_steps = self.env.max_episode_steps
+
+    def __getattr__(self, name):
+        return getattr(self.env, name)
 
     def reset(self):
         return np.reshape(ray.get([env.reset.remote() for env in self.envs]), 
                           (self.n_envs, *self.obs_shape))
 
-    def random_action(self):
+    def random_action(self, **kwargs):
         return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
                           (self.n_envs, *self.action_shape))
 
@@ -227,29 +205,6 @@ class RayEnvVec(EnvBase):
 
     def close(self):
         del self
-
-
-def _make_env(config):
-    if config.get('is_deepmind_env', False):
-        env = make_deepmind_env(config)
-    else:
-        env = gym.make(config['name'])
-        max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
-        if max_episode_steps < env.spec.max_episode_steps:
-            env = TimeLimit(env, max_episode_steps)
-        if config.get('log_video', False):
-            pwc(f'video will be logged at {config["video_path"]}', color='cyan')
-            env = gym.wrappers.Monitor(env, config['video_path'], force=True)
-        if config.get('action_repetition'):
-            env = ActionRepetition(env, config.get('n_ar'))
-        env = EnvStats(env, config.get('precision', 32))
-        if config.get('log_episode'):
-            env = LogEpisode(env)
-        if config.get('auto_reset'):
-            env = AutoReset(env)
-    env.seed(config.get('seed', 42))
-
-    return env
     
 def _envvec_step(envvec, actions, **kwargs):
     if kwargs:
@@ -274,7 +229,7 @@ if __name__ == '__main__':
         seed=0
     )
 
-    env = create_gym_env(default_config)
+    env = create_env(default_config)
     o = env.reset()
     eps = [dict(
         obs=o,

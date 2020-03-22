@@ -142,8 +142,8 @@ class Actor(Module):
         x = self._layers(x)
 
         if self._is_action_discrete:
-            # dist = Categorical(x)
-            dist = OneHotDist(x)
+            dist = Categorical(x)
+            # dist = OneHotDist(x)    # TODO
         else:
             raw_init_std = np.log(np.exp(self._init_std) - 1)
             mean, std = tf.split(x, 2, -1)

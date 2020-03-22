@@ -5,7 +5,7 @@ from core.tf_config import configure_gpu
 from utility.utils import set_global_seed
 from utility.signal import sigint_shutdown_ray
 from utility.timer import Timer
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from algo.ppo.buffer import PPOBuffer
 from algo.ppo.eval import evaluate
 
@@ -49,7 +49,7 @@ def import_buffer(algorithm):
 def train(agent, buffer, env, run):
     start_epoch = agent.global_steps.numpy()+1
     
-    eval_env = create_gym_env(dict(
+    eval_env = create_env(dict(
         name=env.name, 
         video_path='video',
         log_video=False,
@@ -99,7 +99,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
         ray.init()
         sigint_shutdown_ray()
 
-    env = create_gym_env(env_config)
+    env = create_env(env_config)
     
     buffer = PPOBuffer(buffer_config, env.n_envs, env.max_episode_steps)
 

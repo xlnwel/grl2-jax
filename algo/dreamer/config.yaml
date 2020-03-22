@@ -1,13 +1,15 @@
 ---
 env:
-    name: BipedalWalker-v3
+    name: dmc_walker_walk
     video_path: video
     log_video: False
-    n_envs: 8
-    efficient_envvec: False
+    n_workers: 1
+    n_envs: 2
     log_episode: True
     auto_reset: True
-    seed: 0
+    n_ar: 2
+    max_episode_steps: 1000
+    precision: &prec 32
 model:
     encoder:
         has_cnn: True
@@ -35,18 +37,18 @@ model:
         # units_list: [256]
         # activation: elu
     terminal:
-        units_list: [400, 400, 400]
-        activation: elu
+        # units_list: [400, 400, 400]
+        # activation: elu
 agent:
     algorithm: &algo dreamer
     polyak: .995
-    precision: 32
-    batch_size: &bs 256
+    precision: *prec
+    batch_size: &bs 50
     length: &length 50
 
     MAX_STEPS: 2.e+7
     TIME_INTERVAL: 100
-    LOG_INTERVAL: 10000
+    LOG_INTERVAL: 3000
     TRAIN_INTERVAL: 1000
     TIMER: False
     n_updates: 8
@@ -68,14 +70,10 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    loss_type: mse                          # huber or mse
-    tbo: False                               # transformed Bellman Operator
-
     # arguments for optimizer
     optimizer: adam
-    precision: 32
-    clip_norm: 100
-    weight_decay: 0
+    clip_norm: 100.
+    weight_decay: 0.
     model_lr: 6.e-4
     actor_lr: 8.e-5
     value_lr: 8.e-5
@@ -88,3 +86,4 @@ replay:
     batch_size: *bs
     length: *length
     max_episodes: 500
+    min_episodes: 5

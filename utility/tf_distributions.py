@@ -118,6 +118,9 @@ class Categorical(Distribution):
 
         return kl
 
+    def mode(self):
+        return tf.argmax(logits, -1)
+
 
 class DiagGaussian(Distribution):
     def __init__(self, mean, logstd):

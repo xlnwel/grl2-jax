@@ -4,7 +4,7 @@ import ray
 
 from utility.signal import sigint_shutdown_ray
 from utility.yaml_op import load_config
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from replay.func import create_replay_center
 from algo.apex.actor import create_learner, create_worker
 

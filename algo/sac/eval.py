@@ -6,7 +6,7 @@ from core.tf_config import configure_gpu
 from utility.display import pwc
 from utility.utils import set_global_seed
 from utility.signal import sigint_shutdown_ray
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from algo.run import run
 from algo.sac.nn import SoftPolicy
 
@@ -20,7 +20,7 @@ def main(env_config, model_config, agent_config, render=False):
         ray.init()
         sigint_shutdown_ray()
         
-    env = create_gym_env(env_config)
+    env = create_env(env_config)
     n_envs = env_config['n_envs'] * env_config['n_workers']
 
     actor = SoftPolicy(model_config['actor'],

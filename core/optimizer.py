@@ -41,10 +41,6 @@ class Optimizer(tf.Module):
             context = tf.distribute.get_replica_context()
             context.merge_call(self._apply_weight_decay)
         self._opt.apply_gradients(zip(grads, self._variables))
-        for var, g in zip(self._variables, grads):
-            if 'encoder' in var.name:
-                print(g)
-                break
         return norm
     
     def _apply_weight_decay(self, strategy):

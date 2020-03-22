@@ -4,7 +4,7 @@ from tensorflow.keras.mixed_precision import experimental as prec
 
 from core.tf_config import configure_gpu, configure_precision
 from utility.utils import set_global_seed, Every
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import DataFormat, Dataset
 from algo.run import run, random_sampling
@@ -17,7 +17,7 @@ def train(agent, env, replay):
         replay.add(**kwargs)
         agent.learn_log(step)
 
-    eval_env = create_gym_env(dict(
+    eval_env = create_env(dict(
         name=env.name, 
         video_path='video',
         log_video=False,
@@ -59,7 +59,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
 
-    env = create_gym_env(env_config)
+    env = create_env(env_config)
     replay = create_replay(replay_config)
 
     data_format = dict(
@@ -104,7 +104,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup
     # obs = env.reset()
-    # eval_env = create_gym_env(dict(
+    # eval_env = create_env(dict(
     #     name=env.name, 
     #     video_path='video',
     #     log_video=False,

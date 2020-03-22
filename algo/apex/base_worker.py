@@ -6,7 +6,7 @@ from utility.rl_utils import n_step_target
 from core import tf_config
 from core.decorator import agent_config
 from core.base import BaseAgent
-from env.gym_env import create_gym_env
+from env.gym_env import create_env
 from algo.run import run
 
 
