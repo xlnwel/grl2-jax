@@ -43,7 +43,7 @@ class RSSM(Module):
             self._hidden_size, 
             activation=self._activation,
             name='embed')
-        self._cell = layers.GRUCell(self._deter_size)
+        self.cell = layers.GRUCell(self._deter_size)
         self.img_layers = mlp(
             [self._hidden_size], 
             out_dim=2*self._stoch_size, 
@@ -59,6 +59,7 @@ class RSSM(Module):
     def observe(self, embed, action, state=None):
         if state is None:
             state = self.get_initial_state(batch_size=tf.shape(action)[0])
+        # make tensors time-major
         embed = tf.transpose(embed, [1, 0, 2])
         action = tf.transpose(action, [1, 0, 2])
         post, prior = static_scan(
@@ -101,7 +102,7 @@ class RSSM(Module):
             mean=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
             std=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
             stoch=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
-            deter=self._cell.get_initial_state(inputs, batch_size, dtype))
+            deter=self.cell.get_initial_state(inputs, batch_size, dtype))
         
     def get_feat(self, state):
         return tf.concat([state.stoch, state.deter], -1)
@@ -112,7 +113,7 @@ class RSSM(Module):
     def _compute_deter_state(self, prev_state, prev_action):
         x = tf.concat([prev_state.stoch, prev_action], -1)
         x = self.embed_layer(x)
-        x, deter = self._cell(x, tf.nest.flatten(prev_state.deter))
+        x, deter = self.cell(x, tf.nest.flatten(prev_state.deter))
         deter = deter[-1]
         return x, deter
 
@@ -194,11 +195,12 @@ class Decoder(Module):
     def __call__(self, x):
         x = self._layers(x)
         if not getattr(self, '_has_cnn', None):
+            rbd = 0 if x.shape[-1] == 1 else 1  # #reinterpreted batch dimensions
             x = tf.squeeze(x)
             if self._dist == 'normal':
-                return tfd.Normal(x, 1)
+                return tfd.Independent(tfd.Normal(x, 1), rbd)
             if self._dist == 'binary':
-                return tfd.Bernoulli(x)
+                return tfd.Independent(tfd.Bernoulli(x), rbd)
             raise NotImplementedError(self._dist)
 
         return x
@@ -233,7 +235,7 @@ class ConvEncoder(layers.Layer):
 
 class ConvDecoder(layers.Layer):
     def __init__(self, *, time_distributed=False, name='dreamer_cnntrans', **kwargs):
-        """ Hardcode CNN: Assume image of shape (64 ⨉ 64 ⨉ 3) by default """
+        """ Hardcode CNN: Assume images of shape (64 ⨉ 64 ⨉ 3) by default """
         super().__init__(name=name)
 
         deconv2d = lambda *args, **kwargs: (
@@ -241,7 +243,7 @@ class ConvDecoder(layers.Layer):
             if time_distributed else
             layers.Conv2DTranspose(*args, **kwargs)
         )
-        self._depth = depth = 32
+        depth = 32
         kwargs = dict(strides=2, activation='relu')
         self._dense = layers.Dense(32 * depth)
         self.deconv1 = deconv2d(4 * depth, 5, **kwargs)
@@ -251,7 +253,7 @@ class ConvDecoder(layers.Layer):
 
     def call(self, x):
         x = self._dense(x)
-        shape = tf.concat([tf.shape(x)[:-1], [1, 1, 32 * self._depth]], 0)
+        shape = tf.concat([tf.shape(x)[:-1], [1, 1, x.shape[-1]]], 0)
         x = tf.reshape(x, shape)
         x = self.deconv1(x)
         x = self.deconv2(x)
@@ -273,8 +275,8 @@ def create_model(model_config, obs_shape, action_dim, is_action_discrete):
         encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),
         decoder=Decoder(decoder_config, out_dim=obs_shape[0]),
-        reward=Decoder(reward_config, dist='normal', name='reward'),
-        value=Decoder(value_config, dist='normal', name='value'),
+        reward=Decoder(reward_config, name='reward'),
+        value=Decoder(value_config, name='value'),
         actor=Actor(actor_config, obs_shape, action_dim, is_action_discrete)
     )
 
@@ -302,15 +304,7 @@ if __name__ == '__main__':
     # post, prior = rssm.observe(embed, action)
     # print('prior', prior)
     # print('post', post)
-    from core.tf_config import build
-    TS = dict(
-        embed=([None, embed_dim], tf.float32, 'embed'),
-        action=([None, act_dim], tf.float32, 'action'),
-    )
-    # build(rssm.observe, TS, batch_size=bs)
-    rssm.observe.get_concrete_function(
-        tf.TensorSpec((bs, None, embed_dim), tf.float32, 'embed'),
-        tf.TensorSpec((bs, None, act_dim), tf.float32, 'action'),)
+
     # actor_config = dict(
     #     units_list=[3, 3],
     #     norm=None, 

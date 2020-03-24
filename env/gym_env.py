@@ -10,14 +10,6 @@ from env.wrappers import *
 from env.deepmind_wrappers import make_deepmind_env
 
 
-def action_dist_type(env):
-    if isinstance(env.action_space, gym.spaces.Discrete):
-        return tf_distributions.Categorical
-    elif isinstance(env.action_space, gym.spaces.Box):
-        return tf_distributions.DiagGaussian
-    else:
-        raise NotImplementedError
-
 def _make_env(config):
     if config.get('is_deepmind_env', False):
         env = make_deepmind_env(config)
@@ -40,8 +32,11 @@ def _make_env(config):
 
     return env
 
-def create_env(config, env_fn=_make_env):
-    EnvType = Env if config.get('n_envs', 1) == 1 else EnvVec
+def create_env(config, env_fn=_make_env, force_envvec=False):
+    if force_envvec:
+        EnvType = EnvVec
+    else:
+        EnvType = Env if config.get('n_envs', 1) == 1 else EnvVec
     if config.get('n_workers', 1) == 1:
         if EnvType == EnvVec and config.get('efficient_envvec', False):
             EnvType = EfficientEnvVec
@@ -63,7 +58,7 @@ class Env:
     def n_envs(self):
         return 1
 
-    def random_action(self, **kwargs):
+    def random_action(self, *args, **kwargs):
         action = self.env.action_space.sample()
         return action
         
@@ -89,7 +84,7 @@ class EnvVec:
     def __getattr__(self, name):
         return getattr(self.env, name)
 
-    def random_action(self, **kwargs):
+    def random_action(self, *args, **kwargs):
         return convert_dtype([env.action_space.sample() for env in self.envs], dtype=self.action_dtype, copy=False)
 
     def reset(self):
@@ -167,7 +162,7 @@ class RayEnvVec:
         return np.reshape(ray.get([env.reset.remote() for env in self.envs]), 
                           (self.n_envs, *self.obs_shape))
 
-    def random_action(self, **kwargs):
+    def random_action(self, *args, **kwargs):
         return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
                           (self.n_envs, *self.action_shape))
 

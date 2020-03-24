@@ -12,7 +12,7 @@ class EpisodicReplay:
         self._dir = Path(self._dir).expanduser()
         self._dir.mkdir(parents=True, exist_ok=True)
         self._memory = {}
-        self._length = getattr(self, '_length', None)
+        self._batch_length = getattr(self, '_batch_length', None)
     
     def buffer_type(self):
         return self._type
@@ -28,7 +28,7 @@ class EpisodicReplay:
             episodes = [episodes]
         timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
         for eps in episodes:
-            if self._length and len(next(iter(eps.values()))) < self._length + 1:
+            if self._batch_length and len(next(iter(eps.values()))) < self._batch_length + 1:
                 continue
             identifier = str(uuid.uuid4().hex)
             length = len(eps['reward'])
@@ -54,7 +54,7 @@ class EpisodicReplay:
                     try:
                         with filename.open('rb') as f:
                             episode = np.load(f)
-                            episode = {k: episode[k] for k in episode.keys()}
+                            episode = {k: episode[k] for k in episode.keys() if k in ['obs', 'action', 'reward', 'discount']}
                     except Exception as e:
                         print(f'Could not load episode: {e}')
                         continue
@@ -66,17 +66,17 @@ class EpisodicReplay:
         each time as there is little parallel we can do"""
         filename = random.choice(list(self._memory))
         episode = self._memory[filename]
-        if self._length:
+        if self._batch_length:
             total = len(next(iter(episode.values())))
-            available = total - self._length
+            available = total - self._batch_length
             if available < 1:
                 print(f'Skipped short episode of length {available}.')
             index = int(random.randint(0, available))
-            episode = {k: v[index: index + self._length] for k, v in episode.items()}
+            episode = {k: v[index: index + self._batch_length] for k, v in episode.items()}
         return episode
 
     def _remove_files(self):
-        if self._max_episodes > 0 and len(self._memory) > self._max_episodes:
+        if getattr(self, '_max_episodes', 0) > 0 and len(self._memory) > self._max_episodes:
             # remove some oldest files if the number of files stored exceeds maximum size
             filenames = sorted(self._memory)
             start = int(.1 * self._max_episodes)
@@ -89,17 +89,24 @@ class EpisodicReplay:
 
 if __name__ == '__main__':
     import shutil
-    directory = 'test_file'
     bs = 10
     sq = 20
-    state_shape = (2, )
-    replay = EpisodicReplay(directory, bs)
+    directory = 'test_dir'
+    config = dict(
+        dir=directory,
+        type='episodic',
+        batch_size=bs,
+        batch_length=sq,
+        min_episodes=3
+    )
+    state_shape = (2,)
+    replay = EpisodicReplay(config)
     episodes = [
         dict(
-            state=np.random.normal(size=(sq, *state_shape)),
-            reward=np.random.normal(size=(sq)),
+            obs=np.random.normal(size=(sq+10, *state_shape)),
+            reward=np.random.normal(size=(sq+10)),
         )
-        for _ in range(bs)
+        for _ in range(bs+10)
     ]
 
     replay.merge(episodes)
@@ -118,13 +125,20 @@ if __name__ == '__main__':
                 shutil.rmtree(directory)
     
     replay._memory.clear()
+    replay.load_data()
     
     for i in range(bs):
-        fn, eps = next(replay.sample())
+        fn, idx, eps = replay.sample()
         for k in eps.keys():
             try:
-                np.testing.assert_allclose(retrieved_episodes[fn][k], eps[k])
+                np.testing.assert_allclose(retrieved_episodes[fn][k][idx: idx+replay._batch_length], eps[k])
             except:
                 shutil.rmtree(directory)
+
+    filename, index, data = replay.sample()
+    data['obs'] = data['obs'] * 1000
+    print(data['obs'])
+
+    print(replay._memory[filename]['obs'][index:index+replay._batch_length])
 
     shutil.rmtree(directory)

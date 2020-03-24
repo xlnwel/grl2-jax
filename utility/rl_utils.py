@@ -51,7 +51,7 @@ def lambda_return(reward, value, discount, bootstrap, lambda_, axis=0):
     """
     if isinstance(discount, (int, float)):
         discount = discount * tf.ones_like(reward)
-    # used to swap axis and 0-th dimension
+    # used to swap axis with the 0-th dimension
     dims = list(range(reward.shape.ndims))
     dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
     if axis != 0:
@@ -61,7 +61,7 @@ def lambda_return(reward, value, discount, bootstrap, lambda_, axis=0):
     if bootstrap is None:
         bootstrap = tf.zeros_like(value[-1])
     next_values = tf.concat([value[1:], bootstrap[None]], 0)
-    # r + 𝛾 * v' * (1 - 𝝀)
+    # 1-step target: r + 𝛾 * v' * (1 - 𝝀)
     inputs = reward + discount * next_values * (1 - lambda_)
     # lambda function computes lambda return starting from the end
     returns = static_scan(

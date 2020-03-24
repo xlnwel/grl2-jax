@@ -82,13 +82,13 @@ class ActionRepeat:
         total_reward = 0
         n_ar = n_ar or self.n_ar
         for i in range(1, n_ar+1):
-            state, reward, done, info = self.env.step(action)
+            obs, reward, done, info = self.env.step(action)
             total_reward += reward
             if done:
                 break
         info['n_ar'] = i
         
-        return state, total_reward, done, info
+        return obs, total_reward, done, info
 
 class EnvStats:
     """ Provide Environment Statistics Recording """
@@ -115,15 +115,15 @@ class EnvStats:
             return np.zeros(self.obs_shape), 0, True, {}
         else:
             self.mask = 1 - self.already_done
-            state, reward, done, info = self.env.step(action)
+            obs, reward, done, info = self.env.step(action)
             self.score += 0 if self.already_done else reward
-            self.epslen += 0 if self.already_done else 1
+            self.epslen += 0 if self.already_done else info.get('n_ar', 1)
             self.already_done = done and getattr(self, 'was_real_done', True)
             # ignore done signal if the time limit is reached
             if self.epslen == self.env.spec.max_episode_steps:
                 done = False
 
-            return state, reward, done, info
+            return obs, reward, done, info
 
     def get_mask(self):
         """ Get mask at the current step. Should only be called after self.step """
@@ -169,6 +169,7 @@ Therefore, they should only be called after EnvStats """
 class LogEpisode:
     def __init__(self, env):
         self.env = env
+        self.prev_episode = {}
 
     def __getattr__(self, name):
         return getattr(self.env, name)
@@ -179,7 +180,7 @@ class LogEpisode:
             obs=obs,
             action=np.zeros(self.env.action_space.shape),
             reward=0.,
-            done=False
+            discount=True
         )
         self._episode = [transition]
         return obs
@@ -190,14 +191,14 @@ class LogEpisode:
             obs=obs,
             action=action,
             reward=reward,
-            done=done,
+            discount=bool(1-done),
             **kwargs
         )
         self._episode.append(transition)
         if self.already_done:
             episode = {k: np.array([t[k] for t in self._episode])
                 for k in self._episode[0]}
-            info['episode'] = episode
+            info['episode'] = self.prev_episode = episode
         return obs, reward, done, info
 
 class AutoReset:
@@ -209,14 +210,10 @@ class AutoReset:
 
     def step(self, action, **kwargs):
         if self.already_done:
-            state = self.env.reset()
-            reward = 0.
-            done = False
-            info = {}
-        else:
-            state, reward, done, info = self.env.step(action, **kwargs)
+            obs = self.env.reset()
+        obs, reward, done, info = self.env.step(action, **kwargs)
         
-        return state, reward, done, info
+        return obs, reward, done, info
 
 def get_wrapper_by_name(env, classname):
     currentenv = env

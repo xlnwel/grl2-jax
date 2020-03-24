@@ -63,7 +63,7 @@ class Worker:
                         f'epslen': np.mean(epslens), 
                         f'epslen_std': np.std(epslens), 
                     }
-                    learner.log_summary.remote(stats, episode)
+                    learner.scalar_summary.remote(stats, episode)
                     scores = []
                     epslens = []
 

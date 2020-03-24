@@ -4,6 +4,8 @@ import gym
 import threading
 
 from env import wrappers
+from env.gym_env import create_env
+
 
 class DeepMindControl:
 
@@ -147,9 +149,27 @@ def make_env(config):
             life_done=True, sticky_actions=True)
     else:
         raise NotImplementedError(suite)
-    env = wrappers.TimeLimit(env, config['max_episode_steps'] // config['n_ar'])
+    if 'max_episode_steps' in config:
+        env = wrappers.TimeLimit(env, config['max_episode_steps'])
     env = wrappers.EnvStats(env, config.get('precision', 32))
     env = wrappers.LogEpisode(env)
     env = wrappers.AutoReset(env)
 
     return env
+
+
+if __name__ == '__main__':
+    config= dict(
+        name='dmc_walker_walk',
+        n_workers=1,
+        n_envs=1,
+        log_episode=True,
+        auto_reset=True,
+        n_ar=2,
+        max_episode_steps=1000,
+    )
+    env = create_env(config, make_env)
+    s = env.reset()
+    for _ in range(1010):
+        s, r, d, i = env.step(env.random_action())
+        print(i)

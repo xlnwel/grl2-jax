@@ -123,27 +123,35 @@ def get_and_unpack(x):
 
     return results
 
-def squarest_grid_size(num_images, more_on_width=True):
-    """Calculates the size of the most square grid for num_images.
+def squarest_grid_size(n, more_on_width=True):
+    """Calculates the size of the most squared grid for n.
 
-    Calculates the largest integer divisor of num_images less than or equal to
-    sqrt(num_images) and returns that as the width. The height is
-    num_images / width.
+    Calculates the largest integer divisor of n less than or equal to
+    sqrt(n) and returns that as the width. The height is
+    n / width.
 
     Args:
-        num_images: The total number of images.
+        n: The total number of images.
         more_on_width: If cannot fit in a square, put more cells on width
     Returns:
         A tuple of (height, width) for the image grid.
     """
-    divisors = sympy.divisors(num_images)
-    square_root = math.sqrt(num_images)
-    for d in divisors:
-        if d > square_root:
-            break
-    h, w = (num_images // d, d) if more_on_width else (d, num_images // d)
+    # the following code is useful for large n, but it is not compatible with tf.numpy_function
+    # divisors = sympy.divisors(n)
+    # square_root = math.sqrt(n)
+    # for d in divisors:
+    #     if d > square_root:
+    #         break
 
-    return (h, w)
+    square_root = math.ceil(np.sqrt(n))
+    for d in range(square_root, n+1):
+        if n // d * d == n:
+            break
+    h, w = int(n // d), d
+    if not more_on_width:
+        h, w = w, h
+
+    return h, w
 
 def check_make_dir(path):
     _, ext = osp.splitext(path)

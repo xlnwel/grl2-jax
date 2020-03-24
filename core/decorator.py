@@ -46,14 +46,15 @@ def agent_config(init_fn):
             if isinstance(model, tf.Module) or isinstance(model, tf.Variable):
                 self._ckpt_models[name_] = model
                 
-        # Agent initialization
-        init_fn(self, **kwargs)
+        # define global steps for train/env step tracking
+        self.global_steps = tf.Variable(0, dtype=tf.int64)
 
         self._logger = setup_logger(self._root_dir, self._model_name)
         self._writer = setup_tensorboard(self._root_dir, self._model_name)
+        tf.summary.experimental.set_step(0)
 
-        # define global steps for train/env step tracking
-        self.global_steps = tf.Variable(0, dtype=tf.int64)
+        # Agent initialization
+        init_fn(self, **kwargs)
 
         if getattr(self, '_save_code', False):
             save_code(self._root_dir, self._model_name)

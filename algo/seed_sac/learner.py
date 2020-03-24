@@ -79,7 +79,7 @@ def create_learner(name, config, model_config, env_config, buffer_config):
                 with Timer('learn_log', TRAIN_TIME_PERIOD):
                     self.learn_log()
                 if step % 1000 == 0:
-                    self.log_summary(self._logger.get_stats(), step)
+                    self.scalar_summary(self._logger.get_stats(), step)
                     self.save(step)
         
         def _action_loop(self, workers):

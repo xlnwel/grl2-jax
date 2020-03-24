@@ -2,14 +2,15 @@ import os
 from pathlib import Path
 from random import shuffle
 import numpy as np
-from skimage import img_as_ubyte
 from skimage.data import imread
 from skimage.transform import resize
 from skimage.io import imsave
 import tensorflow as tf
 
-from utility.debug_tools import pwc, assert_colorize
-import utility.utils as utils
+from utility.display import pwc
+from utility import utils
+from utility.graph import merge
+
 
 def read_image(image_path, image_shape=None, preserve_range=True):
     image = imread(image_path)
@@ -29,41 +30,13 @@ def norm_image(image, norm_range=[0, 1]):
         raise NotImplementedError
 
 def save_image(images, path, size=None):
-    assert_colorize(images.shape.ndims == 4, f'images should be 4D, but get shape {images.shape}')
+    assert images.shape.ndims == 4, f'images should be 4D, but get shape {images.shape}'
     num_images = images.shape[0]
     if size is None:
         size = utils.squarest_grid_size(num_images)
     images = merge(images, size)
     utils.check_make_dir(path)
     imsave(path, images)
-
-def merge(images, size):
-    assert_colorize(images.shape.ndims == 4, f'images should be 4D, but get shape {images.shape}')
-    h, w = images.shape[1], images.shape[2]
-    image_type = images.dtype
-    if (images.shape[3] in (3,4)):
-        c = images.shape[3]
-        img = np.zeros((h * size[0], w * size[1], c), dtype=image_type)
-        for idx, image in enumerate(images):
-            i = idx % size[1]
-            j = idx // size[1]
-            img[j * h:j * h + h, i * w:i * w + w, :] = image
-        if np.issubdtype(image_type, np.uint8):
-            return img
-        if np.min(img) < 0:
-            # for image in range [-1, 1], make it in range [0, 1]
-            img = (img + 1) / 2
-        img = img_as_ubyte(img)
-        return img
-    elif images.shape[3]==1:
-        img = np.zeros((h * size[0], w * size[1]), dtype=image_type)
-        for idx, image in enumerate(images):
-            i = idx % size[1]
-            j = idx // size[1]
-            img[j * h:j * h + h, i * w:i * w + w] = image[:,:,0]
-        return img
-    else:
-        NotImplementedError
 
 def image_dataset(ds_dir, batch_size, image_size=None, norm_range=None, shuffle=True):
     def preprocess_image(image):
@@ -82,7 +55,7 @@ def image_dataset(ds_dir, batch_size, image_size=None, norm_range=None, shuffle=
         all_image_paths = ds_dir
     else:
         ds_dir = Path(ds_dir)
-        assert_colorize(ds_dir.is_dir(), f'Not a valid directory {ds_dir}')
+        assert ds_dir.is_dir(), f'Not a valid directory {ds_dir}'
         all_image_paths = [str(f) for f in Path(ds_dir).glob('*')]
     pwc(f'Total Images: {len(all_image_paths)}', color='magenta')
     ds = tf.data.Dataset.from_tensor_slices(all_image_paths)

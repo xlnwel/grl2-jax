@@ -19,7 +19,7 @@ def log(logger, writer, model_name, step, timing='Train', print_terminal_info=Tr
         steps=step
     )
     stats.update(logger.get_stats())
-    log_summary(writer, stats, step)
+    scalar_summary(writer, stats, step)
     log_stats(logger, stats, print_terminal_info=print_terminal_info)
 
 def log_stats(logger, stats, print_terminal_info=True):
@@ -29,7 +29,7 @@ def log_stats(logger, stats, print_terminal_info=True):
 def set_summary_step(step):
     tf.summary.experimental.set_step(step)
 
-def log_summary(writer, stats, step=None):
+def scalar_summary(writer, stats, step=None):
     with writer.as_default():
         for k, v in stats.items():
             if isinstance(v, str):
@@ -40,6 +40,15 @@ def log_summary(writer, stats, step=None):
                 v = tf.convert_to_tensor(v, dtype=tf.float32)
                 tf.summary.scalar(f'stats/{k}_mean', tf.reduce_mean(v), step=step)
                 tf.summary.scalar(f'stats/{k}_std', tf.math.reduce_std(v), step=step)
+
+def graph_summary(writer, fn, *args):
+    """ see utility.graph for available candidates of fn """
+    step = tf.summary.experimental.get_step()
+    def inner(*args):
+        tf.summary.experimental.set_step(step)
+        with writer.as_default():
+            fn(*args)
+    return tf.numpy_function(inner, args, [])
 
 def store(logger, **kwargs):
     logger.store(**kwargs)
@@ -69,7 +78,9 @@ def save_code(root_dir, model_name):
     if os.path.isdir(dest_dir):
         shutil.rmtree(dest_dir)
     
-    shutil.copytree('.', dest_dir, ignore=shutil.ignore_patterns('*logs*', '.*', '*pycache*', '*.md', '*test*'))
+    shutil.copytree('.', dest_dir, 
+        ignore=shutil.ignore_patterns(
+            '*logs*', '*data*', '.*', '*pycache*', '*.md', '*test*'))
 
 class Logger:
     def __init__(self, log_dir, log_file='log.txt'):
