@@ -270,7 +270,7 @@ def create_model(model_config, obs_shape, action_dim, is_action_discrete):
     reward_config = model_config['reward']
     value_config = model_config['value']
     actor_config = model_config['actor']
-    term_config = model_config.get('terminal')
+    disc_config = model_config.get('discount')
     models = dict(
         encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),
@@ -280,8 +280,8 @@ def create_model(model_config, obs_shape, action_dim, is_action_discrete):
         actor=Actor(actor_config, obs_shape, action_dim, is_action_discrete)
     )
 
-    if term_config:
-        models['terminal'] = Decoder(term_config, dist='binary', name='terminal')
+    if disc_config:
+        models['discount'] = Decoder(disc_config, dist='binary', name='discount')
     return models
 
 if __name__ == '__main__':

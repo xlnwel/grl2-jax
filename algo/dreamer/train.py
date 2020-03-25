@@ -70,12 +70,12 @@ def train(agent, env, eval_env, replay):
     print('Training started...')
     while step < int(agent.MAX_STEPS):
         with TBTimer('train'):
+            with TBTimer('learn'):
+                agent.learn_log(step)
             obs, already_done, n = run(
                     env, agent, obs, already_done, collect_log, nsteps)
             step += n
             agent.set_summary_step(step)
-            with TBTimer('learn'):
-                agent.learn_log(step)
 
         if should_log(step):
             train_state, train_action = agent.retrieve_states()

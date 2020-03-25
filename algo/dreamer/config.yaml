@@ -36,9 +36,9 @@ model:
         has_cnn: True
         # units_list: [256]
         # activation: elu
-    # discount:
-    #     units_list: [400, 400, 400]
-    #     activation: elu
+    discount:
+        units_list: [400, 400, 400]
+        activation: elu
 agent:
     algorithm: &algo dreamer
     polyak: .995

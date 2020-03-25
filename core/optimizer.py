@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 
 
@@ -29,6 +30,7 @@ class Optimizer(tf.Module):
         if self._variables is None:
             variables = [m.trainable_variables for m in self._models]
             self._variables = tf.nest.flatten(variables)
+        assert len(loss.shape) == 0, loss.shape
         with tape:
             loss = self._opt.get_scaled_loss(loss)
         grads = tape.gradient(loss, self._variables)
