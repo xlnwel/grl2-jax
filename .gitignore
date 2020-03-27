@@ -13,3 +13,4 @@ env/gym_env2.py
 **dew**
 .pytest_cache*
 *ipynb
+**test**

@@ -24,7 +24,7 @@ def video_summary(name, video, step=None, fps=20):
         summary = tf1.Summary()
         image = tf1.Summary.Image(height=B * H, width=T * W, colorspace=C)
         image.encoded_image_string = encode_gif(frames, fps)
-        summary.value.add(tag=name + '/gif', image=image)
+        summary.value.add(tag=name, image=image)
         tf.summary.experimental.write_raw_pb(summary.SerializeToString(), step)
     except (IOError, OSError) as e:
         print('GIF summaries require ffmpeg in $PATH.', e)

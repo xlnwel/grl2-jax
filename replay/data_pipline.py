@@ -19,8 +19,7 @@ class Dataset:
         self._buffer = buffer
         self.data_format = data_format
         assert isinstance(data_format, dict)
-        self._iterator = self._prepare_dataset(
-            buffer, process_fn, batch_size)
+        self._iterator = self._prepare_dataset(process_fn, batch_size)
 
     def buffer_type(self):
         return self._buffer.buffer_type()
@@ -34,7 +33,7 @@ class Dataset:
     def update_priorities(self, priorities, indices):
         self._buffer.update_priorities(priorities, indices)
 
-    def _prepare_dataset(self, buffer, process_fn, batch_size):
+    def _prepare_dataset(self, process_fn, batch_size):
         with tf.name_scope('data'):
             types = {k: v.dtype for k, v in self.data_format.items()}
             shapes = {k: v.shape for k, v in self.data_format.items()}

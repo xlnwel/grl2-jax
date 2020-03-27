@@ -17,7 +17,7 @@ This repository is implemented with *Tensorflow2.0*, and *ray0.8.0.dev6* for dis
 
 Also, when impelmenting PER, I intend to omit importance sampling ratio when calculating losses since I found this correction confusing, and in practice, I don't see the real performancre gain for doing so.
 
-## Reference Papers
+## Main Reference Papers
 
 John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov. “Proximal Policy Optimization Algorithms” 
 
@@ -35,3 +35,6 @@ Dan Horgan, John Quan, David Budden, Gabriel Barth-Maron, Matteo Hessel, Hado va
 
 Lasse Espeholt, Raphaël Marinier, Piotr Stanczyk, Ke Wang, and Marcin Michalski. 2019. “SEED RL: Scalable and Efficient Deep-RL with Accelerated Central Inference”
 
+Danijar Hafner, Timothy Lillicrap, Ian Fischer, Ruben Villegas,  David Ha, Honglak Lee, James Davidson. Learning Latent Dynamics for Planning from Pixels. In ICML 2019
+
+Danijar Hafner, Timothy Lillicrap, Jimmy Ba, Mohammad Norouzi. Dream to Control: Learning Behaviors by Latent Imagination. In ICLR 2020

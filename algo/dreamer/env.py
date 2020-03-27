@@ -144,7 +144,7 @@ def make_env(config):
         env = wrappers.ActionRepeat(env, config['n_ar'])
         env = wrappers.NormalizeActions(env)
     elif suite == 'atari':
-        env = wrappers.Atari(
+        env = Atari(
             task, config['n_ar'], (64, 64), grayscale=False,
             life_done=True, sticky_actions=True)
     else:

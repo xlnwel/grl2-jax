@@ -36,9 +36,9 @@ model:
         has_cnn: True
         # units_list: [256]
         # activation: elu
-    discount:
-        units_list: [400, 400, 400]
-        activation: elu
+    # discount:
+    #     units_list: [400, 400, 400]
+    #     activation: elu
 agent:
     algorithm: &algo dreamer
     polyak: .995
@@ -48,10 +48,10 @@ agent:
 
     MAX_STEPS: 5.e+6
     TIME_INTERVAL: 10
-    LOG_INTERVAL: 3000
+    LOG_INTERVAL: 1000
     TRAIN_INTERVAL: 1000
     N_UPDATES: 100
-    TIMER: True
+    log_images: True
 
     # model
     free_nats: 3.
@@ -62,7 +62,6 @@ agent:
     gamma: &gamma 0.99
     lambda: .95
     act_epsilon: .3
-
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

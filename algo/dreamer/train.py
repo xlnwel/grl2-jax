@@ -34,12 +34,11 @@ def run(env, agent, obs=None, already_done=None,
     nsteps = nsteps or env.max_episode_steps
     for i in range(0, nsteps, env.n_ar):
         action = agent(obs, already_done, deterministic=evaluation)
-        with TBTimer('env_step', 10000):
-            obs, reward, done, info = env.step(action)
+        obs, reward, done, info = env.step(action)
         already_done = env.get_already_done()
         if fn:
             fn(already_done, info)
-    return obs, already_done, nsteps * env.n_envs * env.n_ar
+    return obs, already_done, nsteps * env.n_envs
 
 def train(agent, env, eval_env, replay):
     def collect(already_done, info):
@@ -65,43 +64,37 @@ def train(agent, env, eval_env, replay):
     nsteps = agent.TRAIN_INTERVAL // env.n_envs
     obs, already_done = None, None
     while not replay.good_to_learn():
-        obs, already_done, _ = run(
+        obs, already_done, n = run(
             env, env.random_action, obs, already_done, collect)
+        step += n
+        
     print('Training started...')
     while step < int(agent.MAX_STEPS):
-        with TBTimer('train'):
-            with TBTimer('learn'):
-                agent.learn_log(step)
-            obs, already_done, n = run(
-                    env, agent, obs, already_done, collect_log, nsteps)
-            step += n
-            agent.set_summary_step(step)
+        agent.set_summary_step(step)
+        agent.learn_log(step)
+        obs, already_done, n = run(
+            env, agent, obs, already_done, collect_log, nsteps)
+        step += n
 
         if should_log(step):
             train_state, train_action = agent.retrieve_states()
+            
             agent.reset_states(None, None)
-            with TBTimer('eval'):
-                _, _, _ = run(eval_env, agent, evaluation=True)
-            with TBTimer('sim'):
-                video_summary('dreamer/sim', eval_env.prev_episode['obs'][None], step)
-            with TBTimer('log'):
-                eval_score = eval_env.get_score()
-                eval_epslen = eval_env.get_epslen()
-                agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-                # agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
-                # agent.store(**agent.get_value('epslen', mean=True, std=True, min=True, max=True))
-                # agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
-                # agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
+            _, _, _ = run(eval_env, agent, evaluation=True)
+            video_summary('dreamer/sim', eval_env.prev_episode['obs'][None], step)
+            eval_score = eval_env.get_score()
+            eval_epslen = eval_env.get_epslen()
+            agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
 
-                agent.log(step)
-                agent.save(steps=step)
+            agent.log(step)
+            agent.save(steps=step)
 
             agent.reset_states(train_state, train_action)
 
 def main(env_config, model_config, agent_config, 
         replay_config, restore=False, render=False):
     hide_tf_logs()
-    set_global_seed(seed=0, tf=tf)
+    # set_global_seed(seed=0, tf=tf)
     configure_gpu()
     configure_precision(agent_config['precision'])
 
@@ -120,6 +113,7 @@ def main(env_config, model_config, agent_config,
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
     replay.load_data()
+
     data_format = dict(
         obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
         action=DataFormat((None, *env.action_shape), env.action_dtype),
@@ -127,8 +121,7 @@ def main(env_config, model_config, agent_config,
         discount=DataFormat((None), tf.float32),
     )
     print(data_format)
-    
-    dataset = Dataset(replay, data_format, process, batch_size=agent_config['batch_size'])
+    dataset = Dataset(replay, data_format, process, agent_config['batch_size'])
 
     models = create_model(
         model_config, 
@@ -152,17 +145,5 @@ def main(env_config, model_config, agent_config,
 
     if restore:
         agent.restore()
-    
-    step = 0
-    while step < int(agent.MAX_STEPS):
-        with TBTimer('learn'):
-            agent.learn_log(step)
-        step += 1
-        with TBTimer('eval'):
-            run(eval_env, agent, evaluation=True)
-            eval_score = eval_env.get_score()
-            eval_epslen = eval_env.get_epslen()
-            agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-        agent.log(step)
 
     train(agent, env, eval_env, replay)

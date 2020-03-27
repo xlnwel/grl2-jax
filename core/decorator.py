@@ -8,16 +8,23 @@ from core.log import setup_logger, setup_tensorboard, save_code
 
 """ Functions used to print model variables """                    
 def display_model_var_info(models):
-    displayed_models = []
-    tvars = []
+    learnable_models = {}
+    opts = {}
+    nparams = 0
     for name, model in models.items():
-        if 'opt' in name or 'target' in name or model in displayed_models:
-            pass # ignore variables in the optimizer and target networks
+        if 'target' in name or name in learnable_models or name in opts:
+            pass # ignore variables in the target networks
+        elif 'opt' in name:
+            opts[name] = model
         else:
-            displayed_models.append(model)
-            tvars += model.trainable_variables
-        
-    display_var_info(tvars)
+            learnable_models[name] = model
+    
+    pwc(f'Learnable models:', color='yellow')
+    for name, model in learnable_models.items():
+        nparams += display_var_info(
+            model.trainable_variables, name=name, prefix='   ')
+    pwc(f'Total learnable model parameters: {nparams*1e-6:0.4g} million', color='yellow')
+    
 
 def agent_config(init_fn):
     """ Decorator for agent's initialization """

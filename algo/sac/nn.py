@@ -49,7 +49,6 @@ class SoftPolicy(Module):
 
     @tf.function(experimental_relax_shapes=True)
     def _action_impl(self, x, deterministic=False):
-        print(f'Policy action retrace: {x.shape}, {deterministic}')
         x = self._layers(x)
 
         if self._is_action_discrete:
@@ -105,7 +104,6 @@ class SoftQ(Module):
 
     @tf.function
     def train_step(self, x, a):
-        print(f'SoftQ train_step retrace: {x}, {a}')
         x = tf.concat([x, a], axis=-1)
         x = self._layers(x)
         x = tf.squeeze(x)

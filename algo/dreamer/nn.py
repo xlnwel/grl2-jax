@@ -206,7 +206,7 @@ class Decoder(Module):
         return x
 
 
-class ConvEncoder(layers.Layer):
+class ConvEncoder(Module):
     def __init__(self, *, time_distributed=False, name='dreamer_cnn', **kwargs):
         """ Hardcode CNN: Assume image of shape (64 ⨉ 64 ⨉ 3) by default """
         super().__init__(name=name)
@@ -222,7 +222,7 @@ class ConvEncoder(layers.Layer):
         self.conv3 = conv2d(4 * depth, **kwargs)
         self.conv4 = conv2d(8 * depth, **kwargs)
 
-    def call(self, x):
+    def __call__(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
@@ -233,7 +233,7 @@ class ConvEncoder(layers.Layer):
         return x
 
 
-class ConvDecoder(layers.Layer):
+class ConvDecoder(Module):
     def __init__(self, *, time_distributed=False, name='dreamer_cnntrans', **kwargs):
         """ Hardcode CNN: Assume images of shape (64 ⨉ 64 ⨉ 3) by default """
         super().__init__(name=name)
@@ -251,7 +251,7 @@ class ConvDecoder(layers.Layer):
         self.deconv3 = deconv2d(1 * depth, 6, **kwargs)
         self.deconv4 = deconv2d(3, 6, strides=2)
 
-    def call(self, x):
+    def __call__(self, x):
         x = self._dense(x)
         shape = tf.concat([tf.shape(x)[:-1], [1, 1, x.shape[-1]]], 0)
         x = tf.reshape(x, shape)

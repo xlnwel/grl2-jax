@@ -48,9 +48,6 @@ class Agent(BaseAgent):
         self._obs_shape = env.obs_shape
         self._action_dim = env.action_dim
         self._is_action_discrete = env.is_action_discrete
-        # self._obs_shape = (64, 64, 3)
-        # self._action_dim = 3
-        # self._is_action_discrete = False
 
         # time dimension must be specified explicitly here
         # otherwise, InaccessibleTensorError arises when expanding rssm
@@ -59,6 +56,7 @@ class Agent(BaseAgent):
             action=((self._batch_length, self._action_dim), self._dtype, 'action'),
             reward=((self._batch_length,), tf.float32, 'reward'),
             discount=((self._batch_length,), tf.float32, 'discount'),
+            log_images=(None, tf.bool, 'log_images')
         )
 
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
@@ -78,19 +76,16 @@ class Agent(BaseAgent):
             mask = tf.cast(1. - reset, self._dtype)[:, None]
             self.state = tf.nest.map_structure(lambda x: x * mask, self.state)
             self.prev_action = self.prev_action * mask
-        # print('state', self.state.deter[0, :2], self.state.stoch[0, :2])
-        # print('prev_action', self.prev_action[0, :2])
-        with TBTimer('agent_step', 10000):
-            self.prev_action, self.state = self.action(
-                obs, self.state, self.prev_action, deterministic)
+        self.prev_action, self.state = self.action(
+            obs, self.state, self.prev_action, deterministic)
 
         action = self.prev_action.numpy()
         return action
         
     @tf.function
     def action(self, obs, state, prev_action, deterministic=False):
-        # if obs.dtype == np.uint8:
-        obs = tf.cast(obs, self._dtype) / 255. - .5
+        if obs.dtype == np.uint8:
+            obs = tf.cast(obs, self._dtype) / 255. - .5
         obs = tf.expand_dims(obs, 1)
         embed = self.encoder(obs)
         embed = tf.squeeze(embed, 1)
@@ -100,7 +95,6 @@ class Agent(BaseAgent):
             action = self.actor(feature).mode()
         else:
             action = self.actor(feature).sample()
-            # print('raw_action', action[1])
             if self._is_action_discrete:
                 indices = tfd.Categorical(0 * action).sample(one_hot=False)
                 return tf.where(
@@ -116,62 +110,47 @@ class Agent(BaseAgent):
         self.global_steps.assign(step)
         for i in range(self.N_UPDATES):
             data = self.dataset.sample()
-            terms = self.learn(**data)
+            log_images = tf.convert_to_tensor(
+                self._log_images and step % self.LOG_INTERVAL == 0 and i == 0, 
+                tf.bool)
+            terms = self.learn(**data, log_images=log_images)
             terms = {k: v.numpy() for k, v in terms.items()}
             self.store(**terms)
 
     @tf.function
-    def _learn(self, obs, action, reward, discount):
-        print('obs', obs[1, 2, 4, 4])
+    def _learn(self, obs, action, reward, discount, log_images):
         with tf.GradientTape() as model_tape:
             embed = self.encoder(obs)
-            # print('embed', embed[0, 1, 5:7])
             post, prior = self.rssm.observe(embed, action)
-            # print('post.deter', post.deter[0, 2, 3:5])
-            # print('prior.deter', prior.deter[0, 2, 3:5])
-            # print('post.stoch', post.stoch[0, 2, 3:5])
-            # print('prior.stoch', prior.stoch[0, 2, 3:5])
             feature = self.rssm.get_feat(post)
-            # print('feature', feature[1, :2, 2])
             obs_pred = self.decoder(feature)
-            # print('obs_pred', obs_pred.sample()[1, 2, 2:4, 5, 1])
             reward_pred = self.reward(feature)
-            # print('reward', reward_pred.sample()[1, 2:5])
             likelihoods = AttrDict()
             likelihoods.obs_loss = -tf.reduce_mean(obs_pred.log_prob(obs))
             likelihoods.reward_loss = -tf.reduce_mean(reward_pred.log_prob(reward))
             if hasattr(self, 'discount'):
                 disc_pred = self.discount(feature)
                 disc_target = self._gamma * discount
-                # print('discount', disc_pred.log_prob(disc_target)[:, 4])
                 likelihoods.disc_loss = -(self._discount_scale 
                     * tf.reduce_mean(disc_pred.log_prob(disc_target)))
-            # print('likelihoods', likelihoods)
             prior_dist = self.rssm.get_dist(prior.mean, prior.std)
             post_dist = self.rssm.get_dist(post.mean, post.std)
             kl = tf.reduce_mean(tfd.kl_divergence(post_dist, prior_dist))
-            # print('kl', tfd.kl_divergence(post_dist, prior_dist)[1, 4:6])
             kl = tf.maximum(kl, self._free_nats)
             model_loss = self._kl_scale * kl + sum(likelihoods.values())
 
         with tf.GradientTape() as actor_tape:
             imagined_feature = self._imagine_ahead(post)
-            # print('imag', imagined_feature.shape)
-            # print('imagined_feature', imagined_feature[3, 4, 7:9])
             reward = self.reward(imagined_feature).mode()
-            # print('imagined_reward', reward[4, 7:10])
             if hasattr(self, 'discount'):
                 discount = self.discount(imagined_feature).mean()
             else:
                 discount = self._gamma * tf.ones_like(reward)
-            # print('discount', discount[2, 4:6])
             value = self.value(imagined_feature).mode()
-            # print('value', value[0, :2])
             # compute lambda return at each imagined step
             returns = lambda_return(
                 reward[:-1], value[:-1], discount[:-1], 
                 value[-1], lambda_=self._lambda, axis=0)
-            # print('returns', returns[0, :2])
             # discount lambda returns based on their sequential order
             discount = tf.stop_gradient(tf.math.cumprod(tf.concat(
                 [tf.ones_like(discount[:1]), discount[:-2]], 0), 0))
@@ -179,19 +158,12 @@ class Agent(BaseAgent):
             
         with tf.GradientTape() as value_tape:
             value_pred = self.value(imagined_feature)[:-1]
-            # print('value_pred', value_pred.sample()[10, 2:4])
             target = tf.stop_gradient(returns)
             value_loss = -tf.reduce_mean(discount * value_pred.log_prob(target))
 
         model_norm = self._model_opt(model_tape, model_loss)
         actor_norm = self._actor_opt(actor_tape, actor_loss)
         value_norm = self._value_opt(value_tape, value_loss)
-        # print('model_loss', model_loss)
-        # print('actor_loss', actor_loss)
-        # print('value_loss', value_loss)
-        # print('model_norm', model_norm)
-        # print('actor_norm', actor_norm)
-        # print('value_norm', value_norm)
         
         terms = dict(
             prior_entropy=prior_dist.entropy(),
@@ -209,7 +181,7 @@ class Agent(BaseAgent):
             value_norm=value_norm,
         )
 
-        if tf.equal(self.global_steps % self.LOG_INTERVAL, 0):
+        if log_images:
             self._image_summaries(obs, action, embed, obs_pred)
 
         return terms

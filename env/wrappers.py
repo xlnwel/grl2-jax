@@ -3,7 +3,7 @@ https://github.com/openai/baselines/blob/master/baselines/common/wrappers.py
 """
 import numpy as np
 import gym
-from utility.utils import infer_dtype
+from utility.utils import infer_dtype, convert_dtype
 
 
 class EnvSpec:
@@ -180,7 +180,7 @@ class LogEpisode:
             obs=obs,
             action=np.zeros(self.env.action_space.shape),
             reward=0.,
-            discount=True
+            discount=1
         )
         self._episode = [transition]
         return obs
@@ -191,12 +191,12 @@ class LogEpisode:
             obs=obs,
             action=action,
             reward=reward,
-            discount=bool(1-done),
+            discount=1-done,
             **kwargs
         )
         self._episode.append(transition)
         if self.already_done:
-            episode = {k: np.array([t[k] for t in self._episode])
+            episode = {k: convert_dtype([t[k] for t in self._episode], self.precision)
                 for k in self._episode[0]}
             info['episode'] = self.prev_episode = episode
         return obs, reward, done, info
