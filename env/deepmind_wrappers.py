@@ -276,13 +276,14 @@ class LazyFrames(object):
         return self._force()[..., i]
 
 
-def make_video_env(env_id, max_episode_steps=None):
+def make_atari_env(env_id, max_episode_steps=None):
     env = gym.make(env_id)
+    skip_frames = 4
     assert 'NoFrameskip' in env.spec.id
     env = NoopResetEnv(env, noop_max=30)
-    env = MaxAndSkipEnv(env, skip=4)
+    env = MaxAndSkipEnv(env, skip=skip_frames)
     if max_episode_steps is not None:
-        env = TimeLimit(env, max_episode_steps=max_episode_steps)
+        env = TimeLimit(env, max_episode_steps=max_episode_steps // skip_frames)
     return env
 
 
@@ -304,19 +305,21 @@ def wrap_deepmind(env, episodic_life=True, clip_rewards=True, frame_stack=True, 
 
 
 def make_deepmind_env(config):
-    env = make_video_env(config['name'], config.get('max_episode_steps'))
+    version = 0 if config.get('sticky_actions', 0) else 4
+    config['name'] = f'{config["name"].title()}NoFrameskip-v{version}'
+    env = make_atari_env(config['name'], config.get('max_episode_steps'))
     if config.get('log_video', False):
         # put monitor in middle to properly record episodic information
         pwc(f'video will be logged at {config["video_path"]}', color='cyan')
         env = gym.wrappers.Monitor(env, config['video_path'], force=True)
     env = wrap_deepmind(env, **config)
-    env = EnvStats(env)
     
     return env
 
 
 if __name__ == '__main__':
-    env = make_video_env('PongNoFrameskip-v4', 2700)
+
+    env = make_atari_env('PongNoFrameskip-v4', 1080)
     env = wrap_deepmind(env, frame_stack=True)
     s = env.reset()
     s = np.array(s)

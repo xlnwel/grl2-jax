@@ -8,7 +8,6 @@ env:
     log_episode: True
     auto_reset: True
     n_ar: 2
-    max_episode_steps: 1000
     precision: &prec 32
 model:
     encoder:
@@ -48,7 +47,7 @@ agent:
 
     MAX_STEPS: 5.e+6
     TIME_INTERVAL: 10
-    LOG_INTERVAL: 1000
+    LOG_INTERVAL: 10000
     TRAIN_INTERVAL: 1000
     N_UPDATES: 100
     log_images: True

@@ -76,10 +76,13 @@ class Agent(BaseAgent):
             mask = tf.cast(1. - reset, self._dtype)[:, None]
             self.state = tf.nest.map_structure(lambda x: x * mask, self.state)
             self.prev_action = self.prev_action * mask
-        self.prev_action, self.state = self.action(
+        action, self.state = self.action(
             obs, self.state, self.prev_action, deterministic)
-
-        action = self.prev_action.numpy()
+        if self._is_action_discrete:
+            self.prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype)
+        else:
+            self.prev_action = action
+        action = action.numpy()
         return action
         
     @tf.function
@@ -94,14 +97,15 @@ class Agent(BaseAgent):
         if deterministic:
             action = self.actor(feature).mode()
         else:
-            action = self.actor(feature).sample()
             if self._is_action_discrete:
-                indices = tfd.Categorical(0 * action).sample(one_hot=False)
-                return tf.where(
+                act_dist = self.actor(feature)
+                action = act_dist.sample(reparameterize=False, one_hot=False)
+                rand_act = tfd.Categorical(tf.zeros_like(act_dist.logits)).sample()
+                action = tf.where(
                     tf.random.uniform(action.shape[:1], 0, 1) < self._act_epsilon,
-                    tf.one_hot(indices, action.shape[-1], dtype=self._dtype),
-                    action)
+                    rand_act, action)
             else:
+                action = self.actor(feature).sample()
                 action = tf.clip_by_value(tfd.Normal(action, self._act_epsilon).sample(), -1, 1)
             
         return action, state

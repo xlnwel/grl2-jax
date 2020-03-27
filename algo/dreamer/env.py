@@ -66,7 +66,7 @@ class Atari:
         name = ''.join(word.title() for word in name.split('_'))
         with self.LOCK:
             self._env = gym.make('{}NoFrameskip-v{}'.format(name, version))
-        self._action_repeat = action_repeat
+        self.n_ar = action_repeat
         self._size = size
         self._grayscale = grayscale
         self._noops = noops
@@ -107,7 +107,7 @@ class Atari:
 
     def step(self, action):
         total_reward = 0.0
-        for step in range(self._action_repeat):
+        for step in range(self.n_ar):
             _, reward, done, info = self._env.step(action)
             total_reward += reward
             if self._life_done:
@@ -116,8 +116,8 @@ class Atari:
                 self._lives = lives
             if done:
                 break
-            elif step >= self._action_repeat - 2:
-                index = step - (self._action_repeat - 2)
+            elif step >= self.n_ar - 2:
+                index = step - (self.n_ar - 2)
                 if self._grayscale:
                     self._env.ale.getScreenGrayscale(self._buffers[index])
                 else:
@@ -129,7 +129,7 @@ class Atari:
         return self._env.render(mode)
 
     def _get_obs(self):
-        if self._action_repeat > 1:
+        if self.n_ar > 1:
             np.maximum(self._buffers[0], self._buffers[1], out=self._buffers[0])
         image = np.array(Image.fromarray(self._buffers[0]).resize(
             self._size, Image.BILINEAR))
@@ -143,14 +143,15 @@ def make_env(config):
         env = DeepMindControl(task)
         env = wrappers.ActionRepeat(env, config['n_ar'])
         env = wrappers.NormalizeActions(env)
+        max_episode_steps = 1000
     elif suite == 'atari':
         env = Atari(
             task, config['n_ar'], (64, 64), grayscale=False,
             life_done=True, sticky_actions=True)
+        max_episode_steps = 108000
     else:
         raise NotImplementedError(suite)
-    if 'max_episode_steps' in config:
-        env = wrappers.TimeLimit(env, config['max_episode_steps'])
+    env = wrappers.TimeLimit(env, max_episode_steps)
     env = wrappers.EnvStats(env, config.get('precision', 32))
     env = wrappers.LogEpisode(env)
     env = wrappers.AutoReset(env)

@@ -7,15 +7,14 @@ This repository is implemented with *Tensorflow2.0*, and *ray0.8.0.dev6* for dis
 - [x] PPO (Proximal Policy Optimization) with LSTM and masking
 - [x] PPO2 (different from PPO, PPO2 need explicitly specify lstm states)
 - [x] DNC (Differentiable Neural Computer)
+- [x] Dreamer
 - [x] PER (Prioritized Experience Replay)
-- [x] MS (Multi Step)
 - [x] SAC(Soft Actor-Critic) with adaptive temperature
 - [x] Apex-SAC (ApeX with SAC)
 - [x] SEED-SAC (SEED with SAC)
+- [x] MS (Multi Step)
 
 **Note**: Here, we only implement a prototype for SEED. To gain the full efficency, one should cooperate it with a larger network(e.g., CNNs). Also, consider separating the action loop from the learner because of the Python GIL.
-
-Also, when impelmenting PER, I intend to omit importance sampling ratio when calculating losses since I found this correction confusing, and in practice, I don't see the real performancre gain for doing so.
 
 ## Main Reference Papers
 

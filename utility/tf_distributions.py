@@ -15,11 +15,11 @@ def tf_scope(func):
 class Distribution(tf.Module):
     @tf_scope
     def log_prob(self, x):
-        return -self._neglogp(x)
+        return -self._neg_log_prob(x)
 
     @tf_scope
     def neg_log_prob(self, x):
-        return self._neglogp(x)
+        return self._neg_log_prob(x)
 
     @tf_scope
     def sample(self, *args, **kwargs):
@@ -42,7 +42,7 @@ class Distribution(tf.Module):
     def mode(self):
         return self._mode()
 
-    def _neglogp(self, x):
+    def _neg_log_prob(self, x):
         raise NotImplementedError
 
     def _sample(self):
@@ -66,7 +66,7 @@ class Categorical(Distribution):
         self.logits = logits
         self.tau = tau  # tau in Gumbel-Softmax
 
-    def _neglogp(self, x):
+    def _neg_log_prob(self, x):
         if x.shape.ndims == len(self.logits.shape) and x.shape[-1] == self.logits.shape[-1]:
             # when x is one-hot encoded
             return tf.nn.softmax_cross_entropy_with_logits(labels=x, logits=self.logits)
@@ -118,8 +118,8 @@ class Categorical(Distribution):
 
         return kl
 
-    def mode(self):
-        return tf.argmax(logits, -1)
+    def _mode(self):
+        return tf.argmax(self.logits, -1)
 
 
 class DiagGaussian(Distribution):
@@ -127,7 +127,7 @@ class DiagGaussian(Distribution):
         self.mu, self.logstd = mean, logstd
         self.std = tf.exp(self.logstd)
 
-    def _neglogp(self, x):
+    def _neg_log_prob(self, x):
         return .5 * tf.reduce_sum(np.log(2. * np.pi)
                                   + 2. * self.logstd
                                   + ((x - self.mu) / (self.std + EPSILON))**2, 

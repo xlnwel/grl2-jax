@@ -2,16 +2,18 @@
 import itertools
 import numpy as np
 import gym
+import tensorflow as tf
 import ray
 
-from utility import tf_distributions
 from utility.utils import isscalar, convert_dtype
 from env.wrappers import *
 from env.deepmind_wrappers import make_deepmind_env
 
 
 def _make_env(config):
-    if config.get('is_deepmind_env', False):
+    if 'atari' in config['name'].lower():
+        # for atari games, we expect 'atari_*'
+        _, config['name'] = config['name'].split('_', 1)
         env = make_deepmind_env(config)
     else:
         env = gym.make(config['name'])
@@ -23,14 +25,19 @@ def _make_env(config):
             env = gym.wrappers.Monitor(env, config['video_path'], force=True)
         if config.get('action_repetition'):
             env = ActionRepeat(env, config['n_ar'])
-        env = EnvStats(env, config.get('precision', 32))
-        if config.get('log_episode'):
-            env = LogEpisode(env)
-        if config.get('auto_reset'):
-            env = AutoReset(env)
+    env = EnvStats(env, config.get('precision', 32))
+    if config.get('log_episode'):
+        env = LogEpisode(env)
+    if config.get('auto_reset'):
+        env = AutoReset(env)
     env.seed(config.get('seed', 42))
 
     return env
+
+def _convert_obs(obs, dtype):
+    if isinstance(obs[0], np.ndarray):
+        obs = convert_dtype(obs, dtype=dtype, copy=False)
+    return obs
 
 def create_env(config, env_fn=_make_env, force_envvec=False):
     EnvType = EnvVec if force_envvec or config.get('n_envs', 1) > 1 else Env
@@ -60,9 +67,9 @@ class Env:
         return action
         
     def step(self, action, **kwargs):
-        state, reward, done, info = self.env.step(action, **kwargs)
+        obs, reward, done, info = self.env.step(action, **kwargs)
 
-        return state.astype(self.obs_dtype), np.float32(reward), done, info
+        return obs, np.float32(reward), done, info
 
     def close(self):
         del self
@@ -85,12 +92,13 @@ class EnvVec:
         return convert_dtype([env.action_space.sample() for env in self.envs], dtype=self.action_dtype, copy=False)
 
     def reset(self):
-        return np.asarray([env.reset() for env in self.envs], dtype=self.obs_dtype)
+        obs = [env.reset() for env in self.envs]
+        return _convert_obs(obs, self.obs_dtype)
     
     def step(self, actions, **kwargs):
-        state, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
+        obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
 
-        return (convert_dtype(state, dtype=self.obs_dtype, copy=False), 
+        return (_convert_obs(obs, self.obs_dtype), 
                 convert_dtype(reward, dtype=np.float32), 
                 convert_dtype(done, dtype=np.bool), 
                 info)
@@ -123,11 +131,11 @@ class EfficientEnvVec(EnvVec):
         for k, v in kwargs.items():
             assert len(actions) == len(v), f'valid_env({len(actions)}) vs {k}({len(v)})'
         
-        state, reward, done, info = _envvec_step(valid_envs, actions, **kwargs)
+        obs, reward, done, info = _envvec_step(valid_envs, actions, **kwargs)
         for i in range(len(info)):
             info[i]['env_id'] = valid_env_ids[i]
         
-        return (convert_dtype(state, self._precision, copy=False), 
+        return (_convert_obs(obs, self.obs_dtype), 
                 convert_dtype(reward, dtype=np.float32), 
                 convert_dtype(done, dtype=np.bool), 
                 info)
@@ -156,8 +164,9 @@ class RayEnvVec:
         return getattr(self.env, name)
 
     def reset(self):
-        return np.reshape(ray.get([env.reset.remote() for env in self.envs]), 
+        obs = tf.nest.flatten(ray.get([env.reset.remote() for env in self.envs]), 
                           (self.n_envs, *self.obs_shape))
+        return _convert_obs(obs, self.obs_dtype)
 
     def random_action(self, *args, **kwargs):
         return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
@@ -168,16 +177,17 @@ class RayEnvVec:
         if kwargs:
             kwargs = dict([(k, np.squeeze(v.reshape(self.n_workers, self.envsperworker, -1))) for k, v in kwargs.items()])
             kwargs = [dict(v) for v in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
-            state, reward, done, info = zip(*ray.get([env.step.remote(a, **kw) for env, a, kw in zip(self.envs, actions, kwargs)]))
+            obs, reward, done, info = zip(*ray.get([env.step.remote(a, **kw) for env, a, kw in zip(self.envs, actions, kwargs)]))
         else:
-            state, reward, done, info = zip(*ray.get([env.step.remote(a) for env, a in zip(self.envs, actions)]))
+            obs, reward, done, info = zip(*ray.get([env.step.remote(a) for env, a in zip(self.envs, actions)]))
         if not isinstance(self.env, Env):
             info_lists = info
             info = []
             for i in info_lists:
                 info += i
-
-        return (np.reshape(state, (self.n_envs, *self.obs_shape)).astype(self.obs_dtype), 
+                
+        obs = tf.nest.flatten(obs)
+        return (_convert_obs(obs, self.obs_dtype),
                 np.reshape(reward, self.n_envs).astype(np.float32), 
                 np.reshape(done, self.n_envs).astype(bool),
                 info)
@@ -208,10 +218,11 @@ def _envvec_step(envvec, actions, **kwargs):
     else:
         return zip(*[env.step(a) for env, a in zip(envvec, actions)])
 
+
 if __name__ == '__main__':
     # performance test
     default_config = dict(
-        name='LunarLander-v2', # Pendulum-v0, CartPole-v0
+        name='atari_Pong', # Pendulum-v0, CartPole-v0
         video_path='video',
         log_video=False,
         n_workers=1,
@@ -227,16 +238,16 @@ if __name__ == '__main__':
         obs=o,
         action=np.zeros(env.action_shape), 
         reward=0.,
-        done=False
+        discount=True
     )]
     for _ in range(3000):
         a = env.random_action()
         o, r, d, i = env.step(a)
         eps.append(dict(
                 obs=o,
-                action=a if r != 0 else 0,
+                action=a,
                 reward=r,
-                done=d
+                discount=1-d
             ))
         if d or len(eps) == env.max_episode_steps:
             print('check episodes')

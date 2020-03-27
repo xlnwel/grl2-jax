@@ -17,14 +17,6 @@ from algo.dreamer.nn import create_model
 from algo.dreamer.env import make_env
 
 
-def process(data):
-    data = data.copy()
-    dtype = prec.global_policy().compute_dtype
-    with tf.device('cpu:0'):
-        data['obs'] = tf.cast(data['obs'], dtype) / 255. - .5
-
-    return data
-
 def run(env, agent, obs=None, already_done=None, 
         fn=None, nsteps=0, evaluation=False):
     if obs is None:
@@ -32,13 +24,15 @@ def run(env, agent, obs=None, already_done=None,
     if already_done is None:
         already_done = env.get_already_done()
     nsteps = nsteps or env.max_episode_steps
-    for i in range(0, nsteps, env.n_ar):
+    for i in range(env.n_ar, nsteps + env.n_ar, env.n_ar):
         action = agent(obs, already_done, deterministic=evaluation)
         obs, reward, done, info = env.step(action)
         already_done = env.get_already_done()
         if fn:
             fn(already_done, info)
-    return obs, already_done, nsteps * env.n_envs
+        if np.all(env.get_already_done()):
+            break
+    return obs, already_done, i * env.n_envs
 
 def train(agent, env, eval_env, replay):
     def collect(already_done, info):
@@ -54,7 +48,7 @@ def train(agent, env, eval_env, replay):
                     eps = info[i]['episode']
                     episodes.append(eps)
                     scores.append(np.sum(eps['reward']))
-                    epslens.append(info[i]['n_ar']*(eps['reward'].size-1))
+                    epslens.append(env.n_ar*(eps['reward'].size-1))
             agent.store(score=scores, epslen=epslens)
             replay.merge(episodes)
 
@@ -65,7 +59,7 @@ def train(agent, env, eval_env, replay):
     obs, already_done = None, None
     while not replay.good_to_learn():
         obs, already_done, n = run(
-            env, env.random_action, obs, already_done, collect)
+            env, env.random_action, obs, already_done, collect_log)
         step += n
         
     print('Training started...')
@@ -110,10 +104,17 @@ def main(env_config, model_config, agent_config,
     eval_env_config['n_workers'] = 1
     eval_env = create_env(env_config, make_env, force_envvec=True)
 
+    def process(data):
+        data = data.copy()
+        dtype = prec.global_policy().compute_dtype
+        with tf.device('cpu:0'):
+            data['obs'] = tf.cast(data['obs'], dtype) / 255. - .5
+            if env.is_action_discrete:
+                data['action'] = tf.one_hot(data['action'], env.action_dim, dtype=dtype)
+        return data
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
     replay.load_data()
-
     data_format = dict(
         obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
         action=DataFormat((None, *env.action_shape), env.action_dtype),
