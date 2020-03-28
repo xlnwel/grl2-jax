@@ -8,12 +8,10 @@ env:
     log_episode: True
     auto_reset: True
     n_ar: 2
-    precision: &prec 32
+    precision: &prec 16
 model:
     encoder:
         has_cnn: True
-        # units_list: [256]
-        # activation: elu
     rssm:
         stoch_size: 30
         deter_size: 200
@@ -33,8 +31,7 @@ model:
         activation: elu
     decoder:
         has_cnn: True
-        # units_list: [256]
-        # activation: elu
+    # uncomment the following code for atari games
     # discount:
     #     units_list: [400, 400, 400]
     #     activation: elu
@@ -47,7 +44,7 @@ agent:
 
     MAX_STEPS: 5.e+6
     TIME_INTERVAL: 10
-    LOG_INTERVAL: 10000
+    LOG_INTERVAL: 1000
     TRAIN_INTERVAL: 1000
     N_UPDATES: 100
     log_images: True
@@ -75,7 +72,6 @@ agent:
     model_lr: 6.e-4
     actor_lr: 8.e-5
     value_lr: 8.e-5
-    epsilon: 1.e-8
 
 replay:
     type: episodic                      # proportional or uniform
@@ -83,5 +79,5 @@ replay:
     # arguments for general replay
     batch_size: *bs
     batch_length: *bl
-    max_episodes: 500
+    max_episodes: 1000
     min_episodes: 5

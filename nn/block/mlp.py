@@ -6,7 +6,7 @@ from nn.layers import Layer
 class MLP(layers.Layer):
     def __init__(self, units_list, out_dim=None, layer_type=layers.Dense, 
                 norm=None, activation=None, kernel_initializer='glorot_uniform', 
-                name=None, out_dtype='float32', **kwargs):
+                name=None, out_dtype=None, **kwargs):
         super().__init__(name=name)
 
         self._layers = [

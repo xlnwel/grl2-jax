@@ -62,6 +62,7 @@ class Distribution(tf.Module):
 
 
 class Categorical(Distribution):
+    """ An implementation of tfd.RelaxedOneHotCategorical """
     def __init__(self, logits, tau=1):
         self.logits = logits
         self.tau = tau  # tau in Gumbel-Softmax

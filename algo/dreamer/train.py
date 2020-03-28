@@ -69,7 +69,6 @@ def train(agent, env, eval_env, replay):
         obs, already_done, n = run(
             env, agent, obs, already_done, collect_log, nsteps)
         step += n
-
         if should_log(step):
             train_state, train_action = agent.retrieve_states()
             
@@ -115,11 +114,12 @@ def main(env_config, model_config, agent_config,
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
     replay.load_data()
+    dtype = prec.global_policy().compute_dtype
     data_format = dict(
-        obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
-        action=DataFormat((None, *env.action_shape), env.action_dtype),
-        reward=DataFormat((None), tf.float32), 
-        discount=DataFormat((None), tf.float32),
+        obs=DataFormat((None, *env.obs_shape), dtype),
+        action=DataFormat((None, *env.action_shape), dtype),
+        reward=DataFormat((None), dtype), 
+        discount=DataFormat((None), dtype),
     )
     print(data_format)
     dataset = Dataset(replay, data_format, process, agent_config['batch_size'])

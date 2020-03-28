@@ -93,11 +93,13 @@ class RSSM(Module):
         prior = self._compute_rssm_state(x, deter)
         return prior
 
-    def get_initial_state(self, inputs=None, batch_size=None, dtype=tf.float32):
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         if inputs is not None:
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
         assert batch_size is not None
+        if dtype is None:
+            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         return RSSMState(
             mean=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
             std=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
@@ -143,8 +145,7 @@ class Actor(Module):
         x = self._layers(x)
 
         if self._is_action_discrete:
-            dist = Categorical(x)
-            # dist = OneHotDist(x)    # TODO
+            dist = tfd.RelaxedOneHotCategorical(1, logits=x)
         else:
             raw_init_std = np.log(np.exp(self._init_std) - 1)
             mean, std = tf.split(x, 2, -1)
@@ -270,7 +271,7 @@ def create_model(model_config, obs_shape, action_dim, is_action_discrete):
     reward_config = model_config['reward']
     value_config = model_config['value']
     actor_config = model_config['actor']
-    disc_config = model_config.get('discount')
+    disc_config = model_config.get('discount')  # pcont in the original implementation
     models = dict(
         encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),

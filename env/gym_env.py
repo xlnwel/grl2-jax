@@ -5,7 +5,7 @@ import gym
 import tensorflow as tf
 import ray
 
-from utility.utils import isscalar, convert_dtype
+from utility.utils import isscalar
 from env.wrappers import *
 from env.deepmind_wrappers import make_deepmind_env
 
@@ -34,9 +34,9 @@ def _make_env(config):
 
     return env
 
-def _convert_obs(obs, dtype):
+def _convert_obs(obs):
     if isinstance(obs[0], np.ndarray):
-        obs = convert_dtype(obs, dtype=dtype, copy=False)
+        obs = np.array(obs, copy=False)
     return obs
 
 def create_env(config, env_fn=_make_env, force_envvec=False):
@@ -67,9 +67,7 @@ class Env:
         return action
         
     def step(self, action, **kwargs):
-        obs, reward, done, info = self.env.step(action, **kwargs)
-
-        return obs, np.float32(reward), done, info
+        return self.env.step(action, **kwargs)
 
     def close(self):
         del self
@@ -89,18 +87,18 @@ class EnvVec:
         return getattr(self.env, name)
 
     def random_action(self, *args, **kwargs):
-        return convert_dtype([env.action_space.sample() for env in self.envs], dtype=self.action_dtype, copy=False)
+        return np.array([env.action_space.sample() for env in self.envs], copy=False)
 
     def reset(self):
         obs = [env.reset() for env in self.envs]
-        return _convert_obs(obs, self.obs_dtype)
+        return _convert_obs(obs)
     
     def step(self, actions, **kwargs):
         obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
 
-        return (_convert_obs(obs, self.obs_dtype), 
-                convert_dtype(reward, dtype=np.float32), 
-                convert_dtype(done, dtype=np.bool), 
+        return (_convert_obs(obs), 
+                np.array(reward), 
+                np.array(done, dtype=np.bool), 
                 info)
 
     def get_mask(self):
@@ -135,9 +133,9 @@ class EfficientEnvVec(EnvVec):
         for i in range(len(info)):
             info[i]['env_id'] = valid_env_ids[i]
         
-        return (_convert_obs(obs, self.obs_dtype), 
-                convert_dtype(reward, dtype=np.float32), 
-                convert_dtype(done, dtype=np.bool), 
+        return (_convert_obs(obs), 
+                np.array(reward, dtype=np.float32), 
+                np.array(done, dtype=np.bool), 
                 info)
 
 
@@ -166,7 +164,7 @@ class RayEnvVec:
     def reset(self):
         obs = tf.nest.flatten(ray.get([env.reset.remote() for env in self.envs]), 
                           (self.n_envs, *self.obs_shape))
-        return _convert_obs(obs, self.obs_dtype)
+        return _convert_obs(obs)
 
     def random_action(self, *args, **kwargs):
         return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
@@ -185,9 +183,9 @@ class RayEnvVec:
             info = []
             for i in info_lists:
                 info += i
-                
+
         obs = tf.nest.flatten(obs)
-        return (_convert_obs(obs, self.obs_dtype),
+        return (_convert_obs(obs),
                 np.reshape(reward, self.n_envs).astype(np.float32), 
                 np.reshape(done, self.n_envs).astype(bool),
                 info)

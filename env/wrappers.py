@@ -157,6 +157,7 @@ class EnvStats:
 
     @property
     def action_dtype(self):
+        """ this is not the action's real dtype, but the desired dtype """
         return infer_dtype(self.action_space.dtype, self.precision)
 
     @property
@@ -199,7 +200,7 @@ class LogEpisode:
             episode = {k: convert_dtype([t[k] for t in self._episode], self.precision)
                 for k in self._episode[0]}
             info['episode'] = self.prev_episode = episode
-        return obs, reward, done, info
+        return obs, convert_dtype(reward, self.precision), done, info
 
 class AutoReset:
     def __init__(self, env):

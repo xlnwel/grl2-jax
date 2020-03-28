@@ -54,8 +54,8 @@ class Agent(BaseAgent):
         TensorSpecs = dict(
             obs=((self._batch_length, *self._obs_shape), self._dtype, 'obs'),
             action=((self._batch_length, self._action_dim), self._dtype, 'action'),
-            reward=((self._batch_length,), tf.float32, 'reward'),
-            discount=((self._batch_length,), tf.float32, 'discount'),
+            reward=((self._batch_length,), self._dtype, 'reward'),
+            discount=((self._batch_length,), self._dtype, 'discount'),
             log_images=(None, tf.bool, 'log_images')
         )
 
