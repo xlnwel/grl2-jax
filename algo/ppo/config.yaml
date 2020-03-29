@@ -6,7 +6,7 @@ env:
     n_workers: 1
     n_envs: 16
     seed: 0
-
+    precision: &prec 32
 model:
     cnn_name: none
     shared_mlp_units: [128]
@@ -16,15 +16,16 @@ model:
     critic_units: [64]
     norm: none
     activation: relu
+    init_std: .1
 
 agent:
     algorithm: &algo ppo
-    env_name: *env_name
+    precision: *prec
 
-    n_updates: 4            # number of updates per epoch
-    N_EPOCHS: 200000
+    MAX_STEPS: 5.e+6
+    N_UPDATES: 4            # number of updates per epoch
+    LOG_INTERVAL: 10000
     max_kl: .05            # early stop when max_kl is violated. 0 suggests no bound
-    LOG_INTERVAL: 10
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

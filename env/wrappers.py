@@ -100,7 +100,7 @@ class EnvStats:
     def __getattr__(self, name):
         return getattr(self.env, name)
 
-    def reset(self):
+    def reset(self, **kwargs):
         if getattr(self, 'was_real_done', True):
             self.score = 0
             self.epslen = 0
@@ -129,10 +129,10 @@ class EnvStats:
         """ Get mask at the current step. Should only be called after self.step """
         return bool(self.mask)
 
-    def get_score(self):
+    def get_score(self, **kwargs):
         return self.score
 
-    def get_epslen(self):
+    def get_epslen(self, **kwargs):
         return self.epslen
 
     def get_already_done(self):

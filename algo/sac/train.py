@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.mixed_precision import experimental as prec
 
-from core.tf_config import configure_gpu, configure_precision
+from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.utils import set_global_seed, Every
 from env.gym_env import create_env
 from replay.func import create_replay
@@ -54,8 +54,7 @@ def train(agent, env, replay):
 
 
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
-    set_global_seed(seed=env_config['seed'], tf=tf)
-    # tf.debugging.set_log_device_placement(True)
+    silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
 

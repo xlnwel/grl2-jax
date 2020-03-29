@@ -4,8 +4,8 @@ import tensorflow as tf
 from tensorflow.keras.mixed_precision import experimental as prec
 import ray
 
-from core.tf_config import configure_gpu, configure_precision, hide_tf_logs
-from utility.utils import set_global_seed, Every
+from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
+from utility.utils import Every
 from utility.signal import sigint_shutdown_ray
 from utility.graph import video_summary
 from utility.timer import TBTimer
@@ -86,8 +86,7 @@ def train(agent, env, eval_env, replay):
 
 def main(env_config, model_config, agent_config, 
         replay_config, restore=False, render=False):
-    hide_tf_logs()
-    # set_global_seed(seed=0, tf=tf)
+    silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config['precision'])
 

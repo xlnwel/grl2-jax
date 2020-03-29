@@ -58,6 +58,10 @@ class Env:
     def __getattr__(self, name):
         return getattr(self.env, name)
 
+    def reset(self, idxes=None):
+        assert idxes is None or idxes == 0, idxes
+        return self.env.reset()
+
     @property
     def n_envs(self):
         return 1
@@ -89,9 +93,12 @@ class EnvVec:
     def random_action(self, *args, **kwargs):
         return np.array([env.action_space.sample() for env in self.envs], copy=False)
 
-    def reset(self):
-        obs = [env.reset() for env in self.envs]
-        return _convert_obs(obs)
+    def reset(self, idxes=None):
+        if idxes is None:
+            obs = [env.reset() for env in self.envs]
+            return _convert_obs(obs)
+        else:
+            return [self.envs[i].reset() for i in idxes]
     
     def step(self, actions, **kwargs):
         obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
@@ -103,16 +110,22 @@ class EnvVec:
 
     def get_mask(self):
         """ Get mask at the current step. Should only be called after self.step """
-        return np.asarray([env.get_mask() for env in self.envs], dtype=np.bool)
+        return np.array([env.get_mask() for env in self.envs], dtype=np.bool)
 
-    def get_score(self):
-        return np.asarray([env.get_score() for env in self.envs])
+    def get_score(self, idxes=None):
+        if idxes is None:
+            return np.array([env.get_score() for env in self.envs])
+        else:
+            return [self.envs[i].get_score() for i in idxes]
 
-    def get_epslen(self):
-        return np.asarray([env.get_epslen() for env in self.envs])
+    def get_epslen(self, idxes=None):
+        if idxes is None:
+            return np.array([env.get_epslen() for env in self.envs])
+        else:
+            return [self.envs[i].get_epslen() for i in idxes]
 
     def get_already_done(self):
-        return np.asarray([env.already_done for env in self.envs], dtype=np.bool)
+        return np.array([env.already_done for env in self.envs], dtype=np.bool)
 
     def close(self):
         del self
@@ -161,10 +174,15 @@ class RayEnvVec:
     def __getattr__(self, name):
         return getattr(self.env, name)
 
-    def reset(self):
-        obs = tf.nest.flatten(ray.get([env.reset.remote() for env in self.envs]), 
-                          (self.n_envs, *self.obs_shape))
-        return _convert_obs(obs)
+    def reset(self, idxes=None):
+        if idxes is None:
+            obs = tf.nest.flatten(ray.get([env.reset.remote() for env in self.envs]))
+            return _convert_obs(obs)
+        else:
+            new_idxes = [[] for _ in range(self.n_workers)]
+            [new_idxes[i // self.n_workers].append(i % self.n_workers) for i in idxes]
+            obs = tf.nest.flatten(ray.get([self.envs[i].reset.remote(j) for i, j in enumerate(new_idxes)]))
+            return obs
 
     def random_action(self, *args, **kwargs):
         return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
@@ -194,11 +212,21 @@ class RayEnvVec:
         """ Get mask at the current step. Should only be called after self.step """
         return np.reshape(ray.get([env.get_mask.remote() for env in self.envs]), self.n_envs)
 
-    def get_score(self):
-        return np.reshape(ray.get([env.get_score.remote() for env in self.envs]), self.n_envs)
+    def get_score(self, idxes=None):
+        if idxes is None:
+            return np.reshape(ray.get([env.get_score.remote() for env in self.envs]), self.n_envs)
+        else:
+            new_idxes = [[] for _ in range(self.n_workers)]
+            [new_idxes[i // self.n_workers].append(i % self.n_workers) for i in idxes]
+            return tf.nest.flatten([self.envs[i].get_score(j) for i, j in enumerate(new_idxes)])
 
-    def get_epslen(self):
-        return np.reshape(ray.get([env.get_epslen.remote() for env in self.envs]), self.n_envs)
+    def get_epslen(self, idxes=None):
+        if idxes is None:
+            return np.reshape(ray.get([env.get_epslen.remote() for env in self.envs]), self.n_envs)
+        else:
+            new_idxes = [[] for _ in range(self.n_workers)]
+            [new_idxes[i // self.n_workers].append(i % self.n_workers) for i in idxes]
+            return tf.nest.flatten([self.envs[i].get_epslen(j) for i, j in enumerate(new_idxes)])
 
     def get_already_done(self):
         return np.reshape(ray.get([env.get_already_done.remote() for env in self.envs]), self.n_envs)

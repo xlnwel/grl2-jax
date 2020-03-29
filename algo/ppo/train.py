@@ -1,8 +1,8 @@
 import numpy as np
 import ray
 
-from core.tf_config import configure_gpu
-from utility.utils import set_global_seed
+from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
+from utility.utils import Every
 from utility.signal import sigint_shutdown_ray
 from utility.timer import Timer
 from env.gym_env import create_env
@@ -29,12 +29,12 @@ def import_agent(algorithm):
 
 def import_run(algorithm):
     if algorithm == 'ppo':
-        from algo.ppo.run import run_trajectories
+        from algo.ppo.run import run
     elif algorithm == 'ppo2':
-        from algo.ppo2.run import run_trajectories
+        from algo.ppo2.run import run
     else:
         raise NotImplementedError(algorithm)
-    return run_trajectories
+    return run
 
 def import_buffer(algorithm):
     if algorithm == 'ppo':
@@ -47,7 +47,7 @@ def import_buffer(algorithm):
 
 
 def train(agent, buffer, env, run):
-    start_epoch = agent.global_steps.numpy()+1
+    step = agent.global_steps.numpy()
     
     eval_env = create_env(dict(
         name=env.name, 
@@ -58,18 +58,16 @@ def train(agent, buffer, env, run):
         effective_envvec=True,
         seed=0,
     ))
+    
+    should_log = Every(agent.LOG_INTERVAL)
+    obs = env.reset()
+    while step < agent.MAX_STEPS:
+        agent.set_summary_step(step)
+        step, obs = run(env, agent, buffer, step, obs)
 
-    for epoch in range(start_epoch, agent.N_EPOCHS+1):
-        agent.set_summary_step(epoch)
-        with Timer(f'{agent.name} run', agent.LOG_INTERVAL):
-            scores, epslens = run(env, agent, buffer, epoch=epoch)
-        agent.store(score=scores, epslen=epslens)
-
-        if agent._algorithm == 'ppo':
-            with Timer(f'{agent.name} training', agent.LOG_INTERVAL):
-                agent.learn_log(buffer, epoch=epoch)
-
-        if epoch % agent.LOG_INTERVAL == 0:
+        if should_log(step):
+            if agent._algorithm == 'ppo2':
+                state = agent.curr_state
             with Timer(f'{agent.name} evaluation'):
                 scores, epslens = evaluate(eval_env, agent)
             agent.store(eval_score=scores, eval_epslen=np.mean(epslens))
@@ -80,9 +78,12 @@ def train(agent, buffer, env, run):
             agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
 
             with Timer(f'{agent.name} logging'):
-                agent.log(epoch)
+                agent.log(step)
             with Timer(f'{agent.name} save'):
-                agent.save(steps=epoch)
+                agent.save(steps=step)
+            
+            if agent._algorithm == 'ppo2':
+                agent.curr_state = state
 
 def main(env_config, model_config, agent_config, buffer_config, restore=False, render=False):
     algo = agent_config['algorithm']
@@ -91,8 +92,9 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     run = import_run(algo)
     PPOBuffer = import_buffer(algo)
 
-    set_global_seed()
+    silence_tf_logs()
     configure_gpu()
+    configure_precision(agent_config['precision'])
 
     use_ray = env_config.get('n_workers', 0) > 1
     if use_ray:

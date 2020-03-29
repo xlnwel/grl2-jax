@@ -50,7 +50,7 @@ class PPOAC(Module):
                         activation=self._activation, 
                         kernel_initializer=get_initializer('orthogonal'))
         if not self._is_action_discrete:
-            self.logstd = tf.Variable(initial_value=np.zeros(action_dim), 
+            self.logstd = tf.Variable(initial_value=np.log(self._init_std)*np.ones(action_dim),
                                         dtype=tf.float32, 
                                         trainable=True, 
                                         name=f'actor/logstd')
@@ -90,7 +90,7 @@ class PPOAC(Module):
             if self._is_action_discrete:
                 return tf.argmax(actor_output, -1)
             else:
-                return tf.tanh(actor_output)
+                return actor_output
     
     def train_step(self, x):
         pwc(f'{self.name} "train_step" is retracing: x={x.shape}', color='cyan')
@@ -120,11 +120,13 @@ class PPOAC(Module):
     def reset_states(self, states=None):
         self._rnn.reset_states(states)
 
-    def get_initial_state(self, inputs=None, batch_size=None):
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         if inputs is None:
             assert batch_size is not None
             inputs = tf.zeros([batch_size, 1, 1])
-        return self._rnn.get_initial_state(inputs)
+        if dtype is None:
+            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        return tf.nest.map_structure(lambda x: tf.cast(x, dtype), self._rnn.get_initial_state(inputs))
 
 
 def create_model(model_config, action_dim, is_action_discrete, n_envs):

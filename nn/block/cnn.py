@@ -43,7 +43,7 @@ class FTWCNN(Layer):
         return x
 
 
-class IMPALAResidual(Layer):
+class Residual(Layer):
     def __init__(self, filters, time_distributed=False, name=None, **kwargs):
         super().__init__(name=name)
         conv2d = lambda *args, **kwargs: (
@@ -77,8 +77,8 @@ class IMPALACNN(Layer):
             self.cnn_layers += [
                 conv2d(filters, 3, strides=1, padding='same', **kwargs),
                 maxpooling2d(3, strides=2, padding='same'),
-                IMPALAResidual(filters, time_distributed=time_distributed, **kwargs),
-                IMPALAResidual(filters, time_distributed=time_distributed, **kwargs),
+                Residual(filters, time_distributed=time_distributed, **kwargs),
+                Residual(filters, time_distributed=time_distributed, **kwargs),
             ]
 
         self.out_size = 256

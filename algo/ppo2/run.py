@@ -1,38 +1,34 @@
 import numpy as np
 
 
-# Unfortunately, this training scheme does not work well -_-#
-# now that I've change some code of ppo2 to fit ppo.run, this
-# code is no longer valid 
-def run_trajectories(env, agent, buffer, epoch):
-    buffer.reset()
-    obs = env.reset()
-    agent.reset_states()
-
-    for i in range(1, env.max_episode_steps+1):
+def run(env, agent, buffer, step, obs):
+    for i in range(1, agent.N_STEPS):
         action, logpi, value = agent(obs)
         next_obs, reward, done, _ = env.step(action.numpy())
+        mask = env.get_mask()
         buffer.add(obs=obs, 
                     action=action.numpy(), 
                     reward=reward, 
                     value=value.numpy(), 
                     old_logpi=logpi.numpy(), 
                     nonterminal=1-done, 
-                    mask=env.get_mask())
+                    mask=mask)
         obs = next_obs
-        if np.all(done):
-            if buffer.good_to_learn():
-                _, _, last_value = agent(obs, update_curr_state=False)
-                buffer.finish(last_value.numpy())
-                agent.learn_log(buffer, epoch)
-            break
+        step += np.sum(mask)
 
-        if i % agent.LEARN_FREQ == 0 and buffer.good_to_learn():
-            _, _, last_value = agent(obs, update_curr_state=False)
-            buffer.finish(last_value.numpy())
-            agent.learn_log(buffer, epoch)
-            buffer.reset()
+    _, _, last_value = agent(obs, update_curr_state=False)
+    buffer.finish(last_value.numpy())
+    agent.learn_log(buffer, step)
 
-    score, epslen = env.get_score(), env.get_epslen()
+    already_done = env.get_already_done()
+    idxes = [i for i, d in enumerate(already_done) if d]
+    score, epslen = env.get_score(idxes), env.get_epslen(idxes)
+    agent.store(score=score, epslen=epslen)
 
-    return score, epslen
+    new_obs = env.reset(idxes)
+    for i, o in zip(idxes, new_obs):
+        obs[i] = o
+    agent.reset_states(reset=already_done)
+    buffer.reset()
+
+    return step, obs

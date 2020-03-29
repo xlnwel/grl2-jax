@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras.mixed_precision import experimental as prec
 
 from utility.display import pwc
 from utility.schedule import TFPiecewiseSchedule
@@ -13,6 +14,8 @@ from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, env):
+        self._dtype = prec.global_policy().compute_dtype
+
         # optimizer
         if getattr(self, 'schedule_lr', False):
             self._learning_rate = TFPiecewiseSchedule(
@@ -29,18 +32,18 @@ class Agent(BaseAgent):
         self.curr_state = self.initial_state   # for environment interaction
 
         # Explicitly instantiate tf.function to avoid unintended retracing
-        TensorSpecs = [
-            (env.obs_shape, env.obs_dtype, 'obs'),
-            (env.action_shape, env.action_dtype, 'action'),
-            ((), tf.float32, 'traj_ret'),
-            ((), tf.float32, 'value'),
-            ((), tf.float32, 'advantage'),
-            ((), tf.float32, 'old_logpi'),
-            ((), tf.float32, 'mask'),
-            ((), tf.float32, 'n'),
-            ((), tf.float32, 'h'),
-            ((), tf.float32, 'c'),
-        ]
+        TensorSpecs = dict(
+            obs=(env.obs_shape, self._dtype, 'obs'),
+            action=(env.action_shape, self._dtype, 'action'),
+            traj_ret=((), self._dtype, 'traj_ret'),
+            value=((), self._dtype, 'value'),
+            advantage=((), self._dtype, 'advantage'),
+            old_logpi=((), self._dtype, 'old_logpi'),
+            mask=((), self._dtype, 'mask'),
+            n=(None, self._dtype, 'n'),
+            h=((), self._dtype, 'h'), 
+            c=((), self._dtype, 'c')
+        )
         self.learn = build(
             self._learn, 
             TensorSpecs, 
@@ -48,13 +51,16 @@ class Agent(BaseAgent):
             batch_size=env.n_envs,
         )
 
-    def reset_states(self, states=None):
-        if states is None:
-            states = self.initial_state
-        self.prev_state = self.curr_state = states
+    def reset_states(self, states=None, reset=None):
+        if states is not None:
+            self.curr_state = states
+        if reset is not None:
+            mask = tf.cast(1. - reset, self._dtype)[:, None]
+            self.prev_state = tf.nest.map_structure(lambda x: x * mask, self.prev_state)
+            self.curr_state = tf.nest.map_structure(lambda x: x * mask, self.curr_state)
         
     def __call__(self, obs, deterministic=False, update_curr_state=True):
-        obs = tf.convert_to_tensor(obs, tf.float32)
+        obs = tf.convert_to_tensor(obs, self._dtype)
         if deterministic:
             action, state = self.ac.det_action(obs, self.curr_state)
             if update_curr_state:
@@ -66,12 +72,12 @@ class Agent(BaseAgent):
                 self.curr_state = state
             return action, logpi, value
 
-    def learn_log(self, buffer, epoch):
-        for i in range(self._n_updates):
+    def learn_log(self, buffer, step):
+        for i in range(self.N_UPDATES):
             data = buffer.sample()
             data['n'] = n = np.sum(data['mask'])
             value = data['value']
-            data = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
+            data = {k: tf.convert_to_tensor(v, self._dtype) for k, v in data.items()}
             with tf.name_scope('train'):
                 state, terms = self.learn(**data, h=self.prev_state[0], c=self.prev_state[1])
 
@@ -90,20 +96,19 @@ class Agent(BaseAgent):
             self.store(**terms)
 
             if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
-                pwc(f'Eearly stopping at epoch-{epoch} update-{i+1} due to reaching max kl.',
+                pwc(f'Eearly stopping after {i+1} update(s) due to reaching max kl.',
                     f'Current kl={approx_kl:.3g}', color='blue')
                 break
         self.store(approx_kl=approx_kl)
         if not isinstance(self._learning_rate, float):
-            step = tf.cast(self.global_steps, tf.float32)
-            self.store(
-                learning_rate=self._learning_rate(step))
+            step = tf.cast(self.global_steps, self._dtype)
+            self.store(learning_rate=self._learning_rate(step))
 
         # update the state with the newest weights 
         self.prev_state = self.curr_state = state
 
     @tf.function
-    def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask=None, n=None, h=None, c=None):
+    def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask, n, h, c):
         old_value = value
         with tf.GradientTape() as tape:
             prev_state = [h, c]

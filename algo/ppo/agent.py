@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras.mixed_precision import experimental as prec
 
 from utility.display import pwc
 from utility.schedule import TFPiecewiseSchedule
@@ -13,6 +14,8 @@ from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, env):
+        self._dtype = prec.global_policy().compute_dtype
+
         # optimizer
         if getattr(self, 'schedule_lr', False):
             self._learning_rate = TFPiecewiseSchedule([(300, self._learning_rate), (1000, 5e-5)])
@@ -25,14 +28,14 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = [
-            (env.obs_shape, env.obs_dtype, 'obs'),
-            (env.action_shape, env.action_dtype, 'action'),
-            ((), tf.float32, 'traj_ret'),
-            ((), tf.float32, 'value'),
-            ((), tf.float32, 'advantage'),
-            ((), tf.float32, 'old_logpi'),
-            ((), tf.float32, 'mask'),
-            ((), tf.float32, 'n'),
+            (env.obs_shape, self._dtype, 'obs'),
+            (env.action_shape, self._dtype, 'action'),
+            ((), self._dtype, 'traj_ret'),
+            ((), self._dtype, 'value'),
+            ((), self._dtype, 'advantage'),
+            ((), self._dtype, 'old_logpi'),
+            ((), self._dtype, 'mask'),
+            (None, self._dtype, 'n'),
         ]
         self.learn = build(
             self._learn, 
@@ -45,7 +48,7 @@ class Agent(BaseAgent):
         self.ac.reset_states(states)
 
     def __call__(self, obs, deterministic=False):
-        obs = tf.convert_to_tensor(obs, tf.float32)
+        obs = tf.convert_to_tensor(obs, self._dtype)
         if deterministic:
             action = self.ac.det_action(obs)
             return action
@@ -54,13 +57,13 @@ class Agent(BaseAgent):
             return action, logpi, value
             
     def learn_log(self, buffer, epoch):
-        for i in range(self._n_updates):
+        for i in range(self.N_UPDATES):
             self.reset_states()
             for j in range(buffer.n_minibatches):
                 data = buffer.sample()
                 data['n'] = n = np.sum(data['mask'])
                 value = data['value']
-                data = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
+                data = {k: tf.convert_to_tensor(v, self._dtype) for k, v in data.items()}
                 with tf.name_scope('train'):
                     terms = self.learn(**data)
 
@@ -84,7 +87,7 @@ class Agent(BaseAgent):
                 break
         self.store(approx_kl=approx_kl)
         if not isinstance(self._learning_rate, float):
-            step = tf.cast(self.global_steps, tf.float32)
+            step = tf.cast(self.global_steps, self._dtype)
             self.store(
                 learning_rate=self._learning_rate(step))
 

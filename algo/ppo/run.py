@@ -1,10 +1,10 @@
 import numpy as np
 
 
-def run_trajectories(env, agent, buffer, **kwargs):
+def run(env, agent, buffer, step, *args, **kwargs):
     buffer.reset()
-    agent.reset_states()
     obs = env.reset()
+    agent.reset_states()
 
     for _ in range(env.max_episode_steps):
         action, logpi, value = agent(obs)
@@ -22,7 +22,9 @@ def run_trajectories(env, agent, buffer, **kwargs):
         
     _, _, last_value = agent(obs)
     buffer.finish(last_value.numpy())
+    agent.learn_log(buffer, step)
     
     score, epslen = env.get_score(), env.get_epslen()
+    agent.store(score=score, epslen=epslen)
 
-    return score, epslen
+    return step + np.sum(epslen), _

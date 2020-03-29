@@ -50,8 +50,8 @@ class PPOAC(Module):
                         activation=self._activation, 
                         kernel_initializer=get_initializer('orthogonal'))
         if not self._is_action_discrete:
-            self.logstd = tf.Variable(initial_value=np.zeros(action_dim), 
-                                        dtype=tf.float32, 
+            self.logstd = tf.Variable(initial_value=np.log(self._init_std)*np.ones(action_dim), 
+                                        dtype=tf.keras.mixed_precision.experimental.global_policy().compute_dtype, 
                                         trainable=True, 
                                         name=f'actor/logstd')
         self.critic = mlp(self._critic_units, 
@@ -62,7 +62,6 @@ class PPOAC(Module):
                             kernel_initializer=get_initializer('orthogonal'))
 
     @tf.function(experimental_relax_shapes=True)
-    @tf.Module.with_name_scope
     def step(self, x, state):
         pwc(f'{self.name} "step" is retracing: x={x.shape}', color='cyan')
         # assume x is of shape `[batch_size, *obs_shape]`
@@ -75,7 +74,6 @@ class PPOAC(Module):
         return action, logpi, value, state
 
     @tf.function(experimental_relax_shapes=True)
-    @tf.Module.with_name_scope
     def det_action(self, x, state):
         pwc(f'{self.name} "det_action" is retracing: x={x.shape}', color='cyan')
         with tf.name_scope('det_action'):
@@ -90,15 +88,7 @@ class PPOAC(Module):
             if self._is_action_discrete:
                 return tf.argmax(actor_output, -1), state
             else:
-                return tf.tanh(actor_output), state
-    
-    @tf.function(experimental_relax_shapes=True)
-    @tf.Module.with_name_scope
-    def rnn_state(self, x, state):
-        pwc(f'{self.name} "rnn_state" is retracing', color='cyan')
-        _, state = self._common_layers(x, state)
-
-        return state
+                return actor_output, state
         
     def train_step(self, x, state):
         pwc(f'{self.name} "train_step" is retracing: x={x.shape}', color='cyan')
@@ -120,7 +110,6 @@ class PPOAC(Module):
             x = x / 255.
         if hasattr(self, '_shared_layers'):
             x = self._shared_layers(x)
-
         x = self._rnn(x, initial_state=state)
         x, state = x[0], x[1:]
         return x, state
@@ -128,11 +117,14 @@ class PPOAC(Module):
     def reset_states(self, state=None):
         self._rnn.reset_states(state)
 
-    def get_initial_state(self, inputs=None, batch_size=None):
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         if inputs is None:
             assert batch_size is not None
             inputs = tf.zeros([batch_size, 1, 1])
-        return self._rnn.get_initial_state(inputs)
+        if dtype is None:
+            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        return tf.nest.map_structure(lambda x: tf.cast(x, dtype), 
+                    self._rnn.get_initial_state(inputs))
 
 
 def create_model(model_config, action_dim, is_action_discrete, n_envs):

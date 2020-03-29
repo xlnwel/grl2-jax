@@ -129,7 +129,10 @@ class Logger:
         for k, v in kwargs.items():
             if isinstance(v, tf.Tensor):
                 v = v.numpy()
-            self.store_dict[k].append(v)
+            if isinstance(v, (list, tuple)):
+                self.store_dict[k] += list(v)
+            else:
+                self.store_dict[k].append(v)
 
     def get(self, key, mean=True, std=False, min=False, max=False):
         stats = {}
