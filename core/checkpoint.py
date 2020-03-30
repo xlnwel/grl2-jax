@@ -51,7 +51,6 @@ def setup_checkpoint(ckpt_models, root_dir, model_name, global_steps):
         model_name: The name of the model
     """
     # checkpoint & manager
-    global_steps = tf.Variable(0, dtype=tf.int64)
     ckpt = tf.train.Checkpoint(step=global_steps, **ckpt_models)
     ckpt_path = f'{root_dir}/{model_name}/models'
     ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, 5)

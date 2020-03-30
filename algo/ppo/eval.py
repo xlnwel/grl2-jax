@@ -12,20 +12,19 @@ from env.gym_env import create_env
 def import_model_fn(algorithm):
     if algorithm == 'ppo':
         from algo.ppo.nn import create_model
+    elif algorithm == 'ppo1':
+        from algo.ppo.nn import create_model
     elif algorithm == 'ppo2':
         from algo.ppo2.nn import create_model
     else:
         raise NotImplementedError(algorithm)
     return create_model
 
-def evaluate(env, agent):
+def evaluate(env, agent, n=1):
     pwc('Evaluation starts', color='cyan')
-    i = 0
-
     scores = []
     epslens = []
-    while i < 100:
-        i += env.n_envs
+    for i in range(0, n, env.n_envs):
         agent.reset_states()
         state = env.reset()
         for _ in range(env.max_episode_steps):

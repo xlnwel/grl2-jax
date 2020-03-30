@@ -1,129 +1,118 @@
 import numpy as np
 from copy import deepcopy
 
-from utility.display import assert_colorize, pwc
+from core.decorator import config
+from utility.display import pwc
 from utility.utils import moments, standardize
 from replay.utils import init_buffer, print_buffer
 
 
 class PPOBuffer:
-    def __init__(self, config, n_envs, seqlen):
-        self.n_envs = n_envs
-        self.seqlen = seqlen
-        self.n_minibatches = config['n_minibatches']
-        self.minibatch_len = self.seqlen // self.n_minibatches
-
-        self.advantage_type = config['advantage_type']
-        self.gamma = config['gamma']
-        self.gae_discount = self.gamma * config['lam'] 
-        # Environment hack
-        self.reward_scale = config.get('reward_scale', 1)
-        self.reward_clip = config.get('reward_clip')
+    @config
+    def __init__(self):
+        self._size = self._n_envs * self._n_steps
+        self._mb_size = self._size // self._n_mbs
+        self._idxes = np.arange(self._size)
+        self._gae_discount = self._gamma * self._lam 
         
-        assert_colorize(seqlen // self.n_minibatches * self.n_minibatches == seqlen, 
-            f'#envs({n_envs}) is not divisible by #minibatches{self.n_minibatches}')
-
-        self.memory = {}
+        self._memory = {}
         self.reset()
 
     def add(self, **data):
-        assert_colorize(self.idx < self.seqlen, 
-            f'Out-of-range idx {self.idx}. Call "self.reset" beforehand')
-        if self.memory == {}:
-            init_buffer(self.memory, pre_dims=(self.n_envs, self.seqlen), **data)
-            self.memory['value'] = np.zeros((self.n_envs, self.seqlen+1), dtype=np.float32)
-            self.memory['traj_ret'] = np.zeros((self.n_envs, self.seqlen), dtype=np.float32)
-            self.memory['advantage'] = np.zeros((self.n_envs, self.seqlen), dtype=np.float32)
-            print_buffer(self.memory)
+        if self._memory == {}:
+            init_buffer(self._memory, pre_dims=(self._n_envs, self._n_steps), **data)
+            self._memory['value'] = np.zeros((self._n_envs, self._n_steps+1), dtype=np.float32)
+            self._memory['traj_ret'] = np.zeros((self._n_envs, self._n_steps), dtype=np.float32)
+            self._memory['advantage'] = np.zeros((self._n_envs, self._n_steps), dtype=np.float32)
+            print_buffer(self._memory)
             
         for k, v in data.items():
-            if v is not None:
-                self.memory[k][:, self.idx] = v
+            self._memory[k][:, self._idx] = v
 
-        self.idx += 1
+        self._idx += 1
 
     def sample(self):
-        assert_colorize(self.ready, 
-            f'PPOBuffer is not ready to be read. Call "self.finish" first')
-        start = self.batch_idx * self.minibatch_len
-        end = np.minimum((self.batch_idx + 1) * self.minibatch_len, self.idx)
-        if start > self.idx or (end == self.idx and np.sum(self.memory['mask'][:, start:end]) < 500):
-            self.batch_idx = 0
-            start = self.batch_idx * self.minibatch_len
-            end = np.minimum((self.batch_idx + 1) * self.minibatch_len, self.idx)
-        else:
-            self.batch_idx = (self.batch_idx + 1) % self.n_minibatches
+        assert self._ready
+        if self._batch_idx == 0:
+            np.random.shuffle(self._idxes)
+        start = self._batch_idx * self._mb_size
+        end = (self._batch_idx + 1) * self._mb_size
+
+        self._batch_idx = (self._batch_idx + 1) % self._n_mbs
 
         keys = ['obs', 'action', 'traj_ret', 'value', 
-                'advantage', 'old_logpi', 'mask']
-
-        return {k: self.memory[k][:, start:end]
-                for k in keys if self.memory[k] is not None}
+                'advantage', 'old_logpi']
+        
+        return {k: self._memory[k][self._idxes[start: end]] for k in keys}
 
     def finish(self, last_value):
-        self.memory['value'][:, self.idx] = last_value
-        valid_slice = np.s_[:, :self.idx]
-        self.memory['mask'][:, self.idx:] = 0
-        mask = self.memory['mask'][valid_slice]
+        assert self._idx == self._n_steps, self._idx
+        self._memory['value'][:, -1] = last_value
 
         # Environment hack
-        self.memory['reward'] *= self.reward_scale
-        if self.reward_clip:
-            self.memory['reward'] = np.clip(self.memory['reward'], -self.reward_clip, self.reward_clip)
+        if hasattr(self, '_reward_scale'):
+            self._memory['reward'] *= self._reward_scale
+        if hasattr(self, '_reward_clip'):
+            self._memory['reward'] = np.clip(self._memory['reward'], -self._reward_clip, self._reward_clip)
 
-        if self.advantage_type == 'nae':
-            traj_ret = self.memory['traj_ret'][valid_slice]
+        if self._adv_type == 'nae':
+            traj_ret = self._memory['traj_ret']
             next_return = last_value
-            for i in reversed(range(self.idx)):
-                traj_ret[:, i] = next_return = (self.memory['reward'][:, i] 
-                    + self.memory['nonterminal'][:, i] * self.gamma * next_return)
+            for i in reversed(range(self._n_steps)):
+                traj_ret[:, i] = next_return = (self._memory['reward'][:, i] 
+                    + self._memory['nonterminal'][:, i] * self._gamma * next_return)
 
             # Standardize traj_ret and advantages
-            traj_ret_mean, traj_ret_std = moments(traj_ret, mask=mask)
-            value = standardize(self.memory['value'][valid_slice], mask=mask)
+            traj_ret_mean, traj_ret_std = moments(traj_ret)
+            value = standardize(self._memory['value'][:, :-1])
             # To have the same mean and std as trajectory return
             value = (value + traj_ret_mean) / (traj_ret_std + 1e-8)     
-            self.memory['advantage'][valid_slice] = standardize(traj_ret - value, mask=mask)
-            self.memory['traj_ret'][valid_slice] = standardize(traj_ret, mask=mask)
-        elif self.advantage_type == 'gae':
-            advs = delta = (self.memory['reward'][valid_slice] 
-                + self.memory['nonterminal'][valid_slice] * self.gamma * self.memory['value'][:, 1:self.idx+1]
-                - self.memory['value'][valid_slice])
+            self._memory['advantage'] = standardize(traj_ret - value)
+            self._memory['traj_ret'] = standardize(traj_ret)
+        elif self._adv_type == 'gae':
+            advs = delta = (self._memory['reward'] 
+                + self._memory['nonterminal'] * self._gamma 
+                * self._memory['value'][:, 1:]
+                - self._memory['value'][:, :-1])
             next_adv = 0
-            for i in reversed(range(self.idx)):
-                advs[:, i] = next_adv = delta[:, i] + self.memory['nonterminal'][:, i] * self.gae_discount * next_adv
-            self.memory['traj_ret'][valid_slice] = advs + self.memory['value'][valid_slice]
-            self.memory['advantage'][valid_slice] = standardize(advs, mask=mask)
+            for i in reversed(range(self._n_steps)):
+                advs[:, i] = next_adv = (delta[:, i] 
+                    + self._memory['nonterminal'][:, i] * self._gae_discount * next_adv)
+            self._memory['traj_ret'] = advs + self._memory['value'][:, :-1]
+            self._memory['advantage'] = standardize(advs)
         else:
             raise NotImplementedError
 
-        for k, v in self.memory.items():
-            shape = v[valid_slice].shape
-            v[valid_slice] = np.reshape((v[valid_slice].T * mask.T).T, shape)
+        for k, v in self._memory.items():
+            self._memory[k] = np.reshape(v, (-1, *v.shape[2:]))
         
-        self.ready = True
+        self._ready = True
 
     def reset(self):
-        self.idx = 0
-        self.batch_idx = 0
-        self.ready = False      # Whether the buffer is ready to be read
-
+        self._idx = 0
+        self._batch_idx = 0
+        self._ready = False      # Whether the buffer is _ready to be read
+        for k, v in self._memory.items():
+            if k == 'value':
+                self._memory[k] = np.reshape(v, (self._n_envs, self._n_steps+1, *v.shape[1:]))
+            else:
+                self._memory[k] = np.reshape(v, (self._n_envs, self._n_steps, *v.shape[1:]))
 
 if __name__ == '__main__':
     gamma = .99
     lam = .95
-    gae_discount = gamma * lam
+    _gae_discount = gamma * lam
     config = dict(
         gamma=gamma,
         lam=lam,
-        advantage_type='gae',
-        n_minibatches=2
+        _adv_type='gae',
+        _n_mbs=2
     )
     kwargs = dict(
         config=config,
         n_envs=8, 
         seqlen=1000, 
-        n_minibatches=2, 
+        _n_mbs=2, 
     )
     buffer = PPOBuffer(**kwargs)
     d = np.zeros((kwargs['n_envs']))

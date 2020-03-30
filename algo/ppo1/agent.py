@@ -25,6 +25,7 @@ class Agent(BaseAgent):
             clip_norm=self._clip_norm, epsilon=self._epsilon)
         self._ckpt_models['optimizer'] = self._optimizer
 
+
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = [
             (env.obs_shape, self._dtype, 'obs'),
@@ -33,45 +34,52 @@ class Agent(BaseAgent):
             ((), self._dtype, 'value'),
             ((), self._dtype, 'advantage'),
             ((), self._dtype, 'old_logpi'),
+            ((), self._dtype, 'mask'),
+            (None, self._dtype, 'n'),
         ]
-        self.learn = build(self._learn, TensorSpecs)
+        self.learn = build(
+            self._learn, 
+            TensorSpecs, 
+            sequential=True, 
+            batch_size=env.n_envs,
+        )
 
     def reset_states(self, states=None):
-        return
+        self.ac.reset_states(states)
 
     def __call__(self, obs, deterministic=False):
-        return self.action(obs, deterministic)
-
-    @tf.function
-    def action(self, obs, deterministic=False):
+        obs = tf.convert_to_tensor(obs, self._dtype)
         if deterministic:
-            act_dist = self.ac(obs, return_value=False)
-            return act_dist.mode()
+            action = self.ac.det_action(obs)
+            return action
         else:
-            act_dist, value = self.ac(obs, return_value=True)
-            action = act_dist.sample()
-            logpi = act_dist.log_prob(action)
+            action, logpi, value = self.ac.step(obs)
             return action, logpi, value
-
+            
     def learn_log(self, buffer, epoch):
         for i in range(self.N_UPDATES):
+            self.reset_states()
             for j in range(self.N_MBS):
                 data = buffer.sample()
+                data['n'] = n = np.sum(data['mask'])
                 value = data['value']
                 data = {k: tf.convert_to_tensor(v, self._dtype) for k, v in data.items()}
                 with tf.name_scope('train'):
                     terms = self.learn(**data)
 
                 terms = {k: v.numpy() for k, v in terms.items()}
+                n_total_trans = value.size
+                n_valid_trans = n or n_total_trans
 
                 terms['value'] = np.mean(value)
+                terms['n_valid_trans'] = n_valid_trans
+                terms['n_total_trans'] = n_total_trans
+                terms['valid_trans_frac'] = n_valid_trans / n_total_trans
 
                 approx_kl = terms['approx_kl']
                 del terms['approx_kl']
 
                 self.store(**terms)
-                if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
-                    break
             
             if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
                 pwc(f'Eearly stopping at epoch-{epoch} update-{i+1} due to reaching max kl.',
@@ -84,22 +92,23 @@ class Agent(BaseAgent):
                 learning_rate=self._learning_rate(step))
 
     @tf.function
-    def _learn(self, obs, action, traj_ret, value, advantage, old_logpi):
+    def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):
         old_value = value
         with tf.GradientTape() as tape:
-            act_dist, value = self.ac(obs, return_value=True)
-            logpi = act_dist.log_prob(action)
-            entropy = act_dist.entropy()
+            action_dist, value = self.ac.train_step(obs)
+            logpi = action_dist.log_prob(action)
+            entropy = action_dist.entropy()
             # policy loss
             ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
-                logpi, old_logpi, advantage, self._clip_range, entropy)
+                logpi, old_logpi, advantage, self._clip_range,
+                entropy, mask=mask, n=n)
             # value loss
             value_loss, v_clip_frac = compute_value_loss(
-                value, traj_ret, old_value, self._clip_range)
+                value, traj_ret, old_value, self._clip_range,
+                mask=mask, n=n)
 
             with tf.name_scope('total_loss'):
-                policy_loss = (ppo_loss 
-                        - self._entropy_coef * entropy)
+                policy_loss = (ppo_loss - self._entropy_coef * entropy)
                 value_loss = self._value_coef * value_loss
                 total_loss = policy_loss + value_loss
 

@@ -14,9 +14,7 @@ from run.cmd_args import parse_cmd_args
 
 
 def import_main(algorithm):
-    if algorithm == 'ppo':
-        from algo.ppo.train import main
-    elif algorithm == 'ppo2':
+    if algorithm.startswith('ppo'):
         from algo.ppo.train import main
     elif algorithm == 'sac':
         from algo.sac.train import main
@@ -36,16 +34,12 @@ def import_main(algorithm):
     return main
     
 def get_config_file(algorithm, environment):
-    if algorithm == 'ppo':
-        config_file = 'algo/ppo/config.yaml'
-    elif algorithm == 'ppo2':
-        config_file = 'algo/ppo2/config.yaml'
+    if algorithm.startswith('ppo'):
+        config_file = f'algo/{algorithm}/config.yaml'
     elif algorithm == 'sac':
         config_file = 'algo/sac/config.yaml'
     elif algorithm == 'dreamer':
         config_file = 'algo/dreamer/config.yaml'
-    elif algorithm == 'sacar':
-        config_file = 'algo/sacar/config.yaml'
     elif algorithm == 'd3qn':
         config_file = 'algo/d3qn/config.yaml'
     elif algorithm == 'apex-d3qn':
@@ -164,7 +158,7 @@ if __name__ == '__main__':
                 env_config['video_path'] = (f'{agent_config["root_dir"]}/'
                                             f'{agent_config["model_name"]}/'
                                             f'{env_config["video_path"]}')
-                if len(algorithm) > 1:
+                if len(algo_env) > 1:
                     p = Process(target=main,
                                 args=(env_config, 
                                     model_config,

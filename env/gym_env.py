@@ -34,14 +34,12 @@ def _make_env(config):
 
     return env
 
-def _convert_obs(obs):
-    if isinstance(obs[0], np.ndarray):
-        obs = np.array(obs, copy=False)
-    return obs
-
 def create_env(config, env_fn=_make_env, force_envvec=False):
-    EnvType = EnvVec if force_envvec or config.get('n_envs', 1) > 1 else Env
-    if config.get('n_workers', 1) == 1:
+    if force_envvec and config.get('n_workers', 1) <= 1:
+        EnvType = EnvVec
+    else:
+        EnvType = EnvVec if config.get('n_envs', 1) > 1 else Env
+    if config.get('n_workers', 1) <= 1:
         if EnvType == EnvVec and config.get('efficient_envvec', False):
             EnvType = EfficientEnvVec
         return EnvType(config, env_fn)
@@ -49,10 +47,19 @@ def create_env(config, env_fn=_make_env, force_envvec=False):
         return RayEnvVec(EnvType, config, env_fn)
 
 
-class Env:
+class EnvBase:
+    def _convert_obs(self, obs):
+        if isinstance(obs[0], np.ndarray):
+            obs = np.reshape(obs, [self.n_envs, *self.obs_shape])
+        return obs
+
+    def close(self):
+        del self
+
+class Env(EnvBase):
     def __init__(self, config, env_fn=_make_env):
-        self.name = config['name']
         self.env = env_fn(config)
+        self.name = config['name']
         self.max_episode_steps = self.env.spec.max_episode_steps
 
     def __getattr__(self, name):
@@ -73,18 +80,27 @@ class Env:
     def step(self, action, **kwargs):
         return self.env.step(action, **kwargs)
 
-    def close(self):
-        del self
+    """ the following code is needed for ray """
+    def get_mask(self):
+        return self.env.get_mask()
+    
+    def get_score(self, **kwargs):
+        return self.env.get_score(**kwargs)
 
+    def get_epslen(self, **kwargs):
+        return self.env.get_epslen(**kwargs)
 
-class EnvVec:
+    def get_already_done(self, **kwargs):
+        return self.env.get_already_done(**kwargs)
+
+class EnvVec(EnvBase):
     def __init__(self, config, env_fn=_make_env):
         self.n_envs = n_envs = config['n_envs']
         self.name = config['name']
         self.envs = [env_fn(config) for i in range(n_envs)]
+        self.env = self.envs[0]
         if 'seed' in config:
             [env.seed(config['seed'] + i) for i, env in enumerate(self.envs)]
-        self.env = self.envs[0]
         self.max_episode_steps = self.env.spec.max_episode_steps
 
     def __getattr__(self, name):
@@ -96,20 +112,19 @@ class EnvVec:
     def reset(self, idxes=None):
         if idxes is None:
             obs = [env.reset() for env in self.envs]
-            return _convert_obs(obs)
+            return self._convert_obs(obs)
         else:
             return [self.envs[i].reset() for i in idxes]
     
     def step(self, actions, **kwargs):
         obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
 
-        return (_convert_obs(obs), 
+        return (self._convert_obs(obs), 
                 np.array(reward), 
                 np.array(done, dtype=np.bool), 
                 info)
 
     def get_mask(self):
-        """ Get mask at the current step. Should only be called after self.step """
         return np.array([env.get_mask() for env in self.envs], dtype=np.bool)
 
     def get_score(self, idxes=None):
@@ -146,26 +161,25 @@ class EfficientEnvVec(EnvVec):
         for i in range(len(info)):
             info[i]['env_id'] = valid_env_ids[i]
         
-        return (_convert_obs(obs), 
+        return (self._convert_obs(obs), 
                 np.array(reward, dtype=np.float32), 
                 np.array(done, dtype=np.bool), 
                 info)
 
 
-class RayEnvVec:
+class RayEnvVec(EnvBase):
     def __init__(self, EnvType, config, env_fn=_make_env):
         self.name = config['name']
         self.n_workers= config['n_workers']
         self.envsperworker = config['n_envs']
         self.n_envs = self.envsperworker * self.n_workers
-
         RayEnvType = ray.remote(EnvType)
         # leave the name "envs" for consistency, albeit workers seems more appropriate
         if 'seed' in config:
-            self.envs = [config.update({'seed': 100*i}) or RayEnvType.remote(config.copy(), env_fn) 
+            self.envs = [config.update({'seed': 100*i}) or RayEnvType.remote(config, env_fn) 
                     for i in range(self.n_workers)]
         else:
-            self.envs = [RayEnvType.remote(config.copy(), env_fn) 
+            self.envs = [RayEnvType.remote(config, env_fn) 
                     for i in range(self.n_workers)]
 
         self.env = EnvType(config, env_fn)
@@ -177,7 +191,7 @@ class RayEnvVec:
     def reset(self, idxes=None):
         if idxes is None:
             obs = tf.nest.flatten(ray.get([env.reset.remote() for env in self.envs]))
-            return _convert_obs(obs)
+            return self._convert_obs(obs)
         else:
             new_idxes = [[] for _ in range(self.n_workers)]
             [new_idxes[i // self.n_workers].append(i % self.n_workers) for i in idxes]
@@ -203,7 +217,7 @@ class RayEnvVec:
                 info += i
 
         obs = tf.nest.flatten(obs)
-        return (_convert_obs(obs),
+        return (self._convert_obs(obs),
                 np.reshape(reward, self.n_envs).astype(np.float32), 
                 np.reshape(done, self.n_envs).astype(bool),
                 info)

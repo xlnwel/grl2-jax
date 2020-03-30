@@ -27,6 +27,7 @@ def train(agent, env, replay):
         seed=0,
     ))
     start_step = agent.global_steps.numpy() + 1
+    print(start_step)
 
     print('Training started...')
     step = start_step
@@ -95,7 +96,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         agent.restore()
         collect_fn = lambda **kwargs: replay.add(**kwargs)      
         while not replay.good_to_learn():
-            run(env, agent.actor, collect_fn)
+            run(env, agent.actor, fn=collect_fn)
     else:
         random_sampling(env, replay)
 

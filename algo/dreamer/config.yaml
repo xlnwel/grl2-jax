@@ -1,11 +1,10 @@
 ---
 env:
-    name: dmc_walker_walk
+    name: dmc_walker_run
     video_path: video
     log_video: False
     n_workers: 1
     n_envs: 1
-    log_episode: True
     auto_reset: True
     n_ar: 2
     precision: &prec 16
@@ -79,5 +78,5 @@ replay:
     # arguments for general replay
     batch_size: *bs
     batch_length: *bl
-    max_episodes: 1000
+    max_episodes: 800
     min_episodes: 5

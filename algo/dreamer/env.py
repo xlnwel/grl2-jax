@@ -154,7 +154,8 @@ def make_env(config):
     env = wrappers.TimeLimit(env, max_episode_steps)
     env = wrappers.EnvStats(env, config.get('precision', 32))
     env = wrappers.LogEpisode(env)
-    env = wrappers.AutoReset(env)
+    if config['auto_reset']:
+        env = wrappers.AutoReset(env)
 
     return env
 

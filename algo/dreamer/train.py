@@ -35,11 +35,6 @@ def run(env, agent, obs=None, already_done=None,
     return obs, already_done, i * env.n_envs
 
 def train(agent, env, eval_env, replay):
-    def collect(already_done, info):
-        if already_done.any():
-            eps = [info[i]['episode'] for i, d in enumerate(already_done) if d]
-            replay.merge(eps)
-
     def collect_log(already_done, info):
         if already_done.any():
             episodes, scores, epslens = [], [], []
@@ -55,7 +50,7 @@ def train(agent, env, eval_env, replay):
     step = agent.global_steps.numpy()
 
     should_log = Every(agent.LOG_INTERVAL)
-    nsteps = agent.TRAIN_INTERVAL // env.n_envs
+    nsteps = agent.TRAIN_INTERVAL
     obs, already_done = None, None
     while not replay.good_to_learn():
         obs, already_done, n = run(
@@ -100,7 +95,7 @@ def main(env_config, model_config, agent_config,
     eval_env_config['auto_reset'] = False
     eval_env_config['n_envs'] = 1
     eval_env_config['n_workers'] = 1
-    eval_env = create_env(env_config, make_env, force_envvec=True)
+    eval_env = create_env(eval_env_config, make_env, force_envvec=True)
 
     def process(data):
         data = data.copy()

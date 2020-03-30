@@ -62,7 +62,7 @@ class SoftPolicy(Module):
             dist = tfd.MultivariateNormalDiag(mu, std)
             raw_action = dist.sample()
             action = tf.tanh(raw_action)
-            terms = dict(action_std=std)
+            terms = {}
 
         return action, terms
 

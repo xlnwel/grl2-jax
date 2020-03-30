@@ -3,6 +3,8 @@ https://github.com/openai/baselines/blob/master/baselines/common/wrappers.py
 """
 import numpy as np
 import gym
+
+
 from utility.utils import infer_dtype, convert_dtype
 
 
@@ -112,7 +114,7 @@ class EnvStats:
     def step(self, action):
         if self.already_done:
             self.mask = 0
-            return np.zeros(self.obs_shape), 0, True, {}
+            return np.zeros(self.obs_shape, dtype=np.float32), 0, True, {}
         else:
             self.mask = 1 - self.already_done
             obs, reward, done, info = self.env.step(action)
@@ -165,8 +167,8 @@ class EnvStats:
         return self.action_space.n if self.is_action_discrete else self.action_shape[0]
 
 
-""" The following wrappers rely on already_done defined in EnvStats.
-Therefore, they should only be called after EnvStats """
+""" The following wrappers rely on members defined in EnvStats.
+Therefore, they should only be invoked after EnvStats """
 class LogEpisode:
     def __init__(self, env):
         self.env = env
@@ -179,7 +181,7 @@ class LogEpisode:
         obs = self.env.reset()
         transition = dict(
             obs=obs,
-            action=np.zeros(self.env.action_space.shape),
+            action=np.zeros(self.env.action_space.shape, np.float32),
             reward=0.,
             discount=1
         )

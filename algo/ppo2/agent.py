@@ -125,9 +125,7 @@ class Agent(BaseAgent):
                 mask=mask, n=n)
 
             with tf.name_scope('total_loss'):
-                policy_loss = (ppo_loss 
-                        - self._entropy_coef * entropy # TODO: adaptive entropy regularizer
-                        + self._kl_coef * approx_kl)
+                policy_loss = (ppo_loss - self._entropy_coef * entropy)
                 value_loss = self._value_coef * value_loss
                 total_loss = policy_loss + value_loss
 
