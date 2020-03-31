@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision import experimental as prec
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.utils import set_global_seed, Every
@@ -62,16 +62,25 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     env = create_env(env_config)
     replay = create_replay(replay_config)
 
+    dtype = global_policy().compute_dtype
     data_format = dict(
-        obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
-        action=DataFormat((None, *env.action_shape), env.action_dtype),
-        reward=DataFormat((None, ), tf.float32), 
-        next_obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
-        done=DataFormat((None, ), tf.float32),
+        obs=DataFormat((None, *env.obs_shape), dtype),
+        action=DataFormat((None, *env.action_shape), dtype),
+        reward=DataFormat((None, ), dtype), 
+        next_obs=DataFormat((None, *env.obs_shape), dtype),
+        done=DataFormat((None, ), dtype),
     )
     if replay_config.get('n_steps', 1) > 1:
         data_format['steps'] = DataFormat((None, ), tf.float32)
-    dataset = Dataset(replay, data_format)
+    print(data_format)
+    def process(data):
+        data = data.copy()
+        dtype = global_policy().compute_dtype
+        with tf.device('cpu:0'):
+            if env.is_action_discrete:
+                data['action'] = tf.one_hot(data['action'], env.action_dim, dtype=dtype)
+        return data
+    dataset = Dataset(replay, data_format, process_fn=process)
 
     models = create_model(
         model_config, 

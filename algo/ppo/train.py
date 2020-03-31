@@ -6,29 +6,8 @@ from utility.utils import Every
 from utility.signal import sigint_shutdown_ray
 from utility.timer import Timer
 from env.gym_env import create_env
-from algo.ppo.eval import evaluate
+from algo.ppo.eval import evaluate, import_model_fn, import_agent
 
-def import_model_fn(algorithm):
-    if algorithm == 'ppo':
-        from algo.ppo.nn import create_model
-    elif algorithm == 'ppo1':
-        from algo.ppo1.nn import create_model
-    elif algorithm == 'ppo2':
-        from algo.ppo2.nn import create_model
-    else:
-        raise NotImplementedError(algorithm)
-    return create_model
-
-def import_agent(algorithm):
-    if algorithm == 'ppo':
-        from algo.ppo.agent import Agent
-    elif algorithm == 'ppo1':
-        from algo.ppo1.agent import Agent
-    elif algorithm == 'ppo2':
-        from algo.ppo2.agent import Agent
-    else:
-        raise NotImplementedError(algorithm)
-    return Agent
 
 def import_run(algorithm):
     if algorithm == 'ppo':
@@ -37,6 +16,8 @@ def import_run(algorithm):
         from algo.ppo1.run import run
     elif algorithm == 'ppo2':
         from algo.ppo2.run import run
+    elif algorithm == 'ppo3':
+        from algo.ppo3.run import run
     else:
         raise NotImplementedError(algorithm)
     return run
@@ -48,23 +29,15 @@ def import_buffer(algorithm):
         from algo.ppo1.buffer import PPOBuffer
     elif algorithm == 'ppo2':
         from algo.ppo2.buffer import PPOBuffer
+    elif algorithm == 'ppo3':
+        from algo.ppo3.buffer import PPOBuffer
     else:
         raise NotImplementedError(algorithm)
     return PPOBuffer
 
 
-def train(agent, buffer, env, run):
+def train(agent, env, eval_env, buffer, run):
     step = agent.global_steps.numpy()
-    
-    eval_env = create_env(dict(
-        name=env.name, 
-        video_path='video',
-        log_video=False,
-        n_workers=1,
-        n_envs=env.n_envs,
-        effective_envvec=True,
-        seed=0,
-    ))
     
     should_log = Every(agent.LOG_INTERVAL)
     obs = env.reset()
@@ -73,8 +46,9 @@ def train(agent, buffer, env, run):
         step, obs = run(env, agent, buffer, step, obs)
 
         if should_log(step):
-            if agent._algorithm == 'ppo2':
-                state = agent.curr_state
+            if agent._algorithm >= 'ppo2':
+                state = agent.state
+                
             scores, epslens = evaluate(eval_env, agent)
             agent.store(eval_score=scores, eval_epslen=np.mean(epslens))
 
@@ -86,8 +60,8 @@ def train(agent, buffer, env, run):
             agent.log(step)
             agent.save(steps=step)
             
-            if agent._algorithm == 'ppo2':
-                agent.curr_state = state
+            if agent._algorithm >= 'ppo2':
+                agent.state = state
 
 def main(env_config, model_config, agent_config, buffer_config, restore=False, render=False):
     algo = agent_config['algorithm']
@@ -106,8 +80,12 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
         sigint_shutdown_ray()
 
     env = create_env(env_config, force_envvec=True)
-    
-    if agent_config['algorithm'] == 'ppo1':
+    eval_env_config = env_config.copy()
+    eval_env_config['n_workers'] = 1
+    eval_env_config['n_envs'] = 1
+    eval_env = create_env(eval_env_config, force_envvec=True)
+
+    if algo == 'ppo1':
         buffer_config['n_steps'] = env.max_episode_steps
     buffer = PPOBuffer(buffer_config)
 
@@ -133,7 +111,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     if restore:
         agent.restore()
 
-    train(agent, buffer, env, run)
+    train(agent, env, eval_env, buffer, run)
 
     if use_ray:
         ray.shutdown()

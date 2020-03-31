@@ -11,7 +11,8 @@ class Layer(layers.Layer):
                 name=None, **kwargs):
         super().__init__(name=name)
 
-        kernel_initializer = get_initializer(kernel_initializer)
+        gain = np.sqrt(2) if activation == 'relu' and kernel_initializer == 'orthogonal' else 1.
+        kernel_initializer = get_initializer(kernel_initializer, gain=gain)
 
         self._layer = layer_type(units, kernel_initializer=kernel_initializer, **kwargs)
         self._norm_layer = get_norm(norm)

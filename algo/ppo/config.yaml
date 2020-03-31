@@ -26,7 +26,7 @@ agent:
     LOG_INTERVAL: 10000
     N_MBS: &mbs 4
     N_STEPS: &steps 256
-    max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
+    max_kl: .05            # early stop when max_kl is violated. 0 suggests no bound
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -37,7 +37,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    learning_rate: 1.e-3
+    learning_rate: 3.e-4
     epsilon: 1.e-8
     clip_norm: .5
     # arguments for loss

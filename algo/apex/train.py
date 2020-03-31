@@ -1,5 +1,4 @@
 import time
-from tensorflow.keras.mixed_precision import experimental as prec
 import ray
 
 from utility.signal import sigint_shutdown_ray

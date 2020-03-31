@@ -10,7 +10,6 @@ env:
 model:
     cnn_name: none
     shared_mlp_units: [64]
-    use_dnc: False
     lstm_units: 64
     actor_units: [64]
     critic_units: [64]
@@ -19,7 +18,7 @@ model:
     init_std: .1
 
 agent:
-    algorithm: &algo ppo
+    algorithm: &algo ppo1
     precision: *prec
 
     MAX_STEPS: 5.e+6

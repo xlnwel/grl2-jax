@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras.mixed_precision import experimental as prec
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 
 def _reduce_mean(x, name, n):
@@ -8,7 +8,7 @@ def _reduce_mean(x, name, n):
 
 def compute_ppo_loss(logpi, old_logpi, advantages, clip_range, entropy, mask=None, n=None):
     assert (mask is None) == (n is None), f'Both/Neither mask and/nor n should be None, but get \nmask:{mask}\nn:{n}'
-    dtype = prec.global_policy().compute_dtype
+    dtype = global_policy().compute_dtype
     
     m = 1. if mask is None else mask
     with tf.name_scope('ppo_loss'):
@@ -26,7 +26,7 @@ def compute_ppo_loss(logpi, old_logpi, advantages, clip_range, entropy, mask=Non
 
 def compute_value_loss(value, traj_ret, old_value, clip_range, mask=None, n=None):
     assert (mask is None) == (n is None), f'Both/Neither mask and/nor n should be None, but get \nmask:{mask}\nn:{n}'
-    dtype = prec.global_policy().compute_dtype
+    dtype = global_policy().compute_dtype
 
     m = 1. if mask is None else mask
     with tf.name_scope('value_loss'):

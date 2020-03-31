@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision import experimental as prec
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target, transformed_n_step_target
@@ -15,6 +15,7 @@ from core.optimizer import Optimizer
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
+        self._dtype = global_policy().compute_dtype
         # dataset for input pipline optimization
         self.dataset = dataset
         self._is_per = not self.dataset.buffer_type().endswith('uniform')
@@ -46,11 +47,11 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            action=(env.action_shape, env.action_dtype, 'action'),
-            reward=((), tf.float32, 'reward'),
-            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
-            done=((), tf.float32, 'done'),
+            obs=(env.obs_shape, self._dtype, 'obs'),
+            action=(env.action_shape, self._dtype, 'action'),
+            reward=((), self._dtype, 'reward'),
+            next_obs=(env.obs_shape, self._dtype, 'next_obs'),
+            done=((), self._dtype, 'done'),
         )
         if self._is_per:
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
@@ -88,10 +89,7 @@ class Agent(BaseAgent):
     @tf.function
     def _learn(self, obs, action, reward, next_obs, done, IS_ratio=1, steps=1):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
-        if self._is_action_discrete:
-            old_action = tf.one_hot(action, self._action_dim)
-        else:
-            old_action = action
+        old_action = action
         target_fn = (transformed_n_step_target if getattr(self, 'tbo', False) 
                     else n_step_target)
         with tf.GradientTape(persistent=True) as tape:

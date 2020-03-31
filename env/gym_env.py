@@ -120,7 +120,7 @@ class EnvVec(EnvBase):
         obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
 
         return (self._convert_obs(obs), 
-                np.array(reward), 
+                np.array(reward, dtype=np.float32), 
                 np.array(done, dtype=np.bool), 
                 info)
 

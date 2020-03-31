@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision import experimental as prec
+from tensorflow.keras.mixed_precision.experimental import global_policy
 import ray
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
@@ -30,8 +30,7 @@ def run(env, agent, obs=None, already_done=None,
         already_done = env.get_already_done()
         if fn:
             fn(already_done, info)
-        if np.all(env.get_already_done()):
-            break
+
     return obs, already_done, i * env.n_envs
 
 def train(agent, env, eval_env, replay):
@@ -99,7 +98,7 @@ def main(env_config, model_config, agent_config,
 
     def process(data):
         data = data.copy()
-        dtype = prec.global_policy().compute_dtype
+        dtype = global_policy().compute_dtype
         with tf.device('cpu:0'):
             data['obs'] = tf.cast(data['obs'], dtype) / 255. - .5
             if env.is_action_discrete:
@@ -108,7 +107,7 @@ def main(env_config, model_config, agent_config,
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
     replay.load_data()
-    dtype = prec.global_policy().compute_dtype
+    dtype = global_policy().compute_dtype
     data_format = dict(
         obs=DataFormat((None, *env.obs_shape), dtype),
         action=DataFormat((None, *env.action_shape), dtype),

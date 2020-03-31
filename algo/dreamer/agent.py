@@ -2,7 +2,7 @@ import functools
 import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
-from tensorflow.keras.mixed_precision import experimental as prec
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 from utility.utils import AttrDict
@@ -23,7 +23,7 @@ class Agent(BaseAgent):
     def __init__(self, *, dataset, env):
         # dataset for input pipline optimization
         self.dataset = dataset
-        self._dtype = prec.global_policy().compute_dtype
+        self._dtype = global_policy().compute_dtype
 
         # optimizer
         dynamics_models = [self.encoder, self.rssm, self.decoder, self.reward]

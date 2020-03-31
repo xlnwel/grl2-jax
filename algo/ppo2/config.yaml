@@ -13,7 +13,6 @@ env:
 model:
     cnn_name: none
     shared_mlp_units: [64]
-    use_dnc: False
     lstm_units: 64
     actor_units: [64]
     critic_units: [64]

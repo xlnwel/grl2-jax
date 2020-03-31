@@ -1,5 +1,4 @@
 import numpy as np
-from copy import deepcopy
 
 from core.decorator import config
 from utility.display import pwc
@@ -10,9 +9,9 @@ from replay.utils import init_buffer, print_buffer
 class PPOBuffer:
     @config
     def __init__(self):
-        self._size = self._n_envs * self._n_steps
-        self._mb_size = self._size // self._n_mbs
-        self._idxes = np.arange(self._size)
+        size = self._n_envs * self._n_steps
+        self._mb_size = size // self._n_mbs
+        self._idxes = np.arange(size)
         self._gae_discount = self._gamma * self._lam 
         
         self._memory = {}
@@ -33,12 +32,11 @@ class PPOBuffer:
 
     def sample(self):
         assert self._ready
-        if self._batch_idx == 0:
+        if self._mb_idx == 0:
             np.random.shuffle(self._idxes)
-        start = self._batch_idx * self._mb_size
-        end = (self._batch_idx + 1) * self._mb_size
-
-        self._batch_idx = (self._batch_idx + 1) % self._n_mbs
+        start = self._mb_idx * self._mb_size
+        end = (self._mb_idx + 1) * self._mb_size
+        self._mb_idx = (self._mb_idx + 1) % self._n_mbs
 
         keys = ['obs', 'action', 'traj_ret', 'value', 
                 'advantage', 'old_logpi']
@@ -90,45 +88,9 @@ class PPOBuffer:
 
     def reset(self):
         self._idx = 0
-        self._batch_idx = 0
-        self._ready = False      # Whether the buffer is _ready to be read
-        for k, v in self._memory.items():
-            if k == 'value':
-                self._memory[k] = np.reshape(v, (self._n_envs, self._n_steps+1, *v.shape[1:]))
-            else:
-                self._memory[k] = np.reshape(v, (self._n_envs, self._n_steps, *v.shape[1:]))
+        self._mb_idx = 0
+        self._ready = False
 
-if __name__ == '__main__':
-    gamma = .99
-    lam = .95
-    _gae_discount = gamma * lam
-    config = dict(
-        gamma=gamma,
-        lam=lam,
-        _adv_type='gae',
-        _n_mbs=2
-    )
-    kwargs = dict(
-        config=config,
-        n_envs=8, 
-        seqlen=1000, 
-        _n_mbs=2, 
-    )
-    buffer = PPOBuffer(**kwargs)
-    d = np.zeros((kwargs['n_envs']))
-    m = np.ones((kwargs['n_envs']))
-    for i in range(kwargs['seqlen']):
-        r = np.random.rand(kwargs['n_envs'])
-        v = np.random.rand(kwargs['n_envs'])
-        if np.random.randint(2):
-            d[np.random.randint(kwargs['n_envs'])] = 1
-        buffer.add(reward=r,
-                value=v,
-                nonterminal=1-d,
-                mask=m)
-        m = 1-d
-        if np.all(d == 1):
-            break
-    last_value = np.random.rand(kwargs['n_envs'])
-    buffer.finish(last_value)
-    
+        self._memory = {
+            k: np.reshape(v, (self._n_envs, -1, *v.shape[1:]))
+            for k, v in self._memory.items()}

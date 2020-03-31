@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras.mixed_precision.experimental import global_policy
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 
@@ -151,13 +152,13 @@ class DiagGaussian(Distribution):
     def _mode(self):
         return self.mu
 
-from tensorflow.keras.mixed_precision import experimental as prec
+
 class OneHotDist:
 
   def __init__(self, logits=None, probs=None):
     self._dist = tfd.Categorical(logits=logits, probs=probs)
     self._num_classes = self.mean().shape[-1]
-    self._dtype = prec.global_policy().compute_dtype
+    self._dtype = global_policy().compute_dtype
 
   @property
   def name(self):

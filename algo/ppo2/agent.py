@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision import experimental as prec
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 from utility.schedule import TFPiecewiseSchedule
@@ -14,7 +14,7 @@ from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, env):
-        self._dtype = prec.global_policy().compute_dtype
+        self._dtype = global_policy().compute_dtype
 
         # optimizer
         if getattr(self, 'schedule_lr', False):
@@ -27,9 +27,7 @@ class Agent(BaseAgent):
         self._ckpt_models['optimizer'] = self._optimizer
 
         # previous and current state of LSTM
-        self.initial_state = self.ac.get_initial_state(batch_size=env.n_envs)
-        self.prev_state = self.initial_state   # for training
-        self.curr_state = self.initial_state   # for environment interaction
+        self.state = self.ac.get_initial_state(batch_size=env.n_envs)
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
@@ -48,55 +46,68 @@ class Agent(BaseAgent):
             self._learn, 
             TensorSpecs, 
             sequential=True, 
-            batch_size=env.n_envs,
+            batch_size=env.n_envs // self.N_MBS,
         )
 
-    def reset_states(self, states=None, reset=None):
-        if states is not None:
-            self.curr_state = states
-        if reset is not None:
-            mask = tf.cast(1. - reset, self._dtype)[:, None]
-            self.prev_state = tf.nest.map_structure(lambda x: x * mask, self.prev_state)
-            self.curr_state = tf.nest.map_structure(lambda x: x * mask, self.curr_state)
+    def reset_states(self, states=None):
+        self.state = states
         
-    def __call__(self, obs, deterministic=False, update_curr_state=True):
-        obs = tf.convert_to_tensor(obs, self._dtype)
+    def __call__(self, obs, reset=None, deterministic=False, update_curr_state=True):
+        if self.state is None:
+            self.state = self.ac.get_initial_state(batch_size=tf.shape(obs)[0])
+        if reset is None:
+            reset = tf.zeros(tf.shape(obs)[0], self._dtype)
+        mask = tf.cast(1. - reset, self._dtype)[:, None]
+        self.state = tf.nest.map_structure(lambda x: x * mask, self.state)
+        out, state = self.action(obs, self.state, deterministic)
+        if update_curr_state:
+            self.state = state
+        return tf.nest.map_structure(lambda x: x.numpy(), out)
+
+    @tf.function
+    def action(self, obs, state, deterministic=False):
+        if obs.dtype == np.uint8:
+            obs = tf.cast(obs, self._dtype) / 255.
+        obs = tf.expand_dims(obs, 1)
         if deterministic:
-            action, state = self.ac.det_action(obs, self.curr_state)
-            if update_curr_state:
-                self.curr_state = state
-            return action
+            act_dist, state = self.ac(obs, state, return_value=False)
+            action = tf.squeeze(act_dist.mode(), 1)
+            return action, state
         else:
-            action, logpi, value, state = self.ac.step(obs, self.curr_state)
-            if update_curr_state:
-                self.curr_state = state
-            return action, logpi, value
+            act_dist, value, state = self.ac(obs, state, return_value=True)
+            action = act_dist.sample()
+            logpi = act_dist.log_prob(action)
+            out = (action, logpi, value)
+            return tf.nest.map_structure(lambda x: tf.squeeze(x, 1), out), state
 
     def learn_log(self, buffer, step):
         for i in range(self.N_UPDATES):
-            data = buffer.sample()
-            data['n'] = n = np.sum(data['mask'])
-            value = data['value']
-            data = {k: tf.convert_to_tensor(v, self._dtype) for k, v in data.items()}
-            with tf.name_scope('train'):
-                state, terms = self.learn(**data, h=self.prev_state[0], c=self.prev_state[1])
+            for j in range(self.N_MBS):
+                data = buffer.sample()
+                if data['obs'].dtype == np.uint8:
+                    data['obs'] /= 255.
+                data['n'] = n = np.sum(data['mask'])
+                value = data['value']
+                data = {k: tf.convert_to_tensor(v, self._dtype) for k, v in data.items()}
+                state, terms = self.learn(**data)
 
-            terms = {k: v.numpy() for k, v in terms.items()}
-            n_total_trans = value.size
-            n_valid_trans = n or n_total_trans
+                terms = {k: v.numpy() for k, v in terms.items()}
 
-            terms['value'] = np.mean(value)
-            terms['n_valid_trans'] = n_valid_trans
-            terms['n_total_trans'] = n_total_trans
-            terms['valid_trans_frac'] = n_valid_trans / n_total_trans
-            
-            approx_kl = terms['approx_kl']
-            del terms['approx_kl']
+                n_total_trans = value.size
+                n_valid_trans = n or n_total_trans
+                terms['value'] = np.mean(value)
+                terms['n_valid_trans'] = n_valid_trans
+                terms['n_total_trans'] = n_total_trans
+                terms['valid_trans_frac'] = n_valid_trans / n_total_trans
 
-            self.store(**terms)
+                approx_kl = terms['approx_kl']
+                del terms['approx_kl']
 
+                self.store(**terms)
+                if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
+                        break
             if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
-                pwc(f'Eearly stopping after {i+1} update(s) due to reaching max kl.',
+                pwc(f'Eearly stopping after {i*self.N_MBS+j+1} update(s) due to reaching max kl.',
                     f'Current kl={approx_kl:.3g}', color='blue')
                 break
         self.store(approx_kl=approx_kl)
@@ -105,16 +116,16 @@ class Agent(BaseAgent):
             self.store(learning_rate=self._learning_rate(step))
 
         # update the state with the newest weights 
-        self.prev_state = self.curr_state = state
+        # self.state = state
 
     @tf.function
     def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask, n, h, c):
         old_value = value
         with tf.GradientTape() as tape:
-            prev_state = [h, c]
-            action_dist, value, state = self.ac.train_step(obs, prev_state)
-            logpi = action_dist.log_prob(action)
-            entropy = action_dist.entropy()
+            state = [h, c]
+            act_dist, value, state = self.ac(obs, state, return_value=True)
+            logpi = act_dist.log_prob(action)
+            entropy = act_dist.entropy()
             # policy loss
             ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
                 logpi, old_logpi, advantage, self._clip_range,

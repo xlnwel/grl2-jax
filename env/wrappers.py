@@ -120,7 +120,7 @@ class EnvStats:
             obs, reward, done, info = self.env.step(action)
             self.score += 0 if self.already_done else reward
             self.epslen += 0 if self.already_done else info.get('n_ar', 1)
-            self.already_done = done and getattr(self, 'was_real_done', True)
+            self.already_done = done
             # ignore done signal if the time limit is reached
             if self.epslen == self.env.spec.max_episode_steps:
                 done = False
