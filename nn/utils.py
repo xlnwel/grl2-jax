@@ -3,9 +3,9 @@ from tensorflow.keras import layers, activations, initializers
 
 
 def get_activation(name):
-    if name.lower() == 'none':
+    if name.lower() == 'none' or name is None:
         return None
-    activations.get(name)
+    return activations.get(name)
         
 def get_norm(name):
     """ Return a normalization """

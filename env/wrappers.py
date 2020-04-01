@@ -96,49 +96,49 @@ class EnvStats:
     """ Provide Environment Statistics Recording """
     def __init__(self, env, precision=32):
         self.env = env
-        self.already_done = True
-        self.precision = precision
+        self._already_done = True
+        self._precision = precision
 
     def __getattr__(self, name):
         return getattr(self.env, name)
 
     def reset(self, **kwargs):
         if getattr(self, 'was_real_done', True):
-            self.score = 0
-            self.epslen = 0
-            self.already_done = False
-            self.mask = 1
+            self._score = 0
+            self._epslen = 0
+            self._already_done = False
+            self._mask = 1
 
         return self.env.reset()
 
     def step(self, action):
-        if self.already_done:
-            self.mask = 0
+        if self._already_done:
+            self._mask = 0
             return np.zeros(self.obs_shape, dtype=np.float32), 0, True, {}
         else:
-            self.mask = 1 - self.already_done
+            self._mask = 1 - self._already_done
             obs, reward, done, info = self.env.step(action)
-            self.score += 0 if self.already_done else reward
-            self.epslen += 0 if self.already_done else info.get('n_ar', 1)
-            self.already_done = done
+            self._score += 0 if self._already_done else reward
+            self._epslen += 0 if self._already_done else info.get('n_ar', 1)
+            self._already_done = done
             # ignore done signal if the time limit is reached
-            if self.epslen == self.env.spec.max_episode_steps:
+            if self._epslen == self.env.spec.max_episode_steps:
                 done = False
 
             return obs, reward, done, info
 
-    def get_mask(self):
+    def mask(self):
         """ Get mask at the current step. Should only be called after self.step """
-        return bool(self.mask)
+        return bool(self._mask)
 
-    def get_score(self, **kwargs):
-        return self.score
+    def score(self, **kwargs):
+        return self._score
 
-    def get_epslen(self, **kwargs):
-        return self.epslen
+    def epslen(self, **kwargs):
+        return self._epslen
 
-    def get_already_done(self):
-        return self.already_done
+    def already_done(self):
+        return self._already_done
 
     @property
     def is_action_discrete(self):
@@ -151,7 +151,7 @@ class EnvStats:
     @property
     def obs_dtype(self):
         """ this is not the observation's real dtype, but the desired dtype """
-        return infer_dtype(self.observation_space.dtype, self.precision)
+        return infer_dtype(self.observation_space.dtype, self._precision)
 
     @property
     def action_shape(self):
@@ -160,7 +160,7 @@ class EnvStats:
     @property
     def action_dtype(self):
         """ this is not the action's real dtype, but the desired dtype """
-        return infer_dtype(self.action_space.dtype, self.precision)
+        return infer_dtype(self.action_space.dtype, self._precision)
 
     @property
     def action_dim(self):
@@ -198,11 +198,11 @@ class LogEpisode:
             **kwargs
         )
         self._episode.append(transition)
-        if self.already_done:
-            episode = {k: convert_dtype([t[k] for t in self._episode], self.precision)
+        if self._already_done:
+            episode = {k: convert_dtype([t[k] for t in self._episode], self._precision)
                 for k in self._episode[0]}
             info['episode'] = self.prev_episode = episode
-        return obs, convert_dtype(reward, self.precision), done, info
+        return obs, convert_dtype(reward, self._precision), done, info
 
 class AutoReset:
     def __init__(self, env):
@@ -212,7 +212,7 @@ class AutoReset:
         return getattr(self.env, name)
 
     def step(self, action, **kwargs):
-        if self.already_done:
+        if self._already_done:
             obs = self.env.reset()
         obs, reward, done, info = self.env.step(action, **kwargs)
         

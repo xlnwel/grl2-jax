@@ -22,12 +22,12 @@ def run(env, agent, obs=None, already_done=None,
     if obs is None:
         obs = env.reset()
     if already_done is None:
-        already_done = env.get_already_done()
+        already_done = env.already_done()
     nsteps = nsteps or env.max_episode_steps
     for i in range(env.n_ar, nsteps + env.n_ar, env.n_ar):
         action = agent(obs, already_done, deterministic=evaluation)
         obs, reward, done, info = env.step(action)
-        already_done = env.get_already_done()
+        already_done = env.already_done()
         if fn:
             fn(already_done, info)
 
@@ -69,8 +69,8 @@ def train(agent, env, eval_env, replay):
             agent.reset_states(None, None)
             _, _, _ = run(eval_env, agent, evaluation=True)
             video_summary('dreamer/sim', eval_env.prev_episode['obs'][None], step)
-            eval_score = eval_env.get_score()
-            eval_epslen = eval_env.get_epslen()
+            eval_score = eval_env.score()
+            eval_epslen = eval_env.epslen()
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
 
             agent.log(step)

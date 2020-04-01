@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.tf_utils import static_scan
 
@@ -19,7 +20,7 @@ def logpi_correction(action, logpi, is_action_squashed):
         # To avoid evil machine precision error, strictly clip 1-action**2 to [0, 1] range
         sub = tf.reduce_sum(tf.math.log(clip_but_pass_gradient(1 - action**2, l=0, u=1) + 1e-8), axis=-1)
     else:
-        sub = 2 * tf.reduce_sum(tf.math.log(2.) - action - tf.nn.softplus(-2 * action), axis=-1)
+        sub = 2 * tf.reduce_sum(tf.cast(tf.math.log(2.), action.dtype) - action - tf.nn.softplus(-2 * action), axis=-1)
     assert logpi.shape.ndims == sub.shape.ndims, f'{logpi.shape} vs {sub.shape}'
     logpi -= sub
 

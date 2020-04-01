@@ -13,10 +13,10 @@ def run(env, agent, buffer, step, obs):
                     nonterminal=(1-done).astype(np.bool))
         obs = next_obs
         step += env.n_envs
-        already_done = env.get_already_done()
+        already_done = env.already_done()
         if already_done.any():
             idxes = [i for i, d in enumerate(already_done) if d]
-            score, epslen = env.get_score(idxes), env.get_epslen(idxes)
+            score, epslen = env.score(idxes), env.epslen(idxes)
             agent.store(score=score, epslen=epslen)
             new_obs = env.reset(idxes)
             for i, o in zip(idxes, new_obs):

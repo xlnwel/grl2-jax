@@ -49,8 +49,8 @@ def evaluate(env, agent, n=1):
             if np.all(done):
                 break
             
-        scores.append(env.get_score())
-        epslens.append(env.get_epslen())
+        scores.append(env.score())
+        epslens.append(env.epslen())
 
     return scores, epslens
 

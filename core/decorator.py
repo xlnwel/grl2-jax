@@ -28,7 +28,6 @@ def display_model_var_info(models):
 
 def agent_config(init_fn):
     """ Decorator for agent's initialization """
-    @wraps(init_fn)
     def wrapper(self, *, name, config, models, **kwargs):
         """
         Args:
@@ -56,7 +55,6 @@ def agent_config(init_fn):
         # define global steps for train/env step tracking
         self.global_steps = tf.Variable(0, dtype=tf.int64)
 
-        self._logger = setup_logger(self._root_dir, self._model_name)
         self._writer = setup_tensorboard(self._root_dir, self._model_name)
         tf.summary.experimental.set_step(0)
 
@@ -66,16 +64,16 @@ def agent_config(init_fn):
         if getattr(self, '_save_code', False):
             save_code(self._root_dir, self._model_name)
         
-        # postprocessing
         self._ckpt, self._ckpt_path, self._ckpt_manager = \
             setup_checkpoint(self._ckpt_models, self._root_dir, self._model_name, self.global_steps)
+        self._logger = setup_logger(self._root_dir, self._model_name)
+
         display_model_var_info(self._ckpt_models)
         self.print_construction_complete()
     
     return wrapper
 
 def config(init_fn):
-    @wraps(init_fn)
     def wrapper(self, config, *args, **kwargs):
         [setattr(self, k if k.isupper() else f'_{k}', v) for k, v in config.items()]
 

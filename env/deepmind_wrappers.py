@@ -12,7 +12,7 @@ import cv2
 cv2.ocl.setUseOpenCL(False)
 
 from utility.display import pwc
-from env.wrappers import TimeLimit, EnvStats
+from env.wrappers import TimeLimit
 
 
 class NoopResetEnv(gym.Wrapper):
@@ -305,7 +305,7 @@ def wrap_deepmind(env, episodic_life=True, clip_rewards=True, frame_stack=True, 
 
 
 def make_deepmind_env(config):
-    version = 0 if config.get('sticky_actions', 0) else 4
+    version = 0 if config.get('sticky_actions', True) else 4
     config['name'] = f'{config["name"].title()}NoFrameskip-v{version}'
     env = make_atari_env(config['name'], config.get('max_episode_steps'))
     if config.get('log_video', False):
@@ -318,9 +318,13 @@ def make_deepmind_env(config):
 
 
 if __name__ == '__main__':
-
-    env = make_atari_env('PongNoFrameskip-v4', 1080)
-    env = wrap_deepmind(env, frame_stack=True)
+    config = dict(
+        name='pong', 
+        max_episode_steps=108000
+    )
+    env = make_deepmind_env(config)
+    print(env)
+    print(env.spec.max_episode_steps)
     s = env.reset()
     s = np.array(s)
     print(np.min(s), np.max(s), s.shape, np.mean(s), np.std(s))

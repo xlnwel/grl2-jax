@@ -52,11 +52,6 @@ def train(agent, env, eval_env, buffer, run):
             scores, epslens = evaluate(eval_env, agent)
             agent.store(eval_score=scores, eval_epslen=np.mean(epslens))
 
-            agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('epslen', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
-
             agent.log(step)
             agent.save(steps=step)
             
@@ -85,6 +80,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
     eval_env_config['n_envs'] = 1
     eval_env = create_env(eval_env_config, force_envvec=True)
 
+    buffer_config['n_envs'] = env_config['n_envs']
     if algo == 'ppo1':
         buffer_config['n_steps'] = env.max_episode_steps
     buffer = PPOBuffer(buffer_config)
@@ -96,6 +92,8 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
         n_envs=env.n_envs
     )
     
+    agent_config['N_MBS'] = buffer_config['n_mbs']
+    agent_config['N_STEPS'] = buffer_config['n_steps']
     agent = Agent(name=algo, 
                 config=agent_config, 
                 models=models, 

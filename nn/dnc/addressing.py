@@ -232,14 +232,16 @@ class TemporalLinkage(tf.Module):
         )
 
     @tf.Module.with_name_scope
-    def get_initial_state(self, inputs=None, batch_size=None, dtype=tf.float32):
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         state_size = self.state_size
         if inputs is not None:
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
+        if dtype is None:
+            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         return TemporalLinkageState(
-            link=tf.zeros([batch_size, *state_size.link], dtype),
-            precedence_weights=tf.zeros([batch_size, *state_size.precedence_weights], dtype),
+            link=tf.zeros([batch_size, *state_size.link], dtype=dtype),
+            precedence_weights=tf.zeros([batch_size, *state_size.precedence_weights], dtype=dtype),
         )
 
 class Freeness(tf.Module):
@@ -415,10 +417,12 @@ class Freeness(tf.Module):
         return tf.TensorShape([self._memory_size])
     
     @tf.Module.with_name_scope
-    def get_initial_state(self, inputs=None, batch_size=None, dtype=tf.float32):
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         state_size = self.state_size
         if inputs is not None:
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
-        return tf.zeros([batch_size, *state_size])
+        if dtype is None:
+            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        return tf.zeros([batch_size, *state_size], dtype=dtype)
         

@@ -4,11 +4,9 @@ env:
     video_path: video
     log_video: False
     n_workers: 1
-    n_envs: &nenvs 16
+    n_envs: 16
     seed: 0
     precision: &prec 32
-    # max_episode_steps: 27000    # 108000 frames / 4 frame-skips
-    # is_deepmind_env: True
 
 model:
     cnn_name: none
@@ -27,9 +25,7 @@ agent:
     MAX_STEPS: 5.e+6
     N_UPDATES: 8            # number of updates per epoch
     LOG_INTERVAL: 10000
-    N_MBS: &mbs 4
-    N_STEPS: &steps 256
-    max_kl: .05            # early stop when max_kl is violated. 0 suggests no bound
+    max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -40,7 +36,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    learning_rate: 3.e-4
+    learning_rate: 1.e-3
     epsilon: 1.e-8
     clip_norm: .5
     # arguments for loss
@@ -52,9 +48,8 @@ buffer:
     adv_type: gae     # nae or gae
     gamma: .99
     lam: .95
-    n_envs: *nenvs
-    n_steps: *steps
-    n_mbs: *mbs        # number of minibatches
+    n_steps: 256
+    n_mbs: 4        # number of minibatches
     # mini-batch size = n_workers * n_envs * epslen / n_minibatches
     # environment hack
     # reward_scale: 5.

@@ -139,14 +139,12 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     # Grid search happens here
-                    if algo == 'ppo':
+                    if algo.startswith('ppo'):
                         processes += gs()
-                    elif algo == 'ppo2':
-                        processes += gs(value_coef=[0.01, 0.001])
                     elif algo == 'sac':
-                        processes += gs(temperature=dict(value=[0.01, 0.2]))
+                        processes += gs()
                     elif algo == 'sacar':
-                        processes += gs(actor=dict(max_ar=[5, 10]))
+                        processes += gs()
                     elif algo == 'd3qn':
                         processes += gs()
                     else:

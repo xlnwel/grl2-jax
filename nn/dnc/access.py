@@ -350,11 +350,13 @@ class MemoryAccess(layers.Layer):
         if inputs is not None:
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
+        if dtype is None:
+            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         # TODO: initialize memory with small values
         return AccessState(
-            memory=tf.zeros([batch_size, *state_size.memory]),
-            read_weights=tf.zeros([batch_size, *state_size.read_weights]),
-            write_weights=tf.zeros([batch_size, *state_size.write_weights]),
+            memory=tf.zeros([batch_size, *state_size.memory], dtype=dtype),
+            read_weights=tf.zeros([batch_size, *state_size.read_weights], dtype=dtype),
+            write_weights=tf.zeros([batch_size, *state_size.write_weights], dtype=dtype),
             linkage=self._linkage.get_initial_state(batch_size=batch_size, dtype=dtype),
             usage=self._freeness.get_initial_state(batch_size=batch_size, dtype=dtype),
         )
