@@ -1,13 +1,16 @@
 import threading
+import functools
+import numpy as np
 import tensorflow as tf
+from tensorflow.keras.mixed_precision.experimental import global_policy
 import ray
 
 from core.module import Ensemble
-from core.tf_config import configure_gpu, configure_threads, configure_precision
+from core.tf_config import *
 from utility.display import pwc
 from utility.timer import TBTimer
 from env.gym_env import create_env
-from replay.data_pipline import DataFormat, RayDataset
+from replay.data_pipline import process_with_env, DataFormat, RayDataset
 
 
 def get_learner_class(BaseAgent):
@@ -21,33 +24,42 @@ def get_learner_class(BaseAgent):
                     model_config,
                     env_config):
             # tf.debugging.set_log_device_placement(True)
+            silence_tf_logs()
             configure_threads(1, 1)
             configure_gpu()
-            configure_precision(getattr(self, 'precision', 16))
+            configure_precision(getattr(self, '_precision', 32))
+            self._dtype = global_policy().compute_dtype
 
             env = create_env(env_config)
             data_format = dict(
-                obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
-                action=DataFormat((None, *env.action_shape), env.action_dtype),
-                reward=DataFormat((None, ), tf.float32), 
-                next_obs=DataFormat((None, *env.obs_shape), env.obs_dtype),
-                done=DataFormat((None, ), tf.float32),
+                obs=DataFormat((None, *env.obs_shape), self._dtype),
+                action=DataFormat((None, *env.action_shape), self._dtype),
+                reward=DataFormat((None, ), self._dtype), 
+                next_obs=DataFormat((None, *env.obs_shape), self._dtype),
+                done=DataFormat((None, ), self._dtype),
             )
-            if replay.n_steps > 1:
-                data_format['steps'] = DataFormat((None, ), tf.float32)
+            if config['n_steps'] > 1:
+                data_format['steps'] = DataFormat((None, ), self._dtype)
             if config['algorithm'].endswith('il'):
                 data_format.update(dict(
-                    mu=(tf.float32, (None, *env.action_shape)),
-                    std=(tf.float32, (None, *env.action_shape)),
-                    kl_flag=(tf.float32, (None, )),
+                    mu=DataFormat((None, *env.action_shape), self._dtype),
+                    std=DataFormat((None, *env.action_shape), self._dtype),
+                    kl_flag=DataFormat((None, ), self._dtype),
                 ))
-            dataset = RayDataset(replay, data_format)
-            self.model = Ensemble(model_fn, model_config, env.obs_shape, env.action_dim, env.is_action_discrete)
-            
+            print(data_format)
+            process = functools.partial(process_with_env, env=env)
+            dataset = RayDataset(replay, data_format, process)
+
+            self.models = Ensemble(
+                model_fn=model_fn, 
+                model_config=model_config, 
+                action_dim=env.action_dim, 
+                is_action_discrete=env.is_action_discrete)
+
             super().__init__(
                 name=name, 
                 config=config, 
-                models=self.model,
+                models=self.models,
                 dataset=dataset,
                 env=env,
             )
@@ -62,14 +74,13 @@ def get_learner_class(BaseAgent):
             self._writer.set_as_default()
             while True:
                 step += 1
-                with TBTimer(f'{self.name} train', 10000, to_log=self.timer):
-                    self.learn_log(step)
+                self.learn_log(step)
                 if step % 1000 == 0:
                     self.log(step, print_terminal_info=False)
                 if step % 100000 == 0:
                     self.save(print_terminal_info=False)
 
         def get_weights(self, worker_id, name=None):
-            return self.model.get_weights(name=name)
+            return self.models.get_weights(name=name)
 
     return Learner

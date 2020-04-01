@@ -68,13 +68,13 @@ def run_trajectory(env, actor, *, fn=None, evaluation=False,
             if done:
                 break
         # test the effectiveness of Atari wrappers
-        # print(env.env.lives, env.get_score(), env.get_epslen())
+        # print(env.env.lives, env.score(), env.epslen())
         if env.already_done or i == env.max_episode_steps:
             break
         else:
-            print(f'not already done, {env.get_epslen()}')
+            print(f'not already done, {env.epslen()}')
         
-    return env.get_score(), env.get_epslen()
+    return env.score(), env.epslen()
 
 def run_trajectories1(envvec, actor, fn=None, evaluation=False, 
                     timer=False, step=None, name='trajs', epsilon=0):
@@ -95,17 +95,17 @@ def run_trajectories1(envvec, actor, fn=None, evaluation=False,
         if fn:
             if step is None:
                 fn(obs=obs, action=action, reward=reward, done=done, 
-                    next_obs=next_obs, mask=envvec.get_mask(), 
+                    next_obs=next_obs, mask=envvec.mask(), 
                     **terms)
             else:
                 step += envvec.n_envs
                 fn(obs=obs, action=action, reward=reward, done=done, 
-                    next_obs=next_obs, mask=envvec.get_mask(), 
+                    next_obs=next_obs, mask=envvec.mask(), 
                     step=step, **terms)
         obs = next_obs
         if np.all(done):
             break
-    return envvec.get_score(), envvec.get_epslen()
+    return envvec.score(), envvec.epslen()
 
 def run_trajectories2(envvec, actor, fn=None, evaluation=False, 
                     timer=False, step=None, name='trajs', epsilon=0):
@@ -130,18 +130,18 @@ def run_trajectories2(envvec, actor, fn=None, evaluation=False,
             env_ids = [i['env_id'] for i in info]
             if step is None:
                 fn(obs=obs, action=action, reward=reward, done=done, 
-                    next_obs=next_obs, mask=envvec.get_mask(), 
+                    next_obs=next_obs, mask=envvec.mask(), 
                     env_ids=env_ids, **terms)
             else:
                 step += len(env_ids)
                 fn(obs=obs, action=action, reward=reward, done=done, 
-                    next_obs=next_obs, mask=envvec.get_mask(), 
+                    next_obs=next_obs, mask=envvec.mask(), 
                     env_ids=env_ids, step=step, **terms)
         obs = next_obs[(1 - done).astype(np.bool)]
         if np.all(done):
             break
 
-    return envvec.get_score(), envvec.get_epslen()
+    return envvec.score(), envvec.epslen()
 
 def run_trajectory_ar(env, actor, *, fn=None, evaluation=False, 
                     timer=False, step=None, render=False, 
@@ -179,13 +179,13 @@ def run_trajectory_ar(env, actor, *, fn=None, evaluation=False,
             if done:
                 break
         # test the effectiveness of Atari wrappers
-        # print(env.env.lives, env.get_score(), env.get_epslen())
+        # print(env.env.lives, env.score(), env.epslen())
         if env.already_done:
             break
         else:
-            print(f'not already done, {env.get_epslen()}')
+            print(f'not already done, {env.epslen()}')
         
-    return env.get_score(), env.get_epslen()
+    return env.score(), env.epslen()
 
 def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False, 
                         timer=False, name='trajs', epsilon=0):
@@ -209,12 +209,12 @@ def run_trajectories1_ar(envvec, actor, fn=None, evaluation=False,
         n_ar = np.array([i['n_ar'] for i in info]) - 1
         if fn:
             fn(obs=obs, action=action, n_ar=n_ar, reward=reward, done=done, 
-                next_obs=next_obs, mask=envvec.get_mask())
+                next_obs=next_obs, mask=envvec.mask())
         obs = next_obs
         if np.all(done):
             break
 
-    return envvec.get_score(), envvec.get_epslen()
+    return envvec.score(), envvec.epslen()
 
 def run_trajectories2_ar(envvec, actor, fn=None, evaluation=False, 
                         timer=False, name='trajs', epsilon=0):
@@ -239,12 +239,12 @@ def run_trajectories2_ar(envvec, actor, fn=None, evaluation=False,
         if fn:
             env_ids = [i['env_id'] for i in info]
             fn(obs=obs, action=action, n_ar=n_ar, reward=reward, done=done, 
-                next_obs=next_obs, mask=envvec.get_mask(), env_ids=env_ids)
+                next_obs=next_obs, mask=envvec.mask(), env_ids=env_ids)
         obs = next_obs[(1 - done).astype(np.bool)]
         if np.all(done):
             break
 
-    return envvec.get_score(), envvec.get_epslen()
+    return envvec.score(), envvec.epslen()
 
 def random_sampling(env, buffer):
     """ Interact with the environment with random actions to 

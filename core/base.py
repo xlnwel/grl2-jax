@@ -60,4 +60,4 @@ class BaseAgent(ABC):
         return get_value(self._logger, key, mean=mean, std=std, min=min, max=max)
 
     def print_construction_complete(self):
-        pwc(f'{self._model_name} has been constructed', color='cyan')
+        pwc(f'{self._model_name.title()} has been constructed...', color='cyan')

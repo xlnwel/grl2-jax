@@ -53,6 +53,8 @@ def merge(images, size=None):
         elif np.min(img) < 0:
             # for images in range [-.5, .5]
             img = img + .5
+        assert np.min(img) >= 0, np.min(img)
+        assert np.max(img) <= 1, np.max(img)
         img = np.clip(255 * img, 0, 255).astype(np.uint8)
         return img
     elif images.shape[3]==1:

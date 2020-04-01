@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.tf_config import build
 from core.module import Module
@@ -14,12 +15,12 @@ from nn.func import mlp
 
 class SoftPolicy(Module):
     @config
-    def __init__(self, obs_shape, action_dim, is_action_discrete, name='actor'):
+    def __init__(self, action_dim, is_action_discrete, name='actor'):
+        self._dtype = global_policy().compute_dtype
         super().__init__(name=name)
 
         # network parameters
         self._is_action_discrete = is_action_discrete
-        self._obs_shape = obs_shape
         
         """ Network definition """
         out_dim = action_dim if is_action_discrete else 2*action_dim
@@ -28,17 +29,13 @@ class SoftPolicy(Module):
                             norm=self._norm, 
                             activation=self._activation, 
                             kernel_initializer=self._kernel_initializer)
-
-        # build for avoiding unintended retrace
-        TensorSpecs = [(obs_shape, tf.float32, 'obs'), (None, tf.bool, 'deterministic')]
-        self._action = build(self._action_impl, TensorSpecs)
     
     def __call__(self, x, deterministic=False, epsilon=0):
-        x = tf.convert_to_tensor(x, tf.float32)
-        x = tf.reshape(x, [-1, *self._obs_shape])
+        x = tf.convert_to_tensor(x, self._dtype)
+        x = tf.reshape(x, [-1, tf.shape(x)[-1]])
         deterministic = tf.convert_to_tensor(deterministic, tf.bool)
 
-        action, terms = self._action(x, deterministic)
+        action, terms = self.action(x, deterministic)
         action = np.squeeze(action.numpy())
         terms = dict((k, np.squeeze(v.numpy())) for k, v in terms.items())
 
@@ -48,7 +45,7 @@ class SoftPolicy(Module):
         return action, terms
 
     @tf.function(experimental_relax_shapes=True)
-    def _action_impl(self, x, deterministic=False):
+    def action(self, x, deterministic=False):
         x = self._layers(x)
 
         if self._is_action_discrete:
@@ -120,7 +117,7 @@ class Temperature(Module):
         if self.temp_type == 'state-action':
             self.intra_layer = layers.Dense(1)
         elif self.temp_type == 'variable':
-            self.log_temp = tf.Variable(0.)
+            self.log_temp = tf.Variable(0., dtype=global_policy().compute_dtype)
         else:
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
     
@@ -137,11 +134,11 @@ class Temperature(Module):
         return log_temp, temp
 
 
-def create_model(model_config, obs_shape, action_dim, is_action_discrete):
+def create_model(model_config, action_dim, is_action_discrete):
     actor_config = model_config['actor']
     q_config = model_config['q']
     temperature_config = model_config['temperature']
-    actor = SoftPolicy(actor_config, obs_shape, action_dim, is_action_discrete)
+    actor = SoftPolicy(actor_config, action_dim, is_action_discrete)
     q1 = SoftQ(q_config, 'q1')
     q2 = SoftQ(q_config, 'q2')
     target_q1 = SoftQ(q_config, 'target_q1')

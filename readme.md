@@ -16,7 +16,7 @@ This repository is implemented with *Tensorflow2.0*, and *ray0.8.0.dev6* for dis
 
 **Note**: Here, we only implement a prototype for SEED. To gain the full efficency, one should cooperate it with a larger network(e.g., CNNs). Also, consider separating the action loop from the learner because of the Python GIL.
 
-## Main Reference Papers
+## Reference Papers
 
 John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov. “Proximal Policy Optimization Algorithms” 
 
@@ -37,3 +37,13 @@ Lasse Espeholt, Raphaël Marinier, Piotr Stanczyk, Ke Wang, and Marcin Michalski
 Danijar Hafner, Timothy Lillicrap, Ian Fischer, Ruben Villegas,  David Ha, Honglak Lee, James Davidson. Learning Latent Dynamics for Planning from Pixels. In ICML 2019
 
 Danijar Hafner, Timothy Lillicrap, Jimmy Ba, Mohammad Norouzi. Dream to Control: Learning Behaviors by Latent Imagination. In ICLR 2020
+
+## Reference Repository
+
+https://github.com/danijar/dreamer
+
+
+
+## Acknowledge
+
+I'd like to especially thank @danijar for his great help.

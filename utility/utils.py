@@ -4,7 +4,6 @@ import os.path as osp
 import math
 import multiprocessing
 import numpy as np
-import sympy
 
 
 class AttrDict(dict):
@@ -22,6 +21,9 @@ class Every:
             return True
         return False
 
+    def step(self):
+        return self._next - self._period
+        
 def to_int(s):
     return int(float(s))
     
@@ -137,6 +139,7 @@ def squarest_grid_size(n, more_on_width=True):
         A tuple of (height, width) for the image grid.
     """
     # the following code is useful for large n, but it is not compatible with tf.numpy_function
+    # import sympy
     # divisors = sympy.divisors(n)
     # square_root = math.sqrt(n)
     # for d in divisors:

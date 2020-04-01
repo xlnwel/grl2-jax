@@ -15,7 +15,7 @@ def create_learner(Learner, name, model_fn, replay, config, model_config, env_co
     # it does not actually interact with env
     env_config['n_workers'] = env_config['n_envs'] = 1
 
-    if env_config.get('is_deepmind_env'):
+    if 'atari' in env_config['name'] or 'dmc' in env_config['name']:
         RayLearner = ray.remote(num_cpus=1, num_gpus=.5)(Learner)
     else:
         if tf.config.list_physical_devices('GPU'):
@@ -50,6 +50,7 @@ def create_worker(Worker, name, worker_id, model_fn, config, model_config,
     config['replay_type'] = buffer_config['type']
     config['mode_prob'] = [1, 0, 0]
 
+    config['display_var'] = False
     RayWorker = ray.remote(num_cpus=1)(Worker)
     worker = RayWorker.remote(name, worker_id, model_fn, buffer_fn, config, 
                         model_config, env_config, buffer_config)

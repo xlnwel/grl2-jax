@@ -25,71 +25,75 @@ class Timer:
     aggregators = defaultdict(Aggregator)
 
     def __init__(self, summary_name, period=1, mode='average', to_log=True):
-        self.to_log = to_log
-        if self.to_log:
-            self.summary_name = summary_name
-            self.period = period
+        self._to_log = to_log
+        if self._to_log:
+            self._summary_name = summary_name
+            self._period = period
             assert mode in ['average', 'sum']
-            self.mode = mode
+            self._mode = mode
 
     def __enter__(self):
-        if self.to_log:
-            self.start = time()
+        if self._to_log:
+            self._start = time()
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.to_log:
-            duration = time() - self.start
-            aggregator = self.aggregators[self.summary_name]
+        if self._to_log:
+            duration = time() - self._start
+            aggregator = self.aggregators[self._summary_name]
             aggregator.add(duration)
-            if aggregator.count >= self.period:
-                if self.mode == 'average':
+            if aggregator.count >= self._period:
+                if self._mode == 'average':
                     duration = aggregator.average()
                     duration = (f'{duration*1000:.3g}ms' if duration < 1e-1 
                                 else f'{duration:.3g}s')
-                    pwc(f'{self.summary_name} duration: "{duration}" averaged over {self.period} times', color='blue')
+                    pwc(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times', color='blue')
                 else:
                     duration = aggregator.sum
-                    pwc(f'{self.summary_name} duration: "{duration}" for {self.period} times')
+                    pwc(f'{self._summary_name} duration: "{duration}" for {self._period} times')
                 aggregator.reset()
 
 
 class TBTimer:
     aggregators = defaultdict(Aggregator)
 
-    def __init__(self, summary_name, period=1, to_log=True):
-        self.to_log = to_log
-        if self.to_log:
-            self.summary_name = summary_name
-            self.period = period
+    def __init__(self, summary_name, period=1, to_log=True, print_terminal_info=False):
+        self._to_log = to_log
+        if self._to_log:
+            self._summary_name = summary_name
+            self._period = period
+            self._print_terminal_info = print_terminal_info
 
     def __enter__(self):
-        if self.to_log:
-            self.start = time()
+        if self._to_log:
+            self._start = time()
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.to_log:
-            duration = time() - self.start
-            aggregator = self.aggregators[self.summary_name]
+        if self._to_log:
+            duration = time() - self._start
+            aggregator = self.aggregators[self._summary_name]
             aggregator.add(duration)
-            if aggregator.count >= self.period:
-                tf.summary.scalar(f'timer/{self.summary_name}', aggregator.average())
+            if aggregator.count >= self._period:
+                duration = aggregator.average()
+                tf.summary.scalar(f'timer/{self._summary_name}', duration)
                 aggregator.reset()
+                if self._print_terminal_info:
+                    pwc(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times', color='blue')
 
 class LoggerTimer:
     def __init__(self, logger, summary_name, to_log=True):
-        self.to_log = to_log
-        if self.to_log:
+        self._to_log = to_log
+        if self._to_log:
             self._logger = logger
-            self.summary_name = summary_name
+            self._summary_name = summary_name
 
     def __enter__(self):
-        if self.to_log:
-            self.start = time()
+        if self._to_log:
+            self._start = time()
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.to_log:
-            duration = time() - self.start
-            self._logger.store(**{self.summary_name: duration})
+        if self._to_log:
+            duration = time() - self._start
+            self._logger.store(**{self._summary_name: duration})

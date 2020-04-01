@@ -44,6 +44,8 @@ def agent_config(init_fn):
         self.name = name
         """ For the basic configuration, see config.yaml in algo/*/ """
         [setattr(self, k if k.isupper() else f'_{k}', v) for k, v in config.items()]
+        
+        pwc(f'{self._model_name.title()} starts constructing...', color='cyan')
 
         # track models and optimizers for Checkpoint
         self._ckpt_models = {}
@@ -61,14 +63,15 @@ def agent_config(init_fn):
         # Agent initialization
         init_fn(self, **kwargs)
 
-        if getattr(self, '_save_code', False):
+        if getattr(self, '_save_code', True):
             save_code(self._root_dir, self._model_name)
         
         self._ckpt, self._ckpt_path, self._ckpt_manager = \
             setup_checkpoint(self._ckpt_models, self._root_dir, self._model_name, self.global_steps)
         self._logger = setup_logger(self._root_dir, self._model_name)
 
-        display_model_var_info(self._ckpt_models)
+        if getattr(self, '_display_var', True):
+            display_model_var_info(self._ckpt_models)
         self.print_construction_complete()
     
     return wrapper

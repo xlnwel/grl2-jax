@@ -42,8 +42,8 @@ class Agent(BaseAgent):
         self._ckpt_models['actor_opt'] = self._actor_opt
         self._ckpt_models['value_opt'] = self._value_opt
 
-        self.state = None
-        self.prev_action = None
+        self._state = None
+        self._prev_action = None
 
         self._obs_shape = env.obs_shape
         self._action_dim = env.action_dim
@@ -62,33 +62,31 @@ class Agent(BaseAgent):
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     def reset_states(self, state, prev_action):
-        self.state = state
-        self.prev_action = prev_action
+        self._state = state
+        self._prev_action = prev_action
 
     def retrieve_states(self):
-        return self.state, self.prev_action
+        return self._state, self._prev_action
 
     def __call__(self, obs, reset, deterministic=False):
-        if self.state is None and self.prev_action is None:
-            self.state = self.rssm.get_initial_state(batch_size=tf.shape(reset)[0])
-            self.prev_action = tf.zeros((tf.shape(reset)[0], self._action_dim), self._dtype)
+        if self._state is None and self._prev_action is None:
+            self._state = self.rssm.get_initial_state(batch_size=tf.shape(reset)[0])
+            self._prev_action = tf.zeros((tf.shape(reset)[0], self._action_dim), self._dtype)
         if reset.any():
             mask = tf.cast(1. - reset, self._dtype)[:, None]
-            self.state = tf.nest.map_structure(lambda x: x * mask, self.state)
-            self.prev_action = self.prev_action * mask
-        action, self.state = self.action(
-            obs, self.state, self.prev_action, deterministic)
-        if self._is_action_discrete:
-            self.prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype)
-        else:
-            self.prev_action = action
-        action = action.numpy()
-        return action
+            self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
+            self._prev_action = self._prev_action * mask
+        self._prev_action, self._state = self.action(
+            obs, self._state, self._prev_action, deterministic)
+
+        return self._prev_action.numpy()
         
     @tf.function
     def action(self, obs, state, prev_action, deterministic=False):
         if obs.dtype == np.uint8:
             obs = tf.cast(obs, self._dtype) / 255. - .5
+        if self._is_action_discrete:
+            prev_action = tf.one_hot(prev_action, self._action_dim, dtype=self._dtype)
         obs = tf.expand_dims(obs, 1)
         embed = self.encoder(obs)
         embed = tf.squeeze(embed, 1)

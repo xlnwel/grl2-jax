@@ -58,7 +58,7 @@ class Replay(ABC):
             if not self._has_next_obs:
                 del kwargs['next_obs']
             init_buffer(self._memory, pre_dims=self._pre_dims, has_steps=self._n_steps>1, **kwargs)
-            print(f"{self.buffer_type()} replay's keys: {list(self._memory.keys())}")
+            print_buffer(self._memory)
 
         if not self._is_full and self._mem_idx == self._capacity - 1:
             print(f'Memory is full({len(self._memory["reward"])})')
@@ -79,7 +79,7 @@ class Replay(ABC):
             if not self._has_next_obs:
                 del local_buffer['next_obs']
             init_buffer(self._memory, pre_dims=self._pre_dims, has_steps=self._n_steps>1, **local_buffer)
-            print(f'"{self.buffer_type()}" keys: {list(self._memory.keys())}')
+            print_buffer(self._memory)
 
         end_idx = self._mem_idx + length
 
@@ -107,7 +107,7 @@ class Replay(ABC):
             results[k] = v[indexes]
             
         if 'next_obs' not in self._memory:
-            steps = results['steps'] if 'steps' in results else 1
+            steps = results.get('steps', 1)
             next_indexes = (indexes + steps) % self._capacity
             results['next_obs'] = self._memory['obs'][next_indexes]
 

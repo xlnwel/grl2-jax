@@ -54,9 +54,9 @@ class Agent(BaseAgent):
             done=((), self._dtype, 'done'),
         )
         if self._is_per:
-            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
+            TensorSpecs['IS_ratio'] = ((), self._dtype, 'IS_ratio')
         if 'steps'  in self.dataset.data_format:
-            TensorSpecs['steps'] = ((), tf.float32, 'steps')
+            TensorSpecs['steps'] = ((), self._dtype, 'steps')
         self.learn = build(self._learn, TensorSpecs)
 
         self._sync_target_nets()

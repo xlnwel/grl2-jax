@@ -2,37 +2,20 @@ import ray
 
 from replay.uniform import UniformReplay
 from replay.per import ProportionalPER
-# from replay.dual import DualReplay
 from replay.eps import EpisodicReplay
 
 
+replay_type = dict(
+    uniform=UniformReplay,
+    proportional=ProportionalPER,
+    episodic=EpisodicReplay
+)
+
 def create_replay(config):
-    buffer_type = config['type']
-    if buffer_type == 'uniform': 
-        return UniformReplay(config)
-    elif buffer_type == 'proportional':
-        return ProportionalPER(config)
-    elif buffer_type == 'episodic':
-        return EpisodicReplay(config)
-    # elif buffer_type.startswith('dual'):
-    #     return DualReplay(config)
-    else:
-        raise NotImplementedError()
+    return replay_type[config['type']](config)
 
 def create_replay_center(config):
-    RayUR = ray.remote(UniformReplay)
-    RayPER = ray.remote(ProportionalPER)
-    # RayDR = ray.remote(DualReplay)
-    RayER = ray.remote(EpisodicReplay)
+    plain_type = replay_type[config['type']]
+    ray_type = ray.remote(plain_type)
+    return ray_type.remote(config)
     
-    buffer_type = config['type']
-    if buffer_type == 'uniform':
-        return RayUR.remote(config)
-    elif buffer_type == 'proportional':
-        return RayPER.remote(config)
-    elif buffer_type == 'episodic':
-        return RayER.remote(config)
-    # elif buffer_type.startswith('dual'):
-    #     return RayDR.remote(config)
-    else:
-        raise NotImplementedError()

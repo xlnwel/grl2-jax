@@ -63,7 +63,7 @@ class EpisodicReplay:
 
     def sample(self):
         """ Different from other replays, here we only sample a single sequence
-        each time as there is little parallel we can do"""
+        each time as there is little vectorization we can do here"""
         filename = random.choice(list(self._memory))
         episode = self._memory[filename]
         if self._batch_length:

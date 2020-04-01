@@ -38,6 +38,7 @@ agent:
     algorithm: &algo dreamer
     polyak: .995
     precision: *prec
+    obs_range: [-0.5, .5]
     batch_size: &bs 50
     batch_length: &bl 50
 
@@ -47,6 +48,9 @@ agent:
     TRAIN_INTERVAL: 1000
     N_UPDATES: 100
     log_images: True
+
+    # distributed training
+    n_workers: 6
 
     # model
     free_nats: 3.

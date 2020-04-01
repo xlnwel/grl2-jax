@@ -1,10 +1,26 @@
 import collections
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras.mixed_precision.experimental import global_policy
 import ray
 
 
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
+
+
+def process_with_env(data, env, obs_range=[0, 1]):
+    dtype = global_policy().compute_dtype
+    with tf.device('cpu:0'):
+        if env.obs_dtype == np.uint8:
+            if obs_range == [0, 1]:
+                data['obs'] = tf.cast(data['obs'], dtype) / 255.
+            elif obs_range == [-.5, .5]:
+                data['obs'] = tf.cast(data['obs'], dtype) / 255. - .5
+            else:
+                raise NotImplementedError(f'Unknown range: {obs_range}')
+        if env.is_action_discrete:
+            data['action'] = tf.one_hot(data['action'], env.action_dim, dtype=dtype)
+    return data
 
 class Dataset:
     def __init__(self, buffer, data_format, process_fn=None, batch_size=False):

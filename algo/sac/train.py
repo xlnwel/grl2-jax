@@ -36,7 +36,7 @@ def train(agent, env, replay):
         agent.set_summary_step(step)
         score, epslen = run(env, agent.actor, fn=collect_and_learn, 
             timer=agent.TIMER, step=step)
-        agent.store(score=env.get_score(), epslen=env.get_epslen())
+        agent.store(score=env.score(), epslen=env.epslen())
         step += epslen
         
         if should_log(step):
@@ -46,10 +46,6 @@ def train(agent, env, replay):
                 evaluation=True, timer=agent.TIMER, name='eval')
             
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-            agent.store(**agent.get_value('score', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('epslen', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('eval_score', mean=True, std=True, min=True, max=True))
-            agent.store(**agent.get_value('eval_epslen', mean=True, std=True, min=True, max=True))
 
             agent.log(step)
 
@@ -84,7 +80,6 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     models = create_model(
         model_config, 
-        obs_shape=env.obs_shape, 
         action_dim=env.action_dim, 
         is_action_discrete=env.is_action_discrete)
 
@@ -137,7 +132,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     #     obs = next_obs
 
     #     if done or epslen == env.max_episode_steps:
-    #         agent.store(score=env.get_score(), epslen=env.get_epslen())
+    #         agent.store(score=env.score(), epslen=env.epslen())
     #         obs = env.reset()
     #         epslen = 0
 

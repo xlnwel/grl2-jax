@@ -1,4 +1,5 @@
 import os
+import functools
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.mixed_precision.experimental import global_policy
@@ -8,10 +9,9 @@ from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.utils import Every
 from utility.signal import sigint_shutdown_ray
 from utility.graph import video_summary
-from utility.timer import TBTimer
 from env.gym_env import create_env
 from replay.func import create_replay
-from replay.data_pipline import DataFormat, Dataset
+from replay.data_pipline import DataFormat, Dataset, process_with_env
 from algo.dreamer.agent import Agent
 from algo.dreamer.nn import create_model
 from algo.dreamer.env import make_env
@@ -96,14 +96,6 @@ def main(env_config, model_config, agent_config,
     eval_env_config['n_workers'] = 1
     eval_env = create_env(eval_env_config, make_env, force_envvec=True)
 
-    def process(data):
-        data = data.copy()
-        dtype = global_policy().compute_dtype
-        with tf.device('cpu:0'):
-            data['obs'] = tf.cast(data['obs'], dtype) / 255. - .5
-            if env.is_action_discrete:
-                data['action'] = tf.one_hot(data['action'], env.action_dim, dtype=dtype)
-        return data
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
     replay.load_data()
@@ -115,6 +107,10 @@ def main(env_config, model_config, agent_config,
         discount=DataFormat((None), dtype),
     )
     print(data_format)
+    process = functools.partial(
+        process_with_env, 
+        env=env, 
+        obs_range=agent_config['obs_range'])
     dataset = Dataset(replay, data_format, process, agent_config['batch_size'])
 
     models = create_model(
@@ -124,11 +120,12 @@ def main(env_config, model_config, agent_config,
         is_action_discrete=env.is_action_discrete
     )
 
-    agent = Agent(name='dreamer',
-                config=agent_config,
-                models=models, 
-                dataset=dataset,
-                env=env)
+    agent = Agent(
+        name='dreamer',
+        config=agent_config,
+        models=models, 
+        dataset=dataset,
+        env=env)
 
     agent.save_config(dict(
         env=env_config,

@@ -1,18 +1,24 @@
 ---
 env:
-    name: Walker2d-v2
+    name: Walker2d-v3
     video_path: video
     log_video: False
-    n_envs: 2
-    efficient_envvec: True
+    n_envs: 1
     seed: 0
+    precision: &prec 32
 model:
     actor:
         units_list: [256, 256]
-        # activation: relu
+        kernel_initializer: glorot_uniform
+        norm: none
+        activation: relu
+        LOG_STD_MIN: -20
+        LOG_STD_MAX: 2
     q:
         units_list: [256, 256]
-        # activation: relu
+        kernel_initializer: glorot_uniform
+        norm: none
+        activation: relu
     temperature:
         temp_type: 'variable'
         value: .2
@@ -20,6 +26,7 @@ agent:
     algorithm: &algo apex-sac
     gamma: &gamma 0.99
     polyak: .995
+    precision: *prec
     evaluation: False
     kl_coef: .1
     act_eps: 0
@@ -59,12 +66,15 @@ replay:
     type: uniform                      # proportional or uniform
     # arguments for PER
     beta0: 0.4
-    beta_steps: 5e4
+    beta_steps: 5.e+4
     to_update_top_priority: False
+
+    reward_clip: 10
 
     # arguments for general replay
     n_steps: 1
     gamma: *gamma
     batch_size: 512
-    min_size: 5e4
-    capacity: 1e6
+    min_size: 5.e+4
+    capacity: 1.e+6
+    has_next_obs: False                 # should be true if workers send incomplete trajs

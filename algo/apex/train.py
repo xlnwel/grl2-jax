@@ -58,6 +58,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     replay = create_replay_center(replay_config)
 
+    agent_config['n_steps'] = replay_config.get('n_steps', 1)
     model_fn, Agent = import_agent(agent_config)
     Learner = import_learner_class(agent_config, Agent)
     learner = create_learner(
