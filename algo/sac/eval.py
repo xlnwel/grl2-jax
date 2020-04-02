@@ -2,17 +2,16 @@ import numpy as np
 import tensorflow as tf
 import ray
 
-from core.tf_config import configure_gpu
+from core.tf_config import *
 from utility.display import pwc
-from utility.utils import set_global_seed
 from utility.signal import sigint_shutdown_ray
 from env.gym_env import create_env
-from algo.run import run
+from algo.sac.run import evaluate
 from algo.sac.nn import SoftPolicy
 
 
-def main(env_config, model_config, agent_config, render=False):
-    set_global_seed()
+def main(env_config, model_config, agent_config, n, render=False):
+    silence_tf_logs()
     configure_gpu()
 
     use_ray = env_config.get('n_workers', 0) > 1
@@ -37,16 +36,7 @@ def main(env_config, model_config, agent_config, render=False):
     ckpt.restore(path).expect_partial()
     if path:
         pwc(f'Params are restored from "{path}".', color='cyan')
-        if render:
-            scores, epslens = [], []
-            for _ in range(n_envs):
-                score, epslen = run(env, actor, evaluation=True, render=True)
-                scores.append(score)
-                epslens.append(epslen)
-        else:
-            scores, epslens = run(env, actor, evaluation=True)
-            print('Scores:')
-            print(scores)
+        scores, epslens = evaluate(env, agent, n, render=render)
         pwc(f'After running {n_envs} episodes:',
             f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
     else:

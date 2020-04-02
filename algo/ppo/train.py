@@ -39,13 +39,13 @@ def import_buffer(algorithm):
 def train(agent, env, eval_env, buffer, run):
     step = agent.global_steps.numpy()
     
-    should_log = Every(agent.LOG_INTERVAL)
+    to_log = Every(agent.LOG_INTERVAL)
     obs = env.reset()
     while step < agent.MAX_STEPS:
         agent.set_summary_step(step)
         step, obs = run(env, agent, buffer, step, obs)
 
-        if should_log(step):
+        if to_log(step):
             if agent._algorithm >= 'ppo2':
                 state = agent.state
                 
@@ -89,7 +89,6 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
         model_config, 
         action_dim=env.action_dim, 
         is_action_discrete=env.is_action_discrete,
-        n_envs=env.n_envs
     )
     
     agent_config['N_MBS'] = buffer_config['n_mbs']

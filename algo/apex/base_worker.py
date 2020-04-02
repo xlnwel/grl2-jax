@@ -9,7 +9,7 @@ from core.module import Ensemble
 from utility.rl_utils import n_step_target
 from utility.utils import Every
 from env.gym_env import create_env
-from algo.run import run
+from algo.sac.run import run
 
 
 class BaseWorker(BaseAgent):
@@ -37,7 +37,7 @@ class BaseWorker(BaseAgent):
 
         self.buffer = buffer
 
-        self._should_log = Every(self.LOG_INTERVAL)
+        self._to_log = Every(self.LOG_INTERVAL)
 
         self._pull_names = ['actor'] if self._replay_type.endswith('uniform') else ['actor', 'q1']
 
@@ -67,8 +67,7 @@ class BaseWorker(BaseAgent):
         self.set_weights(weights)
         env = env or self.env
         scores, epslens = run(env, self.actor, fn=collect_fn, 
-                                evaluation=evaluation, step=step, 
-                                timer=self._timer, epsilon=self._act_eps)
+                                evaluation=evaluation, step=step)
         step += np.sum(epslens)
         
         return step, scores, epslens
@@ -89,7 +88,7 @@ class BaseWorker(BaseAgent):
         """ sends data to replay """
         buffer = buffer or self.buffer
         mask, data = buffer.sample()
-            
+
         if not self._replay_type.endswith('uniform'):
             data_tensors = {k: tf.convert_to_tensor(v, tf.float32) for k, v in data.items()}
             data['priority'] = np.squeeze(self.compute_priorities(**data_tensors).numpy())
@@ -121,9 +120,9 @@ class BaseWorker(BaseAgent):
         return priority
 
     def _periodic_logging(self, step):
-        if self._log_condition() and self._should_log(step):
-            self.set_summary_step(self._should_log.step())
-            self._logging(step=self._should_log.step())
+        if self._log_condition() and self._to_log(step):
+            self.set_summary_step(self._to_log.step())
+            self._logging(step=self._to_log.step())
 
     def _log_condition(self):
         return True

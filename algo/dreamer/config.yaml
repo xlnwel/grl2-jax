@@ -39,18 +39,18 @@ agent:
     polyak: .995
     precision: *prec
     obs_range: [-0.5, .5]
+    burn_in: False
     batch_size: &bs 50
-    batch_length: &bl 50
+    batch_len: &bl 50
+    burn_in_len: 20
 
     MAX_STEPS: 5.e+6
     TIME_INTERVAL: 10
     LOG_INTERVAL: 1000
+    EVAL_INTERVAL: 10000
     TRAIN_INTERVAL: 1000
     N_UPDATES: 100
     log_images: True
-
-    # distributed training
-    n_workers: 6
 
     # model
     free_nats: 3.

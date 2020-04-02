@@ -26,7 +26,7 @@ def _make_env(config):
             env = gym.wrappers.Monitor(env, config['video_path'], force=True)
         if config.get('action_repetition'):
             env = ActionRepeat(env, config['n_ar'])
-    env = EnvStats(env, config.get('precision', 32))
+    env = EnvStats(env, config.get('precision', 32), config.get('timeout_done', False))
     if config.get('log_episode'):
         env = LogEpisode(env)
     if config.get('auto_reset'):
@@ -101,7 +101,8 @@ class EnvVec(EnvBase):
         self.envs = [env_fn(config) for i in range(n_envs)]
         self.env = self.envs[0]
         if 'seed' in config:
-            [env.seed(config['seed'] + i) for i, env in enumerate(self.envs)]
+            [hasattr(env, 'seed') and env.seed(config['seed'] + i) 
+                for i, env in enumerate(self.envs)]
         self.max_episode_steps = self.env.spec.max_episode_steps
 
     def __getattr__(self, name):
@@ -263,25 +264,26 @@ def _envvec_step(envvec, actions, **kwargs):
 if __name__ == '__main__':
     # performance test
     default_config = dict(
-        name='atari_Pong', # Pendulum-v0, CartPole-v0
+        name='dmc_walker_walk',
         video_path='video',
         log_video=False,
         n_workers=1,
         n_envs=1,
         log_episode=True,
         auto_reset=True,
-        seed=0
+        n_ar=2,
+        seed=0,
     )
-
-    env = create_env(default_config)
+    from algo.dreamer.env import make_env
+    env = create_env(default_config, make_env)
     o = env.reset()
     eps = [dict(
         obs=o,
-        action=np.zeros(env.action_shape), 
+        action=np.zeros(env.action_shape, np.float32), 
         reward=0.,
         discount=True
     )]
-    for _ in range(3000):
+    for k in range(0, 3000):
         a = env.random_action()
         o, r, d, i = env.step(a)
         eps.append(dict(
@@ -290,12 +292,18 @@ if __name__ == '__main__':
                 reward=r,
                 discount=1-d
             ))
-        if d or len(eps) == env.max_episode_steps:
-            print('check episodes')
+        if d: print('done', d)
+        if d:
+            print(f'check episodes at {k}, {len(eps)}')
             eps2 = i['episode']
             eps = {k: np.array([t[k] for t in eps]) for k in eps2.keys()}
             print(eps.keys())
             for k in eps.keys():
                 print(k)
                 np.testing.assert_allclose(eps[k], eps2[k])
-            eps = []
+            eps = [dict(
+                obs=env.reset(),
+                action=np.zeros(env.action_shape, np.float32), 
+                reward=0.,
+                discount=True
+            )]

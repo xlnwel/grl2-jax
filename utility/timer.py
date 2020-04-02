@@ -81,6 +81,7 @@ class TBTimer:
                 if self._print_terminal_info:
                     pwc(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times', color='blue')
 
+
 class LoggerTimer:
     def __init__(self, logger, summary_name, to_log=True):
         self._to_log = to_log

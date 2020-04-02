@@ -1,8 +1,23 @@
+import os
 import numpy as np
+from PIL import Image
 import tensorflow as tf
 import tensorflow.compat.v1 as tf1
 
 from utility.utils import squarest_grid_size
+
+
+def save_video(name, video, fps=20):
+    name = name if isinstance(name, str) else name.decode('utf-8')
+    if np.issubdtype(video.dtype, np.floating):
+        video = np.clip(255 * video, 0, 255).astype(np.uint8)
+    B, T, H, W, C = video.shape
+    frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, B * W, C))
+    f1, *frames = [Image.fromarray(f) for f in frames]
+    if not os.path.isdir('results'):
+        os.mkdir('results')
+    f1.save(fp=f'results/{name}.gif', format='GIF', append_images=frames,
+         save_all=True, duration=1000//fps, loop=0)
 
 
 def image_summary(name, images, step=None):
@@ -10,7 +25,7 @@ def image_summary(name, images, step=None):
         images = images[None]
     if np.issubdtype(images.dtype, np.floating):
         images = np.clip(255 * images, 0, 255).astype(np.uint8)
-    img = merge(images)
+    img = grid_placed(images)
     tf.summary.image(name + '/grid', img, step)
     
 
@@ -32,7 +47,7 @@ def video_summary(name, video, step=None, fps=20):
         tf.summary.image(name + '/grid', frames, step)
 
 
-def merge(images, size=None):
+def grid_placed(images, size=None):
     assert images.shape.ndims == 4, f'images should be 4D, but get shape {images.shape}'
     if size is None:
         size = squarest_grid_size(images.shape[0])

@@ -22,8 +22,8 @@ def create_learner(Learner, name, model_fn, replay, config, model_config, env_co
             RayLearner = ray.remote(num_cpus=1, num_gpus=.1)(Learner)
         else:
             RayLearner = ray.remote(num_cpus=1)(Learner)
-    learner = RayLearner.remote(name, model_fn, replay, config, 
-                            model_config, env_config)
+    learner = RayLearner.remote(
+        name, model_fn, replay, config, model_config, env_config)
     ray.get(learner.save_config.remote(dict(
         env=env_config,
         model=model_config,

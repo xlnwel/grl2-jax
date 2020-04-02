@@ -13,25 +13,32 @@ from utility.display import assert_colorize, pwc
 from run.cmd_args import parse_cmd_args
 
 
-def import_main(algorithm):
+def get_package(algorithm, train=True):
     if algorithm.startswith('ppo'):
-        from algo.ppo.train import main
+        pkg = 'algo.ppo'
     elif algorithm == 'sac':
-        from algo.sac.train import main
+        pkg = 'algo.sac'
     elif algorithm == 'dreamer':
-        from algo.dreamer.train import main
-    elif algorithm == 'sacar':
-        from algo.sacar.train import main
+        pkg = 'algo.dreamer'
     elif algorithm == 'd3qn':
-        from algo.d3qn.train import main
-    elif algorithm.startswith('apex') or algorithm.startswith('asap'):
-        from algo.apex.train import main
-    elif algorithm == 'seed-sac':
-        from algo.seed_sac.train import main
+        pkg = 'algo.d3qn'
+    elif algorithm.startswith('apex'):
+        pkg = 'algo.apex'
+    elif algorithm == 'seed-dreamer':
+        pkg = 'algo.seed'
+    elif algorithm == 'seed2-dreamer':
+        pkg = 'algo.seed2'
     else:
         raise NotImplementedError
 
-    return main
+    return pkg
+
+def import_main(algorithm):
+    import importlib
+    pkg = get_package(algorithm)
+    m = importlib.import_module(f'{pkg}.train')
+
+    return m.main
     
 def get_config_file(algorithm, environment):
     if algorithm.startswith('ppo'):
@@ -49,21 +56,10 @@ def get_config_file(algorithm, environment):
             config_file = 'algo/apex/bwh_sac_config.yaml'
         else:
             config_file = 'algo/apex/sac_config.yaml'
-    elif algorithm.startswith('asap'):
-        if 'BipedalWalkerHardcore' in environment:
-            config_file = 'algo/asap/bwh_sac_config.yaml'
-        else:
-            config_file = 'algo/asap/sac_config.yaml'
-    elif algorithm == 'asap2-sac' or algorithm == 'asap2-sac':
-        config_file = 'algo/asap2/sac_config.yaml'
-    elif algorithm == 'asap-d3qn':
-        config_file = 'algo/asap/d3qn_config.yaml'
-    elif algorithm == 'seed-sac':
-        config_file = 'algo/seed/config.yaml'
-    elif algorithm == 'dew-sac':
-        config_file = 'algo/dew/sac_config.yaml'
-    elif algorithm == 'dew-d3qn':
-        config_file = 'algo/dew/d3qn_config.yaml'
+    elif algorithm == 'seed-dreamer':
+        config_file = 'algo/seed/dreamer_config.yaml'
+    elif algorithm == 'seed2-dreamer':
+        config_file = 'algo/seed2/dreamer_config.yaml'
     else:
         raise NotImplementedError
 
@@ -113,7 +109,8 @@ if __name__ == '__main__':
         algo = agent_config['algorithm']
         main = import_main(algo)
 
-        main(env_config, model_config, agent_config, replay_config, restore=True, render=render)
+        main(env_config, model_config, agent_config, 
+            replay_config, restore=True, render=render)
     else:
         algorithm = list(cmd_args.algorithm)
         environment = list(cmd_args.environment)
@@ -131,11 +128,14 @@ if __name__ == '__main__':
             agent_config['algorithm'] = algo
             if env:
                 env_config['name'] = env
-            prefix = change_config(cmd_args.kwargs, prefix, env_config, model_config, agent_config, replay_config)
+            prefix = change_config(
+                cmd_args.kwargs, prefix, env_config, 
+                model_config, agent_config, replay_config)
             if cmd_args.grid_search or cmd_args.trials > 1:
-                gs = GridSearch(env_config, model_config, agent_config, replay_config, 
-                                main, render=render, n_trials=cmd_args.trials, dir_prefix=prefix, 
-                                separate_process=len(algo_env) > 1, delay=cmd_args.delay)
+                gs = GridSearch(
+                    env_config, model_config, agent_config, replay_config, 
+                    main, render=render, n_trials=cmd_args.trials, dir_prefix=prefix, 
+                    separate_process=len(algo_env) > 1, delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
                     # Grid search happens here
@@ -168,5 +168,6 @@ if __name__ == '__main__':
                     time.sleep(1)
                     processes.append(p)
                 else:
-                    main(env_config, model_config, agent_config, replay_config, False, render=render)
+                    main(env_config, model_config, agent_config, 
+                        replay_config, False, render=render)
     [p.join() for p in processes]

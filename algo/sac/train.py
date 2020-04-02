@@ -7,7 +7,7 @@ from utility.utils import set_global_seed, Every
 from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import DataFormat, Dataset
-from algo.run import run, random_sampling
+from algo.sac.run import run, evaluate
 from algo.sac.agent import Agent
 from algo.sac.nn import create_model
 
@@ -27,33 +27,27 @@ def train(agent, env, replay):
         seed=0,
     ))
     start_step = agent.global_steps.numpy() + 1
-    print(start_step)
-
     print('Training started...')
     step = start_step
-    should_log = Every(agent.LOG_INTERVAL)
+    to_log = Every(agent.LOG_INTERVAL)
     while step < int(agent.MAX_STEPS):
-        agent.set_summary_step(step)
-        score, epslen = run(env, agent.actor, fn=collect_and_learn, 
-            timer=agent.TIMER, step=step)
+        score, epslen = run(env, agent, fn=collect_and_learn, step=step)
         agent.store(score=env.score(), epslen=env.epslen())
         step += epslen
         
-        if should_log(step):
-            agent.save(steps=step)
-
-            eval_score, eval_epslen = run(eval_env, agent.actor, 
-                evaluation=True, timer=agent.TIMER, name='eval')
+        if to_log(step):
+            eval_score, eval_epslen = evaluate(eval_env, agent)
             
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
 
             agent.log(step)
+            agent.save(steps=step)
 
 
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
     silence_tf_logs()
     configure_gpu()
-    configure_precision(agent_config.get('precision', 32))
+    # configure_precision(agent_config.get('precision', 32))
 
     env = create_env(env_config)
     replay = create_replay(replay_config)
@@ -66,8 +60,11 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         next_obs=DataFormat((None, *env.obs_shape), dtype),
         done=DataFormat((None, ), dtype),
     )
+    if replay_config['type'].endswith('proportional'):
+        data_format['IS_ratio'] = DataFormat((None, ), dtype)
+        data_format['saved_idxes'] = DataFormat((None, ), tf.int32)
     if replay_config.get('n_steps', 1) > 1:
-        data_format['steps'] = DataFormat((None, ), tf.float32)
+        data_format['steps'] = DataFormat((None, ), dtype)
     print(data_format)
     def process(data):
         data = data.copy()
@@ -98,12 +95,10 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     if restore:
         agent.restore()
-        collect_fn = lambda **kwargs: replay.add(**kwargs)      
-        while not replay.good_to_learn():
-            run(env, agent.actor, fn=collect_fn)
-    else:
-        random_sampling(env, replay)
-
+    collect_fn = lambda **kwargs: replay.add(**kwargs)
+    while not replay.good_to_learn():
+        run(env, env.random_action, fn=collect_fn)
+    
     train(agent, env, replay)
 
     # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup

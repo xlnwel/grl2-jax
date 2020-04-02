@@ -94,10 +94,14 @@ class ActionRepeat:
 
 class EnvStats:
     """ Provide Environment Statistics Recording """
-    def __init__(self, env, precision=32):
+    def __init__(self, env, precision=32, timeout_done=False):
         self.env = env
+        # already_done indicate whether an episode is finished, 
+        # either due to timeout or due to environment done
         self._already_done = True
         self._precision = precision
+        # if we take timeout as done
+        self._timeout_done = timeout_done
 
     def __getattr__(self, name):
         return getattr(self.env, name)
@@ -121,8 +125,7 @@ class EnvStats:
             self._score += 0 if self._already_done else reward
             self._epslen += 0 if self._already_done else info.get('n_ar', 1)
             self._already_done = done
-            # ignore done signal if the time limit is reached
-            if self._epslen == self.env.spec.max_episode_steps:
+            if not self._timeout_done and self._epslen == self.env.spec.max_episode_steps:
                 done = False
 
             return obs, reward, done, info

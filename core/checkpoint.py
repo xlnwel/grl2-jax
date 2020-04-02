@@ -13,18 +13,12 @@ def restore(ckpt_manager, ckpt, ckpt_path, name='model'):
         name: optional name for print
     """
     path = ckpt_manager.latest_checkpoint
-    ckpt.restore(path).assert_consumed()
     if path:
+        ckpt.restore(path).assert_consumed()
         pwc(f'Params for {name} are restored from "{path}".', color='cyan')
     else:
-        pwc(f'No model for {name} is found at "{ckpt_path}"!', color='magenta')
-        pwc(f'Continue or Exist (c/e):', color='magenta')
-        ans = input()
-        if ans.lower() == 'e':
-            import sys
-            sys.exit()
-        else:
-            pwc(f'Start training from scratch.', color='magenta')
+        pwc(f'No model for {name} is found at "{ckpt_path}"!', 
+            f'Start training from scratch.', color='cyan')
 
 def save(ckpt_manager, global_steps, steps, message='', print_terminal_info=True):
     """ Save model
@@ -42,7 +36,7 @@ def save(ckpt_manager, global_steps, steps, message='', print_terminal_info=True
     if print_terminal_info:
         pwc(f'Model saved at {path}: {message}', color='cyan')
 
-def setup_checkpoint(ckpt_models, root_dir, model_name, global_steps):
+def setup_checkpoint(ckpt_models, root_dir, model_name, global_steps, name='model'):
     """ Setup checkpoint
 
     Args:
@@ -54,5 +48,6 @@ def setup_checkpoint(ckpt_models, root_dir, model_name, global_steps):
     ckpt = tf.train.Checkpoint(step=global_steps, **ckpt_models)
     ckpt_path = f'{root_dir}/{model_name}/models'
     ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, 5)
-
+    restore(ckpt_manager, ckpt, ckpt_path, name)
+    
     return ckpt, ckpt_path, ckpt_manager

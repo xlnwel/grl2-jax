@@ -38,6 +38,9 @@ def get_learner_class(BaseAgent):
                 next_obs=DataFormat((None, *env.obs_shape), self._dtype),
                 done=DataFormat((None, ), self._dtype),
             )
+            if ray.get(replay.buffer_type.remote()).endswith('proportional'):
+                data_format['IS_ratio'] = DataFormat((None, ), self._dtype)
+                data_format['saved_idxes'] = DataFormat((None, ), tf.int32)
             if config['n_steps'] > 1:
                 data_format['steps'] = DataFormat((None, ), self._dtype)
             if config['algorithm'].endswith('il'):

@@ -71,3 +71,6 @@ class Worker(BaseWorker):
                 score=scores,
                 epslen=epslens,
             )
+
+def get_worker_class():
+    return Worker

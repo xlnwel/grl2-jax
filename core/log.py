@@ -1,4 +1,4 @@
-import os, time, atexit, shutil
+import os, atexit, shutil, datetime
 from collections import defaultdict
 import numpy as np
 import tensorflow as tf
@@ -9,17 +9,13 @@ from utility import yaml_op
 
 
 """ Logging """
-def save_config(logger, config):
-    logger.save_config(config)
-
-def log(logger, writer, model_name, step, timing='Train', print_terminal_info=True):
+def log(logger, writer, model_name, name, step, print_terminal_info=True):
     stats = dict(
         model_name=f'{model_name}',
-        timing=timing,
         steps=step
     )
     stats.update(logger.get_stats())
-    scalar_summary(writer, stats, step)
+    scalar_summary(writer, stats, name=name, step=step)
     log_stats(logger, stats, print_terminal_info=print_terminal_info)
 
 def log_stats(logger, stats, print_terminal_info=True):
@@ -29,17 +25,19 @@ def log_stats(logger, stats, print_terminal_info=True):
 def set_summary_step(step):
     tf.summary.experimental.set_step(step)
 
-def scalar_summary(writer, stats, step=None):
+def scalar_summary(writer, stats, name=None, step=None):
+    set_summary_step(step)
+    prefix = f'{name}/stats' if name else 'stats'
     with writer.as_default():
         for k, v in stats.items():
             if isinstance(v, str):
                 continue
             if tf.rank(v).numpy() == 0:
-                tf.summary.scalar(f'stats/{k}', v, step=step)
+                tf.summary.scalar(f'{prefix}/{k}', v, step=step)
             else:
                 v = tf.convert_to_tensor(v, dtype=tf.float32)
-                tf.summary.scalar(f'stats/{k}_mean', tf.reduce_mean(v), step=step)
-                tf.summary.scalar(f'stats/{k}_std', tf.math.reduce_std(v), step=step)
+                tf.summary.scalar(f'{prefix}/{k}_mean', tf.reduce_mean(v), step=step)
+                tf.summary.scalar(f'{prefix}/{k}_std', tf.math.reduce_std(v), step=step)
 
 def graph_summary(writer, fn, *args):
     """ see utility.graph for available candidates of fn """
@@ -59,10 +57,23 @@ def get_stats(logger, mean=True, std=False, min=False, max=False):
 def get_value(logger, key, mean=True, std=False, min=False, max=False):
     return logger.get(key, mean=mean, std=std, min=min, max=max)
 
+def save_code(root_dir, model_name):
+    dest_dir = f'{root_dir}/{model_name}/src'
+    if os.path.isdir(dest_dir):
+        shutil.rmtree(dest_dir)
+    
+    shutil.copytree('.', dest_dir, 
+        ignore=shutil.ignore_patterns(
+            '*logs*', '*data*', '.*', '*pycache*', '*.md', '*test*'))
+
+def save_config(root_dir, model_name, config):
+    yaml_op.save_config(config, filename=f'{root_dir}/{model_name}/config.yaml')
+
 """ Functions for setup logging """                
 def setup_logger(root_dir, model_name):
+    log_dir = root_dir and f'{root_dir}/{model_name}/logs'
     # logger save stats in f'{root_dir}/{model_name}/logs/log.txt'
-    logger = Logger(f'{root_dir}/{model_name}/logs')
+    logger = Logger(log_dir)
     return logger
 
 def setup_tensorboard(root_dir, model_name):
@@ -73,70 +84,67 @@ def setup_tensorboard(root_dir, model_name):
     writer.set_as_default()
     return writer
 
-def save_code(root_dir, model_name):
-    dest_dir = f'{root_dir}/{model_name}/src'
-    if os.path.isdir(dest_dir):
-        shutil.rmtree(dest_dir)
-    
-    shutil.copytree('.', dest_dir, 
-        ignore=shutil.ignore_patterns(
-            '*logs*', '*data*', '.*', '*pycache*', '*.md', '*test*'))
-
 class Logger:
-    def __init__(self, log_dir, log_file='log.txt'):
+    def __init__(self, log_dir=None, log_file='log.txt'):
         """
         Initialize a Logger.
 
         Args:
             log_dir (string): A directory for saving results to. If 
-                ``None``, defaults to a temp directory of the form
-                ``/tmp/experiments/somerandomnumber``.
+                `None/False`, Logger only serves as a storage but doesn't
+                write anything to the disk.
 
             log_file (string): Name for the tab-separated-value file 
                 containing metrics logged throughout a training run. 
                 Defaults to ``progress.txt``. 
         """
-        log_file = log_file if log_file.endswith('log.txt') else log_file + '/log.txt'
-        self.log_dir = log_dir or f"/tmp/experiments/{time.time()}"
-        path = os.path.join(self.log_dir, log_file)
-        if os.path.exists(path):
-            pwc(f'Warning: Log dir "{self.log_dir}" already exists!', 
-                f'Overwrite or Append (o/a)?',
-                color='magenta')
-            ans = input()
-            if ans.lower() == 'o':
-                self.output_file = open(path, 'w')
-                pwc(f'"{self.output_file.name}" will be OVERWRITTEN', color='magenta')
+        log_file = log_file if log_file.endswith('log.txt') \
+            else log_file + '/log.txt'
+        self._log_dir = log_dir
+        if self._log_dir:
+            path = os.path.join(self._log_dir, log_file)
+            if os.path.exists(path):
+                pwc(f'Warning: Log dir "{self._log_dir}" already exists!', 
+                    f'Overwrite or Append (o/a)?',
+                    color='magenta')
+                ans = input()
+                if ans.lower() == 'o':
+                    self._out_file = open(path, 'w')
+                    pwc(f'"{self._out_file.name}" will be OVERWRITTEN', 
+                        color='magenta')
+                else:
+                    self._out_file = open(path, 'a')
+                    pwc(f'New data will be appended to "{self._out_file.name}"', 
+                        color='magenta')
             else:
-                self.output_file = open(path, 'a')
-                pwc(f'New data will be appended to "{self.output_file.name}"', color='magenta')
+                if not os.path.isdir(self._log_dir):
+                    os.makedirs(self._log_dir)
+                self._out_file = open(path, 'w')
+            atexit.register(self._out_file.close)
+            pwc(f'Logging data to "{self._out_file.name}"', color='green')
         else:
-            if not os.path.isdir(self.log_dir):
-                os.makedirs(self.log_dir)
-            self.output_file = open(path, 'w')
-        atexit.register(self.output_file.close)
-        pwc(f'Logging data to "{self.output_file.name}"', color='green')
+            self._out_file = None
+            pwc(f'Log directory is not specified, '
+                'no data will be written to the disk',
+                color='magenta')
 
-        self.first_row=True
-        self.log_headers = []
-        self.log_current_row = {}
-        self.store_dict = defaultdict(list)
-
-    def save_config(self, config, log_file='config.yaml'):
-        yaml_op.save_config(config, filename=f'{self.log_dir}/{log_file}')
+        self._first_row=True
+        self._log_headers = []
+        self._log_current_row = {}
+        self._store_dict = defaultdict(list)
 
     def store(self, **kwargs):
         for k, v in kwargs.items():
             if isinstance(v, tf.Tensor):
                 v = v.numpy()
             if isinstance(v, (list, tuple)):
-                self.store_dict[k] += list(v)
+                self._store_dict[k] += list(v)
             else:
-                self.store_dict[k].append(v)
+                self._store_dict[k].append(v)
 
     def get(self, key, mean=True, std=False, min=False, max=False):
         stats = {}
-        v = self.store_dict[key]
+        v = self._store_dict[key]
         if isscalar(v):
             stats[key] = v
             return
@@ -148,12 +156,12 @@ class Logger:
             stats[f'{key}_min'] = np.min(v)
         if max:
             stats[f'{key}_max'] = np.max(v)
-        del self.store_dict[key]
+        del self._store_dict[key]
         return stats
         
     def get_stats(self, mean=True, std=False, min=False, max=False):
         stats = {} 
-        for k, v in self.store_dict.items():
+        for k, v in self._store_dict.items():
             if isscalar(v):
                 stats[k] = v
                 continue
@@ -168,7 +176,7 @@ class Logger:
         return stats
 
     def get_count(self, name):
-        return len(self.store_dict[name])
+        return len(self._store_dict[name])
 
     def _log_tabular(self, key, val):
         """
@@ -179,12 +187,16 @@ class Logger:
         make sure to call ``dump_tabular`` to write them out to file and
         stdout (otherwise they will not get saved anywhere).
         """
-        if self.first_row:
-            self.log_headers.append(key)
+        if self._first_row:
+            self._log_headers.append(key)
         else:
-            assert_colorize(key in self.log_headers, f"Trying to introduce a new key {key} that you didn't include in the first iteration")
-        assert_colorize(key not in self.log_current_row, f"You already set {key} this iteration. Maybe you forgot to call dump_tabular()")
-        self.log_current_row[key] = val
+            assert_colorize(key in self._log_headers, 
+                f"Trying to introduce a new key {key} "
+                "that you didn't include in the first iteration")
+        assert_colorize(key not in self._log_current_row, 
+            f"You already set {key} this iteration. "
+            "Maybe you forgot to call dump_tabular()")
+        self._log_current_row[key] = val
     
     def log_tabular(self, key, val=None, mean=True, std=False, min=False, max=False):
         """
@@ -193,7 +205,7 @@ class Logger:
         if val is not None:
             self._log_tabular(key, val)
         else:
-            v = np.asarray(self.store_dict[key])
+            v = np.asarray(self._store_dict[key])
             if mean:
                 self._log_tabular(f'{key}_mean', np.mean(v))
             if std:
@@ -202,31 +214,31 @@ class Logger:
                 self._log_tabular(f'{key}_min', np.min(v))
             if max:
                 self._log_tabular(f'{key}_max', np.max(v))
-        self.store_dict[key] = []
+        self._store_dict[key] = []
 
     def dump_tabular(self, print_terminal_info=True):
         """
         Write all of the diagnostics from the current iteration.
         """
         vals = []
-        key_lens = [len(key) for key in self.log_headers]
+        key_lens = [len(key) for key in self._log_headers]
         max_key_len = max(15,max(key_lens))
         n_slashes = 22 + max_key_len
         if print_terminal_info:
             print("-"*n_slashes)
-        for key in self.log_headers:
-            val = self.log_current_row.get(key, "")
+        for key in self._log_headers:
+            val = self._log_current_row.get(key, "")
             valstr = f"{val:8.3g}" if hasattr(val, "__float__") else val
             if print_terminal_info:
                 print(f'| {key:>{max_key_len}s} | {valstr:>15s} |')
             vals.append(val)
         if print_terminal_info:
             print("-"*n_slashes)
-        if self.output_file is not None:
-            if self.first_row:
-                self.output_file.write("\t".join(self.log_headers)+"\n")
-            self.output_file.write("\t".join(map(str,vals))+"\n")
-            self.output_file.flush()
-        self.log_current_row.clear()
-        self.store_dict.clear()
-        self.first_row=False
+        if self._out_file is not None:
+            if self._first_row:
+                self._out_file.write("\t".join(self._log_headers)+"\n")
+            self._out_file.write("\t".join(map(str,vals))+"\n")
+            self._out_file.flush()
+        self._log_current_row.clear()
+        self._store_dict.clear()
+        self._first_row=False

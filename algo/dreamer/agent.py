@@ -5,7 +5,7 @@ from tensorflow_probability import distributions as tfd
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
-from utility.utils import AttrDict
+from utility.utils import AttrDict, Every
 from utility.rl_utils import lambda_return
 from utility.tf_utils import static_scan
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
@@ -49,44 +49,49 @@ class Agent(BaseAgent):
         self._action_dim = env.action_dim
         self._is_action_discrete = env.is_action_discrete
 
+        self._to_log_images = Every(self.LOG_INTERVAL)
+
         # time dimension must be specified explicitly here
         # otherwise, InaccessibleTensorError arises when expanding rssm
         TensorSpecs = dict(
-            obs=((self._batch_length, *self._obs_shape), self._dtype, 'obs'),
-            action=((self._batch_length, self._action_dim), self._dtype, 'action'),
-            reward=((self._batch_length,), self._dtype, 'reward'),
-            discount=((self._batch_length,), self._dtype, 'discount'),
+            obs=((self._batch_len, *self._obs_shape), self._dtype, 'obs'),
+            action=((self._batch_len, self._action_dim), self._dtype, 'action'),
+            reward=((self._batch_len,), self._dtype, 'reward'),
+            discount=((self._batch_len,), self._dtype, 'discount'),
             log_images=(None, tf.bool, 'log_images')
         )
 
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
-    def reset_states(self, state, prev_action):
+    def reset_states(self, state=None, prev_action=None):
         self._state = state
         self._prev_action = prev_action
 
     def retrieve_states(self):
         return self._state, self._prev_action
 
-    def __call__(self, obs, reset, deterministic=False):
+    def __call__(self, obs, reset=np.zeros(1), deterministic=False):
         if self._state is None and self._prev_action is None:
-            self._state = self.rssm.get_initial_state(batch_size=tf.shape(reset)[0])
-            self._prev_action = tf.zeros((tf.shape(reset)[0], self._action_dim), self._dtype)
+            self._state = self.rssm.get_initial_state(batch_size=tf.shape(obs)[0])
+            self._prev_action = tf.zeros(
+                (tf.shape(obs)[0], self._action_dim), self._dtype)
         if reset.any():
             mask = tf.cast(1. - reset, self._dtype)[:, None]
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
             self._prev_action = self._prev_action * mask
-        self._prev_action, self._state = self.action(
+        action, self._state = self.action(
             obs, self._state, self._prev_action, deterministic)
+        
+        self.prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype) \
+            if self._is_action_discrete else action
 
-        return self._prev_action.numpy()
+        return action.numpy()
         
     @tf.function
     def action(self, obs, state, prev_action, deterministic=False):
         if obs.dtype == np.uint8:
             obs = tf.cast(obs, self._dtype) / 255. - .5
-        if self._is_action_discrete:
-            prev_action = tf.one_hot(prev_action, self._action_dim, dtype=self._dtype)
+
         obs = tf.expand_dims(obs, 1)
         embed = self.encoder(obs)
         embed = tf.squeeze(embed, 1)
@@ -104,7 +109,8 @@ class Agent(BaseAgent):
                     rand_act, action)
             else:
                 action = self.actor(feature).sample()
-                action = tf.clip_by_value(tfd.Normal(action, self._act_epsilon).sample(), -1, 1)
+                action = tf.clip_by_value(
+                    tfd.Normal(action, self._act_epsilon).sample(), -1, 1)
             
         return action, state
 
@@ -113,7 +119,7 @@ class Agent(BaseAgent):
         for i in range(self.N_UPDATES):
             data = self.dataset.sample()
             log_images = tf.convert_to_tensor(
-                self._log_images and step % self.LOG_INTERVAL == 0 and i == 0, 
+                self._log_images and i == 0 and self._to_log_images(step), 
                 tf.bool)
             terms = self.learn(**data, log_images=log_images)
             terms = {k: v.numpy() for k, v in terms.items()}
@@ -123,6 +129,16 @@ class Agent(BaseAgent):
     def _learn(self, obs, action, reward, discount, log_images):
         with tf.GradientTape() as model_tape:
             embed = self.encoder(obs)
+            # if self._burn_in:
+            #     bl = self._burn_in_len
+            #     sl = self._batch_len - self._burn_in_len
+            #     burn_in_embed, embed = tf.split(embed, [bl, sl], 1)
+            #     burn_in_action, action = tf.split(embed, [bl, sl], 1)
+            #     state, _ = self.rssm.observe(burn_in_embed, burn_in_action)
+            #     state = tf.stop_gradient(state)
+            # else:
+            #     state = None
+            # post, prior = self.rssm.observe(embed, action, state)
             post, prior = self.rssm.observe(embed, action)
             feature = self.rssm.get_feat(post)
             obs_pred = self.decoder(feature)
@@ -185,7 +201,7 @@ class Agent(BaseAgent):
 
         if log_images:
             self._image_summaries(obs, action, embed, obs_pred)
-
+    
         return terms
 
     def _imagine_ahead(self, post):
@@ -216,56 +232,3 @@ class Agent(BaseAgent):
         error = (model - truth + 1) / 2
         openl = tf.concat([truth, model, error], 2)
         self.graph_summary(video_summary, 'dreamer/comp', openl)
-
-
-if __name__ == '__main__':
-    from utility.yaml_op import load_config
-    from algo.dreamer.nn import create_model
-    import gym
-    import os
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    tf.get_logger().setLevel('ERROR')
-    config = load_config('algo/dreamer/config.yaml')
-    env_config = config['env']
-    model_config = config['model']
-    agent_config = config['agent']
-    
-    env = gym.make('BreakoutNoFrameskip-v4')
-    bs = 2
-    steps = 5
-    obs_shape = (64, 64, 3)
-    act_dim = 3
-    models = create_model(model_config, obs_shape, act_dim, False)
-    np.random.seed(0)
-    tf.random.set_seed(0)
-    agent = Agent(name='dreamer', config=agent_config, models=models, dataset=None, env=env)
-    for i in range(2):
-        data = {}
-        data['obs'] = np.random.randint(0, 256, (bs, steps, *obs_shape))
-        data['obs'] = tf.cast(data['obs'], tf.float32) / 255. - .5
-        data['action'] = tf.random.normal((bs, steps, act_dim))
-        data['reward'] = tf.random.normal((bs, steps))
-        data['discount'] = tf.random.normal((bs, steps))
-        done = np.random.randint(0, 2, (bs, ))
-        print(done)
-        terms = agent._learn(**data)
-        tf.random.set_seed(i)
-        a = agent(data['obs'][:, i%5], done)
-        print("action", a[1])
-    # terms = agent._learn(**data)
-    # terms = agent._learn(**data)
-    # print(agent.actor.variables[-2])
-    # np.random.seed(0)
-    # tf.random.set_seed(0)
-    # obs = np.random.randint(0, 256, (bs, *obs_shape), dtype=np.uint8)
-    # reset = np.random.randint(0, 2, size=(bs, ))
-    # action = agent(obs, reset, deterministic=False)
-    # print(action)
-    # action = agent(obs, reset, deterministic=False)
-    # print(action)
-    # print(state)
-    # data['obs'] = tf.random.normal((bs, steps, *obs_shape))
-    # data['action'] = tf.random.normal((bs, steps, act_dim))
-    # data['reward'] = tf.random.normal((bs, steps))
-    # data['reset'] = tf.random.normal((bs, steps))
-    # terms = agent._learn(**data)

@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.tf_config import build
 from core.module import Module
@@ -99,7 +100,7 @@ class RSSM(Module):
             batch_size = tf.shape(inputs)[0]
         assert batch_size is not None
         if dtype is None:
-            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+            dtype = global_policy().compute_dtype
         return RSSMState(
             mean=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
             std=tf.zeros([batch_size, self._stoch_size], dtype=dtype),

@@ -14,3 +14,6 @@ env/gym_env2.py
 .pytest_cache*
 *ipynb
 **test**
+**ppo3**
+**seed2**
+**rnn**

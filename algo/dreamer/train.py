@@ -1,4 +1,5 @@
 import os
+import time
 import functools
 import numpy as np
 import tensorflow as tf
@@ -6,12 +7,13 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 import ray
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
-from utility.utils import Every
 from utility.signal import sigint_shutdown_ray
 from utility.graph import video_summary
+from utility.utils import Every
 from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import DataFormat, Dataset, process_with_env
+from algo.sac.run import evaluate
 from algo.dreamer.agent import Agent
 from algo.dreamer.nn import create_model
 from algo.dreamer.env import make_env
@@ -46,9 +48,9 @@ def train(agent, env, eval_env, replay):
             agent.store(score=scores, epslen=epslens)
             replay.merge(episodes)
 
-    step = agent.global_steps.numpy()
+    _, step = replay.count_episodes()
+    step = max(agent.global_steps.numpy(), step)
 
-    should_log = Every(agent.LOG_INTERVAL)
     nsteps = agent.TRAIN_INTERVAL
     obs, already_done = None, None
     while not replay.good_to_learn():
@@ -56,27 +58,31 @@ def train(agent, env, eval_env, replay):
             env, env.random_action, obs, already_done, collect_log)
         step += n
         
+    to_log = Every(agent.LOG_INTERVAL, start=step)
+    to_eval = Every(agent.EVAL_INTERVAL, start=step)
     print('Training started...')
+    start_step = step
+    start_t = time.time()
     while step < int(agent.MAX_STEPS):
-        agent.set_summary_step(step)
         agent.learn_log(step)
         obs, already_done, n = run(
             env, agent, obs, already_done, collect_log, nsteps)
         step += n
-        if should_log(step):
+        if to_eval(step):
             train_state, train_action = agent.retrieve_states()
-            
-            agent.reset_states(None, None)
-            _, _, _ = run(eval_env, agent, evaluation=True)
-            video_summary('dreamer/sim', eval_env.prev_episode['obs'][None], step)
-            eval_score = eval_env.score()
-            eval_epslen = eval_env.epslen()
-            agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
 
+            score, epslen = evaluate(eval_env, agent)
+            video_summary('dreamer/sim', eval_env.prev_episode['obs'][None], step)
+            agent.store(eval_score=score, eval_epslen=epslen)
+            
+            agent.reset_states(train_state, train_action)
+        if to_log(step):
+            agent.store(fps=(step-start_step)/(time.time()-start_t))
             agent.log(step)
             agent.save(steps=step)
 
-            agent.reset_states(train_state, train_action)
+            start_step = step
+            start_t = time.time()
 
 def main(env_config, model_config, agent_config, 
         replay_config, restore=False, render=False):
@@ -108,9 +114,7 @@ def main(env_config, model_config, agent_config,
     )
     print(data_format)
     process = functools.partial(
-        process_with_env, 
-        env=env, 
-        obs_range=agent_config['obs_range'])
+        process_with_env, env=env, obs_range=agent_config['obs_range'])
     dataset = Dataset(replay, data_format, process, agent_config['batch_size'])
 
     models = create_model(

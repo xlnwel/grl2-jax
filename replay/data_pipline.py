@@ -78,6 +78,9 @@ class RayDataset(Dataset):
     def buffer_type(self):
         return ray.get(self._buffer.buffer_type.remote())
 
+    def good_to_learn(self):
+        return ray.get(self._buffer.good_to_learn.remote())
+
     def _sample(self):
         while True:
             yield ray.get(self._buffer.sample.remote())

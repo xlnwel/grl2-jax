@@ -15,7 +15,7 @@ class BaseAgent(ABC):
             ckpt_path: The directory in which to write checkpoints
             name: optional name for print
         """
-        restore(self._ckpt_manager, self._ckpt, self._ckpt_path)
+        restore(self._ckpt_manager, self._ckpt, self._ckpt_path, self._model_name)
 
     def save(self, steps=None, message='', print_terminal_info=True):
         """ Save Model
@@ -32,11 +32,11 @@ class BaseAgent(ABC):
 
     """ Logging """
     def save_config(self, config):
-        save_config(self._logger, config)
+        save_config(self._root_dir, self._model_name, config)
 
-    def log(self, step, timing='Train', print_terminal_info=True):
-        log(self._logger, self._writer, self._model_name, step, 
-            timing=timing, print_terminal_info=print_terminal_info)
+    def log(self, step, print_terminal_info=True):
+        log(self._logger, self._writer, self._model_name, name=self.name, 
+            step=step, print_terminal_info=print_terminal_info)
 
     def log_stats(self, stats, print_terminal_info=True):
         log_stats(self._logger, stats, print_terminal_info=print_terminal_info)
@@ -45,7 +45,7 @@ class BaseAgent(ABC):
         set_summary_step(step)
 
     def scalar_summary(self, stats, step=None):
-        scalar_summary(self._writer, stats, step=step)
+        scalar_summary(self._writer, stats, step=step, name=self.name)
 
     def graph_summary(self, fn=None, *args):
         graph_summary(self._writer, fn, *args)
@@ -60,4 +60,4 @@ class BaseAgent(ABC):
         return get_value(self._logger, key, mean=mean, std=std, min=min, max=max)
 
     def print_construction_complete(self):
-        pwc(f'{self._model_name.title()} has been constructed...', color='cyan')
+        pwc(f'{self._model_name.title()} is constructed...', color='cyan')

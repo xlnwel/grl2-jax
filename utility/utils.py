@@ -11,9 +11,9 @@ class AttrDict(dict):
     __setattr__ = dict.__setitem__
 
 class Every:
-    def __init__(self, period):
+    def __init__(self, period, start=0):
         self._period = period
-        self._next = period
+        self._next = start
     
     def __call__(self, step):
         if step >= self._next:

@@ -35,14 +35,13 @@ class SoftPolicy(Module):
         x = tf.reshape(x, [-1, tf.shape(x)[-1]])
         deterministic = tf.convert_to_tensor(deterministic, tf.bool)
 
-        action, terms = self.action(x, deterministic)
+        action = self.action(x, deterministic)
         action = np.squeeze(action.numpy())
-        terms = dict((k, np.squeeze(v.numpy())) for k, v in terms.items())
 
         if epsilon:
             action += np.random.normal(scale=epsilon, size=action.shape)
 
-        return action, terms
+        return action
 
     @tf.function(experimental_relax_shapes=True)
     def action(self, x, deterministic=False):
@@ -51,7 +50,6 @@ class SoftPolicy(Module):
         if self._is_action_discrete:
             dist = tfd.Categorical(x)
             action = dist.mode() if deterministic else dist.sample()
-            terms = {}
         else:
             mu, logstd = tf.split(x, 2, -1)
             logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
@@ -59,9 +57,8 @@ class SoftPolicy(Module):
             dist = tfd.MultivariateNormalDiag(mu, std)
             raw_action = dist.sample()
             action = tf.tanh(raw_action)
-            terms = {}
 
-        return action, terms
+        return action
 
     def train_step(self, x):
         x = self._layers(x)

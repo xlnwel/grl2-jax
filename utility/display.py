@@ -30,7 +30,7 @@ def pwc(*args, color='red', bold=False, highlight=False):
     """
     Print with color
     """
-    if isinstance(args, list) or isinstance(args, tuple):
+    if isinstance(args, (tuple, list)):
         for s in args:
             print(colorize(s, color, bold, highlight))
     else:

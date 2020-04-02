@@ -10,7 +10,7 @@ from utility.utils import step_str
 from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import Dataset
-from algo.run import run, random_sampling
+from algo.sac.run import run
 from algo.d3qn.agent import Agent
 from algo.d3qn.nn import create_model
 
@@ -28,7 +28,6 @@ def evaluate(agent, global_steps, env):
 
     stats = dict(
         model_name=f'{agent.model_name}',
-        timing='Eval',
         steps=global_steps, 
         score=np.mean(scores),
         score_std=np.std(scores),
@@ -110,12 +109,10 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     if restore:
         agent.restore()
-        collect_fn = lambda obs, action, reward, done: replay.add(obs, action, reward, done)
-        while not replay.good_to_learn():
-            run_trajectory(env, agent.actor, collect_fn)
-    else:
-        random_sampling(env, replay)
-
+    collect_fn = lambda **kwargs: replay.add(**kwargs)
+    while not replay.good_to_learn():
+        run(env, env.random_action, fn=collect_fn)
+    
     print(f'Start training...')
     global_steps = agent.global_steps.numpy()
     MAX_STEPS = int(agent.MAX_STEPS)

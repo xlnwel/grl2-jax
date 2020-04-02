@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from utility.display import pwc
 from utility import utils
-from utility.graph import merge
+from utility.graph import grid_placed
 
 
 def read_image(image_path, image_shape=None, preserve_range=True):
@@ -34,7 +34,7 @@ def save_image(images, path, size=None):
     num_images = images.shape[0]
     if size is None:
         size = utils.squarest_grid_size(num_images)
-    images = merge(images, size)
+    images = grid_placed(images, size)
     utils.check_make_dir(path)
     imsave(path, images)
 

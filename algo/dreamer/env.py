@@ -174,4 +174,4 @@ if __name__ == '__main__':
     s = env.reset()
     for _ in range(1010):
         s, r, d, i = env.step(env.random_action())
-        print(i)
+        if d: print(d)

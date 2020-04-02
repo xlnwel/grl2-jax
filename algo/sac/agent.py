@@ -65,10 +65,9 @@ class Agent(BaseAgent):
         return self.actor(obs, deterministic=deterministic, epsilon=epsilon)
 
     def learn_log(self, step):
-        self.global_steps.assign(step)
         data = self.dataset.sample()
         if self._is_per:
-            saved_idxes = data['saved_idxes']
+            saved_idxes = data['saved_idxes'].numpy()
             del data['saved_idxes']
 
         terms = self.learn(**data)
@@ -83,7 +82,7 @@ class Agent(BaseAgent):
         terms = {k: v.numpy() for k, v in terms.items()}
 
         if self._is_per:
-            self.dataset.update_priorities(terms['priority'], saved_idxes.numpy())
+            self.dataset.update_priorities(terms['priority'], saved_idxes)
         self.store(**terms)
 
     @tf.function
