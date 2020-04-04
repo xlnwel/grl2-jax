@@ -12,7 +12,7 @@ class EpisodicReplay:
         self._dir = Path(self._dir).expanduser()
         self._dir.mkdir(parents=True, exist_ok=True)
         self._memory = {}
-        self._batch_length = getattr(self, '_batch_length', None)
+        self._batch_len = getattr(self, '_batch_len', None)
     
     def buffer_type(self):
         return self._type
@@ -28,7 +28,7 @@ class EpisodicReplay:
             episodes = [episodes]
         timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
         for eps in episodes:
-            if self._batch_length and len(next(iter(eps.values()))) < self._batch_length + 1:
+            if self._batch_len and len(next(iter(eps.values()))) < self._batch_len + 1:
                 continue
             identifier = str(uuid.uuid4().hex)
             length = len(eps['reward'])
@@ -66,13 +66,13 @@ class EpisodicReplay:
         each time as there is little vectorization we can do here"""
         filename = random.choice(list(self._memory))
         episode = self._memory[filename]
-        if self._batch_length:
+        if self._batch_len:
             total = len(next(iter(episode.values())))
-            available = total - self._batch_length
+            available = total - self._batch_len
             if available < 1:
                 print(f'Skipped short episode of length {available}.')
             index = int(random.randint(0, available))
-            episode = {k: v[index: index + self._batch_length] for k, v in episode.items()}
+            episode = {k: v[index: index + self._batch_len] for k, v in episode.items()}
         return episode
 
     def _remove_files(self):
@@ -96,7 +96,7 @@ if __name__ == '__main__':
         dir=directory,
         type='episodic',
         batch_size=bs,
-        batch_length=sq,
+        batch_len=sq,
         min_episodes=3
     )
     state_shape = (2,)
@@ -131,7 +131,7 @@ if __name__ == '__main__':
         fn, idx, eps = replay.sample()
         for k in eps.keys():
             try:
-                np.testing.assert_allclose(retrieved_episodes[fn][k][idx: idx+replay._batch_length], eps[k])
+                np.testing.assert_allclose(retrieved_episodes[fn][k][idx: idx+replay._batch_len], eps[k])
             except:
                 shutil.rmtree(directory)
 
@@ -139,6 +139,6 @@ if __name__ == '__main__':
     data['obs'] = data['obs'] * 1000
     print(data['obs'])
 
-    print(replay._memory[filename]['obs'][index:index+replay._batch_length])
+    print(replay._memory[filename]['obs'][index:index+replay._batch_len])
 
     shutil.rmtree(directory)

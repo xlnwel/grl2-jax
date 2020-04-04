@@ -125,7 +125,7 @@ class Logger:
         else:
             self._out_file = None
             pwc(f'Log directory is not specified, '
-                'no data will be written to the disk',
+                'no data will be logged to the disk',
                 color='magenta')
 
         self._first_row=True
