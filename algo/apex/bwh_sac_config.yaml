@@ -34,7 +34,6 @@ agent:
     
     # timer&interval
     MAX_STEPS: 1.e+8
-    TIME_INTERVAL: 100
     LOG_INTERVAL: 100000
     timer: False
 

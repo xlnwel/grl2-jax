@@ -20,7 +20,6 @@ agent:
     eval_steps: 125000
 
     LOG_INTERVAL: 10
-    TIME_INTERVAL: 100
     timer: True
 
     # model path: root_dir/model_name/models

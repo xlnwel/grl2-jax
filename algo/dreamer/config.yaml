@@ -45,7 +45,6 @@ agent:
     burn_in_len: 20
 
     MAX_STEPS: 5.e+6
-    TIME_INTERVAL: 10
     LOG_INTERVAL: 1000
     EVAL_INTERVAL: 10000
     TRAIN_INTERVAL: 1000
@@ -81,6 +80,6 @@ replay:
 
     # arguments for general replay
     batch_size: *bs
-    batch_length: *bl
+    batch_len: *bl
     max_episodes: 800
     min_episodes: 5

@@ -33,7 +33,6 @@ agent:
 
     # timer&interval 
     MAX_STEPS: 2.e+7
-    TIME_INTERVAL: 100
     LOG_INTERVAL: 100000
     timer: False
 

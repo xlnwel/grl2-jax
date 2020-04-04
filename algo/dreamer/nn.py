@@ -225,11 +225,12 @@ class ConvEncoder(Module):
         self.conv4 = conv2d(8 * depth, **kwargs)
 
     def __call__(self, x):
+        assert x.shape[-3:] == (64, 64, 3), x.shape
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
         x = self.conv4(x)
-        shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
+        shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(tf.shape(x)[-3:])]], 0)
         x = tf.reshape(x, shape)
 
         return x
@@ -265,14 +266,14 @@ class ConvDecoder(Module):
         return tfd.Independent(tfd.Normal(x, 1), 3)
 
 
-def create_model(model_config, obs_shape, action_dim, is_action_discrete):
-    encoder_config = model_config['encoder']
-    rssm_config = model_config['rssm']
-    decoder_config = model_config['decoder']
-    reward_config = model_config['reward']
-    value_config = model_config['value']
-    actor_config = model_config['actor']
-    disc_config = model_config.get('discount')  # pcont in the original implementation
+def create_model(config, obs_shape, action_dim, is_action_discrete):
+    encoder_config = config['encoder']
+    rssm_config = config['rssm']
+    decoder_config = config['decoder']
+    reward_config = config['reward']
+    value_config = config['value']
+    actor_config = config['actor']
+    disc_config = config.get('discount')  # pcont in the original implementation
     models = dict(
         encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),

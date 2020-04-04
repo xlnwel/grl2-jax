@@ -9,7 +9,7 @@ from utility.utils import AttrDict, Every
 from utility.rl_utils import lambda_return
 from utility.tf_utils import static_scan
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
-from utility.timer import TBTimer
+from utility.timer import TBTimer, Timer
 from utility.graph import video_summary
 from core.tf_config import build
 from core.base import BaseAgent
@@ -82,7 +82,7 @@ class Agent(BaseAgent):
         action, self._state = self.action(
             obs, self._state, self._prev_action, deterministic)
         
-        self.prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype) \
+        self._prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype) \
             if self._is_action_discrete else action
 
         return action.numpy()
@@ -117,11 +117,13 @@ class Agent(BaseAgent):
     def learn_log(self, step):
         self.global_steps.assign(step)
         for i in range(self.N_UPDATES):
-            data = self.dataset.sample()
+            with TBTimer('sample', 1000):
+                data = self.dataset.sample()
             log_images = tf.convert_to_tensor(
                 self._log_images and i == 0 and self._to_log_images(step), 
                 tf.bool)
-            terms = self.learn(**data, log_images=log_images)
+            with TBTimer('learn', 1000):
+                terms = self.learn(**data, log_images=log_images)
             terms = {k: v.numpy() for k, v in terms.items()}
             self.store(**terms)
 
@@ -129,17 +131,16 @@ class Agent(BaseAgent):
     def _learn(self, obs, action, reward, discount, log_images):
         with tf.GradientTape() as model_tape:
             embed = self.encoder(obs)
-            # if self._burn_in:
-            #     bl = self._burn_in_len
-            #     sl = self._batch_len - self._burn_in_len
-            #     burn_in_embed, embed = tf.split(embed, [bl, sl], 1)
-            #     burn_in_action, action = tf.split(embed, [bl, sl], 1)
-            #     state, _ = self.rssm.observe(burn_in_embed, burn_in_action)
-            #     state = tf.stop_gradient(state)
-            # else:
-            #     state = None
-            # post, prior = self.rssm.observe(embed, action, state)
-            post, prior = self.rssm.observe(embed, action)
+            if self._burn_in:
+                bl = self._burn_in_len
+                sl = self._batch_len - self._burn_in_len
+                burn_in_embed, embed = tf.split(embed, [bl, sl], 1)
+                burn_in_action, action = tf.split(embed, [bl, sl], 1)
+                state, _ = self.rssm.observe(burn_in_embed, burn_in_action)
+                state = tf.stop_gradient(state)
+            else:
+                state = None
+            post, prior = self.rssm.observe(embed, action, state)
             feature = self.rssm.get_feat(post)
             obs_pred = self.decoder(feature)
             reward_pred = self.reward(feature)
