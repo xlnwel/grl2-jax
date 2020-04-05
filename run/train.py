@@ -6,64 +6,26 @@ from copy import deepcopy
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from run.grid_search import GridSearch
 from utility.utils import str2bool, eval_str
 from utility.yaml_op import load_config
 from utility.display import assert_colorize, pwc
+from run.grid_search import GridSearch
+from run.pkg import get_package
 from run.cmd_args import parse_cmd_args
 
 
-def get_package(algorithm, train=True):
-    if algorithm.startswith('ppo'):
-        pkg = 'algo.ppo'
-    elif algorithm == 'sac':
-        pkg = 'algo.sac'
-    elif algorithm == 'dreamer':
-        pkg = 'algo.dreamer'
-    elif algorithm == 'd3qn':
-        pkg = 'algo.d3qn'
-    elif algorithm.startswith('apex'):
-        pkg = 'algo.apex'
-    elif algorithm == 'seed-dreamer':
-        pkg = 'algo.seed'
-    elif algorithm == 'seed2-dreamer':
-        pkg = 'algo.seed2'
-    else:
-        raise NotImplementedError
-
-    return pkg
-
-def import_main(algorithm):
+def import_main(algo):
     import importlib
-    pkg = get_package(algorithm)
+    pkg = get_package(algo)
     m = importlib.import_module(f'{pkg}.train')
 
     return m.main
     
-def get_config_file(algorithm, environment):
-    if algorithm.startswith('ppo'):
-        config_file = f'algo/{algorithm}/config.yaml'
-    elif algorithm == 'sac':
-        config_file = 'algo/sac/config.yaml'
-    elif algorithm == 'dreamer':
-        config_file = 'algo/dreamer/config.yaml'
-    elif algorithm == 'd3qn':
-        config_file = 'algo/d3qn/config.yaml'
-    elif algorithm == 'apex-d3qn':
-        config_file = 'algo/apex/d3qn_config.yaml'
-    elif algorithm.startswith('apex'):
-        if 'BipedalWalkerHardcore' in environment:
-            config_file = 'algo/apex/bwh_sac_config.yaml'
-        else:
-            config_file = 'algo/apex/sac_config.yaml'
-    elif algorithm == 'seed-dreamer':
-        config_file = 'algo/seed/dreamer_config.yaml'
-    elif algorithm == 'seed2-dreamer':
-        config_file = 'algo/seed2/dreamer_config.yaml'
-    else:
-        raise NotImplementedError
-
-    return config_file
+def get_config_file(algo, environment):
+    pkg = get_package(algo, 0, '/')
+    names = algo.split('-')
+    file_name = 'config.yaml' if len(names) == 1 else f'{names[-1]}_config.yaml'
+    return f'{pkg}/{file_name}'
 
 def change_config(kw, prefix, env_config, model_config, agent_config, replay_config):
     if prefix != '':

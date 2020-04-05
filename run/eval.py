@@ -1,4 +1,5 @@
 import os, sys
+import importlib
 import argparse
 import logging
 from copy import deepcopy
@@ -7,6 +8,7 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utility.display import pwc
 from utility.yaml_op import load_config
+from run.pkg import get_package
 
 
 def parse_cmd_args():
@@ -24,9 +26,7 @@ def parse_cmd_args():
     return args
 
 def import_main(algorithm):
-    import importlib
-    from run.train import get_package
-    pkg = get_package(algorithm)
+    pkg = get_package(algorithm, -1)
     m = importlib.import_module(f'{pkg}.eval')
 
     return m.main

@@ -23,7 +23,7 @@ class Every:
 
     def step(self):
         return self._next - self._period
-        
+
 def to_int(s):
     return int(float(s))
     

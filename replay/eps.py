@@ -45,6 +45,13 @@ class EpisodicReplay:
         lengths = [int(n.stem.rsplit('-', 1)[-1]) - 1 for n in filenames]
         episodes, steps = len(lengths), sum(lengths)
         return episodes, steps
+    
+    def count_steps(self):
+        filenames = self._dir.glob('*.npz')
+        # subtract 1 as we don't take into account the terminal state
+        lengths = [int(n.stem.rsplit('-', 1)[-1]) - 1 for n in filenames]
+        episodes, steps = len(lengths), sum(lengths)
+        return episodes, steps
 
     def load_data(self):
         if self._memory == {}:
@@ -54,16 +61,30 @@ class EpisodicReplay:
                     try:
                         with filename.open('rb') as f:
                             episode = np.load(f)
-                            episode = {k: episode[k] for k in episode.keys() if k in ['obs', 'action', 'reward', 'discount']}
+                            episode = {k: episode[k] for k in episode.keys()}
                     except Exception as e:
                         print(f'Could not load episode: {e}')
                         continue
                     self._memory[filename] = episode
             print(f'{len(self._memory)} episodes are loaded')
 
-    def sample(self):
-        """ Different from other replays, here we only sample a single sequence
-        each time as there is little vectorization we can do here"""
+    def sample(self, batch_size=None):
+        batch_size = batch_size or self._batch_size
+        if batch_size > 1:
+            samples = [self._sample() for _ in range(batch_size)]
+            data = {k: np.stack([t[k] for t in samples], 0)
+                for k in samples[0].keys()}
+            np.testing.assert_equal(
+                [v.shape[0] for v in data.values()], 
+                [batch_size for _ in list(data)])
+            np.testing.assert_equal(
+                [v.shape[1:] for v in data.values()],
+                [v.shape for v in samples[0].values()])
+        else:
+            data = self._sample()
+        return data
+
+    def _sample(self):
         filename = random.choice(list(self._memory))
         episode = self._memory[filename]
         if self._batch_len:

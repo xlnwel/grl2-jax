@@ -23,7 +23,12 @@ def process_with_env(data, env, obs_range=[0, 1]):
     return data
 
 class Dataset:
-    def __init__(self, buffer, data_format, process_fn=None, batch_size=False):
+    def __init__(self, 
+                 buffer, 
+                 data_format, 
+                 process_fn=None, 
+                 batch_size=False, 
+                 **kwargs):
         """ Create a tf.data.Dataset for data retrieval
         
         Args:
@@ -35,7 +40,7 @@ class Dataset:
         self._buffer = buffer
         self.data_format = data_format
         assert isinstance(data_format, dict)
-        self._iterator = self._prepare_dataset(process_fn, batch_size)
+        self._iterator = self._prepare_dataset(process_fn, batch_size, **kwargs)
 
     def buffer_type(self):
         return self._buffer.buffer_type()
@@ -49,7 +54,7 @@ class Dataset:
     def update_priorities(self, priorities, indices):
         self._buffer.update_priorities(priorities, indices)
 
-    def _prepare_dataset(self, process_fn, batch_size):
+    def _prepare_dataset(self, process_fn, batch_size, **kwargs):
         with tf.name_scope('data'):
             types = {k: v.dtype for k, v in self.data_format.items()}
             shapes = {k: v.shape for k, v in self.data_format.items()}
@@ -66,7 +71,8 @@ class Dataset:
             if process_fn:
                 ds = ds.map(map_func=process_fn, 
                             num_parallel_calls=tf.data.experimental.AUTOTUNE)
-            ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
+            prefetch = kwargs.get('prefetch', tf.data.experimental.AUTOTUNE)
+            ds = ds.prefetch(prefetch)
             iterator = iter(ds)
         return iterator
 

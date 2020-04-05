@@ -48,9 +48,8 @@ def create_worker(Worker, name, worker_id, model_fn, config, model_config,
     
     config['model_name'] = f'worker_{worker_id}'
     config['replay_type'] = buffer_config['type']
-    config['mode_prob'] = [1, 0, 0]
-
     config['display_var'] = False
+    
     RayWorker = ray.remote(num_cpus=1)(Worker)
     worker = RayWorker.remote(name, worker_id, model_fn, buffer_fn, config, 
                         model_config, env_config, buffer_config)

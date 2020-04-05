@@ -84,6 +84,16 @@ def train(agent, env, eval_env, replay):
             start_step = step
             start_t = time.time()
 
+def get_data_format(env, batch_size, batch_len=None):
+    dtype = global_policy().compute_dtype
+    data_format = dict(
+        obs=DataFormat((batch_size, batch_len, *env.obs_shape), dtype),
+        action=DataFormat((batch_size, batch_len, *env.action_shape), dtype),
+        reward=DataFormat((batch_size, batch_len), dtype), 
+        discount=DataFormat((batch_size, batch_len), dtype),
+    )
+    return data_format
+
 def main(env_config, model_config, agent_config, 
         replay_config, restore=False, render=False):
     silence_tf_logs()
@@ -105,17 +115,11 @@ def main(env_config, model_config, agent_config,
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
     replay.load_data()
-    dtype = global_policy().compute_dtype
-    data_format = dict(
-        obs=DataFormat((None, *env.obs_shape), dtype),
-        action=DataFormat((None, *env.action_shape), dtype),
-        reward=DataFormat((None), dtype), 
-        discount=DataFormat((None), dtype),
-    )
+    data_format = get_data_format(env, agent_config['batch_size'], agent_config['batch_len'])
     print(data_format)
     process = functools.partial(
         process_with_env, env=env, obs_range=agent_config['obs_range'])
-    dataset = Dataset(replay, data_format, process, agent_config['batch_size'])
+    dataset = Dataset(replay, data_format, process)
 
     models = create_model(
         model_config, 
