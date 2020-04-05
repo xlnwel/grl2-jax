@@ -135,9 +135,14 @@ class Agent(BaseAgent):
                 bl = self._burn_in_len
                 sl = self._batch_len - self._burn_in_len
                 burn_in_embed, embed = tf.split(embed, [bl, sl], 1)
-                burn_in_action, action = tf.split(embed, [bl, sl], 1)
+                burn_in_action, action = tf.split(action, [bl, sl], 1)
                 state, _ = self.rssm.observe(burn_in_embed, burn_in_action)
-                state = tf.stop_gradient(state)
+                state = tf.nest.pack_sequence_as(state, 
+                    tf.nest.map_structure(lambda x: tf.stop_gradient(x[:, -1]), state))
+                
+                _, obs = tf.split(obs, [bl, sl], 1)
+                _, reward = tf.split(reward, [bl, sl], 1)
+                _, discount = tf.split(discount, [bl, sl], 1)
             else:
                 state = None
             post, prior = self.rssm.observe(embed, action, state)
