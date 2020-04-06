@@ -57,17 +57,17 @@ def agent_config(init_fn):
         # define global steps for train/env step tracking
         self.global_steps = tf.Variable(0, dtype=tf.int64)
 
-        if config.get('_writer', True):
+        if config.get('writer', True):
             self._writer = setup_tensorboard(self._root_dir, self._model_name)
             tf.summary.experimental.set_step(0)
 
         # Agent initialization
         init_fn(self, **kwargs)
 
-        if getattr(self, '_display_var', True):
+        if config.get('display_var', True):
             display_model_var_info(self._ckpt_models)
 
-        if getattr(self, '_save_code', True):
+        if config.get('save_code', True):
             save_code(self._root_dir, self._model_name)
         
         self._ckpt, self._ckpt_path, self._ckpt_manager = \
@@ -76,7 +76,7 @@ def agent_config(init_fn):
 
         # to save stats to files, specify `logger: True` in config.yaml 
         self._logger = setup_logger(
-            config.get('_logger', None) and self._root_dir, 
+            config.get('logger', None) and self._root_dir, 
             self._model_name)
 
         self.print_construction_complete()

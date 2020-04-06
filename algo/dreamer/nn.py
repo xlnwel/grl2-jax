@@ -60,7 +60,6 @@ class RSSM(Module):
     def observe(self, embed, action, state=None):
         if state is None:
             state = self.get_initial_state(batch_size=tf.shape(action)[0])
-        # make tensors time-major
         embed = tf.transpose(embed, [1, 0, 2])
         action = tf.transpose(action, [1, 0, 2])
         post, prior = static_scan(
@@ -80,6 +79,18 @@ class RSSM(Module):
         return prior
 
     @tf.function
+    def post(self, embed, action, state=None):
+        if state is None:
+            state = self.get_initial_state(batch_size=tf.shape(action)[0])
+        embed = tf.transpose(embed, [1, 0, 2])
+        action = tf.transpose(action, [1, 0, 2])
+        post = static_scan(
+            lambda prev, inputs: self.post_step(prev, *inputs), 
+            state, (action, embed))
+        post = RSSMState(*[tf.transpose(v, [1, 0 , 2]) for v in post])
+        return post
+
+    @tf.function
     def obs_step(self, prev_state, prev_action, embed):
         prior = self.img_step(prev_state, prev_action)
         x = tf.concat([prior.deter, embed], -1)
@@ -93,6 +104,14 @@ class RSSM(Module):
         x = self.img_layers(x)
         prior = self._compute_rssm_state(x, deter)
         return prior
+
+    @tf.function
+    def post_step(self, prev_state, prev_action, embed):
+        x, deter = self._compute_deter_state(prev_state, prev_action)
+        x = tf.concat([deter, embed], -1)
+        x = self.obs_layers(x)
+        post = self._compute_rssm_state(x, deter)
+        return post
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         if inputs is not None:
@@ -127,6 +146,14 @@ class RSSM(Module):
         state = RSSMState(mean=mean, std=std, stoch=stoch, deter=deter)
         return state
 
+    @property
+    def state_size(self):
+        return RSSMState(
+            mean=self._stoch_size,
+            std=self._stoch_size,
+            stoch=self._stoch_size,
+            deter=self.cell.state_size
+        )
 
 class Actor(Module):
     @config

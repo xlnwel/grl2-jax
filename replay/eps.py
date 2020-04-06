@@ -8,11 +8,12 @@ from core.decorator import config
 
 class EpisodicReplay:
     @config
-    def __init__(self):
+    def __init__(self, state_keys=[]):
         self._dir = Path(self._dir).expanduser()
         self._dir.mkdir(parents=True, exist_ok=True)
         self._memory = {}
         self._batch_len = getattr(self, '_batch_len', None)
+        self._state_keys = state_keys
     
     def buffer_type(self):
         return self._type
@@ -74,12 +75,6 @@ class EpisodicReplay:
             samples = [self._sample() for _ in range(batch_size)]
             data = {k: np.stack([t[k] for t in samples], 0)
                 for k in samples[0].keys()}
-            np.testing.assert_equal(
-                [v.shape[0] for v in data.values()], 
-                [batch_size for _ in list(data)])
-            np.testing.assert_equal(
-                [v.shape[1:] for v in data.values()],
-                [v.shape for v in samples[0].values()])
         else:
             data = self._sample()
         return data
@@ -92,8 +87,9 @@ class EpisodicReplay:
             available = total - self._batch_len
             if available < 1:
                 print(f'Skipped short episode of length {available}.')
-            index = int(random.randint(0, available))
-            episode = {k: v[index: index + self._batch_len] for k, v in episode.items()}
+            i = int(random.randint(0, available))
+            episode = {k: v[i] if k in self._state_keys else v[i: i + self._batch_len] 
+                        for k, v in episode.items()}
         return episode
 
     def _remove_files(self):
@@ -107,59 +103,3 @@ class EpisodicReplay:
                     del self._memory[filename]
             filenames = filenames[start:]
             print(f'{start} files are removed')
-
-if __name__ == '__main__':
-    import shutil
-    bs = 10
-    sq = 20
-    directory = 'test_dir'
-    config = dict(
-        dir=directory,
-        type='episodic',
-        batch_size=bs,
-        batch_len=sq,
-        min_episodes=3
-    )
-    state_shape = (2,)
-    replay = EpisodicReplay(config)
-    episodes = [
-        dict(
-            obs=np.random.normal(size=(sq+10, *state_shape)),
-            reward=np.random.normal(size=(sq+10)),
-        )
-        for _ in range(bs+10)
-    ]
-
-    replay.merge(episodes)
-    directory = Path(directory)
-    retrieved_episodes = {}
-    filenames = directory.glob('*npz')
-    for filename in filenames:
-        with filename.open('rb') as f:
-            episode = np.load(f)
-            episode = {k: episode[k] for k in episode.keys()}
-        retrieved_episodes[filename] = episode
-        for k in retrieved_episodes[filename].keys():
-            try:
-                np.testing.assert_allclose(replay._memory[filename][k], retrieved_episodes[filename][k])
-            except:
-                shutil.rmtree(directory)
-    
-    replay._memory.clear()
-    replay.load_data()
-    
-    for i in range(bs):
-        fn, idx, eps = replay.sample()
-        for k in eps.keys():
-            try:
-                np.testing.assert_allclose(retrieved_episodes[fn][k][idx: idx+replay._batch_len], eps[k])
-            except:
-                shutil.rmtree(directory)
-
-    filename, index, data = replay.sample()
-    data['obs'] = data['obs'] * 1000
-    print(data['obs'])
-
-    print(replay._memory[filename]['obs'][index:index+replay._batch_len])
-
-    shutil.rmtree(directory)

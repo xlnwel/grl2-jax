@@ -56,6 +56,17 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
         default_shape = [batch_size, None]
     else:
         default_shape = [batch_size]
+    def construct(x):
+        if isinstance(x, tf.TensorSpec):
+            return x
+        elif isinstance(x, (list, tuple)) and len(x) == 3:
+            s, d, n = x
+            return tf.TensorSpec(
+                shape=() if s is None else default_shape+list(s), 
+                dtype=d, 
+                name=n)
+        else:
+            return get_TensorSpecs(x, sequential=sequential, batch_size=batch_size)
     if isinstance(TensorSpecs, dict):
         name = TensorSpecs.keys()
         tensorspecs = tuple(TensorSpecs.values())
@@ -65,12 +76,13 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
     assert isinstance(tensorspecs, (list, tuple)), (
         'Expect tensorspecs to be a dict/list/tuple of arguments for tf.TensorSpec, '
         f'but get {TensorSpecs}\n')
-    tensorspecs = [tf.TensorSpec(shape=() if s is None else default_shape+list(s), dtype=d, name=n)
-         for s, d, n in tensorspecs]
+    tensorspecs = [construct(x) for x in tensorspecs]
     if name:
         return dict(zip(name, tensorspecs))
+    elif isinstance(TensorSpecs, tuple) and hasattr(TensorSpecs, '_fields'):
+        return type(TensorSpecs)(*tensorspecs)
     else:
-        return tensorspecs
+        return type(TensorSpecs)(tensorspecs)
 
 def build(func, TensorSpecs, sequential=False, batch_size=None):
     """Build a concrete function of func
@@ -84,13 +96,7 @@ def build(func, TensorSpecs, sequential=False, batch_size=None):
     Returns:
         A concrete function of func
     """
-    ts = TensorSpecs
-    while isinstance(ts, list):
-        ts = ts[0]
-    while isinstance(ts, dict):
-        ts = tuple(ts.values())[0]
-    if not isinstance(ts, tf.TensorSpec):
-        TensorSpecs = get_TensorSpecs(TensorSpecs, sequential, batch_size)
+    TensorSpecs = get_TensorSpecs(TensorSpecs, sequential, batch_size)
 
     if isinstance(TensorSpecs, dict):
         return func.get_concrete_function(**TensorSpecs)

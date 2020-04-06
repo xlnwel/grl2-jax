@@ -3,8 +3,6 @@ env:
     name: dmc_walker_run
     video_path: video
     log_video: False
-    n_workers: 1
-    n_envs: 1
     auto_reset: True
     n_ar: 2
     precision: &prec 16
@@ -39,8 +37,10 @@ agent:
     polyak: .995
     precision: *prec
     obs_range: [-0.5, .5]
-    burn_in: False
     batch_size: &bs 50
+
+    store_state: False
+    burn_in: False
     batch_len: &bl 50
     burn_in_len: 20
 

@@ -51,7 +51,7 @@ class Agent(BaseAgent):
 
         self._to_log_images = Every(self.LOG_INTERVAL)
 
-        # time dimension must be specified explicitly here
+        # time dimension must be explicitly specified here
         # otherwise, InaccessibleTensorError arises when expanding rssm
         TensorSpecs = dict(
             obs=((self._batch_len, *self._obs_shape), self._dtype, 'obs'),
@@ -60,6 +60,11 @@ class Agent(BaseAgent):
             discount=((self._batch_len,), self._dtype, 'discount'),
             log_images=(None, tf.bool, 'log_images')
         )
+        if self._store_state:
+            state_size = self.rssm.state_size
+            TensorSpecs['state'] = (RSSMState(
+               *[((sz, ), self._dtype, name) for name, sz in zip(RSSMState._fields, state_size)]
+            ))
 
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
@@ -85,7 +90,10 @@ class Agent(BaseAgent):
         self._prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype) \
             if self._is_action_discrete else action
 
-        return action.numpy()
+        if self._store_state:
+            return action.numpy(), tf.nest.map_structure(lambda x: x.numpy(), self._state)
+        else:
+            return action.numpy()
         
     @tf.function
     def action(self, obs, state, prev_action, deterministic=False):
@@ -95,7 +103,7 @@ class Agent(BaseAgent):
         obs = tf.expand_dims(obs, 1)
         embed = self.encoder(obs)
         embed = tf.squeeze(embed, 1)
-        state, _ = self.rssm.obs_step(state, prev_action, embed)
+        state = self.rssm.post_step(state, prev_action, embed)
         feature = self.rssm.get_feat(state)
         if deterministic:
             action = self.actor(feature).mode()
@@ -128,7 +136,7 @@ class Agent(BaseAgent):
             self.store(**terms)
 
     @tf.function
-    def _learn(self, obs, action, reward, discount, log_images):
+    def _learn(self, obs, action, reward, discount, log_images, state=None):
         with tf.GradientTape() as model_tape:
             embed = self.encoder(obs)
             if self._burn_in:
@@ -136,15 +144,13 @@ class Agent(BaseAgent):
                 sl = self._batch_len - self._burn_in_len
                 burn_in_embed, embed = tf.split(embed, [bl, sl], 1)
                 burn_in_action, action = tf.split(action, [bl, sl], 1)
-                state, _ = self.rssm.observe(burn_in_embed, burn_in_action)
+                state, _ = self.rssm.observe(burn_in_embed, burn_in_action, state)
                 state = tf.nest.pack_sequence_as(state, 
                     tf.nest.map_structure(lambda x: tf.stop_gradient(x[:, -1]), state))
                 
                 _, obs = tf.split(obs, [bl, sl], 1)
                 _, reward = tf.split(reward, [bl, sl], 1)
                 _, discount = tf.split(discount, [bl, sl], 1)
-            else:
-                state = None
             post, prior = self.rssm.observe(embed, action, state)
             feature = self.rssm.get_feat(post)
             obs_pred = self.decoder(feature)

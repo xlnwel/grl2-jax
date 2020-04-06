@@ -38,8 +38,9 @@ class Dataset:
             tf.data.Dataset.from_generator
         """
         self._buffer = buffer
-        self.data_format = data_format
         assert isinstance(data_format, dict)
+        data_format = {k: DataFormat(*v) for k, v in data_format.items()}
+        self.data_format = data_format
         self._iterator = self._prepare_dataset(process_fn, batch_size, **kwargs)
 
     def buffer_type(self):
