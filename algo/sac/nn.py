@@ -16,8 +16,8 @@ from nn.func import mlp
 class SoftPolicy(Module):
     @config
     def __init__(self, action_dim, is_action_discrete, name='actor'):
-        self._dtype = global_policy().compute_dtype
         super().__init__(name=name)
+        self._dtype = global_policy().compute_dtype
 
         # network parameters
         self._is_action_discrete = is_action_discrete

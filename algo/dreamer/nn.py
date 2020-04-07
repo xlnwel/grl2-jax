@@ -40,17 +40,17 @@ class RSSM(Module):
     def __init__(self, name='rssm'):
         super().__init__(name)
 
-        self.embed_layer = layers.Dense(
+        self._embed_layer = layers.Dense(
             self._hidden_size, 
             activation=self._activation,
             name='embed')
-        self.cell = layers.GRUCell(self._deter_size)
-        self.img_layers = mlp(
+        self._cell = layers.GRUCell(self._deter_size)
+        self._img_layers = mlp(
             [self._hidden_size], 
             out_dim=2*self._stoch_size, 
             activation=self._activation,
             name='img')
-        self.obs_layers = mlp(
+        self._obs_layers = mlp(
             [self._hidden_size], 
             out_dim=2*self._stoch_size,
             activation=self._activation,
@@ -94,14 +94,14 @@ class RSSM(Module):
     def obs_step(self, prev_state, prev_action, embed):
         prior = self.img_step(prev_state, prev_action)
         x = tf.concat([prior.deter, embed], -1)
-        x = self.obs_layers(x)
+        x = self._obs_layers(x)
         post = self._compute_rssm_state(x, prior.deter)
         return post, prior
 
     @tf.function
     def img_step(self, prev_state, prev_action):
         x, deter = self._compute_deter_state(prev_state, prev_action)
-        x = self.img_layers(x)
+        x = self._img_layers(x)
         prior = self._compute_rssm_state(x, deter)
         return prior
 
@@ -109,7 +109,7 @@ class RSSM(Module):
     def post_step(self, prev_state, prev_action, embed):
         x, deter = self._compute_deter_state(prev_state, prev_action)
         x = tf.concat([deter, embed], -1)
-        x = self.obs_layers(x)
+        x = self._obs_layers(x)
         post = self._compute_rssm_state(x, deter)
         return post
 
@@ -124,7 +124,7 @@ class RSSM(Module):
             mean=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
             std=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
             stoch=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
-            deter=self.cell.get_initial_state(inputs, batch_size, dtype))
+            deter=self._cell.get_initial_state(inputs, batch_size, dtype))
         
     def get_feat(self, state):
         return tf.concat([state.stoch, state.deter], -1)
@@ -134,8 +134,8 @@ class RSSM(Module):
 
     def _compute_deter_state(self, prev_state, prev_action):
         x = tf.concat([prev_state.stoch, prev_action], -1)
-        x = self.embed_layer(x)
-        x, deter = self.cell(x, tf.nest.flatten(prev_state.deter))
+        x = self._embed_layer(x)
+        x, deter = self._cell(x, tf.nest.flatten(prev_state.deter))
         deter = deter[-1]
         return x, deter
 
@@ -152,7 +152,7 @@ class RSSM(Module):
             mean=self._stoch_size,
             std=self._stoch_size,
             stoch=self._stoch_size,
-            deter=self.cell.state_size
+            deter=self._cell.state_size
         )
 
 class Actor(Module):
@@ -195,7 +195,7 @@ class Encoder(Module):
     def __init__(self, name='encoder'):
         super().__init__(name=name)
 
-        if getattr(self, '_has_cnn', None):
+        if getattr(self, '_has_cnn', True):
             self._layers = ConvEncoder(time_distributed=True)
         else:
             self._layers = mlp(self._units_list, activation=self._activation)
@@ -246,17 +246,17 @@ class ConvEncoder(Module):
         )
         depth = 32
         kwargs = dict(kernel_size=4, strides=2, activation='relu')
-        self.conv1 = conv2d(1 * depth, **kwargs)
-        self.conv2 = conv2d(2 * depth, **kwargs)
-        self.conv3 = conv2d(4 * depth, **kwargs)
-        self.conv4 = conv2d(8 * depth, **kwargs)
+        self._conv1 = conv2d(1 * depth, **kwargs)
+        self._conv2 = conv2d(2 * depth, **kwargs)
+        self._conv3 = conv2d(4 * depth, **kwargs)
+        self._conv4 = conv2d(8 * depth, **kwargs)
 
     def __call__(self, x):
         assert x.shape[-3:] == (64, 64, 3), x.shape
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.conv4(x)
+        x = self._conv1(x)
+        x = self._conv2(x)
+        x = self._conv3(x)
+        x = self._conv4(x)
         shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(tf.shape(x)[-3:])]], 0)
         x = tf.reshape(x, shape)
 
@@ -276,19 +276,19 @@ class ConvDecoder(Module):
         depth = 32
         kwargs = dict(strides=2, activation='relu')
         self._dense = layers.Dense(32 * depth)
-        self.deconv1 = deconv2d(4 * depth, 5, **kwargs)
-        self.deconv2 = deconv2d(2 * depth, 5, **kwargs)
-        self.deconv3 = deconv2d(1 * depth, 6, **kwargs)
-        self.deconv4 = deconv2d(3, 6, strides=2)
+        self._deconv1 = deconv2d(4 * depth, 5, **kwargs)
+        self._deconv2 = deconv2d(2 * depth, 5, **kwargs)
+        self._deconv3 = deconv2d(1 * depth, 6, **kwargs)
+        self._deconv4 = deconv2d(3, 6, strides=2)
 
     def __call__(self, x):
         x = self._dense(x)
         shape = tf.concat([tf.shape(x)[:-1], [1, 1, x.shape[-1]]], 0)
         x = tf.reshape(x, shape)
-        x = self.deconv1(x)
-        x = self.deconv2(x)
-        x = self.deconv3(x)
-        x = self.deconv4(x)
+        x = self._deconv1(x)
+        x = self._deconv2(x)
+        x = self._deconv3(x)
+        x = self._deconv4(x)
 
         return tfd.Independent(tfd.Normal(x, 1), 3)
 

@@ -2,10 +2,12 @@
 env:
     name: dmc_walker_run
     video_path: video
-    log_episode: True
-    auto_reset: True
-    n_envs: 1
+    log_video: False
+    n_envs: 8
+    log_episode: False
+    auto_reset: False
     n_ar: 2
+    seed: 0
     precision: &prec 16
 model:
     encoder:
@@ -34,23 +36,26 @@ model:
     #     units_list: [400, 400, 400]
     #     activation: elu
 agent:
-    algorithm: &algo dreamer
+    algorithm: &algo seed1-dreamer
     polyak: .995
     precision: *prec
     obs_range: [-0.5, .5]
     batch_size: &bs 50
 
-    # These params are not supported here, see seed1
+    # R2D2
     store_state: False
     burn_in: False
     batch_len: &bl 50
     burn_in_len: 20
 
+    # distributed training
+    n_workers: &nw 4
+    action_batch: 8
+
     MAX_STEPS: 5.e+6
     LOG_INTERVAL: 1000
-    EVAL_INTERVAL: 10000
-    TRAIN_INTERVAL: 1000
     N_UPDATES: 100
+    SYNC_FREQ: 100
     log_images: True
 
     # model
@@ -83,5 +88,5 @@ replay:
     # arguments for general replay
     batch_size: *bs
     batch_len: *bl
-    max_episodes: 800
-    min_episodes: 5
+    max_episodes: 1000
+    min_episodes: *nw

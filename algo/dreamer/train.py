@@ -7,13 +7,13 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 import ray
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
-from utility.signal import sigint_shutdown_ray
+from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
 from utility.utils import Every
 from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import DataFormat, Dataset, process_with_env
-from algo.sac.run import evaluate
+from algo.common.run import evaluate
 from algo.dreamer.agent import Agent
 from algo.dreamer.nn import create_model
 from algo.dreamer.env import make_env

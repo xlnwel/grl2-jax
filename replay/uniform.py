@@ -1,6 +1,6 @@
 import numpy as np
 
-from utility.decorators import override
+from core.decorator import override
 from replay.base import Replay
 from replay.utils import init_buffer
 

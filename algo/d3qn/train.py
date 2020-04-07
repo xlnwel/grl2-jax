@@ -4,7 +4,7 @@ import ray
 
 from utility.utils import set_global_seed
 from core.tf_config import configure_gpu
-from utility.signal import sigint_shutdown_ray
+from utility.ray_setup import sigint_shutdown_ray
 from utility.timer import TBTimer
 from utility.utils import step_str
 from env.gym_env import create_env

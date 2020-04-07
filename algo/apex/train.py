@@ -1,7 +1,7 @@
 import time
 import ray
 
-from utility.signal import sigint_shutdown_ray
+from utility.ray_setup import sigint_shutdown_ray
 from utility.yaml_op import load_config
 from env.gym_env import create_env
 from replay.func import create_replay_center
@@ -23,7 +23,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     fm = pkg.import_module('func', config=agent_config)
 
     name = agent_config['algorithm'].rsplit('-', 1)[-1]
-    Learner = am.get_learner_class(agent_config, Agent)
+    Learner = am.get_learner_class(Agent)
     learner = fm.create_learner(
         Learner=Learner, 
         name=name, 
@@ -37,7 +37,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     if restore:
         ray.get(learner.restore.remote())
         
-    Worker = am.get_worker_class(agent_config)
+    Worker = am.get_worker_class()
     workers = []
     pids = []
     for wid in range(agent_config['n_workers']):

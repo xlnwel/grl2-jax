@@ -5,7 +5,7 @@ import ray
 from utility.display import pwc
 from core.tf_config import *
 from env.gym_env import create_env
-from algo.sac.run import evaluate
+from algo.common.run import evaluate
 
 
 def import_model_fn(algorithm):

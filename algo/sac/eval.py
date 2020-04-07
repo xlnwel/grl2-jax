@@ -4,9 +4,9 @@ import ray
 
 from core.tf_config import *
 from utility.display import pwc
-from utility.signal import sigint_shutdown_ray
+from utility.ray_setup import sigint_shutdown_ray
 from env.gym_env import create_env
-from algo.sac.run import evaluate
+from algo.common.run import evaluate
 from algo.sac.nn import SoftPolicy
 
 
@@ -19,6 +19,10 @@ def main(env_config, model_config, agent_config, n, render=False):
         ray.init()
         sigint_shutdown_ray()
         
+    if render:
+        env_config['n_workers'] = env_config['n_envs'] = 1
+        env_config['log_video'] = True
+
     env = create_env(env_config)
     n_envs = env_config['n_envs'] * env_config['n_workers']
 
@@ -36,7 +40,7 @@ def main(env_config, model_config, agent_config, n, render=False):
     ckpt.restore(path).expect_partial()
     if path:
         pwc(f'Params are restored from "{path}".', color='cyan')
-        scores, epslens = evaluate(env, agent, n, render=render)
+        scores, epslens = evaluate(env, actor, n, render=render)
         pwc(f'After running {n_envs} episodes:',
             f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
     else:

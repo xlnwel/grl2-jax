@@ -193,6 +193,7 @@ class LogEpisode:
     
     def step(self, action, **kwargs):
         obs, reward, done, info = self.env.step(action)
+        reward = convert_dtype(reward, self._precision)
         transition = dict(
             obs=obs,
             action=action,
@@ -205,7 +206,7 @@ class LogEpisode:
             episode = {k: convert_dtype([t[k] for t in self._episode], self._precision)
                 for k in self._episode[0]}
             info['episode'] = self.prev_episode = episode
-        return obs, convert_dtype(reward, self._precision), done, info
+        return obs, reward, done, info
 
 class AutoReset:
     def __init__(self, env):

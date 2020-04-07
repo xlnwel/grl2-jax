@@ -1,35 +1,27 @@
+import functools
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
-from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
-from utility.utils import set_global_seed, Every
+from core.tf_config import *
+from utility.utils import Every
 from env.gym_env import create_env
 from replay.func import create_replay
-from replay.data_pipline import DataFormat, Dataset
-from algo.sac.run import run, evaluate
+from replay.data_pipline import Dataset, process_with_env
+from algo.common.run import run, evaluate
 from algo.sac.agent import Agent
 from algo.sac.nn import create_model
 
 
-def train(agent, env, replay):
+def train(agent, env, eval_env, replay):
     def collect_and_learn(step, **kwargs):
         replay.add(**kwargs)
         agent.learn_log(step)
 
-    eval_env = create_env(dict(
-        name=env.name, 
-        video_path='video',
-        log_video=False,
-        n_workers=1,
-        n_envs=10,
-        effective_envvec=True,
-        seed=0,
-    ))
     start_step = agent.global_steps.numpy() + 1
-    print('Training started...')
     step = start_step
     to_log = Every(agent.LOG_INTERVAL)
+    print('Training started...')
     while step < int(agent.MAX_STEPS):
         score, epslen = run(env, agent, fn=collect_and_learn, step=step)
         agent.store(score=env.score(), epslen=env.epslen())
@@ -50,30 +42,28 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     # configure_precision(agent_config.get('precision', 32))
 
     env = create_env(env_config)
+    eval_env_config = env_config.copy()
+    eval_env_config['n_envs'] = 10
+    # eval_env_config['efficient_envvec'] = True
+    eval_env = create_env(eval_env_config)
+
     replay = create_replay(replay_config)
 
     dtype = global_policy().compute_dtype
     data_format = dict(
-        obs=DataFormat((None, *env.obs_shape), dtype),
-        action=DataFormat((None, *env.action_shape), dtype),
-        reward=DataFormat((None, ), dtype), 
-        next_obs=DataFormat((None, *env.obs_shape), dtype),
-        done=DataFormat((None, ), dtype),
+        obs=((None, *env.obs_shape), dtype),
+        action=((None, *env.action_shape), dtype),
+        reward=((None, ), dtype), 
+        next_obs=((None, *env.obs_shape), dtype),
+        done=((None, ), dtype),
     )
     if replay_config['type'].endswith('proportional'):
-        data_format['IS_ratio'] = DataFormat((None, ), dtype)
-        data_format['saved_idxes'] = DataFormat((None, ), tf.int32)
+        data_format['IS_ratio'] = ((None, ), dtype)
+        data_format['saved_idxes'] = ((None, ), tf.int32)
     if replay_config.get('n_steps', 1) > 1:
-        data_format['steps'] = DataFormat((None, ), dtype)
+        data_format['steps'] = ((None, ), dtype)
     print(data_format)
-    def process(data):
-        data = data.copy()
-        dtype = global_policy().compute_dtype
-        with tf.device('cpu:0'):
-            if env.is_action_discrete:
-                data['action'] = tf.one_hot(data['action'], env.action_dim, dtype=dtype)
-        return data
-    dataset = Dataset(replay, data_format, process_fn=process)
+    dataset = Dataset(replay, data_format)
 
     models = create_model(
         model_config, 
@@ -93,26 +83,14 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         replay=replay_config
     ))
 
-    if restore:
-        agent.restore()
     collect_fn = lambda **kwargs: replay.add(**kwargs)
     while not replay.good_to_learn():
         run(env, env.random_action, fn=collect_fn)
     
-    train(agent, env, replay)
+    train(agent, env, eval_env, replay)
 
     # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup
     # obs = env.reset()
-    # eval_env = create_env(dict(
-    #     name=env.name, 
-    #     video_path='video',
-    #     log_video=False,
-    #     n_workers=1,
-    #     n_envs=10,
-    #     effective_envvec=True,
-    #     seed=0,
-    # ))
-
     # epslen = 0
     # for t in range(int(agent.MAX_STEPS)):
     #     if t > 1e4:

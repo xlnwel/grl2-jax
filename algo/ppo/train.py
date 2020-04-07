@@ -3,7 +3,7 @@ import ray
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.utils import Every
-from utility.signal import sigint_shutdown_ray
+from utility.ray_setup import sigint_shutdown_ray
 from utility.timer import Timer
 from env.gym_env import create_env
 from algo.ppo.eval import evaluate, import_model_fn, import_agent

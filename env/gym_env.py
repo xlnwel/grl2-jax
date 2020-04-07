@@ -150,11 +150,11 @@ class EnvVec(EnvBase):
 
 class EfficientEnvVec(EnvVec):
     def random_action(self):
-        valid_envs = [env for env in self.envs if not env.already_done]
+        valid_envs = [env for env in self.envs if not env.already_done()]
         return [env.action_space.sample() for env in valid_envs]
         
     def step(self, actions, **kwargs):
-        valid_env_ids, valid_envs = zip(*[(i, env) for i, env in enumerate(self.envs) if not env.already_done])
+        valid_env_ids, valid_envs = zip(*[(i, env) for i, env in enumerate(self.envs) if not env.already_done()])
         assert len(valid_envs) == len(actions), f'valid_env({len(valid_envs)}) vs actions({len(actions)})'
         for k, v in kwargs.items():
             assert len(actions) == len(v), f'valid_env({len(actions)}) vs {k}({len(v)})'
