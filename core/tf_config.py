@@ -1,5 +1,6 @@
 import os
 import tensorflow as tf
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 
@@ -50,12 +51,6 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
         If TensorSpecs is a dict, return a dict of TensorSpecs with names 
         as they are in TensorSpecs. Otherwise, return a list of TensorSpecs
     """
-    if sequential:
-        assert batch_size, (
-            f'For sequential data, please specify batch size')
-        default_shape = [batch_size, None]
-    else:
-        default_shape = [batch_size]
     def construct(x):
         if isinstance(x, tf.TensorSpec):
             return x
@@ -65,8 +60,22 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
                 shape=() if s is None else default_shape+list(s), 
                 dtype=d, 
                 name=n)
+        elif isinstance(x, (list, tuple)) and len(x) == 1:
+            s = x
+            d = global_policy().compute_dtype
+            return tf.TensorSpec(
+                shape=() if s is None else default_shape+list(s),
+                dtype=d
+            )
         else:
             return get_TensorSpecs(x, sequential=sequential, batch_size=batch_size)
+
+    if sequential:
+        assert batch_size, (
+            f'For sequential data, please specify batch size')
+        default_shape = [batch_size, None]
+    else:
+        default_shape = [batch_size]
     if isinstance(TensorSpecs, dict):
         name = TensorSpecs.keys()
         tensorspecs = tuple(TensorSpecs.values())

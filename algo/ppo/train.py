@@ -76,8 +76,7 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
 
     env = create_env(env_config, force_envvec=True)
     eval_env_config = env_config.copy()
-    eval_env_config['n_workers'] = 1
-    eval_env_config['n_envs'] = 1
+    eval_env_config['seed'] += 100
     eval_env = create_env(eval_env_config, force_envvec=True)
 
     buffer_config['n_envs'] = env_config['n_envs']

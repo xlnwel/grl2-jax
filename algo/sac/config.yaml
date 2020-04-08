@@ -30,7 +30,6 @@ agent:
     
     MAX_STEPS: 3.e+6
     LOG_INTERVAL: 10000
-    TIMER: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

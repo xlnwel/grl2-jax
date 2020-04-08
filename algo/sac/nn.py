@@ -4,10 +4,8 @@ from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
-from core.tf_config import build
 from core.module import Module
 from core.decorator import config
-from utility.display import pwc
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import Categorical
 from nn.func import mlp
@@ -35,28 +33,33 @@ class SoftPolicy(Module):
         x = tf.reshape(x, [-1, tf.shape(x)[-1]])
         deterministic = tf.convert_to_tensor(deterministic, tf.bool)
 
-        action = self.action(x, deterministic)
+        action = self.action(x, deterministic, epsilon)
         action = np.squeeze(action.numpy())
-
-        if epsilon:
-            action += np.random.normal(scale=epsilon, size=action.shape)
 
         return action
 
     @tf.function(experimental_relax_shapes=True)
-    def action(self, x, deterministic=False):
+    def action(self, x, deterministic=False, epsilon=0):
         x = self._layers(x)
 
         if self._is_action_discrete:
-            dist = tfd.Categorical(x)
+            dist = tfd.Categorical(logits=x)
             action = dist.mode() if deterministic else dist.sample()
+            if epsilon:
+                rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
+                action = tf.where(
+                    tf.random.uniform(action.shape[:1], 0, 1) < epsilon,
+                    rand_act, action)
         else:
             mu, logstd = tf.split(x, 2, -1)
             logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
             std = tf.exp(logstd)
             dist = tfd.MultivariateNormalDiag(mu, std)
-            raw_action = dist.sample()
+            raw_action = dist.mode() if deterministic else dist.sample()
             action = tf.tanh(raw_action)
+            if epsilon:
+                action = tf.clip_by_value(
+                    tfd.Normal(action, self._act_epsilon).sample(), -1, 1)
 
         return action
 
@@ -94,10 +97,10 @@ class SoftQ(Module):
                             kernel_initializer=self._kernel_initializer)
 
     def __call__(self, x, a):
-        return self.train_step(x, a)
+        return self.value(x, a)
 
     @tf.function
-    def train_step(self, x, a):
+    def value(self, x, a):
         x = tf.concat([x, a], axis=-1)
         x = self._layers(x)
         x = tf.squeeze(x)
@@ -118,7 +121,7 @@ class Temperature(Module):
         else:
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
     
-    def train_step(self, x, a):
+    def value(self, x, a):
         if self.temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
             x = self.intra_layer(x)

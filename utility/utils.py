@@ -17,7 +17,8 @@ class Every:
     
     def __call__(self, step):
         if step >= self._next:
-            self._next += self._period
+            while step >= self._next:
+                self._next += self._period
             return True
         return False
 

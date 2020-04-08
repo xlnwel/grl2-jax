@@ -83,7 +83,7 @@ class PPOAC(Module):
                     self._rnn.get_initial_state(inputs))
 
 
-def create_model(model_config, action_dim, is_action_discrete, n_envs):
+def create_model(model_config, action_dim, is_action_discrete):
     ac = PPOAC(model_config, action_dim, is_action_discrete, 'ac')
 
     return dict(ac=ac)

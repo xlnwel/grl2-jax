@@ -16,12 +16,12 @@ class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
         self._dtype = global_policy().compute_dtype
-        # dataset for input pipline optimization
+        self._is_per = not dataset.buffer_type().endswith('uniform')
+
         self.dataset = dataset
-        self._is_per = not self.dataset.buffer_type().endswith('uniform')
 
         # learning rate schedule
-        if getattr(self, '_schedule_lr', False):
+        if self._schedule_lr:
             self._actor_lr = TFPiecewiseSchedule(
                 [(2e5, self._actor_lr), (1e6, 1e-5)])
             self._q_lr = TFPiecewiseSchedule(
@@ -45,10 +45,10 @@ class Agent(BaseAgent):
         self._action_dim = env.action_dim
         self._is_action_discrete = env.is_action_discrete
 
-        # Explicitly instantiate tf.function to avoid unintended retracing
+        # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
             obs=(env.obs_shape, self._dtype, 'obs'),
-            action=(env.action_shape, self._dtype, 'action'),
+            action=((env.action_dim,), self._dtype, 'action'),
             reward=((), self._dtype, 'reward'),
             next_obs=(env.obs_shape, self._dtype, 'next_obs'),
             done=((), self._dtype, 'done'),
@@ -65,20 +65,22 @@ class Agent(BaseAgent):
         return self.actor(obs, deterministic=deterministic, epsilon=epsilon)
 
     def learn_log(self, step):
-        data = self.dataset.sample()
+        with TBTimer('sample', 100):
+            data = self.dataset.sample()
         if self._is_per:
             saved_idxes = data['saved_idxes'].numpy()
             del data['saved_idxes']
 
-        terms = self.learn(**data)
+        with TBTimer('learn', 100):
+            terms = self.learn(**data)
         self._update_target_nets()
 
         if self._schedule_lr:
             step = tf.convert_to_tensor(step, tf.float32)
-            terms['_actor_lr'] = self._actor_lr(step)
-            terms['_q_lr'] = self._q_lr(step)
+            terms['actor_lr'] = self._actor_lr(step)
+            terms['q_lr'] = self._q_lr(step)
             if not isinstance(self.temperature, (float, tf.Variable)):
-                terms['_temp_lr'] = self._temp_lr(step)
+                terms['temp_lr'] = self._temp_lr(step)
         terms = {k: v.numpy() for k, v in terms.items()}
 
         if self._is_per:
@@ -86,33 +88,33 @@ class Agent(BaseAgent):
         self.store(**terms)
 
     @tf.function
-    def _learn(self, obs, action, reward, next_obs, done, IS_ratio=1, steps=1):
+    def _learn(self, obs, action, reward, next_obs, done, steps=1, IS_ratio=1):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
         old_action = action
         target_fn = (transformed_n_step_target if getattr(self, 'tbo', False) 
                     else n_step_target)
         with tf.GradientTape(persistent=True) as tape:
             action, logpi, terms = self.actor.train_step(obs)
-            q1_with_actor = self.q1.train_step(obs, action)
-            q2_with_actor = self.q2.train_step(obs, action)
+            q1_with_actor = self.q1.value(obs, action)
+            q2_with_actor = self.q2.value(obs, action)
             q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
 
             next_action, next_logpi, _ = self.actor.train_step(next_obs)
-            next_q1_with_actor = self.target_q1.train_step(next_obs, next_action)
-            next_q2_with_actor = self.target_q2.train_step(next_obs, next_action)
+            next_q1_with_actor = self.target_q1.value(next_obs, next_action)
+            next_q2_with_actor = self.target_q2.value(next_obs, next_action)
             next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
             
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = next_temp = self.temperature
             else:
-                log_temp, temp = self.temperature.train_step(obs, action)
-                _, next_temp = self.temperature.train_step(next_obs, next_action)
-                with tf.name_scope('temp_loss'):
-                    temp_loss = -tf.reduce_mean(IS_ratio * log_temp * tf.stop_gradient(logpi + target_entropy))
+                log_temp, temp = self.temperature.value(obs, action)
+                _, next_temp = self.temperature.value(next_obs, next_action)
+                temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
+                    * tf.stop_gradient(logpi + target_entropy))
                 terms['temp'] = temp
 
-            q1 = self.q1.train_step(obs, old_action)
-            q2 = self.q2.train_step(obs, old_action)
+            q1 = self.q1.value(obs, old_action)
+            q2 = self.q2.value(obs, old_action)
 
             tf.debugging.assert_shapes(
                 [(IS_ratio, (None,)),
@@ -122,23 +124,18 @@ class Agent(BaseAgent):
                 (q_with_actor, (None,)), 
                 (next_q_with_actor, (None,))])
             
-            with tf.name_scope('actor_loss'):
-                actor_loss = tf.reduce_mean(IS_ratio * tf.stop_gradient(temp) * logpi - q_with_actor)
+            actor_loss = tf.reduce_mean(IS_ratio * tf.stop_gradient(temp) * logpi - q_with_actor)
 
-            with tf.name_scope('q_loss'):
-                nth_value = next_q_with_actor - next_temp * next_logpi
+            nth_value = next_q_with_actor - next_temp * next_logpi
+            target_q = target_fn(reward, done, nth_value, self._gamma, steps)
+            q1_error = target_q - q1
+            q2_error = target_q - q2
 
-                tf.debugging.assert_shapes([(nth_value, (None,)), (reward, (None,)), (done, (None,)), (steps, (None,))])
-                
-                target_q = target_fn(reward, done, nth_value, self._gamma, steps)
-                q1_error = target_q - q1
-                q2_error = target_q - q2
+            tf.debugging.assert_shapes([(q1_error, (None,)), (q2_error, (None,))])
 
-                tf.debugging.assert_shapes([(q1_error, (None,)), (q2_error, (None,))])
-
-                q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
-                q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
-                q_loss = q1_loss + q2_loss
+            q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
+            q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
+            q_loss = q1_loss + q2_loss
 
         if self._is_per:
             priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
@@ -163,9 +160,8 @@ class Agent(BaseAgent):
 
     def _compute_priority(self, priority):
         """ p = (p + 𝝐)**𝛼 """
-        with tf.name_scope('priority'):
-            priority += self._per_epsilon
-            priority **= self._per_alpha
+        priority += self._per_epsilon
+        priority **= self._per_alpha
         tf.debugging.assert_greater(priority, 0.)
         return priority
 

@@ -8,12 +8,12 @@ def init_buffer(buffer, pre_dims, has_steps=False, **kwargs):
     # v in buffer should have the same shape as v in kwargs except those specified by pre_dims
     info = infer_info(**kwargs)
     buffer.update(
-        dict([(k, np.zeros([*pre_dims, *v_shape], v_dtype)) 
-            for k, (v_shape, v_dtype) in info.items()]))
+        {k: np.zeros([*pre_dims, *v_shape], v_dtype) 
+            if v_dtype else [[] for _ in range(pre_dims[0])]
+            for k, (v_shape, v_dtype) in info.items()})
     # we define an additional item, steps, that specifies steps in multi-step learning
-    # we define it even for 1-step learning to avoid code complication
     if has_steps:
-        buffer['steps'] = np.ones([*pre_dims], np.uint8)
+        buffer['steps'] = np.ones(pre_dims, np.uint8)
 
 def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
     for k in buffer.keys():
@@ -45,19 +45,21 @@ def copy_buffer(dest_buffer, dest_start, dest_end, orig_buffer, orig_start, orig
 def infer_info(**kwargs):
     """ infer shape/type from kwargs so that we can use them for buffer initialization """
     info = {}
-    pre_dims_len = len(kwargs['reward'].shape)
+    pre_dims_len = 0 if isinstance(kwargs['reward'], (int, float)) \
+        else len(kwargs['reward'].shape)
     for k, v in kwargs.items():
         if isinstance(v, np.ndarray):
             info[k] = (v.shape[pre_dims_len:], v.dtype)
         elif isinstance(v, (int, float, bool, np.float32)):
-            # else assume v is of built-in type
             info[k] = ((), type(v))
         else:
-            raise ValueError(f'key({k}): v of type({type(v)}) is not supported here')
+            # else assume a user defined structure
+            info[k] = ((), None)
     
     return info
 
 def print_buffer(buffer):
     print('Buffer info')
     for k, v in buffer.items():
-        print(f'{k}: shape({v.shape}), type({v.dtype})')
+        shape = v.shape if isinstance(v, np.ndarray) else len(v)
+        print(f'\t{k}: shape({shape}), type({v.dtype})')

@@ -2,9 +2,10 @@ import numpy as np
 from utility.display import pwc
 
 
-def run(env, agent, *, fn=None, evaluation=False, step=None):
+def run(env, agent, *, fn=None, evaluation=False, step=None, nsteps=None):
     obs = env.reset()
-    for i in range(1, env.max_episode_steps+1):
+    nsteps = nsteps or env.max_episode_steps
+    for i in range(1, nsteps+1):
         action = agent(obs, deterministic=evaluation)
         next_obs, reward, done, _ = env.step(action)
         if fn:

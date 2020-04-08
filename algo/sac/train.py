@@ -21,7 +21,7 @@ def train(agent, env, eval_env, replay):
     start_step = agent.global_steps.numpy() + 1
     step = start_step
     to_log = Every(agent.LOG_INTERVAL)
-    print('Training started...')
+    print('Training starts...')
     while step < int(agent.MAX_STEPS):
         score, epslen = run(env, agent, fn=collect_and_learn, step=step)
         agent.store(score=env.score(), epslen=env.epslen())
@@ -29,9 +29,7 @@ def train(agent, env, eval_env, replay):
         
         if to_log(step):
             eval_score, eval_epslen = evaluate(eval_env, agent)
-            
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-
             agent.log(step)
             agent.save(steps=step)
 
@@ -50,9 +48,10 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     replay = create_replay(replay_config)
 
     dtype = global_policy().compute_dtype
+    action_dtype = tf.int32 if env.is_action_discrete else dtype
     data_format = dict(
         obs=((None, *env.obs_shape), dtype),
-        action=((None, *env.action_shape), dtype),
+        action=((None, *env.action_shape), action_dtype),
         reward=((None, ), dtype), 
         next_obs=((None, *env.obs_shape), dtype),
         done=((None, ), dtype),
@@ -63,7 +62,8 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     if replay_config.get('n_steps', 1) > 1:
         data_format['steps'] = ((None, ), dtype)
     print(data_format)
-    dataset = Dataset(replay, data_format)
+    process = functools.partial(process_with_env, env=env)
+    dataset = Dataset(replay, data_format, process_fn=process)
 
     models = create_model(
         model_config, 

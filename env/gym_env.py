@@ -51,7 +51,7 @@ def create_env(config, env_fn=_make_env, force_envvec=False):
 class EnvBase:
     def _convert_obs(self, obs):
         if isinstance(obs[0], np.ndarray):
-            obs = np.reshape(obs, [self.n_envs, *self.obs_shape])
+            obs = np.reshape(obs, [-1, *self.obs_shape])
         return obs
 
     def close(self):
@@ -149,19 +149,24 @@ class EnvVec(EnvBase):
 
 
 class EfficientEnvVec(EnvVec):
+    """ Designed for evaluation only """
+    def reset(self, idxes=None):
+        self.valid_envs = self.envs
+        return super().reset(idxes)
+
     def random_action(self):
-        valid_envs = [env for env in self.envs if not env.already_done()]
-        return [env.action_space.sample() for env in valid_envs]
+        return [env.action_space.sample() for env in self.valid_envs]
         
     def step(self, actions, **kwargs):
-        valid_env_ids, valid_envs = zip(*[(i, env) for i, env in enumerate(self.envs) if not env.already_done()])
-        assert len(valid_envs) == len(actions), f'valid_env({len(valid_envs)}) vs actions({len(actions)})'
-        for k, v in kwargs.items():
-            assert len(actions) == len(v), f'valid_env({len(actions)}) vs {k}({len(v)})'
-        
-        obs, reward, done, info = _envvec_step(valid_envs, actions, **kwargs)
-        for i in range(len(info)):
-            info[i]['env_id'] = valid_env_ids[i]
+        if len(self.valid_envs) == 1:
+            obs, reward, done, info = self.valid_envs[0].step(actions, **kwargs)
+        else:
+            obs, reward, done, info = _envvec_step(self.valid_envs, actions, **kwargs)
+            
+            self.valid_envs, obs, reward, done, info = \
+                zip(*[(e, o, r, d, i)
+                    for e, o, r, d, i in zip(self.envs, obs, reward, done, info) 
+                    if not e.already_done()])
         
         return (self._convert_obs(obs), 
                 np.array(reward, dtype=np.float32), 

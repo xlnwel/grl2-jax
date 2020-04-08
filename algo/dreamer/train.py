@@ -60,7 +60,7 @@ def train(agent, env, eval_env, replay):
         
     to_log = Every(agent.LOG_INTERVAL, start=step)
     to_eval = Every(agent.EVAL_INTERVAL, start=step)
-    print('Training started...')
+    print('Training starts...')
     start_step = step
     start_t = time.time()
     while step < int(agent.MAX_STEPS):

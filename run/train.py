@@ -16,6 +16,8 @@ from run.cmd_args import parse_cmd_args
 
 def import_main(algo):
     import importlib
+    if algo.startswith('ppo'):
+        algo = 'ppo'
     pkg = get_package(algo)
     m = importlib.import_module(f'{pkg}.train')
 
@@ -101,16 +103,7 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     # Grid search happens here
-                    if algo.startswith('ppo'):
-                        processes += gs()
-                    elif algo == 'sac':
-                        processes += gs()
-                    elif algo == 'sacar':
-                        processes += gs()
-                    elif algo == 'd3qn':
-                        processes += gs()
-                    else:
-                        raise NotImplementedError()
+                    processes += gs(lr=list(np.logspace(-4, -3, 4)))
                 else:
                     processes += gs()
             else:

@@ -23,6 +23,8 @@ def cnn(name, **kwargs):
         return FTWCNN(**kwargs)
     elif name.lower() == 'impala':
         return IMPALACNN(**kwargs)
+    elif name.lower() == 'none':
+        return None
     else:
         raise NotImplementedError(f'Unknown CNN structure: {name}')
 

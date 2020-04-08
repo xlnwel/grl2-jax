@@ -3,10 +3,7 @@ import importlib
 
 def get_package(algo, place=0, separator='.'):
     algo = algo.split('-', 1)[place]
-    if algo.startswith('ppo'):
-        pkg = f'algo{separator}ppo'
-    else:
-        pkg = f'algo{separator}{algo}'
+    pkg = f'algo{separator}{algo}'
 
     return pkg
 

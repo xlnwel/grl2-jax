@@ -64,6 +64,8 @@ def agent_config(init_fn):
         # Agent initialization
         init_fn(self, **kwargs)
 
+        self.print_construction_complete()
+        
         if config.get('display_var', True):
             display_model_var_info(self._ckpt_models)
 
@@ -78,8 +80,6 @@ def agent_config(init_fn):
         self._logger = setup_logger(
             config.get('logger', None) and self._root_dir, 
             self._model_name)
-
-        self.print_construction_complete()
     
     return wrapper
 
