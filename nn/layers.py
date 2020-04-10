@@ -60,21 +60,19 @@ class Noisy(layers.Dense):
                 trainable=True)
         else:
             self.bias = None
-        self.epsilon_w_in = tf.Variable(
+        self.eps_w_in = tf.Variable(
             tf.random.truncated_normal([self.last_dim, 1], stddev=self.noise_sigma),
-                                        trainable=False, name='epsilon_w_in')
-        self.epsilon_w_out = tf.Variable(
+                                        trainable=False, name='eps_w_in')
+        self.eps_w_out = tf.Variable(
             tf.random.truncated_normal([1, self.units], stddev=self.noise_sigma),
-                                        trainable=False, name='epsilon_w_out')
-        self.epsilon_b = tf.Variable(
-            tf.random.truncated_normal([self.units], stddev=self.noise_sigma),
-                                        trainable=False, name='epsilon_b')
+                                        trainable=False, name='eps_w_out')
+        self.eps_b = tf.reshape(self.eps_w_out, [self.units])
 
     def noisy_layer(self, inputs):
-        epsilon_w_in = tf.math.sign(self.epsilon_w_in) * tf.math.sqrt(tf.math.abs(self.epsilon_w_in))
-        epsilon_w_out = tf.math.sign(self.epsilon_w_out) * tf.math.sqrt(tf.math.abs(self.epsilon_w_out))
-        epsilon_w = tf.matmul(epsilon_w_in, epsilon_w_out)
-        return tf.matmul(inputs, self.noisy_w * epsilon_w) + self.noisy_b * self.epsilon_b
+        eps_w_in = tf.math.sign(self.eps_w_in) * tf.math.sqrt(tf.math.abs(self.eps_w_in))
+        eps_w_out = tf.math.sign(self.eps_w_out) * tf.math.sqrt(tf.math.abs(self.eps_w_out))
+        eps_w = tf.matmul(eps_w_in, eps_w_out)
+        return tf.matmul(inputs, self.noisy_w * eps_w) + self.noisy_b * self.eps_b
 
     def call(self, inputs, reset=True, noisy=True):
         y = super().call(inputs)
@@ -89,6 +87,5 @@ class Noisy(layers.Dense):
         return super().call(inputs)
 
     def reset(self):
-        self.epsilon_w_in.assign(tf.random.truncated_normal([self.last_dim, 1], stddev=self.noise_sigma))
-        self.epsilon_w_out.assign(tf.random.truncated_normal([1, self.units], stddev=self.noise_sigma))
-        self.epsilon_b.assign(tf.random.truncated_normal([self.units], stddev=self.noise_sigma))
+        self.eps_w_in.assign(tf.random.truncated_normal([self.last_dim, 1], stddev=self.noise_sigma))
+        self.eps_w_out.assign(tf.random.truncated_normal([1, self.units], stddev=self.noise_sigma))

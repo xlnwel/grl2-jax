@@ -11,6 +11,7 @@ from env.deepmind_wrappers import make_deepmind_env
 
 
 def _make_env(config):
+    config = config.copy()
     if 'atari' in config['name'].lower():
         # for atari games, we expect 'atari_*'
         _, config['name'] = config['name'].split('_', 1)
@@ -269,46 +270,21 @@ def _envvec_step(envvec, actions, **kwargs):
 if __name__ == '__main__':
     # performance test
     default_config = dict(
-        name='dmc_walker_walk',
+        name='atari_pong',
         video_path='video',
         log_video=False,
         n_workers=1,
-        n_envs=1,
-        log_episode=True,
-        auto_reset=True,
-        n_ar=2,
+        n_envs=2,
+        efficient_envvec=True,
         seed=0,
     )
-    from algo.dreamer.env import make_env
-    env = create_env(default_config, make_env)
+    env = create_env(default_config)
     o = env.reset()
-    eps = [dict(
-        obs=o,
-        action=np.zeros(env.action_shape, np.float32), 
-        reward=0.,
-        discount=True
-    )]
+    d = np.zeros(len(o))
     for k in range(0, 3000):
+        o = np.array(o)
+        print(o.shape, o.dtype, d)
         a = env.random_action()
         o, r, d, i = env.step(a)
-        eps.append(dict(
-                obs=o,
-                action=a,
-                reward=r,
-                discount=1-d
-            ))
-        if d: print('done', d)
-        if d:
-            print(f'check episodes at {k}, {len(eps)}')
-            eps2 = i['episode']
-            eps = {k: np.array([t[k] for t in eps]) for k in eps2.keys()}
-            print(eps.keys())
-            for k in eps.keys():
-                print(k)
-                np.testing.assert_allclose(eps[k], eps2[k])
-            eps = [dict(
-                obs=env.reset(),
-                action=np.zeros(env.action_shape, np.float32), 
-                reward=0.,
-                discount=True
-            )]
+        if np.all(d):
+            break

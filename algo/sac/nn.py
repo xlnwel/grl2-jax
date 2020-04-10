@@ -20,7 +20,6 @@ class SoftPolicy(Module):
         # network parameters
         self._is_action_discrete = is_action_discrete
         
-        """ Network definition """
         out_dim = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(self._units_list, 
                             out_dim=out_dim,

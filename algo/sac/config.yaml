@@ -1,32 +1,32 @@
 ---
 env:
-    name: BipedalWalker-v3
+    name: LunarLander-v2
     video_path: video
     log_video: False
     seed: 0
-
 model:
     actor:
-        units_list: [512, 256]
+        units_list: [128, 64]
         kernel_initializer: glorot_uniform
         norm: none
         activation: relu
         LOG_STD_MIN: -20
         LOG_STD_MAX: 2
     q:
-        units_list: [512, 256]
+        units_list: [128, 64]
         kernel_initializer: glorot_uniform
         norm: none
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: .01
+        value: .2
 agent:
     algorithm: &algo sac
     precision: 32
     gamma: &gamma 0.99
     polyak: .995
-    # target_entropy: -4                      # this should be set to be some small positive value for discrete environment, e.g. 0.01
+    # act_eps: .3
+    target_entropy: .1                      # tune this param for discrete actions
     
     MAX_STEPS: 3.e+6
     LOG_INTERVAL: 10000
@@ -52,7 +52,7 @@ agent:
     per_epsilon: 1.e-4
 
 replay:
-    type: proportional                      # proportional or uniform
+    type: uniform                      # proportional or uniform
     # arguments for PER
     beta0: 0.4
     beta_steps: 5.e+4

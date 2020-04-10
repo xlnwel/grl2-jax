@@ -1,25 +1,25 @@
 ---
 env:
-    name: LunarLander-v2 #atari_Pong
+    name: atari_pong
     video_path: video
     log_video: False
-    efficient_envvec: True
-    max_episode_steps: 108000
     seed: 0
 model:
     q:
-        cnn: None #impala
-        v_units: [64, 64] #[256]
-        a_units: [64, 64] #[256]
+        cnn: impala
+        v_units: [256]
+        a_units: [256]
         activation: relu
 agent:
     algorithm: &algo d3qn
     gamma: &gamma 0.99
+    precision: &prec 32
+    # act_eps: .3
 
     MAX_STEPS: 1.e+7          # maximum training steps
     TRAIN_INTERVAL: 4
-    EVAL_INTERVAL: 10000 # 250000
-    LOG_INTERVAL: 1000
+    EVAL_INTERVAL: 250000
+    LOG_INTERVAL: 100000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -28,15 +28,15 @@ agent:
     model_name: *algo
 
     loss_type: huber   # huber or mse
-    target_update_freq: 3000 # 32000    # frames
-    tbo: False                               # transformed Bellman Operator
+    target_update_freq: 32000               # frames
+    tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 1.e-3   #6.25e-5
+    lr: 6.25e-5
     clip_norm: 10
-    epsilon: 0.0003125
+    epsilon: 1.5e-4
 
     # arguments for PER
     per_alpha: 0.5
@@ -44,6 +44,7 @@ agent:
 
 replay:
     type: proportional      # uniform, proportional
+    precision: *prec
     # arguments for PER
     beta0: 0.4
     beta_steps: 1.e+6
@@ -52,7 +53,7 @@ replay:
     # arguments for general replay
     n_steps: 3
     gamma: *gamma
-    batch_size: 256 # 32
-    min_size: 1.e+4 # 8e4
+    batch_size: 32
+    min_size: 8.e+4
     capacity: 1.e+6
     has_next_obs: False

@@ -211,11 +211,13 @@ def convert_indices(indices, *args):
 
 def infer_dtype(dtype, precision):
     if np.issubdtype(dtype, np.floating):
-      dtype = {16: np.float16, 32: np.float32, 64: np.float64}[precision]
+        dtype = {16: np.float16, 32: np.float32, 64: np.float64}[precision]
     elif np.issubdtype(dtype, np.signedinteger):
-      dtype = {16: np.int16, 32: np.int32, 64: np.int64}[precision]
+        dtype = {16: np.int16, 32: np.int32, 64: np.int64}[precision]
     elif np.issubdtype(dtype, np.uint8):
-      dtype = np.uint8
+        dtype = np.uint8
+    elif dtype == np.bool:
+        dtype = np.bool
     else:
       raise NotImplementedError(dtype)
     return dtype

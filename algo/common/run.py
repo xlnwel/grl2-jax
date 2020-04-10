@@ -36,7 +36,7 @@ def evaluate(env, agent, n=1, render=False):
             action = agent(obs, deterministic=True)
             obs, _, done, _ = env.step(action)
 
-            if np.all(done):
+            if np.all(env.already_done()):
                 break
         scores.append(env.score())
         epslens.append(env.epslen())

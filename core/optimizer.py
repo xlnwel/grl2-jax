@@ -1,7 +1,7 @@
 import re
 import numpy as np
 import tensorflow as tf
-
+from tensorflow.keras.mixed_precision import experimental as prec
 
 def select_optimizer(name):
     opts = dict(
@@ -20,7 +20,8 @@ class Optimizer(tf.Module):
         self._opt = select_optimizer(name)(lr, **kwargs)
         # useful for mixed precision training on GPUs to
         # avoid numerical underflow caused by using float16 gradients
-        self._opt = tf.keras.mixed_precision.experimental.LossScaleOptimizer(self._opt, 'dynamic')
+        if prec.global_policy().should_cast_variables:
+            self._opt = prec.LossScaleOptimizer(self._opt, 'dynamic')
         self._variables = None
 
     @property
@@ -32,10 +33,12 @@ class Optimizer(tf.Module):
             variables = [m.trainable_variables for m in self._models]
             self._variables = tf.nest.flatten(variables)
         assert len(loss.shape) == 0, loss.shape
-        with tape:
-            loss = self._opt.get_scaled_loss(loss)
+        if prec.global_policy().should_cast_variables:
+            with tape:
+                loss = self._opt.get_scaled_loss(loss)
         grads = tape.gradient(loss, self._variables)
-        grads = self._opt.get_unscaled_gradients(grads)
+        if prec.global_policy().should_cast_variables:
+            grads = self._opt.get_unscaled_gradients(grads)
         norm = tf.linalg.global_norm(grads)
         if self._clip_norm:
             grads, _ = tf.clip_by_global_norm(grads, self._clip_norm, norm)

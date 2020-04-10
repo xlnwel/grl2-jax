@@ -13,9 +13,13 @@ def process_with_env(data, env, obs_range=[0, 1]):
     with tf.device('cpu:0'):
         if env.obs_dtype == np.uint8:
             if obs_range == [0, 1]:
-                data['obs'] = tf.cast(data['obs'], dtype) / 255.
+                for k, v in data.items():
+                    if 'obs' in k:
+                        data[k] = tf.cast(data[k], dtype) / 255.
             elif obs_range == [-.5, .5]:
-                data['obs'] = tf.cast(data['obs'], dtype) / 255. - .5
+                for k, v in data.items():
+                    if 'obs' in k:
+                        data[k] = tf.cast(data[k], dtype) / 255. - .5
             else:
                 raise NotImplementedError(f'Unknown range: {obs_range}')
         if env.is_action_discrete:

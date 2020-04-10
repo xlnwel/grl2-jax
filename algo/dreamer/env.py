@@ -138,6 +138,7 @@ class Atari:
         return image
 
 def make_env(config):
+    config = config.copy()
     suite, task = config['name'].split('_', 1)
     if suite == 'dmc':
         env = DeepMindControl(task)

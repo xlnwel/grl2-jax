@@ -20,7 +20,6 @@ class Q(Module):
 
         self._action_dim = action_dim
 
-
         """ Network definition """
         self._cnn = cnn(self._cnn)
 
@@ -38,17 +37,17 @@ class Q(Module):
             name='a')
 
     def __call__(self, x, deterministic=False, epsilon=0):
-        if np.random.uniform() < epsilon:
-            size = x.shape[0] if len(x.shape) == 4 else None
+        x = np.array(x)
+        if not deterministic and np.random.uniform() < epsilon:
+            size = x.shape[0] if len(x.shape) % 2 == 0 else None
             return np.random.randint(self._action_dim, size=size)
-        if len(x.shape) == 4:
-            x = x / 255.
-
-        x = tf.convert_to_tensor(x, self._dtype)
-        x = tf.reshape(x, [-1, tf.shape(x)[-1]])
-        noisy = tf.convert_to_tensor(not deterministic, tf.bool)
-
-        action = self.action(x, noisy=noisy, reset=False)
+        if x.dtype == np.uint8:
+            x = tf.cast(x, self._dtype) / 255.
+        if len(x.shape) % 2 != 0:
+            x = tf.expand_dims(x, 0)
+        
+        noisy = not deterministic
+        action = self.action(x, noisy=noisy, reset=True)
         action = np.squeeze(action.numpy())
 
         return action
@@ -60,6 +59,8 @@ class Q(Module):
     
     @tf.function(experimental_relax_shapes=True)
     def value(self, x, action=None, noisy=True, reset=True):
+        # tf.debugging.assert_greater_equal(x, 0.)
+        # tf.debugging.assert_less_equal(x, 1.)
         if self._cnn:
             x = self._cnn(x)
 
@@ -68,7 +69,7 @@ class Q(Module):
         q = v + a - tf.reduce_mean(a, axis=1, keepdims=True)
 
         if action is not None:
-            q = tf.reduce_mean(q * action)
+            q = tf.reduce_mean(q * action, -1)
         return q
 
     def reset_noisy(self):
@@ -81,7 +82,6 @@ def create_model(model_config, action_dim):
     q = Q(q_config, action_dim, 'q')
     target_q = Q(q_config, action_dim, 'target_q')
     return dict(
-        actor=q,
         q=q,
         target_q=target_q,
     )

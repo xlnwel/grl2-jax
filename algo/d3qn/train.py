@@ -26,7 +26,10 @@ def train(agent, env, eval_env, replay):
     to_eval = Every(agent.EVAL_INTERVAL)
     print('Training starts...')
     while step < int(agent.MAX_STEPS):
-        agent.q.reset_noisy()
+        # if to_eval(step):
+        #     eval_score, eval_epslen = evaluate(eval_env, agent)
+        #     agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
+        # agent.q.reset_noisy()
         score, epslen = run(env, agent, fn=collect_and_learn, step=step)
         agent.store(score=env.score(), epslen=env.epslen())
         step += epslen
@@ -46,8 +49,8 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
 
     env = create_env(env_config)
     eval_env_config = env_config.copy()
-    eval_env_config['n_envs'] = 10
-    eval_env_config['efficient_envvec'] = True
+    eval_env_config['n_envs'] = 1
+    # eval_env_config['efficient_envvec'] = True
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 

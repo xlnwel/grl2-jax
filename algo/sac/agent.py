@@ -20,14 +20,12 @@ class Agent(BaseAgent):
 
         self.dataset = dataset
 
-        # learning rate schedule
         if self._schedule_lr:
             self._actor_lr = TFPiecewiseSchedule(
                 [(2e5, self._actor_lr), (1e6, 1e-5)])
             self._q_lr = TFPiecewiseSchedule(
                 [(2e5, self._q_lr), (1e6, 1e-5)])
 
-        # optimizer
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
         self._q_opt = Optimizer(self._optimizer, [self.q1, self.q2], self._q_lr)
         self._ckpt_models['actor_opt'] = self._actor_opt
@@ -45,7 +43,6 @@ class Agent(BaseAgent):
         self._action_dim = env.action_dim
         self._is_action_discrete = env.is_action_discrete
 
-        # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
             obs=(env.obs_shape, self._dtype, 'obs'),
             action=((env.action_dim,), self._dtype, 'action'),
@@ -65,13 +62,13 @@ class Agent(BaseAgent):
         return self.actor(obs, deterministic=deterministic, epsilon=epsilon)
 
     def learn_log(self, step):
-        with TBTimer('sample', 100):
+        with TBTimer('sample', 1000):
             data = self.dataset.sample()
         if self._is_per:
             saved_idxes = data['saved_idxes'].numpy()
             del data['saved_idxes']
 
-        with TBTimer('learn', 100):
+        with TBTimer('learn', 1000):
             terms = self.learn(**data)
         self._update_target_nets()
 

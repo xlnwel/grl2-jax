@@ -34,7 +34,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    learning_rate: 6.25e-5
+    lr: 6.25e-5
     clip_norm: 40
     epsilon: 1.e-4
 

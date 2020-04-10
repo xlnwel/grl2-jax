@@ -23,7 +23,7 @@ class Agent(BaseAgent):
 
         if self._schedule_lr:
             self._lr = TFPiecewiseSchedule(
-                [(5e5, self.learning_rate), (2e6, 5e-5)], outside_value=5e-5)
+                [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
 
         # optimizer
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr)
@@ -47,8 +47,8 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
 
-    def __call__(self, obs, deterministic=False, epsilon=0):
-        return self.q(obs, deterministic, epsilon)
+    def __call__(self, obs, deterministic=False):
+        return self.q(obs, deterministic, getattr(self, '_act_eps', 0))
 
     def learn_log(self, step):
         data = self.dataset.sample()
@@ -76,7 +76,7 @@ class Agent(BaseAgent):
         terms = {}
         with tf.GradientTape() as tape:
             q = self.q.value(obs, action)
-            nth_action = tf.one_hot(self.q.action(next_obs), self._action_dim)
+            nth_action = tf.one_hot(self.q.action(next_obs, noisy=False), self._action_dim)
             nth_q = self.target_q.value(next_obs, nth_action)
             target_q = target_fn(reward, done, nth_q, self._gamma, steps)
             error = target_q - q

@@ -18,11 +18,11 @@ class Agent(BaseAgent):
 
         # optimizer
         if getattr(self, 'schedule_lr', False):
-            self._learning_rate = TFPiecewiseSchedule(
-                [(300, self._learning_rate), (1000, 5e-5)])
+            self._lr = TFPiecewiseSchedule(
+                [(300, self._lr), (1000, 5e-5)])
 
         self._optimizer = Optimizer(
-            self._optimizer, self.ac, self._learning_rate, 
+            self._optimizer, self.ac, self._lr, 
             clip_norm=self._clip_norm, epsilon=self._epsilon)
         self._ckpt_models['optimizer'] = self._optimizer
 
@@ -99,9 +99,9 @@ class Agent(BaseAgent):
                     f'Current kl={approx_kl:.3g}', color='blue')
                 break
         self.store(approx_kl=approx_kl)
-        if not isinstance(self._learning_rate, float):
+        if not isinstance(self._lr, float):
             step = tf.cast(self.global_steps, self._dtype)
-            self.store(learning_rate=self._learning_rate(step))
+            self.store(lr=self._lr(step))
 
     @tf.function
     def _learn(self, obs, action, traj_ret, value, advantage, old_logpi, mask=None, n=None):

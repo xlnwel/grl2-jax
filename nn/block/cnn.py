@@ -8,7 +8,7 @@ from tensorflow.keras.layers import Layer, Dense, Conv2D, MaxPooling2D, TimeDist
 from tensorflow.keras.activations import relu
 
 
-conv2d_fn = lambda time_distributed, *args, **kwargs: (
+conv2d_fn = lambda *args, time_distributed=False, **kwargs: (
     TimeDistributed(Conv2D(*args, **kwargs))
     if time_distributed else
     Conv2D(*args, **kwargs)
@@ -94,3 +94,7 @@ class IMPALACNN(Layer):
         x = relu(x)
 
         return x
+
+class SmallCNN(Layer):
+    def __init__(self, *, time_distributed=False, name='small', **kwargs):
+        self.cnn

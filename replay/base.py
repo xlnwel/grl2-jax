@@ -15,6 +15,7 @@ class Replay(ABC):
         self._capacity = to_int(self._capacity)
         self._min_size = to_int(max(self._min_size, self._batch_size*10))
         self._pre_dims = (self._capacity, )
+        self._precision = getattr(self, '_precision', 32)
 
         # reward hacking
         if hasattr(self, '_normalize_reward'):
@@ -57,7 +58,11 @@ class Replay(ABC):
         if self._memory == {}:
             if not self._has_next_obs:
                 del kwargs['next_obs']
-            init_buffer(self._memory, pre_dims=self._pre_dims, has_steps=self._n_steps>1, **kwargs)
+            init_buffer(self._memory, 
+                        pre_dims=self._pre_dims, 
+                        has_steps=self._n_steps>1, 
+                        precision=self._precision,
+                        **kwargs)
             print_buffer(self._memory)
 
         if not self._is_full and self._mem_idx == self._capacity - 1:
@@ -78,7 +83,11 @@ class Replay(ABC):
         if self._memory == {}:
             if not self._has_next_obs:
                 del local_buffer['next_obs']
-            init_buffer(self._memory, pre_dims=self._pre_dims, has_steps=self._n_steps>1, **local_buffer)
+            init_buffer(self._memory, 
+                        pre_dims=self._pre_dims, 
+                        has_steps=self._n_steps>1, 
+                        precision=self._precision,
+                        **local_buffer)
             print_buffer(self._memory)
 
         end_idx = self._mem_idx + length
@@ -104,12 +113,24 @@ class Replay(ABC):
         results = {}
         indexes = np.array(indexes, copy=False, dtype=np.int32)
         for k, v in self._memory.items():
-            results[k] = v[indexes]
+            if isinstance(v, np.ndarray):
+                results[k] = v[indexes]
+            else:
+                vs = []
+                for i in indexes:
+                    vs.append(np.array(v[i], copy=False))
+                results[k] = np.array(vs)
             
         if 'next_obs' not in self._memory:
             steps = results.get('steps', 1)
             next_indexes = (indexes + steps) % self._capacity
-            results['next_obs'] = self._memory['obs'][next_indexes]
+            if isinstance(self._memory['obs'], np.ndarray):
+                results['next_obs'] = self._memory['obs'][next_indexes]
+            else:
+                next_obs = []
+                for i in indexes:
+                    next_obs.append(np.array(self._memory['obs'][i], copy=False))
+                results['next_obs'] = np.array(next_obs)
 
         # process rewards
         if getattr(self, '_reward_scale', 1) != 1:

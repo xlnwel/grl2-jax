@@ -31,8 +31,10 @@ class Agent(BaseAgent):
             dynamics_models.append(self.discount)
 
         DreamerOpt = functools.partial(
-            Optimizer, name=self._optimizer, 
-            weight_decay=self._weight_decay, clip_norm=self._clip_norm
+            Optimizer,
+            name=self._optimizer, 
+            weight_decay=self._weight_decay, 
+            clip_norm=self._clip_norm,
         )
         self._model_opt = DreamerOpt(models=dynamics_models, lr=self._model_lr)
         self._actor_opt = DreamerOpt(models=self.actor, lr=self._actor_lr)
