@@ -14,18 +14,25 @@ from algo.sac.nn import create_model
 
 
 def train(agent, env, eval_env, replay):
-    def collect_and_learn(step, **kwargs):
+    def collect_and_learn(env, step, **kwargs):
+        if env.already_done():
+            agent.store(score=env.score(), epslen=env.epslen())
         replay.add(**kwargs)
         agent.learn_log(step)
 
     start_step = agent.global_steps.numpy() + 1
     step = start_step
+    obs = None
+    collect_fn = lambda *args, **kwargs: replay.add(**kwargs)
+    while not replay.good_to_learn():
+        obs, step = run(env, env.random_action, step, obs=obs, 
+            fn=collect_fn, nsteps=agent.LOG_INTERVAL)
+
     to_log = Every(agent.LOG_INTERVAL)
     print('Training starts...')
     while step < int(agent.MAX_STEPS):
-        score, epslen = run(env, agent, fn=collect_and_learn, step=step)
-        agent.store(score=env.score(), epslen=env.epslen())
-        step += epslen
+        obs, step = run(env, agent, step, obs=obs, 
+            fn=collect_and_learn, nsteps=agent.LOG_INTERVAL)
         
         if to_log(step):
             eval_score, eval_epslen = evaluate(eval_env, agent)
@@ -42,6 +49,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     env = create_env(env_config)
     eval_env_config = env_config.copy()
     eval_env_config['n_envs'] = 10
+    eval_env_config['auto_reset'] = False
     # eval_env_config['efficient_envvec'] = True
     eval_env = create_env(eval_env_config)
 
@@ -82,10 +90,6 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         agent=agent_config,
         replay=replay_config
     ))
-
-    collect_fn = lambda **kwargs: replay.add(**kwargs)
-    while not replay.good_to_learn():
-        run(env, env.random_action, fn=collect_fn)
     
     train(agent, env, eval_env, replay)
 

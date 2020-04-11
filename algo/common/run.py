@@ -2,25 +2,22 @@ import numpy as np
 from utility.display import pwc
 
 
-def run(env, agent, *, fn=None, evaluation=False, step=None, nsteps=None):
-    obs = env.reset()
+def run(env, agent, step, *, obs=None, fn=None, evaluation=False, nsteps=None):
+    if obs is None:
+        obs = env.reset()
     nsteps = nsteps or env.max_episode_steps
-    for i in range(1, nsteps+1):
+    for _ in range(1, nsteps+1):
         action = agent(obs, deterministic=evaluation)
         next_obs, reward, done, _ = env.step(action)
+        step += env.n_envs
         if fn:
-            if step is None:
-                fn(obs=obs, action=action, reward=reward, 
-                    done=done, next_obs=next_obs)
-            else:
-                fn(obs=obs, action=action, reward=reward,
-                    done=done, next_obs=next_obs, 
-                    step=step+i)
+            fn(env, step, obs=obs, action=action, reward=reward,
+                done=done, next_obs=next_obs)
         obs = next_obs
-        if np.all(done):
-            break
+        if env.already_done():
+            obs = env.reset()
         
-    return env.score(), env.epslen()
+    return obs, step
 
 def evaluate(env, agent, n=1, render=False):
     pwc('Evaluation starts', color='cyan')

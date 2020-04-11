@@ -20,18 +20,16 @@ def _make_env(config):
     else:
         env = gym.make(config['name'])
         max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
-        if max_episode_steps < env.spec.max_episode_steps:
-            env = TimeLimit(env, max_episode_steps)
         if config.get('log_video', False):
             print(f'video will be logged at {config["video_path"]}')
             env = gym.wrappers.Monitor(env, config['video_path'], force=True)
         if config.get('action_repetition'):
             env = ActionRepeat(env, config['n_ar'])
+    if max_episode_steps < env.spec.max_episode_steps:
+        env = TimeLimit(env, max_episode_steps)
     env = EnvStats(env, config.get('precision', 32), config.get('timeout_done', False))
     if config.get('log_episode'):
         env = LogEpisode(env)
-    if config.get('auto_reset'):
-        env = AutoReset(env)
     env.seed(config.get('seed', 42))
 
     return env
@@ -117,6 +115,8 @@ class EnvVec(EnvBase):
             obs = [env.reset() for env in self.envs]
             return self._convert_obs(obs)
         else:
+            if not isinstance(idxes, (list, tuple)):
+                idxes = [idxes]
             return [self.envs[i].reset() for i in idxes]
     
     def step(self, actions, **kwargs):
@@ -134,12 +134,16 @@ class EnvVec(EnvBase):
         if idxes is None:
             return np.array([env.score() for env in self.envs])
         else:
+            if not isinstance(idxes, (list, tuple)):
+                idxes = [idxes]
             return [self.envs[i].score() for i in idxes]
 
     def epslen(self, idxes=None):
         if idxes is None:
             return np.array([env.epslen() for env in self.envs])
         else:
+            if not isinstance(idxes, (list, tuple)):
+                idxes = [idxes]
             return [self.envs[i].epslen() for i in idxes]
 
     def already_done(self):
@@ -270,21 +274,24 @@ def _envvec_step(envvec, actions, **kwargs):
 if __name__ == '__main__':
     # performance test
     default_config = dict(
-        name='atari_pong',
+        name='atari_breakout',
         video_path='video',
-        log_video=False,
         n_workers=1,
-        n_envs=2,
+        n_envs=1,
         efficient_envvec=True,
         seed=0,
     )
     env = create_env(default_config)
     o = env.reset()
     d = np.zeros(len(o))
-    for k in range(0, 3000):
+    for k in range(0, 10):
+        print(k)
         o = np.array(o)
-        print(o.shape, o.dtype, d)
         a = env.random_action()
         o, r, d, i = env.step(a)
-        if np.all(d):
+        if d:
+            print(k, env.env.lives, d, env.already_done())
+        if env.env.lives != 0:
+            env.reset()
+        else:
             break

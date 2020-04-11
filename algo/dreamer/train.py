@@ -19,21 +19,27 @@ from algo.dreamer.nn import create_model
 from algo.dreamer.env import make_env
 
 
-def run(env, agent, obs=None, already_done=None, 
-        fn=None, nsteps=0, evaluation=False):
+def run(env, agent, step, obs=None, 
+    already_done=None, fn=None, nsteps=0, evaluation=False):
     if obs is None:
         obs = env.reset()
     if already_done is None:
         already_done = env.already_done()
     nsteps = nsteps or env.max_episode_steps
-    for i in range(env.n_ar, nsteps + env.n_ar, env.n_ar):
+    for k in range(env.n_ar, nsteps + env.n_ar, env.n_ar):
         action = agent(obs, already_done, deterministic=evaluation)
         obs, reward, done, info = env.step(action)
         already_done = env.already_done()
+        step += env.n_envs
         if fn:
             fn(already_done, info)
+        if np.any(already_done):
+            idxes = [i for i, d in enumerate(already_done) if d]
+            new_obs = env.reset(idxes)
+            for i, o in zip(idxes, new_obs):
+                obs[i] = o
 
-    return obs, already_done, i * env.n_envs
+    return obs, already_done, step
 
 def train(agent, env, eval_env, replay):
     def collect_log(already_done, info):
@@ -47,16 +53,14 @@ def train(agent, env, eval_env, replay):
                     epslens.append(env.n_ar*(eps['reward'].size-1))
             agent.store(score=scores, epslen=epslens)
             replay.merge(episodes)
-
     _, step = replay.count_episodes()
     step = max(agent.global_steps.numpy(), step)
 
     nsteps = agent.TRAIN_INTERVAL
     obs, already_done = None, None
     while not replay.good_to_learn():
-        obs, already_done, n = run(
-            env, env.random_action, obs, already_done, collect_log)
-        step += n
+        obs, already_done, nstep= run(
+            env, env.random_action, step, obs, already_done, collect_log)
         
     to_log = Every(agent.LOG_INTERVAL, start=step)
     to_eval = Every(agent.EVAL_INTERVAL, start=step)
@@ -65,9 +69,8 @@ def train(agent, env, eval_env, replay):
     start_t = time.time()
     while step < int(agent.MAX_STEPS):
         agent.learn_log(step)
-        obs, already_done, n = run(
-            env, agent, obs, already_done, collect_log, nsteps)
-        step += n
+        obs, already_done, step = run(
+            env, agent, step, obs, already_done, collect_log, nsteps)
         if to_eval(step):
             train_state, train_action = agent.retrieve_states()
 
@@ -98,7 +101,7 @@ def main(env_config, model_config, agent_config,
         replay_config, restore=False, render=False):
     silence_tf_logs()
     configure_gpu()
-    configure_precision(agent_config['precision'])
+    configure_precision(env_config['precision'])
 
     use_ray = env_config.get('n_workers', 0) > 1
     if use_ray:

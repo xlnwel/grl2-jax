@@ -3,7 +3,6 @@ env:
     name: dmc_walker_run
     video_path: video
     log_episode: True
-    auto_reset: True
     n_envs: 1
     n_ar: 2
     precision: &prec 16
@@ -36,7 +35,6 @@ model:
 agent:
     algorithm: &algo dreamer
     polyak: .995
-    precision: *prec
     obs_range: [-0.5, .5]
     batch_size: &bs 50
 

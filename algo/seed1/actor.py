@@ -102,7 +102,7 @@ def get_learner_class(BaseAgent):
                 time.sleep(1)
             pwc('Learner starts learning...', color='blue')
 
-            to_log = Every(self.LOG_INTERVAL)
+            to_log = Every(self.LOG_INTERVAL, self.LOG_INTERVAL)
             train_step = 0
             start_time = time.time()
             start_train_step = train_step

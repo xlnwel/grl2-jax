@@ -156,8 +156,6 @@ def make_env(config):
     env = wrappers.EnvStats(env, config.get('precision', 32))
     if config.get('log_episode'):
         env = wrappers.LogEpisode(env)
-    if config['auto_reset']:
-        env = wrappers.AutoReset(env)
 
     return env
 

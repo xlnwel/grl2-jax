@@ -26,7 +26,7 @@ class TimeLimit:
         self._elapsed_steps += 1
         if self._elapsed_steps >= self.spec.max_episode_steps:
             done = True
-            info['TimeLimit.truncated'] = True
+            info['timeout'] = True
         return observation, reward, done, info
 
     def reset(self, **kwargs):
@@ -216,10 +216,10 @@ class AutoReset:
         return getattr(self.env, name)
 
     def step(self, action, **kwargs):
+        obs, reward, done, info = self.env.step(action, **kwargs)
         if self._already_done:
             obs = self.env.reset()
-        obs, reward, done, info = self.env.step(action, **kwargs)
-        
+
         return obs, reward, done, info
 
 def get_wrapper_by_name(env, classname):

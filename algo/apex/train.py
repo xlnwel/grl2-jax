@@ -10,9 +10,10 @@ from run import pkg
 
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
     if 'atari' in env_config['name'] or 'dmc' in env_config['name']:
-        ray.init()
+        ray.init(num_cpus=12, num_gpus=1)
     else:
-        ray.init(memory=8*1024**3, object_store_memory=7*1024**3)
+        ray.init(num_cpus=12, num_gpus=1, 
+            memory=8*1024**3, object_store_memory=7*1024**3)
     
     sigint_shutdown_ray()
 
