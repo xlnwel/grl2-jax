@@ -15,13 +15,21 @@ from algo.d3qn.nn import create_model
 
 
 def train(agent, env, eval_env, replay):
-    def collect_and_learn(step, **kwargs):
+    def collect_and_learn(env, step, **kwargs):
         replay.add(**kwargs)
+        if env.already_done():
+            agent.store(score=env.score(), epslen=env.epslen())
         if step % agent.TRAIN_INTERVAL == 0:
             agent.learn_log(step)
     
     start_step = agent.global_steps.numpy()
     step = start_step
+    obs = None
+    collect_fn = lambda *args, **kwargs: replay.add(**kwargs)
+    while not replay.good_to_learn():
+        obs, step = run(env, env.random_action, step, obs=obs, 
+            fn=collect_fn, nsteps=agent.LOG_INTERVAL)
+
     to_log = Every(agent.LOG_INTERVAL)
     to_eval = Every(agent.EVAL_INTERVAL)
     print('Training starts...')
@@ -30,9 +38,8 @@ def train(agent, env, eval_env, replay):
         #     eval_score, eval_epslen = evaluate(eval_env, agent)
         #     agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         # agent.q.reset_noisy()
-        score, epslen = run(env, agent, fn=collect_and_learn, step=step)
-        agent.store(score=env.score(), epslen=env.epslen())
-        step += epslen
+        obs, step = run(env, agent, step, obs=obs,
+            fn=collect_and_learn, nsteps=agent.LOG_INTERVAL)
         
         if to_eval(step):
             eval_score, eval_epslen = evaluate(eval_env, agent)
@@ -50,6 +57,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     env = create_env(env_config)
     eval_env_config = env_config.copy()
     eval_env_config['n_envs'] = 1
+    eval_env_config['auto_reset'] = False
     # eval_env_config['efficient_envvec'] = True
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
@@ -87,8 +95,4 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         replay=replay_config
     ))
 
-    collect_fn = lambda **kwargs: replay.add(**kwargs)
-    while not replay.good_to_learn():
-        run(env, env.random_action, fn=collect_fn)
-    
     train(agent, env, eval_env, replay)

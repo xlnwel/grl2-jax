@@ -21,7 +21,7 @@ class Q(Module):
         self._action_dim = action_dim
 
         """ Network definition """
-        self._cnn = cnn(self._cnn)
+        self._cnn = layers.Dense(256, activation='relu') # cnn(self._cnn)
 
         self._v_head = mlp(
             self._v_units, 
@@ -64,8 +64,8 @@ class Q(Module):
         if self._cnn:
             x = self._cnn(x)
 
-        v = self._v_head(x, reset=reset, noisy=noisy)
-        a = self._a_head(x, reset=reset, noisy=noisy)
+        v = self._v_head(x, noisy=noisy, reset=reset)
+        a = self._a_head(x, noisy=noisy, reset=reset)
         q = v + a - tf.reduce_mean(a, axis=1, keepdims=True)
 
         if action is not None:
