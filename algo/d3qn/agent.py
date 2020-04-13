@@ -32,11 +32,12 @@ class Agent(BaseAgent):
         self._action_dim = env.action_dim
 
         # Explicitly instantiate tf.function to initialize variables
+        obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else self._dtype
         TensorSpecs = dict(
-            obs=(env.obs_shape, self._dtype, 'obs'),
+            obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=((env.action_dim,), self._dtype, 'action'),
             reward=((), self._dtype, 'reward'),
-            next_obs=(env.obs_shape, self._dtype, 'next_obs'),
+            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
             done=((), self._dtype, 'done'),
         )
         if self._is_per:
@@ -76,7 +77,8 @@ class Agent(BaseAgent):
         terms = {}
         with tf.GradientTape() as tape:
             q = self.q.value(obs, action)
-            nth_action = tf.one_hot(self.q.action(next_obs, noisy=False), self._action_dim)
+            nth_action = self.q.action(next_obs, noisy=False)
+            nth_action = tf.one_hot(nth_action, self._action_dim, dtype=self._dtype)
             nth_q = self.target_q.value(next_obs, nth_action)
             target_q = target_fn(reward, done, nth_q, self._gamma, steps)
             error = target_q - q
@@ -90,15 +92,15 @@ class Agent(BaseAgent):
 
         terms.update(dict(
             q=q,
-            loss=loss
+            loss=loss,
         ))
+
         return terms
 
     def _compute_priority(self, priority):
         """ p = (p + 𝝐)**𝛼 """
         priority += self._per_epsilon
         priority **= self._per_alpha
-        tf.debugging.assert_greater(priority, 0.)
         return priority
 
     def _sync_target_nets(self):

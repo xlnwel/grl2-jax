@@ -5,8 +5,8 @@ import ray
 from core.tf_config import *
 from utility.display import pwc
 from utility.ray_setup import sigint_shutdown_ray
+from utility.run import evaluate
 from env.gym_env import create_env
-from algo.common.run import evaluate
 from algo.sac.nn import SoftPolicy
 
 

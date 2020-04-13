@@ -1,7 +1,3 @@
-"""
-Code originally from 
-https://github.com/openai/baselines/blob/master/baselines/common/atari_wrappers.py
-"""
 import numpy as np
 import os
 os.environ.setdefault('PATH', '')
@@ -13,16 +9,21 @@ cv2.ocl.setUseOpenCL(False)
 
 from utility.display import pwc
 from env.wrappers import TimeLimit
-
+from env.baselines import make_atari, wrap_deepmind
 
 def make_deepmind_env(config):
-    env = Atari(**config)
-    if config.get('log_video', False):
-        # put monitor in middle to properly record episodic information
-        pwc(f'video will be logged at {config["video_path"]}', color='cyan')
-        env = gym.wrappers.Monitor(env, config['video_path'], force=True)
-    
+    name = config['name']
+    version = 4
+    name = f'{name.title()}NoFrameskip-v{version}'
+    env = make_atari(name)
+    env = wrap_deepmind(env, frame_stack=True)
+    # env = Atari(**config)
+    # if config.get('log_video', False):
+    #     # put monitor in middle to properly record episodic information
+    #     pwc(f'video will be logged at {config["video_path"]}', color='cyan')
+    #     env = gym.wrappers.Monitor(env, config['video_path'], force=True)
     return env
+
 
 class LazyFrames(object):
     def __init__(self, frames):
@@ -37,10 +38,8 @@ class LazyFrames(object):
         self._out = None
 
     def _force(self):
-        if self._out is None:
-            self._out = np.concatenate(self._frames, axis=-1)
-            self._frames = None
-        return self._out
+        out = np.concatenate(self._frames, axis=-1)
+        return out
 
     def __array__(self, dtype=None):
         out = self._force()
@@ -80,7 +79,8 @@ class Atari:
 
     def __init__(self, name, *, frame_skip=4, life_done=False,
                 image_size=(84, 84), frame_stack=4, noop=30, 
-                sticky_actions=True, gray_scale=True, **kwargs):
+                sticky_actions=True, gray_scale=True, 
+                max_episode_steps=27000, **kwargs):
         # Strip out the TimeLimit wrapper from Gym, which caps us at 100k frames. We
         # handle this time limit internally instead, which lets us cap at 108k frames
         # (30 minutes). The TimeLimit wrapper also plays poorly with saving and
@@ -117,13 +117,17 @@ class Atari:
         self.game_over = True
         self.lives = 0  # Will need to be set by reset().
         # Stores LazyFrames for memory efficiency
-        self.frames = deque([], maxlen=frame_stack)
+        self.frames = deque([], maxlen=self.frame_stack)
+        self.max_episode_steps = max_episode_steps
 
     @property
     def observation_space(self):
         # Return the observation space adjusted to match the shape of the processed
         # observations.
-        return Box(low=0, high=255, shape=(self.image_size[0], self.image_size[1], 1),
+        c = 1 if self.gray_scale else 3
+        c *= self.frame_stack
+        shape = self.image_size + (c, )
+        return Box(low=0, high=255, shape=shape,
                 dtype=np.uint8)
 
     @property
@@ -138,6 +142,9 @@ class Atari:
     def metadata(self):
         return self.env.metadata
 
+    def seed(self, seed=0):
+        self.env.seed(seed)
+
     def close(self):
         return self.env.close()
 
@@ -145,11 +152,13 @@ class Atari:
         if self.game_over:
             self.env.reset()
 
-            # noop = np.random.randint(0, self.noop + 1)
-            # for _ in range(noop):
-            #     d = self.env.step(0)[2]
-            #     if d:
-            #         self.env.reset()
+            noop = np.random.randint(1, self.noop + 1)
+            for _ in range(noop):
+                d = self.env.step(0)[2]
+                if d:
+                    self.env.reset()
+
+            self._elapsed_steps = 0
         else:
             env.step(0)
 
@@ -240,17 +249,18 @@ class Atari:
 if __name__ == '__main__':
     config = dict(
         name='breakout', 
-        max_episode_steps=108000,
+        max_episode_steps=27000,
         life_done=True
     )
     env = make_deepmind_env(config)
+    env.seed(0)
     o = env.reset()
     d = np.zeros(len(o))
-    for k in range(0, 1000):
+    for k in range(0, 100):
         o = np.array(o)
         a = env.action_space.sample()
         no, r, d, i = env.step(a)
-        
+        print(r, d, env.lives)
         if d:
             np.testing.assert_equal(np.array(o)[...,1:], np.array(no)[...,:-1])
             print(k, env.lives, d, env.game_over)

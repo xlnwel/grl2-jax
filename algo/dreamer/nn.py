@@ -11,6 +11,7 @@ from core.decorator import config
 from utility.tf_utils import static_scan
 from utility.tf_distributions import Categorical, OneHotDist, TanhBijector, SampleDist
 from nn.func import mlp
+from nn.block.cnn import convert_obs
 
 
 RSSMState = collections.namedtuple('RSSMState', ('mean', 'std', 'stoch', 'deter'))
@@ -252,6 +253,7 @@ class ConvEncoder(Module):
         self._conv4 = conv2d(8 * depth, **kwargs)
 
     def __call__(self, x):
+        x = convert_obs(x, [-.5, .5], global_policy().compute_dtype)
         assert x.shape[-3:] == (64, 64, 3), x.shape
         x = self._conv1(x)
         x = self._conv2(x)

@@ -35,7 +35,6 @@ model:
 agent:
     algorithm: &algo dreamer
     polyak: .995
-    obs_range: [-0.5, .5]
     batch_size: &bs 50
 
     # These params are not supported here, see seed1

@@ -5,10 +5,10 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.tf_config import *
 from utility.utils import Every
+from utility.run import run, evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import Dataset, process_with_env
-from algo.common.run import run, evaluate
 from algo.sac.agent import Agent
 from algo.sac.nn import create_model
 

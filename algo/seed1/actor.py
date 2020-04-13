@@ -73,8 +73,7 @@ def get_learner_class(BaseAgent):
                         for k, v in self.rssm.state_size._asdict().items()
                 })
             print(data_format)
-            process = functools.partial(
-                process_with_env, env=env, obs_range=config['obs_range'])
+            process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
             self.dataset = Dataset(self.replay, data_format, process, prefetch=10)
 
             self._env_step = self.global_steps.numpy()

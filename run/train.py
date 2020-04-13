@@ -108,9 +108,10 @@ if __name__ == '__main__':
                     processes += gs()
             else:
                 agent_config['root_dir'] = f'logs/{prefix}{algo}-{env_config["name"]}'
-                env_config['video_path'] = (f'{agent_config["root_dir"]}/'
-                                            f'{agent_config["model_name"]}/'
-                                            f'{env_config["video_path"]}')
+                if 'video_path' in env_config:
+                    env_config['video_path'] = (f'{agent_config["root_dir"]}/'
+                                                f'{agent_config["model_name"]}/'
+                                                f'{env_config["video_path"]}')
                 if len(algo_env) > 1:
                     p = Process(target=main,
                                 args=(env_config, 

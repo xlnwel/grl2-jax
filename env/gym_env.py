@@ -15,18 +15,14 @@ def _make_env(config):
     if 'atari' in config['name'].lower():
         # for atari games, we expect 'atari_*'
         _, config['name'] = config['name'].split('_', 1)
-        config['max_episode_steps'] = 108000    # 30min
+        config['max_episode_steps'] = max_episode_steps = 27000    # 30min
         env = make_deepmind_env(config)
     else:
-        env = gym.make(config['name'])
+        env = gym.make(config['name']).env
         max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
-        if config.get('log_video', False):
-            print(f'video will be logged at {config["video_path"]}')
-            env = gym.wrappers.Monitor(env, config['video_path'], force=True)
         if config.get('action_repetition'):
             env = ActionRepeat(env, config['n_ar'])
-    if max_episode_steps < env.spec.max_episode_steps:
-        env = TimeLimit(env, max_episode_steps)
+    env = TimeLimit(env, max_episode_steps)
     env = EnvStats(env, config.get('precision', 32), config.get('timeout_done', False))
     if config.get('log_episode'):
         env = LogEpisode(env)
@@ -60,7 +56,8 @@ class Env(EnvBase):
     def __init__(self, config, env_fn=_make_env):
         self.env = env_fn(config)
         self.name = config['name']
-        self.max_episode_steps = self.env.spec.max_episode_steps
+        self.max_episode_steps = self.env.max_episode_steps
+
 
     def __getattr__(self, name):
         return getattr(self.env, name)
@@ -102,7 +99,7 @@ class EnvVec(EnvBase):
         if 'seed' in config:
             [hasattr(env, 'seed') and env.seed(config['seed'] + i) 
                 for i, env in enumerate(self.envs)]
-        self.max_episode_steps = self.env.spec.max_episode_steps
+        self.max_episode_steps = self.env.max_episode_steps
 
     def __getattr__(self, name):
         return getattr(self.env, name)
@@ -275,23 +272,16 @@ if __name__ == '__main__':
     # performance test
     default_config = dict(
         name='atari_breakout',
-        video_path='video',
-        n_workers=1,
-        n_envs=1,
-        efficient_envvec=True,
         seed=0,
     )
     env = create_env(default_config)
     o = env.reset()
     d = np.zeros(len(o))
-    for k in range(0, 10):
-        print(k)
+    for k in range(0, 1000):
         o = np.array(o)
         a = env.random_action()
         o, r, d, i = env.step(a)
         if d:
             print(k, env.env.lives, d, env.already_done())
-        if env.env.lives != 0:
-            env.reset()
-        else:
-            break
+            if env.already_done():
+                o = env.reset() 

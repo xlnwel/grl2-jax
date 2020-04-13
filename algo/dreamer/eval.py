@@ -4,8 +4,8 @@ import ray
 from core.tf_config import *
 from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import save_video
+from utility.run import evaluate
 from env.gym_env import create_env
-from algo.common.run import evaluate
 from algo.dreamer.env import make_env
 from algo.dreamer.nn import create_model
 from algo.dreamer.agent import Agent

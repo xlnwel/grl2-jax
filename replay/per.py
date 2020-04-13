@@ -15,9 +15,10 @@ class PERBase(Replay):
 
         # params for prioritized replay
         self._beta = float(config.get('beta0', .4))
-        self._beta_schedule = PiecewiseSchedule(
-            [(0, self._beta0), (self._beta_steps, 1.)], 
-            outside_value=1.)
+        if 'beta_steps' in config:
+            self._beta_schedule = PiecewiseSchedule(
+                [(0, self._beta0), (self._beta_steps, 1.)], 
+                outside_value=1.)
 
         self._top_priority = 2.
         self._to_update_top_priority = config.get('to_update_top_priority')
@@ -38,7 +39,8 @@ class PERBase(Replay):
         with self._locker:
             samples = self._sample(batch_size=batch_size)
             self._sample_i += 1
-            self._update_beta()
+            if hasattr(self, '_beta_schedule'):
+                self._update_beta()
 
         return samples
 

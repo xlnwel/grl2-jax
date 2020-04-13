@@ -46,7 +46,7 @@ class Noisy(layers.Dense):
         self.noisy_w = self.add_weight(
             'noise_kernel',
             shape=(self.last_dim, self.units),
-            initializer=get_initializer('he_normal'),
+            initializer=get_initializer('glorot_normal'),
             regularizer=self.kernel_regularizer,
             constraint=self.kernel_constraint,
             trainable=True)
@@ -60,12 +60,16 @@ class Noisy(layers.Dense):
                 trainable=True)
         else:
             self.bias = None
-        self.eps_w_in = tf.Variable(
-            tf.random.truncated_normal([self.last_dim, 1], stddev=self.noise_sigma),
-                                        trainable=False, name='eps_w_in')
-        self.eps_w_out = tf.Variable(
-            tf.random.truncated_normal([1, self.units], stddev=self.noise_sigma),
-                                        trainable=False, name='eps_w_out')
+        self.eps_w_in = self.add_weight(
+            'eps_w_in', 
+            shape=(self.last_dim, 1),
+            initializer=get_initializer('zeros'),
+            trainable=False)
+        self.eps_w_out = self.add_weight(
+            'eps_w_out', 
+            shape=(1, self.units),
+            initializer=get_initializer('zeros'),
+            trainable=False)
         self.eps_b = tf.reshape(self.eps_w_out, [self.units])
 
     def noisy_layer(self, inputs):

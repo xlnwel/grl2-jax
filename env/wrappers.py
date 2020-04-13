@@ -8,14 +8,10 @@ import gym
 from utility.utils import infer_dtype, convert_dtype
 
 
-class EnvSpec:
-    def __init__(self, max_episode_steps):
-        self.max_episode_steps = max_episode_steps
-
 class TimeLimit:
     def __init__(self, env, max_episode_steps=None):
         self.env = env
-        self.spec = EnvSpec(max_episode_steps)
+        self.max_episode_steps = max_episode_steps
         self._elapsed_steps = 0
 
     def __getattr__(self, name):
@@ -24,7 +20,7 @@ class TimeLimit:
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
         self._elapsed_steps += 1
-        if self._elapsed_steps >= self.spec.max_episode_steps:
+        if self._elapsed_steps >= self.max_episode_steps:
             done = True
             info['timeout'] = True
         return observation, reward, done, info
@@ -112,23 +108,18 @@ class EnvStats:
             self._epslen = 0
             self._already_done = False
             self._mask = 1
-
         return self.env.reset()
 
     def step(self, action):
-        if self._already_done:
-            self._mask = 0
-            return np.zeros(self.obs_shape, dtype=np.float32), 0, True, {}
-        else:
-            self._mask = 1 - self._already_done
-            obs, reward, done, info = self.env.step(action)
-            self._score += 0 if self._already_done else reward
-            self._epslen += 0 if self._already_done else info.get('n_ar', 1)
-            self._already_done = done
-            if not self._timeout_done and self._epslen == self.env.spec.max_episode_steps:
-                done = False
+        self._mask = 1 - self._already_done
+        obs, reward, done, info = self.env.step(action)
+        self._score += 0 if self._already_done else reward
+        self._epslen += 0 if self._already_done else info.get('n_ar', 1)
+        self._already_done = done
+        if not self._timeout_done and self._epslen == self.env.max_episode_steps:
+            done = False
 
-            return obs, reward, done, info
+        return obs, reward, done, info
 
     def mask(self):
         """ Get mask at the current step. Should only be called after self.step """

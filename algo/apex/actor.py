@@ -13,9 +13,10 @@ from utility.display import pwc
 from utility.utils import Every
 from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
+from utility.run import run
 from env.gym_env import create_env
 from replay.data_pipline import process_with_env, DataFormat, RayDataset
-from algo.common.run import run
+
 
 def get_learner_class(BaseAgent):
     class Learner(BaseAgent):

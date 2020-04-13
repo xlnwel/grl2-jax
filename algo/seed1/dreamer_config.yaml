@@ -2,10 +2,7 @@
 env:
     name: dmc_walker_run
     video_path: video
-    log_video: False
     n_envs: 8
-    log_episode: False
-    auto_reset: False
     n_ar: 2
     seed: 0
     precision: &prec 16
@@ -39,7 +36,6 @@ agent:
     algorithm: &algo seed1-dreamer
     polyak: .995
     precision: *prec
-    obs_range: [-0.5, .5]
     batch_size: &bs 50
 
     # R2D2
@@ -55,7 +51,7 @@ agent:
     MAX_STEPS: 5.e+6
     LOG_INTERVAL: 1000
     N_UPDATES: 100
-    SYNC_FREQ: 100
+    SYNC_FREQ: 32
     log_images: True
 
     # model

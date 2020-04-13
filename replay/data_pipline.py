@@ -8,10 +8,10 @@ import ray
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 
 
-def process_with_env(data, env, obs_range=[0, 1]):
+def process_with_env(data, env, obs_range=None):
     dtype = global_policy().compute_dtype
     with tf.device('cpu:0'):
-        if env.obs_dtype == np.uint8:
+        if env.obs_dtype == np.uint8 and obs_range is not None:
             if obs_range == [0, 1]:
                 for k, v in data.items():
                     if 'obs' in k:
@@ -21,7 +21,7 @@ def process_with_env(data, env, obs_range=[0, 1]):
                     if 'obs' in k:
                         data[k] = tf.cast(data[k], dtype) / 255. - .5
             else:
-                raise NotImplementedError(f'Unknown range: {obs_range}')
+                raise ValueError(obs_range)
         if env.is_action_discrete:
             data['action'] = tf.one_hot(data['action'], env.action_dim, dtype=dtype)
     return data
@@ -63,12 +63,6 @@ class Dataset:
         with tf.name_scope('data'):
             types = {k: v.dtype for k, v in self.data_format.items()}
             shapes = {k: v.shape for k, v in self.data_format.items()}
-
-            if self.buffer_type().endswith('proportional'):
-                types['IS_ratio'] = tf.float32
-                types['saved_idxes'] = tf.int32
-                shapes['IS_ratio'] = (None)
-                shapes['saved_idxes'] = (None)
 
             ds = tf.data.Dataset.from_generator(self._sample, types, shapes)
             if batch_size:

@@ -6,10 +6,10 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.tf_config import *
 from utility.utils import Every
+from utility.run import run, evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import Dataset, process_with_env
-from algo.common.run import run, evaluate
 from algo.d3qn.agent import Agent
 from algo.d3qn.nn import create_model
 
@@ -63,11 +63,12 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     replay = create_replay(replay_config)
 
     dtype = global_policy().compute_dtype
+    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
     data_format = dict(
-        obs=((None, *env.obs_shape), dtype),
+        obs=((None, *env.obs_shape), obs_dtype),
         action=((None, *env.action_shape), tf.int32),
         reward=((None, ), dtype), 
-        next_obs=((None, *env.obs_shape), dtype),
+        next_obs=((None, *env.obs_shape), obs_dtype),
         done=((None, ), dtype),
     )
     if replay_config['type'].endswith('proportional'):

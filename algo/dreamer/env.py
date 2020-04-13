@@ -7,6 +7,28 @@ from env import wrappers
 from env.gym_env import create_env
 
 
+def make_env(config):
+    config = config.copy()
+    suite, task = config['name'].split('_', 1)
+    if suite == 'dmc':
+        env = DeepMindControl(task)
+        env = wrappers.ActionRepeat(env, config['n_ar'])
+        env = wrappers.NormalizeActions(env)
+        max_episode_steps = 1000
+    elif suite == 'atari':
+        env = Atari(
+            task, config['n_ar'], (64, 64), grayscale=False,
+            life_done=True, sticky_actions=True)
+        max_episode_steps = 108000
+    else:
+        raise NotImplementedError(suite)
+    env = wrappers.TimeLimit(env, max_episode_steps)
+    env = wrappers.EnvStats(env, config.get('precision', 32))
+    if config.get('log_episode'):
+        env = wrappers.LogEpisode(env)
+
+    return env
+    
 class DeepMindControl:
 
     def __init__(self, name, size=(64, 64), camera=None):
@@ -136,28 +158,6 @@ class Atari:
         image = np.clip(image, 0, 255).astype(np.uint8)
         image = image[:, :, None] if self._grayscale else image
         return image
-
-def make_env(config):
-    config = config.copy()
-    suite, task = config['name'].split('_', 1)
-    if suite == 'dmc':
-        env = DeepMindControl(task)
-        env = wrappers.ActionRepeat(env, config['n_ar'])
-        env = wrappers.NormalizeActions(env)
-        max_episode_steps = 1000
-    elif suite == 'atari':
-        env = Atari(
-            task, config['n_ar'], (64, 64), grayscale=False,
-            life_done=True, sticky_actions=True)
-        max_episode_steps = 108000
-    else:
-        raise NotImplementedError(suite)
-    env = wrappers.TimeLimit(env, max_episode_steps)
-    env = wrappers.EnvStats(env, config.get('precision', 32))
-    if config.get('log_episode'):
-        env = wrappers.LogEpisode(env)
-
-    return env
 
 
 if __name__ == '__main__':

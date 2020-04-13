@@ -27,8 +27,7 @@ def logpi_correction(action, logpi, is_action_squashed):
     return logpi
 
 def n_step_target(reward, done, nth_value, gamma, steps=1):
-    with tf.name_scope('n_step_target'):
-        return tf.stop_gradient(reward + gamma**steps * (1. - done) * nth_value)
+    return tf.stop_gradient(reward + gamma**steps * (1. - done) * nth_value)
 
 def h(x, epsilon=1e-2):
     """h function defined in Ape-X DQfD"""

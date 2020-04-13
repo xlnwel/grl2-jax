@@ -21,18 +21,18 @@ class Q(Module):
         self._action_dim = action_dim
 
         """ Network definition """
-        self._cnn = layers.Dense(256, activation='relu') # cnn(self._cnn)
+        self._cnn = cnn(self._cnn)
 
         self._v_head = mlp(
             self._v_units, 
             out_dim=1, 
-            layer_type=Noisy, 
+            # layer_type=Noisy, 
             activation=self._activation, 
             name='v')
         self._a_head = mlp(
             self._a_units, 
             out_dim=action_dim, 
-            layer_type=Noisy, 
+            # layer_type=Noisy, 
             activation=self._activation, 
             name='a')
 
@@ -41,8 +41,6 @@ class Q(Module):
         if not deterministic and np.random.uniform() < epsilon:
             size = x.shape[0] if len(x.shape) % 2 == 0 else None
             return np.random.randint(self._action_dim, size=size)
-        if x.dtype == np.uint8:
-            x = tf.cast(x, self._dtype) / 255.
         if len(x.shape) % 2 != 0:
             x = tf.expand_dims(x, 0)
         
@@ -52,20 +50,20 @@ class Q(Module):
 
         return action
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def action(self, x, noisy=True, reset=True):
         q = self.value(x, noisy=noisy, reset=noisy)
         return tfd.Categorical(q).mode()
     
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def value(self, x, action=None, noisy=True, reset=True):
-        # tf.debugging.assert_greater_equal(x, 0.)
-        # tf.debugging.assert_less_equal(x, 1.)
+        print(x.dtype)
         if self._cnn:
             x = self._cnn(x)
+        assert x.shape.ndims == 2
 
-        v = self._v_head(x, noisy=noisy, reset=reset)
-        a = self._a_head(x, noisy=noisy, reset=reset)
+        v = self._v_head(x)#, noisy=noisy, reset=reset)
+        a = self._a_head(x)#, noisy=noisy, reset=reset)
         q = v + a - tf.reduce_mean(a, axis=1, keepdims=True)
 
         if action is not None:

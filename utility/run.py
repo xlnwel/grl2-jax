@@ -27,7 +27,7 @@ def evaluate(env, agent, n=1, render=False):
         if hasattr(agent, 'reset_states'):
             agent.reset_states()
         obs = env.reset()
-        for _ in range(0, env.max_episode_steps, getattr(env, 'n_ar', 1)):
+        for _ in range(0, env.max_episode_steps):
             if render:
                 env.render()
             action = agent(obs, deterministic=True)

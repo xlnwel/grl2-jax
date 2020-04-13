@@ -10,10 +10,10 @@ from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
 from utility.utils import Every
+from utility.run import evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import DataFormat, Dataset, process_with_env
-from algo.common.run import evaluate
 from algo.dreamer.agent import Agent
 from algo.dreamer.nn import create_model
 from algo.dreamer.env import make_env
@@ -120,8 +120,7 @@ def main(env_config, model_config, agent_config,
     replay.load_data()
     data_format = get_data_format(env, agent_config['batch_size'], agent_config['batch_len'])
     print(data_format)
-    process = functools.partial(
-        process_with_env, env=env, obs_range=agent_config['obs_range'])
+    process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
     dataset = Dataset(replay, data_format, process)
 
     models = create_model(
