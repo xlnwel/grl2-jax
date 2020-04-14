@@ -26,7 +26,6 @@ def _make_env(config):
     env = EnvStats(env, config.get('precision', 32), config.get('timeout_done', False))
     if config.get('log_episode'):
         env = LogEpisode(env)
-    env.seed(config.get('seed', 42))
 
     return env
 
@@ -87,8 +86,12 @@ class Env(EnvBase):
     def epslen(self, **kwargs):
         return self.env.epslen(**kwargs)
 
-    def already_done(self, **kwargs):
-        return self.env.already_done(**kwargs)
+    def already_done(self):
+        return self.env.already_done()
+
+    def game_over(self):
+        return self.env.game_over()
+        
 
 class EnvVec(EnvBase):
     def __init__(self, config, env_fn=_make_env):

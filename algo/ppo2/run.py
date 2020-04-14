@@ -9,7 +9,7 @@ def run(env, agent, buffer, step, obs):
     buffer.store_state(agent.state)
     for _ in range(agent.N_STEPS):
         action, logpi, value = agent(obs, already_done)
-        next_obs, reward, done, _ = env.step(action)
+        nth_obs, reward, done, _ = env.step(action)
         mask = env.mask()
         already_done = env.already_done()
         buffer.add(obs=obs, 
@@ -19,7 +19,7 @@ def run(env, agent, buffer, step, obs):
                     old_logpi=logpi, 
                     nonterminal=(1-done).astype(np.bool), 
                     mask=mask)
-        obs = next_obs
+        obs = nth_obs
         step += np.sum(mask)
         if already_done.all():
             break

@@ -126,10 +126,11 @@ class NatureCNN(Layer):
         conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
         ki = tf.keras.initializers.Orthogonal(np.sqrt(2))
         self._conv_layers = [
-            conv2d(32, 8, 4, padding='same', kernel_initializer=ki, activation=relu),
-            conv2d(64, 4, 2, padding='same', kernel_initializer=ki, activation=relu),
-            conv2d(64, 3, 1, padding='same', kernel_initializer=ki, activation=relu),
+            conv2d(32, 8, 4, padding='same', activation=relu),
+            conv2d(64, 4, 2, padding='same', activation=relu),
+            conv2d(64, 3, 1, padding='same', activation=relu),
         ]
+        self._dense = Dense(512, activation=relu)
 
     def call(self, x):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
@@ -137,5 +138,6 @@ class NatureCNN(Layer):
             x = l(x)
         shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
         x = tf.reshape(x, shape)
+        x = self._dense(x)
         
         return x

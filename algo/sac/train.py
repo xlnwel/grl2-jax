@@ -15,7 +15,7 @@ from algo.sac.nn import create_model
 
 def train(agent, env, eval_env, replay):
     def collect_and_learn(env, step, **kwargs):
-        if env.already_done():
+        if env.game_over():
             agent.store(score=env.score(), epslen=env.epslen())
         replay.add(**kwargs)
         agent.learn_log(step)
@@ -61,7 +61,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         obs=((None, *env.obs_shape), dtype),
         action=((None, *env.action_shape), action_dtype),
         reward=((None, ), dtype), 
-        next_obs=((None, *env.obs_shape), dtype),
+        nth_obs=((None, *env.obs_shape), dtype),
         done=((None, ), dtype),
     )
     if replay_config['type'].endswith('proportional'):
@@ -102,11 +102,11 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     #     else:
     #         action = env.random_action()
 
-    #     next_obs, reward, done, _ = env.step(action)
+    #     nth_obs, reward, done, _ = env.step(action)
     #     epslen += 1
     #     done = False if epslen == env.max_episode_steps else done
-    #     replay.add(obs=obs, action=action, reward=reward, done=done, next_obs=next_obs)
-    #     obs = next_obs
+    #     replay.add(obs=obs, action=action, reward=reward, done=done, nth_obs=nth_obs)
+    #     obs = nth_obs
 
     #     if done or epslen == env.max_episode_steps:
     #         agent.store(score=env.score(), epslen=env.epslen())

@@ -1,3 +1,4 @@
+import time
 import functools
 from collections import deque
 import numpy as np
@@ -17,7 +18,7 @@ from algo.d3qn.nn import create_model
 def train(agent, env, eval_env, replay):
     def collect_and_learn(env, step, **kwargs):
         replay.add(**kwargs)
-        if env.already_done():
+        if env.game_over():
             agent.store(score=env.score(), epslen=env.epslen())
         if step % agent.TRAIN_INTERVAL == 0:
             agent.learn_log(step)
@@ -27,7 +28,7 @@ def train(agent, env, eval_env, replay):
     obs = None
     collect_fn = lambda *args, **kwargs: replay.add(**kwargs)
     while not replay.good_to_learn():
-        obs, step = run(env, env.random_action, step, obs=obs, 
+        obs, step = run(env, agent, step, obs=obs, 
             fn=collect_fn, nsteps=agent.LOG_INTERVAL)
 
     to_log = Every(agent.LOG_INTERVAL)
@@ -38,16 +39,35 @@ def train(agent, env, eval_env, replay):
         #     eval_score, eval_epslen = evaluate(eval_env, agent)
         #     agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         # agent.q.reset_noisy()
+        start = time.time()
         obs, step = run(env, agent, step, obs=obs,
             fn=collect_and_learn, nsteps=agent.LOG_INTERVAL)
         
+        agent.store(fps=agent.LOG_INTERVAL / (time.time() - start))
         if to_eval(step):
             eval_score, eval_epslen = evaluate(eval_env, agent)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-        if to_log(step):
-            agent.log(step)
-            agent.save(steps=step)
+        agent.log(step)
+        # agent.save(steps=step)
     
+
+def get_data_format(env, replay_config):
+    dtype = global_policy().compute_dtype
+    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
+    data_format = dict(
+        obs=((None, *env.obs_shape), obs_dtype),
+        action=((None, *env.action_shape), tf.int32),
+        reward=((None, ), dtype), 
+        nth_obs=((None, *env.obs_shape), obs_dtype),
+        done=((None, ), dtype),
+    )
+    if replay_config['type'].endswith('proportional'):
+        data_format['IS_ratio'] = ((None, ), dtype)
+        data_format['saved_idxes'] = ((None, ), tf.int32)
+    if replay_config.get('n_steps', 1) > 1:
+        data_format['steps'] = ((None, ), dtype)
+
+    return data_format
 
 def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
     silence_tf_logs()
@@ -57,25 +77,11 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     env = create_env(env_config)
     eval_env_config = env_config.copy()
     eval_env_config['n_envs'] = 1
-    eval_env_config['auto_reset'] = False
     # eval_env_config['efficient_envvec'] = True
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 
-    dtype = global_policy().compute_dtype
-    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
-    data_format = dict(
-        obs=((None, *env.obs_shape), obs_dtype),
-        action=((None, *env.action_shape), tf.int32),
-        reward=((None, ), dtype), 
-        next_obs=((None, *env.obs_shape), obs_dtype),
-        done=((None, ), dtype),
-    )
-    if replay_config['type'].endswith('proportional'):
-        data_format['IS_ratio'] = ((None, ), dtype)
-        data_format['saved_idxes'] = ((None, ), tf.int32)
-    if replay_config.get('n_steps', 1) > 1:
-        data_format['steps'] = ((None, ), dtype)
+    data_format = get_data_format(env, replay_config)
     print(data_format)
     process = functools.partial(process_with_env, env=env)
     dataset = Dataset(replay, data_format, process_fn=process)

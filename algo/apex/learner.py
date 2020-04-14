@@ -35,7 +35,7 @@ def get_learner_class(BaseAgent):
                 obs=DataFormat((None, *env.obs_shape), self._dtype),
                 action=DataFormat((None, *env.action_shape), self._dtype),
                 reward=DataFormat((None, ), self._dtype), 
-                next_obs=DataFormat((None, *env.obs_shape), self._dtype),
+                nth_obs=DataFormat((None, *env.obs_shape), self._dtype),
                 done=DataFormat((None, ), self._dtype),
             )
             if ray.get(replay.buffer_type.remote()).endswith('proportional'):

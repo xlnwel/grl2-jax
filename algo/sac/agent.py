@@ -47,7 +47,7 @@ class Agent(BaseAgent):
             obs=(env.obs_shape, self._dtype, 'obs'),
             action=((env.action_dim,), self._dtype, 'action'),
             reward=((), self._dtype, 'reward'),
-            next_obs=(env.obs_shape, self._dtype, 'next_obs'),
+            nth_obs=(env.obs_shape, self._dtype, 'nth_obs'),
             done=((), self._dtype, 'done'),
         )
         if self._is_per:
@@ -85,7 +85,7 @@ class Agent(BaseAgent):
         self.store(**terms)
 
     @tf.function
-    def _learn(self, obs, action, reward, next_obs, done, steps=1, IS_ratio=1):
+    def _learn(self, obs, action, reward, nth_obs, done, steps=1, IS_ratio=1):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
         old_action = action
         target_fn = (transformed_n_step_target if getattr(self, 'tbo', False) 
@@ -96,16 +96,16 @@ class Agent(BaseAgent):
             q2_with_actor = self.q2.value(obs, action)
             q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
 
-            next_action, next_logpi, _ = self.actor.train_step(next_obs)
-            next_q1_with_actor = self.target_q1.value(next_obs, next_action)
-            next_q2_with_actor = self.target_q2.value(next_obs, next_action)
+            next_action, next_logpi, _ = self.actor.train_step(nth_obs)
+            next_q1_with_actor = self.target_q1.value(nth_obs, next_action)
+            next_q2_with_actor = self.target_q2.value(nth_obs, next_action)
             next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
             
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = next_temp = self.temperature
             else:
                 log_temp, temp = self.temperature.value(obs, action)
-                _, next_temp = self.temperature.value(next_obs, next_action)
+                _, next_temp = self.temperature.value(nth_obs, next_action)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
                     * tf.stop_gradient(logpi + target_entropy))
                 terms['temp'] = temp
@@ -166,13 +166,11 @@ class Agent(BaseAgent):
     def _sync_target_nets(self):
         tvars = self.target_q1.variables + self.target_q2.variables
         mvars = self.q1.variables + self.q2.variables
-        assert len(tvars) == len(mvars)
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
 
     @tf.function
     def _update_target_nets(self):
         tvars = self.target_q1.trainable_variables + self.target_q2.trainable_variables
         mvars = self.q1.trainable_variables + self.q2.trainable_variables
-        assert len(tvars) == len(mvars)
         [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
             for tvar, mvar in zip(tvars, mvars)]

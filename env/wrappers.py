@@ -103,11 +103,11 @@ class EnvStats:
         return getattr(self.env, name)
 
     def reset(self, **kwargs):
-        if getattr(self, 'was_real_done', True):
+        if self.game_over():
             self._score = 0
             self._epslen = 0
-            self._already_done = False
-            self._mask = 1
+        self._already_done = False
+        self._mask = 1
         return self.env.reset()
 
     def step(self, action):
@@ -133,6 +133,9 @@ class EnvStats:
 
     def already_done(self):
         return self._already_done
+
+    def game_over(self):
+        return getattr(self, '_game_over', self._already_done)
 
     @property
     def is_action_discrete(self):
@@ -199,19 +202,6 @@ class LogEpisode:
             info['episode'] = self.prev_episode = episode
         return obs, reward, done, info
 
-class AutoReset:
-    def __init__(self, env):
-        self.env = env
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
-
-    def step(self, action, **kwargs):
-        obs, reward, done, info = self.env.step(action, **kwargs)
-        if self._already_done:
-            obs = self.env.reset()
-
-        return obs, reward, done, info
 
 def get_wrapper_by_name(env, classname):
     currentenv = env

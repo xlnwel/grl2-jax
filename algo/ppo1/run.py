@@ -8,7 +8,7 @@ def run(env, agent, buffer, step, *args, **kwargs):
 
     for _ in range(env.max_episode_steps):
         action, logpi, value = agent(obs)
-        next_obs, reward, done, _ = env.step(action)
+        nth_obs, reward, done, _ = env.step(action)
         buffer.add(obs=obs, 
                     action=action, 
                     reward=reward, 
@@ -16,7 +16,7 @@ def run(env, agent, buffer, step, *args, **kwargs):
                     old_logpi=logpi, 
                     nonterminal=(1-done).astype(np.bool), 
                     mask=env.mask())
-        obs = next_obs
+        obs = nth_obs
         if np.all(done):
             break
         

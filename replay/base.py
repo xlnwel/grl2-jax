@@ -54,10 +54,10 @@ class Replay(ABC):
 
     def add(self, **kwargs):
         """ Add a single transition to the replay buffer """
-        next_obs = kwargs['next_obs']
+        nth_obs = kwargs['nth_obs']
         if self._memory == {}:
             if not self._has_next_obs:
-                del kwargs['next_obs']
+                del kwargs['nth_obs']
             init_buffer(self._memory, 
                         pre_dims=self._pre_dims, 
                         has_steps=self._n_steps>1, 
@@ -72,8 +72,8 @@ class Replay(ABC):
         add_buffer(
             self._memory, self._mem_idx, self._n_steps, self._gamma, cycle=self._is_full, **kwargs)
         self._mem_idx = (self._mem_idx + 1) % self._capacity
-        if 'next_obs' not in self._memory:
-            self._memory['obs'][self._mem_idx] = next_obs
+        if 'nth_obs' not in self._memory:
+            self._memory['obs'][self._mem_idx] = nth_obs
 
     """ Implementation """
     def _sample(self, batch_size=None):
@@ -82,7 +82,7 @@ class Replay(ABC):
     def _merge(self, local_buffer, length):
         if self._memory == {}:
             if not self._has_next_obs:
-                del local_buffer['next_obs']
+                del local_buffer['nth_obs']
             init_buffer(self._memory, 
                         pre_dims=self._pre_dims, 
                         has_steps=self._n_steps>1, 
@@ -116,21 +116,17 @@ class Replay(ABC):
             if isinstance(v, np.ndarray):
                 results[k] = v[indexes]
             else:
-                vs = []
-                for i in indexes:
-                    vs.append(np.array(v[i], copy=False))
-                results[k] = np.array(vs)
+                results[k] = np.array([np.array(v[i], copy=False) for i in indexes])
             
-        if 'next_obs' not in self._memory:
+        if 'nth_obs' not in self._memory:
             steps = results.get('steps', 1)
             next_indexes = (indexes + steps) % self._capacity
             if isinstance(self._memory['obs'], np.ndarray):
-                results['next_obs'] = self._memory['obs'][next_indexes]
+                results['nth_obs'] = self._memory['obs'][next_indexes]
             else:
-                next_obs = []
-                for i in indexes:
-                    next_obs.append(np.array(self._memory['obs'][i], copy=False))
-                results['next_obs'] = np.array(next_obs)
+                results['nth_obs'] = np.array(
+                    [np.array(self._memory['obs'][i], copy=False) 
+                    for i in next_indexes])
 
         # process rewards
         if getattr(self, '_reward_scale', 1) != 1:

@@ -6,19 +6,19 @@ env:
 model:
     q:
         cnn: nature
-        v_units: [512]
-        a_units: [512]
+        v_units: [256]
+        a_units: [256]
         activation: relu
 agent:
     algorithm: &algo d3qn
     gamma: &gamma 0.99
     precision: *prec
-    act_eps: .1
+    act_eps: 0
 
     MAX_STEPS: 1.e+7          # maximum training steps
     TRAIN_INTERVAL: 4
     EVAL_INTERVAL: 250000
-    LOG_INTERVAL: 100000
+    LOG_INTERVAL: 10000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -27,7 +27,7 @@ agent:
     model_name: *algo
 
     loss_type: huber   # huber or mse
-    target_update_freq: 32000               # frames
+    target_update_freq: 1000               # frames
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
@@ -46,13 +46,12 @@ replay:
     precision: *prec
     # arguments for PER
     beta0: 0.4
-    beta_steps: 1.e+6
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: 1
     gamma: *gamma
     batch_size: 32
-    min_size: 8.e+4
-    capacity: 5.e+5
+    min_size: 1.e+4
+    capacity: 1.e+5
     has_next_obs: False

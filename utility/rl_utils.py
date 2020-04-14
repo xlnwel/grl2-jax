@@ -42,8 +42,7 @@ def inverse_h(x, epsilon=1e-2):
 
 def transformed_n_step_target(reward, done, nth_value, gamma, steps):
     """Transformed Bellman operator defined in Ape-X DQfD"""
-    with tf.name_scope('n_step_target'):
-        return tf.stop_gradient(h(reward + gamma**steps * (1. - done) * inverse_h(nth_value)))
+    return tf.stop_gradient(h(reward + gamma**steps * (1. - done) * inverse_h(nth_value)))
 
 def lambda_return(reward, value, discount, bootstrap, lambda_, axis=0):
     """

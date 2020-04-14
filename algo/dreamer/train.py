@@ -110,7 +110,6 @@ def main(env_config, model_config, agent_config,
 
     env = create_env(env_config, make_env, force_envvec=True)
     eval_env_config = env_config.copy()
-    eval_env_config['auto_reset'] = False
     eval_env_config['n_envs'] = 1
     eval_env_config['n_workers'] = 1
     eval_env = create_env(eval_env_config, make_env, force_envvec=True)

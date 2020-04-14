@@ -40,7 +40,7 @@ def get_learner_class(BaseAgent):
                 obs=DataFormat((None, *env.obs_shape), self._dtype),
                 action=DataFormat((None, *env.action_shape), self._dtype),
                 reward=DataFormat((None, ), self._dtype), 
-                next_obs=DataFormat((None, *env.obs_shape), self._dtype),
+                nth_obs=DataFormat((None, *env.obs_shape), self._dtype),
                 done=DataFormat((None, ), self._dtype),
             )
             if ray.get(replay.buffer_type.remote()).endswith('proportional'):
@@ -129,7 +129,7 @@ class BaseWorker(BaseAgent):
                 (env.obs_shape, env.obs_dtype, 'obs'),
                 (env.action_shape, env.action_dtype, 'action'),
                 ((), tf.float32, 'reward'),
-                (env.obs_shape, env.obs_dtype, 'next_obs'),
+                (env.obs_shape, env.obs_dtype, 'nth_obs'),
                 ((), tf.float32, 'done'),
                 ((), tf.float32, 'steps')
             ]
@@ -180,16 +180,16 @@ class BaseWorker(BaseAgent):
         buffer.reset()
         
     @tf.function
-    def _compute_priorities(self, obs, action, reward, next_obs, done, steps):
+    def _compute_priorities(self, obs, action, reward, nth_obs, done, steps):
         if obs.dtype == tf.uint8:
             obs = tf.cast(obs, tf.float32) / 255.
-            next_obs = tf.cast(next_obs, tf.float32) / 255.
+            nth_obs = tf.cast(nth_obs, tf.float32) / 255.
         if self.env.is_action_discrete:
             action = tf.one_hot(action, self.env.action_dim)
         gamma = self.buffer.gamma
         value = self.value.step(obs, action)
-        next_action, _ = self.actor._action(next_obs, tf.convert_to_tensor(False))
-        next_value = self.value.step(next_obs, next_action)
+        next_action, _ = self.actor._action(nth_obs, tf.convert_to_tensor(False))
+        next_value = self.value.step(nth_obs, next_action)
         
         target_value = n_step_target(reward, done, next_value, gamma, steps)
         

@@ -26,13 +26,13 @@ class Q(Module):
         self._v_head = mlp(
             self._v_units, 
             out_dim=1, 
-            # layer_type=Noisy, 
+            layer_type=Noisy, 
             activation=self._activation, 
             name='v')
         self._a_head = mlp(
             self._a_units, 
             out_dim=action_dim, 
-            # layer_type=Noisy, 
+            layer_type=Noisy, 
             activation=self._activation, 
             name='a')
 
@@ -52,22 +52,20 @@ class Q(Module):
 
     @tf.function
     def action(self, x, noisy=True, reset=True):
-        q = self.value(x, noisy=noisy, reset=noisy)
-        return tfd.Categorical(q).mode()
+        q = self.value(x, noisy=noisy, reset=reset)
+        return tf.argmax(q, axis=-1)
     
     @tf.function
     def value(self, x, action=None, noisy=True, reset=True):
-        print(x.dtype)
         if self._cnn:
             x = self._cnn(x)
-        assert x.shape.ndims == 2
 
-        v = self._v_head(x)#, noisy=noisy, reset=reset)
-        a = self._a_head(x)#, noisy=noisy, reset=reset)
+        v = self._v_head(x, noisy=noisy, reset=reset)
+        a = self._a_head(x, noisy=noisy, reset=reset)
         q = v + a - tf.reduce_mean(a, axis=1, keepdims=True)
 
         if action is not None:
-            q = tf.reduce_mean(q * action, -1)
+            q = tf.reduce_sum(q * action, -1)
         return q
 
     def reset_noisy(self):

@@ -22,7 +22,7 @@ class LocalBuffer(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def add_data(self, obs, action, reward, done, next_obs, mask):
+    def add_data(self, obs, action, reward, done, nth_obs, mask):
         raise NotImplementedError
 
 
@@ -44,16 +44,16 @@ class EnvBuffer(LocalBuffer):
 
     def add_data(self, **data):
         """ Add experience to local memory """
-        next_obs = data['next_obs']
+        nth_obs = data['nth_obs']
         if self._memory == {}:
-            del data['next_obs']
+            del data['nth_obs']
             print('Local buffer')
             init_buffer(self._memory, pre_dims=self._seqlen+self._n_steps, has_steps=self._n_steps>1, **data)
             print_buffer(self._memory)
             
         add_buffer(self._memory, self._idx, self._n_steps, self._gamma, **data)
         self._idx = self._idx + 1
-        self._memory['obs'][self._idx] = next_obs
+        self._memory['obs'][self._idx] = nth_obs
 
     def sample(self):
         results = {}
@@ -66,7 +66,7 @@ class EnvBuffer(LocalBuffer):
         indexes = np.arange(self._idx)
         steps = results.get('steps', 1)
         next_indexes = indexes + steps
-        results['next_obs'] = self._memory['obs'][next_indexes]
+        results['nth_obs'] = self._memory['obs'][next_indexes]
 
         # process rewards
         if getattr(self, '_reward_scale', 1) != 1:
@@ -125,7 +125,7 @@ class EnvVecBuffer:
                 self._memory['reward'][i, k] += self._gamma**i * data['reward'][i]
                 self._memory['done'][i, k] = data['done'][i]
                 self._memory['steps'][i, k] += 1
-                self._memory['next_obs'][i, k] = data['next_obs'][i]
+                self._memory['nth_obs'][i, k] = data['nth_obs'][i]
 
         self._idx = self._idx + 1
 
