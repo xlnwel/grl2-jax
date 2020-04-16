@@ -16,7 +16,7 @@ def parse_cmd_args():
     parser.add_argument('--directory', '-d',
                         type=str,
                         help='directory where checkpoints and "config.yaml" exist')
-    parser.add_argument('--render', '-r',
+    parser.add_argument('--record', '-r',
                         action='store_true')
     parser.add_argument('--n_episodes', '-n', type=int, default=1)
     parser.add_argument('--n_envs', '-ne', type=int, default=1)
@@ -59,11 +59,11 @@ if __name__ == '__main__':
     algorithm = config['agent']['algorithm']
     main = import_main(algorithm)
         
-    render = cmd_args.render
+    record = cmd_args.record
 
     # set up env_config
     n = cmd_args.n_episodes
-    if render:
+    if record:
         env_config['n_workers'] = env_config['n_envs'] = 1
     else:
         env_config['n_workers'] = cmd_args.n_workers
@@ -71,4 +71,4 @@ if __name__ == '__main__':
         n = max(cmd_args.n_workers * cmd_args.n_envs, n)
     env_config['seed'] = np.random.randint(1000)
     
-    main(env_config, model_config, agent_config, n=n, render=render)
+    main(env_config, model_config, agent_config, n=n, record=record)

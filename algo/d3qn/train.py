@@ -7,6 +7,7 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.tf_config import *
 from utility.utils import Every
+from utility.graph import video_summary
 from utility.run import run, evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
@@ -20,6 +21,11 @@ def train(agent, env, eval_env, replay):
         replay.add(**kwargs)
         if env.game_over():
             agent.store(score=env.score(), epslen=env.epslen())
+            # we reset noisy every episode. Theoretically, 
+            # this follows the guide of deep exploration, 
+            # but its practical effectivness is not verified. 
+            # More importantly, it saves time!
+            agent.reset_noisy()
         if step % agent.TRAIN_INTERVAL == 0:
             agent.learn_log(step)
     
@@ -28,27 +34,24 @@ def train(agent, env, eval_env, replay):
     obs = None
     collect_fn = lambda *args, **kwargs: replay.add(**kwargs)
     while not replay.good_to_learn():
-        obs, step = run(env, agent, step, obs=obs, 
+        obs, step = run(env, env.random_action, step, obs=obs, 
             fn=collect_fn, nsteps=agent.LOG_INTERVAL)
 
     to_log = Every(agent.LOG_INTERVAL)
     to_eval = Every(agent.EVAL_INTERVAL)
     print('Training starts...')
     while step < int(agent.MAX_STEPS):
-        # if to_eval(step):
-        #     eval_score, eval_epslen = evaluate(eval_env, agent)
-        #     agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-        # agent.q.reset_noisy()
         start = time.time()
         obs, step = run(env, agent, step, obs=obs,
             fn=collect_and_learn, nsteps=agent.LOG_INTERVAL)
         
         agent.store(fps=agent.LOG_INTERVAL / (time.time() - start))
         if to_eval(step):
-            eval_score, eval_epslen = evaluate(eval_env, agent)
+            eval_score, eval_epslen, video = evaluate(eval_env, agent, record=True)
+            video_summary('d3qn/sim', video, step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         agent.log(step)
-        # agent.save(steps=step)
+        agent.save(steps=step)
     
 
 def get_data_format(env, replay_config):
@@ -69,7 +72,7 @@ def get_data_format(env, replay_config):
 
     return data_format
 
-def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
+def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
@@ -77,7 +80,6 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     env = create_env(env_config)
     eval_env_config = env_config.copy()
     eval_env_config['n_envs'] = 1
-    # eval_env_config['efficient_envvec'] = True
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 

@@ -7,7 +7,7 @@ import ray
 
 from utility.utils import isscalar
 from env.wrappers import *
-from env.deepmind_wrappers import make_deepmind_env
+from env.atari_wrapper import make_atari_env
 
 
 def _make_env(config):
@@ -16,7 +16,7 @@ def _make_env(config):
         # for atari games, we expect 'atari_*'
         _, config['name'] = config['name'].split('_', 1)
         config['max_episode_steps'] = max_episode_steps = 27000    # 30min
-        env = make_deepmind_env(config)
+        env = make_atari_env(config)
     else:
         env = gym.make(config['name']).env
         max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)

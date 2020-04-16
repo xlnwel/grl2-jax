@@ -40,17 +40,24 @@ def change_config(kw, prefix, env_config, model_config, agent_config, replay_con
             prefix += s + '-'
 
             # change kwargs in config
-            valid_config = None
-            for config in [env_config, model_config, agent_config, replay_config]:
+            valid_config = []
+            for name, config in zip(['env', 'model', 'agent', 'replay'], 
+                            [env_config, model_config, agent_config, replay_config]):
                 if key in config:
-                    assert_colorize(valid_config is None, f'Conflict: found {key} in both {valid_config} and {config}!')
-                    valid_config = config
-            valid_config[key]  = value
+                    valid_config.append((name, config))
+            if len(valid_config) > 1:
+                ans = input(f'{key} appears in the following configs: '
+                        f'{list([n for n, _ in valid_config])}.\n'
+                        'Are you sure to change all of them?(y/n)')
+                if ans == 'n':
+                    sys.exit(0)
+
+            for _, c in valid_config:
+                c[key]  = value
     return prefix
 
 if __name__ == '__main__':
     cmd_args = parse_cmd_args()
-    render = cmd_args.render
     processes = []
     if cmd_args.directory != '':
         # load model and log path
@@ -73,8 +80,7 @@ if __name__ == '__main__':
         algo = agent_config['algorithm']
         main = import_main(algo)
 
-        main(env_config, model_config, agent_config, 
-            replay_config, restore=True, render=render)
+        main(env_config, model_config, agent_config, replay_config)
     else:
         algorithm = list(cmd_args.algorithm)
         environment = list(cmd_args.environment)
@@ -98,7 +104,7 @@ if __name__ == '__main__':
             if cmd_args.grid_search or cmd_args.trials > 1:
                 gs = GridSearch(
                     env_config, model_config, agent_config, replay_config, 
-                    main, render=render, n_trials=cmd_args.trials, dir_prefix=prefix, 
+                    main, n_trials=cmd_args.trials, dir_prefix=prefix, 
                     separate_process=len(algo_env) > 1, delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
@@ -117,13 +123,10 @@ if __name__ == '__main__':
                                 args=(env_config, 
                                     model_config,
                                     agent_config, 
-                                    replay_config, 
-                                    False,
-                                    render))
+                                    replay_config))
                     p.start()
                     time.sleep(1)
                     processes.append(p)
                 else:
-                    main(env_config, model_config, agent_config, 
-                        replay_config, False, render=render)
+                    main(env_config, model_config, agent_config, replay_config)
     [p.join() for p in processes]

@@ -58,7 +58,7 @@ def train(agent, env, eval_env, buffer, run):
             if agent._algorithm >= 'ppo2':
                 agent.state = state
 
-def main(env_config, model_config, agent_config, buffer_config, restore=False, render=False):
+def main(env_config, model_config, agent_config, buffer_config):
     algo = agent_config['algorithm']
     create_model = import_model_fn(algo)
     Agent = import_agent(algo)
@@ -103,9 +103,6 @@ def main(env_config, model_config, agent_config, buffer_config, restore=False, r
         agent=agent_config,
         buffer=buffer_config
     ))
-
-    if restore:
-        agent.restore()
 
     train(agent, env, eval_env, buffer, run)
 

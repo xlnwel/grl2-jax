@@ -39,10 +39,10 @@ agent:
     batch_size: &bs 50
 
     # R2D2
-    store_state: False
-    burn_in: False
-    batch_len: &bl 50
-    burn_in_len: 20
+    store_state: True
+    burn_in: True
+    batch_len: &bl 90
+    burn_in_len: 40
 
     # distributed training
     n_workers: &nw 4

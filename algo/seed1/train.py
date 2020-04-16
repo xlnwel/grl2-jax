@@ -7,7 +7,7 @@ from utility.ray_setup import sigint_shutdown_ray
 from run import pkg
 
 
-def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
+def main(env_config, model_config, agent_config, replay_config):
     ray.init(num_cpus=12, num_gpus=1)
 
     sigint_shutdown_ray()
@@ -31,9 +31,6 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
     Actor = am.get_actor_class(Agent)
     actor = fm.create_actor(
         Actor, name, model_fn, agent_config, model_config, env_config)
-
-    if restore:
-        ray.get(learner.restore.remote())
 
     Worker = am.get_worker_class()
     workers = []

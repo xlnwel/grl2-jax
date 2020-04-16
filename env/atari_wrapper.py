@@ -11,7 +11,7 @@ from utility.display import pwc
 from env.wrappers import TimeLimit
 from env.baselines import make_atari, wrap_deepmind
 
-def make_deepmind_env(config):
+def make_atari_env(config):
     # name = config['name']
     # version = 4
     # name = f'{name.title()}NoFrameskip-v{version}'
@@ -114,6 +114,9 @@ class Atari:
         # Stores LazyFrames for memory efficiency
         self._frames = deque([], maxlen=self.frame_stack)
         self.max_episode_steps = max_episode_steps
+
+    def get_screen(self):
+        return self.env.ale.getScreenRGB2()
 
     @property
     def observation_space(self):

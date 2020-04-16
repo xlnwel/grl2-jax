@@ -41,7 +41,7 @@ def train(agent, env, eval_env, replay):
             agent.save(steps=step)
 
 
-def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
+def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()
     configure_gpu()
     # configure_precision(agent_config.get('precision', 32))

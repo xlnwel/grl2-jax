@@ -11,6 +11,8 @@ def save_video(name, video, fps=20):
     name = name if isinstance(name, str) else name.decode('utf-8')
     if np.issubdtype(video.dtype, np.floating):
         video = np.clip(255 * video, 0, 255).astype(np.uint8)
+    while len(video.shape) < 5:
+        video = np.expand_dims(video, 0)
     B, T, H, W, C = video.shape
     frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, B * W, C))
     f1, *frames = [Image.fromarray(f) for f in frames]
@@ -33,6 +35,8 @@ def video_summary(name, video, step=None, fps=20):
     name = name if isinstance(name, str) else name.decode('utf-8')
     if np.issubdtype(video.dtype, np.floating):
         video = np.clip(255 * video, 0, 255).astype(np.uint8)
+    while len(video.shape) < 5:
+        video = np.expand_dims(video, 0)
     B, T, H, W, C = video.shape
     try:
         frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, B * W, C))

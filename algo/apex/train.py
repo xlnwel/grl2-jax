@@ -8,7 +8,7 @@ from replay.func import create_replay_center
 from run import pkg
 
 
-def main(env_config, model_config, agent_config, replay_config, restore=False, render=False):
+def main(env_config, model_config, agent_config, replay_config):
     if 'atari' in env_config['name'] or 'dmc' in env_config['name']:
         ray.init(num_cpus=12, num_gpus=1)
     else:
@@ -34,10 +34,7 @@ def main(env_config, model_config, agent_config, replay_config, restore=False, r
         model_config=model_config, 
         env_config=env_config,
         replay_config=replay_config)
-
-    if restore:
-        ray.get(learner.restore.remote())
-        
+   
     Worker = am.get_worker_class()
     workers = []
     pids = []

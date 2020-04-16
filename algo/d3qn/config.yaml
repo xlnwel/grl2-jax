@@ -9,15 +9,18 @@ model:
         v_units: [256]
         a_units: [256]
         activation: relu
+        layer_type: dense
+        duel: False
 agent:
     algorithm: &algo d3qn
     gamma: &gamma 0.99
     precision: *prec
+    schedule_eps: True
     act_eps: 0
 
     MAX_STEPS: 1.e+7          # maximum training steps
     TRAIN_INTERVAL: 4
-    EVAL_INTERVAL: 250000
+    EVAL_INTERVAL: 25000
     LOG_INTERVAL: 10000
 
     # model path: root_dir/model_name/models

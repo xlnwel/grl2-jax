@@ -62,17 +62,10 @@ def get_learner_class(BaseAgent):
                 env=env)
 
             replay_config['dir'] = config['root_dir'].replace('logs', 'data')
-            self.replay = create_replay(replay_config, 
-                state_keys=list(self.rssm.state_size._asdict()))
-            self.replay.load_data()
+            self.replay = create_replay(replay_config)
             data_format = get_data_format(env, replay_config)
-            if self._store_state:
-                data_format.update({
-                    k: ((config['batch_size'], v), self._dtype)
-                        for k, v in self.rssm.state_size._asdict().items()
-                })
             print(data_format)
-            process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
+            process = functools.partial(process_with_env, env=env)
             self.dataset = Dataset(self.replay, data_format, process, prefetch=10)
 
             self._env_step = self.global_steps.numpy()
@@ -141,7 +134,7 @@ def get_actor_class(BaseAgent):
 
             self._envs_per_worker = env_config['n_envs']
             env_config['n_envs'] = config['action_batch']
-            self.env = create_env(env_config, make_env)
+            env = create_env(env_config)
             assert self.env.obs_dtype == np.uint8, \
                 f'Expect image observation of type uint8, but get {self.env.obs_dtype}'
             self._action_shape = self.env.action_shape
@@ -289,20 +282,13 @@ class Worker:
         self._id = worker_id
         self._n_envs = env_config['n_envs']
         env_config['n_workers'] = env_config['n_envs'] = 1
-        self._envs = [create_env(env_config, make_env) 
-            for _ in range(self._n_envs)]
-        # self._env0_s = time.time()
-        # self._env0_t = time.time()
+        self._envs = [create_env(env_config) for _ in range(self._n_envs)]
 
     def reset_env(self, env_id):
         # return: obs, reward, discount, already_done
         return self._envs[env_id].reset(), 0, 1, False
 
     def env_step(self, env_id, action):
-        # if self._id == 0 and env_id == 0:
-        #     print(f'latency = {(self._env0_t-self._env0_s)*1000:.3g}ms')
-        #     self._env0_s = self._env0_t
-        #     self._env0_t = time.time()
         obs, reward, done, _ = self._envs[env_id].step(action)
         discount = 1 - done
         already_done = self._envs[env_id].already_done()

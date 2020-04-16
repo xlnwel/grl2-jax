@@ -6,7 +6,7 @@ from utility.display import pwc
 from utility.rl_utils import n_step_target, transformed_n_step_target
 from utility.losses import huber_loss
 from utility.schedule import TFPiecewiseSchedule, PiecewiseSchedule
-from utility.timer import Timer
+from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config
@@ -17,13 +17,20 @@ class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
         self._dtype = global_policy().compute_dtype
-        self._is_per = not dataset.buffer_type().endswith('uniform')
-
+        if dataset is None:
+            self._is_per = False
+            is_nsteps = False
+        else:
+            self._is_per = dataset.buffer_type().endswith('proportional')
+            is_nsteps = 'steps' in dataset.data_format
+            
         self.dataset = dataset
 
         if self._schedule_lr:
             self._lr = TFPiecewiseSchedule(
                 [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
+        if self._schedule_eps:
+            self._act_eps = PiecewiseSchedule(((5e4, 1), (1e5, .02)))
 
         # optimizer
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
@@ -42,21 +49,30 @@ class Agent(BaseAgent):
         )
         if self._is_per:
             TensorSpecs['IS_ratio'] = ((), self._dtype, 'IS_ratio')
-        if 'steps' in self.dataset.data_format:
+        if is_nsteps:
             TensorSpecs['steps'] = ((), self._dtype, 'steps')
         self.learn = build(self._learn, TensorSpecs)
 
         self._sync_target_nets()
 
+    def reset_noisy(self):
+        self.q.reset_noisy()
+
     def __call__(self, obs, deterministic=False):
-        return self.q(obs, deterministic, self._act_eps)
+        if self._schedule_eps:
+            eps = self._act_eps.value(self.global_steps.numpy())
+        else:
+            eps = self._act_eps
+        return self.q(obs, deterministic, eps)
 
     def learn_log(self, step):
-        data = self.dataset.sample()
+        self.global_steps.assign(step)
+        with TBTimer('sample', 2500):
+            data = self.dataset.sample()
         if self._is_per:
             saved_idxes = data['saved_idxes'].numpy()
             del data['saved_idxes']
-        with Timer('learn', 10000):
+        with TBTimer('learn', 2500):
             terms = self.learn(**data)
         if step % self._target_update_freq == 0:
             self._sync_target_nets()

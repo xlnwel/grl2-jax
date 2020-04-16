@@ -1,7 +1,6 @@
 ---
 env:
     name: dmc_walker_run
-    video_path: video
     log_episode: True
     n_envs: 1
     n_ar: 2

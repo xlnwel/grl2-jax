@@ -34,7 +34,7 @@ def import_agent(algorithm):
         raise NotImplementedError(algorithm)
     return Agent
 
-def main(env_config, model_config, agent_config, n, render=False):
+def main(env_config, model_config, agent_config, n, record=False):
     silence_tf_logs()
     configure_gpu()
 
@@ -42,7 +42,7 @@ def main(env_config, model_config, agent_config, n, render=False):
     create_model = import_model_fn(algo)
     Agent = import_agent(algo)
 
-    if render:
+    if record:
         env_config['n_workers'] = env_config['n_envs'] = 1
     env = create_env(env_config, force_envvec=True)
 
@@ -55,9 +55,7 @@ def main(env_config, model_config, agent_config, n, render=False):
     )
 
     agent = Agent(name=algo, config=agent_config, models=models, env=env)
-    
-    agent.restore()
 
-    scores, epslens = evaluate(env, agent, n, render=render)
+    scores, epslens = evaluate(env, agent, n, record=record)
     pwc(f'After running 100 episodes',
         f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')

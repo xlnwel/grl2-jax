@@ -43,7 +43,7 @@ def run(env, agent, step, obs=None,
 
 def train(agent, env, eval_env, replay):
     def collect_log(already_done, info):
-        if already_done.any():
+        if np.any(already_done):
             episodes, scores, epslens = [], [], []
             for i, d in enumerate(already_done):
                 if d:
@@ -62,8 +62,8 @@ def train(agent, env, eval_env, replay):
         obs, already_done, nstep= run(
             env, env.random_action, step, obs, already_done, collect_log)
         
-    to_log = Every(agent.LOG_INTERVAL, start=step)
-    to_eval = Every(agent.EVAL_INTERVAL, start=step)
+    to_log = Every(agent.LOG_INTERVAL)
+    to_eval = Every(agent.EVAL_INTERVAL)
     print('Training starts...')
     start_step = step
     start_t = time.time()
@@ -75,7 +75,7 @@ def train(agent, env, eval_env, replay):
             train_state, train_action = agent.retrieve_states()
 
             score, epslen = evaluate(eval_env, agent)
-            video_summary('dreamer/sim', eval_env.prev_episode['obs'][None], step)
+            video_summary('dreamer/sim', eval_env.prev_episode['obs'], step)
             agent.store(eval_score=score, eval_epslen=epslen)
             
             agent.reset_states(train_state, train_action)
@@ -97,8 +97,7 @@ def get_data_format(env, batch_size, batch_len=None):
     )
     return data_format
 
-def main(env_config, model_config, agent_config, 
-        replay_config, restore=False, render=False):
+def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()
     configure_gpu()
     configure_precision(env_config['precision'])
@@ -112,7 +111,7 @@ def main(env_config, model_config, agent_config,
     eval_env_config = env_config.copy()
     eval_env_config['n_envs'] = 1
     eval_env_config['n_workers'] = 1
-    eval_env = create_env(eval_env_config, make_env, force_envvec=True)
+    eval_env = create_env(eval_env_config, make_env)
 
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
@@ -142,8 +141,5 @@ def main(env_config, model_config, agent_config,
         agent=agent_config,
         replay=replay_config
     ))
-
-    if restore:
-        agent.restore()
 
     train(agent, env, eval_env, replay)

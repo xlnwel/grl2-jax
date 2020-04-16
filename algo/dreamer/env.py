@@ -71,10 +71,11 @@ class DeepMindControl:
         obs = self.render()
         return obs
 
-    def render(self, *args, **kwargs):
+    def render(self, *args, size=None, **kwargs):
+        size = size or self._size
         if kwargs.get('mode', 'rgb_array') != 'rgb_array':
             raise ValueError("Only render mode 'rgb_array' is supported.")
-        return self._env.physics.render(*self._size, camera_id=self._camera)
+        return self._env.physics.render(*size, camera_id=self._camera)
 
 class Atari:
 

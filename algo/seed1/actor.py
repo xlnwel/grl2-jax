@@ -74,7 +74,7 @@ def get_learner_class(BaseAgent):
                 })
             print(data_format)
             process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
-            self.dataset = Dataset(self.replay, data_format, process, prefetch=10)
+            self.dataset = Dataset(self.replay, data_format, process)
 
             self._env_step = self.global_steps.numpy()
 
@@ -101,7 +101,7 @@ def get_learner_class(BaseAgent):
                 time.sleep(1)
             pwc('Learner starts learning...', color='blue')
 
-            to_log = Every(self.LOG_INTERVAL, self.LOG_INTERVAL)
+            to_log = Every(self.LOG_INTERVAL)
             train_step = 0
             start_time = time.time()
             start_train_step = train_step
@@ -142,18 +142,18 @@ def get_actor_class(BaseAgent):
 
             self._envs_per_worker = env_config['n_envs']
             env_config['n_envs'] = config['action_batch']
-            self.env = create_env(env_config, make_env)
-            assert self.env.obs_dtype == np.uint8, \
-                f'Expect image observation of type uint8, but get {self.env.obs_dtype}'
-            self._action_shape = self.env.action_shape
-            self._action_dim = self.env.action_dim
+            env = create_env(env_config, make_env)
+            assert env.obs_dtype == np.uint8, \
+                f'Expect image observation of type uint8, but get {env.obs_dtype}'
+            self._action_shape = env.action_shape
+            self._action_dim = env.action_dim
 
             self.models = Ensemble(
                 model_fn=model_fn,
                 config=model_config, 
-                obs_shape=self.env.obs_shape,
-                action_dim=self.env.action_dim, 
-                is_action_discrete=self.env.is_action_discrete
+                obs_shape=env.obs_shape,
+                action_dim=env.action_dim, 
+                is_action_discrete=env.is_action_discrete
             )
 
             super().__init__(
@@ -161,7 +161,7 @@ def get_actor_class(BaseAgent):
                 config=config, 
                 models=self.models,
                 dataset=None,
-                env=self.env)
+                env=env)
             
             # cache for episodes
             self._cache = collections.defaultdict(list)

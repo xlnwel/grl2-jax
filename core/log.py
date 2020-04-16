@@ -41,9 +41,9 @@ def scalar_summary(writer, stats, name=None, step=None):
 
 def graph_summary(writer, fn, *args):
     """ see utility.graph for available candidates of fn """
-    step = tf.summary.experimental.get_step()
+    # step = tf.summary.experimental.get_step()
     def inner(*args):
-        tf.summary.experimental.set_step(step)
+        # tf.summary.experimental.set_step(step)
         with writer.as_default():
             fn(*args)
     return tf.numpy_function(inner, args, [])

@@ -11,19 +11,18 @@ from algo.dreamer.nn import create_model
 from algo.dreamer.agent import Agent
 
 
-def main(env_config, model_config, agent_config, n, render=False):
+def main(env_config, model_config, agent_config, n, record=False):
     silence_tf_logs()
     configure_gpu()
     
     use_ray = env_config.get('n_workers', 0) > 1
     if use_ray:
-        ray.init(num_cpus=12, num_gpus=1)
+        ray.init()
         sigint_shutdown_ray()
 
-    if render:
-        env_config['log_episode'] = True
+    if record:
         env_config['n_workers'] = env_config['n_envs'] = 1
-    env = create_env(env_config, make_env, force_envvec=True)
+    env = create_env(env_config, make_env)
 
     models = create_model(
         model_config,
@@ -40,9 +39,15 @@ def main(env_config, model_config, agent_config, n, render=False):
         dataset=None, 
         env=env)
 
-    scores, epslens = evaluate(env, agent, n, render=render)
-    if render:
-        save_video('dreamer', env.prev_episode['obs'][None])
+    results = evaluate(env, agent, n, record=record)
+    if record:
+        scores, epslens, video = results
+        save_video('dreamer', video)
+    else:
+        scores, epslens, = results
     
     pwc(f'After running {n} episodes',
         f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
+
+    ray.shutdown()
+    

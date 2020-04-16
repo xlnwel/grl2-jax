@@ -1,16 +1,21 @@
 ---
 env:
     name: atari_pong
+    precision: &prec 32
     n_envs: 2
     seed: 0
 model:
     q:
         cnn: nature
-        v_units: [512]
-        a_units: [512]
+        v_units: [256]
+        a_units: [256]
+        activation: relu
+        layer_type: noisy
+        duel: False
 agent:
-    algorithm: &algo apex-dqn
+    algorithm: &algo apex-d3qn
     gamma: &gamma 0.99
+    precision: *prec
     
     # timer&interval
     MAX_STEPS: 1.e+7
@@ -31,9 +36,9 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 6.25e-5
+    lr: 1.e-4
     clip_norm: 40
-    epsilon: 1.e-4
+    epsilon: 1.5e-4
 
     # arguments for PER
     per_alpha: 0.5

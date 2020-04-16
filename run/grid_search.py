@@ -8,14 +8,13 @@ from utility.display import assert_colorize
 
 class GridSearch:
     def __init__(self, env_config, model_config, agent_config, buffer_config, 
-                train_func, render=False, n_trials=1, dir_prefix='', 
+                train_func, n_trials=1, dir_prefix='', 
                 separate_process=False, delay=1):
         self.env_config = env_config
         self.model_config = model_config
         self.agent_config = agent_config
         self.buffer_config = buffer_config
         self.train_func = train_func
-        self.render = render
         self.n_trials = n_trials
         self.dir_prefix = dir_prefix
         self.separate_process = separate_process
@@ -27,7 +26,7 @@ class GridSearch:
         self._dir_setup()
         if kwargs == {} and self.n_trials == 1 and not self.separate_process:
             # if no argument is passed in, run the default setting
-            self.train_func(self.env_config, self.model_config, self.agent_config, self.buffer_config, False, self.render)        
+            self.train_func(self.env_config, self.model_config, self.agent_config, self.buffer_config)        
         else:
             # do grid search
             self.agent_config['model_name'] = 'GS'
@@ -71,8 +70,7 @@ class GridSearch:
                             args=(env_config, 
                                 model_config,
                                 agent_config, 
-                                buffer_config, 
-                                self.render))
+                                buffer_config))
                 p.start()
                 self.processes.append(p)
                 time.sleep(self.delay)   # ensure sub-processs starts in order

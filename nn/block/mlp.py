@@ -19,7 +19,7 @@ class MLP(layers.Layer):
             
     def call(self, x, **kwargs):
         for l in self._layers:
-            x = l(x, **kwargs)
+            x = l(x)
         
         return x
 

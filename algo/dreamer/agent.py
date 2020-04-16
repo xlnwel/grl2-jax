@@ -78,11 +78,16 @@ class Agent(BaseAgent):
         return self._state, self._prev_action
 
     def __call__(self, obs, reset=np.zeros(1), deterministic=False):
+        if len(obs.shape) % 2 != 0:
+            has_expanded = True
+            obs = np.expand_dims(obs, 0)
+        else:
+            has_expanded = False
         if self._state is None and self._prev_action is None:
             self._state = self.rssm.get_initial_state(batch_size=tf.shape(obs)[0])
             self._prev_action = tf.zeros(
                 (tf.shape(obs)[0], self._action_dim), self._dtype)
-        if reset.any():
+        if np.any(reset):
             mask = tf.cast(1. - reset, self._dtype)[:, None]
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
             self._prev_action = self._prev_action * mask
@@ -91,11 +96,12 @@ class Agent(BaseAgent):
         
         self._prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype) \
             if self._is_action_discrete else action
-
+        
+        action = np.squeeze(action.numpy()) if has_expanded else action.numpy()
         if self._store_state:
-            return action.numpy(), tf.nest.map_structure(lambda x: x.numpy(), self._state)
+            return action, tf.nest.map_structure(lambda x: x.numpy(), self._state)
         else:
-            return action.numpy()
+            return action
         
     @tf.function
     def action(self, obs, state, prev_action, deterministic=False):
