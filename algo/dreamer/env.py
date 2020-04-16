@@ -22,8 +22,8 @@ def make_env(config):
         max_episode_steps = 108000
     else:
         raise NotImplementedError(suite)
-    env = wrappers.TimeLimit(env, max_episode_steps)
-    env = wrappers.EnvStats(env, config.get('precision', 32))
+    env = wrappers.EnvStats(env, max_episode_steps, 
+            precision=config.get('precision', 16))
     if config.get('log_episode'):
         env = wrappers.LogEpisode(env)
 

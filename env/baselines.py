@@ -6,7 +6,6 @@ import gym
 from gym import spaces
 import cv2
 cv2.ocl.setUseOpenCL(False)
-from .wrappers import TimeLimit
 
 
 class NoopResetEnv(gym.Wrapper):
@@ -20,6 +19,9 @@ class NoopResetEnv(gym.Wrapper):
         self.noop_action = 0
         assert env.unwrapped.get_action_meanings()[0] == 'NOOP'
 
+    def get_screen(self):
+        return self.env.ale.getScreenRGB2()
+        
     def reset(self, **kwargs):
         """ Do no-op action for a number of steps in [1, noop_max]."""
         self.env.reset(**kwargs)
@@ -268,8 +270,6 @@ def make_atari(env_id, max_episode_steps=None):
     assert 'NoFrameskip' in env.spec.id
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
-    if max_episode_steps is not None:
-        env = TimeLimit(env, max_episode_steps=max_episode_steps)
     return env
 
 def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=True, scale=False):

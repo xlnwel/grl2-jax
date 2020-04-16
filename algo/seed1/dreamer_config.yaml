@@ -39,14 +39,14 @@ agent:
     batch_size: &bs 50
 
     # R2D2
-    store_state: True
-    burn_in: True
-    batch_len: &bl 90
+    store_state: False
+    burn_in: False
+    batch_len: &bl 50
     burn_in_len: 40
 
     # distributed training
-    n_workers: &nw 4
-    action_batch: 8
+    n_workers: &nw 2
+    action_batch: 4
 
     MAX_STEPS: 5.e+6
     LOG_INTERVAL: 1000

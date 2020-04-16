@@ -8,12 +8,11 @@ import cv2
 cv2.ocl.setUseOpenCL(False)
 
 from utility.display import pwc
-from env.wrappers import TimeLimit
 from env.baselines import make_atari, wrap_deepmind
 
 def make_atari_env(config):
     # name = config['name']
-    # version = 4
+    # version = 0
     # name = f'{name.title()}NoFrameskip-v{version}'
     # env = make_atari(name)
     # env = wrap_deepmind(env, frame_stack=True)
@@ -75,16 +74,15 @@ class Atari:
     def __init__(self, name, *, frame_skip=4, life_done=False,
                 image_size=(84, 84), frame_stack=4, noop=30, 
                 sticky_actions=True, gray_scale=True, 
-                max_episode_steps=27000, **kwargs):
-        # Strip out the TimeLimit wrapper from Gym, which caps us at 100k frames. We
-        # handle this time limit internally instead, which lets us cap at 108k frames
-        # (30 minutes). The TimeLimit wrapper also plays poorly with saving and
-        # restoring states.
+                **kwargs):
         version = 0 if 'sticky_actions' else 4
         name = f'{name.title()}NoFrameskip-v{version}'
         env = gym.make(name)
         print(f'Environment name: {name}')
-
+        # Strip out the TimeLimit wrapper from Gym, which caps us at 100k frames. We
+        # handle this time limit internally instead, which lets us cap at 108k frames
+        # (30 minutes). The TimeLimit wrapper also plays poorly with saving and
+        # restoring states.
         self.env = env.env
         self.life_done = life_done
         self.frame_skip = frame_skip
@@ -99,7 +97,7 @@ class Atari:
         assert self.frame_stack > 0, \
             f'Frame stack should be strictly positive, got {self.frame_stack}'
         assert np.all([s > 0 for s in self.image_size]), \
-            f'Target screen size should be strictly positive, got {image_size}'
+            f'Screen size should be strictly positive, got {image_size}'
 
         obs_shape = self.env.observation_space.shape
         # Stores temporary observations used for pooling over two successive
@@ -113,7 +111,6 @@ class Atari:
         self.lives = 0  # Will need to be set by reset().
         # Stores LazyFrames for memory efficiency
         self._frames = deque([], maxlen=self.frame_stack)
-        self.max_episode_steps = max_episode_steps
 
     def get_screen(self):
         return self.env.ale.getScreenRGB2()
@@ -146,19 +143,24 @@ class Atari:
     def close(self):
         return self.env.close()
 
-    def reset(self):
+    def reset(self, **kwargs):
         if self._game_over:
-            self.env.reset()
-
+            self.env.reset(**kwargs)
+            if 'FIRE' in self.env.unwrapped.get_action_meanings():
+                # Fire when reset
+                done = self.env.step(1)[2]
+                if done:
+                    self.env.reset(**kwargs)
+                done = self.env.step(2)[2]
+                if done:
+                    self.env.reset(**kwargs)
             noop = np.random.randint(1, self.noop + 1)
             for _ in range(noop):
                 d = self.env.step(0)[2]
                 if d:
-                    self.env.reset()
-
-            self._elapsed_steps = 0
+                    self.env.reset(**kwargs)
         else:
-            env.step(0)
+            self.env.step(0)
 
         self.lives = self.env.ale.lives()
         self._get_screen(self._buffer[0])
@@ -189,8 +191,8 @@ class Atari:
         accumulated_reward = 0.
 
         for step in range(self.frame_skip):
-            # We bypass the Gym observation altogether and directly fetch the
-            # grayscale image from the ALE. This is a little faster.
+            # We bypass the Gym observation altogether and directly fetch
+            # the image from the ALE. This is a little faster.
             _, reward, done, info = self.env.step(action)
             accumulated_reward += reward
 
@@ -211,8 +213,8 @@ class Atari:
         obs = self._pool_and_resize()
         self._frames.append(obs)
         obs = self._get_obs()
-
         self._game_over = done
+        info['n_ar'] = self.frame_skip
         return obs, accumulated_reward, is_terminal, info
 
     def _pool_and_resize(self):
@@ -250,15 +252,15 @@ if __name__ == '__main__':
         max_episode_steps=27000,
         life_done=True
     )
-    env = make_deepmind_env(config)
+    env = make_atari_env(config)
     env.seed(0)
     o = env.reset()
     d = np.zeros(len(o))
-    for k in range(0, 100):
+    for k in range(0, 10):
         o = np.array(o)
         a = env.action_space.sample()
         no, r, d, i = env.step(a)
-        print(r, d, env.lives)
+        print(k, r, d, env.lives)
         if d:
             np.testing.assert_equal(np.array(o)[...,1:], np.array(no)[...,:-1])
             print(k, env.lives, d, env._game_over)

@@ -8,27 +8,6 @@ import gym
 from utility.utils import infer_dtype, convert_dtype
 
 
-class TimeLimit:
-    def __init__(self, env, max_episode_steps=None):
-        self.env = env
-        self.max_episode_steps = max_episode_steps
-        self._elapsed_steps = 0
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
-
-    def step(self, action):
-        observation, reward, done, info = self.env.step(action)
-        self._elapsed_steps += 1
-        if self._elapsed_steps >= self.max_episode_steps:
-            done = True
-            info['timeout'] = True
-        return observation, reward, done, info
-
-    def reset(self, **kwargs):
-        self._elapsed_steps = 0
-        return self.env.reset(**kwargs)
-
 class NormalizeActions:
     """ Normalize infinite action dimension in range [-1, 1] """
     def __init__(self, env):
@@ -90,8 +69,9 @@ class ActionRepeat:
 
 class EnvStats:
     """ Provide Environment Statistics Recording """
-    def __init__(self, env, precision=32, timeout_done=False):
+    def __init__(self, env, max_episode_steps, precision=32, timeout_done=False):
         self.env = env
+        self.max_episode_steps = max_episode_steps
         # already_done indicate whether an episode is finished, 
         # either due to timeout or due to environment done
         self._already_done = True
@@ -116,8 +96,10 @@ class EnvStats:
         self._score += 0 if self._already_done else reward
         self._epslen += 0 if self._already_done else info.get('n_ar', 1)
         self._already_done = done
-        if not self._timeout_done and self._epslen == self.env.max_episode_steps:
-            done = False
+        if self._epslen >= self.max_episode_steps:
+            self._already_done = True
+            if self._timeout_done:
+                done = True
 
         return obs, reward, done, info
 
@@ -196,7 +178,7 @@ class LogEpisode:
             **kwargs
         )
         self._episode.append(transition)
-        if self._already_done:
+        if self.game_over():
             episode = {k: convert_dtype([t[k] for t in self._episode], self._precision)
                 for k in self._episode[0]}
             info['episode'] = self.prev_episode = episode

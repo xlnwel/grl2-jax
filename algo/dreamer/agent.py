@@ -9,7 +9,6 @@ from utility.utils import AttrDict, Every
 from utility.rl_utils import lambda_return
 from utility.tf_utils import static_scan
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
-from utility.timer import TBTimer, Timer
 from utility.graph import video_summary
 from core.tf_config import build
 from core.base import BaseAgent
@@ -133,13 +132,11 @@ class Agent(BaseAgent):
     def learn_log(self, step):
         self.global_steps.assign(step)
         for i in range(self.N_UPDATES):
-            with TBTimer('sample', 1000):
-                data = self.dataset.sample()
+            data = self.dataset.sample()
             log_images = tf.convert_to_tensor(
                 self._log_images and i == 0 and self._to_log_images(step), 
                 tf.bool)
-            with TBTimer('learn', 1000):
-                terms = self.learn(**data, log_images=log_images)
+            terms = self.learn(**data, log_images=log_images)
             terms = {k: v.numpy() for k, v in terms.items()}
             self.store(**terms)
 

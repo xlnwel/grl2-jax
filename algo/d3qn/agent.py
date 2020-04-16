@@ -61,6 +61,7 @@ class Agent(BaseAgent):
     def __call__(self, obs, deterministic=False):
         if self._schedule_eps:
             eps = self._act_eps.value(self.global_steps.numpy())
+            self.store(act_eps=eps)
         else:
             eps = self._act_eps
         return self.q(obs, deterministic, eps)

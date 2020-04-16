@@ -1,16 +1,16 @@
 ---
 env:
-    name: atari_pong
+    name: atari_breakout
     precision: &prec 32
     seed: 0
 model:
     q:
-        cnn: nature
+        cnn: impala
         v_units: [256]
         a_units: [256]
         activation: relu
         layer_type: dense
-        duel: False
+        duel: True
 agent:
     algorithm: &algo d3qn
     gamma: &gamma 0.99
@@ -20,7 +20,7 @@ agent:
 
     MAX_STEPS: 1.e+7          # maximum training steps
     TRAIN_INTERVAL: 4
-    EVAL_INTERVAL: 25000
+    EVAL_INTERVAL: 250000
     LOG_INTERVAL: 10000
 
     # model path: root_dir/model_name/models
@@ -30,13 +30,13 @@ agent:
     model_name: *algo
 
     loss_type: huber   # huber or mse
-    target_update_freq: 1000               # frames
+    target_update_freq: 32000               # frames
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 1.e-4
+    lr: 6.25.e-5
     clip_norm: 10
     epsilon: 1.5e-4
 
@@ -45,16 +45,16 @@ agent:
     per_epsilon: 1.e-4
 
 replay:
-    type: uniform      # uniform, proportional
+    type: proportional      # uniform, proportional
     precision: *prec
     # arguments for PER
     beta0: 0.4
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 1
+    n_steps: 3
     gamma: *gamma
     batch_size: 32
-    min_size: 1.e+4
-    capacity: 1.e+5
+    min_size: 8.e+4
+    capacity: 5.e+5
     has_next_obs: False

@@ -13,17 +13,18 @@ from env.atari_wrapper import make_atari_env
 def _make_env(config):
     config = config.copy()
     if 'atari' in config['name'].lower():
-        # for atari games, we expect 'atari_*'
+        # for atari games, we expect to following name convention 'atari_*'
         _, config['name'] = config['name'].split('_', 1)
-        config['max_episode_steps'] = max_episode_steps = 27000    # 30min
+        config['max_episode_steps'] = max_episode_steps = 108000    # 30min
         env = make_atari_env(config)
     else:
         env = gym.make(config['name']).env
         max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
         if config.get('action_repetition'):
             env = ActionRepeat(env, config['n_ar'])
-    env = TimeLimit(env, max_episode_steps)
-    env = EnvStats(env, config.get('precision', 32), config.get('timeout_done', False))
+    env = EnvStats(env, max_episode_steps,
+                    precision=config.get('precision', 32), 
+                    timeout_done=config.get('timeout_done', False))
     if config.get('log_episode'):
         env = LogEpisode(env)
 
@@ -274,17 +275,17 @@ def _envvec_step(envvec, actions, **kwargs):
 if __name__ == '__main__':
     # performance test
     default_config = dict(
-        name='atari_breakout',
+        name='atari_pong',
         seed=0,
     )
     env = create_env(default_config)
     o = env.reset()
     d = np.zeros(len(o))
-    for k in range(0, 1000):
+    for k in range(0, 10000):
         o = np.array(o)
         a = env.random_action()
         o, r, d, i = env.step(a)
-        if d:
-            print(k, env.env.lives, d, env.already_done())
+        if env.game_over():
+            print(k, env.env.lives, d, env.already_done(), env.game_over())
             if env.already_done():
                 o = env.reset() 
