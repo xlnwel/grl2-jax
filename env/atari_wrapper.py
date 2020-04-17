@@ -14,8 +14,9 @@ def make_atari_env(config):
     # name = config['name']
     # version = 0
     # name = f'{name.title()}NoFrameskip-v{version}'
+    # print(name)
     # env = make_atari(name)
-    # env = wrap_deepmind(env, frame_stack=True)
+    # env = wrap_deepmind(env, episode_life=config['life_done'], frame_stack=True)
     env = Atari(**config)
     return env
 
@@ -144,30 +145,34 @@ class Atari:
         return self.env.close()
 
     def reset(self, **kwargs):
-        if self._game_over:
-            self.env.reset(**kwargs)
-            if 'FIRE' in self.env.unwrapped.get_action_meanings():
-                # Fire when reset
-                done = self.env.step(1)[2]
-                if done:
-                    self.env.reset(**kwargs)
-                done = self.env.step(2)[2]
-                if done:
-                    self.env.reset(**kwargs)
-            noop = np.random.randint(1, self.noop + 1)
-            for _ in range(noop):
-                d = self.env.step(0)[2]
-                if d:
-                    self.env.reset(**kwargs)
-        else:
-            self.env.step(0)
+        def noop_reset():
+            if self._game_over:
+                self.env.reset(**kwargs)
+                noop = np.random.randint(1, self.noop + 1)
+                for _ in range(noop):
+                    d = self.env.step(0)[2]
+                    if d:
+                        self.env.reset(**kwargs)
+            else:
+                self.step(0)
 
-        self.lives = self.env.ale.lives()
-        self._get_screen(self._buffer[0])
-        self._buffer[1].fill(0)
-        obs = self._pool_and_resize()
-        for _ in range(self.frame_stack):
-            self._frames.append(obs)
+            self.lives = self.env.ale.lives()
+            self._get_screen(self._buffer[0])
+            self._buffer[1].fill(0)
+            obs = self._pool_and_resize()
+            for _ in range(self.frame_stack):
+                self._frames.append(obs)
+
+        noop_reset()
+        if 'FIRE' in self.env.unwrapped.get_action_meanings():
+            # Fire when reset
+            for a in [1, 2]:
+                # it is important to call self.step here
+                # otherwise, fire may not succeed 
+                done = self.step(a)[2]
+                if done:
+                    noop_reset()
+                
         return self._get_obs()
 
     def render(self, mode):
@@ -213,6 +218,7 @@ class Atari:
         obs = self._pool_and_resize()
         self._frames.append(obs)
         obs = self._get_obs()
+
         self._game_over = done
         info['n_ar'] = self.frame_skip
         return obs, accumulated_reward, is_terminal, info

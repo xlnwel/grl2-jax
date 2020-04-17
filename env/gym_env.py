@@ -43,16 +43,16 @@ def create_env(config, env_fn=_make_env, force_envvec=False):
         return RayEnvVec(EnvType, config, env_fn)
 
 
-class EnvBase:
-    def _convert_obs(self, obs):
+class EnvVecBase:
+    def _convert_batch_obs(self, obs):
         if isinstance(obs[0], np.ndarray):
             obs = np.reshape(obs, [-1, *self.obs_shape])
+        else:
+            obs = list(obs)
         return obs
 
-    def close(self):
-        del self
 
-class Env(EnvBase):
+class Env:
     def __init__(self, config, env_fn=_make_env):
         self.env = env_fn(config)
         self.name = config['name']
@@ -92,9 +92,15 @@ class Env(EnvBase):
 
     def game_over(self):
         return self.env.game_over()
+
+    def get_screen(self):
+        if 'atari' in self.name:
+            return self.env.get_screen()
+        else:
+            return self.env.render(mode='rgb_array')
         
 
-class EnvVec(EnvBase):
+class EnvVec(EnvVecBase):
     def __init__(self, config, env_fn=_make_env):
         self.n_envs = n_envs = config['n_envs']
         self.name = config['name']
@@ -114,7 +120,7 @@ class EnvVec(EnvBase):
     def reset(self, idxes=None):
         if idxes is None:
             obs = [env.reset() for env in self.envs]
-            return self._convert_obs(obs)
+            return self._convert_batch_obs(obs)
         else:
             if not isinstance(idxes, (list, tuple)):
                 idxes = [idxes]
@@ -123,7 +129,7 @@ class EnvVec(EnvBase):
     def step(self, actions, **kwargs):
         obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
 
-        return (self._convert_obs(obs), 
+        return (self._convert_batch_obs(obs), 
                 np.array(reward, dtype=np.float32), 
                 np.array(done, dtype=np.bool), 
                 info)
@@ -150,8 +156,15 @@ class EnvVec(EnvBase):
     def already_done(self):
         return np.array([env.already_done() for env in self.envs], dtype=np.bool)
 
-    def close(self):
-        del self
+    def game_over(self):
+        return np.array([env.game_over() for env in self.envs], dtype=np.bool)
+        
+    def get_screen(self):
+        if 'atari' in self.name:
+            return np.array([env.get_screen() for env in self.envs], copy=False)
+        else:
+            return np.array([env.render(mode='rgb_array') for env in self.envs],
+                            copy=False)
 
 
 class EfficientEnvVec(EnvVec):
@@ -174,13 +187,13 @@ class EfficientEnvVec(EnvVec):
                     for e, o, r, d, i in zip(self.envs, obs, reward, done, info) 
                     if not e.already_done()])
         
-        return (self._convert_obs(obs), 
+        return (self._convert_batch_obs(obs), 
                 np.array(reward, dtype=np.float32), 
                 np.array(done, dtype=np.bool), 
                 info)
 
 
-class RayEnvVec(EnvBase):
+class RayEnvVec(EnvVecBase):
     def __init__(self, EnvType, config, env_fn=_make_env):
         self.name = config['name']
         self.n_workers= config['n_workers']
@@ -204,7 +217,7 @@ class RayEnvVec(EnvBase):
     def reset(self, idxes=None):
         if idxes is None:
             obs = tf.nest.flatten(ray.get([env.reset.remote() for env in self.envs]))
-            return self._convert_obs(obs)
+            return self._convert_batch_obs(obs)
         else:
             new_idxes = [[] for _ in range(self.n_workers)]
             [new_idxes[i // self.n_workers].append(i % self.n_workers) for i in idxes]
@@ -230,7 +243,7 @@ class RayEnvVec(EnvBase):
                 info += i
 
         obs = tf.nest.flatten(obs)
-        return (self._convert_obs(obs),
+        return (self._convert_batch_obs(obs),
                 np.reshape(reward, self.n_envs).astype(np.float32), 
                 np.reshape(done, self.n_envs).astype(bool),
                 info)
@@ -274,18 +287,11 @@ def _envvec_step(envvec, actions, **kwargs):
 
 if __name__ == '__main__':
     # performance test
-    default_config = dict(
-        name='atari_pong',
+    config = dict(
+        name='atari_breakout',
         seed=0,
+        life_done=True,
     )
-    env = create_env(default_config)
-    o = env.reset()
-    d = np.zeros(len(o))
-    for k in range(0, 10000):
-        o = np.array(o)
-        a = env.random_action()
-        o, r, d, i = env.step(a)
-        if env.game_over():
-            print(k, env.env.lives, d, env.already_done(), env.game_over())
-            if env.already_done():
-                o = env.reset() 
+    from utility.run import evaluate
+    env = create_env(config)
+    score, epslen, imgs = evaluate(env, env.random_action, record=True)

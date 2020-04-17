@@ -88,7 +88,7 @@ class EnvStats:
             self._epslen = 0
         self._already_done = False
         self._mask = 1
-        return self.env.reset()
+        return self.env.reset(**kwargs)
 
     def step(self, action):
         self._mask = 1 - self._already_done
