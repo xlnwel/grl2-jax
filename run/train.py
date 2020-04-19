@@ -109,7 +109,7 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     # Grid search happens here
-                    processes += gs(lr=[3e-3, 3e-4])
+                    processes += gs()
                 else:
                     processes += gs()
             else:

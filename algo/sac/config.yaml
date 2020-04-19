@@ -6,26 +6,23 @@ env:
 model:
     actor:
         units_list: [128, 64]
-        kernel_initializer: glorot_uniform
         norm: none
         activation: relu
         LOG_STD_MIN: -20
         LOG_STD_MAX: 2
     q:
         units_list: [128, 64]
-        kernel_initializer: glorot_uniform
         norm: none
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: .2
+        value: .1
 agent:
     algorithm: &algo sac
-    precision: 32
     gamma: &gamma 0.99
     polyak: .995
     # act_eps: .3
-    target_entropy: .1                      # tune this param for discrete actions
+    # target_entropy: .5                      # tune this param for discrete actions
     
     MAX_STEPS: 3.e+6
     LOG_INTERVAL: 10000
@@ -35,9 +32,6 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-
-    loss_type: mse                          # huber or mse
-    tbo: False                               # transformed Bellman Operator
 
     # arguments for optimizer
     optimizer: adam

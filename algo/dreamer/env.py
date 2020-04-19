@@ -12,12 +12,12 @@ def make_env(config):
     suite, task = config['name'].split('_', 1)
     if suite == 'dmc':
         env = DeepMindControl(task)
-        env = wrappers.ActionRepeat(env, config['n_ar'])
+        env = wrappers.FrameSkip(env, config['frame_skip'])
         env = wrappers.NormalizeActions(env)
         max_episode_steps = 1000
     elif suite == 'atari':
         env = Atari(
-            task, config['n_ar'], (64, 64), grayscale=False,
+            task, config['frame_skip'], (64, 64), grayscale=False,
             life_done=True, sticky_actions=True)
         max_episode_steps = 108000
     else:
@@ -89,7 +89,7 @@ class Atari:
         name = ''.join(word.title() for word in name.split('_'))
         with self.LOCK:
             self._env = gym.make('{}NoFrameskip-v{}'.format(name, version))
-        self.n_ar = action_repeat
+        self.frame_skip = action_repeat
         self._size = size
         self._grayscale = grayscale
         self._noops = noops
@@ -130,7 +130,7 @@ class Atari:
 
     def step(self, action):
         total_reward = 0.0
-        for step in range(self.n_ar):
+        for step in range(self.frame_skip):
             _, reward, done, info = self._env.step(action)
             total_reward += reward
             if self._life_done:
@@ -139,8 +139,8 @@ class Atari:
                 self._lives = lives
             if done:
                 break
-            elif step >= self.n_ar - 2:
-                index = step - (self.n_ar - 2)
+            elif step >= self.frame_skip - 2:
+                index = step - (self.frame_skip - 2)
                 if self._grayscale:
                     self._env.ale.getScreenGrayscale(self._buffers[index])
                 else:
@@ -152,7 +152,7 @@ class Atari:
         return self._env.render(mode)
 
     def _get_obs(self):
-        if self.n_ar > 1:
+        if self.frame_skip > 1:
             np.maximum(self._buffers[0], self._buffers[1], out=self._buffers[0])
         image = np.array(Image.fromarray(self._buffers[0]).resize(
             self._size, Image.BILINEAR))
@@ -168,7 +168,7 @@ if __name__ == '__main__':
         n_envs=1,
         log_episode=True,
         auto_reset=True,
-        n_ar=2,
+        frame_skip=2,
         max_episode_steps=1000,
     )
     env = create_env(config, make_env)

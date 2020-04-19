@@ -11,7 +11,7 @@ from utility.tf_distributions import Categorical
 from nn.func import mlp
 
 
-class SoftPolicy(Module):
+class Actor(Module):
     @config
     def __init__(self, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
@@ -24,8 +24,7 @@ class SoftPolicy(Module):
         self._layers = mlp(self._units_list, 
                             out_dim=out_dim,
                             norm=self._norm, 
-                            activation=self._activation, 
-                            kernel_initializer=self._kernel_initializer)
+                            activation=self._activation)
     
     def __call__(self, x, deterministic=False, epsilon=0):
         x = tf.convert_to_tensor(x, self._dtype)
@@ -47,7 +46,7 @@ class SoftPolicy(Module):
             if epsilon:
                 rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
                 action = tf.where(
-                    tf.random.uniform(action.shape[:1], 0, 1) < epsilon,
+                    tf.random.uniform(action.shape[:-1], 0, 1) < epsilon,
                     rand_act, action)
         else:
             mu, logstd = tf.split(x, 2, -1)
@@ -92,8 +91,7 @@ class SoftQ(Module):
         self._layers = mlp(self._units_list, 
                             out_dim=1,
                             norm=self._norm, 
-                            activation=self._activation, 
-                            kernel_initializer=self._kernel_initializer)
+                            activation=self._activation)
 
     def __call__(self, x, a):
         return self.value(x, a)
@@ -133,11 +131,11 @@ class Temperature(Module):
         return log_temp, temp
 
 
-def create_model(model_config, action_dim, is_action_discrete):
-    actor_config = model_config['actor']
-    q_config = model_config['q']
-    temperature_config = model_config['temperature']
-    actor = SoftPolicy(actor_config, action_dim, is_action_discrete)
+def create_model(config, action_dim, is_action_discrete):
+    actor_config = config['actor']
+    q_config = config['q']
+    temperature_config = config['temperature']
+    actor = Actor(actor_config, action_dim, is_action_discrete)
     q1 = SoftQ(q_config, 'q1')
     q2 = SoftQ(q_config, 'q2')
     target_q1 = SoftQ(q_config, 'target_q1')

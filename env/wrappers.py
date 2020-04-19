@@ -47,23 +47,23 @@ class ClipActionsWrapper:
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
 
-class ActionRepeat:
-    def __init__(self, env, n_ar=1):
+class FrameSkip:
+    def __init__(self, env, frame_skip=1):
         self.env = env
-        self.n_ar = n_ar
+        self.frame_skip = frame_skip
 
     def __getattr__(self, name):
         return getattr(self.env, name)
 
-    def step(self, action, n_ar=None):
+    def step(self, action, frame_skip=None):
         total_reward = 0
-        n_ar = n_ar or self.n_ar
-        for i in range(1, n_ar+1):
+        frame_skip = frame_skip or self.frame_skip
+        for i in range(1, frame_skip+1):
             obs, reward, done, info = self.env.step(action)
             total_reward += reward
             if done:
                 break
-        info['n_ar'] = i
+        info['frame_skip'] = i
         
         return obs, total_reward, done, info
 
@@ -94,7 +94,7 @@ class EnvStats:
         self._mask = 1 - self._already_done
         obs, reward, done, info = self.env.step(action)
         self._score += 0 if self._already_done else reward
-        self._epslen += 0 if self._already_done else info.get('n_ar', 1)
+        self._epslen += 0 if self._already_done else info.get('frame_skip', 1)
         self._already_done = done
         if self._epslen >= self.max_episode_steps:
             self._already_done = True
@@ -117,7 +117,7 @@ class EnvStats:
         return self._already_done
 
     def game_over(self):
-        return getattr(self, '_game_over', self._already_done)
+        return getattr(self, 'was_real_done', self._already_done)
 
     @property
     def is_action_discrete(self):

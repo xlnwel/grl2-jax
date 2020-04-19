@@ -45,7 +45,7 @@ def get_learner_class(BaseAgent):
                 f'Expect image observation of type uint8, but get {env.obs_dtype}'
             self._action_shape = env.action_shape
             self._action_dim = env.action_dim
-            self._n_ar = getattr(env, 'n_ar', 1)
+            self._n_ar = getattr(env, 'frame_skip', 1)
 
             self.models = Ensemble(
                 model_fn=model_fn,

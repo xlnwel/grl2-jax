@@ -26,10 +26,10 @@ def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
     # Update previous experience if multi-step is required
     for i in range(1, n_steps):
         k = idx - i
-        if (k < 0 and not cycle) or buffer['done'][k]:
+        if (k < 0 and not cycle) or buffer['discount'][k] == 0:
             break
         buffer['reward'][k] += gamma**i * kwargs['reward']
-        buffer['done'][k] = kwargs['done']
+        buffer['discount'][k] = kwargs['discount']
         if 'steps' in buffer:
             buffer['steps'][k] += 1
         if 'nth_obs' in buffer:

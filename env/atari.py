@@ -23,13 +23,6 @@ def make_atari_env(config):
 
 class LazyFrames(object):
     def __init__(self, frames):
-        """This object ensures that common frames between the observations are only stored once.
-        It exists purely to optimize memory usage which can be huge for DQN's 1M frames replay
-        buffers.
-
-        This object should only be converted to numpy array before being passed to the model.
-
-        You'd not believe how complex the previous solution was."""
         self._frames = frames
 
     def _force(self):
@@ -75,15 +68,15 @@ class Atari:
     def __init__(self, name, *, frame_skip=4, life_done=False,
                 image_size=(84, 84), frame_stack=4, noop=30, 
                 sticky_actions=True, gray_scale=True, 
-                **kwargs):
+                clip_reward=False, **kwargs):
         version = 0 if 'sticky_actions' else 4
         name = f'{name.title()}NoFrameskip-v{version}'
         env = gym.make(name)
         print(f'Environment name: {name}')
-        # Strip out the TimeLimit wrapper from Gym, which caps us at 100k frames. We
-        # handle this time limit internally instead, which lets us cap at 108k frames
-        # (30 minutes). The TimeLimit wrapper also plays poorly with saving and
-        # restoring states.
+        # Strip out the TimeLimit wrapper from Gym, which caps us at 100k frames. 
+        # We handle this time limit internally instead, which lets us cap at 108k 
+        # frames (30 minutes). The TimeLimit wrapper also plays poorly with 
+        # saving and restoring states.
         self.env = env.env
         self.life_done = life_done
         self.frame_skip = frame_skip
@@ -92,6 +85,7 @@ class Atari:
         self.noop = noop
         self.image_size = (image_size, image_size) \
             if isinstance(image_size, int) else tuple(image_size)
+        self.clip_reward = clip_reward
 
         assert self.frame_skip > 0, \
             f'Frame skip should be strictly positive, got {self.frame_skip}'
@@ -108,8 +102,8 @@ class Atari:
             shape += (3,)
         self._buffer = [np.empty(shape, dtype=np.uint8) for _ in range(2)]
 
-        self._game_over = True
         self.lives = 0  # Will need to be set by reset().
+        self._game_over = True
         # Stores LazyFrames for memory efficiency
         self._frames = deque([], maxlen=self.frame_stack)
 
@@ -199,6 +193,8 @@ class Atari:
             # We bypass the Gym observation altogether and directly fetch
             # the image from the ALE. This is a little faster.
             _, reward, done, info = self.env.step(action)
+            if self.clip_reward:
+                reward = np.clip(reward, -1, 1)
             accumulated_reward += reward
 
             if self.life_done:
@@ -220,7 +216,7 @@ class Atari:
         obs = self._get_obs()
 
         self._game_over = done
-        info['n_ar'] = self.frame_skip
+        info['frame_skip'] = self.frame_skip
         return obs, accumulated_reward, is_terminal, info
 
     def _pool_and_resize(self):

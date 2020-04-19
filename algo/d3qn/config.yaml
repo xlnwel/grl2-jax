@@ -1,11 +1,12 @@
 ---
 env:
-    name: atari_breakout
+    name: atari_pong
     precision: &prec 32
+    life_done: True
     seed: 0
 model:
     q:
-        cnn: impala
+        cnn: nature
         v_units: [256]
         a_units: [256]
         activation: relu
@@ -18,8 +19,8 @@ agent:
     schedule_eps: True
     act_eps: 0
 
-    MAX_STEPS: 1.e+7          # maximum training steps
-    TRAIN_INTERVAL: 4
+    MAX_STEPS: 1.e+8          # maximum training steps
+    TRAIN_INTERVAL: 16          # #frames = 4 agent step when frame stack = 4
     EVAL_INTERVAL: 250000
     LOG_INTERVAL: 10000
 
@@ -30,13 +31,13 @@ agent:
     model_name: *algo
 
     loss_type: huber   # huber or mse
-    target_update_freq: 32000               # frames
+    target_update_freq: 32000               # #frames
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 6.25.e-5
+    lr: 6.25e-5
     clip_norm: 10
     epsilon: 1.5e-4
 

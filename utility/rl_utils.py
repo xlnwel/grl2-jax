@@ -9,7 +9,6 @@ def clip_but_pass_gradient(x, l=-1., u=1.):
     clip_low = tf.cast(x < l, tf.float32)
     return x + tf.stop_gradient((u - x)*clip_up + (l - x)*clip_low)
 
-
 def logpi_correction(action, logpi, is_action_squashed):
     """ 
     This function is used to correct logpi from a Gaussian distribution 
@@ -26,8 +25,8 @@ def logpi_correction(action, logpi, is_action_squashed):
 
     return logpi
 
-def n_step_target(reward, done, nth_value, gamma, steps=1):
-    return tf.stop_gradient(reward + gamma**steps * (1. - done) * nth_value)
+def n_step_target(reward, nth_value, discount=1., gamma=1., steps=1.):
+    return tf.stop_gradient(reward + discount * gamma**steps * nth_value)
 
 def h(x, epsilon=1e-2):
     """h function defined in Ape-X DQfD"""
@@ -40,9 +39,9 @@ def inverse_h(x, epsilon=1e-2):
     frac_term = (sqrt_term - 1) / (2 * epsilon)
     return tf.math.sign(x) * (frac_term ** 2 - 1)
 
-def transformed_n_step_target(reward, done, nth_value, gamma, steps):
+def transformed_n_step_target(reward, nth_value, discount=1., gamma=1., steps=1.):
     """Transformed Bellman operator defined in Ape-X DQfD"""
-    return tf.stop_gradient(h(reward + gamma**steps * (1. - done) * inverse_h(nth_value)))
+    return tf.stop_gradient(h(reward + discount * gamma**steps * inverse_h(nth_value)))
 
 def lambda_return(reward, value, discount, bootstrap, lambda_, axis=0):
     """

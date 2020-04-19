@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
-from utility.rl_utils import n_step_target, transformed_n_step_target
+from utility.rl_utils import n_step_target
 from utility.schedule import TFPiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
@@ -48,7 +48,7 @@ class Agent(BaseAgent):
             action=((env.action_dim,), self._dtype, 'action'),
             reward=((), self._dtype, 'reward'),
             nth_obs=(env.obs_shape, self._dtype, 'nth_obs'),
-            done=((), self._dtype, 'done'),
+            discount=((), self._dtype, 'discount'),
         )
         if self._is_per:
             TensorSpecs['IS_ratio'] = ((), self._dtype, 'IS_ratio')
@@ -85,27 +85,25 @@ class Agent(BaseAgent):
         self.store(**terms)
 
     @tf.function
-    def _learn(self, obs, action, reward, nth_obs, done, steps=1, IS_ratio=1):
+    def _learn(self, obs, action, reward, nth_obs, discount, steps=1, IS_ratio=1):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
         old_action = action
-        target_fn = (transformed_n_step_target if getattr(self, 'tbo', False) 
-                    else n_step_target)
         with tf.GradientTape(persistent=True) as tape:
             action, logpi, terms = self.actor.train_step(obs)
             q1_with_actor = self.q1.value(obs, action)
             q2_with_actor = self.q2.value(obs, action)
             q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
 
-            next_action, next_logpi, _ = self.actor.train_step(nth_obs)
-            next_q1_with_actor = self.target_q1.value(nth_obs, next_action)
-            next_q2_with_actor = self.target_q2.value(nth_obs, next_action)
-            next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
+            nth_action, nth_logpi, _ = self.actor.train_step(nth_obs)
+            nth_q1_with_actor = self.target_q1.value(nth_obs, nth_action)
+            nth_q2_with_actor = self.target_q2.value(nth_obs, nth_action)
+            nth_q_with_actor = tf.minimum(nth_q1_with_actor, nth_q2_with_actor)
             
             if isinstance(self.temperature, (float, tf.Variable)):
-                temp = next_temp = self.temperature
+                temp = nth_temp = self.temperature
             else:
                 log_temp, temp = self.temperature.value(obs, action)
-                _, next_temp = self.temperature.value(nth_obs, next_action)
+                _, nth_temp = self.temperature.value(nth_obs, nth_action)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
                     * tf.stop_gradient(logpi + target_entropy))
                 terms['temp'] = temp
@@ -119,12 +117,12 @@ class Agent(BaseAgent):
                 (q2, (None,)), 
                 (logpi, (None,)), 
                 (q_with_actor, (None,)), 
-                (next_q_with_actor, (None,))])
+                (nth_q_with_actor, (None,))])
             
             actor_loss = tf.reduce_mean(IS_ratio * tf.stop_gradient(temp) * logpi - q_with_actor)
 
-            nth_value = next_q_with_actor - next_temp * next_logpi
-            target_q = target_fn(reward, done, nth_value, self._gamma, steps)
+            nth_value = nth_q_with_actor - nth_temp * nth_logpi
+            target_q = n_step_target(reward, nth_value, discount, self._gamma, steps)
             q1_error = target_q - q1
             q2_error = target_q - q2
 

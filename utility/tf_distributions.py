@@ -94,14 +94,10 @@ class Categorical(Distribution):
             elif hard:
                 y_hard = tf.one_hot(tf.argmax(y, -1), self.logits.shape[-1])
                 y = tf.stop_gradient(y_hard - y) + y
-            assert y.shape.ndims == len(self.logits.shape)
         else:
             y = tfd.Categorical(self.logits).sample()
-            assert y.shape.ndims == len(self.logits.shape) - 1
             if one_hot:
                 y = tf.one_hot(y, self.logits.shape[-1])
-                assert y.shape.ndims == len(self.logits.shape)
-                assert y.shape[-1] == self.logits.shape[-1]
 
         return y
 
@@ -155,46 +151,46 @@ class DiagGaussian(Distribution):
 
 class OneHotDist:
 
-  def __init__(self, logits=None, probs=None):
-    self._dist = tfd.Categorical(logits=logits, probs=probs)
-    self._num_classes = self.mean().shape[-1]
-    self._dtype = global_policy().compute_dtype
+    def __init__(self, logits=None, probs=None):
+        self._dist = tfd.Categorical(logits=logits, probs=probs)
+        self._num_classes = self.mean().shape[-1]
+        self._dtype = global_policy().compute_dtype
 
-  @property
-  def name(self):
-    return 'OneHotDist'
+    @property
+    def name(self):
+        return 'OneHotDist'
 
-  def __getattr__(self, name):
-    return getattr(self._dist, name)
+    def __getattr__(self, name):
+        return getattr(self._dist, name)
 
-  def prob(self, events):
-    indices = tf.argmax(events, axis=-1)
-    return self._dist.prob(indices)
+    def prob(self, events):
+        indices = tf.argmax(events, axis=-1)
+        return self._dist.prob(indices)
 
-  def log_prob(self, events):
-    indices = tf.argmax(events, axis=-1)
-    return self._dist.log_prob(indices)
+    def log_prob(self, events):
+        indices = tf.argmax(events, axis=-1)
+        return self._dist.log_prob(indices)
 
-  def mean(self):
-    return self._dist.probs_parameter()
+    def mean(self):
+        return self._dist.probs_parameter()
 
-  def mode(self):
-    return self._one_hot(self._dist.mode())
+    def mode(self):
+        return self._one_hot(self._dist.mode())
 
-  def sample(self, amount=None):
-    amount = [amount] if amount else []
-    indices = self._dist.sample(*amount)
-    sample = self._one_hot(indices)
-    probs = self._dist.probs_parameter()
-    sample += tf.cast(probs - tf.stop_gradient(probs), self._dtype)
-    return sample
+    def sample(self, amount=None):
+        amount = [amount] if amount else []
+        indices = self._dist.sample(*amount)
+        sample = self._one_hot(indices)
+        probs = self._dist.probs_parameter()
+        sample += tf.cast(probs - tf.stop_gradient(probs), self._dtype)
+        return sample
 
-  def _one_hot(self, indices):
-    return tf.one_hot(indices, self._num_classes, dtype=self._dtype)
+    def _one_hot(self, indices):
+        return tf.one_hot(indices, self._num_classes, dtype=self._dtype)
 
     
 class SampleDist:
-    """ useful to compute statistics after tfd.Independent,
+    """ useful to compute statistics after tfd.TransformedDistribution,
     originally from https://github.com/danijar/dreamer """
     def __init__(self, dist, samples=100):
         self._dist = dist
@@ -277,3 +273,15 @@ def compute_kl_with_standard_gaussian(mean, covariance, name='kl_with_standard_g
         result = 0.5 * (trace + squared_term - vec_dim - logdet)
 
     return result
+
+if __name__ == '__main__':
+    tf.random.set_seed(0)
+    logits = tf.random.normal((2, 3))
+    tf.random.set_seed(0)
+    dist = Categorical(logits)
+    a = dist.sample(reparameterize=False)
+    print(a)
+    tf.random.set_seed(0)
+    dist = OneHotDist(logits)
+    a = dist.sample()
+    print(a)

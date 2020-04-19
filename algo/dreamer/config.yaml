@@ -3,7 +3,7 @@ env:
     name: dmc_walker_run
     log_episode: True
     n_envs: 1
-    n_ar: 2
+    frame_skip: 2
     precision: &prec 16
 model:
     encoder:
@@ -81,3 +81,4 @@ replay:
     batch_len: *bl
     max_episodes: 800
     min_episodes: 5
+    save: False

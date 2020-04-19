@@ -22,7 +22,7 @@ class Q(Module):
         self._action_dim = action_dim
 
         """ Network definition """
-        self._cnn = cnn(self._cnn)
+        self._cnn = cnn(self._cnn)#, kernel_initializer=self._kernel_initializer)
 
         layer_type = dict(noisy=Noisy, dense=layers.Dense)[self._layer_type]
         if self._duel:
@@ -31,12 +31,14 @@ class Q(Module):
                 out_dim=1, 
                 layer_type=layer_type, 
                 activation=self._activation, 
+                # kernel_initializer=self._kernel_initializer,
                 name='v')
         self._a_head = mlp(
             self._a_units, 
             out_dim=action_dim, 
             layer_type=layer_type, 
             activation=self._activation, 
+            # kernel_initializer=self._kernel_initializer,
             name='a')
 
     def __call__(self, x, deterministic=False, epsilon=0):

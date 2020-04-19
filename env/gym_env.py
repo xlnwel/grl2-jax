@@ -4,24 +4,25 @@ import numpy as np
 import gym
 import tensorflow as tf
 import ray
+import cv2
 
 from utility.utils import isscalar
 from env.wrappers import *
-from env.atari_wrapper import make_atari_env
+from env.atari import make_atari_env
 
 
 def _make_env(config):
     config = config.copy()
     if 'atari' in config['name'].lower():
-        # for atari games, we expect to following name convention 'atari_*'
+        # for atari games, we expect to following name convention 'atari_name'
         _, config['name'] = config['name'].split('_', 1)
         config['max_episode_steps'] = max_episode_steps = 108000    # 30min
         env = make_atari_env(config)
     else:
         env = gym.make(config['name']).env
         max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
-        if config.get('action_repetition'):
-            env = ActionRepeat(env, config['n_ar'])
+        if config.get('frame_skip'):
+            env = FrameSkip(env, config['frame_skip'])
     env = EnvStats(env, max_episode_steps,
                     precision=config.get('precision', 32), 
                     timeout_done=config.get('timeout_done', False))
@@ -93,12 +94,16 @@ class Env:
     def game_over(self):
         return self.env.game_over()
 
-    def get_screen(self):
+    def get_screen(self, size=None):
         if 'atari' in self.name:
-            return self.env.get_screen()
+            img = self.env.get_screen()
         else:
-            return self.env.render(mode='rgb_array')
+            img = self.env.render(mode='rgb_array')
         
+        if size is not None:
+            img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+            
+        return img
 
 class EnvVec(EnvVecBase):
     def __init__(self, config, env_fn=_make_env):
@@ -159,13 +164,17 @@ class EnvVec(EnvVecBase):
     def game_over(self):
         return np.array([env.game_over() for env in self.envs], dtype=np.bool)
         
-    def get_screen(self):
+    def get_screen(self, size=None):
         if 'atari' in self.name:
-            return np.array([env.get_screen() for env in self.envs], copy=False)
+            imgs = np.array([env.get_screen() for env in self.envs], copy=False)
         else:
-            return np.array([env.render(mode='rgb_array') for env in self.envs],
+            imgs = np.array([env.render(mode='rgb_array') for env in self.envs],
                             copy=False)
 
+        if size is not None:
+            imgs = np.array([cv2.resize(i, size, interpolation=cv2.INTER_AREA) for i in imgs])
+        
+        return imgs
 
 class EfficientEnvVec(EnvVec):
     """ Designed for evaluation only """
@@ -292,6 +301,11 @@ if __name__ == '__main__':
         seed=0,
         life_done=True,
     )
-    from utility.run import evaluate
+    from utility.run import run
+    import matplotlib.pyplot as plt
     env = create_env(config)
-    score, epslen, imgs = evaluate(env, env.random_action, record=True)
+    obs = env.reset()
+    def fn(env, step, **kwargs):
+        assert step % env.frame_skip == 0
+    run(env, env.random_action, 0, fn=fn, nsteps=10000)
+    

@@ -45,9 +45,10 @@ class Replay(ABC):
     def sample(self, batch_size=None):
         raise NotImplementedError
 
-    def merge(self, local_buffer, length, **kwargs):
+    def merge(self, local_buffer, length=None, **kwargs):
         """ Merge a local buffer to the replay buffer, 
         useful for distributed algorithms """
+        length = length or len(next(iter(local_buffer.values())))
         assert length < self._capacity, (
             f'Local buffer cannot be largeer than the replay: {length} vs. {self._capacity}')
         self._merge(local_buffer, length)

@@ -5,6 +5,7 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.tf_config import *
 from utility.utils import Every
+from utility.graph import video_summary
 from utility.run import run, evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
@@ -35,7 +36,8 @@ def train(agent, env, eval_env, replay):
             fn=collect_and_learn, nsteps=agent.LOG_INTERVAL)
         
         if to_log(step):
-            eval_score, eval_epslen = evaluate(eval_env, agent)
+            eval_score, eval_epslen = evaluate(eval_env, agent, record=False)
+            # video_summary(f'{agent.name}/sim', video, step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
             agent.log(step)
             agent.save(steps=step)
@@ -47,10 +49,10 @@ def main(env_config, model_config, agent_config, replay_config):
     # configure_precision(agent_config.get('precision', 32))
 
     env = create_env(env_config)
+    assert env.n_envs == 1, \
+        f'n_envs({env.n_envs}) > 1 is not supported here as it messes with n-step'
     eval_env_config = env_config.copy()
-    eval_env_config['n_envs'] = 10
-    eval_env_config['auto_reset'] = False
-    # eval_env_config['efficient_envvec'] = True
+    eval_env_config['n_envs'] = 1
     eval_env = create_env(eval_env_config)
 
     replay = create_replay(replay_config)
@@ -62,7 +64,7 @@ def main(env_config, model_config, agent_config, replay_config):
         action=((None, *env.action_shape), action_dtype),
         reward=((None, ), dtype), 
         nth_obs=((None, *env.obs_shape), dtype),
-        done=((None, ), dtype),
+        discount=((None, ), dtype),
     )
     if replay_config['type'].endswith('proportional'):
         data_format['IS_ratio'] = ((None, ), dtype)
@@ -105,7 +107,7 @@ def main(env_config, model_config, agent_config, replay_config):
     #     nth_obs, reward, done, _ = env.step(action)
     #     epslen += 1
     #     done = False if epslen == env.max_episode_steps else done
-    #     replay.add(obs=obs, action=action, reward=reward, done=done, nth_obs=nth_obs)
+    #     replay.add(obs=obs, action=action, reward=reward, discount=1-done, nth_obs=nth_obs)
     #     obs = nth_obs
 
     #     if done or epslen == env.max_episode_steps:

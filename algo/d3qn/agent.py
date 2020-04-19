@@ -30,7 +30,7 @@ class Agent(BaseAgent):
             self._lr = TFPiecewiseSchedule(
                 [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
         if self._schedule_eps:
-            self._act_eps = PiecewiseSchedule(((5e4, 1), (1e5, .02)))
+            self._act_eps = PiecewiseSchedule(((5e4, 1), (4e5, .02)))
 
         # optimizer
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
@@ -45,7 +45,7 @@ class Agent(BaseAgent):
             action=((env.action_dim,), self._dtype, 'action'),
             reward=((), self._dtype, 'reward'),
             nth_obs=(env.obs_shape, env.obs_dtype, 'nth_obs'),
-            done=((), self._dtype, 'done'),
+            discount=((), self._dtype, 'discount'),
         )
         if self._is_per:
             TensorSpecs['IS_ratio'] = ((), self._dtype, 'IS_ratio')
@@ -88,17 +88,18 @@ class Agent(BaseAgent):
         self.store(**terms)
 
     @tf.function
-    def _learn(self, obs, action, reward, nth_obs, done, steps=1, IS_ratio=1):
+    def _learn(self, obs, action, reward, nth_obs, discount, steps=1, IS_ratio=1):
         target_fn = (transformed_n_step_target if self._tbo 
                     else n_step_target)
-        loss_fn = huber_loss if self._loss_type == 'huber' else tf.square
+        loss_fn = dict(
+            huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
         with tf.GradientTape() as tape:
             q = self.q.value(obs, action)
             nth_action = self.q.action(nth_obs, noisy=False)
             nth_action = tf.one_hot(nth_action, self._action_dim, dtype=self._dtype)
             nth_q = self.target_q.value(nth_obs, nth_action)
-            target_q = target_fn(reward, done, nth_q, self._gamma, steps)
+            target_q = target_fn(reward, nth_q, discount, self._gamma, steps)
             error = target_q - q
             loss = tf.reduce_mean(IS_ratio * loss_fn(error))
         tf.debugging.assert_shapes([

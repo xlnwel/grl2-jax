@@ -18,7 +18,7 @@ def import_module(name=None, *, config=None, algo=None):
 
 def import_agent(config):
     algo = config['algorithm']
-    _, algo = algo.rsplit('-', 1)
+    algo = algo.rsplit('-', 1)[-1]
     pkg = get_package(algo=algo)
     nn = importlib.import_module(f'{pkg}.nn')
     agent = importlib.import_module(f'{pkg}.agent')

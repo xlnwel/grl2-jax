@@ -41,7 +41,7 @@ def get_learner_class(BaseAgent):
                 action=DataFormat((None, *env.action_shape), self._dtype),
                 reward=DataFormat((None, ), self._dtype), 
                 nth_obs=DataFormat((None, *env.obs_shape), self._dtype),
-                done=DataFormat((None, ), self._dtype),
+                discount=DataFormat((None, ), self._dtype),
             )
             if ray.get(replay.buffer_type.remote()).endswith('proportional'):
                 data_format['IS_ratio'] = DataFormat((None, ), self._dtype)
@@ -130,7 +130,7 @@ class BaseWorker(BaseAgent):
                 (env.action_shape, env.action_dtype, 'action'),
                 ((), tf.float32, 'reward'),
                 (env.obs_shape, env.obs_dtype, 'nth_obs'),
-                ((), tf.float32, 'done'),
+                ((), tf.float32, 'discount'),
                 ((), tf.float32, 'steps')
             ]
             self.compute_priorities = build(
@@ -180,7 +180,7 @@ class BaseWorker(BaseAgent):
         buffer.reset()
         
     @tf.function
-    def _compute_priorities(self, obs, action, reward, nth_obs, done, steps):
+    def _compute_priorities(self, obs, action, reward, nth_obs, discount, steps):
         if obs.dtype == tf.uint8:
             obs = tf.cast(obs, tf.float32) / 255.
             nth_obs = tf.cast(nth_obs, tf.float32) / 255.
@@ -188,10 +188,10 @@ class BaseWorker(BaseAgent):
             action = tf.one_hot(action, self.env.action_dim)
         gamma = self.buffer.gamma
         value = self.value.step(obs, action)
-        next_action, _ = self.actor._action(nth_obs, tf.convert_to_tensor(False))
-        next_value = self.value.step(nth_obs, next_action)
+        nth_action, _ = self.actor._action(nth_obs, tf.convert_to_tensor(False))
+        nth_value = self.value.step(nth_obs, nth_action)
         
-        target_value = n_step_target(reward, done, next_value, gamma, steps)
+        target_value = n_step_target(reward, nth_value, gamma, discount, steps)
         
         priority = tf.abs(target_value - value)
         priority += self._per_epsilon

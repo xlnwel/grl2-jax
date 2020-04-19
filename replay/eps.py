@@ -10,7 +10,8 @@ class EpisodicReplay:
     @config
     def __init__(self, state_keys=[]):
         self._dir = Path(self._dir).expanduser()
-        self._dir.mkdir(parents=True, exist_ok=True)
+        if self._save:
+            self._dir.mkdir(parents=True, exist_ok=True)
         self._memory = {}
         self._batch_len = getattr(self, '_batch_len', None)
         self._state_keys = state_keys
@@ -35,17 +36,21 @@ class EpisodicReplay:
             length = len(eps['reward'])
             filename = self._dir / f'{timestamp}-{identifier}-{length}.npz'
             self._memory[filename] = eps
-            with filename.open('wb') as f1:
-                np.savez_compressed(f1, **eps)
+            if self._save:
+                with filename.open('wb') as f1:
+                    np.savez_compressed(f1, **eps)
         self._remove_files()
 
     def count_episodes(self):
         """ count the total number of episodes and transitions in the directory """
-        filenames = self._dir.glob('*.npz')
-        # subtract 1 as we don't take into account the terminal state
-        lengths = [int(n.stem.rsplit('-', 1)[-1]) - 1 for n in filenames]
-        episodes, steps = len(lengths), sum(lengths)
-        return episodes, steps
+        if self._save:
+            filenames = self._dir.glob('*.npz')
+            # subtract 1 as we don't take into account the terminal state
+            lengths = [int(n.stem.rsplit('-', 1)[-1]) - 1 for n in filenames]
+            episodes, steps = len(lengths), sum(lengths)
+            return episodes, steps
+        else:
+            return 0, 0
     
     def count_steps(self):
         filenames = self._dir.glob('*.npz')
