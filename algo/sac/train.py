@@ -36,7 +36,7 @@ def train(agent, env, eval_env, replay):
             fn=collect_and_learn, nsteps=agent.LOG_INTERVAL)
         
         if to_log(step):
-            eval_score, eval_epslen = evaluate(eval_env, agent, record=False)
+            eval_score, eval_epslen, video = evaluate(eval_env, agent, record=False)
             # video_summary(f'{agent.name}/sim', video, step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
             agent.log(step)

@@ -113,17 +113,17 @@ class Agent(BaseAgent):
         state = self.rssm.post_step(state, prev_action, embed)
         feature = self.rssm.get_feat(state)
         if deterministic:
-            action = self.actor(feature).mode()
+            action = self.actor(feature)[0].mode()
         else:
             if self._is_action_discrete:
-                act_dist = self.actor(feature)
+                act_dist = self.actor(feature)[0]
                 action = act_dist.sample(reparameterize=False, one_hot=False)
                 rand_act = tfd.Categorical(tf.zeros_like(act_dist.logits)).sample()
                 action = tf.where(
                     tf.random.uniform(action.shape[:1], 0, 1) < self._act_epsilon,
                     rand_act, action)
             else:
-                action = self.actor(feature).sample()
+                action = self.actor(feature)[0].sample()
                 action = tf.clip_by_value(
                     tfd.Normal(action, self._act_epsilon).sample(), -1, 1)
             
@@ -133,6 +133,9 @@ class Agent(BaseAgent):
         self.global_steps.assign(step)
         for i in range(self.N_UPDATES):
             data = self.dataset.sample()
+            if i == 0:
+                tf.summary.histogram('reward', data['reward'], step)
+                tf.summary.histogram('discount', data['discount'], step)
             log_images = tf.convert_to_tensor(
                 self._log_images and i == 0 and self._to_log_images(step), 
                 tf.bool)
@@ -185,7 +188,7 @@ class Agent(BaseAgent):
             # compute lambda return at each imagined step
             returns = lambda_return(
                 reward[:-1], value[:-1], discount[:-1], 
-                value[-1], lambda_=self._lambda, axis=0)
+                self._lambda, value[-1], axis=0)
             # discount lambda returns based on their sequential order
             discount = tf.stop_gradient(tf.math.cumprod(tf.concat(
                 [tf.ones_like(discount[:1]), discount[:-2]], 0), 0))
@@ -200,14 +203,16 @@ class Agent(BaseAgent):
         actor_norm = self._actor_opt(actor_tape, actor_loss)
         value_norm = self._value_opt(value_tape, value_loss)
         
+        act_dist, terms = self.actor(feature)
         terms = dict(
             prior_entropy=prior_dist.entropy(),
             post_entropy=post_dist.entropy(),
             kl=kl,
             value=value,
             returns=returns,
-            action_entropy=self.actor(feature).entropy(),
+            action_entropy=act_dist.entropy(),
             **likelihoods,
+            **terms,
             model_loss=model_loss,
             actor_loss=actor_loss,
             value_loss=value_loss,
@@ -229,7 +234,7 @@ class Agent(BaseAgent):
         flatten = lambda x: tf.reshape(x, [-1] + list(x.shape[2:]))
         start = RSSMState(*[flatten(x) for x in post])
         policy = lambda state: self.actor(
-            tf.stop_gradient(self.rssm.get_feat(state))).sample()
+            tf.stop_gradient(self.rssm.get_feat(state)))[0].sample()
         states = static_scan(
             lambda prev_state, _: self.rssm.img_step(prev_state, policy(prev_state)),
             start, tf.range(self._horizon)

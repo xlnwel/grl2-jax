@@ -96,9 +96,20 @@ def positional_encoding(indices, max_idx, dim, name='positional_encoding'):
     return v
 
 def static_scan(fn, start, inputs, reverse=False):
-    """ sequentially apply fn to inputs, with starting state start 
+    """ Sequentially apply fn to inputs, with starting state start.
     inputs are expected to be time-major, and the outputs of fn are expected
-    to have the same structure as start """
+    to have the same structure as start. 
+    This function is equivalent to 
+    tf.scan(
+        fn=fn
+        elems=inputs, 
+        initializer=start,
+        parallel_iterations=1,
+        back_prop=False,
+        reverse=reverse
+    )
+    In practice, we find it's faster than tf.scan
+    """
     last = start
     outputs = [[] for _ in tf.nest.flatten(start)]
     indices = range(len(tf.nest.flatten(inputs)[0]))

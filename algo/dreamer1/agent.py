@@ -46,7 +46,7 @@ class Agent(BaseAgent):
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
-            self._temp_opt = DreamerOpt(self.temperature, self._temp_lr)
+            self._temp_opt = DreamerOpt(models=self.temperature, lr=self._temp_lr)
             self._ckpt_models['temp_opt'] = self._temp_opt
 
         self._state = None
@@ -172,41 +172,45 @@ class Agent(BaseAgent):
 
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
         curr_feat = feature[:, :-1]
-        next_feat = feature[:, 1:]
+        nth_feat = feature[:, 1:]
         action = action[:, :-1]
+        reward = reward[:, :-1]
+        discount = discount[:, :-1]
         with tf.GradientTape(persistent=True) as ac_tape:
             new_action, logpi, terms = self.actor.train_step(curr_feat)
-            q1_with_actor = self.q1.value(curr_feat, new_action)
-            q2_with_actor = self.q2.value(curr_feat, new_action)
+            q1_with_actor = self.q1(curr_feat, new_action)
+            q2_with_actor = self.q2(curr_feat, new_action)
             q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
 
-            next_action, next_logpi, _ = self.actor.train_step(next_feat)
-            next_q1_with_actor = self.target_q1.value(next_feat, next_action)
-            next_q2_with_actor = self.target_q2.value(next_feat, next_action)
-            next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
+            nth_action, nth_logpi, _ = self.actor.train_step(nth_feat)
+            nth_q1_with_actor = self.target_q1(nth_feat, nth_action)
+            nth_q2_with_actor = self.target_q2(nth_feat, nth_action)
+            nth_q_with_actor = tf.minimum(nth_q1_with_actor, nth_q2_with_actor)
             
             if isinstance(self.temperature, (float, tf.Variable)):
-                temp = next_temp = self.temperature
+                temp = nth_temp = self.temperature
             else:
-                log_temp, temp = self.temperature.value(curr_feat, action)
-                _, next_temp = self.temperature.value(next_feat, next_action)
+                log_temp, temp = self.temperature(curr_feat, action)
+                _, nth_temp = self.temperature(nth_feat, nth_action)
                 temp_loss = -tf.reduce_mean(log_temp 
                     * tf.stop_gradient(logpi + target_entropy))
                 terms['temp'] = temp
+                terms['temp_loss'] = temp_loss
 
-            q1 = self.q1.value(curr_feat, action)
-            q2 = self.q2.value(curr_feat, action)
+            q1 = self.q1(curr_feat, action)
+            q2 = self.q2(curr_feat, action)
 
             tf.debugging.assert_shapes(
                 [(q1, (None, self._batch_len - 1)), 
                 (q2, (None, self._batch_len - 1)), 
                 (logpi, (None, self._batch_len - 1)), 
                 (q_with_actor, (None, self._batch_len - 1)), 
-                (next_q_with_actor, (None, self._batch_len - 1))])
+                (nth_q_with_actor, (None, self._batch_len - 1))])
             
             actor_loss = tf.reduce_mean(tf.stop_gradient(temp) * logpi - q_with_actor)
 
-            target_q = n_step_target(reward, next_q_with_actor, discount, self._gamma)
+            nth_value = nth_q_with_actor - nth_temp * nth_logpi
+            target_q = n_step_target(reward, nth_value, discount, self._gamma)
             q1_error = target_q - q1
             q2_error = target_q - q2
 
@@ -221,6 +225,8 @@ class Agent(BaseAgent):
         model_norm = self._model_opt(model_tape, model_loss)
         actor_norm = self._actor_opt(ac_tape, actor_loss)
         value_norm = self._value_opt(ac_tape, value_loss)
+        if not isinstance(self.temperature, (float, tf.Variable)):
+            terms['temp_norm'] = self._temp_opt(ac_tape, temp_loss)
         
         terms.update(dict(
             prior_entropy=prior_dist.entropy(),
@@ -228,6 +234,7 @@ class Agent(BaseAgent):
             kl=kl,
             q1=q1,
             q2=q2,
+            logpi=logpi,
             **likelihoods,
             model_loss=model_loss,
             actor_loss=actor_loss,
@@ -242,33 +249,11 @@ class Agent(BaseAgent):
     
         return terms
 
-    def _imagine_ahead(self, post):
-        if hasattr(self, 'discount'):   # Omit the last step as it could be done
-            post = RSSMState(*[v[:, :-1] for v in post])
-        # we merge the time dimension into the batch dimension 
-        # since we treat each state as a starting state when imagining
-        flatten = lambda x: tf.reshape(x, [-1] + list(x.shape[2:]))
-        start = RSSMState(*[flatten(x) for x in post])
-        policy = lambda state: self.actor(
-            tf.stop_gradient(self.rssm.get_feat(state))).sample()
-        states = static_scan(
-            lambda prev_state, _: self.rssm.img_step(prev_state, policy(prev_state)),
-            start, tf.range(self._horizon)
-        )
-        imagined_features = self.rssm.get_feat(states)
-        return imagined_features
-
     def _image_summaries(self, obs, action, embed, image_pred):
         truth = obs[:6] + 0.5
-        recon = image_pred.mode()[:6]
-        init, _ = self.rssm.observe(embed[:6, :5], action[:6, :5])
-        init = RSSMState(*[v[:, -1] for v in init])
-        prior = self.rssm.imagine(action[:6, 5:], init)
-        openl = self.decoder(self.rssm.get_feat(prior)).mode()
-        # join the first 5 reconstructed images to the imagined subsequent images
-        model = tf.concat([recon[:, :5] + 0.5, openl + 0.5], 1)
-        error = (model - truth + 1) / 2
-        openl = tf.concat([truth, model, error], 2)
+        recon = image_pred.mode()[:6] + .5
+        error = (recon - truth + 1) / 2
+        openl = tf.concat([truth, recon, error], 2)
         self.graph_summary(video_summary, 'dreamer/comp', openl)
 
     @tf.function

@@ -158,7 +158,7 @@ class RSSM(Module):
 
 class Actor(Module):
     @config
-    def __init__(self, obs_shape, action_dim, is_action_discrete, name='actor'):
+    def __init__(self, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
 
         """ Network definition """
@@ -309,7 +309,7 @@ def create_model(config, obs_shape, action_dim, is_action_discrete):
         decoder=Decoder(decoder_config, out_dim=obs_shape[0]),
         reward=Decoder(reward_config, name='reward'),
         value=Decoder(value_config, name='value'),
-        actor=Actor(actor_config, obs_shape, action_dim, is_action_discrete)
+        actor=Actor(actor_config, action_dim, is_action_discrete)
     )
 
     if disc_config:

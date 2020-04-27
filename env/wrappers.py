@@ -1,11 +1,25 @@
-"""
-https://github.com/openai/baselines/blob/master/baselines/common/wrappers.py
-"""
 import numpy as np
 import gym
 
 
 from utility.utils import infer_dtype, convert_dtype
+
+
+class RewardHack:
+    def __init__(self, env, scale=1, clip=None):
+        self.env = env
+        self.reward_scale = scale
+        self.clip_reward = clip
+    
+    def __getattr__(self, name):
+        return getattr(self.env, name)
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        reward *= self.reward_scale
+        if self.clip_reward:
+            reward = np.clip(reward, -self.clip_reward, self.clip_reward)
+        return obs, reward, done, info
 
 
 class NormalizeActions:
@@ -156,13 +170,14 @@ class LogEpisode:
     def __getattr__(self, name):
         return getattr(self.env, name)
 
-    def reset(self):
+    def reset(self, **kwargs):
         obs = self.env.reset()
         transition = dict(
             obs=obs,
             action=np.zeros(self.env.action_space.shape, np.float32),
             reward=0.,
-            discount=1
+            discount=1, 
+            **kwargs
         )
         self._episode = [transition]
         return obs

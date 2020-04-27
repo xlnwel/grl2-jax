@@ -56,6 +56,6 @@ def main(env_config, model_config, agent_config, n, record=False):
 
     agent = Agent(name=algo, config=agent_config, models=models, env=env)
 
-    scores, epslens = evaluate(env, agent, n, record=record)
+    scores, epslens, video = evaluate(env, agent, n, record=record)
     pwc(f'After running 100 episodes',
         f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')

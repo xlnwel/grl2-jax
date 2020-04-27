@@ -17,7 +17,6 @@ class Actor(Module):
         super().__init__(name=name)
         self._dtype = global_policy().compute_dtype
 
-        # network parameters
         self._is_action_discrete = is_action_discrete
         
         out_dim = action_dim if is_action_discrete else 2*action_dim
@@ -57,7 +56,7 @@ class Actor(Module):
             action = tf.tanh(raw_action)
             if epsilon:
                 action = tf.clip_by_value(
-                    tfd.Normal(action, self._act_epsilon).sample(), -1, 1)
+                    tfd.Normal(action, epsilon).sample(), -1, 1)
 
         return action
 
@@ -68,6 +67,7 @@ class Actor(Module):
             dist = Categorical(x)
             action = dist.sample()
             logpi = dist.log_prob(action)
+            terms = {}
         else:
             mu, logstd = tf.split(x, 2, -1)
             logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
@@ -77,8 +77,9 @@ class Actor(Module):
             raw_logpi = dist.log_prob(raw_action)
             action = tf.tanh(raw_action)
             logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
+            terms = dict(raw_act_std=std)
 
-        terms = dict(entropy=dist.entropy())
+        terms['entropy']= dist.entropy()
 
         return action, logpi, terms
 
@@ -87,17 +88,12 @@ class SoftQ(Module):
     def __init__(self, name='q'):
         super().__init__(name=name)
 
-        """ Network definition """
         self._layers = mlp(self._units_list, 
                             out_dim=1,
                             norm=self._norm, 
                             activation=self._activation)
 
     def __call__(self, x, a):
-        return self.value(x, a)
-
-    @tf.function
-    def value(self, x, a):
         x = tf.concat([x, a], axis=-1)
         x = self._layers(x)
         x = tf.squeeze(x)
@@ -110,7 +106,7 @@ class Temperature(Module):
         super().__init__(name=name)
 
         self.temp_type = config['temp_type']
-        """ Network definition """
+
         if self.temp_type == 'state-action':
             self.intra_layer = layers.Dense(1)
         elif self.temp_type == 'variable':
@@ -118,11 +114,11 @@ class Temperature(Module):
         else:
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
     
-    def value(self, x, a):
+    def __call__(self, x, a):
         if self.temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
             x = self.intra_layer(x)
-            log_temp = -tf.nn.relu(x)
+            log_temp = -tf.nn.softplus(x)
             log_temp = tf.squeeze(log_temp)
         else:
             log_temp = self.log_temp

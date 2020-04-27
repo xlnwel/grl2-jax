@@ -11,7 +11,7 @@ from env.wrappers import *
 from env.atari import make_atari_env
 
 
-def _make_env(config):
+def make_env(config):
     config = config.copy()
     if 'atari' in config['name'].lower():
         # for atari games, we expect to following name convention 'atari_name'
@@ -31,7 +31,7 @@ def _make_env(config):
 
     return env
 
-def create_env(config, env_fn=_make_env, force_envvec=False):
+def create_env(config, env_fn=make_env, force_envvec=False):
     if force_envvec and config.get('n_workers', 1) <= 1:
         EnvType = EnvVec
     else:
@@ -54,7 +54,7 @@ class EnvVecBase:
 
 
 class Env:
-    def __init__(self, config, env_fn=_make_env):
+    def __init__(self, config, env_fn=make_env):
         self.env = env_fn(config)
         self.name = config['name']
         self.max_episode_steps = self.env.max_episode_steps
@@ -63,9 +63,9 @@ class Env:
     def __getattr__(self, name):
         return getattr(self.env, name)
 
-    def reset(self, idxes=None):
+    def reset(self, idxes=None, **kwargs):
         assert idxes is None or idxes == 0, idxes
-        return self.env.reset()
+        return self.env.reset(**kwargs)
 
     @property
     def n_envs(self):
@@ -106,7 +106,7 @@ class Env:
         return img
 
 class EnvVec(EnvVecBase):
-    def __init__(self, config, env_fn=_make_env):
+    def __init__(self, config, env_fn=make_env):
         self.n_envs = n_envs = config['n_envs']
         self.name = config['name']
         self.envs = [env_fn(config) for i in range(n_envs)]
@@ -122,14 +122,18 @@ class EnvVec(EnvVecBase):
     def random_action(self, *args, **kwargs):
         return np.array([env.action_space.sample() for env in self.envs], copy=False)
 
-    def reset(self, idxes=None):
+    def reset(self, idxes=None, **kwargs):
+        for k, v in kwargs.items():
+            if isscalar(v):
+                kwargs[k] = np.tile(v, self.n_envs)
+        kwargs = [dict(x) for x in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
         if idxes is None:
-            obs = [env.reset() for env in self.envs]
+            obs = [env.reset(**kw) for env, kw in zip(self.envs, kwargs)]
             return self._convert_batch_obs(obs)
         else:
             if not isinstance(idxes, (list, tuple)):
                 idxes = [idxes]
-            return [self.envs[i].reset() for i in idxes]
+            return [self.envs[i].reset(**kw) for i, kw in zip(idxes, kwargs)]
     
     def step(self, actions, **kwargs):
         obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
@@ -178,9 +182,10 @@ class EnvVec(EnvVecBase):
 
 class EfficientEnvVec(EnvVec):
     """ Designed for evaluation only """
-    def reset(self, idxes=None):
+    def reset(self, idxes=None, **kwargs):
+        assert idxes is None, idxes
         self.valid_envs = self.envs
-        return super().reset(idxes)
+        return super().reset(**kwargs)
 
     def random_action(self):
         return [env.action_space.sample() for env in self.valid_envs]
@@ -203,7 +208,7 @@ class EfficientEnvVec(EnvVec):
 
 
 class RayEnvVec(EnvVecBase):
-    def __init__(self, EnvType, config, env_fn=_make_env):
+    def __init__(self, EnvType, config, env_fn=make_env):
         self.name = config['name']
         self.n_workers= config['n_workers']
         self.envsperworker = config['n_envs']
@@ -241,7 +246,7 @@ class RayEnvVec(EnvVecBase):
         actions = np.squeeze(actions.reshape(self.n_workers, self.envsperworker, *self.action_shape))
         if kwargs:
             kwargs = dict([(k, np.squeeze(v.reshape(self.n_workers, self.envsperworker, -1))) for k, v in kwargs.items()])
-            kwargs = [dict(v) for v in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
+            kwargs = [dict(x) for x in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
             obs, reward, done, info = zip(*ray.get([env.step.remote(a, **kw) for env, a, kw in zip(self.envs, actions, kwargs)]))
         else:
             obs, reward, done, info = zip(*ray.get([env.step.remote(a) for env, a in zip(self.envs, actions)]))
@@ -282,13 +287,13 @@ class RayEnvVec(EnvVecBase):
 
     def close(self):
         del self
-    
+
 def _envvec_step(envvec, actions, **kwargs):
     if kwargs:
         for k, v in kwargs.items():
             if isscalar(v):
                 kwargs[k] = np.tile(v, actions.shape[0])
-        kwargs = [dict(v) for v in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
+        kwargs = [dict(x) for x in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
         return zip(*[env.step(a, **kw) for env, a, kw in zip(envvec, actions, kwargs)])
     else:
         return zip(*[env.step(a) for env, a in zip(envvec, actions)])

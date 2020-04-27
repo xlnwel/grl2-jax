@@ -40,7 +40,7 @@ def main(env_config, model_config, agent_config, n, record=False):
     ckpt.restore(path).expect_partial()
     if path:
         pwc(f'Params are restored from "{path}".', color='cyan')
-        scores, epslens = evaluate(env, actor, n, record=record)
+        scores, epslens, video = evaluate(env, actor, n, record=record)
         pwc(f'After running {n_envs} episodes:',
             f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
     else:

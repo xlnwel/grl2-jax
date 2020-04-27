@@ -32,6 +32,7 @@ class Agent(BaseAgent):
         self._ckpt_models['q_opt'] = self._q_opt
 
         if isinstance(self.temperature, float):
+            # convert to variable, useful for scheduling
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
             if getattr(self, '_schedule_lr', False):
@@ -90,26 +91,27 @@ class Agent(BaseAgent):
         old_action = action
         with tf.GradientTape(persistent=True) as tape:
             action, logpi, terms = self.actor.train_step(obs)
-            q1_with_actor = self.q1.value(obs, action)
-            q2_with_actor = self.q2.value(obs, action)
+            q1_with_actor = self.q1(obs, action)
+            q2_with_actor = self.q2(obs, action)
             q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
 
             nth_action, nth_logpi, _ = self.actor.train_step(nth_obs)
-            nth_q1_with_actor = self.target_q1.value(nth_obs, nth_action)
-            nth_q2_with_actor = self.target_q2.value(nth_obs, nth_action)
+            nth_q1_with_actor = self.target_q1(nth_obs, nth_action)
+            nth_q2_with_actor = self.target_q2(nth_obs, nth_action)
             nth_q_with_actor = tf.minimum(nth_q1_with_actor, nth_q2_with_actor)
             
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = nth_temp = self.temperature
             else:
-                log_temp, temp = self.temperature.value(obs, action)
-                _, nth_temp = self.temperature.value(nth_obs, nth_action)
+                log_temp, temp = self.temperature(obs, action)
+                _, nth_temp = self.temperature(nth_obs, nth_action)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
                     * tf.stop_gradient(logpi + target_entropy))
                 terms['temp'] = temp
+                terms['temp_loss'] = temp_loss
 
-            q1 = self.q1.value(obs, old_action)
-            q2 = self.q2.value(obs, old_action)
+            q1 = self.q1(obs, old_action)
+            q2 = self.q2(obs, old_action)
 
             tf.debugging.assert_shapes(
                 [(IS_ratio, (None,)),
@@ -145,6 +147,7 @@ class Agent(BaseAgent):
             actor_loss=actor_loss,
             q1=q1, 
             q2=q2,
+            logpi=logpi,
             target_q=target_q,
             q1_loss=q1_loss, 
             q2_loss=q2_loss,

@@ -49,7 +49,7 @@ def train(agent, env, eval_env, buffer, run):
             if agent._algorithm >= 'ppo2':
                 state = agent.state
                 
-            scores, epslens = evaluate(eval_env, agent)
+            scores, epslens, video = evaluate(eval_env, agent)
             agent.store(eval_score=scores, eval_epslen=np.mean(epslens))
 
             agent.log(step)

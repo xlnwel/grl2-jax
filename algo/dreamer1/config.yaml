@@ -16,6 +16,8 @@ model:
     reward:
         units_list: [400, 400]
         activation: elu
+    decoder:
+        has_cnn: True
     actor:
         units_list: [400, 400, 400, 400]
         activation: elu
@@ -23,10 +25,10 @@ model:
         min_std: 1.e-4
         mean_scale: 5
     value:
-        units_list: [400, 400, 400]
+        units_list: [400, 400, 400, 400]
         activation: elu
-    decoder:
-        has_cnn: True
+    temperature:
+        temp_type: variable
     # uncomment the following code for atari games
     # discount:
     #     units_list: [400, 400, 400]
@@ -72,6 +74,7 @@ agent:
     model_lr: 6.e-4
     actor_lr: 8.e-5
     value_lr: 8.e-5
+    temp_lr: 3.e-4
 
 replay:
     type: episodic                      # proportional or uniform
@@ -81,3 +84,4 @@ replay:
     batch_len: *bl
     max_episodes: 800
     min_episodes: 5
+    save: False

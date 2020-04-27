@@ -1,6 +1,6 @@
 ---
 env:
-    name: dmc_walker_run
+    name: dmc_walker_walk
     log_episode: True
     n_envs: 1
     frame_skip: 2
@@ -16,6 +16,8 @@ model:
     reward:
         units_list: [400, 400]
         activation: elu
+    decoder:
+        has_cnn: True
     actor:
         units_list: [400, 400, 400, 400]
         activation: elu
@@ -25,15 +27,12 @@ model:
     value:
         units_list: [400, 400, 400]
         activation: elu
-    decoder:
-        has_cnn: True
-    # uncomment the following code for atari games
+    # uncomment the following code for games with terminal steps
     # discount:
     #     units_list: [400, 400, 400]
     #     activation: elu
 agent:
     algorithm: &algo dreamer
-    polyak: .995
     batch_size: &bs 50
 
     # These params are not supported here, see seed1
@@ -81,4 +80,4 @@ replay:
     batch_len: *bl
     max_episodes: 800
     min_episodes: 5
-    save: False
+    save: True

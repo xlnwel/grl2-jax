@@ -37,12 +37,9 @@ def main(env_config, model_config, agent_config, n, record=False):
                 env=env)
 
 
-    results = evaluate(env, agent, n, record=record)
+    scores, epslens, video = evaluate(env, agent, n, record=record)
     if record:
-        scores, epslens, video = results
-        save_video('q', video)
-    else:
-        scores, epslens, = results
+        save_video(f'{agent.name}', video)
     
     pwc(f'After running {n} episodes',
         f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')

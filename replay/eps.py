@@ -31,7 +31,7 @@ class EpisodicReplay:
         timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
         for eps in episodes:
             if self._batch_len and len(next(iter(eps.values()))) < self._batch_len + 1:
-                continue
+                continue    # ignore short episodes
             identifier = str(uuid.uuid4().hex)
             length = len(eps['reward'])
             filename = self._dir / f'{timestamp}-{identifier}-{length}.npz'
@@ -39,7 +39,8 @@ class EpisodicReplay:
             if self._save:
                 with filename.open('wb') as f1:
                     np.savez_compressed(f1, **eps)
-        self._remove_files()
+        if self._save:
+            self._remove_files()
 
     def count_episodes(self):
         """ count the total number of episodes and transitions in the directory """

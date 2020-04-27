@@ -10,7 +10,7 @@ def run(env, agent, step, *, obs=None, fn=None, nsteps=None):
         obs = env.reset()
     frame_skip = getattr(env, 'frame_skip', 1)
     frames_per_step = env.n_envs * frame_skip
-    nsteps = nsteps or env.max_episode_steps // frame_skip
+    nsteps = (nsteps or env.max_episode_steps) // frame_skip
     for _ in range(nsteps):
         action = agent(obs, deterministic=False)
         next_obs, reward, done, _ = env.step(action)
@@ -71,4 +71,4 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
             imgs = np.stack(imgs, axis=1)
         return scores, epslens, imgs
     else:
-        return scores, epslens
+        return scores, epslens, None

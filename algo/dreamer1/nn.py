@@ -169,62 +169,55 @@ class Actor(Module):
         out_dim = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(self._units_list, 
                             out_dim=out_dim,
-                            norm=self._norm, 
                             activation=self._activation)
-    
-    def __call__(self, x, deterministic=False, epsilon=0):
-        x = tf.convert_to_tensor(x, self._dtype)
-        x = tf.reshape(x, [-1, tf.shape(x)[-1]])
-        deterministic = tf.convert_to_tensor(deterministic, tf.bool)
 
-        action = self.action(x, deterministic, epsilon)
-        action = np.squeeze(action.numpy())
-
-        return action
-
-    @tf.function(experimental_relax_shapes=True)
     def action(self, x, deterministic=False, epsilon=0):
-        x = self._layers(x)
+        dist, _ = self(x)
 
-        if self._is_action_discrete:
-            dist = tfd.Categorical(logits=x)
-            action = dist.mode() if deterministic else dist.sample()
-            if epsilon:
+        action = dist.mode() if deterministic else dist.sample()
+        if epsilon:
+            if self._is_action_discrete:
                 rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
                 action = tf.where(
                     tf.random.uniform(action.shape[:1], 0, 1) < epsilon,
                     rand_act, action)
-        else:
-            mu, logstd = tf.split(x, 2, -1)
-            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-            std = tf.exp(logstd)
-            dist = tfd.MultivariateNormalDiag(mu, std)
-            raw_action = dist.mode() if deterministic else dist.sample()
-            action = tf.tanh(raw_action)
-            if epsilon:
+            else:
                 action = tf.clip_by_value(
-                    tfd.Normal(action, self._act_epsilon).sample(), -1, 1)
+                    tfd.Normal(action, epsilon).sample(), -1, 1)
 
         return action
 
     def train_step(self, x):
+        dist, terms = self(x)
+
+        action = dist.sample()
+        logpi = dist.log_prob(action)
+
+        return action, logpi, terms
+
+    def __call__(self, x):
         x = self._layers(x)
 
         if self._is_action_discrete:
             dist = Categorical(x)
-            action = dist.sample()
-            logpi = dist.log_prob(action)
+            terms = dict(
+                entropy=dist.entropy()
+            )
         else:
-            mu, logstd = tf.split(x, 2, -1)
-            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-            std = tf.exp(logstd)
-            dist = tfd.MultivariateNormalDiag(mu, std)
-            raw_action = dist.sample()
-            raw_logpi = dist.log_prob(raw_action)
-            action = tf.tanh(raw_action)
-            logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
+            raw_init_std = np.log(np.exp(self._init_std) - 1)
+            mean, std = tf.split(x, 2, -1)
+            mean = self._mean_scale * tf.tanh(mean / self._mean_scale)
+            std = tf.nn.softplus(std + raw_init_std) + self._min_std
+            dist = tfd.Normal(mean, std)
+            dist = tfd.TransformedDistribution(dist, TanhBijector())
+            dist = tfd.Independent(dist, 1)
+            dist = SampleDist(dist)
+            terms = dict(
+                raw_act_std=std,
+                entropy=dist.entropy()
+            )
 
-        terms = dict(entropy=dist.entropy())
+        return dist, terms
 
 
 class SoftQ(Module):
@@ -232,21 +225,16 @@ class SoftQ(Module):
     def __init__(self, name='q'):
         super().__init__(name=name)
 
-        """ Network definition """
         self._layers = mlp(self._units_list, 
                             out_dim=1,
-                            norm=self._norm, 
                             activation=self._activation)
 
+    @tf.Module.with_name_scope
     def __call__(self, x, a):
-        return self.value(x, a)
-
-    @tf.function
-    def value(self, x, a):
         x = tf.concat([x, a], axis=-1)
         x = self._layers(x)
         x = tf.squeeze(x)
-            
+
         return x
 
 
@@ -263,18 +251,17 @@ class Temperature(Module):
         else:
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
     
-    def value(self, x, a):
+    def __call__(self, x, a):
         if self.temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
             x = self.intra_layer(x)
-            log_temp = -tf.nn.relu(x)
+            log_temp = -tf.nn.softplus(x)
             log_temp = tf.squeeze(log_temp)
         else:
             log_temp = self.log_temp
         temp = tf.exp(log_temp)
     
         return log_temp, temp
-
 
 
 class Encoder(Module):
@@ -387,7 +374,7 @@ def create_model(config, obs_shape, action_dim, is_action_discrete):
     decoder_config = config['decoder']
     reward_config = config['reward']
     actor_config = config['actor']
-    q_config = config['q']
+    value_config = config['value']
     temperature_config = config['temperature']
     disc_config = config.get('discount')  # pcont in the original implementation
     if temperature_config['temp_type'] == 'constant':
@@ -399,11 +386,11 @@ def create_model(config, obs_shape, action_dim, is_action_discrete):
         rssm=RSSM(rssm_config),
         decoder=Decoder(decoder_config, out_dim=obs_shape[0]),
         reward=Decoder(reward_config, name='reward'),
-        actor=Actor(actor_config, obs_shape, action_dim, is_action_discrete),
-        q1=SoftQ(q_config, 'q1'),
-        q2=SoftQ(q_config, 'q2'),
-        target_q1=SoftQ(q_config, 'target_q1'),
-        target_q2=SoftQ(q_config, 'target_q2'),
+        actor=Actor(actor_config, action_dim, is_action_discrete),
+        q1=SoftQ(value_config, 'q1'),
+        q2=SoftQ(value_config, 'q2'),
+        target_q1=SoftQ(value_config, 'target_q1'),
+        target_q2=SoftQ(value_config, 'target_q2'),
         temperature=temperature
     )
 
