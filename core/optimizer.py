@@ -20,7 +20,9 @@ class Optimizer(tf.Module):
         self._opt = select_optimizer(name)(lr, **kwargs)
         # useful for mixed precision training on GPUs to
         # avoid numerical underflow caused by using float16 gradients
-        if prec.global_policy().should_cast_variables:
+        self._mpt = prec.global_policy().should_cast_variables
+        if self._mpt:
+            print('Mixed precision training will be performed')
             self._opt = prec.LossScaleOptimizer(self._opt, 'dynamic')
         self._variables = None
 
@@ -33,11 +35,11 @@ class Optimizer(tf.Module):
             variables = [m.trainable_variables for m in self._models]
             self._variables = tf.nest.flatten(variables)
         assert len(loss.shape) == 0, loss.shape
-        if prec.global_policy().should_cast_variables:
+        if self._mpt:
             with tape:
                 loss = self._opt.get_scaled_loss(loss)
         grads = tape.gradient(loss, self._variables)
-        if prec.global_policy().should_cast_variables:
+        if self._mpt:
             grads = self._opt.get_unscaled_gradients(grads)
         norm = tf.linalg.global_norm(grads)
         if self._clip_norm:

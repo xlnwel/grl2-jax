@@ -1,6 +1,6 @@
 ---
 env:
-    name: dmc_walker_run
+    name: dmc_walker_walk
     log_episode: True
     n_envs: 1
     frame_skip: 2
@@ -27,25 +27,25 @@ model:
         min_std: 1.e-4
         mean_scale: 5
     value:
-        units_list: [400, 400, 400, 400]
+        units_list: [400, 400, 400]
         activation: elu
     temperature:
-        temp_type: variable
+        temp_type: constant
         value: .01
     # uncomment the following code for atari games
     # discount:
     #     units_list: [400, 400, 400]
     #     activation: elu
 agent:
-    algorithm: &algo dreamer1
+    algorithm: &algo dreamer2
     polyak: .995
     batch_size: &bs 50
 
     # These params are not supported here, see seed1
-    store_state: False
-    burn_in: False
-    batch_len: &bl 50
-    burn_in_len: 20
+    store_state: True
+    burn_in: True
+    batch_len: &bl 90
+    burn_in_len: 40
 
     MAX_STEPS: 5.e+6
     LOG_INTERVAL: 1000
@@ -62,7 +62,7 @@ agent:
     horizon: 15
     gamma: &gamma 0.99
     lambda: .95
-    act_epsilon: .3
+    # act_epsilon: .3
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -88,3 +88,4 @@ replay:
     max_episodes: 800
     min_episodes: 5
     save: True
+    

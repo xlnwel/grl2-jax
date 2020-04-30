@@ -20,23 +20,29 @@ from run import pkg
 
 def run(env, agent, step, obs=None, 
     already_done=None, fn=None, nsteps=0, evaluation=False):
+    if agent._store_state:
+        reset_terms = dict(logpi=0, 
+            **tf.nest.map_structure(lambda x: x.numpy(), 
+                agent.rssm.get_initial_state(batch_size=1)._asdict()))
+    else:
+        reset_terms = dict(logpi=0)
     if obs is None:
-        obs = env.reset()
+        obs = env.reset(**reset_terms)
     if already_done is None:
         already_done = env.already_done()
     frame_skip = getattr(env, 'frame_skip', 1)
     frames_per_step = env.n_envs * frame_skip
     nsteps = (nsteps or env.max_episode_steps) // frame_skip
     for _ in range(nsteps):
-        action = agent(obs, already_done, deterministic=evaluation)
-        obs, reward, done, info = env.step(action)
+        action, terms = agent(obs, already_done, deterministic=evaluation)
+        obs, reward, done, info = env.step(action, **terms)
         already_done = env.already_done()
         step += frames_per_step
         if fn:
             fn(already_done, info)
         if np.any(already_done):
             idxes = [i for i, d in enumerate(already_done) if d]
-            new_obs = env.reset(idxes)
+            new_obs = env.reset(idxes, **reset_terms)
             for i, o in zip(idxes, new_obs):
                 obs[i] = o
 
@@ -62,7 +68,7 @@ def train(agent, env, eval_env, replay):
     obs, already_done = None, None
     while not replay.good_to_learn():
         obs, already_done, nstep= run(
-            env, env.random_action, step, obs, already_done, collect_log)
+            env, agent, step, obs, already_done, collect_log)
         
     to_log = Every(agent.LOG_INTERVAL)
     to_eval = Every(agent.EVAL_INTERVAL)
@@ -77,8 +83,8 @@ def train(agent, env, eval_env, replay):
         if to_eval(step):
             train_state, train_action = agent.retrieve_states()
 
-            score, epslen, video = evaluate(eval_env, agent, record=False, size=(64, 64))
-            # video_summary(f'{agent.name}/sim', video, step)
+            score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
+            video_summary(f'{agent.name}/sim', video, step)
             agent.store(eval_score=score, eval_epslen=epslen)
             
             agent.reset_states(train_state, train_action)
@@ -97,28 +103,11 @@ def get_data_format(env, batch_size, batch_len=None):
         action=DataFormat((batch_size, batch_len, *env.action_shape), dtype),
         reward=DataFormat((batch_size, batch_len), dtype), 
         discount=DataFormat((batch_size, batch_len), dtype),
+        logpi=DataFormat((batch_size, batch_len), dtype)
     )
     return data_format
 
 def main(env_config, model_config, agent_config, replay_config):
-    algo = agent_config['algorithm']
-    env = env_config['name']
-    if 'atari' not in env \
-        and 'dmc' not in env:
-        from run.pkg import get_package
-        from utility import yaml_op
-        root_dir = agent_config['root_dir']
-        model_name = agent_config['model_name']
-        directory = get_package(algo, 0, '/')
-        config = yaml_op.load_config(f'{directory}/config2.yaml')
-        env_config = config['env']
-        model_config = config['model']
-        agent_config = config['agent']
-        replay_config = config['replay']
-        agent_config['root_dir'] = root_dir
-        agent_config['model_name'] = model_name
-        env_config['name'] = env
-
     silence_tf_logs()
     configure_gpu()
     configure_precision(env_config['precision'])
@@ -132,9 +121,6 @@ def main(env_config, model_config, agent_config, replay_config):
     eval_env_config = env_config.copy()
     eval_env_config['n_envs'] = 1
     eval_env_config['n_workers'] = 1
-    eval_env_config['log_episode'] = False
-    if 'reward_hack' in eval_env_config:
-        del eval_env_config['reward_hack']
     eval_env = create_env(eval_env_config, make_env)
 
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')

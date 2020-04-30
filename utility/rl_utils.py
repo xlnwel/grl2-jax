@@ -26,7 +26,7 @@ def logpi_correction(action, logpi, is_action_squashed):
     return logpi
 
 def n_step_target(reward, nth_value, discount=1., gamma=1., steps=1.):
-    return tf.stop_gradient(reward + discount * gamma**steps * nth_value)
+    return reward + discount * gamma**steps * nth_value
 
 def h(x, epsilon=1e-2):
     """h function defined in Ape-X DQfD"""
@@ -41,15 +41,16 @@ def inverse_h(x, epsilon=1e-2):
 
 def transformed_n_step_target(reward, nth_value, discount=1., gamma=1., steps=1.):
     """Transformed Bellman operator defined in Ape-X DQfD"""
-    return tf.stop_gradient(h(reward + discount * gamma**steps * inverse_h(nth_value)))
+    return h(reward + discount * gamma**steps * inverse_h(nth_value))
 
-def lambda_return(reward, value, discount, bootstrap, lambda_, axis=0):
+def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
     """
-    discount includes the done signal if there is any
+    discount includes the done signal if there is any.
+    axis specifies the time dimension
     """
     if isinstance(discount, (int, float)):
         discount = discount * tf.ones_like(reward)
-    # used to swap axis with the 0-th dimension
+    # swap axis with the 0-th dimension
     dims = list(range(reward.shape.ndims))
     dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
     if axis != 0:
@@ -63,9 +64,41 @@ def lambda_return(reward, value, discount, bootstrap, lambda_, axis=0):
     inputs = reward + discount * next_values * (1 - lambda_)
     # lambda function computes lambda return starting from the end
     returns = static_scan(
-        lambda agg, cur: cur[0] + cur[1] * lambda_ * agg,
+        lambda acc, cur: cur[0] + cur[1] * lambda_ * acc,
         bootstrap, (inputs, discount), reverse=True
     )
     if axis != 0:
          returns = tf.transpose(returns, dims)
     return returns
+
+def retrace_lambda(reward, q, next_value, log_ratio, discount, lambda_=1, ratio_clip=1, axis=0):
+    """
+    All inputs are expected to be time-major.
+    """
+    # swap axis with the 0-th dimension
+    dims = list(range(reward.shape.ndims))
+    dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
+    if axis != 0:
+        reward = tf.transpose(reward, dims)
+        q = tf.transpose(q, dims)
+        next_value = tf.transpose(next_value, dims)
+        log_ratio = tf.transpose(log_ratio, dims)
+        discount = tf.transpose(discount, dims)
+
+    ratio = tf.exp(log_ratio)
+    if ratio_clip is not None:
+        ratio = tf.minimum(ratio, ratio_clip)
+    ratio *= lambda_
+    delta = reward + discount * next_value - q
+
+    diff = static_scan(
+        lambda acc, x: x[0] + x[1] * x[2] * acc,
+        tf.zeros_like(reward[0]), (delta, discount, ratio), 
+        reverse=True
+    )
+    target_q = q + diff
+
+    if axis != 0:
+        target_q = tf.transpose(target_q, dims)
+
+    return target_q

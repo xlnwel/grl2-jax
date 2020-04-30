@@ -9,6 +9,7 @@ from core.tf_config import build
 from core.module import Module
 from core.decorator import config
 from utility.tf_utils import static_scan
+from utility.rl_utils import logpi_correction
 from utility.tf_distributions import Categorical, OneHotDist, TanhBijector, SampleDist
 from nn.func import mlp
 from nn.block.cnn import convert_obs
@@ -193,6 +194,32 @@ class Actor(Module):
         return dist, terms
 
 
+class Temperature(Module):
+    def __init__(self, config, name='temperature'):
+        super().__init__(name=name)
+
+        self.temp_type = config['temp_type']
+
+        if self.temp_type == 'state-action':
+            self.intra_layer = layers.Dense(1)
+        elif self.temp_type == 'variable':
+            self.log_temp = tf.Variable(0., dtype=global_policy().compute_dtype)
+        else:
+            raise NotImplementedError(f'Error temp type: {self.temp_type}')
+    
+    def __call__(self, x, a):
+        if self.temp_type == 'state-action':
+            x = tf.concat([x, a], axis=-1)
+            x = self.intra_layer(x)
+            log_temp = -tf.nn.softplus(x)
+            log_temp = tf.squeeze(log_temp)
+        else:
+            log_temp = self.log_temp
+        temp = tf.exp(log_temp)
+    
+        return log_temp, temp
+
+
 class Encoder(Module):
     @config
     def __init__(self, name='encoder'):
@@ -302,16 +329,25 @@ def create_model(config, obs_shape, action_dim, is_action_discrete):
     rssm_config = config['rssm']
     decoder_config = config['decoder']
     reward_config = config['reward']
-    value_config = config['value']
     actor_config = config['actor']
+    value_config = config['value']
+    temperature_config = config['temperature']
     disc_config = config.get('discount')  # pcont in the original implementation
+    if temperature_config['temp_type'] == 'constant':
+        temperature = temperature_config['value']
+    else:
+        temperature = Temperature(temperature_config)
     models = dict(
         encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),
         decoder=Decoder(decoder_config, out_dim=obs_shape[0]),
         reward=Decoder(reward_config, name='reward'),
-        value=Decoder(value_config, name='value'),
-        actor=Actor(actor_config, action_dim, is_action_discrete)
+        actor=Actor(actor_config, action_dim, is_action_discrete),
+        q1=Decoder(value_config, name='q1'),
+        q2=Decoder(value_config, name='q2'),
+        target_q1=Decoder(value_config, name='target_q1'),
+        target_q2=Decoder(value_config, name='target_q2'),
+        temperature=temperature
     )
 
     if disc_config:

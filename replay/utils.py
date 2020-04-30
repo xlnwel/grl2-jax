@@ -20,7 +20,9 @@ def init_buffer(buffer, pre_dims, has_steps=False, precision=32, **kwargs):
 
 def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
     for k in buffer.keys():
-        if k != 'steps':
+        if k == 'steps':
+            buffer[k][idx] = 1
+        else:
             buffer[k][idx] = kwargs[k]
 
     # Update previous experience if multi-step is required

@@ -131,7 +131,7 @@ class EnvStats:
         return self._already_done
 
     def game_over(self):
-        return getattr(self, 'was_real_done', self._already_done)
+        return getattr(self, '_game_over', self._already_done)
 
     @property
     def is_action_discrete(self):

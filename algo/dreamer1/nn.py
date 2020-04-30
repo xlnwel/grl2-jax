@@ -163,61 +163,54 @@ class Actor(Module):
         super().__init__(name=name)
         self._dtype = global_policy().compute_dtype
 
-        # network parameters
         self._is_action_discrete = is_action_discrete
         
         out_dim = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(self._units_list, 
                             out_dim=out_dim,
                             activation=self._activation)
+    
+    def __call__(self, x, deterministic=False, epsilon=0):
+        x = tf.convert_to_tensor(x, self._dtype)
+        x = tf.reshape(x, [-1, tf.shape(x)[-1]])
+        deterministic = tf.convert_to_tensor(deterministic, tf.bool)
+
+        action = self.action(x, deterministic, epsilon)
+        action = np.squeeze(action.numpy())
+
+        return action
 
     def action(self, x, deterministic=False, epsilon=0):
-        dist, _ = self(x)
+        x = self._layers(x)
 
-        action = dist.mode() if deterministic else dist.sample()
+        mu, logstd = tf.split(x, 2, -1)
+        logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+        std = tf.exp(logstd)
+        dist = tfd.MultivariateNormalDiag(mu, std)
+        raw_action = dist.sample()
+        action = tf.tanh(raw_action)
         if epsilon:
-            if self._is_action_discrete:
-                rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
-                action = tf.where(
-                    tf.random.uniform(action.shape[:1], 0, 1) < epsilon,
-                    rand_act, action)
-            else:
-                action = tf.clip_by_value(
-                    tfd.Normal(action, epsilon).sample(), -1, 1)
+            action = tf.clip_by_value(
+                tfd.Normal(action, epsilon).sample(), -1, 1)
 
         return action
 
     def train_step(self, x):
-        dist, terms = self(x)
-
-        action = dist.sample()
-        logpi = dist.log_prob(action)
-
-        return action, logpi, terms
-
-    def __call__(self, x):
         x = self._layers(x)
 
-        if self._is_action_discrete:
-            dist = Categorical(x)
-            terms = dict(
-                entropy=dist.entropy()
-            )
-        else:
-            raw_init_std = np.log(np.exp(self._init_std) - 1)
-            mean, std = tf.split(x, 2, -1)
-            mean = self._mean_scale * tf.tanh(mean / self._mean_scale)
-            std = tf.nn.softplus(std + raw_init_std) + self._min_std
-            dist = tfd.Normal(mean, std)
-            dist = tfd.TransformedDistribution(dist, TanhBijector())
-            dist = tfd.Independent(dist, 1)
-            dist = SampleDist(dist)
-            terms = dict(
-                raw_act_std=std,
-                entropy=dist.entropy()
-            )
+        mu, logstd = tf.split(x, 2, -1)
+        logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+        std = tf.exp(logstd)
+        dist = tfd.MultivariateNormalDiag(mu, std)
+        raw_action = dist.sample()
+        raw_logpi = dist.log_prob(raw_action)
+        action = tf.tanh(raw_action)
+        logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
+        terms = dict(raw_act_std=std, action_entropy=dist.entropy())
 
-        return dist, terms
+        terms['action_entropy']= dist.entropy()
+
+        return action, logpi, terms
 
 
 class SoftQ(Module):
@@ -243,7 +236,7 @@ class Temperature(Module):
         super().__init__(name=name)
 
         self.temp_type = config['temp_type']
-        """ Network definition """
+
         if self.temp_type == 'state-action':
             self.intra_layer = layers.Dense(1)
         elif self.temp_type == 'variable':

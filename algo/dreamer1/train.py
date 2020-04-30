@@ -24,12 +24,14 @@ def run(env, agent, step, obs=None,
         obs = env.reset()
     if already_done is None:
         already_done = env.already_done()
-    nsteps = nsteps or env.max_episode_steps
-    for k in range(env.frame_skip, nsteps + env.frame_skip, env.frame_skip):
+    frame_skip = getattr(env, 'frame_skip', 1)
+    frames_per_step = env.n_envs * frame_skip
+    nsteps = (nsteps or env.max_episode_steps) // frame_skip
+    for _ in range(nsteps):
         action = agent(obs, already_done, deterministic=evaluation)
         obs, reward, done, info = env.step(action)
         already_done = env.already_done()
-        step += env.n_envs
+        step += frames_per_step
         if fn:
             fn(already_done, info)
         if np.any(already_done):
@@ -41,6 +43,7 @@ def run(env, agent, step, obs=None,
     return obs, already_done, step
 
 def train(agent, env, eval_env, replay):
+    frame_skip = getattr(env, 'frame_skip', 1)
     def collect_log(already_done, info):
         if np.any(already_done):
             episodes, scores, epslens = [], [], []
@@ -49,7 +52,7 @@ def train(agent, env, eval_env, replay):
                     eps = info[i]['episode']
                     episodes.append(eps)
                     scores.append(np.sum(eps['reward']))
-                    epslens.append(env.frame_skip*(eps['reward'].size-1))
+                    epslens.append(frame_skip*(eps['reward'].size-1))
             agent.store(score=scores, epslen=epslens)
             replay.merge(episodes)
     _, step = replay.count_episodes()
@@ -70,16 +73,17 @@ def train(agent, env, eval_env, replay):
         agent.learn_log(step)
         obs, already_done, step = run(
             env, agent, step, obs, already_done, collect_log, nsteps)
+        duration = time.time() - start_t
         if to_eval(step):
             train_state, train_action = agent.retrieve_states()
 
-            score, epslen = evaluate(eval_env, agent)
-            video_summary(f'{agent.name}/sim', eval_env.prev_episode['obs'], step)
+            score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
+            video_summary(f'{agent.name}/sim', video, step)
             agent.store(eval_score=score, eval_epslen=epslen)
             
             agent.reset_states(train_state, train_action)
         if to_log(step):
-            agent.store(fps=(step-start_step)/(time.time()-start_t))
+            agent.store(fps=(step-start_step)/duration, duration=duration)
             agent.log(step)
             agent.save(steps=step)
 

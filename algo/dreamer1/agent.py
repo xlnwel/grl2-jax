@@ -6,7 +6,7 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 from utility.utils import AttrDict, Every
-from utility.rl_utils import lambda_return, n_step_target
+from utility.rl_utils import n_step_target
 from utility.tf_utils import static_scan
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from utility.graph import video_summary
@@ -44,7 +44,8 @@ class Agent(BaseAgent):
         self._ckpt_models['value_opt'] = self._value_opt
 
         if isinstance(self.temperature, float):
-            self.temperature = tf.Variable(self.temperature, trainable=False)
+            self.temperature = tf.Variable(
+                self.temperature, trainable=False, dtype=self._dtype)
         else:
             self._temp_opt = DreamerOpt(models=self.temperature, lr=self._temp_lr)
             self._ckpt_models['temp_opt'] = self._temp_opt
@@ -70,7 +71,8 @@ class Agent(BaseAgent):
         if self._store_state:
             state_size = self.rssm.state_size
             TensorSpecs['state'] = (RSSMState(
-               *[((sz, ), self._dtype, name) for name, sz in zip(RSSMState._fields, state_size)]
+               *[((sz, ), self._dtype, name) 
+               for name, sz in zip(RSSMState._fields, state_size)]
             ))
 
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
@@ -173,7 +175,7 @@ class Agent(BaseAgent):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
         curr_feat = feature[:, :-1]
         nth_feat = feature[:, 1:]
-        action = action[:, :-1]
+        curr_action = action[:, :-1]
         reward = reward[:, :-1]
         discount = discount[:, :-1]
         with tf.GradientTape(persistent=True) as ac_tape:
@@ -190,15 +192,15 @@ class Agent(BaseAgent):
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = nth_temp = self.temperature
             else:
-                log_temp, temp = self.temperature(curr_feat, action)
+                log_temp, temp = self.temperature(curr_feat, curr_action)
                 _, nth_temp = self.temperature(nth_feat, nth_action)
                 temp_loss = -tf.reduce_mean(log_temp 
                     * tf.stop_gradient(logpi + target_entropy))
                 terms['temp'] = temp
                 terms['temp_loss'] = temp_loss
 
-            q1 = self.q1(curr_feat, action)
-            q2 = self.q2(curr_feat, action)
+            q1 = self.q1(curr_feat, curr_action)
+            q2 = self.q2(curr_feat, curr_action)
 
             tf.debugging.assert_shapes(
                 [(q1, (None, self._batch_len - 1)), 
@@ -235,6 +237,8 @@ class Agent(BaseAgent):
             q1=q1,
             q2=q2,
             logpi=logpi,
+            q1_loss=q1_loss,
+            q2_loss=q2_loss,
             **likelihoods,
             model_loss=model_loss,
             actor_loss=actor_loss,
@@ -251,9 +255,15 @@ class Agent(BaseAgent):
 
     def _image_summaries(self, obs, action, embed, image_pred):
         truth = obs[:6] + 0.5
-        recon = image_pred.mode()[:6] + .5
-        error = (recon - truth + 1) / 2
-        openl = tf.concat([truth, recon, error], 2)
+        recon = image_pred.mode()[:6]
+        init, _ = self.rssm.observe(embed[:6, :5], action[:6, :5])
+        init = RSSMState(*[v[:, -1] for v in init])
+        prior = self.rssm.imagine(action[:6, 5:], init)
+        openl = self.decoder(self.rssm.get_feat(prior)).mode()
+        # join the first 5 reconstructed images to the imagined subsequent images
+        model = tf.concat([recon[:, :5] + 0.5, openl + 0.5], 1)
+        error = (model - truth + 1) / 2
+        openl = tf.concat([truth, model, error], 2)
         self.graph_summary(video_summary, 'dreamer/comp', openl)
 
     @tf.function

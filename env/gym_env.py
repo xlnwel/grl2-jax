@@ -123,17 +123,24 @@ class EnvVec(EnvVecBase):
         return np.array([env.action_space.sample() for env in self.envs], copy=False)
 
     def reset(self, idxes=None, **kwargs):
-        for k, v in kwargs.items():
-            if isscalar(v):
-                kwargs[k] = np.tile(v, self.n_envs)
+        if kwargs:
+            for k, v in kwargs.items():
+                if isscalar(v):
+                    kwargs[k] = np.tile(v, self.n_envs)
         kwargs = [dict(x) for x in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
         if idxes is None:
-            obs = [env.reset(**kw) for env, kw in zip(self.envs, kwargs)]
+            if kwargs:
+                obs = [env.reset(**kw) for env, kw in zip(self.envs, kwargs)]
+            else:
+                obs = [env.reset() for env in self.envs]
             return self._convert_batch_obs(obs)
         else:
             if not isinstance(idxes, (list, tuple)):
                 idxes = [idxes]
-            return [self.envs[i].reset(**kw) for i, kw in zip(idxes, kwargs)]
+            if kwargs:
+                return [self.envs[i].reset(**kw) for i, kw in zip(idxes, kwargs)]
+            else:
+                return [env.reset() for env in self.envs]
     
     def step(self, actions, **kwargs):
         obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)

@@ -15,13 +15,12 @@ class PERBase(Replay):
 
         # params for prioritized replay
         self._beta = float(config.get('beta0', .4))
-        if 'beta_steps' in config:
+        if '_beta_steps' in config:
             self._beta_schedule = PiecewiseSchedule(
-                [(0, self._beta0), (self._beta_steps, 1.)], 
+                [(0, self._beta), (self._beta_steps, 1.)], 
                 outside_value=1.)
 
         self._top_priority = 2.
-        self._to_update_top_priority = config.get('to_update_top_priority')
 
         self._sample_i = 0   # count how many times self._sample is called
 
@@ -51,12 +50,12 @@ class PERBase(Replay):
         # super().add updates self._mem_idx 
         self._data_structure.update(self._mem_idx - 1, self._top_priority)
 
-    def update_priorities(self, priorities, saved_idxes):
+    def update_priorities(self, priorities, idxes):
         assert not np.any(np.isnan(priorities)), priorities
         with self._locker:
             if self._to_update_top_priority:
                 self._top_priority = max(self._top_priority, np.max(priorities))
-            self._data_structure.batch_update(saved_idxes, priorities)
+            self._data_structure.batch_update(idxes, priorities)
 
     """ Implementation """
     def _update_beta(self):
@@ -101,6 +100,6 @@ class ProportionalPER(PERBase):
         IS_ratios = self._compute_IS_ratios(probabilities)
         samples = self._get_samples(indexes)
         samples['IS_ratio'] = IS_ratios
-        samples['saved_idxes'] = indexes
+        samples['idxes'] = indexes
         
         return samples

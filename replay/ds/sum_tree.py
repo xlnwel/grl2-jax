@@ -27,7 +27,7 @@ class SumTree:
         return self._container[idx], idx - self._tree_size
 
     def batch_find(self, values):
-        """vectorized batch find"""
+        """ vectorized find """
         idxes = np.zeros_like(values, dtype=np.int32)
 
         while np.any(idxes < self._tree_size):
@@ -50,7 +50,7 @@ class SumTree:
             self._container[idx] += diff
             
     def batch_update(self, mem_idxes, priorities):
-        """ vectorized batch update """
+        """ vectorized update """
         idxes = mem_idxes + self._tree_size
         diffs = self._compute_differences(idxes, priorities)
         self._container[idxes] += diffs

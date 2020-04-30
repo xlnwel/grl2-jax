@@ -6,26 +6,6 @@ from core.checkpoint import setup_checkpoint
 from core.log import setup_logger, setup_tensorboard, save_code
 
 
-""" Functions used to print model variables """                    
-def display_model_var_info(models):
-    learnable_models = {}
-    opts = {}
-    nparams = 0
-    for name, model in models.items():
-        if 'target' in name or name in learnable_models or name in opts:
-            pass # ignore variables in the target networks
-        elif 'opt' in name:
-            opts[name] = model
-        else:
-            learnable_models[name] = model
-    
-    pwc(f'Learnable models:', color='yellow')
-    for name, model in learnable_models.items():
-        nparams += display_var_info(
-            model.trainable_variables, name=name, prefix='   ')
-    pwc(f'Total learnable model parameters: {nparams*1e-6:0.4g} million', color='yellow')
-    
-
 def agent_config(init_fn):
     """ Decorator for agent's initialization """
     def wrapper(self, *, name, config, models, **kwargs):
@@ -43,7 +23,7 @@ def agent_config(init_fn):
         # e.g., all workers share the same name, but with differnt model_names
         self.name = name
         """ For the basic configuration, see config.yaml in algo/*/ """
-        [setattr(self, k if k.isupper() else f'_{k}', v) for k, v in config.items()]
+        _config_attr(self, config)
         
         pwc(f'{self._model_name.title()} starts constructing...', color='cyan')
 
@@ -85,8 +65,7 @@ def agent_config(init_fn):
 
 def config(init_fn):
     def wrapper(self, config, *args, **kwargs):
-        [setattr(self, k if k.isupper() else f'_{k}', v) 
-            for k, v in config.items()]
+        _config_attr(self, config)
 
         init_fn(self, *args, **kwargs)
 
@@ -101,3 +80,36 @@ def override(cls):
         return method
 
     return check_override
+
+""" Functions used to print model variables """                    
+def display_model_var_info(models):
+    learnable_models = {}
+    opts = {}
+    nparams = 0
+    for name, model in models.items():
+        if 'target' in name or name in learnable_models or name in opts:
+            pass # ignore variables in the target networks
+        elif 'opt' in name:
+            opts[name] = model
+        else:
+            learnable_models[name] = model
+    
+    pwc(f'Learnable models:', color='yellow')
+    for name, model in learnable_models.items():
+        nparams += display_var_info(
+            model.trainable_variables, name=name, prefix='   ')
+    pwc(f'Total learnable model parameters: {nparams*1e-6:0.4g} million', color='yellow')
+    
+def _config_attr(obj, config):
+    for k, v in config.items():
+        if not k.isupper():
+            k = f'_{k}'
+        if isinstance(v, str):
+            try:
+                v = float(v)
+            except:
+                if v.lower() == 'none':
+                    v = None
+        if isinstance(v, float) and v == int(v):
+            v = int(v)
+        setattr(obj, k, v)

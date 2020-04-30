@@ -1,13 +1,16 @@
 ---
 env:
-    name: dmc_walker_run
+    name: BipedalWalker-v3
     log_episode: True
     n_envs: 1
-    frame_skip: 2
-    precision: &prec 16
+    # reward_hack:
+    #     scale: .1
+    precision: &prec 32
 model:
     encoder:
-        has_cnn: True
+        has_cnn: False
+        units_list: [400, 400, 400, 400]
+        activation: elu
     rssm:
         stoch_size: 30
         deter_size: 200
@@ -17,11 +20,11 @@ model:
         units_list: [400, 400]
         activation: elu
     decoder:
-        has_cnn: True
+        has_cnn: False
+        units_list: [400, 400, 400, 400]
+        activation: elu
     actor:
         units_list: [400, 400, 400, 400]
-        LOG_STD_MIN: -20
-        LOG_STD_MAX: 2
         activation: elu
         init_std: 5
         min_std: 1.e-4
@@ -29,16 +32,12 @@ model:
     value:
         units_list: [400, 400, 400, 400]
         activation: elu
-    temperature:
-        temp_type: variable
-        value: .01
-    # uncomment the following code for atari games
-    # discount:
-    #     units_list: [400, 400, 400]
-    #     activation: elu
+    # uncomment the following code for games with terminal steps
+    discount:
+        units_list: [400, 400]
+        activation: elu
 agent:
-    algorithm: &algo dreamer1
-    polyak: .995
+    algorithm: &algo dreamer
     batch_size: &bs 50
 
     # These params are not supported here, see seed1
@@ -48,25 +47,21 @@ agent:
     burn_in_len: 20
 
     MAX_STEPS: 5.e+6
-    LOG_INTERVAL: 1000
-    EVAL_INTERVAL: 10000
+    LOG_INTERVAL: 4000
+    EVAL_INTERVAL: 4000
     TRAIN_INTERVAL: 1000
-    N_UPDATES: 100
-    log_images: True
+    N_UPDATES: 200
+    log_images: False
 
-    # model
-    free_nats: 3.
+    free_nats: 1.
     kl_scale: 1.
     discount_scale: 10.
-    # behavior
+
     horizon: 15
     gamma: &gamma 0.99
     lambda: .95
     act_epsilon: .3
 
-    # model path: root_dir/model_name/models
-    # tensorboard path: root_dir/model_name/logs
-    # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
@@ -77,7 +72,6 @@ agent:
     model_lr: 6.e-4
     actor_lr: 8.e-5
     value_lr: 8.e-5
-    temp_lr: 3.e-4
 
 replay:
     type: episodic                      # proportional or uniform
@@ -87,4 +81,4 @@ replay:
     batch_len: *bl
     max_episodes: 800
     min_episodes: 5
-    save: True
+    save: False
