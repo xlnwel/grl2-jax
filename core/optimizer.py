@@ -12,12 +12,13 @@ def select_optimizer(name):
 
 
 class Optimizer(tf.Module):
-    def __init__(self, name, models, lr, clip_norm=None, weight_decay=None, wdpattern=r'.*', **kwargs):
+    def __init__(self, name, models, lr, clip_norm=None, weight_decay=None, wdpattern=r'.*', return_grads=False, **kwargs):
         self._models = models if isinstance(models, (list, tuple)) else [models]
         self._clip_norm = clip_norm
         self._weight_decay = weight_decay
         self._wdpattern = wdpattern
         self._opt = select_optimizer(name)(lr, **kwargs)
+        self._return_grads = return_grads
         # useful for mixed precision training on GPUs to
         # avoid numerical underflow caused by using float16 gradients
         self._mpt = prec.global_policy().should_cast_variables
@@ -48,7 +49,11 @@ class Optimizer(tf.Module):
             context = tf.distribute.get_replica_context()
             context.merge_call(self._apply_weight_decay)
         self._opt.apply_gradients(zip(grads, self._variables))
-        return norm
+
+        if self._return_grads:
+            return norm, list(zip(self._variables, grads))
+        else:
+            return norm
     
     def _apply_weight_decay(self, strategy):
         for var in self._variables:
