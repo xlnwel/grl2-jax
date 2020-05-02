@@ -75,6 +75,8 @@ def retrace_lambda(reward, q, next_value, log_ratio, discount, lambda_=1, ratio_
     """
     All inputs are expected to be time-major.
     """
+    if isinstance(discount, (int, float)):
+        discount = discount * tf.ones_like(reward)
     # swap axis with the 0-th dimension
     dims = list(range(reward.shape.ndims))
     dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]

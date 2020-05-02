@@ -25,6 +25,7 @@ class Optimizer(tf.Module):
         if self._mpt:
             print('Mixed precision training will be performed')
             self._opt = prec.LossScaleOptimizer(self._opt, 'dynamic')
+        # we do not initialize variables here, as models may not be initialized at this point
         self._variables = None
 
     @property

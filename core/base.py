@@ -47,8 +47,8 @@ class BaseAgent(ABC):
     def scalar_summary(self, stats, step=None):
         scalar_summary(self._writer, stats, step=step, name=self.name)
 
-    def graph_summary(self, fn=None, *args):
-        graph_summary(self._writer, fn, *args)
+    def graph_summary(self, fn=None, *args, step=None):
+        graph_summary(self._writer, fn, *args, step=step)
 
     def store(self, **kwargs):
         store(self._logger, **kwargs)

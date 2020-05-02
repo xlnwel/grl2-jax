@@ -63,9 +63,10 @@ class GridSearch:
                 if self.n_trials > 1:
                     agent_config['model_name'] += f'/trial{i}'
                 env_config['seed'] = 10 * i
-                env_config['video_path'] = (f'{agent_config["root_dir"]}/'
-                                            f'{agent_config["model_name"]}/'
-                                            f'{env_config["video_path"]}')
+                if 'video_path' in env_config:
+                    env_config['video_path'] = (f'{agent_config["root_dir"]}/'
+                                                f'{agent_config["model_name"]}/'
+                                                f'{env_config["video_path"]}')
                 p = Process(target=self.train_func,
                             args=(env_config, 
                                 model_config,
