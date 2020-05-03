@@ -1,29 +1,27 @@
 ---
 env:
-    name: atari_pong
+    name: LunarLander-v2
     precision: &prec 32
-    life_done: True
-    sticky_action: False
     seed: 0
 model:
     q:
-        cnn: impala
-        v_units: [256]
-        a_units: []
+        cnn: none
+        v_units: [128, 64]
+        a_units: [128, 64]
         activation: relu
-        layer_type: noisy
-        duel: False
+        layer_type: dense
+        duel: True
 agent:
     algorithm: &algo d3qn
     gamma: &gamma 0.99
     precision: *prec
-    schedule_eps: True
-    act_eps: 0
+    schedule_eps: False
+    act_eps: 0.3
 
-    MAX_STEPS: 1e7          # maximum training steps
-    TRAIN_INTERVAL: 16          # #frames = 4 agent step when frame skip = 4
-    EVAL_INTERVAL: 5e5
-    LOG_INTERVAL: 1e5
+    MAX_STEPS: 1.e+8          # maximum training steps
+    TRAIN_INTERVAL: 1          # #frames = 4 agent step when frame skip = 4
+    EVAL_INTERVAL: 10000
+    LOG_INTERVAL: 1000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -32,19 +30,19 @@ agent:
     model_name: *algo
 
     loss_type: huber   # huber or mse
-    target_update_freq: 32000               # #frames = 8000 agent step when frame skip = 4
+    target_update_freq: 1000               # #frames = 8000 agent step when frame skip = 4
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 6.25e-5
+    lr: 3.e-4
     clip_norm: 10
     epsilon: 1.5e-4
 
     # arguments for PER
     per_alpha: 0.5
-    per_epsilon: 1e-4
+    per_epsilon: 1.e-4
 
 replay:
     type: proportional      # uniform, proportional
@@ -56,7 +54,7 @@ replay:
     # arguments for general replay
     n_steps: 3
     gamma: *gamma
-    batch_size: 32
-    min_size: 8e4
-    capacity: 1e5
+    batch_size: 256
+    min_size: 1.e+4
+    capacity: 1.e+5
     has_next_obs: False

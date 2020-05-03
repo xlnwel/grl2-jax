@@ -50,8 +50,9 @@ def train(agent, env, eval_env, replay):
         
         agent.store(fps=(step - start_step) / (time.time() - start))
         if to_eval(step):
-            eval_score, eval_epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
-            # video_summary(f'{agent.name}/sim', video, step)
+            eval_score, eval_epslen, video = evaluate(
+                eval_env, agent, record=True, size=(64, 64))
+            video_summary(f'{agent.name}/sim', video, step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         with TBTimer('log', 10):
             agent.log(step)
@@ -71,13 +72,30 @@ def get_data_format(env, replay_config):
     )
     if replay_config['type'].endswith('proportional'):
         data_format['IS_ratio'] = ((None, ), dtype)
-        data_format['saved_idxes'] = ((None, ), tf.int32)
+        data_format['idxes'] = ((None, ), tf.int32)
     if replay_config.get('n_steps', 1) > 1:
         data_format['steps'] = ((None, ), dtype)
 
     return data_format
 
 def main(env_config, model_config, agent_config, replay_config):
+    algo = agent_config['algorithm']
+    env = env_config['name']
+    if 'atari' not in env:
+        from run.pkg import get_package
+        from utility import yaml_op
+        root_dir = agent_config['root_dir']
+        model_name = agent_config['model_name']
+        directory = get_package(algo, 0, '/')
+        config = yaml_op.load_config(f'{directory}/config2.yaml')
+        env_config = config['env']
+        model_config = config['model']
+        agent_config = config['agent']
+        replay_config = config['replay']
+        agent_config['root_dir'] = root_dir
+        agent_config['model_name'] = model_name
+        env_config['name'] = env
+
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))

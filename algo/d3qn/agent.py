@@ -4,6 +4,7 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target, transformed_n_step_target
+from utility.utils import Every
 from utility.losses import huber_loss
 from utility.schedule import TFPiecewiseSchedule, PiecewiseSchedule
 from utility.timer import TBTimer
@@ -32,6 +33,8 @@ class Agent(BaseAgent):
         if self._schedule_eps:
             self._act_eps = PiecewiseSchedule(((5e4, 1), (4e5, .02)))
 
+        self._to_summary = Every(100000)
+        self._to_sync = Every(self._target_update_freq)
         # optimizer
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
         self._ckpt_models['optimizer'] = self._optimizer
@@ -70,12 +73,20 @@ class Agent(BaseAgent):
         self.global_steps.assign(step)
         with TBTimer('sample', 2500):
             data = self.dataset.sample()
+        if self._to_summary(step):
+            tf.summary.image(f'{self.name}/obs', data['obs'][:1, ..., :-1], 1)
+            tf.summary.histogram(f'{self.name}/action', tf.argmax(data['action'], -1))
+            tf.summary.histogram(f'{self.name}/reward', data['reward'])
+            tf.summary.image(f'{self.name}/nth_obs', data['nth_obs'][:1, ..., :-1], 1)
+            tf.summary.histogram(f'{self.name}/discount', tf.cast(data['discount'], tf.int32))
+            tf.summary.histogram(f'{self.name}/steps', tf.cast(data['steps'], tf.int32))
+
         if self._is_per:
-            saved_idxes = data['saved_idxes'].numpy()
-            del data['saved_idxes']
+            idxes = data['idxes'].numpy()
+            del data['idxes']
         with TBTimer('learn', 2500):
             terms = self.learn(**data)
-        if step % self._target_update_freq == 0:
+        if self._to_sync(step):
             self._sync_target_nets()
 
         if self._schedule_lr:
@@ -84,7 +95,7 @@ class Agent(BaseAgent):
         terms = {k: v.numpy() for k, v in terms.items()}
 
         if self._is_per:
-            self.dataset.update_priorities(terms['priority'], saved_idxes)
+            self.dataset.update_priorities(terms['priority'], idxes)
         self.store(**terms)
 
     @tf.function
@@ -98,8 +109,9 @@ class Agent(BaseAgent):
             q = self.q.value(obs, action)
             nth_action = self.q.action(nth_obs, noisy=False)
             nth_action = tf.one_hot(nth_action, self._action_dim, dtype=self._dtype)
-            nth_q = self.target_q.value(nth_obs, nth_action)
+            nth_q = self.target_q.value(nth_obs, nth_action, noisy=False)
             target_q = target_fn(reward, nth_q, discount, self._gamma, steps)
+            target_q = tf.stop_gradient(target_q)
             error = target_q - q
             loss = tf.reduce_mean(IS_ratio * loss_fn(error))
         tf.debugging.assert_shapes([
