@@ -10,6 +10,22 @@ from tensorflow.keras.activations import relu
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
 
+mapping = dict(none=None)
+
+def cnn(name, **kwargs):
+    name = name.lower()
+    if name in mapping:
+        return mapping[name](**kwargs)
+    else:
+        raise ValueError(f'Unknown CNN structure: {name}')
+
+def register(name):
+    def _thunk(func):
+        mapping[name] = func
+        return func
+    return _thunk
+
+
 conv2d_fn = lambda *args, time_distributed=False, **kwargs: (
     TimeDistributed(Conv2D(*args, **kwargs))
     if time_distributed else
@@ -31,6 +47,7 @@ def convert_obs(x, obs_range, dtype):
         raise ValueError(obs_range)
 
 
+@register('ftw')
 class FTWCNN(Layer):
     def __init__(self, *, time_distributed=False, name='ftw', obs_range=[0, 1], **kwargs):
         super().__init__(name=name)
@@ -85,6 +102,7 @@ class Residual(Layer):
         return x + y
 
 
+@register('impala')
 class IMPALACNN(Layer):
     def __init__(self, *, time_distributed=False, obs_range=[0, 1], name='impala', **kwargs):
         super().__init__(name=name)
@@ -121,6 +139,7 @@ class IMPALACNN(Layer):
         return x
 
 
+@register('nature')
 class NatureCNN(Layer):
     def __init__(self, *, time_distributed=False, obs_range=[0, 1], name='nature', **kwargs):
         super().__init__(name=name)

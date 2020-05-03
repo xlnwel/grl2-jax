@@ -1,26 +1,13 @@
 
 from tensorflow.keras import layers
 
-from nn.block.cnn import *
+from nn.block.cnn import cnn
 from nn.block.mlp import *
 from nn.dnc.dnc import DNC
 
 
 def mlp(units_list=[], out_dim=None, **kwargs):
     return MLP(units_list, out_dim=out_dim, **kwargs)
-
-
-def cnn(name, **kwargs):
-    if name.lower() == 'ftw':
-        return FTWCNN(**kwargs)
-    elif name.lower() == 'impala':
-        return IMPALACNN(**kwargs)
-    elif name.lower() == 'nature':
-        return NatureCNN(**kwargs)
-    elif name.lower() == 'none':
-        return None
-    else:
-        raise NotImplementedError(f'Unknown CNN structure: {name}')
 
 
 def dnc_rnn(output_size, 
