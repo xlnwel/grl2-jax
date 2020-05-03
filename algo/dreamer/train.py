@@ -62,7 +62,7 @@ def train(agent, env, eval_env, replay):
     obs, already_done = None, None
     while not replay.good_to_learn():
         obs, already_done, nstep= run(
-            env, env.random_action, step, obs, already_done, collect_log)
+            env, agent, step, obs, already_done, collect_log)
         
     to_log = Every(agent.LOG_INTERVAL)
     to_eval = Every(agent.EVAL_INTERVAL)
@@ -77,8 +77,8 @@ def train(agent, env, eval_env, replay):
         if to_eval(step):
             train_state, train_action = agent.retrieve_states()
 
-            score, epslen, video = evaluate(eval_env, agent, record=False, size=(64, 64))
-            # video_summary(f'{agent.name}/sim', video, step)
+            score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
+            video_summary(f'{agent.name}/sim', video, step)
             agent.store(eval_score=score, eval_epslen=epslen)
             
             agent.reset_states(train_state, train_action)

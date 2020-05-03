@@ -302,8 +302,8 @@ def create_model(config, obs_shape, action_dim, is_action_discrete):
     rssm_config = config['rssm']
     decoder_config = config['decoder']
     reward_config = config['reward']
-    value_config = config['value']
     actor_config = config['actor']
+    value_config = config['value']
     disc_config = config.get('discount')  # pcont in the original implementation
     models = dict(
         encoder=Encoder(encoder_config),

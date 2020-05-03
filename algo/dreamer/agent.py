@@ -99,7 +99,7 @@ class Agent(BaseAgent):
         
         action = np.squeeze(action.numpy()) if has_expanded else action.numpy()
         if self._store_state:
-            return action, tf.nest.map_structure(lambda x: x.numpy(), self._state)
+            return action, tf.nest.map_structure(lambda x: x.numpy(), self._state._asdict())
         else:
             return action
         
@@ -134,9 +134,6 @@ class Agent(BaseAgent):
         self.global_steps.assign(step)
         for i in range(self.N_UPDATES):
             data = self.dataset.sample()
-            if i == 0:
-                tf.summary.histogram('reward', data['reward'], step)
-                tf.summary.histogram('discount', data['discount'], step)
             log_images = tf.convert_to_tensor(
                 self._log_images and i == 0 and self._to_log_images(step), 
                 tf.bool)
@@ -254,4 +251,4 @@ class Agent(BaseAgent):
         model = tf.concat([recon[:, :5] + 0.5, openl + 0.5], 1)
         error = (model - truth + 1) / 2
         openl = tf.concat([truth, model, error], 2)
-        self.graph_summary(video_summary, 'dreamer/comp', openl)
+        self.graph_summary(video_summary, 'dreamer/comp', openl, step=self.global_steps)
