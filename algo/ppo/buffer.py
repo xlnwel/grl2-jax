@@ -58,7 +58,7 @@ class PPOBuffer:
             next_return = last_value
             for i in reversed(range(self._n_steps)):
                 traj_ret[:, i] = next_return = (self._memory['reward'][:, i] 
-                    + self._memory['nonterminal'][:, i] * self._gamma * next_return)
+                    + self._memory['discount'][:, i] * self._gamma * next_return)
 
             # Standardize traj_ret and advantages
             traj_ret_mean, traj_ret_std = moments(traj_ret)
@@ -69,13 +69,13 @@ class PPOBuffer:
             self._memory['traj_ret'] = standardize(traj_ret)
         elif self._adv_type == 'gae':
             advs = delta = (self._memory['reward'] 
-                + self._memory['nonterminal'] * self._gamma 
+                + self._memory['discount'] * self._gamma 
                 * self._memory['value'][:, 1:]
                 - self._memory['value'][:, :-1])
             next_adv = 0
             for i in reversed(range(self._n_steps)):
                 advs[:, i] = next_adv = (delta[:, i] 
-                    + self._memory['nonterminal'][:, i] * self._gae_discount * next_adv)
+                    + self._memory['discount'][:, i] * self._gae_discount * next_adv)
             self._memory['traj_ret'] = advs + self._memory['value'][:, :-1]
             self._memory['advantage'] = standardize(advs)
         else:

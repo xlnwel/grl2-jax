@@ -56,7 +56,7 @@ agent:
     horizon: 15
     gamma: &gamma 0.99
     lambda: .95
-    act_epsilon: .3
+    act_eps: .3
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

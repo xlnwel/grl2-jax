@@ -23,7 +23,7 @@ class Agent(BaseAgent):
 
         self._optimizer = Optimizer(
             self._optimizer, self.ac, self._lr, 
-            clip_norm=self._clip_norm, epsilon=self._epsilon)
+            clip_norm=self._clip_norm)
         self._ckpt_models['optimizer'] = self._optimizer
 
         # Explicitly instantiate tf.function to avoid unintended retracing

@@ -10,12 +10,12 @@ def run(env, agent, buffer, step, obs):
                     reward=reward, 
                     value=value, 
                     old_logpi=logpi, 
-                    nonterminal=(1-done).astype(np.bool))
+                    discount=(1-done).astype(np.bool))
         obs = nth_obs
         step += env.n_envs
-        already_done = env.already_done()
-        if already_done.any():
-            idxes = [i for i, d in enumerate(already_done) if d]
+        game_over = env.game_over()
+        if game_over.any():
+            idxes = [i for i, d in enumerate(game_over) if d]
             score, epslen = env.score(idxes), env.epslen(idxes)
             agent.store(score=score, epslen=epslen)
             new_obs = env.reset(idxes)

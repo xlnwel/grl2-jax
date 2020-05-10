@@ -121,12 +121,12 @@ class Agent(BaseAgent):
                 action = act_dist.sample(reparameterize=False, one_hot=False)
                 rand_act = tfd.Categorical(tf.zeros_like(act_dist.logits)).sample()
                 action = tf.where(
-                    tf.random.uniform(action.shape[:1], 0, 1) < self._act_epsilon,
+                    tf.random.uniform(action.shape[:1], 0, 1) < self._act_eps,
                     rand_act, action)
             else:
                 action = self.actor(feature)[0].sample()
                 action = tf.clip_by_value(
-                    tfd.Normal(action, self._act_epsilon).sample(), -1, 1)
+                    tfd.Normal(action, self._act_eps).sample(), -1, 1)
             
         return action, state
 

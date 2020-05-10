@@ -7,9 +7,9 @@ env:
     seed: 0
 model:
     q:
-        cnn: impala
+        cnn: ftw
         v_units: [256]
-        a_units: []
+        a_units: [256]
         activation: relu
         layer_type: noisy
         duel: False
@@ -17,7 +17,7 @@ agent:
     algorithm: &algo d3qn
     gamma: &gamma 0.99
     precision: *prec
-    schedule_eps: True
+    schedule_eps: False
     act_eps: 0
 
     MAX_STEPS: 1e7          # maximum training steps
@@ -47,7 +47,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: proportional      # uniform, proportional
+    type: uniform      # uniform, proportional
     precision: *prec
     # arguments for PER
     beta0: 0.4
