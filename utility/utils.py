@@ -25,6 +25,59 @@ class Every:
     def step(self):
         return self._next - self._period
 
+class RunningMeanStd(object):
+    # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
+    def __init__(self, axis=0, epsilon=1e-4):
+        self._axis = axis
+        self._mean = None
+        self._var = None
+        self._epsilon = epsilon
+        self._count = epsilon
+
+    def update(self, x, mask=None):
+        if self._axis is None:
+            self._axis = tuple(range(x.ndim))
+        batch_mean, batch_std = moments(x, self._axis, mask)
+        batch_count = np.prod(np.array(x.shape)[self._axis]) if mask is None else np.sum(mask)
+        batch_var = np.square(batch_std)
+        self.update_from_moments(batch_mean, batch_var, batch_count)
+
+    def update_from_moments(self, batch_mean, batch_var, batch_count):
+        # print(f'self:\tmean:{self.mean:.3g}\tvar:{self.var:.3g}\tcount:{self.count}')
+        # print(f'batch:\tmean:{batch_mean:.3g}\tvar:{batch_var:.3g}\tcount:{batch_count}')
+        if self._count == self._epsilon:
+            self._mean = batch_mean
+            self._var = batch_var
+            self._count = batch_count
+        else:
+            delta = batch_mean - self._mean
+            total_count = self._count + batch_count
+
+            new_mean = self._mean + delta * batch_count / total_count
+            # no minus one here. 
+            m_a = self._var * (self._count)
+            m_b = batch_var * (batch_count)
+            # print(f'ma:{m_a:.3g}\tmb:{m_b:.3g}\tdelta:{delta:.3g}')
+            # print(delta**2, self.count * batch_count, self.count + batch_count)
+            M2 = m_a + m_b + np.square(delta) * self._count * batch_count / (self._count + batch_count)
+            assert np.all(np.isfinite(M2)), f'M2: {M2}'
+            new_var = M2 / (self._count + batch_count)
+
+            new_count = batch_count + self._count
+
+            self._mean = new_mean
+            self._var = new_var
+            self._count = new_count
+
+    def normalize(self, x, subtract_mean=False):
+        assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
+        # print(f'before normalization:\tmean:{np.mean(x)}\tstd:{np.std(x)}')
+        if subtract_mean:
+            x = x - self._mean
+        x = x / (self._var + self._epsilon)
+        # print(f'after normalization:\tmean:{np.mean(x)}\tstd:{np.std(x)}')
+        return x
+
 def to_int(s):
     return int(float(s))
     
@@ -39,35 +92,39 @@ def step_str(step):
     else:
         return f'{step/1000000:.3g}m'
 
-def moments(x, mask=None):
+def moments(x, axis=None, mask=None):
     if mask is None:
-        x_mean = np.mean(x)
-        x_std = np.std(x)
+        x_mean = np.mean(x, axis=axis)
+        x_std = np.std(x, axis=axis)
     else:
+        if axis is None:
+            axis = tuple(range(x.ndim))
+        elif mask is not None:
+            axis = (axis,) if isinstance(axis, int) else tuple(axis)
         # expand mask to match the dimensionality of x
         while len(mask.shape) < len(x.shape):
-            mask = mask[..., None]
+            mask = np.expand_dims(mask, -1)
         # compute valid entries in x corresponding to True in mask
         n = np.sum(mask)
-        for i in range(len(mask.shape)):
+        for i in axis:
             if mask.shape[i] != 1:
                 assert mask.shape[i] == x.shape[i], (
-                        f'{i}th dimension of mask{mask.shape[i]} does not match'
-                        f'that of x{x.shape[i]}')
+                    f'{i}th dimension of mask({mask.shape[i]}) does not match'
+                    f'that of x({x.shape[i]})')
             else:
                 n *= x.shape[i]
         # compute x_mean and x_std from entries in x corresponding to True in mask
         x_mask = x * mask
-        x_mean = np.sum(x_mask) / n
-        x_std = np.sqrt(np.sum(mask * (x_mask - x_mean)**2) / n)
+        x_mean = np.sum(x_mask, axis=axis) / n
+        x_std = np.sqrt(np.sum(mask * (x_mask - x_mean)**2, axis=axis) / n)
     
     return x_mean, x_std
     
-def standardize(x, epsilon=1e-8, mask=None):
+def standardize(x, axis=None, epsilon=1e-8, mask=None):
     if mask is not None:
         while len(mask.shape) < len(x.shape):
-            mask = mask[..., None]
-    x_mean, x_std = moments(x, mask)
+            mask = np.expand_dims(mask, -1)
+    x_mean, x_std = moments(x, axis=axis, mask=mask)
     x = (np.array(x, copy=False) - x_mean) / (x_std + epsilon)
     if mask is not None:
         x *= mask

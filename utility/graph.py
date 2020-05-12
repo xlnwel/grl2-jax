@@ -14,7 +14,13 @@ def save_video(name, video, fps=20):
     while len(video.shape) < 5:
         video = np.expand_dims(video, 0)
     B, T, H, W, C = video.shape
-    frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, B * W, C))
+    if B != 1:
+        bh, bw = squarest_grid_size(B)
+        frames = video.reshape((bh, bw, T, H, W, C))
+        frames = frames.transpose((2, 0, 3, 1, 4, 5))
+        frames = frames.reshape((T, bh*H, bw*W, C))
+    else:
+        frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, W, C))
     f1, *frames = [Image.fromarray(f) for f in frames]
     if not os.path.isdir('results'):
         os.mkdir('results')
@@ -38,8 +44,14 @@ def video_summary(name, video, step=None, fps=20):
     while len(video.shape) < 5:
         video = np.expand_dims(video, 0)
     B, T, H, W, C = video.shape
+    if B != 1:
+        bh, bw = squarest_grid_size(B)
+        frames = video.reshape((bh, bw, T, H, W, C))
+        frames = frames.transpose((2, 0, 3, 1, 4, 5))
+        frames = frames.reshape((T, bh*H, bw*W, C))
+    else:
+        frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, W, C))
     try:
-        frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, B * W, C))
         summary = tf1.Summary()
         image = tf1.Summary.Image(height=B * H, width=T * W, colorspace=C)
         image.encoded_image_string = encode_gif(frames, fps)
@@ -53,17 +65,16 @@ def video_summary(name, video, step=None, fps=20):
 
 def grid_placed(images, size=None):
     assert images.shape.ndims == 4, f'images should be 4D, but get shape {images.shape}'
+    B, H, W, C = images.shape
     if size is None:
-        size = squarest_grid_size(images.shape[0])
-    h, w = images.shape[1], images.shape[2]
+        size = squarest_grid_size(B)
     image_type = images.dtype
     if (images.shape[3] in (3,4)):
-        c = images.shape[3]
-        img = np.zeros((h * size[0], w * size[1], c), dtype=image_type)
+        img = np.zeros((H * size[0], W * size[1], C), dtype=image_type)
         for idx, image in enumerate(images):
             i = idx % size[1]
             j = idx // size[1]
-            img[j * h:j * h + h, i * w:i * w + w, :] = image
+            img[j * H:j * H + H, i * W:i * W + W, :] = image
         if np.issubdtype(image_type, np.uint8):
             return img
         if np.min(img) < -.5:
@@ -77,11 +88,11 @@ def grid_placed(images, size=None):
         img = np.clip(255 * img, 0, 255).astype(np.uint8)
         return img
     elif images.shape[3]==1:
-        img = np.zeros((h * size[0], w * size[1]), dtype=image_type)
+        img = np.zeros((H * size[0], W * size[1]), dtype=image_type)
         for idx, image in enumerate(images):
             i = idx % size[1]
             j = idx // size[1]
-            img[j * h:j * h + h, i * w:i * w + w] = image[:,:,0]
+            img[j * H:j * H + H, i * W:i * W + W] = image[:,:,0]
         return img
     else:
         NotImplementedError
@@ -90,11 +101,11 @@ def grid_placed(images, size=None):
 def encode_gif(frames, fps):
     """ encode gif from frames in another process, return a gif """
     from subprocess import Popen, PIPE
-    h, w, c = frames[0].shape
-    pxfmt = {1: 'gray', 3: 'rgb24'}[c]
+    H, W, C = frames[0].shape
+    pxfmt = {1: 'gray', 3: 'rgb24'}[C]
     cmd = ' '.join([
         f'ffmpeg -y -f rawvideo -vcodec rawvideo',
-        f'-r {fps:.02f} -s {w}x{h} -pix_fmt {pxfmt} -i - -filter_complex',
+        f'-r {fps:.02f} -s {W}x{H} -pix_fmt {pxfmt} -i - -filter_complex',
         f'[0:v]split[x][z];[z]palettegen[y];[x]fifo[x];[x][y]paletteuse',
         f'-r {fps:.02f} -f gif -'])
     proc = Popen(cmd.split(' '), stdin=PIPE, stdout=PIPE, stderr=PIPE)

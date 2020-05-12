@@ -50,7 +50,7 @@ def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
     """
     if isinstance(discount, (int, float)):
         discount = discount * tf.ones_like(reward)
-    # swap axis with the 0-th dimension
+    # swap 'axis' with the 0-th dimension
     dims = list(range(reward.shape.ndims))
     dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
     if axis != 0:
@@ -72,12 +72,9 @@ def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
     return returns
 
 def retrace_lambda(reward, q, next_value, log_ratio, discount, lambda_=1, ratio_clip=1, axis=0):
-    """
-    All inputs are expected to be time-major.
-    """
     if isinstance(discount, (int, float)):
         discount = discount * tf.ones_like(reward)
-    # swap axis with the 0-th dimension
+    # swap 'axis' with the 0-th dimension
     dims = list(range(reward.shape.ndims))
     dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
     if axis != 0:
@@ -95,7 +92,7 @@ def retrace_lambda(reward, q, next_value, log_ratio, discount, lambda_=1, ratio_
 
     diff = static_scan(
         lambda acc, x: x[0] + x[1] * x[2] * acc,
-        tf.zeros_like(reward[0]), (delta, discount, ratio), 
+        tf.zeros_like(next_value[-1]), (delta, discount, ratio), 
         reverse=True
     )
     target_q = q + diff
