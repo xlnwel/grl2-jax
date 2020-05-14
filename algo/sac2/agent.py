@@ -76,7 +76,7 @@ class Agent(BaseAgent):
             action = act_dist.sample()
             if epsilon:
                 action = tf.clip_by_value(
-                    tfd.Normal(action, self._act_epsilon).sample(), -1, 1)
+                    tfd.Normal(action, self._act_eps).sample(), -1, 1)
         
         return action
 
@@ -106,12 +106,15 @@ class Agent(BaseAgent):
     @tf.function
     def _learn(self, obs, action, reward, nth_obs, discount, steps=1, IS_ratio=1):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
-        q_value = lambda q, feat, act: q(tf.concat([feat, act], -1)).mode()
+        q_value = lambda q, obs, act: q(tf.concat([obs, act], -1)).mode()
         with tf.GradientTape() as actor_tape:
             act_dist, terms = self.actor(obs)
             new_action = act_dist.sample()
             new_logpi = act_dist.log_prob(new_action)
-            _, temp = self.temperature(obs, new_action)
+            if isinstance(self.temperature, (float, tf.Variable)):
+                temp = self.temperature
+            else:
+                _, temp = self.temperature(obs, new_action)
             q1_with_actor = q_value(self.q1, obs, new_action)
             q2_with_actor = q_value(self.q2, obs, new_action)
             q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
@@ -119,12 +122,10 @@ class Agent(BaseAgent):
                 (temp * new_logpi - q_with_actor))
         
         with tf.GradientTape() as temp_tape:
-            nth_action = self.actor(nth_obs)
             if isinstance(self.temperature, (float, tf.Variable)):
-                temp = nth_temp = self.temperature
+                temp = self.temperature
             else:
-                log_temp, temp = self.temperature(obs, action)
-                _, nth_temp = self.temperature(nth_obs, nth_action)
+                log_temp, temp = self.temperature(obs, new_action)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
                     * tf.stop_gradient(new_logpi + target_entropy))
                 terms['temp'] = temp
@@ -139,35 +140,33 @@ class Agent(BaseAgent):
             q1 = q_value(self.q1, obs, action)
             q2 = q_value(self.q2, obs, action)
             q = tf.minimum(q1, q2)
-            nth_value = self.value(nth_obs).mode()
+            nth_value = self.target_value(nth_obs).mode()
             
-            returns = n_step_target(reward, nth_value, discount, self._gamma, steps)
-            returns = tf.stop_gradient(returns)
-
-            q1_error = returns - q1
-            q2_error = returns - q2
+            target_q = n_step_target(reward, nth_value, discount, self._gamma, steps)
+            target_q = tf.stop_gradient(target_q)
+            q1_error = target_q - q1
+            q2_error = target_q - q2
             q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
             q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
             q_loss = q1_loss + q2_loss
 
-        actor_norm = self._actor_opt(actor_tape, actor_loss)
-        value_norm = self._value_opt(value_tape, value_loss)
-        q_norm = self._q_opt(q_tape, q_loss)
-        if not isinstance(self.temperature, (float, tf.Variable)):
-            terms['temp_norm'] = self._temp_opt(temp_tape, temp_loss)
-
         if self._is_per:
             priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
             terms['priority'] = priority
-            
 
+        terms['actor_norm'] = self._actor_opt(actor_tape, actor_loss)
+        terms['value_norm'] = self._value_opt(value_tape, value_loss)
+        terms['q_norm'] = self._q_opt(q_tape, q_loss)
+        if not isinstance(self.temperature, (float, tf.Variable)):
+            terms['temp_norm'] = self._temp_opt(temp_tape, temp_loss)
+            
         terms.update(dict(
             actor_loss=actor_loss,
             q1=q1, 
             q2=q2,
             logpi=new_logpi,
             action_entropy=act_dist.entropy(),
-            target_q=returns,
+            target_q=target_q,
             q1_loss=q1_loss, 
             q2_loss=q2_loss,
             q_loss=q_loss, 
@@ -184,12 +183,11 @@ class Agent(BaseAgent):
 
     @tf.function
     def _sync_target_nets(self):
-        # [tvar.assign(mvar) for tvar, mvar in zip(self.target_value.variables, self.v)]
-        pass
+        [tvar.assign(mvar) for tvar, mvar in zip(
+            self.target_value.variables, self.value.variables)]
 
     @tf.function
     def _update_target_nets(self):
-        # [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
-        #     for tvar, mvar in zip(
-        #         self.target_value.trainable_variables, self.v.trainable_variables)]
-        pass
+        [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
+            for tvar, mvar in zip(
+                self.target_value.trainable_variables, self.value.trainable_variables)]

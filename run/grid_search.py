@@ -29,7 +29,7 @@ class GridSearch:
             self.train_func(self.env_config, self.model_config, self.agent_config, self.buffer_config)        
         else:
             # do grid search
-            self.agent_config['model_name'] = 'GS'
+            self.agent_config['model_name'] = ''
             self._change_config(**kwargs)
         return self.processes
 
@@ -61,7 +61,7 @@ class GridSearch:
                 agent_config = deepcopy(self.agent_config)
                 buffer_config = deepcopy(self.buffer_config)
                 if self.n_trials > 1:
-                    agent_config['model_name'] += f'/trial{i}'
+                    agent_config['model_name'] += f'-trial{i}' if agent_config['model_name'] else f'trial{i}'
                 env_config['seed'] = 10 * i
                 if 'video_path' in env_config:
                     env_config['video_path'] = (f'{agent_config["root_dir"]}/'
@@ -95,7 +95,7 @@ class GridSearch:
                 if len(value) != 0:
                     # if there is still something left in value, put value back into kwargs
                     kwargs_copy[key] = value
-                self._safe_call(f'-{key}', lambda: self._recursive_trial(valid_config[key], k, v, kwargs_copy))
+                self._safe_call(f'{key}', lambda: self._recursive_trial(valid_config[key], k, v, kwargs_copy))
             else:
                 self._recursive_trial(valid_config, key, value, kwargs_copy)
 
@@ -118,6 +118,6 @@ class GridSearch:
 
     def _safe_call(self, append_name, func):
         old_model_name = self.agent_config['model_name']
-        self.agent_config['model_name'] += append_name
+        self.agent_config['model_name'] += f'-{append_name}' if old_model_name else append_name
         func()
         self.agent_config['model_name'] = old_model_name

@@ -32,10 +32,10 @@ def make_env(config):
     return env
 
 def create_env(config, env_fn=make_env, force_envvec=False):
-    if force_envvec and config.get('n_workers', 1) <= 1:
+    if force_envvec or config.get('n_envs', 1) > 1:
         EnvType = EnvVec
     else:
-        EnvType = EnvVec if config.get('n_envs', 1) > 1 else Env
+        EnvType = Env
     if config.get('n_workers', 1) <= 1:
         if EnvType == EnvVec and config.get('efficient_envvec', False):
             EnvType = EfficientEnvVec
@@ -51,6 +51,12 @@ class EnvVecBase:
         else:
             obs = list(obs)
         return obs
+
+    def _get_idxes(self, idxes):
+        idxes = idxes or list(range(self.n_envs))
+        if isinstance(idxes, int):
+            idxes = [idxes]
+        return idxes
 
 
 class Env:
@@ -83,10 +89,10 @@ class Env:
         return self.env.mask()
     
     def score(self, **kwargs):
-        return self.env.score(**kwargs)
+        return self.env.score()
 
     def epslen(self, **kwargs):
-        return self.env.epslen(**kwargs)
+        return self.env.epslen()
 
     def already_done(self):
         return self.env.already_done()
@@ -123,24 +129,18 @@ class EnvVec(EnvVecBase):
         return np.array([env.action_space.sample() for env in self.envs], copy=False)
 
     def reset(self, idxes=None, **kwargs):
+        idxes = self._get_idxes(idxes)
         if kwargs:
             for k, v in kwargs.items():
                 if isscalar(v):
                     kwargs[k] = np.tile(v, self.n_envs)
-        kwargs = [dict(x) for x in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
-        if idxes is None:
-            if kwargs:
-                obs = [env.reset(**kw) for env, kw in zip(self.envs, kwargs)]
-            else:
-                obs = [env.reset() for env in self.envs]
-            return self._convert_batch_obs(obs)
+            kwargs = [dict(x) for x in zip(*[itertools.product([k], v) 
+                        for k, v in kwargs.items()])]
         else:
-            if not isinstance(idxes, (list, tuple)):
-                idxes = [idxes]
-            if kwargs:
-                return [self.envs[i].reset(**kw) for i, kw in zip(idxes, kwargs)]
-            else:
-                return [env.reset() for env in self.envs]
+            kwargs = [dict() for _ in idxes]
+        obs = [self.envs[i].reset(**kw) for i, kw in zip(idxes, kwargs)]
+        
+        return self._convert_batch_obs(obs)
     
     def step(self, actions, **kwargs):
         obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
@@ -154,20 +154,12 @@ class EnvVec(EnvVecBase):
         return np.array([env.mask() for env in self.envs], dtype=np.bool)
 
     def score(self, idxes=None):
-        if idxes is None:
-            return np.array([env.score() for env in self.envs])
-        else:
-            if not isinstance(idxes, (list, tuple)):
-                idxes = [idxes]
-            return [self.envs[i].score() for i in idxes]
+        idxes = self._get_idxes(idxes)
+        return [self.envs[i].score() for i in idxes]
 
     def epslen(self, idxes=None):
-        if idxes is None:
-            return np.array([env.epslen() for env in self.envs])
-        else:
-            if not isinstance(idxes, (list, tuple)):
-                idxes = [idxes]
-            return [self.envs[i].epslen() for i in idxes]
+        idxes = self._get_idxes(idxes)
+        return [self.envs[i].epslen() for i in idxes]
 
     def already_done(self):
         return np.array([env.already_done() for env in self.envs], dtype=np.bool)
@@ -183,25 +175,28 @@ class EnvVec(EnvVecBase):
                             copy=False)
 
         if size is not None:
-            imgs = np.array([cv2.resize(i, size, interpolation=cv2.INTER_AREA) for i in imgs])
+            imgs = np.array([cv2.resize(i, size, interpolation=cv2.INTER_AREA) 
+                            for i in imgs])
         
         return imgs
 
 class EfficientEnvVec(EnvVec):
     """ Designed for evaluation only """
     def reset(self, idxes=None, **kwargs):
+        # reset all envs and omit kwargs intentionally
         assert idxes is None, idxes
         self.valid_envs = self.envs
-        return super().reset(**kwargs)
+        return super().reset()
 
     def random_action(self):
         return [env.action_space.sample() for env in self.valid_envs]
         
     def step(self, actions, **kwargs):
+        # intend to omit kwargs as EfficientEnvVec is only used in evaluation
         if len(self.valid_envs) == 1:
-            obs, reward, done, info = self.valid_envs[0].step(actions, **kwargs)
+            obs, reward, done, info = self.valid_envs[0].step(actions)
         else:
-            obs, reward, done, info = _envvec_step(self.valid_envs, actions, **kwargs)
+            obs, reward, done, info = _envvec_step(self.valid_envs, actions)
             
             self.valid_envs, obs, reward, done, info = \
                 zip(*[(e, o, r, d, i)
@@ -238,12 +233,11 @@ class RayEnvVec(EnvVecBase):
     def reset(self, idxes=None):
         if idxes is None:
             obs = tf.nest.flatten(ray.get([env.reset.remote() for env in self.envs]))
-            return self._convert_batch_obs(obs)
         else:
             new_idxes = [[] for _ in range(self.n_workers)]
             [new_idxes[i // self.n_workers].append(i % self.n_workers) for i in idxes]
             obs = tf.nest.flatten(ray.get([self.envs[i].reset.remote(j) for i, j in enumerate(new_idxes)]))
-            return obs
+        return self._convert_batch_obs(obs)
 
     def random_action(self, *args, **kwargs):
         return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
@@ -254,14 +248,12 @@ class RayEnvVec(EnvVecBase):
         if kwargs:
             kwargs = dict([(k, np.squeeze(v.reshape(self.n_workers, self.envsperworker, -1))) for k, v in kwargs.items()])
             kwargs = [dict(x) for x in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
-            obs, reward, done, info = zip(*ray.get([env.step.remote(a, **kw) for env, a, kw in zip(self.envs, actions, kwargs)]))
         else:
-            obs, reward, done, info = zip(*ray.get([env.step.remote(a) for env, a in zip(self.envs, actions)]))
-        if not isinstance(self.env, Env):
-            info_lists = info
-            info = []
-            for i in info_lists:
-                info += i
+            kwargs = [dict() for _ in range(self.n_workers)]
+
+        obs, reward, done, info = zip(*ray.get([env.step.remote(a, **kw) for env, a, kw in zip(self.envs, actions, kwargs)]))
+        info, info_lists = [], info
+        list(map(info.extend, info_lists))
 
         obs = tf.nest.flatten(obs)
         return (self._convert_batch_obs(obs),
@@ -311,7 +303,7 @@ if __name__ == '__main__':
     config = dict(
         name='atari_breakout',
         seed=0,
-        life_done=True,
+        life_done=False,
     )
     from utility.run import run
     import matplotlib.pyplot as plt
@@ -319,5 +311,7 @@ if __name__ == '__main__':
     obs = env.reset()
     def fn(env, step, **kwargs):
         assert step % env.frame_skip == 0
+        if env.already_done():
+            print(step, env.already_done(), env.lives, env.game_over())
     run(env, env.random_action, 0, fn=fn, nsteps=10000)
     

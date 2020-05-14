@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.mixed_precision.experimental import global_policy
+from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target
@@ -59,14 +60,14 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
 
-    def __call__(self, obs, deterministic=False, epsilon=0):
-        return self.actor(obs, deterministic=deterministic, epsilon=epsilon)
+    def __call__(self, obs, deterministic=False):
+        return self.actor(obs, deterministic=deterministic, epsilon=self._act_eps)
 
     def learn_log(self, step):
         with TBTimer('sample', 1000):
             data = self.dataset.sample()
         if self._is_per:
-            saved_idxes = data['saved_idxes'].numpy()
+            idxes = data['idxes'].numpy()
             del data['saved_idxes']
 
         with TBTimer('learn', 1000):
@@ -82,7 +83,7 @@ class Agent(BaseAgent):
         terms = {k: v.numpy() for k, v in terms.items()}
 
         if self._is_per:
-            self.dataset.update_priorities(terms['priority'], saved_idxes)
+            self.dataset.update_priorities(terms['priority'], idxes)
         self.store(**terms)
 
     @tf.function
@@ -112,23 +113,14 @@ class Agent(BaseAgent):
 
             q1 = self.q1(obs, old_action)
             q2 = self.q2(obs, old_action)
-
-            tf.debugging.assert_shapes(
-                [(IS_ratio, (None,)),
-                (q1, (None,)), 
-                (q2, (None,)), 
-                (logpi, (None,)), 
-                (q_with_actor, (None,)), 
-                (nth_q_with_actor, (None,))])
             
             actor_loss = tf.reduce_mean(IS_ratio * tf.stop_gradient(temp) * logpi - q_with_actor)
 
             nth_value = nth_q_with_actor - nth_temp * nth_logpi
             target_q = n_step_target(reward, nth_value, discount, self._gamma, steps)
+            target_q = tf.stop_gradient(target_q)
             q1_error = target_q - q1
             q2_error = target_q - q2
-
-            tf.debugging.assert_shapes([(q1_error, (None,)), (q2_error, (None,))])
 
             q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
             q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)

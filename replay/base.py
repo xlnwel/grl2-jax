@@ -2,8 +2,7 @@ from abc import ABC
 import numpy as np
 
 from core.decorator import config
-from utility.utils import to_int
-from utility.run_avg import RunningMeanStd
+from utility.utils import to_int, RunningMeanStd
 from replay.utils import *
 
 

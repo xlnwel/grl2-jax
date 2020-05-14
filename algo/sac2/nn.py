@@ -37,6 +37,7 @@ class Actor(Module):
             # https://www.desmos.com/calculator/gs6ypbirgq
             # we bound the mean to [-5, +5] to avoid numerical instabilities 
             # as atanh becomes difficult in highly saturated regions
+            # interestingly, algo/sac does not suffer this problem
             mean = self._mean_scale * tf.tanh(mean / self._mean_scale)
             std = tf.nn.softplus(std + raw_init_std) + self._min_std
             dist = tfd.Normal(mean, std)
@@ -47,7 +48,7 @@ class Actor(Module):
 
         return dist, terms
 
-class SoftQ(Module):
+class Value(Module):
     @config
     def __init__(self, name='q'):
         super().__init__(name=name)
@@ -103,8 +104,9 @@ def create_model(config, action_dim, is_action_discrete):
         
     return dict(
         actor=Actor(actor_config, action_dim, is_action_discrete),
-        q1=SoftQ(q_config, 'q1'),
-        q2=SoftQ(q_config, 'q2'),
-        value=SoftQ(q_config, 'v'),
+        q1=Value(q_config, 'q1'),
+        q2=Value(q_config, 'q2'),
+        value=Value(q_config, 'v'),
+        target_value=Value(q_config, 'target_v'),
         temperature=temperature,
     )

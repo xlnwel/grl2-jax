@@ -50,7 +50,7 @@ agent:
 
     MAX_STEPS: 5.e+6
     LOG_INTERVAL: 1000
-    N_UPDATES: 100
+    N_UPDATES: 1
     SYNC_FREQ: 32
     log_images: True
 
@@ -62,7 +62,7 @@ agent:
     horizon: 15
     gamma: &gamma 0.99
     lambda: .95
-    act_epsilon: .3
+    act_eps: .3
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

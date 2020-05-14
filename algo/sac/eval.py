@@ -7,7 +7,7 @@ from utility.display import pwc
 from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
 from env.gym_env import create_env
-from algo.sac.nn import SoftPolicy
+from algo.sac.nn import Actor
 
 
 def main(env_config, model_config, agent_config, n, record=False):
@@ -24,10 +24,8 @@ def main(env_config, model_config, agent_config, n, record=False):
         env_config['n_workers'] = env_config['n_envs'] = 1
 
     env = create_env(env_config)
-    n_envs = env_config['n_envs'] * env_config['n_workers']
 
-    actor = SoftPolicy(model_config['actor'],
-                        env.obs_shape,
+    actor = Actor(model_config['actor'],
                         env.action_dim,
                         env.is_action_discrete,
                         'actor')
@@ -41,7 +39,7 @@ def main(env_config, model_config, agent_config, n, record=False):
     if path:
         pwc(f'Params are restored from "{path}".', color='cyan')
         scores, epslens, video = evaluate(env, actor, n, record=record)
-        pwc(f'After running {n_envs} episodes:',
+        pwc(f'After running {n} episodes:',
             f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
     else:
         pwc(f'No model is found at "{ckpt_path}"!', color='magenta')

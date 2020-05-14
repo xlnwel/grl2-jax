@@ -65,6 +65,8 @@ if __name__ == '__main__':
         config_file = None
         for root, _, files in os.walk(directory):
             for f in files:
+                if 'src' in root:
+                    break
                 if f == 'config.yaml' and config_file is None:
                     config_file = os.path.join(root, f)
                     break
@@ -109,7 +111,7 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     # Grid search happens here
-                    processes += gs()
+                    processes += gs(lr=[1e-3, 5e-4, 3e-4])
                 else:
                     processes += gs()
             else:

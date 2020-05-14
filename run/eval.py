@@ -63,12 +63,11 @@ if __name__ == '__main__':
 
     # set up env_config
     n = cmd_args.n_episodes
-    if record:
-        env_config['n_workers'] = env_config['n_envs'] = 1
-    else:
+    if cmd_args.n_workers > 1:
         env_config['n_workers'] = cmd_args.n_workers
+    if cmd_args.n_envs > 1:
         env_config['n_envs'] = cmd_args.n_envs
-        n = max(cmd_args.n_workers * cmd_args.n_envs, n)
+    n = max(cmd_args.n_workers * cmd_args.n_envs, n)
     env_config['seed'] = np.random.randint(1000)
     
     main(env_config, model_config, agent_config, n=n, record=record)

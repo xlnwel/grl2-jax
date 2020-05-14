@@ -65,11 +65,21 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
                     imgs.append(obs)
                 else:
                     imgs.append(env.get_screen(size=size))
-                
             action = agent(obs, deterministic=True)
             obs, _, done, _ = env.step(action)
-            if np.all(env.game_over()):
-                break
+            if np.any(env.already_done()):
+                if env.n_envs == 1:
+                    if env.game_over():
+                        break
+                    else:
+                        obs = env.reset()
+                else:
+                    idxes = [i for i, e in enumerate(env.envs) if not e.game_over()]
+                    if idxes:
+                        for i in idxes:
+                            obs[i] = env.envs[i].reset()
+                    else:
+                        break
         scores.append(env.score())
         epslens.append(env.epslen())
     

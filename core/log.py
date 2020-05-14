@@ -9,13 +9,13 @@ from utility import yaml_op
 
 
 """ Logging """
-def log(logger, writer, model_name, name, step, print_terminal_info=True):
+def log(logger, writer, model_name, prefix, step, print_terminal_info=True):
     stats = dict(
         model_name=f'{model_name}',
         steps=step
     )
     stats.update(logger.get_stats())
-    scalar_summary(writer, stats, name=name, step=step)
+    scalar_summary(writer, stats, prefix=prefix, step=step)
     log_stats(logger, stats, print_terminal_info=print_terminal_info)
 
 def log_stats(logger, stats, print_terminal_info=True):
@@ -25,10 +25,10 @@ def log_stats(logger, stats, print_terminal_info=True):
 def set_summary_step(step):
     tf.summary.experimental.set_step(step)
 
-def scalar_summary(writer, stats, name=None, step=None):
+def scalar_summary(writer, stats, prefix=None, step=None):
     if step:
         tf.summary.experimental.set_step(step)
-    prefix = f'{name}/stats' if name else 'stats'
+    prefix = prefix or 'stats'
     with writer.as_default():
         for k, v in stats.items():
             if isinstance(v, str):

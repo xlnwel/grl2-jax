@@ -8,15 +8,9 @@ import cv2
 cv2.ocl.setUseOpenCL(False)
 
 from utility.display import pwc
-from env.baselines import make_atari, wrap_deepmind
+
 
 def make_atari_env(config):
-    # name = config['name']
-    # version = 0
-    # name = f'{name.title()}NoFrameskip-v{version}'
-    # print(name)
-    # env = make_atari(name)
-    # env = wrap_deepmind(env, episode_life=config['life_done'], frame_stack=True)
     env = Atari(**config)
     return env
 
@@ -66,10 +60,10 @@ class Atari:
     """
 
     def __init__(self, name, *, frame_skip=4, life_done=False,
-                image_size=(84, 84), frame_stack=4, noop=30, 
+                image_size=(84, 84), frame_stack=4, noop=1, 
                 sticky_actions=True, gray_scale=True, 
                 clip_reward=False, **kwargs):
-        version = 0 if 'sticky_actions' else 4
+        version = 0 if sticky_actions else 4
         name = f'{name.title()}NoFrameskip-v{version}'
         env = gym.make(name)
         print(f'Environment name: {name}')
@@ -189,7 +183,7 @@ class Atari:
     def step(self, action):
         accumulated_reward = 0.
 
-        for step in range(self.frame_skip):
+        for step in range(1, self.frame_skip+1):
             # We bypass the Gym observation altogether and directly fetch
             # the image from the ALE. This is a little faster.
             _, reward, done, info = self.env.step(action)
@@ -206,8 +200,8 @@ class Atari:
 
             if is_terminal:
                 break
-            elif step >= self.frame_skip - 2:
-                i = step - (self.frame_skip - 2)
+            elif step >= self.frame_skip - 1:
+                i = step - (self.frame_skip - 1)
                 self._get_screen(self._buffer[i])
 
         # Pool the last two observations.
@@ -216,7 +210,7 @@ class Atari:
         obs = self._get_obs()
 
         self._game_over = done
-        info['frame_skip'] = self.frame_skip
+        info['frame_skip'] = step
         return obs, accumulated_reward, is_terminal, info
 
     def _pool_and_resize(self):
@@ -250,21 +244,44 @@ class Atari:
 
 if __name__ == '__main__':
     config = dict(
-        name='breakout', 
-        max_episode_steps=27000,
-        life_done=True
+        name='breakout',
+        precision=32,
+        life_done=True,
+        sticky_actions=True,
+        seed=0
     )
-    env = make_atari_env(config)
-    env.seed(0)
-    o = env.reset()
-    d = np.zeros(len(o))
-    for k in range(0, 10):
-        o = np.array(o)
-        a = env.action_space.sample()
-        no, r, d, i = env.step(a)
-        print(k, r, d, env.lives)
-        if d:
-            np.testing.assert_equal(np.array(o)[...,1:], np.array(no)[...,:-1])
-            print(k, env.lives, d, env._game_over)
-            env.reset()
-        o = no
+
+    import numpy as np
+    from env.baselines import make_atari, wrap_deepmind
+    np.random.seed(0)
+    name = config['name']
+    version = 0
+    name = f'{name.title()}NoFrameskip-v{version}'
+    print(name)
+    env1 = make_atari(name)
+    env1 = wrap_deepmind(env1, episode_life=config['life_done'], frame_stack=True)
+    np.random.seed(0)
+    env2 = Atari(**config)
+    env1.seed(0)
+    env2.seed(0)
+    np.random.seed(0)
+    o1 = env1.reset()
+    np.random.seed(0)
+    o2 = env2.reset()
+    o1 = env1.ale.getScreenRGB2()
+    o2 = env2.get_screen()
+    np.testing.assert_allclose(np.array(o1), np.array(o2))
+    for i in range(1,1000):
+        np.random.seed(0)
+        o1, r1, d1, _ = env1.step(2)
+        o1 = env1.ale.getScreenRGB2()
+        np.random.seed(0)
+        print(i, env1.lives, env2.lives)
+        o2, r2, d2, _ = env2.step(2)
+        o2 = env2.env.ale.getScreenRGB2()
+        np.testing.assert_allclose(np.array(o1), np.array(o2))
+        np.testing.assert_allclose(r1, r2)
+        np.testing.assert_allclose(d1, d2)
+        if d1:
+            env1.reset()
+            env2.reset()

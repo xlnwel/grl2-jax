@@ -92,6 +92,8 @@ class EnvStats:
         self._precision = precision
         # if we take timeout as done
         self._timeout_done = timeout_done
+        if timeout_done:
+            print('Timeout is treated as done')
 
     def __getattr__(self, name):
         return getattr(self.env, name)
@@ -105,10 +107,11 @@ class EnvStats:
         return self.env.reset(**kwargs)
 
     def step(self, action):
+        assert not np.any(np.isnan(action)), action
         self._mask = 1 - self._already_done
         obs, reward, done, info = self.env.step(action)
-        self._score += 0 if self._already_done else reward
-        self._epslen += 0 if self._already_done else info.get('frame_skip', 1)
+        self._score += 0 if self.game_over() else reward
+        self._epslen += 0 if self.game_over() else info.get('frame_skip', 1)
         self._already_done = done
         if self._epslen >= self.max_episode_steps:
             self._already_done = True

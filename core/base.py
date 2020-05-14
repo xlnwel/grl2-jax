@@ -17,7 +17,7 @@ class BaseAgent(ABC):
         """
         restore(self._ckpt_manager, self._ckpt, self._ckpt_path, self._model_name)
 
-    def save(self, steps=None, message='', print_terminal_info=True):
+    def save(self, steps=None, message='', print_terminal_info=False):
         """ Save Model
         
         Args:
@@ -35,7 +35,7 @@ class BaseAgent(ABC):
         save_config(self._root_dir, self._model_name, config)
 
     def log(self, step, print_terminal_info=True):
-        log(self._logger, self._writer, self._model_name, name=self.name, 
+        log(self._logger, self._writer, self._model_name, prefix=self.name, 
             step=step, print_terminal_info=print_terminal_info)
 
     def log_stats(self, stats, print_terminal_info=True):
@@ -44,8 +44,9 @@ class BaseAgent(ABC):
     def set_summary_step(self, step):
         set_summary_step(step)
 
-    def scalar_summary(self, stats, step=None):
-        scalar_summary(self._writer, stats, step=step, name=self.name)
+    def scalar_summary(self, stats, prefix=None, step=None):
+        prefix = prefix or self.name
+        scalar_summary(self._writer, stats, step=step, prefix=prefix)
 
     def graph_summary(self, fn=None, *args, step=None):
         graph_summary(self._writer, fn, *args, step=step)

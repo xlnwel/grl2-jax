@@ -118,6 +118,7 @@ class MaxAndSkipEnv(gym.Wrapper):
         # Note that the observation on the done=True frame
         # doesn't matter
         max_frame = self._obs_buffer.max(axis=0)
+        info['frame_skip'] = i+1
 
         return max_frame, total_reward, done, info
 
@@ -265,8 +266,24 @@ class LazyFrames(object):
     def frame(self, i):
         return self._force()[..., i]
 
+class Counter:
+    def __init__(self, env):
+        self.env = env
+
+    def __getattr__(self, name):
+        return getattr(self.env, name)
+
+    def reset(self, *args, **kwargs):
+        print('reset')
+        return self.env.reset(*args, **kwargs)
+    
+    def step(self, action, **kwargs):
+        print('step', action)
+        return self.env.step(action, **kwargs)
+
 def make_atari(env_id, max_episode_steps=None):
     env = gym.make(env_id)
+    env = Counter(env)
     assert 'NoFrameskip' in env.spec.id
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
