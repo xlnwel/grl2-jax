@@ -10,15 +10,14 @@ from env.gym_env import create_env
 from run import pkg
 
 
-def main(env_config, model_config, agent_config, n, record=False):
+def main(env_config, model_config, agent_config, n, record=False, size=(128, 128)):
     silence_tf_logs()
     configure_gpu()
 
     algo = agent_config['algorithm']
     create_model, Agent = pkg.import_agent(agent_config)
 
-    if record:
-        env_config['n_workers'] = env_config['n_envs'] = 1
+    del env_config['normalize_obs']
     env = create_env(env_config, force_envvec=True)
 
     models = create_model(
@@ -29,8 +28,8 @@ def main(env_config, model_config, agent_config, n, record=False):
 
     agent = Agent(name=algo, config=agent_config, models=models, env=env)
 
-    scores, epslens, video = evaluate(env, agent, n, record=record, size=(128, 128))
+    scores, epslens, video = evaluate(env, agent, n, record=record, size=size)
     if record:
-        save_video(agent.model_name, video)
+        save_video(agent._model_name, video)
     pwc(f'After running {n} episodes',
         f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')

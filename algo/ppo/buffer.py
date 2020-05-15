@@ -12,8 +12,7 @@ class PPOBuffer:
         size = self._n_envs * self._n_steps
         self._mb_size = size // self._n_mbs
         self._idxes = np.arange(size)
-        self._gae_discount = self._gamma * self._lam 
-        
+        self._gae_discount = self._gamma * self._lam
         self._memory = {}
         self.reset()
 
@@ -46,12 +45,6 @@ class PPOBuffer:
     def finish(self, last_value):
         assert self._idx == self._n_steps, self._idx
         self._memory['value'][:, -1] = last_value
-
-        # Environment hack
-        if hasattr(self, '_reward_scale'):
-            self._memory['reward'] *= self._reward_scale
-        if hasattr(self, '_reward_clip'):
-            self._memory['reward'] = np.clip(self._memory['reward'], -self._reward_clip, self._reward_clip)
 
         if self._adv_type == 'nae':
             traj_ret = self._memory['traj_ret']

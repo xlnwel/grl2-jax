@@ -14,7 +14,6 @@ from env.gym_env import create_env
 
 
 def train(agent, env, eval_env, buffer, run):
-    print(env, eval_env)
     step = agent.global_steps.numpy()
     
     to_log = Every(agent.LOG_INTERVAL)
@@ -36,8 +35,9 @@ def train(agent, env, eval_env, buffer, run):
                 fps=(step-start_env_step)/duration,
                 tps=(train_step-start_train_step)/duration,
             )
-            scores, epslens, video = evaluate(eval_env, agent)
-            # video_summary(f'{agent.name}/sim', video, step)
+            scores, epslens, video = evaluate(
+                eval_env, agent, record=False)
+            # video_summary(f'{agent.name}/sim', video, step=step)
             agent.store(eval_score=scores, eval_epslen=np.mean(epslens))
 
             agent.log(step)
@@ -65,9 +65,13 @@ def main(env_config, model_config, agent_config, buffer_config):
         ray.init()
         sigint_shutdown_ray()
 
-    env = create_env(env_config)
+    env = create_env(env_config, force_envvec=True)
     eval_env_config = env_config.copy()
-    eval_env_config['seed'] += 100
+    if 'normalize_reward' in eval_env_config:
+        del eval_env_config['normalize_reward']
+    if eval_env_config.get('normalize_obs'):
+        eval_env_config['obs_rms'] = env.obs_rms
+    eval_env_config['seed'] += 1000
     eval_env = create_env(eval_env_config, force_envvec=True)
 
     buffer_config['n_envs'] = env_config['n_envs']

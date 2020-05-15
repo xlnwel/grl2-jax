@@ -105,6 +105,7 @@ class Agent(BaseAgent):
                 total_loss = policy_loss + value_loss
 
         terms = dict(
+            act_std=act_dist.stddev(),
             entropy=entropy, 
             approx_kl=approx_kl, 
             p_clip_frac=p_clip_frac,

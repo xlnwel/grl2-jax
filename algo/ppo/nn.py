@@ -30,7 +30,7 @@ class PPOAC(Module):
                         norm=self._norm, 
                         name='actor', 
                         activation=self._activation, 
-                        kernel_initializer='orthogonal')
+                        kernel_initializer=self._kernel_initializer)
         if not self._is_action_discrete:
             self.logstd = tf.Variable(
                 initial_value=np.log(self._init_std)*np.ones(action_dim),
@@ -42,7 +42,7 @@ class PPOAC(Module):
                             norm=self._norm, 
                             name='critic', 
                             activation=self._activation, 
-                            kernel_initializer='orthogonal')
+                            kernel_initializer=self._kernel_initializer)
 
     def __call__(self, x, return_value=False):
         print(f'{self.name} is retracing: x={x.shape}')
