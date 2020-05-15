@@ -40,7 +40,17 @@ def scalar_summary(writer, stats, prefix=None, step=None):
                 tf.summary.scalar(f'{prefix}/{k}_mean', tf.reduce_mean(v), step=step)
                 tf.summary.scalar(f'{prefix}/{k}_std', tf.math.reduce_std(v), step=step)
 
-def graph_summary(writer, fn, *args, step=None):
+def histogram_summary(writer, stats, prefix=None, step=None):
+    if step:
+        tf.summary.experimental.set_step(step)
+    prefix = prefix or 'stats'
+    with writer.as_default():
+        for k, v in stats.items():
+            if isinstance(v, (str, int, float)):
+                continue
+            tf.summary.histogram(f'{prefix}/{k}', v)
+
+def graph_summary(writer, fn, args, step=None):
     """ see utility.graph for available candidates of fn """
     if step is None:
         step = tf.summary.experimental.get_step()

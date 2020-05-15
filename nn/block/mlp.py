@@ -1,6 +1,7 @@
 import tensorflow as tf
 
 from nn.layers import Layer 
+from nn.utils import get_initializer
 
 
 class MLP(tf.Module):
@@ -15,6 +16,10 @@ class MLP(tf.Module):
                 name=f'layer_{i}', **kwargs)
             for i, u in enumerate(units_list)]
         if out_dim:
+            # Following OpenAI's baselines, which uses a small-scale initializer
+            # for policy head when using othogonal initialization
+            gain = .01 if out_dim > 1 else 1
+            kernel_initializer = get_initializer(kernel_initializer, gain=gain)
             self._layers.append(layer_type(out_dim, dtype=out_dtype, name='out'))
             
     def __call__(self, x, **kwargs):

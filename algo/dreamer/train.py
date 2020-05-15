@@ -26,7 +26,7 @@ def run(env, agent, step, obs=None,
         already_done = env.already_done()
     frame_skip = getattr(env, 'frame_skip', 1)
     frames_per_step = env.n_envs * frame_skip
-    nsteps = (nsteps or env.max_episode_steps) // frame_skip
+    nsteps = nsteps or env.max_episode_steps // frame_skip
     for _ in range(nsteps):
         action = agent(obs, already_done, deterministic=evaluation)
         obs, reward, done, info = env.step(action)
@@ -78,7 +78,7 @@ def train(agent, env, eval_env, replay):
             train_state, train_action = agent.retrieve_states()
 
             score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
-            video_summary(f'{agent.name}/sim', video, step)
+            video_summary(f'{agent.name}/sim', video, step=step)
             agent.store(eval_score=score, eval_epslen=epslen)
             
             agent.reset_states(train_state, train_action)

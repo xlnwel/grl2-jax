@@ -2,7 +2,7 @@ from abc import ABC
 import numpy as np
 
 from core.decorator import config
-from utility.utils import to_int, RunningMeanStd
+from utility.utils import to_int
 from replay.utils import *
 
 
@@ -16,13 +16,6 @@ class Replay(ABC):
         self._pre_dims = (self._capacity, )
         self._precision = getattr(self, '_precision', 32)
 
-        # reward hacking
-        if hasattr(self, '_normalize_reward'):
-            self._running_reward_stats = RunningMeanStd()
-        print(f'reward hacking: reward scale({getattr(self, "_reward_scale", 1)})',
-              f'reward_clip({getattr(self, "_reward_clip", None)})',
-              f'noramlize_reward({getattr(self, "_normalize_reward", None)})')
-        
         self._is_full = False
         self._mem_idx = 0
         
@@ -127,16 +120,5 @@ class Replay(ABC):
                 results['nth_obs'] = np.array(
                     [np.array(self._memory['obs'][i], copy=False) 
                     for i in next_indexes])
-
-        # process rewards
-        if getattr(self, '_reward_scale', 1) != 1:
-            results['reward'] *= np.where(results['done'], 1, self._reward_scale)
-        if getattr(self, '_reward_clip', None):
-            results['reward'] = np.clip(results['reward'], -self._reward_clip, self._reward_clip)
-        if getattr(self, '_normalize_reward', None):
-            # we update running reward statistics at sampling time
-            # since this is when the rewards contribute to the learning process
-            self._running_reward_stats.update(results['reward'])
-            results['reward'] = self._running_reward_stats.normalize(results['reward'])
 
         return results

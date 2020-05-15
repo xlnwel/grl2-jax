@@ -29,11 +29,14 @@ def get_initializer(name, **kwargs):
     """ 
     Return a kernel initializer by name
     """
-    if name.lower() == 'none':
-        return None
-    elif name.lower() == 'orthogonal':
-        return initializers.orthogonal(kwargs.get('gain', 1.))
-    return initializers.get(name)
+    if isinstance(name, str):
+        if name.lower() == 'none':
+            return None
+        elif name.lower() == 'orthogonal':
+            return initializers.orthogonal(kwargs.get('gain', 1.))
+        return initializers.get(name)
+    else:
+        return name
 
 def ortho_init(scale=1.0):
     """ 

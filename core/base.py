@@ -48,6 +48,9 @@ class BaseAgent(ABC):
         prefix = prefix or self.name
         scalar_summary(self._writer, stats, step=step, prefix=prefix)
 
+    def histogram_summary(self, stats, prefix=None, step=None):
+        histogram_summary(self._writer, stats, prefix=prefix, step=step)
+
     def graph_summary(self, fn=None, *args, step=None):
         graph_summary(self._writer, fn, *args, step=step)
 

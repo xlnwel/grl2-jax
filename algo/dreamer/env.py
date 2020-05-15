@@ -23,11 +23,7 @@ def make_env(config):
             life_done=True, sticky_actions=True)
         max_episode_steps = 108000
     else:
-        env = gym.make(task).env
-        max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
-        if 'reward_hack' in config:
-            env = wrappers.RewardHack(env, **config['reward_hack'])
-        # raise NotImplementedError(suite)
+        raise NotImplementedError(suite)
     env = wrappers.EnvStats(env, max_episode_steps, 
             precision=config.get('precision', 16))
     if config.get('log_episode'):
