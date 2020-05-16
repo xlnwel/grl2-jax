@@ -36,7 +36,6 @@ def change_config(kw, prefix, env_config, model_config, agent_config, replay_con
         for s in kw:
             key, value = s.split('=')
             value = eval_str(value)
-            
             prefix += s + '-'
 
             # change kwargs in config
@@ -54,6 +53,7 @@ def change_config(kw, prefix, env_config, model_config, agent_config, replay_con
 
             for _, c in valid_config:
                 c[key]  = value
+            
     return prefix
 
 if __name__ == '__main__':

@@ -20,13 +20,16 @@ class Runner:
         env = self.env
         obs = self.obs
         nsteps = nsteps or self._default_nsteps
+        terms = {}
         for t in range(nsteps):
             action = self.agent(obs, deterministic=False)
+            if isinstance(action, tuple):
+                action, terms = action
             next_obs, reward, done, _ = env.step(action)
             self.step += self._frames_per_step
             if step_fn:
                 step_fn(env, self.step, obs=obs, action=action, reward=reward,
-                    discount=1-done, nth_obs=next_obs)
+                    discount=1-done, nth_obs=next_obs, **terms)
             if np.any(env.already_done()):
                 if env.n_envs == 1:
                     obs = env.reset()
@@ -37,27 +40,31 @@ class Runner:
             else: 
                 obs = next_obs
         self.obs = obs
+        return self.step
 
     def run_traj(self, *, step_fn=None):
-        # omit inputs 'obs' and 'nsteps'
         env = self.env
         obs = env.reset()
+        terms = {}
         while True:
             action = self.agent(obs, deterministic=False)
+            if isinstance(action, tuple):
+                action, terms = action
             next_obs, reward, done, _ = env.step(action)
             discount = 1-done
             self.step += np.sum(discount)
             if step_fn:
                 if env.n_envs == 1:
                     step_fn(env, self.step, obs=obs, action=action, reward=reward,
-                        discount=1-done, nth_obs=next_obs)
+                        discount=1-done, nth_obs=next_obs, **terms)
                 else:
                     step_fn(env, self.step, obs=obs, action=action, reward=reward,
-                        discount=1-done, nth_obs=next_obs, mask=env.mask())
+                        discount=1-done, nth_obs=next_obs, mask=env.mask(), **terms)
             if np.all(env.game_over()):
                 break
             else:
                 obs = next_obs
+        return self.step
 
 def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
     pwc('Evaluation starts', color='cyan')
@@ -70,27 +77,24 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
         if hasattr(agent, 'reset_states'):
             agent.reset_states()
         obs = env.reset()
-        while True:
+        for k in range(10000):
             if record:
                 if name.startswith('dm'):
                     imgs.append(obs)
                 else:
                     imgs.append(env.get_screen(size=size))
             action = agent(obs, deterministic=True)
-            obs, _, done, _ = env.step(action)
+            obs, reward, done, _ = env.step(action)
+            
+            if np.all(env.game_over()):
+                break
             if np.any(env.already_done()):
                 if env.n_envs == 1:
-                    if env.game_over():
-                        break
-                    else:
-                        obs = env.reset()
+                    obs = env.reset()
                 else:
-                    idxes = [i for i, e in enumerate(env.envs) if not e.game_over()]
-                    if idxes:
-                        for i in idxes:
-                            obs[i] = env.envs[i].reset()
-                    else:
-                        break
+                    for i, e in enumerate(env.envs):
+                        if e.already_done() and not e.game_over():
+                            obs[i] = e.reset()
         scores.append(env.score())
         epslens.append(env.epslen())
     

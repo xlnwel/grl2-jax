@@ -6,7 +6,7 @@ import tensorflow as tf
 import ray
 import cv2
 
-from utility.utils import isscalar
+from utility.utils import isscalar, RunningMeanStd
 from env.wrappers import *
 from env.atari import make_atari_env
 
@@ -26,25 +26,30 @@ def make_env(config):
     env = EnvStats(env, max_episode_steps,
                     precision=config.get('precision', 32), 
                     timeout_done=config.get('timeout_done', False))
+    if 'reward_scale' in config or 'reward_clip' in config:
+        env = RewardHack(env, **config)
     if config.get('log_episode'):
         env = LogEpisode(env)
 
     return env
 
 def create_env(config, env_fn=make_env, force_envvec=False):
-    if force_envvec or config.get('n_envs', 1) > 1:
-        EnvType = EnvVec
-    else:
-        EnvType = Env
+    EnvType = EnvVec if force_envvec or config.get('n_envs', 1) > 1 else Env
     if config.get('n_workers', 1) <= 1:
         if EnvType == EnvVec and config.get('efficient_envvec', False):
             EnvType = EfficientEnvVec
-        return EnvType(config, env_fn)
+        env = EnvType(config, env_fn)
     else:
-        return RayEnvVec(EnvType, config, env_fn)
+        env = RayEnvVec(EnvType, config, env_fn)
+
+    if config.get('normalize_obs'):
+        env = ObservationNormalize(env, config.get('obs_rms'))
+    if config.get('normalize_reward'):
+        env = RewardNormalize(env, config.get('reward_rms'))
+    return env
 
 
-class EnvVecBase:
+class EnvVecBase(Wrapper):
     def _convert_batch_obs(self, obs):
         if isinstance(obs[0], np.ndarray):
             obs = np.reshape(obs, [-1, *self.obs_shape])
@@ -59,15 +64,13 @@ class EnvVecBase:
         return idxes
 
 
-class Env:
+class Env(Wrapper):
     def __init__(self, config, env_fn=make_env):
         self.env = env_fn(config)
+        if 'seed' in config and hasattr(self.env, 'seed'):
+            self.env.seed(config['seed'])
         self.name = config['name']
         self.max_episode_steps = self.env.max_episode_steps
-
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
 
     def reset(self, idxes=None, **kwargs):
         assert idxes is None or idxes == 0, idxes
@@ -118,12 +121,10 @@ class EnvVec(EnvVecBase):
         self.envs = [env_fn(config) for i in range(n_envs)]
         self.env = self.envs[0]
         if 'seed' in config:
-            [hasattr(env, 'seed') and env.seed(config['seed'] + i) 
-                for i, env in enumerate(self.envs)]
+            [env.seed(config['seed'] + i) 
+                for i, env in enumerate(self.envs)
+                if hasattr(env, 'seed')]
         self.max_episode_steps = self.env.max_episode_steps
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
 
     def random_action(self, *args, **kwargs):
         return np.array([env.action_space.sample() for env in self.envs], copy=False)
@@ -147,11 +148,11 @@ class EnvVec(EnvVecBase):
 
         return (self._convert_batch_obs(obs), 
                 np.array(reward, dtype=np.float32), 
-                np.array(done, dtype=np.bool), 
+                np.array(done, dtype=np.float32), 
                 info)
 
     def mask(self):
-        return np.array([env.mask() for env in self.envs], dtype=np.bool)
+        return np.array([env.mask() for env in self.envs], dtype=np.float32)
 
     def score(self, idxes=None):
         idxes = self._get_idxes(idxes)
@@ -205,7 +206,7 @@ class EfficientEnvVec(EnvVec):
         
         return (self._convert_batch_obs(obs), 
                 np.array(reward, dtype=np.float32), 
-                np.array(done, dtype=np.bool), 
+                np.array(done, dtype=np.float32), 
                 info)
 
 
@@ -226,9 +227,6 @@ class RayEnvVec(EnvVecBase):
 
         self.env = EnvType(config, env_fn)
         self.max_episode_steps = self.env.max_episode_steps
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
 
     def reset(self, idxes=None):
         if idxes is None:
@@ -258,7 +256,7 @@ class RayEnvVec(EnvVecBase):
         obs = tf.nest.flatten(obs)
         return (self._convert_batch_obs(obs),
                 np.reshape(reward, self.n_envs).astype(np.float32), 
-                np.reshape(done, self.n_envs).astype(bool),
+                np.reshape(done, self.n_envs).astype(np.float32),
                 info)
 
     def mask(self):
@@ -286,6 +284,56 @@ class RayEnvVec(EnvVecBase):
 
     def close(self):
         del self
+
+
+class ObservationNormalize(Wrapper):
+    def __init__(self, env, obs_rms=None, **kwargs):
+        self.env = env
+        if obs_rms is None:
+            self._update_rms = True
+            axis = None if get_wrapper_by_name(self.env, 'Env') else 0
+            self.obs_rms = RunningMeanStd(axis=axis)
+        else:
+            self._update_rms = False
+            self.obs_rms = obs_rms
+
+    def reset(self, idxes=None, **kwargs):
+        obs = self.env.reset(idxes, **kwargs)
+        if self._update_rms:
+            self.obs_rms.update(obs)
+        obs = self.obs_rms.normalize(obs)
+        return obs
+
+    def step(self, action, **kwargs):
+        any_done = self.n_envs > 1 and np.any(self.already_done())
+        obs, reward, done, info = self.env.step(action, **kwargs)
+        mask = self.mask() if any_done else None
+        if self._update_rms:
+            self.obs_rms.update(obs, mask)
+        obs = self.obs_rms.normalize(obs)
+        return obs, reward, done, info
+
+
+class RewardNormalize(Wrapper):
+    def __init__(self, env, reward_rms=None, **kwargs):
+        self.env = env
+        if reward_rms is None:
+            self._update_rms = True
+            axis = None if get_wrapper_by_name(self.env, 'Env') else 0
+            self.reward_rms = RunningMeanStd(axis=axis)
+        else:
+            self._update_rms = False
+            self.reward_rms = reward_rms
+
+    def step(self, action, **kwargs):
+        any_done = self.n_envs > 1 and np.any(self.already_done())
+        obs, reward, done, info = self.env.step(action, **kwargs)
+        mask = self.mask() if any_done else None
+        if self._update_rms:
+            self.reward_rms.update(reward, mask)
+        reward = self.reward_rms.normalize(reward, subtract_mean=False)
+        return obs, reward, done, info
+
 
 def _envvec_step(envvec, actions, **kwargs):
     if kwargs:

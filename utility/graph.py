@@ -37,20 +37,23 @@ def image_summary(name, images, step=None):
     tf.summary.image(name + '/grid', img, step)
     
 
-def video_summary(name, video, step=None, fps=20):
+def video_summary(name, video, size=None, step=None, fps=20):
     name = name if isinstance(name, str) else name.decode('utf-8')
     if np.issubdtype(video.dtype, np.floating):
         video = np.clip(255 * video, 0, 255).astype(np.uint8)
     while len(video.shape) < 5:
         video = np.expand_dims(video, 0)
     B, T, H, W, C = video.shape
-    if B != 1:
+    if size is None and B != 1:
         bh, bw = squarest_grid_size(B)
         frames = video.reshape((bh, bw, T, H, W, C))
         frames = frames.transpose((2, 0, 3, 1, 4, 5))
         frames = frames.reshape((T, bh*H, bw*W, C))
     else:
-        frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, W, C))
+        if size is None:
+            size = (1, 1)
+        assert size[0] * size[1] == B, f'Size({size}) does not match the batch dimension({B})'
+        frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, size[0]*H, size[1]*W, C))
     try:
         summary = tf1.Summary()
         image = tf1.Summary.Image(height=B * H, width=T * W, colorspace=C)

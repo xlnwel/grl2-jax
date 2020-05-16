@@ -27,24 +27,31 @@ class Every:
 
 class RunningMeanStd(object):
     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
-    def __init__(self, axis=0, epsilon=1e-4):
+    def __init__(self, axis=None, epsilon=1e-8, clip=10):
+        """ Compute running mean and std from data
+        Args:
+            axis: axis along which we compute mean and std from incoming data. 
+                If it's None, we only receive a sample at a time
+        """
         self._axis = axis
         self._mean = None
         self._var = None
         self._epsilon = epsilon
         self._count = epsilon
+        self._clip = clip
 
     def update(self, x, mask=None):
         if self._axis is None:
-            self._axis = tuple(range(x.ndim))
-        batch_mean, batch_std = moments(x, self._axis, mask)
-        batch_count = np.prod(np.array(x.shape)[self._axis]) if mask is None else np.sum(mask)
-        batch_var = np.square(batch_std)
-        self.update_from_moments(batch_mean, batch_var, batch_count)
+            assert mask is None
+            batch_mean, batch_var, batch_count = x, 0, 1
+        else:
+            batch_mean, batch_std = moments(x, self._axis, mask)
+            batch_count = np.prod(np.array(x.shape)[self._axis]) if mask is None else np.sum(mask)
+            batch_var = np.square(batch_std)
+        if batch_count > 0:
+            self.update_from_moments(batch_mean, batch_var, batch_count)
 
     def update_from_moments(self, batch_mean, batch_var, batch_count):
-        # print(f'self:\tmean:{self.mean:.3g}\tvar:{self.var:.3g}\tcount:{self.count}')
-        # print(f'batch:\tmean:{batch_mean:.3g}\tvar:{batch_var:.3g}\tcount:{batch_count}')
         if self._count == self._epsilon:
             self._mean = batch_mean
             self._var = batch_var
@@ -54,28 +61,21 @@ class RunningMeanStd(object):
             total_count = self._count + batch_count
 
             new_mean = self._mean + delta * batch_count / total_count
-            # no minus one here. 
-            m_a = self._var * (self._count)
-            m_b = batch_var * (batch_count)
-            # print(f'ma:{m_a:.3g}\tmb:{m_b:.3g}\tdelta:{delta:.3g}')
-            # print(delta**2, self.count * batch_count, self.count + batch_count)
+            # no minus one here to be consistent with np.std
+            m_a = self._var * self._count
+            m_b = batch_var * batch_count
             M2 = m_a + m_b + np.square(delta) * self._count * batch_count / (self._count + batch_count)
             assert np.all(np.isfinite(M2)), f'M2: {M2}'
             new_var = M2 / (self._count + batch_count)
-
-            new_count = batch_count + self._count
-
             self._mean = new_mean
             self._var = new_var
-            self._count = new_count
+            self._count += batch_count
 
-    def normalize(self, x, subtract_mean=False):
+    def normalize(self, x, subtract_mean=True):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
-        # print(f'before normalization:\tmean:{np.mean(x)}\tstd:{np.std(x)}')
         if subtract_mean:
             x = x - self._mean
-        x = x / (self._var + self._epsilon)
-        # print(f'after normalization:\tmean:{np.mean(x)}\tstd:{np.std(x)}')
+        x = np.clip(x / (np.sqrt(self._var) + self._epsilon), -self._clip, self._clip)
         return x
 
 def to_int(s):

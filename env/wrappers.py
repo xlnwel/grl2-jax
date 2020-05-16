@@ -5,53 +5,40 @@ import gym
 from utility.utils import infer_dtype, convert_dtype
 
 
-class RewardHack:
-    def __init__(self, env, scale=1, clip=None):
-        self.env = env
-        self.reward_scale = scale
-        self.clip_reward = clip
-    
+class Wrapper:
     def __getattr__(self, name):
         return getattr(self.env, name)
 
-    def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        reward *= self.reward_scale
-        if self.clip_reward:
-            reward = np.clip(reward, -self.clip_reward, self.clip_reward)
-        return obs, reward, done, info
+    def __str__(self):
+        return '<{}{}>'.format(type(self).__name__, self.env)
 
+    def __repr__(self):
+        return str(self)
 
-class NormalizeActions:
+class NormalizeActions(Wrapper):
     """ Normalize infinite action dimension in range [-1, 1] """
     def __init__(self, env):
-        self._env = env
-        self._mask = np.logical_and(
+        self.env = env
+        self._act_mask = np.logical_and(
             np.isfinite(env.action_space.low),
             np.isfinite(env.action_space.high))
-        self._low = np.where(self._mask, env.action_space.low, -1)
-        self._high = np.where(self._mask, env.action_space.high, 1)
-
-    def __getattr__(self, name):
-        return getattr(self._env, name)
+        self._low = np.where(self._act_mask, env.action_space.low, -1)
+        self._high = np.where(self._act_mask, env.action_space.high, 1)
 
     @property
     def action_space(self):
-        low = np.where(self._mask, -np.ones_like(self._low), self._low)
-        high = np.where(self._mask, np.ones_like(self._low), self._high)
+        low = np.where(self._act_mask, -np.ones_like(self._low), self._low)
+        high = np.where(self._act_mask, np.ones_like(self._low), self._high)
         return gym.spaces.Box(low, high, dtype=np.float32)
 
     def step(self, action):
         original = (action + 1) / 2 * (self._high - self._low) + self._low
-        original = np.where(self._mask, original, action)
-        return self._env.step(original)
+        original = np.where(self._act_mask, original, action)
+        return self.env.step(original)
 
-class ClipActionsWrapper:
+class ClipActionsWrapper(Wrapper):
     def __init__(self, env):
         self.env = env
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
 
     def step(self, action):
         action = np.nan_to_num(action)
@@ -61,13 +48,10 @@ class ClipActionsWrapper:
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
 
-class FrameSkip:
+class FrameSkip(Wrapper):
     def __init__(self, env, frame_skip=1):
         self.env = env
         self.frame_skip = frame_skip
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
 
     def step(self, action, frame_skip=None):
         total_reward = 0
@@ -81,8 +65,8 @@ class FrameSkip:
         
         return obs, total_reward, done, info
 
-class EnvStats:
-    """ Provide Environment Statistics Recording """
+class EnvStats(Wrapper):
+    """ Records environment statistics """
     def __init__(self, env, max_episode_steps, precision=32, timeout_done=False):
         self.env = env
         self.max_episode_steps = max_episode_steps
@@ -92,11 +76,9 @@ class EnvStats:
         self._precision = precision
         # if we take timeout as done
         self._timeout_done = timeout_done
+        self._fake_obs = np.zeros(self.obs_shape)
         if timeout_done:
             print('Timeout is treated as done')
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
 
     def reset(self, **kwargs):
         if self.game_over():
@@ -107,6 +89,11 @@ class EnvStats:
         return self.env.reset(**kwargs)
 
     def step(self, action):
+        if self.game_over():
+            # as some environment, e.g. Ant-v3 implicitly reset env
+            # when keeping stepping after game's over
+            # here, we override this behavior
+            return self._fake_obs, 0, True, {}
         assert not np.any(np.isnan(action)), action
         self._mask = 1 - self._already_done
         obs, reward, done, info = self.env.step(action)
@@ -122,7 +109,7 @@ class EnvStats:
 
     def mask(self):
         """ Get mask at the current step. Should only be called after self.step """
-        return bool(self._mask)
+        return self._mask
 
     def score(self, **kwargs):
         return self._score
@@ -165,13 +152,10 @@ class EnvStats:
 
 """ The following wrappers rely on members defined in EnvStats.
 Therefore, they should only be invoked after EnvStats """
-class LogEpisode:
+class LogEpisode(Wrapper):
     def __init__(self, env):
         self.env = env
         self.prev_episode = {}
-
-    def __getattr__(self, name):
-        return getattr(self.env, name)
 
     def reset(self, **kwargs):
         obs = self.env.reset()
@@ -203,12 +187,26 @@ class LogEpisode:
         return obs, reward, done, info
 
 
+class RewardHack(Wrapper):
+    def __init__(self, env, reward_scale=1, reward_clip=None, **kwargs):
+        self.env = env
+        self.reward_scale = reward_scale
+        self.reward_clip = reward_clip
+    
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        reward *= self.reward_scale
+        if self.reward_clip:
+            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
+        return obs, reward, done, info
+
+
 def get_wrapper_by_name(env, classname):
     currentenv = env
     while True:
-        if classname in currentenv.__class__.__name__:
+        if classname == currentenv.__class__.__name__:
             return currentenv
-        elif isinstance(env, gym.Wrapper) and hasattr(currentenv, 'env'):
+        elif hasattr(currentenv, 'env'):
             currentenv = currentenv.env
         else:
             # don't raise error here, only return None

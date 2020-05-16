@@ -19,8 +19,9 @@ def parse_cmd_args():
     parser.add_argument('--record', '-r',
                         action='store_true')
     parser.add_argument('--n_episodes', '-n', type=int, default=1)
-    parser.add_argument('--n_envs', '-ne', type=int, default=1)
-    parser.add_argument('--n_workers', '-nw', type=int, default=1)
+    parser.add_argument('--n_envs', '-ne', type=int, default=0)
+    parser.add_argument('--n_workers', '-nw', type=int, default=0)
+    parser.add_argument('--size', '-s', nargs='+', type=int, default=[128, 128])
     args = parser.parse_args()
 
     return args
@@ -33,10 +34,10 @@ def import_main(algorithm):
 
 
 if __name__ == '__main__':
-    cmd_args = parse_cmd_args()
+    args = parse_cmd_args()
 
     # search for config.yaml
-    directory = cmd_args.directory
+    directory = args.directory
     config_file = None
     for root, _, files in os.walk(directory):
         for f in files:
@@ -59,15 +60,15 @@ if __name__ == '__main__':
     algorithm = config['agent']['algorithm']
     main = import_main(algorithm)
         
-    record = cmd_args.record
+    record = args.record
 
     # set up env_config
-    n = cmd_args.n_episodes
-    if cmd_args.n_workers > 1:
-        env_config['n_workers'] = cmd_args.n_workers
-    if cmd_args.n_envs > 1:
-        env_config['n_envs'] = cmd_args.n_envs
-    n = max(cmd_args.n_workers * cmd_args.n_envs, n)
+    n = args.n_episodes
+    if args.n_workers:
+        env_config['n_workers'] = args.n_workers
+    if args.n_envs:
+        env_config['n_envs'] = args.n_envs
+    n = max(args.n_workers * args.n_envs, n)
     env_config['seed'] = np.random.randint(1000)
     
-    main(env_config, model_config, agent_config, n=n, record=record)
+    main(env_config, model_config, agent_config, n=n, record=record, size=tuple(args.size))
