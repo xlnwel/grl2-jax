@@ -114,6 +114,7 @@ class Env(Wrapper):
             
         return img
 
+
 class EnvVec(EnvVecBase):
     def __init__(self, config, env_fn=make_env):
         self.n_envs = n_envs = config['n_envs']
@@ -181,6 +182,7 @@ class EnvVec(EnvVecBase):
         
         return imgs
 
+
 class EfficientEnvVec(EnvVec):
     """ Designed for evaluation only """
     def reset(self, idxes=None, **kwargs):
@@ -189,7 +191,7 @@ class EfficientEnvVec(EnvVec):
         self.valid_envs = self.envs
         return super().reset()
 
-    def random_action(self):
+    def random_action(self, *args, **kwargs):
         return [env.action_space.sample() for env in self.valid_envs]
         
     def step(self, actions, **kwargs):
@@ -208,6 +210,7 @@ class EfficientEnvVec(EnvVec):
                 np.array(reward, dtype=np.float32), 
                 np.array(done, dtype=np.float32), 
                 info)
+
 
 
 class RayEnvVec(EnvVecBase):

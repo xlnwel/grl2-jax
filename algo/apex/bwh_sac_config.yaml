@@ -1,23 +1,18 @@
 ---
 env:
     name: BipedalWalkerHardcore-v3
-    video_path: video
-    log_video: False
     n_envs: 1
-    efficient_envvec: True
     seed: 0
     precision: &prec 32
 model:
     actor:
         units_list: [512, 256, 128]
-        kernel_initializer: glorot_uniform
         norm: none
         activation: relu
         LOG_STD_MIN: -20
         LOG_STD_MAX: 2
     q:
         units_list: [512, 512, 256]
-        kernel_initializer: glorot_uniform
         norm: none
         activation: relu
     temperature:
@@ -29,12 +24,11 @@ agent:
     polyak: .995
     precision: *prec
     evaluation: False
-    kl_coef: 1
     act_eps: 0
     
     # timer&interval
     MAX_STEPS: 1.e+8
-    LOG_INTERVAL: 100000
+    LOG_INTERVAL: 10000
     timer: False
 
     # distributed algo params
@@ -52,10 +46,9 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 1.e-4
-    q_lr: 1.e-4
-    temp_lr: 1.e-4
-    epsilon: 1.e-8
+    actor_lr: 1e-4
+    q_lr: 1e-4
+    temp_lr: 1e-4
     # clip_norm: 10
 
     # arguments for PER

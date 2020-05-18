@@ -2,10 +2,8 @@
 env:
     name: &env_name Walker2d-v3
     n_workers: 1
-    n_envs: 8
+    n_envs: &nenvs 8
     seed: 0
-    normalize_obs: True
-    normalize_reward: True
     precision: &prec 32
 
 model:
@@ -14,19 +12,22 @@ model:
     critic_units: *u
     norm: none
     kernel_initializer: orthogonal
-    activation: tanh
+    activation: relu
     init_std: 1
 
 agent:
     algorithm: &algo ppo
     precision: *prec
 
-    MAX_STEPS: 5.e+6
+    MAX_STEPS: 5.e+7
     N_STEPS: &nsteps 256
     N_UPDATES: 4
     N_MBS: &nmbs 4
-    LOG_INTERVAL: 100000
+    LOG_INTERVAL: 200000
     max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
+
+    normalize_obs: True
+    normalize_reward: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -42,12 +43,13 @@ agent:
     # arguments for loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .0
-    value_coef: .5
+    value_coef: 1
 
 buffer:
     adv_type: gae     # nae or gae
     gamma: .99
     lam: .95
-    n_steps: *nsteps
-    n_mbs: *nmbs        # number of minibatches
+    n_envs: *nenvs
+    N_STEPS: *nsteps
+    N_MBS: *nmbs        # number of minibatches
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

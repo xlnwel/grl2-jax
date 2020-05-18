@@ -10,18 +10,9 @@ from utility.utils import str2bool, eval_str
 from utility.yaml_op import load_config
 from utility.display import assert_colorize, pwc
 from run.grid_search import GridSearch
-from run.pkg import get_package
+from run.pkg import get_package, import_main
 from run.cmd_args import parse_cmd_args
 
-
-def import_main(algo):
-    import importlib
-    if algo.startswith('ppo'):
-        algo = 'ppo'
-    pkg = get_package(algo)
-    m = importlib.import_module(f'{pkg}.train')
-
-    return m.main
     
 def get_config_file(algo, environment):
     pkg = get_package(algo, 0, '/')
@@ -39,19 +30,19 @@ def change_config(kw, prefix, env_config, model_config, agent_config, replay_con
             prefix += s + '-'
 
             # change kwargs in config
-            valid_config = []
+            configs = []
             for name, config in zip(['env', 'model', 'agent', 'replay'], 
                             [env_config, model_config, agent_config, replay_config]):
                 if key in config:
-                    valid_config.append((name, config))
-            if len(valid_config) > 1:
+                    configs.append((name, config))
+            if len(configs) > 1:
                 ans = input(f'{key} appears in the following configs: '
-                        f'{list([n for n, _ in valid_config])}.\n'
+                        f'{list([n for n, _ in configs])}.\n'
                         'Are you sure to change all of them?(y/n)')
                 if ans == 'n':
                     sys.exit(0)
 
-            for _, c in valid_config:
+            for _, c in configs:
                 c[key]  = value
             
     return prefix
@@ -80,7 +71,7 @@ if __name__ == '__main__':
         agent_config = config['agent']
         replay_config = config.get('buffer') or config.get('replay')
         algo = agent_config['algorithm']
-        main = import_main(algo)
+        main = import_main(algo, 'train')
 
         main(env_config, model_config, agent_config, replay_config)
     else:
@@ -89,7 +80,7 @@ if __name__ == '__main__':
         algo_env = list(itertools.product(algorithm, environment))
         for algo, env in algo_env:
             config_file = get_config_file(algo, env)
-            main = import_main(algo)
+            main = import_main(algo, 'train')
 
             prefix = cmd_args.prefix
             config = load_config(config_file)
@@ -111,7 +102,7 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     # Grid search happens here
-                    processes += gs(lr=[1e-3, 5e-4, 3e-4])
+                    processes += gs(sample_size=[16, 32], activation=['relu'])
                 else:
                     processes += gs()
             else:

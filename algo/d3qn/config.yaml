@@ -3,7 +3,7 @@ env:
     name: atari_pong
     precision: &prec 32
     life_done: True
-    sticky_action: False
+    sticky_action: True
     seed: 0
 model:
     q:
@@ -20,9 +20,9 @@ agent:
     schedule_eps: False
     act_eps: 0
 
-    MAX_STEPS: 1e7          # maximum training steps
+    MAX_STEPS: 1e9          # maximum training steps
     TRAIN_INTERVAL: 16          # #frames = 4 agent step when frame skip = 4
-    EVAL_INTERVAL: 5e5
+    EVAL_INTERVAL: 1e7
     LOG_INTERVAL: 1e5
 
     # model path: root_dir/model_name/models
@@ -58,5 +58,5 @@ replay:
     gamma: *gamma
     batch_size: 32
     min_size: 8e4
-    capacity: 1e5
+    capacity: 1e6
     has_next_obs: False

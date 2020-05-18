@@ -9,8 +9,8 @@ from replay.utils import init_buffer, print_buffer
 class PPOBuffer:
     @config
     def __init__(self):
-        size = self._n_envs * self._n_steps
-        self._mb_size = size // self._n_mbs
+        size = self._n_envs * self.N_STEPS
+        self._mb_size = size // self.N_MBS
         self._idxes = np.arange(size)
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
@@ -18,10 +18,10 @@ class PPOBuffer:
 
     def add(self, **data):
         if self._memory == {}:
-            init_buffer(self._memory, pre_dims=(self._n_envs, self._n_steps), **data)
-            self._memory['value'] = np.zeros((self._n_envs, self._n_steps+1), dtype=np.float32)
-            self._memory['traj_ret'] = np.zeros((self._n_envs, self._n_steps), dtype=np.float32)
-            self._memory['advantage'] = np.zeros((self._n_envs, self._n_steps), dtype=np.float32)
+            init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
+            self._memory['value'] = np.zeros((self._n_envs, self.N_STEPS+1), dtype=np.float32)
+            self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
+            self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             print_buffer(self._memory)
             
         for k, v in data.items():
@@ -35,21 +35,21 @@ class PPOBuffer:
             np.random.shuffle(self._idxes)
         start = self._mb_idx * self._mb_size
         end = (self._mb_idx + 1) * self._mb_size
-        self._mb_idx = (self._mb_idx + 1) % self._n_mbs
+        self._mb_idx = (self._mb_idx + 1) % self.N_MBS
 
         keys = ['obs', 'action', 'traj_ret', 'value', 
-                'advantage', 'old_logpi']
+                'advantage', 'logpi']
         
         return {k: self._memory[k][self._idxes[start: end]] for k in keys}
 
     def finish(self, last_value):
-        assert self._idx == self._n_steps, self._idx
+        assert self._idx == self.N_STEPS, self._idx
         self._memory['value'][:, -1] = last_value
 
         if self._adv_type == 'nae':
             traj_ret = self._memory['traj_ret']
             next_return = last_value
-            for i in reversed(range(self._n_steps)):
+            for i in reversed(range(self.N_STEPS)):
                 traj_ret[:, i] = next_return = (self._memory['reward'][:, i] 
                     + self._memory['discount'][:, i] * self._gamma * next_return)
 
@@ -66,7 +66,7 @@ class PPOBuffer:
                 * self._memory['value'][:, 1:]
                 - self._memory['value'][:, :-1])
             next_adv = 0
-            for i in reversed(range(self._n_steps)):
+            for i in reversed(range(self.N_STEPS)):
                 advs[:, i] = next_adv = (delta[:, i] 
                     + self._memory['discount'][:, i] * self._gae_discount * next_adv)
             self._memory['traj_ret'] = advs + self._memory['value'][:, :-1]

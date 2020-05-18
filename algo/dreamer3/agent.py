@@ -10,6 +10,7 @@ from utility.rl_utils import retrace_lambda
 from utility.tf_utils import static_scan
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from utility.graph import video_summary
+from utility.losses import huber_loss
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, display_model_var_info
@@ -36,18 +37,21 @@ class Agent(BaseAgent):
             clip_norm=self._clip_norm,
         )
         self._model_opt = DreamerOpt(models=dynamics_models, lr=self._model_lr)
-        self._actor_opt = DreamerOpt(models=self.actor, lr=self._actor_lr)
-        self._value_opt = DreamerOpt(models=[self.q1, self.q2], lr=self._value_lr)
+        self._actor_opt = DreamerOpt(models=self.actor, lr=self._actor_lr, return_grads=True)
+        self._q_opt = DreamerOpt(models=[self.q1, self.q2], lr=self._q_lr, return_grads=True)
 
         self._ckpt_models['model_opt'] = self._model_opt
         self._ckpt_models['actor_opt'] = self._actor_opt
-        self._ckpt_models['value_opt'] = self._value_opt
+        self._ckpt_models['q_opt'] = self._q_opt
 
         if isinstance(self.temperature, float):
-            self.temperature = tf.Variable(
-                self.temperature, trainable=False, dtype=self._dtype)
+            # convert to variable, useful for scheduling
+            self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
-            self._temp_opt = DreamerOpt(models=self.temperature, lr=self._temp_lr)
+            if getattr(self, '_schedule_lr', False):
+                self._temp_lr = TFPiecewiseSchedule(
+                    [(5e5, self._temp_lr), (1e6, 1e-5)])
+            self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
             self._ckpt_models['temp_opt'] = self._temp_opt
 
         self._state = None
@@ -63,23 +67,23 @@ class Agent(BaseAgent):
         # otherwise, InaccessibleTensorError arises when expanding rssm
         TensorSpecs = dict(
             obs=((self._batch_len, *self._obs_shape), self._dtype, 'obs'),
-            action=((self._batch_len, self._action_dim), self._dtype, 'action'),
-            reward=((self._batch_len,), self._dtype, 'reward'),
-            discount=((self._batch_len,), self._dtype, 'discount'),
-            logpi=((self._batch_len,), self._dtype, 'logpi'),
+            action=((self._batch_len, self._action_dim), tf.float32, 'action'),
+            reward=((self._batch_len,), tf.float32, 'reward'),
+            discount=((self._batch_len,), tf.float32, 'discount'),
+            logpi=((self._batch_len,), tf.float32, 'logpi'),
             log_images=(None, tf.bool, 'log_images')
         )
         if self._store_state:
             state_size = self.rssm.state_size
             TensorSpecs['state'] = (RSSMState(
-               *[((sz, ), self._dtype, name) 
+               *[((sz, ), tf.float32, name) 
                for name, sz in zip(RSSMState._fields, state_size)]
             ))
 
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
         self._sync_target_nets()
-
+        
     def reset_states(self, state=None, prev_action=None):
         self._state = state
         self._prev_action = prev_action
@@ -96,9 +100,9 @@ class Agent(BaseAgent):
         if self._state is None and self._prev_action is None:
             self._state = self.rssm.get_initial_state(batch_size=tf.shape(obs)[0])
             self._prev_action = tf.zeros(
-                (tf.shape(obs)[0], self._action_dim), self._dtype)
+                (tf.shape(obs)[0], self._action_dim), tf.float32)
         if np.any(reset):
-            mask = tf.cast(1. - reset, self._dtype)[:, None]
+            mask = tf.cast(1. - reset, tf.float32)[:, None]
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
             self._prev_action = self._prev_action * mask
         if deterministic:
@@ -107,17 +111,15 @@ class Agent(BaseAgent):
         else:
             action, logpi, self._state = self.action(
                 obs, self._state, self._prev_action, deterministic)
-        self._prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype) \
+        self._prev_action = tf.one_hot(action, self._action_dim, dtype=tf.float32) \
             if self._is_action_discrete else action
         
         action = np.squeeze(action.numpy()) if has_expanded else action.numpy()
-        if self._store_state and deterministic:
-            return action, tf.nest.map_structure(lambda x: x.numpy(), self._state._asdict())
+        if deterministic:
+            return action
         elif self._store_state:
             return action, {'logpi': logpi.numpy(), 
                 **tf.nest.map_structure(lambda x: x.numpy(), self._state._asdict())}
-        elif deterministic:
-            return action
         else:
             return action, {'logpi': logpi.numpy()}
         
@@ -139,18 +141,24 @@ class Agent(BaseAgent):
                 act_dist = self.actor(feature)[0]
                 action = act_dist.sample(reparameterize=False, one_hot=False)
                 rand_act = tfd.Categorical(tf.zeros_like(act_dist.logits)).sample()
-                if getattr(self, '_act_epsilon', 0):
+                if getattr(self, '_act_eps', 0):
                     action = tf.where(
-                        tf.random.uniform(action.shape[:1], 0, 1) < self._act_epsilon,
+                        tf.random.uniform(action.shape[:1], 0, 1) < self._act_eps,
                         rand_act, action)
                 logpi = act_dist.log_prob(action)
             else:
                 act_dist = self.actor(feature)[0]
                 action = act_dist.sample()
-                if getattr(self, '_act_epsilon', 0):
+                if getattr(self, '_act_eps', 0):
                     action = tf.clip_by_value(
-                        tfd.Normal(action, self._act_epsilon).sample(), -1, 1)
-                logpi = act_dist.log_prob(action)
+                        tfd.Normal(action, self._act_eps).sample(), -1, 1)
+                    mean = act_dist.sample(100)
+                    probs1 = act_dist.prob(mean)
+                    proxy_dist = tfd.MultivariateNormalDiag(mean, tf.ones_like(mean) * self._act_eps)
+                    probs2 = proxy_dist.prob(action)
+                    logpi = tf.math.log(tf.reduce_sum(probs1*probs2, axis=0))
+                else:
+                    logpi = act_dist.log_prob(action)
         
             return action, logpi, state
 
@@ -159,8 +167,8 @@ class Agent(BaseAgent):
         for i in range(self.N_UPDATES):
             data = self.dataset.sample()
             if i == 0:
-                tf.summary.histogram('reward', data['reward'], step)
-                tf.summary.histogram('discount', data['discount'], step)
+                tf.summary.histogram(f'{self.name}/reward', data['reward'], step)
+                tf.summary.histogram(f'{self.name}/logpi', data['logpi'], step)
             log_images = tf.convert_to_tensor(
                 self._log_images and i == 0 and self._to_log_images(step), 
                 tf.bool)
@@ -185,12 +193,14 @@ class Agent(BaseAgent):
                 _, obs = tf.split(obs, [bl, sl], 1)
                 _, reward = tf.split(reward, [bl, sl], 1)
                 _, discount = tf.split(discount, [bl, sl], 1)
+                _, logpi = tf.split(logpi, [bl, sl], 1)
             post, prior = self.rssm.observe(embed, action, state)
             feature = self.rssm.get_feat(post)
             obs_pred = self.decoder(feature)
             reward_pred = self.reward(feature)
             likelihoods = AttrDict()
             likelihoods.obs_loss = -tf.reduce_mean(obs_pred.log_prob(obs))
+            likelihoods.obs_loss = tf.cast(likelihoods.obs_loss, tf.float32)
             likelihoods.reward_loss = -tf.reduce_mean(reward_pred.log_prob(reward))
             if hasattr(self, 'discount'):
                 disc_pred = self.discount(feature)
@@ -203,106 +213,91 @@ class Agent(BaseAgent):
             kl = tf.maximum(kl, self._free_nats)
             model_loss = self._kl_scale * kl + sum(likelihoods.values())
 
-        target_entropy = getattr(self, 'target_entropy', -self._action_dim)
-        curr_feat = feature[:, :-1]
-        next_feat = feature[:, 1:]
-        old_action = action[:, :-1]
-        reward = reward[:, :-1]
-        discount = discount[:, :-1] * self._gamma
-        old_next_logpi = logpi[:, self._burn_in_len+1:]
-        q_value = lambda q, feat, act: q(tf.concat([feat, act], -1)).mode()
-        with tf.GradientTape(persistent=True) as ac_tape:
-            curr_dist, terms = self.actor(curr_feat)
-            curr_action = curr_dist.sample()
-            curr_logpi = curr_dist.log_prob(curr_action)
-            q1_with_actor = q_value(self.q1, curr_feat, curr_action)
-            q2_with_actor = q_value(self.q2, curr_feat, curr_action)
+        with tf.GradientTape() as actor_tape:
+            act_dist, terms = self.actor(feature)
+            new_action = act_dist.sample()
+            new_logpi = act_dist.log_prob(new_action)
+            _, temp = self.temperature(feature, new_action)
+            q1_with_actor = self.q1(feature, new_action)
+            q2_with_actor = self.q2(feature, new_action)
             q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
-
-            next_dist = self.actor(next_feat)[0]
-            next_action = next_dist.sample()
-            next_logpi = next_dist.log_prob(next_action)
-            next_q1_with_actor = q_value(self.target_q1, next_feat, next_action)
-            next_q2_with_actor = q_value(self.target_q2, next_feat, next_action)
-            next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
-            
+            actor_loss = tf.reduce_mean(temp * new_logpi - q_with_actor)
+        
+        target_entropy = getattr(self, 'target_entropy', -self._action_dim)
+        with tf.GradientTape() as temp_tape:
             if isinstance(self.temperature, (float, tf.Variable)):
-                temp = next_temp = self.temperature
+                temp = self.temperature
             else:
-                log_temp, temp = self.temperature(curr_feat, old_action)
-                _, next_temp = self.temperature(next_feat, next_action)
+                log_temp, temp = self.temperature(feature, new_action)
                 temp_loss = -tf.reduce_mean(log_temp 
-                    * tf.stop_gradient(curr_logpi + target_entropy))
+                    * tf.stop_gradient(new_logpi + target_entropy))
                 terms['temp'] = temp
                 terms['temp_loss'] = temp_loss
 
-            q1 = q_value(self.q1, curr_feat, old_action)
-            q2 = q_value(self.q2, curr_feat, old_action)
+        curr_feat = feature[:, :-1]
+        next_feat = feature[:, 1:]
+        curr_action = action[:, :-1]
+        next_action = new_action[:, 1:]
+        next_logpi = new_logpi[:, 1:]
+        discount = discount[:, :-1] * self._gamma
+        loss_fn = dict(
+            huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
+        with tf.GradientTape() as q_tape:
+            q1 = self.q1(curr_feat, curr_action)
+            q2 = self.q2(curr_feat, curr_action)
             q = tf.minimum(q1, q2)
+            next_q1 = self.target_q1(next_feat, next_action)
+            next_q2 = self.target_q2(next_feat, next_action)
+            next_q = tf.minimum(next_q1, next_q2)
+            next_value = next_q - temp * next_logpi
+            log_ratio = next_logpi - logpi[:, 1:]
+            returns = retrace_lambda(
+                reward[:, :-1], q, next_value, 
+                log_ratio, discount, lambda_=self._lambda, 
+                ratio_clip=1, axis=1)
+            # returns = reward[:, :-1] + discount * next_value
+            returns = tf.stop_gradient(returns)
 
-            if self._burn_in:
-                sl = self._batch_len - self._burn_in_len - 1
-            else:
-                sl = self._batch_len - 1
-            tf.debugging.assert_shapes(
-                [(curr_action, (None, sl, self._action_dim)),
-                (curr_logpi, (None, sl)),
-                (q1, (None, sl)), 
-                (q2, (None, sl)), 
-                (next_action, (None, sl, self._action_dim)),
-                (next_logpi, (None, sl)), 
-                (q_with_actor, (None, sl)), 
-                (next_q_with_actor, (None, sl))])
-            
-            actor_loss = tf.reduce_mean(tf.stop_gradient(temp) * curr_logpi - q_with_actor)
+            q1_loss = tf.reduce_mean(loss_fn(returns - q1))
+            q2_loss = tf.reduce_mean(loss_fn(returns - q2))
+            q_loss = q1_loss + q2_loss
 
-            next_value = next_q_with_actor - next_temp * next_logpi
-            log_ratio = next_logpi - old_next_logpi
-            inputs = [reward, q, next_value, log_ratio, discount, self._lambda, 1]
-            for i, x in enumerate(inputs[:-2]):
-                inputs[i] = tf.transpose(x, [1, 0])
-                tf.debugging.assert_shapes([(inputs[i], (sl, None))])
-            target_q = retrace_lambda(*inputs)
-            target_q = tf.transpose(target_q, [1, 0])
-            q1_error = target_q - q1
-            q2_error = target_q - q2
-
-            tf.debugging.assert_shapes(
-                [(q1_error, (None, sl)), 
-                (q2_error, (None, sl))])
-
-            q1_loss = .5 * tf.reduce_mean(q1_error**2)
-            q2_loss = .5 * tf.reduce_mean(q2_error**2)
-            value_loss = q1_loss + q2_loss
-
-        model_norm = self._model_opt(model_tape, model_loss)
-        actor_norm = self._actor_opt(ac_tape, actor_loss)
-        value_norm = self._value_opt(ac_tape, value_loss)
+        terms['model_norm'] = self._model_opt(model_tape, model_loss)
+        terms['actor_norm'], actor_vg = self._actor_opt(actor_tape, actor_loss)
+        terms['q_norm'], q_vg = self._q_opt(q_tape, q_loss)
         if not isinstance(self.temperature, (float, tf.Variable)):
-            terms['temp_norm'] = self._temp_opt(ac_tape, temp_loss)
+            terms['temp_norm'] = self._temp_opt(temp_tape, temp_loss)
         
         terms = dict(
             prior_entropy=prior_dist.entropy(),
             post_entropy=post_dist.entropy(),
             kl=kl,
-            q1=q1,
-            q2=q2,
-            target_q=target_q,
-            logpi=logpi,
-            q1_loss=q1_loss,
-            q2_loss=q2_loss,
-            action_entropy=curr_dist.entropy(),
+            q1=q1_with_actor,
+            q2=q2_with_actor,
+            returns=returns,
+            logpi=new_logpi,
+            action_entropy=act_dist.entropy(),
             **likelihoods,
             **terms,
             model_loss=model_loss,
             actor_loss=actor_loss,
-            value_loss=value_loss,
-            model_norm=model_norm,
-            actor_norm=actor_norm,
-            value_norm=value_norm,
+            q1_loss=q1_loss,
+            q2_loss=q2_loss,
+            q_loss = q_loss
         )
 
         if log_images:
+            # tf.print(tf.summary.experimental.get_step())
+            tf.summary.experimental.set_step(self.global_steps)
+            tf.summary.histogram(f'{self.name}/returns', returns)
+            tf.summary.histogram(f'{self.name}/q', q)
+            tf.summary.histogram(f'{self.name}/error', returns-q1)
+            for var, grad in actor_vg:
+                tf.summary.histogram(f'grads/{var.name}', grad)
+                tf.summary.histogram(f'vars/{var.name}', var)
+                tf.summary.scalar(f'grads/{var.name}_mean', tf.reduce_mean(grad))
+                tf.summary.scalar(f'grads/{var.name}_std', tf.math.reduce_std(grad))
+                tf.summary.scalar(f'grads/{var.name}_sum', tf.math.reduce_sum(grad))
             self._image_summaries(obs, action, embed, obs_pred)
     
         return terms
@@ -318,7 +313,8 @@ class Agent(BaseAgent):
         model = tf.concat([recon[:, :5] + 0.5, openl + 0.5], 1)
         error = (model - truth + 1) / 2
         openl = tf.concat([truth, model, error], 2)
-        self.graph_summary(video_summary, 'dreamer/comp', openl)
+        self.graph_summary(video_summary, ['dreamer/comp', openl, (1, 6)],
+            step=self.global_steps)
 
     @tf.function
     def _sync_target_nets(self):

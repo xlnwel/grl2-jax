@@ -84,7 +84,7 @@ def train(agent, env, eval_env, replay):
             train_state, train_action = agent.retrieve_states()
 
             score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
-            video_summary(f'{agent.name}/sim', video, step)
+            video_summary(f'{agent.name}/sim', video, step=step)
             agent.store(eval_score=score, eval_epslen=epslen)
             
             agent.reset_states(train_state, train_action)
@@ -100,10 +100,10 @@ def get_data_format(env, batch_size, batch_len=None):
     dtype = global_policy().compute_dtype
     data_format = dict(
         obs=DataFormat((batch_size, batch_len, *env.obs_shape), dtype),
-        action=DataFormat((batch_size, batch_len, *env.action_shape), dtype),
-        reward=DataFormat((batch_size, batch_len), dtype), 
-        discount=DataFormat((batch_size, batch_len), dtype),
-        logpi=DataFormat((batch_size, batch_len), dtype)
+        action=DataFormat((batch_size, batch_len, *env.action_shape), 'float32'),
+        reward=DataFormat((batch_size, batch_len), 'float32'), 
+        discount=DataFormat((batch_size, batch_len), 'float32'),
+        logpi=DataFormat((batch_size, batch_len), 'float32')
     )
     return data_format
 
@@ -117,19 +117,12 @@ def main(env_config, model_config, agent_config, replay_config):
         ray.init()
         sigint_shutdown_ray()
 
-    env = create_env(env_config, make_env, force_envvec=True)
+    env = create_env(env_config, make_env)
     eval_env_config = env_config.copy()
     eval_env_config['n_envs'] = 1
     eval_env_config['n_workers'] = 1
+    eval_env_config['log_episode'] = False
     eval_env = create_env(eval_env_config, make_env)
-
-    replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
-    replay = create_replay(replay_config)
-    replay.load_data()
-    data_format = get_data_format(env, agent_config['batch_size'], agent_config['batch_len'])
-    print(data_format)
-    process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
-    dataset = Dataset(replay, data_format, process)
 
     create_model, Agent = pkg.import_agent(agent_config)
     models = create_model(
@@ -143,8 +136,23 @@ def main(env_config, model_config, agent_config, replay_config):
         name='dreamer',
         config=agent_config,
         models=models, 
-        dataset=dataset,
+        dataset=None,
         env=env)
+
+    replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
+    replay = create_replay(replay_config,
+        state_keys=list(agent.rssm.state_size._asdict()))
+    replay.load_data()
+    data_format = get_data_format(env, agent_config['batch_size'], agent_config['batch_len'])
+    if agent._store_state:
+        data_format.update({
+            k: ((agent_config['batch_size'], v), 'float32')
+                for k, v in agent.rssm.state_size._asdict().items()
+        })
+    print(data_format)
+    process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
+    dataset = Dataset(replay, data_format, process)
+    agent.dataset = dataset
 
     agent.save_config(dict(
         env=env_config,

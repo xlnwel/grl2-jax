@@ -22,7 +22,7 @@ class Q(Module):
         self._action_dim = action_dim
 
         """ Network definition """
-        self._cnn = cnn(self._cnn)#, kernel_initializer=self._kernel_initializer)
+        self._cnn = cnn(self._cnn)
 
         layer_type = dict(noisy=Noisy, dense=layers.Dense)[self._layer_type]
         if self._duel:
@@ -31,15 +31,13 @@ class Q(Module):
                 out_dim=1, 
                 layer_type=layer_type, 
                 activation=self._activation, 
-                # kernel_initializer=self._kernel_initializer,
                 name='v')
         self._a_head = mlp(
             self._a_units, 
             out_dim=action_dim, 
             layer_type=layer_type, 
             activation=self._activation, 
-            # kernel_initializer=self._kernel_initializer,
-            name='a')
+            name='a' if self._duel else 'q')
 
     def __call__(self, x, deterministic=False, epsilon=0):
         x = np.array(x)
@@ -63,9 +61,16 @@ class Q(Module):
     
     @tf.function
     def value(self, x, action=None, noisy=True, reset=True):
+        x = self.cnn(x)
+        q = self.mlp(x, action=action, noisy=noisy, reset=reset)
+        return q
+
+    def cnn(self, x):
         if self._cnn:
             x = self._cnn(x)
+        return x
 
+    def mlp(self, x, action=None, noisy=True, reset=True):
         if self._duel:
             v = self._v_head(x, noisy=noisy, reset=reset)
             a = self._a_head(x, noisy=noisy, reset=reset)
@@ -86,8 +91,8 @@ class Q(Module):
             self._a_head.reset()
 
 
-def create_model(model_config, action_dim):
-    q_config = model_config['q']
+def create_model(config, action_dim, **kwargs):
+    q_config = config['q']
     q = Q(q_config, action_dim, 'q')
     target_q = Q(q_config, action_dim, 'target_q')
     return dict(

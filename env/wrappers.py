@@ -1,7 +1,6 @@
 import numpy as np
 import gym
 
-
 from utility.utils import infer_dtype, convert_dtype
 
 

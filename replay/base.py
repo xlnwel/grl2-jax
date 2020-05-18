@@ -49,7 +49,7 @@ class Replay(ABC):
         """ Add a single transition to the replay buffer """
         nth_obs = kwargs['nth_obs']
         if self._memory == {}:
-            if not self._has_next_obs:
+            if not self._has_nth_obs:
                 del kwargs['nth_obs']
             init_buffer(self._memory, 
                         pre_dims=self._pre_dims, 
@@ -74,7 +74,7 @@ class Replay(ABC):
 
     def _merge(self, local_buffer, length):
         if self._memory == {}:
-            if not self._has_next_obs:
+            if not self._has_nth_obs and 'nth_obs' in local_buffer:
                 del local_buffer['nth_obs']
             init_buffer(self._memory, 
                         pre_dims=self._pre_dims, 

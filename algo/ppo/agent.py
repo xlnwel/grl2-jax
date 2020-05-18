@@ -1,6 +1,6 @@
+import cloudpickle
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 from utility.schedule import TFPiecewiseSchedule
@@ -11,16 +11,51 @@ from core.optimizer import Optimizer
 from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
-class Agent(BaseAgent):
+class PPOBase(BaseAgent):
+    def __init__(self, env):
+        from env.wrappers import get_wrapper_by_name
+        from utility.utils import RunningMeanStd
+        axis = None if get_wrapper_by_name(env, 'Env') else 0
+        self._obs_rms = RunningMeanStd(axis=axis)
+        self._reward_rms = RunningMeanStd(axis=axis)
+        self._rms_path = f'{self._root_dir}/{self._model_name}/rms.pkl'
+
+    def normalize_reward(self, reward):
+        if self._normalize_reward:
+            self._reward_rms.update(reward)
+            return self._reward_rms.normalize(reward, subtract_mean=False)
+        else:
+            return reward
+    
+    def normalize_obs(self, obs, update_rms=False):
+        if self._normalize_obs:
+            if update_rms:
+                self._obs_rms.update(obs)
+            return self._obs_rms.normalize(obs)
+        else:
+            return obs
+
+    def restore(self):
+        import os
+        if os.path.exists(self._rms_path):
+            with open(self._rms_path, 'rb') as f:
+                self._obs_rms, self._reward_rms = cloudpickle.load(f)
+        super().restore()
+
+    def save(self, steps=None, message='', print_terminal_info=False):
+        with open(self._rms_path, 'wb') as f:
+            cloudpickle.dump((self._obs_rms, self._reward_rms), f)
+        super().save(steps=steps, message=message, print_terminal_info=print_terminal_info)
+
+class Agent(PPOBase):
     @agent_config
     def __init__(self, env):
-        self._dtype = global_policy().compute_dtype
+        super().__init__(env=env)
 
         # optimizer
         if getattr(self, 'schedule_lr', False):
             self._lr = TFPiecewiseSchedule(
                 [(300, self._lr), (1000, 5e-5)])
-
         self._optimizer = Optimizer(
             self._optimizer, self.ac, self._lr, 
             clip_norm=self._clip_norm)
@@ -33,16 +68,25 @@ class Agent(BaseAgent):
             traj_ret=((), self._dtype, 'traj_ret'),
             value=((), self._dtype, 'value'),
             advantage=((), self._dtype, 'advantage'),
-            old_logpi=((), self._dtype, 'old_logpi'),
+            logpi=((), self._dtype, 'logpi'),
         )
         self.learn = build(self._learn, TensorSpecs)
 
     def reset_states(self, states=None):
-        return
+        pass
 
-    def __call__(self, obs, deterministic=False):
-        out = self.action(obs, deterministic)
-        return tf.nest.map_structure(lambda x: x.numpy(), out)
+    def get_states(self):
+        return None
+
+    def __call__(self, obs, deterministic=False, update_rms=False, **kwargs):
+        obs = self.normalize_obs(obs, update_rms)
+        if deterministic:
+            return self.action(obs, deterministic).numpy()
+        else:
+            out = self.action(obs, deterministic)
+            action, terms = tf.nest.map_structure(lambda x: x.numpy(), out)
+            terms['obs'] = obs
+            return action, terms
 
     @tf.function
     def action(self, obs, deterministic=False):
@@ -55,7 +99,7 @@ class Agent(BaseAgent):
             act_dist, value = self.ac(obs, return_value=True)
             action = act_dist.sample()
             logpi = act_dist.log_prob(action)
-            return action, logpi, value
+            return action, dict(logpi=logpi, value=value)
 
     def learn_log(self, buffer, step):
         for i in range(self.N_UPDATES):
@@ -86,15 +130,15 @@ class Agent(BaseAgent):
             self.store(lr=self._lr(step))
 
     @tf.function
-    def _learn(self, obs, action, traj_ret, value, advantage, old_logpi):
+    def _learn(self, obs, action, traj_ret, value, advantage, logpi):
         old_value = value
         with tf.GradientTape() as tape:
             act_dist, value = self.ac(obs, return_value=True)
-            logpi = act_dist.log_prob(action)
+            new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             # policy loss
             ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
-                logpi, old_logpi, advantage, self._clip_range, entropy)
+                new_logpi, logpi, advantage, self._clip_range, entropy)
             # value loss
             value_loss, v_clip_frac = compute_value_loss(
                 value, traj_ret, old_value, self._clip_range)

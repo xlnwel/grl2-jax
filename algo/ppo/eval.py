@@ -17,7 +17,6 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
     algo = agent_config['algorithm']
     create_model, Agent = pkg.import_agent(agent_config)
 
-    del env_config['normalize_obs']
     env = create_env(env_config, force_envvec=True)
 
     models = create_model(

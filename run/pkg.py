@@ -24,3 +24,12 @@ def import_agent(config):
     agent = importlib.import_module(f'{pkg}.agent')
 
     return nn.create_model, agent.Agent
+
+def import_main(algo, module):
+    if algo.startswith('ppo'):
+        # only ppo share with the same main function
+        algo = 'ppo'
+    pkg = get_package(algo, {'train': 0, 'eval': 1}[module])
+    m = importlib.import_module(f'{pkg}.{module}')
+
+    return m.main

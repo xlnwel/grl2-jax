@@ -279,4 +279,5 @@ class Agent(BaseAgent):
         model = tf.concat([recon[:, :5] + 0.5, openl + 0.5], 1)
         error = (model - truth + 1) / 2
         openl = tf.concat([truth, model, error], 2)
-        self.graph_summary(video_summary, 'dreamer/comp', openl, step=self.global_steps)
+        self.graph_summary(video_summary, ['dreamer/comp', openl, (1, 6)],
+            step=self.global_steps)

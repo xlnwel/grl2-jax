@@ -7,13 +7,14 @@ from gym import spaces
 import cv2
 cv2.ocl.setUseOpenCL(False)
 
+from env.wrappers import Wrapper
 
-class NoopResetEnv(gym.Wrapper):
+class NoopResetEnv(Wrapper):
     def __init__(self, env, noop_max=30):
         """Sample initial states by taking random number of no-ops on reset.
         No-op is assumed to be action 0.
         """
-        gym.Wrapper.__init__(self, env)
+        Wrapper.__init__(self, env)
         self.noop_max = noop_max
         self.override_num_noops = None
         self.noop_action = 0
@@ -40,10 +41,10 @@ class NoopResetEnv(gym.Wrapper):
     def step(self, ac):
         return self.env.step(ac)
 
-class FireResetEnv(gym.Wrapper):
+class FireResetEnv(Wrapper):
     def __init__(self, env):
         """Take action on reset for environments that are fixed until firing."""
-        gym.Wrapper.__init__(self, env)
+        Wrapper.__init__(self, env)
         assert env.unwrapped.get_action_meanings()[1] == 'FIRE'
         assert len(env.unwrapped.get_action_meanings()) >= 3
 
@@ -60,18 +61,18 @@ class FireResetEnv(gym.Wrapper):
     def step(self, ac):
         return self.env.step(ac)
 
-class EpisodicLifeEnv(gym.Wrapper):
+class EpisodicLifeEnv(Wrapper):
     def __init__(self, env):
         """Make end-of-life == end-of-episode, but only reset on true game over.
         Done by DeepMind for the DQN and co. since it helps value estimation.
         """
-        gym.Wrapper.__init__(self, env)
+        Wrapper.__init__(self, env)
         self.lives = 0
-        self.was_real_done  = True
+        self._game_over  = True
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
-        self.was_real_done = done
+        self._game_over = done
         # check current lives, make loss of life terminal,
         # then update lives to handle bonus lives
         lives = self.env.unwrapped.ale.lives()
@@ -88,7 +89,7 @@ class EpisodicLifeEnv(gym.Wrapper):
         This way all states are still reachable even though lives are episodic,
         and the learner need not know about any of this behind-the-scenes.
         """
-        if self.was_real_done:
+        if self._game_over:
             obs = self.env.reset(**kwargs)
         else:
             # no-op step to advance from terminal/lost life state
@@ -96,10 +97,10 @@ class EpisodicLifeEnv(gym.Wrapper):
         self.lives = self.env.unwrapped.ale.lives()
         return obs
 
-class MaxAndSkipEnv(gym.Wrapper):
+class MaxAndSkipEnv(Wrapper):
     def __init__(self, env, skip=4):
         """Return only every `skip`-th frame"""
-        gym.Wrapper.__init__(self, env)
+        Wrapper.__init__(self, env)
         # most recent raw observations (for max pooling across time steps)
         self._obs_buffer = np.zeros((2,)+env.observation_space.shape, dtype=np.uint8)
         self.frame_skip  = skip
@@ -188,7 +189,7 @@ class WarpFrame(gym.ObservationWrapper):
         return obs
 
 
-class FrameStack(gym.Wrapper):
+class FrameStack(Wrapper):
     def __init__(self, env, k):
         """Stack k last frames.
 
@@ -198,7 +199,7 @@ class FrameStack(gym.Wrapper):
         --------
         baselines.common.atari_wrappers.LazyFrames
         """
-        gym.Wrapper.__init__(self, env)
+        Wrapper.__init__(self, env)
         self.k = k
         self.frames = deque([], maxlen=k)
         shp = env.observation_space.shape

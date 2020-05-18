@@ -1,5 +1,6 @@
 from functools import wraps
 import tensorflow as tf
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import display_var_info, pwc
 from core.checkpoint import setup_checkpoint
@@ -24,8 +25,8 @@ def agent_config(init_fn):
         self.name = name
         """ For the basic configuration, see config.yaml in algo/*/ """
         _config_attr(self, config)
-        
-        pwc(f'{self._model_name.title()} starts constructing...', color='cyan')
+
+        self._dtype = global_policy().compute_dtype
 
         # track models and optimizers for Checkpoint
         self._ckpt_models = {}
@@ -56,6 +57,8 @@ def agent_config(init_fn):
             setup_checkpoint(self._ckpt_models, self._root_dir, 
                             self._model_name, self.global_steps, self._model_name)
 
+        self.restore()
+        
         # to save stats to files, specify `logger: True` in config.yaml 
         self._logger = setup_logger(
             config.get('logger', None) and self._root_dir, 

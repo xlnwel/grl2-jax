@@ -8,6 +8,7 @@ from core.module import Module
 from core.decorator import config
 from utility.tf_distributions import DiagGaussian, Categorical, TanhBijector
 from nn.func import cnn, mlp
+from nn.rnn import LSTMCell, LSTMState
 
 
 class PPOAC(Module):
@@ -27,11 +28,12 @@ class PPOAC(Module):
                 self._shared_mlp_units, 
                 norm=self._norm, 
                 activation=self._activation, 
-                kernel_initializer='orthogonal')
+                kernel_initializer=self._kernel_initializer)
         else:
             self._shared_layers = lambda x: x
         # RNN layer
-        self._rnn = layers.LSTM(self._lstm_units, return_sequences=True, return_state=True)
+        cell = LSTMCell(self._lstm_units)
+        self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
 
         # actor/critic head
         self.actor = mlp(self._actor_units, 
@@ -39,7 +41,7 @@ class PPOAC(Module):
                         norm=self._norm,
                         name='actor',
                         activation=self._activation, 
-                        kernel_initializer='orthogonal')
+                        kernel_initializer=self._kernel_initializer)
         if not self._is_action_discrete:
             self.logstd = tf.Variable(
                 initial_value=np.log(self._init_std)*np.ones(action_dim), 
@@ -51,13 +53,15 @@ class PPOAC(Module):
                             norm=self._norm,
                             name='critic', 
                             activation=self._activation, 
-                            kernel_initializer='orthogonal')
+                            kernel_initializer=self._kernel_initializer)
 
-    def __call__(self, x, state, return_value=False):
+    def __call__(self, x, state, mask=None, return_value=False):
         print(f'{self.name} is retracing: x={x.shape}')
         x = self._shared_layers(x)
-        x = self._rnn(x, initial_state=state)
-        x, state = x[0], x[1:]
+        mask = mask[..., None]
+        assert len(x.shape) == len(mask.shape), f'x({x.shape}), mask({mask.shape})'
+        x = self._rnn((x, mask), initial_state=state)
+        x, state = x[0], LSTMState(*x[1:])
         actor_out = self.actor(x)
 
         if self._is_action_discrete:
@@ -80,9 +84,12 @@ class PPOAC(Module):
             inputs = tf.zeros([batch_size, 1, 1])
         if dtype is None:
             dtype = global_policy().compute_dtype
-        return tf.nest.map_structure(lambda x: tf.cast(x, dtype), 
-                    self._rnn.get_initial_state(inputs))
+        return LSTMState(*tf.nest.map_structure(lambda x: tf.cast(x, dtype), 
+                    self._rnn.get_initial_state(inputs)))
 
+    @property
+    def state_size(self):
+        return self._rnn.cell.state_size
 
 def create_model(model_config, action_dim, is_action_discrete):
     ac = PPOAC(model_config, action_dim, is_action_discrete, 'ac')

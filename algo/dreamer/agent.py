@@ -2,7 +2,6 @@ import functools
 import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
-from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 from utility.utils import AttrDict, Every
@@ -22,7 +21,6 @@ class Agent(BaseAgent):
     def __init__(self, *, dataset, env):
         # dataset for input pipline optimization
         self.dataset = dataset
-        self._dtype = global_policy().compute_dtype
 
         # optimizer
         dynamics_models = [self.encoder, self.rssm, self.decoder, self.reward]
@@ -55,10 +53,10 @@ class Agent(BaseAgent):
         # time dimension must be explicitly specified here
         # otherwise, InaccessibleTensorError arises when expanding rssm
         TensorSpecs = dict(
-            obs=((self._batch_len, *self._obs_shape), self._dtype, 'obs'),
-            action=((self._batch_len, self._action_dim), self._dtype, 'action'),
-            reward=((self._batch_len,), self._dtype, 'reward'),
-            discount=((self._batch_len,), self._dtype, 'discount'),
+            obs=((self._sample_size, *self._obs_shape), self._dtype, 'obs'),
+            action=((self._sample_size, self._action_dim), self._dtype, 'action'),
+            reward=((self._sample_size,), self._dtype, 'reward'),
+            discount=((self._sample_size,), self._dtype, 'discount'),
             log_images=(None, tf.bool, 'log_images')
         )
         if self._store_state:
@@ -147,7 +145,7 @@ class Agent(BaseAgent):
             embed = self.encoder(obs)
             if self._burn_in:
                 bl = self._burn_in_len
-                sl = self._batch_len - self._burn_in_len
+                sl = self._sample_size - self._burn_in_len
                 burn_in_embed, embed = tf.split(embed, [bl, sl], 1)
                 burn_in_action, action = tf.split(action, [bl, sl], 1)
                 state, _ = self.rssm.observe(burn_in_embed, burn_in_action, state)

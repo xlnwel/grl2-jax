@@ -1,46 +1,13 @@
 import functools
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.tf_config import *
 from utility.utils import Every
-from utility.graph import video_summary
-from utility.run import run, evaluate
+from utility.run import evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
 from replay.data_pipline import Dataset, process_with_env
 from run import pkg
-from algo.sac.train import get_data_format
-
-
-def train(agent, env, eval_env, replay):
-    def collect_and_learn(env, step, **kwargs):
-        if env.game_over():
-            agent.store(score=env.score(), epslen=env.epslen())
-        replay.add(**kwargs)
-        agent.learn_log(step)
-
-    start_step = agent.global_steps.numpy() + 1
-    step = start_step
-    obs = None
-    collect_fn = lambda *args, **kwargs: replay.add(**kwargs)
-    while not replay.good_to_learn():
-        obs, step = run(env, env.random_action, step, obs=obs, 
-            fn=collect_fn, nsteps=agent.LOG_INTERVAL)
-
-    to_log = Every(agent.LOG_INTERVAL)
-    print('Training starts...')
-    while step < int(agent.MAX_STEPS):
-        obs, step = run(env, agent, step, obs=obs, 
-            fn=collect_and_learn, nsteps=agent.LOG_INTERVAL)
-        
-        if to_log(step):
-            eval_score, eval_epslen, video = evaluate(eval_env, agent, record=False)
-            # video_summary(f'{agent.name}/sim', video, step)
-            agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-            agent.log(step)
-            agent.save(steps=step)
+from algo.sac.train import get_data_format, train
 
 
 def main(env_config, model_config, agent_config, replay_config):

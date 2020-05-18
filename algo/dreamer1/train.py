@@ -80,7 +80,7 @@ def train(agent, env, eval_env, replay):
             train_state, train_action = agent.retrieve_states()
 
             score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
-            video_summary(f'{agent.name}/sim', video, step)
+            video_summary(f'{agent.name}/sim', video, step=step)
             agent.store(eval_score=score, eval_epslen=epslen)
             
             agent.reset_states(train_state, train_action)

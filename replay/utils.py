@@ -62,8 +62,8 @@ def infer_info(precision, **kwargs):
         
     return info
 
-def print_buffer(buffer):
-    print('Buffer info')
+def print_buffer(buffer, prefix=''):
+    print(f'{prefix} Buffer info:')
     for k, v in buffer.items():
         shape = v.shape if isinstance(v, np.ndarray) else (len(v), np.array(v[0]).shape)
         dtype = v.dtype if isinstance(v, np.ndarray) else list

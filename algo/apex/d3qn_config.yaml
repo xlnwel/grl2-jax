@@ -1,12 +1,14 @@
 ---
 env:
-    name: atari_pong
+    name: atari_breakout
     precision: &prec 32
+    life_done: True
+    sticky_action: True
     n_envs: 2
     seed: 0
 model:
     q:
-        cnn: nature
+        cnn: ftw
         v_units: [256]
         a_units: [256]
         activation: relu
@@ -16,36 +18,40 @@ agent:
     algorithm: &algo apex-d3qn
     gamma: &gamma 0.99
     precision: *prec
+    schedule_eps: False
+    act_eps: 0
     
     # timer&interval
-    MAX_STEPS: 1.e+7
+    MAX_STEPS: 1e+9
     LOG_INTERVAL: 10000
     
     # distributed algo params
-    n_workers: 4
+    n_workers: 6
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
-    model_name: agent
+    model_name: *algo
 
     loss_type: huber                          # huber or mse
     target_update_freq: 2500
+    tbo: False
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 1.e-4
+    lr: 1e-4
     clip_norm: 40
     epsilon: 1.5e-4
 
     # arguments for PER
     per_alpha: 0.5
-    per_epsilon: 1.e-4
+    per_epsilon: 1e-4
 
 replay:
     type: proportional                      # proportional or uniform
+    precision: *prec
     # arguments for PER
     beta0: 0.4
     to_update_top_priority: False
@@ -57,6 +63,7 @@ replay:
     # arguments for general replay
     n_steps: 3
     gamma: *gamma
-    batch_size: 32
+    batch_size: 64
     min_size: 5e4
     capacity: 1e6
+    has_next_obs: False

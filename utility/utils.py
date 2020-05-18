@@ -78,6 +78,18 @@ class RunningMeanStd(object):
         x = np.clip(x / (np.sqrt(self._var) + self._epsilon), -self._clip, self._clip)
         return x
 
+class TempStore:
+    def __init__(self, get_fn, set_fn):
+        self._get_fn = get_fn
+        self._set_fn = set_fn
+
+    def __enter__(self):
+        self.state = self._get_fn()
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._set_fn(self.state)
+
 def to_int(s):
     return int(float(s))
     

@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from core.decorator import config
-from utility.run_avg import RunningMeanStd
 from replay.utils import *
 
 
@@ -33,9 +32,6 @@ class EnvBuffer(LocalBuffer):
         self._memory = {}
         self._idx = 0
 
-        if hasattr(self, '_normalize_reward'):
-            self._running_reward_stats = RunningMeanStd()
-
     def is_full(self):
         return self._idx == self._seqlen
 
@@ -62,35 +58,17 @@ class EnvBuffer(LocalBuffer):
                 results[k] = v[:self._idx]
             else:
                 results[k] = v[:self._idx]
-        
-        indexes = np.arange(self._idx)
-        steps = results.get('steps', 1)
-        next_indexes = indexes + steps
-        results['nth_obs'] = self._memory['obs'][next_indexes]
-
-        # process rewards
-        if getattr(self, '_reward_scale', 1) != 1:
-            results['reward'] *= np.where(results['done'], 1, self._reward_scale)
-        if getattr(self, '_reward_clip', None):
-            results['reward'] = np.clip(results['reward'], -self._reward_clip, self._reward_clip)
-        if getattr(self, '_normalize_reward', None):
-            # we update running reward statistics at sampling time
-            # since this is when the rewards contribute to the learning process
-            self._running_reward_stats.update(results['reward'])
-            results['reward'] = self._running_reward_stats.normalize(results['reward'])
 
         return None, results
 
 
 class EnvVecBuffer:
     """ Local memory only stores one episode of transitions from n environments """
+    @config
     def __init__(self):
         self._memory = {}
         self._idx = 0
-    
-        if hasattr(self, '_normalize_reward'):
-            self._running_reward_stats = RunningMeanStd()
-        
+
     def is_full(self):
         return self._idx == self._seqlen
         
@@ -141,15 +119,4 @@ class EnvVecBuffer:
                 results[k] = v[mask]
             assert results[k].dtype != np.object, f'{k}, {results[k].dtype}'
 
-        # process rewards
-        if getattr(self, '_reward_scale', 1) != 1:
-            results['reward'] *= np.where(results['done'], 1, self._reward_scale)
-        if getattr(self, '_reward_clip', None):
-            results['reward'] = np.clip(results['reward'], -self._reward_clip, self._reward_clip)
-        if getattr(self, '_normalize_reward', None):
-            # we update running reward statistics at sampling time
-            # since this is when the rewards contribute to the learning process
-            self._running_reward_stats.update(results['reward'])
-            results['reward'] = self._running_reward_stats.normalize(results['reward'])
-            
         return mask, results

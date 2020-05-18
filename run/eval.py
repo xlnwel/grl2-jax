@@ -8,12 +8,12 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utility.display import pwc
 from utility.yaml_op import load_config
-from run.pkg import get_package
+from run.pkg import import_main
 
 
 def parse_cmd_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--directory', '-d',
+    parser.add_argument('directory',
                         type=str,
                         help='directory where checkpoints and "config.yaml" exist')
     parser.add_argument('--record', '-r',
@@ -25,12 +25,6 @@ def parse_cmd_args():
     args = parser.parse_args()
 
     return args
-
-def import_main(algorithm):
-    pkg = get_package(algorithm, -1)
-    m = importlib.import_module(f'{pkg}.eval')
-
-    return m.main
 
 
 if __name__ == '__main__':
@@ -58,7 +52,7 @@ if __name__ == '__main__':
 
     # get the main function
     algorithm = config['agent']['algorithm']
-    main = import_main(algorithm)
+    main = import_main(algorithm, 'eval')
         
     record = args.record
 

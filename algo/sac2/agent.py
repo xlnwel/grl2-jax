@@ -16,7 +16,6 @@ from core.optimizer import Optimizer
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
-        self._dtype = global_policy().compute_dtype
         self._is_per = not dataset.buffer_type().endswith('uniform')
 
         self.dataset = dataset

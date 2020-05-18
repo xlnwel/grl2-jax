@@ -1,0 +1,97 @@
+---
+env:
+    name: BipedalWalkerHardcore-v3
+    video_path: video
+    log_video: False
+    n_envs: 1
+    efficient_envvec: True
+    seed: 0
+model:
+    actor:
+        units_list: [512, 256, 128]
+        # kernel_initializer: orthogonal
+    q:
+        units_list: [512, 512, 256]
+        # kernel_initializer: orthogonal
+    temperature:
+        temp_type: 'constant'
+        value: .01
+agent:
+    algorithm: &algo asap-sac
+    gamma: &gamma 0.99
+    sync_target: False
+    target_update_freq: 100
+    polyak: .995
+    evaluation: False
+    kl_coef: .1
+    act_eps: 0
+    
+    # timer&interval
+    MAX_STEPS: 1.e+8
+    TIME_INTERVAL: 100
+    LOG_INTERVAL: 100000
+    timer: False
+
+    # distributed algo params
+    n_workers: 4
+
+    # SAP params
+    n_eval_envs: 1
+    REPO_CAP: 10
+    MIN_EVOLVE_MODELS: 2
+    MAX_EVOLVE_MODELS: 10
+    MIN_LEARN_PROB: .7
+    MIN_EVOLVE_PROB: .3
+    EVOLVE_LEARN_PROB: 0.5  # probability to further average evolved weights with the learned parameter
+    REEVAL_PROB: .05
+    FIFO: False
+    WA_SELECTION: False
+    WA_EVOLUTION: False
+    fitness_method: lcb
+    mode_polyak: 0
+    cb_c: .1    # coefficient for confidence bound method
+
+    # model path: root_dir/model_name/models
+    # tensorboard path: root_dir/model_name/logs
+    # the following names are just examples; they will be reset in our training process
+    root_dir: *algo                         # root path for tensorboard logs
+    model_name: *algo
+
+    loss_type: mse                          # huber or mse
+    tbo: False                               # transformed Bellman Operator
+
+    # arguments for optimizer
+    optimizer: adam
+    schedule_lr: False
+    actor_lr: 1.e-4
+    q_lr: 1.e-4
+    temp_lr: 1.e-4
+    epsilon: 1.e-8
+    # clip_norm: 10
+    
+    # arguments for PER
+    # per_alpha: 0.7
+    # per_epsilon: 1.e-4
+
+replay:
+    type: uniform                      # proportional or uniform
+    # arguments for PER
+    # beta0: 0.4
+    # beta_steps: 5e4
+    # to_update_top_priority: False
+
+    # hacking
+    # normalize_reward: True
+    # reward_scale: 5
+    # reward_clip: 10
+
+    # arguments for dual replay
+    cap_frac: .25
+    bs_frac: .5
+
+    # arguments for general replay
+    n_steps: 1
+    gamma: *gamma
+    batch_size: 512
+    min_size: 5e4
+    capacity: 1e6

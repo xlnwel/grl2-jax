@@ -1,38 +1,32 @@
 ---
 env:
     name: Walker2d-v3
-    video_path: video
-    log_video: False
     n_envs: 1
     seed: 0
     precision: &prec 32
 model:
     actor:
         units_list: [256, 256]
-        kernel_initializer: glorot_uniform
         norm: none
         activation: relu
         LOG_STD_MIN: -20
         LOG_STD_MAX: 2
     q:
         units_list: [256, 256]
-        kernel_initializer: glorot_uniform
         norm: none
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: .2
+        value: .1
 agent:
     algorithm: &algo apex-sac
-    gamma: &gamma 0.99
+    gamma: &gamma .99
     polyak: .995
     precision: *prec
-    evaluation: False
-    kl_coef: .1
     act_eps: 0
 
     # timer&interval 
-    MAX_STEPS: 2.e+7
+    MAX_STEPS: 2e+7
     LOG_INTERVAL: 10000
     timer: False
 
@@ -45,35 +39,29 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    loss_type: mse                          # huber or mse
-    tbo: False                               # transformed Bellman Operator
-
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 3.e-4
-    q_lr: 3.e-4
-    temp_lr: 3.e-4
-    epsilon: 1.e-8
-    # clip_norm: 10
+    actor_lr: 3e-4
+    q_lr: 3e-4
+    temp_lr: 3e-4
 
     # arguments for PER
-    per_alpha: 0.5
-    per_epsilon: 1.e-4
+    per_alpha: .5
+    per_epsilon: 1e-4
 
 replay:
     type: uniform                      # proportional or uniform
+    seqlen: 0
     # arguments for PER
-    beta0: 0.4
-    beta_steps: 5.e+4
-    to_update_top_priority: False
-
-    reward_clip: 10
+    beta0: .4
+    beta_steps: 5e+4
+    to_update_top_priority: True
 
     # arguments for general replay
     n_steps: 1
     gamma: *gamma
     batch_size: 512
-    min_size: 5.e+4
-    capacity: 1.e+6
+    min_size: 5e+4
+    capacity: 1e+6
     has_next_obs: False                 # should be true if workers send incomplete trajs

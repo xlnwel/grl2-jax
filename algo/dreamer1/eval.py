@@ -23,7 +23,6 @@ def main(env_config, model_config, agent_config, n, record=False):
     if record:
         env_config['n_workers'] = env_config['n_envs'] = 1
     env = create_env(env_config, make_env)
-
     models = create_model(
         model_config,
         obs_shape=env.obs_shape, 

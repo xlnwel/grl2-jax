@@ -13,7 +13,7 @@ class EpisodicReplay:
         if self._save:
             self._dir.mkdir(parents=True, exist_ok=True)
         self._memory = {}
-        self._batch_len = getattr(self, '_batch_len', None)
+        self._sample_size = getattr(self, '_sample_size', None)
         self._state_keys = state_keys
     
     def buffer_type(self):
@@ -30,7 +30,7 @@ class EpisodicReplay:
             episodes = [episodes]
         timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
         for eps in episodes:
-            if self._batch_len and len(next(iter(eps.values()))) < self._batch_len + 1:
+            if self._sample_size and len(next(iter(eps.values()))) < self._sample_size + 1:
                 continue    # ignore short episodes
             identifier = str(uuid.uuid4().hex)
             length = len(eps['reward'])
@@ -88,13 +88,13 @@ class EpisodicReplay:
     def _sample(self):
         filename = random.choice(list(self._memory))
         episode = self._memory[filename]
-        if self._batch_len:
+        if self._sample_size:
             total = len(next(iter(episode.values())))
-            available = total - self._batch_len
+            available = total - self._sample_size
             if available < 1:
                 print(f'Skipped short episode of length {available}.')
             i = int(random.randint(0, available))
-            episode = {k: v[i] if k in self._state_keys else v[i: i + self._batch_len] 
+            episode = {k: v[i] if k in self._state_keys else v[i: i + self._sample_size] 
                         for k, v in episode.items()}
         return episode
 

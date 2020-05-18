@@ -46,15 +46,17 @@ class RSSM(Module):
             self._hidden_size, 
             activation=self._activation,
             name='embed')
-        self._cell = layers.GRUCell(self._deter_size)
+        self._cell = layers.GRUCell(self._deter_size, dtype='float32')
         self._img_layers = mlp(
             [self._hidden_size], 
             out_dim=2*self._stoch_size, 
+            out_dtype='float32',
             activation=self._activation,
             name='img')
         self._obs_layers = mlp(
             [self._hidden_size], 
             out_dim=2*self._stoch_size,
+            out_dtype='float32',
             activation=self._activation,
             name='obs')
 
@@ -121,7 +123,7 @@ class RSSM(Module):
             batch_size = tf.shape(inputs)[0]
         assert batch_size is not None
         if dtype is None:
-            dtype = global_policy().compute_dtype
+            dtype = tf.float32
         return RSSMState(
             mean=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
             std=tf.zeros([batch_size, self._stoch_size], dtype=dtype),
@@ -166,6 +168,7 @@ class Actor(Module):
         out_dim = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(self._units_list, 
                             out_dim=out_dim,
+                            out_dtype='float32',
                             activation=self._activation)
 
         self._is_action_discrete = is_action_discrete
@@ -203,7 +206,7 @@ class Temperature(Module):
         if self.temp_type == 'state-action':
             self.intra_layer = layers.Dense(1)
         elif self.temp_type == 'variable':
-            self.log_temp = tf.Variable(0., dtype=global_policy().compute_dtype)
+            self.log_temp = tf.Variable(np.log(config['value']), dtype=tf.float32)
         else:
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
     
@@ -211,7 +214,6 @@ class Temperature(Module):
         if self.temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
             x = self.intra_layer(x)
-            log_temp = -tf.nn.softplus(x)
             log_temp = tf.squeeze(log_temp)
         else:
             log_temp = self.log_temp
@@ -248,6 +250,7 @@ class Decoder(Module):
         else:
             self._layers = mlp(self._units_list,
                             out_dim=out_dim,
+                            out_dtype='float32',
                             activation=self._activation)
     
     @tf.Module.with_name_scope
@@ -265,6 +268,32 @@ class Decoder(Module):
         return x
 
 
+class Q(Module):
+    @config
+    def __init__(self, name='q'):
+        super().__init__(name=name)
+
+        units = self._units_list
+        idx = -2
+        self._layers_x = mlp(units[:idx], 
+                        activation=self._activation)
+        self._layers_a = mlp([200],
+                        activation=self._activation)
+        self._out = mlp(units[idx:], 
+                        out_dim=1, 
+                        out_dtype='float32', 
+                        activation=self._activation)
+    
+    @tf.Module.with_name_scope
+    def __call__(self, x, a):
+        x = self._layers_x(x)
+        a = self._layers_a(a)
+        x = tf.concat([x, a], axis=-1)
+        x = self._out(x)
+        rbd = 0 if x.shape[-1] == 1 else 1  # #reinterpreted batch dimensions
+        x = tf.squeeze(x)
+        return x
+
 class ConvEncoder(Module):
     def __init__(self, *, time_distributed=False, name='dreamer_cnn', **kwargs):
         """ Hardcode CNN: Assume image of shape (64 ⨉ 64 ⨉ 3) by default """
@@ -279,7 +308,7 @@ class ConvEncoder(Module):
         self._conv1 = conv2d(1 * depth, **kwargs)
         self._conv2 = conv2d(2 * depth, **kwargs)
         self._conv3 = conv2d(4 * depth, **kwargs)
-        self._conv4 = conv2d(8 * depth, **kwargs)
+        self._conv4 = conv2d(8 * depth, dtype='float32', **kwargs)
 
     def __call__(self, x):
         x = convert_obs(x, [-.5, .5], global_policy().compute_dtype)
@@ -331,22 +360,24 @@ def create_model(config, obs_shape, action_dim, is_action_discrete):
     reward_config = config['reward']
     actor_config = config['actor']
     value_config = config['value']
-    temperature_config = config['temperature']
     disc_config = config.get('discount')  # pcont in the original implementation
+    temperature_config = config['temperature']
+
     if temperature_config['temp_type'] == 'constant':
         temperature = temperature_config['value']
     else:
         temperature = Temperature(temperature_config)
+
     models = dict(
         encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),
         decoder=Decoder(decoder_config, out_dim=obs_shape[0]),
         reward=Decoder(reward_config, name='reward'),
         actor=Actor(actor_config, action_dim, is_action_discrete),
-        q1=Decoder(value_config, name='q1'),
-        q2=Decoder(value_config, name='q2'),
-        target_q1=Decoder(value_config, name='target_q1'),
-        target_q2=Decoder(value_config, name='target_q2'),
+        q1=Q(value_config, name='q1'),
+        q2=Q(value_config, name='q2'),
+        target_q1=Q(value_config, name='target_q1'),
+        target_q2=Q(value_config, name='target_q2'),
         temperature=temperature
     )
 
