@@ -43,9 +43,8 @@ class EnvBuffer(LocalBuffer):
         nth_obs = data['nth_obs']
         if self._memory == {}:
             del data['nth_obs']
-            print('Local buffer')
             init_buffer(self._memory, pre_dims=self._seqlen+self._n_steps, has_steps=self._n_steps>1, **data)
-            print_buffer(self._memory)
+            print_buffer(self._memory, 'Local Buffer')
             
         add_buffer(self._memory, self._idx, self._n_steps, self._gamma, **data)
         self._idx = self._idx + 1
@@ -82,15 +81,14 @@ class EnvVecBuffer:
             # initialize memory
             init_buffer(self._memory, pre_dims=(self._n_envs, self._seqlen + self._n_steps), 
                         has_steps=self._n_steps>1, **data)
+            print_buffer(self._memory, 'Local Buffer')
 
         env_ids = env_ids or range(self._n_envs)
         idx = self._idx
         for i, env_id in enumerate(env_ids):
             for k, v in data.items():
-                try:
-                    self._memory[k][env_id, idx] = v[i]
-                except:
-                    print(k, self._memory[k].shape, v.shape, v)
+                self._memory[k][env_id, idx] = v[i]
+                
                 # self._memory[k][env_id, idx] = v[i]
             self._memory['steps'][env_id, idx] = 1
 

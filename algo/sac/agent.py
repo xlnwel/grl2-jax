@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
 from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
@@ -16,7 +15,6 @@ from core.optimizer import Optimizer
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
-        self._dtype = global_policy().compute_dtype
         self._is_per = not dataset.buffer_type().endswith('uniform')
 
         self.dataset = dataset
@@ -60,7 +58,7 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
 
-    def __call__(self, obs, deterministic=False):
+    def __call__(self, obs, deterministic=False, **kwargs):
         return self.actor(obs, deterministic=deterministic, epsilon=self._act_eps)
 
     def learn_log(self, step):

@@ -4,6 +4,7 @@ env:
     n_envs: 1
     seed: 0
     precision: &prec 32
+    reward_clip: 10
 model:
     actor:
         units_list: [512, 256, 128]
@@ -57,21 +58,17 @@ agent:
 
 replay:
     type: uniform                      # proportional or uniform
+    seqlen: 0
     # arguments for PER
     # beta0: 0.4
     # beta_steps: 5e4
     # to_update_top_priority: False
 
-    # hacking
-    # normalize_reward: True
-    # reward_scale: 5
-    reward_clip: 10
-
     # arguments for general replay
     n_steps: 1
     gamma: *gamma
     batch_size: 512
-    min_size: 5.e+4
-    capacity: 1.e+6
-    has_next_obs: False                 # should be true if workers send incomplete trajs
+    min_size: 5e4
+    capacity: 1e6
+    has_nth_obs: False                 # should be true if workers send incomplete trajs
 

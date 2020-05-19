@@ -7,10 +7,9 @@ from utility.display import pwc
 from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
 from env.gym_env import create_env
-from algo.sac.nn import Actor
+from run import pkg
 
-
-def main(env_config, model_config, agent_config, n, record=False):
+def main(env_config, model_config, agent_config, n, record=False, size=(128, 128)):
     silence_tf_logs()
     configure_gpu()
 
@@ -25,10 +24,12 @@ def main(env_config, model_config, agent_config, n, record=False):
 
     env = create_env(env_config)
 
-    actor = Actor(model_config['actor'],
-                        env.action_dim,
-                        env.is_action_discrete,
-                        'actor')
+    create_model, Agent = pkg.import_agent(agent_config)
+
+    actor = create_model(
+        model_config,
+        env.action_dim,
+        env.is_action_discrete)['actor']
 
     ckpt = tf.train.Checkpoint(actor=actor)
     ckpt_path = f'{agent_config["root_dir"]}/{agent_config["model_name"]}/models'

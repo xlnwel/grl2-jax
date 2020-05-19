@@ -24,8 +24,31 @@ class Actor(Module):
 
         self._is_action_discrete = is_action_discrete
 
+
+    def __call__(self, x, deterministic=False, epsilon=0):
+        if len(x.shape) % 2 == 1:
+            x = np.expand_dims(x, 0)
+
+        action = self.action(x, deterministic=deterministic, epsilon=epsilon)
+        action = np.squeeze(action.numpy())
+
+        return action
+        
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        if deterministic:
+            action = self.step(x)[0].mode()
+        else:
+            act_dist = self.step(x)[0]
+            action = act_dist.sample()
+            if epsilon:
+                action = tf.clip_by_value(
+                    tfd.Normal(action, self._act_eps).sample(), -1, 1)
+        
+        return action
+
     @tf.Module.with_name_scope
-    def __call__(self, x):
+    def step(self, x):
         x = self._layers(x)
 
         if self._is_action_discrete:

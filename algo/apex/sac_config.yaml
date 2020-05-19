@@ -17,7 +17,7 @@ model:
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: .1
+        value: 1
 agent:
     algorithm: &algo apex-sac
     gamma: &gamma .99
@@ -26,12 +26,12 @@ agent:
     act_eps: 0
 
     # timer&interval 
-    MAX_STEPS: 2e+7
+    MAX_STEPS: 3e6
     LOG_INTERVAL: 10000
     timer: False
 
     # distributed algo params
-    n_workers: 3
+    n_workers: 2
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -64,4 +64,4 @@ replay:
     batch_size: 512
     min_size: 5e+4
     capacity: 1e+6
-    has_next_obs: False                 # should be true if workers send incomplete trajs
+    has_nth_obs: False                 # should be true if workers send incomplete trajs

@@ -26,9 +26,8 @@ class Actor(Module):
                             activation=self._activation)
     
     def __call__(self, x, deterministic=False, epsilon=0):
-        x = tf.convert_to_tensor(x, self._dtype)
-        x = tf.reshape(x, [-1, tf.shape(x)[-1]])
-        deterministic = tf.convert_to_tensor(deterministic, tf.bool)
+        if len(x.shape) % 2 == 1:
+            x = np.expand_dims(x, 0)
 
         action = self.action(x, deterministic, epsilon)
         action = np.squeeze(action.numpy())

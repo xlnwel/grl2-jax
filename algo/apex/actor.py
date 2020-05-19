@@ -1,10 +1,10 @@
 import time
 import threading
 import functools
+import collections
 import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
-from tensorflow.keras.mixed_precision.experimental import global_policy
 import ray
 
 from core.module import Ensemble
@@ -36,22 +36,22 @@ def get_learner_class(BaseAgent):
             configure_gpu()
             configure_precision(config['precision'])
 
-            self._dtype = global_policy().compute_dtype
-
             env = create_env(env_config)
-            action_dtype = tf.int32 if env.is_action_discrete else self._dtype
+            
+            dtype = tf.float16 if config['precision'] == 16 else tf.float32
+            action_dtype = tf.int32 if env.is_action_discrete else dtype
             data_format = dict(
-                obs=DataFormat((None, *env.obs_shape), self._dtype),
+                obs=DataFormat((None, *env.obs_shape), dtype),
                 action=DataFormat((None, *env.action_shape), action_dtype),
-                reward=DataFormat((None, ), self._dtype), 
-                nth_obs=DataFormat((None, *env.obs_shape), self._dtype),
-                discount=DataFormat((None, ), self._dtype),
+                reward=DataFormat((None, ), dtype), 
+                nth_obs=DataFormat((None, *env.obs_shape), dtype),
+                discount=DataFormat((None, ), dtype),
             )
             if ray.get(replay.buffer_type.remote()).endswith('proportional'):
-                data_format['IS_ratio'] = DataFormat((None, ), self._dtype)
+                data_format['IS_ratio'] = DataFormat((None, ), dtype)
                 data_format['idxes'] = DataFormat((None, ), tf.int32)
             if config['n_steps'] > 1:
-                data_format['steps'] = DataFormat((None, ), self._dtype)
+                data_format['steps'] = DataFormat((None, ), dtype)
             print(data_format)
             process = functools.partial(process_with_env, env=env)
             dataset = RayDataset(replay, data_format, process)
@@ -77,16 +77,16 @@ def get_learner_class(BaseAgent):
             self._learning_thread.start()
             
         def _learning(self):
+            start_time = time.time()
+            start_env_step = 0
             while not self.dataset.good_to_learn():
                 time.sleep(1)
             pwc(f'{self.name} starts learning...', color='blue')
 
             to_log = Every(self.LOG_INTERVAL)
             train_step = 0
-            start_time = time.time()
             start_train_step = train_step
-            start_env_step = self._env_step
-            while True:
+            while train_step < self.MAX_STEPS:
                 self.learn_log(train_step)
                 train_step += 1
                 if to_log(train_step):
@@ -130,27 +130,30 @@ class BaseWorker:
         self.env = env = create_env(env_config)
         self.n_envs = self.env.n_envs
 
+        self.runner = Runner(self.env, self)
+
         self.models = Ensemble(
                 model_fn=model_fn, 
                 config=model_config, 
                 action_dim=env.action_dim, 
                 is_action_discrete=env.is_action_discrete)
-        if 'actor' in self.models:
-            self.actor = self.models['actor']
-            self.value = self.models['q1']
-        else:
-            self.actor = self.value = self.models['q']
 
         if buffer_config['seqlen'] == 0:
             buffer_config['seqlen'] = env.max_episode_steps
         self.buffer = buffer_fn(buffer_config)
         self._is_per = buffer_config['type'].endswith('proportional')
 
+        if 'actor' in self.models:
+            self.actor = self.models['actor']
+            self.value = self.models['q1']
+            self._pull_names = ['actor', 'q1'] if self._is_per else ['actor']
+        else:
+            self.actor = self.value = self.models['q']
+            self._pull_names = ['q']
         self._pull_names = ['actor', 'q1'] if self._is_per else ['actor']
 
-        self._scores, self._epslens = [], []
+        self._info = collections.defaultdict(list)
 
-        # args for priority replay
         if self._is_per:
             TensorSpecs = [
                 (env.obs_shape, env.obs_dtype, 'obs'),
@@ -160,16 +163,15 @@ class BaseWorker:
                 ((), tf.float32, 'discount'),
                 ((), tf.float32, 'steps')
             ]
-            self.compute_priorities = build(
-                self._compute_priorities, 
-                TensorSpecs)
+            self.compute_priorities = build(self._compute_priorities, TensorSpecs)
 
-    def __call__(self, obs, deterministic=False):
-        if len(obs.shape) % 2 == 1:
-            obs = np.expand_dims(obs, 0)
-        action = self.actor(obs, deterministic, self._act_eps)
-        return action
-
+    def __call__(self, obs, deterministic=False, **kwargs):
+        return self.actor(obs, deterministic, self._act_eps)
+        
+    def store(self, score, epslen):
+        self._info['score'].append(score)
+        self._info['epslen'].append(epslen)
+        
     def get_weights(self, name=None):
         return self.models.get_weights(name=name)
 
@@ -180,11 +182,8 @@ class BaseWorker:
             self._collect_data(buffer, store_data, tag, step, **kwargs)
 
         self._set_weights(weights)
-        env = env or self.env
-        run_traj(env, self, None, fn=collect_fn)
-        self._scores.append(env.score())
-        self._epslens.append(env.epslen())
-
+        self.runner.run_traj(step_fn=collect_fn)
+        
     def _pull_weights(self, learner):
         """ pulls weights from learner """
         return ray.get(learner.get_weights.remote(self._id, name=self._pull_names))
@@ -208,10 +207,6 @@ class BaseWorker:
         replay.merge.remote(data, data['obs'].shape[0], target_replay=target_replay)
 
         buffer.reset()
-        
-    def _send_episode_info(self, learner):
-        learner.record_episode_info.remote(self._scores, self._epslens)
-        self._scores, self._epslens = [], []
 
     @tf.function
     def _compute_priorities(self, obs, action, reward, nth_obs, discount, steps):
@@ -266,6 +261,8 @@ class Worker(BaseWorker):
             self._send_data(replay)
             self._send_episode_info(learner)
 
+    def _send_episode_info(self, learner):
+        learner.record_episode_info.remote(**self._info)
 
 def get_worker_class():
     return Worker

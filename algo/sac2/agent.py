@@ -61,23 +61,8 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
 
-    def __call__(self, obs, deterministic=False, epsilon=0):
-        if len(obs.shape) % 2 == 1:
-            obs = np.expand_dims(obs, 0)
-        return np.squeeze(self.action(obs).numpy())
-    
-    @tf.function
-    def action(self, obs, deterministic=False, epsilon=0):
-        if deterministic:
-            action = self.actor(obs)[0].mode()
-        else:
-            act_dist = self.actor(obs)[0]
-            action = act_dist.sample()
-            if epsilon:
-                action = tf.clip_by_value(
-                    tfd.Normal(action, self._act_eps).sample(), -1, 1)
-        
-        return action
+    def __call__(self, obs, deterministic=False, **kwargs):
+        return self.actor(obs, deterministic=deterministic, epsilon=self._act_eps)
 
     def learn_log(self, step):
         with TBTimer('sample', 1000):
@@ -107,7 +92,7 @@ class Agent(BaseAgent):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
         q_value = lambda q, obs, act: q(tf.concat([obs, act], -1)).mode()
         with tf.GradientTape() as actor_tape:
-            act_dist, terms = self.actor(obs)
+            act_dist, terms = self.actor.step(obs)
             new_action = act_dist.sample()
             new_logpi = act_dist.log_prob(new_action)
             if isinstance(self.temperature, (float, tf.Variable)):

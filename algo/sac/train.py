@@ -15,23 +15,23 @@ from run import pkg
 
 def train(agent, env, eval_env, replay):
     def collect_and_learn(env, step, **kwargs):
-        if env.game_over():
-            agent.store(score=env.score(), epslen=env.epslen())
         replay.add(**kwargs)
         agent.learn_log(step)
 
     start_step = agent.global_steps.numpy()
     step = start_step
     collect_fn = lambda *args, **kwargs: replay.add(**kwargs)
-    runner = Runner(env, agent, step=step)
+    runner = Runner(env, agent, step=step, nsteps=agent.LOG_INTERVAL)
     while not replay.good_to_learn():
-        step = runner.run(step_fn=collect_fn, nsteps=agent.LOG_INTERVAL)
+        step = runner.run(
+            action_selector=env.random_action,
+            step_fn=collect_fn)
 
     print('Training starts...')
     while step < int(agent.MAX_STEPS):
-        start = time.time()
         start_step = step
-        step = runner.run(step_fn=collect_and_learn, nsteps=agent.LOG_INTERVAL)
+        start = time.time()
+        step = runner.run(step_fn=collect_and_learn)
         agent.store(fps=(step - start_step) / (time.time() - start))
 
         eval_score, eval_epslen, video = evaluate(
