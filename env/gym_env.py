@@ -20,6 +20,7 @@ def make_env(config):
         env = make_atari_env(config)
     else:
         env = gym.make(config['name']).env
+        env = Dummy(env)
         max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
         if config.get('frame_skip'):
             env = FrameSkip(env, config['frame_skip'])
@@ -34,18 +35,15 @@ def make_env(config):
     return env
 
 def create_env(config, env_fn=make_env, force_envvec=False):
-    EnvType = EnvVec if force_envvec or config.get('n_envs', 1) > 1 else Env
     if config.get('n_workers', 1) <= 1:
+        EnvType = EnvVec if force_envvec or config.get('n_envs', 1) > 1 else Env
         if EnvType == EnvVec and config.get('efficient_envvec', False):
             EnvType = EfficientEnvVec
         env = EnvType(config, env_fn)
     else:
+        EnvType = EnvVec if config.get('n_envs', 1) > 1 else Env
         env = RayEnvVec(EnvType, config, env_fn)
 
-    if config.get('normalize_obs'):
-        env = ObservationNormalize(env, config.get('obs_rms'))
-    if config.get('normalize_reward'):
-        env = RewardNormalize(env, config.get('reward_rms'))
     return env
 
 
@@ -73,7 +71,6 @@ class Env(Wrapper):
         self.max_episode_steps = self.env.max_episode_steps
 
     def reset(self, idxes=None, **kwargs):
-        assert idxes is None or idxes == 0, idxes
         return self.env.reset(**kwargs)
 
     @property
@@ -91,10 +88,10 @@ class Env(Wrapper):
     def mask(self):
         return self.env.mask()
     
-    def score(self, **kwargs):
+    def score(self, *args):
         return self.env.score()
 
-    def epslen(self, **kwargs):
+    def epslen(self, *args):
         return self.env.epslen()
 
     def already_done(self):
@@ -184,33 +181,35 @@ class EnvVec(EnvVecBase):
 
 
 class EfficientEnvVec(EnvVec):
-    """ Designed for evaluation only """
+    """ Designed for efficient evaluation only """
     def reset(self, idxes=None, **kwargs):
         # reset all envs and omit kwargs intentionally
         assert idxes is None, idxes
-        self.valid_envs = self.envs
+        self.env_ids = np.arange(self.n_envs)
         return super().reset()
 
     def random_action(self, *args, **kwargs):
-        return [env.action_space.sample() for env in self.valid_envs]
+        return [self.envs[i].action_space.sample() for i in self.env_ids]
         
     def step(self, actions, **kwargs):
         # intend to omit kwargs as EfficientEnvVec is only used in evaluation
-        if len(self.valid_envs) == 1:
-            obs, reward, done, info = self.valid_envs[0].step(actions)
-        else:
-            obs, reward, done, info = _envvec_step(self.valid_envs, actions)
+        envs = [self.envs[i] for i in self.env_ids]
+        obs, reward, done, info = _envvec_step(envs, actions)
             
-            self.valid_envs, obs, reward, done, info = \
-                zip(*[(e, o, r, d, i)
-                    for e, o, r, d, i in zip(self.envs, obs, reward, done, info) 
-                    if not e.already_done()])
-        
-        return (self._convert_batch_obs(obs), 
-                np.array(reward, dtype=np.float32), 
-                np.array(done, dtype=np.float32), 
-                info)
+        out = list(zip(*[(id_, o, r, d, i)
+                for e, id_, o, r, d, i in zip(envs, self.env_ids, obs, reward, done, info) 
+                if not e.game_over()]))
+        if out:
+            self.env_ids, obs, reward, done, info = out
+            for id_, i in zip(self.env_ids, info):
+                i['env_id'] = id_
 
+            return (self._convert_batch_obs(obs), 
+                    np.array(reward, dtype=np.float32), 
+                    np.array(done, dtype=np.float32), 
+                    info)
+        else:
+            return None, 0, True, {}
 
 
 class RayEnvVec(EnvVecBase):
@@ -232,12 +231,7 @@ class RayEnvVec(EnvVecBase):
         self.max_episode_steps = self.env.max_episode_steps
 
     def reset(self, idxes=None):
-        if idxes is None:
-            obs = tf.nest.flatten(ray.get([env.reset.remote() for env in self.envs]))
-        else:
-            new_idxes = [[] for _ in range(self.n_workers)]
-            [new_idxes[i // self.n_workers].append(i % self.n_workers) for i in idxes]
-            obs = tf.nest.flatten(ray.get([self.envs[i].reset.remote(j) for i, j in enumerate(new_idxes)]))
+        obs = self._remote_call('reset', idxes)
         return self._convert_batch_obs(obs)
 
     def random_action(self, *args, **kwargs):
@@ -253,10 +247,9 @@ class RayEnvVec(EnvVecBase):
             kwargs = [dict() for _ in range(self.n_workers)]
 
         obs, reward, done, info = zip(*ray.get([env.step.remote(a, **kw) for env, a, kw in zip(self.envs, actions, kwargs)]))
-        info, info_lists = [], info
-        list(map(info.extend, info_lists))
-
         obs = tf.nest.flatten(obs)
+        if self.envsperworker > 1:
+            info = itertools.chain(*info)
         return (self._convert_batch_obs(obs),
                 np.reshape(reward, self.n_envs).astype(np.float32), 
                 np.reshape(done, self.n_envs).astype(np.float32),
@@ -267,75 +260,33 @@ class RayEnvVec(EnvVecBase):
         return np.reshape(ray.get([env.mask.remote() for env in self.envs]), self.n_envs)
 
     def score(self, idxes=None):
-        if idxes is None:
-            return np.reshape(ray.get([env.score.remote() for env in self.envs]), self.n_envs)
-        else:
-            new_idxes = [[] for _ in range(self.n_workers)]
-            [new_idxes[i // self.n_workers].append(i % self.n_workers) for i in idxes]
-            return tf.nest.flatten([self.envs[i].score(j) for i, j in enumerate(new_idxes)])
+        return self._remote_call('score', idxes, return_numpy=True)
 
     def epslen(self, idxes=None):
+        return self._remote_call('epslen', idxes, return_numpy=True)
+        
+    def already_done(self, idxes=None):
+        return self._remote_call('already_done', idxes, return_numpy=True)
+
+    def game_over(self, idxes=None):
+        return self._remote_call('game_over', idxes, return_numpy=True)
+
+    def _remote_call(self, name, idxes, return_numpy=False):
+        method = lambda e: getattr(e, name)
         if idxes is None:
-            return np.reshape(ray.get([env.epslen.remote() for env in self.envs]), self.n_envs)
+            val = tf.nest.flatten(ray.get([method(e).remote() for e in self.envs]), self.n_envs)
         else:
             new_idxes = [[] for _ in range(self.n_workers)]
-            [new_idxes[i // self.n_workers].append(i % self.n_workers) for i in idxes]
-            return tf.nest.flatten([self.envs[i].epslen(j) for i, j in enumerate(new_idxes)])
-
-    def already_done(self):
-        return np.reshape(ray.get([env.already_done.remote() for env in self.envs]), self.n_envs)
+            [new_idxes[i // self.envsperworker].append(i % self.envsperworker) for i in idxes]
+            val = tf.nest.flatten(ray.get([method(self.envs[i]).remote(j) for i, j in enumerate(new_idxes)]))
+        
+        if return_numpy:
+            return np.array(val)
+        else:
+            return val
 
     def close(self):
         del self
-
-
-class ObservationNormalize(Wrapper):
-    def __init__(self, env, obs_rms=None, **kwargs):
-        self.env = env
-        if obs_rms is None:
-            self._update_rms = True
-            axis = None if get_wrapper_by_name(self.env, 'Env') else 0
-            self.obs_rms = RunningMeanStd(axis=axis)
-        else:
-            self._update_rms = False
-            self.obs_rms = obs_rms
-
-    def reset(self, idxes=None, **kwargs):
-        obs = self.env.reset(idxes, **kwargs)
-        if self._update_rms:
-            self.obs_rms.update(obs)
-        obs = self.obs_rms.normalize(obs)
-        return obs
-
-    def step(self, action, **kwargs):
-        any_done = self.n_envs > 1 and np.any(self.already_done())
-        obs, reward, done, info = self.env.step(action, **kwargs)
-        mask = self.mask() if any_done else None
-        if self._update_rms:
-            self.obs_rms.update(obs, mask)
-        obs = self.obs_rms.normalize(obs)
-        return obs, reward, done, info
-
-
-class RewardNormalize(Wrapper):
-    def __init__(self, env, reward_rms=None, **kwargs):
-        self.env = env
-        if reward_rms is None:
-            self._update_rms = True
-            axis = None if get_wrapper_by_name(self.env, 'Env') else 0
-            self.reward_rms = RunningMeanStd(axis=axis)
-        else:
-            self._update_rms = False
-            self.reward_rms = reward_rms
-
-    def step(self, action, **kwargs):
-        any_done = self.n_envs > 1 and np.any(self.already_done())
-        obs, reward, done, info = self.env.step(action, **kwargs)
-        mask = self.mask() if any_done else None
-        if self._update_rms:
-            self.reward_rms.update(reward, mask)
-        reward = self.reward_rms.normalize(reward, subtract_mean=False)
-        return obs, reward, done, info
 
 
 def _envvec_step(envvec, actions, **kwargs):

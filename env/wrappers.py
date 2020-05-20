@@ -4,6 +4,20 @@ import gym
 from utility.utils import infer_dtype, convert_dtype
 
 
+class Dummy:
+    """ Useful to break the inheritance of unexpected attributes """
+    def __init__(self, env):
+        self.env = env
+        self.observation_space = env.observation_space
+        self.action_space = env.action_space
+        self.spec = env.spec
+
+        self.reset = env.reset
+        self.step = env.step
+        self.render = env.render
+        self.close = env.close
+
+
 class Wrapper:
     def __getattr__(self, name):
         return getattr(self.env, name)
@@ -87,22 +101,30 @@ class EnvStats(Wrapper):
         self._mask = 1
         return self.env.reset(**kwargs)
 
-    def step(self, action):
+    def step(self, action, **kwargs):
         if self.game_over():
             # as some environment, e.g. Ant-v3 implicitly reset env
             # when keeping stepping after game's over
             # here, we override this behavior
+            self._mask = 0
             return self._fake_obs, 0, True, {}
         assert not np.any(np.isnan(action)), action
         self._mask = 1 - self._already_done
-        obs, reward, done, info = self.env.step(action)
-        self._score += 0 if self.game_over() else reward
-        self._epslen += 0 if self.game_over() else info.get('frame_skip', 1)
+        obs, reward, done, info = self.env.step(action, **kwargs)
+        self._score += reward
+        self._epslen += info.get('frame_skip', 1)
         self._already_done = done
         if self._epslen >= self.max_episode_steps:
             self._already_done = True
-            if self._timeout_done:
-                done = True
+            if hasattr(self, '_game_over'):
+                self._game_over = True
+            done = self._timeout_done
+        if self.already_done():
+            info['already_done'] = self._already_done
+        if self.game_over():
+            info['score'] = self._score
+            info['epslen'] = self._epslen
+            info['game_over'] = True
 
         return obs, reward, done, info
 
