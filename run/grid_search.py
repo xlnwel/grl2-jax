@@ -104,7 +104,6 @@ class GridSearch:
                 sub_configs = [c[key] for c in configs]
                 self._safe_call(f'{key}', lambda: self._recursive_trial(sub_configs, k, v, kwargs_copy))
             else:
-                print(configs, key, value, kwargs_copy, sep='\n')
                 self._recursive_trial(configs, key, value, kwargs_copy)
 
     # helper functions for self._change_config
@@ -127,10 +126,8 @@ class GridSearch:
         for v in value:
             for c in configs:
                 c[key] = v
-            print('safe call', value, f'{key}={v}')
             self._safe_call(f'{key}={v}', lambda: self._change_config(**kwargs))
-            print('finished', value, v)
-
+            
     def _safe_call(self, append_name, func):
         """ safely append 'append_name' to 'model_name' in 'agent_config' and call func """
         old_model_name = self.agent_config['model_name']

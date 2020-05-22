@@ -86,6 +86,7 @@ class Runner:
                 score = [i['score'] for i in info if 'score' in i]
                 if score:
                     epslen = [i['epslen'] for i in info if 'epslen' in i]
+                    assert len(score) == len(epslen)
                     self.agent.store(score=score, epslen=epslen)
                 
                 new_obs = env.reset(done_env_ids)
@@ -104,38 +105,43 @@ class Runner:
             action = self.agent(obs, deterministic=False)
             if isinstance(action, tuple):
                 action, terms = action
-            next_obs, reward, done, _ = env.step(action)
+            next_obs, reward, done, info = env.step(action)
             discount = 1-done
-            self.step += np.sum(discount)
+            self.step += np.sum(discount*self._frames_per_step)
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
-                    discount=1-done, nth_obs=next_obs)
+                    discount=discount, nth_obs=next_obs)
                 kwargs.update(terms)
                 if env.n_envs > 1:
                     kwargs['mask'] = env.mask()
                 step_fn(env, self.step, **kwargs)
-            if np.all(env.game_over()):
-                break
-            else: 
-                obs = next_obs
-            # reset for environments where losing lives is taken as done
-            if np.any(env.already_done()):
-                if env.n_envs == 1:
-                    if env.game_over():
-                        break
+            
+            obs = next_obs
+            if env.n_envs == 1:
+                if info.get('already_done'):
+                    if info.get('game_over'):
+                        self.agent.store(score=info['score'], epslen=info['epslen'])
                     else:
                         obs = env.reset()
-                else:
-                    idxes = [i for i, d in enumerate(env.game_over()) if d]
-                    new_obs = env.reset(idxes)
-                    for i, o in zip(idxes, new_obs):
+            else:
+                done_env_ids = [i for i, ii in enumerate(info) if ii.get('already_done')]
+                if done_env_ids:
+                    score = [i['score'] for i in info if 'score' in i]
+                    if score:
+                        epslen = [i['epslen'] for i in info if 'epslen' in i]
+                        self.agent.store(score=score, epslen=epslen)
+                    
+                    reset_env_ids = [i for i in done_env_ids if not info[i].get('game_over')]
+                    new_obs = env.reset(reset_env_ids)
+                    for i, o in zip(reset_env_ids, new_obs):
                         obs[i] = o
-        self.agent.store(score=env.score(), epslen=env.epslen())
+            if np.all(env.game_over()):
+                break
 
         return self.step
 
 def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
-    pwc('Evaluation starts', color='cyan')
+    # pwc('Evaluation starts', color='cyan')
     scores = []
     epslens = []
     maxlen = min(video_len, env.max_episode_steps)
@@ -156,25 +162,28 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
                 action = action[0]
             obs, reward, done, info = env.step(action)
             
-            if np.all(env.game_over()):
-                break
             if env.n_envs == 1:
                 if info.get('already_done'):
-                    obs = env.reset()
+                    if info.get('game_over'):
+                        scores.append(info['score'])
+                        epslens.append(info['epslen'])
+                    else:
+                        obs = env.reset()
             else:
                 done_env_ids = [i for i, ii in enumerate(info) if ii.get('already_done')]
                 if done_env_ids:
                     score = [i['score'] for i in info if 'score' in i]
                     if score:
                         epslen = [i['epslen'] for i in info if 'epslen' in i]
-                        agent.store(score=score, epslen=epslen)
+                        scores += score
+                        epslens += epslen
                     
-                    reset_env_ids = [i for i in done_env_ids if not info[i]['game_over']]
+                    reset_env_ids = [i for i in done_env_ids if not info[i].get('game_over')]
                     new_obs = env.reset(reset_env_ids)
                     for i, o in zip(reset_env_ids, new_obs):
                         obs[i] = o
-        scores.append(env.score())
-        epslens.append(env.epslen())
+            if np.all(env.game_over()):
+                break
     
     if record:
         if env.n_envs == 1:

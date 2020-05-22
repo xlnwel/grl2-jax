@@ -12,6 +12,10 @@ def create_local_buffer(config):
 
 
 class LocalBuffer(ABC):
+    
+    def seqlen(self):
+        return self._seqlen
+
     @abstractmethod
     def sample(self):
         raise NotImplementedError
@@ -44,7 +48,7 @@ class EnvBuffer(LocalBuffer):
         if self._memory == {}:
             del data['nth_obs']
             init_buffer(self._memory, pre_dims=self._seqlen+self._n_steps, has_steps=self._n_steps>1, **data)
-            print_buffer(self._memory, 'Local Buffer')
+            # print_buffer(self._memory, 'Local Buffer')
             
         add_buffer(self._memory, self._idx, self._n_steps, self._gamma, **data)
         self._idx = self._idx + 1
@@ -53,10 +57,16 @@ class EnvBuffer(LocalBuffer):
     def sample(self):
         results = {}
         for k, v in self._memory.items():
-            if 'obs' in k or 'action' in k:
-                results[k] = v[:self._idx]
+            results[k] = v[:self._idx]
+        if 'nth_obs' not in self._memory:
+            indexes = np.arange(self._idx)
+            steps = results.get('steps', 1)
+            next_indexes = (indexes + steps) % self._capacity
+            if isinstance(self._memory['obs'], np.ndarray):
+                results['nth_obs'] = self._memory['obs'][next_indexes]
             else:
-                results[k] = v[:self._idx]
+                results['nth_obs'] = [np.array(self._memory['obs'][i], copy=False) 
+                    for i in next_indexes]
 
         return None, results
 

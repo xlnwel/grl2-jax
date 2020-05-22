@@ -56,13 +56,26 @@ def main(env_config, model_config, agent_config, replay_config):
     pids = []
     for wid in range(agent_config['n_workers']):
         worker = fm.create_worker(
-            Worker=Worker, name='Worker', worker_id=wid, 
-            model_fn=model_fn, config=agent_config, 
-            model_config=model_config, env_config=env_config, 
+            Worker=Worker, 
+            name='Worker', 
+            worker_id=wid, 
+            model_fn=model_fn, 
+            config=agent_config, 
+            model_config=model_config, 
+            env_config=env_config, 
             buffer_config=replay_config)
         pids.append(worker.run.remote(learner, replay))
         workers.append(worker)
 
+    Evaluator = am.get_evaluator_class()
+    evaluator = fm.create_evaluator(
+        Evaluator=Evaluator,
+        name=name,
+        model_fn=model_fn,
+        config=agent_config,
+        model_config=model_config,
+        env_config=env_config)
+    evaluator.run.remote(learner)
     while not ray.get(replay.good_to_learn.remote()):
         time.sleep(1)
 

@@ -16,7 +16,7 @@ from utility.utils import Every, convert_dtype
 from utility.ray_setup import cpu_affinity
 from env.gym_env import create_env
 from replay.func import create_replay
-from replay.data_pipline import Dataset, process_with_env
+from core.dataset import Dataset, process_with_env
 from algo.dreamer.env import make_env
 from algo.dreamer.train import get_data_format
 
@@ -36,7 +36,6 @@ def get_learner_class(BaseAgent):
             configure_threads(config['n_cpus'], config['n_cpus'])
             configure_gpu()
             configure_precision(config['precision'])
-            self._dtype = global_policy().compute_dtype
 
             self._envs_per_worker = env_config['n_envs']
             env_config['n_envs'] = 1
@@ -66,13 +65,12 @@ def get_learner_class(BaseAgent):
             self.replay = create_replay(replay_config, 
                 state_keys=list(self.rssm.state_size._asdict()))
             self.replay.load_data()
-            data_format = get_data_format(env, config['batch_size'], config['batch_len'])
+            data_format = get_data_format(env, config['batch_size'], config['sample_size'])
             if self._store_state:
                 data_format.update({
                     k: ((config['batch_size'], v), self._dtype)
                         for k, v in self.rssm.state_size._asdict().items()
                 })
-            print(data_format)
             process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
             self.dataset = Dataset(self.replay, data_format, process, prefetch=10)
 

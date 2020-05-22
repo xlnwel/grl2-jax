@@ -15,7 +15,7 @@ from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, display_model_var_info
 from core.optimizer import Optimizer
-from algo.dreamer2.nn import RSSMState
+from algo.dreamer3.nn import RSSMState
 
 
 class Agent(BaseAgent):
@@ -23,7 +23,6 @@ class Agent(BaseAgent):
     def __init__(self, *, dataset, env):
         # dataset for input pipline optimization
         self.dataset = dataset
-        self._dtype = global_policy().compute_dtype
 
         # optimizer
         dynamics_models = [self.encoder, self.rssm, self.decoder, self.reward]
@@ -66,11 +65,11 @@ class Agent(BaseAgent):
         # time dimension must be explicitly specified here
         # otherwise, InaccessibleTensorError arises when expanding rssm
         TensorSpecs = dict(
-            obs=((self._batch_len, *self._obs_shape), self._dtype, 'obs'),
-            action=((self._batch_len, self._action_dim), tf.float32, 'action'),
-            reward=((self._batch_len,), tf.float32, 'reward'),
-            discount=((self._batch_len,), tf.float32, 'discount'),
-            logpi=((self._batch_len,), tf.float32, 'logpi'),
+            obs=((self._sample_size, *self._obs_shape), self._dtype, 'obs'),
+            action=((self._sample_size, self._action_dim), tf.float32, 'action'),
+            reward=((self._sample_size,), tf.float32, 'reward'),
+            discount=((self._sample_size,), tf.float32, 'discount'),
+            logpi=((self._sample_size,), tf.float32, 'logpi'),
             log_images=(None, tf.bool, 'log_images')
         )
         if self._store_state:
@@ -84,11 +83,10 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
         
-    def reset_states(self, state=None, prev_action=None):
-        self._state = state
-        self._prev_action = prev_action
+    def reset_states(self, state=(None, None)):
+        self._state, self._prev_action = state
 
-    def retrieve_states(self):
+    def get_states(self):
         return self._state, self._prev_action
 
     def __call__(self, obs, reset=np.zeros(1), deterministic=False):
@@ -166,9 +164,6 @@ class Agent(BaseAgent):
         self.global_steps.assign(step)
         for i in range(self.N_UPDATES):
             data = self.dataset.sample()
-            if i == 0:
-                tf.summary.histogram(f'{self.name}/reward', data['reward'], step)
-                tf.summary.histogram(f'{self.name}/logpi', data['logpi'], step)
             log_images = tf.convert_to_tensor(
                 self._log_images and i == 0 and self._to_log_images(step), 
                 tf.bool)
@@ -182,18 +177,18 @@ class Agent(BaseAgent):
         with tf.GradientTape() as model_tape:
             embed = self.encoder(obs)
             if self._burn_in:
-                bl = self._burn_in_len
-                sl = self._batch_len - self._burn_in_len
-                burn_in_embed, embed = tf.split(embed, [bl, sl], 1)
-                burn_in_action, action = tf.split(action, [bl, sl], 1)
+                bis = self._burn_in_size
+                ss = self._sample_size - self._burn_in_size
+                burn_in_embed, embed = tf.split(embed, [bis, ss], 1)
+                burn_in_action, action = tf.split(action, [bis, ss], 1)
                 state, _ = self.rssm.observe(burn_in_embed, burn_in_action, state)
                 state = tf.nest.pack_sequence_as(state, 
                     tf.nest.map_structure(lambda x: tf.stop_gradient(x[:, -1]), state))
                 
-                _, obs = tf.split(obs, [bl, sl], 1)
-                _, reward = tf.split(reward, [bl, sl], 1)
-                _, discount = tf.split(discount, [bl, sl], 1)
-                _, logpi = tf.split(logpi, [bl, sl], 1)
+                _, obs = tf.split(obs, [bis, ss], 1)
+                _, reward = tf.split(reward, [bis, ss], 1)
+                _, discount = tf.split(discount, [bis, ss], 1)
+                _, logpi = tf.split(logpi, [bis, ss], 1)
             post, prior = self.rssm.observe(embed, action, state)
             feature = self.rssm.get_feat(post)
             obs_pred = self.decoder(feature)
@@ -292,12 +287,6 @@ class Agent(BaseAgent):
             tf.summary.histogram(f'{self.name}/returns', returns)
             tf.summary.histogram(f'{self.name}/q', q)
             tf.summary.histogram(f'{self.name}/error', returns-q1)
-            for var, grad in actor_vg:
-                tf.summary.histogram(f'grads/{var.name}', grad)
-                tf.summary.histogram(f'vars/{var.name}', var)
-                tf.summary.scalar(f'grads/{var.name}_mean', tf.reduce_mean(grad))
-                tf.summary.scalar(f'grads/{var.name}_std', tf.math.reduce_std(grad))
-                tf.summary.scalar(f'grads/{var.name}_sum', tf.math.reduce_sum(grad))
             self._image_summaries(obs, action, embed, obs_pred)
     
         return terms

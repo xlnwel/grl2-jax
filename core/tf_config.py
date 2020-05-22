@@ -93,7 +93,7 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
     else:
         return type(TensorSpecs)(tensorspecs)
 
-def build(func, TensorSpecs, sequential=False, batch_size=None):
+def build(func, TensorSpecs, sequential=False, batch_size=None, print_terminal_info=False):
     """Build a concrete function of func
 
     Args:
@@ -106,11 +106,12 @@ def build(func, TensorSpecs, sequential=False, batch_size=None):
         A concrete function of func
     """
     TensorSpecs = get_TensorSpecs(TensorSpecs, sequential, batch_size)
-    print(f'{func.__name__} is built with TensorSpecs:')
-    if isinstance(TensorSpecs, dict):
-        [print(f'\t{k}={v}') for k, v in TensorSpecs.items()]
-    else:
-        [print('\t', v) for v in TensorSpecs]
+    if print_terminal_info:
+        print(f'{func.__name__} is built with TensorSpecs:')
+        if isinstance(TensorSpecs, dict):
+            [print(f'\t{k}={v}') for k, v in TensorSpecs.items()]
+        else:
+            [print('\t', v) for v in TensorSpecs]
     if isinstance(TensorSpecs, dict):
         return func.get_concrete_function(**TensorSpecs)
     else: 

@@ -41,8 +41,8 @@ agent:
     # R2D2
     store_state: False
     burn_in: False
-    batch_len: &bl 50
-    burn_in_len: 40
+    sample_size: &ss 50
+    burn_in_size: 40
 
     # distributed training
     n_workers: &nw 2
@@ -83,7 +83,7 @@ replay:
 
     # arguments for general replay
     batch_size: *bs
-    batch_len: *bl
+    sample_size: *ss
     max_episodes: 1000
     min_episodes: *nw
     save: False

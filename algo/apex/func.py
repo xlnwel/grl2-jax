@@ -44,8 +44,31 @@ def create_worker(Worker, name, worker_id, model_fn, config, model_config,
 
     env_config['seed'] += worker_id * 100
     
+    # if 'actor' not in model_config:
+        # we set the epsilon following the Ape-X paper
+        # config['act_eps'] = .4**(1+worker_id/(config['n_workers']-1)*.7)
     RayWorker = ray.remote(num_cpus=1)(Worker)
     worker = RayWorker.remote(name, worker_id, model_fn, buffer_fn, config, 
                         model_config, env_config, buffer_config)
 
     return worker
+
+def create_evaluator(Evaluator, name, model_fn, config, model_config, env_config):
+    config = config.copy()
+    model_config = model_config.copy()
+    env_config = env_config.copy()
+
+    env_config['seed'] += 999
+    
+    # if 'actor' not in model_config:
+        # we set the epsilon following the Ape-X paper
+        # config['act_eps'] = .4**(1+worker_id/(config['n_workers']-1)*.7)
+    RayEvaluator = ray.remote(num_cpus=1)(Evaluator)
+    evaluator = RayEvaluator.remote(
+        name=name,
+        model_fn=model_fn,
+        config=config,
+        model_config=model_config,
+        env_config=env_config)
+
+    return evaluator

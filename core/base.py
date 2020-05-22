@@ -34,8 +34,9 @@ class BaseAgent(ABC):
     def save_config(self, config):
         save_config(self._root_dir, self._model_name, config)
 
-    def log(self, step, print_terminal_info=True):
-        log(self._logger, self._writer, self._model_name, prefix=self.name, 
+    def log(self, step, prefix=None, print_terminal_info=True):
+        prefix = prefix or self.name
+        log(self._logger, self._writer, self._model_name, prefix=prefix, 
             step=step, print_terminal_info=print_terminal_info)
 
     def log_stats(self, stats, print_terminal_info=True):
@@ -46,9 +47,10 @@ class BaseAgent(ABC):
 
     def scalar_summary(self, stats, prefix=None, step=None):
         prefix = prefix or self.name
-        scalar_summary(self._writer, stats, step=step, prefix=prefix)
+        scalar_summary(self._writer, stats, prefix=prefix, step=step)
 
     def histogram_summary(self, stats, prefix=None, step=None):
+        prefix = prefix or self.name
         histogram_summary(self._writer, stats, prefix=prefix, step=step)
 
     def graph_summary(self, fn=None, *args, step=None):
@@ -57,11 +59,14 @@ class BaseAgent(ABC):
     def store(self, **kwargs):
         store(self._logger, **kwargs)
 
-    def get_stats(self, mean=True, std=False, min=False, max=False):
-        return get_stats(self._logger, mean=mean, std=std, min=min, max=max)
+    def get_raw_value(self, key):
+        return get_raw_value(self._logger, key)
 
     def get_value(self, key, mean=True, std=False, min=False, max=False):
         return get_value(self._logger, key, mean=mean, std=std, min=min, max=max)
+
+    def get_stats(self, mean=True, std=False, min=False, max=False):
+        return get_stats(self._logger, mean=mean, std=std, min=min, max=max)
 
     def print_construction_complete(self):
         pwc(f'{self._model_name.title()} is constructed...', color='cyan')

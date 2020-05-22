@@ -17,7 +17,6 @@ class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
         self._is_per = not dataset.buffer_type().endswith('uniform')
-
         self.dataset = dataset
 
         if self._schedule_lr:

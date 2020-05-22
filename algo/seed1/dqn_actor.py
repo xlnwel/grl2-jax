@@ -16,7 +16,7 @@ from utility.utils import Every, convert_dtype
 from utility.ray_setup import cpu_affinity
 from env.gym_env import create_env
 from replay.func import create_replay
-from replay.data_pipline import Dataset, process_with_env
+from core.dataset import Dataset, process_with_env
 from algo.d3qn.train import get_data_format
 
 
@@ -64,7 +64,6 @@ def get_learner_class(BaseAgent):
             replay_config['dir'] = config['root_dir'].replace('logs', 'data')
             self.replay = create_replay(replay_config)
             data_format = get_data_format(env, replay_config)
-            print(data_format)
             process = functools.partial(process_with_env, env=env)
             self.dataset = Dataset(self.replay, data_format, process, prefetch=10)
 

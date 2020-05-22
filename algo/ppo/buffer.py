@@ -15,6 +15,8 @@ class PPOBuffer:
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
         self.reset()
+        print(f'Mini-batch size: {self._mb_size}')
+
 
     def add(self, **data):
         if self._memory == {}:

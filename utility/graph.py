@@ -7,65 +7,6 @@ import tensorflow.compat.v1 as tf1
 from utility.utils import squarest_grid_size
 
 
-def save_video(name, video, fps=20):
-    name = name if isinstance(name, str) else name.decode('utf-8')
-    if np.issubdtype(video.dtype, np.floating):
-        video = np.clip(255 * video, 0, 255).astype(np.uint8)
-    while len(video.shape) < 5:
-        video = np.expand_dims(video, 0)
-    B, T, H, W, C = video.shape
-    if B != 1:
-        bh, bw = squarest_grid_size(B)
-        frames = video.reshape((bh, bw, T, H, W, C))
-        frames = frames.transpose((2, 0, 3, 1, 4, 5))
-        frames = frames.reshape((T, bh*H, bw*W, C))
-    else:
-        frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, W, C))
-    f1, *frames = [Image.fromarray(f) for f in frames]
-    if not os.path.isdir('results'):
-        os.mkdir('results')
-    f1.save(fp=f'results/{name}.gif', format='GIF', append_images=frames,
-         save_all=True, duration=1000//fps, loop=0)
-
-
-def image_summary(name, images, step=None):
-    if len(images.shape) == 3:
-        images = images[None]
-    if np.issubdtype(images.dtype, np.floating):
-        images = np.clip(255 * images, 0, 255).astype(np.uint8)
-    img = grid_placed(images)
-    tf.summary.image(name + '/grid', img, step)
-    
-
-def video_summary(name, video, size=None, step=None, fps=20):
-    name = name if isinstance(name, str) else name.decode('utf-8')
-    if np.issubdtype(video.dtype, np.floating):
-        video = np.clip(255 * video, 0, 255).astype(np.uint8)
-    while len(video.shape) < 5:
-        video = np.expand_dims(video, 0)
-    B, T, H, W, C = video.shape
-    if size is None and B != 1:
-        bh, bw = squarest_grid_size(B)
-        frames = video.reshape((bh, bw, T, H, W, C))
-        frames = frames.transpose((2, 0, 3, 1, 4, 5))
-        frames = frames.reshape((T, bh*H, bw*W, C))
-    else:
-        if size is None:
-            size = (1, 1)
-        assert size[0] * size[1] == B, f'Size({size}) does not match the batch dimension({B})'
-        frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, size[0]*H, size[1]*W, C))
-    try:
-        summary = tf1.Summary()
-        image = tf1.Summary.Image(height=B * H, width=T * W, colorspace=C)
-        image.encoded_image_string = encode_gif(frames, fps)
-        summary.value.add(tag=name, image=image)
-        tf.summary.experimental.write_raw_pb(summary.SerializeToString(), step)
-    except (IOError, OSError) as e:
-        print('GIF summaries require ffmpeg in $PATH.', e)
-        frames = video.transpose((0, 2, 1, 3, 4)).reshape((1, B * H, T * W, C))
-        tf.summary.image(name + '/grid', frames, step)
-
-
 def grid_placed(images, size=None):
     assert images.shape.ndims == 4, f'images should be 4D, but get shape {images.shape}'
     B, H, W, C = images.shape
@@ -119,3 +60,63 @@ def encode_gif(frames, fps):
         raise IOError('\n'.join([' '.join(cmd), err.decode('utf8')]))
     del proc
     return out
+
+
+def save_video(name, video, fps=30):
+    name = name if isinstance(name, str) else name.decode('utf-8')
+    if np.issubdtype(video.dtype, np.floating):
+        video = np.clip(255 * video, 0, 255).astype(np.uint8)
+    while len(video.shape) < 5:
+        video = np.expand_dims(video, 0)
+    B, T, H, W, C = video.shape
+    if B != 1:
+        bh, bw = squarest_grid_size(B)
+        frames = video.reshape((bh, bw, T, H, W, C))
+        frames = frames.transpose((2, 0, 3, 1, 4, 5))
+        frames = frames.reshape((T, bh*H, bw*W, C))
+    else:
+        frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, W, C))
+    f1, *frames = [Image.fromarray(f) for f in frames]
+    if not os.path.isdir('results'):
+        os.mkdir('results')
+    f1.save(fp=f'results/{name}.gif', format='GIF', append_images=frames,
+         save_all=True, duration=1000//fps, loop=0)
+
+
+""" summaries useful for core.log.graph_summary"""
+def image_summary(name, images, step=None):
+    if len(images.shape) == 3:
+        images = images[None]
+    if np.issubdtype(images.dtype, np.floating):
+        images = np.clip(255 * images, 0, 255).astype(np.uint8)
+    img = grid_placed(images)
+    tf.summary.image(name + '/grid', img, step)
+    
+
+def video_summary(name, video, size=None, step=None, fps=30):
+    name = name if isinstance(name, str) else name.decode('utf-8')
+    if np.issubdtype(video.dtype, np.floating):
+        video = np.clip(255 * video, 0, 255).astype(np.uint8)
+    while len(video.shape) < 5:
+        video = np.expand_dims(video, 0)
+    B, T, H, W, C = video.shape
+    if size is None and B != 1:
+        bh, bw = squarest_grid_size(B)
+        frames = video.reshape((bh, bw, T, H, W, C))
+        frames = frames.transpose((2, 0, 3, 1, 4, 5))
+        frames = frames.reshape((T, bh*H, bw*W, C))
+    else:
+        if size is None:
+            size = (1, 1)
+        assert size[0] * size[1] == B, f'Size({size}) does not match the batch dimension({B})'
+        frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, size[0]*H, size[1]*W, C))
+    try:
+        summary = tf1.Summary()
+        image = tf1.Summary.Image(height=B * H, width=T * W, colorspace=C)
+        image.encoded_image_string = encode_gif(frames, fps)
+        summary.value.add(tag=name, image=image)
+        tf.summary.experimental.write_raw_pb(summary.SerializeToString(), step)
+    except (IOError, OSError) as e:
+        print('GIF summaries require ffmpeg in $PATH.', e)
+        frames = video.transpose((0, 2, 1, 3, 4)).reshape((1, B * H, T * W, C))
+        tf.summary.image(name + '/grid', frames, step)

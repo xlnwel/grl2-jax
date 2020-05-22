@@ -9,11 +9,11 @@ import ray
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
-from utility.utils import Every
+from utility.utils import Every, TempStore
 from utility.run import Runner, evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
-from replay.data_pipline import DataFormat, Dataset, process_with_env
+from core.dataset import DataFormat, Dataset, process_with_env
 from algo.dreamer.env import make_env
 from run import pkg
 
@@ -45,13 +45,11 @@ def train(agent, env, eval_env, replay):
         step = runner.run(step_fn=collect, nsteps=nsteps)
         duration = time.time() - start_t
         if to_eval(step):
-            train_state, train_action = agent.retrieve_states()
-
-            score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
-            video_summary(f'{agent.name}/sim', video, step=step)
-            agent.store(eval_score=score, eval_epslen=epslen)
+            with TempStore(agent.get_states, agent.reset_states):
+                score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
+                video_summary(f'{agent.name}/sim', video, step=step)
+                agent.store(eval_score=score, eval_epslen=epslen)
             
-            agent.reset_states(train_state, train_action)
         if to_log(step):
             agent.store(fps=(step-start_step)/duration, duration=duration)
             agent.log(step)
@@ -93,7 +91,6 @@ def main(env_config, model_config, agent_config, replay_config):
     replay = create_replay(replay_config)
     replay.load_data()
     data_format = get_data_format(env, agent_config['batch_size'], agent_config['sample_size'])
-    print(data_format)
     process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
     dataset = Dataset(replay, data_format, process)
 

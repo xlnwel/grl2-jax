@@ -1,27 +1,39 @@
-**Status:** Active (under active development, breaking changes may occur)
+**Status:** Active (under active development)
 
-This repository is implemented with *Tensorflow2.0*, and *ray0.8.0.dev6* for distributed learning. Algorithms are tested on *BipedalWalker-v2* and *Atari*.
+This repository is implemented with *Tensorflow2.1* and *ray0.8.4* for distributed learning. Algorithms are tested with the default configurations.
+
+Wellcome to open an issue for any bugs or requests for new features.
 
 ## Current Implemented Algorithm
 
-- [x] PPO (Proximal Policy Optimization) with LSTM and masking
-- [x] PPO2 (different from PPO, PPO2 need explicitly specify lstm states)
+- [x] Ape-X
 - [x] DNC (Differentiable Neural Computer)
 - [x] Dreamer
-- [x] PER (Prioritized Experience Replay)
-- [x] SAC(Soft Actor-Critic) with adaptive temperature
-- [x] Apex-SAC (ApeX with SAC)
-- [x] SEED-Dramer
-- [x] Retrace(lambda)
-- [x] MS (Multi Step)
+- [x] GAE
+- [x] PPO (with FNN and all algorithmic details following OpenAI's baselines)
+- [x] PPO2 (with masked LSTM)
+- [x] Rainbow (without c51, refer to our previous repo for c51 and IQN)
+- [x] Retrace(𝝀)
+- [x] SAC with adaptive temperature
+- [x] TBO (Transformed Bellman Operator)
+- [x] SEED-Dreamer
 
-**Note**: Here, we only implement a prototype for SEED. To gain the full efficency, one should cooperate it with a larger network(e.g., CNNs). Also, consider separating the action loop from the learner because of the Python GIL.
+## Get Started
+
+```
+python run/train.py algo -e env
+```
+For available 'algo', please refer to the folder names in '/algo'. To run distributed algorithms, 'algo' should be of form 'distributed_architecture-algorithm'. For example, if you want to run Ape-X with DQN, replace 'algo' with 'apex-dqn'.
 
 ## Reference Papers
 
 Graves, Alex, Greg Wayne, Malcolm Reynolds, Tim Harley, Ivo Danihelka, Agnieszka Grabska-Barwińska, Sergio Gómez Colmenarejo, et al. 2016. “Hybrid Computing Using a Neural Network with Dynamic External Memory.” Nature 538 (7626): 471–76. https://doi.org/10.1038/nature20101.
 
 Horgan, Dan, John Quan, David Budden, Gabriel Barth-Maron, Matteo Hessel, Hado van Hasselt, and David Silver. 2018. “Distributed Prioritized Experience Replay.” In ICLR, 1–19. http://arxiv.org/abs/1803.00933.
+
+Munos, Rémi, Thomas Stepleton, Anna Harutyunyan, and Marc G. Bellemare. 2016. “Safe and Efficient Off-Policy Reinforcement Learning.” Advances in Neural Information Processing Systems, no. Nips: 1054–62.
+
+Engstrom, Logan, Andrew Ilyas, Shibani Santurkar, Dimitris Tsipras, Firdaus Janoos, Larry Rudolph, and Aleksander Madry. 2019. “Implementation Matters in Deep Policy Gradients: A Case Study on PPO and TRPO.” ICLR
 
 Haarnoja, Tuomas, Aurick Zhou, Pieter Abbeel, and Sergey Levine. 2018. “Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor.” 35th International Conference on Machine Learning, ICML 2018 5: 2976–89.
 
@@ -55,4 +67,4 @@ https://github.com/danijar/dreamer
 
 ## Acknowledge
 
-I'd like to especially thank @danijar for his great help when I reproduced Dreamer.
+I'd like to especially thank @danijar for his great help with Dreamer.

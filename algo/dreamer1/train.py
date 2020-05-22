@@ -9,11 +9,11 @@ import ray
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
-from utility.utils import Every
+from utility.utils import Every, TempStore
 from utility.run import evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
-from replay.data_pipline import DataFormat, Dataset, process_with_env
+from core.dataset import DataFormat, Dataset, process_with_env
 from algo.dreamer.env import make_env
 from run import pkg
 
@@ -77,13 +77,11 @@ def train(agent, env, eval_env, replay):
             env, agent, step, obs, already_done, collect_log, nsteps)
         duration = time.time() - start_t
         if to_eval(step):
-            train_state, train_action = agent.retrieve_states()
-
-            score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
-            video_summary(f'{agent.name}/sim', video, step=step)
-            agent.store(eval_score=score, eval_epslen=epslen)
+            with TempStore(agent.get_states, agent.reset_states):
+                score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
+                video_summary(f'{agent.name}/sim', video, step=step)
+                agent.store(eval_score=score, eval_epslen=epslen)
             
-            agent.reset_states(train_state, train_action)
         if to_log(step):
             agent.store(fps=(step-start_step)/duration, duration=duration)
             agent.log(step)
@@ -92,36 +90,18 @@ def train(agent, env, eval_env, replay):
             start_step = step
             start_t = time.time()
 
-def get_data_format(env, batch_size, batch_len=None):
+def get_data_format(env, batch_size, sample_size=None):
     dtype = global_policy().compute_dtype
     data_format = dict(
-        obs=DataFormat((batch_size, batch_len, *env.obs_shape), dtype),
-        action=DataFormat((batch_size, batch_len, *env.action_shape), dtype),
-        reward=DataFormat((batch_size, batch_len), dtype), 
-        discount=DataFormat((batch_size, batch_len), dtype),
-        logpi=DataFormat((batch_size, batch_len), dtype)
+        obs=DataFormat((batch_size, sample_size, *env.obs_shape), dtype),
+        action=DataFormat((batch_size, sample_size, *env.action_shape), dtype),
+        reward=DataFormat((batch_size, sample_size), dtype), 
+        discount=DataFormat((batch_size, sample_size), dtype),
+        logpi=DataFormat((batch_size, sample_size), dtype)
     )
     return data_format
 
 def main(env_config, model_config, agent_config, replay_config):
-    algo = agent_config['algorithm']
-    env = env_config['name']
-    if 'atari' not in env \
-        and 'dmc' not in env:
-        from run.pkg import get_package
-        from utility import yaml_op
-        root_dir = agent_config['root_dir']
-        model_name = agent_config['model_name']
-        directory = get_package(algo, 0, '/')
-        config = yaml_op.load_config(f'{directory}/config2.yaml')
-        env_config = config['env']
-        model_config = config['model']
-        agent_config = config['agent']
-        replay_config = config['replay']
-        agent_config['root_dir'] = root_dir
-        agent_config['model_name'] = model_name
-        env_config['name'] = env
-
     silence_tf_logs()
     configure_gpu()
     configure_precision(env_config['precision'])
@@ -143,8 +123,7 @@ def main(env_config, model_config, agent_config, replay_config):
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
     replay.load_data()
-    data_format = get_data_format(env, agent_config['batch_size'], agent_config['batch_len'])
-    print(data_format)
+    data_format = get_data_format(env, agent_config['batch_size'], agent_config['sample_size'])
     process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
     dataset = Dataset(replay, data_format, process)
 

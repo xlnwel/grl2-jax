@@ -3,7 +3,7 @@ import argparse
 
 def parse_cmd_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--algorithm', '-a',
+    parser.add_argument('algorithm',
                         type=str,
                         nargs='*')
     parser.add_argument('--environment', '-e',

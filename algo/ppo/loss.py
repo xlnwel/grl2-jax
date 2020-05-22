@@ -6,20 +6,20 @@ def _reduce_mean(x, name, n):
     with tf.name_scope(name):
         return tf.reduce_mean(x) if n is None else tf.reduce_sum(x) / n
 
-def compute_ppo_loss(logpi, old_logpi, advantages, clip_range, entropy, mask=None, n=None):
+def compute_ppo_loss(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
     assert (mask is None) == (n is None), f'Both/Neither mask and/nor n should be None, but get \nmask:{mask}\nn:{n}'
     dtype = global_policy().compute_dtype
     
     m = 1. if mask is None else mask
     with tf.name_scope('ppo_loss'):
-        ratio = tf.exp(logpi - old_logpi, name='ratio')
+        ratio = tf.exp(log_ratio, name='ratio')
         loss1 = -advantages * ratio
         loss2 = -advantages * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
         
         ppo_loss = _reduce_mean(tf.maximum(loss1, loss2) * m, 'ppo_loss', n)
         entropy = tf.reduce_mean(entropy, name='entropy_loss')
         # debug stats: KL between old and current policy and fraction of data being clipped
-        approx_kl = .5 * _reduce_mean((old_logpi - logpi)**2 * m, 'approx_kl', n)
+        approx_kl = .5 * _reduce_mean((-log_ratio)**2 * m, 'approx_kl', n)
         p_clip_frac = _reduce_mean(tf.cast(tf.greater(tf.abs(ratio - 1.), clip_range), dtype) * m, 
                                 'clip_frac', n)
     return ppo_loss, entropy, approx_kl, p_clip_frac

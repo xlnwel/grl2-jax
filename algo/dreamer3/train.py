@@ -9,7 +9,7 @@ import ray
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
-from utility.utils import Every
+from utility.utils import Every, TempStore
 from utility.run import evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
@@ -81,13 +81,11 @@ def train(agent, env, eval_env, replay):
             env, agent, step, obs, already_done, collect_log, nsteps)
         duration = time.time() - start_t
         if to_eval(step):
-            train_state, train_action = agent.retrieve_states()
-
-            score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
-            video_summary(f'{agent.name}/sim', video, step=step)
-            agent.store(eval_score=score, eval_epslen=epslen)
+            with TempStore(agent.get_states, agent.reset_states):
+                score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
+                video_summary(f'{agent.name}/sim', video, step=step)
+                agent.store(eval_score=score, eval_epslen=epslen)
             
-            agent.reset_states(train_state, train_action)
         if to_log(step):
             agent.store(fps=(step-start_step)/duration, duration=duration)
             agent.log(step)
@@ -96,14 +94,14 @@ def train(agent, env, eval_env, replay):
             start_step = step
             start_t = time.time()
 
-def get_data_format(env, batch_size, batch_len=None):
+def get_data_format(env, batch_size, sample_size=None):
     dtype = global_policy().compute_dtype
     data_format = dict(
-        obs=DataFormat((batch_size, batch_len, *env.obs_shape), dtype),
-        action=DataFormat((batch_size, batch_len, *env.action_shape), 'float32'),
-        reward=DataFormat((batch_size, batch_len), 'float32'), 
-        discount=DataFormat((batch_size, batch_len), 'float32'),
-        logpi=DataFormat((batch_size, batch_len), 'float32')
+        obs=DataFormat((batch_size, sample_size, *env.obs_shape), dtype),
+        action=DataFormat((batch_size, sample_size, *env.action_shape), 'float32'),
+        reward=DataFormat((batch_size, sample_size), 'float32'), 
+        discount=DataFormat((batch_size, sample_size), 'float32'),
+        logpi=DataFormat((batch_size, sample_size), 'float32')
     )
     return data_format
 
@@ -122,6 +120,8 @@ def main(env_config, model_config, agent_config, replay_config):
     eval_env_config['n_envs'] = 1
     eval_env_config['n_workers'] = 1
     eval_env_config['log_episode'] = False
+    if 'reward_hack' in eval_env_config:
+        del eval_env_config['reward_hack']
     eval_env = create_env(eval_env_config, make_env)
 
     create_model, Agent = pkg.import_agent(agent_config)
@@ -143,13 +143,12 @@ def main(env_config, model_config, agent_config, replay_config):
     replay = create_replay(replay_config,
         state_keys=list(agent.rssm.state_size._asdict()))
     replay.load_data()
-    data_format = get_data_format(env, agent_config['batch_size'], agent_config['batch_len'])
+    data_format = get_data_format(env, agent_config['batch_size'], agent_config['sample_size'])
     if agent._store_state:
         data_format.update({
             k: ((agent_config['batch_size'], v), 'float32')
                 for k, v in agent.rssm.state_size._asdict().items()
         })
-    print(data_format)
     process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
     dataset = Dataset(replay, data_format, process)
     agent.dataset = dataset

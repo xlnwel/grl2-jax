@@ -1,10 +1,12 @@
 ---
 env:
-    name: atari_breakout
+    name: atari_pong
+    wrapper: baselines
     precision: &prec 32
     life_done: True
-    sticky_action: True
-    n_envs: 2
+    sticky_actions: True
+    frame_stack: 4
+    n_envs: 1
     seed: 0
 model:
     q:
@@ -19,14 +21,15 @@ agent:
     gamma: &gamma 0.99
     precision: *prec
     schedule_eps: False
-    act_eps: 0
+    act_eps: 0  # will be overwritten in func.py
     
     # timer&interval
-    MAX_STEPS: 1e+9
+    MAX_STEPS: 1e9
     LOG_INTERVAL: 10000
     
     # distributed algo params
     n_workers: 6
+    actor_update_period: 1500
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -46,24 +49,21 @@ agent:
     epsilon: 1.5e-4
 
     # arguments for PER
-    per_alpha: 0.5
+    per_alpha: 0.4
     per_epsilon: 1e-4
 
 replay:
     type: proportional                      # proportional or uniform
+    seqlen: 100
     precision: *prec
     # arguments for PER
     beta0: 0.4
     to_update_top_priority: False
-
-    # hacking
-    # reward_scale: 5
-    # reward_clip: 50
 
     # arguments for general replay
     n_steps: 3
     gamma: *gamma
     batch_size: 64
     min_size: 5e4
-    capacity: 1e6
-    has_nth_obs: False
+    capacity: 1e5
+    has_nth_obs: True

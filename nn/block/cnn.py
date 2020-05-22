@@ -15,6 +15,8 @@ from nn.utils import get_initializer
 mapping = dict(none=None)
 
 def cnn(name, **kwargs):
+    if name is None:
+        return None
     name = name.lower()
     if name in mapping:
         return mapping[name](**kwargs)
@@ -58,6 +60,8 @@ def flatten(x):
     shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
     x = tf.reshape(x, shape)
     return x
+
+
 @register('ftw')
 class FTWCNN(Layer):
     def __init__(self, 
@@ -84,7 +88,6 @@ class FTWCNN(Layer):
         self._conv4 = conv2d(64, 3, strides=1, padding='same', 
                 kernel_initializer=kernel_initializer, **kwargs)
 
-
         self.out_size = out_size
         if self.out_size:
             self._dense = Dense(self.out_size, activation=relu,
@@ -108,6 +111,47 @@ class FTWCNN(Layer):
         return x
 
 
+@register('r2d2')
+class R2D2CNN(Layer):
+    def __init__(self, 
+                 *, 
+                 time_distributed=False, 
+                 name='ftw', 
+                 obs_range=[0, 1], 
+                 kernel_initializer='orthogonal',
+                 out_size=512,
+                 **kwargs):
+        super().__init__(name=name)
+        self._obs_range = obs_range
+
+        conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
+        gain = kwargs.get('gain', np.sqrt(2))
+        kernel_initializer = get_initializer(kernel_initializer, gain=gain)
+
+        self._conv1 = conv2d(32, 8, strides=4, padding='same', 
+                kernel_initializer=kernel_initializer, **kwargs)
+        self._conv2 = conv2d(64, 4, strides=2, padding='same',
+                kernel_initializer=kernel_initializer, **kwargs)
+        self._conv3 = conv2d(64, 3, strides=1, padding='same', 
+                kernel_initializer=kernel_initializer, **kwargs)
+        
+        self.out_size = out_size
+        if self.out_size:
+            self._dense = Dense(self.out_size, activation=relu,
+                            kernel_initializer=kernel_initializer, **kwargs)
+
+    def call(self, x):
+        x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
+        x = relu(self._conv1(x))
+        x = relu(self._conv2(x))
+        x = relu(self._conv3(x))
+        if self.out_size:
+            x = flatten(x)
+            x = self._dense(x)
+
+        return x
+
+
 class Residual(Layer):
     def __init__(self, 
                  time_distributed=False, 
@@ -116,13 +160,14 @@ class Residual(Layer):
                  **kwargs):
         super().__init__(name=name)
         self._time_distributed = time_distributed
+        self._kernel_initializer = kernel_initializer
         self._kwargs = kwargs
 
     def build(self, input_shape):
         super().build(input_shape)
         conv2d = functools.partial(conv2d_fn, time_distributed=self._time_distributed)
         gain = self._kwargs.get('gain', np.sqrt(2))
-        kernel_initializer = get_initializer(kernel_initializer, gain=gain)
+        kernel_initializer = get_initializer(self._kernel_initializer, gain=gain)
         kwargs = self._kwargs
         filters = input_shape[-1]
         
@@ -178,7 +223,7 @@ class IMPALACNN(Layer):
         for l in self._conv_layers:
             x = l(x)
         x = relu(x)
-        if self.output:
+        if self.out_size:
             x = flatten(x)
             x = self._dense(x)
 
@@ -203,11 +248,11 @@ class NatureCNN(Layer):
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
         
         self._conv_layers = [
-            conv2d(32, 8, 4, padding='same', activation=relu, 
+            conv2d(32, 8, 4, padding='valid', activation=relu, 
                     kernel_initializer=kernel_initializer, **kwargs),
-            conv2d(64, 4, 2, padding='same', activation=relu, 
+            conv2d(64, 4, 2, padding='valid', activation=relu, 
                     kernel_initializer=kernel_initializer, **kwargs),
-            conv2d(64, 3, 1, padding='same', activation=relu, 
+            conv2d(64, 3, 1, padding='valid', activation=relu, 
                     kernel_initializer=kernel_initializer, **kwargs),
         ]
         self.out_size = out_size

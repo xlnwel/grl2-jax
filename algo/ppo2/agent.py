@@ -29,7 +29,6 @@ class Agent(PPOBase):
         # previous and current state of LSTM
         self.state = self.ac.get_initial_state(batch_size=env.n_envs)
         # Explicitly instantiate tf.function to avoid unintended retracing
-        state_type = type(self.ac.state_size)
         TensorSpecs = dict(
             obs=((self._sample_size, *env.obs_shape), self._dtype, 'obs'),
             action=((self._sample_size, *env.action_shape), self._dtype, 'action'),
@@ -38,9 +37,11 @@ class Agent(PPOBase):
             advantage=((self._sample_size,), self._dtype, 'advantage'),
             logpi=((self._sample_size,), self._dtype, 'logpi'),
             mask=((self._sample_size,), self._dtype, 'mask'),
-            state=state_type(*[((sz, ), self._dtype, name) 
-                for name, sz in self.ac.state_size._asdict().items()])
         )
+        if self._store_state:
+            state_type = type(self.ac.state_size)
+            TensorSpecs['state'] = state_type(*[((sz, ), self._dtype, name) 
+                for name, sz in self.ac.state_size._asdict().items()])
         self.learn = build(self._learn, TensorSpecs)
 
     def reset_states(self, states=None):
@@ -66,7 +67,9 @@ class Agent(PPOBase):
             return out.numpy()
         else:
             action, logpi, value = out
-            terms = dict(logpi=logpi, value=value, mask=mask, **prev_state._asdict())
+            terms = dict(logpi=logpi, value=value, mask=mask)
+            if self._store_state:
+                terms.update(prev_state._asdict())
             terms = tf.nest.map_structure(lambda x: x.numpy(), terms)
             terms['obs'] = obs
             return action.numpy(), terms
@@ -94,7 +97,7 @@ class Agent(PPOBase):
             for j in range(self.N_MBS):
                 data = buffer.sample()
                 if data['obs'].dtype == np.uint8:
-                    data['obs'] /= 255.
+                    data['obs'] = data['obs'] / 255.
                 value = data['value']
                 data = {k: tf.convert_to_tensor(v, self._dtype) for k, v in data.items()}
                 state, terms = self.learn(**data)
@@ -109,7 +112,8 @@ class Agent(PPOBase):
                 if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
                         break
             if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
-                pwc(f'Eearly stopping after {i*self.N_MBS+j+1} update(s) due to reaching max kl.',
+                pwc(f'{self._model_name}: Eearly stopping after '
+                    f'{i*self.N_MBS+j+1} update(s) due to reaching max kl.',
                     f'Current kl={approx_kl:.3g}', color='blue')
                 break
         self.store(approx_kl=approx_kl)
@@ -121,15 +125,16 @@ class Agent(PPOBase):
         # self.state = state
 
     @tf.function
-    def _learn(self, obs, action, traj_ret, value, advantage, logpi, mask, state):
+    def _learn(self, obs, action, traj_ret, value, advantage, logpi, mask, state=None):
         old_value = value
         with tf.GradientTape() as tape:
             act_dist, value, state = self.ac(obs, state, mask=mask, return_value=True)
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             # policy loss
+            log_ratio = new_logpi - logpi
             ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
-                new_logpi, logpi, advantage, self._clip_range, entropy)
+                log_ratio, advantage, self._clip_range, entropy)
             # value loss
             value_loss, v_clip_frac = compute_value_loss(
                 value, traj_ret, old_value, self._clip_range)
@@ -140,7 +145,8 @@ class Agent(PPOBase):
                 total_loss = policy_loss + value_loss
 
         terms = dict(
-            act_std=act_dist.stddev(),
+            advantage=advantage, 
+            ratio=tf.exp(log_ratio), 
             entropy=entropy, 
             approx_kl=approx_kl, 
             p_clip_frac=p_clip_frac,

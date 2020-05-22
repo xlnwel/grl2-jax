@@ -1,17 +1,19 @@
 ---
 env:
-    name: &env_name Walker2d-v3
+    name: &env_name atari_pong
     n_workers: 1
     n_envs: &nenvs 8
     seed: 0
     precision: &prec 32
-
+    wrapper: baselines
+    frame_stack: 1
+    
 model:
-    cnn_name: none
-    shared_mlp_units: [64]
-    lstm_units: 64
-    actor_units: [64]
-    critic_units: [64]
+    cnn_name: nature
+    shared_mlp_units: []
+    lstm_units: 256
+    actor_units: [256]
+    critic_units: [256]
     norm: none
     kernel_initializer: orthogonal
     activation: relu
@@ -22,7 +24,7 @@ agent:
     precision: *prec
 
     MAX_STEPS: 5.e+7
-    N_STEPS: &nsteps 256
+    N_STEPS: &nsteps 128
     N_UPDATES: 4
     N_MBS: &nmbs 4
     sample_size: &ss 16       # BPTT length
@@ -30,8 +32,9 @@ agent:
     LOG_INTERVAL: 200000
     max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
 
-    normalize_obs: True
+    normalize_obs: False
     normalize_reward: True
+    store_state: True
     
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -46,8 +49,8 @@ agent:
     clip_norm: .5
     # arguments for loss
     clip_range: .2          # clip range for ppo
-    entropy_coef: .0
-    value_coef: .001
+    entropy_coef: .01
+    value_coef: .5
 
 buffer:
     adv_type: gae           # nae or gae

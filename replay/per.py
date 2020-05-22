@@ -40,7 +40,6 @@ class PERBase(Replay):
             self._sample_i += 1
             if hasattr(self, '_beta_schedule'):
                 self._update_beta()
-
         return samples
 
     @override(Replay)
@@ -65,7 +64,7 @@ class PERBase(Replay):
     def _merge(self, local_buffer, length):
         assert np.all(local_buffer['priority'][: length] != 0)
         # update sum tree
-        mem_idxes = np.arange(self.mem_idx, self._mem_idx + length) % self._capacity
+        mem_idxes = np.arange(self._mem_idx, self._mem_idx + length) % self._capacity
         np.testing.assert_equal(len(mem_idxes), len(local_buffer['priority']))
         self._data_structure.batch_update(mem_idxes, local_buffer['priority'])
         del local_buffer['priority']
@@ -101,5 +100,5 @@ class ProportionalPER(PERBase):
         samples = self._get_samples(indexes)
         samples['IS_ratio'] = IS_ratios
         samples['idxes'] = indexes
-        
+
         return samples

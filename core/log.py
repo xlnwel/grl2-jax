@@ -63,11 +63,14 @@ def graph_summary(writer, fn, args, step=None):
 def store(logger, **kwargs):
     logger.store(**kwargs)
 
-def get_stats(logger, mean=True, std=False, min=False, max=False):
-    return logger.get_stats(mean=mean, std=std, min=min, max=max)
+def get_raw_value(logger, key):
+    return logger.get_raw_value(key)
 
 def get_value(logger, key, mean=True, std=False, min=False, max=False):
     return logger.get(key, mean=mean, std=std, min=min, max=max)
+
+def get_stats(logger, mean=True, std=False, min=False, max=False):
+    return logger.get_stats(mean=mean, std=std, min=min, max=max)
 
 def save_code(root_dir, model_name):
     dest_dir = f'{root_dir}/{model_name}/src'
@@ -154,6 +157,11 @@ class Logger:
             else:
                 self._store_dict[k].append(v)
 
+    def get_raw_value(self, key):
+        v = self._store_dict[key]
+        del self._store_dict[key]
+        return v
+        
     def get(self, key, mean=True, std=False, min=False, max=False):
         stats = {}
         v = self._store_dict[key]

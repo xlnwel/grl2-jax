@@ -2,7 +2,6 @@ import functools
 import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
-from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 from utility.utils import AttrDict, Every
@@ -22,7 +21,6 @@ class Agent(BaseAgent):
     def __init__(self, *, dataset, env):
         # dataset for input pipline optimization
         self.dataset = dataset
-        self._dtype = global_policy().compute_dtype
 
         # optimizer
         dynamics_models = [self.encoder, self.rssm, self.decoder, self.reward]
@@ -55,10 +53,10 @@ class Agent(BaseAgent):
         # time dimension must be explicitly specified here
         # otherwise, InaccessibleTensorError arises when expanding rssm
         TensorSpecs = dict(
-            obs=((self._batch_len, *self._obs_shape), self._dtype, 'obs'),
-            action=((self._batch_len, self._action_dim), self._dtype, 'action'),
-            reward=((self._batch_len,), self._dtype, 'reward'),
-            discount=((self._batch_len,), self._dtype, 'discount'),
+            obs=((self._sample_size, *self._obs_shape), self._dtype, 'obs'),
+            action=((self._sample_size, self._action_dim), self._dtype, 'action'),
+            reward=((self._sample_size,), self._dtype, 'reward'),
+            discount=((self._sample_size,), self._dtype, 'discount'),
             log_images=(None, tf.bool, 'log_images')
         )
         if self._store_state:
@@ -70,11 +68,10 @@ class Agent(BaseAgent):
 
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
-    def reset_states(self, state=None, prev_action=None):
-        self._state = state
-        self._prev_action = prev_action
+    def reset_states(self, state=(None, None)):
+        self._state, self._prev_action = state
 
-    def retrieve_states(self):
+    def get_states(self):
         return self._state, self._prev_action
 
     def __call__(self, obs, reset=np.zeros(1), deterministic=False):
@@ -160,17 +157,17 @@ class Agent(BaseAgent):
         with tf.GradientTape() as model_tape:
             embed = self.encoder(obs)
             if self._burn_in:
-                bl = self._burn_in_len
-                sl = self._batch_len - self._burn_in_len
-                burn_in_embed, embed = tf.split(embed, [bl, sl], 1)
-                burn_in_action, action = tf.split(action, [bl, sl], 1)
+                bis = self._burn_in_size
+                ss = self._sample_size - self._burn_in_size
+                burn_in_embed, embed = tf.split(embed, [bis, ss], 1)
+                burn_in_action, action = tf.split(action, [bis, ss], 1)
                 state, _ = self.rssm.observe(burn_in_embed, burn_in_action, state)
                 state = tf.nest.pack_sequence_as(state, 
                     tf.nest.map_structure(lambda x: tf.stop_gradient(x[:, -1]), state))
                 
-                _, obs = tf.split(obs, [bl, sl], 1)
-                _, reward = tf.split(reward, [bl, sl], 1)
-                _, discount = tf.split(discount, [bl, sl], 1)
+                _, obs = tf.split(obs, [bis, ss], 1)
+                _, reward = tf.split(reward, [bis, ss], 1)
+                _, discount = tf.split(discount, [bis, ss], 1)
             post, prior = self.rssm.observe(embed, action, state)
             feature = self.rssm.get_feat(post)
             obs_pred = self.decoder(feature)

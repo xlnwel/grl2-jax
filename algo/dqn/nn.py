@@ -8,9 +8,8 @@ from utility.display import pwc
 from utility.timer import TBTimer
 from core.module import Module
 from core.decorator import config
-from nn.func import mlp
+from nn.func import mlp, cnn
 from nn.layers import Noisy
-from nn.func import cnn
         
 
 class Q(Module):
@@ -48,8 +47,7 @@ class Q(Module):
             x = tf.expand_dims(x, 0)
         
         noisy = not deterministic
-        with TBTimer('action', 10000):
-            action = self.action(x, noisy=noisy, reset=False)
+        action = self.action(x, noisy=noisy, reset=False)
         action = np.squeeze(action.numpy())
 
         return action

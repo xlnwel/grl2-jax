@@ -78,6 +78,28 @@ class FrameSkip(Wrapper):
         
         return obs, total_reward, done, info
 
+
+class AutoReset(Wrapper):
+  def __init__(self, env):
+    self.env = env
+    self._done = True
+
+  def __getattr__(self, name):
+    return getattr(self._env, name)
+
+  def step(self, action):
+    if self._done:
+      obs, reward, done, info = self.env.reset(), 0.0, False, {}
+    else:
+      obs, reward, done, info = self.env.step(action)
+    self._done = done
+    return obs, reward, done, info
+
+  def reset(self):
+    self._done = False
+    return self._env.reset()
+
+
 class EnvStats(Wrapper):
     """ Records environment statistics """
     def __init__(self, env, max_episode_steps, precision=32, timeout_done=False):

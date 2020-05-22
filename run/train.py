@@ -35,6 +35,7 @@ def change_config(kw, prefix, env_config, model_config, agent_config, replay_con
                             [env_config, model_config, agent_config, replay_config]):
                 if key in config:
                     configs.append((name, config))
+            assert configs, f'"{s}" does not appear in any config!'
             if len(configs) > 1:
                 ans = input(f'{key} appears in the following configs: '
                         f'{list([n for n, _ in configs])}.\n'
@@ -102,7 +103,7 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     # Grid search happens here
-                    processes += gs(sample_size=[16, 32], activation=['relu'])
+                    processes += gs(value_coef=[1, .5])
                 else:
                     processes += gs()
             else:

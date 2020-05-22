@@ -68,11 +68,11 @@ class Agent(BaseAgent):
 
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
-    def reset_states(self, state=None, prev_action=None):
-        self._state = state
-        self._prev_action = prev_action
+    def reset_states(self, state=(None, None)):
+        self._state, self._prev_action = state
 
-    def retrieve_states(self):
+
+    def get_states(self):
         return self._state, self._prev_action
 
     def __call__(self, obs, reset=np.zeros(1), deterministic=False):
@@ -144,17 +144,17 @@ class Agent(BaseAgent):
         with tf.GradientTape() as model_tape:
             embed = self.encoder(obs)
             if self._burn_in:
-                bl = self._burn_in_len
-                sl = self._sample_size - self._burn_in_len
-                burn_in_embed, embed = tf.split(embed, [bl, sl], 1)
-                burn_in_action, action = tf.split(action, [bl, sl], 1)
+                bis = self._burn_in_size
+                ss = self._sample_size - self._burn_in_size
+                burn_in_embed, embed = tf.split(embed, [bis, ss], 1)
+                burn_in_action, action = tf.split(action, [bis, ss], 1)
                 state, _ = self.rssm.observe(burn_in_embed, burn_in_action, state)
                 state = tf.nest.pack_sequence_as(state, 
                     tf.nest.map_structure(lambda x: tf.stop_gradient(x[:, -1]), state))
                 
-                _, obs = tf.split(obs, [bl, sl], 1)
-                _, reward = tf.split(reward, [bl, sl], 1)
-                _, discount = tf.split(discount, [bl, sl], 1)
+                _, obs = tf.split(obs, [bis, ss], 1)
+                _, reward = tf.split(reward, [bis, ss], 1)
+                _, discount = tf.split(discount, [bis, ss], 1)
             post, prior = self.rssm.observe(embed, action, state)
             feature = self.rssm.get_feat(post)
             obs_pred = self.decoder(feature)

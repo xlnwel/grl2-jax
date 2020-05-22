@@ -11,7 +11,15 @@ from utility.display import pwc
 
 
 def make_atari_env(config):
-    env = Atari(**config)
+    if config.get('wrapper', 'my_atari') == 'baselines':
+        from env import baselines as B
+        name = config['name']
+        version = 0 if config.get('sticky_actions', True) else 4
+        name = f'{name.title()}NoFrameskip-v{version}'
+        env = B.make_atari(name)
+        env = B.wrap_deepmind(env, episode_life=config.get('life_done', False), frame_stack=config.get('frame_stack', 1)>1)
+    else:
+        env = Atari(**config)
     return env
 
 
@@ -60,13 +68,12 @@ class Atari:
     """
 
     def __init__(self, name, *, frame_skip=4, life_done=False,
-                image_size=(84, 84), frame_stack=4, noop=1, 
+                image_size=(84, 84), frame_stack=1, noop=1, 
                 sticky_actions=True, gray_scale=True, 
                 clip_reward=False, **kwargs):
         version = 0 if sticky_actions else 4
         name = f'{name.title()}NoFrameskip-v{version}'
         env = gym.make(name)
-        print(f'Environment name: {name}')
         # Strip out the TimeLimit wrapper from Gym, which caps us at 100k frames. 
         # We handle this time limit internally instead, which lets us cap at 108k 
         # frames (30 minutes). The TimeLimit wrapper also plays poorly with 
@@ -98,8 +105,9 @@ class Atari:
 
         self.lives = 0  # Will need to be set by reset().
         self._game_over = True
-        # Stores LazyFrames for memory efficiency
-        self._frames = deque([], maxlen=self.frame_stack)
+        if self.frame_stack > 1:
+            # Stores LazyFrames for memory efficiency
+            self._frames = deque([], maxlen=self.frame_stack)
 
     def get_screen(self):
         return self.env.ale.getScreenRGB2()
@@ -133,35 +141,27 @@ class Atari:
         return self.env.close()
 
     def reset(self, **kwargs):
-        def noop_reset():
-            if self._game_over:
-                self.env.reset(**kwargs)
-                noop = np.random.randint(1, self.noop + 1)
-                for _ in range(noop):
-                    d = self.env.step(0)[2]
-                    if d:
-                        self.env.reset(**kwargs)
-            else:
-                self.step(0)
+        if self._game_over:
+            self.env.reset(**kwargs)
+            noop = np.random.randint(1, self.noop + 1)
+            for _ in range(noop):
+                d = self.env.step(0)[2]
+                if d:
+                    self.env.reset(**kwargs)
+        else:
+            self.step(0)
 
-            self.lives = self.env.ale.lives()
-            self._get_screen(self._buffer[0])
-            self._buffer[1].fill(0)
-            obs = self._pool_and_resize()
+        self.lives = self.env.ale.lives()
+        self._get_screen(self._buffer[0])
+        self._buffer[1].fill(0)
+        obs = self._pool_and_resize()
+        if self.frame_stack > 1:
             for _ in range(self.frame_stack):
                 self._frames.append(obs)
+            obs = self._get_obs()
 
-        noop_reset()
-        if 'FIRE' in self.env.unwrapped.get_action_meanings():
-            # Fire when reset
-            for a in [1, 2]:
-                # it is important to call self.step here
-                # otherwise, fire may not succeed 
-                done = self.step(a)[2]
-                if done:
-                    noop_reset()
-                
-        return self._get_obs()
+        self._game_over = False
+        return obs
 
     def render(self, mode):
         """Renders the current screen, before preprocessing.
@@ -181,7 +181,7 @@ class Atari:
         return self.env.render(mode)
 
     def step(self, action):
-        accumulated_reward = 0.
+        total_reward = 0.
 
         for step in range(1, self.frame_skip+1):
             # We bypass the Gym observation altogether and directly fetch
@@ -189,7 +189,7 @@ class Atari:
             _, reward, done, info = self.env.step(action)
             if self.clip_reward:
                 reward = np.clip(reward, -1, 1)
-            accumulated_reward += reward
+            total_reward += reward
 
             if self.life_done:
                 new_lives = self.env.ale.lives()
@@ -206,12 +206,13 @@ class Atari:
 
         # Pool the last two observations.
         obs = self._pool_and_resize()
-        self._frames.append(obs)
-        obs = self._get_obs()
+        if self.frame_stack > 1:
+            self._frames.append(obs)
+            obs = self._get_obs()
 
         self._game_over = done
         info['frame_skip'] = step
-        return obs, accumulated_reward, is_terminal, info
+        return obs, total_reward, is_terminal, info
 
     def _pool_and_resize(self):
         """Transforms two frames into a Nature DQN observation.

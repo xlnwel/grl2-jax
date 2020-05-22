@@ -6,13 +6,13 @@ from core.tf_config import *
 from utility.display import pwc
 from utility.graph import save_video
 from utility.ray_setup import sigint_shutdown_ray
-from utility.run import evaluate
+from utility.run import evaluate, Runner
 from env.gym_env import create_env
 from algo.d3qn.nn import create_model
 from algo.d3qn.agent import Agent
 
 
-def main(env_config, model_config, agent_config, n, record=False):
+def main(env_config, model_config, agent_config, n, record=False, size=(128, 128)):
     silence_tf_logs()
     configure_gpu()
 
@@ -36,11 +36,9 @@ def main(env_config, model_config, agent_config, n, record=False):
                 dataset=None, 
                 env=env)
 
-
     scores, epslens, video = evaluate(env, agent, n, record=record)
     if record:
         save_video(f'{agent.name}', video)
-    
     pwc(f'After running {n} episodes',
         f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
 

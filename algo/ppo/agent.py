@@ -79,6 +79,7 @@ class Agent(PPOBase):
         return None
 
     def __call__(self, obs, deterministic=False, update_rms=False, **kwargs):
+        obs = np.array(obs, copy=False)
         obs = self.normalize_obs(obs, update_rms)
         if deterministic:
             return self.action(obs, deterministic).numpy()
@@ -106,7 +107,7 @@ class Agent(PPOBase):
             for j in range(self.N_MBS):
                 data = buffer.sample()
                 if data['obs'].dtype == np.uint8:
-                    data['obs'] /= 255.
+                    data['obs'] = data['obs'] / 255.
                 value = data['value']
                 data = {k: tf.convert_to_tensor(v, self._dtype) for k, v in data.items()}
                 terms = self.learn(**data)
@@ -121,7 +122,8 @@ class Agent(PPOBase):
                 if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
                     break
             if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
-                pwc(f'Eearly stopping after {i*self.N_MBS+j+1} update(s) due to reaching max kl.',
+                pwc(f'{self._model_name}: Eearly stopping after '
+                    f'{i*self.N_MBS+j+1} update(s) due to reaching max kl.',
                     f'Current kl={approx_kl:.3g}', color='blue')
                 break
         self.store(approx_kl=approx_kl)
@@ -137,8 +139,9 @@ class Agent(PPOBase):
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             # policy loss
+            log_ratio = new_logpi - logpi
             ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
-                new_logpi, logpi, advantage, self._clip_range, entropy)
+                log_ratio, advantage, self._clip_range, entropy)
             # value loss
             value_loss, v_clip_frac = compute_value_loss(
                 value, traj_ret, old_value, self._clip_range)
@@ -149,7 +152,8 @@ class Agent(PPOBase):
                 total_loss = policy_loss + value_loss
 
         terms = dict(
-            act_std=act_dist.stddev(),
+            advantage=advantage, 
+            ratio=tf.exp(log_ratio), 
             entropy=entropy, 
             approx_kl=approx_kl, 
             p_clip_frac=p_clip_frac,

@@ -28,13 +28,15 @@ def logpi_correction(action, logpi, is_action_squashed):
 def n_step_target(reward, nth_value, discount=1., gamma=1., steps=1.):
     return reward + discount * gamma**steps * nth_value
 
-def h(x, epsilon=1e-2):
-    """h function defined in Ape-X DQfD"""
+def h(x, epsilon=1e-3):
+    """ h function defined in the transfomred Bellman operator """
     sqrt_term = tf.math.sqrt(tf.math.abs(x) + 1)
     return tf.math.sign(x) * (sqrt_term - 1) + epsilon * x
 
-def inverse_h(x, epsilon=1e-2):
-    """h^{-1} function defined in Ape-X DQfD"""
+def inverse_h(x, epsilon=1e-3):
+    """ h^{-1} function defined in the transfomred Bellman operator
+    epsilon=1e-3 is used following recent papers(e.g., R2D2, MuZero, NGU)
+    """
     sqrt_term = tf.math.sqrt(1 + 4 * epsilon * (tf.math.abs(x) + 1 + epsilon))
     frac_term = (sqrt_term - 1) / (2 * epsilon)
     return tf.math.sign(x) * (frac_term ** 2 - 1)

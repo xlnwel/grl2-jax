@@ -32,6 +32,7 @@ class Dataset:
                  data_format, 
                  process_fn=None, 
                  batch_size=False, 
+                 print_data_format=True,
                  **kwargs):
         """ Create a tf.data.Dataset for data retrieval
         
@@ -45,6 +46,10 @@ class Dataset:
         assert isinstance(data_format, dict)
         data_format = {k: DataFormat(*v) for k, v in data_format.items()}
         self.data_format = data_format
+        if print_data_format:
+            print('Dataset info:')
+            for k, v in data_format.items():
+                print('\t', k, v)
         self._iterator = self._prepare_dataset(process_fn, batch_size, **kwargs)
 
     def buffer_type(self):

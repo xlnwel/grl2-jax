@@ -9,18 +9,14 @@ from core.tf_config import *
 from utility.utils import Every
 from utility.graph import video_summary
 from utility.timer import TBTimer
-from utility.run import run, evaluate
+from utility.run import Runner, evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
-from replay.data_pipline import Dataset, process_with_env
-from algo.d3qn.agent import Agent
-from algo.d3qn.nn import create_model
+from core.dataset import Dataset, process_with_env
+from run import pkg
 
 
 def train(agent, env, eval_env, replay):
-    def collect_fn(*args, **kwargs):
-        replay.add(**kwargs)
-
     def collect_and_learn(env, step, **kwargs):
         replay.add(**kwargs)
         if env.game_over():
@@ -32,32 +28,32 @@ def train(agent, env, eval_env, replay):
         if step % agent.TRAIN_INTERVAL == 0:
             agent.learn_log(step)
     
-    start_step = agent.global_steps.numpy()
-    step = start_step
-    obs = None
+    step = agent.global_steps.numpy()
+    collect_fn = lambda *args, **kwargs: replay.add(**kwargs)
+    runner = Runner(env, agent, step=step)
     while not replay.good_to_learn():
-        obs, step = run(env, env.random_action, step, obs=obs, 
-            fn=collect_fn, nsteps=agent.LOG_INTERVAL)
+        step = runner.run(
+            action_selector=env.random_action, 
+            step_fn=collect_fn, nsteps=int(1e4))
 
     to_log = Every(agent.LOG_INTERVAL)
     to_eval = Every(agent.EVAL_INTERVAL)
     print('Training starts...')
     while step < int(agent.MAX_STEPS):
-        start = time.time()
         start_step = step
-        obs, step = run(env, agent, step, obs=obs,
-            fn=collect_and_learn, nsteps=agent.LOG_INTERVAL)
-        
+        start = time.time()
+        step = runner.run(step_fn=collect_and_learn, nsteps=agent.LOG_INTERVAL)
         agent.store(fps=(step - start_step) / (time.time() - start))
+        
         if to_eval(step):
             eval_score, eval_epslen, video = evaluate(
                 eval_env, agent, record=True, size=(64, 64))
             video_summary(f'{agent.name}/sim', video, step=step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-        with TBTimer('log', 10):
-            agent.log(step)
-        with TBTimer('save', 10):
-            agent.save(steps=step)
+        action = agent.get_raw_value('action')
+        agent.histogram_summary({'action': action}, step=step)
+        agent.log(step)
+        agent.save(steps=step)
     
 
 def get_data_format(env, replay_config):
@@ -82,11 +78,12 @@ def main(env_config, model_config, agent_config, replay_config):
     algo = agent_config['algorithm']
     env = env_config['name']
     if 'atari' not in env:
+        print('Any changes to config is dropped as we switch to a non-atari environment')
         from run.pkg import get_package
         from utility import yaml_op
         root_dir = agent_config['root_dir']
         model_name = agent_config['model_name']
-        directory = get_package(algo, 0, '/')
+        directory = pkg.get_package(algo, 0, '/')
         config = yaml_op.load_config(f'{directory}/config2.yaml')
         env_config = config['env']
         model_config = config['model']
@@ -96,6 +93,8 @@ def main(env_config, model_config, agent_config, replay_config):
         agent_config['model_name'] = model_name
         env_config['name'] = env
 
+    create_model, Agent = pkg.import_agent(agent_config)
+    
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
@@ -108,7 +107,6 @@ def main(env_config, model_config, agent_config, replay_config):
     replay = create_replay(replay_config)
 
     data_format = get_data_format(env, replay_config)
-    print(data_format)
     process = functools.partial(process_with_env, env=env)
     dataset = Dataset(replay, data_format, process_fn=process)
     # construct models

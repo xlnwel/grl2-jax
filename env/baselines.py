@@ -14,7 +14,7 @@ class NoopResetEnv(Wrapper):
         """Sample initial states by taking random number of no-ops on reset.
         No-op is assumed to be action 0.
         """
-        Wrapper.__init__(self, env)
+        self.env = env
         self.noop_max = noop_max
         self.override_num_noops = None
         self.noop_action = 0
@@ -44,7 +44,7 @@ class NoopResetEnv(Wrapper):
 class FireResetEnv(Wrapper):
     def __init__(self, env):
         """Take action on reset for environments that are fixed until firing."""
-        Wrapper.__init__(self, env)
+        self.env = env
         assert env.unwrapped.get_action_meanings()[1] == 'FIRE'
         assert len(env.unwrapped.get_action_meanings()) >= 3
 
@@ -66,7 +66,7 @@ class EpisodicLifeEnv(Wrapper):
         """Make end-of-life == end-of-episode, but only reset on true game over.
         Done by DeepMind for the DQN and co. since it helps value estimation.
         """
-        Wrapper.__init__(self, env)
+        self.env = env
         self.lives = 0
         self._game_over  = True
 
@@ -100,7 +100,7 @@ class EpisodicLifeEnv(Wrapper):
 class MaxAndSkipEnv(Wrapper):
     def __init__(self, env, skip=4):
         """Return only every `skip`-th frame"""
-        Wrapper.__init__(self, env)
+        self.env = env
         # most recent raw observations (for max pooling across time steps)
         self._obs_buffer = np.zeros((2,)+env.observation_space.shape, dtype=np.uint8)
         self.frame_skip  = skip
@@ -199,7 +199,7 @@ class FrameStack(Wrapper):
         --------
         baselines.common.atari_wrappers.LazyFrames
         """
-        Wrapper.__init__(self, env)
+        self.env = env
         self.k = k
         self.frames = deque([], maxlen=k)
         shp = env.observation_space.shape

@@ -17,12 +17,11 @@ def train(agent, env, eval_env, buffer):
     def collect(env, step, reward, nth_obs, **kwargs):
         kwargs['reward'] = agent.normalize_reward(reward)
         buffer.add(**kwargs)
-    print(env, eval_env)
     step = agent.global_steps.numpy()
     action_selector = lambda *args, **kwargs: agent(*args, **kwargs, update_rms=True)
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     
-    to_log = Every(agent.LOG_INTERVAL)
+    to_log = Every(agent.LOG_INTERVAL, agent.LOG_INTERVAL)
     step = agent.global_steps.numpy()
     start_env_step = step
     train_step = 0
@@ -44,7 +43,7 @@ def train(agent, env, eval_env, buffer):
                 fps=(step-start_env_step)/duration,
                 tps=(train_step-start_train_step)/duration,
             )
-            
+
             with TempStore(agent.get_states, agent.reset_states):
                 scores, epslens, video = evaluate(
                     eval_env, agent, record=False)
@@ -60,6 +59,22 @@ def train(agent, env, eval_env, buffer):
 
 def main(env_config, model_config, agent_config, buffer_config):
     algo = agent_config['algorithm']
+    env = env_config['name']
+    if 'atari' not in env:
+        print('Any changes to config is dropped as we switch to a non-atari environment')
+        from utility import yaml_op
+        root_dir = agent_config['root_dir']
+        model_name = agent_config['model_name']
+        directory = pkg.get_package(algo, 0, '/')
+        config = yaml_op.load_config(f'{directory}/config2.yaml')
+        env_config = config['env']
+        model_config = config['model']
+        agent_config = config['agent']
+        replay_config = config['buffer']
+        agent_config['root_dir'] = root_dir
+        agent_config['model_name'] = model_name
+        env_config['name'] = env
+
     create_model, Agent = pkg.import_agent(agent_config)
     PPOBuffer = pkg.import_module('buffer', algo=algo).PPOBuffer
 
@@ -77,6 +92,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     eval_env_config['seed'] += 1000
     eval_env = create_env(eval_env_config, force_envvec=True)
 
+    buffer_config['n_envs'] = env.n_envs
     buffer = PPOBuffer(buffer_config)
 
     models = create_model(

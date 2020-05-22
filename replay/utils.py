@@ -53,12 +53,12 @@ def infer_info(precision, **kwargs):
     pre_dims_len = 0 if isinstance(kwargs['reward'], (int, float)) \
         else len(kwargs['reward'].shape)
     for k, v in kwargs.items():
-        v = np.array(v)
-        dtype = infer_dtype(v.dtype, precision)
-        if 'obs' in k and np.issubdtype(v.dtype, np.uint8):
-            info[k] = ((), None)
+        np_v = np.array(v)
+        dtype = infer_dtype(np_v.dtype, precision)
+        if isinstance(v, (int, float, np.floating, np.signedinteger, np.ndarray)):
+            info[k] = (np_v.shape[pre_dims_len:], dtype)
         else:
-            info[k] = (v.shape[pre_dims_len:], dtype)
+            info[k] = ((), None)
         
     return info
 

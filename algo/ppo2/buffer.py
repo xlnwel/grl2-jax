@@ -18,6 +18,8 @@ class PPOBuffer:
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
         self.reset()
+        print(f'Batch size: {size}')
+        print(f'Mini-batch size: {self._mb_size} chunks of {self._sample_size} timesteps')
 
     def add(self, **data):
         if self._memory == {}:
@@ -25,6 +27,11 @@ class PPOBuffer:
             self._memory['value'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
+            self._sample_keys = list(self._memory)
+            self._sample_keys.remove('discount')
+            self._sample_keys.remove('reward')
+            self._state_keys = [k for k in self._sample_keys if k not in 
+                ['obs', 'action', 'traj_ret', 'value', 'advantage', 'logpi', 'mask']]
             print_buffer(self._memory)
             
         for k, v in data.items():
@@ -39,13 +46,12 @@ class PPOBuffer:
         start = self._mb_idx * self._mb_size
         end = (self._mb_idx + 1) * self._mb_size
         self._mb_idx = (self._mb_idx + 1) % self.N_MBS
-        
-        keys = ['obs', 'action', 'traj_ret', 'value', 
-                'advantage', 'logpi', 'mask', 'h', 'c']
 
-        sample = {k: self._memory[k][self._idxes[start: end]] for k in keys}
-        sample['h'] = sample['h'][:, 0]
-        sample['c'] = sample['c'][:, 0]
+        sample = {k: self._memory[k][self._idxes[start:end]][:, 0] 
+            if k in self._state_keys 
+            else self._memory[k][self._idxes[start:end]] 
+            for k in self._sample_keys}
+        
         return sample
 
     def finish(self, last_value):
