@@ -68,7 +68,7 @@ class Atari:
     """
 
     def __init__(self, name, *, frame_skip=4, life_done=False,
-                image_size=(84, 84), frame_stack=1, noop=1, 
+                image_size=(84, 84), frame_stack=1, noop=30, 
                 sticky_actions=True, gray_scale=True, 
                 clip_reward=False, **kwargs):
         version = 0 if sticky_actions else 4
@@ -149,7 +149,11 @@ class Atari:
                 if d:
                     self.env.reset(**kwargs)
         else:
-            self.step(0)
+            if 'FIRE' in self.env.get_action_meanings():
+                action = self.env.get_action_meanings().index('FIRE')
+            else:
+                action = 0
+            self.step(action)
 
         self.lives = self.env.ale.lives()
         self._get_screen(self._buffer[0])

@@ -3,7 +3,6 @@ import numpy as np
 
 from utility.display import pwc
 from utility.timer import TBTimer
-from env.gym_env import Env
 
 
 class Runner:
@@ -21,7 +20,7 @@ class Runner:
 
     def run(self, *, action_selector=None, step_fn=None, nsteps=None):
         """ run `nstep` agent steps, auto reset if an episodes is done """
-        if isinstance(self.env, Env):
+        if self.env.env_type == 'Env':
             return self._run_env(action_selector, step_fn, nsteps)
         else:
             return self._run_envvec(action_selector, step_fn, nsteps)
@@ -101,7 +100,7 @@ class Runner:
         env = self.env
         obs = env.reset()
         terms = {}
-        while True:
+        for _ in range(self._default_nsteps):
             action = self.agent(obs, deterministic=False)
             if isinstance(action, tuple):
                 action, terms = action
@@ -151,15 +150,13 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
         if hasattr(agent, 'reset_states'):
             agent.reset_states()
         obs = env.reset()
-        for k in range(10000):
+        for k in range(env.max_episode_steps):
             if record:
                 if name.startswith('dm'):
                     imgs.append(obs)
                 else:
                     imgs.append(env.get_screen(size=size))
             action = agent(obs, deterministic=True)
-            if isinstance(action, tuple):
-                action = action[0]
             obs, reward, done, info = env.step(action)
             
             if env.n_envs == 1:

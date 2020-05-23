@@ -275,11 +275,9 @@ class Counter:
         return getattr(self.env, name)
 
     def reset(self, *args, **kwargs):
-        print('reset')
         return self.env.reset(*args, **kwargs)
     
     def step(self, action, **kwargs):
-        print('step', action)
         return self.env.step(action, **kwargs)
 
 def make_atari(env_id, max_episode_steps=None):

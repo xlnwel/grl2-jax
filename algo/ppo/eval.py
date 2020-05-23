@@ -4,7 +4,7 @@ import ray
 
 from utility.display import pwc
 from utility.graph import save_video
-from utility.run import evaluate
+from utility.run import Runner, evaluate
 from core.tf_config import *
 from env.gym_env import create_env
 from run import pkg
@@ -25,7 +25,7 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
         is_action_discrete=env.is_action_discrete,
     )
 
-    agent = Agent(name=algo, config=agent_config, models=models, env=env)
+    agent = Agent(name=algo, config=agent_config, models=models, buffer=None, env=env)
 
     scores, epslens, video = evaluate(env, agent, n, record=record, size=size)
     if record:

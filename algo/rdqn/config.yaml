@@ -2,30 +2,40 @@
 env:
     name: atari_pong
     wrapper: baselines
-    precision: &prec 32
     life_done: False
     sticky_actions: True
-    frame_stack: 4
     seed: 0
+    precision: &prec 32
+
 model:
     q:
-        cnn: impala
-        v_units: [256]
-        a_units: [256]
+        cnn: r2d2
+        lstm_units: 512
+        v_units: [512]
+        a_units: [512]
         activation: relu
-        layer_type: dense
         duel: True
+
 agent:
-    algorithm: &algo dqn
-    gamma: &gamma 0.99
+    algorithm: &algo rdqn
+    gamma: 0.99
+    lambda: .95
     precision: *prec
-    schedule_eps: False
+    batch_size: &bs 32
+
+    store_state: True
+    burn_in: True
+    sample_size: &ss 80
+    burn_in_size: 40
+    schedule_eps: True
+    add_input: False
     act_eps: 0
 
-    MAX_STEPS: 1e9          # maximum training frames
-    TRAIN_PERIOD: 16          # #frames = 4 agent step when frame skip = 4
-    EVAL_PERIOD: 1e6
+    MAX_STEPS: 1e7          # maximum training steps
     LOG_PERIOD: 1e5
+    EVAL_PERIOD: 1e6
+    TRAIN_PERIOD: 1000
+    N_UPDATES: 100
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -33,7 +43,7 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    loss_type: huber   # huber or mse
+    loss_type: mse   # huber or mse
     target_update_period: 8000
     tbo: False                              # transformed Bellman Operator
     
@@ -42,23 +52,17 @@ agent:
     schedule_lr: False
     lr: 1e-4
     clip_norm: 40
-    epsilon: 1.5e-4
 
     # arguments for PER
-    per_alpha: 0.5
+    per_alpha: 0.9
     per_epsilon: 1e-4
 
 replay:
-    type: per      # uniform, per
-    precision: *prec
-    # arguments for PER
-    beta0: 0.4
-    to_update_top_priority: True
+    type: episodic
 
     # arguments for general replay
-    n_steps: 3
-    gamma: *gamma
-    batch_size: 64
-    min_size: 8e4
-    capacity: 1e6
-    has_nth_obs: True
+    batch_size: *bs
+    sample_size: *ss
+    max_episodes: 500
+    min_episodes: 5
+    save: False

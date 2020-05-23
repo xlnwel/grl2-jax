@@ -13,7 +13,7 @@ from utility.utils import Every, TempStore
 from utility.run import evaluate
 from env.gym_env import create_env
 from replay.func import create_replay
-from replay.data_pipline import DataFormat, Dataset, process_with_env
+from core.dataset import DataFormat, Dataset, process_with_env
 from algo.dreamer.env import make_env
 from run import pkg
 
@@ -62,16 +62,16 @@ def train(agent, env, eval_env, replay):
             agent.store(score=scores, epslen=epslens)
             replay.merge(episodes)
     _, step = replay.count_episodes()
-    step = max(agent.global_steps.numpy(), step)
+    step = max(agent.env_steps, step)
 
-    nsteps = agent.TRAIN_INTERVAL
+    nsteps = agent.TRAIN_PERIOD
     obs, already_done = None, None
     while not replay.good_to_learn():
         obs, already_done, nstep= run(
             env, agent, step, obs, already_done, collect_log)
         
-    to_log = Every(agent.LOG_INTERVAL)
-    to_eval = Every(agent.EVAL_INTERVAL)
+    to_log = Every(agent.LOG_PERIOD)
+    to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
     start_step = step
     start_t = time.time()
@@ -89,7 +89,7 @@ def train(agent, env, eval_env, replay):
         if to_log(step):
             agent.store(fps=(step-start_step)/duration, duration=duration)
             agent.log(step)
-            agent.save(steps=step)
+            agent.save()
 
             start_step = step
             start_t = time.time()

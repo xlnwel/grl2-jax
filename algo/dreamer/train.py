@@ -28,22 +28,25 @@ def train(agent, env, eval_env, replay):
                 episodes = [e.prev_episode for e, d in zip(env.envs, done) if d]
             replay.merge(episodes)
     _, step = replay.count_episodes()
-    step = max(agent.global_steps.numpy(), step)
+    step = max(agent.env_steps, step)
 
-    nsteps = agent.TRAIN_INTERVAL
     runner = Runner(env, agent, step=step)
     while not replay.good_to_learn():
         step = runner.run(action_selector=env.random_action, step_fn=collect)
         
-    to_log = Every(agent.LOG_INTERVAL)
-    to_eval = Every(agent.EVAL_INTERVAL)
+    to_log = Every(agent.LOG_PERIOD)
+    to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
-    start_step = step
-    start_t = time.time()
     while step < int(agent.MAX_STEPS):
+        start_step = step
+        start_t = time.time()
         agent.learn_log(step)
-        step = runner.run(step_fn=collect, nsteps=nsteps)
+        step = runner.run(step_fn=collect, nsteps=agent.TRAIN_PERIOD)
         duration = time.time() - start_t
+        agent.store(
+            fps=(step-start_step) / duration,
+            tps=(agent.N_UPDATES / duration))
+
         if to_eval(step):
             with TempStore(agent.get_states, agent.reset_states):
                 score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
@@ -51,12 +54,8 @@ def train(agent, env, eval_env, replay):
                 agent.store(eval_score=score, eval_epslen=epslen)
             
         if to_log(step):
-            agent.store(fps=(step-start_step)/duration, duration=duration)
             agent.log(step)
-            agent.save(steps=step)
-
-            start_step = step
-            start_t = time.time()
+            agent.save()
 
 def get_data_format(env, batch_size, sample_size=None):
     dtype = global_policy().compute_dtype

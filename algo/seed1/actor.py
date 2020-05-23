@@ -74,12 +74,12 @@ def get_learner_class(BaseAgent):
             process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
             self.dataset = Dataset(self.replay, data_format, process, prefetch=10)
 
-            self._env_step = self.global_steps.numpy()
+            self.env_steps = self.env_steps()
 
         def merge(self, episode):
             self.replay.merge(episode)
             epslen = (episode['reward'].size-1)*self._n_ar
-            self._env_step += epslen
+            self.env_steps += epslen
             self.store(
                 score=np.sum(episode['reward']), 
                 epslen=epslen)
@@ -99,26 +99,22 @@ def get_learner_class(BaseAgent):
                 time.sleep(1)
             pwc('Learner starts learning...', color='blue')
 
-            to_log = Every(self.LOG_INTERVAL)
-            train_step = 0
-            start_time = time.time()
-            start_train_step = train_step
-            start_env_step = self._env_step
+            to_log = Every(self.LOG_PERIOD)
             while True:
-                self.learn_log(train_step)
-                train_step += self.N_UPDATES
-                if train_step % self.SYNC_FREQ == 0:
+                start_train_step = self.train_steps
+                start_env_step = self.env_steps
+                start_time = time.time()
+                self.learn_log(start_env_step)
+                if self.train_steps % self.SYNC_PERIOD == 0:
                     self.distribute_weights(actor)
-                if to_log(train_step):
+                if to_log(self.train_steps):
                     duration = time.time() - start_time
                     self.store(
-                        fps=(self._env_step - start_env_step) / duration,
-                        tps=(train_step - start_train_step)/duration)
-                    start_env_step = self._env_step
-                    self.log(self._env_step)
-                    self.save(self._env_step, print_terminal_info=False)
-                    start_train_step = train_step
-                    start_time = time.time()
+                        train_step=self.train_steps,
+                        fps=(self.env_steps - start_env_step)/duration,
+                        tps=(self.train_steps - start_train_step)/duration)
+                    self.log(self.env_steps)
+                    self.save()
 
     return Learner
 
@@ -189,6 +185,7 @@ def get_actor_class(BaseAgent):
                 for wid, eid in zip(worker_ids, env_ids)], 0)
             obs = np.stack(obs, 0)
 
+            prev_state = state
             action, state = self.action(obs, state, prev_action, deterministic)
 
             prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype) \
@@ -200,7 +197,7 @@ def get_actor_class(BaseAgent):
                 self._prev_action[(wid, eid)] = tf.reshape(a, (-1, tf.shape(a)[-1]))
                 
             if self._store_state:
-                return action.numpy(), tf.nest.map_structure(lambda x: x.numpy(), state)
+                return action.numpy(), tf.nest.map_structure(lambda x: x.numpy(), prev_state)
             else:
                 return action.numpy()
 

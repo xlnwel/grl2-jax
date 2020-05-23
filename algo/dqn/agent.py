@@ -10,7 +10,7 @@ from utility.schedule import TFPiecewiseSchedule, PiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
-from core.decorator import agent_config
+from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 
 
@@ -27,7 +27,7 @@ class Agent(BaseAgent):
         if self._schedule_eps:
             self._act_eps = PiecewiseSchedule(((5e4, 1), (4e5, .02)))
 
-        self._to_sync = Every(self._target_update_freq)
+        self._to_sync = Every(self._target_update_period)
         # optimizer
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
         self._ckpt_models['optimizer'] = self._optimizer
@@ -56,7 +56,7 @@ class Agent(BaseAgent):
 
     def __call__(self, obs, deterministic=False, **kwargs):
         if self._schedule_eps:
-            eps = self._act_eps.value(self.global_steps.numpy())
+            eps = self._act_eps.value(self.env_steps)
             self.store(act_eps=eps)
         else:
             eps = self._act_eps
@@ -64,8 +64,8 @@ class Agent(BaseAgent):
         self.store(action=action)
         return action
 
+    @step_track
     def learn_log(self, step):
-        self.global_steps.assign(step)
         with TBTimer('sample', 2500):
             data = self.dataset.sample()
 
@@ -74,7 +74,7 @@ class Agent(BaseAgent):
             del data['idxes']
         with TBTimer('learn', 2500):
             terms = self.learn(**data)
-        if self._to_sync(step):
+        if self._to_sync(self.train_steps):
             self._sync_target_nets()
 
         if self._schedule_lr:
@@ -85,6 +85,7 @@ class Agent(BaseAgent):
         if self._is_per:
             self.dataset.update_priorities(terms['priority'], idxes)
         self.store(**terms)
+        return 1
 
     @tf.function
     def _learn(self, obs, action, reward, nth_obs, discount, steps=1, IS_ratio=1):
@@ -98,9 +99,9 @@ class Agent(BaseAgent):
             nth_action = self.q.action(nth_obs, noisy=False)
             nth_action = tf.one_hot(nth_action, self._action_dim, dtype=self._dtype)
             nth_q = self.target_q.value(nth_obs, nth_action, noisy=False)
-            target_q = target_fn(reward, nth_q, discount, self._gamma, steps)
-            target_q = tf.stop_gradient(target_q)
-            error = target_q - q
+            returns = target_fn(reward, nth_q, discount, self._gamma, steps)
+            returns = tf.stop_gradient(returns)
+            error = returns - q
             loss = tf.reduce_mean(IS_ratio * loss_fn(error))
 
         if self._is_per:
@@ -111,6 +112,7 @@ class Agent(BaseAgent):
         
         terms.update(dict(
             q=q,
+            returns=returns,
             loss=loss,
         ))
 

@@ -48,7 +48,7 @@ def get_learner_class(BaseAgent):
                 nth_obs=DataFormat((None, *env.obs_shape), obs_dtype),
                 discount=DataFormat((None, ), dtype),
             )
-            if ray.get(replay.buffer_type.remote()).endswith('proportional'):
+            if ray.get(replay.buffer_type.remote()).endswith('per'):
                 data_format['IS_ratio'] = DataFormat((None, ), dtype)
                 data_format['idxes'] = DataFormat((None, ), tf.int32)
             if config['n_steps'] > 1:
@@ -70,36 +70,30 @@ def get_learner_class(BaseAgent):
                 env=env,
             )
             
-            self._env_step = 0
-            
         def start_learning(self):
             self._learning_thread = threading.Thread(target=self._learning, daemon=True)
             self._learning_thread.start()
             
         def _learning(self):
             start_time = time.time()
-            start_env_step = 0
             while not self.dataset.good_to_learn():
                 time.sleep(1)
             pwc(f'{self.name} starts learning...', color='blue')
 
-            to_log = Every(self.LOG_INTERVAL)
-            train_step = 0
-            start_train_step = train_step
-            while train_step < self.MAX_STEPS:
-                self.learn_log(train_step)
-                train_step += 1
-                if to_log(train_step):
+            to_log = Every(self.LOG_PERIOD)
+            while self.train_steps < self.MAX_STEPS:
+                start_train_step = self.train_steps
+                start_env_step = self.env_steps
+                start_time = time.time()
+                self.learn_log(start_env_step)
+                if to_log(self.train_steps):
                     duration = time.time() - start_time
                     self.store(
-                        train_step=train_step,
-                        fps=(self._env_step - start_env_step) / duration,
-                        tps=(train_step - start_train_step)/duration)
-                    start_env_step = self._env_step
-                    self.log(self._env_step)
+                        train_steps=self.train_steps,
+                        fps=(self.env_steps - start_env_step) / duration,
+                        tps=(self.train_steps - start_train_step)/duration)
+                    self.log(self.env_steps)
                     self.save(print_terminal_info=False)
-                    start_train_step = train_step
-                    start_time = time.time()
 
         def get_weights(self, name=None):
             return self.models.get_weights(name=name)
@@ -107,7 +101,7 @@ def get_learner_class(BaseAgent):
         def record_episode_info(self, **kwargs):
             self.store(**kwargs)
             if 'epslen' in kwargs:
-                self._env_step += np.sum(kwargs['epslen'])
+                self.env_steps += np.sum(kwargs['epslen'])
 
     return Learner
 
@@ -143,7 +137,7 @@ class BaseWorker:
         if buffer_config['seqlen'] == 0:
             buffer_config['seqlen'] = env.max_episode_steps
         self.buffer = buffer_fn(buffer_config)
-        self._is_per = buffer_config['type'].endswith('proportional')
+        self._is_per = buffer_config['type'].endswith('per')
 
         self._is_dpg = 'actor' in self.models
         assert self._is_dpg != self.env.is_action_discrete
@@ -324,8 +318,7 @@ class Evaluator:
         assert self._is_dpg != self.env.is_action_discrete
         if self._is_dpg:
             self.actor = self.models['actor']
-            self.q = self.models['q1']
-            self._pull_names = ['actor', 'q1'] if self._is_per else ['actor']
+            self._pull_names = ['actor']
         else:
             self.q = self.models['q']
             self._pull_names = ['q']

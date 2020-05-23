@@ -22,7 +22,7 @@ class Agent(BaseAgent):
             self._is_per = False
             is_nsteps = False
         else:
-            self._is_per = dataset.buffer_type().endswith('proportional')
+            self._is_per = dataset.buffer_type().endswith('per')
             is_nsteps = 'steps' in dataset.data_format
             
         self.dataset = dataset
@@ -34,7 +34,7 @@ class Agent(BaseAgent):
             self._act_eps = PiecewiseSchedule(((5e4, 1), (4e5, .02)))
 
         self._to_summary = Every(100000)
-        self._to_sync = Every(self._target_update_freq)
+        self._to_sync = Every(self._target_update_period)
         # optimizer
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
         self._ckpt_models['optimizer'] = self._optimizer
@@ -63,14 +63,14 @@ class Agent(BaseAgent):
 
     def __call__(self, obs, deterministic=False):
         if self._schedule_eps:
-            eps = self._act_eps.value(self.global_steps.numpy())
+            eps = self._act_eps.value(self.env_steps())
             self.store(act_eps=eps)
         else:
             eps = self._act_eps
         return self.q(obs, deterministic, eps)
 
     def learn_log(self, step):
-        self.global_steps.assign(step)
+        self.env_steps += step
         with TBTimer('sample', 2500):
             data = self.dataset.sample()
 

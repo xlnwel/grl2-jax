@@ -6,15 +6,16 @@ from utility.display import pwc
 from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
 from core.base import BaseAgent
-from core.decorator import agent_config
+from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
 class PPOBase(BaseAgent):
-    def __init__(self, env):
+    def __init__(self, buffer, env):
         from env.wrappers import get_wrapper_by_name
         from utility.utils import RunningMeanStd
+        self.buffer = buffer
         axis = None if get_wrapper_by_name(env, 'Env') else 0
         self._obs_rms = RunningMeanStd(axis=axis)
         self._reward_rms = RunningMeanStd(axis=axis)
@@ -42,15 +43,15 @@ class PPOBase(BaseAgent):
                 self._obs_rms, self._reward_rms = cloudpickle.load(f)
         super().restore()
 
-    def save(self, steps=None, message='', print_terminal_info=False):
+    def save(self, print_terminal_info=False):
         with open(self._rms_path, 'wb') as f:
             cloudpickle.dump((self._obs_rms, self._reward_rms), f)
-        super().save(steps=steps, message=message, print_terminal_info=print_terminal_info)
+        super().save(print_terminal_info=print_terminal_info)
 
 class Agent(PPOBase):
     @agent_config
-    def __init__(self, env):
-        super().__init__(env=env)
+    def __init__(self, buffer, env):
+        super().__init__(buffer, env=env)
 
         # optimizer
         if getattr(self, 'schedule_lr', False):
@@ -102,10 +103,11 @@ class Agent(PPOBase):
             logpi = act_dist.log_prob(action)
             return action, dict(logpi=logpi, value=value)
 
-    def learn_log(self, buffer, step):
+    @step_track
+    def learn_log(self, step):
         for i in range(self.N_UPDATES):
             for j in range(self.N_MBS):
-                data = buffer.sample()
+                data = self.buffer.sample()
                 if data['obs'].dtype == np.uint8:
                     data['obs'] = data['obs'] / 255.
                 value = data['value']
@@ -128,8 +130,9 @@ class Agent(PPOBase):
                 break
         self.store(approx_kl=approx_kl)
         if not isinstance(self._lr, float):
-            step = tf.cast(self.global_steps, self._dtype)
+            step = tf.cast(self._env_steps, self._dtype)
             self.store(lr=self._lr(step))
+        return i * self.N_MBS + j + 1
 
     @tf.function
     def _learn(self, obs, action, traj_ret, value, advantage, logpi):

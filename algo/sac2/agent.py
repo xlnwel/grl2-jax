@@ -9,7 +9,7 @@ from utility.schedule import TFPiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
-from core.decorator import agent_config
+from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 
 
@@ -63,15 +63,14 @@ class Agent(BaseAgent):
     def __call__(self, obs, deterministic=False, **kwargs):
         return self.actor(obs, deterministic=deterministic, epsilon=self._act_eps)
 
+    @step_track
     def learn_log(self, step):
-        with TBTimer('sample', 1000):
-            data = self.dataset.sample()
+        data = self.dataset.sample()
         if self._is_per:
             idxes = data['idxes'].numpy()
             del data['idxes']
 
-        with TBTimer('learn', 1000):
-            terms = self.learn(**data)
+        terms = self.learn(**data)
         self._update_target_nets()
 
         if self._schedule_lr:
@@ -85,6 +84,7 @@ class Agent(BaseAgent):
         if self._is_per:
             self.dataset.update_priorities(terms['priority'], idxes)
         self.store(**terms)
+        return 1
 
     @tf.function
     def _learn(self, obs, action, reward, nth_obs, discount, steps=1, IS_ratio=1):

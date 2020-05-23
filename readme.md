@@ -1,8 +1,4 @@
-**Status:** Active (under active development)
-
 This repository is implemented with *Tensorflow2.1* and *ray0.8.4* for distributed learning. Algorithms are tested with the default configurations.
-
-Wellcome to open an issue for any bugs or requests for new features.
 
 ## Current Implemented Algorithm
 

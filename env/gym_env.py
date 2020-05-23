@@ -48,16 +48,22 @@ def create_env(config, env_fn=make_env, force_envvec=False):
 
 
 class EnvVecBase(Wrapper):
+    @property
+    def env_type(self):
+        return 'EnvVec'
+
     def _convert_batch_obs(self, obs):
-        if isinstance(obs[0], np.ndarray):
-            obs = np.reshape(obs, [-1, *self.obs_shape])
-        else:
-            obs = list(obs)
+        if obs:
+            if isinstance(obs[0], np.ndarray):
+                obs = np.reshape(obs, [-1, *self.obs_shape])
+            else:
+                obs = list(obs)
         return obs
 
     def _get_idxes(self, idxes):
-        idxes = idxes or list(range(self.n_envs))
-        if isinstance(idxes, int):
+        if idxes is None:
+            idxes = list(range(self.n_envs))
+        elif isinstance(idxes, int):
             idxes = [idxes]
         return idxes
 
@@ -70,12 +76,16 @@ class Env(Wrapper):
         self.name = config['name']
         self.max_episode_steps = self.env.max_episode_steps
 
-    def reset(self, idxes=None, **kwargs):
-        return self.env.reset(**kwargs)
-
     @property
     def n_envs(self):
         return 1
+
+    @property
+    def env_type(self):
+        return 'Env'
+
+    def reset(self, idxes=None, **kwargs):
+        return self.env.reset(**kwargs)
 
     def random_action(self, *args, **kwargs):
         action = self.env.action_space.sample()
@@ -307,13 +317,20 @@ if __name__ == '__main__':
         seed=0,
         life_done=False,
     )
-    from utility.run import run
+    from utility.run import Runner
     import matplotlib.pyplot as plt
     env = create_env(config)
-    obs = env.reset()
+    class A():
+        def __init__(self, env):
+            self.env = env
+        def __call__(self, *args, **kwargs):
+            return self.env.random_action(*args, **kwargs)
+        def store(self, **kwargs):
+            pass
     def fn(env, step, **kwargs):
         assert step % env.frame_skip == 0
-        if env.already_done():
+        if env.game_over():
             print(step, env.already_done(), env.lives, env.game_over())
-    run(env, env.random_action, 0, fn=fn, nsteps=10000)
+    runner = Runner(env, A(env))
+    runner.run(step_fn=fn)
     

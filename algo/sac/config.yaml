@@ -24,7 +24,7 @@ agent:
     # target_entropy: .5                      # tune this param for discrete actions
     
     MAX_STEPS: 3e6
-    LOG_INTERVAL: 10000
+    LOG_PERIOD: 10000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -44,7 +44,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: uniform                      # proportional or uniform
+    type: uniform                      # per or uniform
     # arguments for PER
     beta0: .4
     beta_steps: 5e+4

@@ -20,32 +20,28 @@ def restore(ckpt_manager, ckpt, ckpt_path, name='model'):
         pwc(f'No model for {name} is found at "{ckpt_path}"!', 
             f'Start training from scratch.', color='cyan')
 
-def save(ckpt_manager, global_steps, steps, message='', print_terminal_info=True):
+def save(ckpt_manager, print_terminal_info=True):
     """ Save model
 
     Args:
         ckpt_manager: An instance of tf.train.CheckpointManager
-        global_steps: A tensor that records step
-        steps: An int that assigns to global_steps. 
-            If it's None, we leave global_steps unchanged
         message: optional message for print
     """
-    if steps:
-        global_steps.assign(steps)
     path = ckpt_manager.save()
     if print_terminal_info:
-        pwc(f'Model saved at {path}: {message}', color='cyan')
+        pwc(f'Model saved at {path}', color='cyan')
 
-def setup_checkpoint(ckpt_models, root_dir, model_name, global_steps, name='model'):
+def setup_checkpoint(ckpt_models, root_dir, model_name, 
+        env_steps, train_steps):
     """ Setup checkpoint
 
     Args:
         ckpt_models: A dict of models to save, including optimizers
         root_dir: The root directory for checkpoint
-        model_name: The name of the model
     """
     # checkpoint & manager
-    ckpt = tf.train.Checkpoint(step=global_steps, **ckpt_models)
+    ckpt = tf.train.Checkpoint(
+        env_steps=env_steps, train_steps=train_steps, **ckpt_models)
     ckpt_path = f'{root_dir}/{model_name}/models'
     ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, 5)
     

@@ -79,7 +79,6 @@ class Q(Module):
         if action is not None:
             assert q.shape[-1] == action.shape[-1]
             q = tf.reduce_sum(q * action, -1)
-            
         return q
 
     def reset_noisy(self):

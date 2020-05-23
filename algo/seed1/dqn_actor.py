@@ -67,7 +67,7 @@ def get_learner_class(BaseAgent):
             process = functools.partial(process_with_env, env=env)
             self.dataset = Dataset(self.replay, data_format, process, prefetch=10)
 
-            self._env_step = self.global_steps.numpy()
+            self._env_step = self.env_steps()
 
         def merge(self, episode):
             self.replay.merge(episode)
@@ -92,7 +92,7 @@ def get_learner_class(BaseAgent):
                 time.sleep(1)
             pwc('Learner starts learning...', color='blue')
 
-            to_log = Every(self.LOG_INTERVAL, self.LOG_INTERVAL)
+            to_log = Every(self.LOG_PERIOD, self.LOG_PERIOD)
             train_step = 0
             start_time = time.time()
             start_train_step = train_step
@@ -100,7 +100,7 @@ def get_learner_class(BaseAgent):
             while True:
                 self.learn_log(train_step)
                 train_step += self.N_UPDATES
-                if train_step % self.SYNC_FREQ == 0:
+                if train_step % self.SYNC_PERIOD == 0:
                     self.distribute_weights(actor)
                 if to_log(train_step):
                     duration = time.time() - start_time

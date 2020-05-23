@@ -9,7 +9,7 @@ model:
         v_units: [128, 64]
         a_units: [128, 64]
         activation: relu
-        layer_type: dense
+        layer_type: noisy
         duel: True
 agent:
     algorithm: &algo dqn
@@ -19,9 +19,9 @@ agent:
     act_eps: 0.3
 
     MAX_STEPS: 1.e+8          # maximum training steps
-    TRAIN_INTERVAL: 1          # #frames = 4 agent step when frame skip = 4
-    EVAL_INTERVAL: 10000
-    LOG_INTERVAL: 1000
+    TRAIN_PERIOD: 1          # #frames = 4 agent step when frame skip = 4
+    EVAL_PERIOD: 10000
+    LOG_PERIOD: 10000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -30,7 +30,7 @@ agent:
     model_name: *algo
 
     loss_type: huber   # huber or mse
-    target_update_freq: 1000               # #frames = 8000 agent step when frame skip = 4
+    target_update_period: 1000
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
@@ -45,7 +45,7 @@ agent:
     per_epsilon: 1.e-4
 
 replay:
-    type: proportional      # uniform, proportional
+    type: per      # uniform, per
     precision: *prec
     # arguments for PER
     beta0: 0.4

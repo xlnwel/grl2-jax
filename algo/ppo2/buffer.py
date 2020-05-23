@@ -23,10 +23,12 @@ class PPOBuffer:
 
     def add(self, **data):
         if self._memory == {}:
-            init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
-            self._memory['value'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
-            self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
-            self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
+            dtype = {16: np.float16, 32: np.float32}[self._precision]
+            init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), 
+                        precision=self._precision, **data)
+            self._memory['value'] = np.zeros((self._n_envs, self.N_STEPS), dtype=dtype)
+            self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=dtype)
+            self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=dtype)
             self._sample_keys = list(self._memory)
             self._sample_keys.remove('discount')
             self._sample_keys.remove('reward')

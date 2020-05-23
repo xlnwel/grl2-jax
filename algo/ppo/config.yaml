@@ -24,7 +24,7 @@ agent:
     N_STEPS: &nsteps 128
     N_UPDATES: 4
     N_MBS: &nmbs 4
-    LOG_INTERVAL: 200000
+    LOG_PERIOD: 200000
     max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
 
     normalize_obs: False
@@ -48,6 +48,7 @@ agent:
 
 buffer:
     adv_type: gae     # nae or gae
+    precision: *prec
     gamma: .99
     lam: .95
     n_envs: *nenvs

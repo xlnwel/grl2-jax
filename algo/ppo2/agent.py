@@ -4,7 +4,7 @@ import tensorflow as tf
 from utility.display import pwc
 from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
-from core.decorator import agent_config
+from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from nn.rnn import LSTMState
 from algo.ppo.agent import PPOBase
@@ -13,8 +13,8 @@ from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 class Agent(PPOBase):
     @agent_config
-    def __init__(self, env):
-        super().__init__(env=env)
+    def __init__(self, buffer, env):
+        super().__init__(buffer=buffer, env=env)
 
         # optimizer
         if getattr(self, 'schedule_lr', False):
@@ -76,8 +76,6 @@ class Agent(PPOBase):
 
     @tf.function
     def action(self, obs, state, mask, deterministic=False):
-        if obs.dtype == np.uint8:
-            obs = tf.cast(obs, self._dtype) / 255.
         obs = tf.expand_dims(obs, 1)
         mask = tf.expand_dims(mask, 1)
         state = tf.nest.map_structure(lambda x: x * mask, state)
@@ -92,10 +90,11 @@ class Agent(PPOBase):
             out = (action, logpi, value)
             return tf.nest.map_structure(lambda x: tf.squeeze(x, 1), out), state
 
-    def learn_log(self, buffer, step):
+    @step_track
+    def learn_log(self, step):
         for i in range(self.N_UPDATES):
             for j in range(self.N_MBS):
-                data = buffer.sample()
+                data = self.buffer.sample()
                 if data['obs'].dtype == np.uint8:
                     data['obs'] = data['obs'] / 255.
                 value = data['value']
@@ -118,11 +117,10 @@ class Agent(PPOBase):
                 break
         self.store(approx_kl=approx_kl)
         if not isinstance(self._lr, float):
-            step = tf.cast(self.global_steps, self._dtype)
+            step = tf.cast(self._env_steps, self._dtype)
             self.store(learning_rate=self._lr(step))
 
-        # update the state with the newest weights 
-        # self.state = state
+        return i * self.N_MBS + j + 1
 
     @tf.function
     def _learn(self, obs, action, traj_ret, value, advantage, logpi, mask, state=None):

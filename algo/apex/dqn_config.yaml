@@ -17,7 +17,7 @@ model:
         layer_type: noisy
         duel: False
 agent:
-    algorithm: &algo apex-d3qn
+    algorithm: &algo apex-dqn
     gamma: &gamma 0.99
     precision: *prec
     schedule_eps: False
@@ -25,7 +25,7 @@ agent:
     
     # timer&interval
     MAX_STEPS: 1e9
-    LOG_INTERVAL: 10000
+    LOG_PERIOD: 10000
     
     # distributed algo params
     n_workers: 6
@@ -38,7 +38,7 @@ agent:
     model_name: *algo
 
     loss_type: huber                          # huber or mse
-    target_update_freq: 2500
+    target_update_period: 2500
     tbo: False
 
     # arguments for optimizer
@@ -53,7 +53,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: proportional                      # proportional or uniform
+    type: per                      # per or uniform
     seqlen: 100
     precision: *prec
     # arguments for PER

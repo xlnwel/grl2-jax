@@ -112,6 +112,8 @@ class EnvStats(Wrapper):
         # if we take timeout as done
         self._timeout_done = timeout_done
         self._fake_obs = np.zeros(self.obs_shape)
+        self._score = 0
+        self._epslen = 0
         if timeout_done:
             print('Timeout is treated as done')
 
@@ -138,8 +140,6 @@ class EnvStats(Wrapper):
         self._already_done = done
         if self._epslen >= self.max_episode_steps:
             self._already_done = True
-            if hasattr(self, '_game_over'):
-                self._game_over = True
             done = self._timeout_done
         if self.already_done():
             info['already_done'] = self._already_done

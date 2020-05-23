@@ -16,19 +16,18 @@ class BaseAgent(ABC):
             name: optional name for print
         """
         restore(self._ckpt_manager, self._ckpt, self._ckpt_path, self._model_name)
+        self.env_steps = self._env_steps.numpy()
+        self.train_steps = self._train_steps.numpy()
 
-    def save(self, steps=None, message='', print_terminal_info=False):
+    def save(self, print_terminal_info=False):
         """ Save Model
         
         Args:
             ckpt_manager: An instance of tf.train.CheckpointManager
-            global_steps: A tensor that records step
-            steps: An int that assigns to global_steps. 
-                If it's None, we leave global_steps unchanged
-            message: optional message for print
         """
-        save(self._ckpt_manager, self.global_steps, steps, message, 
-            print_terminal_info=print_terminal_info)
+        self._env_steps.assign(self.env_steps)
+        self._train_steps.assign(self.train_steps)
+        save(self._ckpt_manager, print_terminal_info=print_terminal_info)
 
     """ Logging """
     def save_config(self, config):

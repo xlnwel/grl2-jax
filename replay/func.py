@@ -7,7 +7,7 @@ from replay.eps import EpisodicReplay
 
 replay_type = dict(
     uniform=UniformReplay,
-    proportional=ProportionalPER,
+    per=ProportionalPER,
     episodic=EpisodicReplay
 )
 

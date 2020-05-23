@@ -17,31 +17,27 @@ def train(agent, env, eval_env, buffer):
     def collect(env, step, reward, nth_obs, **kwargs):
         kwargs['reward'] = agent.normalize_reward(reward)
         buffer.add(**kwargs)
-    step = agent.global_steps.numpy()
+    step = agent.env_steps
     action_selector = lambda *args, **kwargs: agent(*args, **kwargs, update_rms=True)
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     
-    to_log = Every(agent.LOG_INTERVAL, agent.LOG_INTERVAL)
-    step = agent.global_steps.numpy()
-    start_env_step = step
-    train_step = 0
-    start_train_step = 0
-    start_time = time.time()
+    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     while step < agent.MAX_STEPS:
-        agent.set_summary_step(step)
+        start_env_step = agent.env_steps
+        start_train_step = agent.train_steps
+        start_time = time.time()
         step = runner.run(action_selector=action_selector, step_fn=collect)
         
         _, terms = agent(runner.obs, update_curr_state=False, reset=env.already_done())
         buffer.finish(terms['value'])
-        agent.learn_log(buffer, step)
+        agent.learn_log(step)
         buffer.reset()
-        
-        train_step += agent.N_UPDATES * agent.N_MBS
+
         if to_log(step):
             duration = time.time()-start_time
             agent.store(
-                fps=(step-start_env_step)/duration,
-                tps=(train_step-start_train_step)/duration,
+                fps=(agent.env_steps-start_env_step)/duration,
+                tps=(agent.train_steps-start_train_step)/duration,
             )
 
             with TempStore(agent.get_states, agent.reset_states):
@@ -51,11 +47,7 @@ def train(agent, env, eval_env, buffer):
                 agent.store(eval_score=scores, eval_epslen=np.mean(epslens))
 
             agent.log(step)
-            agent.save(steps=step)
-
-            start_train_step = train_step
-            start_env_step = step
-            start_time = time.time()
+            agent.save()
 
 def main(env_config, model_config, agent_config, buffer_config):
     algo = agent_config['algorithm']
@@ -70,7 +62,7 @@ def main(env_config, model_config, agent_config, buffer_config):
         env_config = config['env']
         model_config = config['model']
         agent_config = config['agent']
-        replay_config = config['buffer']
+        buffer_config = config['buffer']
         agent_config['root_dir'] = root_dir
         agent_config['model_name'] = model_name
         env_config['name'] = env
@@ -104,6 +96,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     agent = Agent(name='ppo', 
                 config=agent_config, 
                 models=models, 
+                buffer=buffer,
                 env=env)
 
     agent.save_config(dict(

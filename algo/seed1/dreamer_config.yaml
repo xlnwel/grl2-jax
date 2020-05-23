@@ -1,7 +1,6 @@
 ---
 env:
     name: dmc_walker_run
-    video_path: video
     n_envs: 8
     frame_skip: 2
     seed: 0
@@ -49,9 +48,9 @@ agent:
     action_batch: 4
 
     MAX_STEPS: 5.e+6
-    LOG_INTERVAL: 1000
+    LOG_PERIOD: 1000
     N_UPDATES: 1
-    SYNC_FREQ: 32
+    SYNC_PERIOD: 32
     log_images: True
 
     # model
@@ -79,7 +78,7 @@ agent:
     value_lr: 8.e-5
 
 replay:
-    type: episodic                      # proportional or uniform
+    type: episodic
 
     # arguments for general replay
     batch_size: *bs

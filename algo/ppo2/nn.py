@@ -19,10 +19,8 @@ class PPOAC(Module):
         self._is_action_discrete = is_action_discrete
         
         """ Network definition """
-        self._cnn_name = (None if isinstance(self._cnn_name, str) 
-            and self._cnn_name.lower() == 'none' else self._cnn_name)
         if self._cnn_name:
-            self._shared_layers = cnn(self._cnn_name, time_distributed=True)
+            self._shared_layers = cnn(self._cnn_name, time_distributed=True, kernel_initializer=self._kernel_initializer)
         elif self._shared_mlp_units:
             self._shared_layers = mlp(
                 self._shared_mlp_units, 

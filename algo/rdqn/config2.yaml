@@ -12,7 +12,7 @@ model:
         layer_type: dense
         duel: True
 agent:
-    algorithm: &algo d3qn
+    algorithm: &algo rdqn
     gamma: &gamma 0.99
     precision: *prec
     schedule_eps: False

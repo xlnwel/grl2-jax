@@ -13,7 +13,7 @@ from utility.graph import video_summary
 from utility.losses import huber_loss
 from core.tf_config import build
 from core.base import BaseAgent
-from core.decorator import agent_config, display_model_var_info
+from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.dreamer3.nn import RSSMState
 
@@ -60,7 +60,7 @@ class Agent(BaseAgent):
         self._action_dim = env.action_dim
         self._is_action_discrete = env.is_action_discrete
 
-        self._to_log_images = Every(self.LOG_INTERVAL)
+        self._to_log_images = Every(self.LOG_PERIOD)
 
         # time dimension must be explicitly specified here
         # otherwise, InaccessibleTensorError arises when expanding rssm
@@ -103,6 +103,7 @@ class Agent(BaseAgent):
             mask = tf.cast(1. - reset, tf.float32)[:, None]
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
             self._prev_action = self._prev_action * mask
+        prev_state = self._state
         if deterministic:
             action, self._state = self.action(
                 obs, self._state, self._prev_action, deterministic)
@@ -112,12 +113,12 @@ class Agent(BaseAgent):
         self._prev_action = tf.one_hot(action, self._action_dim, dtype=tf.float32) \
             if self._is_action_discrete else action
         
-        action = np.squeeze(action.numpy()) if has_expanded else action.numpy()
+        action = action.numpy()[0] if has_expanded else action.numpy()
         if deterministic:
             return action
         elif self._store_state:
             return action, {'logpi': logpi.numpy(), 
-                **tf.nest.map_structure(lambda x: x.numpy(), self._state._asdict())}
+                **tf.nest.map_structure(lambda x: x.numpy(), prev_state._asdict())}
         else:
             return action, {'logpi': logpi.numpy()}
         
@@ -160,8 +161,8 @@ class Agent(BaseAgent):
         
             return action, logpi, state
 
+    @step_track
     def learn_log(self, step):
-        self.global_steps.assign(step)
         for i in range(self.N_UPDATES):
             data = self.dataset.sample()
             log_images = tf.convert_to_tensor(
@@ -171,6 +172,7 @@ class Agent(BaseAgent):
             terms = {k: v.numpy() for k, v in terms.items()}
             self.store(**terms)
             self._update_target_nets()
+        return self.N_UPDATES
 
     @tf.function
     def _learn(self, obs, action, reward, discount, logpi, log_images, state=None):
@@ -233,7 +235,6 @@ class Agent(BaseAgent):
         next_feat = feature[:, 1:]
         curr_action = action[:, :-1]
         next_action = new_action[:, 1:]
-        next_logpi = new_logpi[:, 1:]
         discount = discount[:, :-1] * self._gamma
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
@@ -244,11 +245,13 @@ class Agent(BaseAgent):
             next_q1 = self.target_q1(next_feat, next_action)
             next_q2 = self.target_q2(next_feat, next_action)
             next_q = tf.minimum(next_q1, next_q2)
+            next_logpi = act_dist.log_prob(action)[:, 1:]
             next_value = next_q - temp * next_logpi
             log_ratio = next_logpi - logpi[:, 1:]
+            ratio = tf.math.exp(log_ratio)
             returns = retrace_lambda(
                 reward[:, :-1], q, next_value, 
-                log_ratio, discount, lambda_=self._lambda, 
+                ratio, discount, lambda_=self._lambda, 
                 ratio_clip=1, axis=1)
             # returns = reward[:, :-1] + discount * next_value
             returns = tf.stop_gradient(returns)
@@ -283,7 +286,7 @@ class Agent(BaseAgent):
 
         if log_images:
             # tf.print(tf.summary.experimental.get_step())
-            tf.summary.experimental.set_step(self.global_steps)
+            tf.summary.experimental.set_step(self._env_steps)
             tf.summary.histogram(f'{self.name}/returns', returns)
             tf.summary.histogram(f'{self.name}/q', q)
             tf.summary.histogram(f'{self.name}/error', returns-q1)
@@ -303,7 +306,7 @@ class Agent(BaseAgent):
         error = (model - truth + 1) / 2
         openl = tf.concat([truth, model, error], 2)
         self.graph_summary(video_summary, ['dreamer/comp', openl, (1, 6)],
-            step=self.global_steps)
+            step=self._env_steps)
 
     @tf.function
     def _sync_target_nets(self):

@@ -73,7 +73,9 @@ class EpisodicReplay:
                         print(f'Could not load episode: {e}')
                         continue
                     self._memory[filename] = episode
-            print(f'{len(self._memory)} episodes are loaded')
+            print(f'{len(self)} episodes are loaded')
+        else:
+            print(f'There are already {len(self)} episodes in the memory. No further loading is performed')
 
     def sample(self, batch_size=None):
         batch_size = batch_size or self._batch_size
@@ -91,8 +93,9 @@ class EpisodicReplay:
         if self._sample_size:
             total = len(next(iter(episode.values())))
             available = total - self._sample_size
-            if available < 1:
-                print(f'Skipped short episode of length {available}.')
+            assert available > 0, f'Skipped short episode of length {total}.' \
+                f'{[(k, np.array(v).shape) for e in self._memory.values() for k, v in e.items()]}'
+                
             i = int(random.randint(0, available))
             episode = {k: v[i] if k in self._state_keys else v[i: i + self._sample_size] 
                         for k, v in episode.items()}

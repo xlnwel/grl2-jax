@@ -73,7 +73,7 @@ def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
          returns = tf.transpose(returns, dims)
     return returns
 
-def retrace_lambda(reward, q, next_value, log_ratio, discount, lambda_=1, ratio_clip=1, axis=0):
+def retrace_lambda(reward, q, next_value, ratio, discount, lambda_=1, ratio_clip=1, axis=0):
     if isinstance(discount, (int, float)):
         discount = discount * tf.ones_like(reward)
     # swap 'axis' with the 0-th dimension
@@ -83,10 +83,9 @@ def retrace_lambda(reward, q, next_value, log_ratio, discount, lambda_=1, ratio_
         reward = tf.transpose(reward, dims)
         q = tf.transpose(q, dims)
         next_value = tf.transpose(next_value, dims)
-        log_ratio = tf.transpose(log_ratio, dims)
+        ratio = tf.transpose(ratio, dims)
         discount = tf.transpose(discount, dims)
 
-    ratio = tf.exp(log_ratio)
     if ratio_clip is not None:
         ratio = tf.minimum(ratio, ratio_clip)
     ratio *= lambda_

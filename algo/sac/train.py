@@ -18,10 +18,10 @@ def train(agent, env, eval_env, replay):
         replay.add(**kwargs)
         agent.learn_log(step)
 
-    start_step = agent.global_steps.numpy()
+    start_step = agent.env_steps
     step = start_step
     collect_fn = lambda *args, **kwargs: replay.add(**kwargs)
-    runner = Runner(env, agent, step=step, nsteps=agent.LOG_INTERVAL)
+    runner = Runner(env, agent, step=step, nsteps=agent.LOG_PERIOD)
     while not replay.good_to_learn():
         step = runner.run(
             action_selector=env.random_action,
@@ -39,7 +39,7 @@ def train(agent, env, eval_env, replay):
         # video_summary(f'{agent.name}/sim', video, step=step)
         agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         agent.log(step)
-        agent.save(steps=step)
+        agent.save()
 
 
 def get_data_format(env, replay_config):
@@ -52,7 +52,7 @@ def get_data_format(env, replay_config):
         nth_obs=((None, *env.obs_shape), dtype),
         discount=((None, ), dtype),
     )
-    if replay_config['type'].endswith('proportional'):
+    if replay_config['type'].endswith('per'):
         data_format['IS_ratio'] = ((None, ), dtype)
         data_format['idxes'] = ((None, ), tf.int32)
     if replay_config.get('n_steps', 1) > 1:
@@ -100,7 +100,7 @@ def main(env_config, model_config, agent_config, replay_config):
     # obs = env.reset()
     # epslen = 0
     # from utility.utils import Every
-    # to_log = Every(agent.LOG_INTERVAL, start=2*agent.LOG_INTERVAL)
+    # to_log = Every(agent.LOG_PERIOD, start=2*agent.LOG_PERIOD)
     # for t in range(int(agent.MAX_STEPS)):
     #     if t > 1e4:
     #         action = agent(obs)
@@ -125,4 +125,4 @@ def main(env_config, model_config, agent_config, replay_config):
 
     #         agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
     #         agent.log(step=t)
-    #         agent.save(steps=t)
+    #         agent.save()
