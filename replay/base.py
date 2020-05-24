@@ -11,8 +11,7 @@ class Replay(ABC):
     @config
     def __init__(self):
         # params for general replay buffer
-        self._capacity = to_int(self._capacity)
-        self._min_size = to_int(max(self._min_size, self._batch_size*10))
+        self._min_size = max(self._min_size, self._batch_size*10)
         self._pre_dims = (self._capacity, )
         self._precision = getattr(self, '_precision', 32)
 
@@ -101,24 +100,24 @@ class Replay(ABC):
         
         self._mem_idx = end_idx % self._capacity
 
-    def _get_samples(self, indexes):
+    def _get_samples(self, idxes):
         """ retrieve samples from replay memory """
         results = {}
-        indexes = np.array(indexes, copy=False, dtype=np.int32)
+        idxes = np.array(idxes, copy=False, dtype=np.int32)
         for k, v in self._memory.items():
             if isinstance(v, np.ndarray):
-                results[k] = v[indexes]
+                results[k] = v[idxes]
             else:
-                results[k] = np.array([np.array(v[i], copy=False) for i in indexes])
+                results[k] = np.array([np.array(v[i], copy=False) for i in idxes])
             
         if 'nth_obs' not in self._memory:
             steps = results.get('steps', 1)
-            next_indexes = (indexes + steps) % self._capacity
+            next_idxes = (idxes + steps) % self._capacity
             if isinstance(self._memory['obs'], np.ndarray):
-                results['nth_obs'] = self._memory['obs'][next_indexes]
+                results['nth_obs'] = self._memory['obs'][next_idxes]
             else:
                 results['nth_obs'] = np.array(
                     [np.array(self._memory['obs'][i], copy=False) 
-                    for i in next_indexes])
+                    for i in next_idxes])
 
         return results

@@ -56,7 +56,7 @@ class SumTree:
         self._container[idxes] += diffs
 
         while len(idxes) > 0:
-            p_idxes = (idxes - 1) // 2  # parent indexes
+            p_idxes = (idxes - 1) // 2  # parent idxes
             idxes, idx1, count = np.unique(p_idxes, return_index=True, return_counts=True)
 
             _, idx2 = np.unique(p_idxes[::-1], return_index=True)
@@ -64,7 +64,7 @@ class SumTree:
             diffs = (diffs[-idx2-1] + diffs[idx1]) * count / 2
             np.testing.assert_equal(len(idxes), len(diffs))
 
-            # code for unbalanced binary tree to avoid negative indexes.
+            # code for unbalanced binary tree to avoid negative idxes.
             diffs = diffs[idxes >= 0]
             idxes = idxes[idxes >= 0]
             self._container[idxes] += diffs

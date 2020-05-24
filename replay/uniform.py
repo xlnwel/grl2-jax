@@ -22,11 +22,11 @@ class UniformReplay(Replay):
     def _sample(self, batch_size=None):
         batch_size = batch_size or self._batch_size
         size = self._capacity if self._is_full else self._mem_idx
-        indexes = np.random.randint(size, size=batch_size)
+        idxes = np.random.randint(size, size=batch_size)
         # the following code avoids repetitive sampling, 
         # but it takes significant more time to run(around 1000x).
-        # indexes = np.random.choice(size, size=batch_size, replace=False)
+        # idxes = np.random.choice(size, size=batch_size, replace=False)
         
-        samples = self._get_samples(indexes)
+        samples = self._get_samples(idxes)
 
         return samples

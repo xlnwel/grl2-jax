@@ -34,7 +34,7 @@ class PERBase(Replay):
         assert self.good_to_learn(), (
             'There are not sufficient transitions to start learning --- '
             f'transitions in buffer({len(self)}) vs '
-            f'minimum required size({self.min_size})')
+            f'minimum required size({self._min_size})')
         with self._locker:
             samples = self._sample(batch_size=batch_size)
             self._sample_i += 1
@@ -91,14 +91,14 @@ class ProportionalPER(PERBase):
 
         intervals = np.linspace(0, total_priorities, batch_size+1)
         values = np.random.uniform(intervals[:-1], intervals[1:])
-        priorities, indexes = self._data_structure.batch_find(values)
+        priorities, idxes = self._data_structure.batch_find(values)
 
         probabilities = priorities / total_priorities
 
         # compute importance sampling ratios
         IS_ratios = self._compute_IS_ratios(probabilities)
-        samples = self._get_samples(indexes)
+        samples = self._get_samples(idxes)
         samples['IS_ratio'] = IS_ratios
-        samples['idxes'] = indexes
+        samples['idxes'] = idxes
 
         return samples
