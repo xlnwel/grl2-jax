@@ -57,25 +57,31 @@ def train(agent, env, eval_env, replay):
             agent.store(score=scores, epslen=epslens)
             replay.merge(episodes)
     _, step = replay.count_episodes()
-    step = max(agent.global_steps.numpy(), step)
+    step = max(agent.env_steps, step)
 
-    nsteps = agent.TRAIN_INTERVAL
+    nsteps = agent.TRAIN_PERIOD
     obs, already_done = None, None
     random_agent = lambda *args, **kwargs: (env.random_action(), dict(logpi=0))
     while not replay.good_to_learn():
         obs, already_done, nstep= run(
             env, random_agent, step, obs, already_done, collect_log)
         
-    to_log = Every(agent.LOG_INTERVAL)
-    to_eval = Every(agent.EVAL_INTERVAL)
+    to_log = Every(agent.LOG_PERIOD)
+    to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
     start_step = step
     start_t = time.time()
     while step < int(agent.MAX_STEPS):
+        start_step = step
+        start_t = time.time()
         agent.learn_log(step)
         obs, already_done, step = run(
             env, agent, step, obs, already_done, collect_log, nsteps)
         duration = time.time() - start_t
+        agent.store(
+            fps=(step-start_step) / duration,
+            tps=(agent.N_UPDATES / duration))
+
         if to_eval(step):
             with TempStore(agent.get_states, agent.reset_states):
                 score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
@@ -83,12 +89,8 @@ def train(agent, env, eval_env, replay):
                 agent.store(eval_score=score, eval_epslen=epslen)
             
         if to_log(step):
-            agent.store(fps=(step-start_step)/duration, duration=duration)
             agent.log(step)
-            agent.save(steps=step)
-
-            start_step = step
-            start_t = time.time()
+            agent.save()
 
 def get_data_format(env, batch_size, sample_size=None):
     dtype = global_policy().compute_dtype
@@ -128,12 +130,7 @@ def main(env_config, model_config, agent_config, replay_config):
     dataset = Dataset(replay, data_format, process)
 
     create_model, Agent = pkg.import_agent(agent_config)
-    models = create_model(
-        model_config, 
-        obs_shape=env.obs_shape,
-        action_dim=env.action_dim,
-        is_action_discrete=env.is_action_discrete
-    )
+    models = create_model(model_config, env)
 
     agent = Agent(
         name='dreamer',

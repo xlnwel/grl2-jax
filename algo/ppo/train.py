@@ -87,11 +87,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     buffer_config['n_envs'] = env.n_envs
     buffer = PPOBuffer(buffer_config)
 
-    models = create_model(
-        model_config, 
-        action_dim=env.action_dim, 
-        is_action_discrete=env.is_action_discrete,
-    )
+    models = create_model(model_config, env)
     
     agent = Agent(name='ppo', 
                 config=agent_config, 

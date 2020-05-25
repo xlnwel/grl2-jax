@@ -1,31 +1,33 @@
 ---
 env:
     name: atari_pong
-    wrapper: baselines
+    wrapper: my_atari
     precision: &prec 32
     life_done: False
     sticky_actions: True
     frame_stack: 4
     seed: 0
+
 model:
-    q:
-        cnn: impala
-        v_units: [256]
-        a_units: [256]
-        activation: relu
-        layer_type: dense
-        duel: True
+    cnn: r2d2
+    v_units: [256]
+    a_units: [256]
+    activation: relu
+    layer_type: dense
+    duel: True
+
 agent:
     algorithm: &algo dqn
     gamma: &gamma 0.99
     precision: *prec
-    schedule_eps: False
+    schedule_eps: True
     act_eps: 0
 
     MAX_STEPS: 1e9          # maximum training frames
     TRAIN_PERIOD: 16          # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 1e6
     LOG_PERIOD: 1e5
+    N_UPDATES: 1
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -35,7 +37,7 @@ agent:
 
     loss_type: huber   # huber or mse
     target_update_period: 8000
-    tbo: False                              # transformed Bellman Operator
+    tbo: True                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
@@ -52,7 +54,7 @@ replay:
     type: per      # uniform, per
     precision: *prec
     # arguments for PER
-    beta0: 0.4
+    beta0: 0
     to_update_top_priority: True
 
     # arguments for general replay

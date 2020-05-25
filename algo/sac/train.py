@@ -77,15 +77,13 @@ def main(env_config, model_config, agent_config, replay_config):
     dataset = Dataset(replay, data_format, process_fn=process)
 
     create_model, Agent = pkg.import_agent(agent_config)
-    models = create_model(
-        model_config, 
-        action_dim=env.action_dim, 
-        is_action_discrete=env.is_action_discrete)
-    agent = Agent(name='sac', 
-                config=agent_config, 
-                models=models, 
-                dataset=dataset, 
-                env=env)
+    models = create_model(model_config, env)
+    agent = Agent(
+        name='dpg',
+        config=agent_config, 
+        models=models, 
+        dataset=dataset, 
+        env=env)
     
     agent.save_config(dict(
         env=env_config,

@@ -290,7 +290,6 @@ class Q(Module):
         a = self._layers_a(a)
         x = tf.concat([x, a], axis=-1)
         x = self._out(x)
-        rbd = 0 if x.shape[-1] == 1 else 1  # #reinterpreted batch dimensions
         x = tf.squeeze(x)
         return x
 
@@ -353,7 +352,10 @@ class ConvDecoder(Module):
         return tfd.Independent(tfd.Normal(x, 1), 3)
 
 
-def create_model(config, obs_shape, action_dim, is_action_discrete):
+def create_model(config, env):
+    obs_shape = env.obs_shape
+    action_dim = env.action_dim
+    is_action_discrete = env.is_action_discrete
     encoder_config = config['encoder']
     rssm_config = config['rssm']
     decoder_config = config['decoder']

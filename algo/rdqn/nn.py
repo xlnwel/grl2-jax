@@ -41,27 +41,27 @@ class Q(Module):
 
     @tf.function
     def action(self, x, state, deterministic, epsilon=0):
-        while len(x.shape) < 5:
-            x = tf.expand_dims(x, 0)
         qs, state = self.value(x, state)
-        qs = tf.squeeze(qs, 1)
+        qs = tf.squeeze(qs)
         action = tf.cast(tf.argmax(qs, axis=-1), tf.int32)
         if deterministic:
             return action, state
         else:
             rand_act = tfd.Categorical(tf.zeros_like(qs)).sample()
             eps_action = tf.where(
-                tf.random.uniform(action[:-1], 0, 1) < epsilon,
+                tf.random.uniform(action.shape, 0, 1) < epsilon,
                 rand_act, action)
             prob = tf.cast(eps_action == action, self._dtype)
-            prob = prob - tf.ones_like(prob) * epsilon + epsilon / self._action_dim
+            prob = prob * (1 - epsilon) + epsilon / self._action_dim
             logpi = tf.math.log(prob)
             return action, {'logpi': logpi}, state
     
     @tf.function
     def value(self, x, state, action=None):
-        if action is not None:
-            action = tf.expand_dims(action, 1)
+        if self._cnn is None:
+            x = tf.reshape(x, (-1, 1, x.shape[-1]))
+        else:
+            x = tf.reshape(x, (-1, 1, *x.shape[-3:]))
         x = self.cnn(x)
         x, state = self.rnn(x, state)
         q = self.mlp(x, action=action)
@@ -116,10 +116,10 @@ class Q(Module):
     def state_size(self):
         return self._rnn.cell.state_size
 
-def create_model(model_config, action_dim):
-    q_config = model_config['q']
-    q = Q(q_config, action_dim, 'q')
-    target_q = Q(q_config, action_dim, 'target_q')
+def create_model(config, env):
+    action_dim = env.action_dim
+    q = Q(config, action_dim, 'q')
+    target_q = Q(config, action_dim, 'target_q')
     return dict(
         q=q,
         target_q=target_q,

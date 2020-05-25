@@ -17,9 +17,14 @@ def logpi_correction(action, logpi, is_action_squashed):
     """
     if is_action_squashed:
         # To avoid evil machine precision error, strictly clip 1-action**2 to [0, 1] range
-        sub = tf.reduce_sum(tf.math.log(clip_but_pass_gradient(1 - action**2, l=0, u=1) + 1e-8), axis=-1)
+        sub = tf.reduce_sum(
+            tf.math.log(clip_but_pass_gradient(1 - action**2, l=0, u=1) + 1e-8), 
+            axis=-1)
     else:
-        sub = 2 * tf.reduce_sum(tf.cast(tf.math.log(2.), action.dtype) - action - tf.nn.softplus(-2 * action), axis=-1)
+        sub = 2 * tf.reduce_sum(
+            tf.cast(tf.math.log(2.), action.dtype) 
+            - action - tf.nn.softplus(-2 * action), 
+            axis=-1)
     assert logpi.shape.ndims == sub.shape.ndims, f'{logpi.shape} vs {sub.shape}'
     logpi -= sub
 
@@ -102,3 +107,10 @@ def retrace_lambda(reward, q, next_value, ratio, discount, lambda_=1, ratio_clip
         target_q = tf.transpose(target_q, dims)
 
     return target_q
+
+def apex_epsilon_greedy(worker_id, n_workers, epsilon=.4, alpha=8):
+    # the 𝝐-greedy schedule used in Ape-X and Agent57
+    if n_workers == 1:
+        return epsilon
+    else:
+        return epsilon ** (1 + worker_id / (n_workers - 1) * alpha)

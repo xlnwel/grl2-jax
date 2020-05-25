@@ -5,7 +5,6 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
-from utility.timer import TBTimer
 from core.module import Module
 from core.decorator import config
 from nn.func import mlp, cnn
@@ -88,10 +87,10 @@ class Q(Module):
             self._a_head.reset()
 
 
-def create_model(config, action_dim, **kwargs):
-    q_config = config['q']
-    q = Q(q_config, action_dim, 'q')
-    target_q = Q(q_config, action_dim, 'target_q')
+def create_model(config, env, **kwargs):
+    action_dim = env.action_dim
+    q = Q(config, action_dim, 'q')
+    target_q = Q(config, action_dim, 'target_q')
     return dict(
         q=q,
         target_q=target_q,

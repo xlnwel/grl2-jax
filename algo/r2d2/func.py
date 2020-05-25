@@ -2,7 +2,7 @@ import tensorflow as tf
 import ray
 
 from utility.rl_utils import apex_epsilon_greedy
-from algo.apex.buffer import create_local_buffer
+from algo.r2d2.buffer import create_local_buffer
 
 
 def create_learner(Learner, model_fn, replay, config, model_config, env_config, replay_config, n_cpus):
@@ -13,7 +13,6 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
     
     env_config['n_workers'] = env_config['n_envs'] = 1
     config['model_name'] = 'learner'
-    config['n_steps'] = replay_config['n_steps']
     config['n_cpus'] = n_cpus
 
     if tf.config.list_physical_devices('GPU'):
@@ -21,12 +20,12 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
     else:
         RayLearner = ray.remote(num_cpus=n_cpus)(Learner)
 
-    learner = RayLearner.remote( 
-        config=config, 
-        model_config=model_config, 
+    learner = RayLearner.remote(
+        config=config,
+        model_config=model_config,
         env_config=env_config,
         model_fn=model_fn, 
-        replay=replay,)
+        replay=replay)
     ray.get(learner.save_config.remote(dict(
         env=env_config,
         model=model_config,
@@ -69,7 +68,7 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
     env_config = env_config.copy()
 
     env_config['seed'] += 999
-
+    
     RayEvaluator = ray.remote(num_cpus=1)(Evaluator)
     evaluator = RayEvaluator.remote(
         config=config,

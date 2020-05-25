@@ -64,6 +64,7 @@ def encode_gif(frames, fps):
 
 def save_video(name, video, fps=30):
     name = name if isinstance(name, str) else name.decode('utf-8')
+    video = np.array(video, copy=False)
     if np.issubdtype(video.dtype, np.floating):
         video = np.clip(255 * video, 0, 255).astype(np.uint8)
     while len(video.shape) < 5:

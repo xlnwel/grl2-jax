@@ -297,7 +297,10 @@ class ConvDecoder(Module):
         return tfd.Independent(tfd.Normal(x, 1), 3)
 
 
-def create_model(config, obs_shape, action_dim, is_action_discrete):
+def create_model(config, env):
+    obs_shape = env.obs_shape
+    action_dim = env.action_dim
+    is_action_discrete = env.is_action_discrete
     encoder_config = config['encoder']
     rssm_config = config['rssm']
     decoder_config = config['decoder']

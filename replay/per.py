@@ -35,16 +35,16 @@ class PERBase(Replay):
             'There are not sufficient transitions to start learning --- '
             f'transitions in buffer({len(self)}) vs '
             f'minimum required size({self._min_size})')
-        with self._locker:
-            samples = self._sample(batch_size=batch_size)
-            self._sample_i += 1
-            if hasattr(self, '_beta_schedule'):
-                self._update_beta()
+        samples = self._sample(batch_size=batch_size)
+        self._sample_i += 1
+        if hasattr(self, '_beta_schedule'):
+            self._update_beta()
         return samples
 
     @override(Replay)
     def add(self, **kwargs):
-        # it is okay to add when sampling, so no locker is needed
+        # it is okay to add when sampling as it does not decrease the priorities, 
+        # so no locker is needed
         super().add(**kwargs)
         # super().add updates self._mem_idx 
         self._data_structure.update(self._mem_idx - 1, self._top_priority)
@@ -87,11 +87,14 @@ class ProportionalPER(PERBase):
     @override(PERBase)
     def _sample(self, batch_size=None):
         batch_size = batch_size or self._batch_size
-        total_priorities = self._data_structure.total_priorities
+        with self._locker:
+            total_priorities = self._data_structure.total_priorities
 
-        intervals = np.linspace(0, total_priorities, batch_size+1)
-        values = np.random.uniform(intervals[:-1], intervals[1:])
-        priorities, idxes = self._data_structure.batch_find(values)
+            intervals = np.linspace(0, total_priorities, batch_size+1)
+            print('before', total_priorities, intervals)
+            values = np.random.uniform(intervals[:-1], intervals[1:])
+            priorities, idxes = self._data_structure.batch_find(values)
+            assert np.max(idxes) < len(self), f'{idxes}\n{values}\n{priorities}\n{total_priorities}, {len(self)}'
 
         probabilities = priorities / total_priorities
 

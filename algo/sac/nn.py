@@ -126,7 +126,9 @@ class Temperature(Module):
         return log_temp, temp
 
 
-def create_model(config, action_dim, is_action_discrete):
+def create_model(config, env):
+    action_dim = env.action_dim
+    is_action_discrete = env.is_action_discrete
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']

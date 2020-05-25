@@ -4,13 +4,12 @@ env:
     precision: &prec 32
     seed: 0
 model:
-    q:
-        cnn: none
-        v_units: [128, 64]
-        a_units: [128, 64]
-        activation: relu
-        layer_type: noisy
-        duel: True
+    cnn: none
+    v_units: [128, 64]
+    a_units: [128, 64]
+    activation: relu
+    layer_type: noisy
+    duel: True
 agent:
     algorithm: &algo dqn
     gamma: &gamma 0.99
@@ -22,6 +21,7 @@ agent:
     TRAIN_PERIOD: 1          # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 10000
     LOG_PERIOD: 10000
+    N_UPDATES: 1
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

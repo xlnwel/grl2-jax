@@ -59,14 +59,14 @@ class EnvBuffer(LocalBuffer):
         for k, v in self._memory.items():
             results[k] = v[:self._idx]
         if 'nth_obs' not in self._memory:
-            indexes = np.arange(self._idx)
+            idxes = np.arange(self._idx)
             steps = results.get('steps', 1)
-            next_indexes = (indexes + steps) % self._capacity
+            next_idxes = (idxes + steps) % self._capacity
             if isinstance(self._memory['obs'], np.ndarray):
-                results['nth_obs'] = self._memory['obs'][next_indexes]
+                results['nth_obs'] = self._memory['obs'][next_idxes]
             else:
                 results['nth_obs'] = [np.array(self._memory['obs'][i], copy=False) 
-                    for i in next_indexes]
+                    for i in next_idxes]
 
         return None, results
 

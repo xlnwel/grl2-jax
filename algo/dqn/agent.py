@@ -17,8 +17,8 @@ from core.optimizer import Optimizer
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
-        self._is_per = not dataset.buffer_type().endswith('uniform')
-        is_nsteps = 'steps' in dataset.data_format
+        self._is_per = dataset and not dataset.buffer_type().endswith('uniform')
+        is_nsteps = dataset and 'steps' in dataset.data_format
         self.dataset = dataset
 
         if self._schedule_lr:
@@ -66,26 +66,27 @@ class Agent(BaseAgent):
 
     @step_track
     def learn_log(self, step):
-        with TBTimer('sample', 2500):
-            data = self.dataset.sample()
+        for _ in range(self.N_UPDATES):
+            with TBTimer('sample', 2500):
+                data = self.dataset.sample()
 
-        if self._is_per:
-            idxes = data['idxes'].numpy()
-            del data['idxes']
-        with TBTimer('learn', 2500):
-            terms = self.learn(**data)
-        if self._to_sync(self.train_steps):
-            self._sync_target_nets()
+            if self._is_per:
+                idxes = data['idxes'].numpy()
+                del data['idxes']
+            with TBTimer('learn', 2500):
+                terms = self.learn(**data)
+            if self._to_sync(self.train_steps):
+                self._sync_target_nets()
 
-        if self._schedule_lr:
-            step = tf.convert_to_tensor(step, tf.float32)
-            terms['lr'] = self._lr(step)
-        terms = {k: v.numpy() for k, v in terms.items()}
+            if self._schedule_lr:
+                step = tf.convert_to_tensor(step, tf.float32)
+                terms['lr'] = self._lr(step)
+            terms = {k: v.numpy() for k, v in terms.items()}
 
-        if self._is_per:
-            self.dataset.update_priorities(terms['priority'], idxes)
-        self.store(**terms)
-        return 1
+            if self._is_per:
+                self.dataset.update_priorities(terms['priority'], idxes)
+            self.store(**terms)
+        return self.N_UPDATES
 
     @tf.function
     def _learn(self, obs, action, reward, nth_obs, discount, steps=1, IS_ratio=1):

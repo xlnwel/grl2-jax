@@ -111,7 +111,7 @@ class EnvStats(Wrapper):
         self._precision = precision
         # if we take timeout as done
         self._timeout_done = timeout_done
-        self._fake_obs = np.zeros(self.obs_shape)
+        self._fake_obs = np.zeros(self.obs_shape, dtype=self.obs_dtype)
         self._score = 0
         self._epslen = 0
         if timeout_done:
@@ -131,15 +131,16 @@ class EnvStats(Wrapper):
             # when keeping stepping after game's over
             # here, we override this behavior
             self._mask = 0
-            return self._fake_obs, 0, True, {}
+            return self._fake_obs, 0, True, {'mask': 0}
         assert not np.any(np.isnan(action)), action
-        self._mask = 1 - self._already_done
         obs, reward, done, info = self.env.step(action, **kwargs)
         self._score += reward
         self._epslen += info.get('frame_skip', 1)
         self._already_done = done
         if self._epslen >= self.max_episode_steps:
             self._already_done = True
+            if hasattr(self.env, 'set_game_over'):
+                self.env.set_game_over()
             done = self._timeout_done
         if self.already_done():
             info['already_done'] = self._already_done
@@ -196,6 +197,7 @@ class EnvStats(Wrapper):
 """ The following wrappers rely on members defined in EnvStats.
 Therefore, they should only be invoked after EnvStats """
 class LogEpisode(Wrapper):
+    """ Log episodic information, useful when we need to record the reset state """
     def __init__(self, env):
         self.env = env
         self.prev_episode = {}

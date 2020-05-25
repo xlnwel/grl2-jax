@@ -93,7 +93,7 @@ class Replay(ABC):
         else:
             copy_buffer(self._memory, self._mem_idx, end_idx, local_buffer, 0, length)
 
-        # memory is full, recycle buffer via FIFO
+        # memory is full, recycle buffer according to FIFO
         if not self._is_full and end_idx >= self._capacity:
             print(f'Memory is full({len(self._memory["reward"])})')
             self._is_full = True

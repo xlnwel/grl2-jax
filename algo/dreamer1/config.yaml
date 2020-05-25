@@ -42,9 +42,9 @@ agent:
     burn_in_size: 0
 
     MAX_STEPS: 5.e+6
-    LOG_INTERVAL: 1000
-    EVAL_INTERVAL: 10000
-    TRAIN_INTERVAL: 1000
+    LOG_PERIOD: 1000
+    EVAL_PERIOD: 10000
+    TRAIN_PERIOD: 1000
     N_UPDATES: 100
     log_images: True
 
@@ -73,7 +73,7 @@ agent:
     value_lr: 8e-5
 
 replay:
-    type: episodic                      # proportional or uniform
+    type: episodic                      # per or uniform
 
     # arguments for general replay
     batch_size: *bs

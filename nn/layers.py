@@ -69,12 +69,14 @@ class Noisy(layers.Dense):
             'eps_w_in', 
             shape=(self.last_dim, 1),
             initializer=get_initializer('zeros'),
-            trainable=False)
+            trainable=False,
+            dtype=self._compute_dtype)
         self.eps_w_out = self.add_weight(
             'eps_w_out', 
             shape=(1, self.units),
             initializer=get_initializer('zeros'),
-            trainable=False)
+            trainable=False,
+            dtype=self._compute_dtype)
         self.eps_b = tf.reshape(self.eps_w_out, [self.units])
         super().build(input_shape)
 
@@ -97,5 +99,11 @@ class Noisy(layers.Dense):
         return super().call(inputs)
 
     def reset(self):
-        self.eps_w_in.assign(tf.random.truncated_normal([self.last_dim, 1], stddev=self.noisy_sigma))
-        self.eps_w_out.assign(tf.random.truncated_normal([1, self.units], stddev=self.noisy_sigma))
+        self.eps_w_in.assign(tf.random.truncated_normal(
+            [self.last_dim, 1], 
+            stddev=self.noisy_sigma, 
+            dtype=self._compute_dtype))
+        self.eps_w_out.assign(tf.random.truncated_normal(
+            [1, self.units], 
+            stddev=self.noisy_sigma,
+            dtype=self._compute_dtype))

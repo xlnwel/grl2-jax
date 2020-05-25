@@ -109,14 +109,15 @@ def main(env_config, model_config, agent_config, replay_config):
     process = functools.partial(process_with_env, env=env)
     dataset = Dataset(replay, data_format, process_fn=process)
     # construct models
-    models = create_model(model_config, env.action_dim)
+    models = create_model(model_config, env)
 
     # construct agent
-    agent = Agent(name='q', 
-                config=agent_config, 
-                models=models, 
-                dataset=dataset, 
-                env=env)
+    agent = Agent(
+        name='q',
+        config=agent_config, 
+        models=models, 
+        dataset=dataset, 
+        env=env)
     
     agent.save_config(dict(
         env=env_config,

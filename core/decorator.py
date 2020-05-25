@@ -9,7 +9,7 @@ from core.log import setup_logger, setup_tensorboard, save_code
 
 def agent_config(init_fn):
     """ Decorator for agent's initialization """
-    def wrapper(self, *, name, config, models, **kwargs):
+    def wrapper(self, *, name=None, config, models, env, **kwargs):
         """
         Args:
             name: Agent's name
@@ -22,7 +22,7 @@ def agent_config(init_fn):
         # name is used for better bookkeeping, 
         # while model_name is used for create save/log files
         # e.g., all workers share the same name, but with differnt model_names
-        self.name = name
+        self.name = name or f'{config["algorithm"]}-{env.name}'
         """ For the basic configuration, see config.yaml in algo/*/ """
         _config_attr(self, config)
 
@@ -45,7 +45,7 @@ def agent_config(init_fn):
             tf.summary.experimental.set_step(0)
 
         # Agent initialization
-        init_fn(self, **kwargs)
+        init_fn(self, env=env, **kwargs)
 
         self.print_construction_complete()
         

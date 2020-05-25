@@ -1,20 +1,19 @@
 ---
 env:
     name: atari_pong
-    wrapper: baselines
+    wrapper: my_atari
     life_done: False
     sticky_actions: True
     seed: 0
     precision: &prec 32
 
 model:
-    q:
-        cnn: r2d2
-        lstm_units: 512
-        v_units: [512]
-        a_units: [512]
-        activation: relu
-        duel: True
+    cnn: r2d2
+    lstm_units: 512
+    v_units: [512]
+    a_units: [512]
+    activation: relu
+    duel: True
 
 agent:
     algorithm: &algo rdqn
@@ -26,7 +25,7 @@ agent:
     store_state: True
     burn_in: True
     sample_size: &ss 80
-    burn_in_size: 40
+    burn_in_size: &bis 40
     schedule_eps: True
     add_input: False
     act_eps: 0
@@ -54,15 +53,20 @@ agent:
     clip_norm: 40
 
     # arguments for PER
-    per_alpha: 0.9
+    per_alpha: .9
+    per_eta: .9
     per_epsilon: 1e-4
 
 replay:
-    type: episodic
+    type: sper                      # per or uniform
+    precision: *prec
+    # arguments for PER
+    beta0: 0
+    to_update_top_priority: False
 
     # arguments for general replay
     batch_size: *bs
     sample_size: *ss
-    max_episodes: 500
-    min_episodes: 5
-    save: False
+    burn_in_size: *bis
+    min_size: 500
+    capacity: 10000

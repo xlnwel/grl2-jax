@@ -109,9 +109,6 @@ class Atari:
             # Stores LazyFrames for memory efficiency
             self._frames = deque([], maxlen=self.frame_stack)
 
-    def get_screen(self):
-        return self.env.ale.getScreenRGB2()
-
     @property
     def observation_space(self):
         # Return the observation space adjusted to match the shape of the processed
@@ -140,9 +137,19 @@ class Atari:
     def close(self):
         return self.env.close()
 
+    def get_screen(self):
+        return self.env.ale.getScreenRGB2()
+
+    def set_game_over(self):
+        self._game_over = True
+
     def reset(self, **kwargs):
         if self._game_over:
             self.env.reset(**kwargs)
+            if 'FIRE' in self.env.get_action_meanings():
+                action = self.env.get_action_meanings().index('FIRE')
+                for _ in range(self.frame_skip):
+                    self.env.step(action)
             noop = np.random.randint(1, self.noop + 1)
             for _ in range(noop):
                 d = self.env.step(0)[2]
@@ -154,7 +161,7 @@ class Atari:
             else:
                 action = 0
             self.step(action)
-
+        
         self.lives = self.env.ale.lives()
         self._get_screen(self._buffer[0])
         self._buffer[1].fill(0)
@@ -243,7 +250,7 @@ class Atari:
             self.env.ale.getScreenRGB2(output)
 
     def _get_obs(self):
-        assert len(self._frames) == self.frame_stack
+        assert len(self._frames) == self.frame_stack, f'{len(self._frames)} vs {self.frame_stack}'
         return LazyFrames(list(self._frames))
 
 

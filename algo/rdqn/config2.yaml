@@ -4,13 +4,12 @@ env:
     precision: &prec 32
     seed: 0
 model:
-    q:
-        cnn: none
-        v_units: [128, 64]
-        a_units: [128, 64]
-        activation: relu
-        layer_type: dense
-        duel: True
+    cnn: none
+    v_units: [128, 64]
+    a_units: [128, 64]
+    activation: relu
+    layer_type: dense
+    duel: True
 agent:
     algorithm: &algo rdqn
     gamma: &gamma 0.99

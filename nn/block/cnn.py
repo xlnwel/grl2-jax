@@ -249,11 +249,11 @@ class NatureCNN(Layer):
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
         
         self._conv_layers = [
-            conv2d(32, 8, 4, padding='valid', activation=relu, 
+            conv2d(32, 8, 4, padding='same', activation=relu, 
                     kernel_initializer=kernel_initializer, **kwargs),
-            conv2d(64, 4, 2, padding='valid', activation=relu, 
+            conv2d(64, 4, 2, padding='same', activation=relu, 
                     kernel_initializer=kernel_initializer, **kwargs),
-            conv2d(64, 3, 1, padding='valid', activation=relu, 
+            conv2d(64, 3, 1, padding='same', activation=relu, 
                     kernel_initializer=kernel_initializer, **kwargs),
         ]
         self.out_size = out_size

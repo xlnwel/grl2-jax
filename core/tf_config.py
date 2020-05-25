@@ -1,6 +1,6 @@
 import os
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
+from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
 from utility.display import pwc
 
@@ -33,7 +33,8 @@ def configure_threads(intra_num_threads, inter_num_threads):
 
 def configure_precision(precision=16):
     if precision == 16:
-        tf.keras.mixed_precision.experimental.set_policy('mixed_float16')
+        policy = mixed_precision.Policy('mixed_float16')
+        mixed_precision.set_policy(policy)
 
 def silence_tf_logs():
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -56,19 +57,20 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
             return x
         elif isinstance(x, (list, tuple)) and len(x) == 3:
             s, d, n = x
-            return tf.TensorSpec(
-                shape=() if s is None else default_shape+list(s), 
-                dtype=d, 
-                name=n)
+            if isinstance(n, str):
+                return tf.TensorSpec(
+                    shape=() if s is None else default_shape+list(s), 
+                    dtype=d, 
+                    name=n)
         elif isinstance(x, (list, tuple)) and len(x) == 1:
             s = x
-            d = global_policy().compute_dtype
+            d = mixed_precision.global_policy().compute_dtype
             return tf.TensorSpec(
                 shape=() if s is None else default_shape+list(s),
                 dtype=d
             )
-        else:
-            return get_TensorSpecs(x, sequential=sequential, batch_size=batch_size)
+        
+        return get_TensorSpecs(x, sequential=sequential, batch_size=batch_size)
 
     if sequential:
         assert batch_size, (

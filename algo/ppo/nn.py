@@ -62,7 +62,9 @@ class PPOAC(Module):
         return
 
 
-def create_model(model_config, action_dim, is_action_discrete):
-    ac = PPOAC(model_config, action_dim, is_action_discrete, 'ac')
+def create_model(config, env):
+    action_dim = env.action_dim
+    is_action_discrete = env.is_action_discrete
+    ac = PPOAC(config, action_dim, is_action_discrete, 'ac')
 
     return dict(ac=ac)

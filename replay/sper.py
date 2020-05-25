@@ -3,7 +3,6 @@ import copy
 import collections
 import numpy as np
 
-from replay.ds.sum_tree import SumTree
 from replay.per import ProportionalPER
 
 
@@ -12,7 +11,6 @@ class SequentialPER(ProportionalPER):
         super().__init__(config)
         self._dtype = {16: np.float16, 32: np.float32}[self._precision]
         self._state_keys = state_keys
-        self._data_structure = SumTree(self._capacity)
         self._temp_buff = collections.defaultdict(list)
         self._memory = collections.deque(maxlen=self._capacity)
         self._pop_size = self._sample_size - self._burn_in_size
@@ -43,18 +41,37 @@ class SequentialPER(ProportionalPER):
             for k in self._state_keys:
                 buff[k] = buff[k][0]
             self.merge(buff)
-            self._data_structure.update(self._mem_idx-1, self._top_priority)
             self._tb_idx = self._burn_in_size
 
-    def merge(self, sequence):
-        for k, v in sequence.items():
+    def merge(self, local_buffer, n_seqs=1):
+        """
+        if n_seqs == 1, data in local_buffer is expected to be of shape '[sample_size, ...]',
+        otherwise, '[n_seqs, sample_size, ...]'
+        """
+        if 'priority' in local_buffer:
+            priority = local_buffer['priority']
+            del local_buffer['priority']
+        else:
+            priority = self._top_priority
+        np.testing.assert_array_less(0, priority)
+        with self._locker:
+            if n_seqs == 1:
+                self._data_structure.update(self._mem_idx, priority)
+            else:
+                mem_idxes = np.arange(self._mem_idx, self._mem_idx+n_seqs) % self._capacity
+                self._data_structure.batch_update(mem_idxes, priority)
+        # TODO: for n_seqs > 1
+        for k, v in local_buffer.items():
             if k in self._state_keys:
                 np.testing.assert_equal(len(v.shape), 1)
             else:
                 np.testing.assert_equal(len(v), self._sample_size)
-        self._memory.append(sequence)
+        self._memory.append(local_buffer)
         self._mem_idx = (self._mem_idx + 1) % self._capacity
-            
+        if not self._is_full and self._mem_idx == 0:
+            print(f'Memory is full({len(self._memory["reward"])})')
+            self._is_full = True
+
     def clear_temp_buffer(self):
         for k in self._temp_buff:
             self._temp_buff[k].clear()
@@ -68,30 +85,3 @@ class SequentialPER(ProportionalPER):
         for k, v in results.items():
             np.testing.assert_equal(v.shape[0], self._batch_size)
         return results
-
-if __name__ == "__main__":
-    config = dict(
-        type='psr',                      # per or uniform
-        precision=32,
-        # arguments for PER
-        beta0=0.4,
-        to_update_top_priority=False,
-
-        # arguments for general replay
-        batch_size=2,
-        sample_size=5,
-        burn_in_size=2,
-        min_size=5,
-        capacity=100,
-    )
-    replay = SequentialPER(config, state_keys=['h', 'c'])
-    for i in range(100):
-        h = np.ones(3) * i
-        c = np.ones(3) * i
-        o = np.ones(2) * i
-        replay.add(o=o, h=h, c=c)
-    replay.clear_temp_buffer()
-
-    print('sample')
-    for k, v in replay.sample().items():
-        print(k, v.shape)

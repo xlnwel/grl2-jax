@@ -94,12 +94,7 @@ def main(env_config, model_config, agent_config, replay_config):
     dataset = Dataset(replay, data_format, process)
 
     create_model, Agent = pkg.import_agent(agent_config)
-    models = create_model(
-        model_config, 
-        obs_shape=env.obs_shape,
-        action_dim=env.action_dim,
-        is_action_discrete=env.is_action_discrete
-    )
+    models = create_model(model_config, env)
 
     agent = Agent(
         name='dreamer',

@@ -11,7 +11,7 @@ from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from utility.graph import video_summary
 from core.tf_config import build
 from core.base import BaseAgent
-from core.decorator import agent_config, display_model_var_info
+from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.dreamer1.nn import RSSMState
 
@@ -48,7 +48,7 @@ class Agent(BaseAgent):
         self._action_dim = env.action_dim
         self._is_action_discrete = env.is_action_discrete
 
-        self._to_log_images = Every(self.LOG_INTERVAL)
+        self._to_log_images = Every(self.LOG_PERIOD)
 
         # time dimension must be explicitly specified here
         # otherwise, InaccessibleTensorError arises when expanding rssm
@@ -88,6 +88,7 @@ class Agent(BaseAgent):
             mask = tf.cast(1. - reset, self._dtype)[:, None]
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
             self._prev_action = self._prev_action * mask
+        prev_state = self._state
         if deterministic:
             action, self._state = self.action(
                 obs, self._state, self._prev_action, deterministic)
@@ -98,12 +99,12 @@ class Agent(BaseAgent):
         self._prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype) \
             if self._is_action_discrete else action
         
-        action = np.squeeze(action.numpy()) if has_expanded else action.numpy()
+        action = action.numpy()[0] if has_expanded else action.numpy()
         if deterministic:
             return action
         elif self._store_state:
             return action, {'logpi': logpi.numpy(), 
-                **tf.nest.map_structure(lambda x: x.numpy(), self._state._asdict())}
+                **tf.nest.map_structure(lambda x: x.numpy(), prev_state._asdict())}
         else:
             return action, {'logpi': logpi.numpy()}
         
@@ -138,8 +139,8 @@ class Agent(BaseAgent):
 
             return action, logpi, state
 
+    @step_track
     def learn_log(self, step):
-        self.global_steps.assign(step)
         for i in range(self.N_UPDATES):
             data = self.dataset.sample()
             if i == 0:
@@ -151,6 +152,7 @@ class Agent(BaseAgent):
             terms = self.learn(**data, log_images=log_images)
             terms = {k: v.numpy() for k, v in terms.items()}
             self.store(**terms)
+        return self.N_UPDATES
 
     @tf.function
     def _learn(self, obs, action, reward, discount, log_images, state=None):
@@ -231,7 +233,7 @@ class Agent(BaseAgent):
         )
 
         if log_images:
-            tf.summary.experimental.set_step(self.global_steps)
+            tf.summary.experimental.set_step(self._env_steps)
             tf.summary.histogram(f'{self.name}/returns', returns)
             for var, grad in actor_vg:
                 tf.summary.histogram(f'grads/{var.name}', grad)
@@ -277,4 +279,4 @@ class Agent(BaseAgent):
         error = (model - truth + 1) / 2
         openl = tf.concat([truth, model, error], 2)
         self.graph_summary(video_summary, ['dreamer/comp', openl, (1, 6)],
-            step=self.global_steps)
+            step=self._env_steps)

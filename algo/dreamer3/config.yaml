@@ -1,7 +1,6 @@
 ---
 env:
     name: dmc_walker_walk
-    log_episode: True
     n_envs: 1
     frame_skip: 2
     precision: &prec 16
@@ -86,5 +85,5 @@ replay:
     sample_size: *ss
     max_episodes: 800
     min_episodes: 5
-    save: True
+    save: False
     

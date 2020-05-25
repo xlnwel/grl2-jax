@@ -26,10 +26,7 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
 
     create_model, Agent = pkg.import_agent(agent_config)
 
-    actor = create_model(
-        model_config,
-        env.action_dim,
-        env.is_action_discrete)['actor']
+    actor = create_model(model_config, env)['actor']
 
     ckpt = tf.train.Checkpoint(actor=actor)
     ckpt_path = f'{agent_config["root_dir"]}/{agent_config["model_name"]}/models'

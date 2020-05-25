@@ -38,18 +38,18 @@ class Agent(BaseAgent):
         # Explicitly instantiate tf.function to initialize variables
         obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else self._dtype
         TensorSpecs = dict(
-            obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
+            obs=((self._sample_size, *env.obs_shape), self._dtype, 'obs'),
             action=((self._sample_size, env.action_dim,), self._dtype, 'action'),
             reward=((self._sample_size,), self._dtype, 'reward'),
             logpi=((self._sample_size,), self._dtype, 'logpi'),
             discount=((self._sample_size,), self._dtype, 'discount'),
         )
         if self._is_per:
-            TensorSpecs['IS_ratio'] = ((self._sample_size,), self._dtype, 'IS_ratio')
+            TensorSpecs['IS_ratio'] = ((), self._dtype, 'IS_ratio')
         if self._store_state:
             state_size = self.q.state_size
             TensorSpecs['state'] = (
-               [((sz, ), tf.float32, name) 
+               [((sz, ), self._dtype, name) 
                for name, sz in zip(['h', 'c'], state_size)]
             )
         self.learn = build(self._learn, TensorSpecs)
@@ -77,21 +77,20 @@ class Agent(BaseAgent):
         prev_state = self._state
         if deterministic:
             action, self._state = self.q.action(obs, self._state, deterministic)
-            return np.squeeze(action.numpy())
+            return action.numpy()
         else:
-            action, terms, self._state = self.q.action(obs, self._state, deterministic)
+            action, terms, self._state = self.q.action(obs, self._state, deterministic, eps)
             if self._store_state:
-                terms['h'] = self._state[0]
-                terms['c'] = self._state[1]
+                terms['h'] = prev_state[0]
+                terms['c'] = prev_state[1]
             terms = tf.nest.map_structure(lambda x: np.squeeze(x.numpy()), terms)
-            return np.squeeze(action.numpy()), terms
+            return action.numpy(), terms
 
     @step_track
     def learn_log(self, step):
         for i in range(self.N_UPDATES):
             with TBTimer('sample', 2500):
                 data = self.dataset.sample()
-
             if self._is_per:
                 idxes = data['idxes'].numpy()
                 del data['idxes']
@@ -101,8 +100,7 @@ class Agent(BaseAgent):
                 self._sync_target_nets()
 
             if self._schedule_lr:
-                step = tf.convert_to_tensor(step, tf.float32)
-                terms['lr'] = self._lr(step)
+                terms['lr'] = self._lr(self._env_steps)
             terms = {k: v.numpy() for k, v in terms.items()}
 
             if self._is_per:
@@ -120,15 +118,13 @@ class Agent(BaseAgent):
             t_embed = self.target_q.cnn(obs)
             if self._burn_in:
                 bis = self._burn_in_size
-                ss = self._sample_size - self._burn_in_size
+                ss = self._sample_size - bis
                 bi_embed, embed = tf.split(embed, [bis, ss], 1)
                 tbi_embed, t_embed = tf.split(t_embed, [bis, ss], 1)
                 bi_action, action = tf.split(action, [bis, ss], 1)
                 bi_reward, reward = tf.split(reward, [bis, ss], 1)
                 bi_discount, discount = tf.split(discount, [bis, ss], 1)
-                bi_logpi, logpi = tf.split(logpi, [bis, ss], 1)
-                if IS_ratio != 1:
-                    IS_ratio = IS_ratio[:, bis:]
+                _, logpi = tf.split(logpi, [bis, ss], 1)
                 if self._add_input:
                     bi_reward = tf.expand_dims(bi_reward, -1)
                     bi_rnn_input = tf.concat([bi_embed, bi_action, bi_reward], -1)
@@ -174,21 +170,19 @@ class Agent(BaseAgent):
             if self._tbo:
                 returns = h(returns)
             returns = tf.stop_gradient(returns)
-            loss = tf.reduce_mean(IS_ratio * loss_fn(returns - q))
-        tf.debugging.assert_shapes([
-            [q, (None, ss-1)],
-            [next_qs, (None, ss-1, self._action_dim)],
-            [returns, (None, ss-1)],
-            [loss, ()],
-        ])
+            error = returns - q
+            loss = tf.reduce_mean(IS_ratio[:, None] * loss_fn(error))
+
         if self._is_per:
-            priority = self._compute_priority(tf.abs(reward[:, :-1]+q-t_next_q))
+            priority = self._compute_priority(tf.abs(error))
             terms['priority'] = priority
         
         terms['norm'] = self._optimizer(tape, loss)
         
         terms.update(dict(
             q=q,
+            logpi=logpi,
+            ratio=ratio,
             returns=returns,
             loss=loss,
         ))
@@ -197,6 +191,8 @@ class Agent(BaseAgent):
 
     def _compute_priority(self, priority):
         """ p = (p + 𝝐)**𝛼 """
+        priority = (self._per_eta*tf.math.reduce_max(priority, axis=1) 
+                    + (1-self._per_eta)*tf.math.reduce_mean(priority, axis=1))
         priority += self._per_epsilon
         priority **= self._per_alpha
         return priority

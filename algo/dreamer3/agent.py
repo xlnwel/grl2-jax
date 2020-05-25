@@ -108,19 +108,19 @@ class Agent(BaseAgent):
             action, self._state = self.action(
                 obs, self._state, self._prev_action, deterministic)
         else:
-            action, logpi, self._state = self.action(
+            action, terms, self._state = self.action(
                 obs, self._state, self._prev_action, deterministic)
         self._prev_action = tf.one_hot(action, self._action_dim, dtype=tf.float32) \
             if self._is_action_discrete else action
         
-        action = action.numpy()[0] if has_expanded else action.numpy()
+        action = np.squeeze(action.numpy())
         if deterministic:
             return action
-        elif self._store_state:
-            return action, {'logpi': logpi.numpy(), 
-                **tf.nest.map_structure(lambda x: x.numpy(), prev_state._asdict())}
         else:
-            return action, {'logpi': logpi.numpy()}
+            if self._store_state:
+                terms.update(prev_state._asdict())
+            terms = tf.nest.map_structure(lambda x: np.squeeze(x.numpy()), terms)
+            return action
         
     @tf.function
     def action(self, obs, state, prev_action, deterministic=False):
@@ -159,7 +159,7 @@ class Agent(BaseAgent):
                 else:
                     logpi = act_dist.log_prob(action)
         
-            return action, logpi, state
+            return action, {'logpi': logpi}, state
 
     @step_track
     def learn_log(self, step):

@@ -314,23 +314,31 @@ if __name__ == '__main__':
     # performance test
     config = dict(
         name='atari_breakout',
+        wrapper='my_atari',
+        sticky_actions=True,
         seed=0,
-        life_done=False,
     )
-    from utility.run import Runner
+    from utility.run import Runner, evaluate
     import matplotlib.pyplot as plt
     env = create_env(config)
-    class A():
+    class Agent:
         def __init__(self, env):
             self.env = env
+            self.score = []
+            self.epslen = []
         def __call__(self, *args, **kwargs):
             return self.env.random_action(*args, **kwargs)
-        def store(self, **kwargs):
-            pass
+        def store(self, score, epslen):
+            self.score.append(score)
+            self.epslen.append(epslen)
     def fn(env, step, **kwargs):
         assert step % env.frame_skip == 0
         if env.game_over():
             print(step, env.already_done(), env.lives, env.game_over())
-    runner = Runner(env, A(env))
+    agent = Agent(env)
+    runner = Runner(env, agent, nsteps=3000)
     runner.run(step_fn=fn)
-    
+    score, epslen, _ = evaluate(env, agent)
+    print(agent.score, np.mean(agent.score))
+    print(agent.epslen, np.mean(agent.epslen))
+    print(score, epslen)

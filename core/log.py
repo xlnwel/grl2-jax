@@ -148,6 +148,9 @@ class Logger:
         self._log_current_row = {}
         self._store_dict = defaultdict(list)
 
+    def __contains__(self, item):
+        return self._store_dict[item] != []
+        
     def store(self, **kwargs):
         for k, v in kwargs.items():
             if isinstance(v, tf.Tensor):

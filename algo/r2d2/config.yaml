@@ -1,29 +1,40 @@
 ---
 env:
-    name: atari_pong
-    precision: &prec 32
-    life_done: True
-    sticky_actions: False
+    name: atari_breakout
+    wrapper: baselines
+    sticky_actions: True
     seed: 0
+
 model:
-    q:
-        cnn: ftw
-        v_units: [256]
-        a_units: [256]
-        activation: relu
-        layer_type: noisy
-        duel: False
+    cnn: ftw
+    lstm_units: 512
+    v_units: [512]
+    a_units: [512]
+    activation: relu
+    duel: False
+
 agent:
-    algorithm: &algo d3qn
-    gamma: &gamma 0.99
-    precision: *prec
-    schedule_eps: False
+    algorithm: &algo r2d2
+    gamma: 0.99
+    lambda: .95
+    precision: &prec 16
+    batch_size: &bs 64
+
+    store_state: True
+    burn_in: True
+    sample_size: &ss 80
+    burn_in_size: &bis 40
+    schedule_eps: True
+    add_input: False
     act_eps: 0
 
-    MAX_STEPS: 1e7          # maximum training steps
-    TRAIN_PERIOD: 16          # #frames = 4 agent step when frame skip = 4
-    EVAL_PERIOD: 5e5
-    LOG_PERIOD: 1e5
+    MAX_STEPS: 1e9
+    LOG_PERIOD: &log 1000
+    N_UPDATES: *log
+    
+    # distributed algo params
+    n_workers: 6
+    SYNC_PERIOD: 1500
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -31,32 +42,31 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    loss_type: huber   # huber or mse
-    target_update_period: 32000               # #frames = 8000 agent step when frame skip = 4
-    tbo: False                              # transformed Bellman Operator
-    
+    loss_type: mse                          # huber or mse
+    target_update_period: 1500
+    tbo: False
+
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 6.25e-5
-    clip_norm: 10
-    epsilon: 1.5e-4
+    lr: 1e-4
+    clip_norm: 40
 
     # arguments for PER
-    per_alpha: 0.5
+    per_alpha: 0.4
+    per_eta: .9
     per_epsilon: 1e-4
 
 replay:
-    type: uniform      # uniform, per
+    type: sper                      # per or uniform
     precision: *prec
     # arguments for PER
-    beta0: 0.4
-    to_update_top_priority: True
+    beta0: 0
+    to_update_top_priority: False
 
     # arguments for general replay
-    n_steps: 3
-    gamma: *gamma
-    batch_size: 32
-    min_size: 8e4
-    capacity: 1e5
-    has_nth_obs: False
+    batch_size: *bs
+    sample_size: *ss
+    burn_in_size: *bis
+    min_size: 500
+    capacity: 10000

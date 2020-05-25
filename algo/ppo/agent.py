@@ -92,8 +92,8 @@ class Agent(PPOBase):
 
     @tf.function
     def action(self, obs, deterministic=False):
-        if obs.dtype == np.uint8:
-            obs = tf.cast(obs, self._dtype) / 255.
+        # if obs.dtype == np.uint8:
+        #     obs = tf.cast(obs, self._dtype) / 255.
         if deterministic:
             act_dist = self.ac(obs, return_value=False)
             return act_dist.mode()

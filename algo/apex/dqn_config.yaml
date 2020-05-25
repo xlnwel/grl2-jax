@@ -1,35 +1,35 @@
 ---
 env:
     name: atari_pong
-    wrapper: baselines
-    precision: &prec 32
-    life_done: True
+    wrapper: my_atari
     sticky_actions: True
     frame_stack: 4
     n_envs: 1
     seed: 0
+
 model:
-    q:
-        cnn: ftw
-        v_units: [256]
-        a_units: [256]
-        activation: relu
-        layer_type: noisy
-        duel: False
+    cnn: r2d2
+    v_units: [512]
+    a_units: [512]
+    activation: relu
+    layer_type: noisy
+    duel: True
+
 agent:
     algorithm: &algo apex-dqn
     gamma: &gamma 0.99
-    precision: *prec
+    precision: &prec 32
     schedule_eps: False
     act_eps: 0  # will be overwritten in func.py
     
     # timer&interval
     MAX_STEPS: 1e9
-    LOG_PERIOD: 10000
+    LOG_PERIOD: &log 1000
+    N_UPDATES: *log
     
     # distributed algo params
     n_workers: 6
-    actor_update_period: 1500
+    SYNC_PERIOD: 1500
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -39,7 +39,7 @@ agent:
 
     loss_type: huber                          # huber or mse
     target_update_period: 2500
-    tbo: False
+    tbo: True
 
     # arguments for optimizer
     optimizer: adam

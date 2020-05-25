@@ -42,7 +42,6 @@ def main(env_config, model_config, agent_config, replay_config):
     Learner = am.get_learner_class(Agent)
     learner = fm.create_learner(
         Learner=Learner, 
-        name=name, 
         model_fn=model_fn, 
         replay=replay, 
         config=agent_config, 
@@ -57,7 +56,6 @@ def main(env_config, model_config, agent_config, replay_config):
     for wid in range(agent_config['n_workers']):
         worker = fm.create_worker(
             Worker=Worker, 
-            name='Worker', 
             worker_id=wid, 
             model_fn=model_fn, 
             config=agent_config, 
@@ -70,7 +68,6 @@ def main(env_config, model_config, agent_config, replay_config):
     Evaluator = am.get_evaluator_class()
     evaluator = fm.create_evaluator(
         Evaluator=Evaluator,
-        name=name,
         model_fn=model_fn,
         config=agent_config,
         model_config=model_config,

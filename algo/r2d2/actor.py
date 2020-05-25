@@ -39,19 +39,23 @@ def get_learner_class(BaseAgent):
             dtype = {16: tf.float16, 32: tf.float32}[config['precision']]
             obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
             action_dtype = tf.int32 if env.is_action_discrete else dtype
+            batch_size = config['batch_size']
+            sample_size = config['sample_size']
             data_format = dict(
-                obs=DataFormat((None, *env.obs_shape), obs_dtype),
-                action=DataFormat((None, *env.action_shape), action_dtype),
-                reward=DataFormat((None, ), dtype), 
-                nth_obs=DataFormat((None, *env.obs_shape), obs_dtype),
-                discount=DataFormat((None, ), dtype),
+                obs=DataFormat((batch_size, sample_size, *env.obs_shape), obs_dtype),
+                action=DataFormat((batch_size, sample_size, *env.action_shape), action_dtype),
+                reward=DataFormat((batch_size, sample_size, ), dtype), 
+                discount=DataFormat((batch_size, sample_size, ), dtype),
+                logpi=DataFormat((batch_size, sample_size, ), dtype)
             )
             if ray.get(replay.buffer_type.remote()).endswith('per'):
-                data_format['IS_ratio'] = DataFormat((None, ), dtype)
-                data_format['idxes'] = DataFormat((None, ), tf.int32)
-            if config['n_steps'] > 1:
-                data_format['steps'] = DataFormat((None, ), dtype)
-            process = functools.partial(process_with_env, env=env)
+                data_format['IS_ratio'] = DataFormat((batch_size, ), dtype)
+                data_format['idxes'] = DataFormat((batch_size, ), tf.int32)
+            if config['store_state']:
+                state_size = model_config['lstm_units']
+                data_format['h'] = ((batch_size, state_size), dtype)
+                data_format['c'] = ((batch_size, state_size), dtype)
+            process = functools.partial(process_with_env, env=env, obs_range=[0, 1])
             dataset = RayDataset(replay, data_format, process)
 
             self.models = Ensemble(
@@ -60,7 +64,7 @@ def get_learner_class(BaseAgent):
                 env=env)
 
             super().__init__(
-                name='ddpg' if 'actor' in model_config else 'dq',
+                name='dq',
                 config=config, 
                 models=self.models,
                 dataset=dataset,
@@ -91,6 +95,7 @@ def get_learner_class(BaseAgent):
                         train_steps=self.train_steps,
                         fps=(self.env_steps - start_env_step) / duration,
                         tps=(self.train_steps - start_train_step)/duration)
+                    
                     with self._log_locker:
                         self.log(self.env_steps)
                     self.save(print_terminal_info=False)
@@ -116,7 +121,7 @@ class Worker:
                 env_config, 
                 buffer_config,
                 model_fn,
-                buffer_fn):
+                buffer_fn,):
         silence_tf_logs()
         configure_threads(1, 1)
 
@@ -124,116 +129,125 @@ class Worker:
 
         self.env = env = create_env(env_config)
         self.n_envs = self.env.n_envs
+        self._action_dim = env.action_dim
+
+        self.runner = Runner(self.env, self, nsteps=self.SYNC_PERIOD)
 
         self.models = Ensemble(
                 model_fn=model_fn, 
                 config=model_config, 
                 env=env)
 
-        self._seqlen = buffer_config['seqlen']
-        if buffer_config['seqlen'] == 0:
-            buffer_config['seqlen'] = env.max_episode_steps // env.get('frame_skip', 1)
-        self.buffer = buffer_fn(buffer_config)
+        self._state = None
+
+        self.buffer = buffer_fn(buffer_config, state_keys=['h', 'c'])
         self._is_per = buffer_config['type'].endswith('per')
 
-        self.runner = Runner(self.env, self, nsteps=self._seqlen)
-
-        self._is_dpg = 'actor' in self.models
-        assert self._is_dpg != self.env.is_action_discrete
-        if self._is_dpg:
-            self.actor = self.models['actor']
-            self.q = self.models['q1']
-            self._pull_names = ['actor', 'q1'] if self._is_per else ['actor']
-        else:
-            self.q = self.models['q']
-            self._pull_names = ['q']
+        assert self.env.is_action_discrete == True
+        self.q = self.models['q']
+        self._pull_names = ['q']
         
         self._info = collections.defaultdict(list)
-
         if self._is_per:
             TensorSpecs = dict(
-                obs=(env.obs_shape, env.obs_dtype, 'obs'),
-                action=(env.action_shape, env.action_dtype, 'action'),
-                reward=((), tf.float32, 'reward'),
-                nth_obs=(env.obs_shape, env.obs_dtype, 'nth_obs'),
-                discount=((), tf.float32, 'discount'),
-                steps=((), tf.float32, 'steps')
+                obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
+                action=((self._sample_size, env.action_dim,), tf.int32, 'action'),
+                reward=((self._sample_size,), tf.float32, 'reward'),
+                logpi=((self._sample_size,), tf.float32, 'logpi'),
+                discount=((self._sample_size,), tf.float32, 'discount'),
+                q=((self._sample_size,), tf.float32, 'q')
             )
-            if not self._is_dpg:
-                TensorSpecs['q']= ((), tf.float32, 'q')
+            if self._store_state:
+                state_size = self.q.state_size
+                TensorSpecs['state'] = (
+                    [((sz, ), tf.float32, name) 
+                    for name, sz in zip(['h', 'c'], state_size)]
+                )
             self.compute_priorities = build(self._compute_priorities, TensorSpecs)
 
-    def __call__(self, x, deterministic=False, **kwargs):
-        if self._is_dpg:
-            return self.actor(x, deterministic, self._act_eps)
-        else:
-            x = np.array(x)
-            if len(x.shape) % 2 != 0:
-                x = tf.expand_dims(x, 0)
-            qs = np.squeeze(self.q.value(x).numpy())
-            if deterministic:
-                return np.argmax(qs)
-            if np.random.uniform() < self._act_eps:
-                action = self.env.random_action()
-            else:
-                action = np.argmax(qs)
-            return action, {'q': qs[action]}
+    def __call__(self, obs, reset=np.zeros(1), deterministic=False):
+        if self._state is None:
+            self._state = self.q.get_initial_state(batch_size=self.n_envs)
+        if np.any(reset):
+            mask = tf.cast(1. - reset, tf.float32)
+            self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
+        prev_state = self._state
+        action, terms, self._state = self.action(obs, self._state)
+        if self._store_state:
+            terms['h'] = prev_state[0]
+            terms['c'] = prev_state[1]
+        terms = tf.nest.map_structure(lambda x: np.squeeze(x.numpy()), terms)
+        return action.numpy(), terms
+
+    @tf.function
+    def action(self, obs, state):
+        qs, state = self.q.value(obs, state)
+        qs = tf.squeeze(qs)
+        q = tf.math.reduce_max(qs, axis=-1)
+        action = tf.cast(tf.argmax(qs, axis=-1), tf.int32)
+        rand_act = tfd.Categorical(tf.zeros_like(qs)).sample()
+        eps_action = tf.where(
+            tf.random.uniform(action.shape, 0, 1) < self._act_eps,
+            rand_act, action)
+        prob = tf.cast(eps_action == action, tf.float32)
+        prob = prob * (1 - self._act_eps) + self._act_eps / self._action_dim
+        logpi = tf.math.log(prob)
+        return action, {'logpi': logpi, 'q': q}, state
 
     def run(self, learner, replay):
-        to_sync = Every(self.SYNC_PERIOD)
-        i = 0
         while True:
-            i += 1
-            if to_sync(i):
-                weights = self._pull_weights(learner)
-            self._run(weights)
-            self._send_data(replay)
+            weights = self._pull_weights(learner)
+            self._run(weights, replay)
             self._send_episode_info(learner)
-
-    def _run(self, weights):
-        def collect_fn(env, step, **kwargs):
-            self.buffer.add_data(**kwargs)
+        
+    def _run(self, weights, replay):
+        def collect_fn(env, step, nth_obs, **kwargs):
+            self.buffer.add(**kwargs)
+            if self.buffer.is_full():
+                self._send_data(replay)
+            if env.already_done():
+                self.buffer.reset()
 
         self.models.set_weights(weights)
-        if self._seqlen == 0:
-            self.runner.run_traj(step_fn=collect_fn)
-        else:
-            self.runner.run(step_fn=collect_fn)
-
+        self.runner.run(step_fn=collect_fn)
+        
     def store(self, score, epslen):
         self._info['score'].append(score)
         self._info['epslen'].append(epslen)
 
     @tf.function
-    def _compute_priorities(self, obs, action, reward, nth_obs, discount, steps, q=None):
+    def _compute_priorities(self, obs, action, reward, discount, logpi, state, q):
         target_fn = (transformed_n_step_target if self._tbo 
                     else n_step_target)
-        if self._is_dpg:
-            q = self.q(obs, action)
-            nth_action = self.actor.action(nth_obs, deterministic=False)
-            nth_q = self.q(nth_obs, nth_action)
+        embed = self.q.cnn(obs)
+        if self._add_input:
+            rnn_input = tf.concat([embed, action, reward[..., None]], -1)
         else:
-            nth_action = self.q.action(nth_obs, False)
-            nth_action = tf.one_hot(nth_action, self.env.action_dim)
-            nth_q = self.q.value(nth_obs, nth_action)
-            
-        target_value = target_fn(reward, nth_q, self._gamma, discount, steps)
-        
-        priority = tf.abs(target_value - q)
+            rnn_input = embed
+        x, _ = self.q.rnn(embed, state)
+        next_x = x[:, 1:]
+        next_qs = self.q.mlp(next_x)
+        next_q = tf.math.reduce_max(next_qs, axis=-1)
+        target_value = reward[:, :-1] + discount[:, :-1] * next_q
+        priority = tf.abs(target_value - q[:, :-1])
+        priority = (self._per_eta*tf.math.reduce_max(priority, axis=1) 
+                    + (1-self._per_eta)*tf.math.reduce_mean(priority, axis=1))
         priority += self._per_epsilon
         priority **= self._per_alpha
 
-        tf.debugging.assert_shapes([(priority, (None,))])
+        tf.debugging.assert_shapes([
+            (next_q, (None, self._sample_size-1)),
+            (target_value, (None, self._sample_size-1)),
+            (q, (None, self._sample_size)),
+            (priority, (None,))])
 
         return priority
-        
+
     def _pull_weights(self, learner):
         return ray.get(learner.get_weights.remote(name=self._pull_names))
 
-    def _send_data(self, replay, buffer=None, target_replay='fast_replay'):
-        buffer = buffer or self.buffer
-        mask, data = buffer.sample()
-
+    def _send_data(self, replay):
+        data = self.buffer.sample()
         if self._is_per:
             data_tensor = {}
             for k, v in data.items():
@@ -243,13 +257,11 @@ class Worker:
                     dtype = self.env.action_dtype
                 else:
                     dtype = tf.float32
+                v = np.expand_dims(v, 0)
                 data_tensor[k] = tf.convert_to_tensor(v, dtype)
             del data['q']
             data['priority'] = self.compute_priorities(**data_tensor).numpy()
-
-        replay.merge.remote(data, data['action'].shape[0], target_replay=target_replay)
-
-        buffer.reset()
+        replay.merge.remote(data, self.n_envs)
 
     def _send_episode_info(self, learner):
         if self._info:
@@ -277,22 +289,17 @@ class Evaluator:
                 config=model_config, 
                 env=env)
 
-        self._is_dpg = 'actor' in self.models
-        assert self._is_dpg != self.env.is_action_discrete
-        if self._is_dpg:
-            self.actor = self.models['actor']
-            self._pull_names = ['actor']
-        else:
-            self.q = self.models['q']
-            self._pull_names = ['q']
+        self.q = self.models['q']
+        self._pull_names = ['q']
         
         self._info = collections.defaultdict(list)
 
+    def reset_states(self):
+        self._state = self.q.get_initial_state(batch_size=self.n_envs)
+
     def __call__(self, x, deterministic=True, **kwargs):
-        if self._is_dpg:
-            return self.actor(x, deterministic=True)
-        else:
-            return self.q(x, deterministic=True)
+        action, self._state = self.q.action(x, self._state, deterministic=True)
+        return action.numpy()
 
     def run(self, learner):
         while True:
@@ -306,8 +313,8 @@ class Evaluator:
         self.store(score, epslen)
 
     def store(self, score, epslen):
-        self._info['eval_score'] += score
-        self._info['eval_epslen'] += epslen
+        self._info['eval_score'].append(score)
+        self._info['eval_epslen'].append(epslen)
 
     def _pull_weights(self, learner):
         return ray.get(learner.get_weights.remote(name=self._pull_names))
