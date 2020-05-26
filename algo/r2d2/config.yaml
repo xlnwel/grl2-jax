@@ -6,22 +6,22 @@ env:
     seed: 0
 
 model:
-    cnn: ftw
+    cnn: nature
     lstm_units: 512
     head_units: [512]
     activation: relu
     duel: False
 
 agent:
-    algorithm: &algo r2d2
-    gamma: 0.99
+    algorithm: &algo nature
+    gamma: 0.997
     lambda: .95
     precision: &prec 16
     batch_size: &bs 64
 
     store_state: True
     burn_in: True
-    sample_size: &ss 80
+    sample_size: &ss 120
     burn_in_size: &bis 40
     schedule_eps: True
     add_input: False
@@ -68,4 +68,4 @@ replay:
     sample_size: *ss
     burn_in_size: *bis
     min_size: 500
-    capacity: 10000
+    capacity: 50000

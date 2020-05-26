@@ -8,7 +8,7 @@ env:
     seed: 0
 
 model:
-    cnn: r2d2
+    cnn: nature
     head_units: [512]
     activation: relu
     layer_type: noisy
