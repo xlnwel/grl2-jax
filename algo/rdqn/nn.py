@@ -29,12 +29,12 @@ class Q(Module):
 
         if self._duel:
             self._v_head = mlp(
-                self._v_units, 
+                self._head_units, 
                 out_dim=1, 
                 activation=self._activation, 
                 name='v')
         self._a_head = mlp(
-            self._a_units, 
+            self._head_units, 
             out_dim=action_dim, 
             activation=self._activation, 
             name='a' if self._duel else 'q')
@@ -60,6 +60,8 @@ class Q(Module):
     def value(self, x, state, action=None):
         if self._cnn is None:
             x = tf.reshape(x, (-1, 1, x.shape[-1]))
+            if not hasattr(self, 'shared_layers'):
+                self.shared_layers = mlp(self._shared_units, activation=self._activation)
         else:
             x = tf.reshape(x, (-1, 1, *x.shape[-3:]))
         x = self.cnn(x)

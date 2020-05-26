@@ -13,7 +13,7 @@ from core.base import BaseAgent
 from core.decorator import config
 from utility.display import pwc
 from utility.utils import Every
-from utility.rl_utils import n_step_target, transformed_n_step_target
+from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
 from utility.run import Runner, evaluate
 from env.gym_env import create_env
@@ -191,14 +191,14 @@ class Worker:
             self._send_episode_info(learner)
 
     def _run(self, weights):
-        def collect_fn(env, step, **kwargs):
+        def collect(env, step, **kwargs):
             self.buffer.add_data(**kwargs)
 
         self.models.set_weights(weights)
         if self._seqlen == 0:
-            self.runner.run_traj(step_fn=collect_fn)
+            self.runner.run_traj(step_fn=collect)
         else:
-            self.runner.run(step_fn=collect_fn)
+            self.runner.run(step_fn=collect)
 
     def store(self, score, epslen):
         self._info['score'].append(score)
@@ -206,8 +206,6 @@ class Worker:
 
     @tf.function
     def _compute_priorities(self, obs, action, reward, nth_obs, discount, steps, q=None):
-        target_fn = (transformed_n_step_target if self._tbo 
-                    else n_step_target)
         if self._is_dpg:
             q = self.q(obs, action)
             nth_action = self.actor.action(nth_obs, deterministic=False)
@@ -217,7 +215,7 @@ class Worker:
             nth_action = tf.one_hot(nth_action, self.env.action_dim)
             nth_q = self.q.value(nth_obs, nth_action)
             
-        target_value = target_fn(reward, nth_q, self._gamma, discount, steps)
+        target_value = n_step_target(reward, nth_q, self._gamma, discount, steps, self._tbo)
         
         priority = tf.abs(target_value - q)
         priority += self._per_epsilon
@@ -225,7 +223,7 @@ class Worker:
 
         tf.debugging.assert_shapes([(priority, (None,))])
 
-        return priority
+        return tf.squeeze(priority)
         
     def _pull_weights(self, learner):
         return ray.get(learner.get_weights.remote(name=self._pull_names))

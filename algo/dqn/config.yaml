@@ -10,8 +10,7 @@ env:
 
 model:
     cnn: r2d2
-    v_units: [256]
-    a_units: [256]
+    head_units: [256]
     activation: relu
     layer_type: dense
     duel: True

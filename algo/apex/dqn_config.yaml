@@ -9,8 +9,7 @@ env:
 
 model:
     cnn: r2d2
-    v_units: [512]
-    a_units: [512]
+    head_units: [512]
     activation: relu
     layer_type: noisy
     duel: True

@@ -20,12 +20,12 @@ def train(agent, env, eval_env, replay):
 
     start_step = agent.env_steps
     step = start_step
-    collect_fn = lambda *args, **kwargs: replay.add(**kwargs)
+    collect = lambda *args, **kwargs: replay.add(**kwargs)
     runner = Runner(env, agent, step=step, nsteps=agent.LOG_PERIOD)
     while not replay.good_to_learn():
         step = runner.run(
             action_selector=env.random_action,
-            step_fn=collect_fn)
+            step_fn=collect)
 
     print('Training starts...')
     while step < int(agent.MAX_STEPS):

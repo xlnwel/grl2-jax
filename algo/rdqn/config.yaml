@@ -10,8 +10,7 @@ env:
 model:
     cnn: r2d2
     lstm_units: 512
-    v_units: [512]
-    a_units: [512]
+    head_units: [512]
     activation: relu
     duel: True
 

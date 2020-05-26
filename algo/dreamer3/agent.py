@@ -7,10 +7,9 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 from utility.display import pwc
 from utility.utils import AttrDict, Every
 from utility.rl_utils import retrace_lambda
-from utility.tf_utils import static_scan
+from utility.tf_utils import static_scan, huber_loss
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from utility.graph import video_summary
-from utility.losses import huber_loss
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, step_track

@@ -1,4 +1,3 @@
-from threading import Lock
 import numpy as np
 
 from core.decorator import override
@@ -20,14 +19,9 @@ class PERBase(Replay):
                 [(0, self._beta), (self._beta_steps, 1.)], 
                 outside_value=1.)
 
-        self._top_priority = 2.
+        self._top_priority = 1.
 
         self._sample_i = 0   # count how many times self._sample is called
-
-        # locker used to avoid conflict introduced by tf.data.Dataset
-        # ensuring SumTree update will not happen while sampling
-        # which may cause out-of-range sampling in data_structure.find
-        self._locker = Lock()
 
     @override(Replay)
     def sample(self, batch_size=None):
@@ -51,10 +45,12 @@ class PERBase(Replay):
 
     def update_priorities(self, priorities, idxes):
         assert not np.any(np.isnan(priorities)), priorities
-        with self._locker:
-            if self._to_update_top_priority:
-                self._top_priority = max(self._top_priority, np.max(priorities))
-            self._data_structure.batch_update(idxes, priorities)
+        np.testing.assert_array_less(0, priorities)
+        if self._to_update_top_priority:
+            self._top_priority = max(self._top_priority, np.max(priorities))
+        self._data_structure.batch_update(idxes, priorities)
+        # for i, p in zip(idxes, priorities):
+        #     self._data_structure.update(i, p)
 
     """ Implementation """
     def _update_beta(self):
@@ -87,14 +83,14 @@ class ProportionalPER(PERBase):
     @override(PERBase)
     def _sample(self, batch_size=None):
         batch_size = batch_size or self._batch_size
-        with self._locker:
-            total_priorities = self._data_structure.total_priorities
+        total_priorities = self._data_structure.total_priorities
 
-            intervals = np.linspace(0, total_priorities, batch_size+1)
-            print('before', total_priorities, intervals)
-            values = np.random.uniform(intervals[:-1], intervals[1:])
-            priorities, idxes = self._data_structure.batch_find(values)
-            assert np.max(idxes) < len(self), f'{idxes}\n{values}\n{priorities}\n{total_priorities}, {len(self)}'
+        intervals = np.linspace(0, total_priorities, batch_size+1)
+        # print('before', total_priorities, intervals)
+        values = np.random.uniform(intervals[:-1], intervals[1:])
+        priorities, idxes = self._data_structure.batch_find(values)
+        assert np.max(idxes) < len(self), f'{idxes}\n{values}\n{priorities}\n{total_priorities}, {len(self)}'
+        assert np.min(priorities) > 0, f'idxes: {idxes}\nvalues: {values}\npriorities: {priorities}\ntotal: {total_priorities}, len: {len(self)}'
 
         probabilities = priorities / total_priorities
 

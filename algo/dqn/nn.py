@@ -25,13 +25,13 @@ class Q(Module):
         layer_type = dict(noisy=Noisy, dense=layers.Dense)[self._layer_type]
         if self._duel:
             self._v_head = mlp(
-                self._v_units, 
+                self._head_units, 
                 out_dim=1, 
                 layer_type=layer_type, 
                 activation=self._activation, 
                 name='v')
         self._a_head = mlp(
-            self._a_units, 
+            self._head_units, 
             out_dim=action_dim, 
             layer_type=layer_type, 
             activation=self._activation, 

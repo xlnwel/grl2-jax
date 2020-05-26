@@ -5,10 +5,9 @@ env:
     seed: 0
 model:
     cnn: none
-    v_units: [128, 64]
-    a_units: [128, 64]
+    head_units: [128, 128]
     activation: relu
-    layer_type: noisy
+    layer_type: dense
     duel: True
 agent:
     algorithm: &algo dqn
@@ -30,16 +29,15 @@ agent:
     model_name: *algo
 
     loss_type: huber   # huber or mse
-    target_update_period: 1000
+    target_update_period: 3000
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 3.e-4
+    lr: 1e-4
     clip_norm: 10
-    epsilon: 1.5e-4
-
+    
     # arguments for PER
     per_alpha: 0.5
     per_epsilon: 1.e-4

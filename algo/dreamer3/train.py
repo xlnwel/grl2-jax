@@ -22,7 +22,7 @@ from run import pkg
 def train(agent, env, eval_env, replay):
     frame_skip = getattr(env, 'frame_skip', 1)
     buffer = collections.defaultdict(list)
-    def collect_fn(env, step, nth_obs,**kwargs):
+    def collect(env, step, nth_obs,**kwargs):
         for k, v in kwargs.items():
             buffer[k].append(v)
         if env.already_done():
@@ -34,7 +34,7 @@ def train(agent, env, eval_env, replay):
 
     runner = Runner(env, agent, step=step)
     while not replay.good_to_learn():
-        step = runner.run(step_fn=collect_fn)
+        step = runner.run(step_fn=collect)
         
     to_log = Every(agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
@@ -43,7 +43,7 @@ def train(agent, env, eval_env, replay):
         start_step = step
         start_t = time.time()
         agent.learn_log(step)
-        step = runner.run(step_fn=collect_fn, nsteps=agent.TRAIN_PERIOD)
+        step = runner.run(step_fn=collect, nsteps=agent.TRAIN_PERIOD)
         duration = time.time() - start_t
         agent.store(
             fps=(step-start_step) / duration,

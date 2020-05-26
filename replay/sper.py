@@ -1,5 +1,4 @@
 import math
-import copy
 import collections
 import numpy as np
 
@@ -35,11 +34,8 @@ class SequentialPER(ProportionalPER):
                 self._temp_buff[k].append(v)
         self._tb_idx += 1
         if self._tb_idx == self._sample_size:
-            buff = {k: copy.copy(v) for k, v in self._temp_buff.items()}
-            for k in ['reward', 'discount']:
-                buff[k] = np.array(buff[k], self._dtype)
-            for k in self._state_keys:
-                buff[k] = buff[k][0]
+            buff = {k: v[0] if k in self._state_keys else np.array(v, self._dtype) 
+                for k, v in self._temp_buff.items()}
             self.merge(buff)
             self._tb_idx = self._burn_in_size
 
@@ -54,12 +50,11 @@ class SequentialPER(ProportionalPER):
         else:
             priority = self._top_priority
         np.testing.assert_array_less(0, priority)
-        with self._locker:
-            if n_seqs == 1:
-                self._data_structure.update(self._mem_idx, priority)
-            else:
-                mem_idxes = np.arange(self._mem_idx, self._mem_idx+n_seqs) % self._capacity
-                self._data_structure.batch_update(mem_idxes, priority)
+        if n_seqs == 1:
+            self._data_structure.update(self._mem_idx, priority)
+        else:
+            mem_idxes = np.arange(self._mem_idx, self._mem_idx+n_seqs) % self._capacity
+            self._data_structure.batch_update(mem_idxes, priority)
         # TODO: for n_seqs > 1
         for k, v in local_buffer.items():
             if k in self._state_keys:
@@ -69,7 +64,7 @@ class SequentialPER(ProportionalPER):
         self._memory.append(local_buffer)
         self._mem_idx = (self._mem_idx + 1) % self._capacity
         if not self._is_full and self._mem_idx == 0:
-            print(f'Memory is full({len(self._memory["reward"])})')
+            print(f'Memory is full({len(self)})')
             self._is_full = True
 
     def clear_temp_buffer(self):

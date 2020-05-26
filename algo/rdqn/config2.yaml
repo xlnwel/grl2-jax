@@ -1,26 +1,37 @@
 ---
 env:
     name: LunarLander-v2
-    precision: &prec 32
     seed: 0
+    precision: &prec 32
+
 model:
     cnn: none
-    v_units: [128, 64]
-    a_units: [128, 64]
+    shared_units: [64]
+    lstm_units: 64
+    head_units: [64]
     activation: relu
-    layer_type: dense
     duel: True
+
 agent:
     algorithm: &algo rdqn
-    gamma: &gamma 0.99
+    gamma: 0.99
+    lambda: .95
     precision: *prec
+    batch_size: &bs 16
+
+    store_state: True
+    burn_in: True
+    sample_size: &ss 40
+    burn_in_size: &bis 20
     schedule_eps: False
+    add_input: False
     act_eps: 0.3
 
-    MAX_STEPS: 1.e+8          # maximum training steps
-    TRAIN_PERIOD: 1          # #frames = 4 agent step when frame skip = 4
-    EVAL_PERIOD: 10000
-    LOG_PERIOD: 1000
+    MAX_STEPS: 1e7          # maximum training steps
+    LOG_PERIOD: 1e4
+    EVAL_PERIOD: 1e5
+    TRAIN_PERIOD: 50
+    N_UPDATES: 50
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -28,32 +39,31 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    loss_type: huber   # huber or mse
-    target_update_period: 1000               # #frames = 8000 agent step when frame skip = 4
-    tbo: False                              # transformed Bellman Operator
+    loss_type: mse   # huber or mse
+    target_update_period: 1000
+    tbo: True                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 3.e-4
+    lr: 1e-4
     clip_norm: 10
-    epsilon: 1.5e-4
 
     # arguments for PER
-    per_alpha: 0.5
-    per_epsilon: 1.e-4
+    per_alpha: .9
+    per_eta: .9
+    per_epsilon: 1e-4
 
 replay:
-    type: per      # uniform, per
+    type: sper                      # per or uniform
     precision: *prec
     # arguments for PER
-    beta0: 0.4
-    to_update_top_priority: True
+    beta0: 0
+    to_update_top_priority: False
 
     # arguments for general replay
-    n_steps: 3
-    gamma: *gamma
-    batch_size: 256
-    min_size: 1.e+4
-    capacity: 1.e+5
-    has_nth_obs: False
+    batch_size: *bs
+    sample_size: *ss
+    burn_in_size: *bis
+    min_size: 500
+    capacity: 10000

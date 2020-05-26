@@ -9,6 +9,7 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 import ray
 
 from core.tf_config import *
+from core.dataset import Dataset, process_with_env
 from core.module import Ensemble
 from utility.display import pwc
 from utility.timer import TBTimer, Timer
@@ -16,7 +17,6 @@ from utility.utils import Every, convert_dtype
 from utility.ray_setup import cpu_affinity
 from env.gym_env import create_env
 from replay.func import create_replay
-from core.dataset import Dataset, process_with_env
 from algo.dreamer.env import make_env
 from algo.dreamer.train import get_data_format
 
@@ -41,44 +41,42 @@ def get_learner_class(BaseAgent):
             env_config['n_envs'] = 1
             env = create_env(env_config, make_env)
             assert env.obs_dtype == np.uint8, \
-                f'Expect image observation of type uint8, but get {env.obs_dtype}'
+                f'Expect observation of type uint8, but get {env.obs_dtype}'
             self._action_shape = env.action_shape
             self._action_dim = env.action_dim
-            self._n_ar = getattr(env, 'frame_skip', 1)
+            self._frame_skip = getattr(env, 'frame_skip', 1)
 
             self.models = Ensemble(
                 model_fn=model_fn,
                 config=model_config, 
-                obs_shape=env.obs_shape,
-                action_dim=env.action_dim, 
-                is_action_discrete=env.is_action_discrete
+                env=env
             )
-
-            super().__init__(
-                name=name, 
-                config=config, 
-                models=self.models,
-                dataset=None,
-                env=env)
 
             replay_config['dir'] = config['root_dir'].replace('logs', 'data')
             self.replay = create_replay(replay_config, 
-                state_keys=list(self.rssm.state_size._asdict()))
+                state_keys=list(self.models['rssm'].state_size._asdict()))
             self.replay.load_data()
             data_format = get_data_format(env, config['batch_size'], config['sample_size'])
             if self._store_state:
                 data_format.update({
                     k: ((config['batch_size'], v), self._dtype)
-                        for k, v in self.rssm.state_size._asdict().items()
+                        for k, v in self.models['rssm'].state_size._asdict().items()
                 })
             process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
-            self.dataset = Dataset(self.replay, data_format, process, prefetch=10)
+            dataset = Dataset(self.replay, data_format, process, prefetch=10)
+
+            super().__init__(
+                name=name, 
+                config=config, 
+                models=self.models,
+                dataset=dataset,
+                env=env)
 
             self.env_steps = self.env_steps()
 
         def merge(self, episode):
             self.replay.merge(episode)
-            epslen = (episode['reward'].size-1)*self._n_ar
+            epslen = (episode['reward'].size-1)*self._frame_skip
             self.env_steps += epslen
             self.store(
                 score=np.sum(episode['reward']), 

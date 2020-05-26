@@ -13,7 +13,7 @@ from core.base import BaseAgent
 from core.decorator import config
 from utility.display import pwc
 from utility.utils import Every
-from utility.rl_utils import n_step_target, transformed_n_step_target
+from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
 from utility.run import Runner, evaluate
 from env.gym_env import create_env
@@ -201,7 +201,7 @@ class Worker:
             self._send_episode_info(learner)
         
     def _run(self, weights, replay):
-        def collect_fn(env, step, nth_obs, **kwargs):
+        def collect(env, step, nth_obs, **kwargs):
             self.buffer.add(**kwargs)
             if self.buffer.is_full():
                 self._send_data(replay)
@@ -209,7 +209,7 @@ class Worker:
                 self.buffer.reset()
 
         self.models.set_weights(weights)
-        self.runner.run(step_fn=collect_fn)
+        self.runner.run(step_fn=collect)
         
     def store(self, score, epslen):
         self._info['score'].append(score)
@@ -217,8 +217,6 @@ class Worker:
 
     @tf.function
     def _compute_priorities(self, obs, action, reward, discount, logpi, state, q):
-        target_fn = (transformed_n_step_target if self._tbo 
-                    else n_step_target)
         embed = self.q.cnn(obs)
         if self._add_input:
             rnn_input = tf.concat([embed, action, reward[..., None]], -1)
@@ -228,7 +226,7 @@ class Worker:
         next_x = x[:, 1:]
         next_qs = self.q.mlp(next_x)
         next_q = tf.math.reduce_max(next_qs, axis=-1)
-        target_value = reward[:, :-1] + discount[:, :-1] * next_q
+        target_value = n_step_target(reward[:, :-1], next_q, discount[:, :-1], self._gamma, tbo=self._tbo)
         priority = tf.abs(target_value - q[:, :-1])
         priority = (self._per_eta*tf.math.reduce_max(priority, axis=1) 
                     + (1-self._per_eta)*tf.math.reduce_mean(priority, axis=1))
@@ -241,7 +239,7 @@ class Worker:
             (q, (None, self._sample_size)),
             (priority, (None,))])
 
-        return priority
+        return tf.squeeze(priority)
 
     def _pull_weights(self, learner):
         return ray.get(learner.get_weights.remote(name=self._pull_names))

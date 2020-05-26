@@ -4,7 +4,6 @@ import tensorflow as tf
 from utility.display import pwc
 from utility.rl_utils import *
 from utility.utils import Every
-from utility.losses import huber_loss
 from utility.schedule import TFPiecewiseSchedule, PiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
@@ -25,8 +24,6 @@ class Agent(BaseAgent):
         if self._schedule_eps:
             self._act_eps = PiecewiseSchedule(((5e4, 1), (4e5, .02)))
 
-        self._to_sync = Every(self._target_update_period)
-        # optimizer
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
         self._ckpt_models['optimizer'] = self._optimizer
 
@@ -36,7 +33,6 @@ class Agent(BaseAgent):
         self._action_dim = env.action_dim
 
         # Explicitly instantiate tf.function to initialize variables
-        obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else self._dtype
         TensorSpecs = dict(
             obs=((self._sample_size, *env.obs_shape), self._dtype, 'obs'),
             action=((self._sample_size, env.action_dim,), self._dtype, 'action'),
@@ -54,6 +50,7 @@ class Agent(BaseAgent):
             )
         self.learn = build(self._learn, TensorSpecs)
 
+        self._to_sync = Every(self._target_update_period)
         self._sync_target_nets()
 
     def reset_states(self, state=None):
@@ -126,9 +123,8 @@ class Agent(BaseAgent):
                 bi_discount, discount = tf.split(discount, [bis, ss], 1)
                 _, logpi = tf.split(logpi, [bis, ss], 1)
                 if self._add_input:
-                    bi_reward = tf.expand_dims(bi_reward, -1)
-                    bi_rnn_input = tf.concat([bi_embed, bi_action, bi_reward], -1)
-                    tbi_rnn_input = tf.concat([tbi_embed, bi_action, bi_reward], -1)
+                    bi_rnn_input = tf.concat([bi_embed, bi_action], -1)
+                    tbi_rnn_input = tf.concat([tbi_embed, bi_action], -1)
                 else:
                     bi_rnn_input = bi_embed
                     tbi_rnn_input = tbi_embed
@@ -139,9 +135,8 @@ class Agent(BaseAgent):
                 o_state = t_state = state
                 ss = self._sample_size
             if self._add_input:
-                expanded_reward = reward[..., None]
-                rnn_input = tf.concat([embed, action, expanded_reward], -1)
-                t_rnn_input = tf.concat([t_embed, action, expanded_reward], -1)
+                rnn_input = tf.concat([embed, action], -1)
+                t_rnn_input = tf.concat([t_embed, action], -1)
             else:
                 rnn_input = embed
                 t_rnn_input = t_embed
@@ -161,14 +156,10 @@ class Agent(BaseAgent):
             next_prob = next_action == tf.argmax(action[:, 1:], axis=-1)
             next_prob = tf.cast(next_prob, logpi.dtype)
             ratio = next_prob / tf.math.exp(logpi[:, 1:])
-            if self._tbo:
-                q = inverse_h(q)
-                t_next_q = inverse_h(t_next_q)
             returns = retrace_lambda(
                 reward[:, :-1], q, t_next_q, 
-                ratio, discount, lambda_=self._lambda, axis=1)
-            if self._tbo:
-                returns = h(returns)
+                ratio, discount, lambda_=self._lambda, 
+                axis=1, tbo=self._tbo)
             returns = tf.stop_gradient(returns)
             error = returns - q
             loss = tf.reduce_mean(IS_ratio[:, None] * loss_fn(error))

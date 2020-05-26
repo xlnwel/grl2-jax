@@ -17,7 +17,7 @@ from run import pkg
 
 
 def train(agent, env, eval_env, replay):
-    def collect_fn(env, step, nth_obs, **kwargs):
+    def collect(env, step, nth_obs, **kwargs):
         replay.add(**kwargs)
         if env.already_done():
             replay.clear_temp_buffer()
@@ -25,7 +25,7 @@ def train(agent, env, eval_env, replay):
     step = agent.env_steps
     runner = Runner(env, agent, step=step)
     while not replay.good_to_learn():
-        step = runner.run(step_fn=collect_fn, nsteps=int(1e4))
+        step = runner.run(step_fn=collect, nsteps=int(1e4))
 
     to_log = Every(agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
@@ -34,7 +34,7 @@ def train(agent, env, eval_env, replay):
         start_step = step
         start_t = time.time()
         agent.learn_log(step)
-        step = runner.run(step_fn=collect_fn, nsteps=agent.TRAIN_PERIOD)
+        step = runner.run(step_fn=collect, nsteps=agent.TRAIN_PERIOD)
         duration = time.time() - start_t
         agent.store(
             fps=(step-start_step) / duration,

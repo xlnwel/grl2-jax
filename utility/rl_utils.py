@@ -4,6 +4,14 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 from utility.tf_utils import static_scan
 
 
+def huber_loss(x, y=None, delta=1.):
+    if y != None:   # if y is passed, take x-y as error, otherwise, take x as error
+        x = x - y
+    return tf.where(tf.abs(x) <= delta, 
+                    0.5 * tf.square(x), 
+                    delta * (tf.abs(x) - 0.5 * delta), 
+                    name='huber_loss')
+
 def clip_but_pass_gradient(x, l=-1., u=1.):
     clip_up = tf.cast(x > u, tf.float32)
     clip_low = tf.cast(x < l, tf.float32)
@@ -30,9 +38,6 @@ def logpi_correction(action, logpi, is_action_squashed):
 
     return logpi
 
-def n_step_target(reward, nth_value, discount=1., gamma=1., steps=1.):
-    return reward + discount * gamma**steps * nth_value
-
 def h(x, epsilon=1e-3):
     """ h function defined in the transfomred Bellman operator """
     sqrt_term = tf.math.sqrt(tf.math.abs(x) + 1)
@@ -46,10 +51,15 @@ def inverse_h(x, epsilon=1e-3):
     frac_term = (sqrt_term - 1) / (2 * epsilon)
     return tf.math.sign(x) * (frac_term ** 2 - 1)
 
-def transformed_n_step_target(reward, nth_value, discount=1., gamma=1., steps=1.):
-    """Transformed Bellman operator defined in Ape-X DQfD"""
-    return h(reward + discount * gamma**steps * inverse_h(nth_value))
-
+def n_step_target(reward, nth_value, discount=1., gamma=.99, steps=1., tbo=False):
+    """
+    discount is only the done signal
+    """
+    if tbo:
+        return h(reward + discount * gamma**steps * inverse_h(nth_value))
+    else:
+        return reward + discount * gamma**steps * nth_value
+    
 def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
     """
     discount includes the done signal if there is any.
@@ -78,7 +88,11 @@ def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
          returns = tf.transpose(returns, dims)
     return returns
 
-def retrace_lambda(reward, q, next_value, ratio, discount, lambda_=1, ratio_clip=1, axis=0):
+def retrace_lambda(reward, q, next_value, ratio, discount, lambda_=.95, ratio_clip=1, axis=0, tbo=False):
+    """
+    discount includes the done signal if there is any.
+    axis specifies the time dimension
+    """
     if isinstance(discount, (int, float)):
         discount = discount * tf.ones_like(reward)
     # swap 'axis' with the 0-th dimension
@@ -96,17 +110,23 @@ def retrace_lambda(reward, q, next_value, ratio, discount, lambda_=1, ratio_clip
     ratio *= lambda_
     delta = reward + discount * next_value - q
 
+    if tbo:
+        q = inverse_h(q)
+        next_value = inverse_h(next_value)
     diff = static_scan(
         lambda acc, x: x[0] + x[1] * x[2] * acc,
         tf.zeros_like(next_value[-1]), (delta, discount, ratio), 
         reverse=True
     )
-    target_q = q + diff
+    returns = q + diff
 
     if axis != 0:
-        target_q = tf.transpose(target_q, dims)
+        returns = tf.transpose(returns, dims)
 
-    return target_q
+    if tbo:
+        returns = h(returns)
+        
+    return returns
 
 def apex_epsilon_greedy(worker_id, n_workers, epsilon=.4, alpha=8):
     # the 𝝐-greedy schedule used in Ape-X and Agent57

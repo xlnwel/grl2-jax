@@ -3,9 +3,8 @@ import tensorflow as tf
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
-from utility.rl_utils import n_step_target, transformed_n_step_target
+from utility.rl_utils import n_step_target, huber_loss
 from utility.utils import Every
-from utility.losses import huber_loss
 from utility.schedule import TFPiecewiseSchedule, PiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
@@ -90,8 +89,6 @@ class Agent(BaseAgent):
 
     @tf.function
     def _learn(self, obs, action, reward, nth_obs, discount, steps=1, IS_ratio=1):
-        target_fn = (transformed_n_step_target if self._tbo 
-                    else n_step_target)
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
@@ -100,7 +97,7 @@ class Agent(BaseAgent):
             nth_action = self.q.action(nth_obs, noisy=False)
             nth_action = tf.one_hot(nth_action, self._action_dim, dtype=self._dtype)
             nth_q = self.target_q.value(nth_obs, nth_action, noisy=False)
-            returns = target_fn(reward, nth_q, discount, self._gamma, steps)
+            returns = n_step_target(reward, nth_q, discount, self._gamma, steps, self._tbo)
             returns = tf.stop_gradient(returns)
             error = returns - q
             loss = tf.reduce_mean(IS_ratio * loss_fn(error))

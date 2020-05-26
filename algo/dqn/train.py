@@ -28,12 +28,12 @@ def train(agent, env, eval_env, replay):
             agent.learn_log(step)
     
     step = agent.env_steps
-    collect_fn = lambda *args, **kwargs: replay.add(**kwargs)
+    collect = lambda *args, **kwargs: replay.add(**kwargs)
     runner = Runner(env, agent, step=step)
     while not replay.good_to_learn():
         step = runner.run(
             action_selector=env.random_action, 
-            step_fn=collect_fn, nsteps=int(1e4))
+            step_fn=collect, nsteps=int(1e4))
 
     to_log = Every(agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
