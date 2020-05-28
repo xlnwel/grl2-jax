@@ -1,15 +1,13 @@
 import collections
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
 import ray
 
 
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 
 
-def process_with_env(data, env, obs_range=None):
-    dtype = global_policy().compute_dtype
+def process_with_env(data, env, obs_range=None, one_hot_action=False, dtype=tf.float32):
     with tf.device('cpu:0'):
         if env.obs_dtype == np.uint8 and obs_range is not None:
             if obs_range == [0, 1]:
@@ -22,7 +20,7 @@ def process_with_env(data, env, obs_range=None):
                         data[k] = tf.cast(data[k], dtype) / 255. - .5
             else:
                 raise ValueError(obs_range)
-        if env.is_action_discrete:
+        if one_hot_action and env.is_action_discrete:
             data['action'] = tf.one_hot(data['action'], env.action_dim, dtype=dtype)
     return data
 
@@ -52,8 +50,8 @@ class Dataset:
                 print('\t', k, v)
         self._iterator = self._prepare_dataset(process_fn, batch_size, **kwargs)
 
-    def buffer_type(self):
-        return self._buffer.buffer_type()
+    def name(self):
+        return self._buffer.name()
 
     def good_to_learn(self):
         return self._buffer.good_to_learn()
@@ -85,8 +83,8 @@ class Dataset:
             yield self._buffer.sample()
 
 class RayDataset(Dataset):
-    def buffer_type(self):
-        return ray.get(self._buffer.buffer_type.remote())
+    def name(self):
+        return ray.get(self._buffer.name.remote())
 
     def good_to_learn(self):
         return ray.get(self._buffer.good_to_learn.remote())

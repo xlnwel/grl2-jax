@@ -6,8 +6,9 @@ from core.tf_config import *
 from utility.display import pwc
 from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
+from utility import pkg
 from env.gym_env import create_env
-from run import pkg
+
 
 def main(env_config, model_config, agent_config, n, record=False, size=(128, 128)):
     silence_tf_logs()
@@ -24,7 +25,7 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
 
     env = create_env(env_config)
 
-    create_model, Agent = pkg.import_agent(agent_config)
+    create_model, Agent = pkg.import_agent(config=agent_config)
 
     actor = create_model(model_config, env)['actor']
 

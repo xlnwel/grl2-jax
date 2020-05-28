@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target, huber_loss
@@ -13,10 +12,29 @@ from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 
 
+def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
+    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
+    action_dtype = tf.int32 if env.is_action_discrete else dtype
+    data_format = dict(
+        obs=((None, *env.obs_shape), obs_dtype),
+        action=((None, *env.action_shape), action_dtype),
+        reward=((None, ), dtype), 
+        nth_obs=((None, *env.obs_shape), obs_dtype),
+        discount=((None, ), dtype),
+    )
+    if is_per:
+        data_format['IS_ratio'] = ((None, ), dtype)
+        data_format['idxes'] = ((None, ), tf.int32)
+    if n_steps > 1:
+        data_format['steps'] = ((None, ), dtype)
+
+    return data_format
+
+
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
-        self._is_per = dataset and not dataset.buffer_type().endswith('uniform')
+        self._is_per = dataset and dataset.name().endswith('per')
         is_nsteps = dataset and 'steps' in dataset.data_format
         self.dataset = dataset
 
@@ -37,7 +55,7 @@ class Agent(BaseAgent):
         obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else self._dtype
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            action=((env.action_dim,), self._dtype, 'action'),
+            action=((), env.action_dtype, 'action'),
             reward=((), self._dtype, 'reward'),
             nth_obs=(env.obs_shape, env.obs_dtype, 'nth_obs'),
             discount=((), self._dtype, 'discount'),
@@ -55,7 +73,7 @@ class Agent(BaseAgent):
 
     def __call__(self, obs, deterministic=False, **kwargs):
         if self._schedule_eps:
-            eps = self._act_eps.value(self.env_steps)
+            eps = self._act_eps.value(self.env_step)
             self.store(act_eps=eps)
         else:
             eps = self._act_eps
@@ -74,7 +92,7 @@ class Agent(BaseAgent):
                 del data['idxes']
             with TBTimer('learn', 2500):
                 terms = self.learn(**data)
-            if self._to_sync(self.train_steps):
+            if self._to_sync(self.train_step):
                 self._sync_target_nets()
 
             if self._schedule_lr:

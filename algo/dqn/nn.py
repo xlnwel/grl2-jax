@@ -29,12 +29,14 @@ class Q(Module):
                 out_dim=1, 
                 layer_type=layer_type, 
                 activation=self._activation, 
+                out_dtype='float32',
                 name='v')
         self._a_head = mlp(
             self._head_units, 
             out_dim=action_dim, 
             layer_type=layer_type, 
             activation=self._activation, 
+            out_dtype='float32',
             name='a' if self._duel else 'q')
 
     def __call__(self, x, deterministic=False, epsilon=0):
@@ -76,7 +78,9 @@ class Q(Module):
             q = self._a_head(x, noisy=noisy, reset=reset)
 
         if action is not None:
-            assert q.shape[-1] == action.shape[-1]
+            if len(action.shape) < len(q.shape):
+                action = tf.one_hot(action, self._action_dim, dtype=q.dtype)
+            assert q.shape[-1] == action.shape[-1], f'{q.shape} vs {action.shape}'
             q = tf.reduce_sum(q * action, -1)
         return q
 

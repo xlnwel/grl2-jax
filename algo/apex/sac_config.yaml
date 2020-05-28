@@ -21,6 +21,7 @@ model:
 agent:
     algorithm: &algo apex-sac
     gamma: &gamma .99
+    n_steps: &nsteps 3      # n-step target
     polyak: .995
     precision: *prec
     act_eps: 0
@@ -59,7 +60,7 @@ replay:
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 1
+    n_steps: *nsteps
     gamma: *gamma
     batch_size: 512
     min_size: 5e+4

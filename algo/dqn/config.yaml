@@ -2,7 +2,6 @@
 env:
     name: atari_pong
     wrapper: my_atari
-    precision: &prec 32
     life_done: False
     sticky_actions: True
     frame_stack: 4
@@ -18,7 +17,7 @@ model:
 agent:
     algorithm: &algo dqn
     gamma: &gamma 0.99
-    precision: *prec
+    precision: &prec 32
     schedule_eps: True
     act_eps: 0
 

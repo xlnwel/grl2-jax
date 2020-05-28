@@ -206,7 +206,7 @@ class LogEpisode(Wrapper):
         obs = self.env.reset()
         transition = dict(
             obs=obs,
-            action=np.zeros(self.env.action_space.shape, np.float32),
+            prev_action=np.zeros(self.env.action_space.shape, np.float32),
             reward=0.,
             discount=1, 
             **kwargs
@@ -219,7 +219,7 @@ class LogEpisode(Wrapper):
         reward = convert_dtype(reward, self._precision)
         transition = dict(
             obs=obs,
-            action=action,
+            prev_action=action,
             reward=reward,
             discount=1-done,
             **kwargs

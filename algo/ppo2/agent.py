@@ -117,7 +117,7 @@ class Agent(PPOBase):
                 break
         self.store(approx_kl=approx_kl)
         if not isinstance(self._lr, float):
-            step = tf.cast(self._env_steps, self._dtype)
+            step = tf.cast(self._env_step, self._dtype)
             self.store(learning_rate=self._lr(step))
 
         return i * self.N_MBS + j + 1

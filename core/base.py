@@ -16,8 +16,8 @@ class BaseAgent(ABC):
             name: optional name for print
         """
         restore(self._ckpt_manager, self._ckpt, self._ckpt_path, self._model_name)
-        self.env_steps = self._env_steps.numpy()
-        self.train_steps = self._train_steps.numpy()
+        self.env_step = self._env_step.numpy()
+        self.train_step = self._train_step.numpy()
 
     def save(self, print_terminal_info=False):
         """ Save Model
@@ -25,8 +25,8 @@ class BaseAgent(ABC):
         Args:
             ckpt_manager: An instance of tf.train.CheckpointManager
         """
-        self._env_steps.assign(self.env_steps)
-        self._train_steps.assign(self.train_steps)
+        self._env_step.assign(self.env_step)
+        self._train_step.assign(self.train_step)
         save(self._ckpt_manager, print_terminal_info=print_terminal_info)
 
     """ Logging """

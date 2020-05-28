@@ -9,16 +9,16 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utility.utils import str2bool, eval_str
 from utility.yaml_op import load_config
 from utility.display import assert_colorize, pwc
+from utility import pkg
 from run.grid_search import GridSearch
-from run.pkg import get_package, import_main
 from run.cmd_args import parse_cmd_args
 
     
 def get_config_file(algo, environment):
-    pkg = get_package(algo, 0, '/')
+    algo_pkg = pkg.get_package(algo, 0, '/')
     names = algo.split('-')
     file_name = 'config.yaml' if len(names) == 1 else f'{names[-1]}_config.yaml'
-    return f'{pkg}/{file_name}'
+    return f'{algo_pkg}/{file_name}'
 
 def change_config(kw, prefix, env_config, model_config, agent_config, replay_config):
     if prefix != '':
@@ -71,8 +71,7 @@ if __name__ == '__main__':
         model_config = config['model']
         agent_config = config['agent']
         replay_config = config.get('buffer') or config.get('replay')
-        algo = agent_config['algorithm']
-        main = import_main(algo, 'train')
+        main = pkg.import_main('train', config=agent_config)
 
         main(env_config, model_config, agent_config, replay_config)
     else:
@@ -81,7 +80,7 @@ if __name__ == '__main__':
         algo_env = list(itertools.product(algorithm, environment))
         for algo, env in algo_env:
             config_file = get_config_file(algo, env)
-            main = import_main(algo, 'train')
+            main = pkg.import_main('train', algo)
 
             prefix = cmd_args.prefix
             config = load_config(config_file)

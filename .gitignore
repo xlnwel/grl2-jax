@@ -4,16 +4,8 @@
 __pycache__
 **logs**
 vs.code-workspace
-algo/seed
-algo/exploration
-layers
 conventions.md
-env/gym_env2.py
 **ray_test.pyw
-**dew**
 .pytest_cache*
 *ipynb
 **test**
-**ppo3**
-**seed2**
-**rnn**

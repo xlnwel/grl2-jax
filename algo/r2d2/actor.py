@@ -16,6 +16,7 @@ from utility.utils import Every
 from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
 from utility.run import Runner, evaluate
+from utility import pkg
 from env.gym_env import create_env
 from core.dataset import process_with_env, DataFormat, RayDataset
 
@@ -36,32 +37,23 @@ def get_learner_class(BaseAgent):
 
             env = create_env(env_config)
             
-            dtype = {16: tf.float16, 32: tf.float32}[config['precision']]
-            obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
-            action_dtype = tf.int32 if env.is_action_discrete else dtype
-            batch_size = config['batch_size']
-            sample_size = config['sample_size']
-            data_format = dict(
-                obs=DataFormat((batch_size, sample_size, *env.obs_shape), obs_dtype),
-                action=DataFormat((batch_size, sample_size, *env.action_shape), action_dtype),
-                reward=DataFormat((batch_size, sample_size, ), dtype), 
-                discount=DataFormat((batch_size, sample_size, ), dtype),
-                logpi=DataFormat((batch_size, sample_size, ), dtype)
-            )
-            if ray.get(replay.buffer_type.remote()).endswith('per'):
-                data_format['IS_ratio'] = DataFormat((batch_size, ), dtype)
-                data_format['idxes'] = DataFormat((batch_size, ), tf.int32)
-            if config['store_state']:
-                state_size = model_config['lstm_units']
-                data_format['h'] = ((batch_size, state_size), dtype)
-                data_format['c'] = ((batch_size, state_size), dtype)
-            process = functools.partial(process_with_env, env=env, obs_range=[0, 1])
-            dataset = RayDataset(replay, data_format, process)
-
             self.models = Ensemble(
                 model_fn=model_fn, 
                 config=model_config, 
                 env=env)
+
+            dtype = {16: tf.float16, 32: tf.float32}[config['precision']]
+            obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
+            action_dtype = tf.int32 if env.is_action_discrete else tf.float32
+            batch_size = config['batch_size']
+            sample_size = config['sample_size']
+            is_per = ray.get(replay.name.remote())
+            store_state = config['store_state']
+            data_format = pkg.import_module('agent', config=config).get_data_format(
+                env, batch_size, sample_size, is_per, store_state, self.models['q'].state_size
+            )
+            process = functools.partial(process_with_env, env=env, obs_range=[0, 1])
+            dataset = RayDataset(replay, data_format, process)
 
             super().__init__(
                 name='dq',
@@ -84,20 +76,20 @@ def get_learner_class(BaseAgent):
             pwc(f'{self.name} starts learning...', color='blue')
 
             to_log = Every(self.LOG_PERIOD)
-            while self.train_steps < self.MAX_STEPS:
-                start_train_step = self.train_steps
-                start_env_step = self.env_steps
+            while self.train_step < self.MAX_STEPS:
+                start_train_step = self.train_step
+                start_env_step = self.env_step
                 start_time = time.time()
                 self.learn_log(start_env_step)
-                if to_log(self.train_steps) and 'score' in self._logger and 'eval_score' in self._logger:
+                if to_log(self.train_step) and 'score' in self._logger and 'eval_score' in self._logger:
                     duration = time.time() - start_time
                     self.store(
-                        train_steps=self.train_steps,
-                        fps=(self.env_steps - start_env_step) / duration,
-                        tps=(self.train_steps - start_train_step)/duration)
+                        train_step=self.train_step,
+                        fps=(self.env_step - start_env_step) / duration,
+                        tps=(self.train_step - start_train_step)/duration)
                     
                     with self._log_locker:
-                        self.log(self.env_steps)
+                        self.log(self.env_step)
                     self.save(print_terminal_info=False)
 
         def get_weights(self, name=None):
@@ -107,7 +99,7 @@ def get_learner_class(BaseAgent):
             with self._log_locker:
                 self.store(**kwargs)
             if 'epslen' in kwargs:
-                self.env_steps += np.sum(kwargs['epslen'])
+                self.env_step += np.sum(kwargs['epslen'])
 
     return Learner
 
@@ -151,7 +143,7 @@ class Worker:
         if self._is_per:
             TensorSpecs = dict(
                 obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
-                action=((self._sample_size, env.action_dim,), tf.int32, 'action'),
+                action=((self._sample_size,), tf.int32, 'action'),
                 reward=((self._sample_size,), tf.float32, 'reward'),
                 logpi=((self._sample_size,), tf.float32, 'logpi'),
                 discount=((self._sample_size,), tf.float32, 'discount'),
@@ -219,10 +211,11 @@ class Worker:
     def _compute_priorities(self, obs, action, reward, discount, logpi, state, q):
         embed = self.q.cnn(obs)
         if self._add_input:
-            rnn_input = tf.concat([embed, action, reward[..., None]], -1)
+            action_oh = tf.one_hot(action, self._action_dim, dtype=embed.dtype)
+            rnn_input = tf.concat([embed, action_oh, reward[..., None]], -1)
         else:
             rnn_input = embed
-        x, _ = self.q.rnn(embed, state)
+        x, _ = self.q.rnn(rnn_input, state)
         next_x = x[:, 1:]
         next_qs = self.q.mlp(next_x)
         next_q = tf.math.reduce_max(next_qs, axis=-1)

@@ -76,7 +76,8 @@ class TBTimer:
             aggregator.add(duration)
             if aggregator.count >= self._period:
                 duration = aggregator.average()
-                tf.summary.scalar(f'timer/{self._summary_name}', duration)
+                step = tf.summary.experimental.get_step()
+                tf.summary.scalar(f'timer/{self._summary_name}', duration, step=step)
                 aggregator.reset()
                 if self._print_terminal_info:
                     pwc(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times', color='blue')

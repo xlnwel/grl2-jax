@@ -1,8 +1,8 @@
 ---
 env:
     name: atari_breakout
-    wrapper: baselines
-    sticky_actions: True
+    wrapper: my_atari
+    sticky_actions: False
     seed: 0
 
 model:
@@ -13,7 +13,7 @@ model:
     duel: False
 
 agent:
-    algorithm: &algo nature
+    algorithm: &algo r2d2
     gamma: 0.997
     lambda: .95
     precision: &prec 16
@@ -23,7 +23,6 @@ agent:
     burn_in: True
     sample_size: &ss 120
     burn_in_size: &bis 40
-    schedule_eps: True
     add_input: False
     act_eps: 0
 
@@ -33,7 +32,7 @@ agent:
     
     # distributed algo params
     n_workers: 6
-    SYNC_PERIOD: 1500
+    SYNC_PERIOD: 5000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -43,12 +42,13 @@ agent:
 
     loss_type: mse                          # huber or mse
     target_update_period: 1500
-    tbo: False
+    tbo: True
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
     lr: 1e-4
+    epsilon: 1e-4
     clip_norm: 40
 
     # arguments for PER
@@ -60,12 +60,12 @@ replay:
     type: sper                      # per or uniform
     precision: *prec
     # arguments for PER
-    beta0: 0
+    beta0: 0                        # follow Agent57
     to_update_top_priority: False
 
     # arguments for general replay
     batch_size: *bs
     sample_size: *ss
     burn_in_size: *bis
-    min_size: 500
-    capacity: 50000
+    min_size: 1000                  # 6250 in Agent57
+    capacity: 5e4                 # 5e6 in Agent57

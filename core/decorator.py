@@ -35,10 +35,10 @@ def agent_config(init_fn):
             if isinstance(model, tf.Module) or isinstance(model, tf.Variable):
                 self._ckpt_models[name_] = model
                 
-        self._env_steps = tf.Variable(0, dtype=tf.int64)
-        self._train_steps = tf.Variable(0, dtype=tf.int64)
-        self.env_steps = 0
-        self.train_steps = 0
+        self._env_step = tf.Variable(0, dtype=tf.int64)
+        self._train_step = tf.Variable(0, dtype=tf.int64)
+        self.env_step = 0
+        self.train_step = 0
 
         if config.get('writer', True):
             self._writer = setup_tensorboard(self._root_dir, self._model_name)
@@ -57,7 +57,7 @@ def agent_config(init_fn):
         
         self._ckpt, self._ckpt_path, self._ckpt_manager = \
             setup_checkpoint(self._ckpt_models, self._root_dir, 
-                            self._model_name, self._env_steps, self._train_steps)
+                            self._model_name, self._env_step, self._train_step)
 
         self.restore()
         
@@ -79,8 +79,9 @@ def config(init_fn):
 def step_track(learn_log):
     @wraps(learn_log)
     def wrapper(self, step):
-        self.env_steps = step
-        self.train_steps += learn_log(self, step)
+        if step > self.env_step:
+            self.env_step = step
+        self.train_step += learn_log(self, step)
 
     return wrapper
 

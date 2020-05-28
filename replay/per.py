@@ -37,8 +37,6 @@ class PERBase(Replay):
 
     @override(Replay)
     def add(self, **kwargs):
-        # it is okay to add when sampling as it does not decrease the priorities, 
-        # so no locker is needed
         super().add(**kwargs)
         # super().add updates self._mem_idx 
         self._data_structure.update(self._mem_idx - 1, self._top_priority)
@@ -49,8 +47,6 @@ class PERBase(Replay):
         if self._to_update_top_priority:
             self._top_priority = max(self._top_priority, np.max(priorities))
         self._data_structure.batch_update(idxes, priorities)
-        # for i, p in zip(idxes, priorities):
-        #     self._data_structure.update(i, p)
 
     """ Implementation """
     def _update_beta(self):
@@ -86,7 +82,6 @@ class ProportionalPER(PERBase):
         total_priorities = self._data_structure.total_priorities
 
         intervals = np.linspace(0, total_priorities, batch_size+1)
-        # print('before', total_priorities, intervals)
         values = np.random.uniform(intervals[:-1], intervals[1:])
         priorities, idxes = self._data_structure.batch_find(values)
         assert np.max(idxes) < len(self), f'{idxes}\n{values}\n{priorities}\n{total_priorities}, {len(self)}'

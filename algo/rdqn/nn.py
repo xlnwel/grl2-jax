@@ -1,3 +1,4 @@
+import collections
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
@@ -13,6 +14,7 @@ from nn.layers import Noisy
 from nn.func import cnn
         
 
+LSTMState = collections.namedtuple('LSTMState', ['h', 'c'])
 class Q(Module):
     @config
     def __init__(self, action_dim, name='q'):
@@ -32,11 +34,13 @@ class Q(Module):
                 self._head_units, 
                 out_dim=1, 
                 activation=self._activation, 
+                out_dtype='float32',
                 name='v')
         self._a_head = mlp(
             self._head_units, 
             out_dim=action_dim, 
             activation=self._activation, 
+            out_dtype='float32',
             name='a' if self._duel else 'q')
 
     @tf.function
@@ -116,7 +120,7 @@ class Q(Module):
 
     @property
     def state_size(self):
-        return self._rnn.cell.state_size
+        return LSTMState(*self._rnn.cell.state_size)
 
 def create_model(config, env):
     action_dim = env.action_dim

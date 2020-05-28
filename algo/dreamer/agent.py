@@ -16,6 +16,21 @@ from core.optimizer import Optimizer
 from algo.dreamer.nn import RSSMState
 
 
+def get_data_format(env, batch_size, sample_size=None, 
+        store_state=False, state_size=None, dtype=tf.float32, **kwargs):
+    data_format = dict(
+        obs=((batch_size, sample_size, *env.obs_shape), dtype),
+        prev_action=((batch_size, sample_size, *env.action_shape), dtype),
+        reward=((batch_size, sample_size), dtype), 
+        discount=((batch_size, sample_size), dtype),
+    )
+    if store_state:
+        data_format.update({
+            k: ((batch_size, v), dtype)
+                for k, v in state_size._asdict().items()
+        })
+    return data_format
+    
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
@@ -54,7 +69,7 @@ class Agent(BaseAgent):
         # otherwise, InaccessibleTensorError arises when expanding rssm
         TensorSpecs = dict(
             obs=((self._sample_size, *self._obs_shape), self._dtype, 'obs'),
-            action=((self._sample_size, self._action_dim), self._dtype, 'action'),
+            prev_action=((self._sample_size, self._action_dim), self._dtype, 'prev_action'),
             reward=((self._sample_size,), self._dtype, 'reward'),
             discount=((self._sample_size,), self._dtype, 'discount'),
             log_images=(None, tf.bool, 'log_images')
@@ -70,7 +85,6 @@ class Agent(BaseAgent):
 
     def reset_states(self, state=(None, None)):
         self._state, self._prev_action = state
-
 
     def get_states(self):
         return self._state, self._prev_action
@@ -142,22 +156,22 @@ class Agent(BaseAgent):
         return self.N_UPDATES
 
     @tf.function
-    def _learn(self, obs, action, reward, discount, log_images, state=None):
+    def _learn(self, obs, prev_action, reward, discount, log_images, state=None):
         with tf.GradientTape() as model_tape:
             embed = self.encoder(obs)
             if self._burn_in:
                 bis = self._burn_in_size
                 ss = self._sample_size - self._burn_in_size
-                burn_in_embed, embed = tf.split(embed, [bis, ss], 1)
-                burn_in_action, action = tf.split(action, [bis, ss], 1)
-                state, _ = self.rssm.observe(burn_in_embed, burn_in_action, state)
+                bi_embed, embed = tf.split(embed, [bis, ss], 1)
+                bi_prev_action, prev_action = tf.split(prev_action, [bis, ss], 1)
+                state, _ = self.rssm.observe(bi_embed, bi_prev_action, state)
                 state = tf.nest.pack_sequence_as(state, 
                     tf.nest.map_structure(lambda x: tf.stop_gradient(x[:, -1]), state))
                 
                 _, obs = tf.split(obs, [bis, ss], 1)
                 _, reward = tf.split(reward, [bis, ss], 1)
                 _, discount = tf.split(discount, [bis, ss], 1)
-            post, prior = self.rssm.observe(embed, action, state)
+            post, prior = self.rssm.observe(embed, prev_action, state)
             feature = self.rssm.get_feat(post)
             obs_pred = self.decoder(feature)
             reward_pred = self.reward(feature)
@@ -220,7 +234,7 @@ class Agent(BaseAgent):
         )
 
         if log_images:
-            self._image_summaries(obs, action, embed, obs_pred)
+            self._image_summaries(obs, prev_action, embed, obs_pred)
     
         return terms
 
@@ -240,16 +254,16 @@ class Agent(BaseAgent):
         imagined_features = self.rssm.get_feat(states)
         return imagined_features
 
-    def _image_summaries(self, obs, action, embed, image_pred):
+    def _image_summaries(self, obs, prev_action, embed, image_pred):
         truth = obs[:6] + 0.5
         recon = image_pred.mode()[:6]
-        init, _ = self.rssm.observe(embed[:6, :5], action[:6, :5])
+        init, _ = self.rssm.observe(embed[:6, :5], prev_action[:6, :5])
         init = RSSMState(*[v[:, -1] for v in init])
-        prior = self.rssm.imagine(action[:6, 5:], init)
+        prior = self.rssm.imagine(prev_action[:6, 5:], init)
         openl = self.decoder(self.rssm.get_feat(prior)).mode()
         # join the first 5 reconstructed images to the imagined subsequent images
         model = tf.concat([recon[:, :5] + 0.5, openl + 0.5], 1)
         error = (model - truth + 1) / 2
         openl = tf.concat([truth, model, error], 2)
         self.graph_summary(video_summary, ['dreamer/comp', openl, (1, 6)],
-            step=self._env_steps)
+            step=self._env_step)

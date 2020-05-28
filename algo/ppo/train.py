@@ -8,7 +8,7 @@ from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
 from utility.run import Runner, evaluate
 from utility.timer import Timer
-from run import pkg
+from utility import pkg
 from env.gym_env import create_env
 
 
@@ -17,14 +17,14 @@ def train(agent, env, eval_env, buffer):
     def collect(env, step, reward, nth_obs, **kwargs):
         kwargs['reward'] = agent.normalize_reward(reward)
         buffer.add(**kwargs)
-    step = agent.env_steps
+    step = agent.env_step
     action_selector = lambda *args, **kwargs: agent(*args, **kwargs, update_rms=True)
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     while step < agent.MAX_STEPS:
-        start_env_step = agent.env_steps
-        start_train_step = agent.train_steps
+        start_env_step = agent.env_step
+        start_train_step = agent.train_step
         start_time = time.time()
         step = runner.run(action_selector=action_selector, step_fn=collect)
         
@@ -33,11 +33,11 @@ def train(agent, env, eval_env, buffer):
         agent.learn_log(step)
         buffer.reset()
 
-        if to_log(step):
+        if to_log(agent.train_step):
             duration = time.time()-start_time
             agent.store(
-                fps=(agent.env_steps-start_env_step)/duration,
-                tps=(agent.train_steps-start_train_step)/duration,
+                fps=(agent.env_step-start_env_step)/duration,
+                tps=(agent.train_step-start_train_step)/duration,
             )
 
             with TempStore(agent.get_states, agent.reset_states):
@@ -67,7 +67,7 @@ def main(env_config, model_config, agent_config, buffer_config):
         agent_config['model_name'] = model_name
         env_config['name'] = env
 
-    create_model, Agent = pkg.import_agent(agent_config)
+    create_model, Agent = pkg.import_agent(config=agent_config)
     PPOBuffer = pkg.import_module('buffer', algo=algo).PPOBuffer
 
     silence_tf_logs()

@@ -1,9 +1,9 @@
 ---
 env:
     name: dmc_walker_walk
-    log_episode: True
-    n_envs: 1
+    n_envs: 8
     frame_skip: 2
+    seed: 0
     precision: &prec 16
 model:
     encoder:
@@ -16,10 +16,8 @@ model:
     reward:
         units_list: [400, 400]
         activation: elu
-    decoder:
-        has_cnn: True
     actor:
-        units_list: [400]
+        units_list: [400, 400, 400, 400]
         activation: elu
         init_std: 5
         min_std: 1.e-4
@@ -27,28 +25,34 @@ model:
     value:
         units_list: [400, 400, 400]
         activation: elu
-    # uncomment the following code for games with terminal steps
+    decoder:
+        has_cnn: True
+    # uncomment the following code for atari games
     # discount:
     #     units_list: [400, 400, 400]
     #     activation: elu
-    temperature:
-        temp_type: 'variable'
-        value: .01
 agent:
-    algorithm: &algo dreamer3
+    algorithm: &algo seed-dreamer
+    polyak: .995
+    precision: *prec
     batch_size: &bs 50
 
-    # These params are not supported here, see seed1
+    # R2D2
     store_state: False
     burn_in: False
     sample_size: &ss 50
-    burn_in_size: 20
+    burn_in_size: 40
 
-    MAX_STEPS: 1e6
-    LOG_PERIOD: 1000
-    EVAL_PERIOD: 10000
-    TRAIN_PERIOD: 1000
-    N_UPDATES: 100
+    obs_range: [-.5, 5]
+
+    # distributed training
+    n_workers: &nw 6
+    action_batch: 4
+
+    MAX_STEPS: 5e6
+    LOG_PERIOD: &log 1000
+    N_UPDATES: *log
+    SYNC_PERIOD: 32
     log_images: True
 
     # model
@@ -56,12 +60,10 @@ agent:
     kl_scale: 1.
     discount_scale: 10.
     # behavior
+    horizon: 15
     gamma: &gamma 0.99
     lambda: .95
-    polyak: .995
-    act_eps: 0
-    loss_type: huber
-    tbo: False
+    act_eps: .3
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -73,19 +75,16 @@ agent:
     optimizer: adam
     clip_norm: 100.
     weight_decay: 0.
-    model_lr: 6e-4
-    actor_lr: 8e-5
-    value_lr: 8e-5
-    q_lr: 8e-5
-    temp_lr: 3e-4
+    model_lr: 6.e-4
+    actor_lr: 8.e-5
+    value_lr: 8.e-5
 
 replay:
-    type: episodic                      # per or uniform
+    type: episodic
 
     # arguments for general replay
     batch_size: *bs
     sample_size: *ss
-    max_episodes: 800
-    min_episodes: 5
+    max_episodes: 1000
+    min_episodes: *nw
     save: False
-    

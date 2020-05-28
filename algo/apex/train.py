@@ -3,9 +3,9 @@ import ray
 
 from utility.ray_setup import sigint_shutdown_ray
 from utility.yaml_op import load_config
+from utility import pkg
 from env.gym_env import create_env
 from replay.func import create_replay_center
-from run import pkg
 
 
 def main(env_config, model_config, agent_config, replay_config):
@@ -34,7 +34,7 @@ def main(env_config, model_config, agent_config, replay_config):
 
     replay = create_replay_center(replay_config)
 
-    model_fn, Agent = pkg.import_agent(agent_config)
+    model_fn, Agent = pkg.import_agent(config=agent_config)
     am = pkg.import_module('actor', config=agent_config)
     fm = pkg.import_module('func', config=agent_config)
 

@@ -10,10 +10,10 @@ from utility.utils import Every
 from utility.graph import video_summary
 from utility.timer import TBTimer
 from utility.run import Runner, evaluate
+from utility import pkg
 from env.gym_env import create_env
 from replay.func import create_replay
 from core.dataset import Dataset, process_with_env
-from run import pkg
 
 
 def train(agent, env, eval_env, replay):
@@ -27,7 +27,7 @@ def train(agent, env, eval_env, replay):
         if step % agent.TRAIN_PERIOD == 0:
             agent.learn_log(step)
     
-    step = agent.env_steps
+    step = agent.env_step
     collect = lambda *args, **kwargs: replay.add(**kwargs)
     runner = Runner(env, agent, step=step)
     while not replay.good_to_learn():
@@ -53,32 +53,12 @@ def train(agent, env, eval_env, replay):
         agent.histogram_summary({'action': action}, step=step)
         agent.log(step)
         agent.save()
-    
-
-def get_data_format(env, replay_config):
-    dtype = global_policy().compute_dtype
-    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
-    data_format = dict(
-        obs=((None, *env.obs_shape), obs_dtype),
-        action=((None, *env.action_shape), tf.int32),
-        reward=((None, ), dtype), 
-        nth_obs=((None, *env.obs_shape), obs_dtype),
-        discount=((None, ), dtype),
-    )
-    if replay_config['type'].endswith('per'):
-        data_format['IS_ratio'] = ((None, ), dtype)
-        data_format['idxes'] = ((None, ), tf.int32)
-    if replay_config.get('n_steps', 1) > 1:
-        data_format['steps'] = ((None, ), dtype)
-
-    return data_format
 
 def main(env_config, model_config, agent_config, replay_config):
     algo = agent_config['algorithm']
     env = env_config['name']
     if 'atari' not in env:
         print('Any changes to config is dropped as we switch to a non-atari environment')
-        from run.pkg import get_package
         from utility import yaml_op
         root_dir = agent_config['root_dir']
         model_name = agent_config['model_name']
@@ -92,7 +72,7 @@ def main(env_config, model_config, agent_config, replay_config):
         agent_config['model_name'] = model_name
         env_config['name'] = env
 
-    create_model, Agent = pkg.import_agent(agent_config)
+    create_model, Agent = pkg.import_agent(config=agent_config)
     
     silence_tf_logs()
     configure_gpu()
@@ -105,7 +85,10 @@ def main(env_config, model_config, agent_config, replay_config):
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 
-    data_format = get_data_format(env, replay_config)
+    data_format = pkg.import_module('agent', algo).get_data_format(
+        env=env, 
+        is_per=replay_config['type'].endswith('per'), 
+        n_steps=replay_config['n_steps'])
     process = functools.partial(process_with_env, env=env)
     dataset = Dataset(replay, data_format, process_fn=process)
     # construct models

@@ -3,17 +3,16 @@ import functools
 from collections import defaultdict
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.tf_config import *
 from utility.utils import Every, TempStore
 from utility.graph import video_summary
 from utility.timer import TBTimer
 from utility.run import Runner, evaluate
+from utility import pkg
 from env.gym_env import create_env
 from replay.func import create_replay
 from core.dataset import Dataset, process_with_env
-from run import pkg
 
 
 def train(agent, env, eval_env, replay):
@@ -22,7 +21,7 @@ def train(agent, env, eval_env, replay):
         if env.already_done():
             replay.clear_temp_buffer()
     
-    step = agent.env_steps
+    step = agent.env_step
     runner = Runner(env, agent, step=step)
     while not replay.good_to_learn():
         step = runner.run(step_fn=collect, nsteps=int(1e4))
@@ -52,35 +51,14 @@ def train(agent, env, eval_env, replay):
             agent.save()
     
 
-def get_data_format(env, batch_size, sample_size=None, 
-        is_per=False, store_state=False, state_size=None):
-    dtype = global_policy().compute_dtype
-    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
-    data_format = dict(
-        obs=((batch_size, sample_size, *env.obs_shape), obs_dtype),
-        action=((batch_size, sample_size, *env.action_shape), tf.int32),
-        reward=((batch_size, sample_size), dtype), 
-        logpi=((batch_size, sample_size), dtype),
-        discount=((batch_size, sample_size), dtype),
-    )
-    if is_per:
-        data_format['IS_ratio'] = ((batch_size), dtype)
-        data_format['idxes'] = ((batch_size), tf.int32)
-    if store_state:
-        data_format['h'] = ((batch_size, state_size), dtype)
-        data_format['c'] = ((batch_size, state_size), dtype)
-
-    return data_format
-
 def main(env_config, model_config, agent_config, replay_config):
     algo = agent_config['algorithm']
     env = env_config['name']
     if 'atari' not in env:
-        from run.pkg import get_package
         from utility import yaml_op
         root_dir = agent_config['root_dir']
         model_name = agent_config['model_name']
-        directory = get_package(algo, 0, '/')
+        directory = pkg.get_package(algo, 0, '/')
         config = yaml_op.load_config(f'{directory}/config2.yaml')
         env_config = config['env']
         model_config = config['model']
@@ -90,7 +68,7 @@ def main(env_config, model_config, agent_config, replay_config):
         agent_config['model_name'] = model_name
         env_config['name'] = env
 
-    create_model, Agent = pkg.import_agent(agent_config)
+    create_model, Agent = pkg.import_agent(config=agent_config)
 
     silence_tf_logs()
     configure_gpu()
@@ -106,10 +84,10 @@ def main(env_config, model_config, agent_config, replay_config):
 
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config, state_keys=['h', 'c'])
-    data_format = get_data_format(
+    data_format = pkg.import_module('agent', algo).get_data_format(
         env, agent_config['batch_size'], agent_config['sample_size'],
         replay_config['type'].endswith('per'), agent_config['store_state'], 
-        model_config['lstm_units'])
+        models['q'].state_size)
     
     process = functools.partial(process_with_env, env=env, obs_range=[0, 1])
     dataset = Dataset(replay, data_format, process_fn=process)

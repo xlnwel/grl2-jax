@@ -1,6 +1,6 @@
 ---
 env:
-    name: dmc_walker_run
+    name: dmc_walker_walk
     n_envs: 8
     frame_skip: 2
     seed: 0
@@ -47,10 +47,10 @@ agent:
     n_workers: &nw 2
     action_batch: 4
 
-    MAX_STEPS: 5.e+6
+    MAX_STEPS: 5e6
     LOG_PERIOD: 1000
-    N_UPDATES: 1
-    SYNC_PERIOD: 32
+    SYNC_PERIOD: &sync 32
+    N_UPDATES: *sync
     log_images: True
 
     # model

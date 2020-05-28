@@ -43,13 +43,6 @@ class SumTree:
                 idxes = np.where(values <= self._container[left], left, right)
                 values = np.where(values <= self._container[left], values, values - self._container[left])
 
-            idx = np.zeros_like(values, dtype=np.int32)
-            while np.all(idx < self._tree_size):
-                left, right = 2 * idx + 1, 2 * idx + 2
-                np.testing.assert_allclose(self._container[idx], self._container[left] + self._container[right],
-                        err_msg=f'idx: {idx}\n{self._container[idx]}\nleft: {left}\n{self._container[left]}\nright: {self._container[right]}')
-                idx = np.where(np.random.uniform(size=idx.shape) < .5, left, right)
-
             return self._container[idxes], idxes - self._tree_size
 
     def update(self, mem_idx, priority):
@@ -62,10 +55,7 @@ class SumTree:
             while idx > 0:
                 idx = (idx - 1) // 2    # update idx to its parent idx
                 self._container[idx] += diff
-                left, right = 2 * idx + 1, 2 * idx + 2
-                np.testing.assert_allclose(self._container[idx], self._container[left] + self._container[right],
-                    err_msg=f'{idx}\n{self._container[idx]}\n{self._container[left]}\n{self._container[right]}')
-            
+
     def batch_update(self, mem_idxes, priorities):
         """ vectorized update """
         np.testing.assert_array_less(0, priorities)
@@ -95,11 +85,3 @@ class SumTree:
                 diffs = diffs[idxes >= 0]
                 idxes = idxes[idxes >= 0]
                 self._container[idxes] += diffs
-
-            idxes = mem_idxes + self._tree_size
-            while np.all(idxes > 0):
-                idxes = (idxes - 1) // 2
-                left, right = 2 * idxes + 1, 2 * idxes + 2
-                np.testing.assert_allclose(self._container[idxes], self._container[left] + self._container[right],
-                        err_msg=f'idx: {idxes}\n{self._container[idxes]}\nleft: {left}\n{self._container[left]}\nright: {self._container[right]}')
-            

@@ -2,7 +2,6 @@ import functools
 import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
-from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from utility.display import pwc
 from utility.utils import AttrDict, Every
@@ -16,6 +15,22 @@ from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.dreamer3.nn import RSSMState
 
+
+def get_data_format(env, batch_size, sample_size=None, 
+        store_state=False, state_size=None, dtype=tf.float32, **kwargs):
+    data_format = dict(
+        obs=((batch_size, sample_size, *env.obs_shape), dtype),
+        prev_action=((batch_size, sample_size, *env.action_shape), dtype),
+        reward=((batch_size, sample_size), dtype), 
+        discount=((batch_size, sample_size), dtype),
+        prev_logpi=((batch_size, sample_size), dtype)
+    )
+    if store_state:
+        data_format.update({
+            k: ((batch_size, v), dtype)
+                for k, v in state_size._asdict().items()
+        })
+    return data_format
 
 class Agent(BaseAgent):
     @agent_config
@@ -65,10 +80,10 @@ class Agent(BaseAgent):
         # otherwise, InaccessibleTensorError arises when expanding rssm
         TensorSpecs = dict(
             obs=((self._sample_size, *self._obs_shape), self._dtype, 'obs'),
-            action=((self._sample_size, self._action_dim), tf.float32, 'action'),
+            prev_action=((self._sample_size, self._action_dim), tf.float32, 'action'),
             reward=((self._sample_size,), tf.float32, 'reward'),
             discount=((self._sample_size,), tf.float32, 'discount'),
-            logpi=((self._sample_size,), tf.float32, 'logpi'),
+            prev_logpi=((self._sample_size,), tf.float32, 'logpi'),
             log_images=(None, tf.bool, 'log_images')
         )
         if self._store_state:
@@ -158,7 +173,7 @@ class Agent(BaseAgent):
                 else:
                     logpi = act_dist.log_prob(action)
         
-            return action, {'logpi': logpi}, state
+            return action, {'prev_logpi': logpi}, state
 
     @step_track
     def learn_log(self, step):
@@ -174,23 +189,23 @@ class Agent(BaseAgent):
         return self.N_UPDATES
 
     @tf.function
-    def _learn(self, obs, action, reward, discount, logpi, log_images, state=None):
+    def _learn(self, obs, prev_action, reward, discount, prev_logpi, log_images, state=None):
         with tf.GradientTape() as model_tape:
             embed = self.encoder(obs)
             if self._burn_in:
                 bis = self._burn_in_size
                 ss = self._sample_size - self._burn_in_size
-                burn_in_embed, embed = tf.split(embed, [bis, ss], 1)
-                burn_in_action, action = tf.split(action, [bis, ss], 1)
-                state, _ = self.rssm.observe(burn_in_embed, burn_in_action, state)
+                bi_embed, embed = tf.split(embed, [bis, ss], 1)
+                bi_prev_action, prev_action = tf.split(prev_action, [bis, ss], 1)
+                state, _ = self.rssm.observe(bi_embed, bi_prev_action, state)
                 state = tf.nest.pack_sequence_as(state, 
                     tf.nest.map_structure(lambda x: tf.stop_gradient(x[:, -1]), state))
                 
                 _, obs = tf.split(obs, [bis, ss], 1)
                 _, reward = tf.split(reward, [bis, ss], 1)
                 _, discount = tf.split(discount, [bis, ss], 1)
-                _, logpi = tf.split(logpi, [bis, ss], 1)
-            post, prior = self.rssm.observe(embed, action, state)
+                _, prev_logpi = tf.split(prev_logpi, [bis, ss], 1)
+            post, prior = self.rssm.observe(embed, prev_action, state)
             feature = self.rssm.get_feat(post)
             obs_pred = self.decoder(feature)
             reward_pred = self.reward(feature)
@@ -230,11 +245,13 @@ class Agent(BaseAgent):
                 terms['temp'] = temp
                 terms['temp_loss'] = temp_loss
 
-        curr_feat = feature[:, :-1]
-        next_feat = feature[:, 1:]
-        curr_action = action[:, :-1]
-        next_action = new_action[:, 1:]
-        discount = discount[:, :-1] * self._gamma
+        # as we don't have the action for the last obs, we drop it here
+        curr_feat = feature[:, :-2]
+        next_feat = feature[:, 1:-1]
+        curr_action = prev_action[:, 1:-1]
+        next_action = new_action[:, 1:-1]
+        next_logpi = new_logpi[:, 1:-1]
+        discount = discount[:, :-2] * self._gamma
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         with tf.GradientTape() as q_tape:
@@ -244,14 +261,13 @@ class Agent(BaseAgent):
             next_q1 = self.target_q1(next_feat, next_action)
             next_q2 = self.target_q2(next_feat, next_action)
             next_q = tf.minimum(next_q1, next_q2)
-            next_logpi = act_dist.log_prob(action)[:, 1:]
             next_value = next_q - temp * next_logpi
-            log_ratio = next_logpi - logpi[:, 1:]
+            log_ratio = next_logpi - prev_logpi[:, 2:]
             ratio = tf.math.exp(log_ratio)
             returns = retrace_lambda(
                 reward[:, :-1], q, next_value, 
                 ratio, discount, lambda_=self._lambda, 
-                ratio_clip=1, axis=1)
+                ratio_clip=1, axis=1, tbo=self._tbo)
             # returns = reward[:, :-1] + discount * next_value
             returns = tf.stop_gradient(returns)
 
@@ -285,7 +301,7 @@ class Agent(BaseAgent):
 
         if log_images:
             # tf.print(tf.summary.experimental.get_step())
-            tf.summary.experimental.set_step(self._env_steps)
+            tf.summary.experimental.set_step(self._env_step)
             tf.summary.histogram(f'{self.name}/returns', returns)
             tf.summary.histogram(f'{self.name}/q', q)
             tf.summary.histogram(f'{self.name}/error', returns-q1)
@@ -293,19 +309,19 @@ class Agent(BaseAgent):
     
         return terms
 
-    def _image_summaries(self, obs, action, embed, image_pred):
+    def _image_summaries(self, obs, prev_action, embed, image_pred):
         truth = obs[:6] + 0.5
         recon = image_pred.mode()[:6]
-        init, _ = self.rssm.observe(embed[:6, :5], action[:6, :5])
+        init, _ = self.rssm.observe(embed[:6, :5], prev_action[:6, :5])
         init = RSSMState(*[v[:, -1] for v in init])
-        prior = self.rssm.imagine(action[:6, 5:], init)
+        prior = self.rssm.imagine(prev_action[:6, 5:], init)
         openl = self.decoder(self.rssm.get_feat(prior)).mode()
         # join the first 5 reconstructed images to the imagined subsequent images
         model = tf.concat([recon[:, :5] + 0.5, openl + 0.5], 1)
         error = (model - truth + 1) / 2
         openl = tf.concat([truth, model, error], 2)
         self.graph_summary(video_summary, ['dreamer/comp', openl, (1, 6)],
-            step=self._env_steps)
+            step=self._env_step)
 
     @tf.function
     def _sync_target_nets(self):

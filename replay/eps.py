@@ -16,7 +16,7 @@ class EpisodicReplay:
         self._sample_size = getattr(self, '_sample_size', None)
         self._state_keys = state_keys
     
-    def buffer_type(self):
+    def name(self):
         return self._type
 
     def good_to_learn(self):

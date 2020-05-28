@@ -11,11 +11,11 @@ from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
 from utility.utils import Every, TempStore
 from utility.run import Runner, evaluate
+from utility import pkg
 from env.gym_env import create_env
 from replay.func import create_replay
 from core.dataset import DataFormat, Dataset, process_with_env
 from algo.dreamer.env import make_env
-from run import pkg
 
 
 def train(agent, env, eval_env, replay):
@@ -28,7 +28,7 @@ def train(agent, env, eval_env, replay):
                 episodes = [e.prev_episode for e, d in zip(env.envs, done) if d]
             replay.merge(episodes)
     _, step = replay.count_episodes()
-    step = max(agent.env_steps, step)
+    step = max(agent.env_step, step)
 
     runner = Runner(env, agent, step=step)
     while not replay.good_to_learn():
@@ -57,16 +57,6 @@ def train(agent, env, eval_env, replay):
             agent.log(step)
             agent.save()
 
-def get_data_format(env, batch_size, sample_size=None):
-    dtype = global_policy().compute_dtype
-    data_format = dict(
-        obs=DataFormat((batch_size, sample_size, *env.obs_shape), dtype),
-        action=DataFormat((batch_size, sample_size, *env.action_shape), dtype),
-        reward=DataFormat((batch_size, sample_size), dtype), 
-        discount=DataFormat((batch_size, sample_size), dtype),
-    )
-    return data_format
-
 def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()
     configure_gpu()
@@ -89,11 +79,20 @@ def main(env_config, model_config, agent_config, replay_config):
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
     replay.load_data()
-    data_format = get_data_format(env, agent_config['batch_size'], agent_config['sample_size'])
-    process = functools.partial(process_with_env, env=env, obs_range=[-.5, .5])
+    dtype = global_policy().compute_dtype
+    data_format = pkg.import_module('agent', config=agent_config).get_data_format(
+        env=env, 
+        batch_size=agent_config['batch_size'], 
+        sample_size=agent_config['sample_size'], 
+        dtype=dtype)
+    process = functools.partial(process_with_env, 
+        env=env, 
+        obs_range=[-.5, .5], 
+        one_hot_action=True, 
+        dtype=dtype)
     dataset = Dataset(replay, data_format, process)
 
-    create_model, Agent = pkg.import_agent(agent_config)
+    create_model, Agent = pkg.import_agent(config=agent_config)
     models = create_model(model_config, env)
 
     agent = Agent(

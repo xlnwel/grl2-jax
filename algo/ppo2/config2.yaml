@@ -26,8 +26,7 @@ agent:
     N_UPDATES: 4
     N_MBS: &nmbs 4
     sample_size: &ss 16       # BPTT length
-    
-    LOG_PERIOD: 200000
+    LOG_PERIOD: 100
     max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
 
     normalize_obs: True

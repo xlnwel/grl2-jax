@@ -61,36 +61,36 @@ class RSSM(Module):
             name='obs')
 
     @tf.function
-    def observe(self, embed, action, state=None):
+    def observe(self, embed, prev_action, state=None):
         if state is None:
-            state = self.get_initial_state(batch_size=tf.shape(action)[0])
+            state = self.get_initial_state(batch_size=tf.shape(prev_action)[0])
         embed = tf.transpose(embed, [1, 0, 2])
-        action = tf.transpose(action, [1, 0, 2])
+        prev_action = tf.transpose(prev_action, [1, 0, 2])
         post, prior = static_scan(
             lambda prev, inputs: self.obs_step(prev[0], *inputs),
-            (state, state), (action, embed))
+            (state, state), (prev_action, embed))
         post = RSSMState(*[tf.transpose(v, [1, 0, 2]) for v in post])
         prior = RSSMState(*[tf.transpose(v, [1, 0, 2]) for v in prior])
         return post, prior
 
     @tf.function
-    def imagine(self, action, state=None):
+    def imagine(self, prev_action, state=None):
         if state is None:
-            state = self.get_initial_state(batch_size=tf.shape(action)[0])
-        action = tf.transpose(action, [1, 0, 2])
-        prior = static_scan(self.img_step, state, action)
+            state = self.get_initial_state(batch_size=tf.shape(prev_action)[0])
+        prev_action = tf.transpose(prev_action, [1, 0, 2])
+        prior = static_scan(self.img_step, state, prev_action)
         prior = RSSMState(*[tf.transpose(v, [1, 0, 2]) for v in prior])
         return prior
 
     @tf.function
-    def post(self, embed, action, state=None):
+    def post(self, embed, prev_action, state=None):
         if state is None:
-            state = self.get_initial_state(batch_size=tf.shape(action)[0])
+            state = self.get_initial_state(batch_size=tf.shape(prev_action)[0])
         embed = tf.transpose(embed, [1, 0, 2])
-        action = tf.transpose(action, [1, 0, 2])
+        prev_action = tf.transpose(prev_action, [1, 0, 2])
         post = static_scan(
             lambda prev, inputs: self.post_step(prev, *inputs), 
-            state, (action, embed))
+            state, (prev_action, embed))
         post = RSSMState(*[tf.transpose(v, [1, 0 , 2]) for v in post])
         return post
 

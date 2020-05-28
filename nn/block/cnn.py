@@ -42,7 +42,7 @@ maxpooling2d_fn = lambda *args, time_distributed=False, **kwargs: (
     MaxPooling2D(*args, **kwargs)
 )
 
-def convert_obs(x, obs_range, dtype):
+def convert_obs(x, obs_range, dtype=tf.float32):
     if x.dtype != np.uint8:
         print(f'Observations are already converted to {x.dtype}, no further process is performed')
         return x
@@ -208,11 +208,11 @@ class NatureCNN(Layer):
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
         
         self._conv_layers = [
-            conv2d(32, 8, 4, padding='same', activation=relu, 
+            conv2d(32, 8, 4, activation=relu, 
                     kernel_initializer=kernel_initializer, **kwargs),
-            conv2d(64, 4, 2, padding='same', activation=relu, 
+            conv2d(64, 4, 2, activation=relu, 
                     kernel_initializer=kernel_initializer, **kwargs),
-            conv2d(64, 3, 1, padding='same', activation=relu, 
+            conv2d(64, 3, 1, activation=relu, 
                     kernel_initializer=kernel_initializer, **kwargs),
         ]
         self.out_size = out_size

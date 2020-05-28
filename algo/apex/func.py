@@ -13,7 +13,6 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
     
     env_config['n_workers'] = env_config['n_envs'] = 1
     config['model_name'] = 'learner'
-    config['n_steps'] = replay_config['n_steps']
     config['n_cpus'] = n_cpus
 
     if tf.config.list_physical_devices('GPU'):

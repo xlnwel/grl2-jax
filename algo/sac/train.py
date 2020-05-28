@@ -7,10 +7,10 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 from core.tf_config import *
 from utility.graph import video_summary
 from utility.run import Runner, evaluate
+from utility import pkg
 from env.gym_env import create_env
 from replay.func import create_replay
 from core.dataset import Dataset, process_with_env
-from run import pkg
 
 
 def train(agent, env, eval_env, replay):
@@ -18,7 +18,7 @@ def train(agent, env, eval_env, replay):
         replay.add(**kwargs)
         agent.learn_log(step)
 
-    start_step = agent.env_steps
+    start_step = agent.env_step
     step = start_step
     collect = lambda *args, **kwargs: replay.add(**kwargs)
     runner = Runner(env, agent, step=step, nsteps=agent.LOG_PERIOD)
@@ -41,25 +41,6 @@ def train(agent, env, eval_env, replay):
         agent.log(step)
         agent.save()
 
-
-def get_data_format(env, replay_config):
-    dtype = global_policy().compute_dtype
-    action_dtype = tf.int32 if env.is_action_discrete else dtype
-    data_format = dict(
-        obs=((None, *env.obs_shape), dtype),
-        action=((None, *env.action_shape), action_dtype),
-        reward=((None, ), dtype), 
-        nth_obs=((None, *env.obs_shape), dtype),
-        discount=((None, ), dtype),
-    )
-    if replay_config['type'].endswith('per'):
-        data_format['IS_ratio'] = ((None, ), dtype)
-        data_format['idxes'] = ((None, ), tf.int32)
-    if replay_config.get('n_steps', 1) > 1:
-        data_format['steps'] = ((None, ), dtype)
-
-    return data_format
-
 def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()
     configure_gpu()
@@ -72,11 +53,15 @@ def main(env_config, model_config, agent_config, replay_config):
 
     replay = create_replay(replay_config)
 
-    data_format = get_data_format(env, replay_config)
+    am = pkg.import_module('agent', config=agent_config)
+    data_format = am.get_data_format(
+        env=env, 
+        is_per=replay_config['type'].endswith('per'), 
+        n_steps=replay_config['n_steps'])
     process = functools.partial(process_with_env, env=env)
     dataset = Dataset(replay, data_format, process_fn=process)
 
-    create_model, Agent = pkg.import_agent(agent_config)
+    create_model, Agent = pkg.import_agent(config=agent_config)
     models = create_model(model_config, env)
     agent = Agent(
         name='dpg',

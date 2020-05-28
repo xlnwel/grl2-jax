@@ -128,9 +128,9 @@ def retrace_lambda(reward, q, next_value, ratio, discount, lambda_=.95, ratio_cl
         
     return returns
 
-def apex_epsilon_greedy(worker_id, n_workers, epsilon=.4, alpha=8):
+def apex_epsilon_greedy(env_id, n_envs, epsilon=.4, alpha=8):
     # the 𝝐-greedy schedule used in Ape-X and Agent57
-    if n_workers == 1:
+    if n_envs == 1:
         return epsilon
     else:
-        return epsilon ** (1 + worker_id / (n_workers - 1) * alpha)
+        return epsilon ** (1 + env_id / (n_envs - 1) * alpha)

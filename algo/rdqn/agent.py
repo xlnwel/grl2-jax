@@ -12,19 +12,42 @@ from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 
 
+def get_data_format(env, batch_size, sample_size=None, 
+        is_per=False, store_state=False, state_size=None, 
+        dtype=tf.float32, **kwargs):
+    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
+    data_format = dict(
+        obs=((batch_size, sample_size, *env.obs_shape), obs_dtype),
+        action=((batch_size, sample_size, *env.action_shape), tf.int32),
+        reward=((batch_size, sample_size), dtype), 
+        logpi=((batch_size, sample_size), dtype),
+        discount=((batch_size, sample_size), dtype),
+    )
+    if is_per:
+        data_format['IS_ratio'] = ((batch_size), dtype)
+        data_format['idxes'] = ((batch_size), tf.int32)
+    if store_state:
+        from tensorflow.keras.mixed_precision.experimental import global_policy
+        state_dtype = global_policy().compute_dtype
+        data_format.update({
+            k: ((batch_size, v), state_dtype)
+                for k, v in state_size._asdict().items()
+        })
+
+    return data_format
+
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
-        self._is_per = dataset.buffer_type().endswith('per')
+        self._is_per = dataset.name().endswith('per')
         self.dataset = dataset
 
         if self._schedule_lr:
             self._lr = TFPiecewiseSchedule(
                 [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
-        if self._schedule_eps:
-            self._act_eps = PiecewiseSchedule(((5e4, 1), (4e5, .02)))
 
-        self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
+        self._optimizer = Optimizer(self._optimizer, self.q, self._lr, 
+            clip_norm=self._clip_norm, epsilon=self._epsilon)
         self._ckpt_models['optimizer'] = self._optimizer
 
         self._state = None
@@ -34,21 +57,21 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
-            obs=((self._sample_size, *env.obs_shape), self._dtype, 'obs'),
-            action=((self._sample_size, env.action_dim,), self._dtype, 'action'),
-            reward=((self._sample_size,), self._dtype, 'reward'),
-            logpi=((self._sample_size,), self._dtype, 'logpi'),
-            discount=((self._sample_size,), self._dtype, 'discount'),
+            obs=((self._sample_size, *env.obs_shape), tf.float32, 'obs'),
+            action=((self._sample_size,), env.action_dtype, 'action'),
+            reward=((self._sample_size,), tf.float32, 'reward'),
+            logpi=((self._sample_size,), tf.float32, 'logpi'),
+            discount=((self._sample_size,), tf.float32, 'discount'),
         )
         if self._is_per:
-            TensorSpecs['IS_ratio'] = ((), self._dtype, 'IS_ratio')
+            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
         if self._store_state:
             state_size = self.q.state_size
             TensorSpecs['state'] = (
                [((sz, ), self._dtype, name) 
-               for name, sz in zip(['h', 'c'], state_size)]
+               for name, sz in state_size._asdict().items()]
             )
-        self.learn = build(self._learn, TensorSpecs)
+        self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
 
         self._to_sync = Every(self._target_update_period)
         self._sync_target_nets()
@@ -61,7 +84,7 @@ class Agent(BaseAgent):
 
     def __call__(self, obs, reset=np.zeros(1), deterministic=False):
         if self._schedule_eps:
-            eps = self._act_eps.value(self.env_steps)
+            eps = self._act_eps.value(self.env_step)
             self.store(act_eps=eps)
         else:
             eps = self._act_eps
@@ -69,7 +92,7 @@ class Agent(BaseAgent):
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=tf.shape(obs)[0])
         if np.any(reset):
-            mask = tf.cast(1. - reset, self._dtype)
+            mask = tf.cast(1. - reset, tf.float32)
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
         prev_state = self._state
         if deterministic:
@@ -86,18 +109,18 @@ class Agent(BaseAgent):
     @step_track
     def learn_log(self, step):
         for i in range(self.N_UPDATES):
-            with TBTimer('sample', 2500):
+            with TBTimer('sample', 1000):
                 data = self.dataset.sample()
             if self._is_per:
                 idxes = data['idxes'].numpy()
                 del data['idxes']
-            with TBTimer('learn', 2500):
+            with TBTimer('learn', 1000):
                 terms = self.learn(**data)
-            if self._to_sync(self.train_steps+i):
+            if self._to_sync(self.train_step+i):
                 self._sync_target_nets()
 
             if self._schedule_lr:
-                terms['lr'] = self._lr(self._env_steps)
+                terms['lr'] = self._lr(self._env_step)
             terms = {k: v.numpy() for k, v in terms.items()}
 
             if self._is_per:
@@ -123,8 +146,10 @@ class Agent(BaseAgent):
                 bi_discount, discount = tf.split(discount, [bis, ss], 1)
                 _, logpi = tf.split(logpi, [bis, ss], 1)
                 if self._add_input:
-                    bi_rnn_input = tf.concat([bi_embed, bi_action], -1)
-                    tbi_rnn_input = tf.concat([tbi_embed, bi_action], -1)
+                    bi_action_oh = tf.one_hot(bi_action, self._action_dim, dtype=embed.dtype)
+                    bi_reward = tf.cast(tf.expand_dims(bi_reward, -1), dtype=embed.dtype)
+                    bi_rnn_input = tf.concat([bi_embed, bi_action_oh, bi_reward], -1)
+                    tbi_rnn_input = tf.concat([tbi_embed, bi_action_oh, bi_reward], -1)
                 else:
                     bi_rnn_input = bi_embed
                     tbi_rnn_input = tbi_embed
@@ -135,8 +160,10 @@ class Agent(BaseAgent):
                 o_state = t_state = state
                 ss = self._sample_size
             if self._add_input:
-                rnn_input = tf.concat([embed, action], -1)
-                t_rnn_input = tf.concat([t_embed, action], -1)
+                action_oh = tf.one_hot(action, self._action_dim, dtype=embed.dtype)
+                expanded_reward = tf.cast(tf.expand_dims(reward, -1), dtype=embed.dtype)
+                rnn_input = tf.concat([embed, action_oh, expanded_reward], axis=-1)
+                t_rnn_input = tf.concat([t_embed, action_oh, expanded_reward], -1)
             else:
                 rnn_input = embed
                 t_rnn_input = t_embed
@@ -151,9 +178,9 @@ class Agent(BaseAgent):
             
             q = self.q.mlp(curr_x, curr_action)
             next_qs = self.q.mlp(next_x)
-            next_action = tf.argmax(next_qs, axis=-1)
+            next_action = tf.argmax(next_qs, axis=-1, output_type=tf.int32)
             t_next_q = self.target_q.mlp(t_next_x, next_action)
-            next_prob = next_action == tf.argmax(action[:, 1:], axis=-1)
+            next_prob = next_action == action[:, 1:]
             next_prob = tf.cast(next_prob, logpi.dtype)
             ratio = next_prob / tf.math.exp(logpi[:, 1:])
             returns = retrace_lambda(
@@ -163,7 +190,17 @@ class Agent(BaseAgent):
             returns = tf.stop_gradient(returns)
             error = returns - q
             loss = tf.reduce_mean(IS_ratio[:, None] * loss_fn(error))
-
+        tf.debugging.assert_shapes([
+            [q, (None, ss-1)],
+            [next_qs, (None, ss-1, self._action_dim)],
+            [next_action, (None, ss-1)],
+            [action, (None, ss)],
+            [next_prob, (None, ss-1)],
+            [returns, (None, ss-1)],
+            [error, (None, ss-1)],
+            [IS_ratio, (None,)],
+            [loss, ()]
+        ])
         if self._is_per:
             priority = self._compute_priority(tf.abs(error))
             terms['priority'] = priority

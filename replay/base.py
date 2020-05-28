@@ -20,7 +20,7 @@ class Replay(ABC):
         
         self._memory = {}
 
-    def buffer_type(self):
+    def name(self):
         return self._type
 
     def good_to_learn(self):

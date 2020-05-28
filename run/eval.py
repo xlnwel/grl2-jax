@@ -13,7 +13,7 @@ from utility.yaml_op import load_config
 from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
 from utility.graph import save_video
-from run import pkg
+from utility import pkg
 from env.gym_env import create_env
 
 
@@ -46,7 +46,7 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
     env_name = env_config['name']
 
     env = create_env(env_config)
-    create_model, Agent = pkg.import_agent(agent_config)    
+    create_model, Agent = pkg.import_agent(config=agent_config)    
     models = create_model(model_config, env)
 
     agent = Agent( 
@@ -88,9 +88,8 @@ if __name__ == '__main__':
     agent_config = config['agent']
 
     # get the main function
-    algorithm = config['agent']['algorithm']
     try:
-        main = pkg.import_main(algorithm, 'eval')
+        main = pkg.import_main('eval', config=agent_config)
     except:
         print('Default main is used for evaluation')
     record = args.record

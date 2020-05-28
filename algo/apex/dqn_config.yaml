@@ -17,6 +17,7 @@ model:
 agent:
     algorithm: &algo apex-dqn
     gamma: &gamma 0.99
+    n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     schedule_eps: False
     act_eps: 0  # will be overwritten in func.py
@@ -60,7 +61,7 @@ replay:
     to_update_top_priority: False
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: *nsteps
     gamma: *gamma
     batch_size: 64
     min_size: 5e4

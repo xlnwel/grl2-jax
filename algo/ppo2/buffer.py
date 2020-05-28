@@ -43,7 +43,7 @@ class PPOBuffer:
 
     def sample(self):
         assert self._ready
-        if self._mb_idx == 0:
+        if self._shuffle and self._mb_idx == 0:
             np.random.shuffle(self._idxes)
         start = self._mb_idx * self._mb_size
         end = (self._mb_idx + 1) * self._mb_size

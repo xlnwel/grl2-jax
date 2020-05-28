@@ -19,3 +19,6 @@ def cpu_affinity(name=None):
     psutil.Process().cpu_affinity(cpus)
     if name:
         print(f'CPUs corresponding to {name}: {cpus}')
+
+def get_num_cpus():
+    return len(ray.get_resource_ids()['CPU'])

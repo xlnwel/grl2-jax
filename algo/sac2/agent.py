@@ -11,12 +11,13 @@ from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
+from algo.dqn.agent import get_data_format
 
 
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
-        self._is_per = not dataset.buffer_type().endswith('uniform')
+        self._is_per = dataset.name().endswith('per')
         self.dataset = dataset
 
         if self._schedule_lr:
