@@ -103,7 +103,7 @@ class Agent(BaseAgent):
     def get_states(self):
         return self._state, self._prev_action
 
-    def __call__(self, obs, reset=np.zeros(1), deterministic=False):
+    def __call__(self, obs, reset=np.zeros(1), deterministic=False, **kwargs):
         if len(obs.shape) % 2 != 0:
             has_expanded = True
             obs = np.expand_dims(obs, 0)

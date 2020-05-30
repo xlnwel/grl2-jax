@@ -55,4 +55,4 @@ replay:
     batch_size: 256
     min_size: 1.e+4
     capacity: 1.e+5
-    has_nth_obs: False
+    has_next_obs: False

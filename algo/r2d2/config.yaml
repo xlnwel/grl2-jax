@@ -1,6 +1,6 @@
 ---
 env:
-    name: atari_breakout
+    name: atari_pong
     wrapper: my_atari
     sticky_actions: False
     seed: 0
@@ -42,7 +42,7 @@ agent:
 
     loss_type: mse                          # huber or mse
     target_update_period: 1500
-    tbo: True
+    tbo: False
 
     # arguments for optimizer
     optimizer: adam
@@ -58,7 +58,7 @@ agent:
 
 replay:
     type: sper                      # per or uniform
-    precision: *prec
+    precision: 32
     # arguments for PER
     beta0: 0                        # follow Agent57
     to_update_top_priority: False

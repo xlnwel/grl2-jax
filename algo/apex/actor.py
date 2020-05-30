@@ -149,7 +149,7 @@ class Worker:
                 obs=(env.obs_shape, env.obs_dtype, 'obs'),
                 action=(env.action_shape, env.action_dtype, 'action'),
                 reward=((), tf.float32, 'reward'),
-                nth_obs=(env.obs_shape, env.obs_dtype, 'nth_obs'),
+                next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
                 discount=((), tf.float32, 'discount'),
                 steps=((), tf.float32, 'steps')
             )
@@ -199,15 +199,15 @@ class Worker:
         self._info['epslen'].append(epslen)
 
     @tf.function
-    def _compute_priorities(self, obs, action, reward, nth_obs, discount, steps, q=None):
+    def _compute_priorities(self, obs, action, reward, next_obs, discount, steps, q=None):
         if self._is_dpg:
             q = self.q(obs, action)
-            nth_action = self.actor.action(nth_obs, deterministic=False)
-            nth_q = self.q(nth_obs, nth_action)
+            nth_action = self.actor.action(next_obs, deterministic=False)
+            nth_q = self.q(next_obs, nth_action)
         else:
-            nth_action = self.q.action(nth_obs, False)
+            nth_action = self.q.action(next_obs, False)
             nth_action = tf.one_hot(nth_action, self.env.action_dim)
-            nth_q = self.q.value(nth_obs, nth_action)
+            nth_q = self.q.value(next_obs, nth_action)
             
         target_value = n_step_target(reward, nth_q, self._gamma, discount, steps, self._tbo)
         

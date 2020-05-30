@@ -23,7 +23,7 @@ agent:
 
     MAX_STEPS: 5.e+7
     N_STEPS: &nsteps 256
-    N_UPDATES: 4
+    N_UPDATES: 2
     N_MBS: &nmbs 4
     sample_size: &ss 16       # BPTT length
     LOG_PERIOD: 100
@@ -58,4 +58,5 @@ buffer:
     N_STEPS: *nsteps
     N_MBS: *nmbs
     sample_size: *ss
+    shuffle: True
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

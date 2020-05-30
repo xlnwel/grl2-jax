@@ -40,16 +40,16 @@ def logpi_correction(action, logpi, is_action_squashed):
 
 def h(x, epsilon=1e-3):
     """ h function defined in the transfomred Bellman operator """
-    sqrt_term = tf.math.sqrt(tf.math.abs(x) + 1)
-    return tf.math.sign(x) * (sqrt_term - 1) + epsilon * x
+    sqrt_term = tf.math.sqrt(tf.math.abs(x) + 1.)
+    return tf.math.sign(x) * (sqrt_term - 1.) + epsilon * x
 
 def inverse_h(x, epsilon=1e-3):
     """ h^{-1} function defined in the transfomred Bellman operator
     epsilon=1e-3 is used following recent papers(e.g., R2D2, MuZero, NGU)
     """
-    sqrt_term = tf.math.sqrt(1 + 4 * epsilon * (tf.math.abs(x) + 1 + epsilon))
-    frac_term = (sqrt_term - 1) / (2 * epsilon)
-    return tf.math.sign(x) * (frac_term ** 2 - 1)
+    sqrt_term = tf.math.sqrt(1. + 4. * epsilon * (tf.math.abs(x) + 1. + epsilon))
+    frac_term = (sqrt_term - 1.) / (2. * epsilon)
+    return tf.math.sign(x) * (tf.math.square(frac_term) - 1.)
 
 def n_step_target(reward, nth_value, discount=1., gamma=.99, steps=1., tbo=False):
     """
@@ -88,7 +88,7 @@ def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
          returns = tf.transpose(returns, dims)
     return returns
 
-def retrace_lambda(reward, q, next_value, ratio, discount, lambda_=.95, ratio_clip=1, axis=0, tbo=False):
+def retrace_lambda(reward, q, next_value, next_ratio, discount, lambda_=.95, ratio_clip=1, axis=0, tbo=False):
     """
     discount includes the done signal if there is any.
     axis specifies the time dimension
@@ -102,22 +102,25 @@ def retrace_lambda(reward, q, next_value, ratio, discount, lambda_=.95, ratio_cl
         reward = tf.transpose(reward, dims)
         q = tf.transpose(q, dims)
         next_value = tf.transpose(next_value, dims)
-        ratio = tf.transpose(ratio, dims)
+        next_ratio = tf.transpose(next_ratio, dims)
         discount = tf.transpose(discount, dims)
 
     if ratio_clip is not None:
-        ratio = tf.minimum(ratio, ratio_clip)
-    ratio *= lambda_
+        next_ratio = tf.minimum(next_ratio, ratio_clip)
+    next_ratio *= lambda_
     delta = reward + discount * next_value - q
 
     if tbo:
         q = inverse_h(q)
         next_value = inverse_h(next_value)
+    # because we generally assume q_T - Q_T == 0, we do not need 𝜌_T
+    assert delta.shape[0] == next_ratio.shape[0] + 1, f'{delta.shape} vs {next_ratio.shape}'
+    # we starts from delta[-1] as we generally assume q_T - Q_T == 0,
     diff = static_scan(
         lambda acc, x: x[0] + x[1] * x[2] * acc,
-        tf.zeros_like(next_value[-1]), (delta, discount, ratio), 
-        reverse=True
-    )
+        delta[-1], (delta[:-1], discount[:-1], next_ratio), 
+        reverse=True)
+    diff = tf.concat([diff, delta[-1:]], axis=0)
     returns = q + diff
 
     if axis != 0:

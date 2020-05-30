@@ -44,8 +44,8 @@ class Q(Module):
             name='a' if self._duel else 'q')
 
     @tf.function
-    def action(self, x, state, deterministic, epsilon=0):
-        qs, state = self.value(x, state)
+    def action(self, x, state, deterministic, epsilon=0, prev_action=None, prev_reward=None):
+        qs, state = self.value(x, state, prev_action, prev_reward)
         qs = tf.squeeze(qs)
         action = tf.cast(tf.argmax(qs, axis=-1), tf.int32)
         if deterministic:
@@ -61,7 +61,7 @@ class Q(Module):
             return action, {'logpi': logpi}, state
     
     @tf.function
-    def value(self, x, state, action=None):
+    def value(self, x, state, action=None, prev_action=None, prev_reward=None):
         if self._cnn is None:
             x = tf.reshape(x, (-1, 1, x.shape[-1]))
             if not hasattr(self, 'shared_layers'):
@@ -69,7 +69,7 @@ class Q(Module):
         else:
             x = tf.reshape(x, (-1, 1, *x.shape[-3:]))
         x = self.cnn(x)
-        x, state = self.rnn(x, state)
+        x, state = self.rnn(x, state, prev_action, prev_reward)
         q = self.mlp(x, action=action)
 
         return q, state
@@ -79,7 +79,11 @@ class Q(Module):
             x = self._cnn(x)
         return x
 
-    def rnn(self, x, state):
+    def rnn(self, x, state, prev_action=None, prev_reward=None):
+        if prev_action is not None or prev_reward is not None:
+            prev_action = tf.one_hot(prev_action, self._action_dim, dtype=x.dtype)
+            prev_reward = tf.cast(tf.expand_dims(prev_reward, -1), dtype=x.dtype)
+            x = tf.concat([x, prev_action, prev_reward], axis=-1)
         x = self._rnn(x, initial_state=state)
         x, state = x[0], x[1:]
         return x, state

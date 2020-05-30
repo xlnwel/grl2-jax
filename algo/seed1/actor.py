@@ -297,7 +297,7 @@ class Worker:
 
     def reset_env(self, env_id):
         # return: obs, reward, discount, already_done
-        return self._envs[env_id].reset(), 0, 1, False
+        return self._envs[env_id].reset().obs, 0, 1, False
 
     def env_step(self, env_id, action):
         # if self._id == 0 and env_id == 0:

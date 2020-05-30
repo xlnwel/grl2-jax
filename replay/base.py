@@ -46,10 +46,10 @@ class Replay(ABC):
 
     def add(self, **kwargs):
         """ Add a single transition to the replay buffer """
-        nth_obs = kwargs['nth_obs']
+        next_obs = kwargs['next_obs']
         if self._memory == {}:
-            if not self._has_nth_obs:
-                del kwargs['nth_obs']
+            if not self._has_next_obs:
+                del kwargs['next_obs']
             init_buffer(self._memory, 
                         pre_dims=self._pre_dims, 
                         has_steps=self._n_steps>1, 
@@ -64,8 +64,8 @@ class Replay(ABC):
         add_buffer(
             self._memory, self._mem_idx, self._n_steps, self._gamma, cycle=self._is_full, **kwargs)
         self._mem_idx = (self._mem_idx + 1) % self._capacity
-        if 'nth_obs' not in self._memory:
-            self._memory['obs'][self._mem_idx] = nth_obs
+        if 'next_obs' not in self._memory:
+            self._memory['obs'][self._mem_idx] = next_obs
 
     """ Implementation """
     def _sample(self, batch_size=None):
@@ -73,8 +73,8 @@ class Replay(ABC):
 
     def _merge(self, local_buffer, length):
         if self._memory == {}:
-            if not self._has_nth_obs and 'nth_obs' in local_buffer:
-                del local_buffer['nth_obs']
+            if not self._has_next_obs and 'next_obs' in local_buffer:
+                del local_buffer['next_obs']
             init_buffer(self._memory, 
                         pre_dims=self._pre_dims, 
                         has_steps=self._n_steps>1, 
@@ -110,13 +110,13 @@ class Replay(ABC):
             else:
                 results[k] = np.array([np.array(v[i], copy=False) for i in idxes])
             
-        if 'nth_obs' not in self._memory:
+        if 'next_obs' not in self._memory:
             steps = results.get('steps', 1)
             next_idxes = (idxes + steps) % self._capacity
             if isinstance(self._memory['obs'], np.ndarray):
-                results['nth_obs'] = self._memory['obs'][next_idxes]
+                results['next_obs'] = self._memory['obs'][next_idxes]
             else:
-                results['nth_obs'] = np.array(
+                results['next_obs'] = np.array(
                     [np.array(self._memory['obs'][i], copy=False) 
                     for i in next_idxes])
 

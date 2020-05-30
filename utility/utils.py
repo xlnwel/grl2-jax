@@ -278,7 +278,7 @@ def convert_indices(indices, *args):
 
     return tuple(res)
 
-def infer_dtype(dtype, precision):
+def infer_dtype(dtype, precision=32):
     if np.issubdtype(dtype, np.floating):
         dtype = {16: np.float16, 32: np.float32, 64: np.float64}[precision]
     elif np.issubdtype(dtype, np.signedinteger):
@@ -291,7 +291,7 @@ def infer_dtype(dtype, precision):
       raise NotImplementedError(dtype)
     return dtype
 
-def convert_dtype(value, precision=None, dtype=None, **kwargs):
+def convert_dtype(value, precision=32, dtype=None, **kwargs):
     value = np.array(value, **kwargs)
     if dtype is None:
         dtype = infer_dtype(value.dtype, precision)

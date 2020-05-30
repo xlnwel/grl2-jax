@@ -118,7 +118,9 @@ class EnvStats(Wrapper):
             print('Timeout is treated as done')
 
     def reset(self, **kwargs):
-        if self.game_over():
+        if self.already_done() == self.game_over():
+            if not self.game_over():
+                print("Warning: reset env before it's done")
             self._score = 0
             self._epslen = 0
         self._already_done = False
@@ -149,10 +151,10 @@ class EnvStats(Wrapper):
             info['epslen'] = self._epslen
             info['game_over'] = True
 
-        return obs, reward, done, info
+        return obs, reward, float(done), info
 
     def mask(self):
-        """ Get mask at the current step. Should only be called after self.step """
+        """ Get mask at the current step. """
         return self._mask
 
     def score(self, **kwargs):

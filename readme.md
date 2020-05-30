@@ -61,6 +61,8 @@ https://github.com/deepmind/dnc
 
 https://github.com/danijar/dreamer
 
+https://github.com/google-research/seed_rl
+
 ## Acknowledge
 
 I'd like to especially thank @danijar for his great help with Dreamer.

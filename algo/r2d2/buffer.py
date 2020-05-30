@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from core.decorator import config
+from utility.utils import convert_dtype
 from replay.utils import *
 
 
@@ -33,7 +34,7 @@ class LocalBuffer(ABC):
 class EnvBuffer(LocalBuffer):
     @config
     def __init__(self, state_keys):
-        self._memory = collections.defaultdict(list)
+        self._memory = {}
         self._state_keys = state_keys
         self._pop_size = self._sample_size - self._burn_in_size
         self._idx = 0
@@ -46,29 +47,33 @@ class EnvBuffer(LocalBuffer):
             self._memory[k].clear()
         self._idx = 0
 
-    def add(self, **data):
+    def pre_add(self, **kwargs):
+        """ This function should only be called to add necessary stats
+        when the environment is reset """
+        for k, v in kwargs.items():
+            assert k in ['obs', 'prev_action', 'prev_reward'], k
+            if k not in self._memory:
+                self._memory[k] = collections.deque(maxlen=self._sample_size+1)
+            self._memory[k].append(v)
+
+    def add(self, **kwargs):
         assert self._idx < self._sample_size
-        if self._memory == {}:
-            for k in data:
-                n_states = math.ceil(self._sample_size / self._pop_size)
+        for k, v in kwargs.items():
+            if k in self._memory:
+                pass
+            elif k in self._state_keys:
                 self._memory[k] = collections.deque(
-                    maxlen=n_states if k in self._state_keys else self._sample_size)
-        else:
-            np.testing.assert_equal(set(self._memory), set(data))
-        for k, v in data.items():
-            if k in self._state_keys:
-                if self._idx % self._pop_size == 0:
-                    self._memory[k].append(v)
+                    maxlen=math.ceil(self._sample_size / self._pop_size))
             else:
+                self._memory[k] = collections.deque(maxlen=self._sample_size)
+            if k not in self._state_keys or self._idx % self._pop_size == 0:
                 self._memory[k].append(v)
         self._idx += 1
 
     def sample(self):
-        data = {k: np.array(v, copy=False) for k, v in self._memory.items()}
-        for k in ['reward', 'discount']:
-            data[k] = data[k].astype(np.float32)
-        for k in self._state_keys:
-            data[k] = data[k][0]
+        data = {k: v[0] if k in self._state_keys 
+                    else convert_dtype(v, precision=self._precision)
+                    for k, v in self._memory.items()}
         self._idx = self._burn_in_size
         return data
 

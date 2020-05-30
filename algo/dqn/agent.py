@@ -19,7 +19,7 @@ def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
         obs=((None, *env.obs_shape), obs_dtype),
         action=((None, *env.action_shape), action_dtype),
         reward=((None, ), dtype), 
-        nth_obs=((None, *env.obs_shape), obs_dtype),
+        next_obs=((None, *env.obs_shape), obs_dtype),
         discount=((None, ), dtype),
     )
     if is_per:
@@ -57,7 +57,7 @@ class Agent(BaseAgent):
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=((), env.action_dtype, 'action'),
             reward=((), self._dtype, 'reward'),
-            nth_obs=(env.obs_shape, env.obs_dtype, 'nth_obs'),
+            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
             discount=((), self._dtype, 'discount'),
         )
         if self._is_per:
@@ -106,15 +106,15 @@ class Agent(BaseAgent):
         return self.N_UPDATES
 
     @tf.function
-    def _learn(self, obs, action, reward, nth_obs, discount, steps=1, IS_ratio=1):
+    def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
         with tf.GradientTape() as tape:
             q = self.q.value(obs, action)
-            nth_action = self.q.action(nth_obs, noisy=False)
+            nth_action = self.q.action(next_obs, noisy=False)
             nth_action = tf.one_hot(nth_action, self._action_dim, dtype=self._dtype)
-            nth_q = self.target_q.value(nth_obs, nth_action, noisy=False)
+            nth_q = self.target_q.value(next_obs, nth_action, noisy=False)
             returns = n_step_target(reward, nth_q, discount, self._gamma, steps, self._tbo)
             returns = tf.stop_gradient(returns)
             error = returns - q

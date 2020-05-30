@@ -1,5 +1,6 @@
 """ Implementation of single process environment """
 import itertools
+import collections
 import numpy as np
 import gym
 import tensorflow as tf
@@ -10,6 +11,8 @@ from utility.utils import isscalar, RunningMeanStd
 from env.wrappers import *
 from env.atari import make_atari_env
 
+
+EnvOutput = collections.namedtuple('EnvOutput', 'obs reward done info')
 
 def make_env(config):
     config = config.copy()
@@ -85,14 +88,14 @@ class Env(Wrapper):
         return 'Env'
 
     def reset(self, idxes=None, **kwargs):
-        return self.env.reset(**kwargs)
+        return EnvOutput(self.env.reset(**kwargs), 0, False, {'reset': True})
 
     def random_action(self, *args, **kwargs):
         action = self.env.action_space.sample()
         return action
         
     def step(self, action, **kwargs):
-        return self.env.step(action, **kwargs)
+        return EnvOutput(*self.env.step(action, **kwargs))
 
     """ the following code is needed for ray """
     def mask(self):
@@ -148,16 +151,17 @@ class EnvVec(EnvVecBase):
         else:
             kwargs = [dict() for _ in idxes]
         obs = [self.envs[i].reset(**kw) for i, kw in zip(idxes, kwargs)]
-        
-        return self._convert_batch_obs(obs)
+        obs = self._convert_batch_obs(obs)
+
+        return EnvOutput(obs, 0, False, {'reset': True})
     
     def step(self, actions, **kwargs):
         obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
 
-        return (self._convert_batch_obs(obs), 
-                np.array(reward, dtype=np.float32), 
-                np.array(done, dtype=np.float32), 
-                info)
+        return EnvOutput(self._convert_batch_obs(obs), 
+                        np.array(reward, dtype=np.float32), 
+                        np.array(done, dtype=np.float32), 
+                        info)
 
     def mask(self):
         return np.array([env.mask() for env in self.envs], dtype=np.float32)
@@ -214,12 +218,12 @@ class EfficientEnvVec(EnvVec):
             for id_, i in zip(self.env_ids, info):
                 i['env_id'] = id_
 
-            return (self._convert_batch_obs(obs), 
-                    np.array(reward, dtype=np.float32), 
-                    np.array(done, dtype=np.float32), 
-                    info)
+            return EnvOutput(self._convert_batch_obs(obs), 
+                            np.array(reward, dtype=np.float32), 
+                            np.array(done, dtype=np.float32), 
+                            info)
         else:
-            return None, 0, True, {}
+            return EnvOutput(None, 0, True, {})
 
 
 class RayEnvVec(EnvVecBase):
@@ -242,7 +246,11 @@ class RayEnvVec(EnvVecBase):
 
     def reset(self, idxes=None):
         obs = self._remote_call('reset', idxes)
-        return self._convert_batch_obs(obs)
+        obs = self._convert_batch_obs(obs)
+        return EnvOutput(obs, 
+                        np.zeros(self.n_envs), 
+                        np.zeros(self.n_envs), 
+                        [{'reset': True} for _ in range(self.n_envs)])
 
     def random_action(self, *args, **kwargs):
         return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
@@ -260,10 +268,10 @@ class RayEnvVec(EnvVecBase):
         obs = tf.nest.flatten(obs)
         if self.envsperworker > 1:
             info = itertools.chain(*info)
-        return (self._convert_batch_obs(obs),
-                np.reshape(reward, self.n_envs).astype(np.float32), 
-                np.reshape(done, self.n_envs).astype(np.float32),
-                info)
+        return EnvOutput(self._convert_batch_obs(obs),
+                        np.reshape(reward, self.n_envs).astype(np.float32), 
+                        np.reshape(done, self.n_envs).astype(np.float32),
+                        info)
 
     def mask(self):
         """ Get mask at the current step. Should only be called after self.step """

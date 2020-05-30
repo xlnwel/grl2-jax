@@ -14,7 +14,7 @@ from env.gym_env import create_env
 
 
 def train(agent, env, eval_env, buffer):
-    def collect(env, step, reward, nth_obs, **kwargs):
+    def collect(env, step, reward, next_obs, **kwargs):
         kwargs['reward'] = agent.normalize_reward(reward)
         buffer.add(**kwargs)
     step = agent.env_step

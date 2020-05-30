@@ -34,8 +34,8 @@ def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
         buffer['discount'][k] = kwargs['discount']
         if 'steps' in buffer:
             buffer['steps'][k] += 1
-        if 'nth_obs' in buffer:
-            buffer['nth_obs'][k] = kwargs['nth_obs']
+        if 'next_obs' in buffer:
+            buffer['next_obs'][k] = kwargs['next_obs']
 
 def copy_buffer(dest_buffer, dest_start, dest_end, orig_buffer, orig_start, orig_end, dest_keys=True):
     assert dest_end - dest_start == orig_end - orig_start, (

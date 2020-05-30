@@ -90,10 +90,10 @@ def main(env_config, model_config, agent_config, replay_config):
     #     else:
     #         action = env.random_action()
 
-    #     nth_obs, reward, done, _ = env.step(action)
+    #     next_obs, reward, done, _ = env.step(action)
     #     epslen += 1
-    #     replay.add(obs=obs, action=action, reward=reward, discount=1-done, nth_obs=nth_obs)
-    #     obs = nth_obs
+    #     replay.add(obs=obs, action=action, reward=reward, discount=1-done, next_obs=next_obs)
+    #     obs = next_obs
 
     #     if done or epslen == env.max_episode_steps:
     #         agent.store(score=env.score(), epslen=env.epslen())

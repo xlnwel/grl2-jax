@@ -50,7 +50,7 @@ class Agent(BaseAgent):
             obs=(env.obs_shape, self._dtype, 'obs'),
             action=((env.action_dim,), self._dtype, 'action'),
             reward=((), self._dtype, 'reward'),
-            nth_obs=(env.obs_shape, self._dtype, 'nth_obs'),
+            next_obs=(env.obs_shape, self._dtype, 'next_obs'),
             discount=((), self._dtype, 'discount'),
         )
         if self._is_per:
@@ -88,7 +88,7 @@ class Agent(BaseAgent):
         return 1
 
     @tf.function
-    def _learn(self, obs, action, reward, nth_obs, discount, steps=1, IS_ratio=1):
+    def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
         q_value = lambda q, obs, act: q(tf.concat([obs, act], -1)).mode()
         with tf.GradientTape() as actor_tape:
@@ -124,7 +124,7 @@ class Agent(BaseAgent):
             q1 = q_value(self.q1, obs, action)
             q2 = q_value(self.q2, obs, action)
             q = tf.minimum(q1, q2)
-            nth_value = self.target_value(nth_obs).mode()
+            nth_value = self.target_value(next_obs).mode()
             
             target_q = n_step_target(reward, nth_value, discount, self._gamma, steps)
             target_q = tf.stop_gradient(target_q)

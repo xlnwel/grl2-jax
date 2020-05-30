@@ -44,7 +44,7 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
 
     algo_name = agent_config['algorithm']
     env_name = env_config['name']
-
+    env_config['efficient_envvec'] = True
     env = create_env(env_config)
     create_model, Agent = pkg.import_agent(config=agent_config)    
     models = create_model(model_config, env)

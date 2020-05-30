@@ -105,7 +105,6 @@ def static_scan(fn, start, inputs, reverse=False):
         elems=inputs, 
         initializer=start,
         parallel_iterations=1,
-        back_prop=False,
         reverse=reverse
     )
     In practice, we find it's faster than tf.scan

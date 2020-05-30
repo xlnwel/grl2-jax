@@ -123,14 +123,16 @@ class Worker:
         self.n_envs = self.env.n_envs
         self._action_dim = env.action_dim
 
+        self._state = None
+        self._prev_action = None
+        self._prev_reward = None
+
         self.runner = Runner(self.env, self, nsteps=self.SYNC_PERIOD)
 
         self.models = Ensemble(
                 model_fn=model_fn, 
                 config=model_config, 
                 env=env)
-
-        self._state = None
 
         self.buffer = buffer_fn(buffer_config, state_keys=['h', 'c'])
         self._is_per = buffer_config['type'].endswith('per')
@@ -142,9 +144,9 @@ class Worker:
         self._info = collections.defaultdict(list)
         if self._is_per:
             TensorSpecs = dict(
-                obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
-                action=((self._sample_size,), tf.int32, 'action'),
-                reward=((self._sample_size,), tf.float32, 'reward'),
+                obs=((self._sample_size+1, *env.obs_shape), env.obs_dtype, 'obs'),
+                prev_action=((self._sample_size+1,), tf.int32, 'prev_action'),
+                prev_reward=((self._sample_size+1,), tf.float32, 'prev_reward'),
                 logpi=((self._sample_size,), tf.float32, 'logpi'),
                 discount=((self._sample_size,), tf.float32, 'discount'),
                 q=((self._sample_size,), tf.float32, 'q')
@@ -157,23 +159,34 @@ class Worker:
                 )
             self.compute_priorities = build(self._compute_priorities, TensorSpecs)
 
-    def __call__(self, obs, reset=np.zeros(1), deterministic=False):
+    def __call__(self, obs, reset=np.zeros(1), deterministic=False, env_output=None):
+        if self._add_input:
+            self._prev_reward = env_output.reward
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=self.n_envs)
+            if self._add_input:
+                self._prev_action = tf.zeros(self.n_envs)
+                self._prev_reward = tf.zeros(self.n_envs)
         if np.any(reset):
             mask = tf.cast(1. - reset, tf.float32)
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
-        prev_state = self._state
-        action, terms, self._state = self.action(obs, self._state)
+            if self._add_input:
+                self._prev_action = self._prev_action * mask
+                self._prev_reward = self._prev_reward * mask
+        action, terms, state = self.action(
+                obs, self._state, self._prev_action, self._prev_reward)
         if self._store_state:
-            terms['h'] = prev_state[0]
-            terms['c'] = prev_state[1]
+            terms['h'] = self._state[0]
+            terms['c'] = self._state[1]
         terms = tf.nest.map_structure(lambda x: np.squeeze(x.numpy()), terms)
+        self._state = state
+        if self._add_input:
+            self._prev_action = action
         return action.numpy(), terms
 
     @tf.function
-    def action(self, obs, state):
-        qs, state = self.q.value(obs, state)
+    def action(self, obs, state, prev_action, prev_reward):
+        qs, state = self.q.value(obs, state, prev_action, prev_reward)
         qs = tf.squeeze(qs)
         q = tf.math.reduce_max(qs, axis=-1)
         action = tf.cast(tf.argmax(qs, axis=-1), tf.int32)
@@ -193,7 +206,12 @@ class Worker:
             self._send_episode_info(learner)
         
     def _run(self, weights, replay):
-        def collect(env, step, nth_obs, **kwargs):
+        def reset_fn(obs, reward, **kwargs):
+            self.buffer.pre_add(obs=obs, prev_action=0, prev_reward=reward)
+        def collect(env, step, obs, action, reward, next_obs, **kwargs):
+            kwargs['obs'] = next_obs
+            kwargs['prev_action'] = action
+            kwargs['prev_reward'] = reward
             self.buffer.add(**kwargs)
             if self.buffer.is_full():
                 self._send_data(replay)
@@ -201,34 +219,35 @@ class Worker:
                 self.buffer.reset()
 
         self.models.set_weights(weights)
-        self.runner.run(step_fn=collect)
+        self.runner.run(reset_fn=reset_fn, step_fn=collect)
         
     def store(self, score, epslen):
         self._info['score'].append(score)
         self._info['epslen'].append(epslen)
 
     @tf.function
-    def _compute_priorities(self, obs, action, reward, discount, logpi, state, q):
+    def _compute_priorities(self, obs, prev_action, prev_reward, discount, logpi, state, q):
         embed = self.q.cnn(obs)
         if self._add_input:
-            action_oh = tf.one_hot(action, self._action_dim, dtype=embed.dtype)
-            rnn_input = tf.concat([embed, action_oh, reward[..., None]], -1)
+            pa, pr = prev_action, prev_reward
         else:
-            rnn_input = embed
-        x, _ = self.q.rnn(rnn_input, state)
-        next_x = x[:, 1:]
-        next_qs = self.q.mlp(next_x)
+            pa, pr = None, None
+        x, _ = self.q.rnn(embed, state,
+            prev_action=pa, prev_reward=pr)
+        next_qs = self.q.mlp(x[:, 1:])
+        # intend not to use the target net for computational efficiency
+        # the effect is not tested, but I conjecture it won't be much
         next_q = tf.math.reduce_max(next_qs, axis=-1)
-        target_value = n_step_target(reward[:, :-1], next_q, discount[:, :-1], self._gamma, tbo=self._tbo)
-        priority = tf.abs(target_value - q[:, :-1])
+        target_value = n_step_target(prev_reward[:, 1:], next_q, discount, self._gamma, tbo=self._tbo)
+        priority = tf.abs(target_value - q)
         priority = (self._per_eta*tf.math.reduce_max(priority, axis=1) 
                     + (1-self._per_eta)*tf.math.reduce_mean(priority, axis=1))
         priority += self._per_epsilon
         priority **= self._per_alpha
 
         tf.debugging.assert_shapes([
-            (next_q, (None, self._sample_size-1)),
-            (target_value, (None, self._sample_size-1)),
+            (next_q, (None, self._sample_size)),
+            (target_value, (None, self._sample_size)),
             (q, (None, self._sample_size)),
             (priority, (None,))])
 
@@ -242,17 +261,10 @@ class Worker:
         if self._is_per:
             data_tensor = {}
             for k, v in data.items():
-                if 'obs' in k:
-                    dtype = self.env.obs_dtype
-                elif 'action' in k:
-                    dtype = self.env.action_dtype
-                else:
-                    dtype = tf.float32
-                v = np.expand_dims(v, 0)
-                data_tensor[k] = tf.convert_to_tensor(v, dtype)
+                data_tensor[k] = tf.expand_dims(v, 0)
             del data['q']
             data['priority'] = self.compute_priorities(**data_tensor).numpy()
-        replay.merge.remote(data, self.n_envs)
+        replay.merge.remote(data)
 
     def _send_episode_info(self, learner):
         if self._info:
@@ -283,13 +295,23 @@ class Evaluator:
         self.q = self.models['q']
         self._pull_names = ['q']
         
+        self._state = None
+        self._prev_action = None
+        self._prev_reward = None
+
         self._info = collections.defaultdict(list)
 
     def reset_states(self):
         self._state = self.q.get_initial_state(batch_size=self.n_envs)
-
-    def __call__(self, x, deterministic=True, **kwargs):
+        if self._add_input:
+            self._prev_action = tf.zeros(self.n_envs)
+            self._prev_reward = tf.zeros(self.n_envs)
+    def __call__(self, x, deterministic=True, env_output=None, **kwargs):
+        if self._add_input:
+            self._prev_reward = env_output.reward
         action, self._state = self.q.action(x, self._state, deterministic=True)
+        if self._add_input:
+            self._prev_action = action
         return action.numpy()
 
     def run(self, learner):

@@ -49,7 +49,7 @@ def create_worker(Worker, worker_id, model_fn, config, model_config,
     env_config['seed'] += worker_id * 100
     
     if 'actor' not in model_config:
-        config['act_eps'] = apex_epsilon_greedy(worker_id, config['n_workers'])
+        config['act_eps'] = apex_epsilon_greedy(worker_id, max(256, config['n_workers']))
     RayWorker = ray.remote(num_cpus=1)(Worker)
     worker = RayWorker.remote(
         worker_id=worker_id, 

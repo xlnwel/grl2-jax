@@ -47,7 +47,7 @@ class Agent(BaseAgent):
             obs=(env.obs_shape, self._dtype, 'obs'),
             action=((env.action_dim,), self._dtype, 'action'),
             reward=((), self._dtype, 'reward'),
-            nth_obs=(env.obs_shape, self._dtype, 'nth_obs'),
+            next_obs=(env.obs_shape, self._dtype, 'next_obs'),
             discount=((), self._dtype, 'discount'),
         )
         if self._is_per:
@@ -85,7 +85,7 @@ class Agent(BaseAgent):
         return 1
 
     @tf.function
-    def _learn(self, obs, action, reward, nth_obs, discount, steps=1, IS_ratio=1):
+    def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
         old_action = action
         with tf.GradientTape(persistent=True) as tape:
@@ -94,16 +94,16 @@ class Agent(BaseAgent):
             q2_with_actor = self.q2(obs, action)
             q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
 
-            nth_action, nth_logpi, _ = self.actor.train_step(nth_obs)
-            nth_q1_with_actor = self.target_q1(nth_obs, nth_action)
-            nth_q2_with_actor = self.target_q2(nth_obs, nth_action)
+            nth_action, nth_logpi, _ = self.actor.train_step(next_obs)
+            nth_q1_with_actor = self.target_q1(next_obs, nth_action)
+            nth_q2_with_actor = self.target_q2(next_obs, nth_action)
             nth_q_with_actor = tf.minimum(nth_q1_with_actor, nth_q2_with_actor)
             
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = nth_temp = self.temperature
             else:
                 log_temp, temp = self.temperature(obs, action)
-                _, nth_temp = self.temperature(nth_obs, nth_action)
+                _, nth_temp = self.temperature(next_obs, nth_action)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
                     * tf.stop_gradient(logpi + target_entropy))
                 terms['temp'] = temp

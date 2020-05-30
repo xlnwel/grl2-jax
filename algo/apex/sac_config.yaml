@@ -65,4 +65,4 @@ replay:
     batch_size: 512
     min_size: 5e+4
     capacity: 1e+6
-    has_nth_obs: False                 # should be true if workers send incomplete trajs
+    has_next_obs: False                 # should be true if workers send incomplete trajs
