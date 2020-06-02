@@ -17,9 +17,9 @@ class Actor(Module):
         super().__init__(name=name)
 
         """ Network definition """
-        out_dim = action_dim if is_action_discrete else 2*action_dim
+        out_size = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(self._units_list, 
-                            out_dim=out_dim,
+                            out_size=out_size,
                             activation=self._activation)
 
         self._is_action_discrete = is_action_discrete
@@ -77,7 +77,7 @@ class Value(Module):
         super().__init__(name=name)
 
         self._layers = mlp(self._units_list,
-                            out_dim=1,
+                            out_size=1,
                             activation=self._activation)
     
     @tf.Module.with_name_scope

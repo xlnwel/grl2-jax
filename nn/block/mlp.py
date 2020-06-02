@@ -5,7 +5,7 @@ from nn.utils import get_initializer
 
 
 class MLP(tf.Module):
-    def __init__(self, units_list, out_dim=None, layer_type=tf.keras.layers.Dense, 
+    def __init__(self, units_list, out_size=None, layer_type=tf.keras.layers.Dense, 
                 norm=None, activation=None, kernel_initializer='glorot_uniform', 
                 name=None, out_dtype=None, **kwargs):
         super().__init__(name=name)
@@ -15,12 +15,12 @@ class MLP(tf.Module):
                 activation=activation, kernel_initializer=kernel_initializer, 
                 name=f'layer_{i}', **kwargs)
             for i, u in enumerate(units_list)]
-        if out_dim:
+        if out_size:
             # Following OpenAI's baselines, which uses a small-scale initializer
             # for policy head when using othogonal initialization
-            gain = .01 if out_dim > 1 else 1
+            gain = kwargs.get('gain', .01)
             kernel_initializer = get_initializer(kernel_initializer, gain=gain)
-            self._layers.append(layer_type(out_dim, dtype=out_dtype, name='out'))
+            self._layers.append(layer_type(out_size, dtype=out_dtype, name='out'))
             
     def __call__(self, x, **kwargs):
         if self.name:

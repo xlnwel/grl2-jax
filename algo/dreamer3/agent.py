@@ -53,10 +53,6 @@ class Agent(BaseAgent):
         self._actor_opt = DreamerOpt(models=self.actor, lr=self._actor_lr, return_grads=True)
         self._q_opt = DreamerOpt(models=[self.q1, self.q2], lr=self._q_lr, return_grads=True)
 
-        self._ckpt_models['model_opt'] = self._model_opt
-        self._ckpt_models['actor_opt'] = self._actor_opt
-        self._ckpt_models['q_opt'] = self._q_opt
-
         if isinstance(self.temperature, float):
             # convert to variable, useful for scheduling
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -65,7 +61,6 @@ class Agent(BaseAgent):
                 self._temp_lr = TFPiecewiseSchedule(
                     [(5e5, self._temp_lr), (1e6, 1e-5)])
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
-            self._ckpt_models['temp_opt'] = self._temp_opt
 
         self._state = None
         self._prev_action = None
@@ -245,13 +240,12 @@ class Agent(BaseAgent):
                 terms['temp'] = temp
                 terms['temp_loss'] = temp_loss
 
-        # as we don't have the action for the last obs, we drop it here
-        curr_feat = feature[:, :-2]
-        next_feat = feature[:, 1:-1]
-        curr_action = prev_action[:, 1:-1]
-        next_action = new_action[:, 1:-1]
-        next_logpi = new_logpi[:, 1:-1]
-        discount = discount[:, :-2] * self._gamma
+        curr_feat = feature[:, :-1]
+        next_feat = feature[:, 1:]
+        curr_action = prev_action[:, 1:]
+        next_action = new_action[:, 1:]
+        next_logpi = new_logpi[:, 1:]
+        discount = discount[1:] * self._gamma
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         with tf.GradientTape() as q_tape:

@@ -6,8 +6,8 @@ from nn.block.mlp import *
 from nn.dnc.dnc import DNC
 
 
-def mlp(units_list=[], out_dim=None, **kwargs):
-    return MLP(units_list, out_dim=out_dim, **kwargs)
+def mlp(units_list=[], out_size=None, **kwargs):
+    return MLP(units_list, out_size=out_size, **kwargs)
 
 
 def dnc_rnn(output_size, 

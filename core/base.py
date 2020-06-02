@@ -58,11 +58,11 @@ class BaseAgent(ABC):
     def store(self, **kwargs):
         store(self._logger, **kwargs)
 
-    def get_raw_value(self, key):
-        return get_raw_value(self._logger, key)
+    def get_raw_item(self, key):
+        return get_raw_item(self._logger, key)
 
-    def get_value(self, key, mean=True, std=False, min=False, max=False):
-        return get_value(self._logger, key, mean=mean, std=std, min=min, max=max)
+    def get_item(self, key, mean=True, std=False, min=False, max=False):
+        return get_item(self._logger, key, mean=mean, std=std, min=min, max=max)
 
     def get_stats(self, mean=True, std=False, min=False, max=False):
         return get_stats(self._logger, mean=mean, std=std, min=min, max=max)

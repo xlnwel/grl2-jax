@@ -47,7 +47,6 @@ class Agent(BaseAgent):
         self._to_sync = Every(self._target_update_period)
         # optimizer
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
-        self._ckpt_models['optimizer'] = self._optimizer
 
         self._action_dim = env.action_dim
 

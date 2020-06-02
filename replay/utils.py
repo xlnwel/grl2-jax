@@ -3,7 +3,7 @@ import numpy as np
 from utility.utils import infer_dtype
 
 
-def init_buffer(buffer, pre_dims, has_steps=False, precision=32, **kwargs):
+def init_buffer(buffer, pre_dims, has_steps=False, precision=None, **kwargs):
     buffer.clear()
     if isinstance(pre_dims, int):
         pre_dims = [pre_dims]

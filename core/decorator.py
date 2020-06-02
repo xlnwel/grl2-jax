@@ -5,6 +5,7 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 from utility.display import display_var_info, pwc
 from core.checkpoint import setup_checkpoint
 from core.log import setup_logger, setup_tensorboard, save_code
+from core.optimizer import Optimizer
 
 
 def agent_config(init_fn):
@@ -46,6 +47,12 @@ def agent_config(init_fn):
 
         # Agent initialization
         init_fn(self, env=env, **kwargs)
+
+        # save optimizers
+        for k, v in vars(self).items():
+            if isinstance(v, Optimizer):
+                self._ckpt_models[k[1:]] = v
+        print('ckpt models:', self._ckpt_models)
 
         self.print_construction_complete()
         

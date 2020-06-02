@@ -14,7 +14,7 @@ from core.dataset import Dataset, process_with_env
 
 
 def train(agent, env, eval_env, replay):
-    def collect_and_learn(env, step, **kwargs):
+    def collect_and_learn(env, step, info, **kwargs):
         replay.add(**kwargs)
         agent.learn_log(step)
 

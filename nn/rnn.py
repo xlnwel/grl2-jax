@@ -96,6 +96,8 @@ class LSTMCell(layers.Layer):
         x, mask = tf.nest.flatten(x)
         h, c = states
         if mask is not None:
+            # an advantage of using Layer as subclass is
+            # that we don't need to worry about precision
             h = h * mask
             c = c * mask
         

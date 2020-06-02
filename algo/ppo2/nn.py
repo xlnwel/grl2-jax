@@ -29,29 +29,31 @@ class PPOAC(Module):
                 kernel_initializer=self._kernel_initializer)
         else:
             self._shared_layers = lambda x: x
-        # RNN layer
+
         cell = LSTMCell(self._lstm_units)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
 
-        # actor/critic head
         self.actor = mlp(self._actor_units, 
-                        out_dim=action_dim, 
+                        out_size=action_dim, 
                         norm=self._norm,
-                        name='actor',
                         activation=self._activation, 
-                        kernel_initializer=self._kernel_initializer)
+                        kernel_initializer=self._kernel_initializer,
+                        out_dtype='float32',
+                        name='actor',
+                        )
         if not self._is_action_discrete:
             self.logstd = tf.Variable(
                 initial_value=np.log(self._init_std)*np.ones(action_dim), 
-                dtype=global_policy().compute_dtype, 
+                dtype='float32', 
                 trainable=True, 
                 name=f'actor/logstd')
         self.critic = mlp(self._critic_units, 
-                            out_dim=1,
+                            out_size=1,
                             norm=self._norm,
-                            name='critic', 
                             activation=self._activation, 
-                            kernel_initializer=self._kernel_initializer)
+                            kernel_initializer=self._kernel_initializer,
+                            out_dtype='float32',
+                            name='critic')
 
     def __call__(self, x, state, mask=None, return_value=False):
         print(f'{self.name} is retracing: x={x.shape}')

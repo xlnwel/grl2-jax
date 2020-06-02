@@ -48,7 +48,6 @@ class Agent(BaseAgent):
 
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, 
             clip_norm=self._clip_norm, epsilon=self._epsilon)
-        self._ckpt_models['optimizer'] = self._optimizer
 
         self._state = None
         self._prev_action = None
@@ -182,18 +181,18 @@ class Agent(BaseAgent):
                 pa, pr = None, None
             x, _ = self.q.rnn(embed, o_state, 
                 prev_action=pa, prev_reward=pr)
-            t_x, _ = self.target_q.rnn(embed, t_state, 
+            t_x, _ = self.target_q.rnn(t_embed, t_state, 
                 prev_action=pa, prev_reward=pr)
             
             curr_x = x[:, :-1]
             next_x = x[:, 1:]
             t_next_x = t_x[:, 1:]
-            action = prev_action[:, 1:]
+            curr_action = prev_action[:, 1:]
             next_action = prev_action[:, 2:]
             reward = prev_reward[:, 1:]
             discount = discount * self._gamma
             
-            q = self.q.mlp(curr_x, action)
+            q = self.q.mlp(curr_x, curr_action)
             next_qs = self.q.mlp(next_x)
             new_next_action = tf.argmax(next_qs, axis=-1, output_type=tf.int32)
             t_next_q = self.target_q.mlp(t_next_x, new_next_action)
@@ -212,7 +211,7 @@ class Agent(BaseAgent):
             [q, (None, ss)],
             [next_qs, (None, ss, self._action_dim)],
             [next_action, (None, ss-1)],
-            [action, (None, ss)],
+            [curr_action, (None, ss)],
             [new_next_prob, (None, ss-1)],
             [next_ratio, (None, ss-1)],
             [returns, (None, ss)],

@@ -46,7 +46,9 @@ class RunningMeanStd(object):
             batch_mean, batch_var, batch_count = x, 0, 1
         else:
             batch_mean, batch_std = moments(x, self._axis, mask)
-            batch_count = np.prod(np.array(x.shape)[self._axis]) if mask is None else np.sum(mask)
+            min_i = np.min(self._axis)
+            max_i = np.max(self._axis) + 1
+            batch_count = np.prod(x.shape[min_i:max_i]) if mask is None else np.sum(mask)
             batch_var = np.square(batch_std)
         if batch_count > 0:
             self.update_from_moments(batch_mean, batch_var, batch_count)
@@ -76,7 +78,7 @@ class RunningMeanStd(object):
         if subtract_mean:
             x = x - self._mean
         x = np.clip(x / (np.sqrt(self._var) + self._epsilon), -self._clip, self._clip)
-        return x
+        return x.astype(np.float32)
 
 class TempStore:
     def __init__(self, get_fn, set_fn):
@@ -278,8 +280,10 @@ def convert_indices(indices, *args):
 
     return tuple(res)
 
-def infer_dtype(dtype, precision=32):
-    if np.issubdtype(dtype, np.floating):
+def infer_dtype(dtype, precision=None):
+    if precision is None:
+        return dtype
+    elif np.issubdtype(dtype, np.floating):
         dtype = {16: np.float16, 32: np.float32, 64: np.float64}[precision]
     elif np.issubdtype(dtype, np.signedinteger):
         dtype = {16: np.int16, 32: np.int32, 64: np.int64}[precision]

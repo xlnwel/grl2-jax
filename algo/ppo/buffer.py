@@ -6,6 +6,34 @@ from utility.utils import moments, standardize
 from replay.utils import init_buffer, print_buffer
 
 
+def compute_nae(reward, discount, value, last_value, traj_ret, gamma):
+    next_return = last_value
+    for i in reversed(range(reward.shape[1])):
+        traj_ret[:, i] = next_return = (reward[:, i]
+            + discount[:, i] * gamma * next_return)
+
+    # Standardize traj_ret and advantages
+    traj_ret_mean, traj_ret_std = moments(traj_ret)
+    value = standardize(value)
+    # To have the same mean and std as trajectory return
+    value = (value + traj_ret_mean) / (traj_ret_std + 1e-8)     
+    advantage = standardize(traj_ret - value)
+    traj_ret = standardize(traj_ret)
+    return traj_ret, advantage
+
+def compute_gae(reward, discount, value, last_value, gamma, gae_discount):
+    next_value = np.concatenate(
+            [value[:, 1:], np.expand_dims(last_value, 1)], axis=1)
+    advs = delta = (reward + discount * gamma * next_value - value)
+    next_adv = 0
+    for i in reversed(range(advs.shape[1])):
+        advs[:, i] = next_adv = (delta[:, i] 
+            + discount[:, i] * gae_discount * next_adv)
+    traj_ret = advs + value
+    advantage = standardize(advs)
+    return traj_ret, advantage
+
+
 class PPOBuffer:
     @config
     def __init__(self):
@@ -20,12 +48,9 @@ class PPOBuffer:
 
     def add(self, **data):
         if self._memory == {}:
-            dtype = {16: np.float16, 32: np.float32}[self._precision]
-            init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), 
-                        precision=self._precision, **data)
-            self._memory['value'] = np.zeros((self._n_envs, self.N_STEPS+1), dtype=dtype)
-            self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=dtype)
-            self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=dtype)
+            init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
+            self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
+            self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             print_buffer(self._memory)
             
         for k, v in data.items():
@@ -48,33 +73,22 @@ class PPOBuffer:
 
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
-        self._memory['value'][:, -1] = last_value
-
         if self._adv_type == 'nae':
-            traj_ret = self._memory['traj_ret']
-            next_return = last_value
-            for i in reversed(range(self.N_STEPS)):
-                traj_ret[:, i] = next_return = (self._memory['reward'][:, i] 
-                    + self._memory['discount'][:, i] * self._gamma * next_return)
-
-            # Standardize traj_ret and advantages
-            traj_ret_mean, traj_ret_std = moments(traj_ret)
-            value = standardize(self._memory['value'][:, :-1])
-            # To have the same mean and std as trajectory return
-            value = (value + traj_ret_mean) / (traj_ret_std + 1e-8)     
-            self._memory['advantage'] = standardize(traj_ret - value)
-            self._memory['traj_ret'] = standardize(traj_ret)
+            self._memory['advantage'], self._memory['traj_ret'] = \
+                compute_nae(reward=self._memory['reward'], 
+                            discount=self._memory['discount'],
+                            value=self._memory['value'],
+                            last_value=last_value,
+                            traj_ret=self._memory['traj_ret'],
+                            gamma=self._gamma)
         elif self._adv_type == 'gae':
-            advs = delta = (self._memory['reward'] 
-                + self._memory['discount'] * self._gamma 
-                * self._memory['value'][:, 1:]
-                - self._memory['value'][:, :-1])
-            next_adv = 0
-            for i in reversed(range(self.N_STEPS)):
-                advs[:, i] = next_adv = (delta[:, i] 
-                    + self._memory['discount'][:, i] * self._gae_discount * next_adv)
-            self._memory['traj_ret'] = advs + self._memory['value'][:, :-1]
-            self._memory['advantage'] = standardize(advs)
+            self._memory['traj_ret'], self._memory['advantage'] = \
+                compute_gae(reward=self._memory['reward'], 
+                            discount=self._memory['discount'],
+                            value=self._memory['value'],
+                            last_value=last_value,
+                            gamma=self._gamma,
+                            gae_discount=self._gae_discount)
         else:
             raise NotImplementedError
 

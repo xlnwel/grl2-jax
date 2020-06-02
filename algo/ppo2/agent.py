@@ -20,29 +20,27 @@ class Agent(PPOBase):
         if getattr(self, 'schedule_lr', False):
             self._lr = TFPiecewiseSchedule(
                 [(300, self._lr), (1000, 5e-5)])
-
         self._optimizer = Optimizer(
             self._optimizer, self.ac, self._lr, 
             clip_norm=self._clip_norm)
-        self._ckpt_models['optimizer'] = self._optimizer
 
         # previous and current state of LSTM
         self.state = self.ac.get_initial_state(batch_size=env.n_envs)
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            obs=((self._sample_size, *env.obs_shape), self._dtype, 'obs'),
-            action=((self._sample_size, *env.action_shape), self._dtype, 'action'),
-            traj_ret=((self._sample_size,), self._dtype, 'traj_ret'),
-            value=((self._sample_size,), self._dtype, 'value'),
-            advantage=((self._sample_size,), self._dtype, 'advantage'),
-            logpi=((self._sample_size,), self._dtype, 'logpi'),
-            mask=((self._sample_size,), self._dtype, 'mask'),
+            obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
+            action=((self._sample_size, *env.action_shape), env.action_dtype, 'action'),
+            traj_ret=((self._sample_size,), tf.float32, 'traj_ret'),
+            value=((self._sample_size,), tf.float32, 'value'),
+            advantage=((self._sample_size,), tf.float32, 'advantage'),
+            logpi=((self._sample_size,), tf.float32, 'logpi'),
+            mask=((self._sample_size,), tf.float32, 'mask'),
         )
         if self._store_state:
             state_type = type(self.ac.state_size)
             TensorSpecs['state'] = state_type(*[((sz, ), self._dtype, name) 
                 for name, sz in self.ac.state_size._asdict().items()])
-        self.learn = build(self._learn, TensorSpecs)
+        self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
 
     def reset_states(self, states=None):
         self.state = states
@@ -55,10 +53,12 @@ class Agent(PPOBase):
         if self.state is None:
             self.state = self.ac.get_initial_state(batch_size=tf.shape(obs)[0])
         if reset is None:
-            mask = tf.ones(tf.shape(obs)[0], dtype=self._dtype)
+            mask = tf.ones(tf.shape(obs)[0], dtype=tf.float32)
         else:
-            mask = tf.cast(1. - reset, self._dtype)
-        obs = self.normalize_obs(obs, update_rms)
+            mask = tf.cast(1. - reset, tf.float32)
+        if update_rms:
+            self.update_obs_rms(obs)
+        obs = self.normalize_obs(obs)
         prev_state = self.state
         out, state = self.action(obs, self.state, mask, deterministic)
         if update_curr_state:
@@ -71,14 +71,13 @@ class Agent(PPOBase):
             if self._store_state:
                 terms.update(prev_state._asdict())
             terms = tf.nest.map_structure(lambda x: x.numpy(), terms)
-            terms['obs'] = obs
+            terms['obs'] = obs  # return normalized obs
             return action.numpy(), terms
 
     @tf.function
     def action(self, obs, state, mask, deterministic=False):
         obs = tf.expand_dims(obs, 1)
         mask = tf.expand_dims(mask, 1)
-        state = tf.nest.map_structure(lambda x: x * mask, state)
         if deterministic:
             act_dist, state = self.ac(obs, state, mask=mask, return_value=False)
             action = tf.squeeze(act_dist.mode(), 1)
@@ -95,10 +94,8 @@ class Agent(PPOBase):
         for i in range(self.N_UPDATES):
             for j in range(self.N_MBS):
                 data = self.buffer.sample()
-                if data['obs'].dtype == np.uint8:
-                    data['obs'] = data['obs'] / 255.
                 value = data['value']
-                data = {k: tf.convert_to_tensor(v, self._dtype) for k, v in data.items()}
+                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 state, terms = self.learn(**data)
 
                 terms = {k: v.numpy() for k, v in terms.items()}

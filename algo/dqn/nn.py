@@ -26,14 +26,14 @@ class Q(Module):
         if self._duel:
             self._v_head = mlp(
                 self._head_units, 
-                out_dim=1, 
+                out_size=1, 
                 layer_type=layer_type, 
                 activation=self._activation, 
                 out_dtype='float32',
                 name='v')
         self._a_head = mlp(
             self._head_units, 
-            out_dim=action_dim, 
+            out_size=action_dim, 
             layer_type=layer_type, 
             activation=self._activation, 
             out_dtype='float32',

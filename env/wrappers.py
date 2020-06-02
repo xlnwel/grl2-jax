@@ -114,6 +114,7 @@ class EnvStats(Wrapper):
         self._fake_obs = np.zeros(self.obs_shape, dtype=self.obs_dtype)
         self._score = 0
         self._epslen = 0
+        self._info = {}
         if timeout_done:
             print('Timeout is treated as done')
 
@@ -150,8 +151,10 @@ class EnvStats(Wrapper):
             info['score'] = self._score
             info['epslen'] = self._epslen
             info['game_over'] = True
+        self._info = info
 
-        return obs, reward, float(done), info
+        return np.array(obs, dtype=self.obs_dtype), \
+                np.float32(reward), np.float32(done), info
 
     def mask(self):
         """ Get mask at the current step. """
@@ -166,6 +169,9 @@ class EnvStats(Wrapper):
     def already_done(self):
         return self._already_done
 
+    def info(self):
+        return self._info
+        
     def game_over(self):
         return getattr(self, '_game_over', self._already_done)
 

@@ -56,7 +56,7 @@ class EnvVecBase(Wrapper):
         return 'EnvVec'
 
     def _convert_batch_obs(self, obs):
-        if obs:
+        if obs != []:
             if isinstance(obs[0], np.ndarray):
                 obs = np.reshape(obs, [-1, *self.obs_shape])
             else:
@@ -110,6 +110,9 @@ class Env(Wrapper):
     def already_done(self):
         return self.env.already_done()
 
+    def info(self):
+        return self._info
+
     def game_over(self):
         return self.env.game_over()
 
@@ -143,17 +146,16 @@ class EnvVec(EnvVecBase):
     def reset(self, idxes=None, **kwargs):
         idxes = self._get_idxes(idxes)
         if kwargs:
-            for k, v in kwargs.items():
-                if isscalar(v):
-                    kwargs[k] = np.tile(v, self.n_envs)
             kwargs = [dict(x) for x in zip(*[itertools.product([k], v) 
                         for k, v in kwargs.items()])]
+            obs = [self.envs[i].reset(**kw) for i, kw in zip(idxes, kwargs)]
         else:
-            kwargs = [dict() for _ in idxes]
-        obs = [self.envs[i].reset(**kw) for i, kw in zip(idxes, kwargs)]
-        obs = self._convert_batch_obs(obs)
+            obs = [self.envs[i].reset() for i in idxes]
 
-        return EnvOutput(obs, 0, False, {'reset': True})
+        return EnvOutput(self._convert_batch_obs(obs), 
+                        np.zeros(self.n_envs, dtype=np.float32), 
+                        np.zeros(self.n_envs, dtype=np.float32), 
+                        [{'reset': True} for _ in range(self.n_envs)])
     
     def step(self, actions, **kwargs):
         obs, reward, done, info = _envvec_step(self.envs, actions, **kwargs)
@@ -161,7 +163,7 @@ class EnvVec(EnvVecBase):
         return EnvOutput(self._convert_batch_obs(obs), 
                         np.array(reward, dtype=np.float32), 
                         np.array(done, dtype=np.float32), 
-                        info)
+                        list(info))
 
     def mask(self):
         return np.array([env.mask() for env in self.envs], dtype=np.float32)
@@ -176,6 +178,9 @@ class EnvVec(EnvVecBase):
 
     def already_done(self):
         return np.array([env.already_done() for env in self.envs], dtype=np.bool)
+
+    def info(self):
+        return [env.already_done() for env in self.envs]
 
     def game_over(self):
         return np.array([env.game_over() for env in self.envs], dtype=np.bool)
@@ -205,7 +210,7 @@ class EfficientEnvVec(EnvVec):
     def random_action(self, *args, **kwargs):
         return [self.envs[i].action_space.sample() for i in self.env_ids]
         
-    def step(self, actions, **kwargs):
+    def step(self, actions):
         # intend to omit kwargs as EfficientEnvVec is only used in evaluation
         envs = [self.envs[i] for i in self.env_ids]
         obs, reward, done, info = _envvec_step(envs, actions)
@@ -221,9 +226,9 @@ class EfficientEnvVec(EnvVec):
             return EnvOutput(self._convert_batch_obs(obs), 
                             np.array(reward, dtype=np.float32), 
                             np.array(done, dtype=np.float32), 
-                            info)
+                            list(info))
         else:
-            return EnvOutput(None, 0, True, {})
+            return EnvOutput([], [], [], [])
 
 
 class RayEnvVec(EnvVecBase):
@@ -245,12 +250,13 @@ class RayEnvVec(EnvVecBase):
         self.max_episode_steps = self.env.max_episode_steps
 
     def reset(self, idxes=None):
-        obs = self._remote_call('reset', idxes)
-        obs = self._convert_batch_obs(obs)
-        return EnvOutput(obs, 
-                        np.zeros(self.n_envs), 
-                        np.zeros(self.n_envs), 
-                        [{'reset': True} for _ in range(self.n_envs)])
+        outputs = self._remote_call('reset', idxes)
+        obs, reward, done, info = zip(*outputs)
+        obs = tf.nest.flatten(obs)
+        return EnvOutput(np.concatenate(obs, axis=0),
+                        np.reshape(reward, self.n_envs).astype(np.float32), 
+                        np.reshape(done, self.n_envs).astype(np.float32),
+                        info)
 
     def random_action(self, *args, **kwargs):
         return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
@@ -261,17 +267,19 @@ class RayEnvVec(EnvVecBase):
         if kwargs:
             kwargs = dict([(k, np.squeeze(v.reshape(self.n_workers, self.envsperworker, -1))) for k, v in kwargs.items()])
             kwargs = [dict(x) for x in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
+            obs, reward, done, info = zip(*ray.get([env.step.remote(a, **kw) 
+                for env, a, kw in zip(self.envs, actions, kwargs)]))
         else:
-            kwargs = [dict() for _ in range(self.n_workers)]
+            obs, reward, done, info = zip(*ray.get([env.step.remote(a) 
+                for env, a in zip(self.envs, actions)]))
 
-        obs, reward, done, info = zip(*ray.get([env.step.remote(a, **kw) for env, a, kw in zip(self.envs, actions, kwargs)]))
         obs = tf.nest.flatten(obs)
         if self.envsperworker > 1:
             info = itertools.chain(*info)
-        return EnvOutput(self._convert_batch_obs(obs),
+        return EnvOutput(np.concatenate(obs, axis=0),
                         np.reshape(reward, self.n_envs).astype(np.float32), 
                         np.reshape(done, self.n_envs).astype(np.float32),
-                        info)
+                        list(info))
 
     def mask(self):
         """ Get mask at the current step. Should only be called after self.step """
@@ -292,16 +300,16 @@ class RayEnvVec(EnvVecBase):
     def _remote_call(self, name, idxes, return_numpy=False):
         method = lambda e: getattr(e, name)
         if idxes is None:
-            val = tf.nest.flatten(ray.get([method(e).remote() for e in self.envs]), self.n_envs)
+            outputs = ray.get([method(e).remote() for e in self.envs])
         else:
             new_idxes = [[] for _ in range(self.n_workers)]
             [new_idxes[i // self.envsperworker].append(i % self.envsperworker) for i in idxes]
-            val = tf.nest.flatten(ray.get([method(self.envs[i]).remote(j) for i, j in enumerate(new_idxes)]))
+            outputs = ray.get([method(self.envs[i]).remote(j) for i, j in enumerate(new_idxes)])
         
         if return_numpy:
-            return np.array(val)
+            return np.reshape(outputs, (-1,))
         else:
-            return val
+            return outputs
 
     def close(self):
         del self
@@ -309,9 +317,6 @@ class RayEnvVec(EnvVecBase):
 
 def _envvec_step(envvec, actions, **kwargs):
     if kwargs:
-        for k, v in kwargs.items():
-            if isscalar(v):
-                kwargs[k] = np.tile(v, actions.shape[0])
         kwargs = [dict(x) for x in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
         return zip(*[env.step(a, **kw) for env, a, kw in zip(envvec, actions, kwargs)])
     else:
@@ -326,27 +331,36 @@ if __name__ == '__main__':
         sticky_actions=True,
         seed=0,
     )
-    from utility.run import Runner, evaluate
-    import matplotlib.pyplot as plt
+    import time
     env = create_env(config)
-    class Agent:
-        def __init__(self, env):
-            self.env = env
-            self.score = []
-            self.epslen = []
-        def __call__(self, *args, **kwargs):
-            return self.env.random_action(*args, **kwargs)
-        def store(self, score, epslen):
-            self.score.append(score)
-            self.epslen.append(epslen)
-    def fn(env, step, **kwargs):
-        assert step % env.frame_skip == 0
-        if env.game_over():
-            print(step, env.already_done(), env.lives, env.game_over())
-    agent = Agent(env)
-    runner = Runner(env, agent, nsteps=3000)
-    runner.run(step_fn=fn)
-    score, epslen, _ = evaluate(env, agent)
-    print(agent.score, np.mean(agent.score))
-    print(agent.epslen, np.mean(agent.epslen))
-    print(score, epslen)
+    ray.init()
+    config['n_envs'] = 4
+    config['n_workers'] = 8
+    n = 8
+    env = create_env(config)
+    cr = np.zeros(env.n_envs)
+    n = np.zeros(env.n_envs)
+    st = time.time()
+    s = env.reset()
+    for _ in range(10000):
+        a = env.random_action()
+        s, r, d, _ = env.step(a)
+        cr += np.squeeze(np.where(env.mask(), r, 0))
+        n += np.squeeze(np.where(env.mask(), getattr(env, 'frame_skip', 1), 0))
+    print(f'RayEnvVec({config["n_workers"]}, {config["n_envs"]})', time.time() - st)
+    # np.testing.assert_allclose(cr, env.score())
+    # np.testing.assert_equal(n, env.epslen())
+
+    ray.shutdown()
+    config['n_envs'] = config['n_workers'] * config['n_envs']
+    config['n_workers'] = 1
+    env = create_env(config)
+    s = env.reset()
+    for _ in range(10000):
+        a = env.random_action()
+        s, r, d, _ = env.step(a)
+        cr += np.squeeze(np.where(env.mask(), r, 0))
+        n += np.squeeze(np.where(env.mask(), getattr(env, 'frame_skip', 1), 0))
+    print(f'EnvVec({config["n_workers"]}, {config["n_envs"]})', time.time() - st)
+    np.testing.assert_allclose(cr, env.score())
+    np.testing.assert_equal(n, env.epslen())

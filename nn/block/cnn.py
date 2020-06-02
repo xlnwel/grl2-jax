@@ -9,7 +9,7 @@ from tensorflow.keras.layers import Layer, Dense, Conv2D, MaxPooling2D, TimeDist
 from tensorflow.keras.activations import relu
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
-from nn.utils import get_initializer
+from nn.utils import get_initializer, get_activation
 
 
 mapping = dict(none=None)
@@ -79,15 +79,12 @@ class FTWCNN(Layer):
         conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
         gain = kwargs.get('gain', np.sqrt(2))
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
-
-        self._conv1 = conv2d(32, 8, strides=4, padding='same', 
-                kernel_initializer=kernel_initializer, **kwargs)
-        self._conv2 = conv2d(64, 4, strides=2, padding='same',
-                kernel_initializer=kernel_initializer, **kwargs)
-        self._conv3 = conv2d(64, 3, strides=1, padding='same', 
-                kernel_initializer=kernel_initializer, **kwargs)
-        self._conv4 = conv2d(64, 3, strides=1, padding='same', 
-                kernel_initializer=kernel_initializer, **kwargs)
+        kwargs.setdefault('kernel_initializer', kernel_initializer)
+        
+        self._conv1 = conv2d(32, 8, strides=4, padding='same', **kwargs)
+        self._conv2 = conv2d(64, 4, strides=2, padding='same', **kwargs)
+        self._conv3 = conv2d(64, 3, strides=1, padding='same', **kwargs)
+        self._conv4 = conv2d(64, 3, strides=1, padding='same', **kwargs)
 
         self.out_size = out_size
         if self.out_size:
@@ -120,15 +117,16 @@ class Residual(Layer):
                  **kwargs):
         super().__init__(name=name)
         self._time_distributed = time_distributed
-        self._kernel_initializer = kernel_initializer
+        kwargs.setdefault('kernel_initializer', kernel_initializer)
         self._kwargs = kwargs
 
     def build(self, input_shape):
         super().build(input_shape)
         conv2d = functools.partial(conv2d_fn, time_distributed=self._time_distributed)
         gain = self._kwargs.get('gain', np.sqrt(2))
-        kernel_initializer = get_initializer(self._kernel_initializer, gain=gain)
+        kernel_initializer = get_initializer(self._kwargs['kernel_initializer'], gain=gain)
         kwargs = self._kwargs
+        kwargs.setdefault('kernel_initializer', kernel_initializer)
         filters = input_shape[-1]
         
         self._conv1 = conv2d(filters, 3, strides=1, padding='same', 
@@ -161,17 +159,15 @@ class IMPALACNN(Layer):
         maxpooling2d = functools.partial(maxpooling2d_fn, time_distributed=time_distributed)
         gain = kwargs.get('gain', np.sqrt(2))
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
+        kwargs.setdefault('kernel_initializer', kernel_initializer)
 
         self._conv_layers = []
         for filters in [16, 32, 32]:
             self._conv_layers += [
-                conv2d(filters, 3, strides=1, padding='same', 
-                        kernel_initializer=kernel_initializer, **kwargs),
+                conv2d(filters, 3, strides=1, padding='same', **kwargs),
                 maxpooling2d(3, strides=2, padding='same'),
-                Residual(time_distributed=time_distributed, 
-                        kernel_initializer=kernel_initializer, **kwargs),
-                Residual(time_distributed=time_distributed, 
-                        kernel_initializer=kernel_initializer, **kwargs),
+                Residual(time_distributed=time_distributed, **kwargs),
+                Residual(time_distributed=time_distributed, **kwargs),
             ]
 
         self.out_size = out_size
@@ -206,14 +202,15 @@ class NatureCNN(Layer):
         conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
         gain = kwargs.get('gain', np.sqrt(2))
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
-        
+        kwargs.setdefault('kernel_initializer', kernel_initializer)
+        activation = kwargs.get('activation', 'relu')
+        activation = get_activation(activation)
+        kwargs['activation'] = activation
+
         self._conv_layers = [
-            conv2d(32, 8, 4, activation=relu, 
-                    kernel_initializer=kernel_initializer, **kwargs),
-            conv2d(64, 4, 2, activation=relu, 
-                    kernel_initializer=kernel_initializer, **kwargs),
-            conv2d(64, 3, 1, activation=relu, 
-                    kernel_initializer=kernel_initializer, **kwargs),
+            conv2d(32, 8, 4, **kwargs),
+            conv2d(64, 4, 2, **kwargs),
+            conv2d(64, 3, 1, **kwargs),
         ]
         self.out_size = out_size
         if out_size:

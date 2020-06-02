@@ -29,9 +29,6 @@ class Agent(BaseAgent):
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
         self._value_opt = Optimizer(self._optimizer, self.value, self._q_lr)
         self._q_opt = Optimizer(self._optimizer, [self.q1, self.q2], self._q_lr)
-        self._ckpt_models['actor_opt'] = self._actor_opt
-        self._ckpt_models['value_opt'] = self._value_opt
-        self._ckpt_models['q_opt'] = self._q_opt
 
         if isinstance(self.temperature, float):
             # convert to variable, useful for scheduling
@@ -41,22 +38,21 @@ class Agent(BaseAgent):
                 self._temp_lr = TFPiecewiseSchedule(
                     [(5e5, self._temp_lr), (1e6, 1e-5)])
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
-            self._ckpt_models['temp_opt'] = self._temp_opt
 
         self._action_dim = env.action_dim
         self._is_action_discrete = env.is_action_discrete
 
         TensorSpecs = dict(
-            obs=(env.obs_shape, self._dtype, 'obs'),
-            action=((env.action_dim,), self._dtype, 'action'),
-            reward=((), self._dtype, 'reward'),
-            next_obs=(env.obs_shape, self._dtype, 'next_obs'),
-            discount=((), self._dtype, 'discount'),
+            obs=(env.obs_shape, tf.float32, 'obs'),
+            action=((env.action_dim,), tf.float32, 'action'),
+            reward=((), tf.float32, 'reward'),
+            next_obs=(env.obs_shape, tf.float32, 'next_obs'),
+            discount=((), tf.float32, 'discount'),
         )
         if self._is_per:
-            TensorSpecs['IS_ratio'] = ((), self._dtype, 'IS_ratio')
+            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
         if 'steps'  in self.dataset.data_format:
-            TensorSpecs['steps'] = ((), self._dtype, 'steps')
+            TensorSpecs['steps'] = ((), tf.float32, 'steps')
         self.learn = build(self._learn, TensorSpecs)
 
         self._sync_target_nets()

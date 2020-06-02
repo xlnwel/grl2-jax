@@ -48,12 +48,12 @@ class RSSM(Module):
         self._cell = layers.GRUCell(self._deter_size)
         self._img_layers = mlp(
             [self._hidden_size], 
-            out_dim=2*self._stoch_size, 
+            out_size=2*self._stoch_size, 
             activation=self._activation,
             name='img')
         self._obs_layers = mlp(
             [self._hidden_size], 
-            out_dim=2*self._stoch_size,
+            out_size=2*self._stoch_size,
             activation=self._activation,
             name='obs')
 
@@ -162,9 +162,9 @@ class Actor(Module):
         super().__init__(name=name)
 
         """ Network definition """
-        out_dim = action_dim if is_action_discrete else 2*action_dim
+        out_size = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(self._units_list, 
-                            out_dim=out_dim,
+                            out_size=out_size,
                             activation=self._activation)
 
         self._is_action_discrete = is_action_discrete
@@ -212,7 +212,7 @@ class Encoder(Module):
         
 class Decoder(Module):
     @config
-    def __init__(self, out_dim=1, dist='normal', name='decoder'):
+    def __init__(self, out_size=1, dist='normal', name='decoder'):
         super().__init__(name=name)
 
         self._dist = dist
@@ -220,7 +220,7 @@ class Decoder(Module):
             self._layers = ConvDecoder(time_distributed=True)
         else:
             self._layers = mlp(self._units_list,
-                            out_dim=out_dim,
+                            out_size=out_size,
                             activation=self._activation)
     
     @tf.Module.with_name_scope
@@ -311,7 +311,7 @@ def create_model(config, env):
     models = dict(
         encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),
-        decoder=Decoder(decoder_config, out_dim=obs_shape[0]),
+        decoder=Decoder(decoder_config, out_size=obs_shape[0]),
         reward=Decoder(reward_config, name='reward'),
         value=Decoder(value_config, name='value'),
         actor=Actor(actor_config, action_dim, is_action_discrete)

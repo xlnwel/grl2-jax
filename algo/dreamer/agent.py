@@ -52,10 +52,6 @@ class Agent(BaseAgent):
         self._actor_opt = DreamerOpt(models=self.actor, lr=self._actor_lr)
         self._value_opt = DreamerOpt(models=self.value, lr=self._value_lr)
 
-        self._ckpt_models['model_opt'] = self._model_opt
-        self._ckpt_models['actor_opt'] = self._actor_opt
-        self._ckpt_models['value_opt'] = self._value_opt
-
         self._state = None
         self._prev_action = None
 

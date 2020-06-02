@@ -21,20 +21,29 @@ class PPOBase(BaseAgent):
         self._reward_rms = RunningMeanStd(axis=axis)
         self._rms_path = f'{self._root_dir}/{self._model_name}/rms.pkl'
 
-    def normalize_reward(self, reward):
+    def update_obs_rms(self, obs):
+        if self._normalize_obs:
+            if obs.dtype == np.uint8 and obs.shape[-1] > 1:
+                # for stacked frames, we only use
+                # the most recent one for rms update
+                obs = obs[..., -1:]
+            self._obs_rms.update(obs)
+
+    def update_reward_rms(self, reward):
         if self._normalize_reward:
             self._reward_rms.update(reward)
+
+    def normalize_obs(self, obs, update_rms=False):
+        if self._normalize_obs:
+            return self._obs_rms.normalize(obs)
+        else:
+            return np.array(obs, copy=False)
+
+    def normalize_reward(self, reward):
+        if self._normalize_reward:
             return self._reward_rms.normalize(reward, subtract_mean=False)
         else:
             return reward
-    
-    def normalize_obs(self, obs, update_rms=False):
-        if self._normalize_obs:
-            if update_rms:
-                self._obs_rms.update(obs)
-            return self._obs_rms.normalize(obs)
-        else:
-            return obs
 
     def restore(self):
         import os
@@ -48,28 +57,25 @@ class PPOBase(BaseAgent):
             cloudpickle.dump((self._obs_rms, self._reward_rms), f)
         super().save(print_terminal_info=print_terminal_info)
 
+
 class Agent(PPOBase):
     @agent_config
     def __init__(self, buffer, env):
-        super().__init__(buffer, env=env)
+        super().__init__(buffer=buffer, env=env)
 
         # optimizer
-        if getattr(self, 'schedule_lr', False):
-            self._lr = TFPiecewiseSchedule(
-                [(300, self._lr), (1000, 5e-5)])
         self._optimizer = Optimizer(
             self._optimizer, self.ac, self._lr, 
             clip_norm=self._clip_norm)
-        self._ckpt_models['optimizer'] = self._optimizer
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            obs=(env.obs_shape, self._dtype, 'obs'),
-            action=(env.action_shape, self._dtype, 'action'),
-            traj_ret=((), self._dtype, 'traj_ret'),
-            value=((), self._dtype, 'value'),
-            advantage=((), self._dtype, 'advantage'),
-            logpi=((), self._dtype, 'logpi'),
+            obs=(env.obs_shape, env.obs_dtype, 'obs'),
+            action=(env.action_shape, env.action_dtype, 'action'),
+            traj_ret=((), tf.float32, 'traj_ret'),
+            value=((), tf.float32, 'value'),
+            advantage=((), tf.float32, 'advantage'),
+            logpi=((), tf.float32, 'logpi'),
         )
         self.learn = build(self._learn, TensorSpecs)
 
@@ -81,19 +87,19 @@ class Agent(PPOBase):
 
     def __call__(self, obs, deterministic=False, update_rms=False, **kwargs):
         obs = np.array(obs, copy=False)
-        obs = self.normalize_obs(obs, update_rms)
+        if update_rms:
+            self.update_obs_rms(obs)
+        obs = self.normalize_obs(obs)
         if deterministic:
             return self.action(obs, deterministic).numpy()
         else:
             out = self.action(obs, deterministic)
             action, terms = tf.nest.map_structure(lambda x: x.numpy(), out)
-            terms['obs'] = obs
+            terms['obs'] = obs  # return normalized obs
             return action, terms
 
     @tf.function
     def action(self, obs, deterministic=False):
-        # if obs.dtype == np.uint8:
-        #     obs = tf.cast(obs, self._dtype) / 255.
         if deterministic:
             act_dist = self.ac(obs, return_value=False)
             return act_dist.mode()
@@ -108,10 +114,8 @@ class Agent(PPOBase):
         for i in range(self.N_UPDATES):
             for j in range(self.N_MBS):
                 data = self.buffer.sample()
-                if data['obs'].dtype == np.uint8:
-                    data['obs'] = data['obs'] / 255.
                 value = data['value']
-                data = {k: tf.convert_to_tensor(v, self._dtype) for k, v in data.items()}
+                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 terms = self.learn(**data)
 
                 terms = {k: v.numpy() for k, v in terms.items()}
@@ -130,7 +134,7 @@ class Agent(PPOBase):
                 break
         self.store(approx_kl=approx_kl)
         if not isinstance(self._lr, float):
-            step = tf.cast(self._env_step, self._dtype)
+            step = tf.cast(self._env_step, tf.float32)
             self.store(lr=self._lr(step))
         return i * self.N_MBS + j + 1
 
@@ -149,10 +153,9 @@ class Agent(PPOBase):
             value_loss, v_clip_frac = compute_value_loss(
                 value, traj_ret, old_value, self._clip_range)
 
-            with tf.name_scope('total_loss'):
-                policy_loss = (ppo_loss - self._entropy_coef * entropy)
-                value_loss = self._value_coef * value_loss
-                total_loss = policy_loss + value_loss
+            policy_loss = (ppo_loss - self._entropy_coef * entropy)
+            value_loss = self._value_coef * value_loss
+            ac_loss = policy_loss + value_loss
 
         terms = dict(
             advantage=advantage, 
@@ -162,8 +165,8 @@ class Agent(PPOBase):
             p_clip_frac=p_clip_frac,
             v_clip_frac=v_clip_frac,
             ppo_loss=ppo_loss,
-            value_loss=value_loss
+            v_loss=value_loss
         )
-        terms['grads_norm'] = self._optimizer(tape, total_loss)
+        terms['ac_norm'] = self._optimizer(tape, ac_loss)
 
         return terms

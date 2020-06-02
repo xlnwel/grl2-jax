@@ -63,11 +63,11 @@ def graph_summary(writer, fn, args, step=None):
 def store(logger, **kwargs):
     logger.store(**kwargs)
 
-def get_raw_value(logger, key):
-    return logger.get_raw_value(key)
+def get_raw_item(logger, key):
+    return logger.get_raw_item(key)
 
-def get_value(logger, key, mean=True, std=False, min=False, max=False):
-    return logger.get(key, mean=mean, std=std, min=min, max=max)
+def get_item(logger, key, mean=True, std=False, min=False, max=False):
+    return logger.get_item(key, mean=mean, std=std, min=min, max=max)
 
 def get_stats(logger, mean=True, std=False, min=False, max=False):
     return logger.get_stats(mean=mean, std=std, min=min, max=max)
@@ -160,13 +160,18 @@ class Logger:
             else:
                 self._store_dict[k].append(v)
 
-    def get_raw_value(self, key):
-        v = self._store_dict[key]
-        del self._store_dict[key]
-        return v
+    """ All get functions below will remove the corresponding items from the store """
+    def get_raw_item(self, key):
+        if key in self._store_dict:
+            v = self._store_dict[key]
+            del self._store_dict[key]
+            return {key: v}
+        return None
         
-    def get(self, key, mean=True, std=False, min=False, max=False):
+    def get_item(self, key, mean=True, std=False, min=False, max=False):
         stats = {}
+        if key not in self._store_dict:
+            return stats
         v = self._store_dict[key]
         if isscalar(v):
             stats[key] = v
@@ -196,6 +201,7 @@ class Logger:
                 stats[f'{k}_min'] = np.min(v)
             if max:
                 stats[f'{k}_max'] = np.max(v)
+        self._store_dict.clear()
         return stats
 
     def get_count(self, name):

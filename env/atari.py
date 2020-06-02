@@ -14,8 +14,9 @@ def make_atari_env(config):
     if config.get('wrapper', 'my_atari') == 'baselines':
         from env import baselines as B
         name = config['name']
+        name = name[0].capitalize() + name[1:]
         version = 0 if config.get('sticky_actions', True) else 4
-        name = f'{name.title()}NoFrameskip-v{version}'
+        name = f'{name}NoFrameskip-v{version}'
         env = B.make_atari(name)
         env = B.wrap_deepmind(env, episode_life=config.get('life_done', False), frame_stack=config.get('frame_stack', 1)>1)
     else:
@@ -70,9 +71,10 @@ class Atari:
     def __init__(self, name, *, frame_skip=4, life_done=False,
                 image_size=(84, 84), frame_stack=1, noop=30, 
                 sticky_actions=True, gray_scale=True, 
-                clip_reward=False, **kwargs):
+                clip_reward=False, np_obs=False, **kwargs):
         version = 0 if sticky_actions else 4
-        name = f'{name.title()}NoFrameskip-v{version}'
+        name = name[0].capitalize() + name[1:]
+        name = f'{name}NoFrameskip-v{version}'
         env = gym.make(name)
         # Strip out the TimeLimit wrapper from Gym, which caps us at 100k frames. 
         # We handle this time limit internally instead, which lets us cap at 108k 
@@ -87,6 +89,7 @@ class Atari:
         self.image_size = (image_size, image_size) \
             if isinstance(image_size, int) else tuple(image_size)
         self.clip_reward = clip_reward
+        self.np_obs = np_obs
 
         assert self.frame_skip > 0, \
             f'Frame skip should be strictly positive, got {self.frame_skip}'
@@ -251,7 +254,8 @@ class Atari:
 
     def _get_obs(self):
         assert len(self._frames) == self.frame_stack, f'{len(self._frames)} vs {self.frame_stack}'
-        return LazyFrames(list(self._frames))
+        return np.array(self._frames, dtype=np.uint8) \
+            if self.np_obs else LazyFrames(list(self._frames))
 
 
 if __name__ == '__main__':

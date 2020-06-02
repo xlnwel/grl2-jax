@@ -4,8 +4,8 @@ env:
     n_workers: 1
     n_envs: &nenvs 8
     seed: 0
-    precision: &prec 32
     frame_stack: 4
+    np_obs: True
 
 model:
     cnn_name: nature
@@ -18,13 +18,14 @@ model:
 
 agent:
     algorithm: &algo ppo
-    precision: *prec
+    precision: &prec 32
 
-    MAX_STEPS: 5.e+7
+    MAX_STEPS: 1e10
     N_STEPS: &nsteps 256
     N_UPDATES: 4
     N_MBS: &nmbs 4
     LOG_PERIOD: 100
+    EVAL_PERIOD: 5000
     max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
 
     normalize_obs: False
@@ -43,7 +44,7 @@ agent:
     clip_norm: .5
     # arguments for loss
     clip_range: .2          # clip range for ppo
-    entropy_coef: .0
+    entropy_coef: .01
     value_coef: .5
 
 buffer:

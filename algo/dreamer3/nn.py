@@ -49,13 +49,13 @@ class RSSM(Module):
         self._cell = layers.GRUCell(self._deter_size, dtype='float32')
         self._img_layers = mlp(
             [self._hidden_size], 
-            out_dim=2*self._stoch_size, 
+            out_size=2*self._stoch_size, 
             out_dtype='float32',
             activation=self._activation,
             name='img')
         self._obs_layers = mlp(
             [self._hidden_size], 
-            out_dim=2*self._stoch_size,
+            out_size=2*self._stoch_size,
             out_dtype='float32',
             activation=self._activation,
             name='obs')
@@ -165,9 +165,9 @@ class Actor(Module):
         super().__init__(name=name)
 
         """ Network definition """
-        out_dim = action_dim if is_action_discrete else 2*action_dim
+        out_size = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(self._units_list, 
-                            out_dim=out_dim,
+                            out_size=out_size,
                             out_dtype='float32',
                             activation=self._activation)
 
@@ -241,7 +241,7 @@ class Encoder(Module):
         
 class Decoder(Module):
     @config
-    def __init__(self, out_dim=1, dist='normal', name='decoder'):
+    def __init__(self, out_size=1, dist='normal', name='decoder'):
         super().__init__(name=name)
 
         self._dist = dist
@@ -249,7 +249,7 @@ class Decoder(Module):
             self._layers = ConvDecoder(time_distributed=True)
         else:
             self._layers = mlp(self._units_list,
-                            out_dim=out_dim,
+                            out_size=out_size,
                             out_dtype='float32',
                             activation=self._activation)
     
@@ -280,7 +280,7 @@ class Q(Module):
         self._layers_a = mlp([200],
                         activation=self._activation)
         self._out = mlp(units[idx:], 
-                        out_dim=1, 
+                        out_size=1, 
                         out_dtype='float32', 
                         activation=self._activation)
     
@@ -373,7 +373,7 @@ def create_model(config, env):
     models = dict(
         encoder=Encoder(encoder_config),
         rssm=RSSM(rssm_config),
-        decoder=Decoder(decoder_config, out_dim=obs_shape[0]),
+        decoder=Decoder(decoder_config, out_size=obs_shape[0]),
         reward=Decoder(reward_config, name='reward'),
         actor=Actor(actor_config, action_dim, is_action_discrete),
         q1=Q(value_config, name='q1'),

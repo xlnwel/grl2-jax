@@ -9,6 +9,7 @@ from utility.graph import video_summary
 from utility.run import Runner, evaluate
 from utility.timer import Timer
 from utility import pkg
+from algo.rnd.env import make_env
 from env.gym_env import create_env
 
 
@@ -16,14 +17,14 @@ from env.gym_env import create_env
 def train(agent, env, eval_env, buffer):
     def initialize_rms(env, step, info, obs, reward, **kwargs):
         agent.update_obs_rms(obs)
-        agent.update_reward_rms(reward)
-    def collect(env, step, info, reward, next_obs, **kwargs):
-        agent.update_reward_rms(reward)
-        kwargs['reward'] = agent.normalize_reward(reward)
-        buffer.add(**kwargs)
 
+    def collect(env, step, info, next_obs, **kwargs):
+        buffer.add(**kwargs)
+        for i in info:
+            if i.get('game_over'):
+                if 'episode' in i:
+                    agent.store(visited_rooms=i['episode']['visited_rooms'])
     step = agent.env_step
-    action_selector = lambda *args, **kwargs: agent(*args, **kwargs, update_rms=True)
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     print('Start to initialize observation running stats...')
     runner.run(action_selector=env.random_action, nsteps=50*agent.N_STEPS)
@@ -35,12 +36,30 @@ def train(agent, env, eval_env, buffer):
     while step < agent.MAX_STEPS:
         start_env_step = agent.env_step
         start_time = time.time()
-        step = runner.run(action_selector=action_selector, step_fn=collect)
+        step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/(time.time()-start_time))
         
         reset = np.array([i.get('already_done', False) for i in runner.env_output.info])
-        _, terms = agent(runner.env_output.obs, update_curr_state=False, reset=reset)
-        buffer.finish(terms['value'])
+        last_obs = runner.env_output.obs
+        _, terms = agent(last_obs, update_curr_state=False, reset=reset)
+        obs = buffer.get_obs(last_obs)
+        assert obs.shape[:2] == (env.n_envs, agent.N_STEPS+1)
+        agent.update_obs_rms(obs[:, :-1])
+        norm_obs = agent.normalize_obs(obs)
+        reward_int = agent.compute_int_reward(norm_obs[:, 1:])
+        buffer.finish(reward_int, norm_obs[:, :-1], terms['value_int'], terms['value_ext'])
+        visited_rooms = agent.get_raw_item('visited_rooms')
+        if visited_rooms:
+            visited_rooms = {k: [list(v) for v in vr] for k, vr in visited_rooms.items()}
+            agent.histogram_summary({k: [list(v) for v in vr] for k, vr in visited_rooms.items()}, step=step)
+            agent.store(max_visited_rooms=np.max([len(vr) for vr in visited_rooms['visited_rooms']]))
+        agent.store(
+            max_int_reward=np.max(reward_int),
+            min_int_reward=np.min(reward_int),
+            mean_int_reward=np.mean(reward_int),
+            std_int_reward=np.std(reward_int),
+            )
+
         start_train_step = agent.train_step
         start_time = time.time()
         agent.learn_log(step)
@@ -50,10 +69,11 @@ def train(agent, env, eval_env, buffer):
         if to_eval(agent.train_step):
             with TempStore(agent.get_states, agent.reset_states):
                 scores, epslens, video = evaluate(
-                    eval_env, agent, record=False, size=(64, 64))
+                    eval_env, agent, record=True, size=(210, 160))
                 video_summary(f'{agent.name}/sim', video, step=step)
                 agent.store(eval_score=scores, eval_epslen=np.mean(epslens))
         if to_log(agent.train_step) and 'score' in agent._logger:
+            agent.store(train_step=agent.train_step)
             agent.log(step)
             agent.save()
 
@@ -87,12 +107,12 @@ def main(env_config, model_config, agent_config, buffer_config):
         ray.init()
         sigint_shutdown_ray()
 
-    env = create_env(env_config, force_envvec=True)
+    env = create_env(env_config, env_fn=make_env, force_envvec=True)
     eval_env_config = env_config.copy()
     eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1
-    eval_env_config['n_envs'] = 8
-    eval_env = create_env(eval_env_config, force_envvec=True)
+    eval_env_config['n_envs'] = 2
+    eval_env = create_env(eval_env_config, env_fn=make_env, force_envvec=True)
 
     buffer_config['n_envs'] = env.n_envs
     buffer = PPOBuffer(buffer_config)

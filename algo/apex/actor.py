@@ -185,7 +185,7 @@ class Worker:
             self._send_episode_info(learner)
 
     def _run(self, weights):
-        def collect(env, step, **kwargs):
+        def collect(env, step, info, **kwargs):
             self.buffer.add_data(**kwargs)
 
         self.models.set_weights(weights)

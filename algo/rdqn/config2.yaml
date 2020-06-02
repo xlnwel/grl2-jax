@@ -31,7 +31,7 @@ agent:
     LOG_PERIOD: 1e4
     EVAL_PERIOD: 1e5
     TRAIN_PERIOD: 50
-    N_UPDATES: 50
+    N_UPDATES: 10
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

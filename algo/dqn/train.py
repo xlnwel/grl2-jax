@@ -17,7 +17,7 @@ from core.dataset import Dataset, process_with_env
 
 
 def train(agent, env, eval_env, replay):
-    def collect_and_learn(env, step, **kwargs):
+    def collect_and_learn(env, step, info, **kwargs):
         replay.add(**kwargs)
         if env.game_over():
             # we reset noisy every episode. Theoretically, 
@@ -49,8 +49,6 @@ def train(agent, env, eval_env, replay):
                 eval_env, agent, record=False, size=(64, 64))
             # video_summary(f'{agent.name}/sim', video, step=step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-        action = agent.get_raw_value('action')
-        agent.histogram_summary({'action': action}, step=step)
         agent.log(step)
         agent.save()
 
