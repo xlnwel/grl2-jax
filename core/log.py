@@ -17,6 +17,7 @@ def log(logger, writer, model_name, prefix, step, print_terminal_info=True):
     stats.update(logger.get_stats())
     scalar_summary(writer, stats, prefix=prefix, step=step)
     log_stats(logger, stats, print_terminal_info=print_terminal_info)
+    writer.flush()
 
 def log_stats(logger, stats, print_terminal_info=True):
     [logger.log_tabular(k, v) for k, v in stats.items()]

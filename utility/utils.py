@@ -33,7 +33,10 @@ class RunningMeanStd(object):
             axis: axis along which we compute mean and std from incoming data. 
                 If it's None, we only receive a sample at a time
         """
+        if isinstance(axis, tuple):
+            assert axis == tuple(range(np.min(axis), np.max(axis) + 1))
         self._axis = axis
+        self._shape_slice = np.s_[np.min(self._axis): np.max(self._axis) + 1]
         self._mean = None
         self._var = None
         self._epsilon = epsilon
@@ -46,9 +49,7 @@ class RunningMeanStd(object):
             batch_mean, batch_var, batch_count = x, 0, 1
         else:
             batch_mean, batch_std = moments(x, self._axis, mask)
-            min_i = np.min(self._axis)
-            max_i = np.max(self._axis) + 1
-            batch_count = np.prod(x.shape[min_i:max_i]) if mask is None else np.sum(mask)
+            batch_count = np.prod(x.shape[self._shape_slice]) if mask is None else np.sum(mask)
             batch_var = np.square(batch_std)
         if batch_count > 0:
             self.update_from_moments(batch_mean, batch_var, batch_count)

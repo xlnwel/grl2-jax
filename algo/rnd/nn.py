@@ -20,7 +20,8 @@ class PPOAC(Module):
         
         """ Network definition """
         if self._cnn_name:
-            self._shared_layers = cnn(self._cnn_name, time_distributed=False, out_size=256)
+            self._shared_layers = cnn(
+                self._cnn_name, time_distributed=False, out_size=256)
         else:
             self._shared_layers = lambda x: x
 

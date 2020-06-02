@@ -37,7 +37,8 @@ def make_env(config):
 
     return env
 
-def create_env(config, env_fn=make_env, force_envvec=False):
+def create_env(config, env_fn=None, force_envvec=False):
+    env_fn = env_fn or make_env
     if config.get('n_workers', 1) <= 1:
         EnvType = EnvVec if force_envvec or config.get('n_envs', 1) > 1 else Env
         if EnvType == EnvVec and config.get('efficient_envvec', False):

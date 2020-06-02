@@ -15,7 +15,7 @@ from env.gym_env import create_env
 
 
 def train(agent, env, eval_env, buffer):
-    def initialize_rms(env, step, info, obs, reward, **kwargs):
+    def initialize_rms(env, step, info, obs, **kwargs):
         agent.update_obs_rms(obs)
 
     def collect(env, step, info, next_obs, **kwargs):
@@ -27,7 +27,9 @@ def train(agent, env, eval_env, buffer):
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     print('Start to initialize observation running stats...')
-    runner.run(action_selector=env.random_action, nsteps=50*agent.N_STEPS)
+    runner.run(action_selector=env.random_action, 
+                step_fn=initialize_rms,
+                nsteps=50*agent.N_STEPS)
     runner.step = step
 
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
@@ -122,7 +124,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     agent = Agent(name='ppo', 
                 config=agent_config, 
                 models=models, 
-                buffer=buffer,
+                dataset=buffer,
                 env=env)
 
     agent.save_config(dict(

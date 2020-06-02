@@ -12,16 +12,17 @@ from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
 class PPOBase(BaseAgent):
-    def __init__(self, buffer, env):
+    def __init__(self, dataset, env):
         from env.wrappers import get_wrapper_by_name
         from utility.utils import RunningMeanStd
-        self.buffer = buffer
+        self.dataset = dataset
         axis = None if get_wrapper_by_name(env, 'Env') else 0
         self._obs_rms = RunningMeanStd(axis=axis)
         self._reward_rms = RunningMeanStd(axis=axis)
         self._rms_path = f'{self._root_dir}/{self._model_name}/rms.pkl'
 
     def update_obs_rms(self, obs):
+        assert len(obs.shape) in (2, 4)
         if self._normalize_obs:
             if obs.dtype == np.uint8 and obs.shape[-1] > 1:
                 # for stacked frames, we only use
@@ -30,6 +31,7 @@ class PPOBase(BaseAgent):
             self._obs_rms.update(obs)
 
     def update_reward_rms(self, reward):
+        assert len(reward.shape) == 1
         if self._normalize_reward:
             self._reward_rms.update(reward)
 
@@ -60,8 +62,8 @@ class PPOBase(BaseAgent):
 
 class Agent(PPOBase):
     @agent_config
-    def __init__(self, buffer, env):
-        super().__init__(buffer=buffer, env=env)
+    def __init__(self, dataset, env):
+        super().__init__(dataset=dataset, env=env)
 
         # optimizer
         self._optimizer = Optimizer(
@@ -113,7 +115,7 @@ class Agent(PPOBase):
     def learn_log(self, step):
         for i in range(self.N_UPDATES):
             for j in range(self.N_MBS):
-                data = self.buffer.sample()
+                data = self.dataset.sample()
                 value = data['value']
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 terms = self.learn(**data)

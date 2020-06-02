@@ -14,10 +14,10 @@ from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
 class RNDBase(BaseAgent):
-    def __init__(self, buffer, env):
+    def __init__(self, dataset, env):
         from env.wrappers import get_wrapper_by_name
         from utility.utils import RunningMeanStd
-        self.buffer = buffer
+        self.dataset = dataset
         axis = 0 if get_wrapper_by_name(env, 'Env') else (0, 1)
         self._obs_rms = RunningMeanStd(axis=axis, clip=5)
         self._int_reward_rms = RunningMeanStd(axis=axis)
@@ -30,6 +30,7 @@ class RNDBase(BaseAgent):
         reward_int = self._intrinsic_reward(next_obs).numpy()
         self.update_int_reward_rms(reward_int)
         reward_int = self.normalize_int_reward(reward_int)
+        assert next_obs.shape[:2] == reward_int.shape
         return reward_int
 
     @tf.function
@@ -44,19 +45,25 @@ class RNDBase(BaseAgent):
             # for stacked frames, we only use
             # the most recent one for rms update
             obs = obs[..., -1:]
+        while len(obs.shape) < 5:
+            obs = np.expand_dims(obs, 1)
         self._obs_rms.update(obs)
 
     def update_int_reward_rms(self, reward):
         # TODO: normalize reward using the return stats
+        while len(reward.shape) < 2:
+            reward = np.expand_dims(reward, 1)
         if self._normalize_int_reward:
             self._int_reward_rms.update(reward)
     
     def update_ext_reward_rms(self, reward):
+        while len(reward.shape) < 2:
+            reward = np.expand_dims(reward, 1)
         if self._normalize_ext_reward:
             self._ext_reward_rms.update(reward)
 
     def normalize_obs(self, obs):
-        obs = self._obs_rms.normalize(obs)
+        obs = self._obs_rms.normalize(obs[..., -1:])
         return obs
 
     def normalize_int_reward(self, reward):
@@ -88,8 +95,8 @@ class RNDBase(BaseAgent):
 
 class Agent(RNDBase):
     @agent_config
-    def __init__(self, buffer, env):
-        super().__init__(buffer=buffer, env=env)
+    def __init__(self, dataset, env):
+        super().__init__(dataset=dataset, env=env)
 
         self._n_envs = env.n_envs
 
@@ -146,7 +153,7 @@ class Agent(RNDBase):
     def learn_log(self, step):
         for i in range(self.N_UPDATES):
             for j in range(self.N_MBS):
-                data = self.buffer.sample()
+                data = self.dataset.sample()
                 value_int = data['value_int']
                 value_ext = data['value_ext']
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
@@ -195,8 +202,9 @@ class Agent(RNDBase):
                 log_ratio, advantage, self._clip_range, entropy)
             # value loss
             v_loss_int = .5 * tf.reduce_mean(tf.square(traj_ret_int - value_int))
-            v_loss_ext, v_clip_frac_ext = compute_value_loss(
-                value_ext, traj_ret_ext, old_value_ext, self._clip_range)
+            v_loss_ext = .5 * tf.reduce_mean(tf.square(traj_ret_ext - value_ext))
+            # v_loss_ext, v_clip_frac_ext = compute_value_loss(
+            #     value_ext, traj_ret_ext, old_value_ext, self._clip_range)
 
             policy_loss = ppo_loss - self._entropy_coef * entropy
             v_loss_int = self._v_coef * v_loss_int
@@ -209,7 +217,7 @@ class Agent(RNDBase):
             entropy=entropy, 
             approx_kl=approx_kl, 
             p_clip_frac=p_clip_frac,
-            v_clip_frac_ext=v_clip_frac_ext,
+            # v_clip_frac_ext=v_clip_frac_ext,
             ppo_loss=ppo_loss,
             v_loss_int=v_loss_int,
             v_loss_ext=v_loss_ext

@@ -24,6 +24,8 @@ class PPOBuffer:
         if self._memory == {}:
             init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
             self._memory['discount_int'] = np.ones_like(self._memory['discount'])   # non-episodic
+            norm_obs_shape = self._memory['obs'].shape[:-1] + (1, )
+            self._memory['norm_obs'] = np.zeros(norm_obs_shape, dtype=np.float32)
             self._memory['traj_ret_int'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['traj_ret_ext'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
@@ -54,6 +56,7 @@ class PPOBuffer:
 
     def finish(self, reward_int, norm_obs, last_value_int, last_value_ext):
         assert self._idx == self.N_STEPS, self._idx
+        assert norm_obs.shape == self._memory['norm_obs'].shape, norm_obs.shape
         self._memory['norm_obs'] = norm_obs
 
         self._memory['traj_ret_int'], adv_int = \

@@ -26,7 +26,9 @@ def train(agent, env, eval_env, buffer):
     action_selector = lambda *args, **kwargs: agent(*args, **kwargs, update_rms=True)
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     print('Start to initialize observation running stats...')
-    runner.run(action_selector=env.random_action, nsteps=50*agent.N_STEPS)
+    runner.run(action_selector=env.random_action, 
+                step_fn=initialize_rms,
+                nsteps=50*agent.N_STEPS)
     runner.step = step
 
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
@@ -102,7 +104,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     agent = Agent(name='ppo', 
                 config=agent_config, 
                 models=models, 
-                buffer=buffer,
+                dateset=buffer,
                 env=env)
 
     agent.save_config(dict(

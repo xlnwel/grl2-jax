@@ -13,8 +13,8 @@ from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 class Agent(PPOBase):
     @agent_config
-    def __init__(self, buffer, env):
-        super().__init__(buffer=buffer, env=env)
+    def __init__(self, dataset, env):
+        super().__init__(dataset=dataset, env=env)
 
         # optimizer
         if getattr(self, 'schedule_lr', False):
@@ -93,7 +93,7 @@ class Agent(PPOBase):
     def learn_log(self, step):
         for i in range(self.N_UPDATES):
             for j in range(self.N_MBS):
-                data = self.buffer.sample()
+                data = self.dataset.sample()
                 value = data['value']
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 state, terms = self.learn(**data)

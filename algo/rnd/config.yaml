@@ -9,8 +9,8 @@ env:
 
 model:
     cnn_name: nature
-    actor_units: [256]
-    critic_units: [256]
+    actor_units: []
+    critic_units: []
     norm: none
     kernel_initializer: orthogonal
     activation: relu
