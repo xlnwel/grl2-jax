@@ -10,6 +10,7 @@ This repository is implemented with *Tensorflow2.1* and *ray0.8.4* for distribut
 - [x] PPO2 (with masked LSTM)
 - [x] Rainbow (without c51, refer to our previous repo for c51 and IQN)
 - [x] Retrace(𝝀)
+- [x] RND
 - [x] SAC with adaptive temperature
 - [x] TBO (Transformed Bellman Operator)
 - [x] SEED-Dreamer
@@ -19,11 +20,14 @@ This repository is implemented with *Tensorflow2.1* and *ray0.8.4* for distribut
 ```
 python run/train.py algo -e env
 ```
-For available 'algo', please refer to the folder names in '/algo'. To run distributed algorithms, 'algo' should be of form 'distributed_architecture-algorithm'. For example, if you want to run Ape-X with DQN, replace 'algo' with 'apex-dqn'.
+For available `algo`, please refer to the folder names in `/algo`. To run distributed algorithms, `algo` should be of form `distributed_architecture-algorithm`. For example, if you want to run Ape-X with DQN, replace 'algo' with `apex-dqn`. Currently supported distributed algorithms only include `apex-sac`, `apex-dqn`, `seed-dreamer`.
+
 
 ## Reference Papers
 
 Graves, Alex, Greg Wayne, Malcolm Reynolds, Tim Harley, Ivo Danihelka, Agnieszka Grabska-Barwińska, Sergio Gómez Colmenarejo, et al. 2016. “Hybrid Computing Using a Neural Network with Dynamic External Memory.” Nature 538 (7626): 471–76. https://doi.org/10.1038/nature20101.
+
+Burda, Yuri, Harrison Edwards, Amos Storkey, and Oleg Klimov. 2018. “Exploration by Random Network Distillation,” 1–17. http://arxiv.org/abs/1810.12894.
 
 Horgan, Dan, John Quan, David Budden, Gabriel Barth-Maron, Matteo Hessel, Hado van Hasselt, and David Silver. 2018. “Distributed Prioritized Experience Replay.” In ICLR, 1–19. http://arxiv.org/abs/1803.00933.
 

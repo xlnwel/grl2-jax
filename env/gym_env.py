@@ -124,7 +124,8 @@ class Env(Wrapper):
             img = self.env.render(mode='rgb_array')
         
         if size is not None:
-            img = cv2.resize(img, size, interpolation=cv2.INTER_AREA)
+            # cv2 receive size of form (width, height)
+            img = cv2.resize(img, size[::-1], interpolation=cv2.INTER_AREA)
             
         return img
 
@@ -194,7 +195,8 @@ class EnvVec(EnvVecBase):
                             copy=False)
 
         if size is not None:
-            imgs = np.array([cv2.resize(i, size, interpolation=cv2.INTER_AREA) 
+            # cv2 receive size of form (width, height)
+            imgs = np.array([cv2.resize(i, size[::-1], interpolation=cv2.INTER_AREA) 
                             for i in imgs])
         
         return imgs
@@ -253,7 +255,10 @@ class RayEnvVec(EnvVecBase):
     def reset(self, idxes=None):
         outputs = self._remote_call('reset', idxes)
         obs, reward, done, info = zip(*outputs)
+
         obs = tf.nest.flatten(obs)
+        if self.envsperworker > 1:
+            info = itertools.chain(*info)
         return EnvOutput(np.concatenate(obs, axis=0),
                         np.reshape(reward, self.n_envs).astype(np.float32), 
                         np.reshape(done, self.n_envs).astype(np.float32),

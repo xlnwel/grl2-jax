@@ -8,6 +8,7 @@ from core.module import Module
 from core.decorator import config
 from utility.tf_distributions import DiagGaussian, Categorical, TanhBijector
 from nn.func import cnn, mlp
+from nn.utils import get_initializer
 from nn.block.cnn import convert_obs
 
 
@@ -93,15 +94,15 @@ class Target(Module):
         
         self._cnn = cnn('nature', kernel_initializer='orthogonal', 
             time_distributed=True, out_size=None, activation='leaky_relu')
-        self._dense = mlp(out_size=512, 
-            kernel_initializer='orthogonal', activation='relu')
+        ki = get_initializer('orthogonal', gain=np.sqrt(2))
+        self._out = tf.keras.layers.Dense(512, kernel_initializer=ki, dtype='float32')
 
     def __call__(self, x):
         assert x.shape[-3:] == (84, 84, 1), x.shape
         x = self._cnn(x)
         shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
         x = tf.reshape(x, shape)
-        x = self._dense(x)
+        x = self._out(x)
 
         return x
 
@@ -112,8 +113,10 @@ class Predictor(Module):
 
         self._cnn = cnn('nature', kernel_initializer='orthogonal', 
             time_distributed=True, out_size=None, activation='leaky_relu')
-        self._dense = mlp([512, 512], out_size=512, 
+        self._dense = mlp([512, 512], 
             kernel_initializer='orthogonal', activation='relu')
+        ki = get_initializer('orthogonal', gain=np.sqrt(2))
+        self._out = tf.keras.layers.Dense(512, kernel_initializer=ki, dtype='float32')
 
     def __call__(self, x):
         assert x.shape[-3:] == (84, 84, 1), x.shape
@@ -121,6 +124,7 @@ class Predictor(Module):
         shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
         x = tf.reshape(x, shape)
         x = self._dense(x)
+        x = self._out(x)
 
         return x
 
@@ -132,34 +136,3 @@ def create_model(config, env):
     return dict(ac=PPOAC(config, action_dim, is_action_discrete),
                 target=Target(),
                 predictor=Predictor())
-
-if __name__ == '__main__':
-    env_config = dict(
-        name='atari_MontezumaRevenge',
-        n_workers=1,
-        n_envs=8,
-        seed=0,
-        precision=32,
-        frame_stack=4,
-        np_obs=True
-    )
-    config = dict(
-        cnn_name='nature',
-        actor_units=[256],
-        critic_units=[256],
-        norm='none',
-        kernel_initializer='orthogonal',
-        activation='relu',
-        init_std=1,)
-    from env.gym_env import create_env
-    env = create_env(env_config)
-    models = create_model(config, env)
-
-    obs = env.reset()[0]
-    models['ac'](obs, True)
-    obs = np.expand_dims(obs, 1)
-    models['target'](obs[..., -1:], obs[0, ..., -1:], obs[0, ..., -1:])
-    models['predictor'](obs[..., -1:], obs[0, ..., -1:], obs[0, ..., -1:])
-
-    from core.decorator import display_model_var_info
-    display_model_var_info(models)

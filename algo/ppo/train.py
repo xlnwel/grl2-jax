@@ -54,7 +54,7 @@ def train(agent, env, eval_env, buffer):
                 scores, epslens, video = evaluate(
                     eval_env, agent, record=False, size=(64, 64))
                 video_summary(f'{agent.name}/sim', video, step=step)
-                agent.store(eval_score=scores, eval_epslen=np.mean(epslens))
+                agent.store(eval_score=scores, eval_epslen=epslens)
         if to_log(agent.train_step) and 'score' in agent._logger:
             agent.log(step)
             agent.save()

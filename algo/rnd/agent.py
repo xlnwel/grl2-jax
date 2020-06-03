@@ -20,16 +20,19 @@ class RNDBase(BaseAgent):
         self.dataset = dataset
         axis = 0 if get_wrapper_by_name(env, 'Env') else (0, 1)
         self._obs_rms = RunningMeanStd(axis=axis, clip=5)
-        self._int_reward_rms = RunningMeanStd(axis=axis)
-        self._ext_reward_rms = RunningMeanStd(axis=axis)
+        self._returns_int = 0
+        self._int_return_rms = RunningMeanStd(axis=axis)
         self._rms_path = f'{self._root_dir}/{self._model_name}/rms.pkl'
 
     def compute_int_reward(self, next_obs):
         """ next_obs is expected to be normalized """
-        next_obs = next_obs[..., -1:]
+        assert len(next_obs.shape) == 5
+        assert next_obs.dtype == np.float32
+        assert next_obs.shape[-1] == 1
         reward_int = self._intrinsic_reward(next_obs).numpy()
-        self.update_int_reward_rms(reward_int)
-        reward_int = self.normalize_int_reward(reward_int)
+        returns_int = np.array([self._compute_intrinsic_return(r) for r in reward_int.T])
+        self._update_int_return_rms(returns_int)
+        reward_int = self._normalize_int_reward(reward_int)
         assert next_obs.shape[:2] == reward_int.shape
         return reward_int
 
@@ -40,6 +43,11 @@ class RNDBase(BaseAgent):
         int_reward = tf.reduce_mean(tf.square(target_feat - pred_feat), axis=-1)
         return int_reward
 
+    def _compute_intrinsic_return(self, reward):
+        # we intend to do the discoutning backwards in time as the future is yet to ocme
+        self._returns_int = reward + self._gamma_int * self._returns_int
+        return self._returns_int
+
     def update_obs_rms(self, obs):
         if obs.dtype == np.uint8 and obs.shape[-1] > 1:
             # for stacked frames, we only use
@@ -49,47 +57,30 @@ class RNDBase(BaseAgent):
             obs = np.expand_dims(obs, 1)
         self._obs_rms.update(obs)
 
-    def update_int_reward_rms(self, reward):
-        # TODO: normalize reward using the return stats
+    def _update_int_return_rms(self, reward):
         while len(reward.shape) < 2:
             reward = np.expand_dims(reward, 1)
-        if self._normalize_int_reward:
-            self._int_reward_rms.update(reward)
-    
-    def update_ext_reward_rms(self, reward):
-        while len(reward.shape) < 2:
-            reward = np.expand_dims(reward, 1)
-        if self._normalize_ext_reward:
-            self._ext_reward_rms.update(reward)
+        self._int_return_rms.update(reward)
 
     def normalize_obs(self, obs):
         obs = self._obs_rms.normalize(obs[..., -1:])
         return obs
 
-    def normalize_int_reward(self, reward):
-        if self._normalize_int_reward:
-            return self._int_reward_rms.normalize(reward, subtract_mean=False)
-        else:
-            return reward
-
-    def normalize_ext_reward(self, reward):
-        if self._normalize_ext_reward:
-            return self._ext_reward_rms.normalize(reward, subtract_mean=False)
-        else:
-            return reward
+    def _normalize_int_reward(self, reward):
+        return self._int_return_rms.normalize(reward, subtract_mean=False)
 
     def restore(self):
         import os
         if os.path.exists(self._rms_path):
             with open(self._rms_path, 'rb') as f:
-                self._obs_rms, self._int_reward_rms, self._ext_reward_rms = \
+                self._obs_rms, self._int_return_rms = \
                     cloudpickle.load(f)
         super().restore()
 
     def save(self, print_terminal_info=False):
         with open(self._rms_path, 'wb') as f:
             cloudpickle.dump(
-                (self._obs_rms, self._int_reward_rms, self._ext_reward_rms), f)
+                (self._obs_rms, self._int_return_rms), f)
         super().save(print_terminal_info=print_terminal_info)
 
 
@@ -122,6 +113,14 @@ class Agent(RNDBase):
         )
         self.learn = build(self._learn, TensorSpecs)
 
+        import collections
+        self.eval_reward_int = collections.deque(maxlen=1000)
+
+    def retrieve_eval_int_reward(self):
+        reward = self.eval_reward_int
+        self.eval_reward_int.clear()
+        return reward
+
     def reset_states(self, states=None):
         pass
 
@@ -129,16 +128,18 @@ class Agent(RNDBase):
         return None
 
     def __call__(self, obs, deterministic=False, **kwargs):
-        obs = np.array(obs, copy=False)
         if deterministic:
+            norm_obs = np.expand_dims(obs, 1)
+            norm_obs = self.normalize_obs(norm_obs)
+            reward_int = self.compute_int_reward(norm_obs)
+            self.eval_reward_int.append(np.squeeze(reward_int))
             return self.action(obs, deterministic).numpy()
         else:
             out = self.action(obs, deterministic)
             action, terms = tf.nest.map_structure(lambda x: x.numpy(), out)
-            terms['obs'] = obs  # return normalized obs
             return action, terms
 
-    @tf.function()
+    @tf.function(experimental_relax_shapes=True)
     def action(self, obs, deterministic=False):
         if deterministic:
             act_dist = self.ac(obs, return_value=False)
@@ -168,13 +169,13 @@ class Agent(RNDBase):
                 del terms['approx_kl']
 
                 self.store(**terms)
-                if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
-                    break
-            if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
-                pwc(f'{self._model_name}: Eearly stopping after '
-                    f'{i*self.N_MBS+j+1} update(s) due to reaching max kl.',
-                    f'Current kl={approx_kl:.3g}', color='blue')
-                break
+            #     if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
+            #         break
+            # if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
+            #     pwc(f'{self._model_name}: Eearly stopping after '
+            #         f'{i*self.N_MBS+j+1} update(s) due to reaching max kl.',
+            #         f'Current kl={approx_kl:.3g}', color='blue')
+            #     break
         self.store(approx_kl=approx_kl)
         return i * self.N_MBS + j + 1
 
@@ -185,9 +186,10 @@ class Agent(RNDBase):
         norm_obs = tf.reshape(norm_obs, 
             (self._n_envs, self.N_STEPS // self.N_MBS, *norm_obs.shape[-3:]))
         with tf.GradientTape() as pred_tape:
-            target_feat = self.target(norm_obs)
+            target_feat = tf.stop_gradient(self.target(norm_obs))
             pred_feat = self.predictor(norm_obs)
             pred_loss = tf.reduce_mean(tf.square(target_feat - pred_feat), axis=-1)
+            tf.debugging.assert_shapes([[pred_loss, (self._n_envs, self.N_STEPS // self.N_MBS)]])
             mask = tf.random.uniform(pred_loss.shape, maxval=1., dtype=pred_loss.dtype)
             mask = tf.cast(mask < self._pred_frac, pred_loss.dtype)
             pred_loss = tf.reduce_sum(mask * pred_loss) / tf.maximum(tf.reduce_sum(mask), 1)
@@ -206,12 +208,22 @@ class Agent(RNDBase):
             # v_loss_ext, v_clip_frac_ext = compute_value_loss(
             #     value_ext, traj_ret_ext, old_value_ext, self._clip_range)
 
-            policy_loss = ppo_loss - self._entropy_coef * entropy
+            entropy_loss = - self._entropy_coef * entropy
+            policy_loss = ppo_loss + entropy_loss
             v_loss_int = self._v_coef * v_loss_int
             v_loss_ext = self._v_coef * v_loss_ext
             ac_loss = policy_loss + v_loss_int + v_loss_ext
 
+        target_feat_mean, target_feat_var = tf.nn.moments(target_feat, axes=[0, 1])
+        pred_feat_mean, pred_feat_var = tf.nn.moments(pred_feat, axes=[0, 1])
         terms = dict(
+            target_feat_mean=target_feat_mean,
+            target_feat_var=target_feat_var,
+            target_feat_max=tf.reduce_max(tf.abs(target_feat)),
+            pred_feat_mean=pred_feat_mean,
+            pred_feat_var=pred_feat_var,
+            pred_feat_max=tf.reduce_max(tf.abs(pred_feat)),
+            pred_loss=pred_loss,
             advantage=advantage, 
             ratio=tf.exp(log_ratio), 
             entropy=entropy, 
@@ -219,6 +231,7 @@ class Agent(RNDBase):
             p_clip_frac=p_clip_frac,
             # v_clip_frac_ext=v_clip_frac_ext,
             ppo_loss=ppo_loss,
+            entropy_loss=entropy_loss,
             v_loss_int=v_loss_int,
             v_loss_ext=v_loss_ext
         )

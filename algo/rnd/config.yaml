@@ -1,11 +1,10 @@
 ---
 env:
     name: &env_name atari_MontezumaRevenge
-    n_workers: 1
-    n_envs: &nenvs 32
+    n_workers: 12
+    n_envs: &nenvs 10
     seed: 0
     frame_stack: True
-    np_obs: True
 
 model:
     cnn_name: nature
@@ -17,20 +16,18 @@ model:
     init_std: 1
 
 agent:
-    algorithm: &algo ppo
-    precision: &prec 32
+    algorithm: &algo rnd
+    precision: &prec 16
+    gamma_int: &gi .99
+    gamma_ext: &ge .999
 
     MAX_STEPS: 1e10
     N_STEPS: &nsteps 128
     N_UPDATES: 4
     N_MBS: &nmbs 4
     LOG_PERIOD: 100
-    EVAL_PERIOD: 1000
+    EVAL_PERIOD: 10000
     max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
-
-    normalize_obs: False
-    normalize_int_reward: True
-    normalize_ext_reward: False
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -48,12 +45,12 @@ agent:
     clip_range: .1          # clip range for ppo
     entropy_coef: .001
     v_coef: 1
-    pred_frac: 1  # fraction of experiences used for predictor update
+    pred_frac: .25  # fraction of experiences used for predictor update
 
 buffer:
     precision: *prec
-    gamma_int: .99
-    gamma_ext: .999
+    gamma_int: *gi
+    gamma_ext: *ge
     int_coef: 1
     ext_coef: 2
     lam: .95

@@ -60,11 +60,11 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
         env=env)
 
     scores, epslens, video = evaluate(env, agent, n, record=record, size=size)
-    if record:
-        save_video(f'{algo_name}-{env_name}', video)
     pwc(f'After running {n} episodes',
         f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
 
+    if record:
+        save_video(f'{algo_name}-{env_name}', video)
     if use_ray:
         ray.shutdown()
 
