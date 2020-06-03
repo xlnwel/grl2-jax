@@ -72,7 +72,7 @@ def train(agent, env, eval_env, buffer):
                     eval_env, agent, record=True)
                 video_summary(f'{agent.name}/sim', video, step=step)
                 if eval_env.n_envs == 1:
-                    rews_int = np.array(agent.retrieve_eval_int_reward())
+                    rews_int = agent.retrieve_eval_int_reward()
                     idxes = np.argsort(rews_int)
                     imgs = video[0, idxes]
                     rews_int = rews_int[idxes]
@@ -83,7 +83,6 @@ def train(agent, env, eval_env, buffer):
                         reward_int_3=rews_int[-3],
                     )
                     image_summary(f'{agent.name}/img', imgs[-n:], step=step)
-                    agent.eval
                 agent.store(eval_score=scores, eval_epslen=epslens)
 
         if to_log(agent.train_step) and 'score' in agent._logger:
@@ -93,7 +92,7 @@ def train(agent, env, eval_env, buffer):
                 vr_flattened = {k: list(itertools.chain(*[list(v) for v in vr]))
                     for k, vr in visited_rooms.items()}
                 agent.histogram_summary(vr_flattened, step=step)
-                agent.store(max_visited_rooms=np.max([len(vr) for vr in visited_rooms['visited_rooms']]))
+                agent.store(visited_rooms_max=np.max([len(vr) for vr in visited_rooms['visited_rooms']]))
             # action histogram
             action = agent.get_raw_item('action')
             agent.histogram_summary(action, step=step)    

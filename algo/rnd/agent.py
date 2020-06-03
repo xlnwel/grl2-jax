@@ -117,7 +117,7 @@ class Agent(RNDBase):
         self.eval_reward_int = collections.deque(maxlen=1000)
 
     def retrieve_eval_int_reward(self):
-        reward = self.eval_reward_int
+        reward = np.array(self.eval_reward_int)
         self.eval_reward_int.clear()
         return reward
 
