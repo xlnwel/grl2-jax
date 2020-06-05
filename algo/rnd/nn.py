@@ -20,44 +20,27 @@ class PPOAC(Module):
         self._is_action_discrete = is_action_discrete
         
         """ Network definition """
-        if self._cnn_name:
-            self._shared_layers = cnn(
-                self._cnn_name, time_distributed=False, out_size=256)
-        else:
-            self._shared_layers = lambda x: x
-
-        self.mlps = []
+        self._cnn = cnn(
+                self._cnn, time_distributed=False, out_size=256)
+        
+        self._mlps = []
         for i in range(3):
-            self.mlps.append(mlp([448], 
-                            norm=self._norm, 
+            self._mlps.append(mlp([448], 
                             activation=self._activation, 
                             kernel_initializer=self._kernel_initializer,
+                            gain=np.sqrt(2) if i == 0 else .1,
                             name=f'mlp{i}'))
-
-        self.actor = mlp(self._actor_units, 
-                        out_size=action_dim, 
-                        norm=self._norm,
+        self._actor = mlp(out_size=action_dim, 
                         activation=self._activation, 
                         kernel_initializer=self._kernel_initializer,
                         out_dtype='float32',
-                        name='actor',
-                        )
-        if not self._is_action_discrete:
-            self.logstd = tf.Variable(
-                initial_value=np.log(self._init_std)*np.ones(action_dim), 
-                dtype='float32', 
-                trainable=True, 
-                name=f'actor/logstd')
-        self.value_int = mlp(self._critic_units, 
-                            out_size=1,
-                            norm=self._norm,
+                        name='actor')
+        self._value_int = mlp(out_size=1,
                             activation=self._activation, 
                             kernel_initializer=self._kernel_initializer,
                             out_dtype='float32',
                             name='value_int')
-        self.value_ext = mlp(self._critic_units, 
-                            out_size=1,
-                            norm=self._norm,
+        self._value_ext = mlp(out_size=1,
                             activation=self._activation, 
                             kernel_initializer=self._kernel_initializer,
                             out_dtype='float32',
@@ -65,12 +48,12 @@ class PPOAC(Module):
 
     def __call__(self, x, return_value=False):
         print(f'{self.name} is retracing: x={x.shape}')
-        x = self._shared_layers(x)
-        x = self.mlps[0](x)
+        x = self._cnn(x)
+        x = self._mlps[0](x)
         ax, vx = x, x
-        ax = self.mlps[1](ax) + ax
-        vx = self.mlps[2](vx) + vx
-        actor_out = self.actor(ax)
+        ax = self._mlps[1](ax) + ax
+        vx = self._mlps[2](vx) + vx
+        actor_out = self._actor(ax)
 
         if self._is_action_discrete:
             act_dist = tfd.Categorical(actor_out)
@@ -78,8 +61,8 @@ class PPOAC(Module):
             act_dist = tfd.MultivariateNormalDiag(actor_out, tf.exp(self.logstd))
 
         if return_value:
-            value_int = tf.squeeze(self.value_int(vx), -1)
-            value_ext = tf.squeeze(self.value_ext(vx), -1)
+            value_int = tf.squeeze(self._value_int(vx), -1)
+            value_ext = tf.squeeze(self._value_ext(vx), -1)
             return act_dist, value_int, value_ext
         else:
             return act_dist
@@ -113,7 +96,7 @@ class Predictor(Module):
 
         self._cnn = cnn('nature', kernel_initializer='orthogonal', 
             time_distributed=True, out_size=None, activation='leaky_relu')
-        self._dense = mlp([512, 512], 
+        self._mlp = mlp([512, 512], 
             kernel_initializer='orthogonal', activation='relu')
         ki = get_initializer('orthogonal', gain=np.sqrt(2))
         self._out = tf.keras.layers.Dense(512, kernel_initializer=ki, dtype='float32')
@@ -123,7 +106,7 @@ class Predictor(Module):
         x = self._cnn(x)
         shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
         x = tf.reshape(x, shape)
-        x = self._dense(x)
+        x = self._mlp(x)
         x = self._out(x)
 
         return x

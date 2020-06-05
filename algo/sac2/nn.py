@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
-from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.module import Module
 from core.decorator import config
@@ -91,26 +90,25 @@ class Value(Module):
 
 
 class Temperature(Module):
-    def __init__(self, config, name='temperature'):
+    @config
+    def __init__(self, name='temperature'):
         super().__init__(name=name)
 
-        self.temp_type = config['temp_type']
-
-        if self.temp_type == 'state-action':
-            self.intra_layer = layers.Dense(1)
-        elif self.temp_type == 'variable':
-            self.log_temp = tf.Variable(0., dtype=global_policy().compute_dtype)
+        if self._temp_type == 'state-action':
+            self._layer = layers.Dense(1)
+        elif self._temp_type == 'variable':
+            self._log_temp = tf.Variable(0., dtype=tf.float32)
         else:
-            raise NotImplementedError(f'Error temp type: {self.temp_type}')
+            raise NotImplementedError(f'Error temp type: {self._temp_type}')
     
     def __call__(self, x, a):
-        if self.temp_type == 'state-action':
+        if self._temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
-            x = self.intra_layer(x)
+            x = self._layer(x)
             log_temp = -tf.nn.softplus(x)
             log_temp = tf.squeeze(log_temp)
         else:
-            log_temp = self.log_temp
+            log_temp = self._log_temp
         temp = tf.exp(log_temp)
     
         return log_temp, temp

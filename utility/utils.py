@@ -36,7 +36,8 @@ class RunningMeanStd(object):
         if isinstance(axis, tuple):
             assert axis == tuple(range(np.min(axis), np.max(axis) + 1))
         self._axis = axis
-        self._shape_slice = np.s_[np.min(self._axis): np.max(self._axis) + 1]
+        if self._axis is not None:
+            self._shape_slice = np.s_[np.min(self._axis): np.max(self._axis) + 1]
         self._mean = None
         self._var = None
         self._epsilon = epsilon

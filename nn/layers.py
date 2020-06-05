@@ -11,11 +11,11 @@ class Layer(tf.Module):
                 name=None, **kwargs):
         super().__init__(name=name)
 
-        gain = np.sqrt(2) if activation == 'relu' \
-                and kernel_initializer == 'orthogonal' else 1.
+        gain = kwargs.pop('gain', calculate_gain(activation))
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
 
-        self._layer = layer_type(units, kernel_initializer=kernel_initializer, name=name, **kwargs)
+        self._layer = layer_type(
+            units, kernel_initializer=kernel_initializer, name=name, **kwargs)
         self._norm_layer = get_norm(norm)
         if self._norm_layer:
             self._norm_layer = self._norm_layer()

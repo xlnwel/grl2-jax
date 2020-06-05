@@ -9,7 +9,7 @@ from tensorflow.keras.layers import Layer, Dense, Conv2D, MaxPooling2D, TimeDist
 from tensorflow.keras.activations import relu
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
-from nn.utils import get_initializer, get_activation
+from nn.utils import *
 
 
 mapping = dict(none=None)
@@ -42,26 +42,6 @@ maxpooling2d_fn = lambda *args, time_distributed=False, **kwargs: (
     MaxPooling2D(*args, **kwargs)
 )
 
-def convert_obs(x, obs_range, dtype=tf.float32):
-    if x.dtype != np.uint8:
-        print(f'Observations are already converted to {x.dtype}, no further process is performed')
-        return x
-    assert x.dtype == np.uint8, x.dtype
-    print(f'Observations are converted to range {obs_range} of dtype {dtype}')
-    if obs_range == [0, 1]:
-        return tf.cast(x, dtype) / 255.
-    elif obs_range == [-.5, .5]:
-        return tf.cast(x, dtype) / 255. - .5
-    elif obs_range == [-1, 1]:
-        return tf.cast(x, dtype) / 127.5 - 1.
-    else:
-        raise ValueError(obs_range)
-
-def flatten(x):
-    shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
-    x = tf.reshape(x, shape)
-    return x
-
 
 @register('ftw')
 class FTWCNN(Layer):
@@ -77,9 +57,9 @@ class FTWCNN(Layer):
         self._obs_range = obs_range
 
         conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
-        gain = kwargs.get('gain', np.sqrt(2))
+        gain = kwargs.pop('gain', calculate_gain('relu'))
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
-        kwargs.setdefault('kernel_initializer', kernel_initializer)
+        kwargs['kernel_initializer'] = kernel_initializer
         
         self._conv1 = conv2d(32, 8, strides=4, padding='same', **kwargs)
         self._conv2 = conv2d(64, 4, strides=2, padding='same', **kwargs)
@@ -123,10 +103,10 @@ class Residual(Layer):
     def build(self, input_shape):
         super().build(input_shape)
         conv2d = functools.partial(conv2d_fn, time_distributed=self._time_distributed)
-        gain = self._kwargs.get('gain', np.sqrt(2))
+        gain = self._kwargs.pop('gain', calculate_gain('relu'))
         kernel_initializer = get_initializer(self._kwargs['kernel_initializer'], gain=gain)
         kwargs = self._kwargs
-        kwargs.setdefault('kernel_initializer', kernel_initializer)
+        kwargs['kernel_initializer'] = kernel_initializer
         filters = input_shape[-1]
         
         self._conv1 = conv2d(filters, 3, strides=1, padding='same', 
@@ -157,9 +137,9 @@ class IMPALACNN(Layer):
 
         conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
         maxpooling2d = functools.partial(maxpooling2d_fn, time_distributed=time_distributed)
-        gain = kwargs.get('gain', np.sqrt(2))
+        gain = kwargs.pop('gain', calculate_gain('relu'))
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
-        kwargs.setdefault('kernel_initializer', kernel_initializer)
+        kwargs['kernel_initializer'] = kernel_initializer
 
         self._conv_layers = []
         for filters in [16, 32, 32]:
@@ -194,16 +174,16 @@ class NatureCNN(Layer):
                  obs_range=[0, 1], 
                  name='nature', 
                  kernel_initializer='orthogonal',
+                 activation='relu',
                  out_size=512,
                  **kwargs):
         super().__init__(name=name)
         self._obs_range = obs_range
 
         conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
-        gain = kwargs.get('gain', np.sqrt(2))
+        gain = kwargs.pop('gain', calculate_gain(activation))
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
-        kwargs.setdefault('kernel_initializer', kernel_initializer)
-        activation = kwargs.get('activation', 'relu')
+        kwargs['kernel_initializer'] = kernel_initializer
         activation = get_activation(activation)
         kwargs['activation'] = activation
 

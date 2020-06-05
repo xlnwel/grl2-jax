@@ -23,7 +23,7 @@ model:
         units_list: [400, 400, 400, 400]
         activation: elu
         init_std: 5
-        min_std: 1.e-4
+        min_std: 1e-4
         mean_scale: 5
     value:
         units_list: [400, 400, 400]
@@ -45,7 +45,7 @@ agent:
     batch_len: &bl 50
     burn_in_len: 20
 
-    MAX_STEPS: 5.e+6
+    MAX_STEPS: 5e6
     LOG_INTERVAL: 1000
     N_UPDATES: 100
     SYNC_FREQ: 100
@@ -76,9 +76,9 @@ agent:
     optimizer: adam
     clip_norm: 100.
     weight_decay: 0.
-    model_lr: 6.e-4
-    actor_lr: 8.e-5
-    value_lr: 8.e-5
+    model_lr: 6e-4
+    actor_lr: 8e-5
+    value_lr: 8e-5
 
 replay:
     type: episodic                      # proportional or uniform

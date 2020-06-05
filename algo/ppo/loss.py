@@ -8,8 +8,9 @@ def _reduce_mean(x, n):
 def compute_ppo_loss(log_ratio, advantages, clip_range, entropy):
     with tf.name_scope('ppo_loss'):
         ratio = tf.exp(log_ratio)
-        loss1 = -advantages * ratio
-        loss2 = -advantages * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
+        neg_adv = -advantages
+        loss1 = neg_adv * ratio
+        loss2 = neg_adv * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
         
         ppo_loss = tf.reduce_mean(tf.maximum(loss1, loss2))
         entropy = tf.reduce_mean(entropy)

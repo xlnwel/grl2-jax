@@ -76,7 +76,7 @@ def agent_config(init_fn):
     return wrapper
 
 def config(init_fn):
-    def wrapper(self, config, *args, **kwargs):
+    def wrapper(self, config={}, *args, **kwargs):
         _config_attr(self, config)
 
         init_fn(self, *args, **kwargs)

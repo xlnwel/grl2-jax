@@ -31,12 +31,8 @@ class Agent(BaseAgent):
         self._q_opt = Optimizer(self._optimizer, [self.q1, self.q2], self._q_lr)
 
         if isinstance(self.temperature, float):
-            # convert to variable, useful for scheduling
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
-            if getattr(self, '_schedule_lr', False):
-                self._temp_lr = TFPiecewiseSchedule(
-                    [(5e5, self._temp_lr), (1e6, 1e-5)])
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
 
         self._action_dim = env.action_dim
@@ -74,8 +70,6 @@ class Agent(BaseAgent):
             step = tf.convert_to_tensor(step, tf.float32)
             terms['actor_lr'] = self._actor_lr(step)
             terms['q_lr'] = self._q_lr(step)
-            if not isinstance(self.temperature, (float, tf.Variable)):
-                terms['temp_lr'] = self._temp_lr(step)
         terms = {k: v.numpy() for k, v in terms.items()}
 
         if self._is_per:

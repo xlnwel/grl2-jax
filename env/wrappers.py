@@ -134,7 +134,8 @@ class EnvStats(Wrapper):
             # when keeping stepping after game's over
             # here, we override this behavior
             self._mask = 0
-            return self._fake_obs, 0, True, {'mask': 0}
+            self._info['mask'] = self._mask
+            return self._fake_obs, 0, True, self._info
         assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
         self._score += reward
@@ -152,7 +153,6 @@ class EnvStats(Wrapper):
             info['epslen'] = self._epslen
             info['game_over'] = True
         self._info = info
-
         return np.array(obs, dtype=self.obs_dtype), \
                 np.float32(reward), np.float32(done), info
 

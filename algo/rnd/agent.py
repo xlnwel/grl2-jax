@@ -26,14 +26,13 @@ class RNDBase(BaseAgent):
 
     def compute_int_reward(self, next_obs):
         """ next_obs is expected to be normalized """
-        assert len(next_obs.shape) == 5
-        assert next_obs.dtype == np.float32
-        assert next_obs.shape[-1] == 1
+        assert len(next_obs.shape) == 5, next_obs.shape
+        assert next_obs.dtype == np.float32, next_obs.dtype
+        assert next_obs.shape[-1] == 1, next_obs.shape
         reward_int = self._intrinsic_reward(next_obs).numpy()
         returns_int = np.array([self._compute_intrinsic_return(r) for r in reward_int.T])
         self._update_int_return_rms(returns_int)
         reward_int = self._normalize_int_reward(reward_int)
-        assert next_obs.shape[:2] == reward_int.shape
         return reward_int
 
     @tf.function
@@ -53,13 +52,16 @@ class RNDBase(BaseAgent):
             # for stacked frames, we only use
             # the most recent one for rms update
             obs = obs[..., -1:]
-        while len(obs.shape) < 5:
+        if len(obs.shape) == 4:
             obs = np.expand_dims(obs, 1)
+        assert len(obs.shape) == 5, obs.shape
+        assert obs.dtype == np.uint8, obs.dtype
         self._obs_rms.update(obs)
 
     def _update_int_return_rms(self, reward):
         while len(reward.shape) < 2:
             reward = np.expand_dims(reward, 1)
+        assert len(reward.shape) == 2
         self._int_return_rms.update(reward)
 
     def normalize_obs(self, obs):
@@ -114,12 +116,24 @@ class Agent(RNDBase):
         self.learn = build(self._learn, TensorSpecs)
 
         import collections
-        self.eval_reward_int = collections.deque(maxlen=1000)
+        self.eval_reward_int = []
+        self.eval_reward_ext = []
+        self.eval_action = []
 
-    def retrieve_eval_int_reward(self):
-        reward = np.array(self.eval_reward_int)
+    def store_eval_reward(self, reward):
+        self.eval_reward_ext.append(np.squeeze(reward))
+
+    def retrieve_eval_rewards(self):
+        reward_int = np.array(self.eval_reward_int)
+        reward_ext = np.array(self.eval_reward_ext)
         self.eval_reward_int.clear()
-        return reward
+        self.eval_reward_ext.clear()
+        return reward_int, reward_ext
+
+    def retrieve_eval_actions(self):
+        action = np.array(self.eval_action)
+        self.eval_action.clear()
+        return action
 
     def reset_states(self, states=None):
         pass
@@ -133,7 +147,9 @@ class Agent(RNDBase):
             norm_obs = self.normalize_obs(norm_obs)
             reward_int = self.compute_int_reward(norm_obs)
             self.eval_reward_int.append(np.squeeze(reward_int))
-            return self.action(obs, deterministic).numpy()
+            action = self.action(obs, deterministic).numpy()
+            self.eval_action.append(action)
+            return action
         else:
             out = self.action(obs, deterministic)
             action, terms = tf.nest.map_structure(lambda x: x.numpy(), out)

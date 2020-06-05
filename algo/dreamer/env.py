@@ -4,6 +4,7 @@ import gym
 import threading
 
 from env import wrappers
+from env import baselines
 from env.gym_env import create_env
 
 
@@ -13,7 +14,7 @@ def make_env(config):
         config['name'] = f"_{config['name']}"
     suite, task = config['name'].split('_', 1)
     if suite == 'dmc':
-        env = DeepMindControl(task)
+        env = DeepMindControl(task, config.get('size', (64, 64)))
         env = wrappers.FrameSkip(env, config['frame_skip'])
         env = wrappers.NormalizeActions(env)
         max_episode_steps = 1000
@@ -24,8 +25,10 @@ def make_env(config):
         max_episode_steps = 108000
     else:
         raise NotImplementedError(suite)
+    if config.get('frame_stack', 1) > 1:
+        env = baselines.FrameStack(env, config['frame_stack'])
     env = wrappers.EnvStats(env, max_episode_steps, 
-            precision=config.get('precision', 16))
+            precision=config.get('precision', 32))
     if config.get('log_episode'):
         env = wrappers.LogEpisode(env)
 
@@ -43,7 +46,7 @@ class DeepMindControl:
         else:
             assert task is None
             self._env = domain()
-        self._size = size
+        self._size = tuple(size)
         if camera is None:
             camera = dict(quadruped=2).get(domain, 0)
         self._camera = camera

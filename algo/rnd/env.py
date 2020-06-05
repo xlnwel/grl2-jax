@@ -7,7 +7,7 @@ from copy import copy
 
 cv2.ocl.setUseOpenCL(False)
 
-from env.wrappers import EnvStats
+from env.wrappers import EnvStats, get_wrapper_by_name
 
 
 def unwrap(env):
@@ -207,7 +207,7 @@ class AddRandomStateToInfo(gym.Wrapper):
 
 def make_atari(env_id, max_episode_steps=4500):
     env = gym.make(env_id)
-    env._max_episode_steps = max_episode_steps*4
+    env._max_episode_steps = max_episode_steps
     assert 'NoFrameskip' in env.spec.id
     env = StickyActionEnv(env)
     env = MaxAndSkipEnv(env, skip=4)
@@ -256,7 +256,7 @@ def make_env(config):
     # version = 0 if config.get('sticky_actions', True) else 4
     version = 4
     name = f'{name}NoFrameskip-v{version}'
-    config['max_episode_steps'] = max_episode_steps = 4500 * config.get('frame_skip', 4)
+    config['max_episode_steps'] = max_episode_steps = 4500 * 4
     env = make_atari(name, max_episode_steps=max_episode_steps)
     env = wrap_deepmind(env, 
                     clip_rewards=config.get('clip_rewards', True),
@@ -265,3 +265,17 @@ def make_env(config):
                     precision=config.get('precision', 32), 
                     timeout_done=config.get('timeout_done', False))
     return env
+
+if __name__ == '__main__':
+    config = dict(
+        name='atari_MontezumaRevenge',
+        frame_stack=True
+    )
+    env = make_env(config)
+    env.reset()
+    wrap = get_wrapper_by_name(env, 'TimeLimit')
+    for k in range(4501):
+        o, r, d, i = env.step(11)
+        print(k)
+        
+    

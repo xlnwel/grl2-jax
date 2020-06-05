@@ -21,10 +21,6 @@ def train(agent, env, eval_env, buffer):
 
     def collect(env, step, info, next_obs, **kwargs):
         buffer.add(**kwargs)
-        for i in info:
-            if i.get('game_over'):
-                if 'episode' in i:
-                    agent.store(visited_rooms=i['episode']['visited_rooms'])
 
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
@@ -48,7 +44,8 @@ def train(agent, env, eval_env, buffer):
         _, terms = agent(last_obs, update_curr_state=False, reset=reset)
         obs = buffer.get_obs(last_obs)
         assert obs.shape[:2] == (env.n_envs, agent.N_STEPS+1)
-        agent.update_obs_rms(obs[:, :-1])
+        assert obs.dtype == np.uint8
+        agent.update_obs_rms(obs)
         norm_obs = agent.normalize_obs(obs)
         reward_int = agent.compute_int_reward(norm_obs[:, 1:])
         buffer.finish(reward_int, norm_obs[:, :-1], terms['value_int'], terms['value_ext'])
@@ -57,7 +54,6 @@ def train(agent, env, eval_env, buffer):
             reward_int_min=np.min(reward_int),
             reward_int=np.mean(reward_int),
             reward_int_std=np.std(reward_int),
-            action=buffer._memory['action'],
             )
 
         start_train_step = agent.train_step
@@ -69,36 +65,39 @@ def train(agent, env, eval_env, buffer):
         if to_eval(agent.train_step):
             with TempStore(agent.get_states, agent.reset_states):
                 scores, epslens, video = evaluate(
-                    eval_env, agent, record=True)
+                    eval_env, agent, 
+                    record=True,
+                    video_len=4500,
+                    step_fn=agent.store_eval_reward,)
                 video_summary(f'{agent.name}/sim', video, step=step)
                 if eval_env.n_envs == 1:
-                    rews_int = agent.retrieve_eval_int_reward()
-                    idxes = np.argsort(rews_int)
-                    imgs = video[0, idxes]
-                    rews_int = rews_int[idxes]
-                    n = 3
-                    agent.store(
-                        reward_int_1=rews_int[-1],
-                        reward_int_2=rews_int[-2],
-                        reward_int_3=rews_int[-3],
-                    )
-                    image_summary(f'{agent.name}/img', imgs[-n:], step=step)
+                    rews_int, rews_ext = agent.retrieve_eval_rewards()
+                    idxes_int = rews_int[::-1].argsort()
+                    idxes_ext = rews_ext[::-1].argsort()
+                    assert len(idxes_int.shape) == len(idxes_ext.shape), f'{idxes_int.shape} vs {idxes_ext.shape}'
+                    imgs_int = video[0, idxes_int]
+                    imgs_ext = video[0, idxes_ext]
+                    rews_int = rews_int[idxes_int]
+                    rews_ext = rews_ext[idxes_ext]
+                    n = 30
+                    terms = {
+                        **{f'reward_int_{i}': rews_int[i] for i in range(0, n, 10)},
+                        **{f'reward_ext_{i}': rews_ext[i] for i in range(0, n, 10)},
+                    }
+                    agent.store(**terms)
+                    imgs = np.concatenate([imgs_int[:n:10], imgs_ext[:n:10]], 0)
+                    image_summary(f'{agent.name}/img', imgs, step=step)
+
+                    info = eval_env.info()[0]
+                    episode = info.get('episode', {'visited_rooms': 1})
+                    agent.store(visited_rooms_max=len(episode['visited_rooms']))
+                    agent.histogram_summary(
+                        {'action': agent.retrieve_eval_actions()}, step=step)   
                 agent.store(eval_score=scores, eval_epslen=epslens)
 
         if to_log(agent.train_step) and 'score' in agent._logger:
-            # record visited rooms
-            visited_rooms = agent.get_raw_item('visited_rooms')
-            if visited_rooms:
-                vr_flattened = {k: list(itertools.chain(*[list(v) for v in vr]))
-                    for k, vr in visited_rooms.items()}
-                agent.histogram_summary(vr_flattened, step=step)
-                agent.store(visited_rooms_max=np.max([len(vr) for vr in visited_rooms['visited_rooms']]))
-            # action histogram
-            action = agent.get_raw_item('action')
-            agent.histogram_summary(action, step=step)    
-
-            agent.store(train_step=agent.train_step)
-            agent.log(step)
+            agent.store(train_step=agent.train_step, episodes=runner.episodes)
+            agent.log(agent.train_step)
             agent.save()
 
 def main(env_config, model_config, agent_config, buffer_config):
@@ -136,6 +135,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1
     eval_env_config['n_envs'] = 1
+    eval_env_config['clip_rewards'] = False
     eval_env = create_env(eval_env_config, env_fn=make_env, force_envvec=True)
 
     buffer_config['n_envs'] = env.n_envs

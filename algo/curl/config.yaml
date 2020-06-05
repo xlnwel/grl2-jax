@@ -1,31 +1,42 @@
 ---
 env:
-    name: BipedalWalker-v3
-    seed: 0
+    name: dmc_walker_walk
+    size: [100, 100]
+    n_envs: 1
+    frame_skip: 2
+    frame_stack: 3
+    precision: &prec 16
 model:
+    encoder:
+        out_size: &zsize 50
     actor:
-        units_list: [512, 256]
+        units_list: [256, 256, 256, 256]
         norm: none
         activation: relu
-        init_std: 5
-        min_std: 1e-4
-        mean_scale: 5
+        LOG_STD_MIN: -20
+        LOG_STD_MAX: 2
     q:
-        units_list: [512, 256]
+        units_list: [256, 256]
         norm: none
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: 1
+        value: .1
+    curl:
+        norm: layer
+        out_size: *zsize
 agent:
-    algorithm: &algo sac2
+    algorithm: &algo curl
     gamma: &gamma .99
-    polyak: .995
+    batch_size: &bs 128
+    q_polyak: .99
+    encoder_polyak: .95
     act_eps: 0
     # target_entropy: .5                      # tune this param for discrete actions
     
-    MAX_STEPS: 3e+6
-    LOG_PERIOD: 10000
+    MAX_STEPS: 1e6
+    LOG_PERIOD: 1000
+    actor_update_period: 2
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -33,12 +44,14 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
+    obs_shape: [84, 84]
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 3e-4
-    q_lr: 3e-4
-    temp_lr: 3e-4
+    actor_lr: 1e-3
+    q_lr: 1e-3
+    curl_lr: 1e-3
+    temp_lr: 1e-4
     
     # arguments for PER
     per_alpha: .5
@@ -48,13 +61,13 @@ replay:
     type: uniform                      # per or uniform
     # arguments for PER
     beta0: .4
-    beta_steps: 5e+4
+    beta_steps: 5e4
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: 1
     gamma: *gamma
-    batch_size: 256
-    min_size: 1e+4
-    capacity: 1e+6
+    batch_size: *bs
+    min_size: 1e3
+    capacity: 1e5
     has_next_obs: False

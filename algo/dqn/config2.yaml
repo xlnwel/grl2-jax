@@ -16,7 +16,7 @@ agent:
     schedule_eps: False
     act_eps: 0.3
 
-    MAX_STEPS: 1.e+8          # maximum training steps
+    MAX_STEPS: 1e8          # maximum training steps
     TRAIN_PERIOD: 1          # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 10000
     LOG_PERIOD: 10000
@@ -40,7 +40,7 @@ agent:
     
     # arguments for PER
     per_alpha: 0.5
-    per_epsilon: 1.e-4
+    per_epsilon: 1e-4
 
 replay:
     type: per      # uniform, per
@@ -53,6 +53,6 @@ replay:
     n_steps: 3
     gamma: *gamma
     batch_size: 256
-    min_size: 1.e+4
-    capacity: 1.e+5
+    min_size: 1e4
+    capacity: 1e5
     has_next_obs: False

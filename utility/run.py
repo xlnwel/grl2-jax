@@ -8,6 +8,7 @@ class Runner:
         self.agent = agent
         self.step = step
         self.env_output = None
+        self.episodes = np.zeros(env.n_envs)
 
         self.is_env = self.env.env_type == 'Env'
 
@@ -54,6 +55,7 @@ class Runner:
             if info.get('already_done'):
                 if info.get('game_over'):
                     self.agent.store(score=info['score'], epslen=info['epslen'])
+                    self.episodes += 1
                 self.env_output = self.env.reset()
                 obs = self.env_output.obs
                 self.reset = 1
@@ -83,8 +85,7 @@ class Runner:
                 action, terms = action
             self.env_output = self.env.step(action)
             next_obs, reward, done, info = self.env_output
-            # print(action, next_obs.shape, reward.shape, done.shape, len(info))
-
+            
             self.step += self._frames_per_step
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
@@ -96,18 +97,20 @@ class Runner:
             # logging and reset 
             done_env_ids = [i for i, ii in enumerate(info) if ii.get('already_done')]
             if done_env_ids:
-                score = [i['score'] for i in info if 'score' in i]
-                if score:
+                game_over = [idx for idx, i in enumerate(info) if i.get('game_over')]
+                if game_over:
+                    score = [i['score'] for i in info if 'score' in i]
                     epslen = [i['epslen'] for i in info if 'epslen' in i]
                     assert len(score) == len(epslen)
                     self.agent.store(score=score, epslen=epslen)
+                    for i in game_over:
+                        self.episodes[i] += 1
                 
                 env_output = self.env.reset(done_env_ids)
                 for i, eo in zip(done_env_ids, zip(*env_output)):
                     for k, v in enumerate(eo):
                         self.env_output[k][i] = v
                 obs = self.env_output.obs
-            # print('after', self.env_output.obs.shape, self.env_output.reward.shape, self.env_output.done.shape, self.env_output.info)
             self.reset = np.array([i.get('already_done', 0) for i in info])
 
         return self.step
@@ -206,10 +209,11 @@ class Runner:
 
         return self.step
 
-def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
+def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=None):
     scores = []
     epslens = []
-    maxlen = min(video_len, env.max_episode_steps)
+    max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
+    maxlen = min(video_len, max_steps)
     frames = collections.defaultdict(lambda:collections.deque(maxlen=maxlen))
     name = env.name
     for _ in range(0, n, env.n_envs):
@@ -217,7 +221,7 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
             agent.reset_states()
         env_output = env.reset()
         obs = env_output.obs
-        for k in range(env.max_episode_steps):
+        for k in range(max_steps):
             if record:
                 if name.startswith('dm'):
                     img = obs
@@ -234,11 +238,15 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
             env_output = env.step(action)
             obs, reward, done, info = env_output
 
+            if step_fn:
+                step_fn(reward=reward)
+
             if env.env_type == 'Env':
                 if info.get('already_done'):
                     if info.get('game_over'):
                         scores.append(info['score'])
                         epslens.append(info['epslen'])
+                        break
                     else:
                         obs = env.reset()
             else:
@@ -255,9 +263,8 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000):
                         new_obs = env.reset(reset_env_ids)
                         for i, o in zip(reset_env_ids, new_obs):
                             obs[i] = o
-            if np.all(env.game_over()):
-                break
-    
+                    else:
+                        break
     if record:
         frames = list(frames.values())
         max_len = np.max([len(f) for f in frames])

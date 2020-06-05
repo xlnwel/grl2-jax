@@ -7,10 +7,7 @@ env:
     frame_stack: True
 
 model:
-    cnn_name: nature
-    actor_units: []
-    critic_units: []
-    norm: none
+    cnn: nature
     kernel_initializer: orthogonal
     activation: relu
     init_std: 1
@@ -25,8 +22,8 @@ agent:
     N_STEPS: &nsteps 128
     N_UPDATES: 4
     N_MBS: &nmbs 4
-    LOG_PERIOD: 100
-    EVAL_PERIOD: 1000
+    LOG_PERIOD: 200
+    EVAL_PERIOD: 2000
     max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
 
     # model path: root_dir/model_name/models
@@ -40,7 +37,7 @@ agent:
     schedule_lr: False
     ac_lr: 1e-4
     pred_lr: 1e-4
-    clip_norm: .5
+    clip_norm: 0
     # arguments for loss
     clip_range: .1          # clip range for ppo
     entropy_coef: .001

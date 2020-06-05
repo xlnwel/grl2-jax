@@ -112,7 +112,7 @@ class Env(Wrapper):
         return self.env.already_done()
 
     def info(self):
-        return self._info
+        return self.env.info()
 
     def game_over(self):
         return self.env.game_over()
@@ -182,7 +182,7 @@ class EnvVec(EnvVecBase):
         return np.array([env.already_done() for env in self.envs], dtype=np.bool)
 
     def info(self):
-        return [env.already_done() for env in self.envs]
+        return [env.info() for env in self.envs]
 
     def game_over(self):
         return np.array([env.game_over() for env in self.envs], dtype=np.bool)

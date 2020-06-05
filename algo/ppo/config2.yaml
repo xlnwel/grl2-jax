@@ -19,7 +19,7 @@ agent:
     algorithm: &algo ppo
     precision: *prec
 
-    MAX_STEPS: 5.e+7
+    MAX_STEPS: 5e7
     N_STEPS: &nsteps 256
     N_UPDATES: 4
     N_MBS: &nmbs 4
@@ -39,7 +39,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 3.e-4
+    lr: 3e-4
     clip_norm: .5
     # arguments for loss
     clip_range: .2          # clip range for ppo

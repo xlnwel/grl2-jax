@@ -90,6 +90,7 @@ def image_summary(name, images, step=None):
     if len(images.shape) == 3:
         images = images[None]
     if np.issubdtype(images.dtype, np.floating):
+        assert np.logical_and(images >= 0, images <= 1).all()
         images = np.clip(255 * images, 0, 255).astype(np.uint8)
     img = grid_placed(images)[None]
     tf.summary.image(name + '/grid', img, step)

@@ -10,17 +10,20 @@ class MLP(tf.Module):
                 name=None, out_dtype=None, **kwargs):
         super().__init__(name=name)
 
+        # Follows OpenAI's baselines, which uses a small-scale initializer
+        # for policy head when using othogonal initialization
+        out_gain = kwargs.pop('out_gain', .01)
+
         self._layers = [
             Layer(u, layer_type=layer_type, norm=norm, 
                 activation=activation, kernel_initializer=kernel_initializer, 
-                name=f'layer_{i}', **kwargs)
+                name=f'layer{i}', **kwargs)
             for i, u in enumerate(units_list)]
         if out_size:
-            # Following OpenAI's baselines, which uses a small-scale initializer
-            # for policy head when using othogonal initialization
-            gain = kwargs.get('gain', .01)
-            kernel_initializer = get_initializer(kernel_initializer, gain=gain)
-            self._layers.append(layer_type(out_size, dtype=out_dtype, name='out'))
+            kernel_initializer = get_initializer(kernel_initializer, gain=out_gain)
+            self._layers.append(layer_type(
+                out_size, kernel_initializer=kernel_initializer, 
+                dtype=out_dtype, name='out'))
             
     def __call__(self, x, **kwargs):
         if self.name:
