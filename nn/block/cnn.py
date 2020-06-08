@@ -102,17 +102,15 @@ class Residual(Layer):
 
     def build(self, input_shape):
         super().build(input_shape)
-        conv2d = functools.partial(conv2d_fn, time_distributed=self._time_distributed)
-        gain = self._kwargs.pop('gain', calculate_gain('relu'))
-        kernel_initializer = get_initializer(self._kwargs['kernel_initializer'], gain=gain)
         kwargs = self._kwargs
+        conv2d = functools.partial(conv2d_fn, time_distributed=self._time_distributed)
+        gain = kwargs.pop('gain', calculate_gain('relu'))
+        kernel_initializer = get_initializer(kwargs['kernel_initializer'], gain=gain)
         kwargs['kernel_initializer'] = kernel_initializer
         filters = input_shape[-1]
         
-        self._conv1 = conv2d(filters, 3, strides=1, padding='same', 
-                            kernel_initializer=kernel_initializer, **kwargs)
-        self._conv2 = conv2d(filters, 3, strides=1, padding='same', 
-                            kernel_initializer=kernel_initializer, **kwargs)
+        self._conv1 = conv2d(filters, 3, strides=1, padding='same', **kwargs)
+        self._conv2 = conv2d(filters, 3, strides=1, padding='same', **kwargs)
 
     def call(self, x):
         y = relu(x)
@@ -131,6 +129,7 @@ class IMPALACNN(Layer):
                  name='impala', 
                  kernel_initializer='orthogonal',
                  out_size=256,
+                 filter_multiplier=1,
                  **kwargs):
         super().__init__(name=name)
         self._obs_range = obs_range
@@ -143,6 +142,7 @@ class IMPALACNN(Layer):
 
         self._conv_layers = []
         for filters in [16, 32, 32]:
+            filters *= filter_multiplier
             self._conv_layers += [
                 conv2d(filters, 3, strides=1, padding='same', **kwargs),
                 maxpooling2d(3, strides=2, padding='same'),

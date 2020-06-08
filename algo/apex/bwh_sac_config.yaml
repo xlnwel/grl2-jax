@@ -3,7 +3,6 @@ env:
     name: BipedalWalkerHardcore-v3
     n_envs: 1
     seed: 0
-    precision: &prec 32
     reward_clip: 10
 model:
     actor:
@@ -24,17 +23,16 @@ agent:
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     polyak: .995
-    precision: *prec
+    precision: &prec 32
     evaluation: False
     act_eps: 0
     
     # timer&interval
     MAX_STEPS: 1e8
-    LOG_PERIOD: 10000
-    timer: False
+    LOG_PERIOD: 1000
 
     # distributed algo params
-    n_workers: 1
+    n_workers: 3
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -43,7 +41,6 @@ agent:
     model_name: *algo
 
     loss_type: mse                          # huber or mse
-    tbo: False                               # transformed Bellman Operator
 
     # arguments for optimizer
     optimizer: adam

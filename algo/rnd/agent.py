@@ -77,6 +77,7 @@ class RNDBase(BaseAgent):
             with open(self._rms_path, 'rb') as f:
                 self._obs_rms, self._int_return_rms = \
                     cloudpickle.load(f)
+            print('RMSs are restored')
         super().restore()
 
     def save(self, print_terminal_info=False):

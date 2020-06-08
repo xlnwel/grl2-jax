@@ -46,7 +46,7 @@ class Runner:
             self.step += self._frames_per_step
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
-                    discount=1-done, next_obs=next_obs)
+                    discount=np.float32(1-done), next_obs=next_obs)
                 # allow terms to overwrite the values in kwargs
                 kwargs.update(terms)
                 step_fn(self.env, self.step, info, **kwargs)
@@ -89,7 +89,7 @@ class Runner:
             self.step += self._frames_per_step
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
-                    discount=1-done, next_obs=next_obs)
+                    discount=np.float32(1-done), next_obs=next_obs)
                 # allow terms to overwrite the values in kwargs
                 kwargs.update(terms)
                 step_fn(self.env, self.step, info, **kwargs)
@@ -144,19 +144,20 @@ class Runner:
             self.step += info.get('mask', 1) * self._frames_per_step
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
-                    discount=1-done, next_obs=next_obs)
+                    discount=np.float32(1-done), next_obs=next_obs)
                 # allow terms to overwrite the values in kwargs
                 kwargs.update(terms)
-                step_fn(env, self.step, **kwargs)
+                step_fn(env, self.step, info, **kwargs)
             obs = next_obs
             # logging and reset
             if info.get('already_done'):
                 if info.get('game_over'):
                     self.agent.store(score=info['score'], epslen=info['epslen'])
+                    self.episodes += 1
                     break
                 else:
                     obs = env.reset()
-            reset = env.already_done()
+                reset = 1
 
         return self.step
 
@@ -184,10 +185,10 @@ class Runner:
             self.step += np.sum(self._frames_per_step * mask)
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
-                    discount=1-done, next_obs=next_obs, mask=mask)
+                    discount=np.float32(1-done), next_obs=next_obs, mask=mask)
                 # allow terms to overwrite the values in kwargs
                 kwargs.update(terms)
-                step_fn(env, self.step, **kwargs)
+                step_fn(env, self.step, info, **kwargs)
             obs = next_obs
             # logging and reset 
             done_env_ids = [i for i, ii in enumerate(info) if ii.get('already_done')]

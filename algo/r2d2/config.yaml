@@ -1,12 +1,14 @@
 ---
 env:
     name: atari_pong
-    wrapper: my_atari
+    wrapper: baselines
     sticky_actions: False
+    frame_stack: 1
+    np_obs: True
     seed: 0
 
 model:
-    cnn: nature
+    cnn: impala
     lstm_units: 512
     head_units: [512]
     activation: relu
@@ -18,20 +20,21 @@ agent:
     lambda: .95
     precision: &prec 16
     batch_size: &bs 64
+    schedule_act_eps: True
+    act_eps: 0
 
     store_state: True
     burn_in: True
     sample_size: &ss 120
     burn_in_size: &bis 40
     add_input: False
-    act_eps: 0
 
     MAX_STEPS: 1e9
     LOG_PERIOD: &log 1000
     N_UPDATES: *log
     
     # distributed algo params
-    n_workers: 6
+    n_workers: 3
     SYNC_PERIOD: 5000
 
     # model path: root_dir/model_name/models
@@ -49,7 +52,7 @@ agent:
     schedule_lr: False
     lr: 1e-4
     epsilon: 1e-4
-    clip_norm: 40
+    clip_norm: 0
 
     # arguments for PER
     per_alpha: 0.4
@@ -68,4 +71,4 @@ replay:
     sample_size: *ss
     burn_in_size: *bis
     min_size: 1000                  # 6250 in Agent57
-    capacity: 5e4                 # 5e6 in Agent57
+    capacity: 1e4                 # 5e6 in Agent57

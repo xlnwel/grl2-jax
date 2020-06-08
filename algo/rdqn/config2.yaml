@@ -23,7 +23,7 @@ agent:
     burn_in: True
     sample_size: &ss 60
     burn_in_size: &bis 20
-    schedule_eps: False
+    schedule_act_eps: False
     add_input: False
     act_eps: 0.3
 

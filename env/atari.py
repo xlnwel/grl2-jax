@@ -18,7 +18,10 @@ def make_atari_env(config):
         version = 0 if config.get('sticky_actions', True) else 4
         name = f'{name}NoFrameskip-v{version}'
         env = B.make_atari(name)
-        env = B.wrap_deepmind(env, episode_life=config.get('life_done', False), frame_stack=config.get('frame_stack', 1)>1)
+        env = B.wrap_deepmind(env, 
+                            episode_life=config.get('life_done', False), 
+                            frame_stack=config.get('frame_stack', 1),
+                            np_obs=config.get('np_obs', False))
     else:
         env = Atari(**config)
     return env
@@ -254,7 +257,7 @@ class Atari:
 
     def _get_obs(self):
         assert len(self._frames) == self.frame_stack, f'{len(self._frames)} vs {self.frame_stack}'
-        return np.array(self._frames, dtype=np.uint8) \
+        return np.concatenate(self._frames, axis=-1) \
             if self.np_obs else LazyFrames(list(self._frames))
 
 

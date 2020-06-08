@@ -19,6 +19,7 @@ def restore(ckpt_manager, ckpt, ckpt_path, name='model'):
     else:
         pwc(f'No model for {name} is found at "{ckpt_path}"!', 
             f'Start training from scratch.', color='cyan')
+    return bool(path)
 
 def save(ckpt_manager, print_terminal_info=True):
     """ Save model

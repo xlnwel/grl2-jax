@@ -13,7 +13,7 @@ agent:
     algorithm: &algo dqn
     gamma: &gamma 0.99
     precision: *prec
-    schedule_eps: False
+    schedule_act_eps: False
     act_eps: 0.3
 
     MAX_STEPS: 1e8          # maximum training steps

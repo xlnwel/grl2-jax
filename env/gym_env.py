@@ -96,7 +96,8 @@ class Env(Wrapper):
         return action
         
     def step(self, action, **kwargs):
-        return EnvOutput(*self.env.step(action, **kwargs))
+        output = EnvOutput(*self.env.step(action, **kwargs))
+        return output
 
     """ the following code is needed for ray """
     def mask(self):

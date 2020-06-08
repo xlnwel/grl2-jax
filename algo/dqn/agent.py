@@ -41,7 +41,7 @@ class Agent(BaseAgent):
         if self._schedule_lr:
             self._lr = TFPiecewiseSchedule(
                 [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
-        if self._schedule_eps:
+        if self._schedule_act_eps:
             self._act_eps = PiecewiseSchedule(((5e4, 1), (4e5, .02)))
 
         self._to_sync = Every(self._target_update_period)
@@ -71,7 +71,7 @@ class Agent(BaseAgent):
         self.q.reset_noisy()
 
     def __call__(self, obs, deterministic=False, **kwargs):
-        if self._schedule_eps:
+        if self._schedule_act_eps:
             eps = self._act_eps.value(self.env_step)
             self.store(act_eps=eps)
         else:

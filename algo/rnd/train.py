@@ -25,10 +25,10 @@ def train(agent, env, eval_env, buffer):
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     print('Start to initialize observation running stats...')
-    runner.run(action_selector=env.random_action, 
-                step_fn=initialize_rms, 
-                nsteps=50*agent.N_STEPS)
-    runner.step = step
+    # runner.run(action_selector=env.random_action, 
+    #             step_fn=initialize_rms, 
+    #             nsteps=50*agent.N_STEPS)
+    # runner.step = step
 
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
@@ -72,20 +72,20 @@ def train(agent, env, eval_env, buffer):
                 video_summary(f'{agent.name}/sim', video, step=step)
                 if eval_env.n_envs == 1:
                     rews_int, rews_ext = agent.retrieve_eval_rewards()
-                    idxes_int = rews_int[::-1].argsort()
-                    idxes_ext = rews_ext[::-1].argsort()
+                    n = 10
+                    idxes_int = rews_int.argsort()[::-1][:n]
+                    idxes_ext = rews_ext.argsort()[::-1][:n]
                     assert len(idxes_int.shape) == len(idxes_ext.shape), f'{idxes_int.shape} vs {idxes_ext.shape}'
                     imgs_int = video[0, idxes_int]
                     imgs_ext = video[0, idxes_ext]
                     rews_int = rews_int[idxes_int]
                     rews_ext = rews_ext[idxes_ext]
-                    n = 30
                     terms = {
-                        **{f'reward_int_{i}': rews_int[i] for i in range(0, n, 10)},
-                        **{f'reward_ext_{i}': rews_ext[i] for i in range(0, n, 10)},
+                        **{f'reward_int_{i}': rews_int[i] for i in range(0, n)},
+                        **{f'reward_ext_{i}': rews_ext[i] for i in range(0, n)},
                     }
                     agent.store(**terms)
-                    imgs = np.concatenate([imgs_int[:n:10], imgs_ext[:n:10]], 0)
+                    imgs = np.concatenate([imgs_int[:n], imgs_ext[:n]], 0)
                     image_summary(f'{agent.name}/img', imgs, step=step)
 
                     info = eval_env.info()[0]
@@ -148,7 +148,8 @@ def main(env_config, model_config, agent_config, buffer_config):
                 models=models, 
                 dataset=buffer,
                 env=env)
-
+    # restore RMSs
+    agent.restore()
     agent.save_config(dict(
         env=env_config,
         model=model_config,

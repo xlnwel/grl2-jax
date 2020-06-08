@@ -13,6 +13,7 @@ from core.base import BaseAgent
 from core.decorator import config
 from utility.display import pwc
 from utility.utils import Every
+from utility.timer import Timer
 from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
 from utility.run import Runner, evaluate
@@ -33,13 +34,12 @@ def get_learner_class(BaseAgent):
             silence_tf_logs()
             configure_threads(config['n_cpus'], config['n_cpus'])
             configure_gpu()
-            configure_precision(config['precision'])
+            configure_precision(config.get('precision', 32))
 
             env = create_env(env_config)
             
-            dtype = {16: tf.float16, 32: tf.float32}[config['precision']]
-            obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
-            action_dtype = tf.int32 if env.is_action_discrete else dtype
+            obs_dtype = env.obs_dtype
+            action_dtype =  env.action_dtype
             algo = config['algorithm'].split('-', 1)[-1]
             is_per = ray.get(replay.name.remote()).endswith('per')
             n_steps = config['n_steps']
@@ -113,24 +113,23 @@ class Worker:
                 buffer_fn):
         silence_tf_logs()
         configure_threads(1, 1)
-
         self._id = worker_id
 
         self.env = env = create_env(env_config)
         self.n_envs = self.env.n_envs
 
-        self.models = Ensemble(
-                model_fn=model_fn, 
-                config=model_config, 
-                env=env)
-
-        self._seqlen = buffer_config['seqlen']
         if buffer_config['seqlen'] == 0:
-            buffer_config['seqlen'] = env.max_episode_steps // env.get('frame_skip', 1)
+            buffer_config['seqlen'] = env.max_episode_steps // getattr(env, 'frame_skip', 1)
+        self._seqlen = buffer_config['seqlen']
         self.buffer = buffer_fn(buffer_config)
         self._is_per = buffer_config['type'].endswith('per')
 
-        self.runner = Runner(self.env, self, nsteps=self._seqlen)
+        self.runner = Runner(self.env, self, nsteps=self.SYNC_PERIOD)
+
+        self.models = Ensemble(
+            model_fn=model_fn, 
+            config=model_config, 
+            env=env)
 
         self._is_dpg = 'actor' in self.models
         assert self._is_dpg != self.env.is_action_discrete
@@ -165,28 +164,26 @@ class Worker:
             if len(x.shape) % 2 != 0:
                 x = tf.expand_dims(x, 0)
             qs = np.squeeze(self.q.value(x).numpy())
-            if deterministic:
-                return np.argmax(qs)
             if np.random.uniform() < self._act_eps:
                 action = self.env.random_action()
             else:
                 action = np.argmax(qs)
+            action = np.int32(action)
             return action, {'q': qs[action]}
 
     def run(self, learner, replay):
-        to_sync = Every(self.SYNC_PERIOD)
-        i = 0
+        step = 0
         while True:
-            i += 1
-            if to_sync(i):
-                weights = self._pull_weights(learner)
-            self._run(weights)
-            self._send_data(replay)
+            weights = self._pull_weights(learner)
+            step += self._seqlen
+            self._run(weights, replay)
             self._send_episode_info(learner)
 
-    def _run(self, weights):
+    def _run(self, weights, replay):
         def collect(env, step, info, **kwargs):
             self.buffer.add_data(**kwargs)
+            if self.buffer.is_full():
+                self._send_data(replay)
 
         self.models.set_weights(weights)
         if self._seqlen == 0:
@@ -227,20 +224,10 @@ class Worker:
         mask, data = buffer.sample()
 
         if self._is_per:
-            data_tensor = {}
-            for k, v in data.items():
-                if 'obs' in k:
-                    dtype = self.env.obs_dtype
-                elif 'action' in k:
-                    dtype = self.env.action_dtype
-                else:
-                    dtype = tf.float32
-                data_tensor[k] = tf.convert_to_tensor(v, dtype)
+            data_tensor = {k: tf.convert_to_tensor(v) for k, v in data.items()}
             del data['q']
             data['priority'] = self.compute_priorities(**data_tensor).numpy()
-
         replay.merge.remote(data, data['action'].shape[0], target_replay=target_replay)
-
         buffer.reset()
 
     def _send_episode_info(self, learner):

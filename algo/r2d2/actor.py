@@ -13,6 +13,7 @@ from core.base import BaseAgent
 from core.decorator import config
 from utility.display import pwc
 from utility.utils import Every
+from utility.timer import Timer
 from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
 from utility.run import Runner, evaluate
@@ -42,12 +43,11 @@ def get_learner_class(BaseAgent):
                 config=model_config, 
                 env=env)
 
-            dtype = {16: tf.float16, 32: tf.float32}[config['precision']]
-            obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
-            action_dtype = tf.int32 if env.is_action_discrete else tf.float32
+            obs_dtype = env.obs_dtype
+            action_dtype =  env.action_dtype
             batch_size = config['batch_size']
             sample_size = config['sample_size']
-            is_per = ray.get(replay.name.remote())
+            is_per = ray.get(replay.name.remote()).endswith('per')
             store_state = config['store_state']
             data_format = pkg.import_module('agent', config=config).get_data_format(
                 env, batch_size, sample_size, is_per, store_state, self.models['q'].state_size
@@ -87,7 +87,6 @@ def get_learner_class(BaseAgent):
                         train_step=self.train_step,
                         fps=(self.env_step - start_env_step) / duration,
                         tps=(self.train_step - start_train_step)/duration)
-                    
                     with self._log_locker:
                         self.log(self.env_step)
                     self.save(print_terminal_info=False)
@@ -116,7 +115,6 @@ class Worker:
                 buffer_fn,):
         silence_tf_logs()
         configure_threads(1, 1)
-
         self._id = worker_id
 
         self.env = env = create_env(env_config)
@@ -259,9 +257,7 @@ class Worker:
     def _send_data(self, replay):
         data = self.buffer.sample()
         if self._is_per:
-            data_tensor = {}
-            for k, v in data.items():
-                data_tensor[k] = tf.expand_dims(v, 0)
+            data_tensor = {k: tf.expand_dims(v, 0) for k, v in data.items()}
             del data['q']
             data['priority'] = self.compute_priorities(**data_tensor).numpy()
         replay.merge.remote(data)

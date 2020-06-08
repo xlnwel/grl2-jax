@@ -20,7 +20,10 @@ class Q(Module):
         self._action_dim = action_dim
 
         """ Network definition """
-        self._cnn = cnn(self._cnn)
+        kwargs = {}
+        if hasattr(self, '_kernel_initializer'):
+            kwargs['kernel_initializer'] = self._kernel_initializer
+        self._cnn = cnn(self._cnn, **kwargs)
 
         layer_type = dict(noisy=Noisy, dense=layers.Dense)[self._layer_type]
         if self._duel:
@@ -30,14 +33,16 @@ class Q(Module):
                 layer_type=layer_type, 
                 activation=self._activation, 
                 out_dtype='float32',
-                name='v')
+                name='v',
+                **kwargs)
         self._a_head = mlp(
             self._head_units, 
             out_size=action_dim, 
             layer_type=layer_type, 
             activation=self._activation, 
             out_dtype='float32',
-            name='a' if self._duel else 'q')
+            name='a' if self._duel else 'q',
+            **kwargs)
 
     def __call__(self, x, deterministic=False, epsilon=0):
         x = np.array(x)

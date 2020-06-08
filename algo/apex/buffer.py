@@ -40,7 +40,9 @@ class EnvBuffer(LocalBuffer):
         return self._idx == self._seqlen
 
     def reset(self):
-        self._idx = 0
+        self._idx = self._n_steps
+        for k, v in self._memory.items():
+            v[:self._n_steps] = v[self._seqlen:]
 
     def add_data(self, **data):
         """ Add experience to local memory """
@@ -67,7 +69,8 @@ class EnvBuffer(LocalBuffer):
             else:
                 results['next_obs'] = [np.array(self._memory['obs'][i], copy=False) 
                     for i in next_idxes]
-
+        if 'steps' in results:
+            results['steps'] = results['steps'].astype(np.float32)
         return None, results
 
 
@@ -82,7 +85,9 @@ class EnvVecBuffer:
         return self._idx == self._seqlen
         
     def reset(self):
-        self._idx = 0
+        self._idx = self._n_steps
+        for k, v in self._memory.items():
+            v[:self._n_steps] = v[self._seqlen:]
         self._memory['mask'] = np.zeros_like(self._memory['mask'], dtype=np.bool)
         
     def add_data(self, env_ids=None, **data):
@@ -126,5 +131,7 @@ class EnvVecBuffer:
             else:
                 results[k] = v[mask]
             assert results[k].dtype != np.object, f'{k}, {results[k].dtype}'
+        if 'steps' in results:
+            results['steps'] = results['steps'].astype(np.float32)
 
         return mask, results

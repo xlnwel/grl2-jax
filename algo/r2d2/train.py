@@ -9,7 +9,7 @@ from replay.func import create_replay_center
 
 
 def main(env_config, model_config, agent_config, replay_config):
-    ray.init(num_cpus=12, num_gpus=1, object_store_memory=50*1024**3)
+    ray.init(num_cpus=12, num_gpus=1)
     sigint_shutdown_ray()
 
     replay = create_replay_center(replay_config, state_keys=['h', 'c'])

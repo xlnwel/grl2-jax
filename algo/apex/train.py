@@ -57,11 +57,11 @@ def main(env_config, model_config, agent_config, replay_config):
         worker = fm.create_worker(
             Worker=Worker, 
             worker_id=wid, 
-            model_fn=model_fn, 
             config=agent_config, 
             model_config=model_config, 
             env_config=env_config, 
-            buffer_config=replay_config)
+            buffer_config=replay_config,
+            model_fn=model_fn, )
         pids.append(worker.run.remote(learner, replay))
         workers.append(worker)
 
@@ -78,7 +78,8 @@ def main(env_config, model_config, agent_config, replay_config):
 
     learner.start_learning.remote()
 
-    ray.get(pids)
+    while True:
+        time.sleep(5000)
 
     ray.get(learner.save.remote())
     

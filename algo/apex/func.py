@@ -2,7 +2,7 @@ import tensorflow as tf
 import ray
 
 from utility.rl_utils import apex_epsilon_greedy
-from algo.apex.buffer import create_local_buffer
+from utility import pkg
 
 
 def create_learner(Learner, model_fn, replay, config, model_config, env_config, replay_config, n_cpus):
@@ -25,7 +25,7 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
         model_config=model_config, 
         env_config=env_config,
         model_fn=model_fn, 
-        replay=replay,)
+        replay=replay)
     ray.get(learner.save_config.remote(dict(
         env=env_config,
         model=model_config,
@@ -36,7 +36,8 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
     return learner
 
 
-def create_worker(Worker, worker_id, model_fn, config, model_config, 
+def create_worker(
+        Worker, worker_id, model_fn, config, model_config, 
                 env_config, buffer_config):
     config = config.copy()
     model_config = model_config.copy()
@@ -44,11 +45,12 @@ def create_worker(Worker, worker_id, model_fn, config, model_config,
     buffer_config = buffer_config.copy()
 
     buffer_config['n_envs'] = env_config.get('n_envs', 1)
-    buffer_fn = create_local_buffer
+    buffer_fn = pkg.import_module(
+        'buffer', config=config, place=0).create_local_buffer
 
     env_config['seed'] += worker_id * 100
     
-    if 'actor' not in model_config:
+    if config.get('schedule_act_eps'):
         config['act_eps'] = apex_epsilon_greedy(worker_id, max(256, config['n_workers']))
     RayWorker = ray.remote(num_cpus=1)(Worker)
     worker = RayWorker.remote(

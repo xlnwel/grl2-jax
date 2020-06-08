@@ -18,7 +18,7 @@ agent:
     algorithm: &algo dqn
     gamma: &gamma 0.99
     precision: &prec 32
-    schedule_eps: True
+    schedule_act_eps: True
     act_eps: 0
 
     MAX_STEPS: 1e9          # maximum training frames

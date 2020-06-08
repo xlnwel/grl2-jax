@@ -32,7 +32,8 @@ def calculate_gain(name, param=None):
         'sigmoid': 1, 
         'tanh': 5./3., 
         'relu': np.sqrt(2.), 
-        'leaky_relu': np.sqrt(2./(1+(param or 0)**2))
+        'leaky_relu': np.sqrt(2./(1+(param or 0)**2)),
+        'elu': np.sqrt(2.)  # this one is I make up
     }
     return m[name]
 

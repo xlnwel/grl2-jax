@@ -190,7 +190,7 @@ class WarpFrame(gym.ObservationWrapper):
 
 
 class FrameStack(Wrapper):
-    def __init__(self, env, k):
+    def __init__(self, env, k, np_obs):
         """Stack k last frames.
 
         Returns lazy array, which is much more memory efficient.
@@ -201,6 +201,7 @@ class FrameStack(Wrapper):
         """
         self.env = env
         self.k = k
+        self.np_obs = np_obs
         self.frames = deque([], maxlen=k)
         shp = env.observation_space.shape
         self.observation_space = spaces.Box(low=0, high=255, shape=(shp[:-1] + (shp[-1] * k,)), dtype=env.observation_space.dtype)
@@ -218,7 +219,8 @@ class FrameStack(Wrapper):
 
     def _get_ob(self):
         assert len(self.frames) == self.k
-        return LazyFrames(list(self.frames))
+        return np.concatenate(self.frames, axis=-1) \
+            if self.np_obs else LazyFrames(list(self.frames))
 
 class ScaledFloatFrame(gym.ObservationWrapper):
     def __init__(self, env):
@@ -287,7 +289,7 @@ def make_atari(env_id, max_episode_steps=None):
     env = MaxAndSkipEnv(env, skip=4)
     return env
 
-def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=0, scale=False):
+def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=0, scale=False, np_obs=False):
     """Configure environment for DeepMind-style Atari.
     """
     if episode_life:
@@ -300,6 +302,6 @@ def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=0, scal
     if clip_rewards:
         env = ClipRewardEnv(env)
     if frame_stack:
-        env = FrameStack(env, frame_stack)
+        env = FrameStack(env, frame_stack, np_obs)
     return env
 

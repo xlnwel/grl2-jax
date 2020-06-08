@@ -1,17 +1,19 @@
 ---
 env:
     name: atari_pong
-    wrapper: my_atari
-    sticky_actions: True
+    wrapper: baselines
+    sticky_actions: False
     frame_stack: 4
+    np_obs: True
     n_envs: 1
     seed: 0
 
 model:
-    cnn: nature
+    cnn: impala
+    kernel_initializer: orthogonal
     head_units: [512]
     activation: relu
-    layer_type: noisy
+    layer_type: dense
     duel: True
 
 agent:
@@ -19,7 +21,7 @@ agent:
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
-    schedule_eps: False
+    schedule_act_eps: True
     act_eps: 0  # will be overwritten in func.py
     
     # timer&interval
@@ -28,8 +30,8 @@ agent:
     N_UPDATES: *log
     
     # distributed algo params
-    n_workers: 6
-    SYNC_PERIOD: 1500
+    n_workers: 3
+    SYNC_PERIOD: 5000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -45,7 +47,7 @@ agent:
     optimizer: adam
     schedule_lr: False
     lr: 1e-4
-    clip_norm: 40
+    clip_norm: 0
     epsilon: 1.5e-4
 
     # arguments for PER
@@ -55,7 +57,7 @@ agent:
 replay:
     type: per                      # per or uniform
     seqlen: 100
-    precision: *prec
+    precision: 32
     # arguments for PER
     beta0: 0.4
     to_update_top_priority: False

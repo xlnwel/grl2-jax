@@ -53,6 +53,24 @@ class MaxAndSkipEnv(gym.Wrapper):
         return self.env.ale.getScreenRGB2()
 
         
+class PenalizeLossLife(gym.Wrapper):
+    def __init__(self, env):
+        gym.Wrapper.__init__(self, env)
+        self._lives = 0
+    
+    def reset(self, **kwargs):
+        obs = self.env.reset(**kwargs)
+        self._lives = self.ale.lives()
+        return obs
+
+    def step(self, action):
+        o, r, d, i = env.step(action)
+        if self._lives < self.ale.lives():
+            r += -1
+            self._lives = self.ale.lives()
+        return o, r, d, i
+
+
 class ClipRewardEnv(gym.RewardWrapper):
     def __init__(self, env):
         gym.RewardWrapper.__init__(self, env)
