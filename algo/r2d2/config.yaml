@@ -8,7 +8,7 @@ env:
     seed: 0
 
 model:
-    cnn: impala
+    cnn: nature
     lstm_units: 512
     head_units: [512]
     activation: relu

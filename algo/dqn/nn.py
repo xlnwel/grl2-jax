@@ -78,7 +78,7 @@ class Q(Module):
         if self._duel:
             v = self._v_head(x, noisy=noisy, reset=reset)
             a = self._a_head(x, noisy=noisy, reset=reset)
-            q = v + a - tf.reduce_mean(a, axis=1, keepdims=True)
+            q = v + a - tf.reduce_mean(a, axis=-1, keepdims=True)
         else:
             q = self._a_head(x, noisy=noisy, reset=reset)
 

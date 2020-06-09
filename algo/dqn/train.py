@@ -1,9 +1,7 @@
 import time
 import functools
-from collections import deque
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.tf_config import *
 from utility.utils import Every
@@ -42,7 +40,10 @@ def train(agent, env, eval_env, replay):
         start_step = step
         start = time.time()
         step = runner.run(step_fn=collect_and_learn, nsteps=agent.LOG_PERIOD)
-        agent.store(fps=(step - start_step) / (time.time() - start))
+        agent.store(
+            env_step=agent.env_step,
+            train_step=agent.train_step,
+            fps=(step - start_step) / (time.time() - start))
         
         if to_eval(step):
             eval_score, eval_epslen, video = evaluate(

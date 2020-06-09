@@ -16,11 +16,15 @@ model:
     layer_type: dense
     duel: True
 
+    qt_embed_size: 64
+    phi_activation: relu
+
 agent:
-    algorithm: &algo apex-dqn
+    algorithm: &algo apex-iqn
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
+    batch_size: &bs 64
     schedule_act_eps: True
     act_eps: 0  # will be overwritten in func.py
     
@@ -29,6 +33,12 @@ agent:
     LOG_PERIOD: &log 1000
     N_UPDATES: *log
     
+    # IQN params
+    N: 8                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
+    K: 32               # K in paper, num of quantiles for action selection
+    KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
+
     # distributed algo params
     n_workers: 3
     SYNC_PERIOD: 5000
@@ -41,7 +51,7 @@ agent:
 
     loss_type: huber                          # huber or mse
     target_update_period: 2500
-    tbo: True
+    tbo: False
 
     # arguments for optimizer
     optimizer: adam
@@ -65,7 +75,7 @@ replay:
     # arguments for general replay
     n_steps: *nsteps
     gamma: *gamma
-    batch_size: 64
+    batch_size: *bs
     min_size: 5e4
     capacity: 1e5
     has_next_obs: True
