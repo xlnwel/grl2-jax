@@ -132,7 +132,7 @@ class Agent(BaseAgent):
             qt = tf.transpose(tf.reshape(qt, [self.N, self._batch_size, 1]), [1, 0, 2]) # [B, N, 1]
             tf.debugging.assert_shapes([[qt, (self._batch_size, self.N, 1)]])
             weight = tf.abs(qt - tf.cast(error < 0, tf.float32))        # [B, N, N']
-            huber = huber_loss(error, delta=self.KAPPA)                 
+            huber = huber_loss(error, threshold=self.KAPPA)                 
             tf.debugging.assert_shapes([[weight, (self._batch_size, self.N, self.N_PRIME)]])
             tf.debugging.assert_shapes([[huber, (self._batch_size, self.N, self.N_PRIME)]])
             qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1)

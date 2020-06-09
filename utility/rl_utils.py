@@ -4,12 +4,12 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 from utility.tf_utils import static_scan
 
 
-def huber_loss(x, y=None, delta=1.):
+def huber_loss(x, *, y=None, threshold=1.):
     if y != None:   # if y is passed, take x-y as error, otherwise, take x as error
         x = x - y
-    return tf.where(tf.abs(x) <= delta, 
+    return tf.where(tf.abs(x) <= threshold, 
                     0.5 * tf.square(x), 
-                    delta * (tf.abs(x) - 0.5 * delta), 
+                    threshold * (tf.abs(x) - 0.5 * threshold), 
                     name='huber_loss')
 
 def clip_but_pass_gradient(x, l=-1., u=1.):

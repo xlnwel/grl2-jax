@@ -9,7 +9,7 @@ env:
 
 model:
     cnn: nature
-    kernel_initializer: glorot_uniform
+    kernel_initializer: orthogonal
     head_units: [512]
     activation: relu
     layer_type: dense
@@ -26,7 +26,7 @@ agent:
     schedule_act_eps: True
     act_eps: 0
 
-    MAX_STEPS: 1e9      # maximum training frames
+    MAX_STEPS: 1e7      # maximum training frames
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 1e6
     LOG_PERIOD: 1e4
