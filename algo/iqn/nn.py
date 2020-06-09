@@ -72,7 +72,7 @@ class Q(Module):
         tf.debugging.assert_shapes([[x, (n_qt * batch_size, self._cnn.out_size)]])
         qt, qt_embed = self.quantile(n_qt, batch_size)
         tf.debugging.assert_shapes([[qt_embed, (n_qt * batch_size, self._cnn.out_size)]])
-        x = x * qt_embed    # N*B, cnn.out_size
+        x = x * qt_embed    # [N*B, cnn.out_size]
         tf.debugging.assert_shapes([[x, (n_qt * batch_size, self._cnn.out_size)]])
         qtv, q = self.mlp(x, n_qt, batch_size, action=action)
         
@@ -122,8 +122,8 @@ class Q(Module):
             tf.debugging.assert_shapes([[action, (batch_size, self._action_dim)]])
             tf.debugging.assert_shapes([[action_qtv, (n_qt, batch_size, self._action_dim)]])
             assert q.shape[-1] == action.shape[-1], f'{q.shape} vs {action.shape}'
-            qtv = tf.reduce_sum(qtv * action, -1, keepdims=True)
-            q = tf.reduce_sum(q * action, -1)
+            qtv = tf.reduce_sum(qtv * action, -1, keepdims=True)        # [N, B, 1]
+            q = tf.reduce_sum(q * action, -1)                           # [B]
             tf.debugging.assert_shapes([[q, (batch_size,)]])
             tf.debugging.assert_shapes([[qtv, (n_qt, batch_size, 1)]])
         return qtv, q
