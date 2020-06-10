@@ -24,8 +24,8 @@ def make_env(config):
         env = make_atari_env(config)
     elif 'procgen' in config['name'].lower():
         config['name'] = config['name'].split('_', 1)[-1]
-        max_episode_steps = None
         env = make_procgen_env(config)
+        max_episode_steps = env.spec.max_episode_steps
     else:
         env = gym.make(config['name']).env
         env = Dummy(env)
@@ -128,7 +128,7 @@ class Env(Wrapper):
             img = self.env.get_screen()
         else:
             img = self.env.render(mode='rgb_array')
-            
+
         if size is not None and size != img.shape[:2]:
             # cv2 receive size of form (width, height)
             img = cv2.resize(img, size[::-1], interpolation=cv2.INTER_AREA)
@@ -138,7 +138,7 @@ class Env(Wrapper):
 
 class EnvVec(EnvVecBase):
     def __init__(self, config, env_fn=make_env):
-        self.n_envs = n_envs = config['n_envs']
+        self.n_envs = n_envs = config.pop('n_envs')
         self.name = config['name']
         self.envs = [env_fn(config) for i in range(n_envs)]
         self.env = self.envs[0]
@@ -243,8 +243,8 @@ class EfficientEnvVec(EnvVec):
 class RayEnvVec(EnvVecBase):
     def __init__(self, EnvType, config, env_fn=make_env):
         self.name = config['name']
-        self.n_workers= config['n_workers']
-        self.envsperworker = config['n_envs']
+        self.n_workers= config.pop('n_workers')
+        self.envsperworker = config.pop('n_envs')
         self.n_envs = self.envsperworker * self.n_workers
         RayEnvType = ray.remote(EnvType)
         # leave the name "envs" for consistency, albeit workers seems more appropriate

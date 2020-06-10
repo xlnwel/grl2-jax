@@ -24,7 +24,9 @@ class Procgen(gym.Env):
             "distribution_mode" : "easy"  # What variant of the levels to use, the options are "easy", "hard", "extreme", "memory", "exploration". All games support "easy" and "hard", while other options are game-specific. The default is "hard". Switching to "easy" will reduce the number of timesteps required to solve each game and is useful for testing or when working with limited compute resources. NOTE : During the evaluation phase (rollout), this will always be overriden to "easy"
         }
         self.config = self._default_config
-        self.config.update(config)
+        self.config.update({
+            k: config[k] for k in 
+            config.keys() & self.config.keys()})
 
         self.name = self.config.pop("name")
 
@@ -71,3 +73,11 @@ class Procgen(gym.Env):
 
     def get_screen(self):
         return self._obs
+
+
+bounds = dict(
+    coinrun=[5, 10],
+)
+
+def compute_normalized_score(score, name='coinrun'):
+    return (score - bounds[0]) / (bounds[1] - bounds[0])

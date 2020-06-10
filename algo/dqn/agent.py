@@ -77,7 +77,6 @@ class Agent(BaseAgent):
         else:
             eps = self._act_eps
         action = self.q(obs, deterministic, eps)
-        self.store(action=action)
         return action
 
     @step_track

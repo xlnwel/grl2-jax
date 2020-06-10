@@ -68,6 +68,7 @@ def main(env_config, model_config, agent_config, replay_config):
     if env_config['name'].startswith('procgen'):
         start_level = 200
     eval_env_config = env_config.copy()
+    eval_env_config['n_envs'] = 10
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 
