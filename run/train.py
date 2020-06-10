@@ -11,14 +11,29 @@ from utility.yaml_op import load_config
 from utility.display import assert_colorize, pwc
 from utility import pkg
 from run.grid_search import GridSearch
-from run.cmd_args import parse_cmd_args
+from run.args import parse_args
 
     
-def get_config_file(algo, environment):
-    algo_pkg = pkg.get_package(algo, 0, '/')
-    names = algo.split('-')
-    file_name = 'config.yaml' if len(names) == 1 else f'{names[-1]}_config.yaml'
-    return f'{algo_pkg}/{file_name}'
+def get_config(algo, env):
+    algo_dir = pkg.get_package(algo, 0, '/')
+    if env == '' and '-' in algo:
+        pwc('Config Warning: set atari as the default env, otherwise specify env explicitly', color='green')
+        env = 'atari_'
+    files = [f for f in os.listdir(algo_dir) if 'config.yaml' in f]
+    filename = 'config.yaml'
+    if '_' in env:
+        prefix = env.split('_')[0]
+        if [f for f in files if prefix in f]:
+            # if prefix meets any config in the dir, we add it to filename
+            filename = f'{prefix}_{filename}'
+    if '-' in algo:
+        suffix = algo.split('-')[-1]
+        if [f for f in files if suffix in f]:
+            # if suffix meets any config in the dir, we add it to filename
+            filename = f'{suffix}_{filename}'
+    path = f'{algo_dir}/{filename}'
+    pwc(f'Config path: {path}', color='green')
+    return load_config(path)
 
 def change_config(kw, prefix, env_config, model_config, agent_config, replay_config):
     if prefix != '':
@@ -49,7 +64,7 @@ def change_config(kw, prefix, env_config, model_config, agent_config, replay_con
     return prefix
 
 if __name__ == '__main__':
-    cmd_args = parse_cmd_args()
+    cmd_args = parse_args()
     processes = []
     if cmd_args.directory != '':
         # load model and log path
@@ -79,11 +94,10 @@ if __name__ == '__main__':
         environment = list(cmd_args.environment)
         algo_env = list(itertools.product(algorithm, environment))
         for algo, env in algo_env:
-            config_file = get_config_file(algo, env)
+            config = get_config(algo, env)
             main = pkg.import_main('train', algo)
 
             prefix = cmd_args.prefix
-            config = load_config(config_file)
             env_config = config['env']
             model_config = config['model']
             agent_config = config['agent']

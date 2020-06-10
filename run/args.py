@@ -1,7 +1,7 @@
 import argparse
 
 
-def parse_cmd_args():
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('algorithm',
                         type=str,

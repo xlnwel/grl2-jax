@@ -1,15 +1,14 @@
 ---
 env:
-    name: atari_pong
-    wrapper: my_atari
-    life_done: False
-    sticky_actions: True
+    name: LunarLander-v2
     seed: 0
+    precision: &prec 32
 
 model:
-    cnn: nature
-    lstm_units: 512
-    head_units: [512]
+    cnn: none
+    shared_units: [128]
+    lstm_units: 64
+    head_units: [64]
     activation: relu
     duel: True
 
@@ -17,21 +16,22 @@ agent:
     algorithm: &algo rdqn
     gamma: 0.99
     lambda: .95
-    precision: &prec 32
-    batch_size: &bs 32
+    precision: *prec
+    batch_size: &bs 16
 
     store_state: True
     burn_in: True
-    sample_size: &ss 120
-    burn_in_size: &bis 40
+    sample_size: &ss 60
+    burn_in_size: &bis 20
+    schedule_act_eps: False
     add_input: False
     act_eps: 0.3
 
     MAX_STEPS: 1e7          # maximum training steps
-    LOG_PERIOD: 1e5
-    EVAL_PERIOD: 1e6
-    TRAIN_PERIOD: 1000
-    N_UPDATES: 100
+    LOG_PERIOD: 1e4
+    EVAL_PERIOD: 1e5
+    TRAIN_PERIOD: 50
+    N_UPDATES: 10
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -40,7 +40,7 @@ agent:
     model_name: *algo
 
     loss_type: mse   # huber or mse
-    target_update_period: 8000
+    target_update_period: 3000
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
@@ -48,7 +48,7 @@ agent:
     schedule_lr: False
     lr: 1e-4
     epsilon: 1e-4
-    clip_norm: 40
+    clip_norm: 10
 
     # arguments for PER
     per_alpha: .9

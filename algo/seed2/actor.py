@@ -76,7 +76,7 @@ def get_learner_class(BaseAgent):
                 time.sleep(1)
             pwc('Learner starts learning...', color='blue')
 
-            to_log = Every(self.LOG_INTERVAL)
+            to_log = Every(self.LOG_PERIOD)
             while True:
                 start_train_step = self.train_steps
                 start_env_step = self.env_steps
@@ -190,9 +190,7 @@ def get_actor_class(BaseAgent):
                 for wid in range(self._n_workers) 
                 for eid in range(self._envs_per_worker)}
 
-            log_period = (self._n_workers * self._envs_per_worker 
-                * self.env.max_episode_steps / self._action_batch)
-            to_log = Every(log_period, log_period)
+            to_log = Every(self.LOG_PERIOD, self.LOG_PERIOD)
             k = 0
             start_step = self._env_step
             start_time = time.time()
@@ -226,12 +224,6 @@ def get_actor_class(BaseAgent):
                             for wid, eid, a in zip(wids, eids, actions)})
                         [self._cache[(wid, eid)].append(dict(action=a))
                             for wid, eid, a in zip(wids, eids, actions)]
-                    if to_log(k):
-                        duration = time.time() - start_time
-                        self.store(fps=(self._env_step - start_step) / duration)
-                        self.log(self._env_step)
-                        start_step = self._env_step
-                        start_time=time.time()
                 k += 1
 
         def store_transition(self, worker_id, env_id, obs, reward, discount):

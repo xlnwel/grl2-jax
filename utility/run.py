@@ -211,6 +211,7 @@ class Runner:
         return self.step
 
 def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=None):
+    print('Evaluation starts...')
     scores = []
     epslens = []
     max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)

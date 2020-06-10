@@ -140,7 +140,8 @@ class Agent(BaseAgent):
             loss = tf.reduce_mean(qr_loss)
 
         if self._is_per:
-            error = tf.reduce_max(tf.reduce_mean(tf.abs(error), axis=2), axis=1)
+            # error = tf.reduce_max(tf.reduce_mean(tf.abs(error), axis=2), axis=1)
+            error = tf.abs(qr_loss)
             priority = self._compute_priority(error)
             terms['priority'] = priority
         

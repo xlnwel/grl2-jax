@@ -1,39 +1,36 @@
 ---
 env:
-    name: &env_name Walker2d-v3
+    name: &env_name atari_pong
     n_workers: 1
     n_envs: &nenvs 8
     seed: 0
-    precision: &prec 32
+    frame_stack: 4
+    np_obs: True
 
 model:
-    cnn_name: none
-    shared_mlp_units: [64]
-    lstm_units: 64
-    actor_units: [64]
-    critic_units: [64]
+    cnn_name: nature
+    actor_units: [256]
+    critic_units: [256]
     norm: none
     kernel_initializer: orthogonal
     activation: relu
     init_std: 1
 
 agent:
-    algorithm: &algo ppo2
-    precision: *prec
+    algorithm: &algo ppo
+    precision: &prec 32
 
-    MAX_STEPS: 5e7
+    MAX_STEPS: 1e10
     N_STEPS: &nsteps 256
-    N_UPDATES: 2
+    N_UPDATES: 4
     N_MBS: &nmbs 4
-    sample_size: &ss 16       # BPTT length
     LOG_PERIOD: 100
-    EVAL_PERIOD: 1000
+    EVAL_PERIOD: 5000
     max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
 
-    normalize_obs: True
+    normalize_obs: False
     normalize_reward: True
-    store_state: True
-    
+
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
@@ -43,21 +40,19 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 3e-4
+    lr: 2.5e-4
     clip_norm: .5
     # arguments for loss
-    clip_range: .2          # clip range for ppo
-    entropy_coef: .0
-    value_coef: .001
+    clip_range: .1          # clip range for ppo
+    entropy_coef: .01
+    value_coef: .5
 
 buffer:
-    adv_type: gae           # nae or gae
+    adv_type: gae     # nae or gae
     precision: *prec
     gamma: .99
     lam: .95
     n_envs: *nenvs
     N_STEPS: *nsteps
-    N_MBS: *nmbs
-    sample_size: *ss
-    shuffle: True
+    N_MBS: *nmbs        # number of minibatches
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

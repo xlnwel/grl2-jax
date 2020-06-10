@@ -61,21 +61,6 @@ def train(agent, env, eval_env, buffer):
 
 def main(env_config, model_config, agent_config, buffer_config):
     algo = agent_config['algorithm']
-    env = env_config['name']
-    if 'atari' not in env:
-        print('Any changes to config is dropped as we switch to a non-atari environment')
-        from utility import yaml_op
-        root_dir = agent_config['root_dir']
-        model_name = agent_config['model_name']
-        directory = pkg.get_package(algo, 0, '/')
-        config = yaml_op.load_config(f'{directory}/config2.yaml')
-        env_config = config['env']
-        model_config = config['model']
-        agent_config = config['agent']
-        buffer_config = config['buffer']
-        agent_config['root_dir'] = root_dir
-        agent_config['model_name'] = model_name
-        env_config['name'] = env
 
     create_model, Agent = pkg.import_agent(config=agent_config)
     PPOBuffer = pkg.import_module('buffer', algo=algo).PPOBuffer

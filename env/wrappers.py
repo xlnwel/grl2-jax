@@ -102,9 +102,9 @@ class AutoReset(Wrapper):
 
 class EnvStats(Wrapper):
     """ Records environment statistics """
-    def __init__(self, env, max_episode_steps, precision=32, timeout_done=False):
+    def __init__(self, env, max_episode_steps=None, precision=32, timeout_done=False):
         self.env = env
-        self.max_episode_steps = max_episode_steps
+        self.max_episode_steps = max_episode_steps or int(1e9)
         # already_done indicate whether an episode is finished, 
         # either due to timeout or due to environment done
         self._already_done = True
@@ -143,10 +143,11 @@ class EnvStats(Wrapper):
         self._already_done = done
         if self._epslen >= self.max_episode_steps:
             self._already_done = True
-            if hasattr(self.env, 'set_game_over'):
-                self.env.set_game_over()
+            if hasattr(self.env, '_game_over'):
+                self.env.set_game_over()    # define set_game_over for env
             done = self._timeout_done
-        if self.already_done():
+            info['timeout'] = True
+        if self._already_done:
             info['already_done'] = self._already_done
         if self.game_over():
             info['score'] = self._score
@@ -173,7 +174,10 @@ class EnvStats(Wrapper):
         return self._info
         
     def game_over(self):
-        return getattr(self, '_game_over', self._already_done)
+        if hasattr(self.env, 'game_over'):
+            return self.env.game_over()
+        else:
+            return self._already_done
 
     @property
     def is_action_discrete(self):

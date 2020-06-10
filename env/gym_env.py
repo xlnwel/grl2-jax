@@ -10,6 +10,7 @@ import cv2
 from utility.utils import isscalar, RunningMeanStd
 from env.wrappers import *
 from env.atari import make_atari_env
+from env.procgen import make_procgen_env
 
 
 EnvOutput = collections.namedtuple('EnvOutput', 'obs reward done info')
@@ -18,9 +19,13 @@ def make_env(config):
     config = config.copy()
     if 'atari' in config['name'].lower():
         # for atari games, we expect to following name convention 'atari_name'
-        _, config['name'] = config['name'].split('_', 1)
+        config['name'] = config['name'].split('_', 1)[-1]
         config['max_episode_steps'] = max_episode_steps = 108000    # 30min
         env = make_atari_env(config)
+    elif 'procgen' in config['name'].lower():
+        config['name'] = config['name'].split('_', 1)[-1]
+        max_episode_steps = None
+        env = make_procgen_env(config)
     else:
         env = gym.make(config['name']).env
         env = Dummy(env)
@@ -119,12 +124,12 @@ class Env(Wrapper):
         return self.env.game_over()
 
     def get_screen(self, size=None):
-        if 'atari' in self.name:
+        if hasattr(self.env, 'get_screen'):
             img = self.env.get_screen()
         else:
             img = self.env.render(mode='rgb_array')
-        
-        if size is not None:
+            
+        if size is not None and size != img.shape[:2]:
             # cv2 receive size of form (width, height)
             img = cv2.resize(img, size[::-1], interpolation=cv2.INTER_AREA)
             
@@ -189,7 +194,7 @@ class EnvVec(EnvVecBase):
         return np.array([env.game_over() for env in self.envs], dtype=np.bool)
         
     def get_screen(self, size=None):
-        if 'atari' in self.name:
+        if hasattr(self.env, 'get_screen'):
             imgs = np.array([env.get_screen() for env in self.envs], copy=False)
         else:
             imgs = np.array([env.render(mode='rgb_array') for env in self.envs],

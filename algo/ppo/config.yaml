@@ -1,16 +1,15 @@
 ---
 env:
-    name: &env_name atari_pong
+    name: &env_name Walker2d-v3
     n_workers: 1
     n_envs: &nenvs 8
     seed: 0
-    frame_stack: 4
-    np_obs: True
+    precision: &prec 32
 
 model:
-    cnn_name: nature
-    actor_units: [256]
-    critic_units: [256]
+    cnn_name: none
+    actor_units: &u [64, 64]
+    critic_units: *u
     norm: none
     kernel_initializer: orthogonal
     activation: relu
@@ -18,17 +17,17 @@ model:
 
 agent:
     algorithm: &algo ppo
-    precision: &prec 32
+    precision: *prec
 
-    MAX_STEPS: 1e10
+    MAX_STEPS: 5e7
     N_STEPS: &nsteps 256
     N_UPDATES: 4
     N_MBS: &nmbs 4
     LOG_PERIOD: 100
-    EVAL_PERIOD: 5000
+    EVAL_PERIOD: 1000
     max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
 
-    normalize_obs: False
+    normalize_obs: True
     normalize_reward: True
 
     # model path: root_dir/model_name/models
@@ -40,12 +39,12 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 2.5e-4
+    lr: 3e-4
     clip_norm: .5
     # arguments for loss
-    clip_range: .1          # clip range for ppo
-    entropy_coef: .01
-    value_coef: .5
+    clip_range: .2          # clip range for ppo
+    entropy_coef: .0
+    value_coef: 1
 
 buffer:
     adv_type: gae     # nae or gae

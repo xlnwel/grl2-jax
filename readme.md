@@ -8,7 +8,8 @@ This repository is implemented with *Tensorflow2.1* and *ray0.8.4* for distribut
 - [x] GAE
 - [x] PPO (with FNN and all algorithmic details following OpenAI's baselines)
 - [x] PPO2 (with masked LSTM)
-- [x] Rainbow (without c51, refer to our previous repo for c51 and IQN)
+- [x] Rainbow
+- [x] IQN
 - [x] Retrace(𝝀)
 - [x] RND
 - [x] SAC with adaptive temperature

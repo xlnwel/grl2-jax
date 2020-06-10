@@ -96,6 +96,12 @@ class EpisodicLifeEnv(Wrapper):
             obs, _, _, _ = self.env.step(0)
         self.lives = self.env.unwrapped.ale.lives()
         return obs
+    
+    def game_over(self):
+        return self._game_over
+    
+    def set_game_over(self):
+        self._game_over = True
 
 class MaxAndSkipEnv(Wrapper):
     def __init__(self, env, skip=4):

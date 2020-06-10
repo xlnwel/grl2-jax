@@ -47,29 +47,14 @@ def train(agent, env, eval_env, replay):
         
         if to_eval(step):
             eval_score, eval_epslen, video = evaluate(
-                eval_env, agent, record=False, size=(64, 64))
-            # video_summary(f'{agent.name}/sim', video, step=step)
+                eval_env, agent, record=True, size=(64, 64))
+            video_summary(f'{agent.name}/sim', video, step=step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         agent.log(step)
         agent.save()
 
 def main(env_config, model_config, agent_config, replay_config):
     algo = agent_config['algorithm']
-    env = env_config['name']
-    if 'atari' not in env:
-        print('Any changes to config is dropped as we switch to a non-atari environment')
-        from utility import yaml_op
-        root_dir = agent_config['root_dir']
-        model_name = agent_config['model_name']
-        directory = pkg.get_package(algo, 0, '/')
-        config = yaml_op.load_config(f'{directory}/config2.yaml')
-        env_config = config['env']
-        model_config = config['model']
-        agent_config = config['agent']
-        replay_config = config['replay']
-        agent_config['root_dir'] = root_dir
-        agent_config['model_name'] = model_name
-        env_config['name'] = env
 
     create_model, Agent = pkg.import_agent(config=agent_config)
     
@@ -80,6 +65,8 @@ def main(env_config, model_config, agent_config, replay_config):
     env = create_env(env_config)
     assert env.n_envs == 1, \
         f'n_envs({env.n_envs}) > 1 is not supported here as it messes with n-step'
+    if env_config['name'].startswith('procgen'):
+        start_level = 200
     eval_env_config = env_config.copy()
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)

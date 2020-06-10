@@ -1,25 +1,31 @@
 ---
 env:
-    name: LunarLander-v2
-    precision: &prec 32
+    name: atari_pong
+    wrapper: baselines
+    sticky_actions: False
+    frame_stack: 4
+    life_done: False
     seed: 0
+
 model:
-    cnn: none
-    head_units: [128, 128]
+    cnn: nature
+    kernel_initializer: orthogonal
+    head_units: [512]
     activation: relu
     layer_type: dense
     duel: True
+
 agent:
     algorithm: &algo dqn
     gamma: &gamma 0.99
-    precision: *prec
-    schedule_act_eps: False
-    act_eps: 0.3
+    precision: &prec 32
+    schedule_act_eps: True
+    act_eps: 0
 
-    MAX_STEPS: 1e8          # maximum training steps
-    TRAIN_PERIOD: 1          # #frames = 4 agent step when frame skip = 4
-    EVAL_PERIOD: 10000
-    LOG_PERIOD: 10000
+    MAX_STEPS: 1e9      # maximum training frames
+    TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
+    EVAL_PERIOD: 1e6
+    LOG_PERIOD: 1e4
     N_UPDATES: 1
 
     # model path: root_dir/model_name/models
@@ -29,30 +35,31 @@ agent:
     model_name: *algo
 
     loss_type: huber   # huber or mse
-    target_update_period: 3000
-    tbo: False                              # transformed Bellman Operator
+    target_update_period: 8000  # trainning step
+    tbo: True                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
     lr: 1e-4
-    clip_norm: 10
-    
+    clip_norm: 0
+    epsilon: 1.5e-4
+
     # arguments for PER
-    per_alpha: 0.5
+    per_alpha: .5
     per_epsilon: 1e-4
 
 replay:
     type: per      # uniform, per
-    precision: *prec
+    precision: 32
     # arguments for PER
-    beta0: 0.4
+    beta0: 0
     to_update_top_priority: True
 
     # arguments for general replay
     n_steps: 3
     gamma: *gamma
-    batch_size: 256
-    min_size: 1e4
+    batch_size: 64
+    min_size: 5e4
     capacity: 1e5
-    has_next_obs: False
+    has_next_obs: True
