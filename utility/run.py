@@ -242,7 +242,6 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
 
             if step_fn:
                 step_fn(reward=reward)
-
             if env.env_type == 'Env':
                 if info.get('already_done'):
                     if info.get('game_over'):
@@ -252,14 +251,9 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
                     else:
                         obs = env.reset()
             else:
-                done_env_ids = [i for i, ii in enumerate(info) if ii.get('already_done')]
-                if done_env_ids:
-                    score = [i['score'] for i in info if 'score' in i]
-                    if score:
-                        epslen = [i['epslen'] for i in info if 'epslen' in i]
-                        scores += score
-                        epslens += epslen
-                    
+                done_env_ids = [i for i, ii in enumerate(info) 
+                    if ii.get('already_done') and not info[i].get('game_over')]
+                if done_env_ids:                    
                     reset_env_ids = [i for i in done_env_ids if not info[i].get('game_over')]
                     if reset_env_ids:
                         new_obs = env.reset(reset_env_ids)
@@ -267,6 +261,13 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
                             obs[i] = o
                     else:
                         break
+                score = [i['score'] for i in info if 'score' in i]
+                if len(score) == env.n_envs:
+                    epslen = [i['epslen'] for i in info if 'epslen' in i]
+                    scores += score
+                    epslens += epslen
+                    break
+    np.testing.assert_equal([i.get('game_over', False) for i in info], np.ones(len(info)))
     if record:
         frames = list(frames.values())
         max_len = np.max([len(f) for f in frames])

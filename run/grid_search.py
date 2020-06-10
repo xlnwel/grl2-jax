@@ -61,7 +61,8 @@ class GridSearch:
                 replay_config = deepcopy(self.replay_config)
                 if self.n_trials > 1:
                     agent_config['model_name'] += f'-trial{i}' if agent_config['model_name'] else f'trial{i}'
-                env_config['seed'] = 1000 * i
+                if 'seed' in env_config:
+                    env_config['seed'] = 1000 * i
                 if 'video_path' in env_config:
                     env_config['video_path'] = (f'{agent_config["root_dir"]}/'
                                                 f'{agent_config["model_name"]}/'
