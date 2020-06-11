@@ -8,11 +8,11 @@ import cv2
 cv2.ocl.setUseOpenCL(False)
 
 from utility.display import pwc
+from env import baselines as B
 
 
 def make_atari_env(config):
-    if config.get('wrapper', 'my_atari') == 'baselines':
-        from env import baselines as B
+    if config.get('wrapper', 'baselines') == 'baselines':
         name = config['name']
         name = name[0].capitalize() + name[1:]
         version = 0 if config.get('sticky_actions', True) else 4
@@ -25,34 +25,6 @@ def make_atari_env(config):
     else:
         env = Atari(**config)
     return env
-
-
-class LazyFrames(object):
-    def __init__(self, frames):
-        self._frames = frames
-
-    def _force(self):
-        out = np.concatenate(self._frames, axis=-1)
-        return out
-
-    def __array__(self, dtype=None):
-        out = self._force()
-        if dtype is not None:
-            out = out.astype(dtype)
-        return out
-
-    def __len__(self):
-        return len(self._force())
-
-    def __getitem__(self, i):
-        return self._force()[i]
-
-    def count(self):
-        frames = self._force()
-        return frames.shape[-1]
-
-    def frame(self, i):
-        return self._force()[..., i]
 
 class Atari:
     """A class implementing image preprocessing for Atari 2600 agents.
@@ -148,7 +120,7 @@ class Atari:
 
     def game_over(self):
         return self._game_over
-        
+
     def set_game_over(self):
         self._game_over = True
 
@@ -261,7 +233,7 @@ class Atari:
     def _get_obs(self):
         assert len(self._frames) == self.frame_stack, f'{len(self._frames)} vs {self.frame_stack}'
         return np.concatenate(self._frames, axis=-1) \
-            if self.np_obs else LazyFrames(list(self._frames))
+            if self.np_obs else B.LazyFrames(list(self._frames))
 
 
 if __name__ == '__main__':

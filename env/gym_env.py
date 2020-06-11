@@ -9,9 +9,9 @@ import cv2
 
 from utility.utils import isscalar, RunningMeanStd
 from env.wrappers import *
-from env.atari import make_atari_env
-from env.procgen import make_procgen_env
-
+from env import atari
+from env import procgen
+from env import baselines as B
 
 EnvOutput = collections.namedtuple('EnvOutput', 'obs reward done info')
 
@@ -21,10 +21,24 @@ def make_env(config):
         # for atari games, we expect to following name convention 'atari_name'
         config['name'] = config['name'].split('_', 1)[-1]
         config['max_episode_steps'] = max_episode_steps = 108000    # 30min
-        env = make_atari_env(config)
+        env = atari.make_atari_env(config)
     elif 'procgen' in config['name'].lower():
         config['name'] = config['name'].split('_', 1)[-1]
-        env = make_procgen_env(config)
+        gray_scale = config.pop('gray_scale', False)
+        frame_skip = config.pop('frame_skip', 1)
+        frame_stack = config.pop('frame_stack', 1)
+        np_obs = config.pop('np_obs', False)
+        env = procgen.make_procgen_env(config)
+        if gray_scale:
+            env = GrayScale(env)
+        if frame_skip > 1:
+            if gray_scale:
+                env = B.MaxAndSkipEnv(env, frame_skip=frame_skip)
+            else:
+                env = FrameSkip(env, frame_skip=frame_skip)
+        if frame_stack > 1:
+            env = B.FrameStack(env, frame_stack, np_obs)
+
         max_episode_steps = env.spec.max_episode_steps
     else:
         env = gym.make(config['name']).env

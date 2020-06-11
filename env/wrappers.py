@@ -2,12 +2,15 @@ import numpy as np
 import gym
 
 from utility.utils import infer_dtype, convert_dtype
+import cv2
+# stop using GPU
+cv2.ocl.setUseOpenCL(False)
 
 
 class Dummy:
     """ Useful to break the inheritance of unexpected attributes """
     def __init__(self, env):
-        self.env = env
+        super().__init__(env)
         self.observation_space = env.observation_space
         self.action_space = env.action_space
         self.spec = env.spec
@@ -28,10 +31,10 @@ class Wrapper:
     def __repr__(self):
         return str(self)
 
-class NormalizeActions(Wrapper):
+class NormalizeActions(gym.Wrapper):
     """ Normalize infinite action dimension in range [-1, 1] """
     def __init__(self, env):
-        self.env = env
+        super().__init__(env)
         self._act_mask = np.logical_and(
             np.isfinite(env.action_space.low),
             np.isfinite(env.action_space.high))
@@ -49,21 +52,34 @@ class NormalizeActions(Wrapper):
         original = np.where(self._act_mask, original, action)
         return self.env.step(original)
 
-class ClipActionsWrapper(Wrapper):
+class GrayScale(gym.ObservationWrapper):
     def __init__(self, env):
-        self.env = env
+        super().__init__(env)
 
-    def step(self, action):
-        action = np.nan_to_num(action)
-        action = np.clip(action, self.action_space.low, self.action_space.high)
-        return self.env.step(action)
+        original_space = self.observation_space
+        new_space = gym.spaces.Box(
+            low=0,
+            high=255,
+            shape=(*original_space.shape[:2], 1),
+            dtype=np.uint8,
+        )
+        assert original_space.dtype == np.uint8, original_space.dtype
+        assert len(original_space.shape) == 3, original_space.shape
+        self.observation_space = new_space
+    
+    def observation(self, obs):
+        obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+        obs = np.expand_dims(obs, -1)
 
-    def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
+        return obs
 
-class FrameSkip(Wrapper):
+class FrameSkip(gym.Wrapper):
+    """ Unlike MaxAndSkipEnv defined in baselines
+    this wrapper does not max pool observations.
+    This is useful for RGB observations
+    """
     def __init__(self, env, frame_skip=1):
-        self.env = env
+        super().__init__(env)
         self.frame_skip = frame_skip
 
     def step(self, action, frame_skip=None):
@@ -79,9 +95,9 @@ class FrameSkip(Wrapper):
         return obs, total_reward, done, info
 
 
-class AutoReset(Wrapper):
+class AutoReset(gym.Wrapper):
   def __init__(self, env):
-    self.env = env
+    super().__init__(env)
     self._done = True
 
   def __getattr__(self, name):
@@ -100,10 +116,10 @@ class AutoReset(Wrapper):
     return self._env.reset()
 
 
-class EnvStats(Wrapper):
+class EnvStats(gym.Wrapper):
     """ Records environment statistics """
     def __init__(self, env, max_episode_steps=None, precision=32, timeout_done=False):
-        self.env = env
+        super().__init__(env)
         self.max_episode_steps = max_episode_steps or int(1e9)
         # already_done indicate whether an episode is finished, 
         # either due to timeout or due to environment done
@@ -208,10 +224,10 @@ class EnvStats(Wrapper):
 
 """ The following wrappers rely on members defined in EnvStats.
 Therefore, they should only be invoked after EnvStats """
-class LogEpisode(Wrapper):
+class LogEpisode(gym.Wrapper):
     """ Log episodic information, useful when we need to record the reset state """
     def __init__(self, env):
-        self.env = env
+        super().__init__(env)
         self.prev_episode = {}
 
     def reset(self, **kwargs):
@@ -244,9 +260,9 @@ class LogEpisode(Wrapper):
         return obs, reward, done, info
 
 
-class RewardHack(Wrapper):
+class RewardHack(gym.Wrapper):
     def __init__(self, env, reward_scale=1, reward_clip=None, **kwargs):
-        self.env = env
+        super().__init__(env)
         self.reward_scale = reward_scale
         self.reward_clip = reward_clip
     
