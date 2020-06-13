@@ -46,7 +46,8 @@ class PERBase(Replay):
         np.testing.assert_array_less(0, priorities)
         if self._to_update_top_priority:
             self._top_priority = max(self._top_priority, np.max(priorities))
-        self._data_structure.batch_update(idxes, priorities)
+        for i, p in zip(idxes, priorities):
+            self._data_structure.update(i, p)
 
     """ Implementation """
     def _update_beta(self):
@@ -58,7 +59,8 @@ class PERBase(Replay):
         # update sum tree
         mem_idxes = np.arange(self._mem_idx, self._mem_idx + length) % self._capacity
         np.testing.assert_equal(len(mem_idxes), len(local_buffer['priority']))
-        self._data_structure.batch_update(mem_idxes, local_buffer['priority'])
+        for i, p in zip(mem_idxes, local_buffer['priority']):
+            self._data_structure.update(i, p)
         del local_buffer['priority']
         # update memory
         super()._merge(local_buffer, length)
