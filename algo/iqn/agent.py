@@ -68,7 +68,7 @@ class Agent(BaseAgent):
         self._sync_target_nets()
 
     def reset_noisy(self):
-        self.q.reset_noisy()
+        pass
 
     def __call__(self, obs, deterministic=False, **kwargs):
         if self._schedule_act_eps:
@@ -82,13 +82,13 @@ class Agent(BaseAgent):
     @step_track
     def learn_log(self, step):
         for _ in range(self.N_UPDATES):
-            with TBTimer('sample', 2500):
+            with TBTimer('sample', 100):
                 data = self.dataset.sample()
 
             if self._is_per:
                 idxes = data['idxes'].numpy()
                 del data['idxes']
-            with TBTimer('learn', 2500):
+            with TBTimer('learn', 100):
                 terms = self.learn(**data)
             if self._to_sync(self.train_step):
                 self._sync_target_nets()
@@ -139,8 +139,7 @@ class Agent(BaseAgent):
             loss = tf.reduce_mean(qr_loss)
 
         if self._is_per:
-            # error = tf.reduce_max(tf.reduce_mean(tf.abs(error), axis=2), axis=1)
-            error = tf.abs(qr_loss)
+            error = tf.reduce_max(tf.reduce_mean(tf.abs(error), axis=2), axis=1)
             priority = self._compute_priority(error)
             terms['priority'] = priority
         
@@ -163,4 +162,4 @@ class Agent(BaseAgent):
     @tf.function
     def _sync_target_nets(self):
         [tv.assign(mv) for mv, tv in zip(
-            self.q.trainable_variables, self.target_q.trainable_variables)]
+            self.q.variables, self.target_q.variables)]

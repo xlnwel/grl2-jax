@@ -4,7 +4,8 @@ import gym
 import threading
 
 from env import wrappers
-from env import baselines
+from env import baselines as B
+from env import procgen
 from env.gym_env import create_env
 
 
@@ -23,10 +24,28 @@ def make_env(config):
             task, config['frame_skip'], (64, 64), grayscale=False,
             life_done=True, sticky_actions=True)
         max_episode_steps = 108000
+    elif 'procgen' in config['name'].lower():
+        config['name'] = config['name'].split('_', 1)[-1]
+        gray_scale = config.pop('gray_scale', False)
+        frame_skip = config.pop('frame_skip', 1)
+        frame_stack = config.pop('frame_stack', 1)
+        np_obs = config.pop('np_obs', False)
+        env = procgen.make_procgen_env(config)
+        if gray_scale:
+            env = wrappers.GrayScale(env)
+        if frame_skip > 1:
+            if gray_scale:
+                env = B.MaxAndSkipEnv(env, frame_skip=frame_skip)
+            else:
+                env = wrappers.FrameSkip(env, frame_skip=frame_skip)
+        if frame_stack > 1:
+            env = B.FrameStack(env, frame_stack, np_obs)
+
+        max_episode_steps = env.spec.max_episode_steps or 1000
     else:
         raise NotImplementedError(suite)
     if config.get('frame_stack', 1) > 1:
-        env = baselines.FrameStack(env, config['frame_stack'])
+        env = B.FrameStack(env, config['frame_stack'], config.get('np_obs', True))
     env = wrappers.EnvStats(env, max_episode_steps, 
             precision=config.get('precision', 32))
     if config.get('log_episode'):
@@ -34,7 +53,7 @@ def make_env(config):
 
     return env
     
-class DeepMindControl:
+class DeepMindControl(gym.Env):
 
     def __init__(self, name, size=(64, 64), camera=None):
         domain, task = name.split('_', 1)
@@ -51,16 +70,11 @@ class DeepMindControl:
             camera = dict(quadruped=2).get(domain, 0)
         self._camera = camera
 
-    @property
-    def observation_space(self):
-        os = gym.spaces.Box(
+        self.observation_space = gym.spaces.Box(
             0, 255, self._size + (3,), dtype=np.uint8)
-        return os
 
-    @property
-    def action_space(self):
         spec = self._env.action_spec()
-        return gym.spaces.Box(spec.minimum, spec.maximum, dtype=np.float32)
+        self.action_space = gym.spaces.Box(spec.minimum, spec.maximum, dtype=np.float32)
 
     def step(self, action):
         time_step = self._env.step(action)
@@ -82,7 +96,7 @@ class DeepMindControl:
             raise ValueError("Only render mode 'rgb_array' is supported.")
         return self._env.physics.render(*size, camera_id=self._camera)
 
-class Atari:
+class Atari(gym.Env):
 
     LOCK = threading.Lock()
 

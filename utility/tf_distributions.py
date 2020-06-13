@@ -64,7 +64,7 @@ class Distribution(tf.Module):
 
 class Categorical(Distribution):
     """ An implementation of tfd.RelaxedOneHotCategorical """
-    def __init__(self, logits, tau=1):
+    def __init__(self, logits, tau=None):
         self.logits = logits
         self.tau = tau  # tau in Gumbel-Softmax
 
@@ -75,29 +75,37 @@ class Categorical(Distribution):
         else:
             return tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x, logits=self.logits)
 
-    def _sample(self, reparameterize=True, hard=True, one_hot=True):
+    def _sample(self, hard=True, one_hot=True):
         """
          A differentiable sampling method for categorical distribution
          reference paper: Categorical Reparameterization with Gumbel-Softmax
          original code: https://github.com/ericjang/gumbel-softmax/blob/master/Categorical%20VAE.ipynb
         """
-        if reparameterize:
-            # sample Gumbel(0, 1)
-            # U = tf.random.uniform(tf.shape(self.logits), minval=0, maxval=1)
-            # g = -tf.math.log(-tf.math.log(U+EPSILON)+EPSILON)
-            g = tfd.Gumbel(0, 1).sample(tf.shape(self.logits))
-            # Draw a sample from the Gumbel-Softmax distribution
-            y = tf.nn.softmax((self.logits + g) / self.tau)
-            # draw one-hot encoded sample from the softmax
-            if not one_hot:
-                y = tf.cast(tf.argmax(y, -1), tf.int32)
-            elif hard:
+        if self.tau and one_hot:
+            # # sample Gumbel(0, 1)
+            # # U = tf.random.uniform(tf.shape(self.logits), minval=0, maxval=1)
+            # # g = -tf.math.log(-tf.math.log(U+EPSILON)+EPSILON)
+            # g = tfd.Gumbel(0, 1).sample(tf.shape(self.logits))
+            # # Draw a sample from the Gumbel-Softmax distribution
+            # y = tf.nn.softmax((self.logits + g) / self.tau)
+            # # draw one-hot encoded sample from the softmax
+            # if not one_hot:
+            #     y = tf.cast(tf.argmax(y, -1), tf.int32)
+            # elif hard:
+            #     y_hard = tf.one_hot(tf.argmax(y, -1), self.logits.shape[-1])
+            #     y = tf.stop_gradient(y_hard - y) + y
+            dist = tfd.RelaxedOneHotCategorical(self.tau, logits=self.logits)
+            y = dist.sample()
+            if hard:
                 y_hard = tf.one_hot(tf.argmax(y, -1), self.logits.shape[-1])
                 y = tf.stop_gradient(y_hard - y) + y
         else:
-            y = tfd.Categorical(self.logits).sample()
+            dist = tfd.Categorical(self.logits)
+            y = dist.sample()
             if one_hot:
-                y = tf.one_hot(y, self.logits.shape[-1])
+                y = tf.one_hot(y, self.logits.shape[-1], dtype=self.logits.dtype)
+                probs = dist.probs_parameter()
+                y += tf.cast(probs - tf.stop_gradient(probs), self.logits.dtype)
 
         return y
 
@@ -131,7 +139,7 @@ class DiagGaussian(Distribution):
                                   + ((x - self.mu) / (self.std + EPSILON))**2, 
                                   axis=-1)
 
-    def _sample(self, reparameterize=True):
+    def _sample(self):
         return self.mu + self.std * tf.random.normal(tf.shape(self.mu))
 
     def _entropy(self):
@@ -279,7 +287,7 @@ if __name__ == '__main__':
     logits = tf.random.normal((2, 3))
     tf.random.set_seed(0)
     dist = Categorical(logits)
-    a = dist.sample(reparameterize=False)
+    a = dist.sample()
     print(a)
     tf.random.set_seed(0)
     dist = OneHotDist(logits)

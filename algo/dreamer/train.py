@@ -45,12 +45,14 @@ def train(agent, env, eval_env, replay):
         duration = time.time() - start_t
         agent.store(
             fps=(step-start_step) / duration,
-            tps=(agent.N_UPDATES / duration))
+            tps=agent.N_UPDATES / duration)
 
         if to_eval(step):
             with TempStore(agent.get_states, agent.reset_states):
-                score, epslen, video = evaluate(eval_env, agent, record=True, size=(64, 64))
-                video_summary(f'{agent.name}/sim', video, step=step)
+                score, epslen, video = evaluate(eval_env, agent, 
+                    record=agent.RECORD, size=(64, 64))
+                if agent.RECORD:
+                    video_summary(f'{agent.name}/sim', video, step=step)
                 agent.store(eval_score=score, eval_epslen=epslen)
             
         if to_log(step):
@@ -60,7 +62,7 @@ def train(agent, env, eval_env, replay):
 def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()
     configure_gpu()
-    configure_precision(env_config['precision'])
+    configure_precision(agent_config['precision'])
 
     use_ray = env_config.get('n_workers', 0) > 1
     if use_ray:
@@ -96,7 +98,7 @@ def main(env_config, model_config, agent_config, replay_config):
     models = create_model(model_config, env)
 
     agent = Agent(
-        name='dreamer',
+        name=env.name,
         config=agent_config,
         models=models, 
         dataset=dataset,

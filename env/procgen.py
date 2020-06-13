@@ -74,6 +74,11 @@ class Procgen(gym.Env):
     def get_screen(self):
         return self._obs
 
+    def game_over(self):
+        return self._game_over
+    
+    def set_game_over(self):
+        return self._game_over
 
 bounds = dict(
     coinrun=[5, 10],

@@ -35,8 +35,9 @@ def train(agent, env, eval_env, replay):
         agent.store(fps=(step - start_step) / (time.time() - start))
 
         eval_score, eval_epslen, video = evaluate(
-            eval_env, agent, record=False)
-        # video_summary(f'{agent.name}/sim', video, step=step)
+            eval_env, agent, record=agent.RECORD, size=(64, 64))
+        if agent.RECORD:
+            video_summary(f'{agent.name}/sim', video, step=step)
         agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         agent.log(step)
         agent.save()

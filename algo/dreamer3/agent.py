@@ -147,7 +147,7 @@ class Agent(BaseAgent):
         else:
             if self._is_action_discrete:
                 act_dist = self.actor(feature)[0]
-                action = act_dist.sample(reparameterize=False, one_hot=False)
+                action = act_dist.sample(one_hot=False)
                 rand_act = tfd.Categorical(tf.zeros_like(act_dist.logits)).sample()
                 if getattr(self, '_act_eps', 0):
                     action = tf.where(

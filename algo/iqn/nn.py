@@ -8,7 +8,6 @@ from utility.display import pwc
 from core.module import Module
 from core.decorator import config
 from nn.func import mlp, cnn
-from nn.layers import Noisy
         
 
 class Q(Module):
@@ -54,7 +53,6 @@ class Q(Module):
         if len(x.shape) % 2 != 0:
             x = tf.expand_dims(x, 0)
         
-        noisy = not deterministic
         action = self.action(x, n_qt)
         action = np.squeeze(action.numpy())
 
@@ -131,12 +129,6 @@ class Q(Module):
     def qtv2value(self, qtv, n_qt, batch_size):
         qtv = tf.reshape(qtv, (n_qt, batch_size, qtv.shape[-1]))
         return tf.reduce_mean(qtv, axis=0)
-
-    def reset_noisy(self):
-        if self._layer_type == 'noisy':
-            if self._duel:
-                self._v_head.reset()
-            self._a_head.reset()
 
 
 def create_model(config, env, **kwargs):

@@ -48,7 +48,9 @@ def create_worker(
     buffer_fn = pkg.import_module(
         'buffer', config=config, place=0).create_local_buffer
 
-    env_config['seed'] += worker_id * 100
+
+    if 'seed' in env_config:
+        env_config['seed'] += worker_id * 100
     
     if config.get('schedule_act_eps'):
         config['act_eps'] = apex_epsilon_greedy(worker_id, config['n_workers'])
@@ -69,7 +71,8 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
     model_config = model_config.copy()
     env_config = env_config.copy()
 
-    env_config['seed'] += 999
+    if 'seed' in env_config:
+        env_config['seed'] += 999
 
     RayEvaluator = ray.remote(num_cpus=1)(Evaluator)
     evaluator = RayEvaluator.remote(

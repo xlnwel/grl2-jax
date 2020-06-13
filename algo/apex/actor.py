@@ -13,6 +13,7 @@ from core.base import BaseAgent
 from core.decorator import config
 from utility.display import pwc
 from utility.utils import Every
+from utility.graph import video_summary
 from utility.timer import Timer
 from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
@@ -22,8 +23,56 @@ from env.gym_env import create_env
 from core.dataset import process_with_env, DataFormat, RayDataset
 
 
+def get_base_learner_class(BaseAgent):
+    class BaseLearner(BaseAgent):            
+        def is_learning(self):
+            return self._is_learning
+
+        def start_learning(self):
+            self._learning_thread = threading.Thread(target=self._learning, daemon=True)
+            self._learning_thread.start()
+            
+        def _learning(self):
+            start_time = time.time()
+            while not self.dataset.good_to_learn():
+                time.sleep(1)
+            pwc(f'{self.name} starts learning...', color='blue')
+
+            to_log = Every(self.LOG_PERIOD)
+            while self.env_step < self.MAX_STEPS:
+                start_train_step = self.train_step
+                start_env_step = self.env_step
+                start_time = time.time()
+                self.learn_log(start_env_step)
+                if to_log(self.train_step) and 'score' in self._logger and 'eval_score' in self._logger:
+                    duration = time.time() - start_time
+                    self.store(
+                        train_step=self.train_step,
+                        fps=(self.env_step - start_env_step) / duration,
+                        tps=(self.train_step - start_train_step)/duration)
+                    with self._log_locker:
+                        self.log(self.env_step)
+                    self.save(print_terminal_info=False)
+            
+            self._is_learning = False
+
+        def get_weights(self, name=None):
+            return self.models.get_weights(name=name)
+
+        def record_episode_info(self, **kwargs):
+            video = kwargs.pop('video', None)
+            with self._log_locker:
+                self.store(**kwargs)
+            if 'epslen' in kwargs:
+                self.env_step += np.sum(kwargs['epslen'])
+            if video:
+                video_summary(f'{self.name}/sim', video, step=self.env_step, fps=20)
+
+    return BaseLearner
+
 def get_learner_class(BaseAgent):
-    class Learner(BaseAgent):
+    BaseLearner = get_base_learner_class(BaseAgent)
+    class Learner(BaseLearner):
         def __init__(self,
                     config, 
                     model_config,
@@ -54,7 +103,7 @@ def get_learner_class(BaseAgent):
                 env=env)
 
             super().__init__(
-                name='ddpg' if 'actor' in model_config else 'dq',
+                name=env.name,
                 config=config, 
                 models=self.models,
                 dataset=dataset,
@@ -62,42 +111,8 @@ def get_learner_class(BaseAgent):
             )
 
             self._log_locker = threading.Lock()
+            self._is_learning = True
             
-        def start_learning(self):
-            self._learning_thread = threading.Thread(target=self._learning, daemon=True)
-            self._learning_thread.start()
-            
-        def _learning(self):
-            start_time = time.time()
-            while not self.dataset.good_to_learn():
-                time.sleep(1)
-            pwc(f'{self.name} starts learning...', color='blue')
-
-            to_log = Every(self.LOG_PERIOD)
-            while self.train_step < self.MAX_STEPS:
-                start_train_step = self.train_step
-                start_env_step = self.env_step
-                start_time = time.time()
-                self.learn_log(start_env_step)
-                if to_log(self.train_step) and 'score' in self._logger and 'eval_score' in self._logger:
-                    duration = time.time() - start_time
-                    self.store(
-                        train_step=self.train_step,
-                        fps=(self.env_step - start_env_step) / duration,
-                        tps=(self.train_step - start_train_step)/duration)
-                    with self._log_locker:
-                        self.log(self.env_step)
-                    self.save(print_terminal_info=False)
-
-        def get_weights(self, name=None):
-            return self.models.get_weights(name=name)
-
-        def record_episode_info(self, **kwargs):
-            with self._log_locker:
-                self.store(**kwargs)
-            if 'epslen' in kwargs:
-                self.env_step += np.sum(kwargs['epslen'])
-
     return Learner
 
 
@@ -277,7 +292,41 @@ class Worker:
 def get_worker_class():
     return Worker
 
-class Evaluator:
+
+class BaseEvaluator:
+    def run(self, learner):
+        step = 0
+        if getattr(self, 'RECORD_PERIOD', False):
+            to_record = Every(self.RECORD_PERIOD)
+        else:
+            to_record = lambda x: False 
+        while True:
+            step += 1
+            weights = self._pull_weights(learner)
+            self._run(weights, record=to_record(step))
+            self._send_episode_info(learner)
+
+    def _run(self, weights, record):
+        self.models.set_weights(weights)
+        score, epslen, video = evaluate(self.env, self, record=record, size=(64, 64))
+        self.store(score, epslen, video)
+
+    def store(self, score, epslen, video):
+        self._info['eval_score'] += score
+        self._info['eval_epslen'] += epslen
+        if video:
+            self._info['video'] = video
+
+    def _pull_weights(self, learner):
+        return ray.get(learner.get_weights.remote(name=self._pull_names))
+
+    def _send_episode_info(self, learner):
+        if self._info:
+            learner.record_episode_info.remote(**self._info)
+            self._info.clear()
+
+
+class Evaluator(BaseEvaluator):
     @config
     def __init__(self, 
                 *,
@@ -314,29 +363,6 @@ class Evaluator:
             if self._is_iqn:
                 return self.q(x, self.K, deterministic=True)
             return self.q(x, deterministic=True)
-
-    def run(self, learner):
-        while True:
-            weights = self._pull_weights(learner)
-            self._run(weights)
-            self._send_episode_info(learner)
-
-    def _run(self, weights):
-        self.models.set_weights(weights)
-        score, epslen, _ = evaluate(self.env, self)
-        self.store(score, epslen)
-
-    def store(self, score, epslen):
-        self._info['eval_score'] += score
-        self._info['eval_epslen'] += epslen
-
-    def _pull_weights(self, learner):
-        return ray.get(learner.get_weights.remote(name=self._pull_names))
-
-    def _send_episode_info(self, learner):
-        if self._info:
-            learner.record_episode_info.remote(**self._info)
-            self._info.clear()
 
 def get_evaluator_class():
     return Evaluator

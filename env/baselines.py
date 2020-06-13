@@ -137,7 +137,7 @@ class MaxAndSkipEnv(gym.Wrapper):
 
 class ClipRewardEnv(gym.RewardWrapper):
     def __init__(self, env):
-        gym.Rewardgym.Wrapper.__init__(self, env)
+        gym.RewardWrapper.__init__(self, env)
 
     def reward(self, reward):
         """Bin reward to {+1, 0, -1} by its sign."""

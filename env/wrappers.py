@@ -10,7 +10,7 @@ cv2.ocl.setUseOpenCL(False)
 class Dummy:
     """ Useful to break the inheritance of unexpected attributes """
     def __init__(self, env):
-        super().__init__(env)
+        self.env = env
         self.observation_space = env.observation_space
         self.action_space = env.action_space
         self.spec = env.spec
@@ -22,7 +22,12 @@ class Dummy:
 
 
 class Wrapper:
+    def __init__(self, env):
+        self.env = env
+
     def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError("attempted to get missing private attribute '{}'".format(name))
         return getattr(self.env, name)
 
     def __str__(self):
@@ -41,11 +46,9 @@ class NormalizeActions(gym.Wrapper):
         self._low = np.where(self._act_mask, env.action_space.low, -1)
         self._high = np.where(self._act_mask, env.action_space.high, 1)
 
-    @property
-    def action_space(self):
         low = np.where(self._act_mask, -np.ones_like(self._low), self._low)
         high = np.where(self._act_mask, np.ones_like(self._low), self._high)
-        return gym.spaces.Box(low, high, dtype=np.float32)
+        self.action_space = gym.spaces.Box(low, high, dtype=np.float32)
 
     def step(self, action):
         original = (action + 1) / 2 * (self._high - self._low) + self._low
@@ -124,7 +127,7 @@ class EnvStats(gym.Wrapper):
         # already_done indicate whether an episode is finished, 
         # either due to timeout or due to environment done
         self._already_done = True
-        self._precision = precision
+        self.precision = precision
         # if we take timeout as done
         self._timeout_done = timeout_done
         self._fake_obs = np.zeros(self.obs_shape, dtype=self.obs_dtype)
@@ -206,7 +209,7 @@ class EnvStats(gym.Wrapper):
     @property
     def obs_dtype(self):
         """ this is not the observation's real dtype, but the desired dtype """
-        return infer_dtype(self.observation_space.dtype, self._precision)
+        return infer_dtype(self.observation_space.dtype, self.precision)
 
     @property
     def action_shape(self):
@@ -215,7 +218,7 @@ class EnvStats(gym.Wrapper):
     @property
     def action_dtype(self):
         """ this is not the action's real dtype, but the desired dtype """
-        return infer_dtype(self.action_space.dtype, self._precision)
+        return np.int32 if self.is_action_discrete else infer_dtype(self.action_space.dtype, self.precision)
 
     @property
     def action_dim(self):
@@ -244,7 +247,7 @@ class LogEpisode(gym.Wrapper):
     
     def step(self, action, **kwargs):
         obs, reward, done, info = self.env.step(action)
-        reward = convert_dtype(reward, self._precision)
+        reward = convert_dtype(reward, self.precision)
         transition = dict(
             obs=obs,
             prev_action=action,
@@ -254,7 +257,7 @@ class LogEpisode(gym.Wrapper):
         )
         self._episode.append(transition)
         if self.game_over():
-            episode = {k: convert_dtype([t[k] for t in self._episode], self._precision)
+            episode = {k: convert_dtype([t[k] for t in self._episode], self.precision)
                 for k in self._episode[0]}
             info['episode'] = self.prev_episode = episode
         return obs, reward, done, info

@@ -211,7 +211,6 @@ class Runner:
         return self.step
 
 def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=None):
-    print('Evaluation starts...')
     scores = []
     epslens = []
     max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
@@ -267,7 +266,7 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
                     scores += score
                     epslens += epslen
                     break
-    np.testing.assert_equal([i.get('game_over', False) for i in info], np.ones(len(info)))
+
     if record:
         frames = list(frames.values())
         max_len = np.max([len(f) for f in frames])

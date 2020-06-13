@@ -73,13 +73,11 @@ def main(env_config, model_config, agent_config, replay_config):
         model_config=model_config,
         env_config=env_config)
     evaluator.run.remote(learner)
-    while not ray.get(replay.good_to_learn.remote()):
-        time.sleep(1)
 
     learner.start_learning.remote()
 
-    while True:
-        time.sleep(5000)
+    while ray.get(learner.is_learning.remote()):
+        time.sleep(60)
 
     ray.get(learner.save.remote())
     

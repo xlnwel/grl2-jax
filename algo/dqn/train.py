@@ -46,9 +46,11 @@ def train(agent, env, eval_env, replay):
             fps=(step - start_step) / (time.time() - start))
         
         if to_eval(step):
+            n = 10 if 'procgen' in eval_env.name else 1
             eval_score, eval_epslen, video = evaluate(
-                eval_env, agent, record=True, size=(64, 64))
-            video_summary(f'{agent.name}/sim', video, step=step)
+                eval_env, agent, record=agent.RECORD, size=(64, 64), n=n)
+            if agent.RECORD:
+                video_summary(f'{agent.name}/sim', video, step=step, fps=20)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         agent.log(step)
         agent.save()
@@ -65,10 +67,9 @@ def main(env_config, model_config, agent_config, replay_config):
     env = create_env(env_config)
     assert env.n_envs == 1, \
         f'n_envs({env.n_envs}) > 1 is not supported here as it messes with n-step'
-    if env_config['name'].startswith('procgen'):
-        start_level = 200
+    # if env_config['name'].startswith('procgen'):
+    #     start_level = 200
     eval_env_config = env_config.copy()
-    eval_env_config['n_envs'] = 10
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 
@@ -83,7 +84,7 @@ def main(env_config, model_config, agent_config, replay_config):
 
     # construct agent
     agent = Agent(
-        name='q',
+        name=env.name,
         config=agent_config, 
         models=models, 
         dataset=dataset, 

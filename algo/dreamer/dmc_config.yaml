@@ -35,6 +35,7 @@ model:
 agent:
     algorithm: &algo dreamer
     batch_size: &bs 50
+    precision: *prec
 
     # These params are not supported here, see seed1
     store_state: False
@@ -64,6 +65,7 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
+    RECORD: True
 
     # arguments for optimizer
     optimizer: adam

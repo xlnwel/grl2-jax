@@ -1,9 +1,10 @@
 ---
 env:
     name: procgen_coinrun
-    frame_skip: 2
+    frame_skip: 1
     gray_scale: True
     frame_stack: 4
+    np_obs: True
 
 model:
     cnn: impala
@@ -17,24 +18,27 @@ model:
     phi_activation: relu
 
 agent:
-    algorithm: &algo iqn
+    algorithm: &algo apex-iqn
     gamma: &gamma 0.99
+    n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     batch_size: &bs 64
     schedule_act_eps: True
     act_eps: 0
 
-    MAX_STEPS: 8e6      # maximum training frames
-    TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
-    EVAL_PERIOD: 5e5
-    LOG_PERIOD: 5e4
-    N_UPDATES: 1
+    MAX_STEPS: 8e6      # maximum env steps
+    LOG_PERIOD: &log 1000
+    N_UPDATES: *log
 
     # IQN params
     N: 8                # N in paper, num of quantiles for online quantile network
     N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
     K: 32               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
+
+    # distributed algo params
+    n_workers: 3
+    SYNC_PERIOD: 1000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -49,7 +53,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 5e-5
+    lr: 1e-4
     clip_norm: 0
     epsilon: 1.5e-4
 
@@ -58,14 +62,15 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: uniform      # uniform, per
+    type: per      # uniform, per
+    seqlen: 100
     precision: 32
     # arguments for PER
     beta0: 0
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
     min_size: 5e4

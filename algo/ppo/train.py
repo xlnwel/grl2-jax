@@ -52,8 +52,9 @@ def train(agent, env, eval_env, buffer):
         if to_eval(agent.train_step):
             with TempStore(agent.get_states, agent.reset_states):
                 scores, epslens, video = evaluate(
-                    eval_env, agent, record=False, size=(64, 64))
-                video_summary(f'{agent.name}/sim', video, step=step)
+                    eval_env, agent, record=agent.RECORD, size=(64, 64))
+                if agent.RECORD:
+                    video_summary(f'{agent.name}/sim', video, step=step)
                 agent.store(eval_score=scores, eval_epslen=epslens)
         if to_log(agent.train_step) and 'score' in agent._logger:
             agent.log(step)
@@ -86,10 +87,10 @@ def main(env_config, model_config, agent_config, buffer_config):
 
     models = create_model(model_config, env)
     
-    agent = Agent(name='ppo', 
+    agent = Agent(name=env.name, 
                 config=agent_config, 
                 models=models, 
-                dateset=buffer,
+                dataset=buffer,
                 env=env)
 
     agent.save_config(dict(

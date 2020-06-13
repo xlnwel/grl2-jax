@@ -4,7 +4,6 @@ env:
     n_workers: 1
     n_envs: &nenvs 8
     seed: 0
-    precision: &prec 32
 
 model:
     cnn_name: none
@@ -19,7 +18,7 @@ model:
 
 agent:
     algorithm: &algo ppo2
-    precision: *prec
+    precision: &prec 32
 
     MAX_STEPS: 5e7
     N_STEPS: &nsteps 256

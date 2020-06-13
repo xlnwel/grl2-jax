@@ -42,7 +42,6 @@ def make_env(config):
         max_episode_steps = env.spec.max_episode_steps
     else:
         env = gym.make(config['name']).env
-        env = Dummy(env)
         max_episode_steps = config.get('max_episode_steps', env.spec.max_episode_steps)
         if config.get('frame_skip'):
             env = FrameSkip(env, config['frame_skip'])

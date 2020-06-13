@@ -28,11 +28,12 @@ def parse_cmd_args():
     parser.add_argument('--n_envs', '-ne', type=int, default=0)
     parser.add_argument('--n_workers', '-nw', type=int, default=0)
     parser.add_argument('--size', '-s', nargs='+', type=int, default=[128, 128])
+    parser.add_argument('--fps', type=int, default=30)
     args = parser.parse_args()
 
     return args
 
-def main(env_config, model_config, agent_config, n, record=False, size=(128, 128)):
+def main(env_config, model_config, agent_config, n, record=False, size=(128, 128), fps=30):
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config['precision'])
@@ -64,7 +65,7 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
         f'Score: {np.mean(scores)}\tEpslen: {np.mean(epslens)}', color='cyan')
 
     if record:
-        save_video(f'{algo_name}-{env_name}', video)
+        save_video(f'{algo_name}-{env_name}', video, fps=fps)
     if use_ray:
         ray.shutdown()
 
@@ -107,4 +108,5 @@ if __name__ == '__main__':
     n = max(args.n_workers * args.n_envs, n)
     env_config['seed'] = np.random.randint(1000)
     
-    main(env_config, model_config, agent_config, n=n, record=record, size=tuple(args.size))
+    main(env_config, model_config, agent_config, n=n, 
+        record=record, size=tuple(args.size), fps=args.fps)

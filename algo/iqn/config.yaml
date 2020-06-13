@@ -43,6 +43,7 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
+    RECORD: True
 
     target_update_period: 8000  # trainning step
     tbo: False                              # transformed Bellman Operator
@@ -59,7 +60,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: uniform      # uniform, per
+    type: per      # uniform, per
     precision: 32
     # arguments for PER
     beta0: 0

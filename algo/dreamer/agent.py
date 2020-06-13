@@ -19,8 +19,8 @@ from algo.dreamer.nn import RSSMState
 def get_data_format(env, batch_size, sample_size=None, 
         store_state=False, state_size=None, dtype=tf.float32, **kwargs):
     data_format = dict(
-        obs=((batch_size, sample_size, *env.obs_shape), dtype),
-        prev_action=((batch_size, sample_size, *env.action_shape), dtype),
+        obs=((batch_size, sample_size, *env.obs_shape), env.obs_dtype),
+        prev_action=((batch_size, sample_size, *env.action_shape), env.action_dtype),
         reward=((batch_size, sample_size), dtype), 
         discount=((batch_size, sample_size), dtype),
     )
@@ -127,10 +127,10 @@ class Agent(BaseAgent):
         else:
             if self._is_action_discrete:
                 act_dist = self.actor(feature)[0]
-                action = act_dist.sample(reparameterize=False, one_hot=False)
+                action = act_dist.sample(one_hot=False)
                 rand_act = tfd.Categorical(tf.zeros_like(act_dist.logits)).sample()
                 action = tf.where(
-                    tf.random.uniform(action.shape[:1], 0, 1) < self._act_eps,
+                    tf.random.uniform(action.shape, 0, 1) < self._act_eps,
                     rand_act, action)
             else:
                 action = self.actor(feature)[0].sample()
