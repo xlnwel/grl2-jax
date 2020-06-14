@@ -14,6 +14,7 @@ from algo.asap.utils import *
 
 
 class Worker(BaseWorker):
+    BaseLearner = get_base_learner_class(BaseAgent)
     def __init__(self, 
                 *,
                 worker_id,

@@ -8,7 +8,7 @@ env:
     seed: 0
 
 model:
-    cnn: nature
+    cnn: impala
     lstm_units: 512
     head_units: [512]
     activation: relu
@@ -30,12 +30,12 @@ agent:
     add_input: False
 
     MAX_STEPS: 1e9
-    LOG_PERIOD: &log 1000
+    LOG_PERIOD: &log 100
     N_UPDATES: *log
     
     # distributed algo params
     n_workers: 3
-    SYNC_PERIOD: 5000
+    SYNC_PERIOD: 1000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -70,5 +70,5 @@ replay:
     batch_size: *bs
     sample_size: *ss
     burn_in_size: *bis
-    min_size: 1000                  # 6250 in Agent57
+    min_size: 100                  # 6250 in Agent57
     capacity: 1e4                 # 5e6 in Agent57

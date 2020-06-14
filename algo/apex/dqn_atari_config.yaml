@@ -31,23 +31,24 @@ agent:
     
     # distributed algo params
     n_workers: 3
-    SYNC_PERIOD: 5000
+    SYNC_PERIOD: 1000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
+    RECORD_PERIOD: 100
 
     loss_type: huber                          # huber or mse
-    target_update_period: 2500
+    target_update_period: 1500
     tbo: True
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
     lr: 1e-4
-    clip_norm: 0
+    clip_norm: 40
     epsilon: 1.5e-4
 
     # arguments for PER

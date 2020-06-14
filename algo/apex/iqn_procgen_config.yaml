@@ -45,9 +45,9 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: True
+    RECORD_PERIOD: 100
 
-    target_update_period: 2000  # trainning step
+    target_update_period: 1500  # trainning step
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
@@ -62,7 +62,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: per      # uniform, per
+    type: uniform      # uniform, per
     seqlen: 100
     precision: 32
     # arguments for PER

@@ -65,7 +65,7 @@ def get_base_learner_class(BaseAgent):
                 self.store(**kwargs)
             if 'epslen' in kwargs:
                 self.env_step += np.sum(kwargs['epslen'])
-            if video:
+            if video is not None:
                 video_summary(f'{self.name}/sim', video, step=self.env_step, fps=20)
 
     return BaseLearner
@@ -259,7 +259,8 @@ class Worker:
         tf.debugging.assert_shapes([[qtv, (self._seqlen, self.K, 1)]])
         tf.debugging.assert_shapes([[returns, (self._seqlen, 1, self.N_PRIME)]])
         
-        priority = tf.reduce_mean(tf.abs(returns - qtv), axis=[1, 2])
+        error = tf.abs(returns - qtv)
+        priority = tf.reduce_max(tf.reduce_mean(error, axis=2), axis=1)
         priority += self._per_epsilon
         priority **= self._per_alpha
 
@@ -314,7 +315,7 @@ class BaseEvaluator:
     def store(self, score, epslen, video):
         self._info['eval_score'] += score
         self._info['eval_epslen'] += epslen
-        if video:
+        if video is not None:
             self._info['video'] = video
 
     def _pull_weights(self, learner):

@@ -120,8 +120,13 @@ class AutoReset(gym.Wrapper):
 
 
 class EnvStats(gym.Wrapper):
-    """ Records environment statistics """
-    def __init__(self, env, max_episode_steps=None, precision=32, timeout_done=False):
+    def __init__(self, env, max_episode_steps=None, precision=32, timeout_done=False, **kwargs):
+        """ Records environment statistics
+        Args:
+            precision: used to infer obs/action's dtype
+            timeout_done: if set `done=True` when episode is finished because reaching max episode step
+            kwargs: additional default kwargs, returned when reset
+        """
         super().__init__(env)
         self.max_episode_steps = max_episode_steps or int(1e9)
         # already_done indicate whether an episode is finished, 
@@ -134,6 +139,8 @@ class EnvStats(gym.Wrapper):
         self._score = 0
         self._epslen = 0
         self._info = {}
+        self._env_output = tuple()
+        self._kwargs = kwargs
         if timeout_done:
             print('Timeout is treated as done')
 

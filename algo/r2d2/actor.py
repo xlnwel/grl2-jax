@@ -20,10 +20,11 @@ from utility.run import Runner, evaluate
 from utility import pkg
 from env.gym_env import create_env
 from core.dataset import process_with_env, DataFormat, RayDataset
-
+from algo.apex.actor import get_base_learner_class, BaseEvaluator
 
 def get_learner_class(BaseAgent):
-    class Learner(BaseAgent):
+    BaseLearner = get_base_learner_class(BaseAgent)
+    class Learner(BaseLearner):
         def __init__(self,
                     config, 
                     model_config,
@@ -43,6 +44,7 @@ def get_learner_class(BaseAgent):
                 config=model_config, 
                 env=env)
 
+            # TODO: figure out a way to automatic generate data_format from replay
             obs_dtype = env.obs_dtype
             action_dtype =  env.action_dtype
             batch_size = config['batch_size']
@@ -56,7 +58,7 @@ def get_learner_class(BaseAgent):
             dataset = RayDataset(replay, data_format, process)
 
             super().__init__(
-                name='dq',
+                name=env.name,
                 config=config, 
                 models=self.models,
                 dataset=dataset,
@@ -64,41 +66,7 @@ def get_learner_class(BaseAgent):
             )
 
             self._log_locker = threading.Lock()
-            
-        def start_learning(self):
-            self._learning_thread = threading.Thread(target=self._learning, daemon=True)
-            self._learning_thread.start()
-            
-        def _learning(self):
-            start_time = time.time()
-            while not self.dataset.good_to_learn():
-                time.sleep(1)
-            pwc(f'{self.name} starts learning...', color='blue')
-
-            to_log = Every(self.LOG_PERIOD)
-            while self.train_step < self.MAX_STEPS:
-                start_train_step = self.train_step
-                start_env_step = self.env_step
-                start_time = time.time()
-                self.learn_log(start_env_step)
-                if to_log(self.train_step) and 'score' in self._logger and 'eval_score' in self._logger:
-                    duration = time.time() - start_time
-                    self.store(
-                        train_step=self.train_step,
-                        fps=(self.env_step - start_env_step) / duration,
-                        tps=(self.train_step - start_train_step)/duration)
-                    with self._log_locker:
-                        self.log(self.env_step)
-                    self.save(print_terminal_info=False)
-
-        def get_weights(self, name=None):
-            return self.models.get_weights(name=name)
-
-        def record_episode_info(self, **kwargs):
-            with self._log_locker:
-                self.store(**kwargs)
-            if 'epslen' in kwargs:
-                self.env_step += np.sum(kwargs['epslen'])
+            self._is_learning = True
 
     return Learner
 
@@ -270,7 +238,7 @@ class Worker:
 def get_worker_class():
     return Worker
 
-class Evaluator:
+class Evaluator(BaseEvaluator):
     @config
     def __init__(self, 
                 *,
@@ -302,6 +270,7 @@ class Evaluator:
         if self._add_input:
             self._prev_action = tf.zeros(self.n_envs)
             self._prev_reward = tf.zeros(self.n_envs)
+
     def __call__(self, x, deterministic=True, env_output=None, **kwargs):
         if self._add_input:
             self._prev_reward = env_output.reward
@@ -309,29 +278,6 @@ class Evaluator:
         if self._add_input:
             self._prev_action = action
         return action.numpy()
-
-    def run(self, learner):
-        while True:
-            weights = self._pull_weights(learner)
-            self._run(weights)
-            self._send_episode_info(learner)
-
-    def _run(self, weights):
-        self.models.set_weights(weights)
-        score, epslen, _ = evaluate(self.env, self)
-        self.store(score, epslen)
-
-    def store(self, score, epslen):
-        self._info['eval_score'].append(score)
-        self._info['eval_epslen'].append(epslen)
-
-    def _pull_weights(self, learner):
-        return ray.get(learner.get_weights.remote(name=self._pull_names))
-
-    def _send_episode_info(self, learner):
-        if self._info:
-            learner.record_episode_info.remote(**self._info)
-            self._info.clear()
 
 def get_evaluator_class():
     return Evaluator
