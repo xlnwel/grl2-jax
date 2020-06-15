@@ -73,6 +73,7 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
 
     if 'seed' in env_config:
         env_config['seed'] += 999
+    env_config['n_workers'] = env_config['n_envs'] = 1
 
     RayEvaluator = ray.remote(num_cpus=1)(Evaluator)
     evaluator = RayEvaluator.remote(

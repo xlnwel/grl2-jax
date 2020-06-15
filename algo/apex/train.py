@@ -21,14 +21,8 @@ def main(env_config, model_config, agent_config, replay_config):
         replay_config = config['replay']
         agent_config['root_dir'] = root_dir
         agent_config['model_name'] = model_name
-
-    if 'atari' in env_config['name'] or 'dmc' in env_config['name']:
-        ray.init(num_cpus=12, num_gpus=1)
-        n_cpus = 4
-    else:
-        ray.init(num_cpus=6, num_gpus=1, 
-            memory=8*1024**3, object_store_memory=7*1024**3)
-        n_cpus = 2
+    ray.init(num_cpus=12, num_gpus=1)
+    n_cpus = 4
     
     sigint_shutdown_ray()
 

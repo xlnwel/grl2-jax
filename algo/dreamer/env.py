@@ -79,16 +79,19 @@ class DeepMindControl(gym.Env):
     def step(self, action):
         time_step = self._env.step(action)
         # obs = dict(time_step.observation)
-        obs = self.render()
+        self._obs = self.render()
         reward = time_step.reward or 0
         done = time_step.last()
         info = {'discount': np.array(time_step.discount, np.float32)}
-        return obs, reward, done, info
+        return self._obs, reward, done, info
 
     def reset(self):
         time_step = self._env.reset()
-        obs = self.render()
-        return obs
+        self._obs = self.render()
+        return self._obs
+
+    def get_screen(self):
+        return self._obs
 
     def render(self, *args, size=None, **kwargs):
         size = size or self._size
@@ -141,9 +144,9 @@ class Atari(gym.Env):
                     self._env.reset()
         self._lives = self._env.ale.lives()
         if self._grayscale:
-            self._env.ale.getScreenGrayscale(self._buffers[0])
+            self._obs = self._env.ale.getScreenGrayscale(self._buffers[0])
         else:
-            self._env.ale.getScreenRGB2(self._buffers[0])
+            self._obs = self._env.ale.getScreenRGB2(self._buffers[0])
         self._buffers[1].fill(0)
         return self._get_obs()
 
@@ -161,14 +164,17 @@ class Atari(gym.Env):
             elif step >= self.frame_skip - 2:
                 index = step - (self.frame_skip - 2)
                 if self._grayscale:
-                    self._env.ale.getScreenGrayscale(self._buffers[index])
+                    self._obs = self._env.ale.getScreenGrayscale(self._buffers[index])
                 else:
-                    self._env.ale.getScreenRGB2(self._buffers[index])
+                    self._obs = self._env.ale.getScreenRGB2(self._buffers[index])
         obs = self._get_obs()
         return obs, total_reward, done, info
 
     def render(self, mode):
         return self._env.render(mode)
+
+    def get_screen(self):
+        return self._obs
 
     def _get_obs(self):
         if self.frame_skip > 1:

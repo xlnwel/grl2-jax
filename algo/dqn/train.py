@@ -27,7 +27,7 @@ def train(agent, env, eval_env, replay):
     
     step = agent.env_step
     collect = lambda *args, **kwargs: replay.add(**kwargs)
-    runner = Runner(env, agent, step=step)
+    runner = Runner(env, agent, step=step, nsteps=agent.LOG_PERIOD)
     while not replay.good_to_learn():
         step = runner.run(
             action_selector=env.random_action, 
@@ -39,7 +39,7 @@ def train(agent, env, eval_env, replay):
     while step < int(agent.MAX_STEPS):
         start_step = step
         start = time.time()
-        step = runner.run(step_fn=collect_and_learn, nsteps=agent.LOG_PERIOD)
+        step = runner.run(step_fn=collect_and_learn)
         agent.store(
             env_step=agent.env_step,
             train_step=agent.train_step,

@@ -175,6 +175,7 @@ class Worker:
         def reset_fn(obs, reward, **kwargs):
             self.buffer.pre_add(obs=obs, prev_action=0, prev_reward=reward)
         def collect(env, step, info, obs, action, reward, next_obs, **kwargs):
+            # TODO: add first transition in an episode
             kwargs['obs'] = next_obs
             kwargs['prev_action'] = action
             kwargs['prev_reward'] = reward

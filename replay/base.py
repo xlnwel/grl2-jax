@@ -33,6 +33,9 @@ class Replay(ABC):
         while True:
             yield self.sample()
 
+    def sample_info(self):
+        return 
+
     def sample(self, batch_size=None):
         raise NotImplementedError
 

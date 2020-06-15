@@ -19,7 +19,7 @@ from algo.dreamer.env import make_env
 
 
 def train(agent, env, eval_env, replay):
-    def collect(env, step, info, **kwargs):
+    def collect(env, step, reset, **kwargs):
         done = env.already_done()
         if np.any(done):
             if env.n_envs == 1:

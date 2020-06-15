@@ -1,15 +1,15 @@
 ---
 env:
-    name: &env_name atari_breakout
+    name: &env_name procgen_coinrun
     n_workers: 1
-    n_envs: &nenvs 32
+    n_envs: &nenvs 8
     seed: 0
-    wrapper: my_wrapper
     frame_stack: 1
     np_obs: True
-    
+    gray_scale: False
+
 model:
-    cnn_name: ftw
+    cnn_name: impala
     shared_mlp_units: []
     lstm_units: 256
     actor_units: [256]
@@ -21,32 +21,33 @@ model:
 
 agent:
     algorithm: &algo ppo2
-    precision: &prec 32
+    precision: 16
 
-    MAX_STEPS: 1e10
+    MAX_STEPS: 8e6
     N_STEPS: &nsteps 256
-    N_UPDATES: 2
+    N_UPDATES: 3
     N_MBS: &nmbs 4
     sample_size: &ss 16       # BPTT length
-    LOG_PERIOD: 1000
-    EVAL_PERIOD: 5000
-    max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
+    LOG_PERIOD: 100
+    EVAL_PERIOD: 500
+    max_kl: 0            # early stop when max_kl is violated. 0 suggests no bound
 
     normalize_obs: False
     normalize_reward: True
     store_state: True
-    
+
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
+    RECORD: True
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 3e-4
-    clip_norm: .5
+    lr: 5e-4
+    clip_norm: 0
     # arguments for loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
@@ -56,9 +57,9 @@ buffer:
     adv_type: gae     # nae or gae
     gamma: .99
     lam: .95
-    # n_envs: *nenvs  # this will be set in t√rain.py as it's the product of n_workers and n_envs
+    n_envs: *nenvs
     N_STEPS: *nsteps
-    N_MBS: *nmbs
+    N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
     shuffle: True
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

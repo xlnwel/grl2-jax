@@ -3,10 +3,26 @@ import gym
 import numpy as np
 
 from procgen.env import ENV_NAMES as VALID_ENV_NAMES
-
+from env import wrappers as W
+from env import baselines as B 
 
 def make_procgen_env(config):
-    return Procgen(config)
+    config['name'] = config['name'].split('_', 1)[-1]
+    gray_scale = config.pop('gray_scale', False)
+    frame_skip = config.pop('frame_skip', 1)
+    frame_stack = config.pop('frame_stack', 1)
+    np_obs = config.pop('np_obs', False)
+    env = Procgen(config)
+    if gray_scale:
+        env = W.GrayScale(env)
+    if frame_skip > 1:
+        if gray_scale:
+            env = B.MaxAndSkipEnv(env, frame_skip=frame_skip)
+        else:
+            env = W.FrameSkip(env, frame_skip=frame_skip)
+    if frame_stack > 1:
+        env = B.FrameStack(env, frame_stack, np_obs)
+    return env
 
 class Procgen(gym.Env):
     """
@@ -43,7 +59,6 @@ class Procgen(gym.Env):
         self._obs = None
 
     def reset(self):
-        assert self._game_over, "procgen envs cannot be early-restarted"
         self._game_over = False
         obs = self.env.reset()
         self._obs = obs

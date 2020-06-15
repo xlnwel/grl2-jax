@@ -1,117 +1,99 @@
 import collections
 import numpy as np
 
+from env.wrappers import get_wrapper_by_name
+
 
 class Runner:
     def __init__(self, env, agent, step=0, nsteps=None):
         self.env = env
+        if env.max_episode_steps == int(1e9):
+            print(f'Warning: maximum episode steps is not specified',
+                f'and is by default set to {self.env.max_episode_steps}')
+            assert nsteps is not None
         self.agent = agent
         self.step = step
-        self.env_output = None
+        self.env_output = self.env.output()
         self.episodes = np.zeros(env.n_envs)
-
-        self.is_env = self.env.env_type == 'Env'
-
+        assert get_wrapper_by_name(self.env, 'EnvStats').auto_reset
         self.run = {
-            True: self._run_env,
-            False: self._run_envvec,
-        }[self.is_env]
+            'Env': self._run_env,
+            'EnvVec': self._run_envvec,
+        }[self.env.env_type]
 
         self._frame_skip = getattr(env, 'frame_skip', 1)
         self._frames_per_step = self.env.n_envs * self._frame_skip
         self._default_nsteps = nsteps or env.max_episode_steps // self._frame_skip
 
-    def _run_env(self, *, action_selector=None, reset_fn=None, step_fn=None, nsteps=None):
-        if self.env_output is None:
-            self.env_output = self.env.reset()
-            self.reset = 1
-            if reset_fn:
-                reset_fn(**self.env_output._asdict())
+    def _run_env(self, *, action_selector=None, step_fn=None, nsteps=None):
         action_selector = action_selector or self.agent
         nsteps = nsteps or self._default_nsteps
         obs = self.env_output.obs
+        reset = self.env_output.reset
         terms = {}
 
         for t in range(nsteps):
             action = action_selector(
                 obs, 
-                reset=self.reset, 
+                reset=reset, 
                 deterministic=False,
                 env_output=self.env_output)
             if isinstance(action, tuple):
                 action, terms = action
             self.env_output = self.env.step(action)
-            next_obs, reward, done, info = self.env_output
+            next_obs, reward, discount, reset = self.env_output
 
             self.step += self._frames_per_step
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
-                    discount=np.float32(1-done), next_obs=next_obs)
+                    discount=discount, next_obs=next_obs)
                 # allow terms to overwrite the values in kwargs
                 kwargs.update(terms)
-                step_fn(self.env, self.step, info, **kwargs)
+                step_fn(self.env, self.step, reset, **kwargs)
             obs = next_obs
             # logging and reset 
-            if info.get('already_done'):
-                if info.get('game_over'):
-                    self.agent.store(score=info['score'], epslen=info['epslen'])
-                    self.episodes += 1
-                self.env_output = self.env.reset()
-                obs = self.env_output.obs
-                self.reset = 1
-                if reset_fn:
-                    reset_fn(**self.env_output._asdict())
-            else:
-                self.reset = 0
+            if reset:
+                info = self.env.prev_info()
+                self.agent.store(
+                    score=info['score'], epslen=info['epslen'])
+                self.episodes += 1
 
         return self.step
 
     def _run_envvec(self, *, action_selector=None, step_fn=None, nsteps=None):
-        if self.env_output is None:
-            self.env_output = self.env.reset()
-            self.reset = np.ones(self.env.n_envs)
         action_selector = action_selector or self.agent
         nsteps = nsteps or self._default_nsteps
         obs = self.env_output.obs
+        reset = self.env_output.reset
         terms = {}
 
         for t in range(nsteps):
             action = action_selector(
                 obs, 
-                reset=self.reset, 
+                reset=reset, 
                 deterministic=False,
                 env_output=self.env_output)
             if isinstance(action, tuple):
                 action, terms = action
             self.env_output = self.env.step(action)
-            next_obs, reward, done, info = self.env_output
+            next_obs, reward, discount, reset = self.env_output
             
             self.step += self._frames_per_step
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
-                    discount=np.float32(1-done), next_obs=next_obs)
+                    discount=discount, next_obs=next_obs)
                 # allow terms to overwrite the values in kwargs
                 kwargs.update(terms)
-                step_fn(self.env, self.step, info, **kwargs)
+                step_fn(self.env, self.step, reset, **kwargs)
             obs = next_obs
             # logging and reset 
-            done_env_ids = [i for i, ii in enumerate(info) if ii.get('already_done')]
+            done_env_ids = [i for i, r in enumerate(reset) if r]
             if done_env_ids:
-                game_over = [idx for idx, i in enumerate(info) if i.get('game_over')]
-                if game_over:
-                    score = [i['score'] for i in info if 'score' in i]
-                    epslen = [i['epslen'] for i in info if 'epslen' in i]
-                    assert len(score) == len(epslen)
-                    self.agent.store(score=score, epslen=epslen)
-                    for i in game_over:
-                        self.episodes[i] += 1
-                
-                env_output = self.env.reset(done_env_ids)
-                for i, eo in zip(done_env_ids, zip(*env_output)):
-                    for k, v in enumerate(eo):
-                        self.env_output[k][i] = v
-                obs = self.env_output.obs
-            self.reset = np.array([i.get('already_done', 0) for i in info])
+                info = self.env.prev_info(done_env_ids)
+                score = [i['score'] for i in info]
+                epslen = [i['epslen'] for i in info]
+                self.agent.store(score=score, epslen=epslen)
+                self.episodes[done_env_ids] += 1
 
         return self.step
 
@@ -211,60 +193,62 @@ class Runner:
         return self.step
 
 def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=None):
+    assert get_wrapper_by_name(env, 'EnvStats') is not None
     scores = []
     epslens = []
     max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
     maxlen = min(video_len, max_steps)
     frames = collections.defaultdict(lambda:collections.deque(maxlen=maxlen))
     name = env.name
-    for _ in range(0, n, env.n_envs):
-        if hasattr(agent, 'reset_states'):
-            agent.reset_states()
-        env_output = env.reset()
-        obs = env_output.obs
+    if hasattr(agent, 'reset_states'):
+        agent.reset_states()
+    env_output = env.reset()
+    obs = env_output.obs
+    n_run_eps = env.n_envs  # count the number of episodes that has begun to run
+    n_done_eps = 0
+    while n_done_eps < n:
         for k in range(max_steps):
             if record:
-                if name.startswith('dm'):
-                    img = obs
-                else:
-                    img = env.get_screen(size=size)
+                img = env.get_screen(size=size)
                 if env.env_type == 'Env':
                     frames[0].append(img)
                 else:
                     for i in range(env.n_envs):
-                        if not env_output.info[i].get('game_over'):
-                            frames[i].append(img[i])
+                        frames[i].append(img[i])
                     
             action = agent(obs, deterministic=True, env_output=env_output)
             env_output = env.step(action)
-            obs, reward, done, info = env_output
+            obs, reward, discount, reset = env_output
 
             if step_fn:
                 step_fn(reward=reward)
             if env.env_type == 'Env':
-                if info.get('already_done'):
-                    if info.get('game_over'):
-                        scores.append(info['score'])
-                        epslens.append(info['epslen'])
-                        break
-                    else:
-                        obs = env.reset()
+                if env.game_over():
+                    scores.append(env.score())
+                    epslens.append(env.epslen())
+                    n_done_eps += 1
+                    if n_run_eps < n:
+                        n_run_eps += 1
+                        env_output = env.reset()
+                        obs = env_output.obs
+                        if hasattr(agent, 'reset_states'):
+                            agent.reset_states()
+                    break
             else:
-                done_env_ids = [i for i, ii in enumerate(info) 
-                    if ii.get('already_done') and not info[i].get('game_over')]
-                if done_env_ids:                    
-                    reset_env_ids = [i for i in done_env_ids if not info[i].get('game_over')]
-                    if reset_env_ids:
-                        new_obs = env.reset(reset_env_ids)
-                        for i, o in zip(reset_env_ids, new_obs):
-                            obs[i] = o
-                    else:
-                        break
-                score = [i['score'] for i in info if 'score' in i]
-                if len(score) == env.n_envs:
-                    epslen = [i['epslen'] for i in info if 'epslen' in i]
+                done_env_ids = [i for i, d in enumerate(env.game_over()) if d]
+                n_done_eps += len(done_env_ids)
+                if done_env_ids:
+                    score = env.score(done_env_ids)
+                    epslen = env.epslen(done_env_ids)
                     scores += score
                     epslens += epslen
+                    if n_run_eps < n:
+                        reset_env_ids = done_env_ids[:n-n_run_eps]
+                        n_run_eps += len(reset_env_ids)
+                        eo = env.reset(reset_env_ids)
+                        for t, s in zip(env_output, eo):
+                            for si, ti in enumerate(done_env_ids):
+                                t[ti] = s[si]
                     break
 
     if record:

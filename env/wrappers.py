@@ -1,3 +1,4 @@
+import collections
 import numpy as np
 import gym
 
@@ -6,6 +7,22 @@ import cv2
 # stop using GPU
 cv2.ocl.setUseOpenCL(False)
 
+# for multi-processing efficiency, we do not return info at every step
+EnvOutput = collections.namedtuple('EnvOutput', 'obs reward discount reset')
+# Output format of gym
+GymOutput = collections.namedtuple('EnvOutput', 'obs reward discount info')
+
+def post_wrap(env, config):
+    if 'reward_scale' in config or 'reward_clip' in config:
+        env = RewardHack(env, **config)
+    env = DataProcess(env, config.get('precision', 32))
+    if 'log_steps' in config:
+        env = LogEpisode(env, config['log_steps'])
+    env = EnvStats(
+        env, config.get('max_episode_steps', None), 
+        timeout_done=config.get('timeout_done', False),
+        auto_reset=config.get('auto_reset', True))
+    return env
 
 class Dummy:
     """ Useful to break the inheritance of unexpected attributes """
@@ -14,11 +31,14 @@ class Dummy:
         self.observation_space = env.observation_space
         self.action_space = env.action_space
         self.spec = env.spec
+        self.reward_range = env.reward_range
+        self.metadata = env.metadata
 
         self.reset = env.reset
         self.step = env.step
         self.render = env.render
         self.close = env.close
+        self.seed = env.seed
 
 
 class Wrapper:
@@ -98,178 +118,6 @@ class FrameSkip(gym.Wrapper):
         return obs, total_reward, done, info
 
 
-class AutoReset(gym.Wrapper):
-  def __init__(self, env):
-    super().__init__(env)
-    self._done = True
-
-  def __getattr__(self, name):
-    return getattr(self._env, name)
-
-  def step(self, action):
-    if self._done:
-      obs, reward, done, info = self.env.reset(), 0.0, False, {}
-    else:
-      obs, reward, done, info = self.env.step(action)
-    self._done = done
-    return obs, reward, done, info
-
-  def reset(self):
-    self._done = False
-    return self._env.reset()
-
-
-class EnvStats(gym.Wrapper):
-    def __init__(self, env, max_episode_steps=None, precision=32, timeout_done=False, **kwargs):
-        """ Records environment statistics
-        Args:
-            precision: used to infer obs/action's dtype
-            timeout_done: if set `done=True` when episode is finished because reaching max episode step
-            kwargs: additional default kwargs, returned when reset
-        """
-        super().__init__(env)
-        self.max_episode_steps = max_episode_steps or int(1e9)
-        # already_done indicate whether an episode is finished, 
-        # either due to timeout or due to environment done
-        self._already_done = True
-        self.precision = precision
-        # if we take timeout as done
-        self._timeout_done = timeout_done
-        self._fake_obs = np.zeros(self.obs_shape, dtype=self.obs_dtype)
-        self._score = 0
-        self._epslen = 0
-        self._info = {}
-        self._env_output = tuple()
-        self._kwargs = kwargs
-        if timeout_done:
-            print('Timeout is treated as done')
-
-    def reset(self, **kwargs):
-        if self.already_done() == self.game_over():
-            if not self.game_over():
-                print("Warning: reset env before it's done")
-            self._score = 0
-            self._epslen = 0
-        self._already_done = False
-        self._mask = 1
-        return self.env.reset(**kwargs)
-
-    def step(self, action, **kwargs):
-        if self.game_over():
-            # as some environment, e.g. Ant-v3 implicitly reset env
-            # when keeping stepping after game's over
-            # here, we override this behavior
-            self._mask = 0
-            self._info['mask'] = self._mask
-            return self._fake_obs, 0, True, self._info
-        assert not np.any(np.isnan(action)), action
-        obs, reward, done, info = self.env.step(action, **kwargs)
-        self._score += reward
-        self._epslen += info.get('frame_skip', 1)
-        self._already_done = done
-        if self._epslen >= self.max_episode_steps:
-            self._already_done = True
-            if hasattr(self.env, '_game_over'):
-                self.env.set_game_over()    # define set_game_over for env
-            done = self._timeout_done
-            info['timeout'] = True
-        if self._already_done:
-            info['already_done'] = self._already_done
-        if self.game_over():
-            info['score'] = self._score
-            info['epslen'] = self._epslen
-            info['game_over'] = True
-        self._info = info
-        return np.array(obs, dtype=self.obs_dtype), \
-                np.float32(reward), np.float32(done), info
-
-    def mask(self):
-        """ Get mask at the current step. """
-        return self._mask
-
-    def score(self, **kwargs):
-        return self._score
-
-    def epslen(self, **kwargs):
-        return self._epslen
-
-    def already_done(self):
-        return self._already_done
-
-    def info(self):
-        return self._info
-        
-    def game_over(self):
-        if hasattr(self.env, 'game_over'):
-            return self.env.game_over()
-        else:
-            return self._already_done
-
-    @property
-    def is_action_discrete(self):
-        return isinstance(self.env.action_space, gym.spaces.Discrete)
-
-    @property
-    def obs_shape(self):
-        return self.observation_space.shape
-
-    @property
-    def obs_dtype(self):
-        """ this is not the observation's real dtype, but the desired dtype """
-        return infer_dtype(self.observation_space.dtype, self.precision)
-
-    @property
-    def action_shape(self):
-        return self.action_space.shape
-
-    @property
-    def action_dtype(self):
-        """ this is not the action's real dtype, but the desired dtype """
-        return np.int32 if self.is_action_discrete else infer_dtype(self.action_space.dtype, self.precision)
-
-    @property
-    def action_dim(self):
-        return self.action_space.n if self.is_action_discrete else self.action_shape[0]
-
-
-""" The following wrappers rely on members defined in EnvStats.
-Therefore, they should only be invoked after EnvStats """
-class LogEpisode(gym.Wrapper):
-    """ Log episodic information, useful when we need to record the reset state """
-    def __init__(self, env):
-        super().__init__(env)
-        self.prev_episode = {}
-
-    def reset(self, **kwargs):
-        obs = self.env.reset()
-        transition = dict(
-            obs=obs,
-            prev_action=np.zeros(self.env.action_space.shape, np.float32),
-            reward=0.,
-            discount=1, 
-            **kwargs
-        )
-        self._episode = [transition]
-        return obs
-    
-    def step(self, action, **kwargs):
-        obs, reward, done, info = self.env.step(action)
-        reward = convert_dtype(reward, self.precision)
-        transition = dict(
-            obs=obs,
-            prev_action=action,
-            reward=reward,
-            discount=1-done,
-            **kwargs
-        )
-        self._episode.append(transition)
-        if self.game_over():
-            episode = {k: convert_dtype([t[k] for t in self._episode], self.precision)
-                for k in self._episode[0]}
-            info['episode'] = self.prev_episode = episode
-        return obs, reward, done, info
-
-
 class RewardHack(gym.Wrapper):
     def __init__(self, env, reward_scale=1, reward_clip=None, **kwargs):
         super().__init__(env)
@@ -277,11 +125,179 @@ class RewardHack(gym.Wrapper):
         self.reward_clip = reward_clip
     
     def step(self, action):
-        obs, reward, done, info = self.env.step(action)
+        output = self.env.step(action)
+        obs, reward, done, info = output
         reward *= self.reward_scale
         if self.reward_clip:
             reward = np.clip(reward, -self.reward_clip, self.reward_clip)
         return obs, reward, done, info
+
+
+class DataProcess(gym.Wrapper):
+    def __init__(self, env, precision=32):
+        super().__init__(env)
+        self.precision = precision
+
+        self.is_action_discrete = isinstance(self.env.action_space, gym.spaces.Discrete)
+        self.obs_shape = self.observation_space.shape
+        self.action_shape = self.action_space.shape
+        self.action_dim = self.action_space.n if self.is_action_discrete else self.action_shape[0]
+
+        self.obs_dtype = infer_dtype(self.observation_space.dtype, precision)
+        self.action_dtype = np.int32 if self.is_action_discrete \
+            else infer_dtype(self.action_space.dtype, self.precision)
+        self.float_dtype = infer_dtype(np.float32, self.precision)
+
+    def observation(self, observation):
+        if isinstance(observation, np.ndarray):
+            return convert_dtype(observation, self.precision)
+        return observation
+    
+    def action(self, action):
+        if isinstance(action, np.ndarray):
+            return convert_dtype(action, self.precision)
+        return np.int32(action) # always keep int32 for integers as tf.one_hot does not support int16
+
+    def reset(self):
+        obs = self.env.reset()
+        return self.observation(obs)
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        return self.observation(obs), self.float_dtype(reward), self.float_dtype(done), info
+
+
+class EnvStats(gym.Wrapper):
+    def __init__(self, env, max_episode_steps=None, timeout_done=False, auto_reset=True, **info):
+        """ Records environment statistics
+        Args:
+            precision: used to infer obs/action's dtype
+            timeout_done: if set `done=True` when episode is finished because reaching max episode step
+            info: the default info returned when reset
+        """
+        super().__init__(env)
+        self.max_episode_steps = max_episode_steps or int(1e9)
+        # if we take timeout as done
+        self.timeout_done = timeout_done
+        self.auto_reset = auto_reset
+        # game_over indicates whether an episode is finished, 
+        # either due to timeout or due to environment done
+        self._game_over = True
+        self._score = 0
+        self._epslen = 0
+        self._info = {}
+        self._default_info = info
+        self._output = tuple()
+        self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
+        if timeout_done:
+            print('Timeout is treated as done')
+        self._reset()
+
+    def reset(self):
+        if self.auto_reset:
+            self.auto_reset = False
+            print('Explicitly resetting turns off auto-reset')
+        return self._reset()
+
+    def _reset(self):
+        obs = self.env.reset()
+        self._score = 0
+        self._epslen = 0
+        self._info = self._default_info
+        self._game_over = False
+        self._output = EnvOutput(
+            obs, self.float_dtype(0), 
+            self.float_dtype(1), self.float_dtype(1))
+        return self._output
+
+    def step(self, action, **kwargs):
+        if self.game_over():
+            return self._output.obs, 0, 0, 0
+        assert not np.any(np.isnan(action)), action
+        obs, reward, done, info = self.env.step(action, **kwargs)
+        self._score += reward
+        self._epslen += info.get('frame_skip', 1)
+        self._game_over = done
+        reset = self.float_dtype(0)
+        if self._epslen >= self.max_episode_steps:
+            self._game_over = True
+            done = self.timeout_done
+            info['timeout'] = True
+        if self.game_over():
+            info['score'] = self._score
+            info['epslen'] = self._epslen
+            if self.auto_reset:
+                # when retting, we override the obs, but keep the others
+                obs, _, _, reset = self._reset()
+                self._info['prev_env_output'] = GymOutput(
+                    obs, self.float_dtype(reward), 
+                    self.float_dtype(1-done), info)
+        else:
+            self._info = info
+        self._output = EnvOutput(
+            obs, self.float_dtype(reward), 
+            self.float_dtype(1-done), reset)
+        return self._output
+
+    def score(self, **kwargs):
+        return self._score
+
+    def epslen(self, **kwargs):
+        return self._epslen
+
+    def game_over(self):
+        return self._game_over
+
+    def prev_info(self):
+        assert 'prev_env_output' in self._info, self._info
+        return self._info['prev_env_output'].info
+
+    def info(self):
+        return self._info
+        
+    def output(self):
+        return self._output
+
+
+class LogEpisode(gym.Wrapper):
+    """ Log episodic information, useful when we need to record the reset state """
+    def __init__(self, env):
+        super().__init__(env)
+        self._prev_episode = {}
+        self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
+
+    def reset(self, **kwargs):
+        output = self.env.reset()
+        obs, reward, discount, reset = output
+        transition = dict(
+            obs=obs,
+            prev_action = np.zeros(self.action_shape, self.action_dtype),
+            reward=reward,
+            discount=discount, 
+            **kwargs
+        )
+        self._episode = [transition]
+        return output
+    
+    def step(self, action, **kwargs):
+        output = self.env.step(action)
+        obs, reward, discount, reset = output
+        transition = dict(
+            obs=obs,
+            prev_action=action,
+            reward=reward,
+            discount=discount,
+            **kwargs
+        )
+        self._episode.append(transition)
+        if self.game_over():
+            episode = {k: np.array([t[k] for t in self._episode])
+                for k in self._episode[0]}
+            info['episode'] = self._prev_episode = episode
+        return output
+    
+    def prev_episode(self):
+        return self._prev_episode
 
 
 def get_wrapper_by_name(env, classname):

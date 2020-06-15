@@ -17,18 +17,19 @@ from core.dataset import Dataset, process_with_env
 def train(agent, env, eval_env, replay):
     def reset_fn(obs, reward, **kwargs):
         replay.pre_add(obs=obs, prev_action=0, prev_reward=reward)
-    def collect(env, step, info, obs, action, reward, next_obs, **kwargs):
+    def collect(env, step, reset, obs, action, reward, next_obs, **kwargs):
         kwargs['obs'] = next_obs
         kwargs['prev_action'] = action
         kwargs['prev_reward'] = reward
         replay.add(**kwargs)
+        # TODO: add first transition in an episode
         if env.already_done():
             replay.clear_temp_buffer()
     
     step = agent.env_step
     runner = Runner(env, agent, step=step)
     while not replay.good_to_learn():
-        step = runner.run(reset_fn=reset_fn, step_fn=collect, nsteps=int(1e4))
+        step = runner.run(step_fn=collect, nsteps=int(1e4))
 
     to_log = Every(agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
@@ -37,7 +38,7 @@ def train(agent, env, eval_env, replay):
         start_step = step
         start_t = time.time()
         agent.learn_log(step)
-        step = runner.run(reset_fn=reset_fn, step_fn=collect, nsteps=agent.TRAIN_PERIOD)
+        step = runner.run(step_fn=collect, nsteps=agent.TRAIN_PERIOD)
         duration = time.time() - start_t
         agent.store(
             fps=(step-start_step) / duration,

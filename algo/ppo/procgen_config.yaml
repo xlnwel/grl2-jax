@@ -1,8 +1,8 @@
 ---
 env:
-    name: &env_name atari_pong
+    name: &env_name procgen_coinrun
     n_workers: 1
-    n_envs: &nenvs 64
+    n_envs: &nenvs 8
     seed: 0
     frame_stack: 1
     np_obs: True

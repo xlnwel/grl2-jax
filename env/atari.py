@@ -12,12 +12,13 @@ from env import baselines as B
 
 
 def make_atari_env(config):
+    config['name'] = config['name'].split('_', 1)[-1]
     if config.get('wrapper', 'baselines') == 'baselines':
         name = config['name']
         name = name[0].capitalize() + name[1:]
         version = 0 if config.get('sticky_actions', True) else 4
         name = f'{name}NoFrameskip-v{version}'
-        env = B.make_atari(name)
+        env = B.make_atari(name, config.get('frame_skip', 1))
         env = B.wrap_deepmind(env, 
                             episode_life=config.get('life_done', False), 
                             frame_stack=config.get('frame_stack', 1),

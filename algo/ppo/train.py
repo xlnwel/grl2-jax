@@ -14,10 +14,10 @@ from env.gym_env import create_env
 
 
 def train(agent, env, eval_env, buffer):
-    def initialize_rms(env, step, info, obs, reward, **kwargs):
+    def initialize_rms(env, step, reset, obs, reward, **kwargs):
         agent.update_obs_rms(obs)
         agent.update_reward_rms(reward)
-    def collect(env, step, info, reward, next_obs, **kwargs):
+    def collect(env, step, reset, reward, next_obs, **kwargs):
         agent.update_reward_rms(reward)
         kwargs['reward'] = agent.normalize_reward(reward)
         buffer.add(**kwargs)
@@ -40,7 +40,7 @@ def train(agent, env, eval_env, buffer):
         step = runner.run(action_selector=action_selector, step_fn=collect)
         agent.store(fps=(step-start_env_step)/(time.time()-start_time))
         
-        reset = np.array([i.get('already_done', False) for i in runner.env_output.info])
+        reset = runner.env_output.reset
         _, terms = agent(runner.env_output.obs, update_curr_state=False, reset=reset)
         buffer.finish(terms['value'])
         start_train_step = agent.train_step

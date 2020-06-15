@@ -1,10 +1,10 @@
 ---
 env:
-    name: dmc_walker_walk
-    log_steps: none
+    name: procgen_coinrun
+    log_episode: True
     n_envs: 1
     frame_skip: 2
-    precision: &prec 16
+    precision: 16
 
 model:
     encoder:
@@ -35,7 +35,7 @@ model:
 agent:
     algorithm: &algo dreamer
     batch_size: &bs 50
-    precision: *prec
+    precision: &prec 16
 
     # These params are not supported here, see seed1
     store_state: False

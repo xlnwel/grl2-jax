@@ -8,7 +8,7 @@ env:
     seed: 0
 
 model:
-    cnn: impala
+    cnn: nature
     lstm_units: 512
     head_units: [512]
     activation: relu
@@ -70,5 +70,5 @@ replay:
     batch_size: *bs
     sample_size: *ss
     burn_in_size: *bis
-    min_size: 100                  # 6250 in Agent57
+    min_size: 1000                  # 6250 in Agent57
     capacity: 1e4                 # 5e6 in Agent57

@@ -298,7 +298,7 @@ def infer_dtype(dtype, precision=None):
     return dtype
 
 def convert_dtype(value, precision=32, dtype=None, **kwargs):
-    value = np.array(value, **kwargs)
+    value = np.array(value, copy=False, **kwargs)
     if dtype is None:
         dtype = infer_dtype(value.dtype, precision)
     return value.astype(dtype)

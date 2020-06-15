@@ -84,6 +84,9 @@ class EpisodicLifeEnv(gym.Wrapper):
             # so it's important to keep lives > 0, so that we only reset once
             # the environment advertises done.
             done = True
+            # WARNING: different from original implementation, 
+            # we auto reset to be consistent with EnvStats in env.wrappers
+            obs = self.reset()
         self.lives = lives
         return obs, reward, done, info
 
@@ -225,7 +228,7 @@ class FrameStack(gym.Wrapper):
 
 class ScaledFloatFrame(gym.ObservationWrapper):
     def __init__(self, env):
-        gym.Observationgym.Wrapper.__init__(self, env)
+        gym.ObservationWrapper.__init__(self, env)
         self.observation_space = gym.spaces.Box(low=0, high=1, shape=env.observation_space.shape, dtype=np.float32)
 
     def observation(self, observation):
@@ -263,14 +266,14 @@ class LazyFrames(object):
         return self._force()[..., i]
 
 
-def make_atari(env_id, max_episode_steps=None):
+def make_atari(env_id, frame_skip=1):
     env = gym.make(env_id).env
     assert 'NoFrameskip' in env.spec.id
     env = NoopResetEnv(env, noop_max=30)
-    env = MaxAndSkipEnv(env, frame_skip=4)
+    env = MaxAndSkipEnv(env, frame_skip=frame_skip)
     return env
 
-def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=0, scale=False, np_obs=False):
+def wrap_deepmind(env, episode_life=False, clip_rewards=True, frame_stack=0, scale=False, np_obs=False):
     """Configure environment for DeepMind-style Atari.
     """
     if episode_life:

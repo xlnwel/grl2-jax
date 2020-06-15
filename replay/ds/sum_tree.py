@@ -45,41 +45,36 @@ class SumTree:
 
             return self._container[idxes], idxes - self._tree_size
 
-    def update(self, mem_idx, priority):
-        np.testing.assert_array_less(0, priority)
+    def update(self, mem_idx, value):
+        np.testing.assert_array_less(0, value)
         idx = mem_idx + self._tree_size
         with self._locker:
-            diff = priority - self._container[idx]
+            diff = value - self._container[idx]
             self._container[idx] += diff
 
             while idx > 0:
                 idx = (idx - 1) // 2    # update idx to its parent idx
                 self._container[idx] += diff
 
-    def batch_update(self, mem_idxes, priorities):
+    def batch_update(self, mem_idxes, values):
         """ vectorized update """
-        np.testing.assert_array_less(0, priorities)
+        np.testing.assert_array_less(0, values)
         idxes = mem_idxes + self._tree_size
+        # if there are some i < j and idxes[i] == idxes[j], we only keep idxes[i]
+        idxes, i = np.unique(idxes, return_index=True)
+        values = values[i]
+        diffs = values - self._container[idxes]
+        self._container[idxes] += diffs
 
         with self._locker:
-            diffs = priorities - self._container[idxes]
-            # the following two lines avoid error caused by duplicates in idxes
-            # they almost equal to the following code, 
-            # for i, d in zip(idxes, diffs):
-            #     self._container[i] += d
-            # except that they retain the unique idxes and diffs for later use 
-            diffs = np.bincount(idxes, weights=diffs)
-            idxes = np.arange(diffs.size)
-            self._container[idxes] += diffs
-
             while len(idxes) > 0:
                 p_idxes = (idxes - 1) // 2  # parent idxes
+                # idx1 contains the leftmost unique index of p_idxes
                 idxes, idx1, count = np.unique(p_idxes, return_index=True, return_counts=True)
-                
+                # idx2 contains the rightmost unique index of p_idxes
                 _, idx2 = np.unique(p_idxes[::-1], return_index=True)
-                # the following code only works for binary trees
+                # the following code takes the advantage of binary trees
                 diffs = (diffs[-idx2-1] + diffs[idx1]) * count / 2
-                np.testing.assert_equal(len(idxes), len(diffs))
 
                 # code for unbalanced binary tree to avoid negative idxes.
                 diffs = diffs[idxes >= 0]
