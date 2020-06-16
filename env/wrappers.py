@@ -13,15 +13,15 @@ EnvOutput = collections.namedtuple('EnvOutput', 'obs reward discount reset')
 GymOutput = collections.namedtuple('EnvOutput', 'obs reward discount info')
 
 def post_wrap(env, config):
-    if 'reward_scale' in config or 'reward_clip' in config:
-        env = RewardHack(env, **config)
+    """ Does some post processing and bookkeeping. 
+    Does not change anything that will affect the agent's performance 
+    """
     env = DataProcess(env, config.get('precision', 32))
-    if 'log_steps' in config:
-        env = LogEpisode(env, config['log_steps'])
     env = EnvStats(
         env, config.get('max_episode_steps', None), 
         timeout_done=config.get('timeout_done', False),
-        auto_reset=config.get('auto_reset', True))
+        auto_reset=config.get('auto_reset', True),
+        log_episode=config.get('log_episode', False))
     return env
 
 class Dummy:
@@ -168,25 +168,22 @@ class DataProcess(gym.Wrapper):
 
 
 class EnvStats(gym.Wrapper):
-    def __init__(self, env, max_episode_steps=None, timeout_done=False, auto_reset=True, **info):
-        """ Records environment statistics
-        Args:
-            precision: used to infer obs/action's dtype
-            timeout_done: if set `done=True` when episode is finished because reaching max episode step
-            info: the default info returned when reset
-        """
+    def __init__(self, env, max_episode_steps=None, timeout_done=False, 
+        auto_reset=True, log_episode=False, initial_state={}):
+        """ Records environment statistics """
         super().__init__(env)
         self.max_episode_steps = max_episode_steps or int(1e9)
         # if we take timeout as done
         self.timeout_done = timeout_done
         self.auto_reset = auto_reset
+        self.log_episode = log_episode
         # game_over indicates whether an episode is finished, 
         # either due to timeout or due to environment done
         self._game_over = True
         self._score = 0
         self._epslen = 0
         self._info = {}
-        self._default_info = info
+        self._init_state = initial_state
         self._output = tuple()
         self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
         if timeout_done:
@@ -203,40 +200,68 @@ class EnvStats(gym.Wrapper):
         obs = self.env.reset()
         self._score = 0
         self._epslen = 0
-        self._info = self._default_info
         self._game_over = False
-        self._output = EnvOutput(
-            obs, self.float_dtype(0), 
-            self.float_dtype(1), self.float_dtype(1))
+        reward = self.float_dtype(0)
+        discount = self.float_dtype(1)
+        reset = self.float_dtype(1)
+        self._output = EnvOutput(obs, reward, discount, reset)
+
+        if self.log_episode:
+            transition = dict(
+                obs=obs,
+                prev_action=np.zeros(self.action_shape, self.action_dtype),
+                reward=reward,
+                discount=discount, 
+                **self._init_state
+            )
+            self._episode = [transition]
         return self._output
 
     def step(self, action, **kwargs):
         if self.game_over():
+            assert self.auto_reset == False
             return self._output.obs, 0, 0, 0
+
         assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
         self._score += reward
         self._epslen += info.get('frame_skip', 1)
         self._game_over = done
+        self._info = info
+        reward = self.float_dtype(reward)
+        discount = self.float_dtype(1-done)
         reset = self.float_dtype(0)
+        
         if self._epslen >= self.max_episode_steps:
             self._game_over = True
             done = self.timeout_done
             info['timeout'] = True
+        
+        # log transition
+        if self.log_episode:
+            transition = dict(
+                obs=obs,
+                prev_action=action,
+                reward=reward,
+                discount=discount,
+                **kwargs
+            )
+            self._episode.append(transition)
+            if self.game_over():
+                episode = {k: np.array([t[k] for t in self._episode])
+                    for k in self._episode[0]}
+                self._prev_episode = episode
+        
+        # reset env
         if self.game_over():
             info['score'] = self._score
             info['epslen'] = self._epslen
             if self.auto_reset:
-                # when retting, we override the obs, but keep the others
+                # when retting, we override the obs and reset but keep the others
                 obs, _, _, reset = self._reset()
-                self._info['prev_env_output'] = GymOutput(
-                    obs, self.float_dtype(reward), 
-                    self.float_dtype(1-done), info)
-        else:
-            self._info = info
-        self._output = EnvOutput(
-            obs, self.float_dtype(reward), 
-            self.float_dtype(1-done), reset)
+                self._info['prev_env_output'] = GymOutput(obs, reward, discount, info)
+
+        self._output = EnvOutput(obs, reward, discount, reset)
         return self._output
 
     def score(self, **kwargs):
@@ -250,54 +275,18 @@ class EnvStats(gym.Wrapper):
 
     def prev_info(self):
         assert 'prev_env_output' in self._info, self._info
-        return self._info['prev_env_output'].info
+        return self._info.pop('prev_env_output').info
 
     def info(self):
         return self._info
         
     def output(self):
         return self._output
-
-
-class LogEpisode(gym.Wrapper):
-    """ Log episodic information, useful when we need to record the reset state """
-    def __init__(self, env):
-        super().__init__(env)
-        self._prev_episode = {}
-        self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
-
-    def reset(self, **kwargs):
-        output = self.env.reset()
-        obs, reward, discount, reset = output
-        transition = dict(
-            obs=obs,
-            prev_action = np.zeros(self.action_shape, self.action_dtype),
-            reward=reward,
-            discount=discount, 
-            **kwargs
-        )
-        self._episode = [transition]
-        return output
-    
-    def step(self, action, **kwargs):
-        output = self.env.step(action)
-        obs, reward, discount, reset = output
-        transition = dict(
-            obs=obs,
-            prev_action=action,
-            reward=reward,
-            discount=discount,
-            **kwargs
-        )
-        self._episode.append(transition)
-        if self.game_over():
-            episode = {k: np.array([t[k] for t in self._episode])
-                for k in self._episode[0]}
-            info['episode'] = self._prev_episode = episode
-        return output
     
     def prev_episode(self):
-        return self._prev_episode
+        eps = self._prev_episode
+        self._prev_episode = None
+        return eps
 
 
 def get_wrapper_by_name(env, classname):

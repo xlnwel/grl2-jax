@@ -8,7 +8,6 @@ from utility.utils import AttrDict, Every
 from utility.rl_utils import lambda_return
 from utility.tf_utils import static_scan
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
-from utility.graph import video_summary
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, step_track
@@ -261,5 +260,5 @@ class Agent(BaseAgent):
         model = tf.concat([recon[:, :5] + 0.5, openl + 0.5], 1)
         error = (model - truth + 1) / 2
         openl = tf.concat([truth, model, error], 2)
-        self.graph_summary(video_summary, ['dreamer/comp', openl, (1, 6)],
+        self.graph_summary('video', ['dreamer/comp', openl, (1, 6)],
             step=self._env_step)

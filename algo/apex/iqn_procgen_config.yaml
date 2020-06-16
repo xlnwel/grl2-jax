@@ -62,7 +62,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: uniform      # uniform, per
+    type: per      # uniform, per
     seqlen: 100
     precision: 32
     # arguments for PER

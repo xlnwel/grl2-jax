@@ -20,12 +20,11 @@ from algo.dreamer.env import make_env
 
 def train(agent, env, eval_env, replay):
     def collect(env, step, reset, **kwargs):
-        done = env.already_done()
-        if np.any(done):
+        if np.any(reset):
             if env.n_envs == 1:
-                episodes = env.prev_episode
+                episodes = env.prev_episode()
             else:
-                episodes = [e.prev_episode for e, d in zip(env.envs, done) if d]
+                episodes = [e.prev_episode() for e, d in zip(env.envs, reset) if d]
             replay.merge(episodes)
     _, step = replay.count_episodes()
     step = max(agent.env_step, step)

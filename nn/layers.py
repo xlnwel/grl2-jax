@@ -19,7 +19,6 @@ class Layer(tf.Module):
         self._norm_layer = get_norm(norm)
         if self._norm_layer:
             self._norm_layer = self._norm_layer()
-
         self.activation = get_activation(activation)
 
     def __call__(self, x, **kwargs):

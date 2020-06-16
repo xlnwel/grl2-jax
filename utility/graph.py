@@ -95,7 +95,7 @@ def image_summary(name, images, step=None):
     img = grid_placed(images)[None]
     tf.summary.image(name + '/grid', img, step)
 
-def video_summary(name, video, size=None, step=None, fps=30):
+def video_summary(name, video, size=None, fps=30, step=None):
     name = name if isinstance(name, str) else name.decode('utf-8')
     if np.issubdtype(video.dtype, np.floating):
         video = np.clip(255 * video, 0, 255).astype(np.uint8)

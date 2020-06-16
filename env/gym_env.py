@@ -30,6 +30,8 @@ def make_env(config):
             config['max_episode_steps'] = env.spec.max_episode_steps
         if config.get('frame_skip'):
             env = FrameSkip(env, config['frame_skip'])
+    if 'reward_scale' in config or 'reward_clip' in config:
+        env = RewardHack(env, **config)
     env = post_wrap(env, config)
     return env
 

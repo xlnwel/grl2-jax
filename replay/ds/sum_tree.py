@@ -64,9 +64,9 @@ class SumTree:
         idxes, i = np.unique(idxes, return_index=True)
         values = values[i]
         diffs = values - self._container[idxes]
-        self._container[idxes] += diffs
 
         with self._locker:
+            self._container[idxes] += diffs
             while len(idxes) > 0:
                 p_idxes = (idxes - 1) // 2  # parent idxes
                 # idx1 contains the leftmost unique index of p_idxes

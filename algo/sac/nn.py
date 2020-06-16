@@ -92,7 +92,7 @@ class SoftQ(Module):
     def __call__(self, x, a):
         x = tf.concat([x, a], axis=-1)
         x = self._layers(x)
-        x = tf.squeeze(x)
+        x = tf.squeeze(x, -1)
             
         return x
 

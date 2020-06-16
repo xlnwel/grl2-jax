@@ -9,7 +9,7 @@ env:
     seed: 0
 
 model:
-    cnn: impala
+    cnn: nature
     kernel_initializer: orthogonal
     head_units: [512]
     activation: relu

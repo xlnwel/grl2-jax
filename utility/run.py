@@ -121,7 +121,7 @@ class Runner:
             if isinstance(action, tuple):
                 action, terms = action
             env_output = env.step(action)
-            next_obs, reward, done, info = env_output
+            next_obs, reward, discount, reset = env_output
 
             self.step += info.get('mask', 1) * self._frames_per_step
             if step_fn:

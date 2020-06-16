@@ -1,7 +1,7 @@
 ---
 env:
     name: dmc_walker_walk
-    log_steps: none
+    log_episode: True
     n_envs: 1
     frame_skip: 2
     precision: &prec 16

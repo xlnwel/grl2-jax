@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from utility.utils import isscalar, step_str
 from utility.display import pwc, assert_colorize
+from utility.graph import image_summary, video_summary
 from utility import yaml_op
 
 
@@ -51,8 +52,8 @@ def histogram_summary(writer, stats, prefix=None, step=None):
                 continue
             tf.summary.histogram(f'{prefix}/{k}', v)
 
-def graph_summary(writer, fn, args, step=None):
-    """ see utility.graph for available candidates of fn """
+def graph_summary(writer, sum_type, args, step=None):
+    fn = {'image': image_summary, 'video': video_summary}[sum_type]
     if step is None:
         step = tf.summary.experimental.get_step()
     def inner(*args):

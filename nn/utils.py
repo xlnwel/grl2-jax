@@ -4,7 +4,7 @@ from tensorflow.keras import layers, activations, initializers
 
 
 def get_activation(name):
-    if name.lower() == 'none' or name is None:
+    if name is None or name.lower() == 'none':
         return None
     elif name.lower() == 'leaky_relu':
         return tf.nn.leaky_relu

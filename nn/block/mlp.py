@@ -9,7 +9,6 @@ class MLP(tf.Module):
                 norm=None, activation=None, kernel_initializer='glorot_uniform', 
                 name=None, out_dtype=None, **kwargs):
         super().__init__(name=name)
-
         # Follows OpenAI's baselines, which uses a small-scale initializer
         # for policy head when using othogonal initialization
         out_gain = kwargs.pop('out_gain', .01)

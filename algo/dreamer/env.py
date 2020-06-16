@@ -18,38 +18,20 @@ def make_env(config):
         env = DeepMindControl(task, config.get('size', (64, 64)))
         env = wrappers.FrameSkip(env, config['frame_skip'])
         env = wrappers.NormalizeActions(env)
-        max_episode_steps = 1000
+        config['max_episode_steps'] = 1000
+        if config.get('frame_stack', 1) > 1:
+            env = B.FrameStack(env, config['frame_stack'], np_obs=False)
     elif suite == 'atari':
         env = Atari(
             task, config['frame_skip'], (64, 64), grayscale=False,
             life_done=True, sticky_actions=True)
-        max_episode_steps = 108000
+        config['max_episode_steps'] = 108000
     elif 'procgen' in config['name'].lower():
-        config['name'] = config['name'].split('_', 1)[-1]
-        gray_scale = config.pop('gray_scale', False)
-        frame_skip = config.pop('frame_skip', 1)
-        frame_stack = config.pop('frame_stack', 1)
-        np_obs = config.pop('np_obs', False)
         env = procgen.make_procgen_env(config)
-        if gray_scale:
-            env = wrappers.GrayScale(env)
-        if frame_skip > 1:
-            if gray_scale:
-                env = B.MaxAndSkipEnv(env, frame_skip=frame_skip)
-            else:
-                env = wrappers.FrameSkip(env, frame_skip=frame_skip)
-        if frame_stack > 1:
-            env = B.FrameStack(env, frame_stack, np_obs)
-
-        max_episode_steps = env.spec.max_episode_steps or 1000
+        config['max_episode_steps'] = env.spec.max_episode_steps or 1000
     else:
         raise NotImplementedError(suite)
-    if config.get('frame_stack', 1) > 1:
-        env = B.FrameStack(env, config['frame_stack'], config.get('np_obs', True))
-    env = wrappers.EnvStats(env, max_episode_steps, 
-            precision=config.get('precision', 32))
-    if config.get('log_episode'):
-        env = wrappers.LogEpisode(env)
+    env = wrappers.post_wrap(env, config)
 
     return env
     
