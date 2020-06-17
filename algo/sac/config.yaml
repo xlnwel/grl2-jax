@@ -15,7 +15,7 @@ model:
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: 1
+        value: .1
 agent:
     algorithm: &algo sac
     gamma: &gamma .99

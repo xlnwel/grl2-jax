@@ -15,13 +15,14 @@ from core.dataset import Dataset, process_with_env
 
 
 def train(agent, env, eval_env, replay):
-    def collect_and_learn(env, step, info, **kwargs):
-        replay.add(**kwargs)
-        if env.game_over():
+    def collect_and_learn(env, step, reset, **kwargs):
+        if reset:
+            kwargs['next_obs'] = env.prev_obs()
             # we reset noisy every episode. Theoretically, 
             # this follows the guide of deep exploration.
             # More importantly, it saves time!
             agent.reset_noisy()
+        replay.add(**kwargs)
         if step % agent.TRAIN_PERIOD == 0:
             agent.learn_log(step)
     

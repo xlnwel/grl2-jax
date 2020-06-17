@@ -1,7 +1,6 @@
 import numpy as np
 import gym
-from dm_control import suite
-from dm_env import specs
+
 
 from env import baselines as B
 
@@ -22,6 +21,7 @@ def make_dmc_env(config):
 
 """ original code from https://github.com/denisyarats/dmc2gym """
 def _spec_to_box(spec):
+    from dm_env import specs
     def extract_min_max(s):
         assert s.dtype == np.float64 or s.dtype == np.float32
         dim = np.int(np.prod(s.shape))
@@ -67,12 +67,13 @@ class DeepMindControl(gym.Env):
         self._from_pixels = from_pixels
         self._size = tuple(size)
         self._camera_id = camera_id
-        self._frame_skip = frame_skip
+        self.frame_skip = frame_skip
         self._channels_first = channels_first
 
         domain, task = name.split('_')
 
         # create task
+        from dm_control import suite
         self._env = suite.load(
             domain_name=domain,
             task_name=task,
@@ -153,18 +154,19 @@ class DeepMindControl(gym.Env):
         action = self._convert_action(action)
         assert self._true_action_space.contains(action), f'{action} not in {self._true_action_space}'
         reward = 0
-        extra = {'internal_state': self._env.physics.get_state().copy()}
+        info = {'internal_state': self._env.physics.get_state().copy()}
 
-        for _ in range(self._frame_skip):
+        for t in range(self.frame_skip):
             time_step = self._env.step(action)
             reward += time_step.reward or 0
             done = time_step.last()
             if done:
                 break
+        info['frame_skip'] = t+1
         obs = self._get_obs(time_step)
         self.current_state = _flatten_obs(time_step.observation)
-        extra['discount'] = time_step.discount
-        return obs, reward, done, extra
+        info['discount'] = time_step.discount
+        return obs, reward, done, info
 
     def reset(self):
         time_step = self._env.reset()

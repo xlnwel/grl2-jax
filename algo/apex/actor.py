@@ -66,7 +66,7 @@ def get_base_learner_class(BaseAgent):
             if 'epslen' in kwargs:
                 self.env_step += np.sum(kwargs['epslen'])
             if video is not None:
-                video_summary(f'{self.name}/sim', video, step=self.env_step, fps=20)
+                video_summary(f'{self.name}/sim', video, step=self.env_step)
 
     return BaseLearner
 
@@ -211,7 +211,9 @@ class Worker:
             self._send_episode_info(learner)
 
     def _run(self, weights, replay):
-        def collect(env, step, info, **kwargs):
+        def collect(env, step, reset, **kwargs):
+            if reset:
+                kwargs['next_obs'] = env.prev_obs()
             self.buffer.add_data(**kwargs)
             if self.buffer.is_full():
                 self._send_data(replay)

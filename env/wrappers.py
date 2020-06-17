@@ -273,9 +273,11 @@ class EnvStats(gym.Wrapper):
     def game_over(self):
         return self._game_over
 
+    def prev_obs(self):
+        return self._info['prev_env_output'].obs
+
     def prev_info(self):
-        assert 'prev_env_output' in self._info, self._info
-        return self._info.pop('prev_env_output').info
+        return self._info['prev_env_output'].info
 
     def info(self):
         return self._info

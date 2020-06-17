@@ -16,24 +16,25 @@ class Encoder(Module):
     def __init__(self, name='encoder'):
         super().__init__(name=name)
         ki = get_initializer('orthogonal', gain=np.sqrt(2))
-        self._convs = [
+        self._convs = tf.keras.Sequential([
             layers.Conv2D(32, 3, 2, activation='relu', kernel_initializer=ki),
             layers.Conv2D(32, 3, 1, activation='relu', kernel_initializer=ki),
             layers.Conv2D(32, 3, 1, activation='relu', kernel_initializer=ki),
             layers.Conv2D(32, 3, 1, activation='relu', kernel_initializer=ki),
-        ]
-        self._dense = mlp(out_size=self._out_size, norm=self._norm, activation='tanh')
-    
+        ])
+
+        self._dense = mlp([self._z_size], norm=self._norm, activation=self._dense_act)
+        
     def cnn(self, x):
         x = convert_obs(x, [0, 1])
-        for l in self._convs:
-            x = l(x)
+        x = self._convs(x)
         x = flatten(x)
         return x
     
     def mlp(self, x):
         x = self._dense(x)
         return x
+
 
 class Actor(Module):
     @config
@@ -42,6 +43,7 @@ class Actor(Module):
         self._is_action_discrete = is_action_discrete
         
         out_size = action_dim if is_action_discrete else 2*action_dim
+        self._z = mlp([self._z_size], norm='layer')
         self._layers = mlp(self._units_list, 
                             out_size=out_size,
                             norm=self._norm, 
@@ -49,12 +51,7 @@ class Actor(Module):
 
     @tf.function(experimental_relax_shapes=True)
     def action(self, x, deterministic=False, epsilon=0):
-        x = self._layers(x)
-
-        mu, logstd = tf.split(x, 2, -1)
-        logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-        std = tf.exp(logstd)
-        dist = tfd.MultivariateNormalDiag(mu, std)
+        dist = self._get_dist(x)
         raw_action = dist.mode() if deterministic else dist.sample()
         action = tf.tanh(raw_action)
         if epsilon:
@@ -64,21 +61,29 @@ class Actor(Module):
         return action
 
     def train_step(self, x):
-        x = self._layers(x)
-
-        mu, logstd = tf.split(x, 2, -1)
-        logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-        std = tf.exp(logstd)
-        dist = tfd.MultivariateNormalDiag(mu, std)
+        dist = self._get_dist(x)
         raw_action = dist.sample()
         raw_logpi = dist.log_prob(raw_action)
         action = tf.tanh(raw_action)
         logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
-        terms = dict(raw_act_std=std)
-
-        terms['entropy']= dist.entropy()
+        terms = dict(
+            raw_act_std=dist.stddev(),
+            entropy=dist.entropy())
 
         return action, logpi, terms
+
+    def _get_dist(self, x):
+        x = self._z(x)
+        x = self._layers(x)
+
+        mu, logstd = tf.split(x, 2, -1)
+        logstd = tf.tanh(logstd)
+        logstd = .5 * (logstd + 1.) / (self.LOG_STD_MAX - self.LOG_STD_MIN) + self.LOG_STD_MIN
+        std = tf.exp(logstd)
+        dist = tfd.MultivariateNormalDiag(mu, std)
+        
+        return dist
+
 
 class SoftQ(Module):
     @config
@@ -104,7 +109,7 @@ class Temperature(Module):
         super().__init__(name=name)
 
         if self._temp_type == 'variable':
-            self._log_temp = tf.Variable(0., dtype=tf.float32)
+            self._log_temp = tf.Variable(np.log(self._value), dtype=tf.float32)
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     
@@ -118,11 +123,16 @@ class CURL(Module):
     @config
     def __init__(self, name='curl'):
         super().__init__(name=name)
-        self._W = tf.Variable(tf.random.uniform((self._size, self._size)))
+        # self._layers = mlp(self._units_list, activation=self._activation)
+        self._W = tf.Variable(tf.random.uniform((self._z_size, self._z_size)))
     
     def __call__(self, x_anchor, x_pos):
+        # x_anchor = self._layers(x_anchor)
+        # x_pos = self._layers(x_pos)
+        x_pos = tf.stop_gradient(x_pos)
         Wx = tf.matmul(self._W, tf.transpose(x_pos))
         logits = tf.matmul(x_anchor, Wx)
+        logits = logits - tf.reduce_max(logits, -1, keepdims=True)
         return logits
 
 
@@ -148,5 +158,5 @@ def create_model(config, env):
         target_q1=SoftQ(q_config, 'target_q1'),
         target_q2=SoftQ(q_config, 'target_q2'),
         temperature=temperature,
-        curl=CURL(curl_config, 'curl')
+        # curl=CURL(curl_config, 'curl')
     )

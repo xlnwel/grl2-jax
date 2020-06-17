@@ -3,28 +3,32 @@ env:
     name: dmc_walker_walk
     size: [100, 100]
     n_envs: 1
-    frame_skip: 2
+    frame_skip: 8
     frame_stack: 3
     precision: &prec 16
 model:
     encoder:
-        out_size: &zsize 50
+        norm: layer
+        dense_act: none
+        z_size: &zsize 50
     actor:
-        units_list: [256, 256, 256, 256]
+        z_size: *zsize
+        units_list: [1024, 1024]
         norm: none
         activation: relu
-        LOG_STD_MIN: -20
+        LOG_STD_MIN: -10
         LOG_STD_MAX: 2
     q:
-        units_list: [256, 256]
+        units_list: [1024, 1024]
         norm: none
         activation: relu
     temperature:
         temp_type: 'variable'
         value: .1
     curl:
-        norm: layer
-        out_size: *zsize
+        # units_list: []
+        # activation: relu
+        z_size: *zsize
 agent:
     algorithm: &algo curl
     gamma: &gamma .99
@@ -32,8 +36,7 @@ agent:
     q_polyak: .99
     encoder_polyak: .95
     act_eps: 0
-    # target_entropy: .5                      # tune this param for discrete actions
-    
+
     MAX_STEPS: 1e6
     LOG_PERIOD: 1000
     actor_update_period: 2
@@ -71,4 +74,4 @@ replay:
     batch_size: *bs
     min_size: 1e3
     capacity: 1e5
-    has_next_obs: False
+    has_next_obs: True

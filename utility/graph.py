@@ -87,12 +87,15 @@ def save_video(name, video, fps=30):
 
 """ summaries useful for core.log.graph_summary"""
 def image_summary(name, images, step=None):
+    # when wrapped by tf.numpy_function in @tf.function, str are 
+    # represented by bytes so we need to convert it back to str
+    name = name if isinstance(name, str) else name.decode('utf-8')
     if len(images.shape) == 3:
         images = images[None]
     if np.issubdtype(images.dtype, np.floating):
         assert np.logical_and(images >= 0, images <= 1).all()
         images = np.clip(255 * images, 0, 255).astype(np.uint8)
-    img = grid_placed(images)[None]
+    img = np.expand_dims(grid_placed(images), 0)
     tf.summary.image(name + '/grid', img, step)
 
 def video_summary(name, video, size=None, fps=30, step=None):

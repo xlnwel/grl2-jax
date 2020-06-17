@@ -97,7 +97,7 @@ class Temperature(Module):
         if self._temp_type == 'state-action':
             self._layer = layers.Dense(1)
         elif self._temp_type == 'variable':
-            self._log_temp = tf.Variable(0., dtype=tf.float32)
+            self._log_temp = tf.Variable(self._value, dtype=tf.float32)
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     

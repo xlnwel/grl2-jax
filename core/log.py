@@ -53,6 +53,7 @@ def histogram_summary(writer, stats, prefix=None, step=None):
             tf.summary.histogram(f'{prefix}/{k}', v)
 
 def graph_summary(writer, sum_type, args, step=None):
+    """ This function should only be called inside a tf.function """
     fn = {'image': image_summary, 'video': video_summary}[sum_type]
     if step is None:
         step = tf.summary.experimental.get_step()

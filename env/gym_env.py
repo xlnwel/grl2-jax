@@ -31,7 +31,7 @@ def make_env(config):
     if 'reward_scale' in config or 'reward_clip' in config:
         env = RewardHack(env, **config)
     env = post_wrap(env, config)
-    
+
     return env
 
 def create_env(config, env_fn=None, force_envvec=False):
@@ -75,6 +75,12 @@ class Env(gym.Wrapper):
     def epslen(self, *args):
         return self.env.epslen()
 
+    def prev_obs(self):
+        return self.env.prev_obs()
+
+    def prev_info(self):
+        return self.env.prev_info()
+        
     def info(self):
         return self.env.info()
 
@@ -153,6 +159,10 @@ class EnvVec(EnvVecBase):
 
     def game_over(self):
         return np.array([env.game_over() for env in self.envs], dtype=np.bool)
+
+    def prev_obs(self, idxes=None):
+        idxes = self._get_idxes(idxes)
+        return [self.envs[i].prev_obs() for i in idxes]
 
     def prev_info(self, idxes=None):
         idxes = self._get_idxes(idxes)
@@ -263,6 +273,9 @@ class RayEnvVec(EnvVecBase):
         
     def game_over(self, idxes=None):
         return self._remote_call('game_over', idxes)
+
+    def prev_obs(self, idxes=None):
+        return self._remote_call('prev_obs', idxes)
 
     def prev_info(self, idxes=None):
         return self._remote_call('prev_info', idxes)

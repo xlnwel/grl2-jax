@@ -14,7 +14,7 @@ from env import baselines as B
 def make_atari_env(config):
     assert 'atari' in config['name']
     if config.setdefault('wrapper', 'baselines') == 'baselines':
-        name = config['name']
+        name = config['name'].split('_', 1)[-1]
         name = name[0].capitalize() + name[1:]
         version = 0 if config.setdefault('sticky_actions', True) else 4
         name = f'{name}NoFrameskip-v{version}'
@@ -26,7 +26,7 @@ def make_atari_env(config):
     else:
         env = Atari(**config)
     config.setdefault('max_episode_steps', 108000)    # 30min
-    
+
     return env
 
 class Atari:

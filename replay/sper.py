@@ -7,9 +7,10 @@ from replay.per import ProportionalPER
 
 
 class SequentialPER(ProportionalPER):
-    def __init__(self, config, state_keys=[]):
+    def __init__(self, config, state_keys=[], **prev_info):
         super().__init__(config)
         self._state_keys = state_keys
+        self._prev_info = prev_info
         self._temp_buff = {}
         self._memory = collections.deque(maxlen=self._capacity)
         self._pop_size = self._sample_size - self._burn_in_size
@@ -21,6 +22,7 @@ class SequentialPER(ProportionalPER):
     def pre_add(self, **kwargs):
         """ This function should only be called to add necessary stats
         when the environment is reset """
+        kwargs.update(self._prev_info)
         for k, v in kwargs.items():
             assert k in ['obs', 'prev_action', 'prev_reward'], k
             if k not in self._temp_buff:

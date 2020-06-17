@@ -11,11 +11,12 @@ from utility import pkg
 from env.gym_env import create_env
 from replay.func import create_replay
 from core.dataset import Dataset
-from algo.dreamer.env import make_env
 
 
 def train(agent, env, eval_env, replay):
-    def collect_and_learn(env, step, info, **kwargs):
+    def collect_and_learn(env, step, reset, **kwargs):
+        if reset:
+            kwargs['next_obs'] = env.prev_obs()
         replay.add(**kwargs)
         agent.learn_log(step)
 
@@ -31,14 +32,17 @@ def train(agent, env, eval_env, replay):
     print('Training starts...')
     while step < int(agent.MAX_STEPS):
         start_step = step
+        eps = np.sum(runner.episodes)
         start = time.time()
         step = runner.run(step_fn=collect_and_learn)
-        agent.store(fps=(step - start_step) / (time.time() - start))
+        agent.store(
+            fps=(step - start_step) / (time.time() - start),
+            tpe=(time.time() - start) / (np.sum(runner.episodes) - eps))
 
         eval_score, eval_epslen, video = evaluate(
-            eval_env, agent, record=agent.RECORD, size=(64, 64), fps=20)
+            eval_env, agent, record=agent.RECORD, size=(64, 64))
         if agent.RECORD:
-            video_summary(f'{agent.name}/sim', video, step=step)
+            video_summary(f'{agent.name}/sim', video, fps=20, step=step)
         agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         agent.log(step)
         agent.save()
@@ -54,6 +58,7 @@ def process_with_env(data, env, cropped_obs_shape, one_hot_action=False, dtype=t
     with tf.device('cpu:0'):
         obs = data['obs']
         data['obs'] = random_crop(obs, cropped_obs_shape)
+        data['next_obs'] = random_crop(data['next_obs'], cropped_obs_shape)
         data['obs_pos'] = random_crop(obs, cropped_obs_shape)
         if one_hot_action and env.is_action_discrete:
             data['action'] = tf.one_hot(data['action'], env.action_dim, dtype=dtype)
@@ -63,11 +68,11 @@ def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()
     configure_gpu()
 
-    env = create_env(env_config, env_fn=make_env)
+    env = create_env(env_config)
     assert env.n_envs == 1, \
         f'n_envs({env.n_envs}) > 1 is not supported here as it messes with n-step'
     eval_env_config = env_config.copy()
-    eval_env = create_env(eval_env_config, env_fn=make_env)
+    eval_env = create_env(eval_env_config)
 
     replay = create_replay(replay_config)
 
@@ -83,7 +88,7 @@ def main(env_config, model_config, agent_config, replay_config):
     create_model, Agent = pkg.import_agent(config=agent_config)
     models = create_model(model_config, env)
     agent = Agent(
-        name='dpg',
+        name=env.name,
         config=agent_config, 
         models=models, 
         dataset=dataset, 

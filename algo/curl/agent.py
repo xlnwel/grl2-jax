@@ -21,8 +21,8 @@ def center_crop_image(image, output_size):
     left = (w - new_w)//2
 
     image = image[top:top + new_h, left:left + new_w]
+    assert image.shape[:2] == output_size
     return image
-
 
 class Agent(BaseAgent):
     @agent_config
@@ -32,7 +32,7 @@ class Agent(BaseAgent):
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
         self._q_opt = Optimizer(self._optimizer, [self.encoder, self.q1, self.q2], self._q_lr)
-        self._curl_opt = Optimizer(self._optimizer, [self.encoder, self.curl], self._curl_lr)
+        # self._curl_opt = Optimizer(self._optimizer, [self.encoder, self.curl], self._curl_lr)
         if not isinstance(self.temperature, (float, tf.Variable)):
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr, beta_1=.5)
 
@@ -65,13 +65,12 @@ class Agent(BaseAgent):
         if len(obs.shape) % 2 == 1:
             obs = np.expand_dims(obs, 0)
         action = self.action(obs, deterministic)
-        return np.squeeze(action.numpy())
+        return np.squeeze(action.numpy(), 0)
 
     @tf.function
     def action(self, obs, deterministic=False, **kwargs):
         x = self.encoder.cnn(obs)
-        x = self.encoder.mlp(x)
-        action = self.actor.action(x, deterministic=deterministic)
+        action = self.actor.action(x, deterministic=deterministic, epsilon=self._act_eps)
         return action
 
     @step_track
@@ -84,8 +83,9 @@ class Agent(BaseAgent):
             self.train_step % self._actor_update_period == 0, tf.bool)
         data['update_actor'] = update_actor
         terms = self.learn(**data)
-        self._update_target_qs()
-        self._update_target_encoder()
+        if self.train_step % 2 == 0:
+            self._update_target_qs()
+            self._update_target_encoder()
 
         terms = {k: v.numpy() for k, v in terms.items()}
 
@@ -97,75 +97,71 @@ class Agent(BaseAgent):
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, obs_pos, update_actor, steps=1, IS_ratio=1):
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
-        old_action = action
+        next_x_actor = self.encoder.cnn(next_obs)
+        next_action, next_logpi, _ = self.actor.train_step(next_x_actor)
+
+        next_x_value = self.target_encoder.cnn(next_obs)
+        next_z_value = self.target_encoder.mlp(next_x_value)
+        next_q1_with_actor = self.target_q1(next_z_value, next_action)
+        next_q2_with_actor = self.target_q2(next_z_value, next_action)
+        next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
+        temp = self.temperature()
+        next_value = next_q_with_actor - temp * next_logpi
+        target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
+        target_q = tf.stop_gradient(target_q)
+        
+        terms = {}
         with tf.GradientTape(persistent=True) as tape:
             x = self.encoder.cnn(obs)
-            next_x = self.target_encoder.cnn(obs)
-            x_no_grad = tf.stop_gradient(x) # we don't pass actor gradients to the encoder
-            x = self.encoder.mlp(x)
-            next_x = self.target_encoder.mlp(next_x)
-            x_no_grad = self.encoder.mlp(x_no_grad)
-            action, logpi, terms = self.actor.train_step(x_no_grad)
-            temp = self.temperature()
-            temp_loss = -tf.reduce_mean(IS_ratio * temp 
-                * tf.stop_gradient(logpi + target_entropy))
-            terms['temp'] = temp
-            terms['temp_loss'] = temp_loss
+            z = self.encoder.mlp(x)
 
-            if update_actor:
-                q1_with_actor = self.q1(x_no_grad, action)
-                q2_with_actor = self.q2(x_no_grad, action)
-                q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
-                actor_loss = tf.reduce_mean(IS_ratio * tf.stop_gradient(temp) * logpi - q_with_actor)
-            else:
-                actor_loss = tf.convert_to_tensor(0.)
-            
-            nth_action, nth_logpi, _ = self.actor.train_step(next_x)
-            nth_q1_with_actor = self.target_q1(next_x, nth_action)
-            nth_q2_with_actor = self.target_q2(next_x, nth_action)
-            nth_q_with_actor = tf.minimum(nth_q1_with_actor, nth_q2_with_actor)
-
-            q1 = self.q1(x, old_action)
-            q2 = self.q2(x, old_action)
-            
-
-            nth_value = nth_q_with_actor - temp * nth_logpi
-            target_q = n_step_target(reward, nth_value, discount, self._gamma, steps)
-            target_q = tf.stop_gradient(target_q)
+            q1 = self.q1(z, action)
+            q2 = self.q2(z, action)
             q1_error = target_q - q1
             q2_error = target_q - q2
-
             q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
             q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
             q_loss = q1_loss + q2_loss
 
-            x_pos = self.target_encoder.cnn(obs_pos)
-            x_pos = self.target_encoder.mlp(x_pos)
-            x_pos = tf.stop_gradient(x_pos)
-            logits = self.curl(x, x_pos)
-            tf.debugging.assert_shapes([[logits, (self._batch_size, self._batch_size)]])
-            labels = tf.range(logits.shape[0])
-            curl_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits)
+            # x_pos = self.target_encoder.cnn(obs_pos)
+            # z_pos = self.target_encoder.mlp(x_pos)
+            # logits = self.curl(z, z_pos)
+            # tf.debugging.assert_shapes([[logits, (self._batch_size, self._batch_size)]])
+            # labels = tf.range(logits.shape[0])
+            # curl_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            #     labels=labels, logits=logits)
+            # curl_loss = tf.reduce_mean(curl_loss)
+
+        terms['q_norm'] = self._q_opt(tape, q_loss)
+        # terms['curl_norm'] = self._curl_opt(tape, curl_loss)
 
         if self._is_per:
             priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
             terms['priority'] = priority
         
-        terms['actor_loss'] = actor_loss
         if update_actor:
-            actor_norm = self._actor_opt(tape, actor_loss)
-        terms['q_norm'] = self._q_opt(tape, q_loss)
-        terms['temp_norm'] = self._temp_opt(tape, temp_loss)
-            
+            with tf.GradientTape(persistent=True) as actor_tape:
+                temp = self.temperature()
+                new_action, logpi, _ = self.actor.train_step(x)
+                temp_loss = -tf.reduce_mean(IS_ratio * temp 
+                    * tf.stop_gradient(logpi + target_entropy))
+                q1_with_actor = self.q1(z, new_action)
+                q2_with_actor = self.q2(z, new_action)
+                q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
+                actor_loss = tf.reduce_mean(IS_ratio * (tf.stop_gradient(temp) * logpi - q_with_actor))
+
+            self._actor_opt(actor_tape, actor_loss)
+            self._temp_opt(actor_tape, temp_loss)
+        
         terms.update(dict(
+            temp=temp,
             q1=q1, 
             q2=q2,
-            logpi=logpi,
             target_q=target_q,
             q1_loss=q1_loss, 
             q2_loss=q2_loss,
             q_loss=q_loss, 
-            curl_loss=curl_loss
+            # curl_loss=curl_loss
         ))
 
         return terms

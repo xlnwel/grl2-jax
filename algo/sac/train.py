@@ -15,6 +15,8 @@ from core.dataset import Dataset, process_with_env
 
 def train(agent, env, eval_env, replay):
     def collect_and_learn(env, step, reset, **kwargs):
+        if reset:
+            kwargs['next_obs'] = env.prev_obs()
         replay.add(**kwargs)
         agent.learn_log(step)
 
