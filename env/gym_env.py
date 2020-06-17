@@ -10,29 +10,28 @@ from utility.utils import isscalar, RunningMeanStd
 from env.wrappers import *
 from env import atari
 from env import procgen
+from env import dmc
 from env import baselines as B
 
 
 def make_env(config):
-    config = config.copy()
+    # config = config.copy()    # do not copy to make changes visible from the outside
     if 'atari' in config['name'].lower():
-        if 'max_episode_steps' not in config:
-            config['max_episode_steps'] = max_episode_steps = 108000    # 30min
         env = atari.make_atari_env(config)
     elif 'procgen' in config['name'].lower():
         env = procgen.make_procgen_env(config)
-        if 'max_episode_steps' not in config:
-            config['max_episode_steps'] = env.spec.max_episode_steps
+    elif 'dmc' in config['name'].lower():
+        env = dmc.make_dmc_env(config)
     else:
         env = gym.make(config['name']).env
         env = Dummy(env)
-        if 'max_episode_steps' not in config:
-            config['max_episode_steps'] = env.spec.max_episode_steps
+        config.setdefault('max_episode_steps', env.spec.max_episode_steps)
         if config.get('frame_skip'):
             env = FrameSkip(env, config['frame_skip'])
     if 'reward_scale' in config or 'reward_clip' in config:
         env = RewardHack(env, **config)
     env = post_wrap(env, config)
+    
     return env
 
 def create_env(config, env_fn=None, force_envvec=False):

@@ -12,19 +12,21 @@ from env import baselines as B
 
 
 def make_atari_env(config):
-    config['name'] = config['name'].split('_', 1)[-1]
-    if config.get('wrapper', 'baselines') == 'baselines':
+    assert 'atari' in config['name']
+    if config.setdefault('wrapper', 'baselines') == 'baselines':
         name = config['name']
         name = name[0].capitalize() + name[1:]
-        version = 0 if config.get('sticky_actions', True) else 4
+        version = 0 if config.setdefault('sticky_actions', True) else 4
         name = f'{name}NoFrameskip-v{version}'
-        env = B.make_atari(name, config.get('frame_skip', 1))
+        env = B.make_atari(name, config.setdefault('frame_skip', 1))
         env = B.wrap_deepmind(env, 
-                            episode_life=config.get('life_done', False), 
-                            frame_stack=config.get('frame_stack', 1),
-                            np_obs=config.get('np_obs', False))
+                            episode_life=config.setdefault('life_done', False), 
+                            frame_stack=config.setdefault('frame_stack', 1),
+                            np_obs=config.setdefault('np_obs', False))
     else:
         env = Atari(**config)
+    config.setdefault('max_episode_steps', 108000)    # 30min
+    
     return env
 
 class Atari:
@@ -49,6 +51,7 @@ class Atari:
                 sticky_actions=True, gray_scale=True, 
                 clip_reward=False, np_obs=False, **kwargs):
         version = 0 if sticky_actions else 4
+        name = name.split('_', 1)[-1]
         name = name[0].capitalize() + name[1:]
         name = f'{name}NoFrameskip-v{version}'
         env = gym.make(name)

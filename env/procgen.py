@@ -8,10 +8,10 @@ from env import baselines as B
 
 def make_procgen_env(config):
     config['name'] = config['name'].split('_', 1)[-1]
-    gray_scale = config.pop('gray_scale', False)
-    frame_skip = config.pop('frame_skip', 1)
-    frame_stack = config.pop('frame_stack', 1)
-    np_obs = config.pop('np_obs', False)
+    gray_scale = config.setdefault('gray_scale', False)
+    frame_skip = config.setdefault('frame_skip', 1)
+    frame_stack = config.setdefault('frame_stack', 1)
+    np_obs = config.setdefault('np_obs', False)
     env = Procgen(config)
     if gray_scale:
         env = W.GrayScale(env)
@@ -22,6 +22,8 @@ def make_procgen_env(config):
             env = W.FrameSkip(env, frame_skip=frame_skip)
     if frame_stack > 1:
         env = B.FrameStack(env, frame_stack, np_obs)
+    config.setdefault('max_episode_steps', env.spec.max_episode_steps)
+    
     return env
 
 class Procgen(gym.Env):
