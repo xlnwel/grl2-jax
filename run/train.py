@@ -116,7 +116,7 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     # Grid search happens here
-                    processes += gs(frame_skip=[0, 4], frame_stack=[4])
+                    processes += gs(precision=[5e-5, 1e-4, 3e-4])
                 else:
                     processes += gs()
             else:

@@ -35,12 +35,15 @@ class Agent(BaseAgent):
 
         self._action_dim = env.action_dim
         self._is_action_discrete = env.is_action_discrete
+        if not hasattr(self, '_target_entropy'):
+            self._target_entropy = .98 * np.log(self._action_dim) \
+                if self._is_action_discrete else -self._action_dim
 
         TensorSpecs = dict(
-            obs=(env.obs_shape, tf.float32, 'obs'),
+            obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=((env.action_dim,), tf.float32, 'action'),
             reward=((), tf.float32, 'reward'),
-            next_obs=(env.obs_shape, tf.float32, 'next_obs'),
+            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
             discount=((), tf.float32, 'discount'),
         )
         if self._is_per:
@@ -58,8 +61,7 @@ class Agent(BaseAgent):
     def learn_log(self, step):
         data = self.dataset.sample()
         if self._is_per:
-            idxes = data['idxes'].numpy()
-            del data['saved_idxes']
+            idxes = data.pop('idxes').numpy()
 
         terms = self.learn(**data)
         self._update_target_nets()
@@ -77,54 +79,48 @@ class Agent(BaseAgent):
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
-        target_entropy = getattr(self, 'target_entropy', -self._action_dim)
-        old_action = action
-        with tf.GradientTape(persistent=True) as tape:
-            action, logpi, terms = self.actor.train_step(obs)
-            q1_with_actor = self.q1(obs, action)
-            q2_with_actor = self.q2(obs, action)
-            q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
-
-            nth_action, nth_logpi, _ = self.actor.train_step(next_obs)
-            nth_q1_with_actor = self.target_q1(next_obs, nth_action)
-            nth_q2_with_actor = self.target_q2(next_obs, nth_action)
-            nth_q_with_actor = tf.minimum(nth_q1_with_actor, nth_q2_with_actor)
-            
-            if isinstance(self.temperature, (float, tf.Variable)):
-                temp = nth_temp = self.temperature
-            else:
-                log_temp, temp = self.temperature(obs, action)
-                _, nth_temp = self.temperature(next_obs, nth_action)
-                temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
-                    * tf.stop_gradient(logpi + target_entropy))
-                terms['temp'] = temp
-                terms['temp_loss'] = temp_loss
-
-            q1 = self.q1(obs, old_action)
-            q2 = self.q2(obs, old_action)
-            
-            actor_loss = tf.reduce_mean(IS_ratio * tf.stop_gradient(temp) * logpi - q_with_actor)
-
-            nth_value = nth_q_with_actor - nth_temp * nth_logpi
-            target_q = n_step_target(reward, nth_value, discount, self._gamma, steps)
-            target_q = tf.stop_gradient(target_q)
+        next_action, next_logpi, _ = self.actor.train_step(next_obs)
+        next_q1_with_actor = self.target_q1(next_obs, next_action)
+        next_q2_with_actor = self.target_q2(next_obs, next_action)
+        next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
+        _, temp = self.temperature(next_obs, next_action)
+        next_value = next_q_with_actor - temp * next_logpi
+        target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
+        target_q = tf.stop_gradient(target_q)
+        
+        terms = {}
+        with tf.GradientTape() as tape:
+            q1 = self.q1(obs, action)
+            q2 = self.q2(obs, action)
             q1_error = target_q - q1
             q2_error = target_q - q2
-
             q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
             q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
             q_loss = q1_loss + q2_loss
+        terms['q_norm'] = self._q_opt(tape, q_loss)
+
+        with tf.GradientTape(persistent=True) as actor_tape:
+            action, logpi, actor_terms = self.actor.train_step(obs)
+            terms.update(actor_terms)
+            log_temp, temp = self.temperature(obs, action)
+            temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
+                * tf.stop_gradient(logpi + self._target_entropy))
+            q1_with_actor = self.q1(obs, action)
+            q2_with_actor = self.q2(obs, action)
+            q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
+            actor_loss = tf.reduce_mean(IS_ratio * 
+                (tf.stop_gradient(temp) * logpi - q_with_actor))
+
+        self._actor_opt(actor_tape, actor_loss)
+        self._temp_opt(actor_tape, temp_loss)
 
         if self._is_per:
             priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
             terms['priority'] = priority
             
-        terms['actor_norm'] = self._actor_opt(tape, actor_loss)
-        terms['q_norm'] = self._q_opt(tape, q_loss)
-        if not isinstance(self.temperature, (float, tf.Variable)):
-            terms['temp_norm'] = self._temp_opt(tape, temp_loss)
-            
         terms.update(dict(
+            temp=temp,
+            temp_loss=temp_loss,
             actor_loss=actor_loss,
             q1=q1, 
             q2=q2,

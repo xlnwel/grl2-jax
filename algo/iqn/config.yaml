@@ -3,6 +3,7 @@ env:
     name: atari_pong
     wrapper: baselines
     sticky_actions: False
+    frame_skip: 4
     frame_stack: 4
     life_done: False
     seed: 0
@@ -26,8 +27,8 @@ agent:
     schedule_act_eps: True
     act_eps: 0
 
-    MAX_STEPS: 1e7      # maximum training frames
-    TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
+    MAX_STEPS: 4e5      # maximum env frames
+    TRAIN_PERIOD: 4    # #frames = 1 agent step when frame skip = 4
     EVAL_PERIOD: 1e6
     LOG_PERIOD: 1e4
     N_UPDATES: 1
@@ -70,6 +71,6 @@ replay:
     n_steps: 1
     gamma: *gamma
     batch_size: *bs
-    min_size: 5e4
-    capacity: 1e5
+    min_size: 1600
+    capacity: 4e5
     has_next_obs: False

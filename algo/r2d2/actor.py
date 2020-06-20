@@ -22,6 +22,7 @@ from env.gym_env import create_env
 from core.dataset import process_with_env, DataFormat, RayDataset
 from algo.apex.actor import get_base_learner_class, BaseEvaluator
 
+
 def get_learner_class(BaseAgent):
     BaseLearner = get_base_learner_class(BaseAgent)
     class Learner(BaseLearner):
@@ -33,7 +34,7 @@ def get_learner_class(BaseAgent):
                     replay):
             cpu_affinity('Learner')
             silence_tf_logs()
-            configure_threads(config['n_cpus'], config['n_cpus'])
+            configure_threads(config['n_learner_cpus'], config['n_learner_cpus'])
             configure_gpu()
             configure_precision(config['precision'])
 
@@ -52,9 +53,11 @@ def get_learner_class(BaseAgent):
             is_per = ray.get(replay.name.remote()).endswith('per')
             store_state = config['store_state']
             data_format = pkg.import_module('agent', config=config).get_data_format(
-                env, batch_size, sample_size, is_per, store_state, self.models['q'].state_size
+                env, batch_size, sample_size, is_per, 
+                store_state, self.models['q'].state_size
             )
-            process = functools.partial(process_with_env, env=env, obs_range=[0, 1])
+            process = functools.partial(process_with_env, 
+                env=env, obs_range=[0, 1], one_hot_action=False)
             dataset = RayDataset(replay, data_format, process)
 
             super().__init__(
@@ -100,7 +103,9 @@ class Worker:
                 config=model_config, 
                 env=env)
 
-        self.buffer = buffer_fn(buffer_config, state_keys=['h', 'c'])
+        self.buffer = buffer_fn(buffer_config, state_keys=['h', 'c'], 
+            prev_action=0, prev_reward=0)
+        self.buffer.pre_add(obs=env.output().obs)
         self._is_per = buffer_config['type'].endswith('per')
 
         assert self.env.is_action_discrete == True
@@ -172,21 +177,19 @@ class Worker:
             self._send_episode_info(learner)
         
     def _run(self, weights, replay):
-        def reset_fn(obs, reward, **kwargs):
-            self.buffer.pre_add(obs=obs, prev_action=0, prev_reward=reward)
-        def collect(env, step, info, obs, action, reward, next_obs, **kwargs):
-            # TODO: add first transition in an episode
-            kwargs['obs'] = next_obs
+        def collect(env, step, reset, obs, action, reward, next_obs, **kwargs):
+            kwargs['obs'] = env.prev_obs() if reset else next_obs
             kwargs['prev_action'] = action
             kwargs['prev_reward'] = reward
             self.buffer.add(**kwargs)
             if self.buffer.is_full():
                 self._send_data(replay)
-            if env.already_done():
+            if reset:
                 self.buffer.reset()
+                self.buffer.pre_add(obs=next_obs)
 
         self.models.set_weights(weights)
-        self.runner.run(reset_fn=reset_fn, step_fn=collect)
+        self.runner.run(step_fn=collect)
         
     def store(self, score, epslen):
         self._info['score'].append(score)

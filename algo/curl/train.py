@@ -54,13 +54,13 @@ def random_crop(imgs, output_shape):
     cropped_imgs = tf.map_fn(fn, imgs)
     return cropped_imgs
 
-def process_with_env(data, env, cropped_obs_shape, one_hot_action=False, dtype=tf.float32):
+def process_with_env(data, env, cropped_obs_shape, one_hot_action=True, dtype=tf.float32):
     with tf.device('cpu:0'):
         obs = data['obs']
         data['obs'] = random_crop(obs, cropped_obs_shape)
         data['next_obs'] = random_crop(data['next_obs'], cropped_obs_shape)
         data['obs_pos'] = random_crop(obs, cropped_obs_shape)
-        if one_hot_action and env.is_action_discrete:
+        if env.is_action_discrete and one_hot_action:
             data['action'] = tf.one_hot(data['action'], env.action_dim, dtype=dtype)
     return data
 

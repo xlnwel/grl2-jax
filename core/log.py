@@ -28,22 +28,17 @@ def set_summary_step(step):
     tf.summary.experimental.set_step(step)
 
 def scalar_summary(writer, stats, prefix=None, step=None):
-    if step:
+    if step is not None:
         tf.summary.experimental.set_step(step)
     prefix = prefix or 'stats'
     with writer.as_default():
         for k, v in stats.items():
             if isinstance(v, str):
                 continue
-            if tf.rank(v).numpy() == 0:
-                tf.summary.scalar(f'{prefix}/{k}', v, step=step)
-            else:
-                v = tf.convert_to_tensor(v, dtype=tf.float32)
-                tf.summary.scalar(f'{prefix}/{k}_mean', tf.reduce_mean(v), step=step)
-                tf.summary.scalar(f'{prefix}/{k}_std', tf.math.reduce_std(v), step=step)
+            tf.summary.scalar(f'{prefix}/{k}', tf.reduce_mean(v), step=step)
 
 def histogram_summary(writer, stats, prefix=None, step=None):
-    if step:
+    if step is not None:
         tf.summary.experimental.set_step(step)
     prefix = prefix or 'stats'
     with writer.as_default():

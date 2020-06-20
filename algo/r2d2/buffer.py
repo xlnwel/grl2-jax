@@ -33,9 +33,10 @@ class LocalBuffer(ABC):
 
 class EnvBuffer(LocalBuffer):
     @config
-    def __init__(self, state_keys):
+    def __init__(self, state_keys, **prev_info):
         self._memory = {}
         self._state_keys = state_keys
+        self._prev_info = prev_info
         self._pop_size = self._sample_size - self._burn_in_size
         self._idx = 0
 
@@ -50,6 +51,7 @@ class EnvBuffer(LocalBuffer):
     def pre_add(self, **kwargs):
         """ This function should only be called to add necessary stats
         when the environment is reset """
+        kwargs.update(self._prev_info)
         for k, v in kwargs.items():
             assert k in ['obs', 'prev_action', 'prev_reward'], k
             if k not in self._memory:
@@ -76,36 +78,3 @@ class EnvBuffer(LocalBuffer):
                     for k, v in self._memory.items()}
         self._idx = self._burn_in_size
         return data
-
-
-if __name__ == '__main__':
-    config = dict(
-        type='sper',                      # per or uniform
-        precision=32,
-        # arguments for PER
-        beta0=0.4,
-        to_update_top_priority=False,
-
-        # arguments for general replay
-        batch_size=2,
-        sample_size=7,
-        burn_in_size=2,
-        min_size=2,
-        capacity=100,
-    )
-
-    buff = EnvBuffer(config, ['h', 'c'])
-    n = np.random.randint(100, 1000)
-    for i in range(1000):
-        h = np.ones(3) * i
-        c = np.ones(3) * i
-        r = i
-        d = i % n != 0
-        buff.add(reward=r, discount=d, h=h, c=c)
-        if buff.is_full():
-            data = buff.sample()
-            print(data)
-            np.testing.assert_equal(data['reward'][0], data['h'][0])
-            np.testing.assert_equal(data['reward'][0], data['c'][0])
-            print(buff._idx)
-        if not d: buff.reset()

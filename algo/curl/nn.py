@@ -51,38 +51,55 @@ class Actor(Module):
 
     @tf.function(experimental_relax_shapes=True)
     def action(self, x, deterministic=False, epsilon=0):
-        dist = self._get_dist(x)
-        raw_action = dist.mode() if deterministic else dist.sample()
-        action = tf.tanh(raw_action)
-        if epsilon:
-            action = tf.clip_by_value(
-                tfd.Normal(action, epsilon).sample(), -1, 1)
+        x = self._z(x)
+        x = self._layers(x)
+
+        if self._is_action_discrete:
+            dist = tfd.Categorical(logits=x)
+            action = dist.mode() if deterministic else dist.sample()
+            if epsilon:
+                rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
+                action = tf.where(
+                    tf.random.uniform(action.shape[:-1], 0, 1) < epsilon,
+                    rand_act, action)
+        else:
+            mu, logstd = tf.split(x, 2, -1)
+            logstd = tf.tanh(logstd)
+            logstd = .5 * (logstd + 1.) / (self.LOG_STD_MAX - self.LOG_STD_MIN) + self.LOG_STD_MIN
+            std = tf.exp(logstd)
+            dist = tfd.MultivariateNormalDiag(mu, std)
+            raw_action = dist.mode() if deterministic else dist.sample()
+            action = tf.tanh(raw_action)
+            if epsilon:
+                action = tf.clip_by_value(
+                    tfd.Normal(action, epsilon).sample(), -1, 1)
 
         return action
 
     def train_step(self, x):
-        dist = self._get_dist(x)
-        raw_action = dist.sample()
-        raw_logpi = dist.log_prob(raw_action)
-        action = tf.tanh(raw_action)
-        logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
-        terms = dict(
-            raw_act_std=dist.stddev(),
-            entropy=dist.entropy())
-
-        return action, logpi, terms
-
-    def _get_dist(self, x):
         x = self._z(x)
         x = self._layers(x)
 
-        mu, logstd = tf.split(x, 2, -1)
-        logstd = tf.tanh(logstd)
-        logstd = .5 * (logstd + 1.) / (self.LOG_STD_MAX - self.LOG_STD_MIN) + self.LOG_STD_MIN
-        std = tf.exp(logstd)
-        dist = tfd.MultivariateNormalDiag(mu, std)
-        
-        return dist
+        if self._is_action_discrete:
+            dist = Categorical(logits=x)
+            action = dist.sample(one_hot=True)
+            logpi = dist.log_prob(action)
+            terms = {}
+        else:
+            mu, logstd = tf.split(x, 2, -1)
+            logstd = tf.tanh(logstd)
+            logstd = .5 * (logstd + 1.) / (self.LOG_STD_MAX - self.LOG_STD_MIN) + self.LOG_STD_MIN
+            std = tf.exp(logstd)
+            dist = tfd.MultivariateNormalDiag(mu, std)
+            raw_action = dist.sample()
+            raw_logpi = dist.log_prob(raw_action)
+            action = tf.tanh(raw_action)
+            logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
+            terms = dict(raw_act_std=dist.stddev())
+            
+        terms['entropy']=dist.entropy()
+
+        return action, logpi, terms
 
 
 class SoftQ(Module):
@@ -158,5 +175,5 @@ def create_model(config, env):
         target_q1=SoftQ(q_config, 'target_q1'),
         target_q2=SoftQ(q_config, 'target_q2'),
         temperature=temperature,
-        # curl=CURL(curl_config, 'curl')
+        curl=CURL(curl_config, 'curl')
     )

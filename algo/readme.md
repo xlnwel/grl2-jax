@@ -1,6 +1,8 @@
 ## Algorithms implemented in each folder
 
 - apex: apex-dqn, apex-sac
+- curl: curl
+- curl2: curl with discrete action
 - dqn: raibow(except c51)
 - iqn: raibow with iqwn
 - dreamer: dreamer

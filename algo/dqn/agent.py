@@ -51,18 +51,18 @@ class Agent(BaseAgent):
         self._action_dim = env.action_dim
 
         # Explicitly instantiate tf.function to initialize variables
-        obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else self._dtype
+        obs_dtype = env.obs_dtype
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            action=((), env.action_dtype, 'action'),
-            reward=((), self._dtype, 'reward'),
+            action=((self._action_dim,), tf.float32, 'action'),
+            reward=((), tf.float32, 'reward'),
             next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
-            discount=((), self._dtype, 'discount'),
+            discount=((), tf.float32, 'discount'),
         )
         if self._is_per:
-            TensorSpecs['IS_ratio'] = ((), self._dtype, 'IS_ratio')
+            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
         if is_nsteps:
-            TensorSpecs['steps'] = ((), self._dtype, 'steps')
+            TensorSpecs['steps'] = ((), tf.float32, 'steps')
         self.learn = build(self._learn, TensorSpecs)
 
         self._sync_target_nets()
@@ -86,8 +86,8 @@ class Agent(BaseAgent):
                 data = self.dataset.sample()
 
             if self._is_per:
-                idxes = data['idxes'].numpy()
-                del data['idxes']
+                idxes = data.pop('idxes').numpy()
+
             with TBTimer('learn', 2500):
                 terms = self.learn(**data)
             if self._to_sync(self.train_step):

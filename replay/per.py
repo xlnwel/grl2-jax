@@ -54,12 +54,12 @@ class PERBase(Replay):
 
     @override(Replay)
     def _merge(self, local_buffer, length):
-        assert np.all(local_buffer['priority'][: length] != 0)
+        priority = local_buffer.pop('priority', self._top_priority)[:length]
+        np.testing.assert_array_less(0, priority)
         # update sum tree
         mem_idxes = np.arange(self._mem_idx, self._mem_idx + length) % self._capacity
-        np.testing.assert_equal(len(mem_idxes), len(local_buffer['priority']))
-        self._data_structure.batch_update(mem_idxes, local_buffer['priority'])
-        del local_buffer['priority']
+        np.testing.assert_equal(len(mem_idxes), len(priority))
+        self._data_structure.batch_update(mem_idxes, priority)
         # update memory
         super()._merge(local_buffer, length)
         

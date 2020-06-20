@@ -96,7 +96,7 @@ def image_summary(name, images, step=None):
         assert np.logical_and(images >= 0, images <= 1).all()
         images = np.clip(255 * images, 0, 255).astype(np.uint8)
     img = np.expand_dims(grid_placed(images), 0)
-    tf.summary.image(name + '/grid', img, step)
+    tf.summary.image(name + '/image', img, step)
 
 def video_summary(name, video, size=None, fps=30, step=None):
     name = name if isinstance(name, str) else name.decode('utf-8')
@@ -124,4 +124,4 @@ def video_summary(name, video, size=None, fps=30, step=None):
     except (IOError, OSError) as e:
         print('GIF summaries require ffmpeg in $PATH.', e)
         frames = video.transpose((0, 2, 1, 3, 4)).reshape((1, B * H, T * W, C))
-        tf.summary.image(name + '/grid', frames, step)
+        tf.summary.image(name + '/image', frames, step)

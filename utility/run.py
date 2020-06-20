@@ -53,7 +53,7 @@ class Runner:
             obs = next_obs
             # logging and reset 
             if reset:
-                info = self.env.prev_info()
+                info = self.env.info()
                 self.agent.store(
                     score=info['score'], epslen=info['epslen'])
                 self.episodes += 1
@@ -89,7 +89,7 @@ class Runner:
             # logging and reset 
             done_env_ids = [i for i, r in enumerate(reset) if r]
             if done_env_ids:
-                info = self.env.prev_info(done_env_ids)
+                info = self.env.info(done_env_ids)
                 score = [i['score'] for i in info]
                 epslen = [i['epslen'] for i in info]
                 self.agent.store(score=score, epslen=epslen)
@@ -249,7 +249,8 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
                         for t, s in zip(env_output, eo):
                             for si, ti in enumerate(done_env_ids):
                                 t[ti] = s[si]
-                    break
+                    else:
+                        break
 
     if record:
         frames = list(frames.values())

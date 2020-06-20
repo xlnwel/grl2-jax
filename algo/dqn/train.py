@@ -37,7 +37,7 @@ def train(agent, env, eval_env, replay):
     to_log = Every(agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
-    while step < int(agent.MAX_STEPS):
+    while step <= int(agent.MAX_STEPS):
         start_step = step
         start = time.time()
         step = runner.run(step_fn=collect_and_learn)
@@ -51,7 +51,7 @@ def train(agent, env, eval_env, replay):
             eval_score, eval_epslen, video = evaluate(
                 eval_env, agent, record=agent.RECORD, size=(64, 64), n=n)
             if agent.RECORD:
-                video_summary(f'{agent.name}/sim', video, step=step, fps=20)
+                video_summary(f'{agent.name}/sim', video, step=step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         agent.log(step)
         agent.save()
@@ -71,6 +71,7 @@ def main(env_config, model_config, agent_config, replay_config):
     # if env_config['name'].startswith('procgen'):
     #     start_level = 200
     eval_env_config = env_config.copy()
+    eval_env_config.pop('clip_reward', False)
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 

@@ -60,8 +60,8 @@ class Actor(Module):
         x = self._layers(x)
 
         if self._is_action_discrete:
-            dist = Categorical(x)
-            action = dist.sample()
+            dist = Categorical(logits=x)
+            action = dist.sample(one_hot=True)
             logpi = dist.log_prob(action)
             terms = {}
         else:
@@ -105,7 +105,7 @@ class Temperature(Module):
         if self._temp_type == 'state-action':
             self._layer = layers.Dense(1)
         elif self._temp_type == 'variable':
-            self._log_temp = tf.Variable(self._value, dtype=tf.float32)
+            self._log_temp = tf.Variable(np.log(self._value), dtype=tf.float32)
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     

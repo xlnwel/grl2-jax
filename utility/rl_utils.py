@@ -108,11 +108,12 @@ def retrace_lambda(reward, q, next_value, next_ratio, discount, lambda_=.95, rat
     if ratio_clip is not None:
         next_ratio = tf.minimum(next_ratio, ratio_clip)
     next_ratio *= lambda_
-    delta = reward + discount * next_value - q
-
+    
     if tbo:
         q = inverse_h(q)
         next_value = inverse_h(next_value)
+    delta = reward + discount * next_value - q
+
     # because we generally assume q_T - Q_T == 0, we do not need 𝜌_T
     assert delta.shape[0] == next_ratio.shape[0] + 1, f'{delta.shape} vs {next_ratio.shape}'
     # we starts from delta[-1] as we generally assume q_T - Q_T == 0,

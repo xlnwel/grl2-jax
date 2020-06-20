@@ -1,71 +1,76 @@
 ---
 env:
-    name: atari_pong
-    wrapper: my_atari
-    life_done: False
-    sticky_actions: True
-    frame_skip: 4
+    name: procgen_coinrun
+    wrapper: baselines
+    sticky_actions: False
+    frame_skip: 1
+    frame_stack: 1
+    np_obs: True
     seed: 0
 
 model:
-    cnn: nature
+    cnn: nature #todo
     lstm_units: 512
     head_units: [512]
     activation: relu
-    duel: True
+    duel: False
 
 agent:
-    algorithm: &algo rdqn
-    gamma: 0.99
+    algorithm: &algo r2d2
+    gamma: 0.997    #todo
     lambda: .95
-    precision: &prec 32
-    batch_size: &bs 32
+    precision: &prec 16
+    batch_size: &bs 64
+    schedule_act_eps: True
+    act_eps: 0
 
     store_state: True
     burn_in: True
     sample_size: &ss 120
     burn_in_size: &bis 40
     add_input: False
-    act_eps: 0.3
 
-    MAX_STEPS: 1e7          # maximum env steps
-    LOG_PERIOD: 1e5
-    EVAL_PERIOD: 1e6
-    TRAIN_PERIOD: 1000
-    N_UPDATES: 100
+    MAX_STEPS: 8e6
+    LOG_PERIOD: &log 1000
+    N_UPDATES: *log
+    
+    # distributed algo params
+    n_workers: 4
+    SYNC_PERIOD: 1000
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
+    RECORD_PERIOD: 100
 
-    loss_type: mse   # huber or mse
-    target_update_period: 8000
-    tbo: False                              # transformed Bellman Operator
-    
+    loss_type: mse                          # huber or mse
+    target_update_period: 1500
+    tbo: False
+
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
     lr: 1e-4
     epsilon: 1e-4
-    clip_norm: 40
+    clip_norm: 0
 
     # arguments for PER
-    per_alpha: .9
+    per_alpha: 0.9
     per_eta: .9
     per_epsilon: 1e-4
 
 replay:
     type: sper                      # per or uniform
-    precision: *prec
+    precision: 32
     # arguments for PER
-    beta0: 0
+    beta0: 0                        # follow Agent57
     to_update_top_priority: False
 
     # arguments for general replay
     batch_size: *bs
     sample_size: *ss
     burn_in_size: *bis
-    min_size: 500
-    capacity: 10000
+    min_size: 1000                  # 6250 in Agent57
+    capacity: 1e4                 # 5e6 in Agent57

@@ -52,7 +52,7 @@ class Optimizer(tf.Module):
         self._opt.apply_gradients(zip(grads, self._variables))
 
         if self._return_grads:
-            return norm, list(zip(self._variables, grads))
+            return norm, {v.name: g for v, g in zip(self._variables, grads)}
         else:
             return norm
     

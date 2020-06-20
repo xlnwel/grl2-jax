@@ -56,7 +56,8 @@ buffer:
     adv_type: gae     # nae or gae
     gamma: .99
     lam: .95
-    # n_envs: *nenvs  # this will be set in t√rain.py as it's the product of n_workers and n_envs
+    precision: *prec
+    # n_envs: *nenvs  # this will be set in t√ain.py as it's the product of n_workers and n_envs
     N_STEPS: *nsteps
     N_MBS: *nmbs
     sample_size: *ss

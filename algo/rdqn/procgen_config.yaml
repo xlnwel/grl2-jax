@@ -1,7 +1,6 @@
 ---
 env:
     name: atari_pong
-    wrapper: my_atari
     life_done: False
     sticky_actions: True
     frame_skip: 4
@@ -18,7 +17,7 @@ agent:
     algorithm: &algo rdqn
     gamma: 0.99
     lambda: .95
-    precision: &prec 32
+    precision: &prec 16
     batch_size: &bs 32
 
     store_state: True
@@ -28,9 +27,9 @@ agent:
     add_input: False
     act_eps: 0.3
 
-    MAX_STEPS: 1e7          # maximum env steps
-    LOG_PERIOD: 1e5
-    EVAL_PERIOD: 1e6
+    MAX_STEPS: 8e6          # maximum env steps
+    LOG_PERIOD: 1e3         # train steps
+    EVAL_PERIOD: 1e3
     TRAIN_PERIOD: 1000
     N_UPDATES: 100
 
@@ -41,7 +40,7 @@ agent:
     model_name: *algo
 
     loss_type: mse   # huber or mse
-    target_update_period: 8000
+    target_update_period: 1500
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
@@ -67,5 +66,5 @@ replay:
     batch_size: *bs
     sample_size: *ss
     burn_in_size: *bis
-    min_size: 500
+    min_size: 100
     capacity: 10000

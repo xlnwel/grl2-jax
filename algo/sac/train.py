@@ -67,7 +67,7 @@ def main(env_config, model_config, agent_config, replay_config):
     create_model, Agent = pkg.import_agent(config=agent_config)
     models = create_model(model_config, env)
     agent = Agent(
-        name='dpg',
+        name=env.name,
         config=agent_config, 
         models=models, 
         dataset=dataset, 

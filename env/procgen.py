@@ -7,7 +7,6 @@ from env import wrappers as W
 from env import baselines as B 
 
 def make_procgen_env(config):
-    config['name'] = config['name'].split('_', 1)[-1]
     gray_scale = config.setdefault('gray_scale', False)
     frame_skip = config.setdefault('frame_skip', 1)
     frame_stack = config.setdefault('frame_stack', 1)
@@ -46,7 +45,8 @@ class Procgen(gym.Env):
             k: config[k] for k in 
             config.keys() & self.config.keys()})
 
-        self.name = self.config.pop("name")
+        name = self.config.pop("name")
+        self.name = name.split('_', 1)[-1]
 
         assert self.name in VALID_ENV_NAMES, self.name
 

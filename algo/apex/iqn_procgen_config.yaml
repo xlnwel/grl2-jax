@@ -37,7 +37,8 @@ agent:
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # distributed algo params
-    n_workers: 3
+    n_learner_cpus: 3
+    n_workers: 8
     SYNC_PERIOD: 1000
 
     # model path: root_dir/model_name/models
@@ -75,4 +76,4 @@ replay:
     batch_size: *bs
     min_size: 5e4
     capacity: 1e5
-    has_next_obs: False
+    has_next_obs: True

@@ -1,7 +1,7 @@
 ---
 env:
     name: procgen_coinrun
-    frame_skip: 1
+    frame_skip: 2
     gray_scale: True
     frame_stack: 4
 
@@ -14,7 +14,7 @@ model:
     duel: False
 
 agent:
-    algorithm: &algo iqn
+    algorithm: &algo dqn
     gamma: &gamma 0.99
     precision: &prec 32
     batch_size: &bs 64
@@ -22,7 +22,7 @@ agent:
     act_eps: 0
 
     MAX_STEPS: 8e6      # maximum training frames
-    TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
+    TRAIN_PERIOD: 16     # #frames
     EVAL_PERIOD: 5e5
     LOG_PERIOD: 5e4
     N_UPDATES: 1
@@ -41,16 +41,16 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 5e-5
+    lr: 1e-4
     clip_norm: 0
     epsilon: 1.5e-4
 
     # arguments for PER
-    per_alpha: .4
+    per_alpha: .5
     per_epsilon: 1e-4
 
 replay:
-    type: uniform      # uniform, per
+    type: per      # uniform, per
     precision: 32
     # arguments for PER
     beta0: 0

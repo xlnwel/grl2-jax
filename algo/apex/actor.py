@@ -81,7 +81,7 @@ def get_learner_class(BaseAgent):
                     replay):
             cpu_affinity('Learner')
             silence_tf_logs()
-            configure_threads(config['n_cpus'], config['n_cpus'])
+            configure_threads(config['n_learner_cpus'], config['n_learner_cpus'])
             configure_gpu()
             configure_precision(config.get('precision', 32))
 

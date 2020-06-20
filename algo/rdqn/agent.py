@@ -59,7 +59,7 @@ class Agent(BaseAgent):
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
             obs=((self._sample_size+1, *env.obs_shape), tf.float32, 'obs'),
-            prev_action=((self._sample_size+1,), env.action_dtype, 'prev_action'),
+            prev_action=((self._sample_size+1,), tf.int32, 'prev_action'),
             prev_reward=((self._sample_size+1,), tf.float32, 'prev_reward'),
             logpi=((self._sample_size,), tf.float32, 'logpi'),
             discount=((self._sample_size,), tf.float32, 'discount'),
@@ -130,8 +130,8 @@ class Agent(BaseAgent):
             with TBTimer('sample', 1000):
                 data = self.dataset.sample()
             if self._is_per:
-                idxes = data['idxes'].numpy()
-                del data['idxes']
+                idxes = data.pop('idxes').numpy()
+
             with TBTimer('learn', 1000):
                 terms = self.learn(**data)
             if self._to_sync(self.train_step+i):

@@ -12,7 +12,10 @@ def main(env_config, model_config, agent_config, replay_config):
     ray.init(num_cpus=12, num_gpus=1)
     sigint_shutdown_ray()
 
-    replay = create_replay_center(replay_config, state_keys=['h', 'c'])
+    replay = create_replay_center(
+        replay_config, state_keys=['h', 'c'],
+        prev_action=0, prev_reward=0
+    )
 
     model_fn, Agent = pkg.import_agent(config=agent_config)
     am = pkg.import_module('actor', config=agent_config)
@@ -27,8 +30,7 @@ def main(env_config, model_config, agent_config, replay_config):
         config=agent_config, 
         model_config=model_config, 
         env_config=env_config,
-        replay_config=replay_config,
-        n_cpus=4)
+        replay_config=replay_config)
    
     Worker = am.get_worker_class()
     workers = []

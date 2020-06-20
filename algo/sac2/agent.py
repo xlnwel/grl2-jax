@@ -37,12 +37,15 @@ class Agent(BaseAgent):
 
         self._action_dim = env.action_dim
         self._is_action_discrete = env.is_action_discrete
+        if not hasattr(self, '_target_entropy'):
+            self._target_entropy = .98 * np.log(self._action_dim) \
+                if self._is_action_discrete else -self._action_dim
 
         TensorSpecs = dict(
-            obs=(env.obs_shape, tf.float32, 'obs'),
+            obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=((env.action_dim,), tf.float32, 'action'),
             reward=((), tf.float32, 'reward'),
-            next_obs=(env.obs_shape, tf.float32, 'next_obs'),
+            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
             discount=((), tf.float32, 'discount'),
         )
         if self._is_per:
@@ -60,8 +63,7 @@ class Agent(BaseAgent):
     def learn_log(self, step):
         data = self.dataset.sample()
         if self._is_per:
-            idxes = data['idxes'].numpy()
-            del data['idxes']
+            idxes = data.pop('idxes').numpy()
 
         terms = self.learn(**data)
         self._update_target_nets()
@@ -79,11 +81,10 @@ class Agent(BaseAgent):
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
-        target_entropy = getattr(self, 'target_entropy', -self._action_dim)
         q_value = lambda q, obs, act: q(tf.concat([obs, act], -1)).mode()
         with tf.GradientTape() as actor_tape:
             act_dist, terms = self.actor.step(obs)
-            new_action = act_dist.sample()
+            new_action = act_dist.sample(one_hot=True)
             new_logpi = act_dist.log_prob(new_action)
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = self.temperature
@@ -101,9 +102,9 @@ class Agent(BaseAgent):
             else:
                 log_temp, temp = self.temperature(obs, new_action)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
-                    * tf.stop_gradient(new_logpi + target_entropy))
-                terms['temp'] = temp
+                    * tf.stop_gradient(new_logpi + self._target_entropy))
                 terms['temp_loss'] = temp_loss
+            terms['temp'] = temp
 
         with tf.GradientTape() as value_tape:
             value = self.value(obs).mode()

@@ -18,11 +18,12 @@ def make_atari_env(config):
         name = name[0].capitalize() + name[1:]
         version = 0 if config.setdefault('sticky_actions', True) else 4
         name = f'{name}NoFrameskip-v{version}'
-        env = B.make_atari(name, config.setdefault('frame_skip', 1))
+        env = B.make_atari(name, config.setdefault('frame_skip', 4))
         env = B.wrap_deepmind(env, 
-                            episode_life=config.setdefault('life_done', False), 
-                            frame_stack=config.setdefault('frame_stack', 1),
-                            np_obs=config.setdefault('np_obs', False))
+            episode_life=config.setdefault('life_done', False), 
+            clip_reward=config.setdefault('clip_reward', False),
+            frame_stack=config.setdefault('frame_stack', 4),
+            np_obs=config.setdefault('np_obs', False))
     else:
         env = Atari(**config)
     config.setdefault('max_episode_steps', 108000)    # 30min

@@ -52,11 +52,7 @@ class SequentialPER(ProportionalPER):
 
     def merge(self, local_buffer):
         """ Add local_buffer to memory """
-        if 'priority' in local_buffer:
-            priority = local_buffer['priority']
-            del local_buffer['priority']
-        else:
-            priority = self._top_priority
+        priority = local_buffer.pop('priority', self._top_priority)
         np.testing.assert_array_less(0, priority)
         self._data_structure.update(self._mem_idx, priority)
         for k, v in local_buffer.items():

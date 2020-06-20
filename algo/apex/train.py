@@ -22,7 +22,6 @@ def main(env_config, model_config, agent_config, replay_config):
         agent_config['root_dir'] = root_dir
         agent_config['model_name'] = model_name
     ray.init(num_cpus=12, num_gpus=1)
-    n_cpus = 4
     
     sigint_shutdown_ray()
 
@@ -41,8 +40,7 @@ def main(env_config, model_config, agent_config, replay_config):
         config=agent_config, 
         model_config=model_config, 
         env_config=env_config,
-        replay_config=replay_config,
-        n_cpus=n_cpus)
+        replay_config=replay_config)
    
     Worker = am.get_worker_class()
     workers = []

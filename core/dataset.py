@@ -7,7 +7,7 @@ import ray
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 
 
-def process_with_env(data, env, obs_range=None, one_hot_action=False, dtype=tf.float32):
+def process_with_env(data, env, obs_range=None, one_hot_action=True, dtype=tf.float32):
     with tf.device('cpu:0'):
         if env.obs_dtype == np.uint8 and obs_range is not None:
             if obs_range == [0, 1]:
@@ -20,7 +20,7 @@ def process_with_env(data, env, obs_range=None, one_hot_action=False, dtype=tf.f
                         data[k] = tf.cast(data[k], dtype) / 255. - .5
             else:
                 raise ValueError(obs_range)
-        if one_hot_action and env.is_action_discrete:
+        if env.is_action_discrete and one_hot_action:
             for k, v in data.items():
                 if 'action' in k:
                     data[k] = tf.one_hot(data[k], env.action_dim, dtype=dtype)

@@ -75,7 +75,7 @@ class Categorical(Distribution):
         else:
             return tf.nn.sparse_softmax_cross_entropy_with_logits(labels=x, logits=self.logits)
 
-    def _sample(self, hard=True, one_hot=True):
+    def _sample(self, hard=True, one_hot=False):
         """
          A differentiable sampling method for categorical distribution
          reference paper: Categorical Reparameterization with Gumbel-Softmax
@@ -124,8 +124,11 @@ class Categorical(Distribution):
 
         return kl
 
-    def _mode(self):
-        return tf.argmax(self.logits, -1)
+    def _mode(self, one_hot=False):
+        y = tf.argmax(self.logits, -1)
+        if one_hot:
+            y = tf.one_hot(y, self.logits.shape[-1])
+        return y
 
 
 class DiagGaussian(Distribution):

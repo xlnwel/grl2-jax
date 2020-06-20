@@ -53,7 +53,17 @@ class BaseAgent(ABC):
         histogram_summary(self._writer, stats, prefix=prefix, step=step)
 
     def graph_summary(self, sum_type, *args, step=None):
-        graph_summary(self._writer, sum_type, *args, step=step)
+        """
+        Args:
+            sum_type str: either "video" or "image"
+            args: Args passed to summary function defined in utility.graph,
+                of which the first must be a str to specify the tag in Tensorboard
+            
+        """
+        assert isinstance(args[0], str), f'args[0] is expected to be a name string, but got "{args[0]}"'
+        args = list(args)
+        args[0] = f'{self.name}/{args[0]}'
+        graph_summary(self._writer, sum_type, args, step=step)
 
     def store(self, **kwargs):
         store(self._logger, **kwargs)

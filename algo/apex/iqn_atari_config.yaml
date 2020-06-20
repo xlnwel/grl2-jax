@@ -40,7 +40,8 @@ agent:
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # distributed algo params
-    n_workers: 3
+    n_learner_cpus: 3
+    n_workers: 8
     SYNC_PERIOD: 1000
 
     # model path: root_dir/model_name/models
@@ -51,8 +52,8 @@ agent:
     RECORD_PERIOD: 100
 
     loss_type: huber                          # huber or mse
-    target_update_period: 2500
-    tbo: False
+    target_update_period: 1500
+    tbo: True
 
     # arguments for optimizer
     optimizer: adam

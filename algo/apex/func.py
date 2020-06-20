@@ -5,7 +5,7 @@ from utility.rl_utils import apex_epsilon_greedy
 from utility import pkg
 
 
-def create_learner(Learner, model_fn, replay, config, model_config, env_config, replay_config, n_cpus):
+def create_learner(Learner, model_fn, replay, config, model_config, env_config, replay_config):
     config = config.copy()
     model_config = model_config.copy()
     env_config = env_config.copy()
@@ -13,7 +13,7 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
     
     env_config['n_workers'] = env_config['n_envs'] = 1
     config['model_name'] = config['algorithm']
-    config['n_cpus'] = n_cpus
+    n_cpus = config.setdefault('n_learner_cpus', 3)
 
     if tf.config.list_physical_devices('GPU'):
         RayLearner = ray.remote(num_cpus=n_cpus, num_gpus=.5)(Learner)

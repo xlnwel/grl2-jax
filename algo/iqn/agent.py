@@ -54,7 +54,7 @@ class Agent(BaseAgent):
         obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else self._dtype
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            action=((), env.action_dtype, 'action'),
+            action=((self._action_dim,), tf.float32, 'action'),
             reward=((), self._dtype, 'reward'),
             next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
             discount=((), self._dtype, 'discount'),
@@ -66,6 +66,8 @@ class Agent(BaseAgent):
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
         self._sync_target_nets()
+
+        self._to_summary = Every(self.LOG_PERIOD)
 
     def reset_noisy(self):
         pass
@@ -82,14 +84,12 @@ class Agent(BaseAgent):
     @step_track
     def learn_log(self, step):
         for _ in range(self.N_UPDATES):
-            with TBTimer('sample', 100):
-                data = self.dataset.sample()
+            data = self.dataset.sample()
 
             if self._is_per:
-                idxes = data['idxes'].numpy()
-                del data['idxes']
-            with TBTimer('learn', 100):
-                terms = self.learn(**data)
+                idxes = data.pop('idxes').numpy()
+
+            terms = self.learn(**data)
             if self._to_sync(self.train_step):
                 self._sync_target_nets()
 
@@ -101,7 +101,16 @@ class Agent(BaseAgent):
             if self._is_per:
                 self.dataset.update_priorities(terms['priority'], idxes)
             self.store(**terms)
+            if self._to_summary(self._train_step):
+                self.summary(data)
+
         return self.N_UPDATES
+
+    @tf.function
+    def summary(self, data):
+        self.histogram_summary({'steps': data['steps']}, step=self._env_step)
+        if 'IS_ratio' in data:
+            self.histogram_summary({'IS_ratio': data['IS_ratio']})
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):

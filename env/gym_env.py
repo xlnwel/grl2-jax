@@ -16,11 +16,11 @@ from env import baselines as B
 
 def make_env(config):
     # config = config.copy()    # do not copy to make changes visible from the outside
-    if 'atari' in config['name'].lower():
+    if config['name'].lower().startswith('atari'):
         env = atari.make_atari_env(config)
-    elif 'procgen' in config['name'].lower():
+    elif config['name'].lower().startswith('procgen'):
         env = procgen.make_procgen_env(config)
-    elif 'dmc' in config['name'].lower():
+    elif config['name'].lower().startswith('dmc'):
         env = dmc.make_dmc_env(config)
     else:
         env = gym.make(config['name']).env
@@ -78,9 +78,6 @@ class Env(gym.Wrapper):
     def prev_obs(self):
         return self.env.prev_obs()
 
-    def prev_info(self):
-        return self.env.prev_info()
-        
     def info(self):
         return self.env.info()
 
@@ -163,10 +160,6 @@ class EnvVec(EnvVecBase):
     def prev_obs(self, idxes=None):
         idxes = self._get_idxes(idxes)
         return [self.envs[i].prev_obs() for i in idxes]
-
-    def prev_info(self, idxes=None):
-        idxes = self._get_idxes(idxes)
-        return [self.envs[i].prev_info() for i in idxes]
 
     def info(self, idxes=None):
         idxes = self._get_idxes(idxes)
@@ -277,9 +270,6 @@ class RayEnvVec(EnvVecBase):
     def prev_obs(self, idxes=None):
         return self._remote_call('prev_obs', idxes)
 
-    def prev_info(self, idxes=None):
-        return self._remote_call('prev_info', idxes)
-    
     def info(self, idxes=None):
         return self._remote_call('info', idxes)
     
@@ -332,7 +322,7 @@ if __name__ == '__main__':
         s, r, d, re = env.step(a)
         if np.any(re):
             idx = [i for i, rr in enumerate(re) if rr]
-            info = env.prev_info(idx)
+            info = env.info(idx)
             for i in info:
                 print(idx, info, i)
     print(f'RayEnvVec({config["n_workers"]}, {config["n_envs"]})', time.time() - st)

@@ -10,7 +10,7 @@ cv2.ocl.setUseOpenCL(False)
 # for multi-processing efficiency, we do not return info at every step
 EnvOutput = collections.namedtuple('EnvOutput', 'obs reward discount reset')
 # Output format of gym
-GymOutput = collections.namedtuple('EnvOutput', 'obs reward discount info')
+GymOutput = collections.namedtuple('EnvOutput', 'obs reward discount')
 
 def post_wrap(env, config):
     """ Does some post processing and bookkeeping. 
@@ -227,15 +227,13 @@ class EnvStats(gym.Wrapper):
         self._score += reward
         self._epslen += info.get('frame_skip', 1)
         self._game_over = done
-        self._info = info
-        reward = self.float_dtype(reward)
-        discount = self.float_dtype(1-done)
-        reset = self.float_dtype(0)
-        
         if self._epslen >= self.max_episode_steps:
             self._game_over = True
             done = self.timeout_done
             info['timeout'] = True
+        reward = self.float_dtype(reward)
+        discount = self.float_dtype(1-done)
+        reset = self.float_dtype(0)
         
         # log transition
         if self.log_episode:
@@ -257,18 +255,19 @@ class EnvStats(gym.Wrapper):
             info['score'] = self._score
             info['epslen'] = self._epslen
             if self.auto_reset:
-                # when retting, we override the obs and reset but keep the others
+                info['prev_env_output'] = GymOutput(obs, reward, discount)
+                # when resetting, we override the obs and reset but keep the others
                 obs, _, _, reset = self._reset()
-                self._info['prev_env_output'] = GymOutput(obs, reward, discount, info)
+        self._info = info
 
         self._output = EnvOutput(obs, reward, discount, reset)
         return self._output
 
     def score(self, **kwargs):
-        return self._score
+        return self._info.get('score', self._score)
 
     def epslen(self, **kwargs):
-        return self._epslen
+        return self._info.get('epslen', self._epslen)
 
     def game_over(self):
         return self._game_over
@@ -276,19 +275,16 @@ class EnvStats(gym.Wrapper):
     def prev_obs(self):
         return self._info['prev_env_output'].obs
 
-    def prev_info(self):
-        return self._info['prev_env_output'].info
+    def prev_episode(self):
+        eps = self._prev_episode
+        self._prev_episode = None
+        return eps
 
     def info(self):
         return self._info
         
     def output(self):
         return self._output
-    
-    def prev_episode(self):
-        eps = self._prev_episode
-        self._prev_episode = None
-        return eps
 
 
 def get_wrapper_by_name(env, classname):
@@ -302,3 +298,18 @@ def get_wrapper_by_name(env, classname):
             # don't raise error here, only return None
             return None
             
+if __name__ == '__main__':
+    from env.gym_env import create_env
+    env = create_env(dict(
+        name='LunarLander-v2',
+        seed=0
+    ))
+    n_act = env.action_dim
+    for i in range(500):
+        out = env.step(i % n_act)
+        print(i, out)
+        print(env.score(), env.epslen())
+        if out.reset:
+            info = env.info()
+            print(info['score'], info['epslen'])
+            break
