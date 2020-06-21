@@ -67,7 +67,7 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
 
-        self._to_summary = Every(self.LOG_PERIOD)
+        self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
 
     def reset_noisy(self):
         pass
@@ -110,7 +110,7 @@ class Agent(BaseAgent):
     def summary(self, data):
         self.histogram_summary({'steps': data['steps']}, step=self._env_step)
         if 'IS_ratio' in data:
-            self.histogram_summary({'IS_ratio': data['IS_ratio']})
+            self.histogram_summary({'IS_ratio': data['IS_ratio']}, step=self._env_step)
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
@@ -118,33 +118,23 @@ class Agent(BaseAgent):
         with tf.GradientTape() as tape:
             qt, qtv, q = self.q.value(obs, self.N, action)
             nth_action = self.q.action(next_obs, self.K)
-            tf.debugging.assert_shapes([[nth_action, (self._batch_size,)]])
             _, nth_qtv, _ = self.target_q.value(next_obs, self.N_PRIME, nth_action)
             reward = reward[None, :, None]
             discount = discount[None, :, None]
             if not isinstance(steps, int):
                 steps = steps[None, :, None]
             returns = n_step_target(reward, nth_qtv, discount, self._gamma, steps, self._tbo)
-            tf.debugging.assert_shapes([[qtv, (self.N, self._batch_size, 1)]])
-            tf.debugging.assert_shapes([[returns, (self.N_PRIME, self._batch_size, 1)]])
             qtv = tf.transpose(qtv, (1, 0, 2))              # [B, N, 1]
             returns = tf.transpose(returns, (1, 2, 0))      # [B, 1, N']
-            tf.debugging.assert_shapes([[qtv, (self._batch_size, self.N, 1)]])
-            tf.debugging.assert_shapes([[returns, (self._batch_size, 1, self.N_PRIME)]])
             returns = tf.stop_gradient(returns)
 
             error = returns - qtv   # [B, N, N']
-            tf.debugging.assert_shapes([[error, (self._batch_size, self.N, self.N_PRIME)]])
             
             # loss
             qt = tf.transpose(tf.reshape(qt, [self.N, self._batch_size, 1]), [1, 0, 2]) # [B, N, 1]
-            tf.debugging.assert_shapes([[qt, (self._batch_size, self.N, 1)]])
             weight = tf.abs(qt - tf.cast(error < 0, tf.float32))        # [B, N, N']
-            huber = huber_loss(error, threshold=self.KAPPA)                 
-            tf.debugging.assert_shapes([[weight, (self._batch_size, self.N, self.N_PRIME)]])
-            tf.debugging.assert_shapes([[huber, (self._batch_size, self.N, self.N_PRIME)]])
-            qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1)
-            tf.debugging.assert_shapes([[qr_loss, (self._batch_size,)]])
+            huber = huber_loss(error, threshold=self.KAPPA)             # [B, N, N']
+            qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1) # [B]
             loss = tf.reduce_mean(qr_loss)
 
         if self._is_per:

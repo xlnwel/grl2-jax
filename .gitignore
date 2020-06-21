@@ -9,3 +9,4 @@ conventions.md
 .pytest_cache*
 *ipynb
 **test**
+tmp**

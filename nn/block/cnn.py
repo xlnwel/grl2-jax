@@ -205,3 +205,43 @@ class NatureCNN(Layer):
             x = self._dense(x)
         
         return x
+
+@register('simple')
+class SimpleCNN(Layer):
+    def __init__(self, 
+                 *, 
+                 time_distributed=False, 
+                 obs_range=[0, 1], 
+                 name='nature', 
+                 kernel_initializer='orthogonal',
+                 activation='relu',
+                 out_size=256,
+                 **kwargs):
+        super().__init__(name=name)
+        self._obs_range = obs_range
+
+        conv2d = functools.partial(conv2d_fn, time_distributed=time_distributed)
+        gain = kwargs.pop('gain', calculate_gain(activation))
+        kernel_initializer = get_initializer(kernel_initializer, gain=gain)
+        kwargs['kernel_initializer'] = kernel_initializer
+        activation = get_activation(activation)
+        kwargs['activation'] = activation
+
+        self._conv_layers = [
+            conv2d(32, 5, 5, **kwargs),
+            conv2d(64, 5, 5, **kwargs),
+        ]
+        self.out_size = out_size
+        if out_size:
+            self._dense = Dense(self.out_size, activation=relu)
+
+    def call(self, x):
+        x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
+        for l in self._conv_layers:
+            x = l(x)
+        if self.out_size:
+            x = flatten(x)
+            x = self._dense(x)
+        
+        return x
+

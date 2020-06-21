@@ -83,24 +83,25 @@ def main(env_config, model_config, agent_config, replay_config):
     train(agent, env, eval_env, replay)
 
     # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup
-    # obs = env.reset()
+    # obs, _, _, _ = env.reset()
     # epslen = 0
     # from utility.utils import Every
-    # to_log = Every(agent.LOG_PERIOD, start=2*agent.LOG_PERIOD)
+    # to_log = Every(agent.LOG_PERIOD, start=int(1e4)+2*agent.LOG_PERIOD)
     # for t in range(int(agent.MAX_STEPS)):
     #     if t > 1e4:
     #         action = agent(obs)
     #     else:
     #         action = env.random_action()
 
-    #     next_obs, reward, done, _ = env.step(action)
+    #     next_obs, reward, discount, reset = env.step(action)
     #     epslen += 1
-    #     replay.add(obs=obs, action=action, reward=reward, discount=1-done, next_obs=next_obs)
+    #     replay.add(obs=obs, action=action, reward=reward, discount=discount, next_obs=next_obs)
     #     obs = next_obs
 
-    #     if done or epslen == env.max_episode_steps:
+    #     if not discount or epslen == env.max_episode_steps:
     #         agent.store(score=env.score(), epslen=env.epslen())
-    #         obs = env.reset()
+    #         assert epslen == env.epslen(), f'{epslen} vs {env.epslen()}'
+    #         obs, _, _, _ = env.reset()
     #         epslen = 0
 
     #     if replay.good_to_learn() and t % 50 == 0:

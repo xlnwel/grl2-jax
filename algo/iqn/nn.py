@@ -64,14 +64,12 @@ class Q(Module):
         return tf.argmax(q, axis=-1)
     
     @tf.function
-    def value(self, x, n_qt, action=None):
+    def value(self, x, n_qt, action=None, drm='identity'):
         batch_size = x.shape[0]
         x = self.cnn(x, n_qt)
-        tf.debugging.assert_shapes([[x, (n_qt * batch_size, self._cnn.out_size)]])
+        x = tf.tile(x, [n_qt, 1])   # [N*B, cnn.out_size]
         qt, qt_embed = self.quantile(n_qt, batch_size)
-        tf.debugging.assert_shapes([[qt_embed, (n_qt * batch_size, self._cnn.out_size)]])
         x = x * qt_embed    # [N*B, cnn.out_size]
-        tf.debugging.assert_shapes([[x, (n_qt * batch_size, self._cnn.out_size)]])
         qtv, q = self.mlp(x, n_qt, batch_size, action=action)
         
         return qt, qtv, q
@@ -80,7 +78,6 @@ class Q(Module):
         # psi network
         if self._cnn:
             x = self._cnn(x)
-        x = tf.tile(x, [n_qt, 1])   # [N*B, cnn.out_size]
         return x
     
     def quantile(self, n_qt, batch_size):
@@ -93,14 +90,10 @@ class Q(Module):
         degree = tf.cast(tf.range(self._qt_embed_size), tf.float32) * pi * qt_tiled
         qt_embed = tf.math.cos(degree)              # [N*B, E]
         qt_embed = self._phi(qt_embed)              # [N*B, cnn.out_size]
-        tf.debugging.assert_shapes([
-            [qt_embed, (n_qt * batch_size, self._cnn.out_size)],
-            [qt, (n_qt * batch_size, 1)]
-        ])
+        
         return qt, qt_embed
 
     def mlp(self, x, n_qt, batch_size, action=None):
-        tf.debugging.assert_shapes([[x, (n_qt * batch_size, self._cnn.out_size)]])
         if self._duel:
             v_qtv = self._v_head(x)
             a_qtv = self._a_head(x)
@@ -109,21 +102,14 @@ class Q(Module):
             qtv = self._a_head(x)
         qtv = tf.reshape(qtv, (n_qt, batch_size, self._action_dim))     # [N, B, A]
         q = tf.reduce_mean(qtv, axis=0)                                 # [B, A]
-        tf.debugging.assert_shapes([[q, (batch_size, self._action_dim)]])
-        tf.debugging.assert_shapes([[qtv, (n_qt, batch_size, self._action_dim)]])
-
+        
         if action is not None:
             if len(action.shape) < len(q.shape):
                 action = tf.one_hot(action, self._action_dim, dtype=q.dtype)
             action_qtv = tf.tile(action, [n_qt, 1])
             action_qtv = tf.reshape(action_qtv, [n_qt, batch_size, self._action_dim])
-            tf.debugging.assert_shapes([[action, (batch_size, self._action_dim)]])
-            tf.debugging.assert_shapes([[action_qtv, (n_qt, batch_size, self._action_dim)]])
-            assert q.shape[-1] == action.shape[-1], f'{q.shape} vs {action.shape}'
             qtv = tf.reduce_sum(qtv * action, -1, keepdims=True)        # [N, B, 1]
             q = tf.reduce_sum(q * action, -1)                           # [B]
-            tf.debugging.assert_shapes([[q, (batch_size,)]])
-            tf.debugging.assert_shapes([[qtv, (n_qt, batch_size, 1)]])
         return qtv, q
 
     def qtv2value(self, qtv, n_qt, batch_size):
