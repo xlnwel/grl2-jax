@@ -147,7 +147,7 @@ class Worker:
             env=env)
 
         self._is_dpg = 'actor' in self.models
-        self._is_iqn = self._algorithm.endswith('iqn')
+        self._is_iqn = 'iqn' in self._algorithm
         assert self._is_dpg != self.env.is_action_discrete
         if self._is_dpg:
             self.actor = self.models['actor']
@@ -273,7 +273,7 @@ class Worker:
     def _pull_weights(self, learner):
         return ray.get(learner.get_weights.remote(name=self._pull_names))
 
-    def _send_data(self, replay, buffer=None, target_replay='fast_replay'):
+    def _send_data(self, replay, buffer=None):
         buffer = buffer or self.buffer
         mask, data = buffer.sample()
 
@@ -284,7 +284,7 @@ class Worker:
             else:
                 del data['q']
             data['priority'] = self.compute_priorities(**data_tensor).numpy()
-        replay.merge.remote(data, data['action'].shape[0], target_replay=target_replay)
+        replay.merge.remote(data, data['action'].shape[0])
         buffer.reset()
 
     def _send_episode_info(self, learner):
@@ -309,9 +309,10 @@ class BaseEvaluator:
             self._run(weights, record=to_record(step))
             self._send_episode_info(learner)
 
-    def _run(self, weights, record):
+    def _run(self, weights, record):        
         self.models.set_weights(weights)
-        score, epslen, video = evaluate(self.env, self, record=record, size=(64, 64))
+        score, epslen, video = evaluate(self.env, self, 
+            record=record, size=(64, 64), n=self.N_EVALUATION)
         self.store(score, epslen, video)
 
     def store(self, score, epslen, video):
@@ -348,7 +349,7 @@ class Evaluator(BaseEvaluator):
                 env=env)
 
         self._is_dpg = 'actor' in self.models
-        self._is_iqn = self._algorithm.endswith('iqn')
+        self._is_iqn = 'iqn' in self._algorithm
         assert self._is_dpg != self.env.is_action_discrete
         if self._is_dpg:
             self.actor = self.models['actor']

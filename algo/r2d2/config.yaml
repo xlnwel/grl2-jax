@@ -17,7 +17,7 @@ model:
 
 agent:
     algorithm: &algo r2d2
-    gamma: 0.997
+    gamma: 0.99
     lambda: .95
     precision: &prec 16
     batch_size: &bs 64
@@ -35,7 +35,8 @@ agent:
     N_UPDATES: *log
     
     # distributed algo params
-    n_workers: 4
+    n_learner_cpus: 3
+    n_workers: 8
     SYNC_PERIOD: 1000
 
     # model path: root_dir/model_name/models
@@ -44,6 +45,7 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
     RECORD_PERIOD: 100
+    N_EVALUATION: 1
 
     loss_type: mse                          # huber or mse
     target_update_period: 1500
@@ -53,8 +55,8 @@ agent:
     optimizer: adam
     schedule_lr: False
     lr: 1e-4
-    epsilon: 1e-4
-    clip_norm: 0
+    clip_norm: 40
+    epsilon: 1.5e-4
 
     # arguments for PER
     per_alpha: 0.9

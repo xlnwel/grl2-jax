@@ -1,6 +1,6 @@
 ---
 env:
-    name: atari_pong
+    name: atari_assault
     wrapper: my_atari
     life_done: False
     sticky_actions: True
@@ -28,7 +28,7 @@ agent:
     add_input: False
     act_eps: 0.3
 
-    MAX_STEPS: 1e7          # maximum env steps
+    MAX_STEPS: 1e9          # maximum env steps
     LOG_PERIOD: 1e5
     EVAL_PERIOD: 1e6
     TRAIN_PERIOD: 1000

@@ -1,34 +1,39 @@
 ---
 env:
     name: procgen_coinrun
-    frame_skip: 1
+    frame_skip: 2
     gray_scale: True
     frame_stack: 4
-    np_obs: True
 
 model:
-    cnn: impala
-    kernel_initializer: orthogonal
-    head_units: [512]
-    activation: relu
-    layer_type: dense
-    duel: False
+    q:
+        cnn: impala
+        kernel_initializer: orthogonal
+        head_units: [512]
+        activation: relu
+        layer_type: dense
+        duel: False
 
-    qt_embed_size: 64
-    phi_activation: relu
+        qt_embed_size: 64
+        phi_activation: relu
+
+    crl:
+        crl_units: []
+        crl_out_size: 128
 
 agent:
-    algorithm: &algo apex-iqn
+    algorithm: &algo iqn
     gamma: &gamma 0.99
-    n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     batch_size: &bs 64
     schedule_act_eps: True
     act_eps: 0
 
-    MAX_STEPS: 8e6      # maximum env steps
-    LOG_PERIOD: &log 1000
-    N_UPDATES: *log
+    MAX_STEPS: 8e6      # maximum training frames
+    TRAIN_PERIOD: 128    # #frames
+    EVAL_PERIOD: 5e5
+    LOG_PERIOD: 5e4
+    N_UPDATES: 1
 
     # IQN params
     N: 8                # N in paper, num of quantiles for online quantile network
@@ -36,20 +41,16 @@ agent:
     K: 32               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
-    # distributed algo params
-    n_learner_cpus: 3
-    n_workers: 8
-    SYNC_PERIOD: 1000
+    crl_coef: 1
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD_PERIOD: 100
-    N_EVALUATION: 10
+    RECORD: True
 
-    target_update_period: 1500  # trainning step
+    target_update_period: 2000  # trainning step
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
@@ -65,19 +66,15 @@ agent:
 
 replay:
     type: uniform      # uniform, per
-    seqlen: 100
     precision: 32
-
-    recent_frac: .5
-    recent_n: 1000
     # arguments for PER
     beta0: 0
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: *nsteps
+    n_steps: 3
     gamma: *gamma
     batch_size: *bs
     min_size: 5e4
     capacity: 1e5
-    has_next_obs: True
+    has_next_obs: False

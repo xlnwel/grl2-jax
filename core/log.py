@@ -38,6 +38,8 @@ def scalar_summary(writer, stats, prefix=None, step=None):
             tf.summary.scalar(f'{prefix}/{k}', tf.reduce_mean(v), step=step)
 
 def histogram_summary(writer, stats, prefix=None, step=None):
+    if step is not None:
+        tf.summary.experimental.set_step(step)
     prefix = prefix or 'stats'
     with writer.as_default():
         for k, v in stats.items():

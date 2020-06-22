@@ -62,7 +62,7 @@ class Q(Module):
     def action(self, x, n_qt):
         _, _, q = self.value(x, n_qt)
         return tf.argmax(q, axis=-1)
-    
+
     @tf.function
     def value(self, x, n_qt, action=None):
         batch_size = x.shape[0]
@@ -73,6 +73,17 @@ class Q(Module):
         qtv, q = self.mlp(x, n_qt, batch_size, action=action)
         
         return qt, qtv, q
+
+    @tf.function
+    def z_value(self, x, n_qt, action=None):
+        batch_size = x.shape[0]
+        z = self.cnn(x)
+        x = tf.tile(z, [n_qt, 1])   # [N*B, cnn.out_size]
+        qt, qt_embed = self.quantile(n_qt, batch_size)
+        x = x * qt_embed    # [N*B, cnn.out_size]
+        qtv, q = self.mlp(x, n_qt, batch_size, action=action)
+        
+        return z, qt, qtv, q
 
     def cnn(self, x):
         # psi network
@@ -116,12 +127,33 @@ class Q(Module):
         qtv = tf.reshape(qtv, (n_qt, batch_size, qtv.shape[-1]))
         return tf.reduce_mean(qtv, axis=0)
 
+class CRL(Module):
+    @config
+    def __init__(self,):
+        self._crl_mlp = mlp(
+            self._crl_units,
+            out_size=self._crl_out_size,
+            activation=self._activation,
+            out_dtype='float32',
+            name='crl',
+        )
+        self._crl_w = tf.Variable(tf.random.uniform((self._crl_out_size, self._crl_out_size)))
+
+    def __call__(self, x):
+        z = self._crl_mlp(x)
+        return z
+
+    def logits(self, x_anchor, x_pos):
+        x_pos = tf.stop_gradient(x_pos)
+        Wx = tf.matmul(self._crl_w, tf.transpose(x_pos))
+        logits = tf.matmul(x_anchor, Wx)
+        logits = logits - tf.reduce_max(logits, axis=-1, keepdims=True)
+        return logits
 
 def create_model(config, env, **kwargs):
     action_dim = env.action_dim
-    q = Q(config, action_dim, 'q')
-    target_q = Q(config, action_dim, 'target_q')
     return dict(
-        q=q,
-        target_q=target_q,
+        q=Q(config['q'], action_dim, 'q'),
+        target_q=Q(config['q'], action_dim, 'target_q'),
+        crl=CRL(config['crl'])
     )
