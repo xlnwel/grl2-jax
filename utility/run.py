@@ -205,6 +205,8 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
     env_output = env.reset()
     obs = env_output.obs
     n_run_eps = env.n_envs  # count the number of episodes that has begun to run
+    if n < env.n_envs:
+        n = env.n_envs  # n is at least to be n_envs
     n_done_eps = 0
     while n_done_eps < n:
         for k in range(max_steps):
@@ -249,7 +251,7 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
                         for t, s in zip(env_output, eo):
                             for si, ti in enumerate(done_env_ids):
                                 t[ti] = s[si]
-                    else:
+                    elif len(done_env_ids) == env.n_envs:
                         break
 
     if record:

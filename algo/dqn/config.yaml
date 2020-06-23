@@ -11,6 +11,7 @@ model:
     duel: True
 agent:
     algorithm: &algo dqn
+    replay_type: &replay 'per'
     gamma: &gamma 0.99
     precision: *prec
     schedule_act_eps: False
@@ -44,7 +45,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: per      # uniform, per
+    replay_type: *replay
     precision: *prec
     # arguments for PER
     beta0: 0.4

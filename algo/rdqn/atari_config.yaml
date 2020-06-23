@@ -16,6 +16,7 @@ model:
 
 agent:
     algorithm: &algo rdqn
+    replay_type: &replay 'sper'
     gamma: 0.99
     lambda: .95
     precision: &prec 32
@@ -57,7 +58,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: sper                      # per or uniform
+    replay_type: *replay                      # per or uniform
     precision: *prec
     # arguments for PER
     beta0: 0

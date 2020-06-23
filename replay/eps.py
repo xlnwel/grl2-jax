@@ -17,7 +17,7 @@ class EpisodicReplay:
         self._state_keys = state_keys
     
     def name(self):
-        return self._type
+        return self._replay_type
 
     def good_to_learn(self):
         return len(self._memory) >= self._min_episodes

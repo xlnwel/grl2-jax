@@ -34,7 +34,7 @@ def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
-        self._is_per = dataset and dataset.name().endswith('per')
+        self._is_per = self._replay_type.endswith('per')
         is_nsteps = dataset and 'steps' in dataset.data_format
         self.dataset = dataset
 

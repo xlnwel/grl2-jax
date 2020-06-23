@@ -16,7 +16,7 @@ from algo.dqn.agent import get_data_format
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
-        self._is_per = dataset.name().endswith('per')
+        self._is_per = self._replay_type.endswith('per')
         self.dataset = dataset
 
         if self._schedule_lr:

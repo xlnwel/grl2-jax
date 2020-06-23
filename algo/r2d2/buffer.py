@@ -53,7 +53,6 @@ class EnvBuffer(LocalBuffer):
         when the environment is reset """
         kwargs.update(self._prev_info)
         for k, v in kwargs.items():
-            assert k in ['obs', 'prev_action', 'prev_reward'], k
             if k not in self._memory:
                 self._memory[k] = collections.deque(maxlen=self._sample_size+1)
             self._memory[k].append(v)

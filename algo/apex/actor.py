@@ -137,7 +137,7 @@ class Worker:
             buffer_config['seqlen'] = env.max_episode_steps // getattr(env, 'frame_skip', 1)
         self._seqlen = buffer_config['seqlen']
         self.buffer = buffer_fn(buffer_config)
-        self._is_per = buffer_config['type'].endswith('per')
+        self._is_per = self._replay_type.endswith('per')
 
         self.runner = Runner(self.env, self, nsteps=self.SYNC_PERIOD)
 

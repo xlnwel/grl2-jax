@@ -17,6 +17,7 @@ model:
 
 agent:
     algorithm: &algo r2d2
+    replay_type: &replay 'sper'
     gamma: 0.99
     lambda: .95
     precision: &prec 16
@@ -64,7 +65,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: sper                      # per or uniform
+    replay_type: *replay
     precision: 32
     # arguments for PER
     beta0: 0                        # follow Agent57

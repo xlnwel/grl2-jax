@@ -24,7 +24,6 @@ class SequentialPER(ProportionalPER):
         when the environment is reset """
         kwargs.update(self._prev_info)
         for k, v in kwargs.items():
-            assert k in ['obs', 'prev_action', 'prev_reward'], k
             if k not in self._temp_buff:
                 self._temp_buff[k] = collections.deque(maxlen=self._sample_size+1)
             self._temp_buff[k].append(v)
@@ -55,13 +54,6 @@ class SequentialPER(ProportionalPER):
         priority = local_buffer.pop('priority', self._top_priority)
         np.testing.assert_array_less(0, priority)
         self._data_structure.update(self._mem_idx, priority)
-        for k, v in local_buffer.items():
-            if k in self._state_keys:
-                np.testing.assert_equal(len(v.shape), 1)
-            elif k in ['obs', 'prev_action', 'prev_reward']:
-                np.testing.assert_equal(len(v), self._sample_size+1)
-            else:
-                np.testing.assert_equal(len(v), self._sample_size)
         self._memory.append(local_buffer)
         self._mem_idx = (self._mem_idx + 1) % self._capacity
         if not self._is_full and self._mem_idx == 0:

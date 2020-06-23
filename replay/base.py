@@ -21,7 +21,7 @@ class Replay(ABC):
         self._memory = {}
 
     def name(self):
-        return self._type
+        return self._replay_type
 
     def good_to_learn(self):
         return len(self) >= self._min_size

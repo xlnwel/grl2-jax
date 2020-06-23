@@ -19,6 +19,7 @@ model:
         value: .1
 agent:
     algorithm: &algo sac2
+    replay_type: &replay 'uniform'
     gamma: &gamma .99
     polyak: .995
     act_eps: 0
@@ -45,7 +46,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: uniform                      # per or uniform
+    replay_type: *replay
     # arguments for PER
     beta0: .4
     beta_steps: 5e+4

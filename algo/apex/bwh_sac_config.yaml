@@ -20,6 +20,7 @@ model:
         value: .01
 agent:
     algorithm: &algo apex-sac
+    replay_type: &replay 'uniform'
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     polyak: .995
@@ -55,7 +56,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: uniform                      # per or uniform
+    replay_type: *replay
     seqlen: 0
     # arguments for PER
     beta0: 0.4

@@ -55,10 +55,10 @@ class Q(Module):
             eps_action = tf.where(
                 tf.random.uniform(action.shape, 0, 1) < epsilon,
                 rand_act, action)
-            prob = tf.cast(eps_action == action, self._dtype)
+            prob = tf.cast(eps_action == action, tf.float32)
             prob = prob * (1 - epsilon) + epsilon / self._action_dim
             logpi = tf.math.log(prob)
-            return action, {'logpi': logpi}, state
+            return eps_action, {'logpi': logpi}, state
     
     @tf.function
     def value(self, x, state, action=None, prev_action=None, prev_reward=None):

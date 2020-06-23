@@ -17,6 +17,7 @@ model:
         value: .2
 agent:
     algorithm: &algo asap-sac
+    replay_type: &replay 'uniform'
     gamma: &gamma 0.99
     polyak: .995
     evaluation: False
@@ -70,7 +71,7 @@ agent:
     per_epsilon: 1.e-4
 
 replay:
-    type: uniform                      # per or uniform
+    replay_type: *replay
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4

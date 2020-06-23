@@ -106,7 +106,7 @@ class Worker:
         self.buffer = buffer_fn(buffer_config, state_keys=['h', 'c'], 
             prev_action=0, prev_reward=0)
         self.buffer.pre_add(obs=env.output().obs)
-        self._is_per = buffer_config['type'].endswith('per')
+        self._is_per = self._replay_type.endswith('per')
 
         assert self.env.is_action_discrete == True
         self.q = self.models['q']
@@ -130,7 +130,7 @@ class Worker:
                 )
             self.compute_priorities = build(self._compute_priorities, TensorSpecs)
 
-    def __call__(self, obs, reset=np.zeros(1), deterministic=False, env_output=None):
+    def __call__(self, obs, reset, deterministic=False, env_output=None):
         if self._add_input:
             self._prev_reward = env_output.reward
         if self._state is None:
@@ -168,7 +168,7 @@ class Worker:
         prob = tf.cast(eps_action == action, tf.float32)
         prob = prob * (1 - self._act_eps) + self._act_eps / self._action_dim
         logpi = tf.math.log(prob)
-        return action, {'logpi': logpi, 'q': q}, state
+        return eps_action, {'logpi': logpi, 'q': q}, state
 
     def run(self, learner, replay):
         while True:

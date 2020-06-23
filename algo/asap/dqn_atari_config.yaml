@@ -16,6 +16,7 @@ model:
     duel: True
 agent:
     algorithm: &algo asap-dqn
+    replay_type: &replay 'uniform'
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
@@ -53,7 +54,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: uniform                      # per or uniform
+    replay_type: *replay
     seqlen: 100
     precision: 32
     # arguments for PER

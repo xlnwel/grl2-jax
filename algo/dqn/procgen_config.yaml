@@ -15,6 +15,7 @@ model:
 
 agent:
     algorithm: &algo dqn
+    replay_type: &replay 'per'
     gamma: &gamma 0.99
     precision: &prec 32
     batch_size: &bs 64
@@ -50,7 +51,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: per      # uniform, per
+    replay_type: *replay
     precision: 32
     # arguments for PER
     beta0: 0

@@ -39,7 +39,7 @@ def get_data_format(env, batch_size, sample_size=None,
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
-        self._is_per = dataset.name().endswith('per')
+        self._is_per = self._replay_type.endswith('per')
         self.dataset = dataset
 
         if self._schedule_lr:

@@ -18,6 +18,7 @@ model:
 
 agent:
     algorithm: &algo iqn
+    replay_type: &replay 'uniform'
     gamma: &gamma 0.99
     precision: &prec 32
     batch_size: &bs 64
@@ -58,7 +59,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: uniform      # uniform, per
+    replay_type: *replay
     precision: 32
     # arguments for PER
     beta0: 0
