@@ -25,6 +25,7 @@ model:
 
 agent:
     algorithm: &algo apex-iqn
+    replay_type: &replay 'uniform'
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
@@ -72,12 +73,10 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: uniform      # uniform, per
+    replay_type: *replay
     seqlen: 100
     precision: 32
 
-    recent_frac: .5
-    recent_n: 1000
     # arguments for PER
     beta0: 0
     to_update_top_priority: True

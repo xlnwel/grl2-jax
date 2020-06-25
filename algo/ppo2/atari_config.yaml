@@ -9,7 +9,7 @@ env:
     np_obs: True
     
 model:
-    cnn_name: ftw
+    cnn_name: impala
     shared_mlp_units: []
     lstm_units: 256
     actor_units: [256]

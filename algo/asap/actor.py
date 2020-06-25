@@ -14,7 +14,6 @@ from algo.asap.utils import *
 
 
 class Worker(BaseWorker):
-    BaseLearner = get_base_learner_class(BaseAgent)
     def __init__(self, 
                 *,
                 worker_id,
@@ -43,7 +42,7 @@ class Worker(BaseWorker):
     def run(self, learner, replay):
         while True:
             mode, score, self._tag, weights, eval_times = self._choose_weights(learner)
-            self._run(weights)
+            self._run(weights, replay)
             eval_times += 1
             curr_score = self._info['score'][-1] if self._tag == Tag.LEARNED \
                 else self._info['evolved_score'][-1]
@@ -58,7 +57,6 @@ class Worker(BaseWorker):
                 f'Score: {score:.3g}',
                 f'Decision: {status}', color='green')
             print_repo(self._weight_repo, self._id)
-            self._send_data(replay)
             self._send_episode_info(learner)
             
             # self._update_mode_prob()

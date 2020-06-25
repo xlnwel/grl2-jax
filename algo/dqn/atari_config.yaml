@@ -1,31 +1,33 @@
 ---
 env:
-    name: atari_pong
+    name: atari_alien
     wrapper: baselines
     sticky_actions: False
     frame_skip: 4
     frame_stack: 4
-    life_done: False
+    life_done: True
+    clip_reward: True
     seed: 0
 
 model:
     cnn: nature
     kernel_initializer: orthogonal
-    head_units: [512]
+    head_units: []
     activation: relu
-    layer_type: dense
-    duel: True
+    layer_type: noisy
+    duel: False
 
 agent:
     algorithm: &algo dqn
+    replay_type: &replay 'per'
     gamma: &gamma 0.99
     precision: &prec 32
     schedule_act_eps: True
     act_eps: 0
 
-    MAX_STEPS: 1e9      # maximum training frames
-    TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
-    EVAL_PERIOD: 1e6
+    MAX_STEPS: 4e6      # maximum training frames
+    TRAIN_PERIOD: 4    # #frames
+    EVAL_PERIOD: 1e5
     LOG_PERIOD: 1e4
     N_UPDATES: 1
 
@@ -37,14 +39,14 @@ agent:
     RECORD: True
 
     loss_type: huber   # huber or mse
-    target_update_period: 8000  # trainning step
-    tbo: True                              # transformed Bellman Operator
+    target_update_period: 2000  # trainning step
+    tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
     lr: 1e-4
-    clip_norm: 0
+    clip_norm: 10
     epsilon: 1.5e-4
 
     # arguments for PER
@@ -52,16 +54,17 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: per      # uniform, per
+    replay_type: *replay
     precision: 32
     # arguments for PER
-    beta0: 0
+    beta0: .4
+    beta_steps: 1e5
     to_update_top_priority: True
 
     # arguments for general replay
     n_steps: 3
     gamma: *gamma
-    batch_size: 64
-    min_size: 5e4
+    batch_size: 32
+    min_size: 1600
     capacity: 1e5
     has_next_obs: True

@@ -69,8 +69,6 @@ replay:
     seqlen: 100
     precision: 32
 
-    recent_frac: .5
-    recent_n: 1000
     # arguments for PER
     beta0: 0
     to_update_top_priority: True
