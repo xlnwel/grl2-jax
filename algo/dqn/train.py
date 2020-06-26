@@ -21,7 +21,8 @@ def train(agent, env, eval_env, replay):
             # we reset noisy every episode. Theoretically, 
             # this follows the guide of deep exploration.
             # More importantly, it saves time!
-            agent.reset_noisy()
+            if hasattr(agent, 'reset_noisy'):
+                agent.reset_noisy()
         replay.add(**kwargs)
         if step % agent.TRAIN_PERIOD == 0:
             agent.learn_log(step)
@@ -32,9 +33,8 @@ def train(agent, env, eval_env, replay):
     while not replay.good_to_learn():
         step = runner.run(
             action_selector=env.random_action, 
-            step_fn=collect, nsteps=int(1e4))
+            step_fn=collect)
 
-    to_log = Every(agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
     while step <= int(agent.MAX_STEPS):
@@ -57,10 +57,6 @@ def train(agent, env, eval_env, replay):
         agent.save()
 
 def main(env_config, model_config, agent_config, replay_config):
-    algo = agent_config['algorithm']
-
-    create_model, Agent = pkg.import_agent(config=agent_config)
-    
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
@@ -75,16 +71,16 @@ def main(env_config, model_config, agent_config, replay_config):
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 
-    data_format = pkg.import_module('agent', algo).get_data_format(
+    am = pkg.import_module('agent', config=agent_config)
+    data_format = am.get_data_format(
         env=env, 
-        is_per=replay_config['type'].endswith('per'), 
+        is_per=replay_config['replay_type'].endswith('per'), 
         n_steps=replay_config['n_steps'])
     process = functools.partial(process_with_env, env=env)
     dataset = Dataset(replay, data_format, process_fn=process)
-    # construct models
+    
+    create_model, Agent = pkg.import_agent(config=agent_config)
     models = create_model(model_config, env)
-
-    # construct agent
     agent = Agent(
         name=env.name,
         config=agent_config, 
@@ -100,3 +96,35 @@ def main(env_config, model_config, agent_config, replay_config):
     ))
 
     train(agent, env, eval_env, replay)
+
+    # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup
+    # obs, _, _, _ = env.reset()
+    # epslen = 0
+    # from utility.utils import Every
+    # to_log = Every(agent.LOG_PERIOD, start=int(1e4)+2*agent.LOG_PERIOD)
+    # for t in range(int(agent.MAX_STEPS)):
+    #     if t > 1e4:
+    #         action = agent(obs)
+    #     else:
+    #         action = env.random_action()
+
+    #     next_obs, reward, discount, reset = env.step(action)
+    #     epslen += 1
+    #     replay.add(obs=obs, action=action, reward=reward, discount=discount, next_obs=next_obs)
+    #     obs = next_obs
+
+    #     if not discount or epslen == env.max_episode_steps:
+    #         agent.store(score=env.score(), epslen=env.epslen())
+    #         assert epslen == env.epslen(), f'{epslen} vs {env.epslen()}'
+    #         obs, _, _, _ = env.reset()
+    #         epslen = 0
+
+    #     if replay.good_to_learn() and t % 50 == 0:
+    #         for _ in range(50):
+    #             agent.learn_log(t)
+    #     if to_log(t):
+    #         eval_score, eval_epslen, _ = evaluate(eval_env, agent)
+
+    #         agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
+    #         agent.log(step=t)
+    #         agent.save()

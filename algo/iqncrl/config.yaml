@@ -31,7 +31,7 @@ agent:
 
     MAX_STEPS: 4e5      # maximum env frames
     TRAIN_PERIOD: 4    # #frames = 1 agent step when frame skip = 4
-    EVAL_PERIOD: 1e5
+    EVAL_PERIOD: 5e5
     LOG_PERIOD: 1e4
     N_UPDATES: 1
 

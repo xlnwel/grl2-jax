@@ -15,6 +15,11 @@ from run.args import parse_args
 
     
 def get_config(algo, env):
+    def search_add(word, files, filename):
+        if [f for f in files if word in f]:
+            # if suffix meets any config in the dir, we add it to filename
+            filename = f'{word}_{filename}'
+        return filename
     algo_dir = pkg.get_package(algo, 0, '/')
     if env == '' and '-' in algo:
         pwc('Config Warning: set atari as the default env, otherwise specify env explicitly', color='green')
@@ -23,14 +28,14 @@ def get_config(algo, env):
     filename = 'config.yaml'
     if '_' in env:
         prefix = env.split('_')[0]
-        if [f for f in files if prefix in f]:
-            # if prefix meets any config in the dir, we add it to filename
-            filename = f'{prefix}_{filename}'
+        filename = search_add(prefix, files, filename)
     if '-' in algo:
         suffix = algo.split('-')[-1]
         if [f for f in files if suffix in f]:
-            # if suffix meets any config in the dir, we add it to filename
-            filename = f'{suffix}_{filename}'
+            filename = search_add(suffix, files, filename)
+        elif suffix[-1].isdigit():
+            suffix = suffix[:-1]
+            filename = search_add(suffix, files, filename)
     path = f'{algo_dir}/{filename}'
     pwc(f'Config path: {path}', color='green')
     return load_config(path)
@@ -116,7 +121,7 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     # Grid search happens here
-                    processes += gs(precision=[5e-5, 1e-4, 3e-4])
+                    processes += gs(lr=[1e-3, 5e-4, 1e-4])
                 else:
                     processes += gs()
             else:

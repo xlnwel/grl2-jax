@@ -30,7 +30,7 @@ agent:
 
     MAX_STEPS: 1e7          # maximum training steps
     LOG_PERIOD: 1e4
-    EVAL_PERIOD: 1e5
+    EVAL_PERIOD: 5e5
     TRAIN_PERIOD: 50
     N_UPDATES: 10
 

@@ -83,11 +83,13 @@ class Agent(BaseAgent):
         next_q1_with_actor = self.target_q1(next_obs, next_action)
         next_q2_with_actor = self.target_q2(next_obs, next_action)
         next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
-        _, temp = self.temperature(next_obs, next_action)
+        if isinstance(self.temperature, (tf.Variable)):
+            temp = self.temperature
+        else:
+            _, temp = self.temperature()
         next_value = next_q_with_actor - temp * next_logpi
         target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
-        target_q = tf.stop_gradient(target_q)
-        
+
         terms = {}
         with tf.GradientTape() as tape:
             q1 = self.q1(obs, action)

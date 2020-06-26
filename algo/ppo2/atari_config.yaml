@@ -1,15 +1,15 @@
 ---
 env:
-    name: &env_name atari_breakout
+    name: &env_name atari_pong
     n_workers: 1
     n_envs: &nenvs 32
     seed: 0
-    wrapper: my_wrapper
+    wrapper: baselines
     frame_stack: 1
     np_obs: True
     
 model:
-    cnn_name: impala
+    cnn_name: nature
     shared_mlp_units: []
     lstm_units: 256
     actor_units: [256]
@@ -30,7 +30,7 @@ agent:
     sample_size: &ss 16       # BPTT length
     LOG_PERIOD: 1000
     EVAL_PERIOD: 5000
-    max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
+    max_kl: 0            # early stop when max_kl is violated. 0 suggests no bound
 
     normalize_obs: False
     normalize_reward: True
@@ -41,6 +41,7 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
+    RECORD: True
     
     # arguments for optimizer
     optimizer: adam
@@ -57,7 +58,7 @@ buffer:
     gamma: .99
     lam: .95
     precision: *prec
-    # n_envs: *nenvs  # this will be set in t√ain.py as it's the product of n_workers and n_envs
+    # n_envs: *nenvs  # this will be set in tain.py as it's the product of n_workers and n_envs
     N_STEPS: *nsteps
     N_MBS: *nmbs
     sample_size: *ss

@@ -82,8 +82,8 @@ class FTWCNN(Layer):
         y = self._conv4(y)
         x = x + y
         x = relu(x)
+        x = flatten(x)
         if self.out_size:
-            x = flatten(x)
             x = self._dense(x)
 
         return x
@@ -159,8 +159,8 @@ class IMPALACNN(Layer):
         for l in self._conv_layers:
             x = l(x)
         x = relu(x)
+        x = flatten(x)
         if self.out_size:
-            x = flatten(x)
             x = self._dense(x)
 
         return x
@@ -200,8 +200,8 @@ class NatureCNN(Layer):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
         for l in self._conv_layers:
             x = l(x)
+        x = flatten(x)
         if self.out_size:
-            x = flatten(x)
             x = self._dense(x)
         
         return x
@@ -239,8 +239,8 @@ class SimpleCNN(Layer):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
         for l in self._conv_layers:
             x = l(x)
+        x = flatten(x)
         if self.out_size:
-            x = flatten(x)
             x = self._dense(x)
         
         return x

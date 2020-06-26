@@ -31,6 +31,7 @@ model:
         z_size: *zsize
 agent:
     algorithm: &algo curl
+    replay_type: &replay 'uniform'
     gamma: &gamma .99
     batch_size: &bs 128
     q_polyak: .99
@@ -38,8 +39,7 @@ agent:
     act_eps: 0
 
     MAX_STEPS: 1e6
-    LOG_PERIOD: 1000
-    actor_update_period: 2
+    LOG_PERIOD: 100
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -62,7 +62,7 @@ agent:
     per_epsilon: 1e-4
 
 replay:
-    type: uniform                      # per or uniform
+    replay_type: *replay
     # arguments for PER
     beta0: .4
     beta_steps: 5e4
