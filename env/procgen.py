@@ -6,6 +6,7 @@ from procgen.env import ENV_NAMES as VALID_ENV_NAMES
 from env import wrappers as W
 from env import baselines as B 
 
+
 def make_procgen_env(config):
     gray_scale = config.setdefault('gray_scale', False)
     frame_skip = config.setdefault('frame_skip', 1)

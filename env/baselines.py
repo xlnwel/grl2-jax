@@ -102,12 +102,6 @@ class EpisodicLifeEnv(gym.Wrapper):
             obs, _, _, _ = self.env.step(0)
         self.lives = self.env.unwrapped.ale.lives()
         return obs
-    
-    def game_over(self):
-        return self._game_over
-    
-    def set_game_over(self):
-        self._game_over = True
 
 class MaxAndSkipEnv(gym.Wrapper):
     def __init__(self, env, frame_skip=4):
@@ -273,10 +267,10 @@ def make_atari(env_id, frame_skip=4):
     env = MaxAndSkipEnv(env, frame_skip=frame_skip)
     return env
 
-def wrap_deepmind(env, episode_life=False, clip_reward=True, frame_stack=0, scale=False, np_obs=False):
+def wrap_deepmind(env, life_done=False, clip_reward=True, frame_stack=0, scale=False, np_obs=False):
     """Configure environment for DeepMind-style Atari.
     """
-    if episode_life:
+    if life_done:
         env = EpisodicLifeEnv(env)
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)

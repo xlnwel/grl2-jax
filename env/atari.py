@@ -20,7 +20,7 @@ def make_atari_env(config):
         name = f'{name}NoFrameskip-v{version}'
         env = B.make_atari(name, config.setdefault('frame_skip', 4))
         env = B.wrap_deepmind(env, 
-            episode_life=config.setdefault('life_done', False), 
+            life_done=config.setdefault('life_done', False), 
             clip_reward=config.setdefault('clip_reward', False),
             frame_stack=config.setdefault('frame_stack', 4),
             np_obs=config.setdefault('np_obs', False))

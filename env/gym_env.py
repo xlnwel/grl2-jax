@@ -56,6 +56,7 @@ class Env(gym.Wrapper):
         self.max_episode_steps = self.env.max_episode_steps
         self.n_envs = 1
         self.env_type = 'Env'
+        super().__init__(self.env)
 
     def reset(self, idxes=None):
         return self.env.reset()
@@ -100,6 +101,7 @@ class Env(gym.Wrapper):
 class EnvVecBase(gym.Wrapper):
     def __init__(self):
         self.env_type = 'EnvVec'
+        super().__init__(self.env)
 
     def _convert_batch_obs(self, obs):
         if obs != []:
@@ -119,7 +121,6 @@ class EnvVecBase(gym.Wrapper):
 
 class EnvVec(EnvVecBase):
     def __init__(self, config, env_fn=make_env):
-        super().__init__()
         self.n_envs = n_envs = config.pop('n_envs', 1)
         self.name = config['name']
         self.envs = [env_fn(config) for i in range(n_envs)]
@@ -129,6 +130,7 @@ class EnvVec(EnvVecBase):
                 for i, env in enumerate(self.envs)
                 if hasattr(env, 'seed')]
         self.max_episode_steps = self.env.max_episode_steps
+        super().__init__()
 
     def random_action(self, *args, **kwargs):
         return np.array([env.action_space.sample() for env in self.envs], copy=False)
@@ -209,7 +211,6 @@ class EnvVec(EnvVecBase):
 
 class RayEnvVec(EnvVecBase):
     def __init__(self, EnvType, config, env_fn=make_env):
-        super().__init__()
         self.name = config['name']
         self.n_workers= config.get('n_workers', 1)
         self.envsperworker = config.get('n_envs', 1)
@@ -225,6 +226,7 @@ class RayEnvVec(EnvVecBase):
 
         self.env = EnvType(config, env_fn)
         self.max_episode_steps = self.env.max_episode_steps
+        super().__init__()
 
     def reset(self, idxes=None):
         output = self._remote_call('reset', idxes, single_output=False)
