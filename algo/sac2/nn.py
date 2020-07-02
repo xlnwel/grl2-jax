@@ -101,7 +101,7 @@ class Temperature(Module):
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     
-    def __call__(self, x, a):
+    def __call__(self, x=None, a=None):
         if self._temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
             x = self._layer(x)

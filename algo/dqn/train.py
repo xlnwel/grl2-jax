@@ -49,7 +49,7 @@ def train(agent, env, eval_env, replay):
         if to_eval(step):
             n = 10 if 'procgen' in eval_env.name else 1
             eval_score, eval_epslen, video = evaluate(
-                eval_env, agent, record=agent.RECORD, size=(64, 64), n=n)
+                eval_env, agent, record=agent.RECORD, n=n)
             if agent.RECORD:
                 video_summary(f'{agent.name}/sim', video, step=step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
@@ -68,6 +68,7 @@ def main(env_config, model_config, agent_config, replay_config):
     #     start_level = 200
     eval_env_config = env_config.copy()
     eval_env_config.pop('clip_reward', False)
+    eval_env_config.pop('life_done', False)
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 
