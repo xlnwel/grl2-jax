@@ -50,6 +50,8 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
         make_env = pkg.import_module('env', algo_name, place=-1).make_env
     except:
         make_env = None
+    env_config.pop('clip_reward', False)
+    env_config.pop('life_done', False)
     env = create_env(env_config, env_fn=make_env)
     create_model, Agent = pkg.import_agent(config=agent_config)    
     models = create_model(model_config, env)

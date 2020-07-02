@@ -98,7 +98,8 @@ class GridSearch:
             if isinstance(value, dict) and len(value) != 0:
                 # For simplicity, we do not further consider the case when value is a dict of dicts here
                 k, v = self._popitem(value)
-                assert k in configs[key], err_msg(k, v)
+                for c in configs:
+                    assert k in c[key], err_msg(k, v)
                 if len(value) != 0:
                     # if there is still something left in value, put value back into kwargs
                     kwargs_copy[key] = value
