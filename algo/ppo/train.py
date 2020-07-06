@@ -18,6 +18,8 @@ def train(agent, env, eval_env, buffer):
         agent.update_obs_rms(obs)
         agent.update_reward_rms(reward)
     def collect(env, step, reset, reward, next_obs, **kwargs):
+        if np.any(reset):
+            reward[reset == 1] -= 1
         agent.update_reward_rms(reward)
         kwargs['reward'] = agent.normalize_reward(reward)
         buffer.add(**kwargs)
@@ -80,6 +82,8 @@ def main(env_config, model_config, agent_config, buffer_config):
     eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1
     eval_env_config['n_envs'] = 8
+    eval_env_config.pop('clip_reward', False)
+    eval_env_config.pop('life_done', False)
     eval_env = create_env(eval_env_config, force_envvec=True)
 
     buffer_config['n_envs'] = env.n_envs

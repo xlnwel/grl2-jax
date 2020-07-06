@@ -1,0 +1,78 @@
+---
+env:
+    name: procgen_coinrun
+    wrapper: baselines
+    sticky_actions: False
+    frame_skip: 1
+    frame_stack: 1
+    np_obs: True
+    seed: 0
+
+model:
+    cnn: impala
+    lstm_units: 512
+    head_units: [512]
+    activation: relu
+    duel: False
+
+agent:
+    algorithm: &algo r2d2
+    replay_type: &replay 'sper'
+    gamma: 0.99
+    lambda: .95
+    precision: &prec 16
+    batch_size: &bs 64
+    schedule_act_eps: True
+    act_eps: 0
+
+    store_state: True
+    burn_in: True
+    sample_size: &ss 20
+    burn_in_size: &bis 10
+    add_input: False
+
+    MAX_STEPS: 8e6
+    LOG_PERIOD: &log 1000
+    N_UPDATES: *log
+    
+    # distributed algo params
+    n_learner_cpus: 3
+    n_workers: 8
+    SYNC_PERIOD: 1000
+
+    # model path: root_dir/model_name/models
+    # tensorboard path: root_dir/model_name/logs
+    # the following names are just examples; they will be reset in our training process
+    root_dir: *algo                         # root path for tensorboard logs
+    model_name: *algo
+    RECORD_PERIOD: 100
+
+    loss_type: mse                          # huber or mse
+    target_update_period: 1500
+    tbo: False
+
+    # arguments for optimizer
+    optimizer: adam
+    schedule_lr: False
+    lr: 1e-4
+    epsilon: 1.5e-4
+    clip_norm: 0
+
+    # arguments for PER
+    per_alpha: 0.9
+    per_eta: .9
+    per_epsilon: 1e-4
+
+replay:
+    replay_type: *replay
+    precision: 32
+    # arguments for PER
+    beta0: 0                        # follow Agent57
+    to_update_top_priority: False
+
+    # arguments for general replay
+    batch_size: *bs
+    sample_size: *ss
+    burn_in_size: *bis
+    min_size: 1000                  # 6250 in Agent57
+    capacity: 1e5                 # 5e6 in Agent57

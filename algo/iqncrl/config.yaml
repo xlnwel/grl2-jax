@@ -10,15 +10,22 @@ env:
     seed: 0
 
 model:
-    cnn: nature
-    kernel_initializer: orthogonal
-    head_units: []
-    activation: relu
-    layer_type: dense
-    duel: False
+    q:
+        cnn: nature
+        kernel_initializer: orthogonal
+        head_units: []
+        activation: relu
+        layer_type: dense
+        duel: False
 
-    qt_embed_size: 64
-    phi_activation: relu
+        qt_embed_size: 64
+        phi_activation: relu
+    
+    crl:
+        crl_units: []
+        activation: relu
+        crl_out_size: 128
+
 
 agent:
     algorithm: &algo iqn
@@ -30,7 +37,7 @@ agent:
     act_eps: 0
 
     MAX_STEPS: 4e5      # maximum env frames
-    TRAIN_PERIOD: 4    # #frames = 1 agent step when frame skip = 4
+    TRAIN_PERIOD: 16    # #frames = 1 agent step when frame skip = 4
     EVAL_PERIOD: 5e5
     LOG_PERIOD: 1e4
     N_UPDATES: 1
@@ -41,6 +48,8 @@ agent:
     K: 32               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
+    crl_coef: 1
+    
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process

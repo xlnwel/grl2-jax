@@ -70,13 +70,32 @@ class Agent(BaseAgent):
     def reset_noisy(self):
         self.q.reset_noisy()
 
-    def __call__(self, obs, deterministic=False, **kwargs):
+    def __call__(self, x, deterministic=False, **kwargs):
         if self._schedule_act_eps:
             eps = self._act_eps.value(self.env_step)
             self.store(act_eps=eps)
         else:
             eps = self._act_eps
-        action = self.q(obs, deterministic, eps)
+
+        x = np.array(x)
+        if len(x.shape) % 2 != 0:
+            x = tf.expand_dims(x, 0)
+
+        action = self.action(x, deterministic, eps)
+        action = np.squeeze(action.numpy())
+
+        return action
+
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        action = self.q.action(x)
+        if not deterministic and epsilon > 0:
+            rand_act = tf.random.uniform(
+                action.shape, 0, self._action_dim, dtype=tf.int32)
+            action = tf.where(
+                tf.random.uniform(action.shape, 0, 1) < epsilon,
+                rand_act, action)
+
         return action
 
     @step_track
@@ -110,9 +129,9 @@ class Agent(BaseAgent):
         terms = {}
         with tf.GradientTape() as tape:
             q = self.q.value(obs, action)
-            nth_action = self.q.action(next_obs, noisy=False)
-            nth_q = self.target_q.value(next_obs, nth_action, noisy=False)
-            returns = n_step_target(reward, nth_q, discount, self._gamma, steps, self._tbo)
+            next_action = self.q.action(next_obs, noisy=False)
+            next_q = self.target_q.value(next_obs, next_action, noisy=False)
+            returns = n_step_target(reward, next_q, discount, self._gamma, steps, self._tbo)
             returns = tf.stop_gradient(returns)
             error = returns - q
             loss = tf.reduce_mean(IS_ratio * loss_fn(error))

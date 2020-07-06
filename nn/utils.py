@@ -76,10 +76,10 @@ def ortho_init(scale=1.0):
 
 def convert_obs(x, obs_range, dtype=tf.float32):
     if x.dtype != np.uint8:
-        print(f'Observations are already converted to {x.dtype}, no further process is performed')
+        print(f'Observations({x.shape}, {x.dtype}) are already converted to {x.dtype}, no further process is performed')
         return x
     assert x.dtype == np.uint8, x.dtype
-    print(f'Observations are converted to range {obs_range} of dtype {dtype}')
+    print(f'Observations({x.shape}, {x.dtype}) are converted to range {obs_range} of dtype {dtype}')
     if obs_range == [0, 1]:
         return tf.cast(x, dtype) / 255.
     elif obs_range == [-.5, .5]:

@@ -61,29 +61,29 @@ class Q(Module):
     @tf.function
     def action(self, x, n_qt):
         _, _, q = self.value(x, n_qt)
-        return tf.argmax(q, axis=-1)
+        return tf.argmax(q, axis=-1, output_type=tf.int32)
 
     @tf.function
     def value(self, x, n_qt, action=None):
         batch_size = x.shape[0]
         x = self.cnn(x)
         x = tf.tile(x, [n_qt, 1])   # [N*B, cnn.out_size]
-        qt, qt_embed = self.quantile(n_qt, batch_size)
+        tau_hat, qt_embed = self.quantile(n_qt, batch_size)
         x = x * qt_embed    # [N*B, cnn.out_size]
         qtv, q = self.mlp(x, n_qt, batch_size, action=action)
         
-        return qt, qtv, q
+        return tau_hat, qtv, q
 
     @tf.function
     def z_value(self, x, n_qt, action=None):
         batch_size = x.shape[0]
         z = self.cnn(x)
         x = tf.tile(z, [n_qt, 1])   # [N*B, cnn.out_size]
-        qt, qt_embed = self.quantile(n_qt, batch_size)
+        tau_hat, qt_embed = self.quantile(n_qt, batch_size)
         x = x * qt_embed    # [N*B, cnn.out_size]
         qtv, q = self.mlp(x, n_qt, batch_size, action=action)
         
-        return z, qt, qtv, q
+        return z, tau_hat, qtv, q
 
     def cnn(self, x):
         # psi network
@@ -92,9 +92,9 @@ class Q(Module):
         return x
     
     def quantile(self, n_qt, batch_size):
-        qt = tf.random.uniform([n_qt * batch_size, 1], 
+        tau_hat = tf.random.uniform([n_qt * batch_size, 1], 
             minval=0, maxval=1, dtype=tf.float32)
-        qt_tiled = tf.tile(qt, [1, self._qt_embed_size])  # [N*B, E]
+        qt_tiled = tf.tile(tau_hat, [1, self._qt_embed_size])  # [N*B, E]
 
         # phi network
         pi = tf.convert_to_tensor(np.pi, tf.float32)
@@ -102,7 +102,7 @@ class Q(Module):
         qt_embed = tf.math.cos(degree)              # [N*B, E]
         qt_embed = self._phi(qt_embed)              # [N*B, cnn.out_size]
         
-        return qt, qt_embed
+        return tau_hat, qt_embed
 
     def mlp(self, x, n_qt, batch_size, action=None):
         if self._duel:
@@ -122,10 +122,6 @@ class Q(Module):
             qtv = tf.reduce_sum(qtv * action, -1, keepdims=True)        # [N, B, 1]
             q = tf.reduce_sum(q * action, -1)                           # [B]
         return qtv, q
-
-    def qtv2value(self, qtv, n_qt, batch_size):
-        qtv = tf.reshape(qtv, (n_qt, batch_size, qtv.shape[-1]))
-        return tf.reduce_mean(qtv, axis=0)
 
 class CRL(Module):
     @config

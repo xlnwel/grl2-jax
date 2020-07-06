@@ -98,34 +98,60 @@ def main(env_config, model_config, agent_config, replay_config):
 
     train(agent, env, eval_env, replay)
 
-    # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup
-    # obs, _, _, _ = env.reset()
-    # epslen = 0
-    # from utility.utils import Every
-    # to_log = Every(agent.LOG_PERIOD, start=int(1e4)+2*agent.LOG_PERIOD)
-    # for t in range(int(agent.MAX_STEPS)):
-    #     if t > 1e4:
-    #         action = agent(obs)
-    #     else:
-    #         action = env.random_action()
+#     # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup
+#     # print('hey, v2')
+#     # from tmp2 import make_atari, wrap_deepmind
+#     # env = make_atari('MsPacmanNoFrameskip-v4')
+#     # env = wrap_deepmind(env, life_done=True)
+#     # eval_env = make_atari('MsPacmanNoFrameskip-v4')
+#     # eval_env = wrap_deepmind(eval_env, life_done=False, clip_reward=False)
+#     # obs = env.reset()
+#     output = env.reset()
+#     obs = output.obs
+#     score = 0
+#     epslen = 0
+#     from utility.utils import Every
+#     to_log = Every(agent.LOG_PERIOD, start=int(1e4)+2*agent.LOG_PERIOD)
+#     for t in range(int(agent.MAX_STEPS)):
+#         if t > 1e4:
+#             action = agent(obs)
+#         else:
+#             action = env.action_space.sample()
 
-    #     next_obs, reward, discount, reset = env.step(action)
-    #     epslen += 1
-    #     replay.add(obs=obs, action=action, reward=reward, discount=discount, next_obs=next_obs)
-    #     obs = next_obs
+#         next_obs, reward, discount, reset = env.step(action)
+#         # discount = np.float32(1-done)
+#         epslen += 1
+#         score += reward
+#         replay.add(obs=obs, action=action, reward=reward, discount=discount, next_obs=next_obs)
+#         obs = next_obs
+#         if reset:
+#             agent.store(score=score, epslen=epslen)
+#             obs = env.reset()[0]
+#             epslen = 0
+#             score = 0
 
-    #     if not discount or epslen == env.max_episode_steps:
-    #         agent.store(score=env.score(), epslen=env.epslen())
-    #         assert epslen == env.epslen(), f'{epslen} vs {env.epslen()}'
-    #         obs, _, _, _ = env.reset()
-    #         epslen = 0
+#         if replay.good_to_learn() and t % 4 == 0:
+#             agent.learn_log(t)
 
-    #     if replay.good_to_learn() and t % 50 == 0:
-    #         for _ in range(50):
-    #             agent.learn_log(t)
-    #     if to_log(t):
-    #         eval_score, eval_epslen, _ = evaluate(eval_env, agent)
+#         if to_log(t):
+#             eval_score, eval_epslen = evaluate(eval_env, agent)
 
-    #         agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-    #         agent.log(step=t)
-    #         agent.save()
+#             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
+#             agent.log(step=t)
+#             agent.save()
+
+# def evaluate(env, agent):
+#     score = 0
+#     epslen = 0
+#     max_steps = 27000
+#     i = 0
+#     obs = env.reset()[0]
+#     discount = 1
+#     while discount and i < max_steps:
+#         action = agent(obs, deterministic=True)
+#         obs, reward, discount, reset = env.step(action)
+#         score += reward
+#         epslen += 1
+#         i += 1
+
+#     return score, epslen

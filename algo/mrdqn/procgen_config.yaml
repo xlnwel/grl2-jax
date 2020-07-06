@@ -1,0 +1,71 @@
+---
+env:
+    name: atari_pong
+    life_done: False
+    sticky_actions: True
+    frame_skip: 4
+    seed: 0
+
+model:
+    cnn: nature
+    lstm_units: 512
+    head_units: [512]
+    activation: relu
+    duel: True
+
+agent:
+    algorithm: &algo rdqn
+    replay_type: &replay 'sper'
+    gamma: 0.99
+    lambda: .95
+    precision: &prec 16
+    batch_size: &bs 32
+
+    store_state: True
+    burn_in: True
+    sample_size: &ss 120
+    burn_in_size: &bis 40
+    add_input: False
+    act_eps: 0.3
+
+    MAX_STEPS: 8e6          # maximum env steps
+    LOG_PERIOD: 1e3         # train steps
+    EVAL_PERIOD: 1e3
+    TRAIN_PERIOD: 1000
+    N_UPDATES: 100
+
+    # model path: root_dir/model_name/models
+    # tensorboard path: root_dir/model_name/logs
+    # the following names are just examples; they will be reset in our training process
+    root_dir: *algo                         # root path for tensorboard logs
+    model_name: *algo
+
+    loss_type: mse   # huber or mse
+    target_update_period: 1500
+    tbo: False                              # transformed Bellman Operator
+    
+    # arguments for optimizer
+    optimizer: adam
+    schedule_lr: False
+    lr: 1e-4
+    epsilon: 1e-4
+    clip_norm: 40
+
+    # arguments for PER
+    per_alpha: .9
+    per_eta: .9
+    per_epsilon: 1e-4
+
+replay:
+    replay_type: *replay
+    precision: *prec
+    # arguments for PER
+    beta0: 0
+    to_update_top_priority: False
+
+    # arguments for general replay
+    batch_size: *bs
+    sample_size: *ss
+    burn_in_size: *bis
+    min_size: 100
+    capacity: 10000

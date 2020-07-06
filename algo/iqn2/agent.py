@@ -60,7 +60,6 @@ class Agent(BaseAgent):
             self.store(act_eps=eps)
         else:
             eps = self._act_eps
-        eps = tf.convert_to_tensor(eps, tf.float32)
         
         x = np.array(x)
         if len(x.shape) % 2 != 0:
@@ -137,12 +136,14 @@ class Agent(BaseAgent):
             weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))        # [B, N, N']
             huber = huber_loss(error, threshold=self.KAPPA)             # [B, N, N']
             qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1) # [B]
-            loss = tf.reduce_mean(qr_loss)
-
-        if self._is_per:
             error = tf.reduce_max(tf.reduce_mean(tf.abs(error), axis=2), axis=1)
+            
             priority = self._compute_priority(error)
             terms['priority'] = priority
+            coef = tf.stop_gradient(tf.linalg.normalize(priority, 1)[0])
+            tf.debugging.assert_near(tf.reduce_sum(coef), 1)
+            qr_loss = coef * qr_loss
+            loss = tf.reduce_sum(qr_loss)
         
         terms['norm'] = self._optimizer(tape, loss)
         

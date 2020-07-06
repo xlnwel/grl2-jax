@@ -10,37 +10,32 @@ env:
     seed: 0
 
 model:
-    fpn:
-        N: &N 32
-    iqn:
+    cnn: 
         cnn: nature
-        kernel_initializer: orthogonal
-        head_units: [512]
+    actor:
+        units_list: [512]
+        norm: none
         activation: relu
-        layer_type: dense
-        duel: False
-
-        qt_embed_size: 64
-        phi_activation: relu
-
+    q:
+        units_list: [512]
+        norm: none
+        activation: relu
+    temperature:
+        temp_type: 'variable'
+        value: 0.001
 agent:
-    algorithm: &algo fqf
+    algorithm: &algo sac4
     replay_type: &replay 'uniform'
-    gamma: &gamma 0.99
-    precision: &prec 32
-    batch_size: &bs 64
-    schedule_act_eps: True
+    gamma: &gamma .99
+    polyak: .995
     act_eps: 0
-
-    MAX_STEPS: 1e8      # maximum env frames
+    # target_entropy: .3
+    
+    MAX_STEPS: 1e8
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 5e5
     LOG_PERIOD: 1e4
     N_UPDATES: 1
-
-    # IQN params
-    N: *N                # N in paper, num of quantiles for online quantile network
-    KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -49,35 +44,29 @@ agent:
     model_name: *algo
     RECORD: True
 
-    target_update_period: 2000  # trainning step
-    tbo: False                              # transformed Bellman Operator
-    
-    # arguments for optimizer
-    iqn_opt: adam
-    schedule_lr: False
-    iqn_lr: 5e-5
-    fpn_opt: rmsprop
-    fpn_lr: 2.5e-9
-    ent_coef: 0
-    clip_norm: 10
-    epsilon: 1.5e-4
+    target_update_period: 2000
 
+    # arguments for optimizer
+    optimizer: adam
+    schedule_lr: False
+    lr: 3e-4
+    temp_lr: 3e-4
+    
     # arguments for PER
     per_alpha: .5
     per_epsilon: 1e-4
 
 replay:
     replay_type: *replay
-    precision: 32
     # arguments for PER
     beta0: .4
-    beta_steps: 1e5
+    beta_steps: 5e4
     to_update_top_priority: True
 
     # arguments for general replay
     n_steps: 3
     gamma: *gamma
-    batch_size: *bs
-    min_size: 1600
-    capacity: 1e5
+    batch_size: 64
+    min_size: 2e4
+    capacity: 3e5
     has_next_obs: False

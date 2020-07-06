@@ -6,21 +6,18 @@ env:
     frame_stack: 4
 
 model:
-    fpn:
-        N: &N 32
-    iqn:
-        cnn: impala
-        kernel_initializer: orthogonal
-        head_units: [512]
-        activation: relu
-        layer_type: dense
-        duel: False
+    cnn: impala
+    kernel_initializer: orthogonal
+    head_units: [512]
+    activation: relu
+    layer_type: dense
+    duel: False
 
-        qt_embed_size: 64
-        phi_activation: relu
+    qt_embed_size: 64
+    phi_activation: relu
 
 agent:
-    algorithm: &algo fqf
+    algorithm: &algo iqn
     replay_type: &replay 'uniform'
     gamma: &gamma 0.99
     precision: &prec 32
@@ -35,7 +32,9 @@ agent:
     N_UPDATES: 1
 
     # IQN params
-    N: *N                # N in paper, num of quantiles for online quantile network
+    N: 8                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
+    K: 32               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # model path: root_dir/model_name/models
@@ -49,12 +48,9 @@ agent:
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
-    iqn_opt: adam
+    optimizer: adam
     schedule_lr: False
-    iqn_lr: 5e-5
-    fpn_opt: rmsprop
-    fpn_lr: 2.5e-9
-    ent_coef: 0
+    lr: 1e-4
     clip_norm: 0
     epsilon: 1.5e-4
 

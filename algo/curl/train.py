@@ -79,7 +79,7 @@ def main(env_config, model_config, agent_config, replay_config):
     am = pkg.import_module('agent', config=agent_config)
     data_format = am.get_data_format(
         env=env, 
-        is_per=replay_config['type'].endswith('per'), 
+        is_per=replay_config['replay_type'].endswith('per'), 
         n_steps=replay_config['n_steps'])
     process = functools.partial(process_with_env, env=env, 
         cropped_obs_shape=tuple(agent_config['obs_shape']))
@@ -93,6 +93,8 @@ def main(env_config, model_config, agent_config, replay_config):
         models=models, 
         dataset=dataset, 
         env=env)
+    # from algo.curl.agent2 import CurlSacAgent
+    # agent = CurlSacAgent(name=env.name, config=config, env=env, replay=replay)
     
     agent.save_config(dict(
         env=env_config,

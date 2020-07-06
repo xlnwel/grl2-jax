@@ -1,41 +1,44 @@
 ---
 env:
-    name: procgen_coinrun
-    frame_skip: 2
-    gray_scale: True
+    name: atari_alien
+    wrapper: baselines
+    sticky_actions: False
+    frame_skip: 4
     frame_stack: 4
+    life_done: True
+    clip_reward: True
+    seed: 0
 
 model:
-    fpn:
-        N: &N 32
-    iqn:
-        cnn: impala
-        kernel_initializer: orthogonal
-        head_units: [512]
-        activation: relu
-        layer_type: dense
-        duel: False
+    cnn: nature
+    kernel_initializer: orthogonal
+    head_units: []
+    activation: relu
+    layer_type: dense
+    duel: False
 
-        qt_embed_size: 64
-        phi_activation: relu
+    qt_embed_size: 64
+    phi_activation: relu
 
 agent:
-    algorithm: &algo fqf
-    replay_type: &replay 'uniform'
+    algorithm: &algo iqn
+    replay_type: &replay 'per'
     gamma: &gamma 0.99
     precision: &prec 32
-    batch_size: &bs 64
+    batch_size: &bs 32
     schedule_act_eps: True
     act_eps: 0
 
-    MAX_STEPS: 8e6      # maximum training frames
-    TRAIN_PERIOD: 128    # #frames
+    MAX_STEPS: 4e5      # maximum env frames
+    TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 5e5
-    LOG_PERIOD: 5e4
+    LOG_PERIOD: 1e4
     N_UPDATES: 1
 
     # IQN params
-    N: *N                # N in paper, num of quantiles for online quantile network
+    N: 8                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
+    K: 32               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # model path: root_dir/model_name/models
@@ -49,30 +52,28 @@ agent:
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
-    iqn_opt: adam
+    optimizer: adam
     schedule_lr: False
-    iqn_lr: 5e-5
-    fpn_opt: rmsprop
-    fpn_lr: 2.5e-9
-    ent_coef: 0
-    clip_norm: 0
+    lr: 1e-4
+    clip_norm: 10
     epsilon: 1.5e-4
 
     # arguments for PER
-    per_alpha: .4
+    per_alpha: .5
     per_epsilon: 1e-4
 
 replay:
     replay_type: *replay
     precision: 32
     # arguments for PER
-    beta0: 0
+    beta0: .4
+    beta_steps: 1e5
     to_update_top_priority: True
 
     # arguments for general replay
     n_steps: 3
     gamma: *gamma
     batch_size: *bs
-    min_size: 5e4
+    min_size: 1600
     capacity: 1e5
     has_next_obs: False

@@ -61,7 +61,7 @@ class Q(Module):
     @tf.function
     def action(self, x, noisy=True, reset=True):
         q = self.value(x, noisy=noisy, reset=reset)
-        return tf.argmax(q, axis=-1)
+        return tf.argmax(q, axis=-1, output_type=tf.int32)
     
     @tf.function
     def value(self, x, action=None, noisy=True, reset=True):

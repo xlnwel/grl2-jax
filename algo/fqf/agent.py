@@ -10,25 +10,7 @@ from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
-
-
-def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
-    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
-    action_dtype = tf.int32 if env.is_action_discrete else dtype
-    data_format = dict(
-        obs=((None, *env.obs_shape), obs_dtype),
-        action=((None, *env.action_shape), action_dtype),
-        reward=((None, ), dtype), 
-        next_obs=((None, *env.obs_shape), obs_dtype),
-        discount=((None, ), dtype),
-    )
-    if is_per:
-        data_format['IS_ratio'] = ((None, ), dtype)
-        data_format['idxes'] = ((None, ), tf.int32)
-    if n_steps > 1:
-        data_format['steps'] = ((None, ), dtype)
-
-    return data_format
+from algo.dqn.agent import get_data_format
 
 
 class Agent(BaseAgent):
@@ -46,7 +28,8 @@ class Agent(BaseAgent):
 
         self._to_sync = Every(self._target_update_period)
         # optimizer
-        self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
+        self._iqn_opt = Optimizer(self._iqn_opt, self.q, self._iqn_lr, clip_norm=self._clip_norm)
+        self._fpn_opt = Optimizer(self._fpn_opt, self.fpn, self._fpn_lr)
 
         self._action_dim = env.action_dim
 
@@ -72,13 +55,35 @@ class Agent(BaseAgent):
     def reset_noisy(self):
         pass
 
-    def __call__(self, obs, deterministic=False, **kwargs):
+    def __call__(self, x, deterministic=False, **kwargs):
         if self._schedule_act_eps:
             eps = self._act_eps.value(self.env_step)
             self.store(act_eps=eps)
         else:
             eps = self._act_eps
-        action = self.q(obs, self.K, deterministic, eps)
+        eps = tf.convert_to_tensor(eps, tf.float32)
+
+        x = np.array(x)
+        if len(x.shape) % 2 != 0:
+            x = tf.expand_dims(x, 0)
+
+        action = self.action(x, deterministic, eps)
+        action = np.squeeze(action.numpy())
+
+        return action
+
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        x = self.q.cnn(x)
+        tau, tau_hat, _ = self.fpn(x)
+        action = self.q.action(x, tau_hat, tau_range=tau)
+        if not deterministic and epsilon > 0:
+            rand_act = tf.random.uniform(
+                action.shape, 0, self._action_dim, dtype=tf.int32)
+            action = tf.where(
+                tf.random.uniform(action.shape, 0, 1) < epsilon,
+                rand_act, action)
+
         return action
 
     @step_track
@@ -115,39 +120,86 @@ class Agent(BaseAgent):
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}
-        with tf.GradientTape() as tape:
-            qt, qtv, q = self.q.value(obs, self.N, action)
-            nth_action = self.q.action(next_obs, self.K)
-            _, nth_qtv, _ = self.target_q.value(next_obs, self.N_PRIME, nth_action)
-            reward = reward[None, :, None]
-            discount = discount[None, :, None]
+        with tf.GradientTape(persistent=True) as tape:
+            x = self.q.cnn(obs)
+            x_no_grad = tf.stop_gradient(x) # forbid gradients to cnn when computing fpn loss
+            
+            tau, tau_hat, fpn_entropy = self.fpn(x_no_grad)
+            tau_hat = tf.stop_gradient(tau_hat) # forbid gradients to fpn when computing qr loss
+            qtv, q = self.q.value(
+                x, tau_hat, tau_range=tau, action=action)
+            next_x = self.q.cnn(next_obs)
+            
+            next_tau, next_tau_hat, _ = self.fpn(next_x)
+            next_action = self.q.action(next_x, next_tau_hat, tau_range=next_tau)
+            
+            next_x = self.target_q.cnn(next_obs)
+            next_tau, next_tau_hat, _ = self.fpn(next_x)
+            next_qtv, _ = self.target_q.value(
+                next_x, next_tau_hat, tau_range=next_tau, action=next_action)
+            tf.debugging.assert_shapes([[tau, (None, self.N+1)]])
+            tf.debugging.assert_shapes([[tau_hat, (None, self.N)]])
+            tf.debugging.assert_shapes([[qtv, (None, self.N, 1)]])
+            tf.debugging.assert_shapes([[q, (None, )]])
+            
+            reward = reward[:, None, None]
+            discount = discount[:, None, None]
             if not isinstance(steps, int):
-                steps = steps[None, :, None]
-            returns = n_step_target(reward, nth_qtv, discount, self._gamma, steps, self._tbo)
-            qtv = tf.transpose(qtv, (1, 0, 2))              # [B, N, 1]
-            returns = tf.transpose(returns, (1, 2, 0))      # [B, 1, N']
+                steps = steps[:, None, None]
+            returns = n_step_target(reward, next_qtv, discount, self._gamma, steps, self._tbo)
+            tf.debugging.assert_shapes([[returns, (None, self.N, 1)]])
+            returns = tf.transpose(returns, (0, 2, 1))      # [B, 1, N]
             returns = tf.stop_gradient(returns)
 
-            error = returns - qtv   # [B, N, N']
+            error = returns - qtv   # [B, N, N]
             
             # loss
-            qt = tf.transpose(tf.reshape(qt, [self.N, self._batch_size, 1]), [1, 0, 2]) # [B, N, 1]
-            weight = tf.abs(qt - tf.cast(error < 0, tf.float32))        # [B, N, N']
+            tau_hat = tf.expand_dims(tau_hat, -1) # [B, N, 1]
+            tf.debugging.assert_shapes([[tau_hat, (None, self.N, 1)]])
+            tf.debugging.assert_shapes([[qtv, (None, self.N, 1)]])
+            tf.debugging.assert_shapes([[returns, (None, 1, self.N)]])
+            tf.debugging.assert_shapes([[error, (None, self.N, self.N)]])
+
+            weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))        # [B, N, N']
             huber = huber_loss(error, threshold=self.KAPPA)             # [B, N, N']
             qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1) # [B]
-            loss = tf.reduce_mean(qr_loss)
+            qr_loss = tf.reduce_mean(qr_loss)
+
+            # compute gradients for fpn
+            tau_qtv = self.q.value(x_no_grad, tau[..., 1:-1], action=action)     # [B, N-1, A]
+            qtv = tf.squeeze(qtv, -1)
+            tau_qtv = tf.squeeze(tau_qtv, -1)
+            tf.debugging.assert_shapes([
+                [qtv, (None, self.N)],
+                [tau_qtv, (None, self.N-1)],
+            ])
+
+            # we use 𝜃 to represent F^{-1} for brevity
+            diff1 = tau_qtv - qtv[..., :-1]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i-1])
+            sign1 = tau_qtv > qtv[..., :-1]
+            abs_diff1 = tf.where(sign1, diff1, -diff1)
+            diff2 = tau_qtv - qtv[..., 1:]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i])
+            sign2 = tau_qtv > qtv[..., 1:]
+            abs_diff2 = tf.where(sign2, diff2, -diff2)
+            fpn_out_grads = abs_diff1 + abs_diff2
+            fpn_out_grads = tf.stop_gradient(fpn_out_grads)
+            fpn_loss = tf.reduce_mean(fpn_out_grads * tau[..., 1:-1])
+            fpn_entropy_loss = self._ent_coef * tf.reduce_mean(fpn_entropy)
+            fpn_loss = fpn_loss + fpn_entropy_loss
 
         if self._is_per:
             error = tf.reduce_max(tf.reduce_mean(tf.abs(error), axis=2), axis=1)
             priority = self._compute_priority(error)
             terms['priority'] = priority
         
-        terms['norm'] = self._optimizer(tape, loss)
+        terms['iqn_norm'] = self._iqn_opt(tape, qr_loss)
+        terms['fpn_norm'] = self._fpn_opt(tape, fpn_loss)
         
         terms.update(dict(
             q=q,
             returns=returns,
-            loss=loss,
+            qr_loss=qr_loss,
+            fpn_entropy=fpn_entropy,
         ))
 
         return terms

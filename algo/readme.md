@@ -12,6 +12,7 @@
 - rdqn: dqn with LSTM and retrace(𝝀)
 - sac: sac without value function
 - sac2: sac with value function
+- sac4: sac with discrete action space and CNN 
 - seed: seed
 - seed1: seed with a separate actor (perform best)
 - seed2: seed with an external replay center

@@ -25,12 +25,14 @@ class Encoder(Module):
 
         self._dense = mlp([self._z_size], norm=self._norm, activation=self._dense_act)
         
+    @tf.Module.with_name_scope
     def cnn(self, x):
         x = convert_obs(x, [0, 1])
         x = self._convs(x)
         x = flatten(x)
         return x
     
+    @tf.Module.with_name_scope
     def mlp(self, x):
         x = self._dense(x)
         return x
@@ -76,6 +78,7 @@ class Actor(Module):
 
         return action
 
+    @tf.Module.with_name_scope
     def train_step(self, x):
         x = self._z(x)
         x = self._layers(x)
@@ -94,8 +97,11 @@ class Actor(Module):
             raw_action = dist.sample()
             raw_logpi = dist.log_prob(raw_action)
             action = tf.tanh(raw_action)
+            tf.summary.histogram('std', std)
+            tf.summary.histogram('raw_logpi', raw_logpi)
             logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
-            terms = dict(raw_act_std=dist.stddev())
+            tf.summary.histogram('logpi', logpi)
+            terms = dict(raw_act_std=std)
             
         terms['entropy']=dist.entropy()
 
@@ -112,6 +118,7 @@ class SoftQ(Module):
                             norm=self._norm, 
                             activation=self._activation)
 
+    @tf.Module.with_name_scope
     def __call__(self, x, a):
         x = tf.concat([x, a], axis=-1)
         x = self._layers(x)
@@ -130,6 +137,7 @@ class Temperature(Module):
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     
+    @tf.Module.with_name_scope
     def __call__(self):
         log_temp = self._log_temp
         temp = tf.exp(log_temp)
@@ -175,5 +183,5 @@ def create_model(config, env):
         target_q1=SoftQ(q_config, 'target_q1'),
         target_q2=SoftQ(q_config, 'target_q2'),
         temperature=temperature,
-        curl=CURL(curl_config, 'curl')
+        # curl=CURL(curl_config, 'curl')
     )

@@ -10,25 +10,7 @@ from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
-
-
-def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
-    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
-    action_dtype = tf.int32 if env.is_action_discrete else dtype
-    data_format = dict(
-        obs=((None, *env.obs_shape), obs_dtype),
-        action=((None, *env.action_shape), action_dtype),
-        reward=((None, ), dtype), 
-        next_obs=((None, *env.obs_shape), obs_dtype),
-        discount=((None, ), dtype),
-    )
-    if is_per:
-        data_format['IS_ratio'] = ((None, ), dtype)
-        data_format['idxes'] = ((None, ), tf.int32)
-    if n_steps > 1:
-        data_format['steps'] = ((None, ), dtype)
-
-    return data_format
+from algo.dqn.agent import get_data_format
 
 
 class Agent(BaseAgent):
@@ -72,13 +54,32 @@ class Agent(BaseAgent):
     def reset_noisy(self):
         pass
 
-    def __call__(self, obs, deterministic=False, **kwargs):
+    def __call__(self, x, deterministic=False, **kwargs):
         if self._schedule_act_eps:
             eps = self._act_eps.value(self.env_step)
             self.store(act_eps=eps)
         else:
             eps = self._act_eps
-        action = self.q(obs, self.K, deterministic, eps)
+        
+        x = np.array(x)
+        if len(x.shape) % 2 != 0:
+            x = tf.expand_dims(x, 0)
+
+        action = self.action(x, deterministic, eps)
+        action = np.squeeze(action.numpy())
+
+        return action
+
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        action = self.q.action(x, self.K)
+        if not deterministic and epsilon > 0:
+            rand_act = tf.random.uniform(
+                action.shape, 0, self._action_dim, dtype=tf.int32)
+            action = tf.where(
+                tf.random.uniform(action.shape, 0, 1) < epsilon,
+                rand_act, action)
+       
         return action
 
     @step_track
@@ -116,14 +117,14 @@ class Agent(BaseAgent):
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}
         with tf.GradientTape() as tape:
-            z, qt, qtv, q = self.q.z_value(obs, self.N, action)
-            nth_action = self.q.action(next_obs, self.K)
-            _, nth_qtv, _ = self.target_q.value(next_obs, self.N_PRIME, nth_action)
+            z, tau_hat, qtv, q = self.q.z_value(obs, self.N, action)
+            next_action = self.q.action(next_obs, self.K)
+            _, next_qtv, _ = self.target_q.value(next_obs, self.N_PRIME, next_action)
             reward = reward[None, :, None]
             discount = discount[None, :, None]
             if not isinstance(steps, int):
                 steps = steps[None, :, None]
-            returns = n_step_target(reward, nth_qtv, discount, self._gamma, steps, self._tbo)
+            returns = n_step_target(reward, next_qtv, discount, self._gamma, steps, self._tbo)
             qtv = tf.transpose(qtv, (1, 0, 2))              # [B, N, 1]
             returns = tf.transpose(returns, (1, 2, 0))      # [B, 1, N']
             returns = tf.stop_gradient(returns)
@@ -131,8 +132,8 @@ class Agent(BaseAgent):
             error = returns - qtv   # [B, N, N']
             
             # loss
-            qt = tf.transpose(tf.reshape(qt, [self.N, self._batch_size, 1]), [1, 0, 2]) # [B, N, 1]
-            weight = tf.abs(qt - tf.cast(error < 0, tf.float32))        # [B, N, N']
+            tau_hat = tf.transpose(tf.reshape(tau_hat, [self.N, self._batch_size, 1]), [1, 0, 2]) # [B, N, 1]
+            weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))        # [B, N, N']
             huber = huber_loss(error, threshold=self.KAPPA)             # [B, N, N']
             qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1) # [B]
             qr_loss = tf.reduce_mean(qr_loss)

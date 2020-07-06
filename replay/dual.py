@@ -8,13 +8,13 @@ from replay.per import ProportionalPER
 
 class DualReplay(Replay):
     def __init__(self, config):
-        self._replay_type = config['type']
+        self._replay_type = config['replay_type']
         self._capacity = to_int(config['capacity'])
         self._min_size = to_int(config['min_size'])
         self._batch_size = config['batch_size']
 
         BufferType = ProportionalPER if self._replay_type.endswith('per') else UniformReplay
-        config['type'] = 'per' if self._replay_type.endswith('per') else 'Uniform'
+        config['replay_type'] = 'per' if self._replay_type.endswith('per') else 'Uniform'
         config['capacity'] = int(self._capacity * config['cap_frac'])
         config['min_size'] = self._min_size
         config['batch_size'] = int(self._batch_size * config['bs_frac'])

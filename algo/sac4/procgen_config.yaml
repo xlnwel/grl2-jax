@@ -1,46 +1,37 @@
 ---
 env:
     name: procgen_coinrun
-    size: [64, 64]
-    n_envs: 1
-    frame_skip: 8
-    frame_stack: 3
-    precision: &prec 16
+    frame_skip: 2
+    gray_scale: True
+    frame_stack: 4
+
 model:
-    encoder:
-        norm: layer
-        dense_act: none
-        z_size: &zsize 50
+    cnn: 
+        cnn: impala
     actor:
-        z_size: *zsize
-        units_list: [1024, 1024]
+        units_list: [512]
         norm: none
         activation: relu
-        LOG_STD_MIN: -10
-        LOG_STD_MAX: 2
     q:
-        units_list: [1024, 1024]
+        units_list: [512]
         norm: none
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: .1
-    curl:
-        # units_list: []
-        # activation: relu
-        z_size: *zsize
+        value: 0
 agent:
-    algorithm: &algo curl
+    algorithm: &algo sac4
     replay_type: &replay 'uniform'
     gamma: &gamma .99
-    batch_size: &bs 128
-    q_polyak: .99
-    encoder_polyak: .95
+    polyak: .995
     act_eps: 0
-
-    MAX_STEPS: 1e6
-    LOG_PERIOD: 1000
-    actor_update_period: 2
+    # target_entropy: .3
+    
+    MAX_STEPS: 8e6
+    TRAIN_PERIOD: 128    # #frames = 4 agent step when frame skip = 4
+    EVAL_PERIOD: 5e5
+    LOG_PERIOD: 5e4
+    N_UPDATES: 1
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -49,14 +40,13 @@ agent:
     model_name: *algo
     RECORD: True
 
-    obs_shape: [84, 84]
+    target_update_period: 2000
+
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 1e-3
-    q_lr: 1e-3
-    curl_lr: 1e-3
-    temp_lr: 1e-4
+    lr: 3e-4
+    temp_lr: 3e-4
     
     # arguments for PER
     per_alpha: .5
@@ -70,9 +60,9 @@ replay:
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 1
+    n_steps: 3
     gamma: *gamma
-    batch_size: *bs
-    min_size: 1e3
-    capacity: 1e5
-    has_next_obs: True
+    batch_size: 64
+    min_size: 2e4
+    capacity: 3e5
+    has_next_obs: False

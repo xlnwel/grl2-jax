@@ -32,7 +32,7 @@ class Optimizer(tf.Module):
     def variables(self):
         return self._opt.variables()
     
-    def __call__(self, tape, loss):
+    def __call__(self, tape, loss, output_gradients=None):
         if self._variables is None:
             variables = [m.trainable_variables for m in self._models]
             self._variables = tf.nest.flatten(variables)
@@ -40,7 +40,7 @@ class Optimizer(tf.Module):
         if self._mpt:
             with tape:
                 loss = self._opt.get_scaled_loss(loss)
-        grads = tape.gradient(loss, self._variables)
+        grads = tape.gradient(loss, self._variables, output_gradients=output_gradients)
         if self._mpt:
             grads = self._opt.get_unscaled_gradients(grads)
         norm = tf.linalg.global_norm(grads)

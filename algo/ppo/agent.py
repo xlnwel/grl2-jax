@@ -88,7 +88,8 @@ class Agent(PPOBase):
         return None
 
     def __call__(self, obs, deterministic=False, update_rms=False, **kwargs):
-        obs = np.array(obs, copy=False)
+        if obs.ndim % 2 != 0:
+            obs = np.expand_dims(obs, 0)
         if update_rms:
             self.update_obs_rms(obs)
         obs = self.normalize_obs(obs)

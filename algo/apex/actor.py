@@ -231,13 +231,13 @@ class Worker:
     def _compute_dqn_priorities(self, obs, action, reward, next_obs, discount, steps, q=None):
         if self._is_dpg:
             q = self.q(obs, action)
-            nth_action = self.actor.action(next_obs, deterministic=False)
-            nth_q = self.q(next_obs, nth_action)
+            next_action = self.actor.action(next_obs, deterministic=False)
+            next_q = self.q(next_obs, next_action)
         else:
-            nth_action = self.q.action(next_obs, False)
-            nth_q = self.q.value(next_obs, nth_action)
+            next_action = self.q.action(next_obs, False)
+            next_q = self.q.value(next_obs, next_action)
             
-        returns = n_step_target(reward, nth_q, self._gamma, discount, steps, self._tbo)
+        returns = n_step_target(reward, next_q, self._gamma, discount, steps, self._tbo)
         
         priority = tf.abs(returns - q)
         priority += self._per_epsilon
@@ -249,12 +249,12 @@ class Worker:
     
     @tf.function
     def _compute_iqn_priorities(self, obs, action, reward, next_obs, discount, steps, qtv=None):
-        nth_action = self.q.action(next_obs, self.N_PRIME)
-        _, nth_qtv, _ = self.q.value(next_obs, self.N_PRIME, nth_action)
+        next_action = self.q.action(next_obs, self.N_PRIME)
+        _, next_qtv, _ = self.q.value(next_obs, self.N_PRIME, next_action)
         reward = reward[None, :, None]
         discount = discount[None, :, None]
         steps = steps[None, :, None]
-        returns = n_step_target(reward, nth_qtv, self._gamma, discount, steps, self._tbo)
+        returns = n_step_target(reward, next_qtv, self._gamma, discount, steps, self._tbo)
         returns = tf.transpose(returns, (1, 2, 0))      # [B, 1, N']
         qtv = qtv[..., None]
         tf.debugging.assert_shapes([[qtv, (self._seqlen, self.K, 1)]])

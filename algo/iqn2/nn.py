@@ -81,11 +81,13 @@ class Q(Module):
         return x
     
     def quantile(self, n_qt, batch_size):
-        # phi network
         tau_hat = tf.random.uniform([n_qt * batch_size, 1], 
             minval=0, maxval=1, dtype=tf.float32)
+        qt_tiled = tf.tile(tau_hat, [1, self._qt_embed_size])  # [N*B, E]
+
+        # phi network
         pi = tf.convert_to_tensor(np.pi, tf.float32)
-        degree = tf.cast(tf.range(self._qt_embed_size), tf.float32) * pi * tau_hat
+        degree = tf.cast(tf.range(self._qt_embed_size), tf.float32) * pi * qt_tiled
         qt_embed = tf.math.cos(degree)              # [N*B, E]
         qt_embed = self._phi(qt_embed)              # [N*B, cnn.out_size]
         
@@ -104,9 +106,10 @@ class Q(Module):
         if action is not None:
             if len(action.shape) < len(q.shape):
                 action = tf.one_hot(action, self._action_dim, dtype=q.dtype)
-            qtv = tf.reduce_sum(qtv * action, -1, keepdims=True)        # [N, B, 1], relying on broadcasting
+            action_qtv = tf.tile(action, [n_qt, 1])
+            action_qtv = tf.reshape(action_qtv, [n_qt, batch_size, self._action_dim])
+            qtv = tf.reduce_sum(qtv * action, -1, keepdims=True)        # [N, B, 1]
             q = tf.reduce_sum(q * action, -1)                           # [B]
-            
         return qtv, q
 
 
