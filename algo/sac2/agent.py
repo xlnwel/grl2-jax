@@ -115,9 +115,9 @@ class Agent(BaseAgent):
             q1 = q_value(self.q1, obs, action)
             q2 = q_value(self.q2, obs, action)
             q = tf.minimum(q1, q2)
-            nth_value = self.target_value(next_obs).mode()
+            next_value = self.target_value(next_obs).mode()
             
-            target_q = n_step_target(reward, nth_value, discount, self._gamma, steps)
+            target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
             target_q = tf.stop_gradient(target_q)
             q1_error = target_q - q1
             q2_error = target_q - q2

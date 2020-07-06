@@ -148,7 +148,6 @@ class Worker:
 
         self._is_dpg = 'actor' in self.models
         self._is_iqn = 'iqn' in self._algorithm
-        assert self._is_dpg != self.env.is_action_discrete
         if self._is_dpg:
             self.actor = self.models['actor']
             self.q = self.models['q1']

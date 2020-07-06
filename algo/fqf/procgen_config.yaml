@@ -1,0 +1,74 @@
+---
+env:
+    name: procgen_coinrun
+    frame_skip: 2
+    gray_scale: True
+    frame_stack: 4
+
+model:
+    cnn: impala
+    kernel_initializer: orthogonal
+    head_units: [512]
+    activation: relu
+    layer_type: dense
+    duel: False
+
+    qt_embed_size: 64
+    phi_activation: relu
+
+agent:
+    algorithm: &algo iqn
+    replay_type: &replay 'uniform'
+    gamma: &gamma 0.99
+    precision: &prec 32
+    batch_size: &bs 64
+    schedule_act_eps: True
+    act_eps: 0
+
+    MAX_STEPS: 8e6      # maximum training frames
+    TRAIN_PERIOD: 128    # #frames
+    EVAL_PERIOD: 5e5
+    LOG_PERIOD: 5e4
+    N_UPDATES: 1
+
+    # IQN params
+    N: 8                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
+    K: 32               # K in paper, num of quantiles for action selection
+    KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
+
+    # model path: root_dir/model_name/models
+    # tensorboard path: root_dir/model_name/logs
+    # the following names are just examples; they will be reset in our training process
+    root_dir: *algo                         # root path for tensorboard logs
+    model_name: *algo
+    RECORD: True
+
+    target_update_period: 2000  # trainning step
+    tbo: False                              # transformed Bellman Operator
+    
+    # arguments for optimizer
+    optimizer: adam
+    schedule_lr: False
+    lr: 1e-4
+    clip_norm: 0
+    epsilon: 1.5e-4
+
+    # arguments for PER
+    per_alpha: .4
+    per_epsilon: 1e-4
+
+replay:
+    replay_type: *replay
+    precision: 32
+    # arguments for PER
+    beta0: 0
+    to_update_top_priority: True
+
+    # arguments for general replay
+    n_steps: 3
+    gamma: *gamma
+    batch_size: *bs
+    min_size: 5e4
+    capacity: 1e5
+    has_next_obs: False
