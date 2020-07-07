@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
 
-from core.module import Module
+from core.module import Module, Ensemble
 from core.decorator import config
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import Categorical
@@ -21,18 +21,8 @@ class Actor(Module):
                             out_size=out_size,
                             norm=self._norm, 
                             activation=self._activation)
-    
+
     def __call__(self, x, deterministic=False, epsilon=0):
-        if len(x.shape) % 2 == 1:
-            x = np.expand_dims(x, 0)
-
-        action = self.action(x, deterministic, epsilon)
-        action = np.squeeze(action.numpy())
-
-        return action
-
-    @tf.function(experimental_relax_shapes=True)
-    def action(self, x, deterministic=False, epsilon=0):
         x = self._layers(x)
 
         if self._is_action_discrete:
@@ -79,7 +69,7 @@ class Actor(Module):
 
         return action, logpi, terms
 
-class SoftQ(Module):
+class Q(Module):
     @config
     def __init__(self, name='q'):
         super().__init__(name=name)
@@ -122,17 +112,47 @@ class Temperature(Module):
         return log_temp, temp
 
 
-def create_model(config, env):
+class SAC(Ensemble):
+    def __init__(self, config, env, **kwargs):
+        super().__init__(
+            model_fn=create_components, 
+            config=config,
+            env=env,
+            **kwargs)
+
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 2, x.shape
+        
+        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
+        action = tf.squeeze(action)
+
+        return action
+
+    @tf.function
+    def value(self, x):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 2, x.shape
+        
+        value = self.q1(x)
+        
+        return value
+
+
+def create_components(config, env):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
     actor = Actor(actor_config, action_dim, is_action_discrete)
-    q1 = SoftQ(q_config, 'q1')
-    q2 = SoftQ(q_config, 'q2')
-    target_q1 = SoftQ(q_config, 'target_q1')
-    target_q2 = SoftQ(q_config, 'target_q2')
+    q1 = Q(q_config, 'q1')
+    q2 = Q(q_config, 'q2')
+    target_q1 = Q(q_config, 'target_q1')
+    target_q2 = Q(q_config, 'target_q2')
     if temperature_config['temp_type'] == 'constant':
         temperature = temperature_config['value']
     else:
@@ -146,3 +166,6 @@ def create_model(config, env):
         target_q2=target_q2,
         temperature=temperature,
     )
+
+def create_model(config, env, **kwargs):
+    return SAC(config, env, **kwargs)

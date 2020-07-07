@@ -9,7 +9,7 @@ class Module(tf.Module):
         [v.assign(w) for v, w in zip(self.variables, weights)]
 
         
-class Ensemble(tf.Module):
+class Ensemble:
     """ This class groups all models used by off-policy algorithms together
     so that one can easily get and set all variables """
     def __init__(self, 
@@ -17,7 +17,7 @@ class Ensemble(tf.Module):
                  models=None, 
                  model_fn=None, 
                  **kwargs):
-        super().__init__()
+        self.models = {}
         if models is None:
             self.models = model_fn(**kwargs)
         else:
@@ -52,11 +52,17 @@ class Ensemble(tf.Module):
             [v.assign(w) for v, w in zip(self.variables, weights)]
     
     """ Auxiliary functions that make Ensemble like a dict """
-    def __setitem__(self, key, item):
-        self.models[key] = item
+    def __getattr__(self, key):
+        if key in self.models:
+            return self.models[key]
+        else:
+            raise ValueError(f'{key} not in models({list(self.models)})')
 
     def __getitem__(self, key):
         return self.models[key]
+
+    def __setitem__(self, key, value):
+        self.models[key] = value
 
     def __len__(self):
         return len(self.models)

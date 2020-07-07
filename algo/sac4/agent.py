@@ -58,16 +58,10 @@ class Agent(BaseAgent):
         self._sync_target_nets()
 
     def __call__(self, obs, deterministic=False, **kwargs):
-        obs = np.expand_dims(obs, 0)
-        action = self.action(obs, deterministic, self._act_eps)
-        action = np.squeeze(action.numpy())
-        return action
-
-    @tf.function
-    def action(self, obs, deterministic=False, epsilon=0):
-        x = self.cnn(obs)
-        action = self.actor.action(x, deterministic, epsilon)
-        return action
+        return self.model.action(
+            tf.convert_to_tensor(obs), 
+            deterministic=deterministic, 
+            epsilon=self._act_eps).numpy()
 
     @step_track
     def learn_log(self, step):
@@ -97,10 +91,13 @@ class Agent(BaseAgent):
     def summary(self, data, terms):
         tf.summary.histogram('next_act_probs', terms['next_act_probs'], step=self._env_step)
         tf.summary.histogram('next_act_logps', terms['next_act_logps'], step=self._env_step)
+        tf.summary.histogram('next_logps', terms['next_logps'], step=self._env_step)
+        tf.summary.histogram('next_qs', terms['next_qs'], step=self._env_step)
         tf.summary.histogram('reward', data['reward'], step=self._env_step)
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
+        terms = {}
         next_x = self.cnn(next_obs)
         next_act_probs, next_act_logps = self.actor.train_step(next_x)
         next_qs1 = self.target_q1(next_x)
@@ -110,6 +107,9 @@ class Agent(BaseAgent):
             temp = self.temperature
         else:
             _, temp = self.temperature()
+        terms['temp'] = temp
+        terms['next_qs'] = tf.reduce_sum(next_act_probs * next_qs, axis=-1)
+        terms['next_logps'] = tf.reduce_sum(next_act_probs * temp * next_act_logps, axis=-1)
         next_value = tf.reduce_sum(next_act_probs 
             * (next_qs - temp * next_act_logps), axis=-1)
         target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
@@ -122,7 +122,6 @@ class Agent(BaseAgent):
             [next_qs, (None, self._action_dim)],
             [target_q, (None)],
         ])
-        terms = {}
         with tf.GradientTape() as tape:
             x = self.cnn(obs)
             qs1 = self.q1(x)
@@ -159,7 +158,6 @@ class Agent(BaseAgent):
                 temp_loss = -log_temp * (self._target_entropy - entropy)
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])
                 temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
-            terms['temp'] = temp
             terms['temp_loss'] = temp_loss
             terms['temp_norm'] = self._temp_opt(tape, temp_loss)
 

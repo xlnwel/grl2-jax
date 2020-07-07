@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
 
-from core.module import Module
+from core.module import Module, Ensemble
 from core.decorator import config
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import Categorical, TanhBijector, SampleDist
@@ -22,16 +22,6 @@ class Actor(Module):
                             activation=self._activation)
 
         self._is_action_discrete = is_action_discrete
-
-
-    def __call__(self, x, deterministic=False, epsilon=0):
-        if len(x.shape) % 2 == 1:
-            x = np.expand_dims(x, 0)
-
-        action = self.action(x, deterministic=deterministic, epsilon=epsilon)
-        action = np.squeeze(action.numpy())
-
-        return action
         
     @tf.function
     def action(self, x, deterministic=False, epsilon=0):
@@ -70,7 +60,8 @@ class Actor(Module):
 
         return dist, terms
 
-class Value(Module):
+
+class Q(Module):
     @config
     def __init__(self, name='q'):
         super().__init__(name=name)
@@ -85,8 +76,6 @@ class Value(Module):
         rbd = 0 if x.shape[-1] == 1 else 1  # #reinterpreted batch dimensions
         x = tf.squeeze(x)
         return tfd.Independent(tfd.Normal(x, 1), rbd)
-
-        return x
 
 
 class Temperature(Module):
@@ -114,7 +103,38 @@ class Temperature(Module):
         return log_temp, temp
 
 
-def create_model(config, env):
+class SAC(Ensemble):
+    def __init__(self, config, env, **kwargs):
+        super().__init__(
+            model_fn=create_components, 
+            config=config,
+            env=env,
+            **kwargs)
+
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 2, x.shape
+        
+        action = self.actor.action(x, deterministic=deterministic, epsilon=epsilon)
+        action = tf.squeeze(action)
+
+        return action
+
+    @tf.function
+    def value(self, x):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 2, x.shape
+        
+        value = self.q1(x).mode()
+        value = tf.squeeze(value)
+
+        return value
+
+
+def create_components(config, env):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
     actor_config = config['actor']
@@ -127,9 +147,12 @@ def create_model(config, env):
         
     return dict(
         actor=Actor(actor_config, action_dim, is_action_discrete),
-        q1=Value(q_config, 'q1'),
-        q2=Value(q_config, 'q2'),
-        value=Value(q_config, 'v'),
-        target_value=Value(q_config, 'target_v'),
+        q1=Q(q_config, 'q1'),
+        q2=Q(q_config, 'q2'),
+        value=Q(q_config, 'v'),
+        target_value=Q(q_config, 'target_v'),
         temperature=temperature,
     )
+
+def create_model(config, env, **kwargs):
+    return SAC(config, env, **kwargs)

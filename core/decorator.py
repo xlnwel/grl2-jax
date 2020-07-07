@@ -29,13 +29,14 @@ def agent_config(init_fn):
 
         self._dtype = global_policy().compute_dtype
 
+        self.model = models
         # track models and optimizers for Checkpoint
         self._ckpt_models = {}
         for name_, model in models.items():
             setattr(self, name_, model)
             if isinstance(model, tf.Module) or isinstance(model, tf.Variable):
                 self._ckpt_models[name_] = model
-                
+        
         self._env_step = tf.Variable(0, dtype=tf.int64)
         self._train_step = tf.Variable(0, dtype=tf.int64)
         self.env_step = 0

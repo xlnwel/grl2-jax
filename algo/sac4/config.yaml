@@ -22,7 +22,7 @@ model:
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: 0.001
+        value: .1
 agent:
     algorithm: &algo sac4
     replay_type: &replay 'uniform'
@@ -68,5 +68,5 @@ replay:
     gamma: *gamma
     batch_size: 64
     min_size: 2e4
-    capacity: 3e5
+    capacity: 1e5
     has_next_obs: False

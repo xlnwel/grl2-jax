@@ -3,7 +3,7 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
 
-from core.module import Module
+from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp, cnn
 
@@ -27,7 +27,7 @@ class Actor(Module):
                             out_size=action_dim,
                             activation=self._activation)
 
-    def action(self, x, deterministic=False, epsilon=0):
+    def __call__(self, x, deterministic=False, epsilon=0):
         x = self._layers(x)
 
         dist = tfd.Categorical(logits=x)
@@ -47,7 +47,7 @@ class Actor(Module):
         return probs, logps
 
 
-class SoftQ(Module):
+class Q(Module):
     @config
     def __init__(self, action_dim, name='q'):
         super().__init__(name=name)
@@ -65,6 +65,7 @@ class SoftQ(Module):
                 a = tf.one_hot(a, q.shape[-1])
                 assert a.shape[1:] == q.shape[1:]
             q = tf.reduce_sum(q * a, axis=-1)
+
         return q
 
 
@@ -92,8 +93,40 @@ class Temperature(Module):
     
         return log_temp, temp
 
+class SAC(Ensemble):
+    def __init__(self, config, env, **kwargs):
+        super().__init__(
+            model_fn=create_components, 
+            config=config,
+            env=env,
+            **kwargs)
 
-def create_model(config, env):
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 4, x.shape
+
+        x = self.cnn(x)
+        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
+        action = tf.squeeze(action)
+
+        return action
+
+    @tf.function
+    def value(self, x):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 4, x.shape
+        
+        x = self.cnn(x)
+        value = self.q1(x)
+        value = tf.squeeze(value)
+        
+        return value
+
+
+def create_components(config, env):
     assert env.is_action_discrete
     action_dim = env.action_dim
     actor_config = config['actor']
@@ -101,10 +134,10 @@ def create_model(config, env):
     temperature_config = config['temperature']
     cnn = CNN(config['cnn'])
     actor = Actor(actor_config, action_dim)
-    q1 = SoftQ(q_config, action_dim, 'q1')
-    q2 = SoftQ(q_config, action_dim, 'q2')
-    target_q1 = SoftQ(q_config, action_dim, 'target_q1')
-    target_q2 = SoftQ(q_config, action_dim, 'target_q2')
+    q1 = Q(q_config, action_dim, 'q1')
+    q2 = Q(q_config, action_dim, 'q2')
+    target_q1 = Q(q_config, action_dim, 'target_q1')
+    target_q2 = Q(q_config, action_dim, 'target_q2')
     if temperature_config['temp_type'] == 'constant':
         temperature = temperature_config['value']
     else:
@@ -119,3 +152,6 @@ def create_model(config, env):
         target_q2=target_q2,
         temperature=temperature,
     )
+
+def create_model(config, env, **kwargs):
+    return SAC(config, env, **kwargs)
