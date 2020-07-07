@@ -13,17 +13,6 @@ from core.optimizer import Optimizer
 from algo.dqn.agent import get_data_format
 
 
-def center_crop_image(image, output_size):
-    h, w = image.shape[:2]
-    new_h, new_w = output_size
-
-    top = (h - new_h)//2
-    left = (w - new_w)//2
-
-    image = image[top:top + new_h, left:left + new_w]
-    assert image.shape[:2] == output_size
-    return image
-
 class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
@@ -62,12 +51,10 @@ class Agent(BaseAgent):
         self._sync_target_nets()
 
     def __call__(self, obs, deterministic=False, **kwargs):
-        obs = np.array(obs)
-        obs = center_crop_image(obs, self._obs_shape[:2])
-        if len(obs.shape) % 2 == 1:
-            obs = np.expand_dims(obs, 0)
-        action = self.action(obs, deterministic)
-        return np.squeeze(action.numpy(), 0)
+        return self.model.action(
+            tf.convert_to_tensor(obs), 
+            deterministic=deterministic, 
+            epsilon=self._act_eps).numpy()
 
     @tf.function
     def action(self, obs, deterministic=False, **kwargs):

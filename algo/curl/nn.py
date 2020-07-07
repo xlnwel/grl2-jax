@@ -3,12 +3,24 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
 
-from core.module import Module
+from core.module import Module, Ensemble
 from core.decorator import config
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import Categorical
 from nn.utils import flatten, convert_obs, get_initializer
 from nn.func import mlp, cnn
+
+
+def center_crop_image(image, output_size):
+    h, w = image.shape[1:3]
+    new_h, new_w = output_size
+
+    top = (h - new_h)//2
+    left = (w - new_w)//2
+
+    image = image[:, top:top + new_h, left:left + new_w]
+    assert image.shape[1:3] == output_size, image.shape
+    return image
 
 
 class Encoder(Module):
@@ -27,6 +39,7 @@ class Encoder(Module):
         
     @tf.Module.with_name_scope
     def cnn(self, x):
+        x = center_crop_image(x)
         x = convert_obs(x, [0, 1])
         x = self._convs(x)
         x = flatten(x)
@@ -108,7 +121,7 @@ class Actor(Module):
         return action, logpi, terms
 
 
-class SoftQ(Module):
+class Q(Module):
     @config
     def __init__(self, name='q'):
         super().__init__(name=name)
@@ -144,13 +157,14 @@ class Temperature(Module):
     
         return temp
 
-class CURL(Module):
+class ContrastiveRepresentationLearning(Module):
     @config
-    def __init__(self, name='curl'):
+    def __init__(self, name='crl'):
         super().__init__(name=name)
         # self._layers = mlp(self._units_list, activation=self._activation)
         self._W = tf.Variable(tf.random.uniform((self._z_size, self._z_size)))
     
+    @tf.Module.with_name_scope
     def __call__(self, x_anchor, x_pos):
         # x_anchor = self._layers(x_anchor)
         # x_pos = self._layers(x_pos)
@@ -161,7 +175,40 @@ class CURL(Module):
         return logits
 
 
-def create_model(config, env):
+class CURL(Ensemble):
+    def __init__(self, config, env, **kwargs):
+        super().__init__(
+            model_fn=create_components, 
+            config=config,
+            env=env,
+            **kwargs)
+
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 4, x.shape
+
+        x = self.cnn(x)
+        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
+        action = tf.squeeze(action)
+
+        return action
+
+    @tf.function
+    def value(self, x):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 4, x.shape
+        
+        x = self.cnn(x)
+        value = self.q1(x)
+        value = tf.squeeze(value)
+        
+        return value
+
+
+def create_components(config, env):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
     encoder_config = config['encoder']
@@ -178,10 +225,13 @@ def create_model(config, env):
         encoder=Encoder(encoder_config, 'encoder'),
         target_encoder=Encoder(encoder_config, 'target_encoder'),
         actor=Actor(actor_config, action_dim, is_action_discrete),
-        q1=SoftQ(q_config, 'q1'),
-        q2=SoftQ(q_config, 'q2'),
-        target_q1=SoftQ(q_config, 'target_q1'),
-        target_q2=SoftQ(q_config, 'target_q2'),
+        q1=Q(q_config, 'q1'),
+        q2=Q(q_config, 'q2'),
+        target_q1=Q(q_config, 'target_q1'),
+        target_q2=Q(q_config, 'target_q2'),
         temperature=temperature,
-        # curl=CURL(curl_config, 'curl')
+        crl=ContrastiveRepresentationLearning(curl_config, 'curl')
     )
+
+def create_model(config, env, **kwargs):
+    return CURL(config, env, **kwargs)

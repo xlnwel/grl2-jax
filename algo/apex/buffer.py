@@ -50,7 +50,7 @@ class EnvBuffer(LocalBuffer):
         if self._memory == {}:
             del data['next_obs']
             init_buffer(self._memory, pre_dims=self._seqlen+self._n_steps, has_steps=self._n_steps>1, **data)
-            # print_buffer(self._memory, 'Local Buffer')
+            print_buffer(self._memory, 'Local Buffer')
             
         add_buffer(self._memory, self._idx, self._n_steps, self._gamma, **data)
         self._idx = self._idx + 1

@@ -121,13 +121,15 @@ class Agent(BaseAgent):
             tau_hat, qtv, q = self.q.value(obs, self.N, action)
             next_action = self.q.action(next_obs, self.K)
             _, next_qtv, _ = self.target_q.value(next_obs, self.N_PRIME, next_action)
-            reward = reward[None, :, None]
-            discount = discount[None, :, None]
+            reward = reward[:, None, None]
+            discount = discount[:, None, None]
             if not isinstance(steps, int):
-                steps = steps[None, :, None]
+                steps = steps[:, None, None]
             returns = n_step_target(reward, next_qtv, discount, self._gamma, steps, self._tbo)
-            qtv = tf.transpose(qtv, (1, 0, 2))              # [B, N, 1]
-            returns = tf.transpose(returns, (1, 2, 0))      # [B, 1, N']
+            tf.debugging.assert_shapes([
+                [qtv, (None, self.N, 1)],
+                [returns, (None, self.N_PRIME, 1)]
+            ])
             returns = tf.stop_gradient(returns)
 
             error = returns - qtv   # [B, N, N']

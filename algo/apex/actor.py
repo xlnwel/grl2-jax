@@ -7,7 +7,6 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 import ray
 
-from core.module import Ensemble
 from core.tf_config import *
 from core.base import BaseAgent
 from core.decorator import config
@@ -57,7 +56,7 @@ def get_base_learner_class(BaseAgent):
             self._is_learning = False
 
         def get_weights(self, name=None):
-            return self.models.get_weights(name=name)
+            return self.model.get_weights(name=name)
 
         def record_episode_info(self, **kwargs):
             video = kwargs.pop('video', None)
@@ -97,15 +96,14 @@ def get_learner_class(BaseAgent):
             process = functools.partial(process_with_env, env=env)
             dataset = RayDataset(replay, data_format, process)
 
-            self.models = Ensemble(
-                model_fn=model_fn, 
+            self.model = model_fn(
                 config=model_config, 
                 env=env)
 
             super().__init__(
                 name=env.name,
                 config=config, 
-                models=self.models,
+                models=self.model,
                 dataset=dataset,
                 env=env,
             )
@@ -141,19 +139,18 @@ class Worker:
 
         self.runner = Runner(self.env, self, nsteps=self.SYNC_PERIOD)
 
-        self.models = Ensemble(
-            model_fn=model_fn, 
+        self.model = model_fn( 
             config=model_config, 
             env=env)
 
-        self._is_dpg = 'actor' in self.models
+        self._is_dpg = 'actor' in self.model
         self._is_iqn = 'iqn' in self._algorithm
         if self._is_dpg:
-            self.actor = self.models['actor']
-            self.q = self.models['q1']
+            self.actor = self.model['actor']
+            self.q = self.model['q1']
             self._pull_names = ['actor', 'q1'] if self._is_per else ['actor']
         else:
-            self.q = self.models['q']
+            self.q = self.model['q']
             self._pull_names = ['q']
         
         self._info = collections.defaultdict(list)
@@ -181,7 +178,10 @@ class Worker:
 
     def __call__(self, x, deterministic=False, **kwargs):
         if self._is_dpg:
-            return self.actor(x, deterministic, self._act_eps)
+            return self.model.action(
+                x, 
+                deterministic=deterministic, 
+                epsilon=self._act_eps).numpy()
         else:
             x = np.array(x)
             if len(x.shape) % 2 != 0:
@@ -217,7 +217,7 @@ class Worker:
             if self.buffer.is_full():
                 self._send_data(replay)
 
-        self.models.set_weights(weights)
+        self.model.set_weights(weights)
         if self._seqlen == 0:
             self.runner.run_traj(step_fn=collect)
         else:
@@ -231,7 +231,7 @@ class Worker:
     def _compute_dqn_priorities(self, obs, action, reward, next_obs, discount, steps, q=None):
         if self._is_dpg:
             q = self.q(obs, action)
-            next_action = self.actor.action(next_obs, deterministic=False)
+            next_action = self.actor(next_obs, deterministic=False)
             next_q = self.q(next_obs, next_action)
         else:
             next_action = self.q.action(next_obs, False)
@@ -309,7 +309,7 @@ class BaseEvaluator:
             self._send_episode_info(learner)
 
     def _run(self, weights, record):        
-        self.models.set_weights(weights)
+        self.model.set_weights(weights)
         score, epslen, video = evaluate(self.env, self, 
             record=record, size=(64, 64), n=self.N_EVALUATION)
         self.store(score, epslen, video)
@@ -342,19 +342,18 @@ class Evaluator(BaseEvaluator):
         self.env = env = create_env(env_config)
         self.n_envs = self.env.n_envs
 
-        self.models = Ensemble(
-                model_fn=model_fn, 
+        self.model = model_fn(
                 config=model_config, 
                 env=env)
 
-        self._is_dpg = 'actor' in self.models
+        self._is_dpg = 'actor' in self.model
         self._is_iqn = 'iqn' in self._algorithm
-        assert self._is_dpg != self.env.is_action_discrete
+
         if self._is_dpg:
-            self.actor = self.models['actor']
+            self.actor = self.model['actor']
             self._pull_names = ['actor']
         else:
-            self.q = self.models['q']
+            self.q = self.model['q']
             self._pull_names = ['q']
         
         self._info = collections.defaultdict(list)

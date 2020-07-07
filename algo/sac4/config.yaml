@@ -22,7 +22,8 @@ model:
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: .1
+        value: 0
+
 agent:
     algorithm: &algo sac4
     replay_type: &replay 'uniform'

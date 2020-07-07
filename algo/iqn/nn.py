@@ -5,7 +5,7 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
-from core.module import Module
+from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp, cnn
         
@@ -45,26 +45,19 @@ class Q(Module):
             name='a' if self._duel else 'q',
             **kwargs)
 
-    def __call__(self, x, n_qt, deterministic=False, epsilon=0):
-        x = np.array(x)
-        if not deterministic and np.random.uniform() < epsilon:
-            size = x.shape[0] if len(x.shape) % 2 == 0 else None
-            return np.random.randint(self._action_dim, size=size)
-        if len(x.shape) % 2 != 0:
-            x = tf.expand_dims(x, 0)
-        
-        action = self.action(x, n_qt)
-        action = np.squeeze(action.numpy())
-
-        return action
+    @property
+    def action_dim(self):
+        return self._action_dim
 
     @tf.function
-    def action(self, x, n_qt):
+    def action(self, x, n_qt=None):
         _, _, q = self.value(x, n_qt)
         return tf.argmax(q, axis=-1, output_type=tf.int32)
     
     @tf.function
-    def value(self, x, n_qt, action=None):
+    def value(self, x, n_qt=None, action=None):
+        if n_qt is None:
+            n_qt = self.K
         batch_size = x.shape[0]
         x = self.cnn(x)
         x = tf.tile(x, [n_qt, 1])   # [N*B, cnn.out_size]
@@ -99,18 +92,42 @@ class Q(Module):
         else:
             qtv = self._a_head(x)
         qtv = tf.reshape(qtv, (n_qt, batch_size, self._action_dim))     # [N, B, A]
-        q = tf.reduce_mean(qtv, axis=0)                                 # [B, A]
+        qtv = tf.transpose(qtv, [1, 0, 2])                              # [B, N, A]
+        q = tf.reduce_mean(qtv, axis=1)                                 # [B, A]
         
         if action is not None:
             if len(action.shape) < len(q.shape):
                 action = tf.one_hot(action, self._action_dim, dtype=q.dtype)
-            qtv = tf.reduce_sum(qtv * action, -1, keepdims=True)        # [N, B, 1], relying on broadcasting
+            action_ext = tf.expand_dims(action, axis=1)                 # [B, 1, A]
+            qtv = tf.reduce_sum(qtv * action_ext, -1, keepdims=True)    # [B, N, 1]
             q = tf.reduce_sum(q * action, -1)                           # [B]
             
         return qtv, q
 
 
-def create_model(config, env, **kwargs):
+class IQN(Ensemble):
+    def __init__(self, config, env, **kwargs):
+        super().__init__(
+            model_fn=create_components, 
+            config=config,
+            env=env,
+            **kwargs)
+
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        x = self.q.cnn(x)
+        tau, tau_hat, _ = self.fpn(x)
+        action = self.q.action(x, tau_hat, tau_range=tau)
+        if not deterministic and epsilon > 0:
+            rand_act = tf.random.uniform(
+                action.shape, 0, self.q.action_dim, dtype=tf.int32)
+            action = tf.where(
+                tf.random.uniform(action.shape, 0, 1) < epsilon,
+                rand_act, action)
+
+        return action
+
+def create_components(config, env, **kwargs):
     action_dim = env.action_dim
     q = Q(config, action_dim, 'q')
     target_q = Q(config, action_dim, 'target_q')
@@ -118,3 +135,6 @@ def create_model(config, env, **kwargs):
         q=q,
         target_q=target_q,
     )
+
+def create_model(config, env, **kwargs):
+    return IQN(config, env, **kwargs)

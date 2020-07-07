@@ -1,8 +1,8 @@
 ---
 env:
-    name: atari_MsPacman
+    name: atari_breakout
     wrapper: baselines
-    sticky_actions: False
+    sticky_actions: True
     frame_skip: 4
     frame_stack: 4
     life_done: True
@@ -29,8 +29,8 @@ agent:
     gamma: &gamma 0.99
     precision: &prec 32
     batch_size: &bs 64
-    schedule_act_eps: True
-    act_eps: 0
+    schedule_act_eps: False
+    act_eps: 0.01
 
     MAX_STEPS: 1e8      # maximum env frames
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4

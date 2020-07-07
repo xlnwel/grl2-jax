@@ -24,9 +24,10 @@ class Agent(BaseAgent):
             self._lr = TFPiecewiseSchedule(
                 [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
         if self._schedule_act_eps:
-            self._act_eps = PiecewiseSchedule(((5e4, 1), (4e6, .01)))
+            self._act_eps = PiecewiseSchedule(((5e4, 1), (4e6, self._act_eps)))
 
         self._to_sync = Every(self._target_update_period)
+        self._to_summary = Every(self.LOG_PERIOD)
         # optimizer
         self._iqn_opt = Optimizer(self._iqn_opt, self.q, self._iqn_lr, clip_norm=self._clip_norm)
         self._fpn_opt = Optimizer(self._fpn_opt, self.fpn, self._fpn_lr)
@@ -55,7 +56,7 @@ class Agent(BaseAgent):
     def reset_noisy(self):
         pass
 
-    def __call__(self, x, deterministic=False, **kwargs):
+    def __call__(self, obs, deterministic=False, **kwargs):
         if self._schedule_act_eps:
             eps = self._act_eps.value(self.env_step)
             self.store(act_eps=eps)
@@ -63,28 +64,10 @@ class Agent(BaseAgent):
             eps = self._act_eps
         eps = tf.convert_to_tensor(eps, tf.float32)
 
-        x = np.array(x)
-        if len(x.shape) % 2 != 0:
-            x = tf.expand_dims(x, 0)
-
-        action = self.action(x, deterministic, eps)
-        action = np.squeeze(action.numpy())
-
-        return action
-
-    @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
-        x = self.q.cnn(x)
-        tau, tau_hat, _ = self.fpn(x)
-        action = self.q.action(x, tau_hat, tau_range=tau)
-        if not deterministic and epsilon > 0:
-            rand_act = tf.random.uniform(
-                action.shape, 0, self._action_dim, dtype=tf.int32)
-            action = tf.where(
-                tf.random.uniform(action.shape, 0, 1) < epsilon,
-                rand_act, action)
-
-        return action
+        return self.model.action(
+            tf.convert_to_tensor(obs), 
+            deterministic=deterministic, 
+            epsilon=eps).numpy()
 
     @step_track
     def learn_log(self, step):
@@ -97,6 +80,9 @@ class Agent(BaseAgent):
             terms = self.learn(**data)
             if self._to_sync(self.train_step):
                 self._sync_target_nets()
+            if self._to_summary(step):
+                self.summary(data, terms)
+                print(terms['tau'][0])
 
             if self._schedule_lr:
                 step = tf.convert_to_tensor(step, tf.float32)
@@ -112,10 +98,9 @@ class Agent(BaseAgent):
         return self.N_UPDATES
 
     @tf.function
-    def summary(self, data):
-        self.histogram_summary({'steps': data['steps']}, step=self._env_step)
-        if 'IS_ratio' in data:
-            self.histogram_summary({'IS_ratio': data['IS_ratio']}, step=self._env_step)
+    def summary(self, data, terms):
+        tf.summary.histogram('tau', terms['tau'], step=self._env_step)
+        tf.summary.histogram('fpn_entropy', terms['fpn_entropy'], step=self._env_step)
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
@@ -125,6 +110,7 @@ class Agent(BaseAgent):
             x_no_grad = tf.stop_gradient(x) # forbid gradients to cnn when computing fpn loss
             
             tau, tau_hat, fpn_entropy = self.fpn(x_no_grad)
+            terms['tau'] = tau
             tau_hat = tf.stop_gradient(tau_hat) # forbid gradients to fpn when computing qr loss
             qtv, q = self.q.value(
                 x, tau_hat, tau_range=tau, action=action)
@@ -184,7 +170,7 @@ class Agent(BaseAgent):
             fpn_out_grads = abs_diff1 + abs_diff2
             fpn_out_grads = tf.stop_gradient(fpn_out_grads)
             fpn_loss = tf.reduce_mean(fpn_out_grads * tau[..., 1:-1])
-            fpn_entropy_loss = self._ent_coef * tf.reduce_mean(fpn_entropy)
+            fpn_entropy_loss = -self._ent_coef * tf.reduce_mean(fpn_entropy)
             fpn_loss = fpn_loss + fpn_entropy_loss
 
         if self._is_per:

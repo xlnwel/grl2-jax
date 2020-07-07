@@ -24,7 +24,7 @@ class Actor(Module):
         self._is_action_discrete = is_action_discrete
         
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
+    def __call__(self, x, deterministic=False, epsilon=0):
         if deterministic:
             action = self.step(x)[0].mode()
         else:

@@ -11,7 +11,7 @@ from nn.func import mlp, cnn
 class CNN(Module):
     @config
     def __init__(self, name='cnn'):
-        self._cnn = cnn(self._cnn)
+        self._cnn = cnn(self._cnn, kernel_initializer='he_uniform')
 
     def __call__(self, x):
         x = self._cnn(x)
@@ -43,7 +43,7 @@ class Actor(Module):
     def train_step(self, x):
         x = self._layers(x)
         probs = tf.nn.softmax(x)
-        logps = tf.math.log_softmax(x)
+        logps = tf.math.log(tf.maximum(probs, 1e-8))    # bound logps to avoid numerical instability
         return probs, logps
 
 
@@ -63,7 +63,7 @@ class Q(Module):
         if a is not None:
             if len(a.shape) < len(q.shape):
                 a = tf.one_hot(a, q.shape[-1])
-                assert a.shape[1:] == q.shape[1:]
+            assert a.shape[1:] == q.shape[1:]
             q = tf.reduce_sum(q * a, axis=-1)
 
         return q
@@ -77,7 +77,8 @@ class Temperature(Module):
         if self._temp_type == 'state-action':
             self._layer = layers.Dense(1)
         elif self._temp_type == 'variable':
-            self._log_temp = tf.Variable(np.log(self._value), dtype=tf.float32)
+            self._log_temp = tf.Variable(
+                np.log(self._value), dtype=tf.float32, name='log_temp')
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     

@@ -39,7 +39,7 @@ agent:
 
     # distributed algo params
     n_learner_cpus: 3
-    n_workers: 8
+    n_workers: 6
     SYNC_PERIOD: 1000
 
     # SAP params

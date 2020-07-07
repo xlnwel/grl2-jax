@@ -146,10 +146,38 @@ class CRL(Module):
         logits = logits - tf.reduce_max(logits, axis=-1, keepdims=True)
         return logits
 
-def create_model(config, env, **kwargs):
+
+class IQNCRL:
+    def __init__(self, config, env, **kwargs):
+        super().__init__(
+            model_fn=create_components, 
+            config=config,
+            env=env,
+            **kwargs)
+
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        action = self.q.action(x)
+        if not deterministic and epsilon > 0:
+            rand_act = tf.random.uniform(
+                action.shape, 0, self._action_dim, dtype=tf.int32)
+            action = tf.where(
+                tf.random.uniform(action.shape, 0, 1) < epsilon,
+                rand_act, action)
+
+        return action
+
+    @tf.function
+    def value(self, x):
+        _, qtv, q = self.q.value(x)
+
+def create_components(config, env, **kwargs):
     action_dim = env.action_dim
     return dict(
         q=Q(config['q'], action_dim, 'q'),
         target_q=Q(config['q'], action_dim, 'target_q'),
         crl=CRL(config['crl'])
     )
+
+def create_model(config, env, **kwargs):
+    return IQNCRL(config, env, **kwargs)

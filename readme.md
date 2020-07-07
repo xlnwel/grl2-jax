@@ -56,7 +56,7 @@ Hafner, Danijar, Timothy Lillicrap, Jimmy Ba, and Mohammad Norouzi. 2020. “Dre
 
 Hafner, Danijar, Timothy Lillicrap, Ian Fischer, Ruben Villegas, David Ha, Honglak Lee, and James Davidson. 2019. “Learning Latent Dynamics for Planning from Pixels.” 36th International Conference on Machine Learning, ICML 2019 2019-June: 4528–47.
 
-## Reference Repository
+## Reference Repositories
 
 https://github.com/openai/baselines
 
@@ -67,6 +67,8 @@ https://github.com/deepmind/dnc
 https://github.com/danijar/dreamer
 
 https://github.com/google-research/seed_rl
+
+https://github.com/ku2482
 
 ## Acknowledge
 

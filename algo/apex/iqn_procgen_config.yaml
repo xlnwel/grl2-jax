@@ -30,6 +30,9 @@ agent:
     MAX_STEPS: 8e6      # maximum env steps
     LOG_PERIOD: &log 1000
     N_UPDATES: *log
+    SYNC_PERIOD: 1000
+    RECORD_PERIOD: 100
+    N_EVALUATION: 10
 
     # IQN params
     N: 8                # N in paper, num of quantiles for online quantile network
@@ -39,16 +42,13 @@ agent:
 
     # distributed algo params
     n_learner_cpus: 3
-    n_workers: 8
-    SYNC_PERIOD: 1000
+    n_workers: 6
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD_PERIOD: 100
-    N_EVALUATION: 10
 
     target_update_period: 1500  # trainning step
     tbo: False                              # transformed Bellman Operator

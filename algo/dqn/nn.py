@@ -5,7 +5,7 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
-from core.module import Module
+from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp, cnn
 from nn.layers import Noisy
@@ -96,11 +96,37 @@ class Q(Module):
             self._a_head.reset()
 
 
-def create_model(config, env, **kwargs):
+class DQN(Ensemble):
+    def __init__(self, config, env, **kwargs):
+        super().__init__(
+            model_fn=create_components, 
+            config=config,
+            env=env,
+            **kwargs)
+
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        x = self.q.cnn(x)
+        tau, tau_hat, _ = self.fpn(x)
+        action = self.q.action(x, noisy=deterministic, reset=False)
+        if not deterministic and epsilon > 0:
+            rand_act = tf.random.uniform(
+                action.shape, 0, self._action_dim, dtype=tf.int32)
+            action = tf.where(
+                tf.random.uniform(action.shape, 0, 1) < epsilon,
+                rand_act, action)
+
+        return action
+
+
+def create_components(config, env, **kwargs):
     action_dim = env.action_dim
-    q = Q(config, action_dim, 'q')
-    target_q = Q(config, action_dim, 'target_q')
+    q = Q(config['iqn'], action_dim, name='iqn')
+    target_q = Q(config['iqn'], action_dim, name='target_iqn')
     return dict(
         q=q,
         target_q=target_q,
     )
+
+def create_model(config, env, **kwargs):
+    return DQN(config, env, **kwargs)
