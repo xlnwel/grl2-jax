@@ -18,15 +18,16 @@ model:
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: 0
+        value: .1
         
 agent:
     algorithm: &algo sac4
     replay_type: &replay 'uniform'
     gamma: &gamma .99
+    n_steps: &nsteps 3      # n-step target
     polyak: .995
     act_eps: 0
-    # target_entropy: .3
+    target_entropy_coef: .5
     
     MAX_STEPS: 8e6
     TRAIN_PERIOD: 64
@@ -61,7 +62,7 @@ replay:
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: *nsteps
     gamma: *gamma
     batch_size: 64
     min_size: 2e4

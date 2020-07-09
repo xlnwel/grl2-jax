@@ -45,7 +45,7 @@ def train(agent, env, eval_env, replay):
             env_step=agent.env_step,
             train_step=agent.train_step,
             fps=(step - start_step) / (time.time() - start))
-        
+
         if to_eval(step):
             n = 10 if 'procgen' in eval_env.name else 1
             eval_score, eval_epslen, video = evaluate(
@@ -55,6 +55,8 @@ def train(agent, env, eval_env, replay):
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         agent.log(step)
         agent.save()
+        tf.summary.image('img', env.get_screen()[None], step)
+        tf.summary.image('eval_img', eval_env.get_screen()[None], step)
 
 def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()
@@ -67,7 +69,7 @@ def main(env_config, model_config, agent_config, replay_config):
     # if env_config['name'].startswith('procgen'):
     #     start_level = 200
     eval_env_config = env_config.copy()
-    eval_env_config.pop('clip_reward', False)
+    eval_env_config.pop('reward_clip', False)
     eval_env_config.pop('life_done', False)
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
@@ -104,7 +106,7 @@ def main(env_config, model_config, agent_config, replay_config):
 #     # env = make_atari('MsPacmanNoFrameskip-v4')
 #     # env = wrap_deepmind(env, life_done=True)
 #     # eval_env = make_atari('MsPacmanNoFrameskip-v4')
-#     # eval_env = wrap_deepmind(eval_env, life_done=False, clip_reward=False)
+#     # eval_env = wrap_deepmind(eval_env, life_done=False, reward_clip=False)
 #     # obs = env.reset()
 #     output = env.reset()
 #     obs = output.obs

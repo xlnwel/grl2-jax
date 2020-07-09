@@ -50,7 +50,7 @@ class Agent(BaseAgent):
         )
         if self._is_per:
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
-        if 'steps'  in self.dataset.data_format:
+        if getattr(self, 'n_steps', 1) > 1:
             TensorSpecs['steps'] = ((), tf.float32, 'steps')
         self.learn = build(self._learn, TensorSpecs)
 

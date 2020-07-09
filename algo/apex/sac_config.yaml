@@ -25,6 +25,7 @@ agent:
     n_steps: &nsteps 3      # n-step target
     polyak: .995
     precision: *prec
+    schedule_act_eps: False
     act_eps: 0
 
     # timer&interval 

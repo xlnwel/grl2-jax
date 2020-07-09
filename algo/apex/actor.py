@@ -177,29 +177,12 @@ class Worker:
                     self._compute_dqn_priorities, TensorSpecs)
 
     def __call__(self, x, deterministic=False, **kwargs):
-        if self._is_dpg:
-            return self.model.action(
-                x, 
-                deterministic=deterministic, 
-                epsilon=self._act_eps).numpy()
-        else:
-            x = np.array(x)
-            if len(x.shape) % 2 != 0:
-                x = tf.expand_dims(x, 0)
-            if self._is_iqn:
-                out = self.q.value(x, self.K)
-                qtv, q = tf.nest.map_structure(lambda x: np.squeeze(x.numpy()), out[1:])
-            else:
-                q = np.squeeze(self.q.value(x).numpy())
-            if np.random.uniform() < self._act_eps:
-                action = self.env.random_action()
-            else:
-                action = np.argmax(q, axis=-1)
-            action = np.int32(action)
-            if self._is_per:
-                return action, {'qtv': qtv[:, action]} if self._is_iqn else {'q': q[action]}
-            else:
-                return action
+        action = self.model.action(
+            tf.convert_to_tensor(x), 
+            deterministic=deterministic,
+            epsilon=self._act_eps)
+        action = tf.nest.map_structure(lambda x: x.numpy(), action)
+        return action
 
     def run(self, learner, replay):
         step = 0
@@ -311,7 +294,7 @@ class BaseEvaluator:
     def _run(self, weights, record):        
         self.model.set_weights(weights)
         score, epslen, video = evaluate(self.env, self, 
-            record=record, size=(64, 64), n=self.N_EVALUATION)
+            record=record, n=self.N_EVALUATION)
         self.store(score, epslen, video)
 
     def store(self, score, epslen, video):
@@ -339,6 +322,8 @@ class Evaluator(BaseEvaluator):
         silence_tf_logs()
         configure_threads(1, 1)
 
+        env_config.pop('reward_clip', False)
+        env_config.pop('life_done', False)
         self.env = env = create_env(env_config)
         self.n_envs = self.env.n_envs
 
@@ -359,12 +344,7 @@ class Evaluator(BaseEvaluator):
         self._info = collections.defaultdict(list)
 
     def __call__(self, x, deterministic=True, **kwargs):
-        if self._is_dpg:
-            return self.actor(x, deterministic=True)
-        else:
-            if self._is_iqn:
-                return self.q(x, self.K, deterministic=True)
-            return self.q(x, deterministic=True)
+        return self.model.action(x, deterministic=True)
 
 def get_evaluator_class():
     return Evaluator

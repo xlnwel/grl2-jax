@@ -81,7 +81,7 @@ def main(env_config, model_config, agent_config, replay_config):
     assert env.n_envs == 1, \
         f'n_envs({env.n_envs}) > 1 is not supported here as it messes with n-step'
     eval_env_config = env_config.copy()
-    eval_env_config.pop('clip_reward', False)
+    eval_env_config.pop('reward_clip', False)
     eval_env_config.pop('life_done', False)
     eval_env = create_env(eval_env_config)
 

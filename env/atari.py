@@ -21,7 +21,6 @@ def make_atari_env(config):
         env = B.make_atari(name, config.setdefault('frame_skip', 4))
         env = B.wrap_deepmind(env, 
             life_done=config.setdefault('life_done', False), 
-            clip_reward=config.setdefault('clip_reward', False),
             frame_stack=config.setdefault('frame_stack', 4),
             np_obs=config.setdefault('np_obs', False))
     else:
@@ -50,7 +49,7 @@ class Atari:
     def __init__(self, name, *, frame_skip=4, life_done=False,
                 image_size=(84, 84), frame_stack=1, noop=30, 
                 sticky_actions=True, gray_scale=True, 
-                clip_reward=False, np_obs=False, **kwargs):
+                np_obs=False, **kwargs):
         version = 0 if sticky_actions else 4
         name = name.split('_', 1)[-1]
         name = name[0].capitalize() + name[1:]
@@ -68,7 +67,6 @@ class Atari:
         self.noop = noop
         self.image_size = (image_size, image_size) \
             if isinstance(image_size, int) else tuple(image_size)
-        self.clip_reward = clip_reward
         self.np_obs = np_obs
 
         assert self.frame_skip > 0, \
@@ -184,13 +182,12 @@ class Atari:
             # We bypass the Gym observation altogether and directly fetch
             # the image from the ALE. This is a little faster.
             _, reward, done, info = self.env.step(action)
-            if self.clip_reward:
-                reward = np.clip(reward, -1, 1)
             total_reward += reward
 
             if self.life_done:
                 new_lives = self.env.ale.lives()
                 is_terminal = done or new_lives < self.lives
+                info['game_over'] = done
                 self.lives = new_lives
             else:
                 is_terminal = done

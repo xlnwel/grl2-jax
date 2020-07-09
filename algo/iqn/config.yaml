@@ -1,17 +1,17 @@
 ---
 env:
-    name: atari_breakout
+    name: atari_MsPacman
     wrapper: baselines
-    sticky_actions: False
+    sticky_actions: True
     frame_skip: 4
     frame_stack: 4
     life_done: True
-    clip_reward: True
+    reward_clip: True
     seed: 0
 
 model:
     cnn: nature
-    kernel_initializer: orthogonal
+    kernel_initializer: he_uniform
     head_units: [512]
     activation: relu
     layer_type: dense
@@ -26,8 +26,8 @@ agent:
     replay_type: &replay 'uniform'
     gamma: &gamma 0.99
     precision: &prec 32
-    batch_size: &bs 64
-    schedule_act_eps: False
+    batch_size: &bs 32
+    schedule_act_eps: True
     act_eps: 0.01
 
     MAX_STEPS: 1e8      # maximum env frames
@@ -37,8 +37,8 @@ agent:
     N_UPDATES: 1
 
     # IQN params
-    N: 8                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
+    N: 32                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
@@ -55,9 +55,9 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 3e-4
+    lr: 5e-5
     clip_norm: 10
-    epsilon: 1.5e-4
+    epsilon: 3.125e-4
 
     # arguments for PER
     per_alpha: .5

@@ -84,6 +84,7 @@ class EpisodicLifeEnv(gym.Wrapper):
             # so it's important to keep lives > 0, so that we only reset once
             # the environment advertises done.
             done = True
+            info['game_over'] = self._game_over
             # WARNING: different from original implementation, 
             # we auto reset to be consistent with EnvStats in env.wrappers
             obs = self.reset()
@@ -131,14 +132,6 @@ class MaxAndSkipEnv(gym.Wrapper):
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
-
-class ClipRewardEnv(gym.RewardWrapper):
-    def __init__(self, env):
-        gym.RewardWrapper.__init__(self, env)
-
-    def reward(self, reward):
-        """Bin reward to {+1, 0, -1} by its sign."""
-        return np.sign(reward)
 
 
 class WarpFrame(gym.ObservationWrapper):
@@ -267,8 +260,9 @@ def make_atari(env_id, frame_skip=4):
     env = MaxAndSkipEnv(env, frame_skip=frame_skip)
     return env
 
-def wrap_deepmind(env, life_done=False, clip_reward=True, frame_stack=0, scale=False, np_obs=False):
+def wrap_deepmind(env, life_done=False, frame_stack=0, scale=False, np_obs=False):
     """Configure environment for DeepMind-style Atari.
+    We remove reward clipping out for better recording.
     """
     if life_done:
         env = EpisodicLifeEnv(env)
@@ -277,8 +271,6 @@ def wrap_deepmind(env, life_done=False, clip_reward=True, frame_stack=0, scale=F
     env = WarpFrame(env)
     if scale:
         env = ScaledFloatFrame(env)
-    if clip_reward:
-        env = ClipRewardEnv(env)
     if frame_stack > 1:
         env = FrameStack(env, frame_stack, np_obs)
     return env

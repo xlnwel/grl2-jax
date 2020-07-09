@@ -236,13 +236,13 @@ def make_atari(env_id, max_episode_steps=4500):
     env = AddRandomStateToInfo(env)
     return env
 
-def wrap_deepmind(env, clip_rewards=True, frame_stack=False, scale=False):
+def wrap_deepmind(env, reward_clips=True, frame_stack=False, scale=False):
     """Configure environment for DeepMind-style Atari.
     """
     env = WarpFrame(env)
     if scale:
         env = ScaledFloatFrame(env)
-    if clip_rewards:
+    if reward_clips:
         env = ClipRewardEnv(env)
     if frame_stack:
         env = FrameStack(env, 4)
@@ -277,7 +277,7 @@ def make_env(config):
     config['max_episode_steps'] = max_episode_steps = 4500 * 4
     env = make_atari(name, max_episode_steps=max_episode_steps)
     env = wrap_deepmind(env, 
-                    clip_rewards=config.get('clip_rewards', True),
+                    reward_clips=config.get('reward_clips', True),
                     frame_stack=config.get('frame_stack', False))
     env = EnvStats(env, max_episode_steps,
                     precision=config.get('precision', 32), 

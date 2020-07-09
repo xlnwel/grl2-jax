@@ -24,7 +24,7 @@ class Agent(BaseAgent):
             self._lr = TFPiecewiseSchedule(
                 [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
         if self._schedule_act_eps:
-            self._act_eps = PiecewiseSchedule(((5e4, 1), (4e6, .01)))
+            self._act_eps = PiecewiseSchedule(((5e4, 1), (4e6, self._act_eps)))
 
         self._to_sync = Every(self._target_update_period)
         # optimizer
@@ -62,25 +62,12 @@ class Agent(BaseAgent):
             eps = self._act_eps
         eps = tf.convert_to_tensor(eps, tf.float32)
         
-        x = np.array(x)
-        if len(x.shape) % 2 != 0:
-            x = tf.expand_dims(x, 0)
-
-        action = self.action(x, deterministic, eps)
+        action, terms = self.model.action(
+            tf.convert_to_tensor(x), 
+            deterministic=deterministic, 
+            epsilon=eps)
         action = np.squeeze(action.numpy())
 
-        return action
-
-    @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
-        action = self.q.action(x, self.K)
-        if not deterministic and epsilon > 0:
-            rand_act = tf.random.uniform(
-                action.shape, 0, self._action_dim, dtype=tf.int32)
-            action = tf.where(
-                tf.random.uniform(action.shape, 0, 1) < epsilon,
-                rand_act, action)
-        
         return action
 
     @step_track

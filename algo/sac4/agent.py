@@ -40,7 +40,7 @@ class Agent(BaseAgent):
         self._is_action_discrete = env.is_action_discrete
         if not hasattr(self, '_target_entropy'):
             # Entropy of a uniform distribution
-            self._target_entropy = -.98 * np.log(1./self._action_dim)
+            self._target_entropy = self._target_entropy_coef * np.log(1./self._action_dim)
 
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
@@ -51,7 +51,7 @@ class Agent(BaseAgent):
         )
         if self._is_per:
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
-        if 'steps'  in self.dataset.data_format:
+        if getattr(self, '_n_steps', 1) > 1:
             TensorSpecs['steps'] = ((), tf.float32, 'steps')
         self.learn = build(self._learn, TensorSpecs)
 
@@ -89,6 +89,7 @@ class Agent(BaseAgent):
 
     @tf.function
     def summary(self, data, terms):
+        tf.summary.histogram('entropy', terms['entropy'], step=self._env_step)
         tf.summary.histogram('next_act_probs', terms['next_act_probs'], step=self._env_step)
         tf.summary.histogram('next_act_logps', terms['next_act_logps'], step=self._env_step)
         tf.summary.histogram('next_logps', terms['next_logps'], step=self._env_step)
@@ -172,6 +173,7 @@ class Agent(BaseAgent):
             q2=q2,
             next_value=next_value,
             logpi=act_logps,
+            entropy=entropy,
             next_act_probs=next_act_probs,
             next_act_logps=next_act_logps,
             target_q=target_q,

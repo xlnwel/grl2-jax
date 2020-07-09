@@ -118,21 +118,6 @@ class FrameSkip(gym.Wrapper):
         return obs, total_reward, done, info
 
 
-class RewardHack(gym.Wrapper):
-    def __init__(self, env, reward_scale=1, reward_clip=None, **kwargs):
-        super().__init__(env)
-        self.reward_scale = reward_scale
-        self.reward_clip = reward_clip
-    
-    def step(self, action):
-        output = self.env.step(action)
-        obs, reward, done, info = output
-        reward *= self.reward_scale
-        if self.reward_clip:
-            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
-        return obs, reward, done, info
-
-
 class DataProcess(gym.Wrapper):
     def __init__(self, env, precision=32):
         super().__init__(env)
@@ -226,7 +211,7 @@ class EnvStats(gym.Wrapper):
         obs, reward, done, info = self.env.step(action, **kwargs)
         self._score += reward
         self._epslen += info.get('frame_skip', 1)
-        self._game_over = done
+        self._game_over = info.get('game_over', done)
         if self._epslen >= self.max_episode_steps:
             self._game_over = True
             done = self.timeout_done
@@ -287,6 +272,21 @@ class EnvStats(gym.Wrapper):
         return self._output
 
 
+class RewardHack(gym.Wrapper):
+    def __init__(self, env, reward_scale=1, reward_clip=None, **kwargs):
+        super().__init__(env)
+        self.reward_scale = reward_scale
+        self.reward_clip = reward_clip
+    
+    def step(self, action):
+        output = self.env.step(action)
+        obs, reward, done, reset = output
+        reward *= self.reward_scale
+        if self.reward_clip:
+            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
+        return EnvOutput(obs, reward, done, reset)
+
+        
 def get_wrapper_by_name(env, classname):
     currentenv = env
     while True:

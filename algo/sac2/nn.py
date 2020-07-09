@@ -117,7 +117,7 @@ class SAC(Ensemble):
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 2, x.shape
         
-        action = self.actor.action(x, deterministic=deterministic, epsilon=epsilon)
+        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
         action = tf.squeeze(action)
 
         return action

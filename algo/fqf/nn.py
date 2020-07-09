@@ -165,7 +165,8 @@ class FQF(Ensemble):
 
         x = self.q.cnn(x)
         tau, tau_hat, _ = self.fpn(x)
-        action = self.q.action(x, tau_hat, tau_range=tau)
+        qtv, q = self.q.value(x, tau_hat, tau_range=tau)
+        action = tf.argmax(q, axis=-1, output_type=tf.int32)
         if not deterministic and epsilon > 0:
             rand_act = tf.random.uniform(
                 action.shape, 0, self.q.action_dim, dtype=tf.int32)
@@ -174,7 +175,7 @@ class FQF(Ensemble):
                 rand_act, action)
         action = tf.squeeze(action)
 
-        return action
+        return action, {'qtv': qtv}
 
     @tf.function
     def value(self, x):

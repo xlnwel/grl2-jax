@@ -135,7 +135,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1
     eval_env_config['n_envs'] = 1
-    eval_env_config['clip_rewards'] = False
+    eval_env_config['reward_clips'] = False
     eval_env = create_env(eval_env_config, env_fn=make_env, force_envvec=True)
 
     buffer_config['n_envs'] = env.n_envs

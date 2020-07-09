@@ -36,7 +36,7 @@ def parse_cmd_args():
 def main(env_config, model_config, agent_config, n, record=False, size=(128, 128), fps=30):
     silence_tf_logs()
     configure_gpu()
-    configure_precision(agent_config['precision'])
+    configure_precision(agent_config.get('precision', 32))
 
     use_ray = env_config.get('n_workers', 0) > 1
     if use_ray:
@@ -50,7 +50,7 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
         make_env = pkg.import_module('env', algo_name, place=-1).make_env
     except:
         make_env = None
-    env_config.pop('clip_reward', False)
+    env_config.pop('reward_clip', False)
     env_config.pop('life_done', False)
     env = create_env(env_config, env_fn=make_env)
     create_model, Agent = pkg.import_agent(config=agent_config)    

@@ -44,20 +44,6 @@ class Q(Module):
             name='a' if self._duel else 'q',
             **kwargs)
 
-    def __call__(self, x, deterministic=False, epsilon=0):
-        x = np.array(x)
-        if not deterministic and np.random.uniform() < epsilon:
-            size = x.shape[0] if len(x.shape) % 2 == 0 else None
-            return np.random.randint(self._action_dim, size=size)
-        if len(x.shape) % 2 != 0:
-            x = tf.expand_dims(x, 0)
-        
-        noisy = not deterministic
-        action = self.action(x, noisy=noisy, reset=False)
-        action = np.squeeze(action.numpy())
-
-        return action
-
     @tf.function
     def action(self, x, noisy=True, reset=True):
         q = self.value(x, noisy=noisy, reset=reset)
@@ -106,23 +92,29 @@ class DQN(Ensemble):
 
     @tf.function
     def action(self, x, deterministic=False, epsilon=0):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 4, x.shape
+
         x = self.q.cnn(x)
-        tau, tau_hat, _ = self.fpn(x)
-        action = self.q.action(x, noisy=deterministic, reset=False)
+        noisy = not deterministic
+        q = self.q.value(x, noisy=noisy, reset=False)
+        action = tf.argmax(q, axis=-1, output_type=tf.int32)
         if not deterministic and epsilon > 0:
             rand_act = tf.random.uniform(
                 action.shape, 0, self._action_dim, dtype=tf.int32)
             action = tf.where(
                 tf.random.uniform(action.shape, 0, 1) < epsilon,
                 rand_act, action)
+        action = tf.squeeze(action)
 
         return action
 
 
 def create_components(config, env, **kwargs):
     action_dim = env.action_dim
-    q = Q(config['iqn'], action_dim, name='iqn')
-    target_q = Q(config['iqn'], action_dim, name='target_iqn')
+    q = Q(config, action_dim, name='q')
+    target_q = Q(config, action_dim, name='target_q')
     return dict(
         q=q,
         target_q=target_q,

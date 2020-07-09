@@ -6,7 +6,7 @@ env:
     frame_skip: 4
     frame_stack: 4
     life_done: True
-    clip_reward: True
+    reward_clip: True
     seed: 0
 
 model:
@@ -22,15 +22,16 @@ model:
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: 0
+        value: .1
 
 agent:
     algorithm: &algo sac4
     replay_type: &replay 'uniform'
     gamma: &gamma .99
+    n_steps: &nsteps 3      # n-step target
     polyak: .995
     act_eps: 0
-    # target_entropy: .3
+    target_entropy_coef: .5
     
     MAX_STEPS: 1e8
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4

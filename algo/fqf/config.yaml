@@ -1,12 +1,12 @@
 ---
 env:
-    name: atari_breakout
+    name: atari_MsPacman
     wrapper: baselines
     sticky_actions: True
     frame_skip: 4
     frame_stack: 4
     life_done: True
-    clip_reward: True
+    reward_clip: True
     seed: 0
 
 model:

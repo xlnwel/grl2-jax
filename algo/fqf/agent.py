@@ -64,10 +64,13 @@ class Agent(BaseAgent):
             eps = self._act_eps
         eps = tf.convert_to_tensor(eps, tf.float32)
 
-        return self.model.action(
+        action, terms = self.model.action(
             tf.convert_to_tensor(obs), 
             deterministic=deterministic, 
-            epsilon=eps).numpy()
+            epsilon=eps)
+        action = tf.nest.map_structure(lambda x: x.numpy(), action)
+        
+        return action
 
     @step_track
     def learn_log(self, step):
@@ -82,7 +85,6 @@ class Agent(BaseAgent):
                 self._sync_target_nets()
             if self._to_summary(step):
                 self.summary(data, terms)
-                print(terms['tau'][0])
 
             if self._schedule_lr:
                 step = tf.convert_to_tensor(step, tf.float32)
@@ -146,8 +148,8 @@ class Agent(BaseAgent):
             tf.debugging.assert_shapes([[returns, (None, 1, self.N)]])
             tf.debugging.assert_shapes([[error, (None, self.N, self.N)]])
 
-            weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))        # [B, N, N']
-            huber = huber_loss(error, threshold=self.KAPPA)             # [B, N, N']
+            weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))       # [B, N, N']
+            huber = huber_loss(error, threshold=self.KAPPA)                 # [B, N, N']
             qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1) # [B]
             qr_loss = tf.reduce_mean(qr_loss)
 
@@ -169,9 +171,9 @@ class Agent(BaseAgent):
             abs_diff2 = tf.where(sign2, diff2, -diff2)
             fpn_out_grads = abs_diff1 + abs_diff2
             fpn_out_grads = tf.stop_gradient(fpn_out_grads)
-            fpn_loss = tf.reduce_mean(fpn_out_grads * tau[..., 1:-1])
+            fpn_raw_loss = tf.reduce_mean(fpn_out_grads * tau[..., 1:-1])
             fpn_entropy_loss = -self._ent_coef * tf.reduce_mean(fpn_entropy)
-            fpn_loss = fpn_loss + fpn_entropy_loss
+            fpn_loss = fpn_raw_loss + fpn_entropy_loss
 
         if self._is_per:
             error = tf.reduce_max(tf.reduce_mean(tf.abs(error), axis=2), axis=1)
@@ -186,6 +188,10 @@ class Agent(BaseAgent):
             returns=returns,
             qr_loss=qr_loss,
             fpn_entropy=fpn_entropy,
+            fpn_out_grads=fpn_out_grads,
+            fpn_raw_loss=fpn_raw_loss,
+            fpn_entropy_loss=fpn_entropy_loss,
+            fpn_loss=fpn_loss,
         ))
 
         return terms
