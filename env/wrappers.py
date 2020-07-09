@@ -277,16 +277,17 @@ class RewardHack(gym.Wrapper):
         super().__init__(env)
         self.reward_scale = reward_scale
         self.reward_clip = reward_clip
-    
+
     def step(self, action):
         output = self.env.step(action)
         obs, reward, done, reset = output
         reward *= self.reward_scale
         if self.reward_clip:
             reward = np.clip(reward, -self.reward_clip, self.reward_clip)
+        reward = self.float_dtype(reward)
         return EnvOutput(obs, reward, done, reset)
 
-        
+
 def get_wrapper_by_name(env, classname):
     currentenv = env
     while True:

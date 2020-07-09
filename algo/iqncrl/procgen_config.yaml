@@ -22,7 +22,7 @@ model:
         crl_out_size: 128
 
 agent:
-    algorithm: &algo iqn
+    algorithm: &algo iqncrl
     replay_type: &replay 'uniform'
     gamma: &gamma 0.99
     precision: &prec 32

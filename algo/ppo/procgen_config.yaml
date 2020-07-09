@@ -4,7 +4,7 @@ env:
     n_workers: 1
     n_envs: &nenvs 8
     seed: 0
-    frame_stack: 1
+    frame_stack: 2
     np_obs: True
     gray_scale: False
 

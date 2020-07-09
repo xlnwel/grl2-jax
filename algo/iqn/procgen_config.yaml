@@ -16,6 +16,8 @@ model:
     qt_embed_size: 64
     phi_activation: relu
 
+    K: &K 32
+
 agent:
     algorithm: &algo iqn
     replay_type: &replay 'uniform'
@@ -34,7 +36,7 @@ agent:
     # IQN params
     N: 8                # N in paper, num of quantiles for online quantile network
     N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
-    K: 32               # K in paper, num of quantiles for action selection
+    K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # model path: root_dir/model_name/models

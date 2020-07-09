@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name Walker2d-v3
+    name: &env_name BipedalWalker-v3
     n_workers: 1
     n_envs: &nenvs 8
     seed: 0
@@ -35,7 +35,7 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: True
+    RECORD: False
 
     # arguments for optimizer
     optimizer: adam

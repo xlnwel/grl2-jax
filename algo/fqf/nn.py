@@ -57,13 +57,9 @@ class Q(Module):
         kwargs = {}
         if hasattr(self, '_kernel_initializer'):
             kwargs['kernel_initializer'] = self._kernel_initializer
+        self._kwargs = kwargs
         self._cnn = cnn(self._cnn, **kwargs)
 
-        self._phi = mlp(
-            [self._cnn.out_size], 
-            activation=self._phi_activation,
-            name='phi',
-            **kwargs)
         if self._duel:
             self._v_head = mlp(
                 self._head_units, 
@@ -93,7 +89,8 @@ class Q(Module):
             [x, (None, self._cnn.out_size)],
         ])
         x = tf.expand_dims(x, 1)   # [B, 1, cnn.out_size]
-        qt_embed = self.qt_embed(tau_hat)   # [B, N, cnn.out_size]
+        cnn_out_size = x.shape[-1]
+        qt_embed = self.qt_embed(tau_hat, cnn_out_size)   # [B, N, cnn.out_size]
         x = x * qt_embed    # [B, N, cnn.out_size]
         qtv = self.qtv(x, tau_hat, action=action)
         if tau_range is None:
@@ -108,12 +105,18 @@ class Q(Module):
             x = self._cnn(x)
         return x
     
-    def qt_embed(self, tau_hat):
+    def qt_embed(self, tau_hat, cnn_out_size):
         # phi network
         tau_hat = tf.expand_dims(tau_hat, -1)       # [B, N, 1]
         pi = tf.convert_to_tensor(np.pi, tf.float32)
         degree = tf.cast(tf.range(self._qt_embed_size), tf.float32) * pi * tau_hat
         qt_embed = tf.math.cos(degree)              # [B, N, E]
+        if not hasattr(self, '_phi'):
+            self._phi = mlp(
+                [cnn_out_size], 
+                activation=self._phi_activation,
+                name='phi',
+                **self._kwargs)
         qt_embed = self._phi(qt_embed)              # [B, N, cnn.out_size]
         
         return qt_embed

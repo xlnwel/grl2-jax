@@ -18,8 +18,6 @@ def train(agent, env, eval_env, buffer):
         agent.update_obs_rms(obs)
         agent.update_reward_rms(reward)
     def collect(env, step, reset, reward, next_obs, **kwargs):
-        if np.any(reset):
-            reward[reset == 1] -= 1
         agent.update_reward_rms(reward)
         kwargs['reward'] = agent.normalize_reward(reward)
         buffer.add(**kwargs)

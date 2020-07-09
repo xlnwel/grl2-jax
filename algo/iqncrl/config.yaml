@@ -1,8 +1,8 @@
 ---
 env:
-    name: atari_alien
+    name: atari_MsPacman
     wrapper: baselines
-    sticky_actions: False
+    sticky_actions: True
     frame_skip: 4
     frame_stack: 4
     life_done: True
@@ -12,14 +12,15 @@ env:
 model:
     q:
         cnn: nature
-        kernel_initializer: orthogonal
-        head_units: []
+        kernel_initializer: he_uniform
+        head_units: [512]
         activation: relu
         layer_type: dense
         duel: False
 
         qt_embed_size: 64
         phi_activation: relu
+        K: &K 32
     
     crl:
         crl_units: []
@@ -28,24 +29,24 @@ model:
 
 
 agent:
-    algorithm: &algo iqn
+    algorithm: &algo iqncrl
     replay_type: &replay 'uniform'
     gamma: &gamma 0.99
     precision: &prec 32
     batch_size: &bs 32
     schedule_act_eps: True
-    act_eps: 0
+    act_eps: 0.01
 
-    MAX_STEPS: 4e5      # maximum env frames
-    TRAIN_PERIOD: 16    # #frames = 1 agent step when frame skip = 4
+    MAX_STEPS: 1e8      # maximum env frames
+    TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 5e5
     LOG_PERIOD: 1e4
     N_UPDATES: 1
 
     # IQN params
-    N: 8                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
-    K: 32               # K in paper, num of quantiles for action selection
+    N: 32                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
+    K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     crl_coef: 1
@@ -63,9 +64,9 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 1e-4
+    lr: 5e-5
     clip_norm: 10
-    epsilon: 1.5e-4
+    epsilon: 3.125e-4
 
     # arguments for PER
     per_alpha: .5
