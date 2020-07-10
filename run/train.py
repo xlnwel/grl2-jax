@@ -120,8 +120,13 @@ if __name__ == '__main__':
                     separate_process=len(algo_env) > 1, delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
-                    # Grid search happens here
-                    processes += gs(lr=[1e-3, 5e-4, 1e-4])
+                    if algo == 'iqn':
+                        processes += gs(wrapper=['baselines', 'my_atari'])
+                    if algo == 'fqf':
+                        processes += gs(wrapper=['baselines', 'my_atari'])
+                    else:
+                        # Grid search happens here
+                        processes += gs(target_entropy_coef=np.random.uniform(size=5))
                 else:
                     processes += gs()
             else:

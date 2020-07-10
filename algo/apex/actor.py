@@ -144,7 +144,7 @@ class Worker:
             env=env)
 
         self._is_dpg = 'actor' in self.model
-        self._is_iqn = 'iqn' in self._algorithm
+        self._is_iqn = 'iqn' in self._algorithm or 'fqf' in self._algorithm
         if self._is_dpg:
             self.actor = self.model['actor']
             self.q = self.model['q1']
@@ -210,6 +210,28 @@ class Worker:
         self._info['score'].append(score)
         self._info['epslen'].append(epslen)
 
+    def _pull_weights(self, learner):
+        return ray.get(learner.get_weights.remote(name=self._pull_names))
+
+    def _send_data(self, replay, buffer=None):
+        buffer = buffer or self.buffer
+        mask, data = buffer.sample()
+
+        if self._is_per:
+            data_tensor = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+            data['priority'] = self.compute_priorities(**data_tensor).numpy()
+        if self._is_iqn:
+            del data['qtv']
+        else:
+            del data['q']
+        replay.merge.remote(data, data['action'].shape[0])
+        buffer.reset()
+
+    def _send_episode_info(self, learner):
+        if self._info:
+            learner.record_episode_info.remote(**self._info)
+            self._info.clear()
+
     @tf.function
     def _compute_dqn_priorities(self, obs, action, reward, next_obs, discount, steps, q=None):
         if self._is_dpg:
@@ -234,9 +256,9 @@ class Worker:
     def _compute_iqn_priorities(self, obs, action, reward, next_obs, discount, steps, qtv=None):
         next_action = self.q.action(next_obs, self.N_PRIME)
         _, next_qtv, _ = self.q.value(next_obs, self.N_PRIME, next_action)
-        reward = reward[None, :, None]
-        discount = discount[None, :, None]
-        steps = steps[None, :, None]
+        reward = reward[:, None, None]
+        discount = discount[:, None, None]
+        steps = steps[:, None, None]
         returns = n_step_target(reward, next_qtv, self._gamma, discount, steps, self._tbo)
         returns = tf.transpose(returns, (1, 2, 0))      # [B, 1, N']
         qtv = qtv[..., None]
@@ -251,28 +273,6 @@ class Worker:
         tf.debugging.assert_shapes([(priority, (None,))])
 
         return tf.squeeze(priority)
-        
-    def _pull_weights(self, learner):
-        return ray.get(learner.get_weights.remote(name=self._pull_names))
-
-    def _send_data(self, replay, buffer=None):
-        buffer = buffer or self.buffer
-        mask, data = buffer.sample()
-
-        if self._is_per:
-            data_tensor = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-            if self._is_iqn:
-                del data['qtv']
-            else:
-                del data['q']
-            data['priority'] = self.compute_priorities(**data_tensor).numpy()
-        replay.merge.remote(data, data['action'].shape[0])
-        buffer.reset()
-
-    def _send_episode_info(self, learner):
-        if self._info:
-            learner.record_episode_info.remote(**self._info)
-            self._info.clear()
 
 def get_worker_class():
     return Worker
@@ -344,7 +344,14 @@ class Evaluator(BaseEvaluator):
         self._info = collections.defaultdict(list)
 
     def __call__(self, x, deterministic=True, **kwargs):
-        return self.model.action(x, deterministic=True)
+        action, terms = self.model.action(
+            tf.convert_to_tensor(x), 
+            deterministic=deterministic,
+            epsilon=self._act_eps)
+        action = action.numpy()
+        
+        return action
+
 
 def get_evaluator_class():
     return Evaluator

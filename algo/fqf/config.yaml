@@ -27,6 +27,7 @@ agent:
     algorithm: &algo fqf
     replay_type: &replay 'uniform'
     gamma: &gamma 0.99
+    n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     batch_size: &bs 64
     schedule_act_eps: False
@@ -60,7 +61,7 @@ agent:
     fpn_lr: 2.5e-9
     ent_coef: 0
     clip_norm: 10
-    epsilon: 1.5e-4
+    epsilon: 3.125e-4
 
     # arguments for PER
     per_alpha: .5
@@ -75,7 +76,7 @@ replay:
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
     min_size: 1600

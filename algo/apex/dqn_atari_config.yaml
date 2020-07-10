@@ -20,6 +20,7 @@ agent:
     algorithm: &algo apex-dqn
     replay_type: &replay 'uniform'
     gamma: &gamma 0.99
+    batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     schedule_act_eps: True
@@ -31,15 +32,17 @@ agent:
     N_UPDATES: *log
     
     # distributed algo params
-    n_workers: 3
+    n_learner_cpus: 3
+    n_workers: 6
     SYNC_PERIOD: 1000
+    RECORD_PERIOD: 100
+    N_EVALUATION: 10
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD_PERIOD: 100
 
     loss_type: huber                          # huber or mse
     target_update_period: 1500
@@ -67,7 +70,7 @@ replay:
     # arguments for general replay
     n_steps: *nsteps
     gamma: *gamma
-    batch_size: 64
+    batch_size: *bs
     min_size: 5e4
     capacity: 1e5
     has_next_obs: True

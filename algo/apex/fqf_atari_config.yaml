@@ -23,12 +23,12 @@ model:
         phi_activation: relu
 
 agent:
-    algorithm: &algo apex-iqn
+    algorithm: &algo apex-fqf
     replay_type: &replay 'uniform'
+    batch_size: &bs 64
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
-    batch_size: &bs 64
     schedule_act_eps: True
     act_eps: 0  # will be overwritten in func.py
     
@@ -47,7 +47,10 @@ agent:
     # distributed algo params
     n_learner_cpus: 3
     n_workers: 6
-    
+    SYNC_PERIOD: 1000
+    RECORD_PERIOD: 100
+    N_EVALUATION: 10
+
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
@@ -56,7 +59,7 @@ agent:
 
     loss_type: huber                          # huber or mse
     target_update_period: 1500
-    tbo: True
+    tbo: False
 
     # arguments for optimizer
     iqn_opt: adam

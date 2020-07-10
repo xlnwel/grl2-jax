@@ -17,7 +17,7 @@ class Agent(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
         self._is_per = self._replay_type.endswith('per')
-        is_nsteps = dataset and 'steps' in dataset.data_format
+        is_nsteps = self._n_steps > 1
         self.dataset = dataset
 
         if self._schedule_lr:

@@ -17,7 +17,7 @@ class Q(Module):
         super().__init__(name=name)
         self._dtype = global_policy().compute_dtype
 
-        self._action_dim = action_dim
+        self.action_dim = action_dim
 
         """ Network definition """
         kwargs = {}
@@ -70,7 +70,7 @@ class Q(Module):
 
         if action is not None:
             if len(action.shape) < len(q.shape):
-                action = tf.one_hot(action, self._action_dim, dtype=q.dtype)
+                action = tf.one_hot(action, self.action_dim, dtype=q.dtype)
             assert q.shape[-1] == action.shape[-1], f'{q.shape} vs {action.shape}'
             q = tf.reduce_sum(q * action, -1)
         return q
@@ -94,21 +94,20 @@ class DQN(Ensemble):
     def action(self, x, deterministic=False, epsilon=0):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
-        assert x.shape.ndims == 4, x.shape
+        assert x.shape.ndims in (2, 4), x.shape
 
-        x = self.q.cnn(x)
         noisy = not deterministic
         q = self.q.value(x, noisy=noisy, reset=False)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
         if not deterministic and epsilon > 0:
             rand_act = tf.random.uniform(
-                action.shape, 0, self._action_dim, dtype=tf.int32)
+                action.shape, 0, self.q.action_dim, dtype=tf.int32)
             action = tf.where(
                 tf.random.uniform(action.shape, 0, 1) < epsilon,
                 rand_act, action)
         action = tf.squeeze(action)
 
-        return action
+        return action, {'q': q}
 
 
 def create_components(config, env, **kwargs):

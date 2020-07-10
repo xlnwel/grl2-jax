@@ -31,44 +31,46 @@ def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
     return data_format
 
 
-class Agent(BaseAgent):
+class DQNBase(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
         self._is_per = self._replay_type.endswith('per')
-        is_nsteps = dataset and 'steps' in dataset.data_format
+        is_nsteps = self._n_steps > 1
         self.dataset = dataset
 
         if self._schedule_lr:
             self._lr = TFPiecewiseSchedule(
                 [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
         if self._schedule_act_eps:
-            self._act_eps = PiecewiseSchedule(((5e4, 1), (4e6, .01)))
+            self._act_eps = PiecewiseSchedule(((5e4, 1), (4e6, self._act_eps)))
 
         self._to_sync = Every(self._target_update_period)
-        # optimizer
-        self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
+        self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
+
+        self._construct_optimizers()
 
         self._action_dim = env.action_dim
 
         # Explicitly instantiate tf.function to initialize variables
-        obs_dtype = env.obs_dtype
+        obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else self._dtype
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=((self._action_dim,), tf.float32, 'action'),
-            reward=((), tf.float32, 'reward'),
+            reward=((), self._dtype, 'reward'),
             next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
-            discount=((), tf.float32, 'discount'),
+            discount=((), self._dtype, 'discount'),
         )
         if self._is_per:
-            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
+            TensorSpecs['IS_ratio'] = ((), self._dtype, 'IS_ratio')
         if is_nsteps:
-            TensorSpecs['steps'] = ((), tf.float32, 'steps')
-        self.learn = build(self._learn, TensorSpecs)
+            TensorSpecs['steps'] = ((), self._dtype, 'steps')
+        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
         self._sync_target_nets()
 
+
     def reset_noisy(self):
-        self.q.reset_noisy()
+        pass
 
     def __call__(self, x, deterministic=False, **kwargs):
         if self._schedule_act_eps:
@@ -77,24 +79,11 @@ class Agent(BaseAgent):
         else:
             eps = self._act_eps
 
-        x = np.array(x)
-        if len(x.shape) % 2 != 0:
-            x = tf.expand_dims(x, 0)
-
-        action = self.action(x, deterministic, eps)
+        action, terms = self.model.action(
+            tf.convert_to_tensor(x), 
+            deterministic=deterministic, 
+            epsilon=tf.convert_to_tensor(eps, tf.float32))
         action = np.squeeze(action.numpy())
-
-        return action
-
-    @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
-        action = self.q.action(x)
-        if not deterministic and epsilon > 0:
-            rand_act = tf.random.uniform(
-                action.shape, 0, self._action_dim, dtype=tf.int32)
-            action = tf.where(
-                tf.random.uniform(action.shape, 0, 1) < epsilon,
-                rand_act, action)
 
         return action
 
@@ -111,6 +100,8 @@ class Agent(BaseAgent):
                 terms = self.learn(**data)
             if self._to_sync(self.train_step):
                 self._sync_target_nets()
+            if self._to_summary(step):
+                self.summary(data, terms)
 
             if self._schedule_lr:
                 step = tf.convert_to_tensor(step, tf.float32)
@@ -122,17 +113,45 @@ class Agent(BaseAgent):
             self.store(**terms)
         return self.N_UPDATES
 
+    def _construct_optimizers(self):
+        raise NotImplementedError
+
+    def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
+        raise NotImplementedError
+
+    def _compute_priority(self, priority):
+        """ p = (p + 𝝐)**𝛼 """
+        priority += self._per_epsilon
+        priority **= self._per_alpha
+        return priority
+
+    def summary(self, data, terms):
+        pass
+
+    @tf.function
+    def _sync_target_nets(self):
+        [tv.assign(mv) for mv, tv in zip(
+            self.q.variables, self.target_q.variables)]
+
+class Agent(DQNBase):
+    def _construct_optimizers(self):
+        self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
+
+    def reset_noisy(self):
+        self.q.reset_noisy()
+
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
+        # compute target returns
+        next_action = self.q.action(next_obs, noisy=False)
+        next_q = self.target_q.value(next_obs, next_action, noisy=False)
+        returns = n_step_target(reward, next_q, discount, self._gamma, steps, self._tbo)
+
         with tf.GradientTape() as tape:
             q = self.q.value(obs, action)
-            next_action = self.q.action(next_obs, noisy=False)
-            next_q = self.target_q.value(next_obs, next_action, noisy=False)
-            returns = n_step_target(reward, next_q, discount, self._gamma, steps, self._tbo)
-            returns = tf.stop_gradient(returns)
             error = returns - q
             loss = tf.reduce_mean(IS_ratio * loss_fn(error))
 
@@ -149,12 +168,6 @@ class Agent(BaseAgent):
         ))
 
         return terms
-
-    def _compute_priority(self, priority):
-        """ p = (p + 𝝐)**𝛼 """
-        priority += self._per_epsilon
-        priority **= self._per_alpha
-        return priority
 
     @tf.function
     def _sync_target_nets(self):

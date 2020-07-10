@@ -55,8 +55,6 @@ def train(agent, env, eval_env, replay):
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         agent.log(step)
         agent.save()
-        tf.summary.image('img', env.get_screen()[None], step)
-        tf.summary.image('eval_img', eval_env.get_screen()[None], step)
 
 def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()

@@ -22,6 +22,7 @@ agent:
     algorithm: &algo iqn
     replay_type: &replay 'uniform'
     gamma: &gamma 0.99
+    n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     batch_size: &bs 64
     schedule_act_eps: True
@@ -68,7 +69,7 @@ replay:
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
     min_size: 5e4

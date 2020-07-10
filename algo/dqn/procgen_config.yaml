@@ -27,13 +27,13 @@ agent:
     EVAL_PERIOD: 5e5
     LOG_PERIOD: 5e4
     N_UPDATES: 1
+    RECORD: False
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: True
 
     loss_type: huber
     target_update_period: 2000  # trainning step
