@@ -8,6 +8,7 @@ from env import baselines as B
 
 
 def make_procgen_env(config):
+    assert 'procgen' in config['name'], config['name']
     gray_scale = config.setdefault('gray_scale', False)
     frame_skip = config.setdefault('frame_skip', 1)
     frame_stack = config.setdefault('frame_stack', 1)

@@ -1,7 +1,6 @@
 ---
 env:
     name: procgen_coinrun
-    wrapper: baselines
     sticky_actions: False
     frame_skip: 1
     frame_stack: 1

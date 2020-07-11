@@ -4,7 +4,6 @@ env:
     n_workers: 1
     n_envs: &nenvs 32
     seed: 0
-    wrapper: baselines
     frame_stack: 1
     np_obs: True
     

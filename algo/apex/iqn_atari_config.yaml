@@ -1,7 +1,6 @@
 ---
 env:
     name: atari_pong
-    wrapper: baselines
     sticky_actions: False
     frame_stack: 4
     np_obs: True
@@ -14,7 +13,7 @@ model:
     head_units: [512]
     activation: relu
     layer_type: dense
-    duel: True
+    duel: False
 
     qt_embed_size: 64
     phi_activation: relu
@@ -72,7 +71,7 @@ replay:
     replay_type: *replay
     seqlen: 100
     precision: 32
-    
+
     # arguments for PER
     beta0: 0.4
     to_update_top_priority: False

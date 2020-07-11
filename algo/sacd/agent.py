@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target
@@ -11,10 +10,10 @@ from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
-from algo.dqn.agent import get_data_format
+from algo.dqn.agent import get_data_format, DQNBase
 
 
-class Agent(BaseAgent):
+class Agent(DQNBase):
     @agent_config
     def __init__(self, *, dataset, env):
         self._is_per = self._replay_type.endswith('per')
@@ -58,10 +57,13 @@ class Agent(BaseAgent):
         self._sync_target_nets()
 
     def __call__(self, obs, deterministic=False, **kwargs):
-        return self.model.action(
+        action, terms = self.model.action(
             tf.convert_to_tensor(obs), 
             deterministic=deterministic, 
-            epsilon=self._act_eps).numpy()
+            epsilon=self._act_eps)
+        action = action.numpy()
+
+        return action
 
     @step_track
     def learn_log(self, step):
@@ -71,7 +73,7 @@ class Agent(BaseAgent):
 
         terms = self.learn(**data)
         if self._to_sync(self.train_step):
-                self._sync_target_nets()
+            self._sync_target_nets()
         if step % self.LOG_PERIOD == 0:
             self.summary(data, terms)
         del terms['next_act_probs']

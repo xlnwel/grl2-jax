@@ -112,7 +112,7 @@ class SAC(Ensemble):
         action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
         action = tf.squeeze(action)
 
-        return action
+        return action, {}
 
     @tf.function
     def value(self, x):

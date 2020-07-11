@@ -22,6 +22,15 @@ from env.gym_env import create_env
 from core.dataset import process_with_env, DataFormat, RayDataset
 
 
+pull_names = dict(
+    dqn=['q'],
+    iqn=['q'],
+    iqncrl=['q'],
+    fqf=['q', 'fpn'],
+    sac=['actor', 'q1'],
+    sacd=['cnn', 'actor', 'q1'],
+)
+
 def get_base_learner_class(BaseAgent):
     class BaseLearner(BaseAgent):            
         def is_learning(self):
@@ -63,7 +72,7 @@ def get_base_learner_class(BaseAgent):
             if 'epslen' in kwargs:
                 self.env_step += np.sum(kwargs['epslen'])
             with self._log_locker:
-                if worker_id is not None:
+                if self._schedule_act_eps and worker_id is not None:
                     kwargs = {f'{k}_{worker_id}': v for k, v in kwargs.items()}
                 self.store(**kwargs)
             if video is not None:
@@ -150,19 +159,9 @@ class Worker:
         if self._is_dpg:
             self.actor = self.model['actor']
             self.q = self.model['q1']
-            self._pull_names = ['actor', 'q1'] if self._is_per else ['actor']
         else:
             self.q = self.model['q']
-            self._pull_names = ['q']
         
-        pull_names = dict(
-            dqn=['q'],
-            iqn=['q'],
-            iqncrl=['q'],
-            fqf=['q', 'fpn'],
-            sac=['actor', 'q1'],
-            sacd=['cnn', 'actor', 'q1'],
-        )
         algo = self._algorithm.rsplit('-', 1)[-1]
         if algo[-1].isdigit():
             algo = algo[:-1]    # skip the version number
@@ -236,9 +235,9 @@ class Worker:
             data_tensor = {k: tf.convert_to_tensor(v) for k, v in data.items()}
             data['priority'] = self.compute_priorities(**data_tensor).numpy()
         if self._is_iqn:
-            del data['qtv']
+            data.pop('qtv', None)
         else:
-            del data['q']
+            data.pop('q', None)
         replay.merge.remote(data, data['action'].shape[0])
         buffer.reset()
 
@@ -346,15 +345,10 @@ class Evaluator(BaseEvaluator):
                 config=model_config, 
                 env=env)
 
-        self._is_dpg = 'actor' in self.model
-        self._is_iqn = 'iqn' in self._algorithm
-
-        if self._is_dpg:
-            self.actor = self.model['actor']
-            self._pull_names = ['actor']
-        else:
-            self.q = self.model['q']
-            self._pull_names = ['q']
+        algo = self._algorithm.rsplit('-', 1)[-1]
+        if algo[-1].isdigit():
+            algo = algo[:-1]    # skip the version number
+        self._pull_names = pull_names[algo]
         
         self._info = collections.defaultdict(list)
 

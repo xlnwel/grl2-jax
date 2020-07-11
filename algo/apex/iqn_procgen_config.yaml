@@ -1,7 +1,7 @@
 ---
 env:
     name: procgen_coinrun
-    frame_skip: 1
+    frame_skip: 2
     gray_scale: True
     frame_stack: 4
     np_obs: True
@@ -21,10 +21,10 @@ model:
 agent:
     algorithm: &algo apex-iqn
     replay_type: &replay 'uniform'
+    batch_size: &bs 64
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
-    batch_size: &bs 64
     schedule_act_eps: True
     act_eps: 0
 
@@ -51,7 +51,7 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    target_update_period: 1500  # trainning step
+    target_update_period: 1500
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
@@ -62,7 +62,7 @@ agent:
     epsilon: 1.5e-4
 
     # arguments for PER
-    per_alpha: .4
+    per_alpha: .5
     per_epsilon: 1e-4
 
 replay:
@@ -72,7 +72,7 @@ replay:
 
     # arguments for PER
     beta0: 0
-    to_update_top_priority: True
+    to_update_top_priority: False
 
     # arguments for general replay
     n_steps: *nsteps

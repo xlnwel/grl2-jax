@@ -1,7 +1,6 @@
 ---
 env:
     name: atari_pong
-    wrapper: baselines
     sticky_actions: False
     frame_skip: 4
     frame_stack: 1

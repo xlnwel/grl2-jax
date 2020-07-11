@@ -12,40 +12,13 @@ from env import baselines as B
 
 
 def make_atari_env(config):
-    assert 'atari' in config['name']
-    if config.setdefault('wrapper', 'baselines') == 'baselines':
-        name = config['name'].split('_', 1)[-1]
-        name = name[0].capitalize() + name[1:]
-        version = 0 if config.setdefault('sticky_actions', True) else 4
-        name = f'{name}NoFrameskip-v{version}'
-        env = B.make_atari(name, config.setdefault('frame_skip', 4))
-        env = B.wrap_deepmind(env, 
-            life_done=config.setdefault('life_done', False), 
-            frame_stack=config.setdefault('frame_stack', 4),
-            np_obs=config.setdefault('np_obs', False))
-    else:
-        env = Atari(**config)
+    assert 'atari' in config['name'], config['name']
+    env = Atari(**config)
     config.setdefault('max_episode_steps', 108000)    # 30min
 
     return env
 
 class Atari:
-    """A class implementing image preprocessing for Atari 2600 agents.
-    Code is originally from Dopamine, adapted to more general setting
-
-    Specifically, this provides the following subset from the JAIR paper
-    (Bellemare et al., 2013) and Nature DQN paper (Mnih et al., 2015):
-
-    * Frame skipping (defaults to 4).
-    * Terminal signal when a life is lost (off by default).
-    * Grayscale and max-pooling of the last two frames.
-    * Downsample the screen to a square image (defaults to 84x84).
-
-    More generally, this class follows the preprocessing guidelines set down in
-    Machado et al. (2018), "Revisiting the Arcade Learning Environment:
-    Evaluation Protocols and Open Problems for General Agents".
-    """
-
     def __init__(self, name, *, frame_skip=4, life_done=False,
                 image_size=(84, 84), frame_stack=1, noop=30, 
                 sticky_actions=True, gray_scale=True, 

@@ -1,7 +1,6 @@
 ---
 env:
     name: atari_assault
-    wrapper: my_atari
     life_done: False
     sticky_actions: True
     frame_skip: 4

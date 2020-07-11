@@ -1,7 +1,6 @@
 ---
 env:
-    name: atari_alien
-    wrapper: baselines
+    name: atari_pong
     sticky_actions: False
     frame_skip: 4
     frame_stack: 4

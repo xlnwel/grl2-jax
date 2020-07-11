@@ -1,7 +1,6 @@
 ---
 env:
     name: atari_pong
-    wrapper: my_atari
     sticky_actions: False
     frame_skip: 4
     frame_stack: 4
@@ -28,8 +27,9 @@ agent:
     algorithm: &algo sacd
     replay_type: &replay 'uniform'
     gamma: &gamma .99
+    batch_size: &bs 32
     n_steps: &nsteps 3      # n-step target
-    polyak: .995
+    precision: &prec 32
     act_eps: 0
     target_entropy_coef: .5
     
@@ -38,13 +38,13 @@ agent:
     EVAL_PERIOD: 5e5
     LOG_PERIOD: 1e4
     N_UPDATES: 1
+    RECORD: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: True
 
     target_update_period: 2000
 

@@ -1,7 +1,6 @@
 ---
 env:
     name: atari_MsPacman
-    wrapper: baselines
     sticky_actions: True
     frame_skip: 4
     frame_stack: 4
