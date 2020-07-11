@@ -14,6 +14,9 @@ from algo.dqn.agent import get_data_format, DQNBase
 
 class Agent(DQNBase):
     def _construct_optimizers(self):
+        if self._schedule_lr:
+            self._lr = TFPiecewiseSchedule(
+                [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
         self._optimizer = Optimizer(
             self._optimizer, self.q, self._lr, 
             clip_norm=self._clip_norm, epsilon=self._epsilon)
@@ -24,17 +27,21 @@ class Agent(DQNBase):
         # compute target returns
         next_action = self.q.action(next_obs, self.K)
         _, next_qtv, _ = self.target_q.value(next_obs, self.N_PRIME, next_action)
-
         reward = reward[:, None, None]
         discount = discount[:, None, None]
         if not isinstance(steps, int):
             steps = steps[:, None, None]
         returns = n_step_target(reward, next_qtv, discount, self._gamma, steps, self._tbo)
+        returns = tf.transpose(returns, (0, 2, 1))      # [B, 1, N']
 
         with tf.GradientTape() as tape:
             tau_hat, qtv, q = self.q.value(obs, self.N, action)
             error = returns - qtv   # [B, N, N']
-            
+            tf.debugging.assert_shapes([
+                [returns, (None, 1, self.N_PRIME)],
+                [qtv, (None, self.N, 1)],
+                [error, (None, self.N, self.N_PRIME)],
+            ])
             # loss
             tau_hat = tf.transpose(tf.reshape(tau_hat, [self.N, self._batch_size, 1]), [1, 0, 2]) # [B, N, 1]
             weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))        # [B, N, N']

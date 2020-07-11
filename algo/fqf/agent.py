@@ -14,6 +14,9 @@ from algo.dqn.agent import get_data_format, DQNBase
 
 class Agent(DQNBase):
     def _construct_optimizers(self):
+        if self._schedule_lr:
+            self._iqn_lr = TFPiecewiseSchedule(
+                [(5e5, self._iqn_lr), (2e6, 5e-5)], outside_value=5e-5)
         self._iqn_opt = Optimizer(
             self._iqn_opt, self.q, self._iqn_lr, 
             clip_norm=self._clip_norm, epsilon=self._epsilon)
@@ -89,7 +92,8 @@ class Agent(DQNBase):
             fpn_out_grads = abs_diff1 + abs_diff2
             fpn_out_grads = tf.stop_gradient(fpn_out_grads)
             fpn_raw_loss = tf.reduce_mean(fpn_out_grads * tau[..., 1:-1])
-            fpn_entropy_loss = -self._ent_coef * tf.reduce_mean(fpn_entropy)
+            fpn_entropy = tf.reduce_mean(fpn_entropy)
+            fpn_entropy_loss = - self._ent_coef * fpn_entropy
             fpn_loss = fpn_raw_loss + fpn_entropy_loss
 
         if self._is_per:

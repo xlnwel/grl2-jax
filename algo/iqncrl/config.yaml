@@ -31,9 +31,10 @@ model:
 agent:
     algorithm: &algo iqncrl
     replay_type: &replay 'uniform'
-    gamma: &gamma 0.99
-    precision: &prec 32
     batch_size: &bs 32
+    gamma: &gamma 0.99
+    n_steps: &nsteps 3      # n-step target
+    precision: &prec 32
     schedule_act_eps: True
     act_eps: 0.01
 
@@ -44,8 +45,8 @@ agent:
     N_UPDATES: 1
 
     # IQN params
-    N: 32                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
+    N: 64                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
@@ -81,9 +82,9 @@ replay:
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
-    min_size: 1600
+    min_size: 5e4
     capacity: 1e5
     has_next_obs: False

@@ -38,11 +38,8 @@ class DQNBase(BaseAgent):
         is_nsteps = self._n_steps > 1
         self.dataset = dataset
 
-        if self._schedule_lr:
-            self._lr = TFPiecewiseSchedule(
-                [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
         if self._schedule_act_eps:
-            self._act_eps = PiecewiseSchedule(((5e4, 1), (4e6, self._act_eps)))
+            self._act_eps = PiecewiseSchedule(((5e4, 1), (1e6, self._act_eps)))
 
         self._to_sync = Every(self._target_update_period)
         self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
@@ -52,18 +49,18 @@ class DQNBase(BaseAgent):
         self._action_dim = env.action_dim
 
         # Explicitly instantiate tf.function to initialize variables
-        obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else self._dtype
+        obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else tf.float32
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=((self._action_dim,), tf.float32, 'action'),
-            reward=((), self._dtype, 'reward'),
+            reward=((), tf.float32, 'reward'),
             next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
-            discount=((), self._dtype, 'discount'),
+            discount=((), tf.float32, 'discount'),
         )
         if self._is_per:
-            TensorSpecs['IS_ratio'] = ((), self._dtype, 'IS_ratio')
-        if is_nsteps:
-            TensorSpecs['steps'] = ((), self._dtype, 'steps')
+            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
+        if self._n_steps > 1:
+            TensorSpecs['steps'] = ((), tf.float32, 'steps')
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
         self._sync_target_nets()
@@ -135,6 +132,9 @@ class DQNBase(BaseAgent):
 
 class Agent(DQNBase):
     def _construct_optimizers(self):
+        if self._schedule_lr:
+            self._lr = TFPiecewiseSchedule(
+                [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
 
     def reset_noisy(self):

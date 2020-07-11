@@ -43,7 +43,7 @@ def get_base_learner_class(BaseAgent):
                 start_env_step = self.env_step
                 start_time = time.time()
                 self.learn_log(start_env_step)
-                if to_log(self.train_step) and 'score' in self._logger and 'eval_score' in self._logger:
+                if to_log(self.train_step) and 'eval_score' in self._logger:
                     duration = time.time() - start_time
                     self.store(
                         train_step=self.train_step,
@@ -58,12 +58,14 @@ def get_base_learner_class(BaseAgent):
         def get_weights(self, name=None):
             return self.model.get_weights(name=name)
 
-        def record_episode_info(self, **kwargs):
+        def record_episode_info(self, worker_id=None, **kwargs):
             video = kwargs.pop('video', None)
-            with self._log_locker:
-                self.store(**kwargs)
             if 'epslen' in kwargs:
                 self.env_step += np.sum(kwargs['epslen'])
+            with self._log_locker:
+                if worker_id is not None:
+                    kwargs = {f'{k}_{worker_id}': v for k, v in kwargs.items()}
+                self.store(**kwargs)
             if video is not None:
                 video_summary(f'{self.name}/sim', video, step=self.env_step)
 
@@ -153,6 +155,19 @@ class Worker:
             self.q = self.model['q']
             self._pull_names = ['q']
         
+        pull_names = dict(
+            dqn=['q'],
+            iqn=['q'],
+            iqncrl=['q'],
+            fqf=['q', 'fpn'],
+            sac=['actor', 'q1'],
+            sacd=['cnn', 'actor', 'q1'],
+        )
+        algo = self._algorithm.rsplit('-', 1)[-1]
+        if algo[-1].isdigit():
+            algo = algo[:-1]    # skip the version number
+        self._pull_names = pull_names[algo]
+        
         self._info = collections.defaultdict(list)
 
         if self._is_per:
@@ -229,7 +244,7 @@ class Worker:
 
     def _send_episode_info(self, learner):
         if self._info:
-            learner.record_episode_info.remote(**self._info)
+            learner.record_episode_info.remote(self._id, **self._info)
             self._info.clear()
 
     @tf.function
@@ -242,7 +257,7 @@ class Worker:
             next_action = self.q.action(next_obs, False)
             next_q = self.q.value(next_obs, next_action)
             
-        returns = n_step_target(reward, next_q, self._gamma, discount, steps, self._tbo)
+        returns = n_step_target(reward, next_q, discount, self._gamma, steps, self._tbo)
         
         priority = tf.abs(returns - q)
         priority += self._per_epsilon
@@ -254,14 +269,14 @@ class Worker:
     
     @tf.function
     def _compute_iqn_priorities(self, obs, action, reward, next_obs, discount, steps, qtv=None):
-        next_action = self.q.action(next_obs, self.N_PRIME)
+        next_action = self.q.action(next_obs, self.K)
         _, next_qtv, _ = self.q.value(next_obs, self.N_PRIME, next_action)
         reward = reward[:, None, None]
         discount = discount[:, None, None]
         steps = steps[:, None, None]
-        returns = n_step_target(reward, next_qtv, self._gamma, discount, steps, self._tbo)
-        returns = tf.transpose(returns, (1, 2, 0))      # [B, 1, N']
-        qtv = qtv[..., None]
+        returns = n_step_target(reward, next_qtv, discount, self._gamma, steps, self._tbo)
+        returns = tf.transpose(returns, (0, 2, 1))      # [B, 1, N']
+        qtv = tf.expand_dims(qtv, axis=-1)              # [B, K, 1], to avoid redundant computation, we use previously computed qtv here
         tf.debugging.assert_shapes([[qtv, (self._seqlen, self.K, 1)]])
         tf.debugging.assert_shapes([[returns, (self._seqlen, 1, self.N_PRIME)]])
         

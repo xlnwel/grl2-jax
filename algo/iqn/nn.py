@@ -4,7 +4,6 @@ from tensorflow.keras import layers
 from tensorflow.keras.mixed_precision.experimental import global_policy
 from tensorflow_probability import distributions as tfd
 
-from utility.display import pwc
 from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp, cnn
@@ -25,6 +24,7 @@ class Q(Module):
         self._kwargs = kwargs
         self._cnn = cnn(self._cnn, out_size=None, **kwargs)
 
+        # we do not define the phi net here to make it consistent with the CNN output size
         if self._duel:
             self._v_head = mlp(
                 self._head_units, 
@@ -101,7 +101,7 @@ class Q(Module):
             action = tf.expand_dims(action, axis=1)
             if len(action.shape) < len(qtv.shape):
                 action = tf.one_hot(action, self._action_dim, dtype=qtv.dtype)
-            qtv = tf.reduce_sum(qtv * action, -1, keepdims=True)        # [B, N, 1], relying on broadcasting
+            qtv = tf.reduce_sum(qtv * action, -1, keepdims=True)        # [B, N, 1]
             
         return qtv
 
@@ -136,6 +136,9 @@ class IQN(Ensemble):
 
         tau_hat, qtv, q = self.q.value(x)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
+        qtv = tf.math.reduce_max(qtv, -1)
+        q = tf.math.reduce_max(q, -1)
+
         if not deterministic and epsilon > 0:
             rand_act = tf.random.uniform(
                 action.shape, 0, self.q.action_dim, dtype=tf.int32)
@@ -143,26 +146,15 @@ class IQN(Ensemble):
                 tf.random.uniform(action.shape, 0, 1) < epsilon,
                 rand_act, action)
         action = tf.squeeze(action)
+        qtv = tf.squeeze(qtv)
 
         return action, {'qtv': qtv}
 
-    @tf.function
-    def value(self, x):
-        if x.shape.ndims % 2 != 0:
-            x = tf.expand_dims(x, axis=0)
-        assert x.shape.ndims == 4, x.shape
-
-        tau_hat, qtv, q = self.q.value(x)
-
-        return qtv, q
-
 def create_components(config, env, **kwargs):
     action_dim = env.action_dim
-    q = Q(config, action_dim, 'q')
-    target_q = Q(config, action_dim, 'target_q')
     return dict(
-        q=q,
-        target_q=target_q,
+        q=Q(config, action_dim, 'q'),
+        target_q=Q(config, action_dim, 'target_q'),
     )
 
 def create_model(config, env, **kwargs):

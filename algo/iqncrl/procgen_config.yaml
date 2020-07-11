@@ -16,9 +16,11 @@ model:
 
         qt_embed_size: 64
         phi_activation: relu
+        K: &K 32
 
     crl:
         crl_units: []
+        activation: relu
         crl_out_size: 128
 
 agent:
@@ -40,7 +42,7 @@ agent:
     # IQN params
     N: 8                # N in paper, num of quantiles for online quantile network
     N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
-    K: 32               # K in paper, num of quantiles for action selection
+    K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     crl_coef: 1

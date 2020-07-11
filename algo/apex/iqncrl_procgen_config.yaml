@@ -1,7 +1,7 @@
 ---
 env:
     name: procgen_coinrun
-    frame_skip: 1
+    frame_skip: 2
     gray_scale: True
     frame_stack: 4
     np_obs: True
@@ -17,6 +17,7 @@ model:
 
         qt_embed_size: 64
         phi_activation: relu
+        K: &K 32
 
     crl:
         crl_units: []
@@ -40,7 +41,7 @@ agent:
     # IQN params
     N: 8                # N in paper, num of quantiles for online quantile network
     N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
-    K: 32               # K in paper, num of quantiles for action selection
+    K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     crl_coef: 1
@@ -49,14 +50,15 @@ agent:
     n_learner_cpus: 3
     n_workers: 6
     SYNC_PERIOD: 1000
+    SYNC_PERIOD: 1000
+    RECORD_PERIOD: 100
+    N_EVALUATION: 10
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD_PERIOD: 100
-    N_EVALUATION: 10
 
     target_update_period: 1500  # trainning step
     tbo: False                              # transformed Bellman Operator

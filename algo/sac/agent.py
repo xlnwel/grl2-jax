@@ -48,7 +48,7 @@ class Agent(BaseAgent):
         )
         if self._is_per:
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
-        if getattr(self, 'n_steps', 1) > 1:
+        if self._n_steps > 1:
             TensorSpecs['steps'] = ((), tf.float32, 'steps')
         self.learn = build(self._learn, TensorSpecs)
 

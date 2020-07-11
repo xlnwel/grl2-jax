@@ -1,7 +1,7 @@
 ---
 env:
-    name: atari_MsPacman
-    wrapper: baselines
+    name: atari_pong
+    wrapper: my_atari
     sticky_actions: True
     frame_skip: 4
     frame_stack: 4
@@ -29,8 +29,8 @@ agent:
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
-    batch_size: &bs 64
-    schedule_act_eps: False
+    batch_size: &bs 32
+    schedule_act_eps: True
     act_eps: 0.01
 
     MAX_STEPS: 1e8      # maximum env frames
@@ -50,7 +50,7 @@ agent:
     model_name: *algo
     RECORD: True
 
-    target_update_period: 2000  # trainning step
+    target_update_period: 2500  # trainning step
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
@@ -79,6 +79,6 @@ replay:
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
-    min_size: 1600
+    min_size: 5e4
     capacity: 1e5
     has_next_obs: False

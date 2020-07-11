@@ -23,8 +23,8 @@ model:
 agent:
     algorithm: &algo apex-iqn
     replay_type: &replay 'uniform'
-    gamma: &gamma 0.99
     batch_size: &bs 64
+    gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     schedule_act_eps: True
@@ -54,7 +54,6 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    loss_type: huber                          # huber or mse
     target_update_period: 1500
     tbo: False
 
@@ -73,6 +72,7 @@ replay:
     replay_type: *replay
     seqlen: 100
     precision: 32
+    
     # arguments for PER
     beta0: 0.4
     to_update_top_priority: False
