@@ -62,14 +62,14 @@ class Q(Module):
 
         if self._duel:
             self._v_head = mlp(
-                self._head_units, 
+                self._units_list, 
                 out_size=1, 
                 activation=self._activation, 
                 out_dtype='float32',
                 name='v',
                 **kwargs)
         self._a_head = mlp(
-            self._head_units, 
+            self._units_list, 
             out_size=action_dim, 
             activation=self._activation, 
             out_dtype='float32',
@@ -85,18 +85,15 @@ class Q(Module):
         return tf.argmax(q, axis=-1, output_type=tf.int32)
 
     def value(self, x, tau_hat, tau_range=None, action=None):
-        tf.debugging.assert_shapes([
-            [x, (None, self._cnn.out_size)],
-        ])
-        x = tf.expand_dims(x, 1)   # [B, 1, cnn.out_size]
+        x = tf.expand_dims(x, 1)    # [B, 1, cnn.out_size]
         cnn_out_size = x.shape[-1]
         qt_embed = self.qt_embed(tau_hat, cnn_out_size)   # [B, N, cnn.out_size]
-        x = x * qt_embed    # [B, N, cnn.out_size]
-        qtv = self.qtv(x, tau_hat, action=action)
+        x = x * qt_embed            # [B, N, cnn.out_size]
+        qtv = self.qtv(x, action=action)
         if tau_range is None:
             return qtv
         else:
-            q = self.q(qtv, tau_range, action=action)
+            q = self.q(qtv, tau_range)
             return qtv, q
 
     def cnn(self, x):
@@ -107,10 +104,11 @@ class Q(Module):
     
     def qt_embed(self, tau_hat, cnn_out_size):
         # phi network
-        tau_hat = tf.expand_dims(tau_hat, -1)       # [B, N, 1]
+        tau_hat = tf.expand_dims(tau_hat, axis=-1)       # [B, N, 1]
         pi = tf.convert_to_tensor(np.pi, tf.float32)
         degree = tf.cast(tf.range(self._qt_embed_size), tf.float32) * pi * tau_hat
         qt_embed = tf.math.cos(degree)              # [B, N, E]
+        
         if not hasattr(self, '_phi'):
             self._phi = mlp(
                 [cnn_out_size], 
@@ -121,7 +119,7 @@ class Q(Module):
         
         return qt_embed
 
-    def qtv(self, x, tau, action=None):
+    def qtv(self, x, action=None):
         if self._duel:
             v_qtv = self._v_head(x) # [B, N, 1]
             a_qtv = self._a_head(x) # [B, N, A]
@@ -133,22 +131,16 @@ class Q(Module):
             action = tf.expand_dims(action, axis=1)
             if len(action.shape) < len(qtv.shape):
                 action = tf.one_hot(action, self._action_dim, dtype=qtv.dtype)
-            qtv = tf.reduce_sum(qtv * action, -1, keepdims=True)        # [B, N, 1], relying on broadcasting
+            qtv = tf.reduce_sum(qtv * action, axis=-1)        # [B, N]
             
         return qtv
 
-    def q(self, qtv, tau_range, action=None):
+    def q(self, qtv, tau_range):
         diff = tau_range[..., 1:] - tau_range[..., :-1]
-        diff = tf.expand_dims(diff, axis=-1)
-        q = tf.reduce_sum(diff * qtv, axis=1)                       # [B, A]
-        if action is not None:
-            if len(action.shape) < len(qtv.shape) - 1:
-                action = tf.one_hot(action, self._action_dim, dtype=q.dtype)
-            q = tf.reduce_sum(q * action, axis=-1)                           # [B]
-            tf.debugging.assert_shapes([
-                [action, (None, self._action_dim)],
-                [q, (None)],
-            ])
+        if len(qtv.shape) > len(diff.shape):
+            diff = tf.expand_dims(diff, axis=-1)        # expand diff if qtv includes the action dimension
+        q = tf.reduce_sum(diff * qtv, axis=1)           # [B, A] / [B]
+        
         return q
 
 

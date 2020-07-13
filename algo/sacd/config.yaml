@@ -30,6 +30,7 @@ agent:
     batch_size: &bs 32
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
+    schedule_act_eps: False
     act_eps: 0
     target_entropy_coef: .5
     
@@ -66,9 +67,9 @@ replay:
     to_update_top_priority: True
 
     # arguments for general replay
-    n_steps: 3
+    n_steps: *nsteps
     gamma: *gamma
-    batch_size: 64
+    batch_size: *bs
     min_size: 2e4
     capacity: 1e5
     has_next_obs: False

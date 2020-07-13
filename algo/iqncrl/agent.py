@@ -26,16 +26,20 @@ class Agent(DQNBase):
         terms = {}
         # compute target returns
         next_action = self.q.action(next_obs, self.K)
-        _, _, next_qtv, _ = self.target_q.value(next_obs, self.N_PRIME, next_action)
-        reward = reward[:, None, None]
-        discount = discount[:, None, None]
+        _, next_qtv, _ = self.target_q.value(next_obs, self.N_PRIME, next_action)
+        reward = reward[:, None]
+        discount = discount[:, None]
         if not isinstance(steps, int):
-            steps = steps[:, None, None]
+            steps = steps[:, None]
         returns = n_step_target(reward, next_qtv, discount, self._gamma, steps, self._tbo)
-        returns = tf.transpose(returns, (0, 2, 1))      # [B, 1, N']
-
+        returns = tf.expand_dims(returns, axis=1)      # [B, 1, N']
+        tf.debugging.assert_shapes([
+            [next_qtv, (None, self.N_PRIME)],
+            [returns, (None, 1, self.N_PRIME)],
+        ])
         with tf.GradientTape() as tape:
-            z, tau_hat, qtv, q = self.q.value(obs, self.N, action)
+            z, tau_hat, qtv, q = self.q.value(obs, self.N, action, return_obs_embed=True)
+            qtv = tf.expand_dims(qtv, axis=-1)  # [B, N, 1]
             error = returns - qtv   # [B, N, N']
             tf.debugging.assert_shapes([
                 [returns, (None, 1, self.N_PRIME)],
@@ -43,7 +47,6 @@ class Agent(DQNBase):
                 [error, (None, self.N, self.N_PRIME)],
             ])
             # loss
-            tau_hat = tf.transpose(tf.reshape(tau_hat, [self.N, self._batch_size, 1]), [1, 0, 2]) # [B, N, 1]
             weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))        # [B, N, N']
             huber = huber_loss(error, threshold=self.KAPPA)             # [B, N, N']
             qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1) # [B]

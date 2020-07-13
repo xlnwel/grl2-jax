@@ -12,6 +12,19 @@ def huber_loss(x, *, y=None, threshold=1.):
                     threshold * (tf.abs(x) - 0.5 * threshold), 
                     name='huber_loss')
 
+def quantile_regression_loss(qtv, returns, tau_hat, kappa=1., return_error=False):
+    assert qtv.shape[-1] == 1, qtv.shape
+    assert returns.shape[-2] == 1, returns.shape
+    assert tau_hat.shape[-1] == 1, tau_hat.shape
+    error = returns - qtv           # [B, N, N']
+    weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))   # [B, N, N']
+    huber = huber_loss(error, threshold=kappa)                  # [B, N, N']
+    qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1) # [B]
+
+    if return_error:
+        return error, qr_loss
+    return qr_loss
+
 def clip_but_pass_gradient(x, l=-1., u=1.):
     clip_up = tf.cast(x > u, tf.float32)
     clip_low = tf.cast(x < l, tf.float32)

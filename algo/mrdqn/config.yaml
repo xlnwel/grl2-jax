@@ -8,7 +8,7 @@ model:
     cnn: none
     shared_units: [128]
     lstm_units: 64
-    head_units: [64]
+    units_list: [64]
     activation: relu
     duel: True
 

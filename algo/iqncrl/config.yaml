@@ -11,8 +11,8 @@ env:
 model:
     q:
         cnn: nature
-        kernel_initializer: he_uniform
-        head_units: [512]
+        kernel_initializer: orthogonal
+        units_list: [512]
         activation: relu
         layer_type: dense
         duel: False

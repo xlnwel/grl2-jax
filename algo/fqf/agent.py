@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from utility.display import pwc
-from utility.rl_utils import n_step_target, huber_loss
+from utility.rl_utils import n_step_target, huber_loss, quantile_regression_loss
 from utility.utils import Every
 from utility.schedule import TFPiecewiseSchedule, PiecewiseSchedule
 from utility.timer import TBTimer
@@ -38,16 +38,19 @@ class Agent(DQNBase):
         
         next_x = self.target_q.cnn(next_obs)
         next_tau, next_tau_hat, _ = self.fpn(next_x)
-        next_qtv, _ = self.target_q.value(
-            next_x, next_tau_hat, tau_range=next_tau, action=next_action)
+        next_qtv = self.target_q.value(
+            next_x, next_tau_hat, action=next_action)
         
-        reward = reward[:, None, None]
-        discount = discount[:, None, None]
+        reward = reward[:, None]
+        discount = discount[:, None]
         if not isinstance(steps, int):
-            steps = steps[:, None, None]
+            steps = steps[:, None]
         returns = n_step_target(reward, next_qtv, discount, self._gamma, steps, self._tbo)
-        tf.debugging.assert_shapes([[returns, (None, self.N, 1)]])
-        returns = tf.transpose(returns, (0, 2, 1))      # [B, 1, N]
+        tf.debugging.assert_shapes([
+            [next_qtv, (None, self.N)],
+            [returns, (None, self.N)],
+        ])
+        returns = tf.expand_dims(returns, axis=1)      # [B, 1, N]
 
         with tf.GradientTape(persistent=True) as tape:
             x = self.q.cnn(obs)
@@ -58,25 +61,13 @@ class Agent(DQNBase):
             tau_hat = tf.stop_gradient(tau_hat) # forbid gradients to fpn when computing qr loss
             qtv, q = self.q.value(
                 x, tau_hat, tau_range=tau, action=action)
-
-            error = returns - qtv   # [B, N, N]
-            
-            # loss
+            qtv_exp = tf.expand_dims(qtv, axis=-1)
             tau_hat = tf.expand_dims(tau_hat, -1) # [B, N, 1]
-            tf.debugging.assert_shapes([[tau_hat, (None, self.N, 1)]])
-            tf.debugging.assert_shapes([[qtv, (None, self.N, 1)]])
-            tf.debugging.assert_shapes([[returns, (None, 1, self.N)]])
-            tf.debugging.assert_shapes([[error, (None, self.N, self.N)]])
-
-            weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))       # [B, N, N']
-            huber = huber_loss(error, threshold=self.KAPPA)                 # [B, N, N']
-            qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1) # [B]
+            qr_loss = quantile_regression_loss(qtv_exp, returns, tau_hat, kappa=self.KAPPA)
             qr_loss = tf.reduce_mean(qr_loss)
 
             # compute gradients for fpn
             tau_qtv = self.q.value(x_no_grad, tau[..., 1:-1], action=action)     # [B, N-1, A]
-            qtv = tf.squeeze(qtv, -1)
-            tau_qtv = tf.squeeze(tau_qtv, -1)
             tf.debugging.assert_shapes([
                 [qtv, (None, self.N)],
                 [tau_qtv, (None, self.N-1)],

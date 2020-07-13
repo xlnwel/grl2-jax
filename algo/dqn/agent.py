@@ -100,9 +100,6 @@ class DQNBase(BaseAgent):
             if self._to_summary(step):
                 self.summary(data, terms)
 
-            if self._schedule_lr:
-                step = tf.convert_to_tensor(step, tf.float32)
-                terms['lr'] = self._lr(step)
             terms = {k: v.numpy() for k, v in terms.items()}
 
             if self._is_per:

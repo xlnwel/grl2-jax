@@ -9,7 +9,7 @@ env:
 model:
     cnn: nature
     lstm_units: 512
-    head_units: [512]
+    units_list: [512]
     activation: relu
     duel: True
 

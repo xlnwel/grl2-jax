@@ -29,6 +29,7 @@ pull_names = dict(
     fqf=['q', 'fpn'],
     sac=['actor', 'q1'],
     sacd=['cnn', 'actor', 'q1'],
+    sacdiqn=['cnn', 'actor', 'q1'],
 )
 
 def get_base_learner_class(BaseAgent):
@@ -156,11 +157,8 @@ class Worker:
 
         self._is_dpg = 'actor' in self.model
         self._is_iqn = 'iqn' in self._algorithm or 'fqf' in self._algorithm
-        if self._is_dpg:
-            self.actor = self.model['actor']
-            self.q = self.model['q1']
-        else:
-            self.q = self.model['q']
+        for k, v in self.model.items():
+            setattr(self, k, v)
         
         algo = self._algorithm.rsplit('-', 1)[-1]
         if algo[-1].isdigit():

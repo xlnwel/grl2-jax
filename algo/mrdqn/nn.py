@@ -33,13 +33,13 @@ class Q(Module):
 
         if self._duel:
             self._v_head = mlp(
-                self._head_units, 
+                self._units_list, 
                 out_size=1, 
                 activation=self._activation, 
                 out_dtype='float32',
                 name='v')
         self._a_head = mlp(
-            self._head_units, 
+            self._units_list, 
             out_size=action_dim, 
             activation=self._activation, 
             out_dtype='float32',

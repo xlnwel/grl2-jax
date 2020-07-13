@@ -9,7 +9,7 @@ model:
     q:
         cnn: impala
         kernel_initializer: orthogonal
-        head_units: [512]
+        units_list: [512]
         activation: relu
         layer_type: dense
         duel: False

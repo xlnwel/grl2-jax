@@ -11,12 +11,15 @@ model:
         cnn: impala
     actor:
         units_list: [512]
-        norm: none
         activation: relu
     q:
         units_list: [512]
-        norm: none
         activation: relu
+        duel: False
+
+        qt_embed_size: 64
+        phi_activation: relu
+        K: &K 32
     temperature:
         temp_type: 'variable'
         value: .1
@@ -25,9 +28,8 @@ agent:
     algorithm: &algo apex-sacd
     replay_type: &replay 'uniform'
     gamma: &gamma 0.99
-    n_steps: &nsteps 3      # n-step target
     batch_size: &bs 64
-    polyak: .995
+    n_steps: &nsteps 3      # n-step target
     schedule_act_eps: False
     act_eps: 0
     target_entropy_coef: .5
@@ -48,7 +50,6 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: 100
 
     target_update_period: 1500
 

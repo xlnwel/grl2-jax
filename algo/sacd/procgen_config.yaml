@@ -10,22 +10,22 @@ model:
         cnn: impala
     actor:
         units_list: [512]
-        norm: none
         activation: relu
     q:
         units_list: [512]
-        norm: none
         activation: relu
     temperature:
         temp_type: 'variable'
         value: .1
         
 agent:
-    algorithm: &algo sac4
+    algorithm: &algo sacd
     replay_type: &replay 'uniform'
     gamma: &gamma .99
+    batch_size: &bs 32
     n_steps: &nsteps 3      # n-step target
-    polyak: .995
+    precision: &prec 32
+    schedule_act_eps: False
     act_eps: 0
     target_entropy_coef: .5
     
@@ -64,7 +64,7 @@ replay:
     # arguments for general replay
     n_steps: *nsteps
     gamma: *gamma
-    batch_size: 64
+    batch_size: *bs
     min_size: 2e4
     capacity: 1e5
     has_next_obs: False

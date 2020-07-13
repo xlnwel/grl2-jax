@@ -11,7 +11,7 @@ env:
 model:
     cnn: nature
     kernel_initializer: orthogonal
-    head_units: []
+    units_list: []
     activation: relu
     layer_type: noisy
     duel: False
