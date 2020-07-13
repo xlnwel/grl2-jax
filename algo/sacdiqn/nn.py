@@ -180,6 +180,7 @@ class SACIQN(Ensemble):
         x = self.cnn(x)
         action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
 
+        _, qtv = self.q(x, action=action)
         action = tf.squeeze(action)
         qtv = tf.squeeze(qtv)
 
