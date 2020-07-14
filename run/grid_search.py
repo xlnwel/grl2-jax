@@ -7,7 +7,7 @@ import numpy as np
 
 class GridSearch:
     def __init__(self, env_config, model_config, agent_config, replay_config, 
-                train_func, n_trials=1, dir_prefix='', 
+                train_func, n_trials=1, logdir='logs', dir_prefix='', 
                 separate_process=False, delay=1):
         self.env_config = env_config
         self.model_config = model_config
@@ -15,6 +15,7 @@ class GridSearch:
         self.replay_config = replay_config
         self.train_func = train_func
         self.n_trials = n_trials
+        self.logdir = logdir
         self.dir_prefix = dir_prefix
         self.separate_process = separate_process
         self.delay=delay
@@ -42,7 +43,7 @@ class GridSearch:
         else:
             timestamp = ''
         dir_prefix = self.dir_prefix                                 
-        self.agent_config['root_dir'] = (f'logs/'
+        self.agent_config['root_dir'] = (f'{self.logdir}/'
                                         f'{timestamp}'
                                         f'{dir_prefix}'
                                         f'{self.agent_config["algorithm"]}-'

@@ -102,6 +102,7 @@ if __name__ == '__main__':
             config = get_config(algo, env)
             main = pkg.import_main('train', algo)
 
+            logdir = cmd_args.logdir
             prefix = cmd_args.prefix
             env_config = config['env']
             model_config = config['model']
@@ -130,7 +131,7 @@ if __name__ == '__main__':
                 else:
                     processes += gs()
             else:
-                agent_config['root_dir'] = f'logs/{prefix}{algo}-{env_config["name"]}'
+                agent_config['root_dir'] = f'{logdir}/{prefix}{algo}-{env_config["name"]}'
                 if 'video_path' in env_config:
                     env_config['video_path'] = (f'{agent_config["root_dir"]}/'
                                                 f'{agent_config["model_name"]}/'
