@@ -10,6 +10,7 @@ env:
 
 model:
     cnn: nature
+    cnn_out_size: None
     kernel_initializer: orthogonal
     units_list: [512]
     activation: relu
@@ -25,10 +26,11 @@ agent:
     replay_type: &replay 'uniform'
     batch_size: &bs 32
     gamma: &gamma 0.99
-    n_steps: &nsteps 3      # n-step target
+    n_steps: &nsteps 1      # n-step target
     precision: &prec 32
     schedule_act_eps: True
     act_eps: 0.01
+    eval_act_eps: 0
 
     MAX_STEPS: 1e8      # maximum env frames
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4

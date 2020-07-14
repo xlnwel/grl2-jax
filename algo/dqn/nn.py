@@ -23,7 +23,7 @@ class Q(Module):
         kwargs = {}
         if hasattr(self, '_kernel_initializer'):
             kwargs['kernel_initializer'] = self._kernel_initializer
-        self._cnn = cnn(self._cnn, **kwargs)
+        self._cnn = cnn(self._cnn, out_size=self._cnn_out_size, **kwargs)
 
         layer_type = dict(noisy=Noisy, dense=layers.Dense)[self._layer_type]
         if self._duel:
@@ -99,7 +99,7 @@ class DQN(Ensemble):
         noisy = not deterministic
         q = self.q.value(x, noisy=noisy, reset=False)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
-        if not deterministic and epsilon > 0:
+        if epsilon > 0:
             rand_act = tf.random.uniform(
                 action.shape, 0, self.q.action_dim, dtype=tf.int32)
             action = tf.where(

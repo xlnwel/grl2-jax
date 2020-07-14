@@ -81,7 +81,6 @@ def main(env_config, model_config, agent_config, buffer_config):
     eval_env_config['n_workers'] = 1
     eval_env_config['n_envs'] = 8
     eval_env_config.pop('reward_clip', False)
-    eval_env_config.pop('life_done', False)
     eval_env = create_env(eval_env_config, force_envvec=True)
 
     buffer_config['n_envs'] = env.n_envs

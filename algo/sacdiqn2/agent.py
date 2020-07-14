@@ -29,6 +29,15 @@ class Agent(DQNBase):
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
 
     @tf.function
+    def summary(self, data, terms):
+        tf.summary.histogram('entropy', terms['entropy'], step=self._env_step)
+        tf.summary.histogram('next_act_probs', terms['next_act_probs'], step=self._env_step)
+        tf.summary.histogram('next_act_logps', terms['next_act_logps'], step=self._env_step)
+        tf.summary.histogram('next_logps', terms['next_logps'], step=self._env_step)
+        tf.summary.histogram('next_qtv', terms['next_qtv'], step=self._env_step)
+        tf.summary.histogram('reward', data['reward'], step=self._env_step)
+
+    @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}
         if not hasattr(self, '_target_entropy'):
@@ -75,11 +84,13 @@ class Agent(DQNBase):
             qtv = tf.reduce_sum(qtvs * action, axis=-1, keepdims=True)  # [B, N, 1]
             qr_loss = quantile_regression_loss(qtv, returns, tau_hat, kappa=self.KAPPA)
             qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
+        terms['q_norm'] = self._q_opt(tape, qr_loss)
 
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
             tf.debugging.assert_shapes([[act_probs, (None, self._action_dim)]])
             tf.debugging.assert_shapes([[act_logps, (None, self._action_dim)]])
+            tf.debugging.assert_shapes([[qs, (None, self._action_dim)]])
             q = tf.reduce_sum(act_probs * qs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
             tf.debugging.assert_shapes([
@@ -106,6 +117,7 @@ class Agent(DQNBase):
             terms['priority'] = priority
         
         terms.update(dict(
+            act_probs=act_probs,
             actor_loss=actor_loss,
             q=q,
             next_value=tf.reduce_mean(next_state_qtv, axis=-1),
@@ -123,4 +135,4 @@ class Agent(DQNBase):
     def _sync_target_nets(self):
         # TODO: change this if using a target cnn
         [tv.assign(mv) for mv, tv in zip(
-            self.q.trainable_variables, self.target_q.trainable_variables)]
+            self.q.variables, self.target_q.variables)]

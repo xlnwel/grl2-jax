@@ -8,6 +8,8 @@ env:
 model:
     cnn: 
         cnn: impala
+        kernel_initializer: orthogonal
+        cnn_out_size: none
     actor:
         units_list: [512]
         activation: relu
@@ -32,6 +34,7 @@ agent:
     precision: &prec 32
     schedule_act_eps: False
     act_eps: 0
+    eval_act_eps: 0
     target_entropy_coef: .5
     
     MAX_STEPS: 8e6
@@ -41,8 +44,8 @@ agent:
     N_UPDATES: 1
 
     # IQN params
-    N: 8                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
+    N: 64                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 

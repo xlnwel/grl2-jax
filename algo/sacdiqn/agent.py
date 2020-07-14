@@ -84,6 +84,7 @@ class Agent(DQNBase):
         with tf.GradientTape() as tape:
             x = self.cnn(obs)
             action = tf.expand_dims(action, axis=1)
+
             qs1, error1, qr_loss1 = self._compute_q_loss(self.q1, x, action, returns)
             qs2, error2, qr_loss2 = self._compute_q_loss(self.q2, x, action, returns)
 

@@ -70,12 +70,13 @@ class DQNBase(BaseAgent):
         pass
 
     def __call__(self, x, deterministic=False, **kwargs):
-        if self._schedule_act_eps:
+        if deterministic:
+            eps = self._eval_act_eps
+        elif self._schedule_act_eps:
             eps = self._act_eps.value(self.env_step)
             self.store(act_eps=eps)
         else:
             eps = self._act_eps
-
         action, terms = self.model.action(
             tf.convert_to_tensor(x), 
             deterministic=deterministic, 

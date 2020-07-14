@@ -159,9 +159,14 @@ class Atari:
 
             if self.life_done:
                 new_lives = self.env.ale.lives()
-                is_terminal = done or new_lives < self.lives
-                info['game_over'] = done
-                self.lives = new_lives
+                if new_lives < self.lives and new_lives > 0:
+                    self.lives = new_lives
+                    is_terminal = True
+                    info['game_over'] = done
+                    self.reset()
+                    break
+                else:
+                    is_terminal = done
             else:
                 is_terminal = done
 

@@ -11,7 +11,11 @@ from nn.func import mlp, cnn
 class CNN(Module):
     @config
     def __init__(self, name='cnn'):
-        self._cnn = cnn(self._cnn, kernel_initializer='he_uniform')
+        kwargs = dict(
+            out_size=self._cnn_out_size,
+            kernel_initializer=self._kernel_initializer,
+        )
+        self._cnn = cnn(self._cnn, **kwargs)
 
     def __call__(self, x):
         x = self._cnn(x)
@@ -88,7 +92,6 @@ class Q(Module):
         x = tf.expand_dims(x, 1)    # [B, 1, cnn.out_size]
         tau_hat, qt_embed = self.quantile(n_qt, batch_size, x.shape[-1])
         x = x * qt_embed            # [B, N, cnn.out_size]
-        tf.debugging.assert_shapes([[x, (batch_size, n_qt, x.shape[-1])]])
         qtv = self.qtv(x, action=action)
         if return_q:
             q = self.q(qtv)
@@ -179,8 +182,7 @@ class SACIQN(Ensemble):
 
         x = self.cnn(x)
         action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
-
-        _, qtv = self.q(x, action=action)
+        _, qtv = self.q1(x, action=action)
         action = tf.squeeze(action)
         qtv = tf.squeeze(qtv)
 

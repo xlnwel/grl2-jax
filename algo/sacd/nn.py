@@ -11,7 +11,11 @@ from nn.func import mlp, cnn
 class CNN(Module):
     @config
     def __init__(self, name='cnn'):
-        self._cnn = cnn(self._cnn, kernel_initializer='he_uniform')
+        kwargs = dict(
+            out_size=self._cnn_out_size,
+            kernel_initializer=self._kernel_initializer,
+        )
+        self._cnn = cnn(self._cnn, **kwargs)
 
     def __call__(self, x):
         x = self._cnn(x)

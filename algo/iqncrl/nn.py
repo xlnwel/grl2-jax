@@ -22,7 +22,7 @@ class Q(Module):
         if hasattr(self, '_kernel_initializer'):
             kwargs['kernel_initializer'] = self._kernel_initializer
         self._kwargs = kwargs
-        self._cnn = cnn(self._cnn, **kwargs)
+        self._cnn = cnn(self._cnn, out_size=self._cnn_out_size, **kwargs)
 
         if self._duel:
             self._v_head = mlp(
@@ -156,7 +156,7 @@ class IQNCRL(Ensemble):
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
         qtv = tf.math.reduce_max(qtv, -1)
 
-        if not deterministic and epsilon > 0:
+        if epsilon > 0:
             rand_act = tf.random.uniform(
                 action.shape, 0, self.q.action_dim, dtype=tf.int32)
             action = tf.where(

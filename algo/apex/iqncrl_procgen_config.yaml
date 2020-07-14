@@ -9,6 +9,7 @@ env:
 model:
     q:
         cnn: impala
+        cnn_out_size: none
         kernel_initializer: orthogonal
         units_list: [512]
         activation: relu
@@ -33,6 +34,7 @@ agent:
     batch_size: &bs 64
     schedule_act_eps: True
     act_eps: 0
+    eval_act_eps: 0
 
     MAX_STEPS: 8e6      # maximum env steps
     LOG_PERIOD: &log 1000

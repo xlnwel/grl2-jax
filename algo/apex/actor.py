@@ -30,7 +30,15 @@ pull_names = dict(
     sac=['actor', 'q1'],
     sacd=['cnn', 'actor', 'q1'],
     sacdiqn=['cnn', 'actor', 'q1'],
+    sacdiqn2=['cnn', 'actor', 'q'],
 )
+
+def get_pull_names(algo):
+    algo = algo.rsplit('-', 1)[-1]
+    if algo not in pull_names and algo[-1].isdigit():
+        algo = algo[:-1]
+    return pull_names[algo]
+    
 
 def get_base_learner_class(BaseAgent):
     class BaseLearner(BaseAgent):            
@@ -160,10 +168,7 @@ class Worker:
         for k, v in self.model.items():
             setattr(self, k, v)
         
-        algo = self._algorithm.rsplit('-', 1)[-1]
-        if algo[-1].isdigit():
-            algo = algo[:-1]    # skip the version number
-        self._pull_names = pull_names[algo]
+        self._pull_names = get_pull_names(self._algorithm)
         
         self._info = collections.defaultdict(list)
 
@@ -343,10 +348,7 @@ class Evaluator(BaseEvaluator):
                 config=model_config, 
                 env=env)
 
-        algo = self._algorithm.rsplit('-', 1)[-1]
-        if algo[-1].isdigit():
-            algo = algo[:-1]    # skip the version number
-        self._pull_names = pull_names[algo]
+        self._pull_names = get_pull_names(self._algorithm)
         
         self._info = collections.defaultdict(list)
 
@@ -354,7 +356,7 @@ class Evaluator(BaseEvaluator):
         action, terms = self.model.action(
             tf.convert_to_tensor(x), 
             deterministic=deterministic,
-            epsilon=self._act_eps)
+            epsilon=self._eval_act_eps)
         action = action.numpy()
         
         return action

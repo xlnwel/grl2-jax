@@ -12,6 +12,8 @@ env:
 model:
     cnn: 
         cnn: nature
+        cnn_out_size: none
+        kernel_initializer: orthogonal
     actor:
         units_list: [512]
         norm: none
@@ -22,7 +24,7 @@ model:
         activation: relu
     temperature:
         temp_type: 'variable'
-        value: 0
+        value: .1
 
 agent:
     algorithm: &algo apex-sacd
@@ -31,10 +33,12 @@ agent:
     n_steps: &nsteps 3      # n-step target
     batch_size: &bs 64
     polyak: .995
-    schedule_act_eps: True
+    schedule_act_eps: False
     act_eps: 0
+    eval_act_eps: .001
+    target_entropy_coef: .98
 
-    MAX_STEPS: 8e6      # maximum env steps
+    MAX_STEPS: 1e8      # maximum env steps
     LOG_PERIOD: &log 1000
     N_UPDATES: *log
     SYNC_PERIOD: 1000

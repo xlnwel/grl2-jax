@@ -9,6 +9,8 @@ env:
 model:
     cnn: 
         cnn: impala
+        cnn_out_size: none
+        kernel_initializer: he_uniform
     actor:
         units_list: [512]
         activation: relu
@@ -32,6 +34,7 @@ agent:
     n_steps: &nsteps 3      # n-step target
     schedule_act_eps: False
     act_eps: 0
+    eval_act_eps: 0
     target_entropy_coef: .5
 
     MAX_STEPS: 8e6      # maximum env steps

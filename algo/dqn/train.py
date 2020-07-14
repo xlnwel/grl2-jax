@@ -41,10 +41,12 @@ def train(agent, env, eval_env, replay):
         start_step = step
         start = time.time()
         step = runner.run(step_fn=collect_and_learn)
+        fps = (step - start_step) / (time.time() - start)
         agent.store(
             env_step=agent.env_step,
             train_step=agent.train_step,
-            fps=(step - start_step) / (time.time() - start))
+            fps=fps, 
+            tps=fps/agent.TRAIN_PERIOD)
 
         if to_eval(step):
             n = 10 if 'procgen' in eval_env.name else 1
@@ -68,7 +70,6 @@ def main(env_config, model_config, agent_config, replay_config):
     #     start_level = 200
     eval_env_config = env_config.copy()
     eval_env_config.pop('reward_clip', False)
-    eval_env_config.pop('life_done', False)
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 

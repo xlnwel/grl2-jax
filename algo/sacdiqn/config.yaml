@@ -11,6 +11,8 @@ env:
 model:
     cnn: 
         cnn: nature
+        kernel_initializer: orthogonal
+        cnn_out_size: none
     actor:
         units_list: [512]
         activation: relu
@@ -35,6 +37,7 @@ agent:
     precision: &prec 32
     schedule_act_eps: False
     act_eps: 0
+    eval_act_eps: 0
     target_entropy_coef: .5
     
     MAX_STEPS: 1e8

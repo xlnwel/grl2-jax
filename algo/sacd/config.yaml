@@ -11,6 +11,8 @@ env:
 model:
     cnn: 
         cnn: nature
+        cnn_out_size: none
+        kernel_initializer: orthogonal
     actor:
         units_list: [512]
         norm: none
@@ -32,7 +34,8 @@ agent:
     precision: &prec 32
     schedule_act_eps: False
     act_eps: 0
-    target_entropy_coef: .5
+    eval_act_eps: 0
+    target_entropy_coef: .98
     
     MAX_STEPS: 1e8
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4

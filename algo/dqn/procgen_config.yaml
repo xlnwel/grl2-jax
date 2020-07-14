@@ -7,6 +7,7 @@ env:
 
 model:
     cnn: impala
+    cnn_out_size: none
     kernel_initializer: orthogonal
     units_list: [512]
     activation: relu

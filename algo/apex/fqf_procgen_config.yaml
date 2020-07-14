@@ -11,6 +11,7 @@ model:
         N: &N 32
     iqn:
         cnn: impala
+        cnn_out_size: none
         kernel_initializer: orthogonal
         units_list: [512]
         activation: relu
@@ -29,6 +30,7 @@ agent:
     precision: &prec 32
     schedule_act_eps: True
     act_eps: 0  # will be overwritten in func.py
+    eval_act_eps: 0
     
     # timer&interval
     MAX_STEPS: 8e6
