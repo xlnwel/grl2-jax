@@ -36,6 +36,7 @@ agent:
     EVAL_PERIOD: 5e5
     LOG_PERIOD: 5e4
     N_UPDATES: 1
+    RECORD: True
 
     # IQN params
     N: *N               # N in paper, num of quantiles for online quantile network
@@ -46,7 +47,6 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: True
 
     target_update_period: 2000  # trainning step
     tbo: False                              # transformed Bellman Operator

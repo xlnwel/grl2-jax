@@ -1,6 +1,6 @@
 ---
 env:
-    name: atari_MsPacman
+    name: atari_breakout
     sticky_actions: True
     frame_skip: 4
     frame_stack: 4
@@ -30,13 +30,14 @@ agent:
     precision: &prec 32
     schedule_act_eps: True
     act_eps: 0.01
-    eval_act_eps: 0
+    eval_act_eps: 0.001
 
     MAX_STEPS: 1e8      # maximum env frames
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 5e5
     LOG_PERIOD: 1e4
     N_UPDATES: 1
+    RECORD: True
 
     # IQN params
     N: 64                # N in paper, num of quantiles for online quantile network
@@ -49,7 +50,6 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: True
 
     target_update_period: 2000  # trainning step
     tbo: False                              # transformed Bellman Operator

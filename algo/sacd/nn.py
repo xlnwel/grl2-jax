@@ -137,24 +137,19 @@ def create_components(config, env):
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
-    cnn = CNN(config['cnn'])
-    actor = Actor(actor_config, action_dim)
-    q1 = Q(q_config, action_dim, 'q1')
-    q2 = Q(q_config, action_dim, 'q2')
-    target_q1 = Q(q_config, action_dim, 'target_q1')
-    target_q2 = Q(q_config, action_dim, 'target_q2')
     if temperature_config['temp_type'] == 'constant':
         temperature = temperature_config['value']
     else:
         temperature = Temperature(temperature_config)
         
     return dict(
-        cnn=cnn,
-        actor=actor,
-        q1=q1,
-        q2=q2,
-        target_q1=target_q1,
-        target_q2=target_q2,
+        cnn=CNN(config['cnn'], name='cnn'),
+        target_cnn=CNN(config['cnn'], name='target_cnn'),
+        actor=Actor(actor_config, action_dim),
+        q1=Q(q_config, action_dim, name='q1'),
+        q2=Q(q_config, action_dim, name='q2'),
+        target_q1=Q(q_config, action_dim, name='target_q1'),
+        target_q2=Q(q_config, action_dim, name='target_q2'),
         temperature=temperature,
     )
 

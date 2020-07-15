@@ -176,6 +176,7 @@ class NatureCNN(Layer):
                  kernel_initializer='orthogonal',
                  activation='relu',
                  out_size=512,
+                 padding='valid',
                  **kwargs):
         super().__init__(name=name)
         self._obs_range = obs_range
@@ -186,6 +187,7 @@ class NatureCNN(Layer):
         kwargs['kernel_initializer'] = kernel_initializer
         activation = get_activation(activation)
         kwargs['activation'] = activation
+        kwargs['padding'] = padding
 
         self._conv_layers = [
             conv2d(32, 8, 4, **kwargs),

@@ -11,6 +11,8 @@ env:
 model:
     fpn:
         N: &N 32
+        kernel_initializer: orthogonal
+
     iqn:
         cnn: nature
         cnn_out_size: none
@@ -39,6 +41,7 @@ agent:
     EVAL_PERIOD: 5e5
     LOG_PERIOD: 1e4
     N_UPDATES: 1
+    RECORD: True
 
     # IQN params
     N: *N                # N in paper, num of quantiles for online quantile network
@@ -49,7 +52,6 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: True
 
     target_update_period: 2000  # trainning step
     tbo: False                              # transformed Bellman Operator
@@ -62,7 +64,6 @@ agent:
     fpn_lr: 2.5e-9
     ent_coef: 0
     clip_norm: 10
-    epsilon: 3.125e-4
 
     # arguments for PER
     per_alpha: .5
