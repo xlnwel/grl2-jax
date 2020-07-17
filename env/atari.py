@@ -12,8 +12,12 @@ from env import baselines as B
 
 
 def make_atari_env(config):
-    assert 'atari' in config['name'], config['name']
-    env = Atari(**config)
+    if config.get('wrapper', None) == 'baselines':
+        env = B.make_atari(**config)
+        env = B.wrap_deepmind(**config)
+    else:
+        assert 'atari' in config['name'], config['name']
+        env = Atari(**config)
     config.setdefault('max_episode_steps', 108000)    # 30min
 
     return env
@@ -162,8 +166,8 @@ class Atari:
                 if new_lives < self.lives and new_lives > 0:
                     self.lives = new_lives
                     is_terminal = True
-                    info['game_over'] = done
                     self.reset()
+                    info['reset'] = True
                     break
                 else:
                     is_terminal = done
@@ -171,6 +175,7 @@ class Atari:
                 is_terminal = done
 
             if is_terminal:
+                info['game_over'] = done
                 break
             elif step >= self.frame_skip - 1:
                 i = step - (self.frame_skip - 1)

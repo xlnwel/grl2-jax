@@ -152,6 +152,11 @@ class DataProcess(gym.Wrapper):
         return self.observation(obs), self.float_dtype(reward), self.float_dtype(done), info
 
 
+""" 
+done: an episode is done, may due to life loss
+game over: a game is over, may due to timeout. Life loss is not game over
+reset: an new episode starts. In auto-reset mode, environment resets when game's over
+"""
 class EnvStats(gym.Wrapper):
     def __init__(self, env, max_episode_steps=None, timeout_done=False, 
         auto_reset=True, log_episode=False, initial_state={}):
@@ -218,7 +223,9 @@ class EnvStats(gym.Wrapper):
             info['timeout'] = True
         reward = self.float_dtype(reward)
         discount = self.float_dtype(1-done)
-        reset = self.float_dtype(0)
+        # we expect auto-reset environments, which artificially reset due to life loss,
+        # return reset in info when resetting
+        reset = self.float_dtype(info.get('reset', False))
         
         # log transition
         if self.log_episode:
@@ -230,13 +237,14 @@ class EnvStats(gym.Wrapper):
                 **kwargs
             )
             self._episode.append(transition)
-            if self.game_over():
+            if self._game_over:
                 episode = {k: np.array([t[k] for t in self._episode])
                     for k in self._episode[0]}
                 self._prev_episode = episode
-        
+
         # reset env
-        if self.game_over():
+        if self._game_over:
+            info['game_over'] = self._game_over
             info['score'] = self._score
             info['epslen'] = self._epslen
             if self.auto_reset:

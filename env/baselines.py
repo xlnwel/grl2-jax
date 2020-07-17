@@ -85,9 +85,6 @@ class EpisodicLifeEnv(gym.Wrapper):
             # the environment advertises done.
             done = True
             info['game_over'] = self._game_over
-            # WARNING: different from original implementation, 
-            # we auto reset to be consistent with EnvStats in env.wrappers
-            obs = self.reset()
         self.lives = lives
         return obs, reward, done, info
 
@@ -253,14 +250,14 @@ class LazyFrames(object):
         return self._force()[..., i]
 
 
-def make_atari(env_id, frame_skip=4):
-    env = gym.make(env_id).env
+def make_atari(name, frame_skip=4, **kwargs):
+    env = gym.make(name).env
     assert 'NoFrameskip' in env.spec.id
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, frame_skip=frame_skip)
     return env
 
-def wrap_deepmind(env, life_done=False, frame_stack=0, scale=False, np_obs=False):
+def wrap_deepmind(env, life_done=False, frame_stack=0, scale=False, np_obs=False, **kwargs):
     """Configure environment for DeepMind-style Atari.
     We remove reward clipping out for better recording.
     """
