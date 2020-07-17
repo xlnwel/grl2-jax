@@ -7,7 +7,7 @@ from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
 from utility.timer import TBTimer
-from core.module import Module
+from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp
 from nn.layers import Noisy
@@ -24,7 +24,7 @@ class Q(Module):
         self._action_dim = action_dim
 
         """ Network definition """
-        self._cnn = cnn(self._cnn, time_distributed=True)
+        self._cnn = cnn(self._cnn, out_size=self._cnn_out_size, time_distributed=True)
 
         # RNN layer
         self._rnn = layers.LSTM(self._lstm_units, return_sequences=True, return_state=True)
@@ -42,25 +42,11 @@ class Q(Module):
             activation=self._activation, 
             out_dtype='float32',
             name='a' if self._duel else 'q')
-
-    @tf.function
-    def action(self, x, state, deterministic, epsilon=0, prev_action=None, prev_reward=None):
-        qs, state = self.value(x, state, prev_action, prev_reward)
-        qs = tf.squeeze(qs)
-        action = tf.cast(tf.argmax(qs, axis=-1), tf.int32)
-        if deterministic:
-            return action, state
-        else:
-            rand_act = tfd.Categorical(tf.zeros_like(qs)).sample()
-            eps_action = tf.where(
-                tf.random.uniform(action.shape, 0, 1) < epsilon,
-                rand_act, action)
-            prob = tf.cast(eps_action == action, tf.float32)
-            prob = prob * (1 - epsilon) + epsilon / self._action_dim
-            logpi = tf.math.log(prob)
-            return eps_action, {'logpi': logpi}, state
     
-    @tf.function
+    @property
+    def action_dim(self):
+        return self._action_dim
+
     def value(self, x, state, action=None, prev_action=None, prev_reward=None):
         if self._cnn is None:
             x = tf.reshape(x, (-1, 1, x.shape[-1]))
@@ -69,7 +55,7 @@ class Q(Module):
         else:
             x = tf.reshape(x, (-1, 1, *x.shape[-3:]))
         x = self.cnn(x)
-        x, state = self.rnn(x, state, prev_action, prev_reward)
+        x, state = self.rnn(x, state, prev_action=prev_action, prev_reward=prev_reward)
         q = self.mlp(x, action=action)
 
         return q, state
@@ -80,7 +66,7 @@ class Q(Module):
         return x
 
     def rnn(self, x, state, prev_action=None, prev_reward=None):
-        if prev_action is not None or prev_reward is not None:
+        if self._additional_input:
             prev_action = tf.one_hot(prev_action, self._action_dim, dtype=x.dtype)
             prev_reward = tf.cast(tf.expand_dims(prev_reward, -1), dtype=x.dtype)
             x = tf.concat([x, prev_action, prev_reward], axis=-1)
@@ -126,7 +112,44 @@ class Q(Module):
     def state_size(self):
         return LSTMState(*self._rnn.cell.state_size)
 
-def create_model(config, env):
+
+class RDQN(Ensemble):
+    def __init__(self, config, env, **kwargs):
+        super().__init__(
+            model_fn=create_components, 
+            config=config,
+            env=env,
+            **kwargs)
+
+    @tf.function
+    def action(self, x, state, deterministic, epsilon=0, prev_action=None, prev_reward=None):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 4, x.shape
+        prev_action = tf.reshape(prev_action, (-1, 1))
+        prev_reward = tf.reshape(prev_reward, (-1, 1))
+        qs, state = self.q.value(x, state, 
+            prev_action=prev_action, prev_reward=prev_reward)
+        action = tf.argmax(qs, axis=-1, output_type=tf.int32)
+        action = tf.squeeze(action)
+        q = tf.math.reduce_max(qs, -1)
+        q = tf.squeeze(q)
+        if epsilon > 0:
+            rand_act = tf.random.uniform(
+                action.shape, 0, self.q.action_dim, dtype=tf.int32)
+            eps_action = tf.where(
+                tf.random.uniform(action.shape, 0, 1) < epsilon,
+                rand_act, action)
+            prob = tf.cast(eps_action == action, tf.float32)
+            prob = prob * (1. - epsilon) + epsilon / self.q.action_dim
+            logpi = tf.math.log(prob)
+            action = eps_action
+        else:
+            logpi = tf.zeros_like(q)
+        return action, {'logpi': logpi, 'q': q}, state
+
+
+def create_components(config, env):
     action_dim = env.action_dim
     q = Q(config, action_dim, 'q')
     target_q = Q(config, action_dim, 'target_q')
@@ -134,3 +157,6 @@ def create_model(config, env):
         q=q,
         target_q=target_q,
     )
+
+def create_model(config, env, **kwargs):
+    return RDQN(config, env, **kwargs)

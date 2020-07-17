@@ -9,6 +9,8 @@ env:
 
 model:
     cnn: impala
+    cnn_out_size: 256
+    additional_input: &ai False
     lstm_units: 512
     units_list: [512]
     activation: relu
@@ -28,7 +30,7 @@ agent:
     burn_in: True
     sample_size: &ss 20
     burn_in_size: &bis 10
-    add_input: False
+    additional_input: *ai
 
     MAX_STEPS: 8e6
     LOG_PERIOD: &log 1000

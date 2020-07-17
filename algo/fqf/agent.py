@@ -19,8 +19,8 @@ class Agent(DQNBase):
                 [(5e5, self._iqn_lr), (2e6, 5e-5)], outside_value=5e-5)
         self._iqn_opt = Optimizer(
             self._iqn_opt, self.q, self._iqn_lr, 
-            clip_norm=self._clip_norm, epsilon=self._epsilon)
-        self._fpn_opt = Optimizer(self._fpn_opt, self.fpn, self._fpn_lr)
+            clip_norm=self._clip_norm, epsilon=1e-2/self._batch_size)
+        self._fpn_opt = Optimizer(self._fpn_opt, self.fpn, self._fpn_lr, epsilon=1e-5)
 
     @tf.function
     def summary(self, data, terms):
@@ -64,15 +64,14 @@ class Agent(DQNBase):
             qtv_exp = tf.expand_dims(qtv, axis=-1)
             tau_hat = tf.expand_dims(tau_hat, -1) # [B, N, 1]
             qr_loss = quantile_regression_loss(qtv_exp, returns, tau_hat, kappa=self.KAPPA)
-            qr_loss = tf.reduce_mean(qr_loss)
+            qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
 
-            # compute gradients for fpn
+            # compute out gradients for fpn
             tau_qtv = self.q.value(x_no_grad, tau[..., 1:-1], action=action)     # [B, N-1, A]
             tf.debugging.assert_shapes([
                 [qtv, (None, self.N)],
                 [tau_qtv, (None, self.N-1)],
             ])
-
             # we use 𝜃 to represent F^{-1} for brevity
             diff1 = tau_qtv - qtv[..., :-1]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i-1])
             sign1 = tau_qtv > qtv[..., :-1]
@@ -82,10 +81,18 @@ class Agent(DQNBase):
             abs_diff2 = tf.where(sign2, diff2, -diff2)
             fpn_out_grads = abs_diff1 + abs_diff2
             fpn_out_grads = tf.stop_gradient(fpn_out_grads)
-            fpn_raw_loss = tf.reduce_mean(fpn_out_grads * tau[..., 1:-1])
-            fpn_entropy = tf.reduce_mean(fpn_entropy)
+            tf.debugging.assert_shapes([
+                [fpn_out_grads, (None, self.N-1)],
+                [tau, (None, self.N+1)],
+            ])
+            fpn_raw_loss = tf.reduce_sum(fpn_out_grads * tau[..., 1:-1], axis=-1)
+            fpn_entropy = tf.reduce_mean(fpn_entropy, axis=-1)
+            tf.debugging.assert_shapes([
+                [fpn_raw_loss, (None,)],
+                [fpn_entropy, (None,)],
+            ])
             fpn_entropy_loss = - self._ent_coef * fpn_entropy
-            fpn_loss = fpn_raw_loss + fpn_entropy_loss
+            fpn_loss = tf.reduce_mean(IS_ratio * (fpn_raw_loss + fpn_entropy_loss))
 
         if self._is_per:
             error = tf.reduce_max(tf.reduce_mean(tf.abs(error), axis=2), axis=1)

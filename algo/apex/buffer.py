@@ -71,10 +71,11 @@ class EnvBuffer(LocalBuffer):
                     for i in next_idxes]
         if 'steps' in results:
             results['steps'] = results['steps'].astype(np.float32)
-        return None, results
+        return results
 
 
 class EnvVecBuffer:
+    # TODO: Need update
     """ Local memory only stores one episode of transitions from n environments """
     @config
     def __init__(self):

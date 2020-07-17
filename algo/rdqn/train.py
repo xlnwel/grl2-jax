@@ -20,9 +20,6 @@ def train(agent, env, eval_env, replay):
         kwargs['prev_action'] = action
         kwargs['prev_reward'] = reward
         replay.add(**kwargs)
-        if reset:
-            replay.clear_temp_buffer()
-            replay.pre_add(obs=next_obs)
     
     step = agent.env_step
     runner = Runner(env, agent, step=step)
@@ -56,22 +53,8 @@ def train(agent, env, eval_env, replay):
 
 def main(env_config, model_config, agent_config, replay_config):
     algo = agent_config['algorithm']
-    env = env_config['name']
-    if 'atari' not in env:
-        from utility import yaml_op
-        root_dir = agent_config['root_dir']
-        model_name = agent_config['model_name']
-        directory = pkg.get_package(algo, 0, '/')
-        config = yaml_op.load_config(f'{directory}/config2.yaml')
-        env_config = config['env']
-        model_config = config['model']
-        agent_config = config['agent']
-        replay_config = config['replay']
-        agent_config['root_dir'] = root_dir
-        agent_config['model_name'] = model_name
-        env_config['name'] = env
 
-    create_model, Agent = pkg.import_agent(config=agent_config)
+    create_model, Agent = pkg.import_agent(algo)
 
     silence_tf_logs()
     configure_gpu()
@@ -88,7 +71,7 @@ def main(env_config, model_config, agent_config, replay_config):
     models = create_model(model_config, env)
 
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
-    replay = create_replay(replay_config, state_keys=['h', 'c'], prev_action=0, prev_reward=0)
+    replay = create_replay(replay_config, state_keys=['h', 'c'])
     data_format = pkg.import_module('agent', algo).get_data_format(
         env, agent_config['batch_size'], agent_config['sample_size'],
         replay_config['replay_type'].endswith('per'), agent_config['store_state'], 

@@ -132,22 +132,19 @@ class Worker:
             self.compute_priorities = build(self._compute_priorities, TensorSpecs)
 
     def __call__(self, obs, reset, deterministic=False, env_output=None):
-        if self._add_input:
-            self._prev_reward = env_output.reward
+        self._prev_reward = env_output.reward
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=self.n_envs)
-            if self._add_input:
-                self._prev_action = tf.zeros(self.n_envs)
-                self._prev_reward = tf.zeros(self.n_envs)
+            self._prev_action = tf.zeros(self.n_envs)
+            self._prev_reward = tf.zeros(self.n_envs)
         if isinstance(reset, (int, float)) or reset.ndim == 0:
             reset = np.reshape(reset, -1)
         mask = tf.cast(1. - reset, tf.float32)
         assert len(mask.shape) == 1, mask
         if np.any(reset):
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
-            if self._add_input:
-                self._prev_action = self._prev_action * mask
-                self._prev_reward = self._prev_reward * mask
+            self._prev_action = self._prev_action * mask
+            self._prev_reward = self._prev_reward * mask
         action, terms, state = self.action(
                 obs, self._state, mask, self._prev_action, self._prev_reward)
             
@@ -157,8 +154,7 @@ class Worker:
         terms = tf.nest.map_structure(lambda x: np.squeeze(x.numpy()), terms)
 
         self._state = state
-        if self._add_input:
-            self._prev_action = action
+        self._prev_action = action
         return action.numpy(), terms
 
     @tf.function
@@ -204,7 +200,7 @@ class Worker:
         prev_reward = prev_reward * mask
         mask = tf.expand_dims(mask, -1)
         embed = self.q.cnn(obs)
-        if self._add_input:
+        if self._additional_input:
             pa, pr = prev_action, prev_reward
         else:
             pa, pr = None, None
@@ -278,15 +274,15 @@ class Evaluator(BaseEvaluator):
 
     def reset_states(self):
         self._state = self.q.get_initial_state(batch_size=self.n_envs)
-        if self._add_input:
+        if self._additional_input:
             self._prev_action = tf.zeros(self.n_envs)
             self._prev_reward = tf.zeros(self.n_envs)
 
     def __call__(self, x, deterministic=True, env_output=None, **kwargs):
-        if self._add_input:
+        if self._additional_input:
             self._prev_reward = env_output.reward
         action, self._state = self.q.action(x, self._state, self._mask, deterministic=True)
-        if self._add_input:
+        if self._additional_input:
             self._prev_action = action
         return action.numpy()
 

@@ -89,19 +89,19 @@ class Agent(BaseAgent):
         return self._state, self._prev_action, self._prev_reward
 
     def __call__(self, obs, reset=np.zeros(1), deterministic=False, env_output=0, **kwargs):
-        if self._add_input:
+        if self._additional_input:
             self._prev_reward = env_output.reward
         eps = self._act_eps
         obs = np.reshape(obs, (-1, *self._obs_shape))
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=tf.shape(obs)[0])
-            if self._add_input:
+            if self._additional_input:
                 self._prev_action = tf.zeros(tf.shape(obs)[0])
                 self._prev_reward = tf.zeros(tf.shape(obs)[0])
         if np.any(reset):
             mask = tf.cast(1. - reset, tf.float32)
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
-            if self._add_input:
+            if self._additional_input:
                 self._prev_action = self._prev_action * mask
                 self._prev_reward = self._prev_reward * mask
         if deterministic:
@@ -109,7 +109,7 @@ class Agent(BaseAgent):
                 obs, self._state, deterministic, 
                 prev_action=self._prev_action,
                 prev_reward=self._prev_reward)
-            if self._add_input:
+            if self._additional_input:
                 self._prev_action = action
             return action.numpy()
         else:
@@ -124,7 +124,7 @@ class Agent(BaseAgent):
             terms = tf.nest.map_structure(lambda x: np.squeeze(x.numpy()), terms)
 
             self._state = state
-            if self._add_input:
+            if self._additional_input:
                 self._prev_action = action
             return action.numpy(), terms
 
@@ -171,7 +171,7 @@ class Agent(BaseAgent):
                 bi_mask, mask = tf.split(mask, [bis, ss+1], 1)
                 bi_discount, discount = tf.split(discount, [bis, ss], 1)
                 _, logpi = tf.split(logpi, [bis, ss], 1)
-                if self._add_input:
+                if self._additional_input:
                     pa, pr = bi_prev_action, bi_prev_reward
                 else:
                     pa, pr = None, None
@@ -183,7 +183,7 @@ class Agent(BaseAgent):
             else:
                 o_state = t_state = state
                 ss = self._sample_size
-            if self._add_input:
+            if self._additional_input:
                 pa, pr = prev_action, prev_reward
             else:
                 pa, pr = None, None

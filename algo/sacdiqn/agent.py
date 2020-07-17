@@ -42,7 +42,8 @@ class Agent(DQNBase):
         terms = {}
         if not hasattr(self, '_target_entropy'):
             # Entropy of a uniform distribution
-            self._target_entropy = self._target_entropy_coef * np.log(1./self._action_dim)
+            self._target_entropy = np.log(self._action_dim)
+            self._target_entropy *= self._target_entropy_coef
         # compute target returns
         next_x = self.cnn(next_obs)
         next_act_probs, next_act_logps = self.actor.train_step(next_x)
@@ -71,7 +72,6 @@ class Agent(DQNBase):
         returns = n_step_target(reward, next_state_qtv, discount, self._gamma, steps, self._tbo)
         returns = tf.expand_dims(returns, axis=1)      # [B, 1, N']
 
-        terms['temp'] = temp
         terms['next_qtv'] = tf.reduce_sum(next_act_probs * next_qtv, axis=-1)
         terms['next_logps'] = tf.reduce_sum(next_act_probs * temp * next_act_logps, axis=-1)
         tf.debugging.assert_shapes([
@@ -113,6 +113,10 @@ class Agent(DQNBase):
                 temp_loss = -log_temp * (self._target_entropy - entropy)
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])
                 temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
+            terms['target_entropy'] = self._target_entropy
+            terms['entropy_diff'] = self._target_entropy - entropy
+            terms['log_temp'] = log_temp
+            terms['temp'] = temp
             terms['temp_loss'] = temp_loss
             terms['temp_norm'] = self._temp_opt(tape, temp_loss)
 

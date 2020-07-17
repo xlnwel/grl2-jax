@@ -134,7 +134,26 @@ def get_learner_class(BaseAgent):
     return Learner
 
 
-class Worker:
+class BaseWorker:
+    def run(self, learner, replay):
+        while True:
+            weights = self._pull_weights(learner)
+            self._run(weights, replay)
+            self._send_episode_info(learner)
+
+    def store(self, score, epslen):
+        self._info['score'].append(score)
+        self._info['epslen'].append(epslen)
+
+    def _pull_weights(self, learner):
+        return ray.get(learner.get_weights.remote(name=self._pull_names))
+
+    def _send_episode_info(self, learner):
+        if self._info:
+            learner.record_episode_info.remote(self._id, **self._info)
+            self._info.clear()
+
+class Worker(BaseWorker):
     @config
     def __init__(self, 
                 *,
@@ -201,14 +220,6 @@ class Worker:
         action = tf.nest.map_structure(lambda x: x.numpy(), action)
         return action
 
-    def run(self, learner, replay):
-        step = 0
-        while True:
-            weights = self._pull_weights(learner)
-            step += self._seqlen
-            self._run(weights, replay)
-            self._send_episode_info(learner)
-
     def _run(self, weights, replay):
         def collect(env, step, reset, **kwargs):
             if reset:
@@ -223,16 +234,9 @@ class Worker:
         else:
             self.runner.run(step_fn=collect)
 
-    def store(self, score, epslen):
-        self._info['score'].append(score)
-        self._info['epslen'].append(epslen)
-
-    def _pull_weights(self, learner):
-        return ray.get(learner.get_weights.remote(name=self._pull_names))
-
     def _send_data(self, replay, buffer=None):
         buffer = buffer or self.buffer
-        mask, data = buffer.sample()
+        data = buffer.sample()
 
         if self._is_per:
             data_tensor = {k: tf.convert_to_tensor(v) for k, v in data.items()}
@@ -243,11 +247,6 @@ class Worker:
             data.pop('q', None)
         replay.merge.remote(data, data['action'].shape[0])
         buffer.reset()
-
-    def _send_episode_info(self, learner):
-        if self._info:
-            learner.record_episode_info.remote(self._id, **self._info)
-            self._info.clear()
 
     @tf.function
     def _compute_dqn_priorities(self, obs, action, reward, next_obs, discount, steps, q=None):

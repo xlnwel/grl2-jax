@@ -17,9 +17,9 @@ def get_data_format(env, batch_size, sample_size=None,
         dtype=tf.float32, **kwargs):
     obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
     data_format = dict(
-        obs=((batch_size, sample_size+1, *env.obs_shape), obs_dtype),
-        prev_action=((batch_size, sample_size+1, *env.action_shape), tf.int32),
-        prev_reward=((batch_size, sample_size+1), dtype), 
+        obs=((batch_size, sample_size, *env.obs_shape), obs_dtype),
+        prev_action=((batch_size, sample_size, *env.action_shape), tf.int32),
+        prev_reward=((batch_size, sample_size), dtype), 
         logpi=((batch_size, sample_size), dtype),
         discount=((batch_size, sample_size), dtype),
     )
@@ -58,9 +58,9 @@ class Agent(BaseAgent):
 
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
-            obs=((self._sample_size+1, *env.obs_shape), tf.float32, 'obs'),
-            prev_action=((self._sample_size+1,), tf.int32, 'prev_action'),
-            prev_reward=((self._sample_size+1,), tf.float32, 'prev_reward'),
+            obs=((self._sample_size, *env.obs_shape), tf.float32, 'obs'),
+            prev_action=((self._sample_size,), tf.int32, 'prev_action'),
+            prev_reward=((self._sample_size,), tf.float32, 'prev_reward'),
             logpi=((self._sample_size,), tf.float32, 'logpi'),
             discount=((self._sample_size,), tf.float32, 'discount'),
         )
@@ -86,42 +86,39 @@ class Agent(BaseAgent):
     def get_states(self):
         return self._state, self._prev_action, self._prev_reward
 
-    def __call__(self, obs, reset=np.zeros(1), deterministic=False, env_output=0, **kwargs):
-        if self._add_input:
-            self._prev_reward = env_output.reward
+    def __call__(self, obs, reset=np.zeros(1), deterministic=False, env_output=None, **kwargs):
+        self._prev_reward = env_output.reward
         eps = self._act_eps
         obs = np.reshape(obs, (-1, *self._obs_shape))
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=tf.shape(obs)[0])
-            if self._add_input:
-                self._prev_action = tf.zeros(tf.shape(obs)[0])
-                self._prev_reward = tf.zeros(tf.shape(obs)[0])
+            self._prev_action = tf.squeeze(tf.zeros(tf.shape(obs)[0], dtype=tf.int32))
+            self._prev_reward = np.squeeze(np.zeros(obs.shape[0]))
         if np.any(reset):
             mask = tf.cast(1. - reset, tf.float32)
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
-            if self._add_input:
-                self._prev_action = self._prev_action * mask
-                self._prev_reward = self._prev_reward * mask
+            self._prev_action = self._prev_action * tf.cast(mask, self._prev_action.dtype)
+            self._prev_reward = self._prev_reward * mask
         if deterministic:
-            action, self._state = self.q.action(
-                obs, self._state, deterministic, 
+            action, _, self._state = self.model.action(
+                obs, self._state, deterministic, self._eval_act_eps,
                 prev_action=self._prev_action,
                 prev_reward=self._prev_reward)
-            if self._add_input:
-                self._prev_action = action
+            self._prev_action = action
             return action.numpy()
         else:
-            action, terms, state = self.q.action(
+            action, terms, state = self.model.action(
                 obs, self._state, deterministic, eps,
                 prev_action=self._prev_action,
                 prev_reward=self._prev_reward)
             if self._store_state:
                 terms['h'] = self._state[0]
                 terms['c'] = self._state[1]
-            terms = tf.nest.map_structure(lambda x: np.squeeze(x.numpy()), terms)
+            terms = tf.nest.map_structure(lambda x: x.numpy(), terms)
+            terms['prev_action'] = self._prev_action.numpy()
+            terms['prev_reward'] = self._prev_reward
             self._state = state
-            if self._add_input:
-                self._prev_action = action
+            self._prev_action = action
             return action.numpy(), terms
 
     @step_track
@@ -157,13 +154,13 @@ class Agent(BaseAgent):
             if self._burn_in:
                 bis = self._burn_in_size
                 ss = self._sample_size - bis
-                bi_embed, embed = tf.split(embed, [bis, ss+1], 1)
-                tbi_embed, t_embed = tf.split(t_embed, [bis, ss+1], 1)
-                bi_prev_action, prev_action = tf.split(prev_action, [bis, ss+1], 1)
-                bi_prev_reward, prev_reward = tf.split(prev_reward, [bis, ss+1], 1)
+                bi_embed, embed = tf.split(embed, [bis, ss], 1)
+                tbi_embed, t_embed = tf.split(t_embed, [bis, ss], 1)
+                bi_prev_action, prev_action = tf.split(prev_action, [bis, ss], 1)
+                bi_prev_reward, prev_reward = tf.split(prev_reward, [bis, ss], 1)
                 bi_discount, discount = tf.split(discount, [bis, ss], 1)
                 _, logpi = tf.split(logpi, [bis, ss], 1)
-                if self._add_input:
+                if self._additional_input:
                     pa, pr = bi_prev_action, bi_prev_reward
                 else:
                     pa, pr = None, None
@@ -175,7 +172,7 @@ class Agent(BaseAgent):
             else:
                 o_state = t_state = state
                 ss = self._sample_size
-            if self._add_input:
+            if self._additional_input:
                 pa, pr = prev_action, prev_reward
             else:
                 pa, pr = None, None
@@ -190,7 +187,7 @@ class Agent(BaseAgent):
             curr_action = prev_action[:, 1:]
             next_action = prev_action[:, 2:]
             reward = prev_reward[:, 1:]
-            discount = discount * self._gamma
+            discount = discount[:, :-1] * self._gamma
             
             q = self.q.mlp(curr_x, curr_action)
             next_qs = self.q.mlp(next_x)
@@ -198,7 +195,7 @@ class Agent(BaseAgent):
             t_next_q = self.target_q.mlp(t_next_x, new_next_action)
             new_next_prob = tf.math.equal(new_next_action[:, :-1], next_action)
             new_next_prob = tf.cast(new_next_prob, logpi.dtype)
-            next_ratio = new_next_prob / tf.math.exp(logpi[:, 1:])
+            next_ratio = new_next_prob / tf.math.exp(logpi[:, 1:-1])
             returns = retrace_lambda(
                 reward, q, t_next_q, 
                 next_ratio, discount, 
@@ -208,14 +205,14 @@ class Agent(BaseAgent):
             error = returns - q
             loss = tf.reduce_mean(IS_ratio[:, None] * loss_fn(error))
         tf.debugging.assert_shapes([
-            [q, (None, ss)],
-            [next_qs, (None, ss, self._action_dim)],
-            [next_action, (None, ss-1)],
-            [curr_action, (None, ss)],
-            [new_next_prob, (None, ss-1)],
-            [next_ratio, (None, ss-1)],
-            [returns, (None, ss)],
-            [error, (None, ss)],
+            [q, (None, ss-1)],
+            [next_qs, (None, ss-1, self._action_dim)],
+            [next_action, (None, ss-2)],
+            [curr_action, (None, ss-1)],
+            [new_next_prob, (None, ss-2)],
+            [next_ratio, (None, ss-2)],
+            [returns, (None, ss-1)],
+            [error, (None, ss-1)],
             [IS_ratio, (None,)],
             [loss, ()]
         ])

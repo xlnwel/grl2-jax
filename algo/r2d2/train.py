@@ -13,8 +13,7 @@ def main(env_config, model_config, agent_config, replay_config):
     sigint_shutdown_ray()
 
     replay = create_replay_center(
-        replay_config, state_keys=['h', 'c'],
-        prev_action=0, prev_reward=0
+        replay_config, state_keys=['h', 'c']
     )
 
     model_fn, Agent = pkg.import_agent(config=agent_config)

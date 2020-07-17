@@ -9,20 +9,7 @@ from replay.func import create_replay_center
 
 
 def main(env_config, model_config, agent_config, replay_config):
-    if 'BipedalWalkerHardcore' in env_config['name']:
-        algo = agent_config['algorithm']
-        root_dir = agent_config['root_dir']
-        model_name = agent_config['model_name']
-        directory = pkg.get_package(algo, 0, '/')
-        config = load_config(f'{directory}/bwh_sac_config.yaml')
-        env_config = config['env']
-        model_config = config['model']
-        agent_config = config['agent']
-        replay_config = config['replay']
-        agent_config['root_dir'] = root_dir
-        agent_config['model_name'] = model_name
     ray.init(num_cpus=12, num_gpus=1)
-    
     sigint_shutdown_ray()
 
     replay = create_replay_center(replay_config)
@@ -49,11 +36,11 @@ def main(env_config, model_config, agent_config, replay_config):
         worker = fm.create_worker(
             Worker=Worker, 
             worker_id=wid, 
+            model_fn=model_fn,
             config=agent_config, 
             model_config=model_config, 
             env_config=env_config, 
-            buffer_config=replay_config,
-            model_fn=model_fn, )
+            buffer_config=replay_config)
         pids.append(worker.run.remote(learner, replay))
         workers.append(worker)
 

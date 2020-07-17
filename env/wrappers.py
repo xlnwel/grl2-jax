@@ -188,7 +188,7 @@ class EnvStats(gym.Wrapper):
         self._game_over = False
         reward = self.float_dtype(0)
         discount = self.float_dtype(1)
-        reset = self.float_dtype(1)
+        reset = self.float_dtype(True)
         self._output = EnvOutput(obs, reward, discount, reset)
 
         if self.log_episode:

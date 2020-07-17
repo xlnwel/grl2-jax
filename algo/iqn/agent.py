@@ -52,6 +52,7 @@ class Agent(DQNBase):
         
         terms.update(dict(
             q=q,
+            qr_loss=qr_loss,
             returns=returns,
             loss=loss,
         ))

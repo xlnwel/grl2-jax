@@ -1,14 +1,18 @@
 ---
 env:
-    name: atari_pong
+    name: atari_breakout
     sticky_actions: False
     frame_skip: 4
     frame_stack: 1
+    life_done: True
+    reward_clip: True
     np_obs: True
     seed: 0
 
 model:
     cnn: nature
+    cnn_out_size: none
+    additional_input: &ai False
     lstm_units: 512
     units_list: [512]
     activation: relu
@@ -23,12 +27,13 @@ agent:
     batch_size: &bs 64
     schedule_act_eps: True
     act_eps: 0
+    eval_act_eps: 0.001
 
     store_state: True
     burn_in: True
     sample_size: &ss 120
     burn_in_size: &bis 40
-    add_input: False
+    additional_input: *ai
 
     MAX_STEPS: 1e9
     LOG_PERIOD: &log 1000
@@ -59,7 +64,7 @@ agent:
     epsilon: 1.5e-4
 
     # arguments for PER
-    per_alpha: 0.9
+    per_alpha: .9
     per_eta: .9
     per_epsilon: 1e-4
 

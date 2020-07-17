@@ -17,6 +17,7 @@ class FractionProposalNetwork(Module):
         kwargs = {}
         if hasattr(self, '_kernel_initializer'):
             kwargs['kernel_initializer'] = self._kernel_initializer
+            kwargs['gain'] = .01
         self._layers = mlp(
             out_size=self.N,
             name='fpn',
@@ -29,7 +30,7 @@ class FractionProposalNetwork(Module):
         probs = tf.exp(log_probs)
         entropy = -probs * log_probs
 
-        tau_0 = tf.zeros([*probs.shape[:-1], 1])
+        tau_0 = tf.zeros([*probs.shape[:-1], 1], dtype=probs.dtype)
         tau_rest = tf.math.cumsum(probs, axis=-1)
 
         tau = tf.concat([tau_0, tau_rest], axis=-1)          # [B, N+1]
@@ -105,8 +106,8 @@ class Q(Module):
     def qt_embed(self, tau_hat, cnn_out_size):
         # phi network
         tau_hat = tf.expand_dims(tau_hat, axis=-1)       # [B, N, 1]
-        pi = tf.convert_to_tensor(np.pi, tf.float32)
-        degree = tf.cast(tf.range(self._qt_embed_size), tf.float32) * pi * tau_hat
+        pi = tf.convert_to_tensor(np.pi, dtype=tau_hat.dtype)
+        degree = tf.cast(tf.range(self._qt_embed_size), tau_hat.dtype) * pi * tau_hat
         qt_embed = tf.math.cos(degree)              # [B, N, E]
         
         if not hasattr(self, '_phi'):
@@ -162,6 +163,7 @@ class FQF(Ensemble):
         tau, tau_hat, _ = self.fpn(x)
         qtv, q = self.q.value(x, tau_hat, tau_range=tau)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
+        qtv = tf.math.reduce_max(qtv, -1)
         if epsilon > 0:
             rand_act = tf.random.uniform(
                 action.shape, 0, self.q.action_dim, dtype=tf.int32)
@@ -169,6 +171,7 @@ class FQF(Ensemble):
                 tf.random.uniform(action.shape, 0, 1) < epsilon,
                 rand_act, action)
         action = tf.squeeze(action)
+        qtv = tf.squeeze(qtv)
 
         return action, {'qtv': qtv}
 

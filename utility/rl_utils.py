@@ -52,7 +52,9 @@ def logpi_correction(action, logpi, is_action_squashed):
     return logpi
 
 def h(x, epsilon=1e-3):
-    """ h function defined in the transfomred Bellman operator """
+    """ h function defined in the transfomred Bellman operator 
+    epsilon=1e-3 is used following recent papers(e.g., R2D2, MuZero, NGU)
+    """
     sqrt_term = tf.math.sqrt(tf.math.abs(x) + 1.)
     return tf.math.sign(x) * (sqrt_term - 1.) + epsilon * x
 

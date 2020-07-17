@@ -7,26 +7,17 @@ from replay.per import ProportionalPER
 
 
 class SequentialPER(ProportionalPER):
-    def __init__(self, config, state_keys=[], **prev_info):
+    def __init__(self, config, state_keys=[]):
         super().__init__(config)
         self._state_keys = state_keys
-        self._prev_info = prev_info
         self._temp_buff = {}
         self._memory = collections.deque(maxlen=self._capacity)
-        self._pop_size = self._sample_size - self._burn_in_size
+        # one may use self._trace_size instead of self._burn_in_size in self.add to reduce overlapping
+        # self._trace_size = self._sample_size - self._burn_in_size
         self._tb_idx = 0
 
     def __len__(self):
         return len(self._memory)
-
-    def pre_add(self, **kwargs):
-        """ This function should only be called to add necessary stats
-        when the environment is reset """
-        kwargs.update(self._prev_info)
-        for k, v in kwargs.items():
-            if k not in self._temp_buff:
-                self._temp_buff[k] = collections.deque(maxlen=self._sample_size+1)
-            self._temp_buff[k].append(v)
         
     def add(self, **kwargs):
         assert self._tb_idx < self._sample_size
@@ -35,10 +26,10 @@ class SequentialPER(ProportionalPER):
                 pass
             elif k in self._state_keys:
                 self._temp_buff[k] = collections.deque(
-                    maxlen=math.ceil(self._sample_size / self._pop_size))
+                    maxlen=math.ceil(self._sample_size / self._burn_in_size))
             else:
                 self._temp_buff[k] = collections.deque(maxlen=self._sample_size)
-            if k not in self._state_keys or self._tb_idx % self._pop_size == 0:
+            if k not in self._state_keys or self._tb_idx % self._burn_in_size == 0:
                 self._temp_buff[k].append(v)
 
         self._tb_idx += 1
@@ -47,7 +38,11 @@ class SequentialPER(ProportionalPER):
                     else convert_dtype(v, precision=self._precision)
                     for k, v in self._temp_buff.items()}
             self.merge(buff)
-            self._tb_idx = self._burn_in_size
+            self._tb_idx -= self._burn_in_size
+        
+        discount = kwargs['discount']
+        if discount == 0:
+            self.clear_temp_buffer()
 
     def merge(self, local_buffer):
         """ Add local_buffer to memory """
