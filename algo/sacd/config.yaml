@@ -35,7 +35,7 @@ agent:
     schedule_act_eps: False
     act_eps: 0
     eval_act_eps: 0
-    target_entropy_coef: .98
+    target_entropy_coef: .5
     
     MAX_STEPS: 1e8
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4

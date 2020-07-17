@@ -11,7 +11,7 @@ env:
 
 model:
     cnn: nature
-    cnn_out_size: none
+    cnn_out_size: 512
     additional_input: &ai False
     lstm_units: 512
     units_list: [512]
@@ -43,14 +43,14 @@ agent:
     n_learner_cpus: 3
     n_workers: 6
     SYNC_PERIOD: 1000
+    RECORD_PERIOD: 100
+    N_EVALUATION: 1
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD_PERIOD: 100
-    N_EVALUATION: 1
 
     loss_type: mse                          # huber or mse
     target_update_period: 1500

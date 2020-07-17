@@ -37,7 +37,7 @@ class EnvBuffer(LocalBuffer):
         self._memory = {}
         self._state_keys = state_keys
         self._prev_info = prev_info
-        self._burn_in_size = self._sample_size - self._burn_in_size
+        self._trace_size = self._sample_size - self._burn_in_size
         self._idx = 0
 
     def is_full(self):
@@ -61,6 +61,10 @@ class EnvBuffer(LocalBuffer):
             if k not in self._state_keys or self._idx % self._burn_in_size == 0:
                 self._memory[k].append(v)
         self._idx += 1
+        discount = kwargs['discount']
+        if discount == 0:
+            self.reset()
+
 
     def sample(self):
         data = {k: v[0] if k in self._state_keys 

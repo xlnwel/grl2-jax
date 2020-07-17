@@ -153,13 +153,13 @@ class Agent(BaseAgent):
             t_embed = self.target_q.cnn(obs)
             if self._burn_in:
                 bis = self._burn_in_size
-                ss = self._sample_size - bis
-                bi_embed, embed = tf.split(embed, [bis, ss], 1)
-                tbi_embed, t_embed = tf.split(t_embed, [bis, ss], 1)
-                bi_prev_action, prev_action = tf.split(prev_action, [bis, ss], 1)
-                bi_prev_reward, prev_reward = tf.split(prev_reward, [bis, ss], 1)
-                bi_discount, discount = tf.split(discount, [bis, ss], 1)
-                _, logpi = tf.split(logpi, [bis, ss], 1)
+                rs = self._sample_size - bis
+                bi_embed, embed = tf.split(embed, [bis, rs], 1)
+                tbi_embed, t_embed = tf.split(t_embed, [bis, rs], 1)
+                bi_prev_action, prev_action = tf.split(prev_action, [bis, rs], 1)
+                bi_prev_reward, prev_reward = tf.split(prev_reward, [bis, rs], 1)
+                bi_discount, discount = tf.split(discount, [bis, rs], 1)
+                _, logpi = tf.split(logpi, [bis, rs], 1)
                 if self._additional_input:
                     pa, pr = bi_prev_action, bi_prev_reward
                 else:
@@ -171,7 +171,7 @@ class Agent(BaseAgent):
                 o_state = tf.nest.map_structure(tf.stop_gradient, o_state)
             else:
                 o_state = t_state = state
-                ss = self._sample_size
+                rs = self._sample_size
             if self._additional_input:
                 pa, pr = prev_action, prev_reward
             else:
@@ -205,14 +205,14 @@ class Agent(BaseAgent):
             error = returns - q
             loss = tf.reduce_mean(IS_ratio[:, None] * loss_fn(error))
         tf.debugging.assert_shapes([
-            [q, (None, ss-1)],
-            [next_qs, (None, ss-1, self._action_dim)],
-            [next_action, (None, ss-2)],
-            [curr_action, (None, ss-1)],
-            [new_next_prob, (None, ss-2)],
-            [next_ratio, (None, ss-2)],
-            [returns, (None, ss-1)],
-            [error, (None, ss-1)],
+            [q, (None, rs-1)],
+            [next_qs, (None, rs-1, self._action_dim)],
+            [next_action, (None, rs-2)],
+            [curr_action, (None, rs-1)],
+            [new_next_prob, (None, rs-2)],
+            [next_ratio, (None, rs-2)],
+            [returns, (None, rs-1)],
+            [error, (None, rs-1)],
             [IS_ratio, (None,)],
             [loss, ()]
         ])
