@@ -234,7 +234,8 @@ class Evaluator(BaseEvaluator):
     def __call__(self, x, deterministic=True, env_output=None, **kwargs):
         self._prev_reward = env_output.reward
         action, _, self._state = self.model.action(
-            x, self._state, deterministic, self._eval_act_eps,
+            tf.convert_to_tensor(x), 
+            self._state, deterministic, self._eval_act_eps,
             prev_action=self._prev_action,
             prev_reward=self._prev_reward)
         self._prev_action = action
