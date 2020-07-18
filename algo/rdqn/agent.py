@@ -193,14 +193,18 @@ class Agent(BaseAgent):
             next_qs = self.q.mlp(next_x)
             new_next_action = tf.argmax(next_qs, axis=-1, output_type=tf.int32)
             t_next_q = self.target_q.mlp(t_next_x, new_next_action)
-            new_next_prob = tf.math.equal(new_next_action[:, :-1], next_action)
-            new_next_prob = tf.cast(new_next_prob, logpi.dtype)
-            next_ratio = new_next_prob / tf.math.exp(logpi[:, 1:-1])
-            returns = retrace_lambda(
-                reward, q, t_next_q, 
-                next_ratio, discount, 
-                lambda_=self._lambda, 
-                axis=1, tbo=self._tbo)
+            if self._retrace:
+                new_next_prob = tf.math.equal(new_next_action[:, :-1], next_action)
+                new_next_prob = tf.cast(new_next_prob, logpi.dtype)
+                next_ratio = new_next_prob / tf.math.exp(logpi[:, 1:-1])
+                returns = retrace_lambda(
+                    reward, q, t_next_q, 
+                    next_ratio, discount, 
+                    lambda_=self._lambda, 
+                    axis=1, tbo=self._tbo)
+            else:
+                returns = n_step_target(reward, t_next_q, discount, self._gamma, tbo=self._tbo)
+
             returns = tf.stop_gradient(returns)
             error = returns - q
             loss = tf.reduce_mean(IS_ratio[:, None] * loss_fn(error))
@@ -209,8 +213,8 @@ class Agent(BaseAgent):
             [next_qs, (None, rs-1, self._action_dim)],
             [next_action, (None, rs-2)],
             [curr_action, (None, rs-1)],
-            [new_next_prob, (None, rs-2)],
-            [next_ratio, (None, rs-2)],
+            # [new_next_prob, (None, rs-2)],
+            # [next_ratio, (None, rs-2)],
             [returns, (None, rs-1)],
             [error, (None, rs-1)],
             [IS_ratio, (None,)],
@@ -226,8 +230,8 @@ class Agent(BaseAgent):
         terms.update(dict(
             q=q,
             logpi=logpi,
-            max_ratio=tf.math.reduce_max(next_ratio),
-            ratio=next_ratio,
+            # max_ratio=tf.math.reduce_max(next_ratio),
+            # ratio=next_ratio,
             returns=returns,
             loss=loss,
         ))

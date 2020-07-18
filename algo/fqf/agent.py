@@ -67,20 +67,32 @@ class Agent(DQNBase):
             qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
 
             # compute out gradients for fpn
-            tau_qtv = self.q.value(x_no_grad, tau[..., 1:-1], action=action)     # [B, N-1, A]
+            tau_1_N = tau[..., 1:-1]
+            tau_qtv = self.q.value(x_no_grad, tau_1_N, action=action)     # [B, N-1]
             tf.debugging.assert_shapes([
                 [qtv, (None, self.N)],
                 [tau_qtv, (None, self.N-1)],
             ])
             # we use 𝜃 to represent F^{-1} for brevity
             diff1 = tau_qtv - qtv[..., :-1]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i-1])
-            sign1 = tau_qtv > qtv[..., :-1]
+            # sign1 = tau_qtv >= qtv[..., :-1]
+            sign1 = tau_qtv > tf.concat([qtv[..., :1], tau_qtv[..., :-1]], axis=-1)
+            tf.debugging.assert_shapes([
+                [diff1, (None, self.N-1)],
+                [sign1, (None, self.N-1)],
+            ])
+            tf.debugging.assert_greater_equal(tau[..., 1:-1], tau_hat[..., :-1, 0])
             abs_diff1 = tf.where(sign1, diff1, -diff1)
             diff2 = tau_qtv - qtv[..., 1:]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i])
-            sign2 = tau_qtv > qtv[..., 1:]
+            # sign2 = tau_qtv <= qtv[..., 1:]
+            sign2 = tau_qtv < tf.concat([tau_qtv[..., 1:], qtv[..., -1:]], axis=-1)
+            tf.debugging.assert_shapes([
+                [diff2, (None, self.N-1)],
+                [sign2, (None, self.N-1)],
+            ])
+            tf.debugging.assert_less_equal(tau[..., 1:-1], tau_hat[..., 1:, 0])
             abs_diff2 = tf.where(sign2, diff2, -diff2)
-            fpn_out_grads = abs_diff1 + abs_diff2
-            fpn_out_grads = tf.stop_gradient(fpn_out_grads)
+            fpn_out_grads = tf.stop_gradient(abs_diff1 + abs_diff2)
             tf.debugging.assert_shapes([
                 [fpn_out_grads, (None, self.N-1)],
                 [tau, (None, self.N+1)],

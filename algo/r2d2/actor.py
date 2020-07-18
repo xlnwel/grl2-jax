@@ -127,11 +127,10 @@ class Worker(BaseWorker):
                 self._compute_priorities, TensorSpecs)
 
     def __call__(self, obs, reset, deterministic=False, env_output=None):
-        self._prev_reward = env_output.reward
+        self._prev_reward = tf.convert_to_tensor(env_output.reward, tf.float32)
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=self.n_envs)
             self._prev_action = tf.squeeze(tf.zeros(self.n_envs, dtype=tf.int32))
-            self._prev_reward = np.squeeze(np.zeros(self.n_envs))
         if np.any(reset):
             mask = tf.cast(1. - reset, tf.float32)
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
@@ -146,7 +145,7 @@ class Worker(BaseWorker):
             prev_reward=self._prev_reward)
         terms = tf.nest.map_structure(lambda x: x.numpy(), terms)
         terms['prev_action'] = self._prev_action.numpy()
-        terms['prev_reward'] = self._prev_reward
+        terms['prev_reward'] = env_output.reward
         if self._store_state:
             terms['h'] = np.squeeze(self._state[0].numpy())
             terms['c'] = np.squeeze(self._state[1].numpy())

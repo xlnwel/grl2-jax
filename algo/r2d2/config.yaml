@@ -34,6 +34,7 @@ agent:
     sample_size: &ss 120
     burn_in_size: &bis 40
     additional_input: *ai
+    retrace: True
 
     MAX_STEPS: 1e9
     LOG_PERIOD: &log 1000

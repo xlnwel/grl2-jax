@@ -26,8 +26,8 @@ class FractionProposalNetwork(Module):
     def __call__(self, x):
         x = self._layers(x)
 
-        log_probs = tf.nn.log_softmax(x, axis=-1)
-        probs = tf.exp(log_probs)
+        probs = tf.nn.softmax(x, axis=-1)
+        log_probs = tf.nn.log_softmax(x, axia=-1)
         entropy = -probs * log_probs
 
         tau_0 = tf.zeros([*probs.shape[:-1], 1], dtype=probs.dtype)
