@@ -1,15 +1,9 @@
-import numpy as np
 import tensorflow as tf
 
-from utility.display import pwc
-from utility.rl_utils import n_step_target, huber_loss
-from utility.utils import Every
-from utility.schedule import TFPiecewiseSchedule, PiecewiseSchedule
-from utility.timer import TBTimer
-from core.tf_config import build
-from core.decorator import agent_config, step_track
+from utility.rl_utils import n_step_target, quantile_regression_loss
+from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
-from algo.dqn.agent import get_data_format, DQNBase
+from algo.dqn.base import DQNBase, get_data_format
 
 
 class Agent(DQNBase):
@@ -37,20 +31,12 @@ class Agent(DQNBase):
             [next_qtv, (None, self.N_PRIME)],
             [returns, (None, 1, self.N_PRIME)],
         ])
+
         with tf.GradientTape() as tape:
             z, tau_hat, qtv, q = self.q.value(obs, self.N, action, return_obs_embed=True)
             qtv = tf.expand_dims(qtv, axis=-1)  # [B, N, 1]
-            error = returns - qtv   # [B, N, N']
-            tf.debugging.assert_shapes([
-                [returns, (None, 1, self.N_PRIME)],
-                [qtv, (None, self.N, 1)],
-                [error, (None, self.N, self.N_PRIME)],
-            ])
-            # loss
-            weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))        # [B, N, N']
-            huber = huber_loss(error, threshold=self.KAPPA)             # [B, N, N']
-            qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1) # [B]
-            qr_loss = tf.reduce_mean(qr_loss)
+            qr_loss = quantile_regression_loss(qtv, returns, tau_hat, kappa=self.KAPPA)
+            loss = tf.reduce_mean(IS_ratio * qr_loss)
 
             z_pos = self.target_q.cnn(obs)
             z_anchor = self.crl(z)
@@ -64,8 +50,7 @@ class Agent(DQNBase):
             loss = qr_loss + self._crl_coef * infonce
 
         if self._is_per:
-            error = tf.reduce_max(tf.reduce_mean(tf.abs(error), axis=2), axis=1)
-            priority = self._compute_priority(error)
+            priority = self._compute_priority(qr_loss)
             terms['priority'] = priority
         
         terms['norm'] = self._optimizer(tape, loss)

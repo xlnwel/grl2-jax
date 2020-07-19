@@ -10,6 +10,20 @@ from core.decorator import config
 from nn.func import mlp, cnn
         
 
+class Encoder(Module):
+    @config
+    def __init__(self, name='encoder'):
+        super().__init__(name=name)
+        kwargs = {}
+        if hasattr(self, '_kernel_initializer'):
+            kwargs['kernel_initializer'] = self._kernel_initializer
+        self._layers = cnn(self._cnn, out_size=self._cnn_out_size, **kwargs)
+
+    def __call__(self, x):
+        x = self._layers(x)
+        return x
+
+
 class FractionProposalNetwork(Module):
     @config
     def __init__(self, name='fqn'):
@@ -27,7 +41,7 @@ class FractionProposalNetwork(Module):
         x = self._layers(x)
 
         probs = tf.nn.softmax(x, axis=-1)
-        log_probs = tf.nn.log_softmax(x, axia=-1)
+        log_probs = tf.nn.log_softmax(x, axis=-1)
         entropy = -probs * log_probs
 
         tau_0 = tf.zeros([*probs.shape[:-1], 1], dtype=probs.dtype)
@@ -59,7 +73,6 @@ class Q(Module):
         if hasattr(self, '_kernel_initializer'):
             kwargs['kernel_initializer'] = self._kernel_initializer
         self._kwargs = kwargs
-        self._cnn = cnn(self._cnn, out_size=self._cnn_out_size, **kwargs)
 
         if self._duel:
             self._v_head = mlp(
@@ -96,19 +109,13 @@ class Q(Module):
         else:
             q = self.q(qtv, tau_range)
             return qtv, q
-
-    def cnn(self, x):
-        # psi network
-        if self._cnn:
-            x = self._cnn(x)
-        return x
     
     def qt_embed(self, tau_hat, cnn_out_size):
         # phi network
-        tau_hat = tf.expand_dims(tau_hat, axis=-1)       # [B, N, 1]
+        tau_hat = tf.expand_dims(tau_hat, axis=-1)      # [B, N, 1]
         pi = tf.convert_to_tensor(np.pi, dtype=tau_hat.dtype)
-        degree = tf.cast(tf.range(self._qt_embed_size), tau_hat.dtype) * pi * tau_hat
-        qt_embed = tf.math.cos(degree)              # [B, N, E]
+        degree = tf.cast(tf.range(self._tau_embed_size), tau_hat.dtype) * pi * tau_hat
+        qt_embed = tf.math.cos(degree)                  # [B, N, E]
         
         if not hasattr(self, '_phi'):
             self._phi = mlp(
@@ -116,7 +123,7 @@ class Q(Module):
                 activation=self._phi_activation,
                 name='phi',
                 **self._kwargs)
-        qt_embed = self._phi(qt_embed)              # [B, N, cnn.out_size]
+        qt_embed = self._phi(qt_embed)                  # [B, N, cnn.out_size]
         
         return qt_embed
 
@@ -159,7 +166,7 @@ class FQF(Ensemble):
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
 
-        x = self.q.cnn(x)
+        x = self.encoder(x)
         tau, tau_hat, _ = self.fpn(x)
         qtv, q = self.q.value(x, tau_hat, tau_range=tau)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
@@ -181,7 +188,7 @@ class FQF(Ensemble):
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
 
-        x = self.q.cnn(x)
+        x = self.encoder(x)
         tau, tau_hat, _ = self.fpn(x)
         qtv, q = self.q.value(x, tau_hat, tau_range=tau)
         qtv = tf.squeeze(qtv)
@@ -192,13 +199,12 @@ class FQF(Ensemble):
 
 def create_components(config, env, **kwargs):
     action_dim = env.action_dim
-    fpn = FractionProposalNetwork(config['fpn'], name='fpn')
-    q = Q(config['iqn'], action_dim, name='iqn')
-    target_q = Q(config['iqn'], action_dim, name='target_iqn')
     return dict(
-        fpn=fpn,
-        q=q,
-        target_q=target_q,
+        encoder=Encoder(config['encoder'], name='cnn'),
+        target_encoder=Encoder(config['encoder'], name='target_cnn'),
+        fpn=FractionProposalNetwork(config['fpn'], name='fpn'),
+        q=Q(config['iqn'], action_dim, name='iqn'),
+        target_q=Q(config['iqn'], action_dim, name='target_iqn'),
     )
 
 def create_model(config, env, **kwargs):

@@ -1,15 +1,9 @@
-import numpy as np
 import tensorflow as tf
 
-from utility.display import pwc
-from utility.rl_utils import n_step_target, huber_loss, quantile_regression_loss
-from utility.utils import Every
-from utility.schedule import TFPiecewiseSchedule, PiecewiseSchedule
-from utility.timer import TBTimer
-from core.tf_config import build
-from core.decorator import agent_config, step_track
+from utility.rl_utils import n_step_target, quantile_regression_loss
+from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
-from algo.dqn.agent import get_data_format, DQNBase
+from algo.dqn.base import DQNBase, get_data_format
 
 
 class Agent(DQNBase):
@@ -52,8 +46,8 @@ class Agent(DQNBase):
         
         terms.update(dict(
             q=q,
-            qr_loss=qr_loss,
             returns=returns,
+            qr_loss=qr_loss,
             loss=loss,
         ))
 

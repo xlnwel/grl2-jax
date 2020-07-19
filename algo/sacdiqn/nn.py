@@ -104,7 +104,7 @@ class Q(Module):
         tau_hat = tf.random.uniform([batch_size, n_qt, 1], 
             minval=0, maxval=1, dtype=tf.float32)   # [B, N, 1]
         pi = tf.convert_to_tensor(np.pi, tf.float32)
-        degree = tf.cast(tf.range(self._qt_embed_size), tf.float32) * pi * tau_hat
+        degree = tf.cast(tf.range(self._tau_embed_size), tf.float32) * pi * tau_hat
         qt_embed = tf.math.cos(degree)              # [B, N, E]
         if not hasattr(self, '_phi'):
             self._phi = mlp(

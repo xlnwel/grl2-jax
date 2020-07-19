@@ -10,7 +10,7 @@ from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
-from algo.dqn.agent import get_data_format
+from algo.dqn.base import get_data_format
 
 
 class Agent(BaseAgent):

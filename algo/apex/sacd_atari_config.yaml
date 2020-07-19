@@ -43,7 +43,7 @@ agent:
     N_UPDATES: *log
     SYNC_PERIOD: 1000
     RECORD_PERIOD: 100
-    N_EVALUATION: 10
+    N_EVALUATION: 1
 
     # distributed algo params
     n_learner_cpus: 3

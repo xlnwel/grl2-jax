@@ -14,7 +14,7 @@ model:
     layer_type: dense
     duel: False
 
-    qt_embed_size: 64
+    tau_embed_size: 64
     phi_activation: relu
     K: &K 32
 

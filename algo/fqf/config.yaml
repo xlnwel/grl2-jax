@@ -1,6 +1,6 @@
 ---
 env:
-    name: atari_MsPacman
+    name: atari_breakout
     sticky_actions: False
     frame_skip: 4
     frame_stack: 4
@@ -9,20 +9,21 @@ env:
     seed: 0
 
 model:
+    encoder:
+        cnn: nature
+        cnn_out_size: none
+        kernel_initializer: he_uniform
     fpn:
         N: &N 32
         kernel_initializer: orthogonal
-
     iqn:
-        cnn: nature
-        cnn_out_size: none
         kernel_initializer: orthogonal
         units_list: [512]
         activation: relu
         layer_type: dense
         duel: False
 
-        qt_embed_size: 64
+        tau_embed_size: 64
         phi_activation: relu
 
 agent:
@@ -33,7 +34,7 @@ agent:
     n_steps: &nsteps 1      # n-step target
     precision: &prec 32
     schedule_act_eps: True
-    act_eps: 0.01
+    act_eps: .01
     eval_act_eps: .001
 
     MAX_STEPS: 1e8      # maximum env frames

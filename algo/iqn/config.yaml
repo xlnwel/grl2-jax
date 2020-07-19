@@ -10,14 +10,14 @@ env:
 
 model:
     cnn: nature
-    cnn_out_size: None
+    cnn_out_size: none
     kernel_initializer: orthogonal
     units_list: [512]
     activation: relu
     layer_type: dense
     duel: False
 
-    qt_embed_size: 64
+    tau_embed_size: 64
     phi_activation: relu
     K: &K 32
 
@@ -29,8 +29,8 @@ agent:
     n_steps: &nsteps 1      # n-step target
     precision: &prec 32
     schedule_act_eps: True
-    act_eps: 0.01
-    eval_act_eps: 0.001
+    act_eps: .01
+    eval_act_eps: .001
 
     MAX_STEPS: 1e8      # maximum env frames
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4

@@ -235,7 +235,7 @@ class SimpleCNN(Layer):
         ]
         self.out_size = out_size
         if out_size:
-            self._dense = Dense(self.out_size, activation=relu)
+            self._dense = Dense(self.out_size, activation=activation)
 
     def call(self, x):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)

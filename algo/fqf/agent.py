@@ -1,15 +1,9 @@
-import numpy as np
 import tensorflow as tf
 
-from utility.display import pwc
-from utility.rl_utils import n_step_target, huber_loss, quantile_regression_loss
-from utility.utils import Every
-from utility.schedule import TFPiecewiseSchedule, PiecewiseSchedule
-from utility.timer import TBTimer
-from core.tf_config import build
-from core.decorator import agent_config, step_track
+from utility.rl_utils import n_step_target, quantile_regression_loss
+from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
-from algo.dqn.agent import get_data_format, DQNBase
+from algo.dqn.base import DQNBase, get_data_format
 
 
 class Agent(DQNBase):
@@ -18,7 +12,7 @@ class Agent(DQNBase):
             self._iqn_lr = TFPiecewiseSchedule(
                 [(5e5, self._iqn_lr), (2e6, 5e-5)], outside_value=5e-5)
         self._iqn_opt = Optimizer(
-            self._iqn_opt, self.q, self._iqn_lr, 
+            self._iqn_opt, [self.encoder, self.q], self._iqn_lr, 
             clip_norm=self._clip_norm, epsilon=1e-2/self._batch_size)
         self._fpn_opt = Optimizer(self._fpn_opt, self.fpn, self._fpn_lr, epsilon=1e-5)
 
@@ -31,12 +25,12 @@ class Agent(DQNBase):
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}
         # compute target returns
-        next_x = self.q.cnn(next_obs)
+        next_x = self.encoder(next_obs)
         
         next_tau, next_tau_hat, _ = self.fpn(next_x)
         next_action = self.q.action(next_x, next_tau_hat, tau_range=next_tau)
         
-        next_x = self.target_q.cnn(next_obs)
+        next_x = self.target_encoder(next_obs)
         next_tau, next_tau_hat, _ = self.fpn(next_x)
         next_qtv = self.target_q.value(
             next_x, next_tau_hat, action=next_action)
@@ -53,7 +47,7 @@ class Agent(DQNBase):
         returns = tf.expand_dims(returns, axis=1)      # [B, 1, N]
 
         with tf.GradientTape(persistent=True) as tape:
-            x = self.q.cnn(obs)
+            x = self.encoder(obs)
             x_no_grad = tf.stop_gradient(x) # forbid gradients to cnn when computing fpn loss
             
             tau, tau_hat, fpn_entropy = self.fpn(x_no_grad)
@@ -127,3 +121,8 @@ class Agent(DQNBase):
 
         return terms
 
+    @tf.function
+    def _sync_target_nets(self):
+        mv = self.encoder.variables + self.q.variables
+        tv = self.target_encoder.variables + self.target_q.variables
+        [tv.assign(mv) for mv, tv in zip(mv, tv)]

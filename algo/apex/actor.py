@@ -339,7 +339,6 @@ class Evaluator(BaseEvaluator):
         configure_threads(1, 1)
 
         env_config.pop('reward_clip', False)
-        env_config.pop('life_done', False)
         self.env = env = create_env(env_config)
         self.n_envs = self.env.n_envs
 
