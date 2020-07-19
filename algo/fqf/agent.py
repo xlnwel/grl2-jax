@@ -69,7 +69,6 @@ class Agent(DQNBase):
             ])
             # we use 𝜃 to represent F^{-1} for brevity
             diff1 = tau_qtv - qtv[..., :-1]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i-1])
-            # sign1 = tau_qtv >= qtv[..., :-1]
             sign1 = tau_qtv > tf.concat([qtv[..., :1], tau_qtv[..., :-1]], axis=-1)
             tf.debugging.assert_shapes([
                 [diff1, (None, self.N-1)],
@@ -78,7 +77,6 @@ class Agent(DQNBase):
             tf.debugging.assert_greater_equal(tau[..., 1:-1], tau_hat[..., :-1, 0])
             abs_diff1 = tf.where(sign1, diff1, -diff1)
             diff2 = tau_qtv - qtv[..., 1:]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i])
-            # sign2 = tau_qtv <= qtv[..., 1:]
             sign2 = tau_qtv < tf.concat([tau_qtv[..., 1:], qtv[..., -1:]], axis=-1)
             tf.debugging.assert_shapes([
                 [diff2, (None, self.N-1)],

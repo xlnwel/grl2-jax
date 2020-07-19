@@ -104,25 +104,30 @@ class Atari:
     def set_game_over(self):
         self._game_over = True
 
-    def reset(self, **kwargs):
-        if self._game_over:
-            self.env.reset(**kwargs)
-            if 'FIRE' in self.env.get_action_meanings():
-                action = self.env.get_action_meanings().index('FIRE')
-                for _ in range(self.frame_skip):
-                    self.env.step(action)
-            noop = np.random.randint(1, self.noop + 1)
-            for _ in range(noop):
-                d = self.env.step(0)[2]
-                if d:
-                    self.env.reset(**kwargs)
-        else:
-            if 'FIRE' in self.env.get_action_meanings():
-                action = self.env.get_action_meanings().index('FIRE')
-            else:
-                action = 0
-            self.step(action)
+    def reset(self, hard_reset=True, **kwargs):
+        self.env.reset(**kwargs)
+        if 'FIRE' in self.env.get_action_meanings():
+            action = self.env.get_action_meanings().index('FIRE')
+            for _ in range(self.frame_skip):
+                self.env.step(action)
+        noop = np.random.randint(1, self.noop + 1)
+        for _ in range(noop):
+            d = self.env.step(0)[2]
+            if d:
+                self.env.reset(**kwargs)
         
+        return self._post_reset()
+
+    def _fake_reset(self):
+        if 'FIRE' in self.env.get_action_meanings():
+            action = self.env.get_action_meanings().index('FIRE')
+        else:
+            action = 0
+        self.step(action)
+        
+        return self._post_reset()
+
+    def _post_reset(self):
         self.lives = self.env.ale.lives()
         self._get_screen(self._buffer[0])
         self._buffer[1].fill(0)
@@ -166,9 +171,8 @@ class Atari:
                 if new_lives < self.lives and new_lives > 0:
                     self.lives = new_lives
                     is_terminal = True
-                    self.reset()
+                    self._fake_reset()
                     info['reset'] = True
-                    break
                 else:
                     is_terminal = done
             else:
@@ -220,47 +224,3 @@ class Atari:
         return np.concatenate(self._frames, axis=-1) \
             if self.np_obs else B.LazyFrames(list(self._frames))
 
-
-if __name__ == '__main__':
-    config = dict(
-        name='breakout',
-        precision=32,
-        life_done=True,
-        sticky_actions=True,
-        seed=0
-    )
-
-    import numpy as np
-    from env.baselines import make_atari, wrap_deepmind
-    np.random.seed(0)
-    name = config['name']
-    version = 0
-    name = f'{name.title()}NoFrameskip-v{version}'
-    print(name)
-    env1 = make_atari(name)
-    env1 = wrap_deepmind(env1, episode_life=config['life_done'], frame_stack=True)
-    np.random.seed(0)
-    env2 = Atari(**config)
-    env1.seed(0)
-    env2.seed(0)
-    np.random.seed(0)
-    o1 = env1.reset()
-    np.random.seed(0)
-    o2 = env2.reset()
-    o1 = env1.ale.getScreenRGB2()
-    o2 = env2.get_screen()
-    np.testing.assert_allclose(np.array(o1), np.array(o2))
-    for i in range(1,1000):
-        np.random.seed(0)
-        o1, r1, d1, _ = env1.step(2)
-        o1 = env1.ale.getScreenRGB2()
-        np.random.seed(0)
-        print(i, env1.lives, env2.lives)
-        o2, r2, d2, _ = env2.step(2)
-        o2 = env2.env.ale.getScreenRGB2()
-        np.testing.assert_allclose(np.array(o1), np.array(o2))
-        np.testing.assert_allclose(r1, r2)
-        np.testing.assert_allclose(d1, d2)
-        if d1:
-            env1.reset()
-            env2.reset()

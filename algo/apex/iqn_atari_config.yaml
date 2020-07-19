@@ -2,8 +2,12 @@
 env:
     name: atari_pong
     sticky_actions: False
+    frame_skip: 4
     frame_stack: 4
     np_obs: True
+    reward_clip: 4
+    life_done: True
+    reward_clip: True
     n_envs: 1
     seed: 0
 
@@ -35,6 +39,9 @@ agent:
     MAX_STEPS: 1e9
     LOG_PERIOD: &log 1000
     N_UPDATES: *log
+    SYNC_PERIOD: 1000
+    RECORD_PERIOD: 10
+    N_EVALUATION: 1
     
     # IQN params
     N: 32                # N in paper, num of quantiles for online quantile network
@@ -45,9 +52,6 @@ agent:
     # distributed algo params
     n_learner_cpus: 3
     n_workers: 6
-    SYNC_PERIOD: 1000
-    RECORD_PERIOD: 100
-    N_EVALUATION: 1
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

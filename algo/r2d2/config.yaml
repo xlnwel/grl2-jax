@@ -44,7 +44,7 @@ agent:
     n_learner_cpus: 3
     n_workers: 6
     SYNC_PERIOD: 1000
-    RECORD_PERIOD: 100
+    RECORD_PERIOD: 1
     N_EVALUATION: 1
 
     # model path: root_dir/model_name/models

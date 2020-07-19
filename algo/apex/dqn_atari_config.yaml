@@ -2,13 +2,18 @@
 env:
     name: atari_pong
     sticky_actions: False
+    frame_skip: 4
     frame_stack: 4
     np_obs: True
+    reward_clip: 4
+    life_done: True
+    reward_clip: True
     n_envs: 1
     seed: 0
 
 model:
     cnn: nature
+    cnn_out_size: none
     kernel_initializer: orthogonal
     units_list: [512]
     activation: relu
@@ -18,24 +23,25 @@ model:
 agent:
     algorithm: &algo apex-dqn
     replay_type: &replay 'uniform'
-    gamma: &gamma 0.99
     batch_size: &bs 64
+    gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     schedule_act_eps: True
     act_eps: 0  # will be overwritten in func.py
+    eval_act_eps: .001
     
     # timer&interval
     MAX_STEPS: 1e9
     LOG_PERIOD: &log 1000
     N_UPDATES: *log
+    SYNC_PERIOD: 1000
+    RECORD_PERIOD: 10
+    N_EVALUATION: 1
     
     # distributed algo params
     n_learner_cpus: 3
     n_workers: 6
-    SYNC_PERIOD: 1000
-    RECORD_PERIOD: 100
-    N_EVALUATION: 10
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -45,7 +51,7 @@ agent:
 
     loss_type: huber                          # huber or mse
     target_update_period: 1500
-    tbo: True
+    tbo: False
 
     # arguments for optimizer
     optimizer: adam
