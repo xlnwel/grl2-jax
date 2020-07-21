@@ -1,5 +1,4 @@
 import time
-import numpy as np
 import ray 
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
@@ -7,7 +6,6 @@ from utility.utils import Every, TempStore
 from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
 from utility.run import Runner, evaluate
-from utility.timer import Timer
 from utility import pkg
 from env.gym_env import create_env
 
@@ -83,11 +81,11 @@ def main(env_config, model_config, agent_config, buffer_config):
     eval_env_config.pop('reward_clip', False)
     eval_env = create_env(eval_env_config, force_envvec=True)
 
+    models = create_model(model_config, env)
+    
     buffer_config['n_envs'] = env.n_envs
     buffer = PPOBuffer(buffer_config)
 
-    models = create_model(model_config, env)
-    
     agent = Agent(name=env.name, 
                 config=agent_config, 
                 models=models, 

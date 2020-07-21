@@ -1,10 +1,9 @@
 ## Algorithms implemented in each folder
 
 - apex: apex-dqn, apex-sac
-- curl: curl
-- curl2: curl with discrete action
 - dqn: raibow(except c51)
 - iqn: raibow with iqwn
+- iqncrl: iqn with contrastive representation loss 
 - dreamer: dreamer
 - ppo: ppo with FNN and GAE
 - ppo: ppo with masked lstm and GAE
@@ -16,3 +15,4 @@
 - seed: seed
 - seed1: seed with a separate actor (perform best)
 - seed2: seed with an external replay center
+- tppo: truly ppo

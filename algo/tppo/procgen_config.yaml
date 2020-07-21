@@ -1,18 +1,15 @@
 ---
 env:
-    name: &env_name atari_breakout
+    name: &env_name procgen_coinrun
     n_workers: 1
     n_envs: &nenvs 8
-    sticky_actions: False
-    frame_skip: 4
-    frame_stack: 4
-    life_done: True
-    reward_clip: False
-    np_obs: True
     seed: 0
+    frame_stack: 2
+    np_obs: True
+    gray_scale: False
 
 model:
-    cnn_name: nature
+    cnn_name: impala
     actor_units: [256]
     critic_units: [256]
     norm: none
@@ -21,16 +18,16 @@ model:
     init_std: 1
 
 agent:
-    algorithm: &algo ppo
-    precision: &prec 32
+    algorithm: &algo tppo
+    precision: 16
 
-    MAX_STEPS: 1e10
+    MAX_STEPS: 8e6
     N_STEPS: &nsteps 256
-    N_UPDATES: 4
+    N_UPDATES: 3
     N_MBS: &nmbs 4
     LOG_PERIOD: 100
     EVAL_PERIOD: 500
-    max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
+    max_kl: 0            # early stop when max_kl is violated. 0 suggests no bound
 
     normalize_obs: False
     normalize_reward: True
@@ -45,16 +42,16 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 2.5e-4
-    clip_norm: .5
+    lr: 5e-4
+    clip_norm: 0
     # arguments for loss
-    clip_range: .1          # clip range for ppo
+    clip_range: .0008          # clip range for tppo
+    kl_weight: 20
     entropy_coef: .01
     value_coef: .5
 
 buffer:
     adv_type: gae     # nae or gae
-    precision: *prec
     gamma: .99
     lam: .95
     n_envs: *nenvs

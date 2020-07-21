@@ -9,7 +9,7 @@ from algo.ppo.buffer import compute_gae, compute_nae
 
 class PPOBuffer:
     @config
-    def __init__(self):
+    def __init__(self, state_keys):
         assert self._n_envs * self.N_STEPS % self._sample_size == 0, \
             f'{self._n_envs} * {self.N_STEPS} % {self._sample_size} != 0'
         size = self._n_envs * self.N_STEPS // self._sample_size
@@ -17,6 +17,7 @@ class PPOBuffer:
         self._idxes = np.arange(size)
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
+        self._state_keys = state_keys
         self.reset()
         print(f'Batch size: {size}')
         print(f'Mini-batch size: {self._mb_size} chunks of {self._sample_size} timesteps')
@@ -25,16 +26,11 @@ class PPOBuffer:
         if self._memory == {}:
             state_dtype = {16: np.float16, 32: np.float32}[self._precision]
             init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
-            if 'h' in self._memory:
-                self._memory['h'].astype(state_dtype)
-                self._memory['c'].astype(state_dtype)
+            if k in self._state_keys:
+                self._memory[k].astype(state_dtype)
             self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
-            self._sample_keys = list(self._memory)
-            self._sample_keys.remove('discount')
-            self._sample_keys.remove('reward')
-            self._state_keys = [k for k in self._sample_keys if k not in 
-                ['obs', 'action', 'traj_ret', 'value', 'advantage', 'logpi', 'mask']]
+            self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             print_buffer(self._memory)
             
         for k, v in data.items():

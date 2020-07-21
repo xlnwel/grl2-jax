@@ -74,16 +74,14 @@ class Agent(DQNBase):
                 [diff1, (None, self.N-1)],
                 [sign1, (None, self.N-1)],
             ])
-            tf.debugging.assert_greater_equal(tau[..., 1:-1], tau_hat[..., :-1, 0])
-            abs_diff1 = tf.where(sign1, diff1, -diff1)
+            abs_diff1 = tf.where(sign1, diff1, 0)
             diff2 = tau_qtv - qtv[..., 1:]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i])
             sign2 = tau_qtv < tf.concat([tau_qtv[..., 1:], qtv[..., -1:]], axis=-1)
             tf.debugging.assert_shapes([
                 [diff2, (None, self.N-1)],
                 [sign2, (None, self.N-1)],
             ])
-            tf.debugging.assert_less_equal(tau[..., 1:-1], tau_hat[..., 1:, 0])
-            abs_diff2 = tf.where(sign2, diff2, -diff2)
+            abs_diff2 = tf.where(sign2, diff2, 0)
             fpn_out_grads = tf.stop_gradient(abs_diff1 + abs_diff2)
             tf.debugging.assert_shapes([
                 [fpn_out_grads, (None, self.N-1)],

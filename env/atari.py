@@ -12,12 +12,8 @@ from env import baselines as B
 
 
 def make_atari_env(config):
-    if config.get('wrapper', None) == 'baselines':
-        env = B.make_atari(**config)
-        env = B.wrap_deepmind(**config)
-    else:
-        assert 'atari' in config['name'], config['name']
-        env = Atari(**config)
+    assert 'atari' in config['name'], config['name']
+    env = Atari(**config)
     config.setdefault('max_episode_steps', 108000)    # 30min
 
     return env

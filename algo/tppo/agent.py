@@ -1,14 +1,16 @@
 import cloudpickle
 import numpy as np
 import tensorflow as tf
+from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
 from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
+from core.base import BaseAgent
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.ppo.base import PPOBase
-from algo.ppo.loss import compute_ppo_loss, compute_value_loss
+from algo.tppo.loss import compute_tppo_loss, compute_value_loss
 
 
 class Agent(PPOBase):
@@ -21,6 +23,8 @@ class Agent(PPOBase):
             self._optimizer, self.ac, self._lr, 
             clip_norm=self._clip_norm)
 
+        self._is_action_discrete = env.is_action_discrete
+
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
@@ -30,6 +34,16 @@ class Agent(PPOBase):
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
+        if self._is_action_discrete:
+            TensorSpecs['prob_params'] = ((env.action_dim,), tf.float32, 'logits')
+        else:
+            raise NotImplementedError
+            # TODO: This requires to treat std as a state without batch_size dimension
+            # A convinient way to do so is to retrieve std at the start of each learning epoch
+            TensorSpecs['prob_params'] = [
+                (env.action_shape, tf.float32, 'mean'),
+                (env.action_shape, tf.float32, 'std', ()),
+            ]
         self.learn = build(self._learn, TensorSpecs)
 
     def reset_states(self, states=None):
@@ -55,13 +69,14 @@ class Agent(PPOBase):
     @tf.function
     def action(self, obs, deterministic=False):
         if deterministic:
-            act_dist = self.ac(obs, return_value=False)
+            act_dist = self.ac(obs, return_terms=False)
             return act_dist.mode()
         else:
-            act_dist, value = self.ac(obs, return_value=True)
+            act_dist, terms = self.ac(obs, return_terms=True)
             action = act_dist.sample()
             logpi = act_dist.log_prob(action)
-            return action, dict(logpi=logpi, value=value)
+            terms['logpi'] = logpi
+            return action, terms
 
     @step_track
     def learn_log(self, step):
@@ -75,34 +90,40 @@ class Agent(PPOBase):
                 terms = {k: v.numpy() for k, v in terms.items()}
 
                 terms['value'] = np.mean(value)
-                approx_kl = terms['approx_kl']
-                del terms['approx_kl']
+                kl = terms['kl']
+                del terms['kl']
 
                 self.store(**terms)
-                if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
+                if getattr(self, '_max_kl', 0) > 0 and kl > self._max_kl:
                     break
-            if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
+            if getattr(self, '_max_kl', 0) > 0 and kl > self._max_kl:
                 pwc(f'{self._model_name}: Eearly stopping after '
                     f'{i*self.N_MBS+j+1} update(s) due to reaching max kl.',
-                    f'Current kl={approx_kl:.3g}', color='blue')
+                    f'Current kl={kl:.3g}', color='blue')
                 break
-        self.store(approx_kl=approx_kl)
+        self.store(kl=kl)
         if not isinstance(self._lr, float):
             step = tf.cast(self._env_step, tf.float32)
             self.store(lr=self._lr(step))
         return i * self.N_MBS + j + 1
 
     @tf.function
-    def _learn(self, obs, action, traj_ret, value, advantage, logpi):
+    def _learn(self, obs, action, traj_ret, value, advantage, logpi, prob_params):
         old_value = value
+        if self._is_action_discrete:
+            old_act_dist = tfd.Categorical(prob_params)
+        else:
+            old_act_dist = tfd.MultivariateNormalDiag(*prob_params)
         with tf.GradientTape() as tape:
-            act_dist, value = self.ac(obs, return_value=True)
+            act_dist, terms = self.ac(obs, return_terms=True)
+            value = terms['value']
             new_logpi = act_dist.log_prob(action)
+            kl = old_act_dist.kl_divergence(act_dist)
             entropy = act_dist.entropy()
             # policy loss
             log_ratio = new_logpi - logpi
-            ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
-                log_ratio, advantage, self._clip_range, entropy)
+            ppo_loss, entropy, p_clip_frac = compute_tppo_loss(
+                log_ratio, kl, advantage, self._kl_weight, self._clip_range, entropy)
             # value loss
             value_loss, v_clip_frac = compute_value_loss(
                 value, traj_ret, old_value, self._clip_range)
@@ -115,7 +136,7 @@ class Agent(PPOBase):
             advantage=advantage, 
             ratio=tf.exp(log_ratio), 
             entropy=entropy, 
-            approx_kl=approx_kl, 
+            kl=tf.reduce_mean(kl),
             p_clip_frac=p_clip_frac,
             v_clip_frac=v_clip_frac,
             ppo_loss=ppo_loss,

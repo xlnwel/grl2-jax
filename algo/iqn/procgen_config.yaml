@@ -21,18 +21,18 @@ model:
 agent:
     algorithm: &algo iqn
     replay_type: &replay 'uniform'
+    batch_size: &bs 32
     gamma: &gamma 0.99
-    n_steps: &nsteps 3      # n-step target
+    n_steps: &nsteps 1      # n-step target
     precision: &prec 32
-    batch_size: &bs 64
     schedule_act_eps: True
     act_eps: 0.01
     eval_act_eps: 0
 
-    MAX_STEPS: 8e6      # maximum training frames
+    MAX_STEPS: 8e6      # maximum env frames
     TRAIN_PERIOD: 128    # #frames
     EVAL_PERIOD: 5e5
-    LOG_PERIOD: 5e4
+    LOG_PERIOD: 1e4
     N_UPDATES: 1
     RECORD: True
 
@@ -54,7 +54,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 1e-4
+    lr: 5e-5
     clip_norm: 0
     epsilon: 1.5e-4
 

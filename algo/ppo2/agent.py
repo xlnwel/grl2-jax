@@ -7,7 +7,7 @@ from core.tf_config import build
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from nn.rnn import LSTMState
-from algo.ppo.agent import PPOBase
+from algo.ppo.base import PPOBase
 from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 

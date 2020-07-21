@@ -45,7 +45,7 @@ agent:
     RECORD: True
 
     # IQN params
-    N: *N                # N in paper, num of quantiles for online quantile network
+    N: *N               # N in paper, num of quantiles for online quantile network
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # model path: root_dir/model_name/models

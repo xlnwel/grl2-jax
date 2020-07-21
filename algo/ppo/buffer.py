@@ -52,6 +52,7 @@ class PPOBuffer:
             self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             print_buffer(self._memory)
+            self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             
         for k, v in data.items():
             self._memory[k][:, self._idx] = v
@@ -65,11 +66,8 @@ class PPOBuffer:
         start = self._mb_idx * self._mb_size
         end = (self._mb_idx + 1) * self._mb_size
         self._mb_idx = (self._mb_idx + 1) % self.N_MBS
-
-        keys = ['obs', 'action', 'traj_ret', 'value', 
-                'advantage', 'logpi']
         
-        return {k: self._memory[k][self._idxes[start: end]] for k in keys}
+        return {k: self._memory[k][self._idxes[start: end]] for k in self._sample_keys}
 
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
