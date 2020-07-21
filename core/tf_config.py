@@ -52,25 +52,41 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
         If TensorSpecs is a dict, return a dict of TensorSpecs with names 
         as they are in TensorSpecs. Otherwise, return a list of TensorSpecs
     """
-    def construct(x):
+    def construct(x, default_shape):
+        """
+        By default, default_shape is add before the first dimension of s.
+        There are two ways to omit/change default_shape:
+            1. to set s = None to omit default_shape, resulting in s = ()
+            2. to pass an additional argument to x to override default_shape.
+               Note that if s = None, this default_shape will be omitted anyway
+        """
         if isinstance(x, tf.TensorSpec):
             return x
-        elif isinstance(x, (list, tuple)) and len(x) == 3:
-            s, d, n = x
-            if isinstance(n, str):
-                return tf.TensorSpec(
-                    shape=() if s is None else default_shape+list(s), 
-                    dtype=d, 
-                    name=n)
-        elif isinstance(x, (list, tuple)) and len(x) == 1:
-            s = x
-            d = mixed_precision.global_policy().compute_dtype
+        elif isinstance(x, (list, tuple)):
+            if len(x) > 1 and isinstance(x[1], tuple):
+                # x is a list/tuple of TensorSpecs, recursively construct them
+                return get_TensorSpecs(x, sequential=sequential, batch_size=batch_size)
+            if len(x) == 1:
+                s = x
+                d = mixed_precision.global_policy().compute_dtype
+                n = None
+            elif len(x) == 2:
+                s, d = x
+                n = None
+            elif len(x) == 3:
+                s, d, n = x
+            elif len(x) == 4:
+                s, d, n, default_shape = x
+            else:
+                raise ValueError(f'Unknown form x: {x}')
+            s = () if s is None else default_shape+list(s)
             return tf.TensorSpec(
-                shape=() if s is None else default_shape+list(s),
-                dtype=d
+                shape=s,
+                dtype=d, 
+                name=n
             )
-        
-        return get_TensorSpecs(x, sequential=sequential, batch_size=batch_size)
+        else:
+            raise ValueError(f'Unknown form x: {x}')
 
     if sequential:
         assert batch_size, (
@@ -87,7 +103,7 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
     assert isinstance(tensorspecs, (list, tuple)), (
         'Expect tensorspecs to be a dict/list/tuple of arguments for tf.TensorSpec, '
         f'but get {TensorSpecs}\n')
-    tensorspecs = [construct(x) for x in tensorspecs]
+    tensorspecs = [construct(x, default_shape) for x in tensorspecs]
     if name:
         return dict(zip(name, tensorspecs))
     elif isinstance(TensorSpecs, tuple) and hasattr(TensorSpecs, '_fields'):

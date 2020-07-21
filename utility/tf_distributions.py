@@ -118,7 +118,7 @@ class Categorical(Distribution):
 
     def _kl(self, other):
         probs = tf.nn.softmax(self.logits)
-        log_probs = tf.math.log(probs)
+        log_probs = tf.nn.log_softmax(self.logits)
         other_log_probs = tf.nn.log_softmax(other.logits)
         kl = tf.reduce_sum(probs * (log_probs - other_log_probs), axis=-1)
 
