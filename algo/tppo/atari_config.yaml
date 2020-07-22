@@ -7,7 +7,7 @@ env:
     frame_skip: 4
     frame_stack: 4
     life_done: True
-    reward_clip: False
+    reward_clip: True
     np_obs: True
     seed: 0
 

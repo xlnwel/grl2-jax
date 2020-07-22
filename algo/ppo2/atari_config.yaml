@@ -32,7 +32,7 @@ agent:
     max_kl: 0            # early stop when max_kl is violated. 0 or none suggests unbound
 
     normalize_obs: False
-    normalize_reward: True
+    normalize_reward: False
     store_state: True
     
     # model path: root_dir/model_name/models
