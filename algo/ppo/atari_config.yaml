@@ -7,7 +7,7 @@ env:
     frame_skip: 4
     frame_stack: 4
     life_done: True
-    reward_clip: False
+    reward_clip: True
     np_obs: True
     seed: 0
 
@@ -30,7 +30,7 @@ agent:
     N_MBS: &nmbs 4
     LOG_PERIOD: 100
     EVAL_PERIOD: 500
-    max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
+    max_kl: .1            # early stop when max_kl is violated. 0 or none suggests unbound
 
     normalize_obs: False
     normalize_reward: True
@@ -47,6 +47,7 @@ agent:
     schedule_lr: False
     lr: 2.5e-4
     clip_norm: .5
+    opt_eps: 1e-5
     # arguments for loss
     clip_range: .1          # clip range for ppo
     entropy_coef: .01

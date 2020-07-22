@@ -27,7 +27,7 @@ agent:
     sample_size: &ss 16       # BPTT length
     LOG_PERIOD: 100
     EVAL_PERIOD: 1000
-    max_kl: .1            # early stop when max_kl is violated. 0 suggests no bound
+    max_kl: .1            # early stop when max_kl is violated. 0 or none suggests unbound
 
     normalize_obs: True
     normalize_reward: True

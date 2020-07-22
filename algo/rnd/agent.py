@@ -186,9 +186,9 @@ class Agent(RNDBase):
                 del terms['approx_kl']
 
                 self.store(**terms)
-                if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
+                if getattr(self, '_max_kl', None) and approx_kl > self._max_kl:
                     break
-            if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
+            if getattr(self, '_max_kl', None) and approx_kl > self._max_kl:
                 pwc(f'{self._model_name}: Eearly stopping after '
                     f'{i*self.N_MBS+j+1} update(s) due to reaching max kl.',
                     f'Current kl={approx_kl:.3g}', color='blue')

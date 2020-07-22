@@ -4,7 +4,8 @@ from algo.ppo.loss import *
 def compute_tppo_loss(log_ratio, kl, advantages, kl_weight, clip_range, entropy):
     with tf.name_scope('tppo_loss'):
         ratio = tf.exp(log_ratio)
-        condition = tf.math.logical_and(kl > clip_range, ratio * advantages > advantages)
+        condition = tf.math.logical_and(
+            kl >= clip_range, ratio * advantages > advantages)
         objective = tf.where(
             condition,
             ratio *  advantages - kl_weight * kl,

@@ -19,7 +19,7 @@ class Agent(PPOBase):
         # optimizer
         self._optimizer = Optimizer(
             self._optimizer, self.ac, self._lr, 
-            clip_norm=self._clip_norm)
+            clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
@@ -75,18 +75,20 @@ class Agent(PPOBase):
                 terms = {k: v.numpy() for k, v in terms.items()}
 
                 terms['value'] = np.mean(value)
-                approx_kl = terms['approx_kl']
-                del terms['approx_kl']
+                kl, p_clip_frac, v_clip_frac = \
+                    terms['kl'], terms['p_clip_frac'], terms['v_clip_frac']
+                for k in ['kl', 'p_clip_frac', 'v_clip_frac']:
+                    del terms[k]
 
                 self.store(**terms)
-                if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
+                if getattr(self, '_max_kl', None) and kl > self._max_kl:
                     break
-            if getattr(self, '_max_kl', 0) > 0 and approx_kl > self._max_kl:
+            if getattr(self, '_max_kl', None) and kl > self._max_kl:
                 pwc(f'{self._model_name}: Eearly stopping after '
                     f'{i*self.N_MBS+j+1} update(s) due to reaching max kl.',
-                    f'Current kl={approx_kl:.3g}', color='blue')
+                    f'Current kl={kl:.3g}', color='blue')
                 break
-        self.store(approx_kl=approx_kl)
+        self.store(kl=kl, p_clip_frac=p_clip_frac, v_clip_frac=v_clip_frac)
         if not isinstance(self._lr, float):
             step = tf.cast(self._env_step, tf.float32)
             self.store(lr=self._lr(step))
@@ -101,7 +103,7 @@ class Agent(PPOBase):
             entropy = act_dist.entropy()
             # policy loss
             log_ratio = new_logpi - logpi
-            ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
+            ppo_loss, entropy, kl, p_clip_frac = compute_ppo_loss(
                 log_ratio, advantage, self._clip_range, entropy)
             # value loss
             value_loss, v_clip_frac = compute_value_loss(
@@ -115,7 +117,7 @@ class Agent(PPOBase):
             advantage=advantage, 
             ratio=tf.exp(log_ratio), 
             entropy=entropy, 
-            approx_kl=approx_kl, 
+            kl=kl, 
             p_clip_frac=p_clip_frac,
             v_clip_frac=v_clip_frac,
             ppo_loss=ppo_loss,

@@ -21,7 +21,7 @@ class Agent(PPOBase):
         # optimizer
         self._optimizer = Optimizer(
             self._optimizer, self.ac, self._lr, 
-            clip_norm=self._clip_norm)
+            clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
         self._is_action_discrete = env.is_action_discrete
 
@@ -90,18 +90,20 @@ class Agent(PPOBase):
                 terms = {k: v.numpy() for k, v in terms.items()}
 
                 terms['value'] = np.mean(value)
-                kl = terms['kl']
-                del terms['kl']
+                kl, p_clip_frac, v_clip_frac = \
+                    terms['kl'], terms['p_clip_frac'], terms['v_clip_frac']
+                for k in ['kl', 'p_clip_frac', 'v_clip_frac']:
+                    del terms[k]
 
                 self.store(**terms)
-                if getattr(self, '_max_kl', 0) > 0 and kl > self._max_kl:
+                if getattr(self, '_max_kl', None) and kl > self._max_kl:
                     break
-            if getattr(self, '_max_kl', 0) > 0 and kl > self._max_kl:
+            if getattr(self, '_max_kl', None) and kl > self._max_kl:
                 pwc(f'{self._model_name}: Eearly stopping after '
                     f'{i*self.N_MBS+j+1} update(s) due to reaching max kl.',
                     f'Current kl={kl:.3g}', color='blue')
                 break
-        self.store(kl=kl)
+        self.store(kl=kl, p_clip_frac=p_clip_frac, v_clip_frac=v_clip_frac)
         if not isinstance(self._lr, float):
             step = tf.cast(self._env_step, tf.float32)
             self.store(lr=self._lr(step))
