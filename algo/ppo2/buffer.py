@@ -26,7 +26,7 @@ class PPOBuffer:
         if self._memory == {}:
             state_dtype = {16: np.float16, 32: np.float32}[self._precision]
             init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
-            if k in self._state_keys:
+            for k in self._state_keys:
                 self._memory[k].astype(state_dtype)
             self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)

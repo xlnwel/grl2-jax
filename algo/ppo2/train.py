@@ -10,7 +10,6 @@ from utility import pkg
 from env.gym_env import create_env
 
 
-
 def train(agent, env, eval_env, buffer):
     def initialize_rms(env, step, reset, obs, reward, **kwargs):
         agent.update_obs_rms(obs)
@@ -84,7 +83,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     models = create_model(model_config, env)
 
     buffer_config['n_envs'] = env.n_envs
-    buffer = PPOBuffer(buffer_config, models.state_keys)
+    buffer = PPOBuffer(buffer_config, models['ac'].state_keys)
     
     agent = Agent(name=env.name, 
                 config=agent_config, 
