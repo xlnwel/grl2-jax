@@ -40,7 +40,7 @@ agent:
     
     # timer&interval
     MAX_STEPS: 1e10
-    LOG_PERIOD: &log 1000
+    LOG_PERIOD: &log 5000
     N_UPDATES: *log
     SYNC_PERIOD: 1000
     RECORD_PERIOD: 10
@@ -60,7 +60,6 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    loss_type: huber                          # huber or mse
     target_update_period: 1500
     tbo: False
 
@@ -81,6 +80,7 @@ replay:
     replay_type: *replay
     seqlen: 100
     precision: 32
+
     # arguments for PER
     beta0: 0.4
     to_update_top_priority: False

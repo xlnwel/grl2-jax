@@ -13,7 +13,7 @@ class Agent(DQNBase):
                 [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
         self._optimizer = Optimizer(
             self._optimizer, self.q, self._lr, 
-            clip_norm=self._clip_norm, epsilon=self._epsilon)
+            clip_norm=self._clip_norm, epsilon=1e-2/self._batch_size)
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):

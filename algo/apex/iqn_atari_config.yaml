@@ -1,11 +1,10 @@
 ---
 env:
-    name: atari_pong
+    name: atari_breakout
     sticky_actions: False
     frame_skip: 4
     frame_stack: 4
     np_obs: True
-    reward_clip: 4
     life_done: True
     reward_clip: True
     n_envs: 1
@@ -27,7 +26,7 @@ model:
 agent:
     algorithm: &algo apex-iqn
     replay_type: &replay 'uniform'
-    batch_size: &bs 64
+    batch_size: &bs 32
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
@@ -37,7 +36,7 @@ agent:
     
     # timer&interval
     MAX_STEPS: 1e9
-    LOG_PERIOD: &log 1000
+    LOG_PERIOD: &log 5000
     N_UPDATES: *log
     SYNC_PERIOD: 1000
     RECORD_PERIOD: 10
@@ -65,7 +64,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 1e-4
+    lr: 5e-5
     clip_norm: 40
     epsilon: 1.5e-4
 

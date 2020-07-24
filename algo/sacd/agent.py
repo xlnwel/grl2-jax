@@ -92,7 +92,7 @@ class Agent(DQNBase):
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
             # TODO: will minimum here cause underestimation?
-            qs = tf.minimum(qs1, qs2)
+            qs = (qs1 + qs2) / 2
             q = tf.reduce_sum(act_probs * qs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
             actor_loss = -(q + temp * entropy)

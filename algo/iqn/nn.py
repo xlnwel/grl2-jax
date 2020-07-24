@@ -6,6 +6,7 @@ from tensorflow_probability import distributions as tfd
 
 from core.module import Module, Ensemble
 from core.decorator import config
+from utility.rl_utils import epsilon_greedy
 from nn.func import mlp, cnn
         
 
