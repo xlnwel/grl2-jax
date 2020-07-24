@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
+from tensorflow_probability import distributions as tfd
 
 from utility.tf_utils import static_scan
 
@@ -11,6 +11,21 @@ def huber_loss(x, *, y=None, threshold=1.):
                     0.5 * tf.square(x), 
                     threshold * (tf.abs(x) - 0.5 * threshold), 
                     name='huber_loss')
+
+def epsilon_greedy(action, epsilon, is_action_discrete, action_dim=None):
+    if epsilon <= 0:
+        return action
+    if is_action_discrete:
+        assert action_dim is not None
+        rand_act = tf.random.uniform(
+            action.shape, 0, action_dim, dtype=tf.int32)
+        action = tf.where(
+            tf.random.uniform(action.shape, 0, 1) < epsilon,
+            rand_act, action)
+    else:
+        action = tf.clip_by_value(
+            tfd.Normal(action, epsilon).sample(), -1, 1)
+    return action
 
 def quantile_regression_loss(qtv, returns, tau_hat, kappa=1., return_error=False):
     assert qtv.shape[-1] == 1, qtv.shape
