@@ -12,11 +12,13 @@ env:
     seed: 0
 
 model:
+    encoder:
+        cnn: nature
+        cnn_out_size: none
+        kernel_initializer: orthogonal
     fpn:
         N: &N 32
     iqn:
-        cnn: nature
-        cnn_out_size: none
         kernel_initializer: orthogonal
         units_list: [512]
         activation: relu
@@ -29,7 +31,7 @@ model:
 agent:
     algorithm: &algo apex-fqf
     replay_type: &replay 'uniform'
-    batch_size: &bs 64
+    batch_size: &bs 32
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32

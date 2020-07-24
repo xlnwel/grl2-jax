@@ -1,11 +1,15 @@
 ---
 env:
-    name: &env_name atari_pong
+    name: &env_name atari_breakout
     n_workers: 1
-    n_envs: &nenvs 32
-    seed: 0
-    frame_stack: 1
+    n_envs: &nenvs 8
+    sticky_actions: False
+    frame_skip: 4
+    frame_stack: 4
+    life_done: True
+    reward_clip: True
     np_obs: True
+    seed: 0
     
 model:
     cnn_name: nature
@@ -27,9 +31,9 @@ agent:
     N_UPDATES: 2
     N_MBS: &nmbs 4
     sample_size: &ss 16       # BPTT length
-    LOG_PERIOD: 1000
-    EVAL_PERIOD: 5000
-    max_kl: 0            # early stop when max_kl is violated. 0 or none suggests unbound
+    LOG_PERIOD: 100
+    EVAL_PERIOD: 500
+    max_kl: .1            # early stop when max_kl is violated. 0 or none suggests unbound
 
     normalize_obs: False
     normalize_reward: False
@@ -45,19 +49,19 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 3e-4
+    lr: 2.5e-4
     clip_norm: .5
     opt_eps: 1e-5
     # arguments for loss
-    clip_range: .2          # clip range for ppo
+    clip_range: .1          # clip range for ppo
     entropy_coef: .01
     value_coef: .5
 
 buffer:
     adv_type: gae     # nae or gae
+    precision: *prec
     gamma: .99
     lam: .95
-    precision: *prec
     # n_envs: *nenvs  # this will be set in tain.py as it's the product of n_workers and n_envs
     N_STEPS: *nsteps
     N_MBS: *nmbs

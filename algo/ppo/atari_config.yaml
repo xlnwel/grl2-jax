@@ -33,7 +33,7 @@ agent:
     max_kl: .1            # early stop when max_kl is violated. 0 or none suggests unbound
 
     normalize_obs: False
-    normalize_reward: True
+    normalize_reward: False
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
