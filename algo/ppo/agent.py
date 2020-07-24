@@ -87,7 +87,7 @@ class Agent(PPOBase):
     def _learn(self, obs, action, traj_ret, value, advantage, logpi):
         old_value = value
         with tf.GradientTape() as tape:
-            act_dist, value = self.ac(obs, return_value=True)
+            act_dist, value = self.ac(obs, return_terms=True)
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             # policy loss

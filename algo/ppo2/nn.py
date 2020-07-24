@@ -6,7 +6,6 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.module import Module, Ensemble
 from core.decorator import config
-from utility.tf_distributions import DiagGaussian, Categorical, TanhBijector
 from nn.func import cnn, mlp
 from nn.rnn import LSTMCell, LSTMState
 

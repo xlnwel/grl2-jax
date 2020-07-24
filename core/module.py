@@ -22,6 +22,7 @@ class Ensemble:
             self.models = model_fn(**kwargs)
         else:
             self.models = models
+        [setattr(self, n, m) for n, m in self.models.items()]
 
     def get_weights(self, name=None):
         """ Return a list/dict of weights

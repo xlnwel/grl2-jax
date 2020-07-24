@@ -131,12 +131,8 @@ class IQN(Ensemble):
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
         qtv = tf.math.reduce_max(qtv, -1)
 
-        if epsilon > 0:
-            rand_act = tf.random.uniform(
-                action.shape, 0, self.q.action_dim, dtype=tf.int32)
-            action = tf.where(
-                tf.random.uniform(action.shape, 0, 1) < epsilon,
-                rand_act, action)
+        action = epsilon_greedy(action, epsilon,
+            is_action_discrete=True, action_dim=self.q.action_dim)
         action = tf.squeeze(action)
         qtv = tf.squeeze(qtv)
 

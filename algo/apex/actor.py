@@ -222,8 +222,6 @@ class Worker(BaseWorker):
 
     def _run(self, weights, replay):
         def collect(env, step, reset, **kwargs):
-            if reset:
-                kwargs['next_obs'] = env.prev_obs()
             self.buffer.add_data(**kwargs)
             if self.buffer.is_full():
                 self._send_data(replay)

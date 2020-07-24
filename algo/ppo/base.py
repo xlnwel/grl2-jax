@@ -17,6 +17,10 @@ class PPOBase(BaseAgent):
         self._reward_rms = RunningMeanStd(axis=axis)
         self._rms_path = f'{self._root_dir}/{self._model_name}/rms.pkl'
 
+    @property
+    def is_obs_or_reward_normalized(self):
+        return self._normalize_obs and self._normalize_reward
+
     def update_obs_rms(self, obs):
         assert len(obs.shape) in (2, 4)
         if self._normalize_obs:

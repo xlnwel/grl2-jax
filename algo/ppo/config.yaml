@@ -23,8 +23,8 @@ agent:
     N_STEPS: &nsteps 256
     N_UPDATES: 4
     N_MBS: &nmbs 4
-    LOG_PERIOD: 100
-    EVAL_PERIOD: 1000
+    LOG_PERIOD: 200
+    EVAL_PERIOD: 2000
     max_kl: .1            # early stop when max_kl is violated. 0 or none suggests unbound
 
     normalize_obs: True

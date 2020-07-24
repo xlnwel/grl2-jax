@@ -1,11 +1,10 @@
 ---
 env:
-    name: atari_pong
+    name: atari_breakout
     sticky_actions: False
     frame_skip: 4
     frame_stack: 4
     np_obs: True
-    reward_clip: 4
     life_done: True
     reward_clip: True
     n_envs: 1
@@ -40,7 +39,7 @@ agent:
     eval_act_eps: .001
     
     # timer&interval
-    MAX_STEPS: 1e9
+    MAX_STEPS: 1e10
     LOG_PERIOD: &log 1000
     N_UPDATES: *log
     SYNC_PERIOD: 1000
@@ -73,7 +72,6 @@ agent:
     fpn_lr: 2.5e-9
     ent_coef: 0
     clip_norm: 40
-    epsilon: 1.5e-4
 
     # arguments for PER
     per_alpha: .5

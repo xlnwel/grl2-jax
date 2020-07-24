@@ -4,7 +4,6 @@ import gym
 import threading
 
 from env import wrappers
-from env import baselines as B
 from env import procgen
 from env.func import create_env
 
@@ -20,7 +19,7 @@ def make_env(config):
         env = wrappers.NormalizeActions(env)
         config['max_episode_steps'] = 1000
         if config.get('frame_stack', 1) > 1:
-            env = B.FrameStack(env, config['frame_stack'], np_obs=False)
+            env = wrappers.FrameStack(env, config['frame_stack'], np_obs=False)
     elif suite == 'atari':
         env = Atari(
             task, config['frame_skip'], (64, 64), grayscale=False,

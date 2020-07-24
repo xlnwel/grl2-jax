@@ -36,7 +36,7 @@ def compute_gae(reward, discount, value, last_value, gamma, gae_discount):
 
 class PPOBuffer:
     @config
-    def __init__(self):
+    def __init__(self, **kwargs):
         size = self._n_envs * self.N_STEPS
         self._mb_size = size // self.N_MBS
         self._idxes = np.arange(size)

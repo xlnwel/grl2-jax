@@ -4,9 +4,9 @@ from tensorflow.keras import layers
 from tensorflow.keras.mixed_precision.experimental import global_policy
 from tensorflow_probability import distributions as tfd
 
-from utility.display import pwc
 from core.module import Module, Ensemble
 from core.decorator import config
+from utility.rl_utils import epsilon_greedy
 from nn.func import mlp, cnn
         
 
@@ -171,12 +171,8 @@ class FQF(Ensemble):
         qtv, q = self.q.value(x, tau_hat, tau_range=tau)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
         qtv = tf.math.reduce_max(qtv, -1)
-        if epsilon > 0:
-            rand_act = tf.random.uniform(
-                action.shape, 0, self.q.action_dim, dtype=tf.int32)
-            action = tf.where(
-                tf.random.uniform(action.shape, 0, 1) < epsilon,
-                rand_act, action)
+        action = epsilon_greedy(action, epsilon, 
+            is_action_discrete=True, action_dim=self.q.action_dim)
         action = tf.squeeze(action)
         qtv = tf.squeeze(qtv)
 

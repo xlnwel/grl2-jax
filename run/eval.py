@@ -14,7 +14,7 @@ from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
 from utility.graph import save_video
 from utility import pkg
-from env.gym_env import create_env
+from env.func import create_env
 
 
 def parse_cmd_args():
@@ -24,16 +24,17 @@ def parse_cmd_args():
                         help='directory where checkpoints and "config.yaml" exist')
     parser.add_argument('--record', '-r',
                         action='store_true')
+    parser.add_argument('--video_len', '-v', type=int, default=1000)
     parser.add_argument('--n_episodes', '-n', type=int, default=1)
     parser.add_argument('--n_envs', '-ne', type=int, default=0)
     parser.add_argument('--n_workers', '-nw', type=int, default=0)
-    parser.add_argument('--size', '-s', nargs='+', type=int, default=[128, 128])
+    parser.add_argument('--size', '-s', nargs='+', type=int, default=[0, 0])
     parser.add_argument('--fps', type=int, default=30)
     args = parser.parse_args()
 
     return args
 
-def main(env_config, model_config, agent_config, n, record=False, size=(128, 128), fps=30):
+def main(env_config, model_config, agent_config, n, record=False, size=(128, 128), video_len=1000, fps=30):
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
@@ -63,7 +64,7 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
 
     if n < env.n_envs:
         n = env.n_envs
-    scores, epslens, video = evaluate(env, agent, n, record=record, size=size)
+    scores, epslens, video = evaluate(env, agent, n, record=record, size=size, video_len=video_len)
     pwc(f'After running {n} episodes',
         f'Score: {np.mean(scores):.3g}\tEpslen: {np.mean(epslens):.3g}', color='cyan')
 
@@ -110,6 +111,10 @@ if __name__ == '__main__':
         env_config['n_envs'] = args.n_envs
     n = max(args.n_workers * args.n_envs, n)
     env_config['seed'] = np.random.randint(1000)
+    size = tuple(args.size)
+    if size == (0, 0):
+        size = None # use the default size specified by the environment
     
     main(env_config, model_config, agent_config, n=n, 
-        record=record, size=tuple(args.size), fps=args.fps)
+        record=record, size=size, 
+        video_len=args.video_len, fps=args.fps)

@@ -10,7 +10,6 @@ from utility import pkg
 from env.func import create_env
 
 
-
 def train(agent, env, eval_env, buffer):
     def initialize_rms(env, step, reset, obs, reward, **kwargs):
         agent.update_obs_rms(obs)
@@ -23,10 +22,11 @@ def train(agent, env, eval_env, buffer):
     step = agent.env_step
     action_selector = lambda *args, **kwargs: agent(*args, **kwargs, update_rms=True)
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
-    print('Start to initialize observation running stats...')
-    runner.run(action_selector=env.random_action, 
-                step_fn=initialize_rms,
-                nsteps=50*agent.N_STEPS)
+    if agent.is_obs_or_reward_normalized:
+        print('Start to initialize observation running stats...')
+        runner.run(action_selector=env.random_action, 
+                    step_fn=initialize_rms,
+                    nsteps=50*agent.N_STEPS)
     runner.step = step
 
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
@@ -50,7 +50,7 @@ def train(agent, env, eval_env, buffer):
         if to_eval(agent.train_step):
             with TempStore(agent.get_states, agent.reset_states):
                 scores, epslens, video = evaluate(
-                    eval_env, agent, record=agent.RECORD, size=(64, 64))
+                    eval_env, agent, record=agent.RECORD, size=(128, 128))
                 if agent.RECORD:
                     video_summary(f'{agent.name}/sim', video, step=step)
                 agent.store(eval_score=scores, eval_epslen=epslens)
@@ -77,15 +77,15 @@ def main(env_config, model_config, agent_config, buffer_config):
     eval_env_config = env_config.copy()
     eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1
-    eval_env_config['n_envs'] = 8
+    eval_env_config['n_envs'] = 4
     eval_env_config.pop('reward_clip', False)
     eval_env = create_env(eval_env_config, force_envvec=True)
 
     models = create_model(model_config, env)
-    
-    buffer_config['n_envs'] = env.n_envs
-    buffer = PPOBuffer(buffer_config)
 
+    buffer_config['n_envs'] = env.n_envs
+    buffer = PPOBuffer(buffer_config, state_keys=models.ac.state_keys)
+    
     agent = Agent(name=env.name, 
                 config=agent_config, 
                 models=models, 

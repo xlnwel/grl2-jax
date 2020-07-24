@@ -4,9 +4,8 @@ from tensorflow.keras import layers
 from tensorflow_probability import distributions as tfd
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
-from core.module import Module
+from core.module import Module, Ensemble
 from core.decorator import config
-from utility.tf_distributions import DiagGaussian, Categorical, TanhBijector
 from nn.func import cnn, mlp
 
 
@@ -45,7 +44,7 @@ class AC(Module):
                             out_dtype='float32',
                             name='critic')
 
-    def __call__(self, x, return_value=False):
+    def __call__(self, x, return_terms=False):
         print(f'{self.name} is retracing: x={x.shape}')
         x = self._shared_layers(x)
         actor_out = self.actor(x)
@@ -55,7 +54,7 @@ class AC(Module):
         else:
             act_dist = tfd.MultivariateNormalDiag(actor_out, tf.exp(self.logstd))
 
-        if return_value:
+        if return_terms:
             value = tf.squeeze(self.critic(x), -1)
             return act_dist, value
         else:
@@ -64,6 +63,9 @@ class AC(Module):
     def reset_states(self, **kwargs):
         return
 
+    @property
+    def state_keys(self):
+        return None
 
 class PPO(Ensemble):
     def __init__(self, config, env, **kwargs):
@@ -80,10 +82,10 @@ class PPO(Ensemble):
             action = tf.squeeze(act_dist.mode())
             return action
         else:
-            act_dist, terms = self.ac(x, return_terms=True)
+            act_dist, value = self.ac(x, return_terms=True)
             action = act_dist.sample()
             logpi = act_dist.log_prob(action)
-            terms['logpi'] = logpi
+            terms = {'logpi': logpi, 'value': value}
             return action, terms    # keep the batch dimension for later use
 
 def create_components(config, env):
