@@ -10,7 +10,7 @@ from utility.tf_distributions import DiagGaussian, Categorical, TanhBijector
 from nn.func import cnn, mlp
 
 
-class PPOAC(Module):
+class AC(Module):
     @config
     def __init__(self, action_dim, is_action_discrete, name):
         super().__init__(name=name)
@@ -65,9 +65,33 @@ class PPOAC(Module):
         return
 
 
-def create_model(config, env):
+class PPO(Ensemble):
+    def __init__(self, config, env, **kwargs):
+        super().__init__(
+            model_fn=create_components, 
+            config=config,
+            env=env,
+            **kwargs)
+
+    @tf.function
+    def action(self, x, deterministic=False, epsilon=0):
+        if deterministic:
+            act_dist = self.ac(x, return_terms=False)
+            action = tf.squeeze(act_dist.mode())
+            return action
+        else:
+            act_dist, terms = self.ac(x, return_terms=True)
+            action = act_dist.sample()
+            logpi = act_dist.log_prob(action)
+            terms['logpi'] = logpi
+            return action, terms    # keep the batch dimension for later use
+
+def create_components(config, env):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
-    ac = PPOAC(config, action_dim, is_action_discrete, 'ac')
+    ac = AC(config, action_dim, is_action_discrete, name='ac')
 
     return dict(ac=ac)
+
+def create_model(config, env, **kwargs):
+    return PPO(config, env, **kwargs)

@@ -59,23 +59,11 @@ class Agent(PPOBase):
             self.update_obs_rms(obs)
         obs = self.normalize_obs(obs)
         if deterministic:
-            return self.action(obs, deterministic).numpy()
+            return self.model.action(obs, deterministic).numpy()
         else:
-            out = self.action(obs, deterministic)
+            out = self.model.action(obs, deterministic)
             action, terms = tf.nest.map_structure(lambda x: x.numpy(), out)
             terms['obs'] = obs  # return normalized obs
-            return action, terms
-
-    @tf.function
-    def action(self, obs, deterministic=False):
-        if deterministic:
-            act_dist = self.ac(obs, return_terms=False)
-            return act_dist.mode()
-        else:
-            act_dist, terms = self.ac(obs, return_terms=True)
-            action = act_dist.sample()
-            logpi = act_dist.log_prob(action)
-            terms['logpi'] = logpi
             return action, terms
 
     @step_track

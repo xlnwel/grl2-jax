@@ -4,14 +4,14 @@ from tensorflow.keras import layers
 from tensorflow_probability import distributions as tfd
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
-from core.module import Module
+from core.module import Module, Ensemble
 from core.decorator import config
 from utility.tf_distributions import DiagGaussian, Categorical, TanhBijector
 from nn.func import cnn, mlp
 from nn.rnn import LSTMCell, LSTMState
 
 
-class PPOAC(Module):
+class AC(Module):
     @config
     def __init__(self, action_dim, is_action_discrete, name):
         super().__init__(name=name)
@@ -95,9 +95,40 @@ class PPOAC(Module):
     def state_keys(self):
         return ['h', 'c']
 
-def create_model(config, env):
+
+class PPO(Ensemble):
+    def __init__(self, config, env, **kwargs):
+        super().__init__(
+            model_fn=create_components, 
+            config=config,
+            env=env,
+            **kwargs)
+    
+    @tf.function
+    def action(self, x, state, mask, deterministic=False, epsilon=0):
+        # add time dimension
+        x = tf.expand_dims(x, 1)
+        mask = tf.expand_dims(mask, 1)
+        if deterministic:
+            act_dist, state = self.ac(x, state, mask=mask, return_value=False)
+            action = tf.squeeze(act_dist.mode(), 1)
+            return action, state
+        else:
+            act_dist, value, state = self.ac(x, state, mask=mask, return_value=True)
+            action = act_dist.sample()
+            logpi = act_dist.log_prob(action)
+            terms = {'logpi': logpi, 'value': value}
+            # intend to keep the batch dimension for later use
+            out = tf.nest.map_structure(lambda x: tf.squeeze(x, 1), (action, terms))
+            return out, state
+
+
+def create_components(config, env, **kwargs):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
-    ac = PPOAC(config, action_dim, is_action_discrete, 'ac')
+    ac = AC(config, action_dim, is_action_discrete, name='ac')
 
     return dict(ac=ac)
+
+def create_model(config, env, **kwargs):
+    return PPO(config, env, **kwargs)

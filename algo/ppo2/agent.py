@@ -50,6 +50,9 @@ class Agent(PPOBase):
 
     def __call__(self, obs, reset=None, deterministic=False, 
                 update_curr_state=True, update_rms=False, **kwargs):
+        if len(obs.shape) % 2 != 0:
+            obs = np.expand_dims(obs, 0)    # add batch dimension
+        assert len(obs.shape) in (2, 4), obs.shape  
         if self.state is None:
             self.state = self.ac.get_initial_state(batch_size=tf.shape(obs)[0])
         if reset is None:
@@ -60,34 +63,19 @@ class Agent(PPOBase):
             self.update_obs_rms(obs)
         obs = self.normalize_obs(obs)
         prev_state = self.state
-        out, state = self.action(obs, self.state, mask, deterministic)
+        out, state = self.model.action(obs, self.state, mask, deterministic)
         if update_curr_state:
             self.state = state
         if deterministic:
             return out.numpy()
         else:
-            action, logpi, value = out
-            terms = dict(logpi=logpi, value=value, mask=mask)
+            action, terms = out
+            terms['mask'] = mask
             if self._store_state:
                 terms.update(prev_state._asdict())
             terms = tf.nest.map_structure(lambda x: x.numpy(), terms)
             terms['obs'] = obs  # return normalized obs
             return action.numpy(), terms
-
-    @tf.function
-    def action(self, obs, state, mask, deterministic=False):
-        obs = tf.expand_dims(obs, 1)
-        mask = tf.expand_dims(mask, 1)
-        if deterministic:
-            act_dist, state = self.ac(obs, state, mask=mask, return_value=False)
-            action = tf.squeeze(act_dist.mode(), 1)
-            return action, state
-        else:
-            act_dist, value, state = self.ac(obs, state, mask=mask, return_value=True)
-            action = act_dist.sample()
-            logpi = act_dist.log_prob(action)
-            out = (action, logpi, value)
-            return tf.nest.map_structure(lambda x: tf.squeeze(x, 1), out), state
 
     @step_track
     def learn_log(self, step):
