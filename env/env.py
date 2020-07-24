@@ -8,7 +8,7 @@ from env.wrappers import *
 from env import atari
 from env import procgen
 from env import dmc
-from env import baselines as B
+
 
 def make_env(config):
     # config = config.copy()    # do not copy to make changes visible from the outside

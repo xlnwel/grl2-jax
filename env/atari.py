@@ -8,7 +8,7 @@ import cv2
 cv2.ocl.setUseOpenCL(False)
 
 from utility.display import pwc
-from env import baselines as B
+from env import wrappers
 
 
 def make_atari_env(config):
@@ -218,5 +218,5 @@ class Atari:
     def _get_obs(self):
         assert len(self._frames) == self.frame_stack, f'{len(self._frames)} vs {self.frame_stack}'
         return np.concatenate(self._frames, axis=-1) \
-            if self.np_obs else B.LazyFrames(list(self._frames))
+            if self.np_obs else wrappers.LazyFrames(list(self._frames))
 

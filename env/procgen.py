@@ -3,8 +3,7 @@ import gym
 import numpy as np
 
 from procgen.env import ENV_NAMES as VALID_ENV_NAMES
-from env import wrappers as W
-from env import baselines as B 
+from env import wrappers
 
 
 def make_procgen_env(config):
@@ -15,14 +14,14 @@ def make_procgen_env(config):
     np_obs = config.setdefault('np_obs', False)
     env = Procgen(config)
     if gray_scale:
-        env = W.GrayScale(env)
+        env = wrappers.GrayScale(env)
     if frame_skip > 1:
         if gray_scale:
-            env = B.MaxAndSkipEnv(env, frame_skip=frame_skip)
+            env = wrappers.MaxAndSkipEnv(env, frame_skip=frame_skip)
         else:
-            env = W.FrameSkip(env, frame_skip=frame_skip)
+            env = wrappers.FrameSkip(env, frame_skip=frame_skip)
     if frame_stack > 1:
-        env = B.FrameStack(env, frame_stack, np_obs)
+        env = frame_stack.FrameStack(env, frame_stack, np_obs)
     config.setdefault('max_episode_steps', env.spec.max_episode_steps)
     
     return env

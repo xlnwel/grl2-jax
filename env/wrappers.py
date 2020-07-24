@@ -10,7 +10,8 @@ cv2.ocl.setUseOpenCL(False)
 # for multi-processing efficiency, we do not return info at every step
 EnvOutput = collections.namedtuple('EnvOutput', 'obs reward discount reset')
 # Output format of gym
-GymOutput = collections.namedtuple('EnvOutput', 'obs reward discount')
+GymOutput = collections.namedtuple('GymOutput', 'obs reward discount')
+
 
 def post_wrap(env, config):
     """ Does some post processing and bookkeeping. 
@@ -41,21 +42,95 @@ class Dummy:
         self.seed = env.seed
 
 
-class Wrapper:
-    def __init__(self, env):
-        self.env = env
+""" Wrappers from OpenAI's baselines. 
+Some modifications are done to meet specific requirements """
+class LazyFrames:
+    def __init__(self, frames):
+        """ Different from the official implementation from baselines
+        we do not cache the results to save memory.
+        """
+        self._frames = frames
 
-    def __getattr__(self, name):
-        if name.startswith('_'):
-            raise AttributeError("attempted to get missing private attribute '{}'".format(name))
-        return getattr(self.env, name)
+    def _force(self):
+        return np.concatenate(self._frames, axis=-1)
 
-    def __str__(self):
-        return '<{}{}>'.format(type(self).__name__, self.env)
+    def __array__(self, dtype=None):
+        out = self._force()
+        if dtype is not None:
+            out = out.astype(dtype)
+        return out
 
-    def __repr__(self):
-        return str(self)
+    def __len__(self):
+        return len(self._force())
 
+    def __getitem__(self, i):
+        return self._force()[i]
+
+    def count(self):
+        frames = self._force()
+        return frames.shape[frames.ndim - 1]
+
+    def frame(self, i):
+        return self._force()[..., i]
+
+
+class MaxAndSkipEnv(gym.Wrapper):
+    def __init__(self, env, frame_skip=4):
+        """Return only every `frame_skip`-th frame"""
+        super().__init__(env)
+        # most recent raw observations (for max pooling across time steps)
+        self._obs_buffer = np.zeros((2,)+env.observation_space.shape, dtype=np.uint8)
+        self.frame_skip  = frame_skip
+
+    def step(self, action):
+        """Repeat action, sum reward, and max over last observations."""
+        total_reward = 0.0
+        done = None
+        for i in range(self.frame_skip):
+            obs, reward, done, info = self.env.step(action)
+            if i == self.frame_skip - 2: self._obs_buffer[0] = obs
+            if i == self.frame_skip - 1: self._obs_buffer[1] = obs
+            total_reward += reward
+            if done:
+                break
+        # Note that the observation on the done=True frame
+        # doesn't matter
+        max_frame = self._obs_buffer.max(axis=0)
+        info['frame_skip'] = i+1
+
+        return max_frame, total_reward, done, info
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+
+class FrameStack(gym.Wrapper):
+    def __init__(self, env, k, np_obs):
+        super().__init__(env)
+        self.k = k
+        self.np_obs = np_obs
+        self.frames = collections.deque([], maxlen=k)
+        shp = env.observation_space.shape
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(shp[:-1] + (shp[-1] * k,)), dtype=env.observation_space.dtype)
+
+    def reset(self):
+        ob = self.env.reset()
+        for _ in range(self.k):
+            self.frames.append(ob)
+        return self._get_ob()
+
+    def step(self, action):
+        ob, reward, done, info = self.env.step(action)
+        self.frames.append(ob)
+        return self._get_ob(), reward, done, info
+
+    def _get_ob(self):
+        assert len(self.frames) == self.k
+        return np.concatenate(self.frames, axis=-1) \
+            if self.np_obs else LazyFrames(list(self.frames))
+
+
+""" Custom wrappers """
 class NormalizeActions(gym.Wrapper):
     """ Normalize infinite action dimension in range [-1, 1] """
     def __init__(self, env):
@@ -153,9 +228,12 @@ class DataProcess(gym.Wrapper):
 
 
 """ 
-done: an episode is done, may due to life loss
-game over: a game is over, may due to timeout. Life loss is not game over
-reset: an new episode starts. In auto-reset mode, environment resets when game's over
+Distinguish several signals:
+    done: an episode is done, may due to life loss
+    game over: a game is over, may due to timeout. Life loss is not game over
+    reset: an new episode starts after done. In auto-reset mode, environment 
+        resets when game's over. Life loss should be automatically handled by
+        the environment/previous wrapper.
 """
 class EnvStats(gym.Wrapper):
     def __init__(self, env, max_episode_steps=None, timeout_done=False, 
@@ -177,13 +255,13 @@ class EnvStats(gym.Wrapper):
         self._output = tuple()
         self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
         if timeout_done:
-            print('Timeout is treated as done')
+            print('Warning: Timeout is treated as done')
         self._reset()
 
     def reset(self):
         if self.auto_reset:
             self.auto_reset = False
-            print('Explicitly resetting turns off auto-reset')
+            print('Warning: Explicitly resetting turns off auto-reset. Maker sure this is done at evaluation')
         return self._reset()
 
     def _reset(self):
@@ -281,6 +359,7 @@ class EnvStats(gym.Wrapper):
 
 
 class RewardHack(gym.Wrapper):
+    """ This wrapper should be invoked after EnvStats to avoid inaccurate bookkeeping """
     def __init__(self, env, reward_scale=1, reward_clip=None, **kwargs):
         super().__init__(env)
         self.reward_scale = reward_scale

@@ -2,7 +2,7 @@ import numpy as np
 import gym
 
 
-from env import baselines as B
+from env import wrappers
 
 
 def make_dmc_env(config):
@@ -13,7 +13,7 @@ def make_dmc_env(config):
         size=config.setdefault('size', (84, 84)), 
         frame_skip=config.setdefault('frame_skip', 1))
     if config.setdefault('frame_stack', 1) > 1:
-        env = B.FrameStack(env, config['frame_stack'], config.setdefault('np_obs', False))
+        env = wrappers.FrameStack(env, config['frame_stack'], config.setdefault('np_obs', False))
     config.setdefault('max_episode_steps', 1000)
 
     return env
