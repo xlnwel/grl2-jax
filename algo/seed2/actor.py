@@ -12,7 +12,7 @@ from core.module import Ensemble
 from utility.display import pwc
 from utility.timer import TBTimer, Timer
 from utility.utils import Every, convert_dtype
-from env.gym_env import create_env
+from env.func import create_env
 from replay.func import create_replay
 from replay.data_pipline import DataFormat, RayDataset, process_with_env
 from algo.dreamer.env import make_env

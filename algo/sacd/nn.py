@@ -98,6 +98,7 @@ class Temperature(Module):
     
         return log_temp, temp
 
+
 class SAC(Ensemble):
     def __init__(self, config, env, **kwargs):
         super().__init__(

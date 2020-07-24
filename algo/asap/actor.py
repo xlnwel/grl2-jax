@@ -7,7 +7,7 @@ import ray
 from core.tf_config import *
 from core.module import Ensemble
 from utility.display import pwc
-from env.gym_env import create_env
+from env.func import create_env
 from algo.apex.actor import Worker as BaseWorker
 from algo.apex.actor import get_learner_class, get_evaluator_class
 from algo.asap.utils import *

@@ -7,7 +7,7 @@ from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
 from utility.run import Runner, evaluate
 from utility import pkg
-from env.gym_env import create_env
+from env.func import create_env
 
 
 

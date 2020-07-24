@@ -6,7 +6,7 @@ import threading
 from env import wrappers
 from env import baselines as B
 from env import procgen
-from env.gym_env import create_env
+from env.func import create_env
 
 
 def make_env(config):

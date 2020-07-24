@@ -8,7 +8,7 @@ from core.tf_config import *
 from utility.graph import video_summary
 from utility.run import Runner, evaluate
 from utility import pkg
-from env.gym_env import create_env
+from env.func import create_env
 from replay.func import create_replay
 from core.dataset import Dataset
 

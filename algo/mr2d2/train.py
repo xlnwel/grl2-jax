@@ -4,7 +4,7 @@ import ray
 from utility.ray_setup import sigint_shutdown_ray
 from utility.yaml_op import load_config
 from utility import pkg
-from env.gym_env import create_env
+from env.func import create_env
 from replay.func import create_replay_center
 
 

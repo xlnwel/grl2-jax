@@ -12,7 +12,7 @@ from utility.graph import video_summary
 from utility.utils import Every, TempStore
 from utility.run import evaluate
 from utility import pkg
-from env.gym_env import create_env
+from env.func import create_env
 from replay.func import create_replay
 from core.dataset import Dataset, process_with_env
 from algo.dreamer.env import make_env

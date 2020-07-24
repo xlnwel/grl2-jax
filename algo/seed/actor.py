@@ -15,7 +15,7 @@ from utility.timer import TBTimer
 from utility.utils import Every, convert_dtype
 from utility.ray_setup import cpu_affinity, get_num_cpus
 from utility import pkg
-from env.gym_env import create_env
+from env.func import create_env
 from replay.func import create_replay
 from algo.dreamer.env import make_env
 

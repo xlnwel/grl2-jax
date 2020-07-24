@@ -9,7 +9,7 @@ from utility.graph import video_summary
 from utility.run import Runner, evaluate
 from utility.timer import Timer
 from utility import pkg
-from env.gym_env import create_env
+from env.func import create_env
 
 
 

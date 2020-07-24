@@ -308,7 +308,7 @@ def get_wrapper_by_name(env, classname):
             return None
             
 if __name__ == '__main__':
-    from env.gym_env import create_env
+    from env.func import create_env
     env = create_env(dict(
         name='LunarLander-v2',
         seed=0

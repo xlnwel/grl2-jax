@@ -11,7 +11,7 @@ from utility.run import Runner, evaluate
 from utility.timer import Timer
 from utility import pkg
 from algo.rnd.env import make_env
-from env.gym_env import create_env
+from env.func import create_env
 
 
 

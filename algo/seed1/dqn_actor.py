@@ -14,7 +14,7 @@ from utility.display import pwc
 from utility.timer import TBTimer, Timer
 from utility.utils import Every, convert_dtype
 from utility.ray_setup import cpu_affinity
-from env.gym_env import create_env
+from env.func import create_env
 from replay.func import create_replay
 from core.dataset import Dataset, process_with_env
 from algo.d3qn.train import get_data_format

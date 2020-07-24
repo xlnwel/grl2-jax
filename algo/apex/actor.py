@@ -18,7 +18,7 @@ from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
 from utility.run import Runner, evaluate
 from utility import pkg
-from env.gym_env import create_env
+from env.func import create_env
 from core.dataset import process_with_env, DataFormat, RayDataset
 
 

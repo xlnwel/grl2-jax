@@ -7,7 +7,7 @@ from utility.display import pwc
 from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
 from utility import pkg
-from env.gym_env import create_env
+from env.func import create_env
 
 
 def main(env_config, model_config, agent_config, n, record=False, size=(128, 128)):

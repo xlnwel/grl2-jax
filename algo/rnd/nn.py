@@ -12,7 +12,7 @@ from nn.utils import get_initializer
 from nn.block.cnn import convert_obs
 
 
-class PPOAC(Module):
+class AC(Module):
     @config
     def __init__(self, action_dim, is_action_discrete, name='ac'):
         super().__init__(name=name)
@@ -116,6 +116,6 @@ def create_model(config, env):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
 
-    return dict(ac=PPOAC(config, action_dim, is_action_discrete),
+    return dict(ac=AC(config, action_dim, is_action_discrete),
                 target=Target(),
                 predictor=Predictor())

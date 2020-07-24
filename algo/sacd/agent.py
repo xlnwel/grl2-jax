@@ -49,7 +49,8 @@ class Agent(DQNBase):
         next_x = self.target_cnn(next_obs)
         next_qs1 = self.target_q1(next_x)
         next_qs2 = self.target_q2(next_x)
-        next_qs = tf.minimum(next_qs1, next_qs2)
+        # TODO: will minimum here cause underestimation? try mean
+        next_qs = (next_qs1 + next_qs2) / 2
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
         else:
@@ -90,6 +91,7 @@ class Agent(DQNBase):
 
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
+            # TODO: will minimum here cause underestimation?
             qs = tf.minimum(qs1, qs2)
             q = tf.reduce_sum(act_probs * qs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)

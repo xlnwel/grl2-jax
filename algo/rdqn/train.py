@@ -9,7 +9,7 @@ from utility.graph import video_summary
 from utility.timer import TBTimer
 from utility.run import Runner, evaluate
 from utility import pkg
-from env.gym_env import create_env
+from env.func import create_env
 from replay.func import create_replay
 from core.dataset import Dataset, process_with_env
 
