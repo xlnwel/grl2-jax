@@ -1,16 +1,16 @@
 ---
 env:
-    name: atari_MsPacman
+    name: atari_breakout
     sticky_actions: False
     frame_skip: 4
     frame_stack: 4
-    life_done: False
-    reward_clip: True
     np_obs: True
+    life_done: True
+    reward_clip: True
     seed: 0
 
 model:
-    cnn: 
+    encoder: 
         cnn: nature
         cnn_out_size: none
         kernel_initializer: orthogonal
@@ -36,13 +36,13 @@ agent:
     schedule_act_eps: False
     act_eps: 0
     eval_act_eps: .001
-    target_entropy_coef: .98
+    target_entropy_coef: .5
 
-    MAX_STEPS: 1e8      # maximum env steps
-    LOG_PERIOD: &log 1000
+    MAX_STEPS: 1e10
+    LOG_PERIOD: &log 5000
     N_UPDATES: *log
     SYNC_PERIOD: 1000
-    RECORD_PERIOD: 100
+    RECORD_PERIOD: 10
     N_EVALUATION: 1
 
     # distributed algo params
@@ -54,14 +54,14 @@ agent:
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: 100
 
     target_update_period: 1500
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 3e-4
+    q_lr: 1e-4
+    actor_lr: 1e-4
     temp_lr: 3e-4
     
     # arguments for PER

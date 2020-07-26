@@ -21,7 +21,7 @@ class Agent(DQNBase):
                 [(2e5, self._q_lr), (1e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
-        self._q_opt = Optimizer(self._optimizer, [self.cnn, self.q1, self.q2], self._q_lr)
+        self._q_opt = Optimizer(self._optimizer, [self.encoder, self.q1, self.q2], self._q_lr)
 
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -44,9 +44,9 @@ class Agent(DQNBase):
             # Entropy of a uniform distribution
             self._target_entropy = np.log(self._action_dim)
             self._target_entropy *= self._target_entropy_coef
-        next_x = self.cnn(next_obs)
+        next_x = self.encoder(next_obs)
         next_act_probs, next_act_logps = self.actor.train_step(next_x)
-        next_x = self.target_cnn(next_obs)
+        next_x = self.target_encoder(next_obs)
         next_qs1 = self.target_q1(next_x)
         next_qs2 = self.target_q2(next_x)
         # TODO: will minimum here cause underestimation? try mean
@@ -70,9 +70,9 @@ class Agent(DQNBase):
             [target_q, (None)],
         ])
         with tf.GradientTape() as tape:
-            x = self.cnn(obs)
+            x = self.encoder(obs)
             qs1 = self.q1(x)
-            qs2 = self.q2(tf.stop_gradient(x))
+            qs2 = self.q2(x)
             q1 = tf.reduce_sum(qs1 * action, axis=-1)
             q2 = tf.reduce_sum(qs2 * action, axis=-1)
             qr_error1 = target_q - q1
@@ -137,8 +137,8 @@ class Agent(DQNBase):
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_cnn.variables + self.target_q1.variables + self.target_q2.variables
-        mvars = self.cnn.variables + self.q1.variables + self.q2.variables
+        tvars = self.target_encoder.variables + self.target_q1.variables + self.target_q2.variables
+        mvars = self.encoder.variables + self.q1.variables + self.q2.variables
         # tvars = self.target_q1.variables + self.target_q2.variables
         # mvars = self.q1.variables + self.q2.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
