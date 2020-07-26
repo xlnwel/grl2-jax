@@ -21,7 +21,7 @@ def make_procgen_env(config):
         else:
             env = wrappers.FrameSkip(env, frame_skip=frame_skip)
     if frame_stack > 1:
-        env = frame_stack.FrameStack(env, frame_stack, np_obs)
+        env = wrappers.FrameStack(env, frame_stack, np_obs)
     config.setdefault('max_episode_steps', env.spec.max_episode_steps)
     
     return env
