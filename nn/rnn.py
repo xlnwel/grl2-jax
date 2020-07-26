@@ -84,9 +84,9 @@ class LSTMCell(layers.Layer):
             self.bias = None
 
         if self.use_ln:
-            self.x_ln = layers.LayerNormalization()
-            self.h_ln = layers.LayerNormalization()
-            self.c_ln = layers.LayerNormalization()
+            self.x_ln = layers.LayerNormalization(name='x_ln')
+            self.h_ln = layers.LayerNormalization(name='h_ln')
+            self.c_ln = layers.LayerNormalization(name='c_ln')
         else:
             self.x_ln = lambda x: x
             self.h_ln = lambda x: x
@@ -96,7 +96,7 @@ class LSTMCell(layers.Layer):
         x, mask = tf.nest.flatten(x)
         h, c = states
         if mask is not None:
-            # an advantage of using Layer as subclass is
+            # an advantage of using Layer as superclass is
             # that we don't need to worry about precision
             h = h * mask
             c = c * mask
@@ -107,8 +107,8 @@ class LSTMCell(layers.Layer):
         i, f, c_, o = tf.split(x, 4, 1)
         i, f, o = self.recurrent_activation(i), self.recurrent_activation(f), self.recurrent_activation(o)
         c_ = self.activation(c_)
-        c = f * c + i * c_
-        h = o * self.activation(self.c_ln(c))
+        c = self.c_ln(f * c + i * c_)
+        h = o * self.activation(c)
             
         return h, LSTMState(h, c)
     
@@ -122,3 +122,62 @@ class LSTMCell(layers.Layer):
         return LSTMState(
             h=tf.zeros([batch_size, state_size[0]], dtype),
             c=tf.zeros([batch_size, state_size[1]], dtype))
+
+
+if __name__ == '__main__':
+    from utility.timer import timeit
+    # inputs
+    shape = (32, 16, 512)
+    x0 = tf.random.normal(shape)
+    m = tf.random.uniform(shape[:2], 0, 2, dtype=tf.int32)
+    m = tf.cast(m[..., None], tf.float32)
+    run_times = 1000
+    assert x0.shape.ndims == m.shape.ndims
+    # keras lstm
+    c = tf.keras.layers.LSTMCell(512)
+    l = tf.keras.layers.RNN(c, return_sequences=True, return_state=True)
+    opt = tf.keras.optimizers.Adam(5e-5)
+    lv = l.variables
+
+    def keras_lstm_call():
+        for _ in range(run_times):
+            with tf.GradientTape() as tape:
+                x = l(x0, initial_state=None)
+                x, s = x[0], x[1:]
+                y = tf.ones_like(x)
+                loss = tf.reduce_mean((y-x)**2)
+            gs = tape.gradient(loss, lv)
+            opt.apply_gradients(zip(gs, lv))
+
+    timeit(keras_lstm_call, to_print=True)
+
+    # custom lstm
+    mc = LSTMCell(512)
+    ml = tf.keras.layers.RNN(mc, return_sequences=True, return_state=True)
+
+    def custom_lstm_call():
+        for _ in range(run_times):
+            with tf.GradientTape() as tape:
+                x = ml((x0, m), initial_state=None)
+                x, s = x[0], x[1:]
+                y = tf.ones_like(x)
+                loss = tf.reduce_mean((y-x)**2)
+            gs = tape.gradient(loss, lv)
+            opt.apply_gradients(zip(gs, lv))
+    
+    timeit(custom_lstm_call, to_print=True)
+
+    mlc = LSTMCell(512, use_ln=True)
+    mll = tf.keras.layers.RNN(mlc, return_sequences=True, return_state=True)
+
+    def custom_lstm_call():
+        for _ in range(run_times):
+            with tf.GradientTape() as tape:
+                x = mll((x0, m), initial_state=None)
+                x, s = x[0], x[1:]
+                y = tf.ones_like(x)
+                loss = tf.reduce_mean((y-x)**2)
+            gs = tape.gradient(loss, lv)
+            opt.apply_gradients(zip(gs, lv))
+    
+    timeit(custom_lstm_call, to_print=True)

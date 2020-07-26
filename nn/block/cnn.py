@@ -30,17 +30,17 @@ def register(name):
     return _thunk
 
 
-conv2d_fn = lambda *args, time_distributed=False, **kwargs: (
-    TimeDistributed(Conv2D(*args, **kwargs))
+time_dist_fn = lambda fn, *args, time_distributed=False, **kwargs: (
+    TimeDistributed(fn(*args, **kwargs))
     if time_distributed else
-    Conv2D(*args, **kwargs)
+    fn(*args, **kwargs)
 )
 
-maxpooling2d_fn = lambda *args, time_distributed=False, **kwargs: (
-    TimeDistributed(MaxPooling2D(*args, **kwargs))
-    if time_distributed else
-    MaxPooling2D(*args, **kwargs)
-)
+conv2d_fn = lambda *args, time_distributed=False, **kwargs: \
+    time_dist_fn(Conv2D, *args, time_distributed=time_distributed, **kwargs)
+
+maxpooling2d_fn = lambda *args, time_distributed=False, **kwargs: \
+    time_dist_fn(MaxPooling2D, *args, time_distributed=time_distributed, **kwargs)
 
 
 @register('ftw')

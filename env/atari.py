@@ -19,6 +19,9 @@ def make_atari_env(config):
     return env
 
 class Atari:
+    """ This class originally from Google's Dopamine,
+    Adapted for more general cases
+    """
     def __init__(self, name, *, frame_skip=4, life_done=False,
                 image_size=(84, 84), frame_stack=1, noop=30, 
                 sticky_actions=True, gray_scale=True, 
@@ -28,10 +31,14 @@ class Atari:
         name = name[0].capitalize() + name[1:]
         name = f'{name}NoFrameskip-v{version}'
         env = gym.make(name)
-        # Strip out the TimeLimit wrapper from Gym, which caps us at 100k frames. 
-        # We handle this time limit internally instead, which lets us cap at 108k 
-        # frames (30 minutes). The TimeLimit wrapper also plays poorly with 
-        # saving and restoring states.
+        """
+        Original comments:
+            Strip out the TimeLimit wrapper from Gym, which caps us at 100k frames. 
+            We handle this time limit internally instead, which lets us cap at 108k 
+            frames (30 minutes). The TimeLimit wrapper also plays poorly with 
+            saving and restoring states.
+        Interestingly, I found in breakout, images are distorted after 100k... 
+        """
         self.env = env.env
         self.life_done = life_done
         self.frame_skip = frame_skip
@@ -62,6 +69,7 @@ class Atari:
         if self.frame_stack > 1:
             # Stores LazyFrames for memory efficiency
             self._frames = deque([], maxlen=self.frame_stack)
+        self._frames_in_step = 0    # count the frames elapsed in a single step
 
     @property
     def observation_space(self):
@@ -112,18 +120,6 @@ class Atari:
             if d:
                 self.env.reset(**kwargs)
         
-        return self._post_reset()
-
-    def _fake_reset(self):
-        if 'FIRE' in self.env.get_action_meanings():
-            action = self.env.get_action_meanings().index('FIRE')
-        else:
-            action = 0
-        self.step(action)
-        
-        return self._post_reset()
-
-    def _post_reset(self):
         self.lives = self.env.ale.lives()
         self._get_screen(self._buffer[0])
         self._buffer[1].fill(0)
@@ -134,6 +130,15 @@ class Atari:
             obs = self._get_obs()
 
         self._game_over = False
+        return obs
+
+    def _fake_reset(self):
+        if 'FIRE' in self.env.get_action_meanings():
+            action = self.env.get_action_meanings().index('FIRE')
+        else:
+            action = 0
+        obs = self.step(action)[0]
+        
         return obs
 
     def render(self, mode):
@@ -161,7 +166,7 @@ class Atari:
             # the image from the ALE. This is a little faster.
             _, reward, done, info = self.env.step(action)
             total_reward += reward
-
+            is_terminal = done
             if self.life_done:
                 new_lives = self.env.ale.lives()
                 if new_lives < self.lives and new_lives > 0:
@@ -169,10 +174,6 @@ class Atari:
                     is_terminal = True
                     self._fake_reset()
                     info['reset'] = True
-                else:
-                    is_terminal = done
-            else:
-                is_terminal = done
 
             if is_terminal:
                 info['game_over'] = done
