@@ -15,6 +15,7 @@ model:
     cnn_name: nature
     shared_mlp_units: []
     lstm_units: 256
+    lstm_ln: True
     actor_units: [256]
     critic_units: [256]
     norm: none

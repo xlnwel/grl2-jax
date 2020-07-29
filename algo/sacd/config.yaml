@@ -9,7 +9,7 @@ env:
     seed: 0
 
 model:
-    cnn: 
+    encoder: 
         cnn: nature
         cnn_out_size: none
         kernel_initializer: orthogonal

@@ -8,17 +8,17 @@ from core.decorator import config
 from nn.func import mlp, cnn
 
 
-class CNN(Module):
+class Encoder(Module):
     @config
-    def __init__(self, name='cnn'):
+    def __init__(self, name='encoder'):
         kwargs = dict(
             out_size=self._cnn_out_size,
             kernel_initializer=self._kernel_initializer,
         )
-        self._cnn = cnn(self._cnn, **kwargs)
+        self._layers = cnn(self._cnn, **kwargs)
 
     def __call__(self, x):
-        x = self._cnn(x)
+        x = self._layers(x)
         return x
 
 
@@ -180,7 +180,7 @@ class SACIQN(Ensemble):
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
 
-        x = self.cnn(x)
+        x = self.encoder(x)
         action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
         _, qtv = self.q1(x, action=action)
         action = tf.squeeze(action)
@@ -199,7 +199,8 @@ def create_components(config, env, **kwargs):
         temperature = Temperature(temperature_config)
         
     return dict(
-        cnn=CNN(config['cnn'], name='cnn'),
+        encoder=Encoder(config['encoder'], name='encoder'),
+        target_encoder=Encoder(config['encoder'], name='target_encoder'),
         actor=Actor(config['actor'], action_dim, name='actor'),
         q1=Q(config['q'], action_dim, name='q1'),
         q2=Q(config['q'], action_dim, name='q2'),

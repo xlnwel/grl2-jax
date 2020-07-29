@@ -117,7 +117,7 @@ if __name__ == '__main__':
             if cmd_args.grid_search or cmd_args.trials > 1:
                 gs = GridSearch(
                     env_config, model_config, agent_config, replay_config, 
-                    main, n_trials=cmd_args.trials, dir_prefix=prefix, 
+                    main, n_trials=cmd_args.trials, logdir=logdir, dir_prefix=prefix, 
                     separate_process=len(algo_env) > 1, delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
@@ -127,6 +127,8 @@ if __name__ == '__main__':
                         processes += gs(wrapper=['baselines', 'my_atari'])
                     elif algo == 'fqf':
                         processes += gs(wrapper=['baselines', 'my_atari'])
+                    elif 'ppo' in algo:
+                        processes += gs(normalize_reward=[True, False], lr=[3e-4, 1e-4, 5e-5])
                     else:
                         # Grid search happens here
                         processes += gs(target_entropy_coef=np.random.uniform(size=5))

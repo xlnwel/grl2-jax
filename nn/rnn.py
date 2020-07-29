@@ -107,8 +107,8 @@ class LSTMCell(layers.Layer):
         i, f, c_, o = tf.split(x, 4, 1)
         i, f, o = self.recurrent_activation(i), self.recurrent_activation(f), self.recurrent_activation(o)
         c_ = self.activation(c_)
-        c = self.c_ln(f * c + i * c_)
-        h = o * self.activation(c)
+        c = f * c + i * c_
+        h = o * self.activation(self.c_ln(c))
             
         return h, LSTMState(h, c)
     

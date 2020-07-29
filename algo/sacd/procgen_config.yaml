@@ -6,7 +6,7 @@ env:
     frame_stack: 4
 
 model:
-    cnn: 
+    encoder: 
         cnn: impala
         cnn_out_size: none
         kernel_initializer: orthogonal

@@ -17,6 +17,9 @@ class Agent(PPOBase):
         super().__init__(dataset=dataset, env=env)
 
         # optimizer
+        if getattr(self, 'schedule_lr', False):
+            self._lr = TFPiecewiseSchedule(
+                [(300, self._lr), (1000, 5e-5)])
         self._optimizer = Optimizer(
             self._optimizer, self.ac, self._lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)

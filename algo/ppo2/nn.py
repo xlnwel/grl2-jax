@@ -29,7 +29,7 @@ class AC(Module):
         else:
             self._shared_layers = lambda x: x
 
-        cell = LSTMCell(self._lstm_units)
+        cell = LSTMCell(self._lstm_units, use_ln=self._lstm_ln)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
 
         self.actor = mlp(self._actor_units, 

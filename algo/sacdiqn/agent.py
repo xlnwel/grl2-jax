@@ -1,13 +1,9 @@
 import numpy as np
 import tensorflow as tf
 
-from utility.display import pwc
 from utility.rl_utils import n_step_target, huber_loss, quantile_regression_loss
-from utility.utils import Every
+from utility.tf_utils import explained_variance
 from utility.schedule import TFPiecewiseSchedule
-from utility.timer import TBTimer
-from core.tf_config import build
-from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.dqn.base import get_data_format, DQNBase
 
@@ -21,7 +17,7 @@ class Agent(DQNBase):
                 [(2e5, self._q_lr), (1e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
-        self._q_opt = Optimizer(self._optimizer, [self.cnn, self.q1, self.q2], self._q_lr)
+        self._q_opt = Optimizer(self._optimizer, [self.encoder, self.q1, self.q2], self._q_lr)
 
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -45,8 +41,9 @@ class Agent(DQNBase):
             self._target_entropy = np.log(self._action_dim)
             self._target_entropy *= self._target_entropy_coef
         # compute target returns
-        next_x = self.cnn(next_obs)
+        next_x = self.encoder(next_obs)
         next_act_probs, next_act_logps = self.actor.train_step(next_x)
+        next_x = self.target_encoder(next_obs)
         next_act_probs = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
         next_act_logps = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
         _, next_qtv1 = self.target_q1(next_x, self.N_PRIME)
@@ -82,14 +79,12 @@ class Agent(DQNBase):
             [returns, (None, 1, self.N_PRIME)],
         ])
         with tf.GradientTape() as tape:
-            x = self.cnn(obs)
+            x = self.encoder(obs)
             action = tf.expand_dims(action, axis=1)
 
-            qs1, error1, qr_loss1 = self._compute_q_loss(self.q1, x, action, returns)
-            qs2, error2, qr_loss2 = self._compute_q_loss(self.q2, x, action, returns)
+            qs1, error1, qr_loss1 = self._compute_qr_loss(self.q1, x, action, returns, IS_ratio)
+            qs2, error2, qr_loss2 = self._compute_qr_loss(self.q2, x, action, returns, IS_ratio)
 
-            qr_loss1 = tf.reduce_mean(IS_ratio * qr_loss1)
-            qr_loss2 = tf.reduce_mean(IS_ratio * qr_loss2)
             qr_loss = qr_loss1 + qr_loss2
         terms['q_norm'] = self._q_opt(tape, qr_loss)
 
@@ -99,7 +94,7 @@ class Agent(DQNBase):
             tf.debugging.assert_shapes([[act_logps, (None, self._action_dim)]])
             tf.debugging.assert_shapes([[qs1, (None, self._action_dim)]])
             tf.debugging.assert_shapes([[qs2, (None, self._action_dim)]])
-            qs = tf.minimum(qs1, qs2)
+            qs = (qs1 + qs2) / 2
             q = tf.reduce_sum(act_probs * qs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
             actor_loss = -(q + temp * entropy)
@@ -139,11 +134,12 @@ class Agent(DQNBase):
             qr1_loss=qr_loss1, 
             qr2_loss=qr_loss2,
             qr_loss=qr_loss, 
+            explained_variance=explained_variance()
         ))
 
         return terms
 
-    def _compute_q_loss(self, q, x, action, returns):
+    def _compute_qr_loss(self, q, x, action, returns, IS_ratio):
         tau_hat, qtvs, qs = q(x, self.N, return_q=True)
         qtv = tf.reduce_sum(qtvs * action, axis=-1, keepdims=True)  # [B, N, 1]
         error, qr_loss = quantile_regression_loss(qtv, returns, tau_hat, kappa=self.KAPPA, return_error=True)
@@ -156,10 +152,14 @@ class Agent(DQNBase):
             [qr_loss, (None)],
         ])
 
+        qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
+
         return qs, error, qr_loss
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_q1.variables + self.target_q2.variables
-        mvars = self.q1.variables + self.q2.variables
+        tvars = self.target_encoder.variables + self.target_q1.variables + self.target_q2.variables
+        mvars = self.encoder.variables + self.q1.variables + self.q2.variables
+        # tvars = self.target_q1.variables + self.target_q2.variables
+        # mvars = self.q1.variables + self.q2.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]

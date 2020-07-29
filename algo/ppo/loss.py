@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
 
 
 def compute_ppo_loss(log_ratio, advantages, clip_range, entropy):
@@ -35,8 +34,6 @@ def _reduce_mean(x, n):
 def compute_ppo_loss_with_mask(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
     assert (mask is None) == (n is None), \
         f'Both/Neither mask and/nor n should be None, but get \nmask:{mask}\nn:{n}'
-    dtype = global_policy().compute_dtype
-    
     m = 1. if mask is None else mask
     with tf.name_scope('ppo_loss'):
         ratio = tf.exp(log_ratio)
@@ -47,14 +44,12 @@ def compute_ppo_loss_with_mask(log_ratio, advantages, clip_range, entropy, mask=
         entropy = _reduce_mean(entropy * m, n)
         # debug stats: KL between old and current policy and fraction of data being clipped
         approx_kl = .5 * _reduce_mean((-log_ratio)**2 * m, n)
-        clip_frac = _reduce_mean(tf.cast(tf.greater(tf.abs(ratio - 1.), clip_range), dtype) * m, n)
+        clip_frac = _reduce_mean(tf.cast(tf.greater(tf.abs(ratio - 1.), clip_range), ratio.dtype) * m, n)
     return ppo_loss, entropy, approx_kl, clip_frac
 
 def compute_value_loss_with_mask(value, traj_ret, old_value, clip_range, mask=None, n=None):
     assert (mask is None) == (n is None), \
         f'Both/Neither mask and/nor n should be None, but get \nmask:{mask}\nn:{n}'
-    dtype = global_policy().compute_dtype
-
     m = 1. if mask is None else mask
     with tf.name_scope('value_loss'):
         value_clipped = old_value + tf.clip_by_value(value - old_value, -clip_range, clip_range)
@@ -63,6 +58,6 @@ def compute_value_loss_with_mask(value, traj_ret, old_value, clip_range, mask=No
         
         value_loss = .5 * _reduce_mean(tf.maximum(loss1, loss2) * m, n)
         clip_frac = _reduce_mean(
-            tf.cast(tf.greater(tf.abs(value-old_value), clip_range), dtype) * m, n)
+            tf.cast(tf.greater(tf.abs(value-old_value), clip_range), value.dtype) * m, n)
 
     return value_loss, clip_frac

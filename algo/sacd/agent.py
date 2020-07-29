@@ -1,13 +1,9 @@
 import numpy as np
 import tensorflow as tf
 
-from utility.display import pwc
 from utility.rl_utils import n_step_target
-from utility.utils import Every
+from utility.tf_utils import explained_variance
 from utility.schedule import TFPiecewiseSchedule
-from utility.timer import TBTimer
-from core.tf_config import build
-from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.dqn.base import get_data_format, DQNBase
 
@@ -71,23 +67,10 @@ class Agent(DQNBase):
         ])
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
-            qs1 = self.q1(x)
-            qs2 = self.q2(x)
-            q1 = tf.reduce_sum(qs1 * action, axis=-1)
-            q2 = tf.reduce_sum(qs2 * action, axis=-1)
-            qr_error1 = target_q - q1
-            qr_error2 = target_q - q2
-            tf.debugging.assert_shapes([
-                [qs1, (None, self._action_dim)],
-                [qs2, (None, self._action_dim)],
-                [action, (None, self._action_dim)],
-                [q1, (None, )],
-                [qr_error1, (None, )],
-            ])
-            qr_loss1 = .5 * tf.reduce_mean(IS_ratio * qr_error1**2)
-            qr_loss2 = .5 * tf.reduce_mean(IS_ratio * qr_error2**2)
-            qr_loss = qr_loss1 + qr_loss2
-        terms['q_norm'] = self._q_opt(tape, qr_loss)
+            qs1, q1, q_error1, q_loss1 = self._compute_q_loss(self.q1, x, action, target_q, IS_ratio)
+            qs2, q2, q_error2, q_loss2 = self._compute_q_loss(self.q2, x, action, target_q, IS_ratio)
+            q_loss = q_loss1 + q_loss2
+        terms['q_norm'] = self._q_opt(tape, q_loss)
 
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
@@ -128,12 +111,20 @@ class Agent(DQNBase):
             next_act_probs=next_act_probs,
             next_act_logps=next_act_logps,
             target_q=target_q,
-            qr_loss1=qr_loss1, 
-            qr_loss2=qr_loss2,
-            qr_loss=qr_loss, 
+            q_loss1=q_loss1, 
+            q_loss2=q_loss2,
+            q_loss=q_loss, 
+            explained_variance=explained_variance(target_q, q)
         ))
 
         return terms
+
+    def _compute_q_loss(self, q_fn, x, action, returns, IS_ratio):
+        qs = q_fn(x)
+        q = tf.reduce_sum(qs * action, axis=-1)
+        q_error = returns - q
+        q_loss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
+        return qs, q, q_error, q_loss
 
     @tf.function
     def _sync_target_nets(self):
