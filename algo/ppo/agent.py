@@ -2,8 +2,8 @@ import cloudpickle
 import numpy as np
 import tensorflow as tf
 
-from utility.display import pwc
 from utility.schedule import TFPiecewiseSchedule
+from utility.tf_utils import explained_variance
 from core.tf_config import build
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
@@ -73,9 +73,9 @@ class Agent(PPOBase):
                 if getattr(self, '_max_kl', None) and kl > self._max_kl:
                     break
             if getattr(self, '_max_kl', None) and kl > self._max_kl:
-                pwc(f'{self._model_name}: Eearly stopping after '
+                print(f'{self._model_name}: Eearly stopping after '
                     f'{i*self.N_MBS+j+1} update(s) due to reaching max kl.',
-                    f'Current kl={kl:.3g}', color='blue')
+                    f'Current kl={kl:.3g}')
                 break
         self.store(kl=kl, p_clip_frac=p_clip_frac, v_clip_frac=v_clip_frac)
         if not isinstance(self._lr, float):
@@ -110,7 +110,8 @@ class Agent(PPOBase):
             p_clip_frac=p_clip_frac,
             v_clip_frac=v_clip_frac,
             ppo_loss=ppo_loss,
-            v_loss=value_loss
+            v_loss=value_loss,
+            explained_variance=explained_variance(traj_ret, value)
         )
         terms['ac_norm'] = self._optimizer(tape, ac_loss)
 

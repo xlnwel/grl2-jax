@@ -1,24 +1,29 @@
 ---
 env:
-    name: procgen_coinrun
-    frame_skip: 2
-    gray_scale: True
+    name: atari_breakout
+    sticky_actions: False
+    frame_skip: 4
     frame_stack: 4
     np_obs: True
+    life_done: True
+    reward_clip: True
+    seed: 0
 
 model:
-    cnn: 
-        cnn: impala
+    encoder: 
+        cnn: nature
         cnn_out_size: none
-        kernel_initializer: he_uniform
+        kernel_initializer: orthogonal
     actor:
         units_list: [512]
+        norm: none
         activation: relu
     q:
         units_list: [512]
+        norm: none
         activation: relu
         duel: False
-
+        
         tau_embed_size: 64
         phi_activation: relu
         K: &K 32
@@ -32,17 +37,24 @@ agent:
     batch_size: &bs 64
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
+    polyak: .995
     schedule_act_eps: False
     act_eps: 0
-    eval_act_eps: 0
+    eval_act_eps: .001
     target_entropy_coef: .5
 
-    MAX_STEPS: 8e6      # maximum env steps
-    LOG_PERIOD: &log 1000
+    MAX_STEPS: 1e10
+    LOG_PERIOD: &log 5000
     N_UPDATES: *log
     SYNC_PERIOD: 1000
-    RECORD_PERIOD: 100
-    N_EVALUATION: 10
+    RECORD_PERIOD: 10
+    N_EVALUATION: 1
+
+    # IQN params
+    N: 8                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
+    K: *K               # K in paper, num of quantiles for action selection
+    KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # distributed algo params
     n_learner_cpus: 3
@@ -55,12 +67,13 @@ agent:
     model_name: *algo
 
     target_update_period: 1500
+    tbo: False
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 3e-4
-    q_lr: 3e-4
+    q_lr: 1e-4
+    actor_lr: 1e-4
     temp_lr: 3e-4
     
     # arguments for PER

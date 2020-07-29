@@ -29,9 +29,9 @@ model:
 agent:
     algorithm: &algo apex-sacd
     replay_type: &replay 'uniform'
+    batch_size: &bs 64
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
-    batch_size: &bs 64
     polyak: .995
     schedule_act_eps: False
     act_eps: 0
