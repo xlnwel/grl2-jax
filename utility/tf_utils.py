@@ -26,6 +26,11 @@ def standard_normalization(x):
     
     return x
 
+def explained_variance(y, pred):
+    y_var = tf.math.reduce_variance(y, axis=0)
+    diff_var = tf.math.reduce_variance(y - pred, axis=0)
+    return tf.maximum(-1., 1-(diff_var / y_var))
+
 def logsumexp(value, axis=None, keepdims=False):
     if axis is not None:
         max_value = tf.reduce_max(value, axis=axis, keepdims=True)

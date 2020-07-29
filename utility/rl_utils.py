@@ -12,11 +12,6 @@ def huber_loss(x, *, y=None, threshold=1.):
                     threshold * (tf.abs(x) - 0.5 * threshold), 
                     name='huber_loss')
 
-def explained_variance(y, pred):
-    y_var = tf.math.reduce_variance(y, axis=0)
-    diff_var = tf.math.reduce_variance(y - pred, axis=0)
-    return tf.maximum(-1., 1-(diff_var / y_var))
-
 def epsilon_greedy(action, epsilon, is_action_discrete, action_dim=None):
     if epsilon <= 0:
         return action
