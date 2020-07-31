@@ -37,8 +37,8 @@ def agent_config(init_fn):
             if isinstance(model, tf.Module) or isinstance(model, tf.Variable):
                 self._ckpt_models[name_] = model
         
-        self._env_step = tf.Variable(0, dtype=tf.int64)
-        self._train_step = tf.Variable(0, dtype=tf.int64)
+        self._env_step = tf.Variable(0, trainable=False, dtype=tf.int64)
+        self._train_step = tf.Variable(0, trainable=False, dtype=tf.int64)
         self.env_step = 0
         self.train_step = 0
 
