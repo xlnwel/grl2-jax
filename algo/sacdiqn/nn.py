@@ -182,7 +182,7 @@ class SACIQN(Ensemble):
 
         x = self.encoder(x)
         action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
-        _, qtv = self.q1(x, action=action)
+        _, qtv = self.q(x, action=action)
         action = tf.squeeze(action)
         qtv = tf.squeeze(qtv)
 
@@ -202,9 +202,9 @@ def create_components(config, env, **kwargs):
         encoder=Encoder(config['encoder'], name='encoder'),
         target_encoder=Encoder(config['encoder'], name='target_encoder'),
         actor=Actor(config['actor'], action_dim, name='actor'),
-        q1=Q(config['q'], action_dim, name='q1'),
+        q=Q(config['q'], action_dim, name='q'),
         q2=Q(config['q'], action_dim, name='q2'),
-        target_q1=Q(config['q'], action_dim, name='target_q1'),
+        target_q=Q(config['q'], action_dim, name='target_q'),
         target_q2=Q(config['q'], action_dim, name='target_q2'),
         temperature=temperature,
     )

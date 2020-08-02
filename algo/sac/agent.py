@@ -26,7 +26,7 @@ class Agent(BaseAgent):
                 [(2e5, self._q_lr), (1e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
-        self._q_opt = Optimizer(self._optimizer, [self.q1, self.q2], self._q_lr)
+        self._q_opt = Optimizer(self._optimizer, [self.q, self.q2], self._q_lr)
 
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -83,9 +83,9 @@ class Agent(BaseAgent):
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         next_action, next_logpi, _ = self.actor.train_step(next_obs)
-        next_q1_with_actor = self.target_q1(next_obs, next_action)
+        next_q_with_actor = self.target_q(next_obs, next_action)
         next_q2_with_actor = self.target_q2(next_obs, next_action)
-        next_q_with_actor = tf.minimum(next_q1_with_actor, next_q2_with_actor)
+        next_q_with_actor = tf.minimum(next_q_with_actor, next_q2_with_actor)
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
         else:
@@ -95,13 +95,13 @@ class Agent(BaseAgent):
 
         terms = {}
         with tf.GradientTape() as tape:
-            q1 = self.q1(obs, action)
+            q = self.q(obs, action)
             q2 = self.q2(obs, action)
-            q1_error = target_q - q1
+            q_error = target_q - q
             q2_error = target_q - q2
-            q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
+            q_loss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
             q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
-            q_loss = q1_loss + q2_loss
+            q_loss = q_loss + q2_loss
         terms['q_norm'] = self._q_opt(tape, q_loss)
 
         with tf.GradientTape(persistent=True) as actor_tape:
@@ -110,9 +110,9 @@ class Agent(BaseAgent):
             log_temp, temp = self.temperature(obs, action)
             temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
                 * tf.stop_gradient(logpi + self._target_entropy))
-            q1_with_actor = self.q1(obs, action)
+            q_with_actor = self.q(obs, action)
             q2_with_actor = self.q2(obs, action)
-            q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
+            q_with_actor = tf.minimum(q_with_actor, q2_with_actor)
             actor_loss = tf.reduce_mean(IS_ratio * 
                 (tf.stop_gradient(temp) * logpi - q_with_actor))
 
@@ -120,18 +120,18 @@ class Agent(BaseAgent):
         self._temp_opt(actor_tape, temp_loss)
 
         if self._is_per:
-            priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
+            priority = self._compute_priority((tf.abs(q_error) + tf.abs(q2_error)) / 2.)
             terms['priority'] = priority
             
         terms.update(dict(
             temp=temp,
             temp_loss=temp_loss,
             actor_loss=actor_loss,
-            q1=q1, 
+            q=q, 
             q2=q2,
             logpi=logpi,
             target_q=target_q,
-            q1_loss=q1_loss, 
+            q_loss=q_loss, 
             q2_loss=q2_loss,
             q_loss=q_loss, 
         ))
@@ -147,13 +147,13 @@ class Agent(BaseAgent):
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_q1.variables + self.target_q2.variables
-        mvars = self.q1.variables + self.q2.variables
+        tvars = self.target_q.variables + self.target_q2.variables
+        mvars = self.q.variables + self.q2.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
 
     @tf.function
     def _update_target_nets(self):
-        tvars = self.target_q1.trainable_variables + self.target_q2.trainable_variables
-        mvars = self.q1.trainable_variables + self.q2.trainable_variables
+        tvars = self.target_q.trainable_variables + self.target_q2.trainable_variables
+        mvars = self.q.trainable_variables + self.q2.trainable_variables
         [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
             for tvar, mvar in zip(tvars, mvars)]

@@ -137,7 +137,7 @@ class SAC(Ensemble):
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 2, x.shape
         
-        value = self.q1(x)
+        value = self.q(x)
         
         return value
 
@@ -149,9 +149,9 @@ def create_components(config, env):
     q_config = config['q']
     temperature_config = config['temperature']
     actor = Actor(actor_config, action_dim, is_action_discrete)
-    q1 = Q(q_config, 'q1')
+    q = Q(q_config, 'q')
     q2 = Q(q_config, 'q2')
-    target_q1 = Q(q_config, 'target_q1')
+    target_q = Q(q_config, 'target_q')
     target_q2 = Q(q_config, 'target_q2')
     if temperature_config['temp_type'] == 'constant':
         temperature = temperature_config['value']
@@ -160,9 +160,9 @@ def create_components(config, env):
         
     return dict(
         actor=actor,
-        q1=q1,
+        q=q,
         q2=q2,
-        target_q1=target_q1,
+        target_q=target_q,
         target_q2=target_q2,
         temperature=temperature,
     )

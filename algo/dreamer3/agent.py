@@ -50,7 +50,7 @@ class Agent(BaseAgent):
         )
         self._model_opt = DreamerOpt(models=dynamics_models, lr=self._model_lr)
         self._actor_opt = DreamerOpt(models=self.actor, lr=self._actor_lr, return_grads=True)
-        self._q_opt = DreamerOpt(models=[self.q1, self.q2], lr=self._q_lr, return_grads=True)
+        self._q_opt = DreamerOpt(models=[self.q, self.q2], lr=self._q_lr, return_grads=True)
 
         if isinstance(self.temperature, float):
             # convert to variable, useful for scheduling
@@ -223,9 +223,9 @@ class Agent(BaseAgent):
             new_action = act_dist.sample()
             new_logpi = act_dist.log_prob(new_action)
             _, temp = self.temperature(feature, new_action)
-            q1_with_actor = self.q1(feature, new_action)
+            q_with_actor = self.q(feature, new_action)
             q2_with_actor = self.q2(feature, new_action)
-            q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
+            q_with_actor = tf.minimum(q_with_actor, q2_with_actor)
             actor_loss = tf.reduce_mean(temp * new_logpi - q_with_actor)
         
         target_entropy = getattr(self, 'target_entropy', -self._action_dim)
@@ -248,12 +248,12 @@ class Agent(BaseAgent):
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         with tf.GradientTape() as q_tape:
-            q1 = self.q1(curr_feat, curr_action)
+            q = self.q(curr_feat, curr_action)
             q2 = self.q2(curr_feat, curr_action)
-            q = tf.minimum(q1, q2)
-            next_q1 = self.target_q1(next_feat, next_action)
+            q = tf.minimum(q, q2)
+            next_q = self.target_q(next_feat, next_action)
             next_q2 = self.target_q2(next_feat, next_action)
-            next_q = tf.minimum(next_q1, next_q2)
+            next_q = tf.minimum(next_q, next_q2)
             next_value = next_q - temp * next_logpi
             log_ratio = next_logpi - prev_logpi[:, 2:]
             ratio = tf.math.exp(log_ratio)
@@ -264,9 +264,9 @@ class Agent(BaseAgent):
             # returns = reward[:, :-1] + discount * next_value
             returns = tf.stop_gradient(returns)
 
-            q1_loss = tf.reduce_mean(loss_fn(returns - q1))
+            q_loss = tf.reduce_mean(loss_fn(returns - q))
             q2_loss = tf.reduce_mean(loss_fn(returns - q2))
-            q_loss = q1_loss + q2_loss
+            q_loss = q_loss + q2_loss
 
         terms['model_norm'] = self._model_opt(model_tape, model_loss)
         terms['actor_norm'], actor_vg = self._actor_opt(actor_tape, actor_loss)
@@ -278,7 +278,7 @@ class Agent(BaseAgent):
             prior_entropy=prior_dist.entropy(),
             post_entropy=post_dist.entropy(),
             kl=kl,
-            q1=q1_with_actor,
+            q=q_with_actor,
             q2=q2_with_actor,
             returns=returns,
             logpi=new_logpi,
@@ -287,7 +287,7 @@ class Agent(BaseAgent):
             **terms,
             model_loss=model_loss,
             actor_loss=actor_loss,
-            q1_loss=q1_loss,
+            q_loss=q_loss,
             q2_loss=q2_loss,
             q_loss = q_loss
         )
@@ -297,7 +297,7 @@ class Agent(BaseAgent):
             tf.summary.experimental.set_step(self._env_step)
             tf.summary.histogram(f'{self.name}/returns', returns)
             tf.summary.histogram(f'{self.name}/q', q)
-            tf.summary.histogram(f'{self.name}/error', returns-q1)
+            tf.summary.histogram(f'{self.name}/error', returns-q)
             self._image_summaries(obs, action, embed, obs_pred)
     
         return terms
@@ -318,13 +318,13 @@ class Agent(BaseAgent):
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_q1.variables + self.target_q2.variables
-        mvars = self.q1.variables + self.q2.variables
+        tvars = self.target_q.variables + self.target_q2.variables
+        mvars = self.q.variables + self.q2.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
 
     @tf.function
     def _update_target_nets(self):
-        tvars = self.target_q1.trainable_variables + self.target_q2.trainable_variables
-        mvars = self.q1.trainable_variables + self.q2.trainable_variables
+        tvars = self.target_q.trainable_variables + self.target_q2.trainable_variables
+        mvars = self.q.trainable_variables + self.q2.trainable_variables
         [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
             for tvar, mvar in zip(tvars, mvars)]

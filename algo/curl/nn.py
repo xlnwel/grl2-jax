@@ -202,7 +202,7 @@ class CURL(Ensemble):
         assert x.shape.ndims == 4, x.shape
         
         x = self.cnn(x)
-        value = self.q1(x)
+        value = self.q(x)
         value = tf.squeeze(value)
         
         return value
@@ -225,9 +225,9 @@ def create_components(config, env):
         encoder=Encoder(encoder_config, 'encoder'),
         target_encoder=Encoder(encoder_config, 'target_encoder'),
         actor=Actor(actor_config, action_dim, is_action_discrete),
-        q1=Q(q_config, 'q1'),
+        q=Q(q_config, 'q'),
         q2=Q(q_config, 'q2'),
-        target_q1=Q(q_config, 'target_q1'),
+        target_q=Q(q_config, 'target_q'),
         target_q2=Q(q_config, 'target_q2'),
         temperature=temperature,
         crl=ContrastiveRepresentationLearning(curl_config, 'curl')

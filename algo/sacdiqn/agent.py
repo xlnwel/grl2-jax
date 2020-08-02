@@ -12,12 +12,12 @@ class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
             self._actor_lr = TFPiecewiseSchedule(
-                [(2e5, self._actor_lr), (1e6, 1e-5)])
+                [(4e6, self._actor_lr), (7e6, 1e-5)])
             self._q_lr = TFPiecewiseSchedule(
-                [(2e5, self._q_lr), (1e6, 1e-5)])
+                [(4e6, self._q_lr), (7e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
-        self._q_opt = Optimizer(self._optimizer, [self.encoder, self.q1, self.q2], self._q_lr)
+        self._q_opt = Optimizer(self._optimizer, [self.encoder, self.q, self.q2], self._q_lr)
 
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -46,7 +46,7 @@ class Agent(DQNBase):
         next_x = self.target_encoder(next_obs)
         next_act_probs = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
         next_act_logps = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
-        _, next_qtv1 = self.target_q1(next_x, self.N_PRIME)
+        _, next_qtv1 = self.target_q(next_x, self.N_PRIME)
         _, next_qtv2 = self.target_q2(next_x, self.N_PRIME)
         next_qtv = (next_qtv1 + next_qtv2) / 2
         tf.debugging.assert_shapes([
@@ -82,7 +82,7 @@ class Agent(DQNBase):
             x = self.encoder(obs)
             action = tf.expand_dims(action, axis=1)
 
-            qs1, error1, qr_loss1 = self._compute_qr_loss(self.q1, x, action, returns, IS_ratio)
+            qs1, error1, qr_loss1 = self._compute_qr_loss(self.q, x, action, returns, IS_ratio)
             qs2, error2, qr_loss2 = self._compute_qr_loss(self.q2, x, action, returns, IS_ratio)
 
             qr_loss = qr_loss1 + qr_loss2
@@ -121,6 +121,8 @@ class Agent(DQNBase):
             priority = self._compute_priority((tf.abs(error1) + tf.abs(error2)) / 2.)
             terms['priority'] = priority
             
+        target_q = tf.reduce_mean(returns, axis=-1)
+        target_q = tf.squeeze(target_q)
         terms.update(dict(
             act_probs=act_probs,
             actor_loss=actor_loss,
@@ -134,7 +136,7 @@ class Agent(DQNBase):
             qr1_loss=qr_loss1, 
             qr2_loss=qr_loss2,
             qr_loss=qr_loss, 
-            explained_variance=explained_variance()
+            explained_variance1=explained_variance(target_q, q),
         ))
 
         return terms
@@ -158,8 +160,8 @@ class Agent(DQNBase):
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_encoder.variables + self.target_q1.variables + self.target_q2.variables
-        mvars = self.encoder.variables + self.q1.variables + self.q2.variables
-        # tvars = self.target_q1.variables + self.target_q2.variables
-        # mvars = self.q1.variables + self.q2.variables
+        tvars = self.target_encoder.variables + self.target_q.variables + self.target_q2.variables
+        mvars = self.encoder.variables + self.q.variables + self.q2.variables
+        # tvars = self.target_q.variables + self.target_q2.variables
+        # mvars = self.q.variables + self.q2.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]

@@ -128,7 +128,7 @@ class SAC(Ensemble):
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 2, x.shape
         
-        value = self.q1(x).mode()
+        value = self.q(x).mode()
         value = tf.squeeze(value)
 
         return value
@@ -147,7 +147,7 @@ def create_components(config, env):
         
     return dict(
         actor=Actor(actor_config, action_dim, is_action_discrete),
-        q1=Q(q_config, 'q1'),
+        q=Q(q_config, 'q'),
         q2=Q(q_config, 'q2'),
         value=Q(q_config, 'v'),
         target_value=Q(q_config, 'target_v'),

@@ -376,9 +376,9 @@ def create_model(config, env):
         decoder=Decoder(decoder_config, out_size=obs_shape[0]),
         reward=Decoder(reward_config, name='reward'),
         actor=Actor(actor_config, action_dim, is_action_discrete),
-        q1=Q(value_config, name='q1'),
+        q=Q(value_config, name='q'),
         q2=Q(value_config, name='q2'),
-        target_q1=Q(value_config, name='target_q1'),
+        target_q=Q(value_config, name='target_q'),
         target_q2=Q(value_config, name='target_q2'),
         temperature=temperature
     )

@@ -12,12 +12,16 @@ class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
             self._actor_lr = TFPiecewiseSchedule(
-                [(2e5, self._actor_lr), (1e6, 1e-5)])
+                [(4e6, self._actor_lr), (7e6, 1e-5)])
             self._q_lr = TFPiecewiseSchedule(
-                [(2e5, self._q_lr), (1e6, 1e-5)])
+                [(4e6, self._q_lr), (7e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
-        self._q_opt = Optimizer(self._optimizer, [self.encoder, self.q1, self.q2], self._q_lr)
+        q_models = [self.encoder, self.q]
+        self._twin_q = hasattr(self, 'q2')
+        if self._twin_q:
+            q_models.append(self.q2)
+        self._q_opt = Optimizer(self._optimizer, q_models, self._q_lr)
 
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -29,8 +33,6 @@ class Agent(DQNBase):
         tf.summary.histogram('entropy', terms['entropy'], step=self._env_step)
         tf.summary.histogram('next_act_probs', terms['next_act_probs'], step=self._env_step)
         tf.summary.histogram('next_act_logps', terms['next_act_logps'], step=self._env_step)
-        tf.summary.histogram('next_logps', terms['next_logps'], step=self._env_step)
-        tf.summary.histogram('next_qs', terms['next_qs'], step=self._env_step)
         tf.summary.histogram('reward', data['reward'], step=self._env_step)
 
     @tf.function
@@ -43,16 +45,15 @@ class Agent(DQNBase):
         next_x = self.encoder(next_obs)
         next_act_probs, next_act_logps = self.actor.train_step(next_x)
         next_x = self.target_encoder(next_obs)
-        next_qs1 = self.target_q1(next_x)
-        next_qs2 = self.target_q2(next_x)
-        # TODO: will minimum here cause underestimation? try mean
-        next_qs = (next_qs1 + next_qs2) / 2
+        next_qs = self.target_q(next_x)
+        if self._twin_q:
+            next_qs2 = self.target_q2(next_x)
+            # TODO: will minimum here cause underestimation? try mean
+            next_qs = (next_qs + next_qs2) / 2
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
         else:
             _, temp = self.temperature()
-        terms['next_qs'] = tf.reduce_sum(next_act_probs * next_qs, axis=-1)
-        terms['next_logps'] = tf.reduce_sum(next_act_probs * temp * next_act_logps, axis=-1)
         next_value = tf.reduce_sum(next_act_probs 
             * (next_qs - temp * next_act_logps), axis=-1)
         target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
@@ -67,16 +68,17 @@ class Agent(DQNBase):
         ])
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
-            qs1, q1, q_error1, q_loss1 = self._compute_q_loss(self.q1, x, action, target_q, IS_ratio)
-            qs2, q2, q_error2, q_loss2 = self._compute_q_loss(self.q2, x, action, target_q, IS_ratio)
-            q_loss = q_loss1 + q_loss2
+            qs, q, q_error, q_loss = self._compute_q_loss(self.q, x, action, target_q, IS_ratio)
+            if self._twin_q:
+                qs2, q2, q_error2, q_loss2 = self._compute_q_loss(self.q2, x, action, target_q, IS_ratio)
+                qs = (qs + qs2) / 2.
+                q_error = (q_error + q_error2) / 2.
+                q_loss = (q_loss + q_loss2) / 2.
         terms['q_norm'] = self._q_opt(tape, q_loss)
 
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
-            # TODO: will minimum here cause underestimation?
-            qs = (qs1 + qs2) / 2
-            q = tf.reduce_sum(act_probs * qs, axis=-1)
+            q = tf.reduce_sum(act_probs * qs, axis=-1)  # recompute q to allow gradient to pass through
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
             actor_loss = -(q + temp * entropy)
             tf.debugging.assert_shapes([[actor_loss, (None, )]])
@@ -97,22 +99,19 @@ class Agent(DQNBase):
             terms['temp_norm'] = self._temp_opt(tape, temp_loss)
 
         if self._is_per:
-            priority = self._compute_priority((tf.abs(qr_error1) + tf.abs(qr_error2)) / 2.)
+            priority = self._compute_priority(q_error)
             terms['priority'] = priority
             
         terms.update(dict(
             act_probs=act_probs,
             actor_loss=actor_loss,
-            q1=q1, 
-            q2=q2,
+            q=q, 
             next_value=next_value,
             logpi=act_logps,
             entropy=entropy,
             next_act_probs=next_act_probs,
             next_act_logps=next_act_logps,
             target_q=target_q,
-            q_loss1=q_loss1, 
-            q_loss2=q_loss2,
             q_loss=q_loss, 
             explained_variance=explained_variance(target_q, q)
         ))
@@ -124,12 +123,13 @@ class Agent(DQNBase):
         q = tf.reduce_sum(qs * action, axis=-1)
         q_error = returns - q
         q_loss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
-        return qs, q, q_error, q_loss
+        return qs, q, tf.abs(q_error), q_loss
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_encoder.variables + self.target_q1.variables + self.target_q2.variables
-        mvars = self.encoder.variables + self.q1.variables + self.q2.variables
-        # tvars = self.target_q1.variables + self.target_q2.variables
-        # mvars = self.q1.variables + self.q2.variables
+        tvars = self.target_encoder.variables + self.target_q.variables
+        mvars = self.encoder.variables + self.q.variables
+        if self._twin_q:
+            tvars += self.target_q2.variables
+            mvars += self.q2.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]

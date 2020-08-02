@@ -27,9 +27,9 @@ pull_names = dict(
     iqn=['q'],
     iqncrl=['q'],
     fqf=['q', 'fpn'],
-    sac=['actor', 'q1'],
-    sacd=['encoder', 'actor', 'q1'],
-    sacdiqn=['encoder', 'actor', 'q1'],
+    sac=['actor', 'q'],
+    sacd=['encoder', 'actor', 'q'],
+    sacdiqn=['encoder', 'actor', 'q'],
     sacdiqn2=['encoder', 'actor', 'q'],
 )
 

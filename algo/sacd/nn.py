@@ -126,7 +126,7 @@ class SAC(Ensemble):
         assert x.shape.ndims == 4, x.shape
         
         x = self.encoder(x)
-        value = self.q1(x)
+        value = self.q(x)
         value = tf.squeeze(value)
         
         return value
@@ -143,16 +143,19 @@ def create_components(config, env):
     else:
         temperature = Temperature(temperature_config)
         
-    return dict(
+    models = dict(
         encoder=Encoder(config['encoder'], name='encoder'),
         target_encoder=Encoder(config['encoder'], name='target_encoder'),
         actor=Actor(actor_config, action_dim),
-        q1=Q(q_config, action_dim, name='q1'),
-        q2=Q(q_config, action_dim, name='q2'),
-        target_q1=Q(q_config, action_dim, name='target_q1'),
-        target_q2=Q(q_config, action_dim, name='target_q2'),
+        q=Q(q_config, action_dim, name='q'),
+        target_q=Q(q_config, action_dim, name='target_q'),
         temperature=temperature,
     )
+    if config['twin_q']:
+        models['q2'] = Q(q_config, action_dim, name='q2')
+        models['target_q2'] = Q(q_config, action_dim, name='target_q2')
+
+    return models
 
 def create_model(config, env, **kwargs):
     return SAC(config, env, **kwargs)

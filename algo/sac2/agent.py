@@ -27,7 +27,7 @@ class Agent(BaseAgent):
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
         self._value_opt = Optimizer(self._optimizer, self.value, self._q_lr)
-        self._q_opt = Optimizer(self._optimizer, [self.q1, self.q2], self._q_lr)
+        self._q_opt = Optimizer(self._optimizer, [self.q, self.q2], self._q_lr)
 
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -92,9 +92,9 @@ class Agent(BaseAgent):
                 temp = self.temperature
             else:
                 _, temp = self.temperature(obs, new_action)
-            q1_with_actor = q_value(self.q1, obs, new_action)
+            q_with_actor = q_value(self.q, obs, new_action)
             q2_with_actor = q_value(self.q2, obs, new_action)
-            q_with_actor = tf.minimum(q1_with_actor, q2_with_actor)
+            q_with_actor = tf.minimum(q_with_actor, q2_with_actor)
             actor_loss = tf.reduce_mean(IS_ratio * 
                 (temp * new_logpi - q_with_actor))
         
@@ -114,21 +114,21 @@ class Agent(BaseAgent):
             value_loss = .5 * tf.reduce_mean(IS_ratio * (target_value - value)**2)
 
         with tf.GradientTape() as q_tape:
-            q1 = q_value(self.q1, obs, action)
+            q = q_value(self.q, obs, action)
             q2 = q_value(self.q2, obs, action)
-            q = tf.minimum(q1, q2)
+            q = tf.minimum(q, q2)
             next_value = self.target_value(next_obs).mode()
             
             target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
             target_q = tf.stop_gradient(target_q)
-            q1_error = target_q - q1
+            q_error = target_q - q
             q2_error = target_q - q2
-            q1_loss = .5 * tf.reduce_mean(IS_ratio * q1_error**2)
+            q_loss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
             q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
-            q_loss = q1_loss + q2_loss
+            q_loss = q_loss + q2_loss
 
         if self._is_per:
-            priority = self._compute_priority((tf.abs(q1_error) + tf.abs(q2_error)) / 2.)
+            priority = self._compute_priority((tf.abs(q_error) + tf.abs(q2_error)) / 2.)
             terms['priority'] = priority
 
         terms['actor_norm'] = self._actor_opt(actor_tape, actor_loss)
@@ -139,12 +139,12 @@ class Agent(BaseAgent):
             
         terms.update(dict(
             actor_loss=actor_loss,
-            q1=q1, 
+            q=q, 
             q2=q2,
             logpi=new_logpi,
             action_entropy=act_dist.entropy(),
             target_q=target_q,
-            q1_loss=q1_loss, 
+            q_loss=q_loss, 
             q2_loss=q2_loss,
             q_loss=q_loss, 
         ))

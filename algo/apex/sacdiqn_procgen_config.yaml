@@ -7,7 +7,7 @@ env:
     np_obs: True
 
 model:
-    cnn: 
+    encoder: 
         cnn: impala
         cnn_out_size: none
         kernel_initializer: orthogonal
@@ -27,7 +27,7 @@ model:
         value: .1
         
 agent:
-    algorithm: &algo sacdiqn
+    algorithm: &algo apex-sacdiqn
     replay_type: &replay 'uniform'
     batch_size: &bs 64
     gamma: &gamma 0.99
@@ -68,7 +68,7 @@ agent:
     optimizer: adam
     schedule_lr: False
     actor_lr: 3e-4
-    q_lr: 5e-5
+    q_lr: 3e-4
     temp_lr: 3e-4
     
     # arguments for PER

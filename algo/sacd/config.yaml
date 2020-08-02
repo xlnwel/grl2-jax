@@ -24,6 +24,7 @@ model:
     temperature:
         temp_type: 'variable'
         value: 1
+    twin_q: False
 
 agent:
     algorithm: &algo sacd
