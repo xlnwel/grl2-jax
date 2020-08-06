@@ -1,7 +1,6 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
-from tensorflow.keras.mixed_precision.experimental import global_policy
 from tensorflow_probability import distributions as tfd
 
 from core.module import Module, Ensemble
@@ -14,7 +13,6 @@ class Q(Module):
     @config
     def __init__(self, action_dim, name='q'):
         super().__init__(name=name)
-        self._dtype = global_policy().compute_dtype
 
         self._action_dim = action_dim
 

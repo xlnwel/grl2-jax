@@ -44,7 +44,7 @@ class AC(Module):
                             out_dtype='float32',
                             name='critic')
 
-    def __call__(self, x, return_terms=False):
+    def __call__(self, x, return_value=False):
         print(f'{self.name} is retracing: x={x.shape}')
         x = self._shared_layers(x)
         actor_out = self.actor(x)
@@ -54,7 +54,7 @@ class AC(Module):
         else:
             act_dist = tfd.MultivariateNormalDiag(actor_out, tf.exp(self.logstd))
 
-        if return_terms:
+        if return_value:
             value = tf.squeeze(self.critic(x), -1)
             return act_dist, value
         else:
@@ -78,11 +78,11 @@ class PPO(Ensemble):
     @tf.function
     def action(self, x, deterministic=False, epsilon=0):
         if deterministic:
-            act_dist = self.ac(x, return_terms=False)
+            act_dist = self.ac(x, return_value=False)
             action = tf.squeeze(act_dist.mode())
             return action
         else:
-            act_dist, value = self.ac(x, return_terms=True)
+            act_dist, value = self.ac(x, return_value=True)
             action = act_dist.sample()
             logpi = act_dist.log_prob(action)
             terms = {'logpi': logpi, 'value': value}

@@ -13,6 +13,7 @@ model:
     cnn_name: impala
     shared_mlp_units: []
     lstm_units: 512
+    lstm_ln: True
     actor_units: [256]
     critic_units: [256]
     norm: none
