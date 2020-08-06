@@ -1,4 +1,5 @@
 import collections
+import logging
 import numpy as np
 import gym
 
@@ -6,6 +7,7 @@ from utility.utils import infer_dtype, convert_dtype
 import cv2
 # stop using GPU
 cv2.ocl.setUseOpenCL(False)
+logger = logging.getLogger(__name__)
 
 # for multi-processing efficiency, we do not return info at every step
 EnvOutput = collections.namedtuple('EnvOutput', 'obs reward discount reset')
@@ -255,13 +257,13 @@ class EnvStats(gym.Wrapper):
         self._output = tuple()
         self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
         if timeout_done:
-            print('Warning: Timeout is treated as done')
+            logger.info('Timeout is treated as done')
         self._reset()
 
     def reset(self):
         if self.auto_reset:
             self.auto_reset = False
-            print('Warning: Explicitly resetting turns off auto-reset. Maker sure this is done at evaluation')
+            logger.info('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation')
         return self._reset()
 
     def _reset(self):

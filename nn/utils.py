@@ -1,6 +1,9 @@
+import logging
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers
+
+logger = logging.getLogger(__name__)
 
 
 def get_activation(name):
@@ -76,10 +79,10 @@ def ortho_init(scale=1.0):
 
 def convert_obs(x, obs_range, dtype=tf.float32):
     if x.dtype != np.uint8:
-        print(f'Observations({x.shape}, {x.dtype}) are already converted to {x.dtype}, no further process is performed')
+        logger.debug(f'Observations({x.shape}, {x.dtype}) are already converted to {x.dtype}, no further process is performed')
         return x
     dtype = dtype or tf.float32 # dtype is None when global policy is not unspecified, override it
-    print(f'Observations({x.shape}, {x.dtype}) are converted to range {obs_range} of dtype {dtype}')
+    logger.debug(f'Observations({x.shape}, {x.dtype}) are converted to range {obs_range} of dtype {dtype}')
     if obs_range == [0, 1]:
         return tf.cast(x, dtype) / 255.
     elif obs_range == [-.5, .5]:

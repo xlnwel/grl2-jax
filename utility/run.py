@@ -1,14 +1,16 @@
 import collections
+import logging
 import numpy as np
 
 from env.wrappers import get_wrapper_by_name
 
+logger = logging.getLogger(__name__)
 
 class Runner:
     def __init__(self, env, agent, step=0, nsteps=None):
         self.env = env
         if env.max_episode_steps == int(1e9):
-            print(f'Warning: maximum episode steps is not specified',
+            logger.info(f'Maximum episode steps is not specified'
                 f'and is by default set to {self.env.max_episode_steps}')
             assert nsteps is not None
         self.agent = agent

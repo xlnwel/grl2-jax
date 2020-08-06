@@ -25,7 +25,7 @@ def parse_args():
                         type=str,
                         default='',
                         help='directory where checkpoints and "config.yaml" exist')
-    parser.add_argument('--logdir', '-l',
+    parser.add_argument('--logdir', '-ld',
                         type=str,
                         default='logs')
     parser.add_argument('--grid_search', '-gs',
@@ -33,6 +33,9 @@ def parse_args():
     parser.add_argument('--delay',
                         default=1,
                         type=int)
+    parser.add_argument('--log_level', '-l',
+                        type=str,
+                        default='warning')
     args = parser.parse_args()
 
     return args

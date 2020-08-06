@@ -1,11 +1,12 @@
 import collections
+import logging
 import numpy as np
 import tensorflow as tf
 import ray
 
 
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
-
+logger = logging.getLogger(__name__)
 
 def process_with_env(data, env, obs_range=None, one_hot_action=True, dtype=tf.float32):
     with tf.device('cpu:0'):
@@ -47,9 +48,9 @@ class Dataset:
         data_format = {k: DataFormat(*v) for k, v in data_format.items()}
         self.data_format = data_format
         if print_data_format:
-            print('Dataset info:')
+            logger.info('Dataset info:')
             for k, v in data_format.items():
-                print('\t', k, v)
+                logger.info('\t', k, v)
         self._iterator = self._prepare_dataset(process_fn, batch_size, **kwargs)
 
     def name(self):

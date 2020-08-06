@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 
 from utility.utils import to_int
@@ -5,6 +6,7 @@ from replay.base import Replay
 from replay.uniform import UniformReplay
 from replay.per import ProportionalPER
 
+logger = logging.getLogger(__name__)
 
 class DualReplay(Replay):
     def __init__(self, config):
@@ -18,15 +20,15 @@ class DualReplay(Replay):
         config['capacity'] = int(self._capacity * config['cap_frac'])
         config['min_size'] = self._min_size
         config['batch_size'] = int(self._batch_size * config['bs_frac'])
-        print(f'Fast replay capacity({config["capacity"]})')
-        print(f'Fast replay batch size({config["batch_size"]})')
+        logger.debug(f'Fast replay capacity({config["capacity"]})')
+        logger.debug(f'Fast replay batch size({config["batch_size"]})')
         self._fast_replay = BufferType(config)
         
         config['capacity'] = self._capacity - config['capacity']
         config['min_size'] = self._min_size - config['min_size']
         config['batch_size'] = self._batch_size - config['batch_size']
-        print(f'Slow replay capacity({config["capacity"]})')
-        print(f'Slow replay batch size({config["batch_size"]})')
+        logger.debug(f'Slow replay capacity({config["capacity"]})')
+        logger.debug(f'Slow replay batch size({config["batch_size"]})')
         self._slow_replay = BufferType(config)
 
     def buffer_type(self):

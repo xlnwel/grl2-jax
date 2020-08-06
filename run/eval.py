@@ -1,7 +1,6 @@
 import os, sys
 import importlib
 import argparse
-import logging
 from copy import deepcopy
 import numpy as np
 import ray

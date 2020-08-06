@@ -61,7 +61,6 @@ class Replay(ABC):
             print_buffer(self._memory)
 
         if not self._is_full and self._mem_idx == self._capacity - 1:
-            print(f'Memory is full({len(self._memory["reward"])})')
             self._is_full = True
         
         add_buffer(
@@ -98,7 +97,6 @@ class Replay(ABC):
 
         # memory is full, recycle buffer according to FIFO
         if not self._is_full and end_idx >= self._capacity:
-            print(f'Memory is full({len(self._memory["reward"])})')
             self._is_full = True
         
         self._mem_idx = end_idx % self._capacity

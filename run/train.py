@@ -1,4 +1,5 @@
 import os, sys
+import logging
 import time
 import itertools
 from multiprocessing import Process
@@ -70,6 +71,8 @@ def change_config(kw, prefix, env_config, model_config, agent_config, replay_con
 
 if __name__ == '__main__':
     cmd_args = parse_args()
+    log_level = getattr(logging, cmd_args.log_level.upper())
+    logging.basicConfig(level=log_level)
     processes = []
     if cmd_args.directory != '':
         # load model and log path

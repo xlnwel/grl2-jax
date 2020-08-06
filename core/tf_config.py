@@ -1,9 +1,11 @@
 import os
+import logging
 import tensorflow as tf
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
 from utility.display import pwc
 
+logger = logging.getLogger(__name__)
 
 def configure_gpu(idx=0):
     """Configure gpu for Tensorflow
@@ -19,13 +21,12 @@ def configure_gpu(idx=0):
             # restrict TensorFlow to only use the i-th GPU
             tf.config.experimental.set_visible_devices(gpus[idx], 'GPU')
             logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-            pwc(f'{len(gpus)} Physical GPUs, {len(logical_gpus)} Logical GPU', 
-                color='cyan')
+            logger.debug(f'{len(gpus)} Physical GPUs, {len(logical_gpus)} Logical GPU')
         except RuntimeError as e:
             # visible devices must be set before GPUs have been initialized
-            pwc(e)
+            logger.warning(e)
     else:
-        pwc('No gpu is used', color='cyan')
+        logger.warning('No gpu is used')
 
 def configure_threads(intra_num_threads, inter_num_threads):
     tf.config.threading.set_intra_op_parallelism_threads(intra_num_threads)
@@ -125,11 +126,11 @@ def build(func, TensorSpecs, sequential=False, batch_size=None, print_terminal_i
     """
     TensorSpecs = get_TensorSpecs(TensorSpecs, sequential, batch_size)
     if print_terminal_info:
-        print(f'{func.__name__} is built with TensorSpecs:')
+        logger.debug(f'{func.__name__} is built with TensorSpecs:')
         if isinstance(TensorSpecs, dict):
-            [print(f'\t{k}={v}') for k, v in TensorSpecs.items()]
+            [logger.debug(f'\t{k}={v}') for k, v in TensorSpecs.items()]
         else:
-            [print('\t', v) for v in TensorSpecs]
+            [logger.debug('\t', v) for v in TensorSpecs]
     if isinstance(TensorSpecs, dict):
         return func.get_concrete_function(**TensorSpecs)
     else: 

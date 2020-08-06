@@ -1,4 +1,5 @@
 from functools import wraps
+import logging
 import tensorflow as tf
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
@@ -7,6 +8,8 @@ from core.checkpoint import setup_checkpoint
 from core.log import setup_logger, setup_tensorboard, save_code
 from core.optimizer import Optimizer
 
+
+logger = logging.getLogger(__name__)
 
 def agent_config(init_fn):
     """ Decorator for agent's initialization """
@@ -53,7 +56,7 @@ def agent_config(init_fn):
         for k, v in vars(self).items():
             if isinstance(v, Optimizer):
                 self._ckpt_models[k[1:]] = v
-        print('ckpt models:', self._ckpt_models)
+        logger.info('ckpt models:', self._ckpt_models)
 
         self.print_construction_complete()
         
