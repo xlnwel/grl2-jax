@@ -1,5 +1,4 @@
 import time
-import itertools
 import numpy as np
 import ray 
 
@@ -14,21 +13,20 @@ from algo.rnd.env import make_env
 from env.func import create_env
 
 
-
 def train(agent, env, eval_env, buffer):
-    def initialize_rms(env, step, info, obs, **kwargs):
+    def initialize_rms(env, step, reset, obs, **kwargs):
         agent.update_obs_rms(obs)
 
-    def collect(env, step, info, next_obs, **kwargs):
+    def collect(env, step, reset, next_obs, **kwargs):
         buffer.add(**kwargs)
 
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     print('Start to initialize observation running stats...')
-    # runner.run(action_selector=env.random_action, 
-    #             step_fn=initialize_rms, 
-    #             nsteps=50*agent.N_STEPS)
-    # runner.step = step
+    runner.run(action_selector=env.random_action, 
+                step_fn=initialize_rms, 
+                nsteps=50*agent.N_STEPS)
+    runner.step = step
 
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)

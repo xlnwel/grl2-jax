@@ -170,7 +170,7 @@ class Agent(RNDBase):
     @step_track
     def learn_log(self, step):
         for i in range(self.N_UPDATES):
-            for j in range(self.N_MBS):
+            for j in range(1, self.N_MBS+1):
                 data = self.dataset.sample()
                 value_int = data['value_int']
                 value_ext = data['value_ext']
@@ -190,11 +190,11 @@ class Agent(RNDBase):
                     break
             if getattr(self, '_max_kl', None) and approx_kl > self._max_kl:
                 pwc(f'{self._model_name}: Eearly stopping after '
-                    f'{i*self.N_MBS+j+1} update(s) due to reaching max kl.',
+                    f'{i*self.N_MBS+j} update(s) due to reaching max kl.',
                     f'Current kl={approx_kl:.3g}', color='blue')
                 break
         self.store(approx_kl=approx_kl)
-        return i * self.N_MBS + j + 1
+        return i * self.N_MBS + j
 
     @tf.function
     def _learn(self, obs, norm_obs, action, traj_ret_int, traj_ret_ext, 
