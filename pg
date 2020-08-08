@@ -8,4 +8,4 @@ else
     ENV="$2"
 fi
 
-python run/train.py "$1" -e "$ENV" -l pg-logs "${@:2}"
+python run/train.py "$1" -e "$ENV" -ld pg-logs "${@:2}"

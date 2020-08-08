@@ -19,7 +19,8 @@ model:
     temperature:
         temp_type: 'variable'
         value: .1
-        
+    twin_q: True
+    
 agent:
     algorithm: &algo sacd
     replay_type: &replay 'uniform'

@@ -47,15 +47,15 @@ def get_initializer(name, **kwargs):
     """ 
     Return a kernel initializer by name
     """
+    gain = kwargs.pop('gain', 1.)   # we do not keep 'gain' to avoid unwanted repetition
     if isinstance(name, str):
         if name.lower() == 'none':
             return None
         elif name.lower() == 'orthogonal':
-            gain = kwargs.get('gain', 1.)
             return initializers.orthogonal(gain)
-        return initializers.get(name)
+        return gain * initializers.get(name)
     else:
-        return name
+        return gain * name
 
 def ortho_init(scale=1.0):
     """ 

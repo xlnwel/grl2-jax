@@ -33,6 +33,8 @@ class Agent(DQNBase):
         tf.summary.histogram('entropy', terms['entropy'], step=self._env_step)
         tf.summary.histogram('next_act_probs', terms['next_act_probs'], step=self._env_step)
         tf.summary.histogram('next_act_logps', terms['next_act_logps'], step=self._env_step)
+        tf.summary.histogram('entropy_next', terms['entropy_next'], step=self._env_step)
+        tf.summary.histogram('next_qs', terms['next_qs'], step=self._env_step)
         tf.summary.histogram('reward', data['reward'], step=self._env_step)
 
     @tf.function
@@ -48,16 +50,16 @@ class Agent(DQNBase):
         next_qs = self.target_q(next_x)
         if self._twin_q:
             next_qs2 = self.target_q2(next_x)
-            # TODO: will minimum here cause underestimation? try mean
             next_qs = (next_qs + next_qs2) / 2
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
         else:
             _, temp = self.temperature()
+        terms['next_qs'] = tf.reduce_sum(next_act_probs * next_qs, axis=-1)
+        terms['entropy_next'] = tf.reduce_sum(next_act_probs * temp * next_act_logps, axis=-1)
         next_value = tf.reduce_sum(next_act_probs 
             * (next_qs - temp * next_act_logps), axis=-1)
         target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
-        target_q = tf.stop_gradient(target_q)
         tf.debugging.assert_shapes([
             [next_value, (None,)],
             [reward, (None,)],
@@ -68,9 +70,9 @@ class Agent(DQNBase):
         ])
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
-            qs, q, q_error, q_loss = self._compute_q_loss(self.q, x, action, target_q, IS_ratio)
+            qs, q_error, q_loss = self._compute_q_loss(self.q, x, action, target_q, IS_ratio)
             if self._twin_q:
-                qs2, q2, q_error2, q_loss2 = self._compute_q_loss(self.q2, x, action, target_q, IS_ratio)
+                qs2, q_error2, q_loss2 = self._compute_q_loss(self.q2, x, action, target_q, IS_ratio)
                 qs = (qs + qs2) / 2.
                 q_error = (q_error + q_error2) / 2.
                 q_loss = (q_loss + q_loss2) / 2.
@@ -123,7 +125,7 @@ class Agent(DQNBase):
         q = tf.reduce_sum(qs * action, axis=-1)
         q_error = returns - q
         q_loss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
-        return qs, q, tf.abs(q_error), q_loss
+        return qs, tf.abs(q_error), q_loss
 
     @tf.function
     def _sync_target_nets(self):

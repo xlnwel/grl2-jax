@@ -14,6 +14,7 @@ class Encoder(Module):
         kwargs = dict(
             out_size=self._cnn_out_size,
             kernel_initializer=self._kernel_initializer,
+            filter_multiplier=self._filter_multiplier,
         )
         self._layers = cnn(self._cnn, **kwargs)
 
@@ -29,6 +30,7 @@ class Actor(Module):
         
         self._layers = mlp(self._units_list, 
                             out_size=action_dim,
+                            kernel_initializer=self._kernel_initializer,
                             activation=self._activation)
 
     def __call__(self, x, deterministic=False, epsilon=0):
@@ -59,6 +61,7 @@ class Q(Module):
         self._layers = mlp(
             self._units_list, 
             out_size=action_dim,
+            kernel_initializer=self._kernel_initializer,
             activation=self._activation,
             out_dtype='float32')
 
@@ -79,7 +82,9 @@ class Temperature(Module):
         super().__init__(name=name)
 
         if self._temp_type == 'state-action':
-            self._layer = layers.Dense(1)
+            from nn.utils import get_initializer
+            kernel_initializer = get_initializer('orthogonal', gain=.01)
+            self._layer = layers.Dense(1, kernel_initializer=kernel_initializer)
         elif self._temp_type == 'variable':
             self._log_temp = tf.Variable(
                 np.log(self._value), dtype=tf.float32, name='log_temp')

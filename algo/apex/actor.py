@@ -182,7 +182,7 @@ class Worker(BaseWorker):
             config=model_config, 
             env=env)
 
-        self._is_dpg = 'actor' in self.model
+        self._is_sac = 'actor' in self.model
         self._is_iqn = 'iqn' in self._algorithm or 'fqf' in self._algorithm
         for k, v in self.model.items():
             setattr(self, k, v)
@@ -200,7 +200,7 @@ class Worker(BaseWorker):
                 discount=((), tf.float32, 'discount'),
                 steps=((), tf.float32, 'steps')
             )
-            if not self._is_dpg:
+            if not self._is_sac:
                 if self._is_iqn:
                     TensorSpecs['qtv'] = ((self.K,), tf.float32, 'qtv')
                 else:
@@ -248,15 +248,24 @@ class Worker(BaseWorker):
 
     @tf.function
     def _compute_dqn_priorities(self, obs, action, reward, next_obs, discount, steps, q=None):
-        if self._is_dpg:
-            q = self.q(obs, action)
-            next_action = self.actor(next_obs, deterministic=False)
-            next_q = self.q(next_obs, next_action)
+        if self._is_sac:
+            x = self.encoder(obs) if hasattr(self, 'encoder') else obs
+            q = self.q(x, action)
+            next_x = self.encoder(next_obs) if hasattr(self, 'encoder') else next_obs
+            # sac results in probs while others sample actions
+            next_act_probs, next_act_logps = self.actor.train_step(next_x)
+            # we do not use the target model to save some bandwidth
+            next_qs = self.q(next_x)
+            _, temp = self.temperature()
+            next_q = tf.reduce_sum(next_act_probs
+                * (next_qs - temp * next_act_logps), axis=-1)
+
         else:
-            next_action = self.q.action(next_obs, False)
-            next_q = self.q.value(next_obs, next_action)
+            next_x = self.encoder(next_obs) if hasattr(self, 'encoder') else next_obs
+            next_action = self.q.action(next_x, False)
+            next_q = self.q.value(next_x, next_action)
             
-        returns = n_step_target(reward, next_q, discount, self._gamma, steps, self._tbo)
+        returns = n_step_target(reward, next_q, discount, self._gamma, steps)
         
         priority = tf.abs(returns - q)
         priority += self._per_epsilon

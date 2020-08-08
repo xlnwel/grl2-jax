@@ -14,6 +14,8 @@ from utility import pkg
 from run.grid_search import GridSearch
 from run.args import parse_args
 
+
+logger = logging.getLogger(__name__)
     
 def get_config(algo, env):
     def search_add(word, files, filename):
@@ -58,9 +60,8 @@ def change_config(kw, prefix, env_config, model_config, agent_config, replay_con
                     configs.append((name, config))
             assert configs, f'"{s}" does not appear in any config!'
             if len(configs) > 1:
-                ans = input(f'{key} appears in the following configs: '
-                        f'{list([n for n, _ in configs])}.\n'
-                        'Are you sure to change all of them?(y/n)')
+                ans = logger.info(f'All {key} appeared in the following configs will be changed: '
+                        + f'{list([n for n, _ in configs])}.\n')
                 if ans == 'n':
                     sys.exit(0)
 
