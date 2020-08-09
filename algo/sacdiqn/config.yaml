@@ -9,15 +9,17 @@ env:
     seed: 0
 
 model:
-    cnn: 
-        cnn: nature
-        kernel_initializer: orthogonal
+    encoder: 
+        cnn: impalase
         cnn_out_size: none
+        kernel_initializer: orthogonal
     actor:
         units_list: [512]
+        kernel_initializer: orthogonal
         activation: relu
     q:
         units_list: [512]
+        kernel_initializer: orthogonal
         activation: relu
         duel: False
 

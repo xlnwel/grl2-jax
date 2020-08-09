@@ -6,15 +6,20 @@ env:
     frame_stack: 4
 
 model:
-    cnn: 
-        cnn: impala
-        kernel_initializer: orthogonal
+    encoder: 
+        cnn: mbse
+        obs_range: [-1, 1]
         cnn_out_size: none
+        kernel_initializer: orthogonal
+        norm: none
+        activation: relu
     actor:
         units_list: [512]
+        kernel_initializer: orthogonal
         activation: relu
     q:
         units_list: [512]
+        kernel_initializer: orthogonal
         activation: relu
         duel: False
 
@@ -24,6 +29,7 @@ model:
     temperature:
         temp_type: 'variable'
         value: .1
+    twin_q: False
         
 agent:
     algorithm: &algo sacd

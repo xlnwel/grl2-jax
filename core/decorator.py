@@ -56,7 +56,7 @@ def agent_config(init_fn):
         for k, v in vars(self).items():
             if isinstance(v, Optimizer):
                 self._ckpt_models[k[1:]] = v
-        logger.info('ckpt models:', self._ckpt_models)
+        logger.info(f'ckpt models: {self._ckpt_models}')
 
         self.print_construction_complete()
         

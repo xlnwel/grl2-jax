@@ -50,7 +50,7 @@ class Dataset:
         if print_data_format:
             logger.info('Dataset info:')
             for k, v in data_format.items():
-                logger.info('\t', k, v)
+                logger.info(f'\t{k} {v}')
         self._iterator = self._prepare_dataset(process_fn, batch_size, **kwargs)
 
     def name(self):

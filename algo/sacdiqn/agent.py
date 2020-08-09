@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from utility.rl_utils import n_step_target, huber_loss, quantile_regression_loss
+from utility.rl_utils import n_step_target, quantile_regression_loss
 from utility.tf_utils import explained_variance
 from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
@@ -17,7 +17,11 @@ class Agent(DQNBase):
                 [(4e6, self._q_lr), (7e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
-        self._q_opt = Optimizer(self._optimizer, [self.encoder, self.q, self.q2], self._q_lr)
+        q_models = [self.encoder, self.q]
+        self._twin_q = hasattr(self, 'q2')
+        if self._twin_q:
+            q_models.append(self.q2)
+        self._q_opt = Optimizer(self._optimizer, q_models, self._q_lr)
 
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -29,8 +33,6 @@ class Agent(DQNBase):
         tf.summary.histogram('entropy', terms['entropy'], step=self._env_step)
         tf.summary.histogram('next_act_probs', terms['next_act_probs'], step=self._env_step)
         tf.summary.histogram('next_act_logps', terms['next_act_logps'], step=self._env_step)
-        tf.summary.histogram('next_logps', terms['next_logps'], step=self._env_step)
-        tf.summary.histogram('next_qtv', terms['next_qtv'], step=self._env_step)
         tf.summary.histogram('reward', data['reward'], step=self._env_step)
 
     @tf.function
@@ -43,58 +45,58 @@ class Agent(DQNBase):
         # compute target returns
         next_x = self.encoder(next_obs)
         next_act_probs, next_act_logps = self.actor.train_step(next_x)
+        next_act_probs_ed = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
+        next_act_logps_ed = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
         next_x = self.target_encoder(next_obs)
-        next_act_probs = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
-        next_act_logps = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
-        _, next_qtv1 = self.target_q(next_x, self.N_PRIME)
-        _, next_qtv2 = self.target_q2(next_x, self.N_PRIME)
-        next_qtv = (next_qtv1 + next_qtv2) / 2
+        _, next_qtv = self.target_q(next_x, self.N_PRIME)
+        if self._twin_q:
+            _, next_qtv2 = self.target_q2(next_x, self.N_PRIME)
+            next_qtv = (next_qtv + next_qtv2) / 2.
         tf.debugging.assert_shapes([
-            [next_act_probs, (None, 1, self._action_dim)],
-            [next_act_logps, (None, 1, self._action_dim)],
-            [next_qtv1, (None, self.N_PRIME, self._action_dim)],
-            [next_qtv2, (None, self.N_PRIME, self._action_dim)],
+            [next_act_probs_ed, (None, 1, self._action_dim)],
+            [next_act_logps_ed, (None, 1, self._action_dim)],
             [next_qtv, (None, self.N_PRIME, self._action_dim)],
         ])
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
+            next_temp = self.temperature
         else:
-            _, temp = self.temperature()
+            _, next_temp = self.temperature(next_x, next_act_probs)
+            if next_temp.shape.ndims > 0:
+                next_temp = tf.expand_dims(next_temp, axis=1)
         reward = reward[:, None]
         discount = discount[:, None]
         if not isinstance(steps, int):
             steps = steps[:, None]
-        next_state_qtv = tf.reduce_sum(next_act_probs 
-            * (next_qtv - temp * next_act_logps), axis=-1)
-        returns = n_step_target(reward, next_state_qtv, discount, self._gamma, steps, self._tbo)
+        next_state_qtv = tf.reduce_sum(next_act_probs_ed 
+            * (next_qtv - next_temp * next_act_logps_ed), axis=-1)
+        returns = n_step_target(reward, next_state_qtv, discount, self._gamma, steps)
         returns = tf.expand_dims(returns, axis=1)      # [B, 1, N']
 
-        terms['next_qtv'] = tf.reduce_sum(next_act_probs * next_qtv, axis=-1)
-        terms['next_logps'] = tf.reduce_sum(next_act_probs * temp * next_act_logps, axis=-1)
         tf.debugging.assert_shapes([
             [next_state_qtv, (None, self.N_PRIME)],
-            [next_act_probs, (None, 1, self._action_dim)],
-            [next_act_logps, (None, 1, self._action_dim)],
+            [next_act_probs_ed, (None, 1, self._action_dim)],
+            [next_act_logps_ed, (None, 1, self._action_dim)],
             [next_qtv, (None, self.N_PRIME, self._action_dim)],
             [returns, (None, 1, self.N_PRIME)],
         ])
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
-            action = tf.expand_dims(action, axis=1)
+            action_ed = tf.expand_dims(action, axis=1)
 
-            qs1, error1, qr_loss1 = self._compute_qr_loss(self.q, x, action, returns, IS_ratio)
-            qs2, error2, qr_loss2 = self._compute_qr_loss(self.q2, x, action, returns, IS_ratio)
-
-            qr_loss = qr_loss1 + qr_loss2
+            qs, error, qr_loss = self._compute_qr_loss(self.q, x, action_ed, returns, IS_ratio)
+            if self._twin_q:
+                qs2, error2, qr_loss2 = self._compute_qr_loss(self.q2, x, action_ed, returns, IS_ratio)
+                qs = (qs + qs2) / 2.
+                error = (error + error2) / 2.
+                qr_loss = (qr_loss + qr_loss2) / 2.
         terms['q_norm'] = self._q_opt(tape, qr_loss)
+        
+        if not isinstance(self.temperature, (float, tf.Variable)):
+            _, temp = self.temperature(x, action)
 
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
-            tf.debugging.assert_shapes([[act_probs, (None, self._action_dim)]])
-            tf.debugging.assert_shapes([[act_logps, (None, self._action_dim)]])
-            tf.debugging.assert_shapes([[qs1, (None, self._action_dim)]])
-            tf.debugging.assert_shapes([[qs2, (None, self._action_dim)]])
-            qs = (qs1 + qs2) / 2
             q = tf.reduce_sum(act_probs * qs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
             actor_loss = -(q + temp * entropy)
@@ -104,7 +106,7 @@ class Agent(DQNBase):
 
         if not isinstance(self.temperature, (float, tf.Variable)):
             with tf.GradientTape() as tape:
-                log_temp, temp = self.temperature()
+                log_temp, temp = self.temperature(x, action)
                 temp_loss = -log_temp * (self._target_entropy - entropy)
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])
                 temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
@@ -116,25 +118,25 @@ class Agent(DQNBase):
             terms['temp_norm'] = self._temp_opt(tape, temp_loss)
 
         if self._is_per:
-            error1 = tf.reduce_max(tf.reduce_mean(error1, axis=-1), axis=-1)
-            error2 = tf.reduce_max(tf.reduce_mean(error2, axis=-1), axis=-1)
-            priority = self._compute_priority((tf.abs(error1) + tf.abs(error2)) / 2.)
+            error = tf.reduce_max(tf.reduce_mean(error, axis=-1), axis=-1)
+            priority = self._compute_priority(error / 2.)
             terms['priority'] = priority
             
         target_q = tf.reduce_mean(returns, axis=-1)
         target_q = tf.squeeze(target_q)
         terms.update(dict(
             act_probs=act_probs,
+            max_act_probs=tf.reduce_max(act_probs),
             actor_loss=actor_loss,
             q=q,
             next_value=tf.reduce_mean(next_state_qtv, axis=-1),
             logpi=act_logps,
             entropy=entropy,
+            max_entropy=tf.reduce_max(entropy),
+            min_entropy=tf.reduce_min(entropy),
             next_act_probs=next_act_probs,
             next_act_logps=next_act_logps,
             returns=returns,
-            qr1_loss=qr_loss1, 
-            qr2_loss=qr_loss2,
             qr_loss=qr_loss, 
             explained_variance1=explained_variance(target_q, q),
         ))
@@ -156,12 +158,13 @@ class Agent(DQNBase):
 
         qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
 
-        return qs, error, qr_loss
+        return qs, tf.abs(error), qr_loss
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_encoder.variables + self.target_q.variables + self.target_q2.variables
-        mvars = self.encoder.variables + self.q.variables + self.q2.variables
-        # tvars = self.target_q.variables + self.target_q2.variables
-        # mvars = self.q.variables + self.q2.variables
+        tvars = self.target_encoder.variables + self.target_q.variables
+        mvars = self.encoder.variables + self.q.variables
+        if self._twin_q:
+            tvars += self.target_q2.variables
+            mvars += self.q2.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]

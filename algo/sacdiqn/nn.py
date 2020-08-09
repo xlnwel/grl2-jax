@@ -5,50 +5,8 @@ from tensorflow_probability import distributions as tfd
 
 from core.module import Module, Ensemble
 from core.decorator import config
-from nn.func import mlp, cnn
-
-
-class Encoder(Module):
-    @config
-    def __init__(self, name='encoder'):
-        kwargs = dict(
-            out_size=self._cnn_out_size,
-            kernel_initializer=self._kernel_initializer,
-        )
-        self._layers = cnn(self._cnn, **kwargs)
-
-    def __call__(self, x):
-        x = self._layers(x)
-        return x
-
-
-class Actor(Module):
-    @config
-    def __init__(self, action_dim, name='actor'):
-        super().__init__(name=name)
-        
-        self._layers = mlp(self._units_list, 
-                            out_size=action_dim,
-                            activation=self._activation)
-
-    def __call__(self, x, deterministic=False, epsilon=0):
-        x = self._layers(x)
-
-        dist = tfd.Categorical(logits=x)
-        action = dist.mode() if deterministic else dist.sample()
-        if epsilon > 0:
-            rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
-            action = tf.where(
-                tf.random.uniform(action.shape, 0, 1) < epsilon,
-                rand_act, action)
-
-        return action
-
-    def train_step(self, x):
-        x = self._layers(x)
-        probs = tf.nn.softmax(x)
-        logps = tf.math.log(tf.maximum(probs, 1e-8))    # bound logps to avoid numerical instability
-        return probs, logps
+from nn.func import mlp
+from algo.sacd.nn import Encoder, Actor, Temperature
 
 
 class Q(Module):
@@ -140,32 +98,6 @@ class Q(Module):
         return q
 
 
-class Temperature(Module):
-    @config
-    def __init__(self, name='temperature'):
-        super().__init__(name=name)
-
-        if self._temp_type == 'state-action':
-            self._layer = layers.Dense(1)
-        elif self._temp_type == 'variable':
-            self._log_temp = tf.Variable(
-                np.log(self._value), dtype=tf.float32, name='log_temp')
-        else:
-            raise NotImplementedError(f'Error temp type: {self._temp_type}')
-    
-    def __call__(self, x=None, a=None):
-        if self._temp_type == 'state-action':
-            x = tf.concat([x, a], axis=-1)
-            x = self._layer(x)
-            log_temp = -tf.nn.softplus(x)
-            log_temp = tf.squeeze(log_temp)
-        else:
-            log_temp = self._log_temp
-        temp = tf.exp(log_temp)
-    
-        return log_temp, temp
-
-
 class SACIQN(Ensemble):
     def __init__(self, config, env, **kwargs):
         super().__init__(
@@ -192,22 +124,27 @@ class SACIQN(Ensemble):
 def create_components(config, env, **kwargs):
     assert env.is_action_discrete
     action_dim = env.action_dim
+    actor_config = config['actor']
+    q_config = config['q']
     temperature_config = config['temperature']
     if temperature_config['temp_type'] == 'constant':
         temperature = temperature_config['value']
     else:
         temperature = Temperature(temperature_config)
         
-    return dict(
+    models = dict(
         encoder=Encoder(config['encoder'], name='encoder'),
         target_encoder=Encoder(config['encoder'], name='target_encoder'),
-        actor=Actor(config['actor'], action_dim, name='actor'),
-        q=Q(config['q'], action_dim, name='q'),
-        q2=Q(config['q'], action_dim, name='q2'),
-        target_q=Q(config['q'], action_dim, name='target_q'),
-        target_q2=Q(config['q'], action_dim, name='target_q2'),
+        actor=Actor(actor_config, action_dim),
+        q=Q(q_config, action_dim, name='q'),
+        target_q=Q(q_config, action_dim, name='target_q'),
         temperature=temperature,
     )
+    if config['twin_q']:
+        models['q2'] = Q(q_config, action_dim, name='q2')
+        models['target_q2'] = Q(q_config, action_dim, name='target_q2')
+
+    return models
 
 def create_model(config, env, **kwargs):
     return SACIQN(config, env, **kwargs)

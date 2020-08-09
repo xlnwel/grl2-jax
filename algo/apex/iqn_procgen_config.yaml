@@ -2,12 +2,12 @@
 env:
     name: procgen_coinrun
     frame_skip: 2
-    gray_scale: True
+    gray_scale: False
     frame_stack: 4
     np_obs: True
 
 model:
-    cnn: impala
+    cnn: impalase
     cnn_out_size: none
     kernel_initializer: orthogonal
     units_list: [512]
@@ -37,15 +37,15 @@ agent:
     RECORD_PERIOD: 100
     N_EVALUATION: 10
 
-    # IQN params
-    N: 8                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
-    K: *K               # K in paper, num of quantiles for action selection
-    KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
-
     # distributed algo params
     n_learner_cpus: 3
-    n_workers: 6
+    n_workers: 5
+
+    # IQN params
+    N: 64                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
+    K: *K               # K in paper, num of quantiles for action selection
+    KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -59,7 +59,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 1e-4
+    lr: 3e-4
     clip_norm: 0
     epsilon: 1.5e-4
 

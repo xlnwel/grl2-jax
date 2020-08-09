@@ -4,14 +4,15 @@ env:
     n_workers: 1
     n_envs: &nenvs 8
     seed: 0
-    frame_stack: 2
+    frame_skip: 2
+    frame_stack: 4
     np_obs: True
     gray_scale: False
 
 model:
-    cnn_name: impala
-    actor_units: [256]
-    critic_units: [256]
+    cnn_name: impalase
+    actor_units: [512]
+    critic_units: [512]
     norm: none
     kernel_initializer: orthogonal
     activation: relu
@@ -23,7 +24,7 @@ agent:
 
     MAX_STEPS: 8e6
     N_STEPS: &nsteps 256
-    N_UPDATES: 3
+    N_UPDATES: 2
     N_MBS: &nmbs 4
     LOG_PERIOD: 100
     EVAL_PERIOD: 500
