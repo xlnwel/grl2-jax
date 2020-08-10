@@ -9,14 +9,11 @@ from nn.func import mlp, cnn
 
 
 class Encoder(Module):
-    @config
-    def __init__(self, name='encoder'):
-        kwargs = dict(
-            out_size=self._cnn_out_size,
-            kernel_initializer=self._kernel_initializer,
-            filter_multiplier=self._filter_multiplier,
-        )
-        self._layers = cnn(self._cnn, **kwargs)
+    def __init__(self, config, name='encoder'):
+        super().__init__(name=name)
+        config = config.copy()
+        cnn_name = config.pop('cnn')
+        self._layers = cnn(cnn_name, **config)
 
     def __call__(self, x):
         x = self._layers(x)

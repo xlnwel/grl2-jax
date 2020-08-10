@@ -24,7 +24,7 @@ agent:
     N_MBS: &nmbs 4
     LOG_PERIOD: 200
     EVAL_PERIOD: 2000
-    max_kl: 0            # early stop when max_kl is violated. 0 or none suggests unbound
+    max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

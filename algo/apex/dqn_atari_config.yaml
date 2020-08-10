@@ -13,7 +13,7 @@ env:
 
 model:
     cnn: nature
-    cnn_out_size: none
+    cnn_out_size: null
     kernel_initializer: orthogonal
     units_list: [512]
     activation: relu

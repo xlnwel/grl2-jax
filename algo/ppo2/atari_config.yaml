@@ -18,7 +18,7 @@ model:
     lstm_ln: True
     actor_units: [256]
     critic_units: [256]
-    norm: none
+    norm: null
     kernel_initializer: orthogonal
     activation: relu
     init_std: 1
@@ -34,7 +34,7 @@ agent:
     sample_size: &ss 16       # BPTT length
     LOG_PERIOD: 100
     EVAL_PERIOD: 500
-    max_kl: .1            # early stop when max_kl is violated. 0 or none suggests unbound
+    max_kl: .1            # early stop when max_kl is violated. 0 or null suggests unbound
 
     normalize_obs: False
     normalize_reward: False

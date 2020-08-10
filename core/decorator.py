@@ -133,8 +133,7 @@ def _config_attr(obj, config):
             try:
                 v = float(v)
             except:
-                if v.lower() == 'none':
-                    v = None
+                pass
         if isinstance(v, float) and v == int(v):
             v = int(v)
         setattr(obj, k, v)

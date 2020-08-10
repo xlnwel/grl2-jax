@@ -5,13 +5,13 @@ env:
 model:
     actor:
         units_list: [128, 64]
-        norm: none
+        norm: null
         activation: relu
         LOG_STD_MIN: -20
         LOG_STD_MAX: 2
     q:
         units_list: [128, 64]
-        norm: none
+        norm: null
         activation: relu
     temperature:
         temp_type: 'variable'

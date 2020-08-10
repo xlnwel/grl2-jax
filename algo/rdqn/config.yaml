@@ -8,7 +8,7 @@ env:
 
 model:
     cnn: nature
-    cnn_out_size: none
+    cnn_out_size: null
     additional_input: &ai False
     lstm_units: 512
     units_list: [512]

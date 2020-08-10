@@ -9,7 +9,7 @@ env:
 model:
     encoder: 
         cnn: impalase
-        cnn_out_size: none
+        out_size: null
         kernel_initializer: orthogonal
     actor:
         units_list: [512]

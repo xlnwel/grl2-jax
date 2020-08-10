@@ -9,9 +9,9 @@ model:
     encoder: 
         cnn: mbse
         obs_range: [-1, 1]
-        cnn_out_size: none
+        out_size: null
         kernel_initializer: orthogonal
-        norm: none
+        norm: null
         activation: relu
     actor:
         units_list: [512]

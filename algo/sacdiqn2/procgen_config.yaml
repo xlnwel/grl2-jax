@@ -9,7 +9,7 @@ model:
     cnn: 
         cnn: impala
         kernel_initializer: orthogonal
-        cnn_out_size: none
+        cnn_out_size: null
     actor:
         units_list: [512]
         activation: relu

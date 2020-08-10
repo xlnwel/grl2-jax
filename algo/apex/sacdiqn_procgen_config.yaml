@@ -10,9 +10,12 @@ model:
     encoder: 
         cnn: mbse
         obs_range: [-1, 1]
-        cnn_out_size: none
+        channels: [16, 32, 32, 64]
+        expansion_ratio: [4, 4, 4, 4]
+        reduction_ratio: 1
+        out_size: null
         kernel_initializer: orthogonal
-        norm: none
+        norm: null
         activation: relu
     actor:
         units_list: [512]

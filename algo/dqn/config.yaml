@@ -4,7 +4,7 @@ env:
     precision: &prec 32
     seed: 0
 model:
-    cnn: none
+    cnn: null
     units_list: [128, 128]
     activation: relu
     layer_type: dense

@@ -8,7 +8,7 @@ env:
 model:
     encoder:
         cnn: impala
-        cnn_out_size: none
+        cnn_out_size: null
         kernel_initializer: orthogonal
     fpn:
         N: &N 32

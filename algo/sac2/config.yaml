@@ -5,14 +5,14 @@ env:
 model:
     actor:
         units_list: [256, 128]
-        norm: none
+        norm: null
         activation: relu
         init_std: 5
         min_std: 1e-4
         mean_scale: 5
     q:
         units_list: [256, 128]
-        norm: none
+        norm: null
         activation: relu
     temperature:
         temp_type: 'variable'

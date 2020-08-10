@@ -12,15 +12,15 @@ env:
 model:
     encoder: 
         cnn: nature
-        cnn_out_size: none
+        out_size: null
         kernel_initializer: orthogonal
     actor:
         units_list: [512]
-        norm: none
+        norm: null
         activation: relu
     q:
         units_list: [512]
-        norm: none
+        norm: null
         activation: relu
         duel: False
         

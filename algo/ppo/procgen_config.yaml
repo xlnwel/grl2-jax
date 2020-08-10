@@ -13,7 +13,7 @@ model:
     cnn_name: impalase
     actor_units: [512]
     critic_units: [512]
-    norm: none
+    norm: null
     kernel_initializer: orthogonal
     activation: relu
     init_std: 1
@@ -28,7 +28,7 @@ agent:
     N_MBS: &nmbs 4
     LOG_PERIOD: 100
     EVAL_PERIOD: 500
-    max_kl: 0            # early stop when max_kl is violated. 0 or none suggests unbound
+    max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     normalize_obs: False
     normalize_reward: True

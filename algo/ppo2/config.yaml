@@ -6,12 +6,12 @@ env:
     seed: 0
 
 model:
-    cnn_name: none
+    cnn_name: null
     shared_mlp_units: [64]
     lstm_units: 64
     actor_units: [64]
     critic_units: [64]
-    norm: none
+    norm: null
     kernel_initializer: orthogonal
     activation: relu
     init_std: 1
@@ -27,7 +27,7 @@ agent:
     sample_size: &ss 16       # BPTT length
     LOG_PERIOD: 100
     EVAL_PERIOD: 1000
-    max_kl: .1            # early stop when max_kl is violated. 0 or none suggests unbound
+    max_kl: .1            # early stop when max_kl is violated. 0 or null suggests unbound
 
     normalize_obs: True
     normalize_reward: True

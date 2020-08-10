@@ -9,18 +9,18 @@ env:
 model:
     encoder:
         norm: layer
-        dense_act: none
+        dense_act: null
         z_size: &zsize 50
     actor:
         z_size: *zsize
         units_list: [1024, 1024]
-        norm: none
+        norm: null
         activation: relu
         LOG_STD_MIN: -10
         LOG_STD_MAX: 2
     q:
         units_list: [1024, 1024]
-        norm: none
+        norm: null
         activation: relu
     temperature:
         temp_type: 'variable'

@@ -7,10 +7,10 @@ env:
     precision: &prec 32
 
 model:
-    cnn_name: none
+    cnn_name: null
     actor_units: &u [64, 64]
     critic_units: *u
-    norm: none
+    norm: null
     kernel_initializer: orthogonal
     activation: relu
     init_std: 1
@@ -25,7 +25,7 @@ agent:
     N_MBS: &nmbs 4
     LOG_PERIOD: 200
     EVAL_PERIOD: 2000
-    max_kl: .1            # early stop when max_kl is violated. 0 or none suggests unbound
+    max_kl: .1            # early stop when max_kl is violated. 0 or null suggests unbound
 
     normalize_obs: True
     normalize_reward: True
