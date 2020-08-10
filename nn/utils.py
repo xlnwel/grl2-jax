@@ -1,17 +1,26 @@
 import logging
+import functools
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers
+from tensorflow.keras.mixed_precision.experimental import global_policy # useful for modules import nn.utils
 
 logger = logging.getLogger(__name__)
 
+custom_activations = dict(
+    leaky_relu=tf.nn.leaky_relu,
+    hswish=lambda x: x * (tf.nn.relu6(x+3) / 6) # see MobileNet3
+)
 
 def get_activation(name):
-    if name is None or name.lower() == 'none':
+    if isinstance(name, str):
+        name = name.lower()
+    if name is None:
         return None
-    elif name.lower() == 'leaky_relu':
-        return tf.nn.leaky_relu
-    return activations.get(name)
+    elif name in custom_activations:
+        return custom_activations[name]
+    else:
+        return activations.get(name)
         
 def get_norm(name):
     """ Return a normalization """
@@ -20,7 +29,7 @@ def get_norm(name):
             return layers.LayerNormalization
         elif name == 'batch':
             return layers.BatchNormalization
-        elif name.lower() == 'none':
+        elif name.lower():
             return None
         else:
             raise NotImplementedError
@@ -36,7 +45,9 @@ def calculate_gain(name, param=None):
         'tanh': 5./3., 
         'relu': np.sqrt(2.), 
         'leaky_relu': np.sqrt(2./(1+(param or 0)**2)),
-        'elu': np.sqrt(2.)  # this one is I make up
+        # the followings are I make up
+        'elu': np.sqrt(2.),
+        'hswish': np.sqrt(2.), 
     }
     return m[name]
 
@@ -51,7 +62,7 @@ def get_initializer(name, **kwargs):
         if name.lower() == 'none':
             return None
         elif name.lower() == 'orthogonal':
-            gain = kwargs.pop('gain', 1.)   # we do not keep 'gain' to avoid unwanted repetition
+            gain = kwargs.get('gain', 1.)
             return initializers.orthogonal(gain)
         return initializers.get(name)
     else:
