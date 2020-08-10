@@ -6,26 +6,29 @@ from nn.utils import *
 
 
 class Layer(tf.Module):
-    def __init__(self, units, layer_type=layers.Dense, norm=None, 
+    def __init__(self, *args, layer_type=layers.Dense, norm=None, 
                 activation=None, kernel_initializer='glorot_uniform', 
-                name=None, **kwargs):
+                name=None, norm_kwargs={}, **kwargs):
         super().__init__(name=name)
 
         gain = kwargs.pop('gain', calculate_gain(activation))
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
 
         self._layer = layer_type(
-            units, kernel_initializer=kernel_initializer, name=name, **kwargs)
+            *args, kernel_initializer=kernel_initializer, name=name, **kwargs)
         self._norm_layer = get_norm(norm)
         if self._norm_layer:
-            self._norm_layer = self._norm_layer()
+            self._norm_layer = self._norm_layer(**norm_kwargs)
         self.activation = get_activation(activation)
 
     def __call__(self, x, **kwargs):
+        norm_kwargs = {}
+        if isinstance(self._norm_layer, layers.BatchNormalization):
+            norm_kwargs['training'] = kwargs.pop('training')    # require "training" for batch normalization
         x = self._layer(x) if isinstance(self._layer, layers.Dense) \
                 else self._layer(x, **kwargs)
         if self._norm_layer:
-            x = self._norm_layer(x)
+            x = self._norm_layer(x, **norm_kwargs)
         if self.activation is not None:
             x = self.activation(x)
         
