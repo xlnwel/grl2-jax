@@ -10,7 +10,7 @@ from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 class Agent(PPOBase):
     @agent_config
-    def __init__(self, dataset, env):
+    def __init__(self, *, dataset, env):
         super().__init__(dataset=dataset, env=env)
 
         # Explicitly instantiate tf.function to avoid unintended retracing

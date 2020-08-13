@@ -10,7 +10,16 @@ env:
     gray_scale: False
 
 model:
-    cnn_name: impalase
+    cnn: 
+        cnn_name: mbse
+        obs_range: [-1, 1]
+        channels: [16, 32, 32, 64]
+        expansion_ratio: [4, 4, 4, 4]
+        reduction_ratio: 1
+        norm: null
+        out_size: null
+        kernel_initializer: orthogonal
+        activation: relu
     actor_units: [512]
     critic_units: [512]
     norm: null

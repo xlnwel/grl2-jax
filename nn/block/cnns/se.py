@@ -35,7 +35,7 @@ class SE(layers.Layer):
         y = self._squeeze(x)
         for l in self._excitation:
             y = l(y)
-        y = tf.reshape(y, (-1, 1, 1, x.shape[-1]))
+        y = tf.expand_dims(tf.expand_dims(y, -2), -2)
         return x * y
 
 

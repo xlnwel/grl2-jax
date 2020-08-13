@@ -102,6 +102,7 @@ if __name__ == '__main__':
         algorithm = list(cmd_args.algorithm)
         environment = list(cmd_args.environment)
         algo_env = list(itertools.product(algorithm, environment))
+
         for algo, env in algo_env:
             config = get_config(algo, env)
             main = pkg.import_main('train', algo)
@@ -126,16 +127,16 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     if algo == 'sacd':
-                        processes += gs(target_entropy_coef=[.5, .3])
+                        processes += gs()
                     elif algo == 'iqn':
-                        processes += gs(wrapper=['baselines', 'my_atari'])
+                        processes += gs()
                     elif algo == 'fqf':
-                        processes += gs(wrapper=['baselines', 'my_atari'])
+                        processes += gs()
                     elif 'ppo' in algo:
-                        processes += gs(normalize_reward=[True, False], lr=[3e-4, 1e-4, 5e-5])
+                        processes += gs(normalize_reward=[True, False])
                     else:
                         # Grid search happens here
-                        processes += gs(target_entropy_coef=np.random.uniform(size=5))
+                        processes += gs()
                 else:
                     processes += gs()
             else:

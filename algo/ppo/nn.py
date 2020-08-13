@@ -17,8 +17,8 @@ class AC(Module):
         self._is_action_discrete = is_action_discrete
         
         """ Network definition """
-        if self._cnn_name:
-            self._shared_layers = cnn(self._cnn_name, time_distributed=False)
+        if self._cnn:
+            self._shared_layers = cnn(**self._cnn)
         else:
             self._shared_layers = lambda x: x
 

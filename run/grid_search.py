@@ -31,17 +31,17 @@ class GridSearch:
             # do grid search
             self.agent_config['model_name'] = ''
             self._change_config(**kwargs)
+
         return self.processes
 
     def _dir_setup(self):
         # add date to root directory
         now = datetime.now()
-        ans = input('Do you want to add timestamp to directory name?(y/n)\n')
-        if ans.lower() == 'y':
-            timestamp = f'{now.month:02d}{now.day:02d}-' \
-                        f'{now.hour:02d}{now.minute:02d}-'
-        else:
-            timestamp = ''
+        timestamp = ''
+        # ans = input('Do you want to add timestamp to directory name?(y/n)\n')
+        # if ans.lower() == 'y':
+        #     timestamp = f'{now.month:02d}{now.day:02d}-' \
+        #                 f'{now.hour:02d}{now.minute:02d}-'
         dir_prefix = self.dir_prefix                                 
         self.agent_config['root_dir'] = (f'{self.logdir}/'
                                         f'{timestamp}'

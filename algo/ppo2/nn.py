@@ -18,8 +18,8 @@ class AC(Module):
         self._is_action_discrete = is_action_discrete
         
         """ Network definition """
-        if self._cnn_name:
-            self._shared_layers = cnn(self._cnn_name, time_distributed=True, kernel_initializer=self._kernel_initializer)
+        if self._cnn:
+            self._shared_layers = cnn(**self._cnn, time_distributed=True)
         elif self._shared_mlp_units:
             self._shared_layers = mlp(
                 self._shared_mlp_units, 
