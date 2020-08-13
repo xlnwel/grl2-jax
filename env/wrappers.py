@@ -230,7 +230,7 @@ class DataProcess(gym.Wrapper):
 
 
 """ 
-Distinguish several signals:
+Distinctions several signals:
     done: an episode is done, may due to life loss
     game over: a game is over, may due to timeout. Life loss is not game over
     reset: an new episode starts after done. In auto-reset mode, environment 

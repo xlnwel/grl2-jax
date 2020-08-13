@@ -149,8 +149,8 @@ class Agent(BaseAgent):
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
         with tf.GradientTape() as tape:
-            embed = self.q.cnn(obs)
-            t_embed = self.target_q.cnn(obs)
+            embed = self.encoder(obs)
+            t_embed = self.target_encoder(obs)
             if self._burn_in:
                 bis = self._burn_in_size
                 rs = self._sample_size - bis
@@ -164,9 +164,9 @@ class Agent(BaseAgent):
                     pa, pr = bi_prev_action, bi_prev_reward
                 else:
                     pa, pr = None, None
-                _, o_state = self.q.rnn(bi_embed, state, 
+                _, o_state = self.rnn(bi_embed, state, 
                     prev_action=pa, prev_reward=pr)
-                _, t_state = self.target_q.rnn(tbi_embed, state, 
+                _, t_state = self.target_rnn(tbi_embed, state, 
                     prev_action=pa, prev_reward=pr)
                 o_state = tf.nest.map_structure(tf.stop_gradient, o_state)
             else:
@@ -176,9 +176,9 @@ class Agent(BaseAgent):
                 pa, pr = prev_action, prev_reward
             else:
                 pa, pr = None, None
-            x, _ = self.q.rnn(embed, o_state, 
+            x, _ = self.rnn(embed, o_state, 
                 prev_action=pa, prev_reward=pr)
-            t_x, _ = self.target_q.rnn(t_embed, t_state, 
+            t_x, _ = self.target_rnn(t_embed, t_state, 
                 prev_action=pa, prev_reward=pr)
             
             curr_x = x[:, :-1]
@@ -189,10 +189,10 @@ class Agent(BaseAgent):
             reward = prev_reward[:, 1:]
             discount = discount[:, :-1] * self._gamma
             
-            q = self.q.mlp(curr_x, curr_action)
-            next_qs = self.q.mlp(next_x)
+            q = self.q(curr_x, curr_action)
+            next_qs = self.q(next_x)
             new_next_action = tf.argmax(next_qs, axis=-1, output_type=tf.int32)
-            t_next_q = self.target_q.mlp(t_next_x, new_next_action)
+            t_next_q = self.target_q(t_next_x, new_next_action)
             if self._retrace:
                 new_next_prob = tf.math.equal(new_next_action[:, :-1], next_action)
                 new_next_prob = tf.cast(new_next_prob, logpi.dtype)
@@ -248,5 +248,6 @@ class Agent(BaseAgent):
 
     @tf.function
     def _sync_target_nets(self):
-        [tv.assign(mv) for mv, tv in zip(
-            self.q.trainable_variables, self.target_q.trainable_variables)]
+        tvars = self.target_encoder.variables + self.target_rnn.variables + self.target_q.variables
+        mvars = self.encoder.variables + self.rnn.variables + self.q.variables
+        [tv.assign(mv) for mv, tv in zip(tvars, mvars)]

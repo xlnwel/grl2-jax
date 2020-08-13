@@ -1,6 +1,7 @@
 from nn.utils import *
 from nn.block.cnns.utils import *
 from nn.block.cnns.res import Residual
+from nn.block.cnns.se import ResidualSE
 
 relu = activations.relu
 

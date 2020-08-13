@@ -90,9 +90,6 @@ class MobileBottleneckSECNN(layers.Layer):
         assert 'activation' in kwargs
         assert 'norm' in kwargs
         self._conv_layers = []
-        print('MobileBottleneckSECNN kwargs:')
-        for k, v in kwargs.items():
-            print(k, v)
         for i, (t, c) in enumerate(zip(expansion_ratio, channels)):
             c *= filter_multiplier
             self._conv_layers += [

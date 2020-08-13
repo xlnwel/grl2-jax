@@ -15,19 +15,44 @@ from nn.func import cnn
         
 
 LSTMState = collections.namedtuple('LSTMState', ['h', 'c'])
+class Encoder(Module):
+    def __init__(self, config, name='encoder'):
+        super().__init__(name=name)
+        config = config.copy()
+        config['time_distributed'] = True
+        self._cnn = cnn(**config)
+    
+    def __call__(self, x):
+        x = self._layers(x)
+        return x
+
+
+class RNN(Module):
+    @config
+    def __init__(self, name='rnn'):
+        self._rnn = layers.LSTM(self._lstm_units, return_sequences=True, return_state=True)
+
+    def __call__(self, x, state, prev_action=None, prev_reward=None):
+        if self._additional_input:
+            prev_action = tf.one_hot(prev_action, self._action_dim, dtype=x.dtype)
+            prev_reward = tf.cast(tf.expand_dims(prev_reward, axis=-1), dtype=x.dtype)
+            seqlen = x.shape[1]
+            tf.debugging.assert_shapes([
+                [prev_action, (None, seqlen, self._action_dim)],
+                [prev_reward, (None, seqlen, 1)]
+            ])
+            x = tf.concat([x, prev_action, prev_reward], axis=-1)
+        x = self._rnn(x, initial_state=state)
+        x, state = x[0], x[1:]
+        return x, state
+
+
 class Q(Module):
     @config
     def __init__(self, action_dim, name='q'):
         super().__init__(name=name)
-        self._dtype = global_policy().compute_dtype
 
         self._action_dim = action_dim
-
-        """ Network definition """
-        self._cnn = cnn(self._cnn, out_size=self._cnn_out_size, time_distributed=True)
-
-        # RNN layer
-        self._rnn = layers.LSTM(self._lstm_units, return_sequences=True, return_state=True)
 
         if self._duel:
             self._v_head = mlp(
@@ -47,34 +72,7 @@ class Q(Module):
     def action_dim(self):
         return self._action_dim
 
-    def value(self, x, state, action=None, prev_action=None, prev_reward=None):
-        if self._cnn is None:
-            x = tf.reshape(x, (-1, 1, x.shape[-1]))
-            if not hasattr(self, 'shared_layers'):
-                self.shared_layers = mlp(self._shared_units, activation=self._activation)
-        else:
-            x = tf.reshape(x, (-1, 1, *x.shape[-3:]))
-        x = self.cnn(x)
-        x, state = self.rnn(x, state, prev_action=prev_action, prev_reward=prev_reward)
-        q = self.mlp(x, action=action)
-
-        return q, state
-
-    def cnn(self, x):
-        if self._cnn:
-            x = self._cnn(x)
-        return x
-
-    def rnn(self, x, state, prev_action=None, prev_reward=None):
-        if self._additional_input:
-            prev_action = tf.one_hot(prev_action, self._action_dim, dtype=x.dtype)
-            prev_reward = tf.cast(tf.expand_dims(prev_reward, -1), dtype=x.dtype)
-            x = tf.concat([x, prev_action, prev_reward], axis=-1)
-        x = self._rnn(x, initial_state=state)
-        x, state = x[0], x[1:]
-        return x, state
-
-    def mlp(self, x, action=None):
+    def __call__(self, x, action=None):
         if self._duel:
             v = self._v_head(x)
             a = self._a_head(x)
@@ -124,12 +122,18 @@ class RDQN(Ensemble):
     @tf.function
     def action(self, x, state, deterministic, epsilon=0, prev_action=None, prev_reward=None):
         if x.shape.ndims % 2 != 0:
+            # add batch dimension
             x = tf.expand_dims(x, axis=0)
-        assert x.shape.ndims == 4, x.shape
+        # add time dimension
+        x = tf.expand_dims(x, axis=1)
         prev_action = tf.reshape(prev_action, (-1, 1))
         prev_reward = tf.reshape(prev_reward, (-1, 1))
-        qs, state = self.q.value(x, state, 
-            prev_action=prev_action, prev_reward=prev_reward)
+        assert x.shape.ndims == 5, x.shape
+        assert prev_action.shape.ndims == 2, x.shape
+        assert prev_reward.shape.ndims == 2, x.shape
+        x = self.encoder(x)
+        x, state = self.rnn(x, state, prev_action, prev_reward)
+        qs, state = self.q(x)
         action = tf.argmax(qs, axis=-1, output_type=tf.int32)
         action = tf.squeeze(action)
         q = tf.math.reduce_max(qs, -1)
@@ -151,11 +155,16 @@ class RDQN(Ensemble):
 
 def create_components(config, env):
     action_dim = env.action_dim
-    q = Q(config, action_dim, 'q')
-    target_q = Q(config, action_dim, 'target_q')
+    encoder_config = config['encoder']
+    rnn_config = config['rnn']
+    q_config = config['q']
     return dict(
-        q=q,
-        target_q=target_q,
+        encoder=Encoder(encoder_config, name='encoder'),
+        rnn=RNN(rnn_config, name='rnn'),
+        q=Q(q_config, action_dim, 'q'),
+        target_encoder=Encoder(encoder_config, name='target_encoder'),
+        target_rnn=RNN(rnn_config, name='target_rnn'),
+        target_q=Q(q_config, action_dim, 'target_q'),
     )
 
 def create_model(config, env, **kwargs):

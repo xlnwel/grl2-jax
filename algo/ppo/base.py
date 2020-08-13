@@ -89,6 +89,7 @@ class PPOBase(BaseAgent):
         for i in range(self.N_UPDATES):
             for j in range(1, self.N_MBS+1):
                 data = self.dataset.sample()
+                reward = data.pop('reward')
                 value = data['value']
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 terms = self.learn(**data)
@@ -115,12 +116,14 @@ class PPOBase(BaseAgent):
             self.store(lr=self._lr(step))
         
         if self._to_summary(step):
+            data['reward'] = reward
             self.summary(data, terms)
 
         return i * self.N_MBS + j
 
     def summary(self, data, terms):
         tf.summary.histogram('traj_ret', data['traj_ret'], step=self._env_step)
+        tf.summary.histogram('reward', data['reward'], step=self._env_step)
 
     @tf.function
     def _learn(self, obs, action, traj_ret, value, advantage, logpi, mask=None, state=None):

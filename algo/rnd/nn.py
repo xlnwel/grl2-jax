@@ -21,7 +21,7 @@ class AC(Module):
         
         """ Network definition """
         self._cnn = cnn(
-                self._cnn, time_distributed=False, out_size=256)
+                self._cnn_name, time_distributed=False, out_size=256)
         
         self._mlps = []
         for i in range(3):

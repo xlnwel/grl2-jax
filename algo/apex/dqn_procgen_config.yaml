@@ -7,7 +7,7 @@ env:
     np_obs: True
 
 model:
-    cnn: impala
+    cnn_name: impala
     cnn_out_size: null
     kernel_initializer: orthogonal
     units_list: [512]

@@ -25,7 +25,7 @@ class Q(Module):
         self._action_dim = action_dim
 
         """ Network definition """
-        self._cnn = cnn(self._cnn, time_distributed=True)
+        self._cnn = cnn(self._cnn_name, time_distributed=True)
 
         # RNN layer
         cell = LSTMCell(self._lstm_units)

@@ -7,7 +7,7 @@ env:
     seed: 0
 
 model:
-    cnn: nature
+    cnn_name: nature
     lstm_units: 512
     units_list: [512]
     activation: relu

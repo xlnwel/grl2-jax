@@ -80,7 +80,7 @@ class Agent(DQNBase):
             [next_qtv, (None, self.N_PRIME, self._action_dim)],
             [returns, (None, 1, self.N_PRIME)],
         ])
-        with tf.GradientTape() as tape:
+        with tf.GradientTape(persistent=True) as tape:
             x = self.encoder(obs)
             action_ed = tf.expand_dims(action, axis=1)
 
@@ -90,18 +90,16 @@ class Agent(DQNBase):
                 qs = (qs + qs2) / 2.
                 error = (error + error2) / 2.
                 qr_loss = (qr_loss + qr_loss2) / 2.
-        terms['q_norm'] = self._q_opt(tape, qr_loss)
-        
-        if not isinstance(self.temperature, (float, tf.Variable)):
-            _, temp = self.temperature(x, action)
 
-        with tf.GradientTape() as tape:
+            _, temp = self.temperature(x, action)
+        # with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
             q = tf.reduce_sum(act_probs * qs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
             actor_loss = -(q + temp * entropy)
             tf.debugging.assert_shapes([[actor_loss, (None, )]])
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
+        terms['q_norm'] = self._q_opt(tape, qr_loss)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
         if not isinstance(self.temperature, (float, tf.Variable)):

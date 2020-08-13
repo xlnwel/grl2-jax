@@ -6,7 +6,7 @@ env:
     frame_stack: 4
 
 model:
-    cnn: impala
+    cnn_name: impala
     cnn_out_size: null
     kernel_initializer: orthogonal
     units_list: [512]

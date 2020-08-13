@@ -8,7 +8,7 @@ env:
     seed: 0
 
 model:
-    cnn: impala
+    cnn_name: impala
     lstm_units: 512
     units_list: [512]
     activation: relu

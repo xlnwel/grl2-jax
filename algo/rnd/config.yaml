@@ -7,7 +7,7 @@ env:
     frame_stack: True
 
 model:
-    cnn: nature
+    cnn_name: nature
     kernel_initializer: orthogonal
     activation: relu
     init_std: 1

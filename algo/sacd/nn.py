@@ -11,9 +11,7 @@ from nn.func import mlp, cnn
 class Encoder(Module):
     def __init__(self, config, name='encoder'):
         super().__init__(name=name)
-        config = config.copy()
-        cnn_name = config.pop('cnn')
-        self._layers = cnn(cnn_name, **config)
+        self._layers = cnn(**config)
 
     def __call__(self, x):
         x = self._layers(x)

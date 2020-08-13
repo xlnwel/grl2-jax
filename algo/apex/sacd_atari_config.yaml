@@ -11,7 +11,7 @@ env:
 
 model:
     encoder: 
-        cnn: nature
+        cnn_name: nature
         out_size: null
         kernel_initializer: orthogonal
     actor:

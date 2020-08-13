@@ -17,7 +17,7 @@ class Encoder(Module):
         kwargs = {}
         if hasattr(self, '_kernel_initializer'):
             kwargs['kernel_initializer'] = self._kernel_initializer
-        self._layers = cnn(self._cnn, out_size=self._cnn_out_size, **kwargs)
+        self._layers = cnn(self._cnn_name, out_size=self._cnn_out_size, **kwargs)
 
     def __call__(self, x):
         x = self._layers(x)

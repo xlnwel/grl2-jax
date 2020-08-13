@@ -7,7 +7,7 @@ env:
 
 model:
     encoder: 
-        cnn: impala
+        cnn_name: impala
         out_size: null
         kernel_initializer: orthogonal
     actor:

@@ -8,9 +8,15 @@ env:
 
 model:
     encoder: 
-        cnn: impalase
+        cnn_name: mbse
+        obs_range: [-1, 1]
+        channels: [16, 32, 32, 64]
+        expansion_ratio: [4, 4, 4, 4]
+        reduction_ratio: 1
+        norm: null
         out_size: null
         kernel_initializer: orthogonal
+        activation: relu
     actor:
         units_list: [512]
         kernel_initializer: orthogonal
@@ -47,6 +53,7 @@ agent:
     # distributed algo params
     n_learner_cpus: 3
     n_workers: 5
+    deterministic_evaluation: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

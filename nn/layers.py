@@ -5,7 +5,7 @@ from tensorflow.keras import layers
 from nn.utils import *
 
 
-class Layer(tf.Module):
+class Layer(layers.Layer):  # if we define Layer as a subclass of tf.Module, it cannot be used in tf.keras.Model as variables will not be counted in tf.keras.Model
     def __init__(self, *args, layer_type=layers.Dense, norm=None, 
                 activation=None, kernel_initializer='glorot_uniform', 
                 name=None, norm_kwargs={}, **kwargs):

@@ -22,7 +22,7 @@ class Q(Module):
         if hasattr(self, '_kernel_initializer'):
             kwargs['kernel_initializer'] = self._kernel_initializer
         self._kwargs = kwargs
-        self._cnn = cnn(self._cnn, out_size=self._cnn_out_size, **kwargs)
+        self._cnn = cnn(self._cnn_name, out_size=self._cnn_out_size, **kwargs)
 
         if self._duel:
             self._v_head = mlp(

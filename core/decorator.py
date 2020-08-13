@@ -3,7 +3,7 @@ import logging
 import tensorflow as tf
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
-from utility.display import display_var_info, pwc
+from utility.display import display_model_var_info
 from core.checkpoint import setup_checkpoint
 from core.log import setup_logger, setup_tensorboard, save_code
 from core.optimizer import Optimizer
@@ -106,25 +106,6 @@ def override(cls):
 
     return check_override
 
-""" Functions used to print model variables """                    
-def display_model_var_info(models):
-    learnable_models = {}
-    opts = {}
-    nparams = 0
-    for name, model in models.items():
-        if 'target' in name or name in learnable_models or name in opts:
-            pass # ignore variables in the target networks
-        elif 'opt' in name:
-            opts[name] = model
-        else:
-            learnable_models[name] = model
-    
-    pwc(f'Learnable models:', color='yellow')
-    for name, model in learnable_models.items():
-        nparams += display_var_info(
-            model.trainable_variables, name=name, prefix='   ')
-    pwc(f'Total learnable model parameters: {nparams*1e-6:0.4g} million', color='yellow')
-    
 def _config_attr(obj, config):
     for k, v in config.items():
         if not k.isupper():

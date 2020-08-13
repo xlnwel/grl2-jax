@@ -10,7 +10,7 @@ env:
 
 model:
     encoder: 
-        cnn: impalase
+        cnn_name: nature
         out_size: null
         kernel_initializer: orthogonal
     actor:

@@ -7,7 +7,7 @@ env:
     n_envs: 1
     seed: 0
 model:
-    cnn: impala
+    cnn_name: impala
     kernel_initializer: orthogonal
     units_list: [512]
     activation: relu

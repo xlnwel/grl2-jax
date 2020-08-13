@@ -5,7 +5,7 @@ env:
     precision: &prec 32
 
 model:
-    cnn: null
+    cnn_name: null
     shared_units: [128]
     lstm_units: 64
     units_list: [64]

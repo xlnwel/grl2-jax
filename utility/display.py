@@ -39,10 +39,10 @@ def pwc(*args, color='red', bold=False, highlight=False):
 def assert_colorize(cond, err_msg=''):
     assert cond, colorize(err_msg, 'red')
 
-def display_var_info(vars, name='trainable', prefix=''):
+def display_var_info(tf_vars, name='trainable', prefix=''):
     pwc(f'{prefix}{name.title()} variables', color='yellow')
     nparams = 0
-    for v in vars:
+    for v in tf_vars:
         name = v.name
         if '/Adam' in name or 'beta1_power' in name or 'beta2_power' in name: continue
         v_params = int(np.prod(v.shape.as_list()))
@@ -53,3 +53,22 @@ def display_var_info(vars, name='trainable', prefix=''):
     pwc(f'{prefix}Total model parameters: {nparams*1e-6:0.4g} million', color='yellow')
 	
     return nparams
+
+def display_model_var_info(models):
+    learnable_models = {}
+    opts = {}
+    nparams = 0
+    for name, model in models.items():
+        if 'target' in name or name in learnable_models or name in opts:
+            pass # ignore variables in the target networks
+        elif 'opt' in name:
+            opts[name] = model
+        else:
+            learnable_models[name] = model
+    
+    pwc(f'Learnable models:', color='yellow')
+    for name, model in learnable_models.items():
+        nparams += display_var_info(
+            model.trainable_variables, name=name, prefix='   ')
+    pwc(f'Total learnable model parameters: {nparams*1e-6:0.4g} million', color='yellow')
+    

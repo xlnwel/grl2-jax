@@ -52,7 +52,7 @@ class PPOBuffer:
             self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             print_buffer(self._memory)
-            self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
+            self._sample_keys = set(self._memory.keys()) - set(('discount',))#set(('discount', 'reward'))
             
         for k, v in data.items():
             self._memory[k][:, self._idx] = v

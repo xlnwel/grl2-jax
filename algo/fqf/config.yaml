@@ -10,7 +10,7 @@ env:
 
 model:
     encoder:
-        cnn: nature
+        cnn_name: nature
         cnn_out_size: null
         kernel_initializer: he_uniform
     fpn:

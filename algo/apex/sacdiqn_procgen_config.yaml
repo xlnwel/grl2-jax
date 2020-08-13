@@ -8,14 +8,14 @@ env:
 
 model:
     encoder: 
-        cnn: mbse
+        cnn_name: mbse
         obs_range: [-1, 1]
         channels: [16, 32, 32, 64]
         expansion_ratio: [4, 4, 4, 4]
         reduction_ratio: 1
+        norm: null
         out_size: null
         kernel_initializer: orthogonal
-        norm: null
         activation: relu
     actor:
         units_list: [512]
@@ -44,7 +44,7 @@ agent:
     schedule_act_eps: False
     act_eps: 0
     eval_act_eps: 0
-    target_entropy_coef: .5
+    target_entropy_coef: .8
     
     MAX_STEPS: 8e6      # maximum env steps
     LOG_PERIOD: &log 2000
@@ -56,6 +56,7 @@ agent:
     # distributed algo params
     n_learner_cpus: 3
     n_workers: 5
+    deterministic_evaluation: True
 
     # IQN params
     N: 64                # N in paper, num of quantiles for online quantile network

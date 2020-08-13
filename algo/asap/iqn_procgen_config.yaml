@@ -7,7 +7,7 @@ env:
     np_obs: True
 
 model:
-    cnn: impala
+    cnn_name: impala
     kernel_initializer: orthogonal
     units_list: [512]
     activation: relu

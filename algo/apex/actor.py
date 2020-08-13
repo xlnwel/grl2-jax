@@ -360,7 +360,7 @@ class Evaluator(BaseEvaluator):
     def __call__(self, x, deterministic=True, **kwargs):
         action, terms = self.model.action(
             tf.convert_to_tensor(x), 
-            deterministic=deterministic,
+            deterministic=self._deterministic_evaluation,
             epsilon=self._eval_act_eps)
         action = action.numpy()
         

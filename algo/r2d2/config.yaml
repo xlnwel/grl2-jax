@@ -10,7 +10,7 @@ env:
     seed: 0
 
 model:
-    cnn: nature
+    cnn_name: nature
     cnn_out_size: 512
     additional_input: &ai False
     lstm_units: 512
