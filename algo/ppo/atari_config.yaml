@@ -12,13 +12,19 @@ env:
     seed: 0
 
 model:
-    cnn_name: nature
-    actor_units: [256]
-    critic_units: [256]
-    norm: null
-    kernel_initializer: orthogonal
-    activation: relu
-    init_std: 1
+    encoder: 
+        cnn_name: nature
+    actor:
+        units_list: [512]
+        init_std: 1
+        norm: null
+        kernel_initializer: orthogonal
+        activation: relu
+    critic:
+        units_list: [512]
+        norm: null
+        kernel_initializer: orthogonal
+        activation: relu
 
 agent:
     algorithm: &algo ppo

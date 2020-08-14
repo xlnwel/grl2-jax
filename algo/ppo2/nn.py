@@ -18,7 +18,10 @@ class RNN(Module):
         cell = LSTMCell(self._lstm_units, use_ln=self._lstm_ln)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
     
-    def __call__(self, x, state, mask=None):
+    def __call__(self, x, state, mask=None, prev_action=None):
+        if self._additional_input:
+            assert x.shape.ndims == prev_action.shape.ndims, (x.shape, prev_action.shape)
+            x = tf.concat([x, prev_action], axis=-1)
         mask = mask[..., None]
         assert len(x.shape) == len(mask.shape), f'x({x.shape}), mask({mask.shape})'
         x = self._rnn((x, mask), initial_state=state)
@@ -55,12 +58,19 @@ class PPO(Ensemble):
             **kwargs)
     
     @tf.function
-    def action(self, x, state, mask, deterministic=False, epsilon=0):
+    def action(self, x, state, mask, deterministic=False, epsilon=0, prev_action=None):
+        assert x.shape.ndims % 2 == 0, x.shape
         # add time dimension
         x = tf.expand_dims(x, 1)
         mask = tf.expand_dims(mask, 1)
+        if self.rnn._additional_input:
+            if self.actor.is_action_discrete:
+                prev_action = tf.reshape(prev_action, (-1, 1))
+                prev_action = tf.one_hot(prev_action, self.actor.action_dim, dtype=x.dtype)
+            else:
+                prev_action = tf.reshape(prev_action, (-1, 1, self.actor.action_dim))
         x = self.encoder(x)
-        x, state = self.rnn(x, state, mask)
+        x, state = self.rnn(x, state, mask, prev_action)
         if deterministic:
             act_dist = self.actor(x)
             action = tf.squeeze(act_dist.mode(), 1)

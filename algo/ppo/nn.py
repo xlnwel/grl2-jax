@@ -27,7 +27,8 @@ class Actor(Module):
     def __init__(self, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
 
-        self._is_action_discrete = is_action_discrete
+        self.action_dim = action_dim
+        self.is_action_discrete = is_action_discrete
 
         self.actor = mlp(self._units_list, 
                         out_size=action_dim, 
@@ -38,7 +39,7 @@ class Actor(Module):
                         name='actor',
                         )
 
-        if not self._is_action_discrete:
+        if not self.is_action_discrete:
             self.logstd = tf.Variable(
                 initial_value=np.log(self._init_std)*np.ones(action_dim), 
                 dtype='float32', 
@@ -48,7 +49,7 @@ class Actor(Module):
     def __call__(self, x):
         actor_out = self.actor(x)
 
-        if self._is_action_discrete:
+        if self.is_action_discrete:
             act_dist = tfd.Categorical(actor_out)
         else:
             act_dist = tfd.MultivariateNormalDiag(actor_out, tf.exp(self.logstd))

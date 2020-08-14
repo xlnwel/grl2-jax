@@ -28,6 +28,7 @@ model:
         norm: null
         kernel_initializer: orthogonal
         activation: relu
+
 agent:
     algorithm: &algo ppo2
     precision: &prec 32

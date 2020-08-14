@@ -14,7 +14,9 @@ class Agent(PPOBase):
         super().__init__(dataset=dataset, env=env)
 
         # previous and current state of LSTM
-        self.state = self.model.get_initial_state(batch_size=env.n_envs)
+        self._state = self.model.get_initial_state(batch_size=env.n_envs)
+        self._prev_action = None
+        self._action_dim = env.action_dim
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
@@ -32,18 +34,22 @@ class Agent(PPOBase):
         self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
 
     def reset_states(self, states=None):
-        self.state = states
+        if states is None:
+            self._state, self._prev_action, self._prev_reward = None, None, None
+        else:
+            self._state, self._prev_action, self._prev_reward= states
 
     def get_states(self):
-        return self.state
+        return self._state, self._prev_action
 
     def __call__(self, obs, reset=None, deterministic=False, 
                 update_curr_state=True, update_rms=False, **kwargs):
         if len(obs.shape) % 2 != 0:
             obs = np.expand_dims(obs, 0)    # add batch dimension
         assert len(obs.shape) in (2, 4), obs.shape  
-        if self.state is None:
-            self.state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
+        if self._state is None:
+            self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
+            self._prev_action = tf.zeros(tf.shape(obs)[0], dtype=tf.int32)
         if reset is None:
             mask = tf.ones(tf.shape(obs)[0], dtype=tf.float32)
         else:
@@ -51,10 +57,10 @@ class Agent(PPOBase):
         if update_rms:
             self.update_obs_rms(obs)
         obs = self.normalize_obs(obs)
-        prev_state = self.state
-        out, state = self.model.action(obs, self.state, mask, deterministic)
+        prev_state = self._state
+        out, state = self.model.action(obs, self._state, mask, deterministic)
         if update_curr_state:
-            self.state = state
+            self._state = state
         if deterministic:
             return out.numpy()
         else:

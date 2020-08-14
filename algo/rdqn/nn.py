@@ -30,20 +30,18 @@ class Encoder(Module):
 class RNN(Module):
     @config
     def __init__(self, name='rnn'):
+        super().__init__(name=name)
         self._rnn = layers.LSTM(self._lstm_units, return_sequences=True, return_state=True)
 
     def __call__(self, x, state, prev_action=None, prev_reward=None):
+        assert x.shape.ndims == 3, x.shape
         if self._additional_input:
-            prev_action = tf.one_hot(prev_action, self._action_dim, dtype=x.dtype)
             prev_reward = tf.cast(tf.expand_dims(prev_reward, axis=-1), dtype=x.dtype)
-            seqlen = x.shape[1]
-            tf.debugging.assert_shapes([
-                [prev_action, (None, seqlen, self._action_dim)],
-                [prev_reward, (None, seqlen, 1)]
-            ])
+            assert x.shape.ndims == prev_action.shape.ndims, (x.shape, prev_action.shape)
+            assert x.shape.ndims == prev_reward.shape.ndims, (x.shape, prev_reward.shape)
             x = tf.concat([x, prev_action, prev_reward], axis=-1)
         x = self._rnn(x, initial_state=state)
-        x, state = x[0], x[1:]
+        x, state = x[0], LSTMState(*x[1:])
         return x, state
 
 
@@ -52,7 +50,7 @@ class Q(Module):
     def __init__(self, action_dim, name='q'):
         super().__init__(name=name)
 
-        self._action_dim = action_dim
+        self.action_dim = action_dim
 
         if self._duel:
             self._v_head = mlp(
@@ -70,7 +68,7 @@ class Q(Module):
     
     @property
     def action_dim(self):
-        return self._action_dim
+        return self.action_dim
 
     def __call__(self, x, action=None):
         if self._duel:
@@ -82,7 +80,7 @@ class Q(Module):
 
         if action is not None:
             if len(action.shape) < len(q.shape):
-                action = tf.one_hot(action, self._action_dim, dtype=q.dtype)
+                action = tf.one_hot(action, self.action_dim, dtype=q.dtype)
             assert q.shape[1:] == action.shape[1:], f'{q.shape} vs {action.shape}'
             q = tf.reduce_sum(q * action, -1)
             
@@ -127,6 +125,7 @@ class RDQN(Ensemble):
         # add time dimension
         x = tf.expand_dims(x, axis=1)
         prev_action = tf.reshape(prev_action, (-1, 1))
+        prev_action = tf.one_hot(prev_action, self.q.action_dim, dtype=x.dtype)
         prev_reward = tf.reshape(prev_reward, (-1, 1))
         assert x.shape.ndims == 5, x.shape
         assert prev_action.shape.ndims == 2, x.shape
@@ -160,7 +159,7 @@ def create_components(config, env):
     q_config = config['q']
     return dict(
         encoder=Encoder(encoder_config, name='encoder'),
-        rnn=RNN(rnn_config, name='rnn'),
+        rnn=RNN(rnn_config, action_dim, name='rnn'),
         q=Q(q_config, action_dim, 'q'),
         target_encoder=Encoder(encoder_config, name='target_encoder'),
         target_rnn=RNN(rnn_config, name='target_rnn'),

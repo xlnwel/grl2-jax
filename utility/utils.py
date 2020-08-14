@@ -4,6 +4,7 @@ import os.path as osp
 import math
 import multiprocessing
 import numpy as np
+import tensorflow as tf
 
 
 class AttrDict(dict):
@@ -75,12 +76,19 @@ class RunningMeanStd(object):
             self._var = new_var
             self._count += batch_count
 
-    def normalize(self, x, subtract_mean=True):
+    def normalize(self, x, subtract_mean=True, use_tf=False):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
         if subtract_mean:
             x = x - self._mean
-        x = np.clip(x / (np.sqrt(self._var) + self._epsilon), -self._clip, self._clip)
-        return x.astype(np.float32)
+        if use_tf:
+            x = tf.clip_by_value(x / tf.math.sqrt(tf.cast(self._var, x.dtype)) + self._epsilon,
+                -self._clip, self._clip)
+            x = tf.cast(x, tf.float32)
+        else:
+            x = np.clip(x / (np.sqrt(self._var) + self._epsilon), 
+                -self._clip, self._clip)
+            x = x.astype(np.float32)
+        return x
 
 class TempStore:
     def __init__(self, get_fn, set_fn):
