@@ -14,7 +14,7 @@ class Agent(PPOBase):
         super().__init__(dataset=dataset, env=env)
 
         # previous and current state of LSTM
-        self.state = self.ac.get_initial_state(batch_size=env.n_envs)
+        self.state = self.model.get_initial_state(batch_size=env.n_envs)
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
@@ -26,9 +26,9 @@ class Agent(PPOBase):
             mask=((self._sample_size,), tf.float32, 'mask'),
         )
         if self._store_state:
-            state_type = type(self.ac.state_size)
+            state_type = type(self.model.state_size)
             TensorSpecs['state'] = state_type(*[((sz, ), self._dtype, name) 
-                for name, sz in self.ac.state_size._asdict().items()])
+                for name, sz in self.model.state_size._asdict().items()])
         self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
 
     def reset_states(self, states=None):
@@ -43,7 +43,7 @@ class Agent(PPOBase):
             obs = np.expand_dims(obs, 0)    # add batch dimension
         assert len(obs.shape) in (2, 4), obs.shape  
         if self.state is None:
-            self.state = self.ac.get_initial_state(batch_size=tf.shape(obs)[0])
+            self.state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
         if reset is None:
             mask = tf.ones(tf.shape(obs)[0], dtype=tf.float32)
         else:

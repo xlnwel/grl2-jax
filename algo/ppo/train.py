@@ -84,7 +84,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     models = create_model(model_config, env)
 
     buffer_config['n_envs'] = env.n_envs
-    buffer = PPOBuffer(buffer_config, state_keys=models.ac.state_keys)
+    buffer = PPOBuffer(buffer_config, state_keys=models.state_keys)
     
     agent = Agent(name=env.name, 
                 config=agent_config, 

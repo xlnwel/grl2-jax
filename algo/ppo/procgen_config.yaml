@@ -10,30 +10,35 @@ env:
     gray_scale: False
 
 model:
-    cnn: 
-        cnn_name: mbse
-        obs_range: [-1, 1]
-        channels: [16, 32, 32, 64]
-        expansion_ratio: [4, 4, 4, 4]
-        reduction_ratio: 1
-        norm: null
+    encoder: 
+        cnn_name: impalase
+        # obs_range: [-1, 1]
+        # channels: [16, 32, 32, 64]
+        # expansion_ratio: [4, 4, 4, 4]
+        # reduction_ratio: 1
+        # norm: null
         out_size: null
         kernel_initializer: orthogonal
         activation: relu
-    actor_units: [512]
-    critic_units: [512]
-    norm: null
-    kernel_initializer: orthogonal
-    activation: relu
-    init_std: 1
+    actor:
+        units_list: [512]
+        init_std: 1
+        norm: null
+        kernel_initializer: orthogonal
+        activation: relu
+    critic:
+        units_list: [512]
+        norm: null
+        kernel_initializer: orthogonal
+        activation: relu
 
 agent:
     algorithm: &algo ppo
     precision: 16
 
-    MAX_STEPS: 8e6
+    MAX_STEPS: 8e8
     N_STEPS: &nsteps 256
-    N_UPDATES: 2
+    N_UPDATES: 4
     N_MBS: &nmbs 4
     LOG_PERIOD: 100
     EVAL_PERIOD: 500

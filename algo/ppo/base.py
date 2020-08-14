@@ -20,8 +20,11 @@ class PPOBase(RMSBaseAgent):
         if getattr(self, 'schedule_lr', False):
             self._lr = TFPiecewiseSchedule(
                 [(300, self._lr), (1000, 5e-5)])
+        models = [self.encoder, self.actor, self.critic]
+        if hasattr(self, 'rnn'):
+            models.append(self.rnn)
         self._optimizer = Optimizer(
-            self._optimizer, self.ac, self._lr, 
+            self._optimizer, models, self._lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
         self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
@@ -75,10 +78,14 @@ class PPOBase(RMSBaseAgent):
     def _learn(self, obs, action, traj_ret, value, advantage, logpi, mask=None, state=None):
         old_value = value
         with tf.GradientTape() as tape:
+            x = self.encoder(obs)
             if mask is None:
-                act_dist, value = self.ac(obs, return_value=True)
+                act_dist = self.actor(x)
+                value = self.critic(x)
             else:
-                act_dist, value, state = self.ac(obs, state, mask=mask, return_value=True)
+                x, state = self.rnn(x, state, mask=mask)
+                act_dist = self.actor(x)
+                value = self.critic(x)
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             # policy loss

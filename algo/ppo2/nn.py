@@ -8,71 +8,22 @@ from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import cnn, mlp
 from nn.rnn import LSTMCell, LSTMState
+from algo.ppo.nn import Encoder, Actor, Critic
 
 
-class AC(Module):
+class RNN(Module):
     @config
-    def __init__(self, action_dim, is_action_discrete, name):
+    def __init__(self, name='rnn'):
         super().__init__(name=name)
-
-        self._is_action_discrete = is_action_discrete
-        
-        """ Network definition """
-        if self._cnn:
-            self._shared_layers = cnn(**self._cnn, time_distributed=True)
-        elif self._shared_mlp_units:
-            self._shared_layers = mlp(
-                self._shared_mlp_units, 
-                norm=self._norm, 
-                activation=self._activation, 
-                kernel_initializer=self._kernel_initializer)
-        else:
-            self._shared_layers = lambda x: x
-
         cell = LSTMCell(self._lstm_units, use_ln=self._lstm_ln)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
-
-        self.actor = mlp(self._actor_units, 
-                        out_size=action_dim, 
-                        norm=self._norm,
-                        activation=self._activation, 
-                        kernel_initializer=self._kernel_initializer,
-                        out_dtype='float32',
-                        name='actor',
-                        )
-        if not self._is_action_discrete:
-            self.logstd = tf.Variable(
-                initial_value=np.log(self._init_std)*np.ones(action_dim), 
-                dtype='float32', 
-                trainable=True, 
-                name=f'actor/logstd')
-        self.critic = mlp(self._critic_units, 
-                            out_size=1,
-                            norm=self._norm,
-                            activation=self._activation, 
-                            kernel_initializer=self._kernel_initializer,
-                            out_dtype='float32',
-                            name='critic')
-
-    def __call__(self, x, state, mask=None, return_value=False):
-        print(f'{self.name} is retracing: x={x.shape}')
-        x = self._shared_layers(x)
+    
+    def __call__(self, x, state, mask=None):
         mask = mask[..., None]
         assert len(x.shape) == len(mask.shape), f'x({x.shape}), mask({mask.shape})'
         x = self._rnn((x, mask), initial_state=state)
         x, state = x[0], LSTMState(*x[1:])
-        actor_out = self.actor(x)
-
-        if self._is_action_discrete:
-            act_dist = tfd.Categorical(actor_out)
-        else:
-            act_dist = tfd.MultivariateNormalDiag(actor_out, tf.exp(self.logstd))
-        
-        if return_value:
-            value = tf.squeeze(self.critic(x), -1)
-            return act_dist, value, state
-        else:
-            return act_dist, state
+        return x, state
 
     def reset_states(self, states=None):
         self._rnn.reset_states(states)
@@ -89,7 +40,7 @@ class AC(Module):
     @property
     def state_size(self):
         return self._rnn.cell.state_size
-    
+
     @property
     def state_keys(self):
         return ['h', 'c']
@@ -108,12 +59,15 @@ class PPO(Ensemble):
         # add time dimension
         x = tf.expand_dims(x, 1)
         mask = tf.expand_dims(mask, 1)
+        x = self.encoder(x)
+        x, state = self.rnn(x, state, mask)
         if deterministic:
-            act_dist, state = self.ac(x, state, mask=mask, return_value=False)
+            act_dist = self.actor(x)
             action = tf.squeeze(act_dist.mode(), 1)
             return action, state
         else:
-            act_dist, value, state = self.ac(x, state, mask=mask, return_value=True)
+            act_dist = self.actor(x)
+            value = self.critic(x)
             action = act_dist.sample()
             logpi = act_dist.log_prob(action)
             terms = {'logpi': logpi, 'value': value}
@@ -121,13 +75,31 @@ class PPO(Ensemble):
             out = tf.nest.map_structure(lambda x: tf.squeeze(x, 1), (action, terms))
             return out, state
 
+    def reset_states(self, states=None):
+        self.rnn.reset_states(states)
 
-def create_components(config, env, **kwargs):
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
+        return self.rnn.get_initial_state(inputs, batch_size=batch_size, dtype=dtype)
+
+    @property
+    def state_size(self):
+        return self.rnn.state_size
+    
+    @property
+    def state_keys(self):
+        return self.rnn.state_keys
+
+def create_components(config, env):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
-    ac = AC(config, action_dim, is_action_discrete, name='ac')
 
-    return dict(ac=ac)
+    config['encoder']['time_distributed'] = True
+    return dict(
+        encoder=Encoder(config['encoder']), 
+        rnn=RNN(config['rnn']),
+        actor=Actor(config['actor'], action_dim, is_action_discrete),
+        critic=Critic(config['critic'])
+    )
 
 def create_model(config, env, **kwargs):
     return PPO(config, env, **kwargs)
