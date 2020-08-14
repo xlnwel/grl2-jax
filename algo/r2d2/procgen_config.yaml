@@ -9,7 +9,7 @@ env:
 
 model:
     cnn_name: impala
-    cnn_out_size: 512
+    out_size: 512
     additional_input: &ai False
     lstm_units: 512
     units_list: [512]

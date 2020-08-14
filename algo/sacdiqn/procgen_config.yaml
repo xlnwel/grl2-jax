@@ -2,16 +2,19 @@
 env:
     name: procgen_coinrun
     frame_skip: 2
-    gray_scale: True
+    gray_scale: False
     frame_stack: 4
 
 model:
     encoder: 
         cnn_name: mbse
         obs_range: [-1, 1]
+        channels: [16, 32, 32, 64]
+        expansion_ratio: [4, 4, 4, 4]
+        reduction_ratio: 1
+        norm: null
         out_size: null
         kernel_initializer: orthogonal
-        norm: null
         activation: relu
     actor:
         units_list: [512]
@@ -49,6 +52,8 @@ agent:
     LOG_PERIOD: 5e4
     N_UPDATES: 1
     RECORD: True
+
+    normalize_reward: False
 
     # IQN params
     N: 64                # N in paper, num of quantiles for online quantile network

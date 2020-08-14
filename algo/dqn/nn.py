@@ -23,7 +23,7 @@ class Q(Module):
         kwargs = {}
         if hasattr(self, '_kernel_initializer'):
             kwargs['kernel_initializer'] = self._kernel_initializer
-        self._cnn = cnn(self._cnn_name, out_size=self._cnn_out_size, **kwargs)
+        self._cnn = cnn(self._cnn_name, out_size=self._out_size, **kwargs)
 
         layer_type = dict(noisy=Noisy, dense=layers.Dense)[self._layer_type]
         if self._duel:

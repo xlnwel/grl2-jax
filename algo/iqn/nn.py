@@ -21,7 +21,7 @@ class Q(Module):
         if hasattr(self, '_kernel_initializer'):
             kwargs['kernel_initializer'] = self._kernel_initializer
         self._kwargs = kwargs
-        self._cnn = cnn(self._cnn_name, out_size=self._cnn_out_size, **kwargs)
+        self._cnn = cnn(self._cnn_name, out_size=self._out_size, **kwargs)
 
         # we do not define the phi net here to make it consistent with the CNN output size
         if self._duel:

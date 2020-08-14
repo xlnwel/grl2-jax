@@ -11,13 +11,9 @@ from nn.func import mlp, cnn
         
 
 class Encoder(Module):
-    @config
-    def __init__(self, name='encoder'):
+    def __init__(self, config, name='encoder'):
         super().__init__(name=name)
-        kwargs = {}
-        if hasattr(self, '_kernel_initializer'):
-            kwargs['kernel_initializer'] = self._kernel_initializer
-        self._layers = cnn(self._cnn_name, out_size=self._cnn_out_size, **kwargs)
+        self._layers = cnn(**config)
 
     def __call__(self, x):
         x = self._layers(x)

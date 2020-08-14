@@ -7,9 +7,15 @@ env:
 
 model:
     encoder:
-        cnn_name: impala
-        cnn_out_size: null
+        cnn_name: mbse
+        obs_range: [-1, 1]
+        channels: [16, 32, 32, 64]
+        expansion_ratio: [4, 4, 4, 4]
+        reduction_ratio: 1
+        norm: null
+        out_size: null
         kernel_initializer: orthogonal
+        activation: relu
     fpn:
         N: &N 32
         kernel_initializer: orthogonal
@@ -40,6 +46,8 @@ agent:
     LOG_PERIOD: 1e4
     N_UPDATES: 1
     RECORD: True
+
+    normalize_reward: False
 
     # IQN params
     N: *N               # N in paper, num of quantiles for online quantile network

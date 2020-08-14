@@ -89,6 +89,10 @@ class RMSBaseAgent(BaseAgent):
         from utility.utils import RunningMeanStd
         self.dataset = dataset
         axis = None if get_wrapper_by_name(env, 'Env') else 0
+        if not hasattr(self, '_normalize_obs'):
+            self._normalize_obs = False
+        if not hasattr(self, '_normalize_reward'):
+            self._normalize_reward = False
         self._obs_rms = RunningMeanStd(axis=axis)
         self._reward_rms = RunningMeanStd(axis=axis)
         self._rms_path = f'{self._root_dir}/{self._model_name}/rms.pkl'
@@ -108,7 +112,6 @@ class RMSBaseAgent(BaseAgent):
             self._obs_rms.update(obs)
 
     def update_reward_rms(self, reward):
-        assert len(reward.shape) == 1
         if self._normalize_reward:
             self._reward_rms.update(reward)
 
