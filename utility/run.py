@@ -41,11 +41,15 @@ class Runner:
                 deterministic=False,
                 env_output=self.env_output)
             if isinstance(action, tuple):
-                action, terms = action
-            self.env_output = self.env.step(action)
+                if len(action) == 2:
+                    action, terms = action
+                    frame_skip = self._frames_per_step
+                elif len(action) == 3:
+                    action, frame_skip, terms = action
+            self.env_output = self.env.step(action, frame_skip=frame_skip)
             next_obs, reward, discount, reset = self.env_output
 
-            self.step += self._frames_per_step
+            self.step += frame_skip
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
                     discount=discount, next_obs=next_obs)

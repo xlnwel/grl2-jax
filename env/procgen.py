@@ -67,7 +67,7 @@ class Procgen(gym.Env):
         self._obs = obs
         return obs
 
-    def step(self, action):
+    def step(self, action, **kwargs):
         obs, rew, done, info = self.env.step(action)
         self._game_over = done
         self._obs = obs

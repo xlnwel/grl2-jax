@@ -84,14 +84,15 @@ class MaxAndSkipEnv(gym.Wrapper):
         self._obs_buffer = np.zeros((2,)+env.observation_space.shape, dtype=np.uint8)
         self.frame_skip  = frame_skip
 
-    def step(self, action):
+    def step(self, action, frame_skip=None, **kwargs):
         """Repeat action, sum reward, and max over last observations."""
         total_reward = 0.0
         done = None
-        for i in range(self.frame_skip):
-            obs, reward, done, info = self.env.step(action)
-            if i == self.frame_skip - 2: self._obs_buffer[0] = obs
-            if i == self.frame_skip - 1: self._obs_buffer[1] = obs
+        frame_skip = frame_skip or self.frame_skip
+        for i in range(frame_skip):
+            obs, reward, done, info = self.env.step(action, **kwargs)
+            if i == frame_skip - 2: self._obs_buffer[0] = obs
+            if i == frame_skip - 1: self._obs_buffer[1] = obs
             total_reward += reward
             if done:
                 break
@@ -121,8 +122,8 @@ class FrameStack(gym.Wrapper):
             self.frames.append(ob)
         return self._get_ob()
 
-    def step(self, action):
-        ob, reward, done, info = self.env.step(action)
+    def step(self, action, **kwargs):
+        ob, reward, done, info = self.env.step(action, **kwargs)
         self.frames.append(ob)
         return self._get_ob(), reward, done, info
 
@@ -147,10 +148,10 @@ class NormalizeActions(gym.Wrapper):
         high = np.where(self._act_mask, np.ones_like(self._low), self._high)
         self.action_space = gym.spaces.Box(low, high, dtype=np.float32)
 
-    def step(self, action):
+    def step(self, action, **kwargs):
         original = (action + 1) / 2 * (self._high - self._low) + self._low
         original = np.where(self._act_mask, original, action)
-        return self.env.step(original)
+        return self.env.step(original, **kwargs)
 
 class GrayScale(gym.ObservationWrapper):
     def __init__(self, env):
@@ -182,11 +183,11 @@ class FrameSkip(gym.Wrapper):
         super().__init__(env)
         self.frame_skip = frame_skip
 
-    def step(self, action, frame_skip=None):
+    def step(self, action, frame_skip=None, **kwargs):
         total_reward = 0
         frame_skip = frame_skip or self.frame_skip
         for i in range(1, frame_skip+1):
-            obs, reward, done, info = self.env.step(action)
+            obs, reward, done, info = self.env.step(action, **kwargs)
             total_reward += reward
             if done:
                 break
@@ -224,8 +225,8 @@ class DataProcess(gym.Wrapper):
         obs = self.env.reset()
         return self.observation(obs)
 
-    def step(self, action):
-        obs, reward, done, info = self.env.step(action)
+    def step(self, action, **kwargs):
+        obs, reward, done, info = self.env.step(action, **kwargs)
         return self.observation(obs), self.float_dtype(reward), self.float_dtype(done), info
 
 
@@ -367,8 +368,8 @@ class RewardHack(gym.Wrapper):
         self.reward_scale = reward_scale
         self.reward_clip = reward_clip
 
-    def step(self, action):
-        output = self.env.step(action)
+    def step(self, action, **kwargs):
+        output = self.env.step(action, **kwargs)
         obs, reward, done, reset = output
         reward *= self.reward_scale
         if self.reward_clip:
