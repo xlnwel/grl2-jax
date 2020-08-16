@@ -23,6 +23,8 @@ class Agent(DQNBase):
             q_models.append(self.q2)
         self._q_opt = Optimizer(self._optimizer, q_models, self._q_lr)
 
+        self._crl_opt = Optimizer(self._optimizer, [self.encoder, self.crl], self._crl_lr)
+
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
@@ -80,7 +82,7 @@ class Agent(DQNBase):
             [next_qtv, (None, self.N_PRIME, self._action_dim)],
             [returns, (None, 1, self.N_PRIME)],
         ])
-        with tf.GradientTape() as tape:
+        with tf.GradientTape(persistent=True) as tape:
             x = self.encoder(obs)
             action_ed = tf.expand_dims(action, axis=1)
 
@@ -90,7 +92,20 @@ class Agent(DQNBase):
                 qs = (qs + qs2) / 2.
                 error = (error + error2) / 2.
                 qr_loss = (qr_loss + qr_loss2) / 2.
+            
+            with tape.stop_recording():
+                x_pos = self.target_encoder(obs)
+                z_pos = self.crl(x_pos)
+            z_anchor = self.crl(x)
+            logits = self.crl.logits(z_anchor, z_pos)
+            tf.debugging.assert_shapes([[logits, (self._batch_size, self._batch_size)]])
+            labels = tf.range(self._batch_size)
+            infonce = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                labels=labels, logits=logits)
+            infonce = tf.reduce_mean(infonce)
+            crl_loss = self._crl_coef * infonce
         terms['q_norm'] = self._q_opt(tape, qr_loss)
+        terms['crl_norm'] = self._crl_opt(tape, crl_loss)
 
         _, temp = self.temperature(x, action)
         with tf.GradientTape() as tape:
@@ -123,6 +138,9 @@ class Agent(DQNBase):
         target_q = tf.reduce_mean(returns, axis=-1)
         target_q = tf.squeeze(target_q)
         terms.update(dict(
+            logits_max=tf.reduce_max(logits),
+            logits_min=tf.reduce_min(logits),
+            infonce=infonce,
             act_probs=act_probs,
             max_act_probs=tf.reduce_max(act_probs),
             actor_loss=actor_loss,
@@ -135,7 +153,8 @@ class Agent(DQNBase):
             next_act_probs=next_act_probs,
             next_act_logps=next_act_logps,
             returns=returns,
-            qr_loss=qr_loss, 
+            qr_loss=qr_loss,
+            crl_loss=crl_loss, 
             explained_variance1=explained_variance(target_q, q),
         ))
 

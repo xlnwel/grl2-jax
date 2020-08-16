@@ -116,7 +116,8 @@ class Q(Module):
 
 class CRL(Module):
     @config
-    def __init__(self,):
+    def __init__(self, name='crl'):
+        super().__init__(name=name)
         self._crl_mlp = mlp(
             self._crl_units,
             out_size=self._crl_out_size,
