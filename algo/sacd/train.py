@@ -1,1 +1,1 @@
-from algo.sac.train import *
+from algo.dqn.train import *

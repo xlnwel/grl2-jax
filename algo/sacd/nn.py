@@ -27,6 +27,11 @@ class Actor(Module):
                             out_size=action_dim,
                             kernel_initializer=self._kernel_initializer,
                             activation=self._activation)
+        self._action_dim = action_dim
+    
+    @property
+    def action_dim(self):
+        return self._action_dim
 
     def __call__(self, x, deterministic=False, epsilon=0):
         x = self._layers(x)

@@ -40,7 +40,7 @@ model:
     twin_q: True
         
 agent:
-    algorithm: &algo apex-sacdiqn
+    algorithm: &algo apex-sacdiqncrl
     replay_type: &replay 'uniform'
     batch_size: &bs 64
     gamma: &gamma 0.99
@@ -68,6 +68,8 @@ agent:
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
+    crl_coef: 1
+
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
@@ -75,15 +77,14 @@ agent:
     model_name: *algo
 
     target_update_period: 1500
-    crl_coef: 1
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
     actor_lr: 3e-4
     q_lr: 3e-4
-    temp_lr: 3e-4
     crl_lr: 3e-4
+    temp_lr: 3e-4
     
     # arguments for PER
     per_alpha: .6

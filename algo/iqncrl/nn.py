@@ -159,7 +159,7 @@ class IQNCRL(Ensemble):
 
         if epsilon > 0:
             rand_act = tf.random.uniform(
-                action.shape, 0, self.q.action_dim, dtype=tf.int32)
+                action.shape, 0, self.actor.action_dim, dtype=tf.int32)
             action = tf.where(
                 tf.random.uniform(action.shape, 0, 1) < epsilon,
                 rand_act, action)

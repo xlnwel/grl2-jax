@@ -31,6 +31,7 @@ pull_names = dict(
     sacd=['encoder', 'actor', 'q'],
     sacdiqn=['encoder', 'actor', 'q'],
     sacdiqncrl=['encoder', 'actor', 'q'],
+    sacdiqncrlar=['encoder', 'actor', 'q'],
 )
 
 def get_pull_names(algo):
@@ -113,7 +114,9 @@ def get_learner_class(BaseAgent):
             n_steps = config['n_steps']
             data_format = pkg.import_module('agent', algo).get_data_format(
                 env, is_per, n_steps)
-            process = functools.partial(process_with_env, env=env)
+            one_hot_action = config.get('one_hot_action', True)
+            process = functools.partial(process_with_env, 
+                env=env, one_hot_action=one_hot_action)
             dataset = RayDataset(replay, data_format, process)
 
             self.model = model_fn(
@@ -358,10 +361,19 @@ class Evaluator(BaseEvaluator):
         self._info = collections.defaultdict(list)
 
     def __call__(self, x, deterministic=True, **kwargs):
-        action, terms = self.model.action(
+        action = self.model.action(
             tf.convert_to_tensor(x), 
             deterministic=self._deterministic_evaluation,
             epsilon=self._eval_act_eps)
+        if isinstance(action, tuple):
+            if len(action) == 2:
+                action, terms = action
+                return action.numpy()
+            elif len(action) == 3:
+                action, ar, terms = action
+                return action.numpy(), ar.numpy()
+            else:
+                raise ValueError(action)
         action = action.numpy()
         
         return action

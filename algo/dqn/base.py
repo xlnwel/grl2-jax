@@ -45,23 +45,14 @@ class DQNBase(BaseAgent):
 
         self._action_dim = env.action_dim
 
-        # Explicitly instantiate tf.function to initialize variables
-        obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else tf.float32
-        TensorSpecs = dict(
-            obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            action=((self._action_dim,), tf.float32, 'action'),
-            reward=((), tf.float32, 'reward'),
-            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
-            discount=((), tf.float32, 'discount'),
-        )
-        if self._is_per:
-            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
-        if self._n_steps > 1:
-            TensorSpecs['steps'] = ((), tf.float32, 'steps')
-        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
+        self._add_attributes()
+        
+        self._build_learn(env)
 
         self._sync_target_nets()
 
+    def _add_attributes(self):
+        pass
 
     def reset_noisy(self):
         pass
@@ -107,6 +98,22 @@ class DQNBase(BaseAgent):
 
     def _construct_optimizers(self):
         raise NotImplementedError
+
+    def _build_learn(self, env):
+        # Explicitly instantiate tf.function to initialize variables
+        obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else tf.float32
+        TensorSpecs = dict(
+            obs=(env.obs_shape, env.obs_dtype, 'obs'),
+            action=((self._action_dim,), tf.float32, 'action'),
+            reward=((), tf.float32, 'reward'),
+            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
+            discount=((), tf.float32, 'discount'),
+        )
+        if self._is_per:
+            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
+        if self._n_steps > 1:
+            TensorSpecs['steps'] = ((), tf.float32, 'steps')
+        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         raise NotImplementedError
