@@ -46,7 +46,7 @@ class Agent(DQNBase):
             self._q_lr = TFPiecewiseSchedule(
                 [(4e6, self._q_lr), (7e6, 1e-5)])
 
-        self._actor_opt = Optimizer(self._optimizer, [self.actor, self.ar], self._actor_lr)
+        self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
         q_models = [self.encoder, self.q]
         self._twin_q = hasattr(self, 'q2')
         if self._twin_q:
@@ -59,7 +59,7 @@ class Agent(DQNBase):
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
 
     def _add_attributes(self):
-        self._max_ar = self.ar.max_ar
+        self._max_ar = self.actor.max_ar
         self._combined_action_dim = self._action_dim * self._max_ar
 
     def __call__(self, x, deterministic=False, **kwargs):
@@ -113,10 +113,8 @@ class Agent(DQNBase):
             self._target_entropy *= self._target_entropy_coef
         # compute target returns
         next_x = self.encoder(next_obs)
-        next_act_probs, next_act_logps = self.actor.train_step(next_x)
-        next_act = tfd.Categorical(probs=next_act_probs).sample()
-        next_act = tf.one_hot(next_act, self._action_dim)
-        next_ar_probs, next_ar_logps = self.ar.train_step(next_x, next_act)
+        next_act_probs, next_act_logps, next_ar_probs, next_ar_logps = \
+            self.actor.train_step(next_x)
         next_pi_probs = out_op(next_act_probs, next_ar_probs, tf.multiply)
         next_pi_logps = out_op(next_act_logps, next_ar_logps, tf.add)
         next_pi_probs_ed = tf.expand_dims(next_pi_probs, axis=1)  # [B, 1, A*AR]
@@ -185,8 +183,8 @@ class Agent(DQNBase):
 
         action = tf.one_hot(action, self._action_dim)
         with tf.GradientTape() as tape:
-            act_probs, act_logps = self.actor.train_step(x)
-            ar_probs, ar_logps = self.ar.train_step(x, action)
+            act_probs, act_logps, ar_probs, ar_logps = \
+                self.actor.train_step(x)
             pi_probs = out_op(act_probs, ar_probs, tf.multiply)
             pi_logps = out_op(act_logps, ar_logps, tf.add)
             q = tf.reduce_sum(pi_probs * qs, axis=-1)

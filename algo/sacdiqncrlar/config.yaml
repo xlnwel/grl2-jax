@@ -15,11 +15,7 @@ model:
         kernel_initializer: orthogonal
     actor:
         units_list: [512]
-        kernel_initializer: orthogonal
-        activation: relu
-    ar:
-        units_list: [512]
-        out_size: 4
+        max_ar: 4
         kernel_initializer: orthogonal
         activation: relu
     q:
