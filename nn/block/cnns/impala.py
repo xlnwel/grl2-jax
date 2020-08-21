@@ -12,10 +12,10 @@ class IMPALACNN(layers.Layer):
                  *, 
                  time_distributed=False, 
                  obs_range=[0, 1], 
+                 channels=[16, 32, 32],
                  name='impala', 
                  kernel_initializer='orthogonal',
                  out_size=256,
-                 filter_multiplier=1,
                  block=Residual,
                  **kwargs):
         super().__init__(name=name)
@@ -26,13 +26,12 @@ class IMPALACNN(layers.Layer):
         kwargs['kernel_initializer'] = get_initializer(kernel_initializer, gain=gain)
 
         self._conv_layers = []
-        for i, filters in enumerate([16, 32, 32]):
-            filters *= filter_multiplier
+        for i, c in enumerate(channels):
             self._conv_layers += [
-                conv2d(filters, 3, strides=1, padding='same', **kwargs),
+                conv2d(c, 3, strides=1, padding='same', **kwargs),
                 maxpooling2d(3, strides=2, padding='same', time_distributed=time_distributed),
-                block(name=f'block{i}_{filters}_1', **kwargs),
-                block(name=f'block{i}_{filters}_2', **kwargs),
+                block(name=f'block{i}_{c}_1', **kwargs),
+                block(name=f'block{i}_{c}_2', **kwargs),
             ]
 
         self.out_size = out_size
@@ -58,11 +57,11 @@ class ImpalaSECNN(layers.Layer):
                  *, 
                  time_distributed=False, 
                  obs_range=[0, 1], 
+                 channels=[16, 32, 32],
                  reduction_ratio=1,
                  name='impalase', 
                  kernel_initializer='orthogonal',
                  out_size=256,
-                 filter_multiplier=1,
                  **kwargs):
         super().__init__(name=name)
         self._obs_range = obs_range
@@ -72,13 +71,12 @@ class ImpalaSECNN(layers.Layer):
         kwargs['kernel_initializer'] = get_initializer(kernel_initializer, gain=gain)
 
         self._conv_layers = []
-        for i, filters in enumerate([16, 32, 32]):
-            filters *= filter_multiplier
+        for i, c in enumerate(channels):
             self._conv_layers += [
-                conv2d(filters, 3, strides=1, padding='same', **kwargs),
+                conv2d(c, 3, strides=1, padding='same', **kwargs),
                 maxpooling2d(3, strides=2, padding='same', time_distributed=time_distributed),
-                ResidualSE(reduction_ratio, name=f'resse{i}_{filters}_1', **kwargs),
-                ResidualSE(reduction_ratio, name=f'resse{i}_{filters}_2', **kwargs),
+                ResidualSE(reduction_ratio, name=f'resse{i}_{c}_1', **kwargs),
+                ResidualSE(reduction_ratio, name=f'resse{i}_{c}_2', **kwargs),
             ]
 
         self.out_size = out_size

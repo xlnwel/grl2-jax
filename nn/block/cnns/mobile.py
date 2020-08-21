@@ -77,7 +77,8 @@ class MobileBottleneckSECNN(layers.Layer):
                  name='mbse', 
                  kernel_initializer='orthogonal',
                  out_size=256,
-                 filter_multiplier=1,
+                 norm=None,
+                 activation='relu',
                  **kwargs):
         super().__init__(name=name)
         assert len(channels) == len(expansion_ratio), f'{channels} vs {expansion_ratio}'
@@ -85,13 +86,15 @@ class MobileBottleneckSECNN(layers.Layer):
 
         kwargs['time_distributed'] = time_distributed
         gain = kwargs.pop('gain', calculate_gain('relu'))
-        kwargs['kernel_initializer'] = get_initializer(kernel_initializer, gain=gain)
+        kernel_initializer = get_initializer(kernel_initializer, gain=gain)
+        kwargs['kernel_initializer'] = kernel_initializer
+        kwargs['norm'] = norm
+        kwargs['activation'] = activation
 
         assert 'activation' in kwargs
         assert 'norm' in kwargs
         self._conv_layers = []
         for i, (t, c) in enumerate(zip(expansion_ratio, channels)):
-            c *= filter_multiplier
             self._conv_layers += [
                 InvertedResidualSE(2, c, t, name=f'sb{i}_{c}', **kwargs),
                 InvertedResidualSE(1, c, t, reduction_ratio, name=f'inv_resse{i}_{c}_1', **kwargs),

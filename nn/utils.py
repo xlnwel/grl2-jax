@@ -62,7 +62,7 @@ def get_initializer(name, **kwargs):
         if name.lower() == 'none':
             return None
         elif name.lower() == 'orthogonal':
-            gain = kwargs.get('gain', 1.)
+            gain = kwargs.get('gain', np.sqrt(2.))
             return initializers.orthogonal(gain)
         return initializers.get(name)
     else:
