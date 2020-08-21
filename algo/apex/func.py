@@ -16,7 +16,8 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
     n_cpus = config.setdefault('n_learner_cpus', 3)
 
     if tf.config.list_physical_devices('GPU'):
-        RayLearner = ray.remote(num_cpus=n_cpus, num_gpus=.5)(Learner)
+        n_gpus = config.setdefault('n_learner_gpus', 1)
+        RayLearner = ray.remote(num_cpus=n_cpus, num_gpus=n_gpus)(Learner)
     else:
         RayLearner = ray.remote(num_cpus=n_cpus)(Learner)
 
@@ -54,7 +55,9 @@ def create_worker(
     
     if config.get('schedule_act_eps'):
         config['act_eps'] = apex_epsilon_greedy(worker_id, config['n_workers'])
-    RayWorker = ray.remote(num_cpus=1)(Worker)
+    n_cpus = config.get('n_worker_cpus', 1)
+    n_gpus = config.get('n_worker_gpus', 0)
+    RayWorker = ray.remote(num_cpus=1, num_gpus=n_gpus)(Worker)
     worker = RayWorker.remote(
         worker_id=worker_id, 
         config=config, 
