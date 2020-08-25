@@ -57,8 +57,7 @@ class Agent(BaseAgent):
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
             if getattr(self, '_schedule_lr', False):
-                self._temp_lr = TFPiecewiseSchedule(
-                    [(5e5, self._temp_lr), (1e6, 1e-5)])
+                self._temp_lr = TFPiecewiseSchedule([(5e5, self._temp_lr), (1e6, 1e-5)])
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
 
         self._state = None

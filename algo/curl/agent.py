@@ -4,7 +4,6 @@ from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
 from utility.rl_utils import n_step_target
-from utility.schedule import TFPiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent

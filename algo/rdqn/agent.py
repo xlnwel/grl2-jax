@@ -43,8 +43,7 @@ class Agent(BaseAgent):
         self.dataset = dataset
 
         if self._schedule_lr:
-            self._lr = TFPiecewiseSchedule(
-                [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
+            self._lr = TFPiecewiseSchedule([(5e5, self._lr), (2e6, 5e-5)])
 
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, 
             clip_norm=self._clip_norm, epsilon=self._epsilon)

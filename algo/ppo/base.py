@@ -18,8 +18,7 @@ class PPOBase(RMSBaseAgent):
         super().__init__(dataset=dataset, env=env)
         # optimizer
         if getattr(self, 'schedule_lr', False):
-            self._lr = TFPiecewiseSchedule(
-                [(300, self._lr), (1000, 5e-5)])
+            self._lr = TFPiecewiseSchedule([(300, self._lr), (1000, 5e-5)])
         models = [self.encoder, self.actor, self.critic]
         if hasattr(self, 'rnn'):
             models.append(self.rnn)

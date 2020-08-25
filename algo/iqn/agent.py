@@ -9,8 +9,7 @@ from algo.dqn.base import DQNBase, get_data_format
 class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
-            self._lr = TFPiecewiseSchedule(
-                [(5e5, self._lr), (2e6, 5e-5)], outside_value=5e-5)
+            self._lr = TFPiecewiseSchedule([(5e5, self._lr), (2e6, 5e-5)])
         self._optimizer = Optimizer(
             self._optimizer, self.q, self._lr, 
             clip_norm=self._clip_norm, epsilon=1e-2/self._batch_size)

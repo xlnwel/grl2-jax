@@ -7,7 +7,6 @@ from utility.display import pwc
 from utility.utils import AttrDict, Every
 from utility.rl_utils import lambda_return
 from utility.tf_utils import static_scan
-from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, step_track

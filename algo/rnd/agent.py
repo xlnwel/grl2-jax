@@ -5,7 +5,6 @@ import tensorflow as tf
 from env.wrappers import get_wrapper_by_name
 from utility.utils import RunningMeanStd
 from utility.display import pwc
-from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, step_track

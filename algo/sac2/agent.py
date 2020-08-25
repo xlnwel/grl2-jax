@@ -20,10 +20,8 @@ class Agent(BaseAgent):
         self.dataset = dataset
 
         if self._schedule_lr:
-            self._actor_lr = TFPiecewiseSchedule(
-                [(2e5, self._actor_lr), (1e6, 1e-5)])
-            self._q_lr = TFPiecewiseSchedule(
-                [(2e5, self._q_lr), (1e6, 1e-5)])
+            self._actor_lr = TFPiecewiseSchedule([(2e5, self._actor_lr), (1e6, 1e-5)])
+            self._q_lr = TFPiecewiseSchedule([(2e5, self._q_lr), (1e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
         self._value_opt = Optimizer(self._optimizer, self.value, self._q_lr)
