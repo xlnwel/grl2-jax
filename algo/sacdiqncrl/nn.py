@@ -72,6 +72,7 @@ def create_components(config, env, **kwargs):
         target_encoder=Encoder(config['encoder'], name='target_encoder'),
         actor=Actor(actor_config, action_dim),
         crl=CRL(config['crl']),
+        # target_crl=CRL(config['crl'], name='target_crl'), # interestingly, using target crl seems to impair the performance
         q=Q(q_config, action_dim, name='q'),
         target_q=Q(q_config, action_dim, name='target_q'),
         temperature=temperature,

@@ -168,6 +168,7 @@ class Worker(BaseWorker):
                 buffer_fn):
         silence_tf_logs()
         configure_threads(1, 1)
+        configure_gpu()
         self._id = worker_id
 
         self.env = env = create_env(env_config)

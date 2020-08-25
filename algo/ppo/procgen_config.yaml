@@ -5,29 +5,28 @@ env:
     n_envs: &nenvs 64
     seed: 0
     frame_skip: 1
-    frame_stack: 4
+    frame_stack: 1
     np_obs: True
     gray_scale: False
 
 model:
     encoder: 
-        cnn_name: impalase
+        cnn_name: impala
         # obs_range: [-1, 1]
-        # channels: [16, 32, 32, 64]
+        channels: [16, 32, 32]
         # expansion_ratio: [4, 4, 4, 4]
         # reduction_ratio: 1
         # norm: null
-        out_size: null
+        out_size: 256
         kernel_initializer: orthogonal
         activation: relu
     actor:
-        units_list: [512]
-        init_std: 1
+        units_list: []
         norm: null
         kernel_initializer: orthogonal
         activation: relu
     critic:
-        units_list: [512]
+        units_list: []
         norm: null
         kernel_initializer: orthogonal
         activation: relu

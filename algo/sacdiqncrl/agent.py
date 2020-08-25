@@ -94,7 +94,7 @@ class Agent(DQNBase):
                 qr_loss = (qr_loss + qr_loss2) / 2.
             
             with tape.stop_recording():
-                x_pos = self.target_encoder(obs)
+                x_pos = self.encoder(obs)
                 z_pos = self.crl(x_pos)
             z_anchor = self.crl(x)
             logits = self.crl.logits(z_anchor, z_pos)
@@ -179,8 +179,8 @@ class Agent(DQNBase):
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_encoder.variables + self.target_q.variables
-        mvars = self.encoder.variables + self.q.variables
+        tvars = self.target_encoder.variables + self.target_q.variables# + self.target_crl.variables
+        mvars = self.encoder.variables + self.q.variables# + self.crl.variables
         if self._twin_q:
             tvars += self.target_q2.variables
             mvars += self.q2.variables

@@ -8,15 +8,13 @@ env:
 
 model:
     encoder: 
-        cnn_name: mbse
-        obs_range: [-1, 1]
-        channels: [16, 32, 32, 64]
-        expansion_ratio: [4, 4, 4, 4]
+        cnn_name: impala
+        obs_range: [0, 1]
+        channels: [16, 32, 32]
         reduction_ratio: 1
-        norm: null
         out_size: null
+        block: resse
         kernel_initializer: orthogonal
-        activation: relu
     actor:
         units_list: [512]
         kernel_initializer: orthogonal
@@ -59,7 +57,10 @@ agent:
 
     # distributed algo params
     n_learner_cpus: 3
-    n_workers: 5
+    n_learner_gpus: 1
+    n_workers: 6
+    n_worker_cpus: 1
+    n_worker_gpus: 0
     deterministic_evaluation: True
 
     # IQN params
