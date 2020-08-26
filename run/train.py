@@ -54,17 +54,21 @@ def change_config(kw, prefix, env_config, model_config, agent_config, replay_con
 
             # change kwargs in config
             configs = []
-            for name, config in zip(['env', 'model', 'agent', 'replay'], 
-                            [env_config, model_config, agent_config, replay_config]):
+            config_keys = ['env', 'model', 'agent', 'replay']
+            config_values = [env_config, model_config, agent_config, replay_config]
+
+            for k, v in model_config.items():
+                if isinstance(v, dict):
+                    config_keys.append(k)
+                    config_values.append(v)
+            for name, config in zip(config_keys, config_values):
                 if key in config:
                     configs.append((name, config))
             assert configs, f'"{s}" does not appear in any config!'
             if len(configs) > 1:
-                ans = logger.info(f'All {key} appeared in the following configs will be changed: '
-                        + f'{list([n for n, _ in configs])}.\n')
-                if ans == 'n':
-                    sys.exit(0)
-
+                pwc(f'All {key} appeared in the following configs will be changed: '
+                        + f'{list([n for n, _ in configs])}.\n', color='cyan')
+                
             for _, c in configs:
                 c[key]  = value
             
@@ -126,12 +130,12 @@ if __name__ == '__main__':
                     separate_process=len(algo_env) > 1, delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
-                    if algo == 'sacd':
-                        processes += gs()
+                    if algo == 'sacdiqn':
+                        processes += gs(normalize_reward=[True, False])
                     elif algo == 'iqn':
                         processes += gs()
                     elif algo == 'fqf':
-                        processes += gs()
+                        processes += gs(normalize_reward=[True, False])
                     elif 'ppo' in algo:
                         processes += gs(normalize_reward=[True, False])
                     else:

@@ -78,14 +78,16 @@ class TFPiecewiseSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         assert idxes == sorted(idxes)
         self._interpolation = schedule_map[interpolation]
         self._endpoints_t = tf.convert_to_tensor(
-            [t for t, _ in endpoints], tf.int64)
+            [int(t) for t, _ in endpoints], tf.float32)
         self._endpoints_v = tf.convert_to_tensor(
-            [v for _, v in endpoints], tf.float32)
+            [float(v) for _, v in endpoints], tf.float32)
         self._outside_value = self._endpoints_v[-1]
         self.name=name
 
     @tf.function
     def __call__(self, step):
+        if step.dtype != tf.float32:
+            step = tf.cast(step, tf.float32)
         def compute_lr(step):
             lr = self._outside_value
             # for pair in tf.stack([self._endpoints[:-1], self._endpoints[1:]], axis=1):
