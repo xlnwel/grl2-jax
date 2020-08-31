@@ -12,12 +12,12 @@ model:
     encoder:
         cnn_name: nature
         out_size: null
-        kernel_initializer: he_uniform
+        kernel_initializer: glorot_uniform
     fpn:
         N: &N 32
         kernel_initializer: orthogonal
     iqn:
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         units_list: [512]
         activation: relu
         layer_type: dense
@@ -31,7 +31,7 @@ agent:
     replay_type: &replay 'uniform'
     batch_size: &bs 32
     gamma: &gamma 0.99
-    n_steps: &nsteps 1      # n-step target
+    n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     schedule_act_eps: True
     act_eps: .01

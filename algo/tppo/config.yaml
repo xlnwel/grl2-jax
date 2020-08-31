@@ -11,7 +11,7 @@ model:
     actor_units: &u [64, 64]
     critic_units: *u
     norm: null
-    kernel_initializer: orthogonal
+    kernel_initializer: glorot_uniform
     activation: relu
     init_std: 1
 

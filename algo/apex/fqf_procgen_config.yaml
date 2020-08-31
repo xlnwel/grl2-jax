@@ -1,7 +1,7 @@
 ---
 env:
     name: procgen_coinrun
-    frame_skip: 2
+    frame_skip: 1
     gray_scale: True
     frame_stack: 4
     np_obs: True
@@ -10,12 +10,12 @@ model:
     encoder:
         cnn_name: impala
         out_size: null
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
     fpn:
         N: &N 32
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
     iqn:
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         units_list: [512]
         activation: relu
         layer_type: dense

@@ -8,7 +8,7 @@ env:
 
 model:
     cnn_name: nature
-    kernel_initializer: orthogonal
+    kernel_initializer: glorot_uniform
     activation: relu
     init_std: 1
 

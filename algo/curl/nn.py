@@ -27,7 +27,7 @@ class Encoder(Module):
     @config
     def __init__(self, name='encoder'):
         super().__init__(name=name)
-        ki = get_initializer('orthogonal', gain=np.sqrt(2))
+        ki = get_initializer('glorot_uniform', gain=np.sqrt(2))
         self._convs = tf.keras.Sequential([
             layers.Conv2D(32, 3, 2, activation='relu', kernel_initializer=ki),
             layers.Conv2D(32, 3, 1, activation='relu', kernel_initializer=ki),

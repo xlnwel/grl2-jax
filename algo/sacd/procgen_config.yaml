@@ -9,7 +9,7 @@ model:
     encoder: 
         cnn_name: impala
         out_size: null
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
     actor:
         units_list: [512]
         activation: relu

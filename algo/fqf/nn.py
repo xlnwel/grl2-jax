@@ -195,6 +195,7 @@ def create_components(config, env, **kwargs):
         encoder=Encoder(config['encoder'], name='cnn'),
         target_encoder=Encoder(config['encoder'], name='target_cnn'),
         fpn=FractionProposalNetwork(config['fpn'], name='fpn'),
+        target_fpn=FractionProposalNetwork(config['fpn'], name='target_fpn'),
         q=Q(config['iqn'], action_dim, name='iqn'),
         target_q=Q(config['iqn'], action_dim, name='target_iqn'),
     )

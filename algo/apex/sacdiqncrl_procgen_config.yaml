@@ -14,14 +14,14 @@ model:
         reduction_ratio: 1
         out_size: null
         block: resse
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
     actor:
         units_list: [512]
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
     q:
         units_list: [512]
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
         duel: False
 

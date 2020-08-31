@@ -8,7 +8,7 @@ env:
 model:
     encoder: 
         units_list: [64]
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
     rnn:
         lstm_units: 64
@@ -17,12 +17,12 @@ model:
         units_list: [64]
         init_std: 1
         norm: null
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
     critic:
         units_list: [64]
         norm: null
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
 
 agent:

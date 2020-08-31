@@ -18,17 +18,17 @@ model:
         # reduction_ratio: 1
         # norm: null
         out_size: 256
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
     actor:
         units_list: []
         norm: null
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
     critic:
         units_list: []
         norm: null
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
 
 agent:

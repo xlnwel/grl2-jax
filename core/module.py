@@ -1,5 +1,5 @@
 import tensorflow as tf
-
+from nn.func import mlp
 
 class Module(tf.Module):
     def get_weights(self):
@@ -8,6 +8,11 @@ class Module(tf.Module):
     def set_weights(self, weights):
         [v.assign(w) for v, w in zip(self.variables, weights)]
 
+    def mlp(self, *args, name, **kwargs):
+        if hasattr(self, f'_{name}'):
+            return getattr(self, f'_{name}')
+        else:
+            return mlp(*args, name=name, **kwargs)
         
 class Ensemble:
     """ This class groups all models used by off-policy algorithms together

@@ -12,14 +12,14 @@ model:
     encoder: 
         cnn_name: nature
         out_size: null
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
     actor:
         units_list: [512]
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
     q:
         units_list: [512]
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
         duel: False
 

@@ -18,12 +18,12 @@ model:
         units_list: [512]
         init_std: 1
         norm: null
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
     critic:
         units_list: [512]
         norm: null
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         activation: relu
 
 agent:

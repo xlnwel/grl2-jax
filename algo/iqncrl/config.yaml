@@ -12,7 +12,7 @@ model:
     q:
         cnn_name: nature
         out_size: null
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         units_list: [512]
         activation: relu
         layer_type: dense

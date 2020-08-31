@@ -30,7 +30,7 @@ class Agent(DQNBase):
         next_action = self.q.action(next_x, next_tau_hat, tau_range=next_tau)
         
         next_x = self.target_encoder(next_obs)
-        next_tau, next_tau_hat, _ = self.fpn(next_x)
+        next_tau, next_tau_hat, _ = self.target_fpn(next_x)
         next_qtv = self.target_q.value(
             next_x, next_tau_hat, action=next_action)
         
@@ -118,6 +118,6 @@ class Agent(DQNBase):
 
     @tf.function
     def _sync_target_nets(self):
-        mv = self.encoder.variables + self.q.variables
-        tv = self.target_encoder.variables + self.target_q.variables
+        mv = self.encoder.variables + self.q.variables + self.fpn.variables
+        tv = self.target_encoder.variables + self.target_q.variables + self.target_fpn.variables
         [tv.assign(mv) for mv, tv in zip(mv, tv)]

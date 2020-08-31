@@ -43,13 +43,20 @@ class Runner:
             if isinstance(action, tuple):
                 if len(action) == 2:
                     action, terms = action
-                    frame_skip = self._frames_per_step
+                    self.env_output = self.env.step(action)
+                    self.step += self._frames_per_step
                 elif len(action) == 3:
                     action, frame_skip, terms = action
-            self.env_output = self.env.step(action, frame_skip=frame_skip)
+                    frame_skip += 1     # plus 1 as values returned start from zero
+                    self.env_output = self.env.step(action, frame_skip=frame_skip)
+                    self.step += frame_skip
+                else:
+                    raise ValueError(f'Invalid action "{action}"')
+            else:
+                self.env_output = self.env.step(action)
+                self.step += self._frames_per_step
             next_obs, reward, discount, reset = self.env_output
 
-            self.step += frame_skip
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
                     discount=discount, next_obs=next_obs)
@@ -81,11 +88,22 @@ class Runner:
                 deterministic=False,
                 env_output=self.env_output)
             if isinstance(action, tuple):
-                action, terms = action
-            self.env_output = self.env.step(action)
+                if len(action) == 2:
+                    action, terms = action
+                    self.env_output = self.env.step(action)
+                    self.step += self._frames_per_step
+                elif len(action) == 3:
+                    action, frame_skip, terms = action
+                    frame_skip += 1     # plus 1 as values returned start from zero
+                    self.env_output = self.env.step(action, frame_skip=frame_skip)
+                    self.step += np.sum(frame_skip)
+                else:
+                    raise ValueError(f'Invalid action "{action}"')
+            else:
+                self.env_output = self.env.step(action)
+                self.step += self._frames_per_step
             next_obs, reward, discount, reset = self.env_output
             
-            self.step += self._frames_per_step
             if step_fn:
                 kwargs = dict(obs=obs, action=action, reward=reward,
                     discount=discount, next_obs=next_obs)
@@ -228,7 +246,12 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
                         frames[i].append(img[i])
                     
             action = agent(obs, deterministic=True, env_output=env_output)
-            env_output = env.step(action)
+            if isinstance(action, tuple):
+                action, frame_skip = action
+                frame_skip += 1     # plus 1 as values returned start from zero
+                env_output = env.step(action, frame_skip=frame_skip)
+            else:
+                env_output = env.step(action)
             obs, reward, discount, reset = env_output
 
             if step_fn:

@@ -17,9 +17,9 @@ model:
         kernel_initializer: he_uniform
     fpn:
         N: &N 32
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
     iqn:
-        kernel_initializer: orthogonal
+        kernel_initializer: glorot_uniform
         units_list: [512]
         activation: relu
         layer_type: dense
