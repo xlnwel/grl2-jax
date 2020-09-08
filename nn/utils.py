@@ -5,36 +5,42 @@ import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers
 from tensorflow.keras.mixed_precision.experimental import global_policy # useful for modules import nn.utils
 
+
 logger = logging.getLogger(__name__)
 
-custom_activations = dict(
-    leaky_relu=tf.nn.leaky_relu,
-    hswish=lambda x: x * (tf.nn.relu6(x+3) / 6) # see MobileNet3
-)
+_custom_activations = {
+    'leaky_relu': tf.nn.leaky_relu,
+    'lrelu': tf.nn.leaky_relu,
+    'relu6': tf.nn.relu6,
+    'hsigmoid': lambda x: tf.nn.relu6(x+3) / 6, # see MobileNet3
+    'hswish': lambda x: x * (tf.nn.relu6(x+3) / 6), # see MobileNet3
+}
 
 def get_activation(name):
     if isinstance(name, str):
         name = name.lower()
     if name is None:
         return None
-    elif name in custom_activations:
-        return custom_activations[name]
+    elif name in _custom_activations:
+        return _custom_activations[name]
     else:
         return activations.get(name)
-        
+
+_norm_layers = {
+    'layer': layers.LayerNormalization,
+    'batch': layers.BatchNormalization,
+}
+
 def get_norm(name):
     """ Return a normalization """
     if isinstance(name, str):
-        if name == 'layer':
-            return layers.LayerNormalization
-        elif name == 'batch':
-            return layers.BatchNormalization
-        elif name.lower():
-            return None
+        name = name.lower()
+        if name in _norm_layers:
+            return _norm_layers[name]
         else:
-            raise NotImplementedError
+            raise ValueError(f'Unknown normalization name: {name}')
     else:
-        # assume name is an normalization layer instance
+        # assume name is an normalization layer class
         return name
 
 def calculate_gain(name, param=None):
@@ -47,6 +53,7 @@ def calculate_gain(name, param=None):
         'leaky_relu': np.sqrt(2./(1+(param or 0)**2)),
         # the followings are I make up
         'elu': np.sqrt(2.),
+        'relu6': np.sqrt(2.),
         'hswish': np.sqrt(2.), 
     }
     return m[name]
@@ -62,7 +69,7 @@ def get_initializer(name, **kwargs):
         if name.lower() == 'none':
             return None
         elif name.lower() == 'orthogonal':
-            gain = kwargs.get('gain', np.sqrt(2.))
+            gain = kwargs.get('gain', 1.)
             return initializers.orthogonal(gain)
         return initializers.get(name)
     else:

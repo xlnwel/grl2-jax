@@ -9,7 +9,7 @@ class NatureCNN(layers.Layer):
                  time_distributed=False, 
                  obs_range=[0, 1], 
                  name='nature', 
-                 kernel_initializer='orthogonal',
+                 kernel_initializer='glorot_uniform',
                  activation='relu',
                  out_size=512,
                  padding='valid',

@@ -14,7 +14,7 @@ def cnn(cnn_name, **kwargs):
     if cnn_name in cnn_mapping:
         return cnn_mapping[cnn_name](**kwargs)
     else:
-        raise ValueError(f'Unknown CNN structure: {cnn_name}. Available cnn names: {list(cnn_mapping)}')
+        raise ValueError(f'Unknown CNN structure: {cnn_name}. Available cnn: {list(cnn_mapping)}')
 
 
 def _source_file(_file_path):

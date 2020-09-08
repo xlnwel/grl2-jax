@@ -36,7 +36,7 @@ class InvertedResidualSE(layers.Layer):
         dc_kwargs = conv_kwargs.copy()
         dc_kwargs['layer_type'] = depthwise_conv2d
         dc_kwargs['strides'] = self._strides
-        dc_kwargs['depthwise_initializer'] = dc_kwargs.pop('kernel_initializer')
+        dc_kwargs['depthwise_initializer'] = dc_kwargs.pop('kernel_initializer', 'glorot_uniform')
         in_size = input_shape[-1]
         hidden_size = in_size * self._expansion_ratio
         
@@ -75,7 +75,7 @@ class MobileBottleneckSECNN(layers.Layer):
                  expansion_ratio=[4, 4, 4],
                  reduction_ratio=1,
                  name='mbse', 
-                 kernel_initializer='orthogonal',
+                 kernel_initializer='glorot_uniform',
                  out_size=256,
                  norm=None,
                  activation='relu',

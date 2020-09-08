@@ -31,7 +31,7 @@ class Agent(DQNBase):
         
         next_x = self.target_encoder(next_obs)
         next_tau, next_tau_hat, _ = self.target_fpn(next_x)
-        next_qtv = self.target_q.value(
+        next_qtv = self.target_q(
             next_x, next_tau_hat, action=next_action)
         
         reward = reward[:, None]
@@ -52,41 +52,42 @@ class Agent(DQNBase):
             tau, tau_hat, fpn_entropy = self.fpn(x_no_grad)
             terms['tau'] = tau
             tau_hat = tf.stop_gradient(tau_hat) # forbid gradients to fpn when computing qr loss
-            qtv, q = self.q.value(
+            qtv, q = self.q(
                 x, tau_hat, tau_range=tau, action=action)
             qtv_exp = tf.expand_dims(qtv, axis=-1)
             tau_hat = tf.expand_dims(tau_hat, -1) # [B, N, 1]
-            qr_loss = quantile_regression_loss(qtv_exp, returns, tau_hat, kappa=self.KAPPA)
+            error, qr_loss = quantile_regression_loss(
+                qtv_exp, returns, tau_hat, kappa=self.KAPPA, return_error=True)
             qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
 
             # compute out gradients for fpn
             tau_1_N = tau[..., 1:-1]
-            tau_qtv = self.q.value(x_no_grad, tau_1_N, action=action)     # [B, N-1]
+            tau_qtv = self.q(x_no_grad, tau_1_N, action=action)     # [B, N-1]
             tf.debugging.assert_shapes([
                 [qtv, (None, self.N)],
                 [tau_qtv, (None, self.N-1)],
             ])
             # we use 𝜃 to represent F^{-1} for brevity
-            diff1 = tau_qtv - qtv[..., :-1]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i-1])
-            sign1 = tau_qtv > tf.concat([qtv[..., :1], tau_qtv[..., :-1]], axis=-1)
-            tf.debugging.assert_shapes([
-                [diff1, (None, self.N-1)],
-                [sign1, (None, self.N-1)],
-            ])
-            abs_diff1 = tf.where(sign1, diff1, 0)
-            diff2 = tau_qtv - qtv[..., 1:]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i])
-            sign2 = tau_qtv < tf.concat([tau_qtv[..., 1:], qtv[..., -1:]], axis=-1)
-            tf.debugging.assert_shapes([
-                [diff2, (None, self.N-1)],
-                [sign2, (None, self.N-1)],
-            ])
-            abs_diff2 = tf.where(sign2, diff2, 0)
-            fpn_out_grads = tf.stop_gradient(abs_diff1 + abs_diff2)
+            raw_diff1 = tau_qtv[..., 1:-1] - qtv[..., :-1]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i-1])
+            raw_diff2 = tau_qtv[..., 1:-1] - qtv[..., 1:]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i])
+            # sign1 = tf.logical_and(
+            #     tau_qtv[..., :-2] <= qtv[..., :-1], 
+            #     qtv[..., :-1] <= tau_qtv[..., 1:-1]
+            # )
+            # sign2 = tf.logical_and(
+            #     tau_qtv[..., 1:-1] <= qtv[..., 1:], 
+            #     qtv[..., 1:] <= tau_qtv[..., 2:]
+            # )
+            sign1 = tau_qtv[..., :-2] < tau_qtv[..., 1:-1]
+            sign2 = tau_qtv[..., 1:-1] < tau_qtv[..., 2:]
+            diff1 = tf.where(sign1, raw_diff1, -.5*raw_diff1)
+            diff2 = tf.where(sign2, raw_diff2, -.5*raw_diff2)
+            fpn_out_grads = tf.stop_gradient(diff1 + diff2)
             tf.debugging.assert_shapes([
                 [fpn_out_grads, (None, self.N-1)],
                 [tau, (None, self.N+1)],
             ])
-            fpn_raw_loss = tf.reduce_sum(fpn_out_grads * tau[..., 1:-1], axis=-1)
+            fpn_raw_loss = tf.reduce_mean(fpn_out_grads * tau_1_N, axis=-1)
             fpn_entropy = tf.reduce_mean(fpn_entropy, axis=-1)
             tf.debugging.assert_shapes([
                 [fpn_raw_loss, (None,)],

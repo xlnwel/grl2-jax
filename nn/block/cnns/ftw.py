@@ -11,7 +11,7 @@ class FTWCNN(layers.Layer):
                  time_distributed=False, 
                  name='ftw', 
                  obs_range=[0, 1], 
-                 kernel_initializer='orthogonal',
+                 kernel_initializer='glorot_uniform',
                  out_size=256,
                  **kwargs):
         super().__init__(name=name)

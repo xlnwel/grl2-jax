@@ -14,10 +14,10 @@ model:
     encoder:
         cnn_name: nature
         out_size: null
-        kernel_initializer: he_uniform
+        kernel_initializer: glorot_uniform
     fpn:
         N: &N 32
-        kernel_initializer: glorot_uniform
+        kernel_initializer: orthogonal
     iqn:
         kernel_initializer: glorot_uniform
         units_list: [512]
@@ -35,7 +35,7 @@ agent:
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
-    schedule_act_eps: False
+    schedule_act_eps: True
     act_eps: .01  # will be overwritten in func.py
     eval_act_eps: .001
     
@@ -61,7 +61,7 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    target_update_period: 2000
+    target_update_period: 1500
     tbo: False
 
     # arguments for optimizer

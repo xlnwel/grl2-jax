@@ -4,8 +4,8 @@ env:
     sticky_actions: False
     frame_skip: 4
     frame_stack: 4
-    life_done: True
-    reward_clip: True
+    life_done: False
+    reward_clip: False
     seed: 0
 
 model:

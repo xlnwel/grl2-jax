@@ -358,6 +358,8 @@ class Evaluator(BaseEvaluator):
                 env=env)
 
         self._pull_names = get_pull_names(self._algorithm)
+        if not hasattr(self, '_deterministic_evaluation'):
+            self._deterministic_evaluation = True
         
         self._info = collections.defaultdict(list)
 

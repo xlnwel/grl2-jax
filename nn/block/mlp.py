@@ -22,6 +22,9 @@ class MLP(tf.Module):
                 name=None, out_dtype=None, out_gain=1, **kwargs):
         super().__init__(name=name)
         layer_type = get_layer_type(layer_type)
+        # Follows OpenAI's baselines, which uses a small-scale initializer
+        # for policy head when using orthogonal initialization
+        # out_gain = kwargs.pop('out_gain', .01)
 
         self._layers = [
             Layer(u, layer_type=layer_type, norm=norm, 
