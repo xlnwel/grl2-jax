@@ -1,8 +1,8 @@
 
 from tensorflow.keras import layers
 
-from nn.block.cnn import cnn
-from nn.block.mlp import *
+from nn.cnn import cnn
+from nn.mlp import *
 from nn.dnc.dnc import DNC
 
 

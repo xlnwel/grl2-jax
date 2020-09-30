@@ -18,7 +18,7 @@ class Encoder(Module):
             assert 'units_list' in config
             self._layers = mlp(**config)
 
-    def __call__(self, x):
+    def call(self, x):
         x = self._layers(x)
         return x
 
@@ -46,7 +46,7 @@ class Actor(Module):
                 trainable=True, 
                 name=f'actor/logstd')
 
-    def __call__(self, x):
+    def call(self, x):
         actor_out = self.actor(x)
 
         if self.is_action_discrete:
@@ -63,7 +63,7 @@ class Critic(Module):
                           out_dtype='float32',
                           name='critic')
 
-    def __call__(self, x):
+    def call(self, x):
         value = tf.squeeze(self.critic(x), -1)
         return value
 

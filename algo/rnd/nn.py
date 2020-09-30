@@ -46,7 +46,7 @@ class AC(Module):
                             out_dtype='float32',
                             name='value_ext')
 
-    def __call__(self, x, return_value=False):
+    def call(self, x, return_value=False):
         print(f'{self.name} is retracing: x={x.shape}')
         x = self._cnn(x)
         x = self._mlps[0](x)
@@ -80,7 +80,7 @@ class Target(Module):
         ki = get_initializer('orthogonal', gain=np.sqrt(2))
         self._out = tf.keras.layers.Dense(512, kernel_initializer=ki, dtype='float32')
 
-    def __call__(self, x):
+    def call(self, x):
         assert x.shape[-3:] == (84, 84, 1), x.shape
         x = self._cnn(x)
         shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
@@ -101,7 +101,7 @@ class Predictor(Module):
         ki = get_initializer('orthogonal', gain=np.sqrt(2))
         self._out = tf.keras.layers.Dense(512, kernel_initializer=ki, dtype='float32')
 
-    def __call__(self, x):
+    def call(self, x):
         assert x.shape[-3:] == (84, 84, 1), x.shape
         x = self._cnn(x)
         shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)

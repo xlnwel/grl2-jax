@@ -25,6 +25,8 @@ class Agent(DQNBase):
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
+        if isinstance(self._target_entropy_coef, (list, tuple)):
+            self._target_entropy_coef = TFPiecewiseSchedule(self._target_entropy_coef)
 
     @tf.function
     def summary(self, data, terms):
@@ -39,7 +41,9 @@ class Agent(DQNBase):
         if not hasattr(self, '_target_entropy'):
             # Entropy of a uniform distribution
             self._target_entropy = np.log(self._action_dim)
-            self._target_entropy *= self._target_entropy_coef
+        target_entropy_coef = self._target_entropy \
+            if isinstance(self._target_entropy, float) else self._target_entropy_coef(self._train_step)
+        target_entropy = self._target_entropy * self._target_entropy_coef
         # compute target returns
         next_x = self.encoder(next_obs)
         next_act_probs, next_act_logps = self.actor.train_step(next_x)

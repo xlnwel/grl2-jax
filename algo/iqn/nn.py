@@ -72,19 +72,17 @@ class Q(Module):
         tau_hat = tf.random.uniform([batch_size, n_qt, 1], 
             minval=0, maxval=1, dtype=tf.float32)   # [B, N, 1]
         pi = tf.convert_to_tensor(np.pi, tf.float32)
-        degree = tf.cast(tf.range(self._tau_embed_size), tf.float32) * pi * tau_hat
+        # start from 1 since degree of 0 is meaningless
+        degree = tf.cast(tf.range(1, self._tau_embed_size+1), tau_hat.dtype) * pi * tau_hat
         qt_embed = tf.math.cos(degree)              # [B, N, E]
         tf.debugging.assert_shapes([
             [tau_hat, (batch_size, n_qt, 1)],
             [qt_embed, (batch_size, n_qt, self._tau_embed_size)],
         ])
-        if not hasattr(self, '_phi'):
-            self._phi = mlp(
-                [cnn_out_size], 
+        qt_embed = self.mlp(qt_embed, [cnn_out_size], 
                 activation=self._phi_activation,
                 name='phi',
-                **self._kwargs)
-        qt_embed = self._phi(qt_embed)              # [B, N, cnn.out_size]
+                **self._kwargs)                  # [B, N, cnn.out_size]
         tf.debugging.assert_shapes([
             [qt_embed, (batch_size, n_qt, cnn_out_size)],
         ])

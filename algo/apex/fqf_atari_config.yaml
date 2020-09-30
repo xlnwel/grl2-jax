@@ -5,7 +5,7 @@ env:
     frame_skip: 4
     frame_stack: 4
     np_obs: True
-    life_done: True
+    life_done: False
     reward_clip: True
     n_envs: 1
     seed: 0
@@ -17,7 +17,6 @@ model:
         kernel_initializer: glorot_uniform
     fpn:
         N: &N 32
-        kernel_initializer: orthogonal
     iqn:
         kernel_initializer: glorot_uniform
         units_list: [512]
@@ -53,7 +52,9 @@ agent:
 
     # distributed algo params
     n_learner_cpus: 3
+    n_learner_gpus: .3
     n_workers: 6
+    n_worker_gpus: .1
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -70,7 +71,7 @@ agent:
     iqn_lr: 5e-5
     fpn_opt: rmsprop
     fpn_lr: 2.5e-9
-    ent_coef: 0
+    ent_coef: .001
     clip_norm: 40
 
     # arguments for PER

@@ -18,7 +18,7 @@ def epsilon_greedy(action, epsilon, is_action_discrete, action_dim=None):
     if is_action_discrete:
         assert action_dim is not None
         rand_act = tf.random.uniform(
-            action.shape, 0, action_dim, dtype=tf.int32)
+            action.shape, 0, action_dim, dtype=action.dtype)
         action = tf.where(
             tf.random.uniform(action.shape, 0, 1) < epsilon,
             rand_act, action)

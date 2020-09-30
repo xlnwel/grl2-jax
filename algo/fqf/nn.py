@@ -14,7 +14,7 @@ class Encoder(Module):
         super().__init__(name=name)
         self._layers = cnn(**config)
 
-    def __call__(self, x):
+    def call(self, x):
         x = self._layers(x)
         return x
 
@@ -23,21 +23,17 @@ class FractionProposalNetwork(Module):
     @config
     def __init__(self, name='fqn'):
         super().__init__(name=name)
-        kwargs = {}
-        if hasattr(self, '_kernel_initializer'):
-            kwargs['kernel_initializer'] = self._kernel_initializer
-            kwargs['gain'] = .01
+        kernel_initializer = tf.keras.initializers.VarianceScaling(
+            1./np.sqrt(3.), distribution='uniform')
         self._layers = mlp(
             out_size=self.N,
             name='fpn',
-            **kwargs)
+            kernel_initializer=kernel_initializer)
     
-    def __call__(self, x, return_entropy=True):
+    def call(self, x):
         x = self._layers(x)
 
-        # probs = tf.nn.softmax(x, axis=-1)
-        log_probs = tf.nn.log_softmax(x, axis=-1)
-        probs = tf.exp(log_probs)
+        probs = tf.nn.softmax(x, axis=-1)
 
         tau_0 = tf.zeros([*probs.shape[:-1], 1], dtype=probs.dtype)
         tau_rest = tf.math.cumsum(probs, axis=-1)
@@ -52,11 +48,7 @@ class FractionProposalNetwork(Module):
             [tau_hat, (None, self.N)]
         ])
 
-        if return_entropy:
-            entropy = -probs * log_probs
-            return tau, tau_hat, entropy
-        else:
-            return tau, tau_hat
+        return tau, tau_hat
 
 
 class Q(Module):
@@ -93,10 +85,10 @@ class Q(Module):
         return self._action_dim
 
     def action(self, x, tau_hat, tau_range=None):
-        _, q = self.value(x, tau_hat, tau_range)
+        _, q = self(x, tau_hat, tau_range)
         return tf.argmax(q, axis=-1, output_type=tf.int32)
 
-    def __call__(self, x, tau_hat, tau_range=None, action=None):
+    def call(self, x, tau_hat, tau_range=None, action=None):
         assert tau_range is None or tau_hat.shape[-1] + 1 == tau_range.shape[-1], \
             (tau_hat.shape, tau_range.shape)
         x = tf.expand_dims(x, 1)    # [B, 1, cnn.out_size]
@@ -115,16 +107,14 @@ class Q(Module):
         tau_hat = tf.expand_dims(tau_hat, axis=-1)      # [B, N, 1]
         assert tau_hat.shape.ndims == 3, tau_hat.shape
         pi = tf.convert_to_tensor(np.pi, dtype=tau_hat.dtype)
-        degree = tf.cast(tf.range(self._tau_embed_size), tau_hat.dtype) * pi * tau_hat
+        # start from 1 since degree of 0 is meaningless
+        degree = tf.cast(tf.range(1, self._tau_embed_size+1), tau_hat.dtype) * pi * tau_hat
         qt_embed = tf.math.cos(degree)                  # [B, N, E]
         
-        if not hasattr(self, '_phi'):
-            self._phi = mlp(
-                [cnn_out_size], 
+        qt_embed = self.mlp(qt_embed, [cnn_out_size], 
                 activation=self._phi_activation,
                 name='phi',
-                **self._kwargs)
-        qt_embed = self._phi(qt_embed)                  # [B, N, cnn.out_size]
+                **self._kwargs)                  # [B, N, cnn.out_size]
         
         return qt_embed
 
@@ -168,7 +158,7 @@ class FQF(Ensemble):
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
-        tau, tau_hat, _ = self.fpn(x)
+        tau, tau_hat = self.fpn(x)
         qtv, q = self.q(x, tau_hat, tau_range=tau)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
         qtv = tf.math.reduce_max(qtv, -1)

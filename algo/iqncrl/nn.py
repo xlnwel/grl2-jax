@@ -127,7 +127,7 @@ class CRL(Module):
         )
         self._crl_w = tf.Variable(tf.random.uniform((self._crl_out_size, self._crl_out_size)))
 
-    def __call__(self, x):
+    def call(self, x):
         z = self._crl_mlp(x)
         return z
 

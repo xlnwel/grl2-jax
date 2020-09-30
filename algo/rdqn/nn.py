@@ -22,7 +22,7 @@ class Encoder(Module):
         config['time_distributed'] = True
         self._cnn = cnn(**config)
     
-    def __call__(self, x):
+    def call(self, x):
         x = self._layers(x)
         return x
 
@@ -33,7 +33,7 @@ class RNN(Module):
         super().__init__(name=name)
         self._rnn = layers.LSTM(self._lstm_units, return_sequences=True, return_state=True)
 
-    def __call__(self, x, state, prev_action=None, prev_reward=None):
+    def call(self, x, state, prev_action=None, prev_reward=None):
         assert x.shape.ndims == 3, x.shape
         if self._additional_input:
             prev_reward = tf.cast(tf.expand_dims(prev_reward, axis=-1), dtype=x.dtype)
@@ -70,7 +70,7 @@ class Q(Module):
     def action_dim(self):
         return self.action_dim
 
-    def __call__(self, x, action=None):
+    def call(self, x, action=None):
         if self._duel:
             v = self._v_head(x)
             a = self._a_head(x)

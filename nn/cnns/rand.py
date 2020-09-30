@@ -1,10 +1,10 @@
+from core.module import Module
+from nn.registry import cnn_registry
 from nn.utils import *
-from nn.block.cnns.utils import *
-from nn.block.cnns.res import ResidualV1, ResidualV2
 
 
-@register_cnn('rand')
-class RandCNN(layers.Layer):
+@cnn_registry.register('rand')
+class RandCNN(Module):
     def __init__(self,
                  *,
                  time_distributed=False,
@@ -21,7 +21,7 @@ class RandCNN(layers.Layer):
 
     def build(self, input_shape):
         filters = input_shape[-1]
-        self._layer = conv2d(
+        self._layer = layers.Conv2D(
             filters, 
             self._kernel_size, 
             padding='same', 

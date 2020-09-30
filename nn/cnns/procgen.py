@@ -1,0 +1,93 @@
+from core.module import Module
+from nn.registry import cnn_registry, subsample_registry, block_registry
+from nn.utils import *
+
+
+@cnn_registry.register('procgen')
+class ProcgenCNN(Module):
+    def __init__(self, 
+                 *, 
+                 time_distributed=False, 
+                 obs_range=[0, 1], 
+                 filters=[16, 32, 32],
+                 kernel_initializer='glorot_uniform',
+                 stem='conv_maxblurpool',
+                 stem_kwargs={},
+                 subsample='strided_resv1',
+                 subsample_kwargs={},
+                 block='resv1',
+                 block_kwargs: dict(
+                    filter_coefs=[],
+                    kernel_sizes=[3, 3],
+                    norm=None,
+                    norm_kwargs={},
+                    activation='relu',
+                    am_type='se',
+                    am_kwargs={},
+                    dropout_rate=0.,
+                    rezero=False,
+                 ),
+                 sa=None,
+                 sa_kwargs={},
+                 out_activation='relu',
+                 out_size=None,
+                 name='procgen',
+                 **kwargs):
+        super().__init__(name=name)
+        self._obs_range = obs_range
+        self._time_distributed = time_distributed
+        stem_cls = subsample_registry.get(stem)
+
+        # kwargs specifies general kwargs for conv2d
+        kwargs['kernel_initializer'] = get_initializer(kernel_initializer)
+        assert 'activation' not in kwargs, kwargs
+        
+        block_cls = block_registry.get(block)
+        block_kwargs.update(kwargs.copy())
+
+        subsample_cls = subsample_registry.get(subsample)
+        subsample_kwargs.update(kwargs.copy())
+
+        sa_cls = block_registry.get(sa)
+        sa_kwargs.update(kwargs.copy())
+
+        self._layers = []
+        prefix = f'{self.scope_name}/'
+        with self.name_scope:
+            self._layers += [
+                stem_cls(filters[0], name=prefix+stem, **stem_kwargs),
+                block_cls(name=f'{prefix}{block}_f16', **block_kwargs),
+            ]
+            for i, f in enumerate(filters[1:]):
+                subsample_kwargs['filters'] = [f for _ in range(2)]
+                self._layers += [
+                    subsample_cls(name=f'{prefix}{subsample}_f{f}_{i}', **subsample_kwargs),
+                    block_cls(name=f'{prefix}{block}_{i}', **block_kwargs),
+                    # block_cls(name=f'{prefix}{block}_{i}_2', **block_kwargs)
+                ]
+            self._layers += [
+                sa_cls(name=f'{prefix}{sa}', **sa_kwargs)
+            ]
+            out_act_cls = get_activation(out_activation, return_cls=True)
+            self._layers.append(out_act_cls(name=prefix+out_activation))
+            self._flat = layers.Flatten(name=prefix+'flatten')
+
+            self.out_size = out_size
+            if self.out_size:
+                self._dense = layers.Dense(self.out_size, activation=self._out_act, name=prefix+'out')
+    
+    def call(self, x, training=True, return_cnn_out=False):
+        x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
+        if self._time_distributed:
+            t = x.shape[1]
+            x = tf.reshape(x, [-1, *x.shape[2:]])
+        x = super().call(x, training=training)
+        z = self._flat(x)
+        if self.out_size:
+            z = self._dense(z)
+        if self._time_distributed:
+            z = tf.reshape(x, [-1, t, *z.shape[1:]])
+        if return_cnn_out:
+            return z, x
+        else:
+            return z

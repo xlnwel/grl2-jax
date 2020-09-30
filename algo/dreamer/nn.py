@@ -169,8 +169,7 @@ class Actor(Module):
 
         self._is_action_discrete = is_action_discrete
 
-    @tf.Module.with_name_scope
-    def __call__(self, x):
+    def call(self, x):
         x = self._layers(x)
 
         if self._is_action_discrete:
@@ -203,8 +202,7 @@ class Encoder(Module):
         else:
             self._layers = mlp(self._units_list, activation=self._activation)
     
-    @tf.Module.with_name_scope
-    def __call__(self, x):
+    def call(self, x):
         x = self._layers(x)
         
         return x
@@ -223,8 +221,7 @@ class Decoder(Module):
                             out_size=out_size,
                             activation=self._activation)
     
-    @tf.Module.with_name_scope
-    def __call__(self, x):
+    def call(self, x):
         x = self._layers(x)
         if not getattr(self, '_has_cnn', None):
             rbd = 0 if x.shape[-1] == 1 else 1  # #reinterpreted batch dimensions
@@ -254,7 +251,7 @@ class ConvEncoder(Module):
         self._conv3 = conv2d(4 * depth, **kwargs)
         self._conv4 = conv2d(8 * depth, **kwargs)
 
-    def __call__(self, x):
+    def call(self, x):
         x = convert_obs(x, [-.5, .5], global_policy().compute_dtype)
         assert x.shape[-3:] == (64, 64, 3), x.shape
         x = self._conv1(x)
@@ -285,7 +282,7 @@ class ConvDecoder(Module):
         self._deconv3 = deconv2d(1 * depth, 6, **kwargs)
         self._deconv4 = deconv2d(3, 6, strides=2)
 
-    def __call__(self, x):
+    def call(self, x):
         x = self._dense(x)
         shape = tf.concat([tf.shape(x)[:-1], [1, 1, x.shape[-1]]], 0)
         x = tf.reshape(x, shape)

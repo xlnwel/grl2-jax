@@ -43,7 +43,7 @@ class Q(Module):
     def action_dim(self):
         return self._action_dim
     
-    def __call__(self, x, n_qt=None, action=None, return_q=False):
+    def call(self, x, n_qt=None, action=None, return_q=False):
         if n_qt is None:
             n_qt = self.K
         batch_size = x.shape[0]

@@ -13,7 +13,8 @@ class Agent(DQNBase):
         self._iqn_opt = Optimizer(
             self._iqn_opt, [self.encoder, self.q], self._iqn_lr, 
             clip_norm=self._clip_norm, epsilon=1e-2/self._batch_size)
-        self._fpn_opt = Optimizer(self._fpn_opt, self.fpn, self._fpn_lr, epsilon=1e-5)
+        self._fpn_opt = Optimizer(self._fpn_opt, self.fpn, self._fpn_lr, 
+            rho=.95, epsilon=1e-5, centered=True)
 
     @tf.function
     def summary(self, data, terms):
@@ -26,11 +27,11 @@ class Agent(DQNBase):
         # compute target returns
         next_x = self.encoder(next_obs)
         
-        next_tau, next_tau_hat, _ = self.fpn(next_x)
+        next_tau, next_tau_hat = self.fpn(next_x)
         next_action = self.q.action(next_x, next_tau_hat, tau_range=next_tau)
         
         next_x = self.target_encoder(next_obs)
-        next_tau, next_tau_hat, _ = self.target_fpn(next_x)
+        next_tau, next_tau_hat = self.target_fpn(next_x)
         next_qtv = self.target_q(
             next_x, next_tau_hat, action=next_action)
         
@@ -49,15 +50,15 @@ class Agent(DQNBase):
             x = self.encoder(obs)
             x_no_grad = tf.stop_gradient(x) # forbid gradients to cnn when computing fpn loss
             
-            tau, tau_hat, fpn_entropy = self.fpn(x_no_grad)
+            tau, tau_hat = self.fpn(x_no_grad)
             terms['tau'] = tau
             tau_hat = tf.stop_gradient(tau_hat) # forbid gradients to fpn when computing qr loss
             qtv, q = self.q(
                 x, tau_hat, tau_range=tau, action=action)
-            qtv_exp = tf.expand_dims(qtv, axis=-1)
-            tau_hat = tf.expand_dims(tau_hat, -1) # [B, N, 1]
+            qtv_ext = tf.expand_dims(qtv, axis=-1)
+            tau_hat = tf.expand_dims(tau_hat, axis=-1) # [B, N, 1]
             error, qr_loss = quantile_regression_loss(
-                qtv_exp, returns, tau_hat, kappa=self.KAPPA, return_error=True)
+                qtv_ext, returns, tau_hat, kappa=self.KAPPA, return_error=True)
             qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
 
             # compute out gradients for fpn
@@ -67,28 +68,14 @@ class Agent(DQNBase):
                 [qtv, (None, self.N)],
                 [tau_qtv, (None, self.N-1)],
             ])
-            # we use 𝜃 to represent F^{-1} for brevity
-            raw_diff1 = tau_qtv[..., 1:-1] - qtv[..., :-1]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i-1])
-            raw_diff2 = tau_qtv[..., 1:-1] - qtv[..., 1:]  # 𝜃(𝜏[i]) - 𝜃(\hat 𝜏[i])
-            # sign1 = tf.logical_and(
-            #     tau_qtv[..., :-2] <= qtv[..., :-1], 
-            #     qtv[..., :-1] <= tau_qtv[..., 1:-1]
-            # )
-            # sign2 = tf.logical_and(
-            #     tau_qtv[..., 1:-1] <= qtv[..., 1:], 
-            #     qtv[..., 1:] <= tau_qtv[..., 2:]
-            # )
-            sign1 = tau_qtv[..., :-2] < tau_qtv[..., 1:-1]
-            sign2 = tau_qtv[..., 1:-1] < tau_qtv[..., 2:]
-            diff1 = tf.where(sign1, raw_diff1, -.5*raw_diff1)
-            diff2 = tf.where(sign2, raw_diff2, -.5*raw_diff2)
-            fpn_out_grads = tf.stop_gradient(diff1 + diff2)
+            fpn_out_grads = tf.stop_gradient(
+                2 * tau_qtv - qtv[..., :-1] - qtv[..., 1:])
             tf.debugging.assert_shapes([
                 [fpn_out_grads, (None, self.N-1)],
                 [tau, (None, self.N+1)],
             ])
             fpn_raw_loss = tf.reduce_mean(fpn_out_grads * tau_1_N, axis=-1)
-            fpn_entropy = tf.reduce_mean(fpn_entropy, axis=-1)
+            fpn_entropy = - tf.reduce_sum(tau_1_N * tf.math.log(tau_1_N), axis=-1)
             tf.debugging.assert_shapes([
                 [fpn_raw_loss, (None,)],
                 [fpn_entropy, (None,)],

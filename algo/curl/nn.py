@@ -131,8 +131,7 @@ class Q(Module):
                             norm=self._norm, 
                             activation=self._activation)
 
-    @tf.Module.with_name_scope
-    def __call__(self, x, a):
+    def call(self, x, a):
         x = tf.concat([x, a], axis=-1)
         x = self._layers(x)
         x = tf.squeeze(x)
@@ -150,8 +149,7 @@ class Temperature(Module):
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     
-    @tf.Module.with_name_scope
-    def __call__(self):
+    def call(self):
         log_temp = self._log_temp
         temp = tf.exp(log_temp)
     
@@ -164,8 +162,7 @@ class ContrastiveRepresentationLearning(Module):
         # self._layers = mlp(self._units_list, activation=self._activation)
         self._W = tf.Variable(tf.random.uniform((self._z_size, self._z_size)))
     
-    @tf.Module.with_name_scope
-    def __call__(self, x_anchor, x_pos):
+    def call(self, x_anchor, x_pos):
         # x_anchor = self._layers(x_anchor)
         # x_pos = self._layers(x_pos)
         x_pos = tf.stop_gradient(x_pos)

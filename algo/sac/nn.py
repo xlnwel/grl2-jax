@@ -22,7 +22,7 @@ class Actor(Module):
                             norm=self._norm, 
                             activation=self._activation)
 
-    def __call__(self, x, deterministic=False, epsilon=0):
+    def call(self, x, deterministic=False, epsilon=0):
         x = self._layers(x)
 
         if self._is_action_discrete:
@@ -79,7 +79,7 @@ class Q(Module):
                             norm=self._norm, 
                             activation=self._activation)
 
-    def __call__(self, x, a):
+    def call(self, x, a):
         x = tf.concat([x, a], axis=-1)
         x = self._layers(x)
         x = tf.squeeze(x, -1)
@@ -99,7 +99,7 @@ class Temperature(Module):
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     
-    def __call__(self, x=None, a=None):
+    def call(self, x=None, a=None):
         if self._temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
             x = self._layer(x)

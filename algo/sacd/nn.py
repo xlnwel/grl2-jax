@@ -13,7 +13,7 @@ class Encoder(Module):
         super().__init__(name=name)
         self._layers = cnn(**config)
 
-    def __call__(self, x):
+    def call(self, x):
         x = self._layers(x)
         return x
 
@@ -33,7 +33,7 @@ class Actor(Module):
     def action_dim(self):
         return self._action_dim
 
-    def __call__(self, x, deterministic=False, epsilon=0):
+    def call(self, x, deterministic=False, epsilon=0):
         x = self._layers(x)
 
         dist = tfd.Categorical(logits=x)
@@ -65,7 +65,7 @@ class Q(Module):
             activation=self._activation,
             out_dtype='float32')
 
-    def __call__(self, x, a=None):
+    def call(self, x, a=None):
         q = self._layers(x)
         if a is not None:
             if len(a.shape) < len(q.shape):
@@ -91,7 +91,7 @@ class Temperature(Module):
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     
-    def __call__(self, x=None, a=None):
+    def call(self, x=None, a=None):
         if self._temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
             x = self._layer(x)

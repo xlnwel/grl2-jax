@@ -92,7 +92,9 @@ def step_track(learn_log):
     def wrapper(self, step):
         if step > self.env_step:
             self.env_step = step
+            self._env_step.assign(self.env_step)
         self.train_step += learn_log(self, step)
+        self._train_step.assign(self.train_step)
 
     return wrapper
 

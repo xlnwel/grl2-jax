@@ -1,34 +1,38 @@
+import functools
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers
+from tensorflow.keras import layers, constraints, regularizers
 
+from core.module import Module
+from nn.registry import layer_registry, register_all
 from nn.utils import *
+from utility import tf_utils
 
 
-class Layer(layers.Layer):  # if we define Layer as a subclass of tf.Module, it cannot be used in tf.keras.Model as variables will not be counted in tf.keras.Model
+@layer_registry.register('layer')
+class Layer(Module):
     def __init__(self, *args, layer_type=layers.Dense, norm=None, 
                 activation=None, kernel_initializer='glorot_uniform', 
                 name=None, norm_kwargs={}, **kwargs):
         super().__init__(name=name)
+        if isinstance(layer_type, str):
+            layer_type = layer_registry.get(layer_type)
 
         gain = kwargs.pop('gain', calculate_gain(activation))
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
 
         self._layer = layer_type(
             *args, kernel_initializer=kernel_initializer, name=name, **kwargs)
-        self._norm_layer = get_norm(norm)
-        if self._norm_layer:
-            self._norm_layer = self._norm_layer(**norm_kwargs)
+        self._norm = norm
+        self._norm_cls = get_norm(norm)
+        if self._norm:
+            self._norm_layer = self._norm_cls(**norm_kwargs, name=f'{self.scope_name}/norm')
         self.activation = get_activation(activation)
 
-    def __call__(self, x, **kwargs):
-        norm_kwargs = {}
-        if isinstance(self._norm_layer, layers.BatchNormalization):
-            norm_kwargs['training'] = kwargs.pop('training')    # require "training" for batch normalization
-        x = self._layer(x) if isinstance(self._layer, layers.Dense) \
-                else self._layer(x, **kwargs)
-        if self._norm_layer:
-            x = self._norm_layer(x, **norm_kwargs)
+    def call(self, x, training=True, **kwargs):
+        x = self._layer(x, **kwargs)
+        if self._norm is not None:
+            x = call_norm(self._norm, self._norm_layer, x, training=training)
         if self.activation is not None:
             x = self.activation(x)
         
@@ -39,6 +43,7 @@ class Layer(layers.Layer):  # if we define Layer as a subclass of tf.Module, it 
         if isinstance(self._layer, Noisy):
             self._layer.reset()
 
+@layer_registry.register('noisy')
 class Noisy(layers.Dense):
     def __init__(self, units, name=None, **kwargs):
         if 'noisy_sigma' in kwargs:
@@ -109,3 +114,198 @@ class Noisy(layers.Dense):
             [1, self.units], 
             stddev=self.noisy_sigma,
             dtype=self._compute_dtype))
+
+
+@layer_registry.register('sndense')
+class SNDense(layers.Layer):
+    def __init__(self,
+                 units,
+                 activation=None,
+                 use_bias=True,
+                 iterations=1,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros',
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 activity_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
+                 name='sndense',
+                 **kwargs):
+        super().__init__(
+            name=name,
+            activity_regularizer=regularizers.get(activity_regularizer),
+            **kwargs)
+
+        self.units = units
+        self.activation = activations.get(activation)
+        self.use_bias = use_bias
+        self.iterations = iterations
+        self.kernel_initializer = get_initializer(kernel_initializer)
+        self.bias_initializer = get_initializer(bias_initializer)
+        self.kernel_regularizer = regularizers.get(kernel_regularizer)
+        self.bias_regularizer = regularizers.get(bias_regularizer)
+        self.kernel_constraint = constraints.get(kernel_constraint)
+        self.bias_constraint = constraints.get(bias_constraint)
+
+    def build(self, input_shape):
+        last_dim = input_shape[-1]
+
+        self.kernel = self.add_weight(
+            name='kernel',
+            shape=(last_dim, self.units),
+            initializer=self.kernel_initializer,
+            regularizer=self.kernel_regularizer,
+            constraint=self.kernel_constraint,
+            trainable=True,
+            dtype=self.dtype)
+        if self.use_bias:
+            self.bias = self.add_weight(
+                name='bias',
+                shape=(self.units,),
+                initializer=self.bias_initializer,
+                regularizer=self.bias_regularizer,
+                constraint=self.bias_constraint,
+                trainable=True,
+                dtype=self.dtype)
+        else:
+            self.bias = None
+        
+        self.u = self.add_weight(
+            name='u',
+            shape=(1, self.units),
+            initializer='truncated_normal',
+            trainable=False,
+            dtype=self.dtype)
+        
+        super().build(input_shape)
+
+    def call(self, x):
+        w = tf_utils.spectral_norm(self.kernel, self.u, self.iterations)
+        x = tf.matmul(x, w)
+        if self.use_bias:
+            x = tf.nn.bias_add(x, self.bias)
+        return x
+
+
+@layer_registry.register('snconv2d')
+class SNConv2D(layers.Layer):
+    def __init__(self,
+                 filters,
+                 kernel_size=3,
+                 strides=1,
+                 padding='valid',
+                #  data_format='channels_last',
+                #  dilation_rate=1,
+                 activation=None,
+                 use_bias=True,
+                 iterations=1,
+                 kernel_initializer='glorot_uniform',
+                 bias_initializer='zeros',
+                 kernel_regularizer=None,
+                 bias_regularizer=None,
+                 activity_regularizer=None,
+                 kernel_constraint=None,
+                 bias_constraint=None,
+                 name='snconv2d',
+                 **kwargs):
+        super().__init__(
+            name=name,
+            activity_regularizer=regularizers.get(activity_regularizer),
+            **kwargs)
+
+        self.filters = filters
+        self.kernel_size = self.get_kernel_size(kernel_size)
+        self.strides = self.get_strides(strides)
+        self.padding = padding.upper()
+        self.activation = get_activation(activation)
+        self.use_bias = use_bias
+        self.iterations = iterations
+        self.kernel_initializer = get_initializer((kernel_initializer))
+        self.bias_initializer = get_initializer(bias_initializer)
+        self.kernel_regularizer = regularizers.get(kernel_regularizer)
+        self.bias_regularizer = regularizers.get(bias_regularizer)
+        self.kernel_constraint = constraints.get(kernel_constraint)
+        self.bias_constraint = constraints.get(bias_constraint)
+    
+    def build(self, input_shape):
+        c = input_shape[-1]
+
+        self.kernel = self.add_weight(
+            name='kernel',
+            shape=self.kernel_size + (c, self.filters),
+            initializer=self.kernel_initializer,
+            regularizer=self.kernel_regularizer,
+            constraint=self.kernel_constraint,
+            trainable=True,
+            dtype=self.dtype)
+        if self.use_bias:
+            self.bias = self.add_weight(
+                name='bias',
+                shape=(self.filters,),
+                initializer=self.bias_initializer,
+                regularizer=self.bias_regularizer,
+                constraint=self.bias_constraint,
+                trainable=True,
+                dtype=self.dtype)
+        else:
+            self.bias = None
+        
+        self.u = self.add_weight(
+            name='u',
+            shape=(1, self.filters),
+            initializer='truncated_normal',
+            trainable=False,
+            dtype=self.dtype)
+        
+        super().build(input_shape)
+
+    def call(self, x):
+        w = tf_utils.spectral_norm(self.kernel, self.u, self.iterations)
+        x = tf.nn.conv2d(x, w, strides=self.strides, padding=self.padding)
+        if self.use_bias:
+            x = tf.nn.bias_add(x, self.bias)
+        return x
+
+    def get_kernel_size(self, kernel_size):
+        if isinstance(kernel_size, int):
+            return (kernel_size, kernel_size)
+        else:
+            assert isinstance(kernel_size, (list, tuple)) and len(kernel_size) == 2, kernel_size
+            return kernel_size
+
+    def get_strides(self, strides):
+        if isinstance(strides, int):
+            return (1, strides, strides, 1)
+        else: 
+            assert isinstance(strides, (list, tuple)) and len(strides) == 2, strides
+            return (1,) + tuple(strides) + (1,)
+
+layer_registry.register('global_avgpool2d')(layers.GlobalAvgPool2D)
+layer_registry.register('global_maxpool2d')(layers.GlobalMaxPool2D)
+layer_registry.register('reshape')(layers.Reshape)
+layer_registry.register('flatten')(layers.Flatten)
+layer_registry.register('dense')(layers.Dense)
+layer_registry.register('conv2d')(layers.Conv2D)
+layer_registry.register('dwconv2d')(layers.DepthwiseConv2D)
+layer_registry.register('depthwise_conv2d')(layers.DepthwiseConv2D)
+layer_registry.register('maxpool2d')(layers.MaxPool2D)
+layer_registry.register('avgpool2d')(layers.AvgPool2D)
+
+
+if __name__ == '__main__':
+    tf.random.set_seed(0)
+    shape = (1, 2, 3)
+    x = tf.random.normal(shape)
+    # print('x', x[0, 0, :, 0])
+    print(layer_registry.get_all())
+    l = layer_registry.get('layer')(2, name='Layer')
+    y = l(x)
+    print(y)
+    y = l(x)
+    print(y)
+    y = l(x)
+    print(y)
+    x = tf.random.normal(shape)
+    y = l(x)
+    print(y)

@@ -1,9 +1,10 @@
+from core.module import Module
+from nn.registry import cnn_registry
 from nn.utils import *
-from nn.block.cnns.utils import *
 
 
-@register_cnn('nature')
-class NatureCNN(layers.Layer):
+@cnn_registry.register('nature')
+class NatureCNN(Module):
     def __init__(self, 
                  *, 
                  time_distributed=False, 
@@ -25,10 +26,11 @@ class NatureCNN(layers.Layer):
         kwargs['padding'] = padding
 
         self._conv_layers = [
-            conv2d(32, 8, 4, **kwargs),
-            conv2d(64, 4, 2, **kwargs),
-            conv2d(64, 3, 1, **kwargs),
+            layers.Conv2D(32, 8, 4, **kwargs),
+            layers.Conv2D(64, 4, 2, **kwargs),
+            layers.Conv2D(64, 3, 1, **kwargs),
         ]
+        self._flat = layers.Flatten()
         self.out_size = out_size
         if out_size:
             self._dense = layers.Dense(self.out_size, activation=activations.relu)
@@ -37,7 +39,7 @@ class NatureCNN(layers.Layer):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
         for l in self._conv_layers:
             x = l(x)
-        x = flatten(x)
+        x = self._flat(x)
         if self.out_size:
             x = self._dense(x)
         

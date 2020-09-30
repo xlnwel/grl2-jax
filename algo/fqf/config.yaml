@@ -15,7 +15,6 @@ model:
         kernel_initializer: glorot_uniform
     fpn:
         N: &N 32
-        kernel_initializer: orthogonal
     iqn:
         kernel_initializer: glorot_uniform
         units_list: [512]
@@ -63,7 +62,7 @@ agent:
     iqn_lr: 5e-5
     fpn_opt: rmsprop
     fpn_lr: 2.5e-9
-    ent_coef: 0
+    ent_coef: .001
     clip_norm: 10
 
     # arguments for PER

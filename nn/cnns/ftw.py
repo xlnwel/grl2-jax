@@ -1,11 +1,12 @@
+from core.module import Module
+from nn.registry import cnn_registry
 from nn.utils import *
-from nn.block.cnns.utils import *
 
 
 relu = activations.relu
 
-@register_cnn('ftw')
-class FTWCNN(layers.Layer):
+@cnn_registry.register('ftw')
+class FTWCNN(Module):
     def __init__(self, 
                  *, 
                  time_distributed=False, 
@@ -22,10 +23,12 @@ class FTWCNN(layers.Layer):
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
         kwargs['kernel_initializer'] = kernel_initializer
         
-        self._conv1 = conv2d(32, 8, strides=4, padding='same', **kwargs)
-        self._conv2 = conv2d(64, 4, strides=2, padding='same', **kwargs)
-        self._conv3 = conv2d(64, 3, strides=1, padding='same', **kwargs)
-        self._conv4 = conv2d(64, 3, strides=1, padding='same', **kwargs)
+        self._conv1 = layers.Conv2D(32, 8, strides=4, padding='same', **kwargs)
+        self._conv2 = layers.Conv2D(64, 4, strides=2, padding='same', **kwargs)
+        self._conv3 = layers.Conv2D(64, 3, strides=1, padding='same', **kwargs)
+        self._conv4 = layers.Conv2D(64, 3, strides=1, padding='same', **kwargs)
+
+        self._flat = layers.Flatten()
 
         self.out_size = out_size
         if self.out_size:
@@ -43,7 +46,7 @@ class FTWCNN(layers.Layer):
         y = self._conv4(y)
         x = x + y
         x = relu(x)
-        x = flatten(x)
+        x = self._flat(x)
         if self.out_size:
             x = self._dense(x)
 

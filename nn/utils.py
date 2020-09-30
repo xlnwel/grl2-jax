@@ -5,40 +5,49 @@ import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers
 from tensorflow.keras.mixed_precision.experimental import global_policy # useful for modules import nn.utils
 
+from nn.norm import EvoNorm
 
 logger = logging.getLogger(__name__)
 
-_custom_activations = {
-    'leaky_relu': tf.nn.leaky_relu,
-    'lrelu': tf.nn.leaky_relu,
-    'relu6': tf.nn.relu6,
-    'hsigmoid': lambda x: tf.nn.relu6(x+3) / 6, # see MobileNet3
-    'hswish': lambda x: x * (tf.nn.relu6(x+3) / 6), # see MobileNet3
-}
 
-def get_activation(name):
-    if isinstance(name, str):
-        name = name.lower()
-    if name is None:
-        return None
-    elif name in _custom_activations:
-        return _custom_activations[name]
+dummy_cls = tf.autograph.experimental.do_not_convert(lambda **kw: lambda x: x)
+
+def get_activation(act_name, return_cls=False, **kwargs):
+    custom_activations = {
+        None: dummy_cls,
+        'relu': layers.ReLU,
+        'leaky_relu': layers.LeakyReLU,
+        'lrelu': layers.LeakyReLU,
+        'hsigmoid': lambda name='hsigmoid': layers.Lambda(lambda x: tf.nn.relu6(x+3) / 6, name=name), # see MobileNet3
+        'hswish': lambda name='hswish': layers.Lambda(lambda x: x * (tf.nn.relu6(x+3) / 6), name=name), # see MobileNet3
+    }
+    if isinstance(act_name, str):
+        act_name = act_name.lower()
+    if act_name in custom_activations:
+        act_cls = custom_activations[act_name]
+        if return_cls:
+            return act_cls
+        else:
+            return act_cls(**kwargs)
     else:
-        return activations.get(name)
+        if return_cls:
+            return lambda name: layers.Activation(act_name, name=name)
+        else:
+            return activations.get(act_name)
 
-_norm_layers = {
-    'layer': layers.LayerNormalization,
-    'batch': layers.BatchNormalization,
-}
 
 def get_norm(name):
+    norm_layers = {
+        None: dummy_cls,
+        'layer': layers.LayerNormalization,
+        'batch': layers.BatchNormalization,
+        'evonorm': EvoNorm,
+    }
     """ Return a normalization """
     if isinstance(name, str):
         name = name.lower()
-        if name in _norm_layers:
-            return _norm_layers[name]
-        else:
-            raise ValueError(f'Unknown normalization name: {name}')
+    if name in norm_layers:
+        return norm_layers[name]
     else:
         # assume name is an normalization layer class
         return name
@@ -55,6 +64,7 @@ def calculate_gain(name, param=None):
         'elu': np.sqrt(2.),
         'relu6': np.sqrt(2.),
         'hswish': np.sqrt(2.), 
+        'selu': np.sqrt(2.),
     }
     return m[name]
 
@@ -65,9 +75,15 @@ def get_initializer(name, **kwargs):
     """ 
     Return a kernel initializer by name
     """
+    custom_inits = {
+        # initializers for EfficientNet
+        'en_conv': initializers.VarianceScaling(scale=2., mode='fan_out', distribution='untruncated_normal'),
+        'en_dense': initializers.VarianceScaling(scale=1./2., mode='fan_out', distribution='uniform')
+    }
     if isinstance(name, str):
-        if name.lower() == 'none':
-            return None
+        name = name.lower()
+        if name in custom_inits:
+            return custom_inits[name]
         elif name.lower() == 'orthogonal':
             gain = kwargs.get('gain', 1.)
             return initializers.orthogonal(gain)
@@ -97,10 +113,10 @@ def ortho_init(scale=1.0):
 
 def convert_obs(x, obs_range, dtype=tf.float32):
     if x.dtype != np.uint8:
-        logger.debug(f'Observations({x.shape}, {x.dtype}) are already converted to {x.dtype}, no further process is performed')
+        logger.info(f'Observations({x.shape}, {x.dtype}) are already converted to {x.dtype}, no further process is performed')
         return x
     dtype = dtype or tf.float32 # dtype is None when global policy is not unspecified, override it
-    logger.debug(f'Observations({x.shape}, {x.dtype}) are converted to range {obs_range} of dtype {dtype}')
+    logger.info(f'Observations({x.shape}, {x.dtype}) are converted to range {obs_range} of dtype {dtype}')
     if obs_range == [0, 1]:
         return tf.cast(x, dtype) / 255.
     elif obs_range == [-.5, .5]:
@@ -110,7 +126,14 @@ def convert_obs(x, obs_range, dtype=tf.float32):
     else:
         raise ValueError(obs_range)
 
-def flatten(x):
-    shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
-    x = tf.reshape(x, shape)
-    return x
+# def flatten(x):
+#     shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
+#     x = tf.reshape(x, shape)
+#     return x
+
+def call_norm(norm_type, norm_layer, x, training):
+    if norm_type == 'batch':
+        y = norm_layer(x, training=training)
+    else:
+        y = norm_layer(x)
+    return y

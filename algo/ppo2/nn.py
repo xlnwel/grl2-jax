@@ -18,7 +18,7 @@ class RNN(Module):
         cell = LSTMCell(self._lstm_units, use_ln=self._lstm_ln)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
     
-    def __call__(self, x, state, mask=None, prev_action=None):
+    def call(self, x, state, mask=None, prev_action=None):
         if self._additional_input:
             assert x.shape.ndims == prev_action.shape.ndims, (x.shape, prev_action.shape)
             x = tf.concat([x, prev_action], axis=-1)

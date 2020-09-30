@@ -45,7 +45,7 @@ class AC(Module):
                             out_dtype='float32',
                             name='critic')
 
-    def __call__(self, x, return_terms=False):
+    def call(self, x, return_terms=False):
         print(f'{self.name} is retracing: x={x.shape}')
         x = self._shared_layers(x)
         actor_out = self.actor(x)

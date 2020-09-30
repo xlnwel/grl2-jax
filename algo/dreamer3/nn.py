@@ -173,8 +173,7 @@ class Actor(Module):
 
         self._is_action_discrete = is_action_discrete
 
-    @tf.Module.with_name_scope
-    def __call__(self, x):
+    def call(self, x):
         x = self._layers(x)
 
         if self._is_action_discrete:
@@ -210,7 +209,7 @@ class Temperature(Module):
         else:
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
     
-    def __call__(self, x, a):
+    def call(self, x, a):
         if self.temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
             x = self.intra_layer(x)
@@ -231,9 +230,8 @@ class Encoder(Module):
             self._layers = ConvEncoder(time_distributed=True)
         else:
             self._layers = mlp(self._units_list, activation=self._activation)
-    
-    @tf.Module.with_name_scope
-    def __call__(self, x):
+
+    def call(self, x):
         x = self._layers(x)
         
         return x
@@ -252,9 +250,8 @@ class Decoder(Module):
                             out_size=out_size,
                             out_dtype='float32',
                             activation=self._activation)
-    
-    @tf.Module.with_name_scope
-    def __call__(self, x):
+
+    def call(self, x):
         x = self._layers(x)
         if not getattr(self, '_has_cnn', None):
             rbd = 0 if x.shape[-1] == 1 else 1  # #reinterpreted batch dimensions
@@ -283,9 +280,8 @@ class Q(Module):
                         out_size=1, 
                         out_dtype='float32', 
                         activation=self._activation)
-    
-    @tf.Module.with_name_scope
-    def __call__(self, x, a):
+
+    def call(self, x, a):
         x = self._layers_x(x)
         a = self._layers_a(a)
         x = tf.concat([x, a], axis=-1)
@@ -309,7 +305,7 @@ class ConvEncoder(Module):
         self._conv3 = conv2d(4 * depth, **kwargs)
         self._conv4 = conv2d(8 * depth, dtype='float32', **kwargs)
 
-    def __call__(self, x):
+    def call(self, x):
         x = convert_obs(x, [-.5, .5], global_policy().compute_dtype)
         assert x.shape[-3:] == (64, 64, 3), x.shape
         x = self._conv1(x)
@@ -340,7 +336,7 @@ class ConvDecoder(Module):
         self._deconv3 = deconv2d(1 * depth, 6, **kwargs)
         self._deconv4 = deconv2d(3, 6, strides=2)
 
-    def __call__(self, x):
+    def call(self, x):
         x = self._dense(x)
         shape = tf.concat([tf.shape(x)[:-1], [1, 1, x.shape[-1]]], 0)
         x = tf.reshape(x, shape)
