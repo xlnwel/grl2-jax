@@ -96,6 +96,8 @@ class ResidualBase(Module):
                     layers.Dropout(self._dropout_rate, noise_shape, name=prefix+'dropout'))
             if self._use_rezero:
                 self._rezero = tf.Variable(0., trainable=True, dtype=tf.float32, name=prefix+'rezero')
+        
+        self._training_cls += [subsample_cls, am_cls]
 
     def call(self, x, training=False):
         y = super().call(x, training=training)

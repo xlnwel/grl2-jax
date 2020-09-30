@@ -65,9 +65,9 @@ class ProcgenCNN(Module):
                     block_cls(name=f'{prefix}{block}_{i}', **block_kwargs),
                     # block_cls(name=f'{prefix}{block}_{i}_2', **block_kwargs)
                 ]
-            self._layers += [
-                sa_cls(name=f'{prefix}{sa}', **sa_kwargs)
-            ]
+            # self._layers += [
+            #     sa_cls(name=f'{prefix}{sa}', **sa_kwargs)
+            # ]
             out_act_cls = get_activation(out_activation, return_cls=True)
             self._layers.append(out_act_cls(name=prefix+out_activation))
             self._flat = layers.Flatten(name=prefix+'flatten')
@@ -75,18 +75,20 @@ class ProcgenCNN(Module):
             self.out_size = out_size
             if self.out_size:
                 self._dense = layers.Dense(self.out_size, activation=self._out_act, name=prefix+'out')
+        
+        self._training_cls += [block_cls, subsample_cls, sa_cls]
     
-    def call(self, x, training=True, return_cnn_out=False):
+    def call(self, x, training=False, return_cnn_out=False):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
         if self._time_distributed:
             t = x.shape[1]
             x = tf.reshape(x, [-1, *x.shape[2:]])
         x = super().call(x, training=training)
+        if self._time_distributed:
+            x = tf.reshape(x, [-1, t, *x.shape[1:]])
         z = self._flat(x)
         if self.out_size:
             z = self._dense(z)
-        if self._time_distributed:
-            z = tf.reshape(x, [-1, t, *z.shape[1:]])
         if return_cnn_out:
             return z, x
         else:

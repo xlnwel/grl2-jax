@@ -17,8 +17,8 @@ class NatureCNN(Module):
                  **kwargs):
         super().__init__(name=name)
         self._obs_range = obs_range
+        self._time_distributed = time_distributed
 
-        kwargs['time_distributed'] = time_distributed
         gain = kwargs.pop('gain', calculate_gain(activation))
         kwargs['kernel_initializer'] = get_initializer(kernel_initializer, gain=gain)
         activation = get_activation(activation)
@@ -37,10 +37,14 @@ class NatureCNN(Module):
 
     def call(self, x):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
+        if self._time_distributed:
+            t = x.shape[1]
+            x = tf.reshape(x, [-1, *x.shape[2:]])
         for l in self._conv_layers:
             x = l(x)
         x = self._flat(x)
         if self.out_size:
             x = self._dense(x)
-        
+        if self._time_distributed:
+            x = tf.reshape(x, [-1, t, *x.shape[1:]])
         return x

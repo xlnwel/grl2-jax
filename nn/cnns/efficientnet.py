@@ -32,6 +32,7 @@ class EfficientNet(Module):
                  **kwargs):
         super().__init__(name=name)
         self._obs_range = obs_range
+        self._time_distributed = time_distributed
         self._stem_type = stem_type
         self._stem_kwargs = stem_kwargs
 
@@ -100,10 +101,15 @@ class EfficientNet(Module):
     
     def call(self, x, training=True, return_cnn_out=False):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
+        if self._time_distributed:
+            t = x.shape[1]
+            x = tf.reshape(x, [-1, *x.shape[2:]])
         for l in self._convs:
             x = l(x)
         x = self._out_act(x)
-        z = flatten(x)
+        if self._time_distributed:
+            x = tf.reshape(x, [-1, t, *x.shape[1:]])
+        z = self._flat(x)
         if self.out_size:
             z = self._dense(z)
         if return_cnn_out:

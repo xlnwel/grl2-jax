@@ -17,8 +17,8 @@ class FTWCNN(Module):
                  **kwargs):
         super().__init__(name=name)
         self._obs_range = obs_range
+        self._time_distributed = time_distributed
 
-        kwargs['time_distributed'] = time_distributed
         gain = kwargs.pop('gain', calculate_gain('relu'))
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
         kwargs['kernel_initializer'] = kernel_initializer
@@ -37,6 +37,9 @@ class FTWCNN(Module):
 
     def call(self, x):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
+        if self._time_distributed:
+            t = x.shape[1]
+            x = tf.reshape(x, [-1, *x.shape[2:]])
         x = relu(self._conv1(x))
         x = self._conv2(x)
         y = relu(x)
@@ -46,6 +49,8 @@ class FTWCNN(Module):
         y = self._conv4(y)
         x = x + y
         x = relu(x)
+        if self._time_distributed:
+            x = tf.reshape(x, [-1, t, *x.shape[1:]])
         x = self._flat(x)
         if self.out_size:
             x = self._dense(x)

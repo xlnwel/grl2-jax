@@ -38,8 +38,8 @@ class SE(Module):
         self._layers = squeeze + excitation
         self._mul = layers.Multiply(name=f'{self.scope_name}/mul')
     
-    def call(self, x):
-        y = super().call(x)
+    def call(self, x, **kwargs):
+        y = super().call(x, **kwargs)
         return self._mul([x, y])
 
 if __name__ == "__main__":

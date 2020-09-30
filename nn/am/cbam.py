@@ -90,7 +90,7 @@ class CBAM(Module):
         return avg_squeeze, max_squeeze, concat, excitation, mul
 
 
-    def call(self, x):
+    def call(self, x, **kwargs):
         if self._ca_on:
             c_avg, c_max = x, x
             for l in self._c_avg:
