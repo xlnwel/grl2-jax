@@ -1,34 +1,67 @@
 ---
 env:
-    name: procgen_coinrun
-    frame_skip: 2
-    gray_scale: False
+    name: procgen_miner
+    n_envs: &ne 1
+    frame_skip: 1
     frame_stack: 4
 
 model:
     encoder: 
-        cnn_name: mbse
-        obs_range: [-1, 1]
-        channels: [16, 32, 32, 64]
-        expansion_ratio: [4, 4, 4, 4]
-        reduction_ratio: 1
-        norm: null
-        out_size: null
+        cnn_name: procgen
+        obs_range: [0, 1]
+        filters: [16, 32, 32, 32]
         kernel_initializer: glorot_uniform
-        activation: relu
+        stem: conv_maxblurpool
+        stem_kwargs:
+            norm: null
+        subsample: strided_resv1
+        subsample_kwargs:
+            am_type: cbam
+            am_kwargs: 
+                ratio: 1
+                kernel_size: 1
+                sa_on: False
+                out_activation: sigmoid
+        block: resv1
+        block_kwargs:
+            conv: conv2d
+            filter_coefs: []
+            kernel_sizes: [3, 3]
+            norm: null
+            norm_kwargs: {}
+            activation: relu
+            am_type: cbam
+            am_kwargs: 
+                ratio: 1
+                kernel_size: 1
+                sa_on: False
+                out_activation: sigmoid
+            dropout_rate: 0
+            rezero: False
+        sa: conv_sa
+        sa_kwargs:
+            key_ratio: 1
+            val_ratio: 1
+            downsample_ratio: 1
+        out_activation: relu
+        out_size: null
     actor:
         units_list: [512]
+        layer_type: dense
+        norm: null
         kernel_initializer: glorot_uniform
         activation: relu
     q:
         units_list: [512]
+        layer_type: dense
+        norm: null
         kernel_initializer: glorot_uniform
         activation: relu
         duel: False
 
         tau_embed_size: 64
         phi_activation: relu
-        K: &K 32
+        K: &K 64
     temperature:
         temp_type: 'variable'
         value: .1
@@ -36,19 +69,19 @@ model:
         
 agent:
     algorithm: &algo sacdiqn
-    replay_type: &replay 'uniform'
-    gamma: &gamma .99
-    batch_size: &bs 32
+    replay_type: &replay uniform
+    gamma: &gamma .995
+    batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     schedule_act_eps: False
     act_eps: 0
     eval_act_eps: 0
-    target_entropy_coef: .5
+    target_entropy_coef: .8
     
     MAX_STEPS: 8e6
     TRAIN_PERIOD: 64
-    EVAL_PERIOD: 5e5
+    EVAL_PERIOD: 1e6
     LOG_PERIOD: 5e4
     N_UPDATES: 1
     RECORD: True
@@ -67,15 +100,16 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    target_update_period: 2000
+    target_update_period: 1500
     tbo: False
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    q_lr: 3e-4
-    actor_lr: 3e-4
-    temp_lr: 3e-4
+    q_lr: 2.5e-4
+    actor_lr: 2.5e-4
+    temp_lr: 2.5e-4
+    epsilon: 3.125e-4
     
     # arguments for PER
     per_alpha: .5
@@ -83,6 +117,8 @@ agent:
 
 replay:
     replay_type: *replay
+    seqlen: 50
+    n_envs: *ne
     # arguments for PER
     beta0: .4
     beta_steps: 5e4
@@ -92,6 +128,6 @@ replay:
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
-    min_size: 2e4
-    capacity: 1e5
+    min_size: 1600
+    capacity: 2.5e5
     has_next_obs: False

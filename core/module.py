@@ -1,6 +1,6 @@
+import functools
 import tensorflow as tf
 from tensorflow.keras import layers
-from nn.func import mlp
 
 
 class Module(tf.Module):
@@ -21,9 +21,9 @@ class Module(tf.Module):
             self._build(x.shape)
         return self._call(x, *args, **kwargs)
         
-    def _build(self, *args, **kwargs):
+    def _build(self, input_shape):
         with self.name_scope:
-            self.build(*args, **kwargs)
+            self.build(input_shape)
         self._is_built = True
 
     def build(self, *args, **kwargs):
@@ -34,14 +34,15 @@ class Module(tf.Module):
     def _call(self, *args, **kwargs):
         return self.call(*args, **kwargs)
         
-    def call(self, x, *args, training=False, training_cls=(), **kwargs):
+    def call(self, x, training=False, training_cls=(), **kwargs):
         """ Override this if necessary """
-        training_cls = tuple(set(training_cls) | set(self._training_cls))
+        training_cls = set(training_cls) | set(self._training_cls)
+        training_cls = tuple([c.func if isinstance(c, functools.partial) else c for c in training_cls])
         for l in self._layers:
             if isinstance(l, training_cls):
                 x = l(x, training=training)
             else:
-                x = l(x)
+                x = l(x, **kwargs)
         return x
 
     def get_weights(self):
@@ -52,6 +53,7 @@ class Module(tf.Module):
 
     def mlp(self, x, *args, name, **kwargs):
         if not hasattr(self, f'_{name}'):
+            from nn.func import mlp
             setattr(self, f'_{name}', mlp(*args, name=name, **kwargs))
         return getattr(self, f'_{name}')(x)
 

@@ -25,7 +25,7 @@ class LocalBuffer(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def add_data(self, obs, action, reward, done, next_obs, mask):
+    def add_data(self, obs, action, reward, discount, next_obs):
         raise NotImplementedError
 
 
@@ -37,7 +37,7 @@ class EnvBuffer(LocalBuffer):
         self._idx = 0
 
     def is_full(self):
-        return self._idx == self._seqlen
+        return self._idx == self._seqlen + self._n_steps
 
     def reset(self):
         self._idx = self._n_steps
@@ -59,11 +59,11 @@ class EnvBuffer(LocalBuffer):
     def sample(self):
         results = {}
         for k, v in self._memory.items():
-            results[k] = v[:self._idx]
+            results[k] = v[:self._seqlen]
         if 'next_obs' not in self._memory:
-            idxes = np.arange(self._idx)
+            idxes = np.arange(self._seqlen)
             steps = results.get('steps', 1)
-            next_idxes = (idxes + steps) % self._capacity
+            next_idxes = idxes + steps
             if isinstance(self._memory['obs'], np.ndarray):
                 results['next_obs'] = self._memory['obs'][next_idxes]
             else:
@@ -75,7 +75,6 @@ class EnvBuffer(LocalBuffer):
 
 
 class EnvVecBuffer:
-    # TODO: Need update
     """ Local memory only stores one episode of transitions from n environments """
     @config
     def __init__(self):
@@ -83,14 +82,13 @@ class EnvVecBuffer:
         self._idx = 0
 
     def is_full(self):
-        return self._idx == self._seqlen
+        return self._idx == self._seqlen + self._n_steps
         
     def reset(self):
         self._idx = self._n_steps
         for k, v in self._memory.items():
-            v[:self._n_steps] = v[self._seqlen:]
-        self._memory['mask'] = np.zeros_like(self._memory['mask'], dtype=np.bool)
-        
+            v[:, :self._n_steps] = v[:, self._seqlen:]
+
     def add_data(self, env_ids=None, **data):
         """ Add experience to local memory """
         if self._memory == {}:
@@ -101,38 +99,64 @@ class EnvVecBuffer:
 
         env_ids = env_ids or range(self._n_envs)
         idx = self._idx
-        for i, env_id in enumerate(env_ids):
-            for k, v in data.items():
-                self._memory[k][env_id, idx] = v[i]
-                
-                # self._memory[k][env_id, idx] = v[i]
-            self._memory['steps'][env_id, idx] = 1
+        # for i, env_id in enumerate(env_ids):
+        #     for k, v in data.items():
+        #         self._memory[k][env_id, idx] = v[i]
 
-            # Update previous experience if multi-step is required
-            for j in range(1, self._n_steps):
-                k = idx - j
-                k_done = self._memory['done'][i, k]
-                if k_done:
-                    break
-                self._memory['reward'][i, k] += self._gamma**i * data['reward'][i]
-                self._memory['done'][i, k] = data['done'][i]
-                self._memory['steps'][i, k] += 1
-                self._memory['next_obs'][i, k] = data['next_obs'][i]
+        #     self._memory['steps'][env_id, idx] = 1
+
+        #     # Update previous experience if multi-step is required
+        #     for j in range(1, self._n_steps):
+        #         k = idx - j
+        #         k_disc = self._memory['discount'][i, k]
+        #         if not k_disc:
+        #             break
+        #         self._memory['reward'][i, k] += self._gamma**j * data['reward'][i]
+        #         self._memory['discount'][i, k] = data['discount'][i]
+        #         self._memory['steps'][i, k] += 1
+        #         self._memory['next_obs'][i, k] = data['next_obs'][i]
+        for k, v in data.items():
+            self._memory[k][:, idx] = v
+        self._memory['steps'][:, idx] = 1
+
+        # Update previous experience if multi-step is required
+        for i in range(1, self._n_steps):
+            k = idx - i
+            k_disc = self._memory['discount'][:, k]
+            self._memory['reward'][:, k] += self._gamma**i * data['reward'] * k_disc
+            self._memory['steps'][:, k] += k_disc.astype(np.uint8)
+            self._memory['next_obs'][:, k] = np.where(
+                (k_disc==1).reshape(-1, 1, 1, 1), data['next_obs'], self._memory['next_obs'][:, k])
+            self._memory['discount'][:, k] = data['discount'] * k_disc
 
         self._idx = self._idx + 1
 
     def sample(self):
         results = {}
-        mask = self._memory['mask']
         for k, v in self._memory.items():
-            if v.dtype == np.object:
-                results[k] = np.stack(v[mask])
-            elif k == 'mask':
-                continue
-            else:
-                results[k] = v[mask]
-            assert results[k].dtype != np.object, f'{k}, {results[k].dtype}'
+            results[k] = v[:, :self._seqlen].reshape((-1, *v.shape[2:]))
         if 'steps' in results:
             results['steps'] = results['steps'].astype(np.float32)
 
-        return mask, results
+        return results
+
+if __name__ == '__main__':
+    n_envs = 2
+    buf = EnvVecBuffer(dict(
+        seqlen=10, 
+        gamma=1,
+        n_envs=n_envs,
+        n_steps=3
+    ))
+    for i in range(10):
+        obs = np.ones((n_envs, 2))*i
+        next_obs = np.ones((n_envs, 2))*(i+1)
+        discount = np.ones(n_envs)
+        if i == 2 or i == 7:
+            discount[0] = 0
+        if i == 4:
+            discount[1] = 0
+        buf.add_data(obs=obs, reward=np.arange(1, n_envs+1, dtype=np.float32)*i, next_obs=next_obs, discount=discount)
+        if buf.is_full():
+            buf.reset()
+    print(buf._memory['steps'][0, :])

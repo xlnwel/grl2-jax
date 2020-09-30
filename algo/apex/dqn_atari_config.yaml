@@ -8,7 +8,7 @@ env:
     reward_clip: 4
     life_done: True
     reward_clip: True
-    n_envs: 1
+    n_envs: 2
     seed: 0
 
 model:

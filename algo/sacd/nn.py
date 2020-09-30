@@ -13,20 +13,19 @@ class Encoder(Module):
         super().__init__(name=name)
         self._layers = cnn(**config)
 
-    def call(self, x):
-        x = self._layers(x)
+    def call(self, x, **kwargs):
+        x = self._layers(x, **kwargs)
         return x
 
 
 class Actor(Module):
-    @config
-    def __init__(self, action_dim, name='actor'):
+    def __init__(self, config, action_dim, name='actor'):
         super().__init__(name=name)
         
-        self._layers = mlp(self._units_list, 
-                            out_size=action_dim,
-                            kernel_initializer=self._kernel_initializer,
-                            activation=self._activation)
+        self._layers = mlp(
+            **config, 
+            out_size=action_dim,
+            name='name')
         self._action_dim = action_dim
     
     @property

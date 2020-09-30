@@ -17,25 +17,27 @@ class Q(Module):
         self._action_dim = action_dim
 
         """ Network definition """
-        kwargs = {}
-        if hasattr(self, '_kernel_initializer'):
-            kwargs['kernel_initializer'] = self._kernel_initializer
+        kwargs = dict(
+            kernel_initializer=getattr(self, '_kernel_initializer', 'glorot_uniform'),
+            activation=getattr(self, '_activation', 'relu'),
+            out_dtype='float32',
+        )
         self._kwargs = kwargs
 
         # we do not define the phi net here to make it consistent with the CNN output size
         if self._duel:
             self._v_head = mlp(
-                self._units_list, 
+                self._units_list,
                 out_size=1, 
-                activation=self._activation, 
-                out_dtype='float32',
+                layer_type=self._layer_type,
+                norm=self._norm,
                 name='v',
                 **kwargs)
         self._a_head = mlp(
-            self._units_list, 
+            self._units_list,
             out_size=action_dim, 
-            activation=self._activation, 
-            out_dtype='float32',
+            layer_type=self._layer_type,
+            norm=self._norm,
             name='a' if self._duel else 'q',
             **kwargs)
 
@@ -64,13 +66,11 @@ class Q(Module):
         pi = tf.convert_to_tensor(np.pi, tf.float32)
         degree = tf.cast(tf.range(self._tau_embed_size), tf.float32) * pi * tau_hat
         qt_embed = tf.math.cos(degree)              # [B, N, E]
-        if not hasattr(self, '_phi'):
-            self._phi = mlp(
-                [cnn_out_size], 
-                activation=self._phi_activation,
-                name='phi',
-                **self._kwargs)
-        qt_embed = self._phi(qt_embed)              # [B, N, cnn.out_size]
+        qt_embed = self.mlp(
+            qt_embed, 
+            [cnn_out_size], 
+            name='phi',
+            **self._kwargs)                  # [B, N, cnn.out_size]
         tf.debugging.assert_shapes([
             [qt_embed, (batch_size, n_qt, cnn_out_size)],
         ])

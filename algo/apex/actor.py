@@ -145,8 +145,12 @@ class BaseWorker:
             self._send_episode_info(learner)
 
     def store(self, score, epslen):
-        self._info['score'].append(score)
-        self._info['epslen'].append(epslen)
+        if isinstance(score, (int, float)):
+            self._info['score'].append(score)
+            self._info['epslen'].append(epslen)
+        else:
+            self._info['score'] += list(score)
+            self._info['epslen'] += list(epslen)
 
     def _pull_weights(self, learner):
         return ray.get(learner.get_weights.remote(name=self._pull_names))

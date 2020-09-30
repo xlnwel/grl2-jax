@@ -63,8 +63,6 @@ def main(env_config, model_config, agent_config, replay_config):
     configure_precision(agent_config.get('precision', 32))
 
     env = create_env(env_config)
-    assert env.n_envs == 1, \
-        f'n_envs({env.n_envs}) > 1 is not supported here as it messes with n-step'
     # if env_config['name'].startswith('procgen'):
     #     start_level = 200
     eval_env_config = env_config.copy()

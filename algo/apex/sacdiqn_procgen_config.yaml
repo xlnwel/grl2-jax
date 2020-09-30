@@ -2,31 +2,61 @@
 env:
     name: procgen_coinrun
     frame_skip: 1
+    n_envs: &ne 4
     gray_scale: False
     frame_stack: 4
     np_obs: True
 
 model:
     encoder: 
-        cnn_name: impala
+        cnn_name: procgen
         obs_range: [0, 1]
-        block: resv1
-        block_filters: []
-        block_kernel_sizes: [3, 3]
-        channels: [16, 32, 32, 64]
-        out_size: null
-        norm: batch
-        se_kwargs:
-            reduction_ratio: 1
-            out_activation: sigmoid
-        rezero: True
+        filters: [16, 32, 32, 32]
         kernel_initializer: glorot_uniform
+        stem: conv_maxblurpool
+        stem_kwargs:
+            norm: null
+        subsample: strided_resv1
+        subsample_kwargs:
+            am_type: cbam
+            am_kwargs: 
+                ratio: 1
+                kernel_size: 1
+                sa_on: False
+                out_activation: sigmoid
+        block: resv1
+        block_kwargs:
+            conv: conv2d
+            filter_coefs: []
+            kernel_sizes: [3, 3]
+            norm: null
+            norm_kwargs: {}
+            activation: relu
+            am_type: cbam
+            am_kwargs: 
+                ratio: 1
+                kernel_size: 1
+                sa_on: False
+                out_activation: sigmoid
+            dropout_rate: 0
+            rezero: False
+        sa: conv_sa
+        sa_kwargs:
+            key_ratio: 1
+            val_ratio: 1
+            downsample_ratio: 1
+        out_activation: relu
+        out_size: null
     actor:
         units_list: [512]
+        layer_type: dense
+        norm: null
         kernel_initializer: glorot_uniform
         activation: relu
     q:
         units_list: [512]
+        layer_type: dense
+        norm: null
         kernel_initializer: glorot_uniform
         activation: relu
         duel: False
@@ -37,23 +67,23 @@ model:
     temperature:
         temp_type: 'variable'
         value: .1
-    twin_q: True
+    twin_q: False
 
 agent:
     algorithm: &algo apex-sacdiqn
-    replay_type: &replay 'uniform'
+    replay_type: &replay uniform
     batch_size: &bs 64
     gamma: &gamma 0.995
     n_steps: &nsteps 3      # n-step target
     schedule_act_eps: False
     act_eps: 0
     eval_act_eps: 0
-    target_entropy_coef: 
-        - [4.e+4, .8]
-        - [7.e+4, .3]
+    target_entropy_coef: .8
+        # - [4.e+4, .8]
+        # - [7.e+4, .3]
     
     MAX_STEPS: 8e6      # maximum env steps
-    LOG_PERIOD: &log 2000
+    LOG_PERIOD: &log 1000
     N_UPDATES: *log
     SYNC_PERIOD: 1000
     RECORD_PERIOD: 100
@@ -65,7 +95,7 @@ agent:
     n_workers: 6
     n_worker_cpus: 1
     n_worker_gpus: .1
-    deterministic_evaluation: True
+    deterministic_evaluation: False
 
     # IQN params
     N: 64                # N in paper, num of quantiles for online quantile network
@@ -85,7 +115,7 @@ agent:
     optimizer: adam
     schedule_lr: False
     actor_lr: 2.5e-4
-    critic_lr: 2.5e-4
+    q_lr: 2.5e-4
     temp_lr: 2.5e-4
     epsilon: 3.125e-4
     
@@ -95,7 +125,8 @@ agent:
 
 replay:
     replay_type: *replay
-    seqlen: 100
+    seqlen: 50
+    n_envs: *ne
     # arguments for PER
     beta0: .4
     beta_steps: 2e6

@@ -21,26 +21,24 @@ class Q(Module):
 
         """ Network definition """
         kwargs = {}
-        if hasattr(self, '_kernel_initializer'):
-            kwargs['kernel_initializer'] = self._kernel_initializer
+        kwargs = dict(
+            kernel_initializer=getattr(self, '_kernel_initializer', 'glorot_uniform'),
+            activation=getattr(self, '_activation', 'relu'),
+        )
         self._cnn = cnn(self._cnn_name, out_size=self._out_size, **kwargs)
 
         layer_type = dict(noisy=Noisy, dense=layers.Dense)[self._layer_type]
         if self._duel:
             self._v_head = mlp(
                 self._units_list, 
+                layer_type=self._layer_type,
                 out_size=1, 
-                layer_type=layer_type, 
-                activation=self._activation, 
-                out_dtype='float32',
                 name='v',
                 **kwargs)
         self._a_head = mlp(
             self._units_list, 
+            layer_type=self._layer_type,
             out_size=action_dim, 
-            layer_type=layer_type, 
-            activation=self._activation, 
-            out_dtype='float32',
             name='a' if self._duel else 'q',
             **kwargs)
 
@@ -61,12 +59,14 @@ class Q(Module):
         return x
 
     def mlp(self, x, action=None, noisy=True, reset=True):
+        kwargs = dict(noisy=noisy, reset=reset) if self._layer_type == 'noisy' else {}
+
         if self._duel:
-            v = self._v_head(x, noisy=noisy, reset=reset)
-            a = self._a_head(x, noisy=noisy, reset=reset)
+            v = self._v_head(x, **kwargs)
+            a = self._a_head(x, **kwargs)
             q = v + a - tf.reduce_mean(a, axis=-1, keepdims=True)
         else:
-            q = self._a_head(x, noisy=noisy, reset=reset)
+            q = self._a_head(x, **kwargs)
 
         if action is not None:
             if len(action.shape) < len(q.shape):
