@@ -68,10 +68,11 @@ class DQNBase(BaseAgent):
         action, terms = self.model.action(
             tf.convert_to_tensor(x), 
             deterministic=deterministic, 
-            epsilon=tf.convert_to_tensor(eps, tf.float32))
+            epsilon=tf.convert_to_tensor(eps, tf.float32),
+            **kwargs)
         action = np.squeeze(action.numpy())
 
-        return action
+        return action, terms
 
     @step_track
     def learn_log(self, step):

@@ -103,7 +103,7 @@ class ConvPool(Module):
         pool_name = f'{self.scope_name}/{self._pool_type}'
 
         self._layers = []
-        if self._conv:
+        if self._conv is not None:
             self._layers += [
                 self._conv(filters, self._filter_size, strides=1, padding='same', 
                     name=conv_name, **self._kwargs),

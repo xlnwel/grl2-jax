@@ -220,7 +220,7 @@ class Runner:
 
     #     return self.step
 
-def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=None):
+def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=None, record_stats=False):
     assert get_wrapper_by_name(env, 'EnvStats') is not None
     scores = []
     epslens = []
@@ -245,9 +245,17 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
                     for i in range(env.n_envs):
                         frames[i].append(img[i])
                     
-            action = agent(obs, deterministic=True, env_output=env_output)
+            action = agent(obs, deterministic=True, env_output=env_output, return_eval_stats=record_stats)
+            frame_skip = None
+            terms = {}
             if isinstance(action, tuple):
-                action, frame_skip = action
+                if len(action) == 2:
+                    action, terms = action
+                elif len(action) == 3:
+                    action, frame_skip, terms = action
+                else:
+                    raise ValueError(f'Unkown model return: {action}')
+            if frame_skip is not None:
                 frame_skip += 1     # plus 1 as values returned start from zero
                 env_output = env.step(action, frame_skip=frame_skip)
             else:
@@ -255,7 +263,7 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
             obs, reward, discount, reset = env_output
 
             if step_fn:
-                step_fn(reward=reward)
+                step_fn(reward=reward, **terms)
             if env.env_type == 'Env':
                 if env.game_over():
                     scores.append(env.score())

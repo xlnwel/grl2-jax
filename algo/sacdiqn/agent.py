@@ -165,8 +165,8 @@ class Agent(DQNBase):
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_encoder.variables + self.target_q.variables
-        mvars = self.encoder.variables + self.q.variables
+        tvars = self.target_encoder.variables + self.target_q.variables# + self.target_actor.variables
+        mvars = self.encoder.variables + self.q.variables# + self.actor.variables
         if self._twin_q:
             tvars += self.target_q2.variables
             mvars += self.q2.variables

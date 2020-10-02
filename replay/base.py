@@ -6,6 +6,57 @@ from utility.utils import to_int
 from replay.utils import *
 
 
+class EnvVecBuffer:
+    """ Local memory only stores one episode of transitions from n environments """
+    @config
+    def __init__(self):
+        self._memory = {}
+        self._idx = 0
+
+    def is_full(self):
+        return self._idx == self._seqlen + self._n_steps
+        
+    def reset(self):
+        self._idx = self._n_steps
+        for k, v in self._memory.items():
+            v[:, :self._n_steps] = v[:, self._seqlen:]
+
+    def add_data(self, env_ids=None, **data):
+        """ Add experience to local memory """
+        if self._memory == {}:
+            # initialize memory
+            init_buffer(self._memory, pre_dims=(self._n_envs, self._seqlen + self._n_steps), 
+                        has_steps=self._n_steps>1, **data)
+            print_buffer(self._memory, 'Local Buffer')
+
+        env_ids = env_ids or range(self._n_envs)
+        idx = self._idx
+        for k, v in data.items():
+            print(k, v)
+            self._memory[k][:, idx] = v
+        self._memory['steps'][:, idx] = 1
+
+        # Update previous experience if multi-step is required
+        for i in range(1, self._n_steps):
+            k = idx - i
+            k_disc = self._memory['discount'][:, k]
+            self._memory['reward'][:, k] += self._gamma**i * data['reward'] * k_disc
+            self._memory['steps'][:, k] += k_disc.astype(np.uint8)
+            self._memory['next_obs'][:, k] = np.where(
+                (k_disc==1).reshape(-1, 1, 1, 1), data['next_obs'], self._memory['next_obs'][:, k])
+            self._memory['discount'][:, k] = data['discount'] * k_disc
+
+        self._idx = self._idx + 1
+
+    def sample(self):
+        results = {}
+        for k, v in self._memory.items():
+            results[k] = v[:, :self._seqlen].reshape((-1, *v.shape[2:]))
+        if 'steps' in results:
+            results['steps'] = results['steps'].astype(np.float32)
+
+        return results
+
 class Replay(ABC):
     """ Interface """
     @config
@@ -19,6 +70,16 @@ class Replay(ABC):
         self._mem_idx = 0
         
         self._memory = {}
+
+        
+        self._n_envs = getattr(self, '_n_envs', 1)
+        if self._n_envs > 1:
+            self._tmp_buf = EnvVecBuffer({
+                'n_envs': self._n_envs,
+                'seqlen': self._seqlen,
+                'n_steps': self._n_steps,
+                'gamma': self._gamma,
+            })
 
     def name(self):
         return self._replay_type
@@ -48,26 +109,33 @@ class Replay(ABC):
         self._merge(local_buffer, length)
 
     def add(self, **kwargs):
-        """ Add a single transition to the replay buffer """
-        next_obs = kwargs['next_obs']
-        if self._memory == {}:
-            if not self._has_next_obs:
-                del kwargs['next_obs']
-            init_buffer(self._memory, 
-                        pre_dims=self._pre_dims, 
-                        has_steps=self._n_steps>1, 
-                        precision=self._precision,
-                        **kwargs)
-            print_buffer(self._memory)
+        if self._n_envs > 1:
+            self._tmp_buf.add_data(**kwargs)
+            if self._tmp_buf.is_full():
+                data = self._tmp_buf.sample()
+                self.merge(data)
+                self._tmp_buf.reset()
+        else:
+            """ Add a single transition to the replay buffer """
+            next_obs = kwargs['next_obs']
+            if self._memory == {}:
+                if not self._has_next_obs:
+                    del kwargs['next_obs']
+                init_buffer(self._memory, 
+                            pre_dims=self._pre_dims, 
+                            has_steps=self._n_steps>1, 
+                            precision=self._precision,
+                            **kwargs)
+                print_buffer(self._memory)
 
-        if not self._is_full and self._mem_idx == self._capacity - 1:
-            self._is_full = True
-        
-        add_buffer(
-            self._memory, self._mem_idx, self._n_steps, self._gamma, cycle=self._is_full, **kwargs)
-        self._mem_idx = (self._mem_idx + 1) % self._capacity
-        if 'next_obs' not in self._memory:
-            self._memory['obs'][self._mem_idx] = next_obs
+            if not self._is_full and self._mem_idx == self._capacity - 1:
+                self._is_full = True
+            
+            add_buffer(
+                self._memory, self._mem_idx, self._n_steps, self._gamma, cycle=self._is_full, **kwargs)
+            self._mem_idx = (self._mem_idx + 1) % self._capacity
+            if 'next_obs' not in self._memory:
+                self._memory['obs'][self._mem_idx] = next_obs
 
     """ Implementation """
     def _sample(self, batch_size=None):

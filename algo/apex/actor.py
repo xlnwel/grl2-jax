@@ -208,11 +208,10 @@ class Worker(BaseWorker):
                 discount=((), tf.float32, 'discount'),
                 steps=((), tf.float32, 'steps')
             )
-            if not self._is_sac:
-                if self._is_iqn:
-                    TensorSpecs['qtv'] = ((self.K,), tf.float32, 'qtv')
-                else:
-                    TensorSpecs['q']= ((), tf.float32, 'q')
+            if self._is_iqn:
+                TensorSpecs['qtv'] = ((self.K,), tf.float32, 'qtv')
+            else:
+                TensorSpecs['q']= ((), tf.float32, 'q')
             if self._is_iqn:
                 self.compute_priorities = build(
                     self._compute_iqn_priorities, TensorSpecs, batch_size=self._seqlen)
@@ -224,7 +223,8 @@ class Worker(BaseWorker):
         action = self.model.action(
             tf.convert_to_tensor(x), 
             deterministic=deterministic,
-            epsilon=self._act_eps)
+            epsilon=self._act_eps,
+            return_stats=self._is_per)
         action = tf.nest.map_structure(lambda x: x.numpy(), action)
         return action
 

@@ -107,18 +107,46 @@ class SACIQN(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
+    def action(self, x, deterministic=False, epsilon=0, return_stats=False, return_eval_stats=False, **kwargs):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
-        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
-        _, qtv = self.q(x, action=action)
+        action = self.actor(x, deterministic=deterministic, epsilon=epsilon, return_stats=return_eval_stats)
+        terms = {}
+        if return_eval_stats:
+            action, terms = action
+            _, qtv, q = self.q(x, return_q=True)
+            qtv = tf.transpose(qtv, [0, 2, 1])
+            idx = tf.stack([tf.range(action.shape[0]), action], -1)
+            qtv_max = tf.reduce_max(qtv, 1)
+            q_max = tf.reduce_max(q, 1)
+            action_best_q = tf.argmax(q, 1)
+            qtv = tf.gather_nd(qtv, idx)
+            q = tf.gather_nd(q, idx)
+            action = tf.squeeze(action)
+            action_best_q = tf.squeeze(action_best_q)
+            qtv_max = tf.squeeze(qtv_max)
+            qtv = tf.squeeze(qtv)
+            q_max = tf.squeeze(q_max)
+            q = tf.squeeze(q)
+            terms = {
+                'action': action,
+                'action_best_q': action_best_q,
+                'qtv_max': qtv_max,
+                'qtv': qtv,
+                'q_max': q_max,
+                'q': q,
+            }
+        elif return_stats:
+            action, terms = action
+            _, qtv = self.q(x, action=action)
+            qtv = tf.squeeze(qtv)
+            terms['qtv'] = qtv
         action = tf.squeeze(action)
-        qtv = tf.squeeze(qtv)
 
-        return action, {'qtv': qtv}
+        return action, terms
 
 
 def create_components(config, env, **kwargs):
@@ -136,6 +164,7 @@ def create_components(config, env, **kwargs):
         encoder=Encoder(config['encoder'], name='encoder'),
         target_encoder=Encoder(config['encoder'], name='target_encoder'),
         actor=Actor(actor_config, action_dim),
+        # target_actor=Actor(actor_config, action_dim),
         q=Q(q_config, action_dim, name='q'),
         target_q=Q(q_config, action_dim, name='target_q'),
         temperature=temperature,

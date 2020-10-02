@@ -12,6 +12,7 @@ model:
         cnn_name: procgen
         obs_range: [0, 1]
         filters: [16, 32, 32, 32]
+        n_blocks: [2, 2, 4, 3]
         kernel_initializer: glorot_uniform
         stem: conv_maxblurpool
         stem_kwargs:
@@ -41,6 +42,7 @@ model:
             dropout_rate: 0
             rezero: False
         sa: conv_sa
+        sa_pos: []
         sa_kwargs:
             key_ratio: 1
             val_ratio: 1
@@ -73,7 +75,7 @@ agent:
     algorithm: &algo apex-sacdiqn
     replay_type: &replay uniform
     batch_size: &bs 64
-    gamma: &gamma 0.995
+    gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     schedule_act_eps: False
     act_eps: 0

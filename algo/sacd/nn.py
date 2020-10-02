@@ -32,7 +32,7 @@ class Actor(Module):
     def action_dim(self):
         return self._action_dim
 
-    def call(self, x, deterministic=False, epsilon=0):
+    def call(self, x, deterministic=False, epsilon=0, return_stats=False):
         x = self._layers(x)
 
         dist = tfd.Categorical(logits=x)
@@ -43,7 +43,11 @@ class Actor(Module):
                 tf.random.uniform(action.shape, 0, 1) < epsilon,
                 rand_act, action)
 
-        return action
+        if return_stats:
+            prob = dist.prob(action)
+            return action, {'prob': prob}
+        else:
+            return action
 
     def train_step(self, x):
         x = self._layers(x)

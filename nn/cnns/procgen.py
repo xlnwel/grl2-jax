@@ -10,6 +10,7 @@ class ProcgenCNN(Module):
                  time_distributed=False, 
                  obs_range=[0, 1], 
                  filters=[16, 32, 32],
+                 n_blocks=[2, 2, 2],
                  kernel_initializer='glorot_uniform',
                  stem='conv_maxblurpool',
                  stem_kwargs={},
@@ -28,6 +29,7 @@ class ProcgenCNN(Module):
                     rezero=False,
                  ),
                  sa=None,
+                 sa_pos=[],
                  sa_kwargs={},
                  out_activation='relu',
                  out_size=None,
@@ -36,11 +38,13 @@ class ProcgenCNN(Module):
         super().__init__(name=name)
         self._obs_range = obs_range
         self._time_distributed = time_distributed
-        stem_cls = subsample_registry.get(stem)
 
         # kwargs specifies general kwargs for conv2d
         kwargs['kernel_initializer'] = get_initializer(kernel_initializer)
         assert 'activation' not in kwargs, kwargs
+
+        stem_cls = subsample_registry.get(stem)
+        stem_kwargs.update(kwargs.copy())
         
         block_cls = block_registry.get(block)
         block_kwargs.update(kwargs.copy())
@@ -54,20 +58,16 @@ class ProcgenCNN(Module):
         self._layers = []
         prefix = f'{self.scope_name}/'
         with self.name_scope:
-            self._layers += [
-                stem_cls(filters[0], name=prefix+stem, **stem_kwargs),
-                block_cls(name=f'{prefix}{block}_f16', **block_kwargs),
-            ]
-            for i, f in enumerate(filters[1:]):
+            for i, (f, n) in enumerate(zip(filters, n_blocks)):
                 subsample_kwargs['filters'] = [f for _ in range(2)]
                 self._layers += [
-                    subsample_cls(name=f'{prefix}{subsample}_f{f}_{i}', **subsample_kwargs),
-                    block_cls(name=f'{prefix}{block}_{i}', **block_kwargs),
-                    # block_cls(name=f'{prefix}{block}_{i}_2', **block_kwargs)
-                ]
-            # self._layers += [
-            #     sa_cls(name=f'{prefix}{sa}', **sa_kwargs)
-            # ]
+                    stem_cls(filters[0], name=prefix+stem, **stem_kwargs) if i == 0 else
+                    subsample_cls(name=f'{prefix}{subsample}_{i}_f{f}', **subsample_kwargs),
+                ]+ [block_cls(name=f'{prefix}{block}_{i}', **block_kwargs) for n in range(n_blocks[0]-1)]
+                if i in sa_pos:
+                    self._layers += [
+                        sa_cls(name=f'{prefix}{sa}_{i}', **sa_kwargs)
+                    ]
             out_act_cls = get_activation(out_activation, return_cls=True)
             self._layers.append(out_act_cls(name=prefix+out_activation))
             self._flat = layers.Flatten(name=prefix+'flatten')
