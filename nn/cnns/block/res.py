@@ -11,7 +11,7 @@ class ResidualBase(Module):
                  *,
                  name='resv1', 
                  conv='conv2d',
-                 filters=[],
+                 out_filters=None,
                  filter_coefs=[],
                  kernel_sizes=[3, 3],
                  strides=1,
@@ -29,7 +29,7 @@ class ResidualBase(Module):
                  **kwargs):
         super().__init__(name=name)
         self._conv = conv
-        self._filters = filters
+        self._out_filters = out_filters
         self._filter_coefs = filter_coefs
         self._kernel_sizes = kernel_sizes
         self._strides = strides
@@ -50,7 +50,9 @@ class ResidualBase(Module):
     def build(self, input_shape):
         kwargs = self._kwargs.copy()
         filter_coefs = self._filter_coefs or [1 for _ in self._kernel_sizes]
-        filters = self._filters or [input_shape[-1] * fc for fc in filter_coefs]
+        filters = [int(input_shape[-1] * fc) for fc in filter_coefs]
+        if self._out_filters:
+            filters[-1] = self._out_filters
         if isinstance(self._strides, int):
             strides = [1 for _ in self._kernel_sizes]
             strides[-1] = self._strides

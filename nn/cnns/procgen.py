@@ -50,7 +50,8 @@ class ProcgenCNN(Module):
         block_kwargs.update(kwargs.copy())
 
         subsample_cls = subsample_registry.get(subsample)
-        subsample_kwargs.update(kwargs.copy())
+        subsample_kwargs.update(block_kwargs.copy())
+        assert block_kwargs.get('out_filters', None) is None, block_kwargs
 
         sa_cls = block_registry.get(sa)
         sa_kwargs.update(kwargs.copy())
@@ -59,11 +60,13 @@ class ProcgenCNN(Module):
         prefix = f'{self.scope_name}/'
         with self.name_scope:
             for i, (f, n) in enumerate(zip(filters, n_blocks)):
-                subsample_kwargs['filters'] = [f for _ in range(2)]
+                subsample_kwargs['out_filters'] = f
+                subsample_kwargs['filter_coefs'] = block_kwargs['filter_coefs']
                 self._layers += [
                     stem_cls(filters[0], name=prefix+stem, **stem_kwargs) if i == 0 else
                     subsample_cls(name=f'{prefix}{subsample}_{i}_f{f}', **subsample_kwargs),
-                ]+ [block_cls(name=f'{prefix}{block}_{i}', **block_kwargs) for n in range(n_blocks[0]-1)]
+                ] + [block_cls(name=f'{prefix}{block}_{i}_{j}', **block_kwargs) 
+                    for j in range(n-1)]
                 if i in sa_pos:
                     self._layers += [
                         sa_cls(name=f'{prefix}{sa}_{i}', **sa_kwargs)
@@ -75,7 +78,6 @@ class ProcgenCNN(Module):
             self.out_size = out_size
             if self.out_size:
                 self._dense = layers.Dense(self.out_size, activation=self._out_act, name=prefix+'out')
-        
         self._training_cls += [block_cls, subsample_cls, sa_cls]
     
     def call(self, x, training=False, return_cnn_out=False):

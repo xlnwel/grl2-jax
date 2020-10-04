@@ -74,31 +74,28 @@ def get_learner_class(BaseAgent):
 
 
 class Worker(BaseWorker):
-    @config
     def __init__(self, 
                 *,
                 worker_id,
+                config,
                 model_config,
                 env_config, 
                 buffer_config,
                 model_fn,
-                buffer_fn,):
-        silence_tf_logs()
-        configure_threads(1, 1)
-        self._id = worker_id
-
-        self.env = env = create_env(env_config)
-        self.n_envs = self.env.n_envs
+                buffer_fn):
+        super().__init__(
+            worker_id=worker_id,
+            config=config,
+            model_config=model_config,
+            env_config=env_config,
+            buffer_config=buffer_config,
+            model_fn=model_fn,
+            buffer_fn=buffer_fn
+        )
 
         self._state = None
         self._prev_action = None
         self._prev_reward = None
-
-        self.runner = Runner(self.env, self, nsteps=self.SYNC_PERIOD)
-
-        self.model = model_fn(
-            config=model_config, 
-            env=env)
 
         self.buffer = buffer_fn(buffer_config, state_keys=['h', 'c'])
         self._is_per = self._replay_type.endswith('per')
@@ -110,7 +107,7 @@ class Worker(BaseWorker):
         self._info = collections.defaultdict(list)
         if self._is_per:
             TensorSpecs = dict(
-                obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
+                obs=((self._sample_size, *self.env.obs_shape), self.env.obs_dtype, 'obs'),
                 prev_action=((self._sample_size,), tf.int32, 'prev_action'),
                 prev_reward=((self._sample_size,), tf.float32, 'prev_reward'),
                 logpi=((self._sample_size,), tf.float32, 'logpi'),

@@ -32,38 +32,15 @@ class Runner:
         nsteps = nsteps or self._default_nsteps
         obs = self.env_output.obs
         reset = self.env_output.reset
-        terms = {}
-
+        
         for t in range(nsteps):
             action = action_selector(
                 obs, 
                 reset=reset, 
                 deterministic=False,
                 env_output=self.env_output)
-            if isinstance(action, tuple):
-                if len(action) == 2:
-                    action, terms = action
-                    self.env_output = self.env.step(action)
-                    self.step += self._frames_per_step
-                elif len(action) == 3:
-                    action, frame_skip, terms = action
-                    frame_skip += 1     # plus 1 as values returned start from zero
-                    self.env_output = self.env.step(action, frame_skip=frame_skip)
-                    self.step += frame_skip
-                else:
-                    raise ValueError(f'Invalid action "{action}"')
-            else:
-                self.env_output = self.env.step(action)
-                self.step += self._frames_per_step
-            next_obs, reward, discount, reset = self.env_output
+            obs, reset = self.step_env(obs, action, step_fn)
 
-            if step_fn:
-                kwargs = dict(obs=obs, action=action, reward=reward,
-                    discount=discount, next_obs=next_obs)
-                # allow terms to overwrite the values in kwargs
-                kwargs.update(terms)
-                step_fn(self.env, self.step, reset, **kwargs)
-            obs = next_obs
             # logging when env is reset 
             if reset:
                 info = self.env.info()
@@ -79,38 +56,15 @@ class Runner:
         nsteps = nsteps or self._default_nsteps
         obs = self.env_output.obs
         reset = self.env_output.reset
-        terms = {}
-
+        
         for t in range(nsteps):
             action = action_selector(
                 obs, 
                 reset=reset, 
                 deterministic=False,
                 env_output=self.env_output)
-            if isinstance(action, tuple):
-                if len(action) == 2:
-                    action, terms = action
-                    self.env_output = self.env.step(action)
-                    self.step += self._frames_per_step
-                elif len(action) == 3:
-                    action, frame_skip, terms = action
-                    frame_skip += 1     # plus 1 as values returned start from zero
-                    self.env_output = self.env.step(action, frame_skip=frame_skip)
-                    self.step += np.sum(frame_skip)
-                else:
-                    raise ValueError(f'Invalid action "{action}"')
-            else:
-                self.env_output = self.env.step(action)
-                self.step += self._frames_per_step
-            next_obs, reward, discount, reset = self.env_output
+            obs, reset = self.step_env(obs, action, step_fn)
             
-            if step_fn:
-                kwargs = dict(obs=obs, action=action, reward=reward,
-                    discount=discount, next_obs=next_obs)
-                # allow terms to overwrite the values in kwargs
-                kwargs.update(terms)
-                step_fn(self.env, self.step, reset, **kwargs)
-            obs = next_obs
             # logging when any env is reset 
             done_env_ids = [i for i, r in enumerate(reset) if r]
             if done_env_ids:
@@ -131,94 +85,106 @@ class Runner:
         else:
             return self._run_traj_envvec(action_selector, step_fn)
 
-    # def _run_traj_env(self, action_selector, step_fn):
-    #     env = self.env
-    #     action_selector = action_selector or self.agent
-    #     env_output = env.reset()
-    #     obs = env_output.obs
-    #     reset = 1
-    #     assert env.epslen() == 0
-    #     terms = {}
+    def _run_traj_env(self, action_selector, step_fn):
+        action_selector = action_selector or self.agent
+        env_output = self.env.reset()
+        obs = env_output.obs
+        reset = 1
+        
+        for t in range(self._default_nsteps):
+            action = action_selector(
+                obs, 
+                reset=reset, 
+                deterministic=False, 
+                env_output=env_output)
+            obs, reset = self.step_env(obs, action, step_fn)
 
-    #     for t in range(self._default_nsteps):
-    #         action = action_selector(
-    #             obs, 
-    #             reset=reset, 
-    #             deterministic=False, 
-    #             env_output=env_output)
-    #         if isinstance(action, tuple):
-    #             action, terms = action
-    #         env_output = env.step(action)
-    #         next_obs, reward, discount, reset = env_output
-
-    #         self.step += info.get('mask', 1) * self._frames_per_step
-    #         if step_fn:
-    #             kwargs = dict(obs=obs, action=action, reward=reward,
-    #                 discount=np.float32(1-done), next_obs=next_obs)
-    #             # allow terms to overwrite the values in kwargs
-    #             kwargs.update(terms)
-    #             step_fn(env, self.step, info, **kwargs)
-    #         obs = next_obs
-    #         # logging and reset
-    #         if info.get('already_done'):
-    #             if info.get('game_over'):
-    #                 self.agent.store(score=info['score'], epslen=info['epslen'])
-    #                 self.episodes += 1
-    #                 break
-    #             else:
-    #                 obs = env.reset()
-    #             reset = 1
-
-    #     return self.step
-
-    # def _run_traj_envvec(self, action_selector, step_fn):
-    #     env = self.env
-    #     action_selector = action_selector or self.agent
-    #     env_output = env.reset()
-    #     obs = env_output.obs
-    #     reset = np.ones(env.n_envs)
-    #     np.testing.assert_equal(env.epslen(), np.zeros_like(reset))
-    #     terms = {}
-
-    #     for t in range(self._default_nsteps):
-    #         action = action_selector(
-    #             obs, 
-    #             reset=reset, 
-    #             deterministic=False, 
-    #             env_output=env_output)
-    #         if isinstance(action, tuple):
-    #             action, terms = action
-    #         env_output = env.step(action)
-    #         next_obs, reward, done, info = env_output
-
-    #         mask = np.array([i.get('mask', 1) for i in info])
-    #         self.step += np.sum(self._frames_per_step * mask)
-    #         if step_fn:
-    #             kwargs = dict(obs=obs, action=action, reward=reward,
-    #                 discount=np.float32(1-done), next_obs=next_obs, mask=mask)
-    #             # allow terms to overwrite the values in kwargs
-    #             kwargs.update(terms)
-    #             step_fn(env, self.step, info, **kwargs)
-    #         obs = next_obs
-    #         # logging and reset 
-    #         done_env_ids = [i for i, ii in enumerate(info) if ii.get('already_done')]
-    #         if done_env_ids:
-    #             score = [i['score'] for i in info if 'score' in i]
-    #             if score:
-    #                 epslen = [i['epslen'] for i in info if 'epslen' in i]
-    #                 assert len(score) == len(epslen)
-    #                 self.agent.store(score=score, epslen=epslen)
+            # logging when env is reset 
+            if reset:
+                break
+        info = self.env.info()
+        self.agent.store(
+            score=info['score'], epslen=info['epslen'])
+        self.episodes += 1
                 
-    #             reset_env_ids = [i for i in done_env_ids if not info[i].get('game_over')]
-    #             if reset_env_ids:
-    #                 new_obs = env.reset(reset_env_ids)
-    #                 for i, o in zip(done_env_ids, new_obs):
-    #                     obs[i] = o
-    #         reset = np.array([i.get('already_done', False) for i in info])
-    #         if np.all([i.get('game_over', False) for i in info]):
-    #             break
+        return self.step
 
-    #     return self.step
+    def _run_traj_envvec(self, action_selector, step_fn):
+        env = self.env
+        action_selector = action_selector or self.agent
+        env_output = env.reset()
+        obs = env_output.obs
+        reset = np.ones(env.n_envs)
+        np.testing.assert_equal(env.epslen(), np.zeros_like(reset))
+        terms = {}
+
+        for t in range(self._default_nsteps):
+            action = action_selector(
+                obs, 
+                reset=reset, 
+                deterministic=False, 
+                env_output=env_output)
+            if isinstance(action, tuple):
+                action, terms = action
+            env_output = env.step(action)
+            next_obs, reward, done, info = env_output
+
+            mask = np.array([i.get('mask', 1) for i in info])
+            self.step += np.sum(self._frames_per_step * mask)
+            if step_fn:
+                kwargs = dict(obs=obs, action=action, reward=reward,
+                    discount=np.float32(1-done), next_obs=next_obs, mask=mask)
+                # allow terms to overwrite the values in kwargs
+                kwargs.update(terms)
+                step_fn(env, self.step, info, **kwargs)
+            obs = next_obs
+            # logging and reset 
+            done_env_ids = [i for i, ii in enumerate(info) if ii.get('already_done')]
+            if done_env_ids:
+                score = [i['score'] for i in info if 'score' in i]
+                if score:
+                    epslen = [i['epslen'] for i in info if 'epslen' in i]
+                    assert len(score) == len(epslen)
+                    self.agent.store(score=score, epslen=epslen)
+                
+                reset_env_ids = [i for i in done_env_ids if not info[i].get('game_over')]
+                if reset_env_ids:
+                    new_obs = env.reset(reset_env_ids)
+                    for i, o in zip(done_env_ids, new_obs):
+                        obs[i] = o
+            reset = np.array([i.get('already_done', False) for i in info])
+            if np.all([i.get('game_over', False) for i in info]):
+                break
+
+        return self.step
+
+    def step_env(self, obs, action, step_fn):
+        if isinstance(action, tuple):
+            if len(action) == 2:
+                action, terms = action
+                self.env_output = self.env.step(action)
+                self.step += self._frames_per_step
+            elif len(action) == 3:
+                action, frame_skip, terms = action
+                frame_skip += 1     # plus 1 as values returned start from zero
+                self.env_output = self.env.step(action, frame_skip=frame_skip)
+                self.step += np.sum(frame_skip)
+            else:
+                raise ValueError(f'Invalid action "{action}"')
+        else:
+            self.env_output = self.env.step(action)
+            self.step += self._frames_per_step
+            terms = {}
+        next_obs, reward, discount, reset = self.env_output
+
+        if step_fn:
+            kwargs = dict(obs=obs, action=action, reward=reward,
+                discount=discount, next_obs=next_obs)
+            # allow terms to overwrite the values in kwargs
+            kwargs.update(terms)
+            step_fn(self.env, self.step, reset, **kwargs)
+
+        return next_obs, reset
 
 def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=None, record_stats=False):
     assert get_wrapper_by_name(env, 'EnvStats') is not None

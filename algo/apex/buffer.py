@@ -54,7 +54,7 @@ class EnvBuffer(LocalBuffer):
             
         add_buffer(self._memory, self._idx, self._n_steps, self._gamma, **data)
         self._idx = self._idx + 1
-        self._memory['obs'][self._idx] = next_obs
+        # self._memory['obs'][self._idx] = next_obs
 
     def sample(self):
         results = {}
@@ -99,22 +99,6 @@ class EnvVecBuffer:
 
         env_ids = env_ids or range(self._n_envs)
         idx = self._idx
-        # for i, env_id in enumerate(env_ids):
-        #     for k, v in data.items():
-        #         self._memory[k][env_id, idx] = v[i]
-
-        #     self._memory['steps'][env_id, idx] = 1
-
-        #     # Update previous experience if multi-step is required
-        #     for j in range(1, self._n_steps):
-        #         k = idx - j
-        #         k_disc = self._memory['discount'][i, k]
-        #         if not k_disc:
-        #             break
-        #         self._memory['reward'][i, k] += self._gamma**j * data['reward'][i]
-        #         self._memory['discount'][i, k] = data['discount'][i]
-        #         self._memory['steps'][i, k] += 1
-        #         self._memory['next_obs'][i, k] = data['next_obs'][i]
         for k, v in data.items():
             self._memory[k][:, idx] = v
         self._memory['steps'][:, idx] = 1
@@ -142,21 +126,16 @@ class EnvVecBuffer:
 
 if __name__ == '__main__':
     n_envs = 2
-    buf = EnvVecBuffer(dict(
+    buf = EnvBuffer(dict(
         seqlen=10, 
         gamma=1,
-        n_envs=n_envs,
         n_steps=3
     ))
-    for i in range(10):
-        obs = np.ones((n_envs, 2))*i
-        next_obs = np.ones((n_envs, 2))*(i+1)
-        discount = np.ones(n_envs)
-        if i == 2 or i == 7:
-            discount[0] = 0
-        if i == 4:
-            discount[1] = 0
-        buf.add_data(obs=obs, reward=np.arange(1, n_envs+1, dtype=np.float32)*i, next_obs=next_obs, discount=discount)
+    for i in range(15):
+        obs = np.ones(2)*i
+        next_obs = np.ones(2)*(i+1)
+        discount = 0 if i == 7 else 0
+        buf.add_data(obs=obs, reward=i, next_obs=next_obs, discount=discount)
         if buf.is_full():
             buf.reset()
-    print(buf._memory['steps'][0, :])
+    print(buf._memory['obs'])

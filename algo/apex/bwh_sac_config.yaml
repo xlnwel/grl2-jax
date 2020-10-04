@@ -28,12 +28,20 @@ agent:
     evaluation: False
     act_eps: 0
     
-    # timer&interval
     MAX_STEPS: 1e8
-    LOG_PERIOD: 1000
+    LOG_PERIOD: &log 1000
+    N_UPDATES: *log
+    SYNC_PERIOD: 1000
+    RECORD_PERIOD: 100
+    N_EVALUATION: 10
 
     # distributed algo params
-    n_workers: 3
+    n_learner_cpus: 3
+    n_learner_gpus: 1
+    n_workers: 9
+    n_worker_cpus: 1
+    n_worker_gpus: 0
+    deterministic_evaluation: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -57,7 +65,7 @@ agent:
 
 replay:
     replay_type: *replay
-    seqlen: 0
+    seqlen: 100
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4

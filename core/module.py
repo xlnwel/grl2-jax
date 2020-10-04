@@ -14,23 +14,23 @@ class Module(tf.Module):
         self.scope_name = name
         self._is_built = False
         self._training_cls = [layers.BatchNormalization, layers.Dropout]
-        super().__init__(name.split('/')[-1])
+        name = name and name.split('/')[-1]
+        super().__init__(name=name)
 
-    def __call__(self, x, *args, **kwargs):
-        if not self._is_built:
+    def __call__(self, x=None, *args, **kwargs):
+        if x is not None and not self._is_built:
             self._build(x.shape)
         return self._call(x, *args, **kwargs)
         
     def _build(self, input_shape):
-        with self.name_scope:
-            self.build(input_shape)
+        self.build(input_shape)
         self._is_built = True
 
     def build(self, *args, **kwargs):
         """ Override this if necessary """
         pass
 
-    @tf.Module.with_name_scope
+    # @tf.Module.with_name_scope    # do not decorate with this, 
     def _call(self, *args, **kwargs):
         return self.call(*args, **kwargs)
         

@@ -11,16 +11,14 @@ from nn.func import mlp
 
 
 class Actor(Module):
-    @config
-    def __init__(self, action_dim, is_action_discrete, name='actor'):
+    def __init__(self, config, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
         self._is_action_discrete = is_action_discrete
-        
+        self.LOG_STD_MIN = config.pop('LOG_STD_MIN', -20)
+        self.LOG_STD_MAX = config.pop('LOG_STD_MAX', 2)
+
         out_size = action_dim if is_action_discrete else 2*action_dim
-        self._layers = mlp(self._units_list, 
-                            out_size=out_size,
-                            norm=self._norm, 
-                            activation=self._activation)
+        self._layers = mlp(**config, out_size=out_size,)
 
     def call(self, x, deterministic=False, epsilon=0):
         x = self._layers(x)
@@ -70,14 +68,10 @@ class Actor(Module):
         return action, logpi, terms
 
 class Q(Module):
-    @config
-    def __init__(self, name='q'):
+    def __init__(self, config, name='q'):
         super().__init__(name=name)
 
-        self._layers = mlp(self._units_list, 
-                            out_size=1,
-                            norm=self._norm, 
-                            activation=self._activation)
+        self._layers = mlp(**config, out_size=1)
 
     def call(self, x, a):
         x = tf.concat([x, a], axis=-1)
@@ -121,7 +115,7 @@ class SAC(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
+    def action(self, x, deterministic=False, epsilon=0, **kwargs):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 2, x.shape

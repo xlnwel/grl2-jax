@@ -140,6 +140,7 @@ class SACIQN(Ensemble):
                 'q': q,
             }
         elif return_stats:
+            action, terms = action
             _, qtv = self.q(x, action=action)
             qtv = tf.squeeze(qtv)
             terms['qtv'] = qtv
@@ -163,7 +164,7 @@ def create_components(config, env, **kwargs):
         encoder=Encoder(config['encoder'], name='encoder'),
         target_encoder=Encoder(config['encoder'], name='target_encoder'),
         actor=Actor(actor_config, action_dim),
-        target_actor=Actor(actor_config, action_dim),
+        # target_actor=Actor(actor_config, action_dim),
         q=Q(q_config, action_dim, name='q'),
         target_q=Q(q_config, action_dim, name='target_q'),
         temperature=temperature,

@@ -28,6 +28,7 @@ agent:
     TRAIN_PERIOD: 1
     LOG_PERIOD: 10000
     EVAL_PERIOD: 10000
+    
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

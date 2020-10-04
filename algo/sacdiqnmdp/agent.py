@@ -46,11 +46,11 @@ class Agent(DQNBase):
             else self._target_entropy_coef(self._train_step)
         target_entropy = self._target_entropy * target_entropy_coef
         # compute target returns
-        next_x = self.target_encoder(next_obs, training=False)
-        next_act_probs, next_act_logps = self.target_actor.train_step(next_x)
+        next_x = self.encoder(next_obs, training=False)
+        next_act_probs, next_act_logps = self.actor.train_step(next_x)
         next_act_probs_ext = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
         next_act_logps_ext = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
-        # next_x = self.target_encoder(next_obs, training=False)
+        next_x = self.target_encoder(next_obs, training=False)
         _, next_qtv = self.target_q(next_x, self.N_PRIME)
         if self._twin_q:
             _, next_qtv2 = self.target_q2(next_x, self.N_PRIME)
@@ -62,14 +62,17 @@ class Agent(DQNBase):
         ])
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
+            next_temp = self.temperature
         else:
-            _, temp = self.temperature(next_x, next_act_probs)
+            _, next_temp = self.temperature(next_x, next_act_probs)
+            if next_temp.shape.ndims > 0:
+                next_temp = tf.expand_dims(next_temp, axis=1)
         reward = reward[:, None]
         discount = discount[:, None]
         if not isinstance(steps, int):
             steps = steps[:, None]
         next_state_qtv = tf.reduce_sum(next_act_probs_ext 
-            * (next_qtv - temp * next_act_logps_ext), axis=-1)
+            * (next_qtv - next_temp * next_act_logps_ext), axis=-1)
         returns = n_step_target(reward, next_state_qtv, discount, self._gamma, steps)
         returns = tf.expand_dims(returns, axis=1)      # [B, 1, N']
 
@@ -92,6 +95,7 @@ class Agent(DQNBase):
                 qr_loss = (qr_loss + qr_loss2) / 2.
         terms['q_norm'] = self._q_opt(tape, qr_loss)
 
+        _, temp = self.temperature(x, action)
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
             q = tf.reduce_sum(act_probs * qs, axis=-1)
@@ -161,8 +165,8 @@ class Agent(DQNBase):
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_encoder.variables + self.target_q.variables + self.target_actor.variables
-        mvars = self.encoder.variables + self.q.variables + self.actor.variables
+        tvars = self.target_encoder.variables + self.target_q.variables# + self.target_actor.variables
+        mvars = self.encoder.variables + self.q.variables# + self.actor.variables
         if self._twin_q:
             tvars += self.target_q2.variables
             mvars += self.q2.variables

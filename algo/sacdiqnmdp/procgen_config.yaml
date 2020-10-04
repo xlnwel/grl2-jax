@@ -1,23 +1,27 @@
 ---
 env:
-    name: procgen_coinrun
+    name: procgen_miner
+    n_envs: &ne 1
     frame_skip: 1
-    n_envs: &ne 4
-    gray_scale: False
     frame_stack: 4
-    np_obs: True
 
 model:
     encoder: 
         cnn_name: procgen
         obs_range: [0, 1]
         filters: [16, 32, 32, 32]
-        n_blocks: [2, 2, 2, 2]
         kernel_initializer: glorot_uniform
         stem: conv_maxblurpool
         stem_kwargs:
             norm: null
         subsample: strided_resv1
+        subsample_kwargs:
+            am_type: cbam
+            am_kwargs: 
+                ratio: 1
+                kernel_size: 1
+                sa_on: False
+                out_activation: sigmoid
         block: resv1
         block_kwargs:
             conv: conv2d
@@ -35,7 +39,6 @@ model:
             dropout_rate: 0
             rezero: False
         sa: conv_sa
-        sa_pos: []
         sa_kwargs:
             key_ratio: 1
             val_ratio: 1
@@ -60,37 +63,30 @@ model:
         phi_activation: relu
         K: &K 64
     temperature:
-        temp_type: 'constant'
-        value: .01
+        temp_type: 'variable'
+        value: .1
     twin_q: False
-
+        
 agent:
-    algorithm: &algo apex-sacdiqn
+    algorithm: &algo sacdiqn
     replay_type: &replay uniform
+    gamma: &gamma .995
     batch_size: &bs 64
-    gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
+    precision: &prec 32
     schedule_act_eps: False
     act_eps: 0
     eval_act_eps: 0
     target_entropy_coef: .8
-        # - [4.e+4, .8]
-        # - [7.e+4, .3]
     
-    MAX_STEPS: 8e6      # maximum env steps
-    LOG_PERIOD: &log 1000
-    N_UPDATES: *log
-    SYNC_PERIOD: 1000
-    RECORD_PERIOD: 100
-    N_EVALUATION: 10
+    MAX_STEPS: 8e6
+    TRAIN_PERIOD: 64
+    EVAL_PERIOD: 1e6
+    LOG_PERIOD: 5e4
+    N_UPDATES: 1
+    RECORD: True
 
-    # distributed algo params
-    n_learner_cpus: 3
-    n_learner_gpus: .3
-    n_workers: 6
-    n_worker_cpus: 1
-    n_worker_gpus: .1
-    deterministic_evaluation: False
+    normalize_reward: False
 
     # IQN params
     N: 64                # N in paper, num of quantiles for online quantile network
@@ -105,17 +101,18 @@ agent:
     model_name: *algo
 
     target_update_period: 1500
+    tbo: False
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 2.5e-4
     q_lr: 2.5e-4
+    actor_lr: 2.5e-4
     temp_lr: 2.5e-4
     epsilon: 3.125e-4
     
     # arguments for PER
-    per_alpha: .6
+    per_alpha: .5
     per_epsilon: 1e-4
 
 replay:
@@ -124,8 +121,8 @@ replay:
     n_envs: *ne
     # arguments for PER
     beta0: .4
-    beta_steps: 2e6
-    to_update_top_priority: False
+    beta_steps: 5e4
+    to_update_top_priority: True
 
     # arguments for general replay
     n_steps: *nsteps
@@ -133,4 +130,4 @@ replay:
     batch_size: *bs
     min_size: 1600
     capacity: 2.5e5
-    has_next_obs: True
+    has_next_obs: False

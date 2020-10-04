@@ -7,6 +7,7 @@ import ray
 from core.tf_config import *
 from core.module import Ensemble
 from utility.display import pwc
+from utility.run import Runner
 from env.func import create_env
 from algo.apex.actor import Worker as BaseWorker
 from algo.apex.actor import get_learner_class, get_evaluator_class
@@ -31,6 +32,9 @@ class Worker(BaseWorker):
             buffer_config=buffer_config,
             model_fn=model_fn,
             buffer_fn=buffer_fn)
+
+        # override default runner to set the default steps to max_env_steps
+        self.runner = Runner(self.env, self)
 
         self._weight_repo = {}                                 # map score to Weights
         self._mode = (Mode.LEARNING, Mode.EVOLUTION, Mode.REEVALUATION)

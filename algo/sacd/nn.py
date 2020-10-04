@@ -25,7 +25,7 @@ class Actor(Module):
         self._layers = mlp(
             **config, 
             out_size=action_dim,
-            name='name')
+            name=name)
         self._action_dim = action_dim
     
     @property

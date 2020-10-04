@@ -137,7 +137,37 @@ def get_learner_class(BaseAgent):
     return Learner
 
 
+class RunMode:
+    STEP='step'
+    TRAJ='traj'
+
+
 class BaseWorker:
+    @config
+    def __init__(self,
+                 *,
+                 worker_id,
+                 model_config, 
+                 env_config, 
+                 buffer_config,
+                 model_fn,
+                 buffer_fn):
+        silence_tf_logs()
+        configure_threads(1, 1)
+        configure_gpu()
+        self._id = worker_id
+
+        self.env = create_env(env_config)
+        self.n_envs = self.env.n_envs
+
+        self.model = model_fn( 
+            config=model_config, 
+            env=self.env)
+
+        self.runner = Runner(self.env, self, nsteps=self.SYNC_PERIOD)
+        self._run_mode = getattr(self, '_run_mode', RunMode.STEP)
+        assert self._run_mode in [RunMode.STEP, RunMode.TRAJ]
+
     def run(self, learner, replay):
         while True:
             weights = self._pull_weights(learner)
@@ -161,36 +191,32 @@ class BaseWorker:
             self._info.clear()
 
 class Worker(BaseWorker):
-    @config
     def __init__(self, 
                 *,
                 worker_id,
+                config,
                 model_config,
                 env_config, 
                 buffer_config,
                 model_fn,
                 buffer_fn):
-        silence_tf_logs()
-        configure_threads(1, 1)
-        configure_gpu()
-        self._id = worker_id
-
-        self.env = env = create_env(env_config)
-        self.n_envs = self.env.n_envs
+        super().__init__(
+            worker_id=worker_id,
+            config=config,
+            model_config=model_config,
+            env_config=env_config,
+            buffer_config=buffer_config,
+            model_fn=model_fn,
+            buffer_fn=buffer_fn
+        )
 
         if buffer_config['seqlen'] == 0:
-            buffer_config['seqlen'] = env.max_episode_steps // getattr(env, 'frame_skip', 1)
+            buffer_config['seqlen'] = self.env.max_episode_steps // getattr(self.env, 'frame_skip', 1)
         self._seqlen = buffer_config['seqlen']
         self.buffer = buffer_fn(buffer_config)
         self._is_per = self._replay_type.endswith('per')
 
-        self.runner = Runner(self.env, self, nsteps=self.SYNC_PERIOD)
-
-        self.model = model_fn( 
-            config=model_config, 
-            env=env)
-
-        self._is_sac = 'actor' in self.model
+        self._return_stats = 'encoder' in self.model or 'actor' not in self.model
         self._is_iqn = 'iqn' in self._algorithm or 'fqf' in self._algorithm
         for k, v in self.model.items():
             setattr(self, k, v)
@@ -198,13 +224,12 @@ class Worker(BaseWorker):
         self._pull_names = get_pull_names(self._algorithm)
         
         self._info = collections.defaultdict(list)
-
         if self._is_per:
             TensorSpecs = dict(
-                obs=(env.obs_shape, env.obs_dtype, 'obs'),
-                action=(env.action_shape, env.action_dtype, 'action'),
+                obs=(self.env.obs_shape, self.env.obs_dtype, 'obs'),
+                action=(self.env.action_shape, self.env.action_dtype, 'action'),
                 reward=((), tf.float32, 'reward'),
-                next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
+                next_obs=(self.env.obs_shape, self.env.obs_dtype, 'next_obs'),
                 discount=((), tf.float32, 'discount'),
                 steps=((), tf.float32, 'steps')
             )
@@ -214,7 +239,7 @@ class Worker(BaseWorker):
                 TensorSpecs['q']= ((), tf.float32, 'q')
             if self._is_iqn:
                 self.compute_priorities = build(
-                    self._compute_iqn_priorities, TensorSpecs, batch_size=self._seqlen)
+                    self._compute_iqn_priorities, TensorSpecs)
             else:
                 self.compute_priorities = build(
                     self._compute_dqn_priorities, TensorSpecs)
@@ -224,7 +249,7 @@ class Worker(BaseWorker):
             tf.convert_to_tensor(x), 
             deterministic=deterministic,
             epsilon=self._act_eps,
-            return_stats=self._is_per)
+            return_stats=self._return_stats)
         action = tf.nest.map_structure(lambda x: x.numpy(), action)
         return action
 
@@ -235,10 +260,12 @@ class Worker(BaseWorker):
                 self._send_data(replay)
 
         self.model.set_weights(weights)
-        if self._seqlen == 0:
+        if self._run_mode == RunMode.STEP:
+            self.runner.run(step_fn=collect)
+        elif self._run_mode == RunMode.TRAJ:
             self.runner.run_traj(step_fn=collect)
         else:
-            self.runner.run(step_fn=collect)
+            raise ValueError(f'Unknown runner mode: {self._run_mode}')
 
     def _send_data(self, replay, buffer=None):
         buffer = buffer or self.buffer
@@ -256,7 +283,11 @@ class Worker(BaseWorker):
 
     @tf.function
     def _compute_dqn_priorities(self, obs, action, reward, next_obs, discount, steps, q=None):
-        if self._is_sac:
+        if self._return_stats:
+            next_x = self.encoder(next_obs) if hasattr(self, 'encoder') else next_obs
+            next_action = self.q.action(next_x, False)
+            next_q = self.q.value(next_x, next_action)
+        else:
             x = self.encoder(obs) if hasattr(self, 'encoder') else obs
             q = self.q(x, action)
             next_x = self.encoder(next_obs) if hasattr(self, 'encoder') else next_obs
@@ -267,11 +298,6 @@ class Worker(BaseWorker):
             _, temp = self.temperature()
             next_q = tf.reduce_sum(next_act_probs
                 * (next_qs - temp * next_act_logps), axis=-1)
-
-        else:
-            next_x = self.encoder(next_obs) if hasattr(self, 'encoder') else next_obs
-            next_action = self.q.action(next_x, False)
-            next_q = self.q.value(next_x, next_action)
             
         returns = n_step_target(reward, next_q, discount, self._gamma, steps)
         

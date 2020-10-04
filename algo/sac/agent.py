@@ -102,35 +102,37 @@ class Agent(BaseAgent):
             q_loss = q_loss + q2_loss
         terms['q_norm'] = self._q_opt(tape, q_loss)
 
-        with tf.GradientTape(persistent=True) as actor_tape:
+        with tf.GradientTape() as actor_tape:
             action, logpi, actor_terms = self.actor.train_step(obs)
             terms.update(actor_terms)
-            log_temp, temp = self.temperature(obs, action)
-            temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
-                * tf.stop_gradient(logpi + self._target_entropy))
             q_with_actor = self.q(obs, action)
             q2_with_actor = self.q2(obs, action)
             q_with_actor = tf.minimum(q_with_actor, q2_with_actor)
             actor_loss = tf.reduce_mean(IS_ratio * 
-                (tf.stop_gradient(temp) * logpi - q_with_actor))
-
+                (temp * logpi - q_with_actor))
         self._actor_opt(actor_tape, actor_loss)
-        self._temp_opt(actor_tape, temp_loss)
+
+        if not isinstance(self.temperature, tf.Variable):
+            with tf.GradientTape() as temp_tape:
+                log_temp, temp = self.temperature(obs, action)
+                temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
+                    * tf.stop_gradient(logpi + self._target_entropy))
+            self._temp_opt(temp_tape, temp_loss)
+            terms.update(dict(
+                temp=temp,
+                temp_loss=temp_loss,
+            ))
 
         if self._is_per:
             priority = self._compute_priority((tf.abs(q_error) + tf.abs(q2_error)) / 2.)
             terms['priority'] = priority
             
         terms.update(dict(
-            temp=temp,
-            temp_loss=temp_loss,
             actor_loss=actor_loss,
             q=q, 
             q2=q2,
             logpi=logpi,
             target_q=target_q,
-            q_loss=q_loss, 
-            q2_loss=q2_loss,
             q_loss=q_loss, 
         ))
 
