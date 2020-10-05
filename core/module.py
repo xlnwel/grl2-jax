@@ -30,7 +30,7 @@ class Module(tf.Module):
         """ Override this if necessary """
         pass
 
-    # @tf.Module.with_name_scope    # do not decorate with this, 
+    # @tf.Module.with_name_scope    # do not decorate with this. It will introduce inconsistent variable names between keras.Model and plain call
     def _call(self, *args, **kwargs):
         return self.call(*args, **kwargs)
         

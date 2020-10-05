@@ -49,8 +49,9 @@ class ResidualBase(Module):
 
     def build(self, input_shape):
         kwargs = self._kwargs.copy()
+        out_filters = self._out_filters or input_shape[-1]
         filter_coefs = self._filter_coefs or [1 for _ in self._kernel_sizes]
-        filters = [int(input_shape[-1] * fc) for fc in filter_coefs]
+        filters = [int(out_filters * fc) for fc in filter_coefs]
         if self._out_filters:
             filters[-1] = self._out_filters
         if isinstance(self._strides, int):
@@ -69,7 +70,7 @@ class ResidualBase(Module):
         subsample_cls = subsample_registry.get(self._subsample_type)
 
         prefix = f'{self.scope_name}/'
-        assert len(filters) == len(self._kernel_sizes) == len(strides), \
+        assert len(filters) == len(self._kernel_sizes) == len(strides) <= 3, \
             (filters, self._kernel_sizes, strides)
         self._build_residual_branch(
             filters, 

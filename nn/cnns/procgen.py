@@ -50,7 +50,7 @@ class ProcgenCNN(Module):
         block_kwargs.update(kwargs.copy())
 
         subsample_cls = subsample_registry.get(subsample)
-        subsample_kwargs.update(block_kwargs.copy())
+        subsample_kwargs.update(kwargs.copy())
         assert block_kwargs.get('out_filters', None) is None, block_kwargs
 
         sa_cls = block_registry.get(sa)
@@ -61,7 +61,6 @@ class ProcgenCNN(Module):
         with self.name_scope:
             for i, (f, n) in enumerate(zip(filters, n_blocks)):
                 subsample_kwargs['out_filters'] = f
-                subsample_kwargs['filter_coefs'] = block_kwargs['filter_coefs']
                 self._layers += [
                     stem_cls(filters[0], name=prefix+stem, **stem_kwargs) if i == 0 else
                     subsample_cls(name=f'{prefix}{subsample}_{i}_f{f}', **subsample_kwargs),

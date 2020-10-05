@@ -18,6 +18,13 @@ model:
         stem_kwargs:
             norm: null
         subsample: strided_resv1
+        subsample_kwargs:
+            am_type: cbam
+            am_kwargs: 
+                ratio: 1
+                kernel_size: 1
+                sa_on: False
+                out_activation: sigmoid
         block: resv1
         block_kwargs:
             conv: conv2d
