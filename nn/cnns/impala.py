@@ -13,7 +13,7 @@ class IMPALACNN(Module):
                  kernel_initializer='glorot_uniform',
                  stem_type=None,
                  block='resv1',
-                 block_kwargs: dict(
+                 block_kwargs=dict(
                     filter_coefs=[],
                     kernel_sizes=[3, 3],
                     norm=None,

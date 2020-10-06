@@ -151,12 +151,10 @@ class Worker(BaseWorker):
         return action.numpy(), terms
         
     def _run(self, weights, replay):
-        def collect(env, step, reset, action, reward, next_obs, **kwargs):
+        def collect(env, step, reset, next_obs, **kwargs):
             self.buffer.add(**kwargs)
             if self.buffer.is_full():
                 self._send_data(replay)
-            if kwargs['discount'] == 0:
-                self.buffer.reset()
 
         self.model.set_weights(weights)
         self.runner.run(step_fn=collect)
@@ -195,6 +193,7 @@ class Worker(BaseWorker):
             del data['q']
             data['priority'] = self.compute_priorities(**data_tensor).numpy()
         replay.merge.remote(data)
+        self.buffer.reset()
 
 def get_worker_class():
     return Worker

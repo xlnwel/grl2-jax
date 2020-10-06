@@ -54,9 +54,9 @@ agent:
     REPO_CAP: 10
     MIN_EVOLVE_MODELS: 2
     MAX_EVOLVE_MODELS: 10
-    MIN_LEARN_PROB: .7
+    MIN_LEARN_PROB: .3
     MIN_EVOLVE_PROB: .3
-    EVOLVE_LEARN_PROB: 0.5  # probability to further average evolved weights with the learned parameter
+    EVOLVE_LEARN_PROB: 0  # probability to further average evolved weights with the learned parameter
     REEVAL_PROB: .05
     FIFO: False
     WA_SELECTION: False
@@ -87,7 +87,7 @@ agent:
 
 replay:
     replay_type: *replay
-    seqlen: 0
+    seqlen: 50
     # arguments for PER
     beta0: 0.4
     beta_steps: 5e4

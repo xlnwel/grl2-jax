@@ -43,10 +43,9 @@ class SE(Module):
         return self._mul([x, y])
 
 if __name__ == "__main__":
-    for td in [True, False]:
-        shape = (4, 3, 3, 2) if td else (3, 3, 2)
-        se = SE(2, name='scope/se')
-        x = tf.keras.layers.Input(shape=shape)
-        y = se(x)
-        m = tf.keras.Model(x, y)
-        m.summary()
+    shape = (3, 3, 2)
+    se = SE(2, name='scope/se')
+    x = tf.keras.layers.Input(shape=shape)
+    y = se(x)
+    m = tf.keras.Model(x, y)
+    m.summary()

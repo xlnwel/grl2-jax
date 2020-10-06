@@ -27,6 +27,8 @@ class Agent(DQNBase):
             self.temperature = tf.Variable(self.temperature, trainable=False)
         else:
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
+        if isinstance(self._target_entropy_coef, (list, tuple)):
+            self._target_entropy_coef = TFPiecewiseSchedule(self._target_entropy_coef)
 
     @tf.function
     def summary(self, data, terms):
@@ -41,58 +43,58 @@ class Agent(DQNBase):
         if not hasattr(self, '_target_entropy'):
             # Entropy of a uniform distribution
             self._target_entropy = np.log(self._action_dim)
-            self._target_entropy *= self._target_entropy_coef
+        target_entropy_coef = self._target_entropy_coef \
+            if isinstance(self._target_entropy_coef, float) \
+            else self._target_entropy_coef(self._train_step)
+        target_entropy = self._target_entropy * target_entropy_coef
         # compute target returns
-        next_x = self.encoder(next_obs)
-        next_act_probs, next_act_logps = self.actor.train_step(next_x)
-        next_act_probs_ed = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
-        next_act_logps_ed = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
-        next_x = self.target_encoder(next_obs)
+        next_x = self.target_encoder(next_obs, training=False)
+        next_act_probs, next_act_logps = self.target_actor.train_step(next_x)
+        next_act_probs_ext = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
+        next_act_logps_ext = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
+        # next_x = self.target_encoder(next_obs, training=False)
         _, next_qtv = self.target_q(next_x, self.N_PRIME)
         if self._twin_q:
             _, next_qtv2 = self.target_q2(next_x, self.N_PRIME)
             next_qtv = (next_qtv + next_qtv2) / 2.
         tf.debugging.assert_shapes([
-            [next_act_probs_ed, (None, 1, self._action_dim)],
-            [next_act_logps_ed, (None, 1, self._action_dim)],
+            [next_act_probs_ext, (None, 1, self._action_dim)],
+            [next_act_logps_ext, (None, 1, self._action_dim)],
             [next_qtv, (None, self.N_PRIME, self._action_dim)],
         ])
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
-            next_temp = self.temperature
         else:
-            _, next_temp = self.temperature(next_x, next_act_probs)
-            if next_temp.shape.ndims > 0:
-                next_temp = tf.expand_dims(next_temp, axis=1)
+            _, temp = self.temperature(next_x, next_act_probs)
         reward = reward[:, None]
         discount = discount[:, None]
         if not isinstance(steps, int):
             steps = steps[:, None]
-        next_state_qtv = tf.reduce_sum(next_act_probs_ed 
-            * (next_qtv - next_temp * next_act_logps_ed), axis=-1)
+        next_state_qtv = tf.reduce_sum(next_act_probs_ext 
+            * (next_qtv - temp * next_act_logps_ext), axis=-1)
         returns = n_step_target(reward, next_state_qtv, discount, self._gamma, steps)
         returns = tf.expand_dims(returns, axis=1)      # [B, 1, N']
 
         tf.debugging.assert_shapes([
             [next_state_qtv, (None, self.N_PRIME)],
-            [next_act_probs_ed, (None, 1, self._action_dim)],
-            [next_act_logps_ed, (None, 1, self._action_dim)],
+            [next_act_probs_ext, (None, 1, self._action_dim)],
+            [next_act_logps_ext, (None, 1, self._action_dim)],
             [next_qtv, (None, self.N_PRIME, self._action_dim)],
             [returns, (None, 1, self.N_PRIME)],
         ])
         with tf.GradientTape(persistent=True) as tape:
-            x = self.encoder(obs)
-            action_ed = tf.expand_dims(action, axis=1)
+            x = self.encoder(obs, training=True)
+            action_ext = tf.expand_dims(action, axis=1)
 
-            qs, error, qr_loss = self._compute_qr_loss(self.q, x, action_ed, returns, IS_ratio)
+            qs, error, qr_loss = self._compute_qr_loss(self.q, x, action_ext, returns, IS_ratio)
             if self._twin_q:
-                qs2, error2, qr_loss2 = self._compute_qr_loss(self.q2, x, action_ed, returns, IS_ratio)
+                qs2, error2, qr_loss2 = self._compute_qr_loss(self.q2, x, action_ext, returns, IS_ratio)
                 qs = (qs + qs2) / 2.
                 error = (error + error2) / 2.
                 qr_loss = (qr_loss + qr_loss2) / 2.
             
             with tape.stop_recording():
-                x_pos = self.encoder(obs)
+                x_pos = self.target_encoder(obs, training=False)
                 z_pos = self.crl(x_pos)
             z_anchor = self.crl(x)
             logits = self.crl.logits(z_anchor, z_pos)
@@ -105,7 +107,6 @@ class Agent(DQNBase):
         terms['q_norm'] = self._q_opt(tape, qr_loss)
         terms['crl_norm'] = self._crl_opt(tape, crl_loss)
 
-        _, temp = self.temperature(x, action)
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
             q = tf.reduce_sum(act_probs * qs, axis=-1)
@@ -118,11 +119,12 @@ class Agent(DQNBase):
         if not isinstance(self.temperature, (float, tf.Variable)):
             with tf.GradientTape() as tape:
                 log_temp, temp = self.temperature(x, action)
-                temp_loss = -log_temp * (self._target_entropy - entropy)
+                entropy_diff = target_entropy - entropy
+                temp_loss = -log_temp * entropy_diff
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])
                 temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
-            terms['target_entropy'] = self._target_entropy
-            terms['entropy_diff'] = self._target_entropy - entropy
+            terms['target_entropy'] = target_entropy
+            terms['entropy_diff'] = entropy_diff
             terms['log_temp'] = log_temp
             terms['temp'] = temp
             terms['temp_loss'] = temp_loss

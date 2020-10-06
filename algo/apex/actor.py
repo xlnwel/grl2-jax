@@ -16,7 +16,7 @@ from utility.graph import video_summary
 from utility.timer import Timer
 from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
-from utility.run import Runner, evaluate
+from utility.run import Runner, evaluate, RunMode
 from utility import pkg
 from env.func import create_env
 from core.dataset import process_with_env, DataFormat, RayDataset
@@ -137,11 +137,6 @@ def get_learner_class(BaseAgent):
     return Learner
 
 
-class RunMode:
-    STEP='step'
-    TRAJ='traj'
-
-
 class BaseWorker:
     @config
     def __init__(self,
@@ -164,9 +159,13 @@ class BaseWorker:
             config=model_config, 
             env=self.env)
 
-        self.runner = Runner(self.env, self, nsteps=self.SYNC_PERIOD)
-        self._run_mode = getattr(self, '_run_mode', RunMode.STEP)
-        assert self._run_mode in [RunMode.STEP, RunMode.TRAJ]
+        self._run_mode = getattr(self, '_run_mode', RunMode.NSTEPS)
+        self.runner = Runner(
+            self.env, self, 
+            nsteps=self.SYNC_PERIOD if self._run_mode == RunMode.NSTEPS else None,
+            run_mode=self._run_mode)
+        
+        assert self._run_mode in [RunMode.NSTEPS, RunMode.TRAJ]
 
     def run(self, learner, replay):
         while True:
@@ -210,8 +209,6 @@ class Worker(BaseWorker):
             buffer_fn=buffer_fn
         )
 
-        if buffer_config['seqlen'] == 0:
-            buffer_config['seqlen'] = self.env.max_episode_steps // getattr(self.env, 'frame_skip', 1)
         self._seqlen = buffer_config['seqlen']
         self.buffer = buffer_fn(buffer_config)
         self._is_per = self._replay_type.endswith('per')
@@ -258,14 +255,10 @@ class Worker(BaseWorker):
             self.buffer.add_data(**kwargs)
             if self.buffer.is_full():
                 self._send_data(replay)
-
+        start_step = self.runner.step
         self.model.set_weights(weights)
-        if self._run_mode == RunMode.STEP:
-            self.runner.run(step_fn=collect)
-        elif self._run_mode == RunMode.TRAJ:
-            self.runner.run_traj(step_fn=collect)
-        else:
-            raise ValueError(f'Unknown runner mode: {self._run_mode}')
+        end_step = self.runner.run(step_fn=collect)
+        return end_step - start_step
 
     def _send_data(self, replay, buffer=None):
         buffer = buffer or self.buffer

@@ -59,9 +59,9 @@ class EnvBuffer(LocalBuffer):
     def sample(self):
         results = {}
         for k, v in self._memory.items():
-            results[k] = v[:self._seqlen]
+            results[k] = v[:self._idx-self._n_steps]
         if 'next_obs' not in self._memory:
-            idxes = np.arange(self._seqlen)
+            idxes = np.arange(self._idx-self._n_steps)
             steps = results.get('steps', 1)
             next_idxes = idxes + steps
             if isinstance(self._memory['obs'], np.ndarray):

@@ -18,7 +18,7 @@ class Actor(Module):
         self.LOG_STD_MAX = config.pop('LOG_STD_MAX', 2)
 
         out_size = action_dim if is_action_discrete else 2*action_dim
-        self._layers = mlp(**config, out_size=out_size,)
+        self._layers = mlp(**config, out_size=out_size, name=name)
 
     def call(self, x, deterministic=False, epsilon=0):
         x = self._layers(x)
@@ -71,7 +71,7 @@ class Q(Module):
     def __init__(self, config, name='q'):
         super().__init__(name=name)
 
-        self._layers = mlp(**config, out_size=1)
+        self._layers = mlp(**config, out_size=1, name=name)
 
     def call(self, x, a):
         x = tf.concat([x, a], axis=-1)
@@ -87,9 +87,9 @@ class Temperature(Module):
         super().__init__(name=name)
 
         if self._temp_type == 'state-action':
-            self._layer = layers.Dense(1)
+            self._layer = layers.Dense(1, name=name)
         elif self._temp_type == 'variable':
-            self._log_temp = tf.Variable(np.log(self._value), dtype=tf.float32)
+            self._log_temp = tf.Variable(np.log(self._value), dtype=tf.float32, name=name)
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     

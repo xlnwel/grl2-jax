@@ -8,6 +8,7 @@ from core.tf_config import *
 from core.module import Ensemble
 from utility.display import pwc
 from utility.run import Runner
+from utility.timer import Timer
 from env.func import create_env
 from algo.apex.actor import Worker as BaseWorker
 from algo.apex.actor import get_learner_class, get_evaluator_class
@@ -33,12 +34,9 @@ class Worker(BaseWorker):
             model_fn=model_fn,
             buffer_fn=buffer_fn)
 
-        # override default runner to set the default steps to max_env_steps
-        self.runner = Runner(self.env, self)
-
         self._weight_repo = {}                                 # map score to Weights
         self._mode = (Mode.LEARNING, Mode.EVOLUTION, Mode.REEVALUATION)
-        self._mode_prob = (.6, .3, 0.1)
+        self._mode_prob = [.6, .3, 0.1]
         self._raw_bookkeeping = BookKeeping('raw')
         self._tag = Tag.LEARNED
         # self.reevaluation_bookkeeping = BookKeeping('reeval')
@@ -63,7 +61,7 @@ class Worker(BaseWorker):
             print_repo(self._weight_repo, self._id)
             self._send_episode_info(learner)
             
-            # self._update_mode_prob()
+            self._update_mode_prob()
 
     def _choose_weights(self, learner):
         if len(self._weight_repo) < self.MIN_EVOLVE_MODELS:
@@ -72,22 +70,24 @@ class Worker(BaseWorker):
             mode = random.choices(self._mode, weights=self._mode_prob)[0]
 
         if mode == Mode.LEARNING:
-            tag = Tag.LEARNED
-            weights = self._pull_weights(learner)
-            score = 0
-            eval_times = 0
+            with Timer('pull_weights', 1000):
+                tag = Tag.LEARNED
+                weights = self._pull_weights(learner)
+                score = 0
+                eval_times = 0
         elif mode == Mode.EVOLUTION:
-            tag = Tag.EVOLVED
-            weights, n = evolve_weights(
-                self._weight_repo, 
-                min_evolv_models=self.MIN_EVOLVE_MODELS, 
-                max_evolv_models=self.MAX_EVOLVE_MODELS, 
-                wa_selection=self.WA_SELECTION,
-                wa_evolution=self.WA_EVOLUTION, 
-                fitness_method=self._fitness_method,
-                c=self._cb_c)
-            score = 0
-            eval_times = 0
+            with Timer('evolve_weights', 1000):
+                tag = Tag.EVOLVED
+                weights, n = evolve_weights(
+                    self._weight_repo, 
+                    min_evolv_models=self.MIN_EVOLVE_MODELS, 
+                    max_evolv_models=self.MAX_EVOLVE_MODELS, 
+                    wa_selection=self.WA_SELECTION,
+                    wa_evolution=self.WA_EVOLUTION, 
+                    fitness_method=self._fitness_method,
+                    c=self._cb_c)
+                score = 0
+                eval_times = 0
         elif mode == Mode.REEVALUATION:
             w = fitness_from_repo(self._weight_repo, 'norm')
             score = random.choices(list(self._weight_repo.keys()), weights=w)[0]
@@ -128,16 +128,15 @@ class Worker(BaseWorker):
         self._mode_prob[0] = self.MIN_LEARN_PROB + fracs['frac_learned'] * remain_prob
         self._mode_prob[1] = self.MIN_EVOLVE_PROB + fracs['frac_evolved'] * remain_prob
         np.testing.assert_allclose(sum(self._mode_prob), 1)
-        self.info_to_print.append((
-            (f'mode prob: {self._mode_prob[0]:3g}, {self._mode_prob[1]:3g}, {self._mode_prob[2]:3g}', ), 'blue'
-        ))
 
     def _send_episode_info(self, learner):
-        if self._info and self._weight_repo:
+        if 'evolved_score' in self._info and self._weight_repo:
             learner.record_episode_info.remote(
                 **self._raw_bookkeeping.stats(),
                 **self._info, 
-                **analyze_repo(self._weight_repo))
+                **analyze_repo(self._weight_repo),
+                learn_prob=self._mode_prob[0],
+                evolve_prob=self._mode_prob[1])
             self._info.clear()
             self._raw_bookkeeping.reset()
 

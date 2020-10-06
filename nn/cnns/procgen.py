@@ -9,15 +9,15 @@ class ProcgenCNN(Module):
                  *, 
                  time_distributed=False, 
                  obs_range=[0, 1], 
-                 filters=[16, 32, 32],
-                 n_blocks=[2, 2, 2],
+                 filters=[16, 32, 32, 32],
+                 n_blocks=[1, 1, 1, 1],
                  kernel_initializer='glorot_uniform',
                  stem='conv_maxblurpool',
                  stem_kwargs={},
                  subsample='strided_resv1',
                  subsample_kwargs={},
                  block='resv1',
-                 block_kwargs: dict(
+                 block_kwargs=dict(
                     filter_coefs=[],
                     kernel_sizes=[3, 3],
                     norm=None,
@@ -28,7 +28,7 @@ class ProcgenCNN(Module):
                     dropout_rate=0.,
                     rezero=False,
                  ),
-                 sa=None,
+                 sa='conv_sa',
                  sa_pos=[],
                  sa_kwargs={},
                  out_activation='relu',
@@ -65,7 +65,7 @@ class ProcgenCNN(Module):
                     stem_cls(filters[0], name=prefix+stem, **stem_kwargs) if i == 0 else
                     subsample_cls(name=f'{prefix}{subsample}_{i}_f{f}', **subsample_kwargs),
                 ] + [block_cls(name=f'{prefix}{block}_{i}_{j}', **block_kwargs) 
-                    for j in range(n-1)]
+                    for j in range(n)]
                 if i in sa_pos:
                     self._layers += [
                         sa_cls(name=f'{prefix}{sa}_{i}', **sa_kwargs)
