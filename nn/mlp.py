@@ -25,7 +25,7 @@ class MLP(Module):
             kernel_initializer = get_initializer(kernel_initializer, gain=out_gain)
             self._layers.append(layer_cls(
                 out_size, kernel_initializer=kernel_initializer, 
-                dtype=out_dtype, name=f'{name}/out'))
+                dtype=out_dtype, name=f'{name}/out', **kwargs))
 
     def reset(self):
         for l in self._layers:

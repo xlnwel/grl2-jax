@@ -99,12 +99,20 @@ class Worker(BaseWorker):
         return mode, score, tag, weights, eval_times
 
     def store(self, score, epslen):
-        if self._tag == Tag.LEARNED:
-            self._info['score'].append(score)
-            self._info['epslen'].append(epslen)
+        if isinstance(score, (int, float)):
+            if self._tag == Tag.LEARNED:
+                self._info['score'].append(score)
+                self._info['epslen'].append(epslen)
+            else:
+                self._info['evolved_score'].append(score)
+                self._info['epslen'].append(epslen)
         else:
-            self._info['evolved_score'].append(score)
-            self._info['evolved_epslen'].append(epslen)
+            if self._tag == Tag.LEARNED:
+                self._info['score'] += list(score)
+                self._info['epslen'] += list(epslen)
+            else:
+                self._info['evolved_score'] += score
+                self._info['epslen'] += epslen
 
     def _make_decision(self, mode, score, eval_times):
         if len(self._weight_repo) < self.REPO_CAP or score > min(self._weight_repo):

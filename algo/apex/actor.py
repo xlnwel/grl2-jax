@@ -32,6 +32,7 @@ pull_names = dict(
     sacdiqn=['encoder', 'actor', 'q'],
     sacdiqncrl=['encoder', 'actor', 'q'],
     sacdiqncrlar=['encoder', 'actor', 'q'],
+    sacdiqnmdp=['encoder', 'actor'],
 )
 
 def get_pull_names(algo):

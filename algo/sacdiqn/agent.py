@@ -109,7 +109,6 @@ class Agent(DQNBase):
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])
                 temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
             terms['target_entropy'] = target_entropy
-            terms['target_entropy_coef'] = target_entropy_coef
             terms['entropy_diff'] = entropy_diff
             terms['log_temp'] = log_temp
             terms['temp'] = temp
@@ -137,7 +136,11 @@ class Agent(DQNBase):
             next_act_logps=next_act_logps,
             returns=returns,
             qr_loss=qr_loss, 
-            explained_variance1=explained_variance(target_q, q),
+            explained_variance=explained_variance(target_q, q),
+            reward_max=tf.reduce_max(reward),
+            reward_mean=tf.reduce_mean(reward),
+            reward_min=tf.reduce_min(reward),
+            reward_std=tf.math.reduce_std(reward),
         ))
 
         return terms

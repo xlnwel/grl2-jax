@@ -6,7 +6,7 @@ from tensorflow_probability import distributions as tfd
 from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp
-from algo.sacdiqn.nn import Encoder, Actor, Q, Temperature
+from algo.sacdiqn.nn import Encoder, Actor, Q, Temperature, SACIQN
 
 
 class CRL(Module):
@@ -33,32 +33,10 @@ class CRL(Module):
         return logits
 
 
-class SACIQNCRL(Ensemble):
-    def __init__(self, config, env, **kwargs):
-        super().__init__(
-            model_fn=create_components, 
-            config=config,
-            env=env,
-            **kwargs)
-
-    @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
-        if x.shape.ndims % 2 != 0:
-            x = tf.expand_dims(x, axis=0)
-        assert x.shape.ndims == 4, x.shape
-
-        x = self.encoder(x)
-        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
-        _, qtv = self.q(x, action=action)
-        action = tf.squeeze(action)
-        qtv = tf.squeeze(qtv)
-
-        return action, {'qtv': qtv}
-
-
 def create_components(config, env, **kwargs):
     assert env.is_action_discrete
     action_dim = env.action_dim
+    encoder_config = config['encoder']
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
@@ -68,10 +46,11 @@ def create_components(config, env, **kwargs):
         temperature = Temperature(temperature_config)
         
     models = dict(
-        encoder=Encoder(config['encoder'], name='encoder'),
-        target_encoder=Encoder(config['encoder'], name='target_encoder'),
-        actor=Actor(actor_config, action_dim),
-        crl=CRL(config['crl']),
+        encoder=Encoder(encoder_config, name='encoder'),
+        target_encoder=Encoder(encoder_config, name='target_encoder'),
+        actor=Actor(actor_config, action_dim, name='actor'),
+        target_actor=Actor(actor_config, action_dim, name='target_actor'),
+        crl=CRL(config['crl'], name='crl'),
         # target_crl=CRL(config['crl'], name='target_crl'), # interestingly, using target crl seems to impair the performance
         q=Q(q_config, action_dim, name='q'),
         target_q=Q(q_config, action_dim, name='target_q'),
@@ -84,4 +63,4 @@ def create_components(config, env, **kwargs):
     return models
 
 def create_model(config, env, **kwargs):
-    return SACIQNCRL(config, env, **kwargs)
+    return SACIQN(config=config, env=env, model_fn=create_components, **kwargs, name='saciqncrl')

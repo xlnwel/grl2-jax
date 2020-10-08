@@ -99,9 +99,10 @@ class Q(Module):
 
 
 class SACIQN(Ensemble):
-    def __init__(self, config, env, **kwargs):
+    def __init__(self, config, *, model_fn=None, env, **kwargs):
+        model_fn = model_fn or create_components
         super().__init__(
-            model_fn=create_components, 
+            model_fn=model_fn, 
             config=config,
             env=env,
             **kwargs)
@@ -151,6 +152,7 @@ class SACIQN(Ensemble):
 def create_components(config, env, **kwargs):
     assert env.is_action_discrete
     action_dim = env.action_dim
+    encoder_config = config['encoder']
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
@@ -160,8 +162,8 @@ def create_components(config, env, **kwargs):
         temperature = Temperature(temperature_config)
         
     models = dict(
-        encoder=Encoder(config['encoder'], name='encoder'),
-        target_encoder=Encoder(config['encoder'], name='target_encoder'),
+        encoder=Encoder(encoder_config, name='encoder'),
+        target_encoder=Encoder(encoder_config, name='target_encoder'),
         actor=Actor(actor_config, action_dim),
         target_actor=Actor(actor_config, action_dim),
         q=Q(q_config, action_dim, name='q'),
@@ -175,4 +177,4 @@ def create_components(config, env, **kwargs):
     return models
 
 def create_model(config, env, **kwargs):
-    return SACIQN(config, env, **kwargs)
+    return SACIQN(config=config, env=env, **kwargs)
