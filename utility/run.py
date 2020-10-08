@@ -20,6 +20,9 @@ class Runner:
             # assert nsteps is not None
         self.agent = agent
         self.step = step
+        if run_mode == RunMode.TRAJ and env.env_type == 'EnvVec':
+            logger.warning('Runner.step is not the actual environment steps '
+                f'as run_mode == {RunMode.TRAJ} and env_type == EnvVec')
         self.env_output = self.env.output()
         self.episodes = np.zeros(env.n_envs)
         assert get_wrapper_by_name(self.env, 'EnvStats').auto_reset
@@ -109,53 +112,32 @@ class Runner:
                 
         return self.step
 
-    def _run_traj_envvec(self, action_selector, step_fn):
-        raise NotImplementedError
-        # TODO: this no longer works as we switch to auto-reset environment.
-        # TO make it work we need a mask env wrapper.
-        # action_selector = action_selector or self.agent
-        # env_output = self.env.reset()
-        # obs = env_output.obs
-        # reset = env_output.reset
+    def _run_traj_envvec(self, action_selector=None, step_fn=None):
+        action_selector = action_selector or self.agent
+        self.env_output = self.env.reset()
+        obs = self.env_output.obs
+        reset = self.env_output.reset
         
-        # for t in range(self._default_nsteps):
-        #     action = action_selector(
-        #         obs, 
-        #         reset=reset, 
-        #         deterministic=False,
-        #         env_output=self.env_output)
-        #     obs, reset = self.step_env(obs, action, step_fn)
+        for t in range(self._default_nsteps):
+            action = action_selector(
+                obs, 
+                reset=reset, 
+                deterministic=False,
+                env_output=self.env_output)
+            obs, reset = self.step_env(obs, action, step_fn, mask=True)
 
-        #     mask = np.array([i.get('mask', 1) for i in info])
-        #     self.step += np.sum(self._frames_per_step * mask)
-        #     if step_fn:
-        #         kwargs = dict(obs=obs, action=action, reward=reward,
-        #             discount=np.float32(1-done), next_obs=next_obs, mask=mask)
-        #         # allow terms to overwrite the values in kwargs
-        #         kwargs.update(terms)
-        #         step_fn(env, self.step, info, **kwargs)
-        #     obs = next_obs
-        #     # logging and reset 
-        #     done_env_ids = [i for i, ii in enumerate(info) if ii.get('already_done')]
-        #     if done_env_ids:
-        #         score = [i['score'] for i in info if 'score' in i]
-        #         if score:
-        #             epslen = [i['epslen'] for i in info if 'epslen' in i]
-        #             assert len(score) == len(epslen)
-        #             self.agent.store(score=score, epslen=epslen)
-                
-        #         reset_env_ids = [i for i in done_env_ids if not info[i].get('game_over')]
-        #         if reset_env_ids:
-        #             new_obs = env.reset(reset_env_ids)
-        #             for i, o in zip(done_env_ids, new_obs):
-        #                 obs[i] = o
-        #     reset = np.array([i.get('already_done', False) for i in info])
-        #     if np.all([i.get('game_over', False) for i in info]):
-        #         break
+            # logging when any env is reset 
+            if np.all(self.env.game_over()):
+                break
+        info = self.env.info()
+        score = [i['score'] for i in info]
+        epslen = [i['epslen'] for i in info]
+        self.agent.store(score=score, epslen=epslen)
+        self.episodes += 1
 
-        # return self.step
+        return self.step
 
-    def step_env(self, obs, action, step_fn):
+    def step_env(self, obs, action, step_fn, mask=False):
         if isinstance(action, tuple):
             if len(action) == 2:
                 action, terms = action
@@ -177,6 +159,8 @@ class Runner:
         if step_fn:
             kwargs = dict(obs=obs, action=action, reward=reward,
                 discount=discount, next_obs=next_obs)
+            if mask:
+                kwargs['mask'] = self.env.mask()
             # allow terms to overwrite the values in kwargs
             kwargs.update(terms)
             step_fn(self.env, self.step, reset, **kwargs)

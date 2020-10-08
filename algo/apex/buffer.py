@@ -57,6 +57,7 @@ class EnvBuffer(LocalBuffer):
         # self._memory['obs'][self._idx] = next_obs
 
     def sample(self):
+        assert self._idx-self._n_steps > 0, self._idx
         results = {}
         for k, v in self._memory.items():
             results[k] = v[:self._idx-self._n_steps]
@@ -121,7 +122,9 @@ class EnvVecBuffer:
             results[k] = v[:, :self._seqlen].reshape((-1, *v.shape[2:]))
         if 'steps' in results:
             results['steps'] = results['steps'].astype(np.float32)
-
+        if 'mask' in results:
+            mask = results.pop('mask')
+            results = {k: v[mask] for k, v in results.items()}
         return results
 
 if __name__ == '__main__':

@@ -97,10 +97,3 @@ class Procgen(gym.Env):
     
     def set_game_over(self):
         return self._game_over
-
-bounds = dict(
-    coinrun=[5, 10],
-)
-
-def compute_normalized_score(score, name='coinrun'):
-    return (score - bounds[0]) / (bounds[1] - bounds[0])

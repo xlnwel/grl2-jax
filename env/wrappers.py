@@ -265,7 +265,10 @@ class EnvStats(gym.Wrapper):
         if self.auto_reset:
             self.auto_reset = False
             logger.info('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation')
-        return self._reset()
+        if not self._output.reset:
+            return self._reset()
+        else:
+            return self._output
 
     def _reset(self):
         obs = self.env.reset()
@@ -291,7 +294,12 @@ class EnvStats(gym.Wrapper):
     def step(self, action, **kwargs):
         if self.game_over():
             assert self.auto_reset == False
-            return self._output.obs, 0, 0, 0
+            reward = self.float_dtype(0)
+            discount = self.float_dtype(0)
+            reset = self.float_dtype(0)
+            self._output = EnvOutput(self._output.obs, reward, discount, reset)
+            self._info['mask'] = False
+            return self._output
 
         assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
@@ -343,6 +351,9 @@ class EnvStats(gym.Wrapper):
     def epslen(self, **kwargs):
         return self._info.get('epslen', self._epslen)
 
+    def mask(self, **kwargs):
+        return self._info.get('mask', True)
+
     def game_over(self):
         return self._game_over
 
@@ -370,12 +381,12 @@ class RewardHack(gym.Wrapper):
 
     def step(self, action, **kwargs):
         output = self.env.step(action, **kwargs)
-        obs, reward, done, reset = output
+        obs, reward, discount, reset = output
         reward *= self.reward_scale
         if self.reward_clip:
             reward = np.clip(reward, -self.reward_clip, self.reward_clip)
         reward = self.float_dtype(reward)
-        return EnvOutput(obs, reward, done, reset)
+        return EnvOutput(obs, reward, discount, reset)
 
 
 def get_wrapper_by_name(env, classname):

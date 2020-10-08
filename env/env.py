@@ -60,6 +60,9 @@ class Env(gym.Wrapper):
     def epslen(self, *args):
         return self.env.epslen()
 
+    def mask(self, *args):
+        return self.env.mask()
+
     def prev_obs(self):
         return self.env.prev_obs()
 
@@ -139,6 +142,10 @@ class EnvVec(EnvVecBase):
     def epslen(self, idxes=None):
         idxes = self._get_idxes(idxes)
         return [self.envs[i].epslen() for i in idxes]
+    
+    def mask(self, idxes=None):
+        idxes = self._get_idxes(idxes)
+        return np.array([self.envs[i].mask() for i in idxes])
 
     def game_over(self):
         return np.array([env.game_over() for env in self.envs], dtype=np.bool)
