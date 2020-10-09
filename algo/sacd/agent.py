@@ -26,14 +26,14 @@ class Agent(DQNBase):
         else:
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
 
-    @tf.function
-    def summary(self, data, terms):
-        tf.summary.histogram('entropy', terms['entropy'], step=self._env_step)
-        tf.summary.histogram('next_act_probs', terms['next_act_probs'], step=self._env_step)
-        tf.summary.histogram('next_act_logps', terms['next_act_logps'], step=self._env_step)
-        tf.summary.histogram('entropy_next', terms['entropy_next'], step=self._env_step)
-        tf.summary.histogram('next_qs', terms['next_qs'], step=self._env_step)
-        tf.summary.histogram('reward', data['reward'], step=self._env_step)
+    # @tf.function
+    # def summary(self, data, terms):
+    #     tf.summary.histogram('entropy', terms['entropy'], step=self._env_step)
+    #     tf.summary.histogram('next_act_probs', terms['next_act_probs'], step=self._env_step)
+    #     tf.summary.histogram('next_act_logps', terms['next_act_logps'], step=self._env_step)
+    #     tf.summary.histogram('entropy_next', terms['entropy_next'], step=self._env_step)
+    #     tf.summary.histogram('next_qs', terms['next_qs'], step=self._env_step)
+    #     tf.summary.histogram('reward', data['reward'], step=self._env_step)
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
