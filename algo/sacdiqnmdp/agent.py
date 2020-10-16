@@ -46,7 +46,7 @@ class Agent(DQNBase):
             else self._target_entropy_coef(self._train_step)
         target_entropy = self._target_entropy * target_entropy_coef
         # compute target returns
-        next_x, next_state = self.target_encoder(next_obs, training=False, return_cnn_out=True)
+        next_x, next_cnn_out = self.target_encoder(next_obs, training=False, return_cnn_out=True)
         next_act_probs, next_act_logps = self.target_actor.train_step(next_x)
         next_act_probs_ext = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
         next_act_logps_ext = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
@@ -81,7 +81,7 @@ class Agent(DQNBase):
             [returns, (None, 1, self.N_PRIME)],
         ])
         with tf.GradientTape() as tape:
-            x, state = self.encoder(obs, training=True, return_cnn_out=True)
+            x, cnn_out = self.encoder(obs, training=True, return_cnn_out=True)
             action_ext = tf.expand_dims(action, axis=1)
 
             qs, error, qr_loss = self._compute_qr_loss(self.q, x, action_ext, returns, IS_ratio)
@@ -91,9 +91,9 @@ class Agent(DQNBase):
                 error = (error + error2) / 2.
                 qr_loss = (qr_loss + qr_loss2) / 2.
             
-            next_state_pred = self.trans(state, action, training=True)
+            next_cnn_out_pred = self.trans(cnn_out, action, training=True)
             reward_pred = self.reward(x, action, training=True)
-            trans_loss = tf.reduce_mean(tf.abs(next_state - next_state_pred))
+            trans_loss = tf.reduce_mean(tf.abs(next_cnn_out - next_cnn_out_pred))
             reward_loss = tf.reduce_mean(tf.abs(reward - reward_pred))
             loss = qr_loss + self._trans_coef * trans_loss + self._reward_coef * reward_loss
         terms['q_norm'] = self._q_opt(tape, loss)

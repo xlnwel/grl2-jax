@@ -11,6 +11,7 @@ def cnn(cnn_name, **kwargs):
     if cnn_name is None:
         return None
     cnn_name = cnn_name.lower()
+    kwargs.setdefault('name', cnn_name)
     return cnn_registry.get(cnn_name)(**kwargs)
 
 

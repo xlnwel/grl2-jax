@@ -131,7 +131,7 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     if algo == 'sacdiqn':
-                        processes += gs(normalize_reward=[True, False])
+                        processes += gs(value=[0.01, 0.])
                     elif algo == 'iqn':
                         processes += gs()
                     elif algo == 'fqf':

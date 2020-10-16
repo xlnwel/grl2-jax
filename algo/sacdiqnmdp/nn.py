@@ -18,7 +18,6 @@ class Transition(Module):
         config = self._config.copy()
         if 'dense' in config['layer_type']:
             config['out_size'] = input_shape[-1]
-            print(input_shape)
         self._layers = mlp(
             **config,
             out_dtype='float32',

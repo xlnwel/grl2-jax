@@ -1,6 +1,6 @@
 ---
 env:
-    name: procgen_coinrun
+    name: procgen_chaser
     frame_skip: 1
     n_envs: &ne 4
     gray_scale: False
@@ -16,9 +16,13 @@ model:
         filters: [32, 64, 64, 64] # [16, 32, 32, 32]
         n_blocks: [1, 1, 1, 1]
         kernel_initializer: glorot_uniform
-        stem: conv_maxblurpool
-        stem_kwargs:
-            norm: null
+        stem: strided_resv1
+        stem_kwargs: {}
+            # am_type: cbam
+            # am_kwargs:
+            #     kernel_size: 1
+            #     excitation_type: 1l
+            #     sa_on: False
         subsample: strided_resv1
         subsample_kwargs:
             am_type: cbam
@@ -36,7 +40,7 @@ model:
             activation: relu
             am_type: cbam
             am_kwargs: 
-                kernel_size: 1
+                kernel_size: 3
                 excitation_type: 1l
                 sa_on: False
             dropout_rate: 0
@@ -67,9 +71,10 @@ model:
         phi_activation: relu
         K: &K 64
     temperature:
-        temp_type: 'constant'
-        value: .01
-    twin_q: False
+        temp_type: schedule
+        value: 
+            - [4.e+4, .01]
+            - [8.e+4, .001]
 
 agent:
     algorithm: &algo apex-sacdiqn

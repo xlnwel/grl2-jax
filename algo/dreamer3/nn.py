@@ -12,7 +12,7 @@ from utility.tf_utils import static_scan
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import Categorical, OneHotDist, TanhBijector, SampleDist
 from nn.func import mlp
-from nn.block.cnn import convert_obs
+from nn.utils import convert_obs
 
 
 RSSMState = collections.namedtuple('RSSMState', ('mean', 'std', 'stoch', 'deter'))

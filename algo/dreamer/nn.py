@@ -11,7 +11,7 @@ from core.decorator import config
 from utility.tf_utils import static_scan
 from utility.tf_distributions import Categorical, OneHotDist, TanhBijector, SampleDist
 from nn.func import mlp
-from nn.block.cnn import convert_obs
+from nn.utils import convert_obs
 
 
 RSSMState = collections.namedtuple('RSSMState', ('mean', 'std', 'stoch', 'deter'))

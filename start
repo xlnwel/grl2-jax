@@ -1,0 +1,12 @@
+#!/bin/zsh
+
+train apex-sacdiqn -e procgen_chaser $@
+train apex-sacdiqn -e procgen_coinrun -p baseline
+train apex-sacdiqn -e procgen_miner $@
+train apex-sacdiqn -e procgen_bigfish -p baseline
+train apex-sacdiqn -e procgen_plunder $@
+# train apex-sacdiqn -e procgen_coinrun -p baseline2
+# train apex-sacdiqn -e procgen_bigfish -p baseline2
+# train apex-sacdiqn -e procgen_miner -p baseline2
+# train apex-sacdiqn -e procgen_chaser -p baseline2
+# train apex-sacdiqn -e procgen_plunder -p baseline2

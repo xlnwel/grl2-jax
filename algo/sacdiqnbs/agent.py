@@ -15,7 +15,8 @@ class Agent(DQNBase):
             self._q_lr = TFPiecewiseSchedule([(4e6, self._q_lr), (7e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
-        q_models = [self.encoder, self.q]
+        # q_models = [self.encoder, self.q, self.trans, self.reward]
+        q_models = [self.encoder, self.state, self.q]
         self._twin_q = hasattr(self, 'q2')
         if self._twin_q:
             q_models.append(self.q2)
@@ -46,14 +47,16 @@ class Agent(DQNBase):
             else self._target_entropy_coef(self._train_step)
         target_entropy = self._target_entropy * target_entropy_coef
         # compute target returns
-        next_x = self.target_encoder(next_obs, training=False)
-        next_act_probs, next_act_logps = self.target_actor.train_step(next_x)
+        next_x, next_cnn_out = self.target_encoder(next_obs, training=False, return_cnn_out=True)
+        next_state = self.state(next_x)
+        next_feat = self.state.get_feat(next_state)
+        next_act_probs, next_act_logps = self.target_actor.train_step(next_feat)
         next_act_probs_ext = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
         next_act_logps_ext = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
         # next_x = self.target_encoder(next_obs, training=False)
-        _, next_qtv = self.target_q(next_x, self.N_PRIME)
+        _, next_qtv = self.target_q(next_feat, self.N_PRIME)
         if self._twin_q:
-            _, next_qtv2 = self.target_q2(next_x, self.N_PRIME)
+            _, next_qtv2 = self.target_q2(next_feat, self.N_PRIME)
             next_qtv = (next_qtv + next_qtv2) / 2.
         tf.debugging.assert_shapes([
             [next_act_probs_ext, (None, 1, self._action_dim)],
@@ -63,7 +66,7 @@ class Agent(DQNBase):
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
         else:
-            _, temp = self.temperature(next_x, next_act_probs)
+            _, temp = self.temperature(next_feat, next_act_probs)
         reward = reward[:, None]
         discount = discount[:, None]
         if not isinstance(steps, int):
@@ -81,19 +84,27 @@ class Agent(DQNBase):
             [returns, (None, 1, self.N_PRIME)],
         ])
         with tf.GradientTape() as tape:
-            x = self.encoder(obs, training=True)
+            x, cnn_out = self.encoder(obs, training=True, return_cnn_out=True)
+            state = self.state(x)
+            feat = self.state.get_feat(state)
             action_ext = tf.expand_dims(action, axis=1)
 
-            qs, error, qr_loss = self._compute_qr_loss(self.q, x, action_ext, returns, IS_ratio)
+            qs, error, qr_loss = self._compute_qr_loss(self.q, feat, action_ext, returns, IS_ratio)
             if self._twin_q:
-                qs2, error2, qr_loss2 = self._compute_qr_loss(self.q2, x, action_ext, returns, IS_ratio)
+                qs2, error2, qr_loss2 = self._compute_qr_loss(self.q2, feat, action_ext, returns, IS_ratio)
                 qs = (qs + qs2) / 2.
                 error = (error + error2) / 2.
                 qr_loss = (qr_loss + qr_loss2) / 2.
-        terms['q_norm'] = self._q_opt(tape, qr_loss)
+            loss = qr_loss
+            # next_cnn_out_pred = self.trans(cnn_out, action, training=True)
+            # reward_pred = self.reward(feat, action, training=True)
+            # trans_loss = tf.reduce_mean(tf.abs(next_cnn_out - next_cnn_out_pred))
+            # reward_loss = tf.reduce_mean(tf.abs(reward - reward_pred))
+            # loss = qr_loss + self._trans_coef * trans_loss + self._reward_coef * reward_loss
+        terms['q_norm'] = self._q_opt(tape, loss)
 
         with tf.GradientTape() as tape:
-            act_probs, act_logps = self.actor.train_step(x)
+            act_probs, act_logps = self.actor.train_step(feat)
             q = tf.reduce_sum(act_probs * qs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
             actor_loss = -(q + temp * entropy)
@@ -103,7 +114,7 @@ class Agent(DQNBase):
 
         if not isinstance(self.temperature, (float, tf.Variable)):
             with tf.GradientTape() as tape:
-                log_temp, temp = self.temperature(x, action)
+                log_temp, temp = self.temperature(feat, action)
                 entropy_diff = target_entropy - entropy
                 temp_loss = -log_temp * entropy_diff
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])
@@ -136,8 +147,18 @@ class Agent(DQNBase):
             next_act_logps=next_act_logps,
             returns=returns,
             qr_loss=qr_loss, 
-            temp=temp,
+            state_deter=state.deter,
+            state_stoch=state.stoch,
+            state_mean=state.mean,
+            state_std=state.std,
+            # trans_loss=trans_loss,
+            # reward_loss=reward_loss,
+            thunk_loss=loss,
             explained_variance=explained_variance(target_q, q),
+            reward_max=tf.reduce_max(reward),
+            reward_mean=tf.reduce_mean(reward),
+            reward_min=tf.reduce_min(reward),
+            reward_std=tf.math.reduce_std(reward),
         ))
 
         return terms

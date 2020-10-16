@@ -18,8 +18,10 @@ class Agent(DQNBase):
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}
         # compute target returns
-        next_action = self.q.action(next_obs, self.K)
-        _, next_qtv, _ = self.target_q.value(next_obs, self.N_PRIME, next_action)
+        next_x = self.encoder(next_obs)
+        next_action = self.q.action(next_x, self.K)
+        next_x = self.target_encoder(next_obs)
+        _, next_qtv, _ = self.target_q(next_x, self.N_PRIME, next_action)
         reward = reward[:, None]
         discount = discount[:, None]
         if not isinstance(steps, int):
@@ -32,7 +34,8 @@ class Agent(DQNBase):
         ])
 
         with tf.GradientTape() as tape:
-            tau_hat, qtv, q = self.q.value(obs, self.N, action)
+            x = self.encoder(obs)
+            tau_hat, qtv, q = self.q(x, self.N, action)
             qtv = tf.expand_dims(qtv, axis=-1)  # [B, N, 1]
             qr_loss = quantile_regression_loss(qtv, returns, tau_hat, kappa=self.KAPPA)
             loss = tf.reduce_mean(IS_ratio * qr_loss)

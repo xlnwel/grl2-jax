@@ -8,13 +8,44 @@ env:
 
 model:
     encoder: 
-        cnn_name: impala
+        cnn_name: procgen
         obs_range: [0, 1]
-        channels: [16, 32, 32]
-        reduction_ratio: 1
-        out_size: null
-        block: resse
+        filters: [32, 64, 64, 64] # [16, 32, 32, 32]
+        n_blocks: [1, 1, 1, 1]
         kernel_initializer: glorot_uniform
+        stem: conv_maxblurpool
+        stem_kwargs:
+            norm: null
+        subsample: strided_resv1
+        subsample_kwargs:
+            am_type: cbam
+            am_kwargs:
+                kernel_size: 1
+                excitation_type: 1l
+                sa_on: False
+        block: resv1
+        block_kwargs:
+            conv: conv2d
+            filter_coefs: []
+            kernel_sizes: [3, 3]
+            norm: null
+            norm_kwargs: {}
+            activation: relu
+            am_type: cbam
+            am_kwargs: 
+                kernel_size: 1
+                excitation_type: 1l
+                sa_on: False
+            dropout_rate: 0
+            rezero: False
+        sa: conv_sa
+        sa_pos: []
+        sa_kwargs:
+            key_ratio: 1
+            val_ratio: 1
+            downsample_ratio: 1
+        out_activation: relu
+        out_size: null
     actor:
         units_list: [512]
         max_ar: 4

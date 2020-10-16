@@ -15,7 +15,10 @@ def sigint_shutdown_ray():
 
 def cpu_affinity(name=None):
     resources = ray.get_resource_ids()
-    cpus = [v[0] for v in resources['CPU']]
+    if 'CPU' in resources:
+        cpus = [v[0] for v in resources['CPU']]
+    else:
+        cpus = [0, 1, 2]
     psutil.Process().cpu_affinity(cpus)
     if name:
         print(f'CPUs corresponding to {name}: {cpus}')

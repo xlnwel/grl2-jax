@@ -130,3 +130,27 @@ def static_scan(fn, start, inputs, reverse=False):
     outputs = [tf.stack(x) for x in outputs]
     # reconstruct outputs to have the same structure as start
     return tf.nest.pack_sequence_as(start, outputs)
+
+class RunningMeanStd:
+    def __init__(self, shape=(), scale=1., clip=10., epsilon=1e-2):
+        self._sum = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float32, name='sum')
+        self._sumsq = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float32, name='sum_squares')
+        self._count = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float32, name='count')
+        self._scale = scale
+        self._clip = clip
+        self._epsilon = epsilon
+
+
+    def update(self, x):
+        self._sum.assign_add(tf.reduce_sum(x, axis=0))
+        self._sumsq.assign_add(tf.reduce_sum(x**2, axis=0))
+        self._count.assign_add(tf.cast(tf.shape(x)[0], self._count.dtype))
+
+    def normalize(self, x, subtract_mean=True):
+        mean = self._sum / self._count
+        std = tf.sqrt(tf.maximum(self._sumsq / self._count - mean**2, self._epsilon))
+        if subtract_mean:
+            x = x - mean
+        x = x / std
+        x = tf.clip_by_value(self._scale * x, -self._clip, self._clip)
+        return x

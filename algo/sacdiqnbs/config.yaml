@@ -1,74 +1,37 @@
 ---
 env:
-    name: procgen_coinrun
-    frame_skip: 1
-    gray_scale: False
+    name: atari_pong
+    sticky_actions: False
+    frame_skip: 4
     frame_stack: 4
+    life_done: True
+    reward_clip: True
+    seed: 0
 
 model:
     encoder: 
-        cnn_name: procgen
-        obs_range: [0, 1]
-        filters: [32, 64, 64, 64] # [16, 32, 32, 32]
-        n_blocks: [1, 1, 1, 1]
-        kernel_initializer: glorot_uniform
-        stem: conv_maxblurpool
-        stem_kwargs:
-            norm: null
-        subsample: strided_resv1
-        subsample_kwargs:
-            am_type: cbam
-            am_kwargs:
-                kernel_size: 1
-                excitation_type: 1l
-                sa_on: False
-        block: resv1
-        block_kwargs:
-            conv: conv2d
-            filter_coefs: []
-            kernel_sizes: [3, 3]
-            norm: null
-            norm_kwargs: {}
-            activation: relu
-            am_type: cbam
-            am_kwargs: 
-                kernel_size: 1
-                excitation_type: 1l
-                sa_on: False
-            dropout_rate: 0
-            rezero: False
-        sa: conv_sa
-        sa_pos: []
-        sa_kwargs:
-            key_ratio: 1
-            val_ratio: 1
-            downsample_ratio: 1
-        out_activation: relu
+        cnn_name: nature
         out_size: null
+        kernel_initializer: glorot_uniform
     actor:
         units_list: [512]
-        layer_type: dense
-        norm: null
         kernel_initializer: glorot_uniform
         activation: relu
     q:
         units_list: [512]
-        layer_type: dense
-        norm: null
         kernel_initializer: glorot_uniform
         activation: relu
         duel: False
 
         tau_embed_size: 64
         phi_activation: relu
-        K: &K 64
+        K: &K 32
     temperature:
-        temp_type: 'constant'
-        value: .01
-    twin_q: False
-    
+        temp_type: 'variable'
+        value: .1
+
 agent:
-    algorithm: &algo sacd
+    algorithm: &algo sacdiqn
     replay_type: &replay 'uniform'
     gamma: &gamma .99
     batch_size: &bs 32
@@ -79,12 +42,18 @@ agent:
     eval_act_eps: 0
     target_entropy_coef: .5
     
-    MAX_STEPS: 8e6
-    TRAIN_PERIOD: 64
+    MAX_STEPS: 1e8
+    TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 5e5
-    LOG_PERIOD: 5e4
+    LOG_PERIOD: 1e4
     N_UPDATES: 1
     RECORD: True
+
+    # IQN params
+    N: 8                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
+    K: *K               # K in paper, num of quantiles for action selection
+    KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -93,12 +62,13 @@ agent:
     model_name: *algo
 
     target_update_period: 2000
+    tbo: False
 
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 3e-4
     q_lr: 3e-4
+    actor_lr: 3e-4
     temp_lr: 3e-4
     
     # arguments for PER

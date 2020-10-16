@@ -13,7 +13,7 @@ model:
     encoder: 
         cnn_name: procgen
         obs_range: [0, 1]
-        filters: [16, 32, 32, 32]
+        filters: [32, 64, 64, 64] # [16, 32, 32, 32]
         n_blocks: [1, 1, 1, 1]
         kernel_initializer: glorot_uniform
         stem: conv_maxblurpool
@@ -68,7 +68,7 @@ model:
         K: &K 64
     transition:
         layer_type: conv2d
-        units_list: [32]
+        units_list: [64]
         kernel_size: 1
         norm: null
         kernel_initializer: glorot_uniform

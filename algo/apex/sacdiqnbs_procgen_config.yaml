@@ -6,6 +6,8 @@ env:
     gray_scale: False
     frame_stack: 4
     np_obs: True
+    reward_scale: 2
+    reward_clip: 10
 
 model:
     encoder: 
@@ -47,6 +49,13 @@ model:
             downsample_ratio: 1
         out_activation: relu
         out_size: null
+    belief_state:
+        # units_list: [512]
+        out_size: 512
+        layer_type: dense
+        norm: null
+        kernel_initializer: glorot_uniform
+        activation: relu
     actor:
         units_list: [512]
         layer_type: dense
@@ -64,17 +73,26 @@ model:
         tau_embed_size: 64
         phi_activation: relu
         K: &K 64
-    crl:
-        units_list: [256]
-        out_size: 128
+    transition:
+        layer_type: conv2d
+        units_list: [32]
+        kernel_size: 1
+        norm: null
+        kernel_initializer: glorot_uniform
+        activation: relu
+    reward:
+        units_list: [512]
+        layer_type: dense
+        norm: null
+        kernel_initializer: glorot_uniform
         activation: relu
     temperature:
         temp_type: 'constant'
         value: .01
     twin_q: False
-        
+
 agent:
-    algorithm: &algo apex-sacdiqncrl
+    algorithm: &algo apex-sacdiqn
     replay_type: &replay uniform
     batch_size: &bs 64
     gamma: &gamma 0.99
@@ -83,11 +101,13 @@ agent:
     act_eps: 0
     eval_act_eps: 0
     target_entropy_coef: .8
+        # - [4.e+4, .8]
+        # - [7.e+4, .3]
     
     MAX_STEPS: 8e6      # maximum env steps
     LOG_PERIOD: &log 1000
     N_UPDATES: *log
-    SYNC_PERIOD: 1000
+    SYNC_PERIOD: 400   # TODO: a small sync period increases performance in some cases, but it also slows down the data collection process
     RECORD_PERIOD: 100
     N_EVALUATION: 10
 
@@ -97,15 +117,14 @@ agent:
     n_workers: 6
     n_worker_cpus: 1
     n_worker_gpus: .1
-    deterministic_evaluation: True
+    deterministic_evaluation: False
+    run_mode: nsteps
 
     # IQN params
     N: 64                # N in paper, num of quantiles for online quantile network
     N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
-
-    crl_coef: 1
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -120,9 +139,11 @@ agent:
     schedule_lr: False
     actor_lr: 2.5e-4
     q_lr: 2.5e-4
-    crl_lr: 2.5e-4
     temp_lr: 2.5e-4
     epsilon: 3.125e-4
+
+    trans_coef: 1
+    reward_coef: 1
     
     # arguments for PER
     per_alpha: .6
