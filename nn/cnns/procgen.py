@@ -61,8 +61,12 @@ class ProcgenCNN(Module):
         with self.name_scope:
             for i, (f, n) in enumerate(zip(filters, n_blocks)):
                 subsample_kwargs['out_filters'] = f
+                if 'res' in stem:
+                    stem_kwargs['out_filters'] = f
+                else:
+                    stem_kwargs['filters'] = f
                 self._layers += [
-                    stem_cls(filters[0], name=prefix+stem, **stem_kwargs) if i == 0 else
+                    stem_cls(name=prefix+stem, **stem_kwargs) if i == 0 else
                     subsample_cls(name=f'{prefix}{subsample}_{i}_f{f}', **subsample_kwargs),
                 ] + [block_cls(name=f'{prefix}{block}_{i}_{j}', **block_kwargs) 
                     for j in range(n)]
