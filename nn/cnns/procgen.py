@@ -1,5 +1,7 @@
+from tensorflow_probability import distributions as tfd
+
 from core.module import Module
-from nn.registry import cnn_registry, subsample_registry, block_registry
+from nn.registry import cnn_registry, subsample_registry, block_registry, layer_registry
 from nn.utils import *
 
 
@@ -74,6 +76,9 @@ class ProcgenCNN(Module):
                     self._layers += [
                         sa_cls(name=f'{prefix}{sa}_{i}', **sa_kwargs)
                     ]
+            
+            bs_layer_cls = layer_registry.get('conv2d')
+            self._bs_layer = bs_layer_cls(2 * f, 3, 1, padding='same', **kwargs)
             out_act_cls = get_activation(out_activation, return_cls=True)
             self._layers.append(out_act_cls(name=prefix+out_activation))
             self._flat = layers.Flatten(name=prefix+'flatten')
@@ -98,3 +103,11 @@ class ProcgenCNN(Module):
             return z, x
         else:
             return z
+
+    def get_belief_state(self, x):
+        x = self._bs_layer(x)
+        mean, std = tf.split(x, 2, -1)
+        std = tf.nn.softplus(std) + .1
+        stoch = tfd.MultivariateNormalDiag(mean, std).sample()
+
+        return stoch

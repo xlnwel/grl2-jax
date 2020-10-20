@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 import ray
 
@@ -54,7 +55,8 @@ def create_worker(
         env_config['seed'] += worker_id * 100
     
     if config.get('schedule_act_eps'):
-        config['act_eps'] = apex_epsilon_greedy(worker_id, config['n_workers'])
+        assert worker_id < config['n_workers'], f'worker ID({worker_id}) exceeds range. Valid range: [0, {config["n_workers"]})'
+        config['act_eps'] = apex_epsilon_greedy(worker_id, env_config['n_envs'], config['n_workers'] * env_config['n_envs'])
     n_cpus = config.get('n_worker_cpus', 1)
     n_gpus = config.get('n_worker_gpus', 0)
     RayWorker = ray.remote(num_cpus=1, num_gpus=n_gpus)(Worker)

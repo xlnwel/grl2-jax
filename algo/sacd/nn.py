@@ -22,6 +22,9 @@ class Actor(Module):
     def __init__(self, config, action_dim, name='actor'):
         super().__init__(name=name)
         
+        prior = np.ones(action_dim, dtype=np.float32)
+        prior /= np.sum(prior)
+        self.prior = tf.Variable(prior, trainable=False, name='prior')
         self._layers = mlp(
             **config, 
             out_size=action_dim,
@@ -37,8 +40,10 @@ class Actor(Module):
 
         dist = tfd.Categorical(logits=x)
         action = dist.mode() if deterministic else dist.sample()
-        if epsilon > 0:
-            rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
+        if not isinstance(epsilon, (int, float)) or epsilon > 0:
+            prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))
+            prior_logits = tf.broadcast_to(prior_logits, x.shape)
+            rand_act = tfd.Categorical(prior_logits).sample()
             action = tf.where(
                 tf.random.uniform(action.shape, 0, 1) < epsilon,
                 rand_act, action)
@@ -54,6 +59,9 @@ class Actor(Module):
         probs = tf.nn.softmax(x)
         logps = tf.math.log(tf.maximum(probs, 1e-8))    # bound logps to avoid numerical instability
         return probs, logps
+
+    def update_prior(self, x, lr):
+        self.prior.assign_add(lr * (x - self.prior))
 
 
 class Q(Module):

@@ -156,7 +156,7 @@ def create_components(config, env, **kwargs):
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
-    if temperature_config['temp_type'] == 'constant':
+    if temperature_config['temp_type'] in ('constant', 'schedule'):
         temperature = temperature_config['value']
     else:
         temperature = Temperature(temperature_config)

@@ -51,12 +51,12 @@ class PERBase(Replay):
         self._beta = self._beta_schedule.value(self._sample_i)
 
     @override(Replay)
-    def _merge(self, local_buffer, length):
-        priority = local_buffer.pop('priority', self._top_priority)[:length]
+    def _merge(self, local_buffer, length):    
+        priority = local_buffer.pop('priority')[:length] \
+            if 'priority' in local_buffer else self._top_priority * np.ones(length)
         np.testing.assert_array_less(0, priority)
         # update sum tree
         mem_idxes = np.arange(self._mem_idx, self._mem_idx + length) % self._capacity
-        np.testing.assert_equal(len(mem_idxes), len(priority))
         self._data_structure.batch_update(mem_idxes, priority)
         # update memory
         super()._merge(local_buffer, length)

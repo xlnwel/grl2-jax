@@ -23,17 +23,17 @@ class Agent(DQNBase):
 
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
+        elif isinstance(self.temperature, (list, tuple)):
+            self.temperature = TFPiecewiseSchedule(self.temperature)
         else:
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
         if isinstance(self._target_entropy_coef, (list, tuple)):
             self._target_entropy_coef = TFPiecewiseSchedule(self._target_entropy_coef)
 
-    @tf.function
-    def summary(self, data, terms):
-        tf.summary.histogram('entropy', terms['entropy'], step=self._env_step)
-        tf.summary.histogram('next_act_probs', terms['next_act_probs'], step=self._env_step)
-        tf.summary.histogram('next_act_logps', terms['next_act_logps'], step=self._env_step)
-        tf.summary.histogram('reward', data['reward'], step=self._env_step)
+    # @tf.function
+    # def summary(self, data, terms):
+    #     tf.summary.histogram('entropy', terms['entropy'], step=self._env_step)
+    #     tf.summary.histogram('reward', data['reward'], step=self._env_step)
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
@@ -62,6 +62,8 @@ class Agent(DQNBase):
         ])
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
+        if isinstance(self.temperature, (TFPiecewiseSchedule)):
+            temp = self.temperature(self._train_step)
         else:
             _, temp = self.temperature(next_x, next_act_probs)
         reward = reward[:, None]
@@ -101,7 +103,9 @@ class Agent(DQNBase):
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
-        if not isinstance(self.temperature, (float, tf.Variable)):
+        act_probs = tf.reduce_mean(act_probs, 0)
+        self.actor.update_prior(act_probs, self._prior_lr)
+        if not isinstance(self.temperature, (TFPiecewiseSchedule, tf.Variable)):
             with tf.GradientTape() as tape:
                 log_temp, temp = self.temperature(x, action)
                 entropy_diff = target_entropy - entropy
@@ -111,7 +115,6 @@ class Agent(DQNBase):
             terms['target_entropy'] = target_entropy
             terms['entropy_diff'] = entropy_diff
             terms['log_temp'] = log_temp
-            terms['temp'] = temp
             terms['temp_loss'] = temp_loss
             terms['temp_norm'] = self._temp_opt(tape, temp_loss)
 
@@ -120,25 +123,26 @@ class Agent(DQNBase):
             priority = self._compute_priority(error / 2.)
             terms['priority'] = priority
             
-        target_q = tf.reduce_mean(returns, axis=-1)
-        target_q = tf.squeeze(target_q)
+        # target_q = tf.reduce_mean(returns, axis=-1)
+        # target_q = tf.squeeze(target_q)
         terms.update(dict(
-            act_probs=act_probs,
-            max_act_probs=tf.reduce_max(act_probs),
+            # max_act_probs=tf.reduce_max(act_probs),
             actor_loss=actor_loss,
             q=q,
-            next_value=tf.reduce_mean(next_state_qtv, axis=-1),
-            logpi=act_logps,
+            # next_value=tf.reduce_mean(next_state_qtv, axis=-1),
+            # logpi=act_logps,
             entropy=entropy,
             max_entropy=tf.reduce_max(entropy),
-            min_entropy=tf.reduce_min(entropy),
-            next_act_probs=next_act_probs,
-            next_act_logps=next_act_logps,
-            returns=returns,
+            # min_entropy=tf.reduce_min(entropy),
+            # next_act_probs=next_act_probs,
+            # next_act_logps=next_act_logps,
+            # returns=returns,
             qr_loss=qr_loss, 
             temp=temp,
-            explained_variance=explained_variance(target_q, q),
+            # explained_variance=explained_variance(target_q, q),
         ))
+        # for i in range(self.actor.action_dim):
+        #     terms[f'prior_{i}'] = self.actor.prior[i]
 
         return terms
 

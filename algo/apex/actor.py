@@ -213,7 +213,6 @@ class Worker(BaseWorker):
 
         self._seqlen = buffer_config['seqlen']
         self.buffer = buffer_fn(buffer_config)
-        self._is_per = self._replay_type.endswith('per')
 
         self._return_stats = 'encoder' in self.model or 'actor' not in self.model
         self._is_iqn = 'iqn' in self._algorithm or 'fqf' in self._algorithm
@@ -247,8 +246,8 @@ class Worker(BaseWorker):
         action = self.model.action(
             tf.convert_to_tensor(x), 
             deterministic=deterministic,
-            epsilon=self._act_eps,
-            return_stats=self._return_stats)
+            epsilon=tf.convert_to_tensor(self._act_eps, tf.float32),
+            return_stats=self._is_per)
         action = tf.nest.map_structure(lambda x: x.numpy(), action)
         return action
 

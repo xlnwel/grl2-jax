@@ -30,7 +30,7 @@ def _cat_sample(self, sample_shape=(), seed=None, name='sample'):
         self.logits_parameter(), sample_shape[0] if sample_shape else 1,
         self.dtype, seed, name)
     if not sample_shape:
-        indices = indices[..., 0]
+        indices = tf.squeeze(indices)
     return indices
 
 tfd.Categorical.sample = _cat_sample

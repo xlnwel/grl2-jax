@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
@@ -162,9 +163,7 @@ def retrace_lambda(reward, q, next_value, next_ratio, discount, lambda_=.95, rat
         
     return returns
 
-def apex_epsilon_greedy(env_id, n_envs, epsilon=.4, alpha=8):
+def apex_epsilon_greedy(worker_id, env_per_worker, n_envs, epsilon=.4, alpha=8):
     # the 𝝐-greedy schedule used in Ape-X and Agent57
-    if n_envs == 1:
-        return epsilon
-    else:
-        return epsilon ** (1 + env_id / (n_envs - 1) * alpha)
+    env_ids = np.arange(n_envs)[worker_id*env_per_worker: (worker_id+1)*env_per_worker]
+    return epsilon ** (1 + env_ids / (n_envs - 1) * alpha)
