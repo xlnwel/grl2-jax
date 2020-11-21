@@ -80,7 +80,7 @@ class BaseAgent(ABC):
         return get_stats(self._logger, mean=mean, std=std, min=min, max=max)
 
     def print_construction_complete(self):
-        pwc(f'{self._model_name.upper()} is constructed...', color='cyan')
+        pwc(f'{self.name.upper()} is constructed...', color='cyan')
 
 
 class RMSBaseAgent(BaseAgent):

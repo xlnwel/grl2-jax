@@ -62,7 +62,7 @@ if __name__ == '__main__':
             'norm': 'batch',
             'norm_kwargs': {},
             'activation': 'lrelu',
-            'am_type': 'cbam',
+            'am': 'cbam',
             'am_kwargs': {
                 'ratio': 1,
                 'sa_on': False,

@@ -20,7 +20,7 @@ class EfficientNet(Module):
                     num_repeats=[2, 2, 2, 1],
                     norm='batch',
                     norm_kwargs={},
-                    am_type='se',
+                    am='se',
                     am_kwargs={},
                  ),
                  out_activation='relu',

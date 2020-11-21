@@ -1,9 +1,12 @@
+import logging
 import numpy as np
 import tensorflow as tf
 import ray
 
 from utility.rl_utils import apex_epsilon_greedy
 from utility import pkg
+
+logger = logging.getLogger(__name__)
 
 
 def create_learner(Learner, model_fn, replay, config, model_config, env_config, replay_config):
@@ -13,7 +16,6 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
     replay_config = replay_config.copy()
     
     env_config['n_workers'] = env_config['n_envs'] = 1
-    config['model_name'] = config['algorithm']
     n_cpus = config.setdefault('n_learner_cpus', 3)
 
     if tf.config.list_physical_devices('GPU'):
@@ -46,17 +48,22 @@ def create_worker(
     env_config = env_config.copy()
     buffer_config = buffer_config.copy()
 
+    n_workers = config['n_workers']
+    n_envs = env_config.get('n_envs', 1)
     buffer_config['n_envs'] = env_config.get('n_envs', 1)
     buffer_fn = pkg.import_module(
         'buffer', config=config, place=0).create_local_buffer
-
 
     if 'seed' in env_config:
         env_config['seed'] += worker_id * 100
     
     if config.get('schedule_act_eps'):
-        assert worker_id < config['n_workers'], f'worker ID({worker_id}) exceeds range. Valid range: [0, {config["n_workers"]})'
-        config['act_eps'] = apex_epsilon_greedy(worker_id, env_config['n_envs'], config['n_workers'] * env_config['n_envs'])
+        assert worker_id < n_workers, f'worker ID({worker_id}) exceeds range. Valid range: [0, {config["n_workers"]})'
+        config['act_eps'] = apex_epsilon_greedy(worker_id, n_envs, n_workers, sequential=config.get('seq_act_eps', True))
+        logger.info(f'worker_{worker_id} action epsilon: {config["act_eps"]}')
+    if config.get('schedule_act_temp'):
+        act_temps = np.logspace(np.log10(config.get('min_temp')), np.log10(config.get('max_temp')), n_workers * n_envs).reshape(n_workers, n_envs)
+        model_config['actor']['act_temp'] = act_temps[worker_id]
     n_cpus = config.get('n_worker_cpus', 1)
     n_gpus = config.get('n_worker_gpus', 0)
     RayWorker = ray.remote(num_cpus=1, num_gpus=n_gpus)(Worker)
@@ -79,6 +86,7 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
     if 'seed' in env_config:
         env_config['seed'] += 999
     env_config['n_workers'] = env_config['n_envs'] = 1
+    model_config['actor']['act_temp'] = config.pop('eval_act_temp', .5)
 
     RayEvaluator = ray.remote(num_cpus=1)(Evaluator)
     evaluator = RayEvaluator.remote(

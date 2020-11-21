@@ -18,9 +18,9 @@ def parse_args():
                         type=int,
                         default=1,
                         help='number of trials')
-    parser.add_argument('--prefix', '-p',
+    parser.add_argument('--model-name', '-mn',
                         default='',
-                        help='prefix for model dir')
+                        help='model name')
     parser.add_argument('--directory', '-d',
                         type=str,
                         default='',
@@ -28,12 +28,12 @@ def parse_args():
     parser.add_argument('--logdir', '-ld',
                         type=str,
                         default='logs')
-    parser.add_argument('--grid_search', '-gs',
+    parser.add_argument('--grid-search', '-gs',
                         action='store_true')
     parser.add_argument('--delay',
                         default=1,
                         type=int)
-    parser.add_argument('--log_level', '-l',
+    parser.add_argument('--log-level', '-l',
                         type=str,
                         default='warning')
     args = parser.parse_args()

@@ -1,4 +1,5 @@
 import functools
+import inspect
 import tensorflow as tf
 from tensorflow.keras import layers
 
@@ -19,7 +20,10 @@ class Module(tf.Module):
 
     def __call__(self, x=None, *args, **kwargs):
         if x is not None and not self._is_built:
-            self._build(x.shape)
+            if isinstance(x, tf.Tensor):
+                self._build(x.shape)
+            else:
+                self._build(x)
         return self._call(x, *args, **kwargs)
         
     def _build(self, input_shape):
@@ -30,14 +34,16 @@ class Module(tf.Module):
         """ Override this if necessary """
         pass
 
-    # @tf.Module.with_name_scope    # do not decorate with this. It will introduce inconsistent variable names between keras.Model and plain call
+    # @tf.Module.with_name_scope    # do not decorate with this as it will introduce inconsistent variable names between keras.Model and plain call
     def _call(self, *args, **kwargs):
         return self.call(*args, **kwargs)
         
     def call(self, x, training=False, training_cls=(), **kwargs):
         """ Override this if necessary """
         training_cls = set(training_cls) | set(self._training_cls)
-        training_cls = tuple([c.func if isinstance(c, functools.partial) else c for c in training_cls])
+        training_cls = tuple([c.func if isinstance(c, functools.partial) 
+            else c for c in training_cls if inspect.isclass(c)])
+        
         for l in self._layers:
             if isinstance(l, training_cls):
                 x = l(x, training=training)

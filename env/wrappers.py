@@ -196,6 +196,34 @@ class FrameSkip(gym.Wrapper):
         return obs, total_reward, done, info
 
 
+class FrameDiff(gym.Wrapper):
+    def __init__(self, env, n):
+        super().__init__(env)
+
+        original_space = self.observation_space
+        new_space = gym.spaces.Box(
+            low=0,
+            high=255,
+            shape=(*original_space.shape[:2], original_space.shape[-1]*2),
+            dtype=np.uint8,
+        )
+        self.observation_space = new_space
+
+    def reset(self):
+        obs = self.env.reset()
+        new_obs = np.concatenate([np.zeros_like(obs, dtype=obs.dtype), obs], axis=-1)
+        self.prev_obs = obs
+
+        return obs
+
+    def step(self, action):
+        obs, rew, done, info = self.env.step(action)
+        new_obs = np.concatenate([obs - self.prev_obs, obs], axis=-1)
+        self.prev_obs = obs
+
+        return new_obs, rew, done, info
+
+
 class DataProcess(gym.Wrapper):
     def __init__(self, env, precision=32):
         super().__init__(env)

@@ -19,7 +19,7 @@ class IMPALACNN(Module):
                     norm=None,
                     norm_kwargs={},
                     activation='relu',
-                    am_type='se',
+                    am='se',
                     am_kwargs={},
                     dropout_rate=0.,
                     rezero=False,

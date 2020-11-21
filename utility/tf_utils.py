@@ -1,8 +1,6 @@
 import numpy as np
 import tensorflow as tf
 
-from utility.display import assert_colorize, pwc
-
 
 def upsample(x):
     h, w = x.get_shape().as_list()[1:-1]
@@ -51,8 +49,8 @@ def padding(x, kernel_size, strides, mode='constant', name=None):
     It achieves it using the following equation:
     W // S = (W - k_w + 2P) / S + 1
     """
-    assert_colorize(mode.lower() == 'constant' or mode.lower() == 'reflect' or mode.lower() == 'symmetric', 
-        f'Padding should be "constant", "reflect", or "symmetric", but got {mode}.')
+    assert mode.lower() == 'constant' or mode.lower() == 'reflect' or mode.lower() == 'symmetric', \
+        f'Padding should be "constant", "reflect", or "symmetric", but got {mode}.'
     H, W = x.shape.as_list()[1:3]
     if isinstance(kernel_size, list) and len(kernel_size) == 2:
         k_h, k_w = kernel_size
@@ -64,25 +62,23 @@ def padding(x, kernel_size, strides, mode='constant', name=None):
     p_w2 = int(((W / strides - 1) * strides - W + k_w) -p_w1)
     return tf.pad(x, [[0, 0], [p_h1, p_h2], [p_w1, p_w2], [0, 0]], mode, name=name)
 
-def spectral_norm(w, iteration=1):
-    w_shape = w.shape.as_list()
-    w = tf.reshape(w, [-1, w_shape[-1]])    # [N, M]
+def spectral_norm(w, u_var, iterations=1):
+    w_shape = w.shape
+    if len(w_shape) != 2:
+        w = tf.reshape(w, [-1, w_shape[-1]])    # [N, M]
 
-    # [1, M]
-    u_var = tf.get_variable('u', [1, w_shape[-1]], 
-                            initializer=tf.truncated_normal_initializer(), 
-                            trainable=False)
     u = u_var
+    assert u.shape == [1, w_shape[-1]]
     # power iteration
-    for _ in range(iteration):
+    for i in range(iterations):
         v = tf.nn.l2_normalize(tf.matmul(u, w, transpose_b=True))           # [1, N]
         u = tf.nn.l2_normalize(tf.matmul(v, w))                             # [1, M]
 
     sigma = tf.squeeze(tf.matmul(tf.matmul(v, w), u, transpose_b=True))     # scalar
     w = w / sigma
 
-    with tf.control_dependencies([u_var.assign(u)]):                        # we reuse the value of u
-        w = tf.reshape(w, w_shape)
+    u_var.assign(u)
+    w = tf.reshape(w, w_shape)
 
     return w
 
@@ -153,4 +149,11 @@ class RunningMeanStd:
             x = x - mean
         x = x / std
         x = tf.clip_by_value(self._scale * x, -self._clip, self._clip)
-        return x
+        return x        
+        
+def get_stoch_state(x, min_std):
+    with tf.name_scope('stoch'):
+        mean, std = tf.split(x, 2, -1)
+        std = tf.nn.softplus(std) + min_std
+        stoch = mean + tf.random.normal(tf.shape(mean)) * std
+        return mean, std, stoch

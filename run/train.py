@@ -43,14 +43,14 @@ def get_config(algo, env):
     pwc(f'Config path: {path}', color='green')
     return load_config(path)
 
-def change_config(kw, prefix, env_config, model_config, agent_config, replay_config):
-    if prefix != '':
-        prefix = f'{prefix}-'
+def change_config(kw, model_name, env_config, model_config, agent_config, replay_config):
     if kw:
         for s in kw:
             key, value = s.split('=')
             value = eval_str(value)
-            prefix += s + '-'
+            if model_name != '':
+                model_name += '-'
+            model_name += s
 
             # change kwargs in config
             configs = []
@@ -72,7 +72,7 @@ def change_config(kw, prefix, env_config, model_config, agent_config, replay_con
             for _, c in configs:
                 c[key]  = value
             
-    return prefix
+    return model_name
 
 if __name__ == '__main__':
     cmd_args = parse_args()
@@ -112,7 +112,7 @@ if __name__ == '__main__':
             main = pkg.import_main('train', algo)
 
             logdir = cmd_args.logdir
-            prefix = cmd_args.prefix
+            model_name = cmd_args.model_name
             env_config = config['env']
             model_config = config['model']
             agent_config = config['agent']
@@ -120,13 +120,14 @@ if __name__ == '__main__':
             agent_config['algorithm'] = algo
             if env:
                 env_config['name'] = env
-            prefix = change_config(
-                cmd_args.kwargs, prefix, env_config, 
+            model_name = change_config(
+                cmd_args.kwargs, model_name, env_config, 
                 model_config, agent_config, replay_config)
+            agent_config['model_name'] = model_name
             if cmd_args.grid_search or cmd_args.trials > 1:
                 gs = GridSearch(
                     env_config, model_config, agent_config, replay_config, 
-                    main, n_trials=cmd_args.trials, logdir=logdir, dir_prefix=prefix, 
+                    main, n_trials=cmd_args.trials, logdir=logdir, 
                     separate_process=len(algo_env) > 1, delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
@@ -144,7 +145,7 @@ if __name__ == '__main__':
                 else:
                     processes += gs()
             else:
-                agent_config['root_dir'] = f'{logdir}/{prefix}{algo}-{env_config["name"]}'
+                agent_config['root_dir'] = f'{logdir}/{env_config["name"]}/{agent_config["algorithm"]}'
                 if 'video_path' in env_config:
                     env_config['video_path'] = (f'{agent_config["root_dir"]}/'
                                                 f'{agent_config["model_name"]}/'

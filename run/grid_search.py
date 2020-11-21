@@ -7,8 +7,7 @@ import numpy as np
 
 class GridSearch:
     def __init__(self, env_config, model_config, agent_config, replay_config, 
-                train_func, n_trials=1, logdir='logs', dir_prefix='', 
-                separate_process=False, delay=1):
+                train_func, n_trials=1, logdir='logs', separate_process=False, delay=1):
         self.env_config = env_config
         self.model_config = model_config
         self.agent_config = agent_config
@@ -16,7 +15,6 @@ class GridSearch:
         self.train_func = train_func
         self.n_trials = n_trials
         self.logdir = logdir
-        self.dir_prefix = dir_prefix
         self.separate_process = separate_process
         self.delay=delay
 
@@ -41,13 +39,10 @@ class GridSearch:
         # ans = input('Do you want to add timestamp to directory name?(y/n)\n')
         # if ans.lower() == 'y':
         #     timestamp = f'{now.month:02d}{now.day:02d}-' \
-        #                 f'{now.hour:02d}{now.minute:02d}-'
-        dir_prefix = self.dir_prefix                                 
+        #                 f'{now.hour:02d}{now.minute:02d}-'                                
         self.agent_config['root_dir'] = (f'{self.logdir}/'
-                                        f'{timestamp}'
-                                        f'{dir_prefix}'
-                                        f'{self.agent_config["algorithm"]}-'
-                                        f'{self.env_config["name"]}')
+                                        f'{self.env_config["name"]}/'
+                                        f'{self.agent_config["algorithm"]}')
 
     def _change_config(self, **kwargs):
         if kwargs == {}:

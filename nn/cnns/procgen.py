@@ -1,8 +1,8 @@
-from tensorflow_probability import distributions as tfd
-
 from core.module import Module
 from nn.registry import cnn_registry, subsample_registry, block_registry, layer_registry
 from nn.utils import *
+from utility.tf_utils import get_stoch_state
+from nn.cnns.block.ds import State
 
 
 @cnn_registry.register('procgen')
@@ -25,7 +25,7 @@ class ProcgenCNN(Module):
                     norm=None,
                     norm_kwargs={},
                     activation='relu',
-                    am_type='se',
+                    am='se',
                     am_kwargs={},
                     dropout_rate=0.,
                     rezero=False,
@@ -33,6 +33,8 @@ class ProcgenCNN(Module):
                  sa='conv_sa',
                  sa_pos=[],
                  sa_kwargs={},
+                 deter_stoch=True,
+                 belief=False,
                  out_activation='relu',
                  out_size=None,
                  name='procgen',
@@ -40,6 +42,8 @@ class ProcgenCNN(Module):
         super().__init__(name=name)
         self._obs_range = obs_range
         self._time_distributed = time_distributed
+        self._deter_stoch = deter_stoch
+        self._belief = belief
 
         # kwargs specifies general kwargs for conv2d
         kwargs['kernel_initializer'] = get_initializer(kernel_initializer)
@@ -53,7 +57,7 @@ class ProcgenCNN(Module):
 
         subsample_cls = subsample_registry.get(subsample)
         subsample_kwargs.update(kwargs.copy())
-        assert block_kwargs.get('out_filters', None) is None, block_kwargs
+        assert block_kwargs.get('filters', None) is None, block_kwargs
 
         sa_cls = block_registry.get(sa)
         sa_kwargs.update(kwargs.copy())
@@ -61,12 +65,11 @@ class ProcgenCNN(Module):
         self._layers = []
         prefix = f'{self.scope_name}/'
         with self.name_scope:
-            for i, (f, n) in enumerate(zip(filters, n_blocks)):
-                subsample_kwargs['out_filters'] = f
-                if 'res' in stem:
-                    stem_kwargs['out_filters'] = f
-                else:
-                    stem_kwargs['filters'] = f
+            f_n = zip(filters[:-1], n_blocks[:-1]) if deter_stoch \
+                else zip(filters, n_blocks)
+            for i, (f, n) in enumerate(f_n):
+                subsample_kwargs['filters'] = f
+                stem_kwargs['filters'] = f
                 self._layers += [
                     stem_cls(name=prefix+stem, **stem_kwargs) if i == 0 else
                     subsample_cls(name=f'{prefix}{subsample}_{i}_f{f}', **subsample_kwargs),
@@ -76,11 +79,25 @@ class ProcgenCNN(Module):
                     self._layers += [
                         sa_cls(name=f'{prefix}{sa}_{i}', **sa_kwargs)
                     ]
-            
-            bs_layer_cls = layer_registry.get('conv2d')
-            self._bs_layer = bs_layer_cls(2 * f, 3, 1, padding='same', **kwargs)
+            f = filters[-1]
+            if deter_stoch:
+                subsample_kwargs['filters'] = f
+                ds_cls = block_registry.get('dsl')
+                self._layers += [
+                    ds_cls(n_blocks=n_blocks[-1],
+                        subsample=subsample, 
+                        subsample_kwargs=subsample_kwargs, 
+                        block=block,
+                        block_kwargs=block_kwargs,
+                        name=f'{prefix}ds')
+                ]
+                self._training_cls.append(ds_cls)
+            if belief:
+                bs_layer_cls = layer_registry.get('conv2d')
+                self._bs_layer = bs_layer_cls(2 * f, 3, 1, padding='same', **kwargs, name=prefix+'belief')
+
             out_act_cls = get_activation(out_activation, return_cls=True)
-            self._layers.append(out_act_cls(name=prefix+out_activation))
+            self._out_act = out_act_cls(name=prefix+out_activation if out_activation else '')
             self._flat = layers.Flatten(name=prefix+'flatten')
 
             self.out_size = out_size
@@ -88,26 +105,39 @@ class ProcgenCNN(Module):
                 self._dense = layers.Dense(self.out_size, activation=self._out_act, name=prefix+'out')
         self._training_cls += [block_cls, subsample_cls, sa_cls]
     
-    def call(self, x, training=False, return_cnn_out=False):
+    @property
+    def deter_stoch(self):
+        return self._deter_stoch
+    
+    @property
+    def belief(self):
+        return self._belief
+
+    def call(self, x, training=False):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
         if self._time_distributed:
             t = x.shape[1]
             x = tf.reshape(x, [-1, *x.shape[2:]])
         x = super().call(x, training=training)
+        if self._deter_stoch:
+            self.state = self._layers[-1].state
+        if self._belief:
+            mean, std, y = self.get_belief_state(x)
+            self.cnn_out = x
+            self.belief_state = State(x, mean, std, y)
+            x = x + y
+        else:
+            x = self._out_act(x)
+            self.cnn_out = x
         if self._time_distributed:
             x = tf.reshape(x, [-1, t, *x.shape[1:]])
         z = self._flat(x)
         if self.out_size:
             z = self._dense(z)
-        if return_cnn_out:
-            return z, x
-        else:
-            return z
+        return z
 
     def get_belief_state(self, x):
         x = self._bs_layer(x)
-        mean, std = tf.split(x, 2, -1)
-        std = tf.nn.softplus(std) + .1
-        stoch = tfd.MultivariateNormalDiag(mean, std).sample()
+        mean, std, stoch = get_stoch_state(x, .1)
 
-        return stoch
+        return mean, std, stoch

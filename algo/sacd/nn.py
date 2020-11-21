@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
@@ -6,6 +7,8 @@ from tensorflow_probability import distributions as tfd
 from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp, cnn
+
+logger = logging.getLogger(__name__)
 
 
 class Encoder(Module):
@@ -25,6 +28,11 @@ class Actor(Module):
         prior = np.ones(action_dim, dtype=np.float32)
         prior /= np.sum(prior)
         self.prior = tf.Variable(prior, trainable=False, name='prior')
+        act_temp = config.pop('act_temp', 1.)
+        if isinstance(act_temp, (list, tuple, np.ndarray)):
+            act_temp = np.expand_dims(act_temp, axis=-1)
+        self.act_inv_temp = 1. / act_temp
+        print(f'{self.name} action temperature: {act_temp}')
         self._layers = mlp(
             **config, 
             out_size=action_dim,
@@ -38,7 +46,7 @@ class Actor(Module):
     def call(self, x, deterministic=False, epsilon=0, return_stats=False):
         x = self._layers(x)
 
-        dist = tfd.Categorical(logits=x)
+        dist = tfd.Categorical(logits=x * self.act_inv_temp)
         action = dist.mode() if deterministic else dist.sample()
         if not isinstance(epsilon, (int, float)) or epsilon > 0:
             prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))

@@ -141,11 +141,10 @@ class SACIQN(Ensemble):
                 'q': q,
             }
         elif return_stats:
-            _, qtv = self.q(x, action=action)
-            qtv = tf.squeeze(qtv)
-            terms['qtv'] = qtv
+            _, _, q = self.q(x, action=action, return_q=True)
+            q = tf.squeeze(q)
+            terms['q'] = q
         action = tf.squeeze(action)
-
         return action, terms
 
 
@@ -170,7 +169,7 @@ def create_components(config, env, **kwargs):
         target_q=Q(q_config, action_dim, name='target_q'),
         temperature=temperature,
     )
-    if config['twin_q']:
+    if config.get('twin_q', False):
         models['q2'] = Q(q_config, action_dim, name='q2')
         models['target_q2'] = Q(q_config, action_dim, name='target_q2')
 

@@ -22,13 +22,15 @@ def agent_config(init_fn):
             models: a dict of models
             kwargs: optional arguments for each specific agent
         """
-        # preprocessing
+
+        """ For the basic configuration, see config.yaml in algo/*/ """
+        _config_attr(self, config)
+
         # name is used for better bookkeeping, 
         # while model_name is used for create save/log files
         # e.g., all workers share the same name, but with differnt model_names
-        self.name = name or f'{config["algorithm"]}-{env.name}'
-        """ For the basic configuration, see config.yaml in algo/*/ """
-        _config_attr(self, config)
+        self.name = name or f'{config["algorithm"]}'
+        self._model_name = self._model_name or 'baseline'
 
         self._dtype = global_policy().compute_dtype
 
@@ -44,7 +46,6 @@ def agent_config(init_fn):
         self._train_step = tf.Variable(0, trainable=False, dtype=tf.int64)
         self.env_step = 0
         self.train_step = 0
-
         if config.get('writer', True):
             self._writer = setup_tensorboard(self._root_dir, self._model_name)
             tf.summary.experimental.set_step(0)

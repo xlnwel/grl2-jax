@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.keras import layers
 
 from core.module import Module
 from nn.registry import am_registry, layer_registry, block_registry, subsample_registry
@@ -11,7 +12,7 @@ class ResidualBase(Module):
                  *,
                  name='resv1', 
                  conv='conv2d',
-                 out_filters=None,
+                 filters=None,      # output filters. "filters" here is to be consistent with subsample kwargs
                  filter_coefs=[],
                  kernel_sizes=[3, 3],
                  strides=1,
@@ -19,32 +20,34 @@ class ResidualBase(Module):
                  norm_kwargs={},
                  activation='relu',
                  act_kwargs={},
-                 am_type='se',
+                 am='se',
                  am_kwargs={},
                  skip=True,
                  dropout_rate=0,
                  rezero=False,
                  subsample_type='maxblurpool',
                  subsample_kwargs={},
+                 out_activation=None,
                  **kwargs):
         super().__init__(name=name)
         self._conv = conv
-        self._out_filters = out_filters
+        self._out_filters = filters
         self._filter_coefs = filter_coefs
         self._kernel_sizes = kernel_sizes
         self._strides = strides
         self._norm = norm
-        self._norm_kwargs = norm_kwargs
+        self._norm_kwargs = norm_kwargs.copy()
         self._activation = activation
-        self._act_kwargs = act_kwargs
-        self._am_type = am_type
-        self._am_kwargs = am_kwargs
+        self._act_kwargs = act_kwargs.copy()
+        self._am = am
+        self._am_kwargs = am_kwargs.copy()
         self._skip = skip
         self._dropout_rate = dropout_rate
         self._use_rezero = rezero
         assert 'conv' not in subsample_type, subsample_type # if conv is involved in subsample, we have to take extra care of "training" when using indirect batch norm, which only complicates code. On the other hand directly calling batch norm is handled implicitly by Module
         self._subsample_type = subsample_type
-        self._subsample_kwargs = subsample_kwargs
+        self._subsample_kwargs = subsample_kwargs.copy()
+        self._out_act = out_activation
         self._kwargs = kwargs
 
     def build(self, input_shape):
@@ -56,7 +59,7 @@ class ResidualBase(Module):
             filters[-1] = self._out_filters
         if isinstance(self._strides, int):
             strides = [1 for _ in self._kernel_sizes]
-            strides[-1] = self._strides
+            strides[0] = self._strides # TODO: strided in the beginning
         else:
             assert isinstance(self._strides, (list, tuple)), self._strides
             strides = self._strides
@@ -82,8 +85,8 @@ class ResidualBase(Module):
             act_cls, 
             kwargs)
 
-        am_cls = am_registry.get(self._am_type)
-        self._layers.append(am_cls(name=prefix+f'{self._am_type}', **am_kwargs))
+        am_cls = am_registry.get(self._am)
+        self._layers.append(am_cls(name=prefix+f'{self._am}', **am_kwargs))
 
         if self._skip:
             if self._strides > 1:
@@ -100,6 +103,8 @@ class ResidualBase(Module):
             if self._use_rezero:
                 self._rezero = tf.Variable(0., trainable=True, dtype=tf.float32, name=prefix+'rezero')
         
+        out_act_cls = get_activation(self._out_act, return_cls=True)
+        self._out_act = out_act_cls(name=prefix+self._out_act if self._out_act else '')
         self._training_cls += [subsample_cls, am_cls]
 
     def call(self, x, training=False):
@@ -111,9 +116,9 @@ class ResidualBase(Module):
                     x = l(x)
             if self._use_rezero:
                 y = self._rezero * y
-            return x + y
+            return self._out_act(x + y)
         else:
-            return y
+            return self._out_act(y)
 
     def _build_residual_branch(self, filters, kernel_size, strides, prefix, subsample_cls, conv_cls, act_cls, kwargs):
         pass

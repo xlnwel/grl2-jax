@@ -62,7 +62,7 @@ class Agent(DQNBase):
         ])
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
-        if isinstance(self.temperature, (TFPiecewiseSchedule)):
+        elif isinstance(self.temperature, (TFPiecewiseSchedule)):
             temp = self.temperature(self._train_step)
         else:
             _, temp = self.temperature(next_x, next_act_probs)
@@ -123,9 +123,11 @@ class Agent(DQNBase):
             priority = self._compute_priority(error / 2.)
             terms['priority'] = priority
             
+        
         # target_q = tf.reduce_mean(returns, axis=-1)
         # target_q = tf.squeeze(target_q)
         terms.update(dict(
+            steps=steps,
             # max_act_probs=tf.reduce_max(act_probs),
             actor_loss=actor_loss,
             q=q,
@@ -141,8 +143,8 @@ class Agent(DQNBase):
             temp=temp,
             # explained_variance=explained_variance(target_q, q),
         ))
-        # for i in range(self.actor.action_dim):
-        #     terms[f'prior_{i}'] = self.actor.prior[i]
+        for i in range(self.actor.action_dim):
+            terms[f'prior_{i}'] = self.actor.prior[i]
 
         return terms
 

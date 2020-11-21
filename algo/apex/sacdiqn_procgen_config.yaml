@@ -13,23 +13,23 @@ model:
     encoder: 
         cnn_name: procgen
         obs_range: [0, 1]
-        filters: [32, 64, 64, 64] # [16, 32, 32, 32]
+        filters: [32, 64, 64, 64]
         n_blocks: [1, 1, 1, 1]
         kernel_initializer: glorot_uniform
-        stem: strided_resv1
-        stem_kwargs: {}
-            # am_type: cbam
-            # am_kwargs:
-            #     kernel_size: 1
-            #     excitation_type: 1l
-            #     sa_on: False
-        subsample: strided_resv1
-        subsample_kwargs:
-            am_type: cbam
-            am_kwargs:
-                kernel_size: 1
-                excitation_type: 1l
-                sa_on: False
+        stem: conv_maxblurpool
+        # stem_kwargs: 
+        #     am: cbam
+        #     am_kwargs:
+        #         kernel_size: 1
+        #         excitation_type: 1l
+        #         sa_on: False
+        subsample: conv_maxblurpool
+        # subsample_kwargs:
+        #     am: cbam
+        #     am_kwargs:
+        #         kernel_size: 1
+        #         excitation_type: 1l
+        #         sa_on: False
         block: resv1
         block_kwargs:
             conv: conv2d
@@ -38,11 +38,11 @@ model:
             norm: null
             norm_kwargs: {}
             activation: relu
-            am_type: cbam
-            am_kwargs: 
-                kernel_size: 3
-                excitation_type: 1l
-                sa_on: False
+            am: cbam
+            # am_kwargs: 
+            #     kernel_size: 3
+            #     excitation_type: 1l
+            #     sa_on: False
             dropout_rate: 0
             rezero: False
         sa: conv_sa
@@ -51,7 +51,9 @@ model:
             key_ratio: 1
             val_ratio: 1
             downsample_ratio: 1
-        out_activation: relu
+        deter_stoch: True
+        belief: False
+        out_activation: null
         out_size: null
     actor:
         units_list: [512]
@@ -71,11 +73,8 @@ model:
         phi_activation: relu
         K: &K 64
     temperature:
-        temp_type: schedule
-        value: 
-            - [4.e+4, .01]
-            - [8.e+4, .001]
-    twin_q: False
+        temp_type: constant
+        value: .01
 
 agent:
     algorithm: &algo apex-sacdiqn
@@ -83,19 +82,24 @@ agent:
     batch_size: &bs 64
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
-    schedule_act_eps: True
-    act_eps: 0
-    eval_act_eps: 0
     target_entropy_coef: .8
         # - [4.e+4, .8]
         # - [7.e+4, .3]
     is_per: False
+
+    seq_act_eps: True
+    schedule_act_temp: False
+    schedule_act_eps: True
+    act_eps: 0
+    eval_act_eps: 0
+    min_temp: 1
+    max_temp: 10
     
     MAX_STEPS: 8e6      # maximum env steps
-    LOG_PERIOD: &log 1000
+    LOG_PERIOD: &log 3000
     N_UPDATES: *log
     SYNC_PERIOD: 400   # TODO: a small sync period increases performance in some cases, but it also slows down the data collection process
-    RECORD_PERIOD: 100
+    RECORD_PERIOD: 1000
     N_EVALUATION: 10
 
     # distributed algo params
@@ -105,6 +109,7 @@ agent:
     n_worker_cpus: 1
     n_worker_gpus: .1
     deterministic_evaluation: False
+    eval_act_temp: .5
     run_mode: nsteps
 
     # IQN params
@@ -145,6 +150,7 @@ replay:
 
     # arguments for general replay
     n_steps: *nsteps
+    max_steps: 5
     gamma: *gamma
     batch_size: *bs
     min_size: 1600

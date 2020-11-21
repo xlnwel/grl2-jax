@@ -163,7 +163,14 @@ def retrace_lambda(reward, q, next_value, next_ratio, discount, lambda_=.95, rat
         
     return returns
 
-def apex_epsilon_greedy(worker_id, env_per_worker, n_envs, epsilon=.4, alpha=8):
+def apex_epsilon_greedy(worker_id, envs_per_worker, n_workers, epsilon=.4, alpha=8, sequential=True):
     # the 𝝐-greedy schedule used in Ape-X and Agent57
-    env_ids = np.arange(n_envs)[worker_id*env_per_worker: (worker_id+1)*env_per_worker]
+    assert worker_id < n_workers, (worker_id, n_workers)
+    n_envs = n_workers * envs_per_worker
+    env_ids = np.arange(n_envs)
+    if sequential:
+        env_ids = env_ids.reshape((n_workers, envs_per_worker))[worker_id]
+    else:
+        env_ids = env_ids.reshape((envs_per_worker, n_workers))[:, worker_id]
+    env_ids = n_envs - env_ids - 1  # reverse the indices
     return epsilon ** (1 + env_ids / (n_envs - 1) * alpha)

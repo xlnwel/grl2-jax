@@ -12,7 +12,7 @@ class CBAM(Module):
                  kernel_size=7,
                  excitation_type='2l',
                  ca_on=True,
-                 sa_on=True,
+                 sa_on=False,
                  out_activation='sigmoid',
                  name='cbam', 
                  **kwargs):

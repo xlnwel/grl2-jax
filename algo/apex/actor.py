@@ -126,7 +126,6 @@ def get_learner_class(BaseAgent):
                 env=env)
 
             super().__init__(
-                name=env.name,
                 config=config, 
                 models=self.model,
                 dataset=dataset,
@@ -235,19 +234,17 @@ class Worker(BaseWorker):
                 TensorSpecs['qtv'] = ((self.K,), tf.float32, 'qtv')
             else:
                 TensorSpecs['q']= ((), tf.float32, 'q')
-            if self._is_iqn:
-                self.compute_priorities = build(
-                    self._compute_iqn_priorities, TensorSpecs)
-            else:
-                self.compute_priorities = build(
-                    self._compute_dqn_priorities, TensorSpecs)
+            
+            self.compute_priorities = build(
+                self._compute_iqn_priorities if self._is_iqn else self._compute_dqn_priorities, TensorSpecs)
+        self._return_stats = self._is_per or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps')
 
     def __call__(self, x, deterministic=False, **kwargs):
         action = self.model.action(
             tf.convert_to_tensor(x), 
             deterministic=deterministic,
             epsilon=tf.convert_to_tensor(self._act_eps, tf.float32),
-            return_stats=self._is_per)
+            return_stats=self._return_stats)
         action = tf.nest.map_structure(lambda x: x.numpy(), action)
         return action
 
@@ -268,10 +265,8 @@ class Worker(BaseWorker):
         if self._is_per:
             data_tensor = {k: tf.convert_to_tensor(v) for k, v in data.items()}
             data['priority'] = self.compute_priorities(**data_tensor).numpy()
-        if self._is_iqn:
-            data.pop('qtv', None)
-        else:
-            data.pop('q', None)
+        data.pop('qtv', None)
+        data.pop('q', None)
         replay.merge.remote(data, data['action'].shape[0])
         buffer.reset()
 
@@ -380,7 +375,7 @@ class Evaluator(BaseEvaluator):
         self.model = model_fn(
                 config=model_config, 
                 env=env)
-
+        
         self._pull_names = get_pull_names(self._algorithm)
         if not hasattr(self, '_deterministic_evaluation'):
             self._deterministic_evaluation = True

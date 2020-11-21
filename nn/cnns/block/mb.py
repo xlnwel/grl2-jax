@@ -19,7 +19,7 @@ class MobileBottleneck(Module):
                  norm_kwargs={},
                  activation='relu',
                  act_kwargs={},
-                 am_type='se',
+                 am='se',
                  am_kwargs={},
                  dropout_rate=.2,   # increase this for large net, see EfficientNet: https://arxiv.org/abs/1905.11946
                  rezero=False,
@@ -31,11 +31,11 @@ class MobileBottleneck(Module):
         self._strides = strides
         self._out_filters = out_filters
         self._norm = norm
-        self._norm_kwargs = norm_kwargs
+        self._norm_kwargs = norm_kwargs.copy()
         self._activation = activation
-        self._act_kwargs = act_kwargs
-        self._am_type = am_type
-        self._am_kwargs = am_kwargs
+        self._act_kwargs = act_kwargs.copy()
+        self._am = am
+        self._am_kwargs = am_kwargs.copy()
         self._dropout_rate = dropout_rate
         self._use_rezero = rezero
         self._kwargs = kwargs
@@ -69,8 +69,8 @@ class MobileBottleneck(Module):
             act_cls(name=prefix+f'/{self._activation}', **self._act_kwargs),
         ]
 
-        am_cls = am_registry.get(self._am_type)
-        self._layers.append(am_cls(name=f'{self.scope_name}/{self._am_type}', **am_kwargs))
+        am_cls = am_registry.get(self._am)
+        self._layers.append(am_cls(name=f'{self.scope_name}/{self._am}', **am_kwargs))
 
         self._layers += [
             layers.Conv2D(out_filters, 1, padding='same', use_bias=False, 
