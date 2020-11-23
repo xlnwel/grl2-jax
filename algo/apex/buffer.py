@@ -37,7 +37,7 @@ def adjust_n_steps(data, seqlen, n_steps, max_steps, gamma):
         else:
             for j in range(1, n_steps):
                 if results['discount'][i]:
-                    results['reward'][i] = results['reward'][i] + gamma**j * data['reward'][i+j]
+                    results['reward'][i] = results['reward'][i] * gamma**j * data['reward'][i+j]
                     results['next_obs'][i] = data['next_obs'][i+j]
                     results['discount'][i] = data['discount'][i+j]
                     results['steps'][i] += 1
@@ -47,9 +47,12 @@ def adjust_n_steps(data, seqlen, n_steps, max_steps, gamma):
 def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
     # we do forward update since updating discount in a backward pass is problematic when max_steps > n_steps
     results = {}
+    logp = 0
     for k, v in data.items():
         if k == 'q':
             q = v
+        elif k == 'logp':
+            logp = logp
         else:
             results[k] = v.copy()[:, :seqlen]
     obs_exp_dims = tuple(range(1, data['obs'].ndim-1))
@@ -58,7 +61,8 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
         if n_steps < max_steps:
             for j in range(1, max_steps):
                 disc = results['discount'][:, i]
-                cum_rew = results['reward'][:, i] + gamma**j * data['reward'][:, i+j] * disc
+                jth_rew = data['reward'][:, i+j] - logp
+                cum_rew = results['reward'][:, i] + gamma**j * jth_rew * disc
                 cur_cond = disc == 1 if j < n_steps else np.logical_and(
                     disc == 1, cum_rew + gamma**(j+1) * q[:, i+j+1] * data['discount'][:, i+j+1] \
                         > results['reward'][:, i] + gamma**j * q[:, i+j] * data['discount'][:, i+j]
@@ -75,9 +79,10 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
         else:
             for j in range(1, n_steps):
                 disc = data['discount'][:, i]
+                jth_rew = data['reward'][:, i+j] - logp
                 cond = disc == 1
                 results['reward'][:, i] = np.where(
-                    cond, results['reward'][:, i] + gamma**j + data['reward'][: i+j] * disc, results['reward'][:, i])
+                    cond, results['reward'][:, i] + gamma**j * jth_rew * disc, results['reward'][:, i])
                 results['next_obs'][:, i] = np.where(
                     np.expand_dims(cond, obs_exp_dims), data['next_obs'][:, i+j], results['next_obs'][:, i])
                 results['discount'][:, i] = np.where(

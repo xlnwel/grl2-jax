@@ -32,7 +32,7 @@ class Actor(Module):
         if isinstance(act_temp, (list, tuple, np.ndarray)):
             act_temp = np.expand_dims(act_temp, axis=-1)
         self.act_inv_temp = 1. / act_temp
-        print(f'{self.name} action temperature: {act_temp}')
+        logger.info(f'{self.name} action temperature: {act_temp}')
         self._layers = mlp(
             **config, 
             out_size=action_dim,
@@ -43,22 +43,26 @@ class Actor(Module):
     def action_dim(self):
         return self._action_dim
 
-    def call(self, x, deterministic=False, epsilon=0, return_stats=False):
+    def call(self, x, deterministic=False, epsilon=0, return_distribution=False):
         x = self._layers(x)
 
-        dist = tfd.Categorical(logits=x * self.act_inv_temp)
-        action = dist.mode() if deterministic else dist.sample()
-        if not isinstance(epsilon, (int, float)) or epsilon > 0:
-            prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))
-            prior_logits = tf.broadcast_to(prior_logits, x.shape)
-            rand_act = tfd.Categorical(prior_logits).sample()
-            action = tf.where(
-                tf.random.uniform(action.shape, 0, 1) < epsilon,
-                rand_act, action)
+        self.logits = logits = x * self.act_inv_temp
+        if deterministic:
+            dist = tfd.Categorical(logits)
+            action = dist.mode()
+        else:
+            if isinstance(epsilon, tf.Tensor) or epsilon:
+                prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))
+                prior_logits = tf.broadcast_to(prior_logits, x.shape)
+                cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
+                cond = tf.reshape(cond, (-1, 1))
+                logits = tf.where(cond, x, prior_logits)
 
-        if return_stats:
-            prob = dist.prob(action)
-            return action, {'prob': prob}
+            dist = tfd.Categorical(logits)
+            action = dist.sample()
+
+        if return_distribution:
+            return action, dist
         else:
             return action
 

@@ -114,7 +114,7 @@ class SACIQN(Ensemble):
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
-        action = self.actor(x, deterministic=deterministic, epsilon=epsilon, return_stats=return_eval_stats)
+        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
         terms = {}
         if return_eval_stats:
             action, terms = action
@@ -142,6 +142,13 @@ class SACIQN(Ensemble):
             }
         elif return_stats:
             _, _, q = self.q(x, action=action, return_q=True)
+            # logp = tfd.Categorical(self.actor.logits).log_prob(action)
+            # if isinstance(self.temperature, (int, float)):
+            #     temp = self.temperature
+            # else:
+            #     temp = self.temperature(x, action)
+            # logp = temp * logp
+            # terms['logp'] = logp
             q = tf.squeeze(q)
             terms['q'] = q
         action = tf.squeeze(action)

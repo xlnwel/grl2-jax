@@ -59,10 +59,16 @@ def create_worker(
     
     if config.get('schedule_act_eps'):
         assert worker_id < n_workers, f'worker ID({worker_id}) exceeds range. Valid range: [0, {config["n_workers"]})'
-        config['act_eps'] = apex_epsilon_greedy(worker_id, n_envs, n_workers, sequential=config.get('seq_act_eps', True))
+        act_eps_type = config.get('act_eps_type', 'apex')
+        if act_eps_type == 'apex':
+            config['act_eps'] = apex_epsilon_greedy(worker_id, n_envs, n_workers, epsilon=config['act_eps'], sequential=config.get('seq_act_eps', True))
+        elif act_eps_type == 'line':
+            config['act_eps'] = np.linspace(0, config['act_eps'], n_workers * n_envs).reshape(n_workers, n_envs)[worker_id]
+        else:
+            raise ValueError(f'Unknown type: {act_eps_type}')
         logger.info(f'worker_{worker_id} action epsilon: {config["act_eps"]}')
     if config.get('schedule_act_temp'):
-        act_temps = np.logspace(np.log10(config.get('min_temp')), np.log10(config.get('max_temp')), n_workers * n_envs).reshape(n_workers, n_envs)
+        act_temps = np.logspace(np.log10(config['min_temp']), np.log10(config['max_temp']), n_workers * n_envs).reshape(n_workers, n_envs)
         model_config['actor']['act_temp'] = act_temps[worker_id]
     n_cpus = config.get('n_worker_cpus', 1)
     n_gpus = config.get('n_worker_gpus', 0)

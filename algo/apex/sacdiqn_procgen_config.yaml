@@ -88,8 +88,9 @@ agent:
     is_per: False
 
     seq_act_eps: True
-    schedule_act_temp: False
+    schedule_act_temp: True
     schedule_act_eps: True
+    act_eps_type: line
     act_eps: 0
     eval_act_eps: 0
     min_temp: 1
@@ -99,8 +100,9 @@ agent:
     LOG_PERIOD: &log 3000
     N_UPDATES: *log
     SYNC_PERIOD: 400   # TODO: a small sync period increases performance in some cases, but it also slows down the data collection process
-    RECORD_PERIOD: 1000
+    RECORD_PERIOD: 100
     N_EVALUATION: 10
+    logger: True
 
     # distributed algo params
     n_learner_cpus: 3
