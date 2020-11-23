@@ -84,7 +84,7 @@ def save_config(root_dir, model_name, config):
 
 """ Functions for setup logging """                
 def setup_logger(root_dir, model_name):
-    log_dir = root_dir and f'{root_dir}/{model_name}/logs'
+    log_dir = root_dir and f'{root_dir}/{model_name}'
     # logger save stats in f'{root_dir}/{model_name}/logs/log.txt'
     logger = Logger(log_dir)
     return logger

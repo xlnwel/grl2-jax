@@ -107,12 +107,19 @@ if __name__ == '__main__':
         environment = list(cmd_args.environment)
         algo_env = list(itertools.product(algorithm, environment))
 
+        logdir = cmd_args.logdir
+        prefix = cmd_args.prefix
+        model_name = cmd_args.model_name
+
         for algo, env in algo_env:
-            config = get_config(algo, env)
+            if '-' in algo:
+                config = get_config(algo.split('-')[-1], env)
+                dist_config = get_config(algo, env)
+                config.update(dist_config)
+            else:
+                config = get_config(algo, env)
             main = pkg.import_main('train', algo)
 
-            logdir = cmd_args.logdir
-            model_name = cmd_args.model_name
             env_config = config['env']
             model_config = config['model']
             agent_config = config['agent']
@@ -127,7 +134,7 @@ if __name__ == '__main__':
             if cmd_args.grid_search or cmd_args.trials > 1:
                 gs = GridSearch(
                     env_config, model_config, agent_config, replay_config, 
-                    main, n_trials=cmd_args.trials, logdir=logdir, 
+                    main, n_trials=cmd_args.trials, logdir=logdir, dir_prefix=prefix,
                     separate_process=len(algo_env) > 1, delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
@@ -145,7 +152,8 @@ if __name__ == '__main__':
                 else:
                     processes += gs()
             else:
-                agent_config['root_dir'] = f'{logdir}/{env_config["name"]}/{agent_config["algorithm"]}'
+                dir_prefix = prefix + '-' if prefix else prefix
+                agent_config['root_dir'] = f'{logdir}/{dir_prefix}{env_config["name"]}/{agent_config["algorithm"]}'
                 if 'video_path' in env_config:
                     env_config['video_path'] = (f'{agent_config["root_dir"]}/'
                                                 f'{agent_config["model_name"]}/'

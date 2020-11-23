@@ -160,7 +160,7 @@ class ConvSelfAttention(Module):
         
         conv_cls = layer_registry.get(self._conv)
         prefix = f'{self.scope_name}/'
-        # TODO: use a single conv
+
         self._q_conv = conv_cls(key_size, 1, **self._kwargs, name=prefix+'q')
         self._k_conv = conv_cls(key_size, 1, **self._kwargs, name=prefix+'k')
         self._v_conv = conv_cls(val_size, 1, **self._kwargs, name=prefix+'v')

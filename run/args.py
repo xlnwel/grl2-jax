@@ -18,6 +18,9 @@ def parse_args():
                         type=int,
                         default=1,
                         help='number of trials')
+    parser.add_argument('--prefix', '-p',
+                        default='',
+                        help='directory prefix')
     parser.add_argument('--model-name', '-mn',
                         default='',
                         help='model name')
