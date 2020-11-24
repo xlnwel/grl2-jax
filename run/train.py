@@ -7,7 +7,7 @@ from copy import deepcopy
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utility.utils import str2bool, eval_str
+from utility.utils import deep_update, str2bool, eval_str
 from utility.yaml_op import load_config
 from utility.display import assert_colorize, pwc
 from utility import pkg
@@ -115,7 +115,7 @@ if __name__ == '__main__':
             if '-' in algo:
                 config = get_config(algo.split('-')[-1], env)
                 dist_config = get_config(algo, env)
-                config.update(dist_config)
+                config = deep_update(config, dist_config)
             else:
                 config = get_config(algo, env)
             main = pkg.import_main('train', algo)

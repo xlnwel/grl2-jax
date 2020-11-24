@@ -1,4 +1,5 @@
 import os, random
+import collections
 import ast
 import os.path as osp
 import math
@@ -10,6 +11,15 @@ import tensorflow as tf
 class AttrDict(dict):
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
+
+def deep_update(source, target):
+    for k, v in target.items():
+        if isinstance(v, collections.abc.Mapping) \
+            and isinstance(source[k], collections.abc.Mapping):
+            source[k] = deep_update(source.get(k, {}), v)
+        else:
+            source[k] = v
+    return source
 
 class Every:
     def __init__(self, period, start=0):

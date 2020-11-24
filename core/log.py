@@ -109,30 +109,25 @@ class Logger:
 
             log_file (string): Name for the tab-separated-value file 
                 containing metrics logged throughout a training run. 
-                Defaults to ``progress.txt``. 
+                Defaults to "log.txt". 
         """
         log_file = log_file if log_file.endswith('log.txt') \
             else log_file + '/log.txt'
         self._log_dir = log_dir
         if self._log_dir:
             path = os.path.join(self._log_dir, log_file)
-            if os.path.exists(path):
-                pwc(f'Warning: Log dir "{self._log_dir}" already exists!', 
-                    f'Overwrite or Append (o/a)?',
+            if os.path.exists(path) and os.stat(path).st_size != 0:
+                i = 1
+                name, suffix = path.split('.')
+                while os.path.exists(name + f'{i}.' + suffix):
+                    i += 1
+                pwc(f'Warning: Log file "{path}" already exists!', 
+                    f'Data will be logged to "{name + f"{i}." + suffix}" instead.',
                     color='magenta')
-                ans = input()
-                if ans.lower() == 'o':
-                    self._out_file = open(path, 'w')
-                    pwc(f'"{self._out_file.name}" will be OVERWRITTEN', 
-                        color='magenta')
-                else:
-                    self._out_file = open(path, 'a')
-                    pwc(f'New data will be appended to "{self._out_file.name}"', 
-                        color='magenta')
-            else:
-                if not os.path.isdir(self._log_dir):
-                    os.makedirs(self._log_dir)
-                self._out_file = open(path, 'w')
+                path = name + f"{i}." + suffix
+            if not os.path.isdir(self._log_dir):
+                os.makedirs(self._log_dir)
+            self._out_file = open(path, 'w')
             atexit.register(self._out_file.close)
             pwc(f'Logging data to "{self._out_file.name}"', color='green')
         else:

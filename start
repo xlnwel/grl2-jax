@@ -1,7 +1,19 @@
 #!/bin/zsh
 
 
-envs=("starpilot" "jumper" "fruitbot" "heist" "bossfight")
+envs=(
+    "plunder" 
+    "caveflyer" 
+    "climber" 
+    "dodgeball" 
+    "leaper"
+    "starpilot" 
+    "jumper" 
+    "fruitbot" 
+    "heist" 
+    "bossfight"
+)
+
 for e in "${envs[@]}"; do
     train apex-sacdiqn -e "procgen_${e}" $@
 done

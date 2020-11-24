@@ -52,7 +52,7 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
         if k == 'q':
             q = v
         elif k == 'logp':
-            logp = logp
+            logp = v
         else:
             results[k] = v.copy()[:, :seqlen]
     obs_exp_dims = tuple(range(1, data['obs'].ndim-1))
@@ -61,7 +61,7 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
         if n_steps < max_steps:
             for j in range(1, max_steps):
                 disc = results['discount'][:, i]
-                jth_rew = data['reward'][:, i+j] - logp
+                jth_rew = data['reward'][:, i+j] - logp[:, i+j]
                 cum_rew = results['reward'][:, i] + gamma**j * jth_rew * disc
                 cur_cond = disc == 1 if j < n_steps else np.logical_and(
                     disc == 1, cum_rew + gamma**(j+1) * q[:, i+j+1] * data['discount'][:, i+j+1] \
@@ -79,7 +79,7 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
         else:
             for j in range(1, n_steps):
                 disc = data['discount'][:, i]
-                jth_rew = data['reward'][:, i+j] - logp
+                jth_rew = data['reward'][:, i+j] - logp[:, i+j]
                 cond = disc == 1
                 results['reward'][:, i] = np.where(
                     cond, results['reward'][:, i] + gamma**j * jth_rew * disc, results['reward'][:, i])
