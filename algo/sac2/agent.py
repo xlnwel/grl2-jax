@@ -27,9 +27,7 @@ class Agent(BaseAgent):
         self._value_opt = Optimizer(self._optimizer, self.value, self._q_lr)
         self._q_opt = Optimizer(self._optimizer, [self.q, self.q2], self._q_lr)
 
-        if isinstance(self.temperature, float):
-            self.temperature = tf.Variable(self.temperature, trainable=False)
-        else:
+        if self.temperature.trainable:
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
 
         self._action_dim = env.action_dim
@@ -96,15 +94,13 @@ class Agent(BaseAgent):
             actor_loss = tf.reduce_mean(IS_ratio * 
                 (temp * new_logpi - q_with_actor))
         
-        with tf.GradientTape() as temp_tape:
-            if isinstance(self.temperature, (float, tf.Variable)):
-                temp = self.temperature
-            else:
+        if self.temperature.trainable:
+            with tf.GradientTape() as temp_tape:
                 log_temp, temp = self.temperature(obs, new_action)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
                     * tf.stop_gradient(new_logpi + self._target_entropy))
                 terms['temp_loss'] = temp_loss
-            terms['temp'] = temp
+                terms['temp'] = temp
 
         with tf.GradientTape() as value_tape:
             value = self.value(obs).mode()
@@ -144,7 +140,6 @@ class Agent(BaseAgent):
             target_q=target_q,
             q_loss=q_loss, 
             q2_loss=q2_loss,
-            q_loss=q_loss, 
         ))
 
         return terms

@@ -8,6 +8,7 @@ from core.decorator import config
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import Categorical, TanhBijector, SampleDist
 from nn.func import mlp
+from algo.sac.nn import Temperature
 
 
 class Actor(Module):
@@ -78,29 +79,6 @@ class Q(Module):
         return tfd.Independent(tfd.Normal(x, 1), rbd)
 
 
-class Temperature(Module):
-    @config
-    def __init__(self, name='temperature'):
-        super().__init__(name=name)
-
-        if self._temp_type == 'state-action':
-            self._layer = layers.Dense(1)
-        elif self._temp_type == 'variable':
-            self._log_temp = tf.Variable(np.log(self._value), dtype=tf.float32)
-        else:
-            raise NotImplementedError(f'Error temp type: {self._temp_type}')
-    
-    def __call__(self, x=None, a=None):
-        if self._temp_type == 'state-action':
-            x = tf.concat([x, a], axis=-1)
-            x = self._layer(x)
-            log_temp = -tf.nn.softplus(x)
-            log_temp = tf.squeeze(log_temp)
-        else:
-            log_temp = self._log_temp
-        temp = tf.exp(log_temp)
-    
-        return log_temp, temp
 
 
 class SAC(Ensemble):
@@ -140,10 +118,6 @@ def create_components(config, env):
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
-    if temperature_config['temp_type'] == 'constant':
-        temperature = temperature_config['value']
-    else:
-        temperature = Temperature(temperature_config)
         
     return dict(
         actor=Actor(actor_config, action_dim, is_action_discrete),
@@ -151,7 +125,7 @@ def create_components(config, env):
         q2=Q(q_config, 'q2'),
         value=Q(q_config, 'v'),
         target_value=Q(q_config, 'target_v'),
-        temperature=temperature,
+        temperature=Temperature(temperature_config),
     )
 
 def create_model(config, env, **kwargs):

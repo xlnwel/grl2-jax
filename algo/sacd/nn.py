@@ -7,6 +7,7 @@ from tensorflow_probability import distributions as tfd
 from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp, cnn
+from algo.sac.nn import Temperature
 
 logger = logging.getLogger(__name__)
 
@@ -99,34 +100,6 @@ class Q(Module):
         return q
 
 
-class Temperature(Module):
-    @config
-    def __init__(self, name='temperature'):
-        super().__init__(name=name)
-
-        if self._temp_type == 'state-action':
-            from nn.utils import get_initializer
-            kernel_initializer = get_initializer('orthogonal', gain=.01)
-            self._layer = layers.Dense(1, kernel_initializer=kernel_initializer)
-        elif self._temp_type == 'variable':
-            self._log_temp = tf.Variable(
-                np.log(self._value), dtype=tf.float32, name='log_temp')
-        else:
-            raise NotImplementedError(f'Error temp type: {self._temp_type}')
-    
-    def call(self, x=None, a=None):
-        if self._temp_type == 'state-action':
-            x = tf.concat([x, a], axis=-1)
-            x = self._layer(x)
-            log_temp = -tf.nn.softplus(x)
-            log_temp = tf.squeeze(log_temp)
-        else:
-            log_temp = self._log_temp
-        temp = tf.exp(log_temp)
-    
-        return log_temp, temp
-
-
 class SAC(Ensemble):
     def __init__(self, config, env, **kwargs):
         super().__init__(
@@ -166,10 +139,6 @@ def create_components(config, env):
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
-    if temperature_config['temp_type'] == 'constant':
-        temperature = temperature_config['value']
-    else:
-        temperature = Temperature(temperature_config)
         
     models = dict(
         encoder=Encoder(config['encoder'], name='encoder'),
@@ -177,7 +146,7 @@ def create_components(config, env):
         actor=Actor(actor_config, action_dim),
         q=Q(q_config, action_dim, name='q'),
         target_q=Q(q_config, action_dim, name='target_q'),
-        temperature=temperature,
+        temperature=Temperature(temperature_config),
     )
     if config['twin_q']:
         models['q2'] = Q(q_config, action_dim, name='q2')

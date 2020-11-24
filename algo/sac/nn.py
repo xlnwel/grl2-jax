@@ -7,7 +7,9 @@ from core.module import Module, Ensemble
 from core.decorator import config
 from utility.rl_utils import logpi_correction
 from utility.tf_distributions import Categorical
+from utility.schedule import TFPiecewiseSchedule
 from nn.func import mlp
+from nn.utils import get_initializer
 
 
 class Actor(Module):
@@ -87,21 +89,43 @@ class Temperature(Module):
         super().__init__(name=name)
 
         if self._temp_type == 'state-action':
+            kernel_initializer = get_initializer('orthogonal', gain=.01)
             self._layer = layers.Dense(1, name=name)
         elif self._temp_type == 'variable':
             self._log_temp = tf.Variable(np.log(self._value), dtype=tf.float32, name=name)
+        elif self._temp_type == 'constant':
+            self._temp = tf.Variable(self._value, trainable=False)
+        elif self._temp_type == 'schedule':
+            self._temp = TFPiecewiseSchedule(self._value)
         else:
             raise NotImplementedError(f'Error temp type: {self._temp_type}')
     
+    @property
+    def type(self):
+        return self._temp_type
+
+    @property
+    def trainable(self):
+        return self.type in ('state-action', 'variable')
+
     def call(self, x=None, a=None):
         if self._temp_type == 'state-action':
             x = tf.concat([x, a], axis=-1)
             x = self._layer(x)
             log_temp = -tf.nn.softplus(x)
             log_temp = tf.squeeze(log_temp)
-        else:
+            temp = tf.exp(log_temp)
+        elif self._temp_type == 'variable':
             log_temp = self._log_temp
-        temp = tf.exp(log_temp)
+            temp = tf.exp(log_temp)
+        elif self._temp_type == 'constant':
+            temp = self._temp
+            log_temp = tf.math.log(temp)
+        elif self._temp_type == 'schedule':
+            assert isinstance(x, int) or (
+                isinstance(x, tf.Tensor) and x.shape == ())
+            temp = self._temp(x)
+            log_temp = tf.math.log(temp)
     
         return log_temp, temp
 
@@ -147,7 +171,7 @@ def create_components(config, env):
     q2 = Q(q_config, 'q2')
     target_q = Q(q_config, 'target_q')
     target_q2 = Q(q_config, 'target_q2')
-    if temperature_config['temp_type'] == 'constant':
+    if temperature_config['_temp_type'] == 'constant':
         temperature = temperature_config['value']
     else:
         temperature = Temperature(temperature_config)

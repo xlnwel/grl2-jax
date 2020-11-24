@@ -21,9 +21,7 @@ class Agent(DQNBase):
             q_models.append(self.q2)
         self._q_opt = Optimizer(self._optimizer, q_models, self._q_lr)
 
-        if isinstance(self.temperature, float):
-            self.temperature = tf.Variable(self.temperature, trainable=False)
-        else:
+        if self.temperature.trainable:
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
 
     @tf.function
@@ -53,8 +51,6 @@ class Agent(DQNBase):
             temp = self.temperature
         else:
             _, temp = self.temperature()
-        terms['next_qs'] = tf.reduce_sum(next_act_probs * next_qs, axis=-1)
-        terms['entropy_next'] = tf.reduce_sum(next_act_probs * temp * next_act_logps, axis=-1)
         next_value = tf.reduce_sum(next_act_probs 
             * (next_qs - temp * next_act_logps), axis=-1)
         target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
@@ -68,9 +64,11 @@ class Agent(DQNBase):
         ])
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
-            qs, q_error, q_loss = self._compute_q_loss(self.q, x, action, target_q, IS_ratio)
+            qs, q_error, q_loss = self._compute_q_loss(
+                self.q, x, action, target_q, IS_ratio)
             if self._twin_q:
-                qs2, q_error2, q_loss2 = self._compute_q_loss(self.q2, x, action, target_q, IS_ratio)
+                qs2, q_error2, q_loss2 = self._compute_q_loss(
+                    self.q2, x, action, target_q, IS_ratio)
                 qs = (qs + qs2) / 2.
                 q_error = (q_error + q_error2) / 2.
                 q_loss = (q_loss + q_loss2) / 2.
@@ -85,7 +83,7 @@ class Agent(DQNBase):
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
-        if not isinstance(self.temperature, (float, tf.Variable)):
+        if self.temperature.trainable:
             with tf.GradientTape() as tape:
                 log_temp, temp = self.temperature()
                 temp_loss = -log_temp * (self._target_entropy - entropy)

@@ -21,11 +21,7 @@ class Agent(DQNBase):
             q_models.append(self.q2)
         self._q_opt = Optimizer(self._optimizer, q_models, self._q_lr)
 
-        if isinstance(self.temperature, float):
-            self.temperature = tf.Variable(self.temperature, trainable=False)
-        elif isinstance(self.temperature, (list, tuple)):
-            self.temperature = TFPiecewiseSchedule(self.temperature)
-        else:
+        if self.temperature.trainable:
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
         if isinstance(self._target_entropy_coef, (list, tuple)):
             self._target_entropy_coef = TFPiecewiseSchedule(self._target_entropy_coef)
@@ -60,12 +56,12 @@ class Agent(DQNBase):
             [next_act_logps_ext, (None, 1, self._action_dim)],
             [next_qtv, (None, self.N_PRIME, self._action_dim)],
         ])
-        if isinstance(self.temperature, (tf.Variable)):
-            temp = self.temperature
-        elif isinstance(self.temperature, (TFPiecewiseSchedule)):
-            temp = self.temperature(self._train_step)
-        else:
+        if self.temperature.type == 'schedule':
+            _, temp = self.temperature(self._train_step)
+        elif self.temperature.type == 'state-action':
             _, temp = self.temperature(next_x, next_act_probs)
+        else:
+            _, temp = self.temperature()
         reward = reward[:, None]
         discount = discount[:, None]
         if not isinstance(steps, int):
@@ -105,7 +101,7 @@ class Agent(DQNBase):
 
         act_probs = tf.reduce_mean(act_probs, 0)
         self.actor.update_prior(act_probs, self._prior_lr)
-        if not isinstance(self.temperature, (TFPiecewiseSchedule, tf.Variable)):
+        if self.temperature.trainable:
             with tf.GradientTape() as tape:
                 log_temp, temp = self.temperature(x, action)
                 entropy_diff = target_entropy - entropy
@@ -128,6 +124,7 @@ class Agent(DQNBase):
         # target_q = tf.squeeze(target_q)
         terms.update(dict(
             steps=steps,
+            reward_min=tf.reduce_min(reward),
             # max_act_probs=tf.reduce_max(act_probs),
             actor_loss=actor_loss,
             q=q,

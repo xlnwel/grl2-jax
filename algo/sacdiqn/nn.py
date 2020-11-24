@@ -101,6 +101,7 @@ class Q(Module):
 class SACIQN(Ensemble):
     def __init__(self, config, *, model_fn=None, env, **kwargs):
         model_fn = model_fn or create_components
+        self.reward_entropy = config.pop('reward_entropy', False)
         super().__init__(
             model_fn=model_fn, 
             config=config,
@@ -142,13 +143,16 @@ class SACIQN(Ensemble):
             }
         elif return_stats:
             _, _, q = self.q(x, action=action, return_q=True)
-            # logp = tfd.Categorical(self.actor.logits).log_prob(action)
-            # if isinstance(self.temperature, (int, float)):
-            #     temp = self.temperature
-            # else:
-            #     temp = self.temperature(x, action)
-            # logp = temp * logp
-            # terms['logp'] = logp
+            if self.reward_entropy:
+                logp = tfd.Categorical(self.actor.logits).log_prob(action)
+                if self.temperature.type == 'schedule':
+                    _, temp = self.temperature(self._train_step)
+                elif self.temperature.type == 'state-action':
+                    _, temp = self.temperature(x, action)
+                else:
+                    _, temp = self.temperature()
+                logp = temp * logp
+                terms['logp'] = logp
             q = tf.squeeze(q)
             terms['q'] = q
         action = tf.squeeze(action)
@@ -162,10 +166,6 @@ def create_components(config, env, **kwargs):
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
-    if temperature_config['temp_type'] in ('constant', 'schedule'):
-        temperature = temperature_config['value']
-    else:
-        temperature = Temperature(temperature_config)
         
     models = dict(
         encoder=Encoder(encoder_config, name='encoder'),
@@ -174,7 +174,7 @@ def create_components(config, env, **kwargs):
         target_actor=Actor(actor_config, action_dim),
         q=Q(q_config, action_dim, name='q'),
         target_q=Q(q_config, action_dim, name='target_q'),
-        temperature=temperature,
+        temperature=Temperature(temperature_config),
     )
     if config.get('twin_q', False):
         models['q2'] = Q(q_config, action_dim, name='q2')

@@ -9,19 +9,23 @@ model:
     encoder: 
         cnn_name: procgen
         obs_range: [0, 1]
-        filters: [16, 32, 32, 32]
+        filters: [32, 64, 64, 64]
+        n_blocks: [1, 1, 1, 1]
         kernel_initializer: glorot_uniform
         stem: conv_maxblurpool
-        stem_kwargs:
-            norm: null
-        subsample: strided_resv1
-        subsample_kwargs:
-            am_type: cbam
-            am_kwargs: 
-                ratio: 1
-                kernel_size: 1
-                sa_on: False
-                out_activation: sigmoid
+        # stem_kwargs: 
+        #     am: cbam
+        #     am_kwargs:
+        #         kernel_size: 1
+        #         excitation_type: 1l
+        #         sa_on: False
+        subsample: conv_maxblurpool
+        # subsample_kwargs:
+        #     am: cbam
+        #     am_kwargs:
+        #         kernel_size: 1
+        #         excitation_type: 1l
+        #         sa_on: False
         block: resv1
         block_kwargs:
             conv: conv2d
@@ -30,20 +34,22 @@ model:
             norm: null
             norm_kwargs: {}
             activation: relu
-            am_type: cbam
-            am_kwargs: 
-                ratio: 1
-                kernel_size: 1
-                sa_on: False
-                out_activation: sigmoid
+            am: cbam
+            # am_kwargs: 
+            #     kernel_size: 3
+            #     excitation_type: 1l
+            #     sa_on: False
             dropout_rate: 0
             rezero: False
         sa: conv_sa
+        sa_pos: []
         sa_kwargs:
             key_ratio: 1
             val_ratio: 1
             downsample_ratio: 1
-        out_activation: relu
+        deter_stoch: True
+        belief: False
+        out_activation: null
         out_size: null
     actor:
         units_list: [512]
@@ -66,6 +72,7 @@ model:
         temp_type: 'variable'
         value: .1
     twin_q: False
+    reward_entropy: False
         
 agent:
     algorithm: &algo sacdiqn

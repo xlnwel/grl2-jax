@@ -26,9 +26,7 @@ class Agent(BaseAgent):
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
         self._q_opt = Optimizer(self._optimizer, [self.q, self.q2], self._q_lr)
 
-        if isinstance(self.temperature, float):
-            self.temperature = tf.Variable(self.temperature, trainable=False)
-        else:
+        if self.temperature.trainable:
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
 
         self._action_dim = env.action_dim
@@ -84,8 +82,10 @@ class Agent(BaseAgent):
         next_q_with_actor = self.target_q(next_obs, next_action)
         next_q2_with_actor = self.target_q2(next_obs, next_action)
         next_q_with_actor = tf.minimum(next_q_with_actor, next_q2_with_actor)
-        if isinstance(self.temperature, (tf.Variable)):
-            temp = self.temperature
+        if self.temperature.type == 'schedule':
+            _, temp = self.temperature(self._train_step)
+        elif self.temperature.type == 'state-action':
+            _, temp = self.temperature(next_obs, next_action)
         else:
             _, temp = self.temperature()
         next_value = next_q_with_actor - temp * next_logpi
@@ -112,7 +112,7 @@ class Agent(BaseAgent):
                 (temp * logpi - q_with_actor))
         self._actor_opt(actor_tape, actor_loss)
 
-        if not isinstance(self.temperature, tf.Variable):
+        if self.temperature.trainable:
             with tf.GradientTape() as temp_tape:
                 log_temp, temp = self.temperature(obs, action)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
