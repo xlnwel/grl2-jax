@@ -91,9 +91,10 @@ class DQNBase(BaseAgent):
                 self.summary(data, terms)
 
             terms = {k: v.numpy() for k, v in terms.items()}
-
             if self._is_per:
                 self.dataset.update_priorities(terms['priority'], idxes)
+
+            terms = {f'learn/{k}': v for k, v in terms.items()}
             self.store(**terms)
         return self.N_UPDATES
 

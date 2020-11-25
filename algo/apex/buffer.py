@@ -14,8 +14,8 @@ def create_local_buffer(config):
 def adjust_n_steps(data, seqlen, n_steps, max_steps, gamma):
     results = {}
     for k, v in data.items():
-        if k == 'q':
-            q = v
+        if k == 'q' or k == 'v':
+            vs = v
         else:
             results[k] = v.copy()[:seqlen]
     for i in range(seqlen):
@@ -23,10 +23,10 @@ def adjust_n_steps(data, seqlen, n_steps, max_steps, gamma):
             for j in range(1, max_steps):
                 if results['discount'][i] == 1:
                     cum_rew = results['reward'][i] + gamma**j * data['reward'][i+j]
-                    if j >= n_steps and cum_rew + gamma**(j+1) * q[i+j+1] * data['discount'][i+j+1] \
-                        <= results['reward'][i] + gamma**j * q[i+j] * data['discount'][i+j]:
-                        print('break', i, j, cum_rew + gamma**(j+1) * q[i+j+1] * data['discount'][i+j+1], \
-                            results['reward'][i] + gamma**j * q[i+j] * data['discount'][i+j])
+                    if j >= n_steps and cum_rew + gamma**(j+1) * vs[i+j+1] * data['discount'][i+j+1] \
+                        <= results['reward'][i] + gamma**j * vs[i+j] * data['discount'][i+j]:
+                        print('break', i, j, cum_rew + gamma**(j+1) * vs[i+j+1] * data['discount'][i+j+1], \
+                            results['reward'][i] + gamma**j * vs[i+j] * data['discount'][i+j])
                         break
                     results['reward'][i] = cum_rew
                     results['next_obs'][i] = data['next_obs'][i+j]
@@ -47,10 +47,10 @@ def adjust_n_steps(data, seqlen, n_steps, max_steps, gamma):
 def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
     # we do forward update since updating discount in a backward pass is problematic when max_steps > n_steps
     results = {}
-    logp = 0
+    logp = np.zeros_like(data['reward'])
     for k, v in data.items():
-        if k == 'q':
-            q = v
+        if k == 'q' or k == 'v':
+            vs = v
         elif k == 'logp':
             logp = v
         else:
@@ -64,8 +64,8 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
                 jth_rew = data['reward'][:, i+j] - logp[:, i+j]
                 cum_rew = results['reward'][:, i] + gamma**j * jth_rew * disc
                 cur_cond = disc == 1 if j < n_steps else np.logical_and(
-                    disc == 1, cum_rew + gamma**(j+1) * q[:, i+j+1] * data['discount'][:, i+j+1] \
-                        > results['reward'][:, i] + gamma**j * q[:, i+j] * data['discount'][:, i+j]
+                    disc == 1, cum_rew + gamma**(j+1) * vs[:, i+j+1] * data['discount'][:, i+j+1] \
+                        > results['reward'][:, i] + gamma**j * vs[:, i+j] * data['discount'][:, i+j]
                 )
                 cond = np.logical_and(cond, cur_cond)
                 results['reward'][:, i] = np.where(

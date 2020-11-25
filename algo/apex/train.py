@@ -26,8 +26,6 @@ default_agent_config = {
 }
 
 def main(env_config, model_config, agent_config, replay_config):
-    for k, v in env_config.items():
-        print(k, v)
     ray.init(num_cpus=12, num_gpus=1)
     sigint_shutdown_ray()
     default_agent_config.update(agent_config)

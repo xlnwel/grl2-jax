@@ -9,73 +9,6 @@ env:
     reward_scale: 2
     reward_clip: 10
 
-model:
-    encoder: 
-        cnn_name: procgen
-        obs_range: [0, 1]
-        filters: [32, 64, 64, 64]
-        n_blocks: [1, 1, 1, 1]
-        kernel_initializer: glorot_uniform
-        stem: conv_maxblurpool
-        # stem_kwargs: 
-        #     am: cbam
-        #     am_kwargs:
-        #         kernel_size: 1
-        #         excitation_type: 1l
-        #         sa_on: False
-        subsample: conv_maxblurpool
-        # subsample_kwargs:
-        #     am: cbam
-        #     am_kwargs:
-        #         kernel_size: 1
-        #         excitation_type: 1l
-        #         sa_on: False
-        block: resv1
-        block_kwargs:
-            conv: conv2d
-            filter_coefs: []
-            kernel_sizes: [3, 3]
-            norm: null
-            norm_kwargs: {}
-            activation: relu
-            am: cbam
-            # am_kwargs: 
-            #     kernel_size: 3
-            #     excitation_type: 1l
-            #     sa_on: False
-            dropout_rate: 0
-            rezero: False
-        sa: conv_sa
-        sa_pos: []
-        sa_kwargs:
-            key_ratio: 1
-            val_ratio: 1
-            downsample_ratio: 1
-        deter_stoch: True
-        belief: False
-        out_activation: null
-        out_size: null
-    actor:
-        units_list: [512]
-        layer_type: dense
-        norm: null
-        kernel_initializer: glorot_uniform
-        activation: relu
-    q:
-        units_list: [512]
-        layer_type: dense
-        norm: null
-        kernel_initializer: glorot_uniform
-        activation: relu
-        duel: False
-
-        tau_embed_size: 64
-        phi_activation: relu
-        K: &K 64
-    temperature:
-        temp_type: constant
-        value: .01
-
 agent:
     algorithm: &algo apex-sacdiqn
     replay_type: &replay per
@@ -113,12 +46,6 @@ agent:
     deterministic_evaluation: False
     eval_act_temp: .5
     run_mode: nsteps
-
-    # IQN params
-    N: 64                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
-    K: *K               # K in paper, num of quantiles for action selection
-    KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
