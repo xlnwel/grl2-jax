@@ -5,6 +5,7 @@ import ray
 
 from utility.rl_utils import apex_epsilon_greedy
 from utility import pkg
+from algo.apex.monitor import Monitor
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,14 @@ def _compute_act_temp(config, model_config, worker_id, n_workers, envs_per_worke
         model_config['actor']['act_temp'] = act_temps[worker_id]
     return model_config
 
+def create_monitor(config):
+    config = config.copy()
+    print(config)
+    RayMonitor = ray.remote(Monitor)
+    monitor = RayMonitor.remote(config=config)
+
+    return monitor
+
 def create_learner(Learner, model_fn, replay, config, model_config, env_config, replay_config):
     config = config.copy()
     model_config = model_config.copy()
@@ -53,6 +62,8 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
     
     env_config['n_workers'] = env_config['n_envs'] = 1
     n_cpus = config.setdefault('n_learner_cpus', 3)
+    config['writer'] = False
+    config['logger'] = False
 
     if tf.config.list_physical_devices('GPU'):
         n_gpus = config.setdefault('n_learner_gpus', 1)

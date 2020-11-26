@@ -2,6 +2,7 @@
 
 
 algos=(
+    "apex-sacdiqn"
     "apex-sacdiqn2"
     "apex-sacdiqn3"
 )
@@ -20,13 +21,15 @@ envs=(
 )
 
 for e in "${envs[@]}"; do
-    a="apex-sacdiqn"
-    dir="logs/procgen_${e}/${a}"
-    py_script="train ${a} -e procgen_${e} $@ >& ${dir}-outputs"
-    echo $py_script
-    eval $py_script
-    last_dir="ls -t ${dir} | head -n1"
-    mv_script="mv ${dir}-outputs ${last_dir}/outputs"
-    echo $mv_script
-    eval $mv_script
+    for a in "${algos[@]}"; do
+        dir="logs/procgen_${e}/${a}"
+        mkdir -p $dir
+        py_script="train ${a} -e procgen_${e} $@ >& ${dir}/outputs"
+        echo $py_script
+        eval $py_script
+        last_dir=$(ls -td ${dir} | head -n 1)
+        mv_script="mv ${dir}/outputs ${last_dir}/outputs"
+        echo $mv_script
+        eval $mv_script
+    done
 done

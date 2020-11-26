@@ -10,7 +10,7 @@ from replay.func import create_replay_center
 
 default_agent_config = {    
     'MAX_STEPS': 1e8,
-    'LOG_PERIOD': 1000,
+    'LOG_PERIOD': 60,
     'N_UPDATES': 1000,
     'SYNC_PERIOD': 1000,
     'RECORD_PERIOD': 100,
@@ -37,7 +37,8 @@ def main(env_config, model_config, agent_config, replay_config):
     am = pkg.import_module('actor', config=agent_config)
     fm = pkg.import_module('func', config=agent_config)
 
-    name = agent_config['algorithm']
+    monitor = fm.create_monitor(config=agent_config)
+
     Learner = am.get_learner_class(Agent)
     learner = fm.create_learner(
         Learner=Learner, 
@@ -47,7 +48,7 @@ def main(env_config, model_config, agent_config, replay_config):
         model_config=model_config, 
         env_config=env_config,
         replay_config=replay_config)
-   
+
     Worker = am.get_worker_class()
     workers = []
     pids = []
@@ -60,7 +61,7 @@ def main(env_config, model_config, agent_config, replay_config):
             model_config=model_config, 
             env_config=env_config, 
             buffer_config=replay_config)
-        pids.append(worker.run.remote(learner, replay))
+        pids.append(worker.run.remote(learner, replay, monitor))
         workers.append(worker)
 
     Evaluator = am.get_evaluator_class()
@@ -70,12 +71,13 @@ def main(env_config, model_config, agent_config, replay_config):
         config=agent_config,
         model_config=model_config,
         env_config=env_config)
-    evaluator.run.remote(learner)
+    evaluator.run.remote(learner, monitor)
 
     learner.start_learning.remote()
 
-    while ray.get(learner.is_learning.remote()):
-        time.sleep(60)
+    while not ray.get(monitor.is_over.remote()):
+        time.sleep(agent_config['LOG_PERIOD'])
+        monitor.record_stats.remote(learner)
 
     ray.get(learner.save.remote())
     

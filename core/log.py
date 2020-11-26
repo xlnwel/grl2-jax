@@ -69,6 +69,9 @@ def get_raw_item(logger, key):
 def get_item(logger, key, mean=True, std=False, min=False, max=False):
     return logger.get_item(key, mean=mean, std=std, min=min, max=max)
 
+def get_raw_stats(logger):
+    return logger.get_raw_stats()
+
 def get_stats(logger, mean=True, std=False, min=False, max=False):
     return logger.get_stats(mean=mean, std=std, min=min, max=max)
 
@@ -181,7 +184,12 @@ class Logger:
             stats[f'{key}_max'] = np.max(v)
         del self._store_dict[key]
         return stats
-        
+
+    def get_raw_stats(self):
+        stats = self._store_dict.copy()
+        self._store_dict.clear()
+        return stats
+
     def get_stats(self, mean=True, std=False, min=False, max=False):
         stats = {} 
         for k, v in self._store_dict.items():

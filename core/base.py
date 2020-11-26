@@ -73,6 +73,9 @@ class BaseAgent(ABC):
     def get_item(self, key, mean=True, std=False, min=False, max=False):
         return get_item(self._logger, key, mean=mean, std=std, min=min, max=max)
 
+    def get_raw_stats(self):
+        return get_raw_stats(self._logger)
+
     def get_stats(self, mean=True, std=False, min=False, max=False):
         return get_stats(self._logger, mean=mean, std=std, min=min, max=max)
 

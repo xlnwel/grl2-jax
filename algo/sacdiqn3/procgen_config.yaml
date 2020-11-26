@@ -13,19 +13,7 @@ model:
         n_blocks: [1, 1, 1, 1]
         kernel_initializer: glorot_uniform
         stem: conv_maxblurpool
-        # stem_kwargs: 
-        #     am: cbam
-        #     am_kwargs:
-        #         kernel_size: 1
-        #         excitation_type: 1l
-        #         sa_on: False
         subsample: conv_maxblurpool
-        # subsample_kwargs:
-        #     am: cbam
-        #     am_kwargs:
-        #         kernel_size: 1
-        #         excitation_type: 1l
-        #         sa_on: False
         block: resv1
         block_kwargs:
             conv: conv2d
@@ -35,10 +23,6 @@ model:
             norm_kwargs: {}
             activation: relu
             am: cbam
-            # am_kwargs: 
-            #     kernel_size: 3
-            #     excitation_type: 1l
-            #     sa_on: False
             dropout_rate: 0
             rezero: False
         sa: conv_sa
@@ -77,12 +61,12 @@ model:
         temp_type: constant
         value: .01
     twin_q: False
-    reward_entropy: False
+    reward_entropy: True
         
 agent:
     algorithm: &algo sacdiqn
     replay_type: &replay uniform
-    gamma: &gamma .995
+    gamma: &gamma .99
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
@@ -121,11 +105,13 @@ agent:
     q_lr: 2.5e-4
     actor_lr: 2.5e-4
     temp_lr: 2.5e-4
+    prior_lr: 1.e-3
     epsilon: 3.125e-4
     
     # arguments for PER
     per_alpha: .5
     per_epsilon: 1e-4
+    use_is_ratio: &is False
 
 replay:
     replay_type: *replay
@@ -135,9 +121,11 @@ replay:
     beta0: .4
     beta_steps: 5e4
     to_update_top_priority: True
+    return_IS_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps
+    max_steps: 5
     gamma: *gamma
     batch_size: *bs
     min_size: 1600

@@ -9,6 +9,9 @@ env:
     reward_scale: 2
     reward_clip: 10
 
+model:
+    reward_entropy: False
+
 agent:
     algorithm: &algo apex-sacdiqn
     replay_type: &replay per
@@ -31,8 +34,8 @@ agent:
     max_temp: 10
     
     MAX_STEPS: 8e6      # maximum env steps
-    LOG_PERIOD: &log 3000
-    N_UPDATES: *log
+    LOG_PERIOD: 60
+    N_UPDATES: 1
     SYNC_PERIOD: 400   # TODO: a small sync period increases performance in some cases, but it also slows down the data collection process
     RECORD_PERIOD: 100
     N_EVALUATION: 10
@@ -41,7 +44,7 @@ agent:
     # distributed algo params
     n_learner_cpus: 3
     n_learner_gpus: .3
-    n_workers: 5
+    n_workers: 6
     n_worker_cpus: 1
     n_worker_gpus: .1
     deterministic_evaluation: False
@@ -59,8 +62,8 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 2.5e-4
     q_lr: 2.5e-4
+    actor_lr: 2.5e-4
     temp_lr: 2.5e-4
     prior_lr: 1.e-3
     epsilon: 3.125e-4
@@ -68,6 +71,7 @@ agent:
     # arguments for PER
     per_alpha: .6
     per_epsilon: 1e-4
+    use_is_ratio: &is False
 
 replay:
     replay_type: *replay
@@ -77,6 +81,7 @@ replay:
     beta0: .4
     beta_steps: 2e6
     to_update_top_priority: True
+    return_IS_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps

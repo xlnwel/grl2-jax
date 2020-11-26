@@ -9,10 +9,9 @@ import ray
 
 from core.tf_config import *
 from core.base import BaseAgent
-from core.decorator import config
+from core.decorator import record, config
 from utility.display import pwc
 from utility.utils import Every
-from utility.graph import video_summary
 from utility.timer import Timer
 from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
@@ -45,9 +44,6 @@ def get_pull_names(algo):
 
 def get_base_learner_class(BaseAgent):
     class BaseLearner(BaseAgent):            
-        def is_learning(self):
-            return self._is_learning
-
         def start_learning(self):
             self._learning_thread = threading.Thread(target=self._learning, daemon=True)
             self._learning_thread.start()
@@ -58,37 +54,14 @@ def get_base_learner_class(BaseAgent):
                 time.sleep(1)
             pwc(f'{self.name} starts learning...', color='blue')
 
-            to_log = Every(self.LOG_PERIOD)
-            while self.env_step < self.MAX_STEPS:
-                start_train_step = self.train_step
-                start_env_step = self.env_step
-                start_time = time.time()
-                self.learn_log(start_env_step)
-                if to_log(self.train_step) and 'eval_score' in self._logger:
-                    duration = time.time() - start_time
-                    self.store(
-                        train_step=self.train_step,
-                        fps=(self.env_step - start_env_step) / duration,
-                        tps=(self.train_step - start_train_step)/duration)
-                    with self._log_locker:
-                        self.log(self.env_step)
-                    self.save(print_terminal_info=False)
+            while True:
+                self.learn_log()
             
-            self._is_learning = False
-
         def get_weights(self, name=None):
             return self.model.get_weights(name=name)
 
-        def record_episode_info(self, worker_id=None, **kwargs):
-            video = kwargs.pop('video', None)
-            if 'epslen' in kwargs:
-                self.env_step += np.sum(kwargs['epslen'])
-            with self._log_locker:
-                if self._schedule_act_eps and worker_id is not None:
-                    kwargs = {f'{k}_{worker_id}': v for k, v in kwargs.items()}
-                self.store(**kwargs)
-            if video is not None:
-                video_summary(f'{self.name}/sim', video, step=self.env_step)
+        def get_stats(self):
+            return self.train_step, super().get_stats()
 
     return BaseLearner
 
@@ -131,9 +104,6 @@ def get_learner_class(BaseAgent):
                 dataset=dataset,
                 env=env,
             )
-
-            self._log_locker = threading.Lock()
-            self._is_learning = True
             
     return Learner
 
@@ -168,11 +138,11 @@ class BaseWorker:
         
         assert self._run_mode in [RunMode.NSTEPS, RunMode.TRAJ]
 
-    def run(self, learner, replay):
+    def run(self, learner, replay, monitor):
         while True:
             weights = self._pull_weights(learner)
             self._run(weights, replay)
-            self._send_episode_info(learner)
+            self._send_episode_info(monitor)
 
     def store(self, score, epslen):
         if isinstance(score, (int, float)):
@@ -327,7 +297,7 @@ def get_worker_class():
 
 
 class BaseEvaluator:
-    def run(self, learner):
+    def run(self, learner, monitor):
         step = 0
         if getattr(self, 'RECORD_PERIOD', False):
             to_record = Every(self.RECORD_PERIOD)
@@ -337,7 +307,7 @@ class BaseEvaluator:
             step += 1
             weights = self._pull_weights(learner)
             self._run(weights, record=to_record(step))
-            self._send_episode_info(learner)
+            self._send_episode_info(monitor)
 
     def _run(self, weights, record):        
         self.model.set_weights(weights)

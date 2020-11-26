@@ -11,6 +11,20 @@ from core.optimizer import Optimizer
 
 logger = logging.getLogger(__name__)
 
+def record(init_fn):
+    def wrapper(self, *, config, name='monitor', **kwargs):
+        self.name = name or f'{config["algorithm"]}'
+        self._root_dir = root_dir = config['root_dir']
+        self._model_name = model_name = config['model_name'] or 'baseline'
+        self._writer = setup_tensorboard(root_dir, model_name)
+        tf.summary.experimental.set_step(0)
+
+        self._logger = setup_logger(root_dir, model_name)
+
+        init_fn(self, config=config, **kwargs)
+
+    return wrapper
+
 def agent_config(init_fn):
     """ Decorator for agent's initialization """
     def wrapper(self, *, name=None, config, models, env, **kwargs):
@@ -75,7 +89,7 @@ def agent_config(init_fn):
         
         # to save stats to files, specify `logger: True` in config.yaml 
         self._logger = setup_logger(
-            config.get('logger', None) and self._root_dir, 
+            config.get('logger', True) and self._root_dir, 
             self._model_name)
     
     return wrapper
@@ -90,7 +104,7 @@ def config(init_fn):
 
 def step_track(learn_log):
     @wraps(learn_log)
-    def wrapper(self, step):
+    def wrapper(self, step=0):
         if step > self.env_step:
             self.env_step = step
             self._env_step.assign(self.env_step)

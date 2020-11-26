@@ -62,7 +62,7 @@ agent:
     # arguments for loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
-    value_coef: .5
+    value_coef: 1.
 
 buffer:
     adv_type: gae     # nae or gae

@@ -104,7 +104,7 @@ class Agent(DQNBase):
                 entropy_diff = target_entropy - entropy
                 temp_loss = -log_temp * entropy_diff
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])
-                temp_loss = tf.reduce_mean(temp_loss)
+                temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
             terms['target_entropy'] = target_entropy
             terms['entropy_diff'] = entropy_diff
             terms['log_temp'] = log_temp
