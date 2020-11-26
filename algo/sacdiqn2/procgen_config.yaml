@@ -47,6 +47,7 @@ model:
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
+    quantile:
         tau_embed_size: 64
         phi_activation: relu
         K: &K 64

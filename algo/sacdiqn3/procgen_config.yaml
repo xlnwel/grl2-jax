@@ -13,7 +13,19 @@ model:
         n_blocks: [1, 1, 1, 1]
         kernel_initializer: glorot_uniform
         stem: conv_maxblurpool
+        # stem_kwargs: 
+        #     am: cbam
+        #     am_kwargs:
+        #         kernel_size: 1
+        #         excitation_type: 1l
+        #         sa_on: False
         subsample: conv_maxblurpool
+        # subsample_kwargs:
+        #     am: cbam
+        #     am_kwargs:
+        #         kernel_size: 1
+        #         excitation_type: 1l
+        #         sa_on: False
         block: resv1
         block_kwargs:
             conv: conv2d
@@ -23,6 +35,10 @@ model:
             norm_kwargs: {}
             activation: relu
             am: cbam
+            # am_kwargs: 
+            #     kernel_size: 3
+            #     excitation_type: 1l
+            #     sa_on: False
             dropout_rate: 0
             rezero: False
         sa: conv_sa
@@ -41,12 +57,19 @@ model:
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
+    v:
+        units_list: [512]
+        layer_type: dense
+        norm: null
+        kernel_initializer: glorot_uniform
+        activation: relu
     q:
         units_list: [512]
         layer_type: dense
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
+    quantile:
         tau_embed_size: 64
         phi_activation: relu
         K: &K 64
@@ -54,7 +77,7 @@ model:
         temp_type: constant
         value: .01
     twin_q: False
-    reward_entropy: True
+    reward_entropy: False
         
 agent:
     algorithm: &algo sacdiqn
@@ -103,7 +126,6 @@ agent:
     # arguments for PER
     per_alpha: .5
     per_epsilon: 1e-4
-    use_is_ratio: &is False
 
 replay:
     replay_type: *replay
@@ -113,7 +135,6 @@ replay:
     beta0: .4
     beta_steps: 5e4
     to_update_top_priority: True
-    return_IS_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps

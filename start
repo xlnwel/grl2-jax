@@ -1,8 +1,12 @@
 #!/bin/zsh
 
 
+algos=(
+    "apex-sacdiqn2"
+    "apex-sacdiqn3"
+)
 envs=(
-    "plunder" 
+    "chaser"
     "caveflyer" 
     "climber" 
     "dodgeball" 
@@ -12,8 +16,17 @@ envs=(
     "fruitbot" 
     "heist" 
     "bossfight"
+    "plunder" 
 )
 
 for e in "${envs[@]}"; do
-    train apex-sacdiqn -e "procgen_${e}" $@
+    a="apex-sacdiqn"
+    dir="logs/procgen_${e}/${a}"
+    py_script="train ${a} -e procgen_${e} $@ >& ${dir}-outputs"
+    echo $py_script
+    eval $py_script
+    last_dir="ls -t ${dir} | head -n1"
+    mv_script="mv ${dir}-outputs ${last_dir}/outputs"
+    echo $mv_script
+    eval $mv_script
 done

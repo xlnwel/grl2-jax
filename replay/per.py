@@ -62,6 +62,12 @@ class PERBase(Replay):
         super()._merge(local_buffer, length)
         
     def _compute_IS_ratios(self, probabilities):
+        """
+        w = (N * p)**(-beta)
+        max(w) = max(N * p)**(-beta) = (N * min(p))**(-beta)
+        norm_w = w / max(w) = (N*p)**(-beta) / (N * min(p))**(-beta)
+               = (min(p) / p)**beta
+        """
         IS_ratios = (np.min(probabilities) / probabilities)**self._beta
 
         return IS_ratios
@@ -72,6 +78,7 @@ class ProportionalPER(PERBase):
     def __init__(self, config):
         super().__init__(config)
         self._data_structure = SumTree(self._capacity)        # mem_idx    -->     priority
+        self._return_IS_ratios = getattr(self, '_return_IS_ratios', True)
 
     """ Implementation """
     @override(PERBase)
@@ -88,9 +95,10 @@ class ProportionalPER(PERBase):
         probabilities = priorities / total_priorities
 
         # compute importance sampling ratios
-        IS_ratios = self._compute_IS_ratios(probabilities)
         samples = self._get_samples(idxes)
-        samples['IS_ratio'] = IS_ratios
         samples['idxes'] = idxes
+        if self._return_IS_ratios:
+            IS_ratios = self._compute_IS_ratios(probabilities)
+            samples['IS_ratio'] = IS_ratios
 
         return samples

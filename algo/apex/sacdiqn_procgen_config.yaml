@@ -22,11 +22,12 @@ agent:
 
     seq_act_eps: True
     schedule_act_temp: True
+    n_exploit_envs: 8
     schedule_act_eps: True
     act_eps_type: line
-    act_eps: 0
+    act_eps: .3
     eval_act_eps: 0
-    min_temp: 1
+    min_temp: .5
     max_temp: 10
     
     MAX_STEPS: 8e6      # maximum env steps
@@ -40,7 +41,7 @@ agent:
     # distributed algo params
     n_learner_cpus: 3
     n_learner_gpus: .3
-    n_workers: 6
+    n_workers: 5
     n_worker_cpus: 1
     n_worker_gpus: .1
     deterministic_evaluation: False

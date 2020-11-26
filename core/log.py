@@ -35,7 +35,9 @@ def scalar_summary(writer, stats, prefix=None, step=None):
         for k, v in stats.items():
             if isinstance(v, str):
                 continue
-            tf.summary.scalar(f'{prefix}/{k}', tf.reduce_mean(v), step=step)
+            if '/' not in k:
+                k = f'{prefix}/{k}'
+            tf.summary.scalar(k, tf.reduce_mean(v), step=step)
 
 def histogram_summary(writer, stats, prefix=None, step=None):
     if step is not None:
@@ -118,7 +120,7 @@ class Logger:
             path = os.path.join(self._log_dir, log_file)
             if os.path.exists(path) and os.stat(path).st_size != 0:
                 i = 1
-                name, suffix = path.split('.')
+                name, suffix = path.rsplit('.', 1)
                 while os.path.exists(name + f'{i}.' + suffix):
                     i += 1
                 pwc(f'Warning: Log file "{path}" already exists!', 

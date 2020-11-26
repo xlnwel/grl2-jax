@@ -20,7 +20,7 @@ class ResidualBase(Module):
                  norm_kwargs={},
                  activation='relu',
                  act_kwargs={},
-                 am='se',
+                 am=None,
                  am_kwargs={},
                  skip=True,
                  dropout_rate=0,

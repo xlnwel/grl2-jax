@@ -36,7 +36,6 @@ class BaseAgent(ABC):
         save_config(self._root_dir, self._model_name, config)
 
     def log(self, step, prefix=None, print_terminal_info=True):
-        prefix = prefix or self.name
         log(self._logger, self._writer, self._model_name, prefix=prefix, 
             step=step, print_terminal_info=print_terminal_info)
 
@@ -47,11 +46,9 @@ class BaseAgent(ABC):
         set_summary_step(step)
 
     def scalar_summary(self, stats, prefix=None, step=None):
-        prefix = prefix or self.name
         scalar_summary(self._writer, stats, prefix=prefix, step=step)
 
     def histogram_summary(self, stats, prefix=None, step=None):
-        prefix = prefix or self.name
         histogram_summary(self._writer, stats, prefix=prefix, step=step)
 
     def graph_summary(self, sum_type, *args, step=None):

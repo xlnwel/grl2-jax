@@ -9,6 +9,42 @@ from utility import pkg
 logger = logging.getLogger(__name__)
 
 
+def _compute_act_eps(config, worker_id, n_workers, envs_per_worker):
+    if config.get('schedule_act_eps'):
+        assert worker_id < n_workers, \
+            f'worker ID({worker_id}) exceeds range. Valid range: [0, {config["n_workers"]})'
+        act_eps_type = config.get('act_eps_type', 'apex')
+        if act_eps_type == 'apex':
+            config['act_eps'] = apex_epsilon_greedy(
+                worker_id, envs_per_worker, n_workers, 
+                epsilon=config['act_eps'], 
+                sequential=config.get('seq_act_eps', True))
+        elif act_eps_type == 'line':
+            config['act_eps'] = np.linspace(
+                0, config['act_eps'], n_workers * envs_per_worker)\
+                    .reshape(n_workers, envs_per_worker)[worker_id]
+        else:
+            raise ValueError(f'Unknown type: {act_eps_type}')
+        logger.info(f'worker_{worker_id} action epsilon: {config["act_eps"]}')
+    return config
+
+def _compute_act_temp(config, model_config, worker_id, n_workers, envs_per_worker):
+    if config.get('schedule_act_temp'):
+        n_exploit_envs = config.get('n_exploit_envs', 0)
+        n_envs = n_workers * envs_per_worker
+        n_exploit_envs = config.get('n_exploit_envs')
+        if n_exploit_envs:
+            act_temps = np.concatenate(
+                [np.linspace(config['min_temp'], 1, n_exploit_envs), 
+                np.logspace(0, np.log10(config['max_temp']), n_envs - n_exploit_envs)],
+                axis=-1).reshape(n_workers, envs_per_worker)
+        else:
+            act_temps = np.logspace(
+                np.log10(config['min_temp']), np.log10(config['max_temp']), 
+                n_workers * envs_per_worker).reshape(n_workers, envs_per_worker)
+        model_config['actor']['act_temp'] = act_temps[worker_id]
+    return model_config
+
 def create_learner(Learner, model_fn, replay, config, model_config, env_config, replay_config):
     config = config.copy()
     model_config = model_config.copy()
@@ -41,8 +77,9 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
 
 
 def create_worker(
-        Worker, worker_id, model_fn, config, model_config, 
-                env_config, buffer_config):
+        Worker, worker_id, model_fn, 
+        config, model_config, 
+        env_config, buffer_config):
     config = config.copy()
     model_config = model_config.copy()
     env_config = env_config.copy()
@@ -57,19 +94,9 @@ def create_worker(
     if 'seed' in env_config:
         env_config['seed'] += worker_id * 100
     
-    if config.get('schedule_act_eps'):
-        assert worker_id < n_workers, f'worker ID({worker_id}) exceeds range. Valid range: [0, {config["n_workers"]})'
-        act_eps_type = config.get('act_eps_type', 'apex')
-        if act_eps_type == 'apex':
-            config['act_eps'] = apex_epsilon_greedy(worker_id, n_envs, n_workers, epsilon=config['act_eps'], sequential=config.get('seq_act_eps', True))
-        elif act_eps_type == 'line':
-            config['act_eps'] = np.linspace(0, config['act_eps'], n_workers * n_envs).reshape(n_workers, n_envs)[worker_id]
-        else:
-            raise ValueError(f'Unknown type: {act_eps_type}')
-        logger.info(f'worker_{worker_id} action epsilon: {config["act_eps"]}')
-    if config.get('schedule_act_temp'):
-        act_temps = np.logspace(np.log10(config['min_temp']), np.log10(config['max_temp']), n_workers * n_envs).reshape(n_workers, n_envs)
-        model_config['actor']['act_temp'] = act_temps[worker_id]
+    config = _compute_act_eps(config, worker_id, n_workers, n_envs)
+    model_config = _compute_act_temp(config, model_config, worker_id, n_workers, n_envs)
+    
     n_cpus = config.get('n_worker_cpus', 1)
     n_gpus = config.get('n_worker_gpus', 0)
     RayWorker = ray.remote(num_cpus=1, num_gpus=n_gpus)(Worker)

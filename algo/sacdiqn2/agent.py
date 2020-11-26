@@ -25,8 +25,8 @@ class Agent(DQNBase):
 
     # @tf.function
     # def summary(self, data, terms):
-    #     tf.summary.histogram('entropy', terms['entropy'], step=self._env_step)
-    #     tf.summary.histogram('reward', data['reward'], step=self._env_step)
+    #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
+    #     tf.summary.histogram('learn/reward', data['reward'], step=self._env_step)
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
@@ -38,7 +38,7 @@ class Agent(DQNBase):
             if isinstance(self._target_entropy_coef, float) \
             else self._target_entropy_coef(self._train_step)
         target_entropy = self._target_entropy * target_entropy_coef
-        
+
         if self.temperature.type == 'schedule':
             _, temp = self.temperature(self._train_step)
         elif self.temperature.type == 'state-action':
@@ -51,30 +51,37 @@ class Agent(DQNBase):
         next_act_probs, next_act_logps = self.target_actor.train_step(next_x)
         next_act_probs_ext = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
         next_act_logps_ext = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
-        _, next_qtv = self.target_q(next_x, self.N_PRIME)
+        _, qt_embed = self.quantile(next_x, self.N_PRIME)
+        next_x_ext = tf.expand_dims(next_x, axis=1)
+        next_qtv = self.target_q(next_x_ext, qt_embed)
         next_qtv_v = tf.reduce_sum(next_act_probs_ext 
             * (next_qtv - temp * next_act_logps_ext), axis=-1)
-        
+
         reward = reward[:, None]
         discount = discount[:, None]
         if not isinstance(steps, int):
             steps = steps[:, None]
         q_target = n_step_target(reward, next_qtv_v, discount, self._gamma, steps)
         q_target = tf.expand_dims(q_target, axis=1)      # [B, 1, N']
-
         tf.debugging.assert_shapes([
             [next_qtv_v, (None, self.N_PRIME)],
             [next_act_probs_ext, (None, 1, self._action_dim)],
             [next_act_logps_ext, (None, 1, self._action_dim)],
-            [next_qtv, (None, self.N_PRIME, self._action_dim)],
             [q_target, (None, 1, self.N_PRIME)],
         ])
 
         with tf.GradientTape() as tape:
             x = self.encoder(obs, training=True)
+            tau_hat, qt_embed = self.quantile(x, self.N)
+            x_ext = tf.expand_dims(x, axis=1)
             action_ext = tf.expand_dims(action, axis=1)
+            # q loss
+            qtvs_q, qs = self.q(x_ext, qt_embed, return_value=True)
+            qtv_q = tf.reduce_sum(qtvs_q * action_ext, axis=-1, keepdims=True)  # [B, N, 1]
+            error_q, qr_loss_q = quantile_regression_loss(
+                qtv_q, q_target, tau_hat, kappa=self.KAPPA, return_error=True)
+            qr_loss = tf.reduce_mean(IS_ratio * qr_loss_q)
 
-            qs, error, qr_loss = self._compute_qr_loss(self.q, x, action_ext, q_target, IS_ratio)
         terms['value_norm'] = self._value_opt(tape, qr_loss)
 
         with tf.GradientTape() as tape:
@@ -82,7 +89,10 @@ class Agent(DQNBase):
             q = tf.reduce_sum(act_probs * qs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
             actor_loss = -(q + temp * entropy)
-            tf.debugging.assert_shapes([[actor_loss, (None, )]])
+            tf.debugging.assert_shapes([
+                [qs, (None, self._action_dim)],
+                [actor_loss, (None, )]
+            ])
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
@@ -102,10 +112,12 @@ class Agent(DQNBase):
             terms['temp_norm'] = self._temp_opt(tape, temp_loss)
 
         if self._is_per:
+            error = tf.abs(error_q)
             error = tf.reduce_max(tf.reduce_mean(error, axis=-1), axis=-1)
             priority = self._compute_priority(error)
             terms['priority'] = priority
             
+        
         q_target = tf.reduce_mean(q_target, axis=(1, 2))
         terms.update(dict(
             steps=steps,
@@ -124,26 +136,29 @@ class Agent(DQNBase):
 
         return terms
 
-    def _compute_qr_loss(self, q, x, action, returns, IS_ratio=1):
-        tau_hat, qtvs, qs = q(x, self.N, return_q=True)
-        qtv = tf.reduce_sum(qtvs * action, axis=-1, keepdims=True)  # [B, N, 1]
+    def _compute_qr_loss(self, q, x, embed, tau_hat, returns, action, IS_ratio):
+        qtvs, value = q(x, embed, return_value=True)
+        if action:
+            assert qtvs.shape[-1] == self._action_dim, qtvs.shape
+            qtv = tf.reduce_sum(qtvs * action, axis=-1, keepdims=True)  # [B, N, 1]
+        else:
+            qtv = qtvs
         error, qr_loss = quantile_regression_loss(
             qtv, returns, tau_hat, kappa=self.KAPPA, return_error=True)
             
         tf.debugging.assert_shapes([
-            [qtvs, (None, self.N, self._action_dim)],
-            [action, (None, 1, self._action_dim)],
             [qtv, (None, self.N, 1)],
-            [qs, (None, self._action_dim)],
             [qr_loss, (None)],
         ])
 
         qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
 
-        return qs, tf.abs(error), qr_loss
+        return value, tf.abs(error), qr_loss
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_encoder.variables + self.target_q.variables + self.target_actor.variables
-        mvars = self.encoder.variables + self.q.variables + self.actor.variables
+        tvars = self.target_encoder.variables + self.target_actor.variables \
+            + self.target_q.variables
+        mvars = self.encoder.variables + self.actor.variables \
+            + self.q.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]

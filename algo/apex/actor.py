@@ -238,6 +238,8 @@ class Worker(BaseWorker):
             self.compute_priorities = build(
                 self._compute_iqn_priorities if self._is_iqn else self._compute_dqn_priorities, TensorSpecs)
         self._return_stats = self._is_per or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps')
+        print(f'{worker_id} action epsilon:', self._act_eps)
+        print(f'{worker_id} action inv_temp:', np.squeeze(self.model.actor.act_inv_temp))
 
     def __call__(self, x, deterministic=False, **kwargs):
         action = self.model.action(
