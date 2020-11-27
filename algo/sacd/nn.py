@@ -8,18 +8,9 @@ from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp, cnn
 from algo.sac.nn import Temperature
+from algo.dqn.nn import Encoder
 
 logger = logging.getLogger(__name__)
-
-
-class Encoder(Module):
-    def __init__(self, config, name='encoder'):
-        super().__init__(name=name)
-        self._layers = cnn(**config)
-
-    def call(self, x, **kwargs):
-        x = self._layers(x, **kwargs)
-        return x
 
 
 class Actor(Module):

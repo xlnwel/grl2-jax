@@ -75,9 +75,13 @@ def main(env_config, model_config, agent_config, replay_config):
 
     learner.start_learning.remote()
 
+    elapsed_time = 0
+    interval = 10
     while not ray.get(monitor.is_over.remote()):
-        time.sleep(agent_config['LOG_PERIOD'])
-        monitor.record_stats.remote(learner)
+        time.sleep(interval)
+        elapsed_time += interval
+        if elapsed_time % agent_config['LOG_PERIOD'] == 0:
+            monitor.record_stats.remote(learner)
 
     ray.get(learner.save.remote())
     

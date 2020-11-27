@@ -2,12 +2,11 @@
 
 
 algos=(
-    "apex-sacdiqn"
     "apex-sacdiqn2"
-    "apex-sacdiqn3"
 )
 envs=(
     "chaser"
+    "plunder" 
     "caveflyer" 
     "climber" 
     "dodgeball" 
@@ -17,19 +16,26 @@ envs=(
     "fruitbot" 
     "heist" 
     "bossfight"
-    "plunder" 
 )
+args1=("True" "False")
 
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
-        dir="logs/procgen_${e}/${a}"
-        mkdir -p $dir
-        py_script="train ${a} -e procgen_${e} $@ >& ${dir}/outputs"
-        echo $py_script
-        eval $py_script
-        last_dir=$(ls -td ${dir} | head -n 1)
-        mv_script="mv ${dir}/outputs ${last_dir}/outputs"
-        echo $mv_script
-        eval $mv_script
+        for a1 in "${args1[@]}"; do
+            if [[ $a == *2 ]]; then
+                nw=6
+            else
+                nw=5
+            fi
+            dir="logs/procgen_${e}/${a}"
+            mkdir -p $dir
+            py_script="train ${a} -e procgen_${e} -kw n_workers=$nw deter_stoch=$a1 $@ >& ${dir}/outputs.txt"
+            echo $py_script
+            eval $py_script
+            last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)
+            mv_script="mv ${dir}/outputs.txt ${last_dir}/outputs.txt"
+            echo $mv_script
+            eval $mv_script
+        done
     done
 done

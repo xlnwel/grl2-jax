@@ -74,34 +74,36 @@ def change_config(kw, model_name, env_config, model_config, agent_config, replay
             
     return model_name
 
+def load_run(directory):
+    # load model and log path
+    config_file = None
+    for root, _, files in os.walk(directory):
+        for f in files:
+            if 'src' in root:
+                break
+            if f == 'config.yaml' and config_file is None:
+                config_file = os.path.join(root, f)
+                break
+            elif f =='config.yaml' and config_file is not None:
+                pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
+                sys.exit()
+
+    config = load_config(config_file)
+    env_config = config['env']
+    model_config = config['model']
+    agent_config = config['agent']
+    replay_config = config.get('buffer') or config.get('replay')
+    main = pkg.import_main('train', config=agent_config)
+
+    main(env_config, model_config, agent_config, replay_config)
+
 if __name__ == '__main__':
     cmd_args = parse_args()
     log_level = getattr(logging, cmd_args.log_level.upper())
     logging.basicConfig(level=log_level)
     processes = []
     if cmd_args.directory != '':
-        # load model and log path
-        directory = cmd_args.directory
-        config_file = None
-        for root, _, files in os.walk(directory):
-            for f in files:
-                if 'src' in root:
-                    break
-                if f == 'config.yaml' and config_file is None:
-                    config_file = os.path.join(root, f)
-                    break
-                elif f =='config.yaml' and config_file is not None:
-                    pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
-                    sys.exit()
-
-        config = load_config(config_file)
-        env_config = config['env']
-        model_config = config['model']
-        agent_config = config['agent']
-        replay_config = config.get('buffer') or config.get('replay')
-        main = pkg.import_main('train', config=agent_config)
-
-        main(env_config, model_config, agent_config, replay_config)
+        load_run(cmd_args.directory)
     else:
         algorithm = list(cmd_args.algorithm)
         environment = list(cmd_args.environment)

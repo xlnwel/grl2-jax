@@ -31,12 +31,10 @@ class CBAM(Module):
         filters = input_shape[-1]
 
         if self._ca_on:
-            self._c_avg, self._c_max, self._c_concat, \
-                self._c_exc, self._c_mul = \
+            self._c_avg, self._c_max, self._c_exc = \
                 self._channel_attention(filters, kernel_initializer)
         if self._sa_on:
-            self._s_avg, self._s_max, self._s_concat, \
-                self._s_exc, self._s_mul = \
+            self._s_avg, self._s_max, self._s_exc = \
                 self._spatial_attention(filters, self._kernel_size, kernel_initializer)
     
     def _channel_attention(self, filters, kernel_initializer):
@@ -48,7 +46,6 @@ class CBAM(Module):
             lambda x: tf.reduce_max(x, axis=[1, 2], keepdims=True), 
                 name=name_fn('max_squeeze'))
 
-        concat = layers.Concatenate(axis=-1, name=name_fn('concat'))
         if self._excitation_type == '1l':
             excitation = [
                 layers.Dense(filters,
@@ -70,9 +67,8 @@ class CBAM(Module):
             ]
         else:
             raise ValueError(f'Unkown excitation type: {self._exitation_type}')
-        mul = layers.Multiply(name=name_fn('mul'))
-
-        return avg_squeeze, max_squeeze, concat, excitation, mul
+        
+        return avg_squeeze, max_squeeze, excitation
         
     def _spatial_attention(self, filters, kernel_size, kernel_initializer):
         name_fn = lambda name: f'{self.scope_name}/spatial/{name}'
@@ -84,38 +80,40 @@ class CBAM(Module):
             lambda x: tf.reduce_max(x, axis=-1, keepdims=True), 
                 name=name_fn('max_squeeze'))
 
-        concat = layers.Concatenate(axis=-1, name=name_fn('concat'))
         excitation = layers.Conv2D(1, kernel_size, 
                             strides=1, padding='same',
                             kernel_initializer=kernel_initializer, 
                             activation=self._out_activation,
                             use_bias=False,
                             name=name_fn('excitation'))
-        mul = layers.Multiply(name=name_fn('mul'))
-        return avg_squeeze, max_squeeze, concat, excitation, mul
+        
+        return avg_squeeze, max_squeeze, excitation
 
     def call(self, x, **kwargs):
         if self._ca_on:
             c_avg = self._c_avg(x)
             c_max = self._c_max(x)
-            y = self._c_concat([c_avg, c_max])
+            y = tf.concat([c_avg, c_max], -1)
             for l in self._c_exc:
                 y = l(y)
-            x = self._c_mul([x, y])
+            x = x * y
         
         if self._sa_on:
             s_avg = self._s_avg(x)
             s_max = self._s_max(x)
-            y = self._s_concat([s_avg, s_max])
+            y = tf.concat([s_avg, s_max], -1)
             y = self._s_exc(y)
-            x = self._s_mul([x, y])
+            x = x * y
         
         return x
 
 if __name__ == "__main__":
-    for et in ['1l', '2l']:
-            se = CBAM(2, name='scope/cbam', excitation_type=et)
-            x = tf.keras.layers.Input(shape=(64, 64, 12))
-            y = se(x)
-            m = tf.keras.Model(x, y)
-            m.summary()
+    for et in ['2l']:
+        cbam = CBAM(2, name='scope/cbam', excitation_type=et)
+        x = tf.keras.layers.Input(shape=(64, 64, 12))
+        y = cbam(x)
+        m = tf.keras.Model(x, y)
+        m.summary()
+        tf.random.set_seed(0)
+        x = tf.ones((2, 64, 64, 12))
+        print(cbam(x)[0, 0, 0])

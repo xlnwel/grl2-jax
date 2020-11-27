@@ -29,6 +29,9 @@ pull_names = dict(
     sac=['actor', 'q'],
     sacd=['encoder', 'actor', 'q'],
     sacdiqn=['encoder', 'actor', 'q'],
+    sacdiqn3=['encoder', 'actor', 'v'],
+    sacdiqn4=['encoder', 'actor', 'v'],
+    sacdiqn5=['actor_encoder', 'critic_encoder', 'actor', 'v'],
     sacdiqncrl=['encoder', 'actor', 'q'],
     sacdiqncrlar=['encoder', 'actor', 'q'],
     sacdiqnmdp=['encoder', 'actor'],
@@ -39,7 +42,9 @@ def get_pull_names(algo):
     algo = algo.rsplit('-', 1)[-1]
     if algo not in pull_names and algo[-1].isdigit():
         algo = algo[:-1]
-    return pull_names[algo]
+    names = pull_names[algo]
+    print('pull names:', names)
+    return names
     
 
 def get_base_learner_class(BaseAgent):
@@ -191,7 +196,7 @@ class Worker(BaseWorker):
         self._pull_names = get_pull_names(self._algorithm)
         
         self._info = collections.defaultdict(list)
-        if self._is_per:
+        if self._worker_side_prioritization:
             TensorSpecs = dict(
                 obs=(self.env.obs_shape, self.env.obs_dtype, 'obs'),
                 action=(self.env.action_shape, self.env.action_dtype, 'action'),
@@ -207,7 +212,7 @@ class Worker(BaseWorker):
             
             self.compute_priorities = build(
                 self._compute_iqn_priorities if self._is_iqn else self._compute_dqn_priorities, TensorSpecs)
-        self._return_stats = self._is_per or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps')
+        self._return_stats = self._worker_side_prioritization or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps')
         print(f'{worker_id} action epsilon:', self._act_eps)
         print(f'{worker_id} action inv_temp:', np.squeeze(self.model.actor.act_inv_temp))
 
@@ -234,7 +239,7 @@ class Worker(BaseWorker):
         buffer = buffer or self.buffer
         data = buffer.sample()
 
-        if self._is_per:
+        if self._worker_side_prioritization:
             data_tensor = {k: tf.convert_to_tensor(v) for k, v in data.items()}
             data['priority'] = self.compute_priorities(**data_tensor).numpy()
         data.pop('qtv', None)

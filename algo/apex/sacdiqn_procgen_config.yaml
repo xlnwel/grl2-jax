@@ -21,20 +21,20 @@ agent:
     target_entropy_coef: .8
         # - [4.e+4, .8]
         # - [7.e+4, .3]
-    is_per: False
+    worker_side_prioritization: False
 
     seq_act_eps: True
     schedule_act_temp: True
     n_exploit_envs: 8
     schedule_act_eps: True
-    act_eps_type: line
+    act_eps_type: apex
     act_eps: .3
     eval_act_eps: 0
     min_temp: .5
     max_temp: 10
     
-    MAX_STEPS: 8e6      # maximum env steps
-    LOG_PERIOD: 60
+    MAX_STEPS: 1e7      # maximum env steps
+    LOG_PERIOD: 100
     N_UPDATES: 1
     SYNC_PERIOD: 400   # TODO: a small sync period increases performance in some cases, but it also slows down the data collection process
     RECORD_PERIOD: 100
@@ -44,7 +44,7 @@ agent:
     # distributed algo params
     n_learner_cpus: 3
     n_learner_gpus: .3
-    n_workers: 6
+    n_workers: 5
     n_worker_cpus: 1
     n_worker_gpus: .1
     deterministic_evaluation: False

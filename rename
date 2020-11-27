@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# -print0 uses NULL as a file separator 
+# -d $"\0" use NULL as the delimiter while reading
+find logs -name $1 -print0 | while read -d $'\0' file
+do
+    dir=$(dirname $file)
+    mv $file $dir/$2
+done

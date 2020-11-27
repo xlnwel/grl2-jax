@@ -54,29 +54,32 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('logdir', nargs='*')
-    parser.add_argument('--outdir', '-o')
-    parser.add_argument('--title')
+    parser.add_argument('--title', '-t', default='', type=str)
     parser.add_argument('--legend', nargs='*')
     parser.add_argument('--legendtag', '-tag', default='Algo')
-    parser.add_argument('--x', default='Million Steps', nargs='*')
-    parser.add_argument('--y', default='Average Return', nargs='*')
+    parser.add_argument('--x', '-x', default='env_step', nargs='*')
+    parser.add_argument('--y', '-y', default='eval_score', nargs='*')
     parser.add_argument('--timing', default=None, choices=['Train', 'Eval', None], 
                         help='select timing to plot; both training and evaluation stats are plotted by default')
     args = parser.parse_args()
 
     # by default assume using `python utility/plot.py` to call this file
     if len(args.logdir) != 1:
-        dirs = [f'logs/{d}' for d in args.logdir]
+        dirs = [f'{d}' for d in args.logdir]
     else:
-        dirs = glob.glob(f'logs/{args.logdir[0]}/logs/GS*')
+        dirs = glob.glob(args.logdir)
 
+    # dir follows pattern: logs/env/algo(/model_name)
+    title = args.title or dirs[0].split('/')[1].split('_')[-1]
+    assert False, title
     # set up legends
     if args.legend:
         assert len(args.legend) == len(dirs), (
-            "Must give a legend title for each set of experiments.")
+            "Must give a legend title for each set of experiments: "
+            f"#legends({args.legend}) != #dirs({args.dirs})")
         legends = args.legend
     else:
-        legends = [os.path.basename(path) for path in dirs]
+        legends = [path.split('/')[2] for path in dirs]
         legends = [l[3:] if l.startswith('GS-') else l for l in legends]
     tag = args.legendtag
 
@@ -94,8 +97,8 @@ def main():
     ys = args.y if isinstance(args.y, list) else [args.y]
     for x in xs:
         for y in ys:
-            outdir = f'results/{args.outdir}-{x}-{y}'
-            plot_data(data, x, y, outdir, tag, args.title, args.timing)
+            outdir = f'results/{title}-{x}-{y}'
+            plot_data(data, x, y, outdir, tag, title, args.timing)
 
 if __name__ == '__main__':
     main()

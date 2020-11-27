@@ -9,7 +9,9 @@ from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp, cnn
 from nn.layers import Noisy
-        
+
+
+Encoder = lambda config, name='encoder': cnn(**config, name=name)
 
 class Q(Module):
     @config

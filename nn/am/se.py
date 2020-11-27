@@ -36,11 +36,10 @@ class SE(Module):
                 name=f'{self.scope_name}/expand')
         ]
         self._layers = squeeze + excitation
-        self._mul = layers.Multiply(name=f'{self.scope_name}/mul')
-    
+        
     def call(self, x, **kwargs):
         y = super().call(x, **kwargs)
-        return self._mul([x, y])
+        return x * y
 
 if __name__ == "__main__":
     shape = (3, 3, 2)

@@ -48,7 +48,6 @@ def _compute_act_temp(config, model_config, worker_id, n_workers, envs_per_worke
 
 def create_monitor(config):
     config = config.copy()
-    print(config)
     RayMonitor = ray.remote(Monitor)
     monitor = RayMonitor.remote(config=config)
 
