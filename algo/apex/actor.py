@@ -317,7 +317,8 @@ class BaseEvaluator:
     def _run(self, weights, record):        
         self.model.set_weights(weights)
         score, epslen, video = evaluate(self.env, self, 
-            record=record, n=self.N_EVALUATION)
+            record=record, n=self.N_EVALUATION, 
+            deterministic_action=getattr(self, '_deterministic_evaluation', True))
         self.store(score, epslen, video)
 
     def store(self, score, epslen, video):
@@ -362,7 +363,7 @@ class Evaluator(BaseEvaluator):
     def __call__(self, x, deterministic=True, **kwargs):
         action = self.model.action(
             tf.convert_to_tensor(x), 
-            deterministic=self._deterministic_evaluation,
+            deterministic=deterministic,
             epsilon=self._eval_act_eps)
         if isinstance(action, tuple):
             if len(action) == 2:

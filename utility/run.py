@@ -167,7 +167,16 @@ class Runner:
 
         return next_obs, reset
 
-def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=None, record_stats=False):
+def evaluate(
+             env, 
+             agent, 
+             n=1, 
+             record=False, 
+             size=None, 
+             video_len=1000, 
+             step_fn=None, 
+             record_stats=False,
+             deterministic_action=True):
     assert get_wrapper_by_name(env, 'EnvStats') is not None
     scores = []
     epslens = []
@@ -182,6 +191,7 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
     n_run_eps = env.n_envs  # count the number of episodes that has begun to run
     n = max(n, env.n_envs)
     n_done_eps = 0
+    frame_skip = None
     while n_done_eps < n:
         for k in range(max_steps):
             if record:
@@ -192,8 +202,8 @@ def evaluate(env, agent, n=1, record=False, size=None, video_len=1000, step_fn=N
                     for i in range(env.n_envs):
                         frames[i].append(img[i])
                     
-            action = agent(obs, deterministic=True, env_output=env_output, return_eval_stats=record_stats)
-            frame_skip = None
+            action = agent(obs, deterministic=deterministic_action, 
+                env_output=env_output, return_eval_stats=record_stats)
             terms = {}
             if isinstance(action, tuple):
                 if len(action) == 2:

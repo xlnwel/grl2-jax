@@ -36,7 +36,7 @@ def parse_args():
     parser.add_argument('--delay',
                         default=1,
                         type=int)
-    parser.add_argument('--log-level', '-l',
+    parser.add_argument('--verbose', '-v',
                         type=str,
                         default='warning')
     args = parser.parse_args()

@@ -36,11 +36,12 @@ class Optimizer(tf.Module):
         if self._variables is None:
             variables = [m.trainable_variables for m in self._models]
             self._variables = tf.nest.flatten(variables)
-        assert len(loss.shape) == 0, loss.shape
+        assert loss.shape == (), loss.shape
         if self._mpt:
             with tape:
                 loss = self._opt.get_scaled_loss(loss)
         grads = tape.gradient(loss, self._variables, output_gradients=output_gradients)
+        assert None not in grads, f'No grads for {self._variables[grads.index(None)].name}'
         if self._mpt:
             grads = self._opt.get_unscaled_gradients(grads)
         norm = tf.linalg.global_norm(grads)

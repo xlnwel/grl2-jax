@@ -25,7 +25,10 @@ def standard_normalization(x):
     return x
 
 def explained_variance(y, pred):
-    assert y.shape == pred.shape, (y.shape, pred.shape)
+    if None in y.shape:
+        assert y.shape.ndims == pred.shape.ndims, (y.shape, pred.shape)
+    else:
+        assert y.shape == pred.shape, (y.shape, pred.shape)
     y_var = tf.math.reduce_variance(y, axis=0)
     diff_var = tf.math.reduce_variance(y - pred, axis=0)
     return tf.maximum(-1., 1-(diff_var / y_var))
@@ -130,9 +133,10 @@ def static_scan(fn, start, inputs, reverse=False):
 
 class RunningMeanStd:
     def __init__(self, shape=(), scale=1., clip=10., epsilon=1e-2):
-        self._sum = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float32, name='sum')
-        self._sumsq = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float32, name='sum_squares')
-        self._count = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float32, name='count')
+        # use tf.float64 to avoid overflow
+        self._sum = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float64, name='sum')
+        self._sumsq = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float64, name='sum_squares')
+        self._count = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float64, name='count')
         self._scale = scale
         self._clip = clip
         self._epsilon = epsilon
@@ -140,17 +144,20 @@ class RunningMeanStd:
 
     def update(self, x):
         self._sum.assign_add(tf.reduce_sum(x, axis=0))
-        self._sumsq.assign_add(tf.reduce_sum(x**2, axis=0))
+        # TODO: sumsq may suffer from overflow, though we've intended to use tf.float64
+        self._sumsq.assign_add(tf.cast(tf.reduce_sum(x**2, axis=0), self._sumsq.dtype))
         self._count.assign_add(tf.cast(tf.shape(x)[0], self._count.dtype))
 
     def normalize(self, x, subtract_mean=True):
         mean = self._sum / self._count
         std = tf.sqrt(tf.maximum(self._sumsq / self._count - mean**2, self._epsilon))
+        std = tf.cast(std, x.dtype)
         if subtract_mean:
+            mean = tf.cast(mean, x.dtype)
             x = x - mean
         x = x / std
         x = tf.clip_by_value(self._scale * x, -self._clip, self._clip)
-        return x        
+        return x
         
 def get_stoch_state(x, min_std):
     with tf.name_scope('stoch'):

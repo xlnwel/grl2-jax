@@ -125,7 +125,7 @@ def override(cls):
 
 def _config_attr(obj, config):
     for k, v in config.items():
-        if not k.isupper():
+        if k.islower():
             k = f'_{k}'
         if isinstance(v, str):
             try:

@@ -99,8 +99,8 @@ def load_run(directory):
 
 if __name__ == '__main__':
     cmd_args = parse_args()
-    log_level = getattr(logging, cmd_args.log_level.upper())
-    logging.basicConfig(level=log_level)
+    verbose = getattr(logging, cmd_args.verbose.upper())
+    logging.basicConfig(level=verbose)
     processes = []
     if cmd_args.directory != '':
         load_run(cmd_args.directory)

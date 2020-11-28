@@ -1,10 +1,13 @@
 from abc import ABC
 import os
 import cloudpickle
+import logging
 
 from core.log import *
 from core.checkpoint import *
 
+
+logger = logging.getLogger(__name__)
 
 class BaseAgent(ABC):
     """ Restore & save """
@@ -84,42 +87,74 @@ class BaseAgent(ABC):
 
 
 class RMSBaseAgent(BaseAgent):
-    def __init__(self, *, dataset, env):
-        from env.wrappers import get_wrapper_by_name
+    def __init__(self):
         from utility.utils import RunningMeanStd
-        self.dataset = dataset
-        axis = None if get_wrapper_by_name(env, 'Env') else 0
-        if not hasattr(self, '_normalize_obs'):
-            self._normalize_obs = False
-        if not hasattr(self, '_normalize_reward'):
-            self._normalize_reward = False
-        self._obs_rms = RunningMeanStd(axis=axis)
-        self._reward_rms = RunningMeanStd(axis=axis)
+        self._normalized_axis = getattr(self, '_normalized_axis', (0, 1))
+        self._normalize_obs = getattr(self, '_normalize_obs', False)
+        self._normalize_reward = getattr(self, '_normalize_reward', True)
+        self._normalize_reward_with_reversed_return = \
+            getattr(self, '_normalize_reward_with_reversed_return', True)
+        
+        axis = tuple(self._normalized_axis)
+        self._obs_rms = self._normalize_obs \
+            and RunningMeanStd(axis)
+        self._reward_rms = self._normalize_reward \
+            and RunningMeanStd(axis)
+        if self._normalize_reward_with_reversed_return:
+            self._reverse_return = 0
+        else:
+            self._reverse_return = -np.inf
         self._rms_path = f'{self._root_dir}/{self._model_name}/rms.pkl'
+        logger.info(f'Reward normalization: {self._normalize_reward}')
+        logger.info(f'Reward normalization with reversed return: {self._normalize_reward_with_reversed_return}')
 
     """ Functions for running mean and std """
+    def get_running_stats(self):
+        stats = ()
+        if self._normalize_obs:
+            stats += self._obs_rms.get_stats()
+        if self._normalize_reward:
+            stats += self._reward_rms.get_stats()
+        return stats
+
     @property
     def is_obs_or_reward_normalized(self):
-        return self._normalize_obs and self._normalize_reward
+        return self._obs_rms or self._reward_rms
 
     def update_obs_rms(self, obs):
-        assert len(obs.shape) in (2, 4)
         if self._normalize_obs:
-            if obs.dtype == np.uint8 and obs.shape[-1] > 1:
-                # for stacked frames, we only use
-                # the most recent one for rms update
-                obs = obs[..., -1:]
+            # if obs.dtype == np.uint8 and obs.shape[-1] > 1:
+            #     # for stacked frames, we only use
+            #     # the most recent one for rms update
+            #     obs = obs[..., -1:]
             self._obs_rms.update(obs)
 
-    def update_reward_rms(self, reward):
+    def update_reward_rms(self, reward, discount=None):
         if self._normalize_reward:
-            self._reward_rms.update(reward)
+            assert len(reward.shape) == len(self._normalized_axis), (reward.shape, self._normalized_axis)
+            if self._normalize_reward_with_reversed_return:
+                """
+                Pseudocode can be found in https://arxiv.org/pdf/1811.02553.pdf
+                section 9.3 (which is based on our Baselines code, haha)
+                Motivation is that we'd rather normalize the returns = sum of future rewards,
+                but we haven't seen the future yet. So we assume that the time-reversed rewards
+                have similar statistics to the rewards, and normalize the time-reversed rewards.
 
-    def normalize_obs(self, obs, update_rms=False):
-        if self._normalize_obs:
-            return self._obs_rms.normalize(obs)
-        else:
-            return np.array(obs, copy=False)
+                Quoted from
+                https://github.com/openai/phasic-policy-gradient/blob/master/phasic_policy_gradient/reward_normalizer.py
+                Yeah, you may not find the pseudocode. That's why I quote:-)
+                """
+                assert discount is not None, \
+                    f"Normalizing rewards with reversed return requires environment's discount(i.e., 1-done) signals"
+                ret = backward_discounted_sum(self._reverse_return, reward, discount, self._gamma)
+                self._reverse_return = ret[:, -1]
+                self._reward_rms.update(ret)
+            else:
+                self._reward_rms.update(reward)
+
+    def normalize_obs(self, obs):
+        return self._obs_rms.normalize(obs) \
+            if self._normalize_obs else obs
 
     def normalize_reward(self, reward):
         if self._normalize_reward:
@@ -137,3 +172,12 @@ class RMSBaseAgent(BaseAgent):
         with open(self._rms_path, 'wb') as f:
             cloudpickle.dump((self._obs_rms, self._reward_rms), f)
         super().save(print_terminal_info=print_terminal_info)
+
+
+def backward_discounted_sum(prev_ret, reward, discount, gamma,):
+    _nenv, nstep = reward.shape
+    ret = np.zeros_like(reward)
+    for t in range(nstep):
+        prev_ret = ret[:, t] = reward[:, t] + gamma * prev_ret
+        prev_ret *= discount[:, t]
+    return ret

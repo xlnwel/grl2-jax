@@ -63,7 +63,7 @@ class IMPALACNN(Module):
             
             self.out_size = out_size
             if self.out_size:
-                self._dense = layers.Dense(self.out_size, activation=self._out_act, name=prefix+'out')
+                self._dense = layers.Dense(self.out_size, activation=out_act_cls(), name=prefix+'out')
         
         self._training_cls += [subsample_cls, block_cls]
     

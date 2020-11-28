@@ -1,10 +1,18 @@
-
 from tensorflow.keras import layers
 
 from nn.cnn import cnn
 from nn.mlp import *
 from nn.dnc.dnc import DNC
 
+
+def create_encoder(config, name='encoder'):
+    if 'cnn_name' in config:
+        return cnn(**config, name=name)
+    else:
+        assert 'units_list' in config
+        return mlp(**config, name=name)
+
+Encoder = create_encoder
 
 def mlp(units_list=[], out_size=None, **kwargs):
     return MLP(units_list, out_size=out_size, **kwargs)

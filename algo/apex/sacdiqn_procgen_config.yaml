@@ -25,6 +25,7 @@ agent:
 
     seq_act_eps: True
     schedule_act_temp: True
+    eval_act_temp: .5
     n_exploit_envs: 8
     schedule_act_eps: True
     act_eps_type: apex
@@ -48,7 +49,6 @@ agent:
     n_worker_cpus: 1
     n_worker_gpus: .1
     deterministic_evaluation: False
-    eval_act_temp: .5
     run_mode: nsteps
 
     # model path: root_dir/model_name/models

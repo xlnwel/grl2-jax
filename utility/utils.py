@@ -38,11 +38,13 @@ class Every:
 
 class RunningMeanStd(object):
     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
-    def __init__(self, axis=None, epsilon=1e-8, clip=10):
+    def __init__(self, axis, epsilon=1e-8, clip=10):
         """ Compute running mean and std from data
+        A reimplementation of RunningMeanStd from OpenAI's baselines
+
         Args:
             axis: axis along which we compute mean and std from incoming data. 
-                If it's None, we only receive a sample at a time
+                If it's None, we only receive at a time a sample without batch dimension
         """
         if isinstance(axis, tuple):
             assert axis == tuple(range(np.min(axis), np.max(axis) + 1))
@@ -55,14 +57,16 @@ class RunningMeanStd(object):
         self._count = epsilon
         self._clip = clip
 
+    def get_stats(self):
+        return self._mean, self._var, self._count
+
     def update(self, x, mask=None):
         if self._axis is None:
             assert mask is None
             batch_mean, batch_var, batch_count = x, 0, 1
         else:
-            batch_mean, batch_std = moments(x, self._axis, mask)
+            batch_mean, batch_var = moments(x, self._axis, mask)
             batch_count = np.prod(x.shape[self._shape_slice]) if mask is None else np.sum(mask)
-            batch_var = np.square(batch_std)
         if batch_count > 0:
             self.update_from_moments(batch_mean, batch_var, batch_count)
 
@@ -79,9 +83,9 @@ class RunningMeanStd(object):
             # no minus one here to be consistent with np.std
             m_a = self._var * self._count
             m_b = batch_var * batch_count
-            M2 = m_a + m_b + np.square(delta) * self._count * batch_count / (self._count + batch_count)
+            M2 = m_a + m_b + delta**2 * self._count * batch_count / total_count
             assert np.all(np.isfinite(M2)), f'M2: {M2}'
-            new_var = M2 / (self._count + batch_count)
+            new_var = M2 / total_count
             self._mean = new_mean
             self._var = new_var
             self._count += batch_count
@@ -129,7 +133,7 @@ def step_str(step):
 def moments(x, axis=None, mask=None):
     if mask is None:
         x_mean = np.mean(x, axis=axis)
-        x_std = np.std(x, axis=axis)
+        x2_mean = np.mean(x**2, axis=axis)
     else:
         if axis is None:
             axis = tuple(range(x.ndim))
@@ -150,16 +154,18 @@ def moments(x, axis=None, mask=None):
         # compute x_mean and x_std from entries in x corresponding to True in mask
         x_mask = x * mask
         x_mean = np.sum(x_mask, axis=axis) / n
-        x_std = np.sqrt(np.sum(mask * (x_mask - x_mean)**2, axis=axis) / n)
-    
-    return x_mean, x_std
+        x2_mean = np.sum(x_mask**2, axis=axis) / n
+    x_var = x2_mean - x_mean**2
+
+    return x_mean, x_var
     
 def standardize(x, axis=None, epsilon=1e-8, mask=None):
     if mask is not None:
         while len(mask.shape) < len(x.shape):
             mask = np.expand_dims(mask, -1)
-    x_mean, x_std = moments(x, axis=axis, mask=mask)
-    x = (np.array(x, copy=False) - x_mean) / (x_std + epsilon)
+    x_mean, x_var = moments(x, axis=axis, mask=mask)
+    x_std = np.maximum(np.sqrt(x_var), epsilon)
+    x = (x - x_mean) / x_std
     if mask is not None:
         x *= mask
     return x
