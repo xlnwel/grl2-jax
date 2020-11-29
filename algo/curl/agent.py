@@ -19,7 +19,7 @@ class Agent(BaseAgent):
         self.dataset = dataset
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr, return_grads=True)
-        self._q_opt = Optimizer(self._optimizer, [self.encoder, self.q, self.q2], self._q_lr, return_grads=True)
+        self._q_opt = Optimizer(self._optimizer, [self.encoder, self.q], self._q_lr, return_grads=True)
         # self._curl_opt = Optimizer(self._optimizer, [self.encoder, self.curl], self._curl_lr)
         if not isinstance(self.temperature, (float, tf.Variable)):
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr, beta_1=.5, return_grads=True)
@@ -49,10 +49,10 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
 
-    def __call__(self, obs, deterministic=False, **kwargs):
+    def __call__(self, obs, evaluation=False, **kwargs):
         return self.model.action(
             tf.convert_to_tensor(obs), 
-            deterministic=deterministic, 
+            deterministic=evaluation, 
             epsilon=self._act_eps).numpy()
 
     @tf.function
@@ -96,8 +96,6 @@ class Agent(BaseAgent):
         next_x_value = self.target_encoder.cnn(next_obs)
         next_z_value = self.target_encoder.mlp(next_x_value)
         next_q_with_actor = self.target_q(next_z_value, next_action)
-        next_q2_with_actor = self.target_q2(next_z_value, next_action)
-        next_q_with_actor = tf.minimum(next_q_with_actor, next_q2_with_actor)
         temp = self.temperature()
         next_value = next_q_with_actor - temp * next_logpi
         target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
@@ -113,12 +111,9 @@ class Agent(BaseAgent):
             z = self.encoder.mlp(x)
 
             q = self.q(z, action)
-            q2 = self.q2(z, action)
             q_error = target_q - q
-            q2_error = target_q - q2
             q_loss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
-            q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
-            q_loss = q_loss + q2_loss
+            q_loss = q_loss
 
             # x_pos = self.target_encoder.cnn(obs_pos)
             # z_pos = self.target_encoder.mlp(x_pos)
@@ -133,7 +128,7 @@ class Agent(BaseAgent):
         # terms['curl_norm'] = self._curl_opt(tape, curl_loss)
 
         if self._is_per:
-            priority = self._compute_priority((tf.abs(q_error) + tf.abs(q2_error)) / 2.)
+            priority = self._compute_priority((tf.abs(q_error)) / 2.)
             terms['priority'] = priority
         
         with tf.GradientTape(persistent=True) as actor_tape:
@@ -145,8 +140,6 @@ class Agent(BaseAgent):
             temp_loss = -tf.reduce_mean(IS_ratio * temp 
                 * tf.stop_gradient(logpi + self._target_entropy))
             q_with_actor = self.q(z, new_action)
-            q2_with_actor = self.q2(z, new_action)
-            q_with_actor = tf.minimum(q_with_actor, q2_with_actor)
             actor_loss = tf.reduce_mean(IS_ratio * (tf.stop_gradient(temp) * logpi - q_with_actor))
 
         terms['actor_norm'], act_grads = self._actor_opt(actor_tape, actor_loss)
@@ -157,10 +150,7 @@ class Agent(BaseAgent):
         terms.update(dict(
             temp=temp,
             q=q, 
-            q2=q2,
             target_q=target_q,
-            q_loss=q_loss, 
-            q2_loss=q2_loss,
             q_loss=q_loss, 
             # curl_loss=curl_loss,
             actor_loss=actor_loss,
@@ -178,14 +168,14 @@ class Agent(BaseAgent):
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_q.variables + self.target_q2.variables + self.target_encoder.variables
-        mvars = self.q.variables + self.q2.variables + self.encoder.variables
+        tvars = self.target_q.variables + self.target_encoder.variables
+        mvars = self.q.variables + self.encoder.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
 
     @tf.function
     def _update_target_qs(self):
-        tvars = self.target_q.variables + self.target_q2.variables
-        mvars = self.q.variables + self.q2.variables
+        tvars = self.target_q.variables
+        mvars = self.q.variables
         [tvar.assign(self._q_polyak * tvar + (1. - self._q_polyak) * mvar) 
             for tvar, mvar in zip(tvars, mvars)]
 

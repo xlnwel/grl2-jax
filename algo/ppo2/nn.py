@@ -6,9 +6,8 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.module import Module, Ensemble
 from core.decorator import config
-from nn.func import cnn, mlp
 from nn.rnn import LSTMCell, LSTMState
-from algo.ppo.nn import Encoder, Actor, Critic
+from algo.ppo.nn import Encoder, Actor, Value
 
 
 class RNN(Module):
@@ -77,7 +76,7 @@ class PPO(Ensemble):
             return action, state
         else:
             act_dist = self.actor(x)
-            value = self.critic(x)
+            value = self.value(x)
             action = act_dist.sample()
             logpi = act_dist.log_prob(action)
             terms = {'logpi': logpi, 'value': value}
@@ -108,7 +107,7 @@ def create_components(config, env):
         encoder=Encoder(config['encoder']), 
         rnn=RNN(config['rnn']),
         actor=Actor(config['actor'], action_dim, is_action_discrete),
-        critic=Critic(config['critic'])
+        value=Value(config['value'])
     )
 
 def create_model(config, env, **kwargs):

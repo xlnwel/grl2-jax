@@ -42,8 +42,8 @@ class Agent(PPOBase):
     def get_states(self):
         return self._state, self._prev_action
 
-    def __call__(self, obs, reset=None, deterministic=False, 
-                update_curr_state=True, update_rms=False, **kwargs):
+    def __call__(self, obs, reset=None, evaluation=False, 
+                update_curr_state=True, **kwargs):
         if len(obs.shape) % 2 != 0:
             obs = np.expand_dims(obs, 0)    # add batch dimension
         assert len(obs.shape) in (2, 4), obs.shape  
@@ -54,14 +54,12 @@ class Agent(PPOBase):
             mask = tf.ones(tf.shape(obs)[0], dtype=tf.float32)
         else:
             mask = tf.cast(1. - reset, tf.float32)
-        if update_rms:
-            self.update_obs_rms(obs)
         obs = self.normalize_obs(obs)
         prev_state = self._state
-        out, state = self.model.action(obs, self._state, mask, deterministic)
+        out, state = self.model.action(obs, self._state, mask, self._deterministic_evaluation)
         if update_curr_state:
             self._state = state
-        if deterministic:
+        if evaluation:
             return out.numpy()
         else:
             action, terms = out
@@ -69,5 +67,4 @@ class Agent(PPOBase):
             if self._store_state:
                 terms.update(prev_state._asdict())
             terms = tf.nest.map_structure(lambda x: x.numpy(), terms)
-            terms['obs'] = obs  # return normalized obs
             return action.numpy(), terms

@@ -34,7 +34,7 @@ def run(env, agent, replay, step, obs=None, already_done=None, nsteps=0):
     frames_per_step = frame_skip
     nsteps = (nsteps or env.max_episode_steps) // frame_skip
     for _ in range(nsteps):
-        action, terms = agent(obs, already_done, deterministic=False)
+        action, terms = agent(obs, already_done, evaluation=False)
         obs, reward, done, info = env.step(action, **terms)
         already_done = info.get('already_done', False)
         step += frames_per_step

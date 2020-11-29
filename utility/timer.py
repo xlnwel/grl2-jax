@@ -48,11 +48,16 @@ class Timer:
                     duration = (f'{duration*1000:.3g}ms' if duration < 1e-1 
                                 else f'{duration:.3g}s')
                     pwc(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times', color='blue')
+                    aggregator.reset()
                 else:
                     duration = aggregator.sum
-                    pwc(f'{self._summary_name} duration: "{duration}" for {self._period} times')
-                aggregator.reset()
+                    pwc(f'{self._summary_name} duration: "{duration}" for {aggregator.count} times', color='blue')
 
+    def last(self):
+        return self.aggregators[self._summary_name].last
+    
+    def total(self):
+        return self.aggregators[self._summary_name].total
 
 class TBTimer:
     aggregators = defaultdict(Aggregator)

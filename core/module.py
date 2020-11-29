@@ -108,11 +108,11 @@ class Ensemble:
             [v.assign(w) for v, w in zip(self.variables, weights)]
     
     """ Auxiliary functions that make Ensemble like a dict """
-    def __getattr__(self, key):
-        if key in self.models:
-            return self.models[key]
-        else:
-            raise ValueError(f'{key} not in models({list(self.models)})')
+    # def __getattr__(self, key):
+    #     if key in self.models:
+    #         return self.models[key]
+    #     else:
+    #         raise ValueError(f'{key} not in models({list(self.models)})')
 
     def __getitem__(self, key):
         return self.models[key]

@@ -3,14 +3,32 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 from core.module import Module
-from nn.registry import block_registry, subsample_registry
+from nn.registry import block_registry, subsample_registry, layer_registry
 from utility.tf_utils import get_stoch_state
 
 State = namedtuple("State", ["deter", 'mean', 'std', 'stoch'])
 
 
-@block_registry.register('ds')
-class DeterStoch(Module):
+@block_registry.register('dss')
+class DeterStochSimple(Module):
+    def __init__(self, layer_type, units, **kwargs):
+        layer_cls = layer_registry.get(layer_type)
+        
+        
+        self._deter_layer = layer_cls(units // 2, **kwargs, name=f'{self.scope_name}/stoch')
+        self._stoch_layer = layer_cls(units, **kwargs, name=f'{self.scope_name}/deter')
+    
+    def call(self, x):
+        deter = self._deter_layer(x)
+        stoch = self._stoch_layer(x)
+        mean, std, stoch = get_stoch_state(stoch, min_std=self._min_std)
+
+        self.state = State(deter, mean, std, stoch)
+        x = self._concat([deter, stoch])
+        return x
+
+@block_registry.register('dsb')
+class DeterStochBlock(Module):
     def __init__(self, 
                  *,
                  block='resv1',
@@ -35,10 +53,13 @@ class DeterStoch(Module):
 
     def build(self, input_shape):
         block_cls = block_registry.get(self._block)
-        
+        block_kwargs = self._block_kwargs.copy()
+
         prefix = f'{self.scope_name}/'
 
+        block_kwargs['filters'] //= 2
         self._deter_layer = block_cls(name=f'{prefix}deter/{self._block}', **self._block_kwargs)
+        block_kwargs['filters'] *= 2
         self._stoch_layer = block_cls(name=f'{prefix}stoch/{self._block}', **self._block_kwargs)
         self._concat = layers.Concatenate(axis=-1, name=prefix+'concat')
 

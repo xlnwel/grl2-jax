@@ -31,22 +31,34 @@ def train(agent, env, eval_env, buffer):
     to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
     while step < agent.MAX_STEPS:
-        start_env_step = agent.env_step
-        with Timer('env_time', 1000) as et:
-            step = runner.run(step_fn=collect)
-        agent.store(fps=(step-start_env_step)/et.last())
-        agent.update_obs_rms(buffer['obs'])
-        agent.update_reward_rms(buffer['reward'], buffer['discount'])
-        buffer.update('obs', agent.normalize_obs(buffer['obs']), field='all')
-        agent.record_latest_obs(runner.env_output.obs)
-        value = agent.compute_value()
-        buffer.finish(value)
+        for _ in range(agent.N_PI):
+            start_env_step = agent.env_step
+            with Timer('env_time', 1000) as et:
+                step = runner.run(step_fn=collect)
+            agent.store(fps=(step-start_env_step)/et.last())
+            agent.update_obs_rms(buffer['obs'])
+            agent.update_reward_rms(buffer['reward'], buffer['discount'])
+            buffer.update('obs', agent.normalize_obs(buffer['obs']), field='all')
+            agent.record_latest_obs(runner.env_output.obs)
+            value = agent.compute_value()
+            buffer.finish(value)
 
-        start_train_step = agent.train_step
-        with Timer('train_time', 1000) as tt:
-            agent.learn_log(step)
-        agent.store(tps=(agent.train_step-start_train_step)/lt.last())
-        buffer.reset()
+            start_train_step = agent.train_step
+            with Timer('train_time', 1000) as tt:
+                agent.learn_log(step)
+            agent.store(tps=(agent.train_step-start_train_step)/tt.last())
+            buffer.reset()
+
+        # auxiliary phase
+        assert buffer.ready(), buffer._idx
+        buffer.compute_aux_data_with_func(agent.compute_aux_data)
+        value = agent.compute_value()
+        buffer.aux_finish(value)
+
+        with Timer('aux_time', 1000) as at:
+            agent.aux_learn_log(step)
+        agent.store(atps=(agent.N_AUX_EPOCHS * agent.N_AUX_MBS)/tt.last())
+        buffer.aux_reset()
 
         if to_eval(agent.train_step):
             with TempStore(agent.get_states, agent.reset_states):
@@ -64,7 +76,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     algo = agent_config['algorithm']
 
     create_model, Agent = pkg.import_agent(config=agent_config)
-    Buffer = pkg.import_module('buffer', algo=algo).Buffer
+    Buffer = pkg.import_module('buffer', algo=algo).Storage
 
     silence_tf_logs()
     configure_gpu()

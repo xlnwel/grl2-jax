@@ -20,7 +20,7 @@ model:
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
-    critic:
+    value:
         units_list: [512]
         norm: null
         kernel_initializer: glorot_uniform
@@ -32,7 +32,7 @@ agent:
 
     MAX_STEPS: 1e10
     N_STEPS: &nsteps 256
-    N_UPDATES: 4
+    N_EPOCHS: 4
     N_MBS: &nmbs 4
     LOG_PERIOD: 100
     EVAL_PERIOD: 500

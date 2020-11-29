@@ -93,7 +93,7 @@ def get_learner_class(BaseAgent):
             self._state[(worker_id, env_id)] = self._state.default_factory()
             self._prev_action[(worker_id, env_id)] = self._prev_action.default_factory()
 
-        def __call__(self, worker_ids, env_ids, obs, deterministic=False):
+        def __call__(self, worker_ids, env_ids, obs, evaluation=False):
             # pack data
             raw_state = [tf.concat(s, 0)
                 for s in zip(*[tf.nest.flatten(self._state[(wid, eid)]) 
@@ -106,7 +106,7 @@ def get_learner_class(BaseAgent):
             obs = np.stack(obs, 0)
 
             prev_state = state
-            action, state = self.action(obs, state, prev_action, deterministic)
+            action, state = self.action(obs, state, prev_action, evaluation)
 
             prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype) \
                     if self._is_action_discrete else action

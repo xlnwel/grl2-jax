@@ -141,17 +141,17 @@ class Agent(RNDBase):
     def get_states(self):
         return None
 
-    def __call__(self, obs, deterministic=False, **kwargs):
-        if deterministic:
+    def __call__(self, obs, evaluation=False, **kwargs):
+        if evaluation:
             norm_obs = np.expand_dims(obs, 1)
             norm_obs = self.normalize_obs(norm_obs)
             reward_int = self.compute_int_reward(norm_obs)
             self.eval_reward_int.append(np.squeeze(reward_int))
-            action = self.action(obs, deterministic).numpy()
+            action = self.action(obs, True).numpy()
             self.eval_action.append(action)
             return action
         else:
-            out = self.action(obs, deterministic)
+            out = self.action(obs, False)
             action, terms = tf.nest.map_structure(lambda x: x.numpy(), out)
             return action, terms
 

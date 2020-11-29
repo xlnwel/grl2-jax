@@ -221,7 +221,6 @@ class RayEnvVec(EnvVecBase):
 
     def reset(self, idxes=None):
         output = self._remote_call('reset', idxes, single_output=False)
-        output = zip(*output)
 
         if isinstance(self.env, Env):
             output = [np.stack(o, 0) for o in output]
@@ -243,7 +242,6 @@ class RayEnvVec(EnvVecBase):
         else:
             output = ray.get([env.step.remote(a) 
                 for env, a in zip(self.envs, actions)])
-        output = zip(*output)
 
         if isinstance(self.env, Env):
             output = [np.stack(o, 0) for o in output]
@@ -267,9 +265,18 @@ class RayEnvVec(EnvVecBase):
         return self._remote_call('info', idxes)
     
     def output(self, idxes=None):
-        return self._remote_call('output', idxes)
+        output = self._remote_call('output', idxes, single_output=False)
+
+        if isinstance(self.env, Env):
+            output = [np.stack(o, 0) for o in output]
+        else:
+            output = [np.concatenate(o, 0) for o in output]
+        return EnvOutput(*output)
 
     def _remote_call(self, name, idxes, single_output=True):
+        """
+        single_output: if the call produces only one output
+        """
         method = lambda e: getattr(e, name)
         if idxes is None:
             output = ray.get([method(e).remote() for e in self.envs])
@@ -285,7 +292,7 @@ class RayEnvVec(EnvVecBase):
         if not isinstance(self.env, Env) and single_output:
             return list(itertools.chain(*output))
         else:
-            return output
+            return list(zip(*output))
 
     def close(self):
         del self

@@ -2,12 +2,11 @@ import numpy as np
 
 from core.decorator import config
 from utility.display import pwc
-from utility.utils import moments, standardize
 from replay.utils import init_buffer, print_buffer
 from algo.ppo.buffer import compute_gae
 
 
-class PPOBuffer:
+class Buffer:
     @config
     def __init__(self):
         size = self._n_envs * self.N_STEPS

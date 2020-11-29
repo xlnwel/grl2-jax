@@ -216,10 +216,10 @@ class Worker(BaseWorker):
         print(f'{worker_id} action epsilon:', self._act_eps)
         print(f'{worker_id} action inv_temp:', np.squeeze(self.model.actor.act_inv_temp))
 
-    def __call__(self, x, deterministic=False, **kwargs):
+    def __call__(self, x, **kwargs):
         action = self.model.action(
             tf.convert_to_tensor(x), 
-            deterministic=deterministic,
+            deterministic=False,
             epsilon=tf.convert_to_tensor(self._act_eps, tf.float32),
             return_stats=self._return_stats)
         action = tf.nest.map_structure(lambda x: x.numpy(), action)
@@ -317,8 +317,7 @@ class BaseEvaluator:
     def _run(self, weights, record):        
         self.model.set_weights(weights)
         score, epslen, video = evaluate(self.env, self, 
-            record=record, n=self.N_EVALUATION, 
-            deterministic_action=getattr(self, '_deterministic_evaluation', True))
+            record=record, n=self.N_EVALUATION)
         self.store(score, epslen, video)
 
     def store(self, score, epslen, video):
@@ -360,10 +359,10 @@ class Evaluator(BaseEvaluator):
         
         self._info = collections.defaultdict(list)
 
-    def __call__(self, x, deterministic=True, **kwargs):
+    def __call__(self, x, **kwargs):
         action = self.model.action(
             tf.convert_to_tensor(x), 
-            deterministic=deterministic,
+            deterministic=self._deterministic_evaluation,
             epsilon=self._eval_act_eps)
         if isinstance(action, tuple):
             if len(action) == 2:

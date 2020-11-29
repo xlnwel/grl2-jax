@@ -6,21 +6,8 @@ from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.module import Module, Ensemble
 from core.decorator import config
-from nn.func import cnn, mlp
+from nn.func import Encoder, mlp
 
-
-class Encoder(Module):
-    def __init__(self, config, name='encoder'):
-        super().__init__(name=name)
-        if 'cnn_name' in config:
-            self._layers = cnn(**config)
-        else:
-            assert 'units_list' in config
-            self._layers = mlp(**config)
-
-    def call(self, x):
-        x = self._layers(x)
-        return x
 
 class Actor(Module):
     @config
@@ -36,7 +23,7 @@ class Actor(Module):
                         activation=self._activation, 
                         kernel_initializer=self._kernel_initializer,
                         out_dtype='float32',
-                        name='actor',
+                        name=name,
                         )
 
         if not self.is_action_discrete:
@@ -55,16 +42,17 @@ class Actor(Module):
             act_dist = tfd.MultivariateNormalDiag(actor_out, tf.exp(self.logstd))
         return act_dist
 
-class Critic(Module):
-    def __init__(self, config, name='critic'):
+class Value(Module):
+    def __init__(self, config, name='value'):
         super().__init__(name=name)
-        self.critic = mlp(**config,
+        self._layers = mlp(**config,
                           out_size=1,
                           out_dtype='float32',
-                          name='critic')
+                          name='value')
 
     def call(self, x):
-        value = tf.squeeze(self.critic(x), -1)
+        value = self._layers(x)
+        value = tf.squeeze(value, -1)
         return value
 
 class PPO(Ensemble):
@@ -80,16 +68,22 @@ class PPO(Ensemble):
         x = self.encoder(x)
         if deterministic:
             act_dist = self.actor(x)
-            action = tf.squeeze(act_dist.mode())
+            action = act_dist.mode()
             return action
         else:
             act_dist = self.actor(x)
-            value = self.critic(x)
+            value = self.value(x)
             action = act_dist.sample()
             logpi = act_dist.log_prob(action)
             terms = {'logpi': logpi, 'value': value}
             return action, terms    # keep the batch dimension for later use
 
+    @tf.function
+    def compute_value(self, x):
+        x = self.encoder(x)
+        value = self.value(x)
+        return value
+    
     def reset_states(self, **kwargs):
         return
 
@@ -104,7 +98,7 @@ def create_components(config, env):
     return dict(
         encoder=Encoder(config['encoder']), 
         actor=Actor(config['actor'], action_dim, is_action_discrete),
-        critic=Critic(config['critic'])
+        value=Value(config['value'])
     )
 
 def create_model(config, env, **kwargs):

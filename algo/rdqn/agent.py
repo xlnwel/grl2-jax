@@ -85,7 +85,7 @@ class Agent(BaseAgent):
     def get_states(self):
         return self._state, self._prev_action, self._prev_reward
 
-    def __call__(self, obs, reset=np.zeros(1), deterministic=False, env_output=None, **kwargs):
+    def __call__(self, obs, reset=np.zeros(1), evaluation=False, env_output=None, **kwargs):
         self._prev_reward = env_output.reward
         eps = self._act_eps
         obs = np.reshape(obs, (-1, *self._obs_shape))
@@ -98,16 +98,16 @@ class Agent(BaseAgent):
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
             self._prev_action = self._prev_action * tf.cast(mask, self._prev_action.dtype)
             self._prev_reward = self._prev_reward * mask
-        if deterministic:
+        if evaluation:
             action, _, self._state = self.model.action(
-                obs, self._state, deterministic, self._eval_act_eps,
+                obs, self._state, evaluation, self._eval_act_eps,
                 prev_action=self._prev_action,
                 prev_reward=self._prev_reward)
             self._prev_action = action
             return action.numpy()
         else:
             action, terms, state = self.model.action(
-                obs, self._state, deterministic, eps,
+                obs, self._state, False, eps,
                 prev_action=self._prev_action,
                 prev_reward=self._prev_reward)
             if self._store_state:

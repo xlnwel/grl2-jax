@@ -83,7 +83,7 @@ class Agent(BaseAgent):
     def get_states(self):
         return self._state, self._prev_action
 
-    def __call__(self, obs, reset=np.zeros(1), deterministic=False, **kwargs):
+    def __call__(self, obs, reset=np.zeros(1), evaluation=False, **kwargs):
         if len(obs.shape) % 2 != 0:
             has_expanded = True
             obs = np.expand_dims(obs, 0)
@@ -99,7 +99,7 @@ class Agent(BaseAgent):
             self._prev_action = self._prev_action * mask
         prev_state = self._state
         action, self._state = self.action(
-            obs, self._state, self._prev_action, deterministic)
+            obs, self._state, self._prev_action, evaluation)
         
         self._prev_action = tf.one_hot(action, self._action_dim, dtype=self._dtype) \
             if self._is_action_discrete else action

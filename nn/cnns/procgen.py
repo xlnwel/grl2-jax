@@ -65,7 +65,7 @@ class ProcgenCNN(Module):
         self._layers = []
         prefix = f'{self.scope_name}/'
         with self.name_scope:
-            f_n = zip(filters[:-1], n_blocks[:-1]) if deter_stoch \
+            f_n = zip(filters[:-1], n_blocks[:-1]) if deter_stoch and out_size is None\
                 else zip(filters, n_blocks)
             for i, (f, n) in enumerate(f_n):
                 subsample_kwargs['filters'] = f
@@ -81,17 +81,27 @@ class ProcgenCNN(Module):
                     ]
             f = filters[-1]
             if deter_stoch:
-                subsample_kwargs['filters'] = f
-                ds_cls = block_registry.get('dsl')
-                self._layers += [
-                    ds_cls(n_blocks=n_blocks[-1],
-                        subsample=subsample, 
-                        subsample_kwargs=subsample_kwargs, 
-                        block=block,
-                        block_kwargs=block_kwargs,
-                        name=f'{prefix}ds')
-                ]
-                self._training_cls.append(ds_cls)
+                if out_size is None:
+                    subsample_kwargs['filters'] = f
+                    ds_cls = block_registry.get('dsl')
+                    self._layers += [
+                        ds_cls(n_blocks=n_blocks[-1],
+                            subsample=subsample, 
+                            subsample_kwargs=subsample_kwargs, 
+                            block=block,
+                            block_kwargs=block_kwargs,
+                            name=f'{prefix}ds')
+                    ]
+                    self._training_cls.append(ds_cls)
+                else:
+                    ds_cls = block_registry.get('dss')
+                    self.out_size = out_size
+                    self._layers += [
+                        ds_cls('dense',
+                            self.out_size, 
+                            activation=self._out_act, 
+                            name=prefix+'out')
+                    ]
             if belief:
                 bs_layer_cls = layer_registry.get('conv2d')
                 self._bs_layer = bs_layer_cls(2 * f, 3, 1, padding='same', **kwargs, name=prefix+'belief')

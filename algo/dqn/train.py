@@ -66,7 +66,10 @@ def main(env_config, model_config, agent_config, replay_config):
     # if env_config['name'].startswith('procgen'):
     #     start_level = 200
     eval_env_config = env_config.copy()
-    eval_env_config.pop('reward_clip', False)
+    for k in eval_env_config.keys():
+        # pop reward hacks
+        if 'reward' in k:
+            eval_env_config.pop(k)
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 

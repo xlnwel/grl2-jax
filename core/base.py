@@ -96,15 +96,14 @@ class RMSBaseAgent(BaseAgent):
             getattr(self, '_normalize_reward_with_reversed_return', True)
         
         axis = tuple(self._normalized_axis)
-        self._obs_rms = self._normalize_obs \
-            and RunningMeanStd(axis)
-        self._reward_rms = self._normalize_reward \
-            and RunningMeanStd(axis)
+        self._obs_rms = self._normalize_obs and RunningMeanStd(axis)
+        self._reward_rms = self._normalize_reward and RunningMeanStd(axis)
         if self._normalize_reward_with_reversed_return:
             self._reverse_return = 0
         else:
             self._reverse_return = -np.inf
         self._rms_path = f'{self._root_dir}/{self._model_name}/rms.pkl'
+        logger.info(f'Observation normalization: {self._normalize_obs}')
         logger.info(f'Reward normalization: {self._normalize_reward}')
         logger.info(f'Reward normalization with reversed return: {self._normalize_reward_with_reversed_return}')
 
@@ -153,14 +152,11 @@ class RMSBaseAgent(BaseAgent):
                 self._reward_rms.update(reward)
 
     def normalize_obs(self, obs):
-        return self._obs_rms.normalize(obs) \
-            if self._normalize_obs else obs
+        return self._obs_rms.normalize(obs) if self._normalize_obs else obs
 
     def normalize_reward(self, reward):
-        if self._normalize_reward:
-            return self._reward_rms.normalize(reward, subtract_mean=False)
-        else:
-            return reward
+        return self._reward_rms.normalize(reward, subtract_mean=False) \
+            if self._normalize_reward else reward
 
     def restore(self):
         if os.path.exists(self._rms_path):

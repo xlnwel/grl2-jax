@@ -57,8 +57,8 @@ class DQNBase(BaseAgent):
     def reset_noisy(self):
         pass
 
-    def __call__(self, x, deterministic=False, **kwargs):
-        if deterministic:
+    def __call__(self, x, evaluation=False, **kwargs):
+        if evaluation:
             eps = self._eval_act_eps
         elif self._schedule_act_eps:
             eps = self._act_eps.value(self.env_step)
@@ -67,7 +67,7 @@ class DQNBase(BaseAgent):
             eps = self._act_eps
         action, terms = self.model.action(
             tf.convert_to_tensor(x), 
-            deterministic=deterministic, 
+            deterministic=self._deterministic_evaluation, 
             epsilon=tf.convert_to_tensor(eps, tf.float32),
             **kwargs)
         action = np.squeeze(action.numpy())
@@ -90,11 +90,10 @@ class DQNBase(BaseAgent):
             if self._to_summary(step):
                 self.summary(data, terms)
 
-            terms = {k: v.numpy() for k, v in terms.items()}
+            terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
             if getattr(self, '_use_is_ratio', self._is_per):
-                self.dataset.update_priorities(terms['priority'], idxes)
+                self.dataset.update_priorities(terms['train/priority'], idxes)
 
-            terms = {f'learn/{k}': v for k, v in terms.items()}
             self.store(**terms)
         return self.N_UPDATES
 

@@ -50,10 +50,10 @@ class Agent(BaseAgent):
 
         self._sync_target_nets()
 
-    def __call__(self, obs, deterministic=False, **kwargs):
+    def __call__(self, obs, evaluation=False, **kwargs):
         return self.model.action(
             obs, 
-            deterministic=deterministic, 
+            deterministic=evaluation, 
             epsilon=self._act_eps).numpy()
 
     @step_track

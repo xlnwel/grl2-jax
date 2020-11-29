@@ -37,13 +37,13 @@ class AC(Module):
                 dtype='float32', 
                 trainable=True, 
                 name=f'actor/logstd')
-        self.critic = mlp(self._critic_units, 
+        self.value = mlp(self._critic_units, 
                             out_size=1,
                             norm=self._norm,
                             activation=self._activation, 
                             kernel_initializer=self._kernel_initializer,
                             out_dtype='float32',
-                            name='critic')
+                            name='value')
 
     def call(self, x, return_terms=False):
         print(f'{self.name} is retracing: x={x.shape}')
@@ -60,7 +60,7 @@ class AC(Module):
             terms['mean'] = actor_out
 
         if return_terms:
-            value = tf.squeeze(self.critic(x), -1)
+            value = tf.squeeze(self.value(x), -1)
             terms['value'] = value
             return act_dist, terms
         else:

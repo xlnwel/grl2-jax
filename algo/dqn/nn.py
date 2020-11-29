@@ -7,11 +7,9 @@ from tensorflow_probability import distributions as tfd
 from utility.display import pwc
 from core.module import Module, Ensemble
 from core.decorator import config
-from nn.func import mlp, cnn
+from nn.func import Encoder, mlp
 from nn.layers import Noisy
 
-
-Encoder = lambda config, name='encoder': cnn(**config, name=name)
 
 class Q(Module):
     @config

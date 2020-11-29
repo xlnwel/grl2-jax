@@ -3,11 +3,10 @@ import tensorflow as tf
 
 from core.decorator import config
 from utility.display import pwc
-from utility.utils import moments, standardize
 from replay.utils import init_buffer, print_buffer
 from algo.ppo.buffer import compute_gae, compute_nae
 
-class PPOBuffer:
+class Buffer:
     @config
     def __init__(self, state_keys):
         assert self._n_envs * self.N_STEPS % self._sample_size == 0, \
@@ -19,9 +18,12 @@ class PPOBuffer:
         self._memory = {}
         self._state_keys = state_keys
         self.reset()
-        print(f'Batch size: {size}')
+        print(f'Batch size: {size} chunks of {self._sample_size} timesteps')
         print(f'Mini-batch size: {self._mb_size} chunks of {self._sample_size} timesteps')
 
+    def __getitem__(self, k):
+        return self._memory[k]
+    
     def add(self, **data):
         if self._memory == {}:
             state_dtype = {16: np.float16, 32: np.float32}[self._precision]
@@ -30,8 +32,9 @@ class PPOBuffer:
                 self._memory[k].astype(state_dtype)
             self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
-            self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             print_buffer(self._memory)
+            if not hasattr(self, '_sample_keys'):
+                self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             
         for k, v in data.items():
             self._memory[k][:, self._idx] = v

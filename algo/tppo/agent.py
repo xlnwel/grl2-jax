@@ -51,16 +51,14 @@ class Agent(PPOBase):
     def get_states(self):
         return None
 
-    def __call__(self, obs, deterministic=False, update_rms=False, **kwargs):
+    def __call__(self, obs, evaluation=False, **kwargs):
         if obs.ndim % 2 != 0:
             obs = np.expand_dims(obs, 0)
-        if update_rms:
-            self.update_obs_rms(obs)
         obs = self.normalize_obs(obs)
-        if deterministic:
-            return self.model.action(obs, deterministic).numpy()
+        if evaluation:
+            return self.model.action(obs, evaluation).numpy()
         else:
-            out = self.model.action(obs, deterministic)
+            out = self.model.action(obs, evaluation)
             action, terms = tf.nest.map_structure(lambda x: x.numpy(), out)
             terms['obs'] = obs  # return normalized obs
             return action, terms

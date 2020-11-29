@@ -186,7 +186,7 @@ class CURL(Ensemble):
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
 
-        x = self.cnn(x)
+        x = self.encoder(x)
         action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
         action = tf.squeeze(action)
 
@@ -198,7 +198,7 @@ class CURL(Ensemble):
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
         
-        x = self.cnn(x)
+        x = self.encoder(x)
         value = self.q(x)
         value = tf.squeeze(value)
         
@@ -223,9 +223,7 @@ def create_components(config, env):
         target_encoder=Encoder(encoder_config, 'target_encoder'),
         actor=Actor(actor_config, action_dim, is_action_discrete),
         q=Q(q_config, 'q'),
-        q2=Q(q_config, 'q2'),
         target_q=Q(q_config, 'target_q'),
-        target_q2=Q(q_config, 'target_q2'),
         temperature=temperature,
         crl=ContrastiveRepresentationLearning(curl_config, 'curl')
     )

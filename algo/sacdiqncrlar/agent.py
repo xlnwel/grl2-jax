@@ -60,8 +60,8 @@ class Agent(DQNBase):
         self._max_ar = self.actor.max_ar
         self._combined_action_dim = self._action_dim * self._max_ar
 
-    def __call__(self, x, deterministic=False, **kwargs):
-        if deterministic:
+    def __call__(self, x, evaluation=False, **kwargs):
+        if evaluation:
             eps = self._eval_act_eps
         elif self._schedule_act_eps:
             eps = self._act_eps.value(self.env_step)
@@ -70,7 +70,7 @@ class Agent(DQNBase):
             eps = self._act_eps
         action, ar, terms = self.model.action(
             tf.convert_to_tensor(x), 
-            deterministic=deterministic, 
+            deterministic=evaluation, 
             epsilon=tf.convert_to_tensor(eps, tf.float32))
         action = action.numpy()
         ar = ar.numpy()

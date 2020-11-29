@@ -117,7 +117,7 @@ def main(env_config, model_config, agent_config, buffer_config):
         env_config['name'] = env
 
     create_model, Agent = pkg.import_agent(config=agent_config)
-    PPOBuffer = pkg.import_module('buffer', algo=algo).PPOBuffer
+    Buffer = pkg.import_module('buffer', algo=algo).Buffer
 
     silence_tf_logs()
     configure_gpu()
@@ -137,7 +137,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     eval_env = create_env(eval_env_config, env_fn=make_env, force_envvec=True)
 
     buffer_config['n_envs'] = env.n_envs
-    buffer = PPOBuffer(buffer_config)
+    buffer = Buffer(buffer_config)
 
     models = create_model(model_config, env)
     

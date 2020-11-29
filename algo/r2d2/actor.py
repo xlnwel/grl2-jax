@@ -123,7 +123,7 @@ class Worker(BaseWorker):
             self.compute_priorities = build(
                 self._compute_priorities, TensorSpecs)
 
-    def __call__(self, obs, reset, deterministic=False, env_output=None):
+    def __call__(self, obs, reset, evaluation=False, env_output=None):
         self._prev_reward = tf.convert_to_tensor(env_output.reward, tf.float32)
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=self.n_envs)
@@ -136,7 +136,7 @@ class Worker(BaseWorker):
         assert self._prev_action.dtype == tf.int32, self._prev_action.dtype
         action, terms, state = self.model.action(
             obs, self._state, 
-            deterministic=deterministic,
+            deterministic=evaluation,
             epsilon=self._act_eps, 
             prev_action=self._prev_action, 
             prev_reward=self._prev_reward)
@@ -227,11 +227,11 @@ class Evaluator(BaseEvaluator):
         self._prev_action = tf.zeros(self.n_envs)
         self._prev_reward = tf.zeros(self.n_envs)
 
-    def __call__(self, x, deterministic=True, env_output=None, **kwargs):
+    def __call__(self, x, evaluation=True, env_output=None, **kwargs):
         self._prev_reward = env_output.reward
         action, _, self._state = self.model.action(
             tf.convert_to_tensor(x), 
-            self._state, deterministic, self._eval_act_eps,
+            self._state, evaluation, self._eval_act_eps,
             prev_action=self._prev_action,
             prev_reward=self._prev_reward)
         self._prev_action = action

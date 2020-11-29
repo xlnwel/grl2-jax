@@ -131,7 +131,7 @@ class Worker:
                 )
             self.compute_priorities = build(self._compute_priorities, TensorSpecs)
 
-    def __call__(self, obs, reset, deterministic=False, env_output=None):
+    def __call__(self, obs, reset, evaluation=False, env_output=None):
         self._prev_reward = env_output.reward
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=self.n_envs)
@@ -278,10 +278,11 @@ class Evaluator(BaseEvaluator):
             self._prev_action = tf.zeros(self.n_envs)
             self._prev_reward = tf.zeros(self.n_envs)
 
-    def __call__(self, x, deterministic=True, env_output=None, **kwargs):
+    def __call__(self, x, evaluation=True, env_output=None, **kwargs):
         if self._additional_input:
             self._prev_reward = env_output.reward
-        action, self._state = self.q.action(x, self._state, self._mask, deterministic=True)
+        action, self._state = self.q.action(x, self._state, self._mask, 
+            deterministic=self._deterministic_evaluation)
         if self._additional_input:
             self._prev_action = action
         return action.numpy()

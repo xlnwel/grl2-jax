@@ -47,7 +47,7 @@ class Runner:
             action = action_selector(
                 obs, 
                 reset=reset, 
-                deterministic=False,
+                evaluation=False,
                 env_output=self.env_output)
             obs, reset = self.step_env(obs, action, step_fn)
 
@@ -71,7 +71,7 @@ class Runner:
             action = action_selector(
                 obs, 
                 reset=reset, 
-                deterministic=False,
+                evaluation=False,
                 env_output=self.env_output)
             obs, reset = self.step_env(obs, action, step_fn)
             
@@ -98,7 +98,7 @@ class Runner:
             action = action_selector(
                 obs, 
                 reset=reset, 
-                deterministic=False, 
+                evaluation=False, 
                 env_output=self.env_output)
             obs, reset = self.step_env(obs, action, step_fn)
 
@@ -122,7 +122,7 @@ class Runner:
             action = action_selector(
                 obs, 
                 reset=reset, 
-                deterministic=False,
+                evaluation=False,
                 env_output=self.env_output)
             obs, reset = self.step_env(obs, action, step_fn, mask=True)
 
@@ -155,7 +155,7 @@ class Runner:
             self.step += self._frames_per_step
             terms = {}
         next_obs, reward, discount, reset = self.env_output
-
+        
         if step_fn:
             kwargs = dict(obs=obs, action=action, reward=reward,
                 discount=discount, next_obs=next_obs)
@@ -175,8 +175,7 @@ def evaluate(
              size=None, 
              video_len=1000, 
              step_fn=None, 
-             record_stats=False,
-             deterministic_action=True):
+             record_stats=False):
     assert get_wrapper_by_name(env, 'EnvStats') is not None
     scores = []
     epslens = []
@@ -202,7 +201,7 @@ def evaluate(
                     for i in range(env.n_envs):
                         frames[i].append(img[i])
                     
-            action = agent(obs, deterministic=deterministic_action, 
+            action = agent(obs, evaluation=True, 
                 env_output=env_output, return_eval_stats=record_stats)
             terms = {}
             if isinstance(action, tuple):

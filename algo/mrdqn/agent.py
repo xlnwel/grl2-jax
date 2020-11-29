@@ -87,7 +87,7 @@ class Agent(BaseAgent):
     def get_states(self):
         return self._state, self._prev_action, self._prev_reward
 
-    def __call__(self, obs, reset=np.zeros(1), deterministic=False, env_output=0, **kwargs):
+    def __call__(self, obs, reset=np.zeros(1), evaluation=False, env_output=0, **kwargs):
         if self._additional_input:
             self._prev_reward = env_output.reward
         eps = self._act_eps
@@ -103,9 +103,9 @@ class Agent(BaseAgent):
             if self._additional_input:
                 self._prev_action = self._prev_action * mask
                 self._prev_reward = self._prev_reward * mask
-        if deterministic:
+        if evaluation:
             action, self._state = self.q.action(
-                obs, self._state, deterministic, 
+                obs, self._state, True, 
                 prev_action=self._prev_action,
                 prev_reward=self._prev_reward)
             if self._additional_input:
@@ -113,7 +113,7 @@ class Agent(BaseAgent):
             return action.numpy()
         else:
             action, terms, state = self.q.action(
-                obs, self._state, deterministic, eps,
+                obs, self._state, False, eps,
                 prev_action=self._prev_action,
                 prev_reward=self._prev_reward)
             
