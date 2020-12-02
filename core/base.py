@@ -162,6 +162,7 @@ class RMSBaseAgent(BaseAgent):
         if os.path.exists(self._rms_path):
             with open(self._rms_path, 'rb') as f:
                 self._obs_rms, self._reward_rms = cloudpickle.load(f)
+                logger.info(f'rms stats are restored from {self._rms_path}')
         super().restore()
 
     def save(self, print_terminal_info=False):

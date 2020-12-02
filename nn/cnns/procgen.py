@@ -11,12 +11,12 @@ class ProcgenCNN(Module):
                  *, 
                  time_distributed=False, 
                  obs_range=[0, 1], 
-                 filters=[16, 32, 32, 32],
+                 filters=[32, 64, 64, 64],
                  n_blocks=[1, 1, 1, 1],
                  kernel_initializer='glorot_uniform',
                  stem='conv_maxblurpool',
                  stem_kwargs={},
-                 subsample='strided_resv1',
+                 subsample='conv_maxblurpool',
                  subsample_kwargs={},
                  block='resv1',
                  block_kwargs=dict(
@@ -25,7 +25,7 @@ class ProcgenCNN(Module):
                     norm=None,
                     norm_kwargs={},
                     activation='relu',
-                    am='se',
+                    am='cbam',
                     am_kwargs={},
                     dropout_rate=0.,
                     rezero=False,
@@ -33,7 +33,7 @@ class ProcgenCNN(Module):
                  sa='conv_sa',
                  sa_pos=[],
                  sa_kwargs={},
-                 deter_stoch=True,
+                 deter_stoch=False,
                  belief=False,
                  out_activation='relu',
                  out_size=None,
@@ -71,7 +71,7 @@ class ProcgenCNN(Module):
                 subsample_kwargs['filters'] = f
                 stem_kwargs['filters'] = f
                 self._layers += [
-                    stem_cls(name=prefix+stem, **stem_kwargs) if i == 0 else
+                    stem_cls(name=prefix+stem, **stem_kwargs) if i == 0 and stem is not None else
                     subsample_cls(name=f'{prefix}{subsample}_{i}_f{f}', **subsample_kwargs),
                 ] + [block_cls(name=f'{prefix}{block}_{i}_{j}', **block_kwargs) 
                     for j in range(n)]
@@ -79,9 +79,12 @@ class ProcgenCNN(Module):
                     self._layers += [
                         sa_cls(name=f'{prefix}{sa}_{i}', **sa_kwargs)
                     ]
-            f = filters[-1]
+            out_act_cls = get_activation(out_activation, return_cls=True)
+            self._out_act = out_act_cls(name=prefix+out_activation if out_activation else '')
+            self.out_size = out_size
             if deter_stoch:
                 if out_size is None:
+                    f = filters[-1]
                     subsample_kwargs['filters'] = f
                     ds_cls = block_registry.get('dsl')
                     self._layers += [
@@ -93,26 +96,25 @@ class ProcgenCNN(Module):
                             name=f'{prefix}ds')
                     ]
                     self._training_cls.append(ds_cls)
+                    self._flat = layers.Flatten(name=prefix+'flatten')
                 else:
+                    self._flat = layers.Flatten(name=prefix+'flatten')
                     ds_cls = block_registry.get('dss')
-                    self.out_size = out_size
+                    
                     self._layers += [
                         ds_cls('dense',
                             self.out_size, 
                             activation=self._out_act, 
                             name=prefix+'out')
                     ]
+            else:
+                self._flat = layers.Flatten(name=prefix+'flatten')
+                if self.out_size:
+                    self._dense = layers.Dense(self.out_size, activation=self._out_act, name=prefix+'out')
             if belief:
                 bs_layer_cls = layer_registry.get('conv2d')
                 self._bs_layer = bs_layer_cls(2 * f, 3, 1, padding='same', **kwargs, name=prefix+'belief')
 
-            out_act_cls = get_activation(out_activation, return_cls=True)
-            self._out_act = out_act_cls(name=prefix+out_activation if out_activation else '')
-            self._flat = layers.Flatten(name=prefix+'flatten')
-
-            self.out_size = out_size
-            if self.out_size:
-                self._dense = layers.Dense(self.out_size, activation=self._out_act, name=prefix+'out')
         self._training_cls += [block_cls, subsample_cls, sa_cls]
     
     @property

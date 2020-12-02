@@ -32,7 +32,6 @@ class EnvVecBuffer:
         env_ids = env_ids or range(self._n_envs)
         idx = self._idx
         for k, v in data.items():
-            print(k, v)
             self._memory[k][:, idx] = v
         self._memory['steps'][:, idx] = 1
 
@@ -71,7 +70,6 @@ class Replay(ABC):
         
         self._memory = {}
 
-        
         self._n_envs = getattr(self, '_n_envs', 1)
         if self._n_envs > 1:
             self._tmp_buf = EnvVecBuffer({

@@ -12,11 +12,13 @@ from env import dmc
 
 def make_env(config):
     # config = config.copy()    # do not copy to make changes visible from the outside
-    if config['name'].lower().startswith('atari'):
+    env_name = config['name'].lower()
+    
+    if env_name.startswith('atari'):
         env = atari.make_atari_env(config)
-    elif config['name'].lower().startswith('procgen'):
+    elif env_name.startswith('procgen'):
         env = procgen.make_procgen_env(config)
-    elif config['name'].lower().startswith('dmc'):
+    elif env_name.startswith('dmc'):
         env = dmc.make_dmc_env(config)
     else:
         env = gym.make(config['name']).env
@@ -203,6 +205,7 @@ class EnvVec(EnvVecBase):
 class RayEnvVec(EnvVecBase):
     def __init__(self, EnvType, config, env_fn=make_env):
         self.name = config['name']
+        config['np_obs'] = True
         self.n_workers= config.get('n_workers', 1)
         self.envsperworker = config.get('n_envs', 1)
         self.n_envs = self.envsperworker * self.n_workers
@@ -242,6 +245,7 @@ class RayEnvVec(EnvVecBase):
         else:
             output = ray.get([env.step.remote(a) 
                 for env, a in zip(self.envs, actions)])
+        output = list(zip(*output))
 
         if isinstance(self.env, Env):
             output = [np.stack(o, 0) for o in output]
@@ -289,7 +293,11 @@ class RayEnvVec(EnvVecBase):
                     new_idxes[i // self.envsperworker].append(i % self.envsperworker)
                 output = ray.get([method(self.envs[i]).remote(j) 
                     for i, j in enumerate(new_idxes) if j])
-        if not isinstance(self.env, Env) and single_output:
+        if single_output:
+            if isinstance(self.env, Env):
+                return output
+            # for these outputs, we expect them to be of form [[output*], [output*]]
+            # and we chain them into [output*]
             return list(itertools.chain(*output))
         else:
             return list(zip(*output))

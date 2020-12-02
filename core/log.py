@@ -3,7 +3,7 @@ from collections import defaultdict
 import numpy as np
 import tensorflow as tf
 
-from utility.utils import isscalar, step_str
+from utility.utils import isscalar
 from utility.display import pwc, assert_colorize
 from utility.graph import image_summary, video_summary
 from utility import yaml_op

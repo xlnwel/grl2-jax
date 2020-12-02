@@ -48,32 +48,24 @@ class Dummy:
 Some modifications are done to meet specific requirements """
 class LazyFrames:
     def __init__(self, frames):
-        """ Different from the official implementation from baselines
-        we do not cache the results to save memory.
+        """ Different from the official implementation from OpenAI's baselines,
+        we do not cache the results to save memory. Also, notice we do not define
+        functions like __getitem__ avoid unintended overhead introduced by
+        not caching the results. This means we do not support something like the 
+        following
+        # error as __getitem is not defined
+        np.array([LazyFrames(frames) for _ in range(4)])
         """
-        self._frames = frames
+        self._frames = list(frames)
+        self._concat = len(frames[0].shape) == 3
+    
+    def __array__(self):
+        if self._concat:
+            out = np.concatenate(self._frames, -1)
+        else:
+            out = np.stack(self._frames, -1)
 
-    def _force(self):
-        return np.concatenate(self._frames, axis=-1)
-
-    def __array__(self, dtype=None):
-        out = self._force()
-        if dtype is not None:
-            out = out.astype(dtype)
         return out
-
-    def __len__(self):
-        return len(self._force())
-
-    def __getitem__(self, i):
-        return self._force()[i]
-
-    def count(self):
-        frames = self._force()
-        return frames.shape[frames.ndim - 1]
-
-    def frame(self, i):
-        return self._force()[..., i]
 
 
 class MaxAndSkipEnv(gym.Wrapper):

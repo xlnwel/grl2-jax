@@ -1,7 +1,7 @@
 import numpy as np
 import gym
 
-from env.env import Env, EnvVec, RayEnvVec, make_env
+from env.cls import Env, EnvVec, RayEnvVec, make_env
 
 
 def create_env(config, env_fn=None, force_envvec=False):
