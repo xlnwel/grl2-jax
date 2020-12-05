@@ -4,9 +4,9 @@ from tensorflow.keras import layers
 from tensorflow.keras.mixed_precision.experimental import global_policy
 from tensorflow_probability import distributions as tfd
 
-from utility.display import pwc
 from core.module import Module, Ensemble
 from core.decorator import config
+from utility.rl_utils import epsilon_greedy
 from nn.func import Encoder, mlp
 from nn.layers import Noisy
 
@@ -15,7 +15,6 @@ class Q(Module):
     @config
     def __init__(self, action_dim, name='q'):
         super().__init__(name=name)
-        self._dtype = global_policy().compute_dtype
 
         self.action_dim = action_dim
 
@@ -25,9 +24,7 @@ class Q(Module):
             kernel_initializer=getattr(self, '_kernel_initializer', 'glorot_uniform'),
             activation=getattr(self, '_activation', 'relu'),
         )
-        self._cnn = cnn(self._cnn_name, out_size=self._out_size, **kwargs)
-
-        layer_type = dict(noisy=Noisy, dense=layers.Dense)[self._layer_type]
+        
         if self._duel:
             self._v_head = mlp(
                 self._units_list, 
@@ -42,23 +39,11 @@ class Q(Module):
             name='a' if self._duel else 'q',
             **kwargs)
 
-    @tf.function
     def action(self, x, noisy=True, reset=True):
-        q = self.value(x, noisy=noisy, reset=reset)
+        q = self.call(x, noisy=noisy, reset=reset)
         return tf.argmax(q, axis=-1, output_type=tf.int32)
     
-    @tf.function
-    def value(self, x, action=None, noisy=True, reset=True):
-        x = self.cnn(x)
-        q = self.mlp(x, action=action, noisy=noisy, reset=reset)
-        return q
-
-    def cnn(self, x):
-        if self._cnn:
-            x = self._cnn(x)
-        return x
-
-    def mlp(self, x, action=None, noisy=True, reset=True):
+    def call(self, x, action=None, noisy=True, reset=True):
         kwargs = dict(noisy=noisy, reset=reset) if self._layer_type == 'noisy' else {}
 
         if self._duel:
@@ -91,32 +76,32 @@ class DQN(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
+    def action(self, x, deterministic=False, epsilon=0, return_stats=False):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims in (2, 4), x.shape
 
+        x = self.encoder(x)
         noisy = not deterministic
-        q = self.q.value(x, noisy=noisy, reset=False)
+        q = self.q(x, noisy=noisy, reset=False)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
-        if epsilon > 0:
-            rand_act = tf.random.uniform(
-                action.shape, 0, self.q.action_dim, dtype=tf.int32)
-            action = tf.where(
-                tf.random.uniform(action.shape, 0, 1) < epsilon,
-                rand_act, action)
+        terms = {}
+        if return_stats:
+            terms = {'q': q}
+        action = epsilon_greedy(action, epsilon,
+            is_action_discrete=True, action_dim=self.q.action_dim)
         action = tf.squeeze(action)
 
-        return action, {'q': q}
+        return action, terms
 
 
 def create_components(config, env, **kwargs):
     action_dim = env.action_dim
-    q = Q(config, action_dim, name='q')
-    target_q = Q(config, action_dim, name='target_q')
     return dict(
-        q=q,
-        target_q=target_q,
+        encoder=Encoder(config['encoder'], name='encoder'),
+        q=Q(config['q'], action_dim, name='q'),
+        target_encoder=Encoder(config['encoder'], name='target_encoder'),
+        target_q=Q(config['q'], action_dim, name='target_q'),
     )
 
 def create_model(config, env, **kwargs):

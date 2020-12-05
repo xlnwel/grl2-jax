@@ -24,7 +24,7 @@ def timeit(func, *args, name=None, to_print=False, **kwargs):
 class Timer:
     aggregators = defaultdict(Aggregator)
 
-    def __init__(self, summary_name, period=1, mode='average', to_log=True):
+    def __init__(self, summary_name, period=None, mode='average', to_log=True):
         self._to_log = to_log
         if self._to_log:
             self._summary_name = summary_name
@@ -42,7 +42,7 @@ class Timer:
             duration = time() - self._start
             aggregator = self.aggregators[self._summary_name]
             aggregator.add(duration)
-            if aggregator.count >= self._period:
+            if self._period is not None and aggregator.count >= self._period:
                 if self._mode == 'average':
                     duration = aggregator.average()
                     duration = (f'{duration*1000:.3g}ms' if duration < 1e-1 
@@ -53,6 +53,13 @@ class Timer:
                     duration = aggregator.sum
                     pwc(f'{self._summary_name} duration: "{duration}" for {aggregator.count} times', color='blue')
 
+    def reset(self):
+        aggregator = self.aggregators[self._summary_name]
+        aggregator.reset()
+    
+    def average(self):
+        return self.aggregators[self._summary_name].average()
+        
     def last(self):
         return self.aggregators[self._summary_name].last
     

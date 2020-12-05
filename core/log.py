@@ -1,13 +1,15 @@
-import os, atexit, shutil, datetime
+import logging
+import os, atexit, shutil
 from collections import defaultdict
 import numpy as np
 import tensorflow as tf
 
 from utility.utils import isscalar
-from utility.display import pwc, assert_colorize
+from utility.display import pwc
 from utility.graph import image_summary, video_summary
 from utility import yaml_op
 
+logger = logging.getLogger(__name__)
 
 """ Logging """
 def log(logger, writer, model_name, prefix, step, print_terminal_info=True):
@@ -142,7 +144,7 @@ class Logger:
                 color='magenta')
 
         self._first_row=True
-        self._log_headers = []
+        self._log_headers = set()
         self._log_current_row = {}
         self._store_dict = defaultdict(list)
 
@@ -220,14 +222,20 @@ class Logger:
         stdout (otherwise they will not get saved anywhere).
         """
         if self._first_row:
-            self._log_headers.append(key)
+            self._log_headers.add(key)
         else:
-            assert_colorize(key in self._log_headers, 
-                f"Trying to introduce a new key {key} "
-                "that you didn't include in the first iteration")
-        assert_colorize(key not in self._log_current_row, 
-            f"You already set {key} this iteration. "
-            "Maybe you forgot to call dump_tabular()")
+            if key not in self._log_headers:
+                logger.warning(f'All previous loggings are erased because you introduce a new key {key}')
+                self._out_file.seek(0)
+                self._out_file.truncate()
+                self._log_headers.add(key)
+                self._first_row = True
+            # assert key in self._log_headers, \
+            #     f"Trying to introduce a new key {key} " \
+            #     "that you didn't include in the first iteration"
+        assert key not in self._log_current_row, \
+            f"You already set {key} this iteration. " \
+            "Maybe you forgot to call dump_tabular()"
         self._log_current_row[key] = val
     
     def log_tabular(self, key, val=None, mean=True, std=False, min=False, max=False):

@@ -5,6 +5,7 @@ import ray
 
 from utility.rl_utils import apex_epsilon_greedy
 from utility import pkg
+from replay.func import create_local_buffer
 from algo.apex.monitor import Monitor
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,8 @@ def _compute_act_eps(config, worker_id, n_workers, envs_per_worker):
         else:
             raise ValueError(f'Unknown type: {act_eps_type}')
         logger.info(f'worker_{worker_id} action epsilon: {config["act_eps"]}')
+        config['schedule_act_eps'] = False
+
     return config
 
 def _compute_act_temp(config, model_config, worker_id, n_workers, envs_per_worker):
@@ -44,6 +47,8 @@ def _compute_act_temp(config, model_config, worker_id, n_workers, envs_per_worke
                 np.log10(config['min_temp']), np.log10(config['max_temp']), 
                 n_workers * envs_per_worker).reshape(n_workers, envs_per_worker)
         model_config['actor']['act_temp'] = act_temps[worker_id]
+        config['schedule_act_temp'] = False
+
     return model_config
 
 def create_monitor(config):
@@ -69,6 +74,9 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
         RayLearner = ray.remote(num_cpus=n_cpus, num_gpus=n_gpus)(Learner)
     else:
         RayLearner = ray.remote(num_cpus=n_cpus)(Learner)
+
+    config['schedule_act_eps'] = False
+    config['schedule_act_temp'] = False
 
     learner = RayLearner.remote( 
         config=config, 
@@ -98,8 +106,7 @@ def create_worker(
     n_workers = config['n_workers']
     n_envs = env_config.get('n_envs', 1)
     buffer_config['n_envs'] = env_config.get('n_envs', 1)
-    buffer_fn = pkg.import_module(
-        'buffer', config=config, place=0).create_local_buffer
+    buffer_fn = create_local_buffer
 
     if 'seed' in env_config:
         env_config['seed'] += worker_id * 100
@@ -109,7 +116,7 @@ def create_worker(
     
     n_cpus = config.get('n_worker_cpus', 1)
     n_gpus = config.get('n_worker_gpus', 0)
-    RayWorker = ray.remote(num_cpus=1, num_gpus=n_gpus)(Worker)
+    RayWorker = ray.remote(num_cpus=n_cpus, num_gpus=n_gpus)(Worker)
     worker = RayWorker.remote(
         worker_id=worker_id, 
         config=config, 
@@ -129,7 +136,8 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
     if 'seed' in env_config:
         env_config['seed'] += 999
     env_config['n_workers'] = env_config['n_envs'] = 1
-    model_config['actor']['act_temp'] = config.pop('eval_act_temp', .5)
+    if 'actor' in model_config:
+        model_config['actor']['act_temp'] = config.pop('eval_act_temp', .5)
 
     RayEvaluator = ray.remote(num_cpus=1)(Evaluator)
     evaluator = RayEvaluator.remote(

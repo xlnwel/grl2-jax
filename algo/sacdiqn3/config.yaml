@@ -45,7 +45,7 @@ agent:
     MAX_STEPS: 1e8
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 5e5
-    LOG_PERIOD: 1e4
+    LOG_PERIOD: 1e5
     N_UPDATES: 1
     RECORD: True
 

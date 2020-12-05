@@ -259,6 +259,7 @@ Distinctions several signals:
         the environment/previous wrapper.
 """
 class EnvStats(gym.Wrapper):
+    manual_reset_warning = True
     def __init__(self, env, max_episode_steps=None, timeout_done=False, 
         auto_reset=True, log_episode=False, initial_state={}):
         """ Records environment statistics """
@@ -284,7 +285,9 @@ class EnvStats(gym.Wrapper):
     def reset(self):
         if self.auto_reset:
             self.auto_reset = False
-            logger.info('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation')
+            if EnvStats.manual_reset_warning:
+                logger.info('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation')
+                EnvStats.manual_reset_warning = False
         if not self._output.reset:
             return self._reset()
         else:

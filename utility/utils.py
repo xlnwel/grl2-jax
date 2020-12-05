@@ -318,7 +318,7 @@ def infer_dtype(dtype, precision=None):
     elif dtype == np.bool:
         dtype = np.bool
     else:
-      raise NotImplementedError(dtype)
+        dtype = None
     return dtype
 
 def convert_dtype(value, precision=32, dtype=None, **kwargs):

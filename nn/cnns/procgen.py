@@ -11,6 +11,7 @@ class ProcgenCNN(Module):
                  *, 
                  time_distributed=False, 
                  obs_range=[0, 1], 
+                #  filters=[16, 32, 32, 32],
                  filters=[32, 64, 64, 64],
                  n_blocks=[1, 1, 1, 1],
                  kernel_initializer='glorot_uniform',

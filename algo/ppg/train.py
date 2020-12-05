@@ -39,7 +39,7 @@ def train(agent, env, eval_env, buffer):
             agent.update_obs_rms(buffer['obs'])
             agent.update_reward_rms(buffer['reward'], buffer['discount'])
             buffer.update('obs', agent.normalize_obs(buffer['obs']), field='all')
-            agent.record_latest_obs(runner.env_output.obs)
+            agent.record_last_obs(runner.env_output.obs)
             value = agent.compute_value()
             buffer.finish(value)
 
@@ -48,16 +48,16 @@ def train(agent, env, eval_env, buffer):
                 agent.learn_log(step)
             agent.store(tps=(agent.train_step-start_train_step)/tt.last())
             buffer.reset()
+        agent.store(env_time=et.total(), train_time=tt.total())
 
         # auxiliary phase
-        assert buffer.ready(), buffer._idx
         buffer.compute_aux_data_with_func(agent.compute_aux_data)
         value = agent.compute_value()
         buffer.aux_finish(value)
 
         with Timer('aux_time', 1000) as at:
             agent.aux_learn_log(step)
-        agent.store(atps=(agent.N_AUX_EPOCHS * agent.N_AUX_MBS)/tt.last())
+        agent.store(atps=(agent.N_AUX_EPOCHS * agent.N_AUX_MBS)/at.last())
         buffer.aux_reset()
 
         if to_eval(agent.train_step):
@@ -67,7 +67,7 @@ def train(agent, env, eval_env, buffer):
                 if agent.RECORD:
                     video_summary(f'{agent.name}/sim', video, step=step)
                 agent.store(eval_score=scores, eval_epslen=epslens)
-        agent.store(env_time=et.total(), train_time=tt.total())
+        
         if to_log(agent.train_step) and 'score' in agent._logger:
             agent.log(step)
             agent.save()
@@ -76,7 +76,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     algo = agent_config['algorithm']
 
     create_model, Agent = pkg.import_agent(config=agent_config)
-    Buffer = pkg.import_module('buffer', algo=algo).Storage
+    Buffer = pkg.import_module('buffer', algo=algo).Replay
 
     silence_tf_logs()
     configure_gpu()

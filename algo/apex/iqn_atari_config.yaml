@@ -7,41 +7,55 @@ env:
     np_obs: True
     life_done: True
     reward_clip: True
-    n_envs: 1
+    n_envs: 4
     seed: 0
 
 model:
-    cnn_name: nature
-    out_size: null
-    kernel_initializer: glorot_uniform
-    units_list: [512]
-    activation: relu
-    layer_type: dense
-    duel: False
-
-    tau_embed_size: 64
-    phi_activation: relu
-    K: &K 32
+    encoder:
+        cnn_name: nature
+        out_size: null
+    q:
+        units_list: [512]
+        layer_type: dense
+        norm: null
+        kernel_initializer: glorot_uniform
+        activation: relu
+    quantile:
+        tau_embed_size: 64
+        phi_activation: relu
+        K: &K 32
 
 agent:
     algorithm: &algo apex-iqn
-    replay_type: &replay 'uniform'
-    batch_size: &bs 32
+    replay_type: &replay uniform
+    batch_size: &bs 64
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     schedule_act_eps: True
-    act_eps: 0  # will be overwritten in func.py
+    act_eps_type: apex
+    act_eps: .4
     eval_act_eps: .001
     
     # timer&interval
     MAX_STEPS: 1e9
-    LOG_PERIOD: &log 5000
-    N_UPDATES: *log
-    SYNC_PERIOD: 1000
-    RECORD_PERIOD: 10
-    N_EVALUATION: 1
-    
+    LOG_PERIOD: 100
+    N_UPDATES: 1
+    SYNC_PERIOD: 400
+    RECORD_PERIOD: 100
+    N_EVALUATION: 10
+    logger: True
+
+    # distributed algo params
+    n_learner_cpus: 3
+    n_learner_gpus: .3
+    n_workers: 5
+    n_worker_cpus: 1
+    n_worker_gpus: .1
+    deterministic_evaluation: False
+    run_mode: nsteps
+    worker_side_prioritization: False
+
     # IQN params
     N: 32                # N in paper, num of quantiles for online quantile network
     N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
@@ -50,7 +64,12 @@ agent:
 
     # distributed algo params
     n_learner_cpus: 3
-    n_workers: 6
+    n_learner_gpus: .3
+    n_workers: 5
+    n_worker_cpus: 1
+    n_worker_gpus: .1
+    deterministic_evaluation: False
+    run_mode: nsteps
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

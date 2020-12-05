@@ -9,7 +9,7 @@ import ray
 
 from core.tf_config import *
 from core.base import BaseAgent
-from core.decorator import record, config
+from core.decorator import config
 from utility.display import pwc
 from utility.utils import Every
 from utility.timer import Timer
@@ -22,16 +22,14 @@ from core.dataset import process_with_env, DataFormat, RayDataset
 
 
 pull_names = dict(
-    dqn=['q'],
-    iqn=['q'],
-    iqncrl=['q'],
-    fqf=['q', 'fpn'],
+    dqn=['encoder', 'q'],
+    iqn=['encoder', 'q', 'quantile'],
+    iqncrl=['encoder', 'q', 'quantile'],
+    fqf=['encoder', 'q', 'fpn'],
     sac=['actor', 'q'],
     sacd=['encoder', 'actor', 'q'],
     sacdiqn=['encoder', 'actor', 'q'],
-    sacdiqn3=['encoder', 'actor', 'v'],
-    sacdiqn4=['encoder', 'actor', 'v'],
-    sacdiqn5=['actor_encoder', 'critic_encoder', 'actor', 'v'],
+    sacdiqn5=['actor_encoder', 'critic_encoder', 'actor', 'q'],
     sacdiqncrl=['encoder', 'actor', 'q'],
     sacdiqncrlar=['encoder', 'actor', 'q'],
     sacdiqnmdp=['encoder', 'actor'],
@@ -87,8 +85,6 @@ def get_learner_class(BaseAgent):
 
             env = create_env(env_config)
             
-            obs_dtype = env.obs_dtype
-            action_dtype =  env.action_dtype
             algo = config['algorithm'].split('-', 1)[-1]
             is_per = ray.get(replay.name.remote()).endswith('per')
             n_steps = config['n_steps']
@@ -213,9 +209,7 @@ class Worker(BaseWorker):
             self.compute_priorities = build(
                 self._compute_iqn_priorities if self._is_iqn else self._compute_dqn_priorities, TensorSpecs)
         self._return_stats = self._worker_side_prioritization or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps')
-        print(f'{worker_id} action epsilon:', self._act_eps)
-        print(f'{worker_id} action inv_temp:', np.squeeze(self.model.actor.act_inv_temp))
-
+        
     def __call__(self, x, **kwargs):
         action = self.model.action(
             tf.convert_to_tensor(x), 
@@ -227,7 +221,7 @@ class Worker(BaseWorker):
 
     def _run(self, weights, replay):
         def collect(env, step, reset, **kwargs):
-            self.buffer.add_data(**kwargs)
+            self.buffer.add(**kwargs)
             if self.buffer.is_full():
                 self._send_data(replay)
         start_step = self.runner.step

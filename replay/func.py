@@ -4,6 +4,7 @@ from replay.uniform import UniformReplay
 from replay.per import ProportionalPER
 from replay.eps import EpisodicReplay
 from replay.sper import SequentialPER
+from replay.local import EnvBuffer, EnvVecBuffer
 
 
 replay_type = dict(
@@ -12,6 +13,10 @@ replay_type = dict(
     episodic=EpisodicReplay,
     sper=SequentialPER
 )
+
+def create_local_buffer(config):
+    buffer_type = EnvBuffer if config.get('n_envs', 1) == 1 else EnvVecBuffer
+    return buffer_type(config)
 
 def create_replay(config, **kwargs):
     return replay_type[config['replay_type']](config, **kwargs)

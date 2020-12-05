@@ -14,8 +14,6 @@ def huber_loss(x, *, y=None, threshold=1.):
                     name='huber_loss')
 
 def epsilon_greedy(action, epsilon, is_action_discrete, action_dim=None):
-    if epsilon <= 0:
-        return action
     if is_action_discrete:
         assert action_dim is not None
         rand_act = tf.random.uniform(

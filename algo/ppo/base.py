@@ -19,7 +19,7 @@ class PPOBase(RMSBaseAgent):
         self.dataset = dataset
         self._construct_optimizers()
         self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
-        self._latest_obs = None
+        self._last_obs = None
         logger.info(f'Value update scheme: {self._value_update}')
 
     def _construct_optimizers(self):
@@ -35,18 +35,18 @@ class PPOBase(RMSBaseAgent):
 
     """ Standard PPO functions """
     def reset_states(self, state=None):
-        raise NotImplementedError
+        pass
 
     def get_states(self):
-        raise NotImplementedError
+        return None
     
-    def record_latest_obs(self, obs):
-        self._latest_obs = self.normalize_obs(obs)
+    def record_last_obs(self, obs):
+        self._last_obs = self.normalize_obs(obs)
         
     def compute_value(self, obs=None):
         # be sure you normalize obs first if normalization is required
-        obs = obs or self._latest_obs
-        return self.model.compute_value(self._latest_obs).numpy()
+        obs = obs or self._last_obs
+        return self.model.compute_value(self._last_obs).numpy()
 
     @step_track
     def learn_log(self, step):
@@ -56,9 +56,9 @@ class PPOBase(RMSBaseAgent):
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 terms = self.learn(**data)
 
-                terms = {k: v.numpy() for k, v in terms.items()}
-                kl = terms.pop('kl')
-                value = terms.pop('value')
+                terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
+                kl = terms.pop('train/kl')
+                value = terms.pop('train/value')
                 self.store(**terms, value=value.mean())
                 if getattr(self, '_max_kl', None) and kl > self._max_kl:
                     break
@@ -75,10 +75,10 @@ class PPOBase(RMSBaseAgent):
             if self._value_update is not None:
                 last_value = self.compute_value()
                 self.dataset.finish(last_value)
-        self.store(kl=kl)
-        if not isinstance(self._lr, float):
-            step = tf.cast(self._env_step, tf.float32)
-            self.store(lr=self._lr(step))
+        self.store(**{'aux/kl': kl})
+        # if not isinstance(self._lr, float):
+        #     step = tf.cast(self._env_step, tf.float32)
+        #     self.store(lr=self._lr(step))
         
         if self._to_summary(step):
             self.summary(data, terms)
@@ -86,7 +86,8 @@ class PPOBase(RMSBaseAgent):
         return i * self.N_MBS + j
 
     def summary(self, data, terms):
-        tf.summary.histogram('traj_ret', data['traj_ret'], step=self._env_step)
+        pass
+        # tf.summary.histogram('traj_ret', data['train/traj_ret'], step=self._env_step)
 
     @tf.function
     def _learn(self, obs, action, traj_ret, value, advantage, logpi, mask=None, state=None):

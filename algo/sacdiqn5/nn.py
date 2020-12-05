@@ -93,6 +93,7 @@ def create_components(config, env, **kwargs):
         v=Value(v_config, 1, name='v'),
         q=Value(q_config, action_dim, name='q'),
         target_actor_encoder=Encoder(encoder_config, name='target_actor_encoder'),
+        target_quantile=Quantile(quantile_config, name='target_phi'),
         target_critic_encoder=Encoder(encoder_config, name='target_critic_encoder'),
         target_actor=Actor(actor_config, action_dim, name='target_actor'),
         target_v=Value(v_config, 1, name='target_v'),

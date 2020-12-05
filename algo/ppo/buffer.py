@@ -41,9 +41,25 @@ def compute_indices(idxes, mb_idx, mb_size, N_MBS):
     curr_idxes = idxes[start: end]
     return mb_idx, curr_idxes
 
+def restore_time_dim(memory, n_envs, n_steps):
+    if 'reward' in memory and memory['reward'].shape[:2] != (n_envs, n_steps):
+        for k, v in memory.items():
+            memory[k] = v.reshape((n_envs, n_steps, *v.shape[1:]))
+
+    return memory
+
+
+def flatten_time_dim(memory, n_envs, n_steps):
+    if 'reward' in memory and memory['reward'].shape[:2] == (n_envs, n_steps):
+        for k, v in memory.items():
+            memory[k] = v.reshape((-1, *v.shape[2:]))
+
+    return memory
+
+
 class Buffer:
     @config
-    def __init__(self, **kwargs):
+    def __init__(self, sample_keys=None, **kwargs):
         self._size = size = self._n_envs * self.N_STEPS
         self._mb_size = size // self.N_MBS
         self._idxes = np.arange(size)
@@ -51,6 +67,7 @@ class Buffer:
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
         self.reset()
+        self._sample_keys = sample_keys
         print(f'Batch size: {size}')
         print(f'Mini-batch size: {self._mb_size}')
 
@@ -69,7 +86,7 @@ class Buffer:
             self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             print_buffer(self._memory)
-            if not hasattr(self, '_sample_keys'):
+            if self._sample_keys is None:
                 self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             
         for k, v in data.items():
@@ -109,7 +126,7 @@ class Buffer:
 
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
-        self._restore_time_dim()
+        self.restore_time_dim()
         if self._adv_type == 'nae':
             self._memory['advantage'], self._memory['traj_ret'] = \
                 compute_nae(reward=self._memory['reward'], 
@@ -129,27 +146,20 @@ class Buffer:
         else:
             raise NotImplementedError
 
-        for k, v in self._memory.items():
-            self._memory[k] = v.reshape(-1, *v.shape[2:])
-        
+        self.flatten_time_dim()
         self._ready = True
 
     def reset(self):
         self._idx = 0
         self._mb_idx = 0
         self._ready = False
-        self._restore_time_dim()
+        self.restore_time_dim()
 
-    def _flatten_time_dim(self):
-        if 'reward' in self and self._memory['reward'].shape[:2] == (self._n_envs, self.N_STEPS):
-            for k, v in self._memory.items():
-                self._memory[k] = v.reshape(-1, *v.shape[2:])
+    def restore_time_dim(self):
+        self._memory = restore_time_dim(self._memory, self._n_envs, self.N_STEPS)
 
-    def _restore_time_dim(self):
-        if 'reward' in self and self._memory['reward'].shape[:2] != (self._n_envs, self.N_STEPS):
-            self._memory = {
-                k: v.reshape((self._n_envs, self.N_STEPS, *v.shape[1:]))
-                for k, v in self._memory.items()}
+    def flatten_time_dim(self):
+        self._memory = flatten_time_dim(self._memory, self._n_envs, self.N_STEPS)
 
     def clear(self):
         self._memory = {}

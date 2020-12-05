@@ -6,8 +6,7 @@ from tensorflow_probability import distributions as tfd
 from core.module import Module, Ensemble
 from core.decorator import config
 from utility.rl_utils import epsilon_greedy
-from nn.func import mlp
-from algo.dqn.nn import Encoder
+from nn.func import Encoder, mlp
         
 
 class Quantile(Module):
@@ -70,8 +69,8 @@ class Value(Module):
     def action_dim(self):
         return self._action_dim
 
-    def action(self, x, n_qt=None, return_stats=False):
-        _, qtv, q = self(x, n_qt)
+    def action(self, x, qt_embed=None, return_stats=False):
+        qtv, q = self.call(x, qt_embed, return_value=True)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
         if return_stats:
             return action, qtv, q
@@ -79,7 +78,6 @@ class Value(Module):
             return action
     
     def call(self, x, qt_embed, action=None, return_value=False):
-        batch_size = x.shape[0]
         assert x.shape.ndims == qt_embed.shape.ndims, (x.shape, qt_embed.shape)
         x = x * qt_embed            # [B, N, cnn.out_size]
         qtv = self.qtv(x, action=action)
@@ -123,14 +121,15 @@ class IQN(Ensemble):
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
-        action = self.q.action(x, return_stats=return_stats)
+        _, qt_embed = self.quantile(x)
+        x = tf.expand_dims(x, 1)
+        action = self.q.action(x, qt_embed, return_stats=return_stats)
         terms = {}
         if return_stats:
             action, qtv, q = action
             qtv = tf.math.reduce_max(qtv, -1)
             qtv = tf.squeeze(qtv)
             terms = {'qtv': qtv}
-
         action = epsilon_greedy(action, epsilon,
             is_action_discrete=True, action_dim=self.q.action_dim)
         action = tf.squeeze(action)
@@ -142,14 +141,17 @@ def create_components(config, env, **kwargs):
     assert env.is_action_discrete
     action_dim = env.action_dim
     encoder_config = config['encoder']
+    quantile_config = config['quantile']
     q_config = config['q']
     
     return dict(
-        encoder=cnn(encoder_config, name='encoder'),
-        target_encoder=cnn(encoder_config, name='target_encoder'),
+        encoder=Encoder(encoder_config, name='encoder'),
+        quantile=Quantile(quantile_config, name='phi'),
         q=Value(q_config, action_dim, name='q'),
+        target_encoder=Encoder(encoder_config, name='target_encoder'),
+        target_quantile=Quantile(quantile_config, name='target_phi'),
         target_q=Value(q_config, action_dim, name='target_q'),
     )
 
 def create_model(config, env, **kwargs):
-    return IQN(config, env, **kwargs)
+    return IQN(config, env=env, **kwargs)

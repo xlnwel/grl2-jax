@@ -53,7 +53,7 @@ class Agent(DQNBase):
         next_act_probs_ext = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
         next_act_logps_ext = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
         next_x = self.target_critic_encoder(next_obs, training=False)
-        _, qt_embed = self.quantile(next_x, self.N_PRIME)
+        _, qt_embed = self.target_quantile(next_x, self.N_PRIME)
         next_x_ext = tf.expand_dims(next_x, axis=1)
         next_qtv_v = self.target_v(next_x_ext, qt_embed)
         next_qtv_v = tf.squeeze(next_qtv_v, axis=-1)
@@ -204,8 +204,8 @@ class Agent(DQNBase):
 
     @tf.function
     def _sync_target_nets(self):
-        tvars = self.target_actor_encoder.variables +self.target_critic_encoder.variables \
-            + self.target_actor.variables + self.target_q.variables + self.target_v.variables 
-        mvars = self.actor_encoder.variables + self.critic_encoder.variables \
-            + self.actor.variables + self.q.variables + self.v.variables
+        tvars = self.target_encoder.variables + self.target_quantile.variables \
+            + self.target_actor.variables + self.target_q.variables
+        mvars = self.encoder.variables + self.quantile.variables \
+            + self.actor.variables + self.q.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]

@@ -1,10 +1,12 @@
 from algo.ppo.buffer import *
 
 
-class Storage:
+class Replay:
     def __init__(self, config, **kwargs):
         self.N_PI = config['N_PI']
         self._n_segs = config['n_segs']
+        self._n_envs = config['n_envs']
+        self.N_STEPS = config['N_STEPS'] * self._n_segs
         buff_size = config['n_envs'] * config['N_STEPS']
         self._size = buff_size * self._n_segs
         self._n_mbs = config['N_AUX_MBS']
@@ -17,8 +19,11 @@ class Storage:
 
         self._gamma = config['gamma']
         self._gae_discount = config['gamma'] * config['lam']
-        self._buff = Buffer(config, **kwargs)
+        self._buff = Buffer(config, sample_keys=['obs', 'action', 'traj_ret', 'advantage', 'logpi'], **kwargs)
         self._memory = {}
+
+    def __getitem__(self, k):
+        return self._buff[k]
 
     def ready(self):
         return self._ready
@@ -29,47 +34,49 @@ class Storage:
     def update(self, key, value, field='mb', mb_idx=None):
         self._buff.update(key, value, field, mb_idx)
     
+    def aux_update(self, key, value, field='mb', mb_idxes=None):
+        if field == 'mb':
+            mb_idxes = self._curr_idxes if mb_idxes is None else mb_idxes
+            self._memory[key][mb_idxes] = value
+        elif field == 'all':
+            assert self._memory[key].shape == value.shape, (self._memory[key].shape, value.shape)
+            self._memory[key] == value
+        else:
+            raise ValueError(f'Unknown field: {field}. Valid fields: ("all", "mb")')
+
     def update_value_with_func(self, fn):
         self.buff.update_value_with_func(fn)
     
     def compute_aux_data_with_func(self, fn):
+        assert self._idx == 0, self._idx
         value_list = []
         logits_list = []
+        self._memory = flatten_time_dim(self._memory, self._n_envs, self.N_STEPS)
         for start in range(0, self._size, self._mb_size):
             end = start + self._mb_size
             idxes = self._idxes[start:end]
-            obs = self._memory['obs'][idxes]
+            obs = self._memory['obs'][start:end]
             logits, value = fn(obs)
             value_list.append(value)
             logits_list.append(logits)
         value = np.concatenate(value_list, axis=0)
-        self.store('value', value)
+        self._memory['value'] = value
         logits = np.concatenate(logits_list, axis=0)
-        self.store('logits', logits)
-
-    def store(self, key, value=None):
-        if value is None:
-            assert self._buff.ready()
-        value = value or self._buff[key]
-        if key in self._memory:
-            self._memory[key] = np.concatenate(
-                [self._memory[key], value], axis=0
-            )
-        else:
-            self._memory[key] = value.copy()
-        assert self._memory[key].shape[0] <= self._size, \
-            (self._memory[key].shape, self._idx, self._size)
+        self._memory['logits'] = logits
     
     def transfer_data(self):
         assert self._buff.ready()
-        # do not move the following code to finish function
-        # as finish function may be called multiple times to recompute values
+        self._buff.restore_time_dim()
         if self._idx >= self.N_PI - self._n_segs:
             for k in ('obs', 'reward', 'discount'):
-                self.store(k)
+                v = self._buff[k]
+                if k in self._memory:
+                    self._memory[k] = np.concatenate(
+                        [self._memory[k], v], axis=1
+                    )
+                else:
+                    self._memory[k] = v.copy()
         self._idx = (self._idx + 1) % self.N_PI
-        if self._idx == 0:
-            self._ready = True
 
     def sample(self):
         return self._buff.sample()
@@ -87,7 +94,8 @@ class Storage:
         self._buff.finish(last_value)
     
     def aux_finish(self, last_value):
-        assert self._ready, self._idx
+        assert self._idx == 0, self._idx
+        self._memory = restore_time_dim(self._memory, self._n_envs, self.N_STEPS)
         self._memory['traj_ret'], _ = \
             compute_gae(reward=self._memory['reward'], 
                         discount=self._memory['discount'],
@@ -95,6 +103,10 @@ class Storage:
                         last_value=last_value,
                         gamma=self._gamma,
                         gae_discount=self._gae_discount)
+        self._memory = flatten_time_dim(self._memory, self._n_envs, self.N_STEPS)
+        for k, v in self._memory.items():
+            assert v.shape[0] == self._n_envs * self.N_STEPS, (k, v.shape)
+        self._ready = True
 
     def reset(self):
         if self._buff.ready():
@@ -129,22 +141,22 @@ if __name__ == '__main__':
         N_STEPS=n_steps,
         N_MBS=n_mbs,
     )
-    store = Storage(config)
+    replay = Replay(config)
     i = 0
-    while not store.ready():
+    while not replay.ready():
         i += 1
-        print(i, store._idx)
-        store.reset()
+        print(i, replay._idx)
+        replay.reset()
         for _ in range(n_steps):
-            store.add(
+            replay.add(
                 obs=np.ones((2, 64, 64, 3)) * i, 
                 reward=np.random.uniform(size=(2,)),
                 value=np.random.uniform(size=(2,)),
                 discount=np.random.uniform(size=(2,)))
-        store.finish(np.random.uniform(size=(2,)))
+        replay.finish(np.random.uniform(size=(2,)))
         
-    print('obs' in store._memory)
-    if 'obs' in store._memory:
-        print(store._memory['obs'].shape)
+    print('obs' in replay._memory)
+    if 'obs' in replay._memory:
+        print(replay._memory['obs'].shape)
     for i in range(16):
-        print(store._memory['obs'][i*100, 0, 0, 0])
+        print(replay._memory['obs'][i*100, 0, 0, 0])

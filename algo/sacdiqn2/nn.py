@@ -57,7 +57,6 @@ class SACIQN(Ensemble):
         elif return_stats:
             _, qt_embed = self.quantile(x)
             x_ext = tf.expand_dims(x, axis=1)
-            # _, v = self.v(x_ext, qt_embed, return_value=True)
             _, q = self.q(x_ext, qt_embed, action=action, return_value=True)
             if self._reward_entropy:
                 logp = tfd.Categorical(self.actor.logits).log_prob(action)
@@ -90,6 +89,7 @@ def create_components(config, env, **kwargs):
         actor=Actor(actor_config, action_dim),
         q=Value(q_config, action_dim, name='q'),
         target_encoder=Encoder(encoder_config, name='target_encoder'),
+        target_quantile=Quantile(quantile_config, name='target_phi'),
         target_actor=Actor(actor_config, action_dim, name='target_actor'),
         target_q=Value(q_config, action_dim, name='target_q'),
         temperature=Temperature(temperature_config),

@@ -1,6 +1,7 @@
 ---
 env:
-    name: procgen_chaser
+    name: procgen_coinrun
+    distribution_mode: easy
     frame_skip: 1
     n_envs: &ne 4
     gray_scale: False
@@ -10,6 +11,28 @@ env:
     reward_clip: 10
 
 model:
+    encoder: 
+        cnn_name: procgen
+    actor:
+        units_list: [512]
+        layer_type: dense
+        norm: null
+        kernel_initializer: glorot_uniform
+        activation: relu
+    q:
+        units_list: [512]
+        layer_type: dense
+        norm: null
+        kernel_initializer: glorot_uniform
+        activation: relu
+    quantile:
+        tau_embed_size: 64
+        phi_activation: relu
+        K: &K 32
+    temperature:
+        temp_type: constant
+        value: .01
+    twin_q: False
     reward_entropy: False
 
 agent:
@@ -21,7 +44,6 @@ agent:
     target_entropy_coef: .8
         # - [4.e+4, .8]
         # - [7.e+4, .3]
-    worker_side_prioritization: False
 
     seq_act_eps: True
     schedule_act_temp: True
@@ -50,6 +72,7 @@ agent:
     n_worker_gpus: .1
     deterministic_evaluation: False
     run_mode: nsteps
+    worker_side_prioritization: False
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

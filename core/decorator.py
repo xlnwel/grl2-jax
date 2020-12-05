@@ -104,12 +104,13 @@ def config(init_fn):
 
 def step_track(learn_log):
     @wraps(learn_log)
-    def wrapper(self, step=0):
+    def wrapper(self, step=0, **kwargs):
         if step > self.env_step:
             self.env_step = step
             self._env_step.assign(self.env_step)
-        self.train_step += learn_log(self, step)
+        self.train_step += learn_log(self, step, **kwargs)
         self._train_step.assign(self.train_step)
+        return self.train_step
 
     return wrapper
 

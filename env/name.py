@@ -22,5 +22,5 @@ def is_procgen(name):
     return env2suite.get(name) == 'procgen'
 
 if __name__ == '__main__':
-    for k, v in env2suite.items():
-        print(k, v)
+    for v in suite_env['atari']:
+        print(v)

@@ -57,7 +57,7 @@ class SACIQN(Ensemble):
         elif return_stats:
             _, qt_embed = self.quantile(x)
             x_ext = tf.expand_dims(x, axis=1)
-            _, v = self.v(x_ext, qt_embed, return_value=True)
+            _, q = self.q(x_ext, qt_embed, action=action, return_value=True)
             if self._reward_entropy:
                 logp = tfd.Categorical(self.actor.logits).log_prob(action)
                 if self.temperature.type == 'schedule':
@@ -68,8 +68,8 @@ class SACIQN(Ensemble):
                     _, temp = self.temperature()
                 logp = temp * logp
                 terms['logp'] = logp
-            v = tf.squeeze(v)
-            terms['v'] = v
+            q = tf.squeeze(q)
+            terms['q'] = q
         action = tf.squeeze(action)
         return action, terms
 
@@ -79,7 +79,6 @@ def create_components(config, env, **kwargs):
     action_dim = env.action_dim
     encoder_config = config['encoder']
     actor_config = config['actor']
-    v_config = config['v']
     q_config = config['q']
     temperature_config = config['temperature']
     quantile_config = config['quantile']
@@ -88,11 +87,10 @@ def create_components(config, env, **kwargs):
         encoder=Encoder(encoder_config, name='encoder'),
         quantile=Quantile(quantile_config, name='phi'),
         actor=Actor(actor_config, action_dim),
-        v=Value(v_config, 1, name='v'),
         q=Value(q_config, action_dim, name='q'),
         target_encoder=Encoder(encoder_config, name='target_encoder'),
+        target_quantile=Quantile(quantile_config, name='target_phi'),
         target_actor=Actor(actor_config, action_dim, name='target_actor'),
-        target_v=Value(v_config, 1, name='target_v'),
         target_q=Value(q_config, action_dim, name='target_q'),
         temperature=Temperature(temperature_config),
     )

@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument('--prefix', '-p',
                         default='',
                         help='directory prefix')
-    parser.add_argument('--model-name', '-mn',
+    parser.add_argument('--model-name', '-n',
                         default='',
                         help='model name')
     parser.add_argument('--directory', '-d',

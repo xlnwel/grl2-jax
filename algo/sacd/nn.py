@@ -68,6 +68,15 @@ class Actor(Module):
         self.prior.assign_add(lr * (x - self.prior))
 
 
+class ActionPrior(Module):
+    def __init__(self, action_dim):
+        prior = np.ones(action_dim, dtype=np.float32)
+        prior /= np.sum(prior)
+        self.prior = tf.Variable(prior, trainable=False, name='prior')
+    
+    def call(self):
+        return self.prior
+
 class Q(Module):
     @config
     def __init__(self, action_dim, name='q'):

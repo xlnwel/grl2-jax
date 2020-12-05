@@ -49,7 +49,7 @@ model:
         activation: relu
         tau_embed_size: 64
         phi_activation: relu
-        K: &K 64
+        K: &K 32
     temperature:
         temp_type: constant
         value: .01
@@ -78,8 +78,8 @@ agent:
     normalize_reward: False
 
     # IQN params
-    N: 64                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
+    N: 32                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 

@@ -32,20 +32,20 @@ def train(agent, env, eval_env, buffer):
     print('Training starts...')
     while step < agent.MAX_STEPS:
         start_env_step = agent.env_step
-        with Timer('env_time', 1000) as et:
+        with Timer('env', 1000) as et:
             step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/et.last())
         agent.update_obs_rms(buffer['obs'])
         agent.update_reward_rms(buffer['reward'], buffer['discount'])
         buffer.update('obs', agent.normalize_obs(buffer['obs']), field='all')
-        agent.record_latest_obs(runner.env_output.obs)
+        agent.record_last_obs(runner.env_output.obs)
         value = agent.compute_value()
         buffer.finish(value)
 
         start_train_step = agent.train_step
-        with Timer('train_time', 1000) as tt:
+        with Timer('train', 1000) as tt:
             agent.learn_log(step)
-        agent.store(tps=(agent.train_step-start_train_step)/lt.last())
+        agent.store(tps=(agent.train_step-start_train_step)/tt.last())
         buffer.reset()
 
         if to_eval(agent.train_step):

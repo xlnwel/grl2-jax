@@ -9,23 +9,25 @@ env:
     seed: 0
 
 model:
-    cnn_name: nature
-    out_size: null
-    kernel_initializer: glorot_uniform
-    units_list: [512]
-    activation: relu
-    layer_type: dense
-    duel: False
-
-    tau_embed_size: 64
-    phi_activation: relu
-    K: &K 32
+    encoder:
+        cnn_name: nature
+        out_size: null
+    q:
+        units_list: [512]
+        layer_type: dense
+        norm: null
+        kernel_initializer: glorot_uniform
+        activation: relu
+    quantile:
+        tau_embed_size: 64
+        phi_activation: relu
+        K: &K 32
 
 agent:
     algorithm: &algo iqn
     replay_type: &replay 'uniform'
-    batch_size: &bs 32
     gamma: &gamma 0.99
+    batch_size: &bs 32
     n_steps: &nsteps 1      # n-step target
     precision: &prec 32
     schedule_act_eps: True
@@ -39,9 +41,11 @@ agent:
     N_UPDATES: 1
     RECORD: True
 
+    deterministic_evaluation: False
+
     # IQN params
-    N: 64                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
+    N: 32                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
@@ -58,7 +62,7 @@ agent:
     optimizer: adam
     schedule_lr: False
     lr: 5e-5
-    clip_norm: 10
+    clip_norm: 40
     epsilon: 3.125e-4
 
     # arguments for PER
@@ -77,6 +81,6 @@ replay:
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
-    min_size: 5e4
+    min_size: 1600
     capacity: 1e5
     has_next_obs: False

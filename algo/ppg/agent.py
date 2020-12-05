@@ -24,7 +24,6 @@ class Agent(PPOBase):
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=(env.action_shape, env.action_dtype, 'action'),
             traj_ret=((), tf.float32, 'traj_ret'),
-            value=((), tf.float32, 'value'),
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
@@ -40,22 +39,16 @@ class Agent(PPOBase):
         if getattr(self, 'schedule_lr', False):
             assert isinstance(self._actor_lr, list)
             assert isinstance(self._value_lr, list)
+            assert isinstance(self._aux_lr, list)
             self._actor_lr = TFPiecewiseSchedule(self._actor_lr)
-            self._aux_lr = TFPiecewiseSchedule(self._aux_lr)
             self._value_lr = TFPiecewiseSchedule(self._value_lr)
+            self._aux_lr = TFPiecewiseSchedule(self._aux_lr)
 
         actor_models = [self.encoder, self.actor]
         if hasattr(self, 'rnn'):
             actor_models.append(self.rnn)
         self._actor_opt = Optimizer(
             self._optimizer, actor_models, self._actor_lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
-        
-        actor_models = [self.encoder, self.aux_value]
-        if hasattr(self, 'rnn'):
-            actor_models.append(self.rnn)
-        self._aux_opt = Optimizer(
-            self._optimizer, actor_models, self._aux_lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
         value_models = [self.value]
@@ -66,12 +59,11 @@ class Agent(PPOBase):
         self._value_opt = Optimizer(
             self._optimizer, value_models, self._value_lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
-
-    def reset_states(self, states=None):
-        pass
-
-    def get_state(self):
-        return None
+        
+        aux_models = list(self.model.values())
+        self._aux_opt = Optimizer(
+            self._optimizer, aux_models, self._aux_lr, 
+            clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
     def __call__(self, obs, evaluation=False, **kwargs):
         if obs.ndim % 2 != 0:
@@ -86,43 +78,6 @@ class Agent(PPOBase):
         out = tf.nest.map_structure(lambda x: x.numpy(), out)
         return out
 
-    @step_track
-    def learn_log(self, step):
-        for i in range(self.N_EPOCHS):
-            for j in range(1, self.N_MBS+1):
-                data = self.dataset.sample()
-                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-                terms = self.learn(**data)
-
-                terms = {k: v.numpy() for k, v in terms.items()}
-                kl = terms.pop('kl')
-                value = terms.pop('value')
-                self.store(**terms, value=value.mean())
-                if self._value_update == 'reuse':
-                    self.dataset.update('value', value)
-                if getattr(self, '_max_kl', None) and kl > self._max_kl:
-                    break
-            if getattr(self, '_max_kl', None) and kl > self._max_kl:
-                logger.info(f'{self._model_name}: Eearly stopping after '
-                    f'{i*self.N_MBS+j} update(s) due to reaching max kl.'
-                    f'Current kl={kl:.3g}')
-                break
-            
-            if self._value_update == 'once':
-                self.dataset.update_value_with_func(self.compute_value)
-            if self._value_update is not None:
-                last_value = self.compute_value(self._latest_obs)
-                self.dataset.finish(last_value)
-        self.store(kl=kl)
-        if not isinstance(self._lr, float):
-            step = tf.cast(self._env_step, tf.float32)
-            self.store(lr=self._lr(step))
-        
-        if self._to_summary(step):
-            self.summary(data, terms)
-
-        return i * self.N_MBS + j
-    
     def aux_learn_log(self, step):
         for i in range(self.N_AUX_EPOCHS):
             for j in range(self.N_AUX_MBS):
@@ -135,16 +90,13 @@ class Agent(PPOBase):
                 value = terms.pop('aux/value')
                 self.store(**terms, value=value.mean())
                 if self._value_update == 'reuse':
-                    self.dataset.update('value', value)
+                    self.dataset.aux_update('value', value)
             if self._value_update == 'once':
-                self.dataset.update_value_with_func(self.compute_value)
+                self.dataset.compute_aux_data_with_func(self.compute_value)
             if self._value_update is not None:
-                last_value = self.compute_value(self._latest_obs)
-                self.dataset.finish(last_value)
+                last_value = self.compute_value()
+                self.dataset.aux_finish(last_value)
         self.store(**{'aux/kl': kl})
-        if not isinstance(self._lr, float):
-            step = tf.cast(self._env_step, tf.float32)
-            self.store(lr=self._lr(step))
         
         if self._to_summary(step):
             self.summary(data, terms)
@@ -169,11 +121,10 @@ class Agent(PPOBase):
 
             if hasattr(self, 'value_encoder'):
                 x_value = self.value_encoder(obs)
-                value = self.value(x)
+                value = self.value(x_value)
             else:
                 value = self.value(tf.stop_gradient(x))
             value_loss = .5 * tf.reduce_mean((value - traj_ret)**2)
-            value_loss = self._value_coef * value_loss
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
         terms['value_norm'] = self._value_opt(tape, value_loss)
 
@@ -194,34 +145,34 @@ class Agent(PPOBase):
     @tf.function
     def _aux_learn(self, obs, logits, traj_ret, mask=None, state=None):
         terms = {}
-        with tf.GradientTape(persistent=True) as tape:
+        with tf.GradientTape() as tape:
             x = self.encoder(obs)
             if state is not None:
                 x, state = self.rnn(x, state, mask=mask)    
             act_dist = self.actor(x)
             old_dist = tfd.Categorical(logits)
-            kl = old_dist.kl_divergence(act_dist)
+            kl = tf.reduce_mean(old_dist.kl_divergence(act_dist))
             actor_loss = bc_loss = self._bc_coef * kl
             if hasattr(self, 'value_encoder'):
                 x_value = self.value_encoder(obs)
-                value = self.value(x)
+                value = self.value(x_value)
                 aux_value = self.aux_value(x)
                 aux_loss = .5 * tf.reduce_mean((aux_value - traj_ret)**2)
-                aux_loss = self._aux_coef * aux_loss
+                terms['bc_loss'] = bc_loss
+                terms['aux_loss'] = aux_loss
                 actor_loss = aux_loss + bc_loss
             else:
-                value = self.value(tf.stop_gradient(x))
+                # allow gradients from value head if using a shared encoder
+                value = self.value(x)
 
             value_loss = .5 * tf.reduce_mean((value - traj_ret)**2)
+            loss = actor_loss + value_loss
 
-        terms['actor_norm'] = self._aux_opt(tape, actor_loss)
-        terms['value_norm'] = self._value_opt(tape, value_loss)
+        terms['actor_norm'] = self._aux_opt(tape, loss)
 
         terms = dict(
             value=value, 
             kl=kl, 
-            bc_loss=bc_loss,
-            aux_loss=aux_loss,
             actor_loss=actor_loss,
             v_loss=value_loss,
             explained_variance=explained_variance(traj_ret, value)

@@ -6,7 +6,7 @@ import tensorflow as tf
 from core.tf_config import *
 from utility.utils import Every
 from utility.graph import video_summary
-from utility.timer import TBTimer
+from utility.timer import Timer
 from utility.run import Runner, evaluate
 from utility import pkg
 from env.func import create_env
@@ -15,46 +15,52 @@ from core.dataset import Dataset, process_with_env
 
 
 def train(agent, env, eval_env, replay):
-    def collect_and_learn(env, step, reset, **kwargs):
-        if reset:
-            # we reset noisy every episode. Theoretically, 
-            # this follows the guide of deep exploration.
-            # More importantly, it saves time!
-            if hasattr(agent, 'reset_noisy'):
-                agent.reset_noisy()
+    def collect(env, env_step, reset, **kwargs):
+        # if reset:
+        #     # we reset noisy every episode. Theoretically, 
+        #     # this follows the guide of deep exploration.
+        #     # More importantly, it saves time!
+        #     if hasattr(agent, 'reset_noisy'):
+        #         agent.reset_noisy()
         replay.add(**kwargs)
-        if step % agent.TRAIN_PERIOD == 0:
-            agent.learn_log(step)
     
-    step = agent.env_step
-    collect = lambda *args, **kwargs: replay.add(**kwargs)
-    runner = Runner(env, agent, step=step, nsteps=agent.LOG_PERIOD)
+    env_step = agent.env_step
+    train_step = agent.train_step
+    runner = Runner(env, agent, step=env_step, nsteps=agent.TRAIN_PERIOD)
     while not replay.good_to_learn():
-        step = runner.run(
+        env_step = runner.run(
             action_selector=env.random_action, 
             step_fn=collect)
 
     to_eval = Every(agent.EVAL_PERIOD)
+    to_log = Every(agent.LOG_PERIOD)
+    rt = Timer('run')
+    tt = Timer('train')
     print('Training starts...')
-    while step <= int(agent.MAX_STEPS):
-        start_step = step
-        start = time.time()
-        step = runner.run(step_fn=collect_and_learn)
-        fps = (step - start_step) / (time.time() - start)
+    while env_step <= int(agent.MAX_STEPS):
+        while not to_log(env_step):
+            with rt:
+                env_step = runner.run(step_fn=collect)
+            with tt:
+                train_step = agent.learn_log(env_step)
+        
+        fps = rt.average() * agent.TRAIN_PERIOD
+        tps = tt.average() * agent.N_UPDATES
+        
         agent.store(
             env_step=agent.env_step,
             train_step=agent.train_step,
             fps=fps, 
-            tps=fps/agent.TRAIN_PERIOD)
+            tps=tps,
+        )
 
-        if to_eval(step):
-            n = 10 if 'procgen' in eval_env.name else 1
+        if to_eval(env_step):
             eval_score, eval_epslen, video = evaluate(
-                eval_env, agent, record=agent.RECORD, n=n)
+                eval_env, agent, record=agent.RECORD)
             if agent.RECORD:
-                video_summary(f'{agent.name}/sim', video, step=step)
+                video_summary(f'{agent.name}/sim', video, step=env_step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-        agent.log(step)
+        agent.log(env_step)
         agent.save()
 
 def main(env_config, model_config, agent_config, replay_config):
@@ -66,10 +72,10 @@ def main(env_config, model_config, agent_config, replay_config):
     # if env_config['name'].startswith('procgen'):
     #     start_level = 200
     eval_env_config = env_config.copy()
-    for k in eval_env_config.keys():
-        # pop reward hacks
-        if 'reward' in k:
-            eval_env_config.pop(k)
+    eval_env_config['n_envs'] = 64 if 'procgen' in eval_env_config['name'] else 1
+    eval_env_config['np_obs'] = True
+    reward_key = [k for k in eval_env_config.keys() if 'reward' in k]
+    [eval_env_config.pop(k) for k in reward_key]
     eval_env = create_env(eval_env_config)
     replay = create_replay(replay_config)
 
@@ -119,7 +125,7 @@ def main(env_config, model_config, agent_config, replay_config):
 #         else:
 #             action = env.action_space.sample()
 
-#         next_obs, reward, discount, reset = env.step(action)
+#         next_obs, reward, discount, reset = env.env_step(action)
 #         # discount = np.float32(1-done)
 #         epslen += 1
 #         score += reward
@@ -143,7 +149,7 @@ def main(env_config, model_config, agent_config, replay_config):
 #             eval_score, eval_epslen = evaluate(eval_env, agent)
 
 #             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-#             agent.log(step=t)
+#             agent.log(env_step=t)
 #             agent.save()
 
 # def evaluate(env, agent):
@@ -155,7 +161,7 @@ def main(env_config, model_config, agent_config, replay_config):
 #     discount = 1
 #     while discount and i < max_steps:
 #         action = agent(obs, deterministic=True)
-#         obs, reward, discount, reset = env.step(action)
+#         obs, reward, discount, reset = env.env_step(action)
 #         score += reward
 #         epslen += 1
 #         i += 1

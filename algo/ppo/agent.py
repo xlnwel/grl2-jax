@@ -23,12 +23,6 @@ class Agent(PPOBase):
         )
         self.learn = build(self._learn, TensorSpecs)
 
-    def reset_states(self, states=None):
-        pass
-
-    def get_states(self):
-        return None
-
     def __call__(self, obs, evaluation=False, **kwargs):
         if obs.ndim % 2 != 0:
             obs = np.expand_dims(obs, 0)

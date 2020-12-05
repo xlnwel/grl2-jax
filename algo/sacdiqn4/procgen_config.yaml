@@ -1,47 +1,16 @@
 ---
 env:
     name: procgen_miner
-    n_envs: &ne 1
+    n_envs: &ne 64
+    reward_scale: 2
+    reward_clip: 10
     frame_skip: 1
-    frame_stack: 4
+    frame_stack: 1
 
 model:
     encoder: 
         cnn_name: procgen
-        obs_range: [0, 1]
-        filters: [32, 64, 64, 64]
-        n_blocks: [1, 1, 1, 1]
-        kernel_initializer: glorot_uniform
-        stem: conv_maxblurpool
-        subsample: conv_maxblurpool
-        block: resv1
-        block_kwargs:
-            conv: conv2d
-            filter_coefs: []
-            kernel_sizes: [3, 3]
-            norm: null
-            norm_kwargs: {}
-            activation: relu
-            am: cbam
-            dropout_rate: 0
-            rezero: False
-        sa: conv_sa
-        sa_pos: []
-        sa_kwargs:
-            key_ratio: 1
-            val_ratio: 1
-            downsample_ratio: 1
-        deter_stoch: True
-        belief: False
-        out_activation: null
-        out_size: null
     actor:
-        units_list: [512]
-        layer_type: dense
-        norm: null
-        kernel_initializer: glorot_uniform
-        activation: relu
-    v:
         units_list: [512]
         layer_type: dense
         norm: null
@@ -56,7 +25,7 @@ model:
     quantile:
         tau_embed_size: 64
         phi_activation: relu
-        K: &K 64
+        K: &K 32
     temperature:
         temp_type: constant
         value: .01
@@ -75,18 +44,19 @@ agent:
     eval_act_eps: 0
     target_entropy_coef: .8
     
-    MAX_STEPS: 8e6
-    TRAIN_PERIOD: 64
+    MAX_STEPS: 2.5e8
+    TRAIN_PERIOD: 4
     EVAL_PERIOD: 1e6
     LOG_PERIOD: 5e4
     N_UPDATES: 1
     RECORD: True
 
     normalize_reward: False
+    deterministic_evaluation: False
 
     # IQN params
-    N: 64                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
+    N: 32                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
@@ -109,13 +79,13 @@ agent:
     epsilon: 3.125e-4
     
     # arguments for PER
-    per_alpha: .5
+    per_alpha: .6
     per_epsilon: 1e-4
     use_is_ratio: &is False
 
 replay:
     replay_type: *replay
-    seqlen: 50
+    seqlen: 10
     n_envs: *ne
     # arguments for PER
     beta0: .4
@@ -125,9 +95,8 @@ replay:
 
     # arguments for general replay
     n_steps: *nsteps
-    max_steps: 5
     gamma: *gamma
     batch_size: *bs
     min_size: 1600
-    capacity: 2.5e5
+    capacity: 1e5
     has_next_obs: False

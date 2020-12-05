@@ -46,9 +46,21 @@ class PPG(Ensemble):
 
     @tf.function
     def compute_value(self, x):
-        x = self.encoder(x)
+        if hasattr(self, 'value_encoder'):
+            x =self.value_encoder(x)
+        else:
+            x = self.encoder(x)
         value = self.value(x)
         return value
+
+    @tf.function
+    def compute_aux_data(self, obs):
+        x = self.encoder(obs)
+        logits = self.actor(x).logits
+        if hasattr(self, 'value_encoder'):
+            x =self.value_encoder(obs)
+        value = self.value(x)
+        return logits, value
 
     def reset_states(self, **kwargs):
         return
@@ -62,7 +74,6 @@ def create_components(config, env):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
 
-    config['encoder']['time_distributed'] = True
     if config['architecture'] == 'dual':
         models = dict(
             encoder=Encoder(config['encoder']), 

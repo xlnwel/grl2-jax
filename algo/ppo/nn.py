@@ -24,6 +24,7 @@ class Actor(Module):
                         kernel_initializer=self._kernel_initializer,
                         out_dtype='float32',
                         name=name,
+                        out_gain=.01,
                         )
 
         if not self.is_action_discrete:

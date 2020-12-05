@@ -9,7 +9,9 @@ class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
             self._lr = TFPiecewiseSchedule( [(5e5, self._lr), (2e6, 5e-5)])
-        self._optimizer = Optimizer(self._optimizer, self.q, self._lr, clip_norm=self._clip_norm)
+        models = [self.encoder, self.q]
+        self._optimizer = Optimizer(
+            self._optimizer, models, self._lr, clip_norm=self._clip_norm)
 
     def reset_noisy(self):
         self.q.reset_noisy()
@@ -20,12 +22,15 @@ class Agent(DQNBase):
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
         # compute target returns
-        next_action = self.q.action(next_obs, noisy=False)
-        next_q = self.target_q.value(next_obs, next_action, noisy=False)
+        next_x = self.encoder(next_obs)
+        next_action = self.q.action(next_x, noisy=False)
+        next_x = self.target_encoder(next_obs)
+        next_q = self.target_q(next_x, next_action, noisy=False)
         returns = n_step_target(reward, next_q, discount, self._gamma, steps, self._tbo)
 
         with tf.GradientTape() as tape:
-            q = self.q.value(obs, action)
+            x = self.encoder(obs)
+            q = self.q(x, action)
             error = returns - q
             loss = tf.reduce_mean(IS_ratio * loss_fn(error))
 
@@ -42,8 +47,3 @@ class Agent(DQNBase):
         ))
 
         return terms
-
-    @tf.function
-    def _sync_target_nets(self):
-        [tv.assign(mv) for mv, tv in zip(
-            self.q.trainable_variables, self.target_q.trainable_variables)]

@@ -43,7 +43,7 @@ class SumTree:
                 idxes = np.where(values <= self._container[left], left, right)
                 values = np.where(values <= self._container[left], values, values - self._container[left])
 
-            return self._container[idxes], idxes - self._tree_size
+        return self._container[idxes], idxes - self._tree_size
 
     def update(self, mem_idx, value):
         np.testing.assert_array_less(0, value)

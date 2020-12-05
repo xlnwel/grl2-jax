@@ -32,23 +32,18 @@ class DQNBase(BaseAgent):
     @agent_config
     def __init__(self, *, dataset, env):
         self._is_per = self._replay_type.endswith('per')
-        is_nsteps = self._n_steps > 1
         self.dataset = dataset
+        self._action_dim = env.action_dim
 
         if self._schedule_act_eps:
-            self._act_eps = PiecewiseSchedule(((5e4, 1), (1e6, self._act_eps)))
+            self._act_eps = PiecewiseSchedule(self._act_eps)
 
         self._to_sync = Every(self._target_update_period)
         self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
 
         self._construct_optimizers()
-
-        self._action_dim = env.action_dim
-
         self._add_attributes()
-        
         self._build_learn(env)
-
         self._sync_target_nets()
 
     def _add_attributes(self):
@@ -59,17 +54,20 @@ class DQNBase(BaseAgent):
 
     def __call__(self, x, evaluation=False, **kwargs):
         if evaluation:
+            deterministic = self._deterministic_evaluation
             eps = self._eval_act_eps
-        elif self._schedule_act_eps:
-            eps = self._act_eps.value(self.env_step)
-            self.store(act_eps=eps)
         else:
-            eps = self._act_eps
+            deterministic = False
+            if self._schedule_act_eps:
+                eps = self._act_eps.value(self.env_step)
+                self.store(act_eps=eps)
+            else:
+                eps = self._act_eps
+        x = tf.convert_to_tensor(x)
         action, terms = self.model.action(
-            tf.convert_to_tensor(x), 
-            deterministic=self._deterministic_evaluation, 
-            epsilon=tf.convert_to_tensor(eps, tf.float32),
-            **kwargs)
+            x, 
+            deterministic=deterministic, 
+            epsilon=tf.convert_to_tensor(eps, tf.float32))
         action = np.squeeze(action.numpy())
 
         return action, terms
@@ -130,5 +128,6 @@ class DQNBase(BaseAgent):
 
     @tf.function
     def _sync_target_nets(self):
-        [tv.assign(mv) for mv, tv in zip(
-            self.q.variables, self.target_q.variables)]
+        tvars = self.target_encoder.variables + self.target_q.variables
+        mvars = self.encoder.variables + self.q.variables
+        [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
