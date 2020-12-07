@@ -65,7 +65,7 @@ agent:
     # distributed algo params
     n_learner_cpus: 3
     n_learner_gpus: .3
-    n_workers: 5
+    n_workers: 6
     n_worker_cpus: 1
     n_worker_gpus: .1
     deterministic_evaluation: False

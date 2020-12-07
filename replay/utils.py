@@ -15,7 +15,9 @@ def init_buffer(buffer, pre_dims, has_steps=False, precision=None, **kwargs):
     info = infer_info(precision=precision, **kwargs)
     buffer.update(
         {k: np.zeros([*pre_dims, *v_shape], v_dtype) 
-            if v_dtype else [None for _ in range(pre_dims[0])]
+            if v_dtype else 
+                [[None for _ in range(pre_dims[1])] if len(pre_dims) > 1 else None 
+                for _ in range(pre_dims[0])]
             for k, (v_shape, v_dtype) in info.items()})
     # we define an additional item, steps, that specifies steps in multi-step learning
     if has_steps:

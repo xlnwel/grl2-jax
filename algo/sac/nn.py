@@ -104,8 +104,7 @@ class Temperature(Module):
     def type(self):
         return self._temp_type
 
-    @property
-    def trainable(self):
+    def is_trainable(self):
         return self.type in ('state-action', 'variable')
 
     def call(self, x=None, a=None):

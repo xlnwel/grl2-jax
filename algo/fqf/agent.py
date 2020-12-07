@@ -9,9 +9,9 @@ from algo.dqn.base import DQNBase, get_data_format
 class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
-            self._iqn_lr = TFPiecewiseSchedule([(5e5, self._iqn_lr), (2e6, 5e-5)])
-        self._iqn_opt = Optimizer(
-            self._iqn_opt, [self.encoder, self.q], self._iqn_lr, 
+            self._q_lr = TFPiecewiseSchedule([(5e5, self._q_lr), (2e6, 5e-5)])
+        self._q_opt = Optimizer(
+            self._q_opt, [self.encoder, self.qe, self.q], self._q_lr, 
             clip_norm=self._clip_norm, epsilon=1e-2/self._batch_size)
         self._fpn_opt = Optimizer(self._fpn_opt, self.fpn, self._fpn_lr, 
             rho=.95, epsilon=1e-5, centered=True)
@@ -28,12 +28,11 @@ class Agent(DQNBase):
         next_x = self.encoder(next_obs)
         
         next_tau, next_tau_hat = self.fpn(next_x)
-        next_action = self.q.action(next_x, next_tau_hat, tau_range=next_tau)
-        
+        next_qt_embed = self.qe(next_x, next_tau_hat)
+        next_action = self.q.action(next_x, next_qt_embed, tau_range=next_tau)
         next_x = self.target_encoder(next_obs)
-        next_tau, next_tau_hat = self.target_fpn(next_x)
-        next_qtv = self.target_q(
-            next_x, next_tau_hat, action=next_action)
+        next_qt_embed = self.target_qe(next_x, next_tau_hat)
+        next_qtv = self.target_q(next_x, next_qt_embed, action=next_action)
         
         reward = reward[:, None]
         discount = discount[:, None]
@@ -51,10 +50,11 @@ class Agent(DQNBase):
             x_no_grad = tf.stop_gradient(x) # forbid gradients to cnn when computing fpn loss
             
             tau, tau_hat = self.fpn(x_no_grad)
+            qt_embed = self.qe(x_no_grad, tau_hat)
             terms['tau'] = tau
             tau_hat = tf.stop_gradient(tau_hat) # forbid gradients to fpn when computing qr loss
             qtv, q = self.q(
-                x, tau_hat, tau_range=tau, action=action)
+                x, qt_embed, tau_range=tau, action=action)
             qtv_ext = tf.expand_dims(qtv, axis=-1)
             tau_hat = tf.expand_dims(tau_hat, axis=-1) # [B, N, 1]
             error, qr_loss = quantile_regression_loss(
@@ -63,7 +63,8 @@ class Agent(DQNBase):
 
             # compute out gradients for fpn
             tau_1_N = tau[..., 1:-1]
-            tau_qtv = self.q(x_no_grad, tau_1_N, action=action)     # [B, N-1]
+            qt_embed = self.qe(x, tau_1_N)
+            tau_qtv = self.q(x_no_grad, qt_embed, action=action)     # [B, N-1]
             tf.debugging.assert_shapes([
                 [qtv, (None, self.N)],
                 [tau_qtv, (None, self.N-1)],
@@ -88,7 +89,7 @@ class Agent(DQNBase):
             priority = self._compute_priority(error)
             terms['priority'] = priority
         
-        terms['iqn_norm'] = self._iqn_opt(tape, qr_loss)
+        terms['iqn_norm'] = self._q_opt(tape, qr_loss)
         terms['fpn_norm'] = self._fpn_opt(tape, fpn_loss)
         
         terms.update(dict(
@@ -106,6 +107,6 @@ class Agent(DQNBase):
 
     @tf.function
     def _sync_target_nets(self):
-        mv = self.encoder.variables + self.q.variables + self.fpn.variables
-        tv = self.target_encoder.variables + self.target_q.variables + self.target_fpn.variables
+        mv = self.encoder.variables + self.q.variables + self.qe.variables
+        tv = self.target_encoder.variables + self.target_q.variables + self.target_qe.variables
         [tv.assign(mv) for mv, tv in zip(mv, tv)]

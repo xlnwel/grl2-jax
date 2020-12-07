@@ -34,8 +34,10 @@ class DQNBase(BaseAgent):
         self._is_per = self._replay_type.endswith('per')
         self.dataset = dataset
         self._action_dim = env.action_dim
-
+        self._schedule_act_eps = env.n_envs == 1 and self._schedule_act_eps
         if self._schedule_act_eps:
+            if isinstance(self._act_eps, (float, int)):
+                self._act_eps = [(0, self._act_eps)]
             self._act_eps = PiecewiseSchedule(self._act_eps)
 
         self._to_sync = Every(self._target_update_period)
@@ -54,10 +56,8 @@ class DQNBase(BaseAgent):
 
     def __call__(self, x, evaluation=False, **kwargs):
         if evaluation:
-            deterministic = self._deterministic_evaluation
             eps = self._eval_act_eps
         else:
-            deterministic = False
             if self._schedule_act_eps:
                 eps = self._act_eps.value(self.env_step)
                 self.store(act_eps=eps)
@@ -66,7 +66,7 @@ class DQNBase(BaseAgent):
         x = tf.convert_to_tensor(x)
         action, terms = self.model.action(
             x, 
-            deterministic=deterministic, 
+            deterministic=evaluation, 
             epsilon=tf.convert_to_tensor(eps, tf.float32))
         action = np.squeeze(action.numpy())
 

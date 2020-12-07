@@ -100,7 +100,7 @@ class EnvVecBuffer:
                 self._memory[k][:, idx] = v
             else:
                 for i in range(self._n_envs):
-                    self._memory[k][i, idx] = v[i]
+                    self._memory[k][i][idx] = v[i]
         self._memory['steps'][:, idx] = 1
 
         self._idx = self._idx + 1

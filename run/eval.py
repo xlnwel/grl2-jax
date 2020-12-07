@@ -94,6 +94,7 @@ if __name__ == '__main__':
     env_config = config['env']
     model_config = config['model']
     agent_config = config['agent']
+    agent_config['logger'] = False
 
     # get the main function
     try:

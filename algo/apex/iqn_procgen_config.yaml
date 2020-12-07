@@ -13,16 +13,16 @@ env:
 model:
     encoder: 
         cnn_name: procgen
+    quantile:
+        tau_embed_size: 64
+        phi_activation: relu
+        K: &K 64
     q:
         units_list: [512]
         layer_type: dense
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
-    quantile:
-        tau_embed_size: 64
-        phi_activation: relu
-        K: &K 64
 
 agent:
     algorithm: &algo apex-iqn
@@ -52,7 +52,7 @@ agent:
     n_worker_gpus: .1
     deterministic_evaluation: False
     run_mode: nsteps
-    worker_side_prioritization: True
+    worker_side_prioritization: False
 
     # IQN params
     N: 64                # N in paper, num of quantiles for online quantile network
@@ -98,7 +98,7 @@ replay:
     beta0: .4
     beta_steps: 2e6
     to_update_top_priority: True
-    return_IS_ratio: *is
+    use_is_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps

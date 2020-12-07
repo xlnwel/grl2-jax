@@ -31,7 +31,9 @@ agent:
     n_steps: &nsteps 1      # n-step target
     precision: &prec 32
     schedule_act_eps: True
-    act_eps: .01
+    act_eps:
+        - [0, 1]
+        - [1.e+6, .1]
     eval_act_eps: .001
 
     MAX_STEPS: 1e8      # maximum env frames

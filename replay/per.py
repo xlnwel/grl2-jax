@@ -37,7 +37,8 @@ class PERBase(Replay):
     def add(self, **kwargs):
         super().add(**kwargs)
         # super().add updates self._mem_idx 
-        self._data_structure.update(self._mem_idx - 1, self._top_priority)
+        if self._n_envs == 1:
+            self._data_structure.update(self._mem_idx - 1, self._top_priority)
 
     def update_priorities(self, priorities, idxes):
         assert not np.any(np.isnan(priorities)), priorities
@@ -78,7 +79,7 @@ class ProportionalPER(PERBase):
     def __init__(self, config):
         super().__init__(config)
         self._data_structure = SumTree(self._capacity)        # mem_idx    -->     priority
-        self._return_IS_ratios = getattr(self, '_return_IS_ratios', True)
+        self._use_is_ratios = getattr(self, '_use_is_ratios', True)
 
     """ Implementation """
     @override(PERBase)
@@ -97,7 +98,7 @@ class ProportionalPER(PERBase):
         # compute importance sampling ratios
         samples = self._get_samples(idxes)
         samples['idxes'] = idxes
-        if self._return_IS_ratios:
+        if self._use_is_ratios:
             IS_ratios = self._compute_IS_ratios(probabilities)
             samples['IS_ratio'] = IS_ratios
 

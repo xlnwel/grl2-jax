@@ -18,7 +18,7 @@ class Agent(DQNBase):
         value_models = [self.encoder, self.q]
         self._value_opt = Optimizer(self._optimizer, value_models, self._q_lr)
 
-        if self.temperature.trainable:
+        if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
         if isinstance(self._target_entropy_coef, (list, tuple)):
             self._target_entropy_coef = TFPiecewiseSchedule(self._target_entropy_coef)
@@ -88,7 +88,7 @@ class Agent(DQNBase):
 
         act_probs = tf.reduce_mean(act_probs, 0)
         self.actor.update_prior(act_probs, self._prior_lr)
-        if self.temperature.trainable:
+        if self.temperature.is_trainable():
             with tf.GradientTape() as tape:
                 log_temp, temp = self.temperature(x, action)
                 entropy_diff = target_entropy - entropy

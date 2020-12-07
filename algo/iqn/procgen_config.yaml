@@ -1,15 +1,16 @@
 ---
 env:
     name: procgen_coinrun
-    n_envs: &ne 64
-    reward_scale: 2
-    reward_clip: 10
+    n_envs: &ne 32
+    # reward_scale: 2
+    # reward_clip: 10
     frame_skip: 1
-    frame_stack: 4
+    frame_stack: 1
+    np_obs: True
 
 model:
     encoder: 
-        cnn_name: procgen
+        cnn_name: impala
     q:
         units_list: [512]
         layer_type: dense
@@ -19,30 +20,29 @@ model:
     quantile:
         tau_embed_size: 64
         phi_activation: relu
-        K: &K 64
+        K: &K 32
 
 agent:
     algorithm: &algo iqn
-    replay_type: &replay uniform
+    replay_type: &replay per
     gamma: &gamma .99
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
+
     schedule_act_eps: True
-    act_eps:
-        - [0, 1]
-        - [1.e+6, .1]
+    act_eps_type: apex
+    act_eps: .3
     eval_act_eps: 0
 
-    MAX_STEPS: 2.5e8
-    TRAIN_PERIOD: 4
-    EVAL_PERIOD: 1e6
-    LOG_PERIOD: 5e4
+    MAX_STEPS: 2.5e7
+    TRAIN_PERIOD: 1
+    EVAL_PERIOD: 2e5
+    LOG_PERIOD: 2e5
     N_UPDATES: 1
     RECORD: True
 
     normalize_reward: False
-    deterministic_evaluation: False
 
     # IQN params
     N: 32                # N in paper, num of quantiles for online quantile network
@@ -69,7 +69,7 @@ agent:
     # arguments for PER
     per_alpha: .6
     per_epsilon: 1e-4
-    use_is_ratio: &is False
+    use_is_ratio: &is True
 
 replay:
     replay_type: *replay
@@ -78,6 +78,7 @@ replay:
     # arguments for PER
     beta0: .4
     to_update_top_priority: True
+    use_is_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps
@@ -85,4 +86,4 @@ replay:
     batch_size: *bs
     min_size: 1600
     capacity: 1e5
-    has_next_obs: False
+    has_next_obs: True

@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from core.tf_config import *
 from utility.utils import Every
+from utility.rl_utils import compute_act_temp, compute_act_eps
 from utility.graph import video_summary
 from utility.timer import Timer
 from utility.run import Runner, evaluate
@@ -25,7 +26,6 @@ def train(agent, env, eval_env, replay):
         replay.add(**kwargs)
     
     env_step = agent.env_step
-    train_step = agent.train_step
     runner = Runner(env, agent, step=env_step, nsteps=agent.TRAIN_PERIOD)
     while not replay.good_to_learn():
         env_step = runner.run(
@@ -34,6 +34,8 @@ def train(agent, env, eval_env, replay):
 
     to_eval = Every(agent.EVAL_PERIOD)
     to_log = Every(agent.LOG_PERIOD)
+    to_eval = Every(agent.EVAL_PERIOD)
+    to_record = Every(agent.EVAL_PERIOD*10)
     rt = Timer('run')
     tt = Timer('train')
     print('Training starts...')
@@ -42,7 +44,7 @@ def train(agent, env, eval_env, replay):
             with rt:
                 env_step = runner.run(step_fn=collect)
             with tt:
-                train_step = agent.learn_log(env_step)
+                agent.learn_log(env_step)
         
         fps = rt.average() * agent.TRAIN_PERIOD
         tps = tt.average() * agent.N_UPDATES
@@ -55,9 +57,10 @@ def train(agent, env, eval_env, replay):
         )
 
         if to_eval(env_step):
+            record = agent.RECORD and to_record(env_step)
             eval_score, eval_epslen, video = evaluate(
-                eval_env, agent, record=agent.RECORD)
-            if agent.RECORD:
+                eval_env, agent, record=record)
+            if record:
                 video_summary(f'{agent.name}/sim', video, step=env_step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
         agent.log(env_step)
@@ -68,6 +71,11 @@ def main(env_config, model_config, agent_config, replay_config):
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
 
+    if env_config.get('n_envs', 1) > 1:
+        agent_config = compute_act_eps(agent_config, 0, 1, env_config['n_envs'])
+    if 'actor' in model_config:
+        model_config = compute_act_temp(agent_config, model_config, 0, 1, env_config['n_envs'])
+    
     env = create_env(env_config)
     # if env_config['name'].startswith('procgen'):
     #     start_level = 200

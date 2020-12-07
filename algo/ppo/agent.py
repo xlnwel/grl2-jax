@@ -4,7 +4,6 @@ import tensorflow as tf
 from core.tf_config import build
 from core.decorator import agent_config
 from algo.ppo.base import PPOBase
-from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
 class Agent(PPOBase):
@@ -27,9 +26,5 @@ class Agent(PPOBase):
         if obs.ndim % 2 != 0:
             obs = np.expand_dims(obs, 0)
         obs = self.normalize_obs(obs)
-        if evaluation:
-            return self.model.action(obs, True).numpy()
-        else:
-            out = self.model.action(obs, False)
-            action, terms = tf.nest.map_structure(lambda x: x.numpy(), out)
-            return action, terms
+        return tf.nest.map_structure(
+            lambda x: x.numpy(), self.model.action(obs, evaluation))

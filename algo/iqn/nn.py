@@ -14,13 +14,6 @@ class Quantile(Module):
     def __init__(self, name='phi'):
         super().__init__(name=name)
 
-        kwargs = dict(
-            kernel_initializer=getattr(self, '_kernel_initializer', 'glorot_uniform'),
-            activation=getattr(self, '_activation', 'relu'),
-            out_dtype='float32',
-        )
-        self._kwargs = kwargs
-
     def call(self, x, n_qt=None):
         batch_size, cnn_out_size = x.shape
         # phi network
@@ -30,20 +23,25 @@ class Quantile(Module):
         pi = tf.convert_to_tensor(np.pi, tf.float32)
         degree = tf.cast(tf.range(1, self._tau_embed_size+1), tau_hat.dtype) * pi * tau_hat
         qt_embed = tf.math.cos(degree)              # [B, N, E]
+        kwargs = dict(
+            kernel_initializer=getattr(self, '_kernel_initializer', 'glorot_uniform'),
+            activation=getattr(self, '_activation', 'relu'),
+            out_dtype='float32',
+        )
         qt_embed = self.mlp(
             qt_embed, 
             [cnn_out_size], 
             name=self.name,
-            **self._kwargs)                  # [B, N, cnn.out_size]
+            **kwargs)                  # [B, N, cnn.out_size]
         tf.debugging.assert_shapes([
             [qt_embed, (batch_size, n_qt, cnn_out_size)],
         ])
         return tau_hat, qt_embed
-    
+
 
 class Value(Module):
     @config
-    def __init__(self, action_dim, name='q'):
+    def __init__(self, action_dim, name='value'):
         super().__init__(name=name)
 
         self._action_dim = action_dim
@@ -69,20 +67,22 @@ class Value(Module):
     def action_dim(self):
         return self._action_dim
 
-    def action(self, x, qt_embed=None, return_stats=False):
-        qtv, q = self.call(x, qt_embed, return_value=True)
+    def action(self, x, qt_embed=None, tau_range=None, return_stats=False):
+        qtv, q = self.call(x, qt_embed, tau_range=tau_range, return_value=True)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
         if return_stats:
             return action, qtv, q
         else:
             return action
     
-    def call(self, x, qt_embed, action=None, return_value=False):
+    def call(self, x, qt_embed, action=None, tau_range=None, return_value=False):
+        if x.shape.ndims < qt_embed.shape.ndims:
+            x = tf.expand_dims(x, axis=1)
         assert x.shape.ndims == qt_embed.shape.ndims, (x.shape, qt_embed.shape)
         x = x * qt_embed            # [B, N, cnn.out_size]
         qtv = self.qtv(x, action=action)
-        if return_value:
-            v = self.value(qtv)
+        if tau_range is not None or return_value:
+            v = self.value(qtv, tau_range=tau_range)
             return qtv, v
         else:
             return qtv
@@ -99,8 +99,14 @@ class Value(Module):
             
         return qtv
 
-    def value(self, qtv):
-        v = tf.reduce_mean(qtv, axis=1)     # [B, A] / [B]
+    def value(self, qtv, tau_range=None):
+        if tau_range is None:
+            v = tf.reduce_mean(qtv, axis=1)     # [B, A] / [B]
+        else:
+            diff = tau_range[..., 1:] - tau_range[..., :-1]
+            if len(qtv.shape) > len(diff.shape):
+                diff = tf.expand_dims(diff, axis=-1)        # expand diff if qtv includes the action dimension
+            v = tf.reduce_sum(diff * qtv, axis=1)
 
         return v
 
@@ -122,16 +128,15 @@ class IQN(Ensemble):
 
         x = self.encoder(x)
         _, qt_embed = self.quantile(x)
-        x = tf.expand_dims(x, 1)
         action = self.q.action(x, qt_embed, return_stats=return_stats)
         terms = {}
         if return_stats:
-            action, qtv, q = action
-            qtv = tf.math.reduce_max(qtv, -1)
-            qtv = tf.squeeze(qtv)
-            terms = {'qtv': qtv}
-        action = epsilon_greedy(action, epsilon,
-            is_action_discrete=True, action_dim=self.q.action_dim)
+            action, _, q = action
+            q = tf.squeeze(q)
+            terms = {'q': q}
+        if not deterministic:
+            action = epsilon_greedy(action, epsilon,
+                is_action_discrete=True, action_dim=self.q.action_dim)
         action = tf.squeeze(action)
 
         return action, terms

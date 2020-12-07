@@ -11,35 +11,35 @@ env:
 model:
     encoder: 
         cnn_name: impala
-        # obs_range: [0, 1]
-        # filters: [16, 32, 32]
-        # n_blocks: [1, 1, 1, 1]
-        # kernel_initializer: glorot_uniform
-        # stem: null
-        # subsample: conv_maxblurpool
-        # block: resv1
-        # block_kwargs:
-        #     conv: conv2d
-        #     filter_coefs: []
-        #     kernel_sizes: [3, 3]
-        #     norm: null
-        #     norm_kwargs: {}
-        #     activation: relu
-        #     am: cbam
-        #     am_kwargs:
-        #         excitation_type: 2l
-        #     dropout_rate: 0
-        #     rezero: False
-        # sa: conv_sa
-        # sa_pos: []
-        # sa_kwargs:
-        #     key_ratio: 1
-        #     val_ratio: 1
-        #     downsample_ratio: 1
-        # deter_stoch: False
-        # belief: False
-        # out_activation: null
-        # out_size: 256
+        obs_range: [0, 1]
+        filters: [32, 64, 64]
+        n_blocks: [1, 1, 1, 1]
+        kernel_initializer: glorot_uniform
+        stem: null
+        subsample: conv_maxblurpool
+        block: resv1
+        block_kwargs:
+            conv: conv2d
+            filter_coefs: []
+            kernel_sizes: [3, 3]
+            norm: null
+            norm_kwargs: {}
+            activation: relu
+            am: cbam
+            am_kwargs:
+                excitation_type: 2l
+            dropout_rate: 0
+            rezero: False
+        sa: conv_sa
+        sa_pos: []
+        sa_kwargs:
+            key_ratio: 1
+            val_ratio: 1
+            downsample_ratio: 1
+        deter_stoch: False
+        belief: False
+        out_activation: null
+        out_size: 256
     # encoder: 
     #     cnn_name: impala
     #     filters: [16, 32, 32]

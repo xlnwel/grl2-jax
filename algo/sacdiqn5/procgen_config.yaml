@@ -121,7 +121,7 @@ replay:
     beta0: .4
     beta_steps: 5e4
     to_update_top_priority: True
-    return_IS_ratio: *is
+    use_is_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps

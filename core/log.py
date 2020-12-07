@@ -86,7 +86,18 @@ def save_code(root_dir, model_name):
         ignore=shutil.ignore_patterns(
             '*logs*', '*data*', '.*', '*pycache*', '*.md', '*test*'))
 
+def clear_ndarray(config):
+    for k, v in config.items():
+        if isinstance(v, dict):
+            config[k] = clear_ndarray(v)
+        elif isinstance(v, np.ndarray):
+            config[k] = v.tolist()
+        else:
+            config[k] = v
+    return config
+
 def save_config(root_dir, model_name, config):
+    config = clear_ndarray(config)
     yaml_op.save_config(config, filename=f'{root_dir}/{model_name}/config.yaml')
 
 """ Functions for setup logging """                
@@ -144,7 +155,7 @@ class Logger:
                 color='magenta')
 
         self._first_row=True
-        self._log_headers = set()
+        self._log_headers = []
         self._log_current_row = {}
         self._store_dict = defaultdict(list)
 
@@ -222,13 +233,13 @@ class Logger:
         stdout (otherwise they will not get saved anywhere).
         """
         if self._first_row:
-            self._log_headers.add(key)
+            self._log_headers.append(key)
         else:
             if key not in self._log_headers:
                 logger.warning(f'All previous loggings are erased because you introduce a new key {key}')
                 self._out_file.seek(0)
                 self._out_file.truncate()
-                self._log_headers.add(key)
+                self._log_headers.append(key)
                 self._first_row = True
             # assert key in self._log_headers, \
             #     f"Trying to introduce a new key {key} " \

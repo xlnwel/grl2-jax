@@ -24,7 +24,9 @@ class Actor(Module):
         if isinstance(act_temp, (list, tuple, np.ndarray)):
             act_temp = np.expand_dims(act_temp, axis=-1)
         self.act_inv_temp = 1. / act_temp
-        logger.info(f'{self.name} action temperature: {act_temp}')
+        self.eval_act_temp = config.pop('eval_act_temp', .5)
+        logger.info(f'{self.name} action temperature: {np.squeeze(act_temp)}\n'
+            f'action temperature at evaluation: {self.eval_act_temp}')
         self._layers = mlp(
             **config, 
             out_size=action_dim,
@@ -36,19 +38,24 @@ class Actor(Module):
         return self._action_dim
 
     def call(self, x, deterministic=False, epsilon=0, return_distribution=False):
-        x = self._layers(x)
+        self.logits = logits = self._layers(x)
 
-        self.logits = logits = x * self.act_inv_temp
         if deterministic:
-            dist = tfd.Categorical(logits)
-            action = dist.mode()
+            if self.eval_act_temp == 0:
+                dist = tfd.Categorical(logits)
+                action = dist.mode()
+            else:
+                logits = logits / self.eval_act_temp
+                dist = tfd.Categorical(logits)
+                action = dist.sample()
         else:
+            logits = logits * self.act_inv_temp
             if isinstance(epsilon, tf.Tensor) or epsilon:
                 prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))
-                prior_logits = tf.broadcast_to(prior_logits, x.shape)
+                prior_logits = tf.broadcast_to(prior_logits, logits.shape)
                 cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
                 cond = tf.reshape(cond, (-1, 1))
-                logits = tf.where(cond, x, prior_logits)
+                logits = tf.where(cond, logits, prior_logits)
 
             dist = tfd.Categorical(logits)
             action = dist.sample()

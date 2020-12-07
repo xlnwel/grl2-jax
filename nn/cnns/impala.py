@@ -11,6 +11,8 @@ class IMPALACNN(Module):
                  obs_range=[0, 1], 
                  filters=[16, 32, 32],
                  kernel_initializer='glorot_uniform',
+                 subsample_type='conv_maxpool',
+                 subsample_kwargs={},
                  block='resv2',
                  block_kwargs=dict(
                     filter_coefs=[],
@@ -26,8 +28,6 @@ class IMPALACNN(Module):
                  out_activation='relu',
                  out_size=None,
                  name='impala',
-                 subsample_type='conv_maxpool',
-                 subsample_kwargs={},
                  **kwargs):
         super().__init__(name=name)
         self._obs_range = obs_range

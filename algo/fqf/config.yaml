@@ -15,25 +15,27 @@ model:
         kernel_initializer: glorot_uniform
     fpn:
         N: &N 32
-    iqn:
-        kernel_initializer: glorot_uniform
-        units_list: [512]
-        activation: relu
-        layer_type: dense
-        duel: False
-
+    qe:
         tau_embed_size: 64
         phi_activation: relu
-
+    q:
+        units_list: [512]
+        layer_type: dense
+        norm: null
+        kernel_initializer: glorot_uniform
+        activation: relu
+        
 agent:
     algorithm: &algo fqf
-    replay_type: &replay 'uniform'
+    replay_type: &replay uniform
     batch_size: &bs 32
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
     schedule_act_eps: True
-    act_eps: .01
+    act_eps: 
+        - [0, 1]
+        - [1.e+6, .1]
     eval_act_eps: .001
 
     MAX_STEPS: 1e8      # maximum env frames
@@ -59,7 +61,7 @@ agent:
     # arguments for optimizer
     iqn_opt: adam
     schedule_lr: False
-    iqn_lr: 5e-5
+    q_lr: 5e-5
     fpn_opt: rmsprop
     fpn_lr: 2.5e-9
     ent_coef: .001

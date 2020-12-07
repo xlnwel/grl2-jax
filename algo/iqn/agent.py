@@ -21,11 +21,9 @@ class Agent(DQNBase):
         # compute target returns
         next_x = self.encoder(next_obs)
         _, next_qt_embed = self.quantile(next_x, self.N)
-        next_x = tf.expand_dims(next_x, 1)
         next_action = self.q.action(next_x, next_qt_embed)
         next_x = self.target_encoder(next_obs)
         _, next_qt_embed = self.target_quantile(next_x, self.N_PRIME)
-        next_x = tf.expand_dims(next_x, 1)
         next_qtv= self.target_q(next_x, next_qt_embed, next_action)
         reward = reward[:, None]
         discount = discount[:, None]

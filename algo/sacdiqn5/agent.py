@@ -19,10 +19,10 @@ class Agent(DQNBase):
         value_models = [self.critic_encoder, self.q, self.v]
         self._value_opt = Optimizer(self._optimizer, value_models, self._q_lr)
 
-        if self.temperature.trainable:
+        if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
-        if isinstance(self._target_entropy_coef, (list, tuple)):
-            self._target_entropy_coef = TFPiecewiseSchedule(self._target_entropy_coef)
+            if isinstance(self._target_entropy_coef, (list, tuple)):
+                self._target_entropy_coef = TFPiecewiseSchedule(self._target_entropy_coef)
 
     # @tf.function
     # def summary(self, data, terms):
@@ -32,13 +32,13 @@ class Agent(DQNBase):
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}
-        if not hasattr(self, '_target_entropy'):
+        if self.temperature.is_trainable():
             # Entropy of a uniform distribution
             self._target_entropy = np.log(self._action_dim)
-        target_entropy_coef = self._target_entropy_coef \
-            if isinstance(self._target_entropy_coef, float) \
-            else self._target_entropy_coef(self._train_step)
-        target_entropy = self._target_entropy * target_entropy_coef
+            target_entropy_coef = self._target_entropy_coef \
+                if isinstance(self._target_entropy_coef, float) \
+                else self._target_entropy_coef(self._train_step)
+            target_entropy = self._target_entropy * target_entropy_coef
 
         if self.temperature.type == 'schedule':
             _, temp = self.temperature(self._train_step)
@@ -127,7 +127,7 @@ class Agent(DQNBase):
 
         act_probs = tf.reduce_mean(act_probs, 0)
         self.actor.update_prior(act_probs, self._prior_lr)
-        if self.temperature.trainable:
+        if self.temperature.is_trainable():
             with tf.GradientTape() as tape:
                 log_temp, temp = self.temperature(x, action)
                 entropy_diff = target_entropy - entropy

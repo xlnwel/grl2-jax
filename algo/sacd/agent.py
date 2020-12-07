@@ -21,7 +21,7 @@ class Agent(DQNBase):
             q_models.append(self.q2)
         self._q_opt = Optimizer(self._optimizer, q_models, self._q_lr)
 
-        if self.temperature.trainable:
+        if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
 
     @tf.function
@@ -39,18 +39,22 @@ class Agent(DQNBase):
         if not hasattr(self, '_target_entropy'):
             # Entropy of a uniform distribution
             self._target_entropy = np.log(self._action_dim)
-            self._target_entropy *= self._target_entropy_coef
-        next_x = self.encoder(next_obs)
-        next_act_probs, next_act_logps = self.actor.train_step(next_x)
-        next_x = self.target_encoder(next_obs)
-        next_qs = self.target_q(next_x)
-        if self._twin_q:
-            next_qs2 = self.target_q2(next_x)
-            next_qs = (next_qs + next_qs2) / 2
-        if isinstance(self.temperature, (tf.Variable)):
-            temp = self.temperature
+            target_entropy_coef = self._target_entropy_coef \
+                if isinstance(self._target_entropy_coef, float) \
+                else self._target_entropy_coef(self._train_step)
+            target_entropy = self._target_entropy * target_entropy_coef
+
+        if self.temperature.type == 'schedule':
+            _, temp = self.temperature(self._train_step)
+        elif self.temperature.type == 'state-action':
+            raise NotImplementedError
         else:
             _, temp = self.temperature()
+
+        next_x = self.target_encoder(next_obs)
+        next_act_probs, next_act_logps = self.actor.train_step(next_x)
+        # next_x = self.target_encoder(next_obs)
+        next_qs = self.target_q(next_x)
         next_value = tf.reduce_sum(next_act_probs 
             * (next_qs - temp * next_act_logps), axis=-1)
         target_q = n_step_target(reward, next_value, discount, self._gamma, steps)
@@ -66,12 +70,6 @@ class Agent(DQNBase):
             x = self.encoder(obs)
             qs, q_error, q_loss = self._compute_q_loss(
                 self.q, x, action, target_q, IS_ratio)
-            if self._twin_q:
-                qs2, q_error2, q_loss2 = self._compute_q_loss(
-                    self.q2, x, action, target_q, IS_ratio)
-                qs = (qs + qs2) / 2.
-                q_error = (q_error + q_error2) / 2.
-                q_loss = (q_loss + q_loss2) / 2.
         terms['q_norm'] = self._q_opt(tape, q_loss)
 
         with tf.GradientTape() as tape:
@@ -83,14 +81,14 @@ class Agent(DQNBase):
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
-        if self.temperature.trainable:
+        if self.temperature.is_trainable():
             with tf.GradientTape() as tape:
                 log_temp, temp = self.temperature()
-                temp_loss = -log_temp * (self._target_entropy - entropy)
+                temp_loss = -log_temp * (target_entropy - entropy)
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])
                 temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
-            terms['target_entropy'] = self._target_entropy
-            terms['entropy_diff'] = self._target_entropy - entropy
+            terms['target_entropy'] = target_entropy
+            terms['entropy_diff'] = target_entropy - entropy
             terms['log_temp'] = log_temp
             terms['temp'] = temp
             terms['temp_loss'] = temp_loss

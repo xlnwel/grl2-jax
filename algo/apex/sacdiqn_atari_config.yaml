@@ -37,7 +37,6 @@ agent:
     batch_size: &bs 64
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
-    polyak: .995
     schedule_act_eps: False
     act_eps: 0
     eval_act_eps: .001

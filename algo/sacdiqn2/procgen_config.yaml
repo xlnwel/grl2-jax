@@ -2,14 +2,15 @@
 env:
     name: procgen_miner
     n_envs: &ne 64
-    reward_scale: 2
-    reward_clip: 10
+    # reward_scale: 2
+    # reward_clip: 10
     frame_skip: 1
-    frame_stack: 4
+    frame_stack: 1
+    np_obs: True
 
 model:
     encoder: 
-        cnn_name: procgen
+        cnn_name: impala
     actor:
         units_list: [512]
         layer_type: dense
@@ -31,28 +32,34 @@ model:
         value: .01
     twin_q: False
     reward_entropy: True
-        
+
 agent:
     algorithm: &algo sacdiqn
-    replay_type: &replay uniform
+    replay_type: &replay per
     gamma: &gamma .99
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
-    schedule_act_eps: False
-    act_eps: 0
-    eval_act_eps: 0
     target_entropy_coef: .8
     
-    MAX_STEPS: 2.5e8
-    TRAIN_PERIOD: 4
-    EVAL_PERIOD: 1e6
-    LOG_PERIOD: 5e4
+    schedule_act_temp: True
+    eval_act_temp: .5
+    n_exploit_envs: 8
+    schedule_act_eps: True
+    act_eps_type: apex
+    act_eps: .3
+    eval_act_eps: 0
+    min_temp: .5
+    max_temp: 10
+    
+    MAX_STEPS: 2.5e7
+    TRAIN_PERIOD: 1
+    EVAL_PERIOD: 2e5
+    LOG_PERIOD: 2e5
     N_UPDATES: 1
     RECORD: True
 
     normalize_reward: False
-    deterministic_evaluation: False
 
     # IQN params
     N: 32                # N in paper, num of quantiles for online quantile network
@@ -81,7 +88,7 @@ agent:
     # arguments for PER
     per_alpha: .6
     per_epsilon: 1e-4
-    use_is_ratio: &is False
+    use_is_ratio: &is True
 
 replay:
     replay_type: *replay
@@ -91,7 +98,7 @@ replay:
     beta0: .4
     beta_steps: 5e4
     to_update_top_priority: True
-    return_IS_ratio: *is
+    use_is_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps
@@ -99,4 +106,4 @@ replay:
     batch_size: *bs
     min_size: 1600
     capacity: 1e5
-    has_next_obs: False
+    has_next_obs: True

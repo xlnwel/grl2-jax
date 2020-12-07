@@ -2,34 +2,62 @@
 
 
 algos=(
-    "apex-sacdiqn2"
+    # ppg
+    # iqn
+    # apex-fqf
+    # sacdiqn2
+    sacdiqn4
 )
+suite=procgen
 envs=(
-    "chaser"
-    "plunder" 
-    "caveflyer" 
-    "climber" 
-    "dodgeball" 
-    "leaper"
-    "starpilot" 
-    "jumper" 
-    "fruitbot" 
-    "heist" 
-    "bossfight"
+    coinrun
+    chaser
+    # "ninja"
+    plunder
+    bigfish
+    miner
+    starpilot 
+    caveflyer 
+    climber
+    dodgeball 
+    leaper
+    jumper
+    fruitbot
+    heist
+    bossfight
 )
-args1=("True" "False")
+args1=(procgen)
+args2=(2l)
+args3=(conv_maxblurpool)
+
+# for e in "${envs[@]}"; do
+#     for a in "${algos[@]}"; do
+#         for a1 in "${args1[@]}"; do
+#             for a2 in "${args2[@]}"; do
+#                 for a3 in "${args3[@]}"; do
+#                     # sed -e "s/ET/${a2}/g" -e "s/AM/${a1}/g" -e "s/SUB/${a3}/g" \
+#                     #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
+#                     dir="logs/${suite}_${e}/${a}"
+#                     mkdir -p $dir
+#                     py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
+#                     echo $py_script
+#                     eval $py_script
+#                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)
+#                     mv_script="mv ${dir}/outputs.txt ${last_dir}/outputs.txt"
+#                     echo $mv_script
+#                     eval $mv_script
+#                 done
+#             done
+#         done
+#     done
+# done
 
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
         for a1 in "${args1[@]}"; do
-            if [[ $a == *2 ]]; then
-                nw=6
-            else
-                nw=5
-            fi
-            dir="logs/procgen_${e}/${a}"
+            dir="logs/${suite}_${e}/${a}"
             mkdir -p $dir
-            py_script="train ${a} -e procgen_${e} -kw n_workers=$nw deter_stoch=$a1 $@ >& ${dir}/outputs.txt"
+            py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
             echo $py_script
             eval $py_script
             last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

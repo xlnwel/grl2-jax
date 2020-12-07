@@ -19,30 +19,6 @@ from utility.run import Runner, evaluate, RunMode
 from utility import pkg
 from env.func import create_env
 from core.dataset import process_with_env, DataFormat, RayDataset
-
-
-pull_names = dict(
-    dqn=['encoder', 'q'],
-    iqn=['encoder', 'q', 'quantile'],
-    iqncrl=['encoder', 'q', 'quantile'],
-    fqf=['encoder', 'q', 'fpn'],
-    sac=['actor', 'q'],
-    sacd=['encoder', 'actor', 'q'],
-    sacdiqn=['encoder', 'actor', 'q'],
-    sacdiqn5=['actor_encoder', 'critic_encoder', 'actor', 'q'],
-    sacdiqncrl=['encoder', 'actor', 'q'],
-    sacdiqncrlar=['encoder', 'actor', 'q'],
-    sacdiqnmdp=['encoder', 'actor'],
-    sacdiqnbs=['encoder', 'state', 'actor'],
-)
-
-def get_pull_names(algo):
-    algo = algo.rsplit('-', 1)[-1]
-    if algo not in pull_names and algo[-1].isdigit():
-        algo = algo[:-1]
-    names = pull_names[algo]
-    print('pull names:', names)
-    return names
     
 
 def get_base_learner_class(BaseAgent):
@@ -52,7 +28,6 @@ def get_base_learner_class(BaseAgent):
             self._learning_thread.start()
             
         def _learning(self):
-            start_time = time.time()
             while not self.dataset.good_to_learn():
                 time.sleep(1)
             pwc(f'{self.name} starts learning...', color='blue')
@@ -138,6 +113,9 @@ class BaseWorker:
             run_mode=self._run_mode)
         
         assert self._run_mode in [RunMode.NSTEPS, RunMode.TRAJ]
+        print(f'{worker_id} action epsilon:', self._act_eps)
+        if hasattr(self.model, 'actor'):
+            print(f'{worker_id} action inv_temp:', np.squeeze(self.model.actor.act_inv_temp))
 
     def run(self, learner, replay, monitor):
         while True:
@@ -186,10 +164,9 @@ class Worker(BaseWorker):
 
         self._return_stats = 'encoder' in self.model or 'actor' not in self.model
         self._is_iqn = 'iqn' in self._algorithm or 'fqf' in self._algorithm
-        for k, v in self.model.items():
-            setattr(self, k, v)
         
-        self._pull_names = get_pull_names(self._algorithm)
+        if not hasattr(self, '_pull_names'):
+            self._pull_names = [k for k in self.model.keys() if 'target' not in k]
         
         self._info = collections.defaultdict(list)
         if self._worker_side_prioritization:
@@ -347,16 +324,15 @@ class Evaluator(BaseEvaluator):
                 config=model_config, 
                 env=env)
         
-        self._pull_names = get_pull_names(self._algorithm)
-        if not hasattr(self, '_deterministic_evaluation'):
-            self._deterministic_evaluation = True
+        if not hasattr(self, '_pull_names'):
+            self._pull_names = [k for k in self.model.keys() if 'target' not in k]
         
         self._info = collections.defaultdict(list)
 
-    def __call__(self, x, **kwargs):
+    def __call__(self, x, deterministic=True, **kwargs):
         action = self.model.action(
             tf.convert_to_tensor(x), 
-            deterministic=self._deterministic_evaluation,
+            deterministic=deterministic,
             epsilon=self._eval_act_eps)
         if isinstance(action, tuple):
             if len(action) == 2:

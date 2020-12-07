@@ -19,6 +19,7 @@ model:
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
+        eval_act_temp: .5
     q:
         units_list: [512]
         layer_type: dense
@@ -59,7 +60,7 @@ agent:
     MAX_STEPS: 1e7      # maximum env steps
     LOG_PERIOD: 100
     N_UPDATES: 1
-    SYNC_PERIOD: 400   # TODO: a small sync period increases performance in some cases, but it also slows down the data collection process
+    SYNC_PERIOD: 400
     RECORD_PERIOD: 100
     N_EVALUATION: 10
     logger: True
@@ -104,7 +105,7 @@ replay:
     beta0: .4
     beta_steps: 2e6
     to_update_top_priority: True
-    return_IS_ratio: *is
+    use_is_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps

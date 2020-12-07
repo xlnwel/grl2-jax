@@ -198,7 +198,7 @@ def evaluate(
                 if env.env_type == 'Env':
                     frames[0].append(img)
                 else:
-                    for i in range(env.n_envs):
+                    for i in range(min(4, env.n_envs)):
                         frames[i].append(img[i])
                     
             action = agent(obs, evaluation=True, 
@@ -233,7 +233,7 @@ def evaluate(
                             agent.reset_states()
                     break
             else:
-                done_env_ids = [i for i, d in enumerate(env.game_over()) if d]
+                done_env_ids = [i for i, (d, m) in enumerate(zip(env.game_over(), env.mask())) if d and m]
                 n_done_eps += len(done_env_ids)
                 if done_env_ids:
                     score = env.score(done_env_ids)
@@ -245,9 +245,9 @@ def evaluate(
                         n_run_eps += len(reset_env_ids)
                         eo = env.reset(reset_env_ids)
                         for t, s in zip(env_output, eo):
-                            for si, ti in enumerate(done_env_ids):
-                                t[ti] = s[si]
-                    elif len(done_env_ids) == env.n_envs:
+                            for i, di in enumerate(done_env_ids):
+                                t[di] = s[i]
+                    elif n_done_eps == n:
                         break
 
     if record:
