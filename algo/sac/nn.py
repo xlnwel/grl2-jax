@@ -22,12 +22,12 @@ class Actor(Module):
         out_size = action_dim if is_action_discrete else 2*action_dim
         self._layers = mlp(**config, out_size=out_size, name=name)
 
-    def call(self, x, deterministic=False, epsilon=0):
+    def call(self, x, evaluation=False, epsilon=0):
         x = self._layers(x)
 
         if self._is_action_discrete:
             dist = tfd.Categorical(logits=x)
-            action = dist.mode() if deterministic else dist.sample()
+            action = dist.mode() if evaluation else dist.sample()
             if epsilon:
                 rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
                 action = tf.where(
@@ -38,7 +38,7 @@ class Actor(Module):
             logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
             std = tf.exp(logstd)
             dist = tfd.MultivariateNormalDiag(mu, std)
-            raw_action = dist.mode() if deterministic else dist.sample()
+            raw_action = dist.mode() if evaluation else dist.sample()
             action = tf.tanh(raw_action)
             if epsilon:
                 action = tf.clip_by_value(
@@ -138,12 +138,12 @@ class SAC(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0, **kwargs):
+    def action(self, x, evaluation=False, epsilon=0, **kwargs):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 2, x.shape
         
-        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
+        action = self.actor(x, evaluation=evaluation, epsilon=epsilon)
         action = tf.squeeze(action)
 
         return action

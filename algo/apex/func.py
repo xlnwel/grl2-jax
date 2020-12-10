@@ -95,7 +95,8 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
 
     if 'seed' in env_config:
         env_config['seed'] += 999
-    env_config['n_workers'] = env_config['n_envs'] = 1
+    env_config['n_workers'] = 1
+    env_config['n_envs'] = 4 if 'procgen' in env_config['name'] else 1
     if 'actor' in model_config:
         model_config['actor']['act_temp'] = config.pop('eval_act_temp', .5)
 

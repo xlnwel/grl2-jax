@@ -111,7 +111,7 @@ class Agent(BaseAgent):
             return action
         
     @tf.function
-    def action(self, obs, state, prev_action, deterministic=False):
+    def action(self, obs, state, prev_action, evaluation=False):
         if obs.dtype == np.uint8:
             obs = tf.cast(obs, self._dtype) / 255. - .5
 
@@ -120,7 +120,7 @@ class Agent(BaseAgent):
         embed = tf.squeeze(embed, 1)
         state = self.rssm.post_step(state, prev_action, embed)
         feature = self.rssm.get_feat(state)
-        if deterministic:
+        if evaluation:
             action = self.actor(feature)[0].mode()
         else:
             if self._is_action_discrete:

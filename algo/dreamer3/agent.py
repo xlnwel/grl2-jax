@@ -96,7 +96,7 @@ class Agent(BaseAgent):
     def get_states(self):
         return self._state, self._prev_action
 
-    def __call__(self, obs, reset=np.zeros(1), deterministic=False, **kwargs):
+    def __call__(self, obs, reset=np.zeros(1), evaluation=False, **kwargs):
         if len(obs.shape) % 2 != 0:
             has_expanded = True
             obs = np.expand_dims(obs, 0)
@@ -111,17 +111,17 @@ class Agent(BaseAgent):
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
             self._prev_action = self._prev_action * mask
         prev_state = self._state
-        if deterministic:
+        if evaluation:
             action, self._state = self.action(
-                obs, self._state, self._prev_action, deterministic)
+                obs, self._state, self._prev_action, evaluation)
         else:
             action, terms, self._state = self.action(
-                obs, self._state, self._prev_action, deterministic)
+                obs, self._state, self._prev_action, evaluation)
         self._prev_action = tf.one_hot(action, self._action_dim, dtype=tf.float32) \
             if self._is_action_discrete else action
         
         action = np.squeeze(action.numpy())
-        if deterministic:
+        if evaluation:
             return action
         else:
             if self._store_state:
@@ -130,7 +130,7 @@ class Agent(BaseAgent):
             return action
         
     @tf.function
-    def action(self, obs, state, prev_action, deterministic=False):
+    def action(self, obs, state, prev_action, evaluation=False):
         if obs.dtype == np.uint8:
             obs = tf.cast(obs, self._dtype) / 255. - .5
 
@@ -139,7 +139,7 @@ class Agent(BaseAgent):
         embed = tf.squeeze(embed, 1)
         state = self.rssm.post_step(state, prev_action, embed)
         feature = self.rssm.get_feat(state)
-        if deterministic:
+        if evaluation:
             action = self.actor(feature)[0].mode()
             return action, state
         else:

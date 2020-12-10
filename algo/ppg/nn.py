@@ -28,9 +28,9 @@ class PPG(Ensemble):
         return logits, value
 
     @tf.function
-    def action(self, obs, deterministic=False, epsilon=0):
+    def action(self, obs, evaluation=False, epsilon=0):
         x = self.encoder(obs)
-        if deterministic:
+        if evaluation:
             act_dist = self.actor(x)
             action = tf.squeeze(act_dist.mode())
             return action

@@ -46,11 +46,11 @@ class Q(Module):
             name='a' if self._duel else 'q')
 
     @tf.function
-    def action(self, x, state, mask, deterministic, epsilon=0, prev_action=None, prev_reward=None):
+    def action(self, x, state, mask, evaluation, epsilon=0, prev_action=None, prev_reward=None):
         qs, state = self.value(x, state, mask, prev_action, prev_reward)
         qs = tf.squeeze(qs)
         action = tf.cast(tf.argmax(qs, axis=-1), tf.int32)
-        if deterministic:
+        if evaluation:
             return action, state
         else:
             rand_act = tfd.Categorical(tf.zeros_like(qs)).sample()

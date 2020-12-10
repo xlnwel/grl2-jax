@@ -10,7 +10,7 @@ env:
 
 model:
     encoder: 
-        cnn_name: impala
+        cnn_name: procgen
     actor:
         units_list: [512]
         layer_type: dense
@@ -32,7 +32,7 @@ model:
         temp_type: constant
         value: .01
     twin_q: False
-    reward_entropy: True
+    reward_entropy: False
         
 agent:
     algorithm: &algo sacdiqn
@@ -43,15 +43,15 @@ agent:
     precision: &prec 32
     target_entropy_coef: .8
     
-    schedule_act_temp: False
-    eval_act_temp: .5
-    n_exploit_envs: 8
     schedule_act_eps: True
     act_eps_type: apex
-    act_eps: .3
+    act_eps: .4
     eval_act_eps: 0
+    schedule_act_temp: True
+    eval_act_temp: .5
+    n_exploit_envs: 8
     min_temp: .5
-    max_temp: 2
+    max_temp: 10
 
     MAX_STEPS: 2.5e7
     TRAIN_PERIOD: 1
@@ -97,11 +97,13 @@ replay:
     n_envs: *ne
     # arguments for PER
     beta0: .4
+    beta_steps: 1e6
     to_update_top_priority: True
     use_is_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps
+    # max_steps: 5
     gamma: *gamma
     batch_size: *bs
     min_size: 1600

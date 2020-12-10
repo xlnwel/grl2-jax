@@ -37,10 +37,10 @@ class Actor(Module):
     def action_dim(self):
         return self._action_dim
 
-    def call(self, x, deterministic=False, epsilon=0, return_distribution=False):
+    def call(self, x, evaluation=False, epsilon=0, return_distribution=False):
         self.logits = logits = self._layers(x)
 
-        if deterministic:
+        if evaluation:
             if self.eval_act_temp == 0:
                 dist = tfd.Categorical(logits)
                 action = dist.mode()
@@ -116,13 +116,13 @@ class SAC(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
+    def action(self, x, evaluation=False, epsilon=0):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
-        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
+        action = self.actor(x, evaluation=evaluation, epsilon=epsilon)
         action = tf.squeeze(action)
 
         return action, {}

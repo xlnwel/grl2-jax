@@ -79,8 +79,8 @@ class TPPO(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
-        if deterministic:
+    def action(self, x, evaluation=False, epsilon=0):
+        if evaluation:
             act_dist = self.ac(x, return_terms=False)
             action = tf.squeeze(act_dist.mode())
             return action

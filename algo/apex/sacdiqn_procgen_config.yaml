@@ -4,10 +4,9 @@ env:
     distribution_mode: easy
     frame_skip: 1
     n_envs: &ne 4
-    gray_scale: False
-    frame_stack: 4
+    frame_stack: 1
     np_obs: True
-    reward_scale: 2
+    reward_scale: 1
     reward_clip: 10
 
 model:
@@ -39,25 +38,24 @@ model:
 agent:
     algorithm: &algo apex-sacdiqn
     replay_type: &replay per
+    gamma: &gamma .99
     batch_size: &bs 64
-    gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     target_entropy_coef: .8
         # - [4.e+4, .8]
         # - [7.e+4, .3]
 
-    seq_act_eps: True
-    schedule_act_temp: True
-    eval_act_temp: .5
-    n_exploit_envs: 8
     schedule_act_eps: True
     act_eps_type: apex
-    act_eps: .3
+    act_eps: .4
     eval_act_eps: 0
+    schedule_act_temp: True
+    eval_act_temp: .5
+    n_exploit_envs: 0
     min_temp: .5
     max_temp: 10
     
-    MAX_STEPS: 1e7      # maximum env steps
+    MAX_STEPS: 2.5e7      # maximum env steps
     LOG_PERIOD: 100
     N_UPDATES: 1
     SYNC_PERIOD: 400
@@ -65,13 +63,17 @@ agent:
     N_EVALUATION: 10
     logger: True
 
+    N: 32                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
+    K: *K               # K in paper, num of quantiles for action selection
+    KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
+
     # distributed algo params
     n_learner_cpus: 3
     n_learner_gpus: .3
     n_workers: 5
     n_worker_cpus: 1
     n_worker_gpus: .1
-    deterministic_evaluation: False
     run_mode: nsteps
     worker_side_prioritization: False
 

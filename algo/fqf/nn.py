@@ -74,7 +74,7 @@ class FQF(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0, return_stats=False):
+    def action(self, x, evaluation=False, epsilon=0, return_stats=False):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape

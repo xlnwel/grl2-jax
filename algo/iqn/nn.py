@@ -48,6 +48,7 @@ class Value(Module):
 
         """ Network definition """
         kwargs = dict(
+            layer_type=getattr(self, '_layer_type', 'dense'),
             kernel_initializer=getattr(self, '_kernel_initializer', 'glorot_uniform'),
             activation=getattr(self, '_activation', 'relu'),
             out_dtype='float32',
@@ -58,8 +59,6 @@ class Value(Module):
         self._layers = mlp(
             self._units_list,
             out_size=action_dim, 
-            layer_type=self._layer_type,
-            norm=self._norm,
             name=name,
             **kwargs)
 
@@ -121,7 +120,7 @@ class IQN(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0, return_stats=False):
+    def action(self, x, evaluation=False, epsilon=0, return_stats=False):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
@@ -129,15 +128,14 @@ class IQN(Ensemble):
         x = self.encoder(x)
         _, qt_embed = self.quantile(x)
         action = self.q.action(x, qt_embed, return_stats=return_stats)
+        action = epsilon_greedy(action, epsilon,
+            is_action_discrete=True, action_dim=self.q.action_dim)
+        action = tf.squeeze(action)
         terms = {}
         if return_stats:
             action, _, q = action
             q = tf.squeeze(q)
             terms = {'q': q}
-        if not deterministic:
-            action = epsilon_greedy(action, epsilon,
-                is_action_discrete=True, action_dim=self.q.action_dim)
-        action = tf.squeeze(action)
 
         return action, terms
 

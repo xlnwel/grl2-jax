@@ -57,7 +57,7 @@ class PPO(Ensemble):
             **kwargs)
     
     @tf.function
-    def action(self, x, state, mask, deterministic=False, epsilon=0, prev_action=None):
+    def action(self, x, state, mask, evaluation=False, epsilon=0, prev_action=None):
         assert x.shape.ndims % 2 == 0, x.shape
         # add time dimension
         x = tf.expand_dims(x, 1)
@@ -70,7 +70,7 @@ class PPO(Ensemble):
                 prev_action = tf.reshape(prev_action, (-1, 1, self.actor.action_dim))
         x = self.encoder(x)
         x, state = self.rnn(x, state, mask, prev_action)
-        if deterministic:
+        if evaluation:
             act_dist = self.actor(x)
             action = tf.squeeze(act_dist.mode(), 1)
             return action, state

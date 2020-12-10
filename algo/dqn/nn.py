@@ -76,13 +76,13 @@ class DQN(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0, return_stats=False):
+    def action(self, x, evaluation=False, epsilon=0, return_stats=False):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims in (2, 4), x.shape
 
         x = self.encoder(x)
-        noisy = not deterministic
+        noisy = not evaluation
         q = self.q(x, noisy=noisy, reset=False)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
         terms = {}

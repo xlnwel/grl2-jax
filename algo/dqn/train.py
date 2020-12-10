@@ -74,13 +74,13 @@ def main(env_config, model_config, agent_config, replay_config):
     if env_config.get('n_envs', 1) > 1:
         agent_config = compute_act_eps(agent_config, 0, 1, env_config['n_envs'])
     if 'actor' in model_config:
-        model_config = compute_act_temp(agent_config, model_config, 0, 1, env_config['n_envs'])
+        model_config = compute_act_temp(agent_config, model_config, 0, 1, env_config.get('n_envs', 1))
     
     env = create_env(env_config)
     # if env_config['name'].startswith('procgen'):
     #     start_level = 200
     eval_env_config = env_config.copy()
-    eval_env_config['n_envs'] = 64 if 'procgen' in eval_env_config['name'] else 1
+    eval_env_config['n_envs'] = 64 if 'procgen' in eval_env_config['name'] else 10
     eval_env_config['np_obs'] = True
     reward_key = [k for k in eval_env_config.keys() if 'reward' in k]
     [eval_env_config.pop(k) for k in reward_key]
@@ -168,7 +168,7 @@ def main(env_config, model_config, agent_config, replay_config):
 #     obs = env.reset().obs
 #     discount = 1
 #     while discount and i < max_steps:
-#         action = agent(obs, deterministic=True)
+#         action = agent(obs, evaluation=True)
 #         obs, reward, discount, reset = env.env_step(action)
 #         score += reward
 #         epslen += 1

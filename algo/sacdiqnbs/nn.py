@@ -87,7 +87,7 @@ class SACIQNBS(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0, return_stats=False, return_eval_stats=False, **kwargs):
+    def action(self, x, evaluation=False, epsilon=0, return_stats=False, return_eval_stats=False, **kwargs):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
@@ -95,7 +95,7 @@ class SACIQNBS(Ensemble):
         x = self.encoder(x)
         state = self.state(x)
         feat = self.state.get_feat(state)
-        action = self.actor(feat, deterministic=deterministic, epsilon=epsilon, return_stats=return_eval_stats)
+        action = self.actor(feat, evaluation=evaluation, epsilon=epsilon, return_stats=return_eval_stats)
         terms = {}
         if return_eval_stats:
             action, terms = action

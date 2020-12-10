@@ -136,7 +136,7 @@ class Worker(BaseWorker):
         assert self._prev_action.dtype == tf.int32, self._prev_action.dtype
         action, terms, state = self.model.action(
             obs, self._state, 
-            deterministic=evaluation,
+            evaluation=evaluation,
             epsilon=self._act_eps, 
             prev_action=self._prev_action, 
             prev_reward=self._prev_reward)

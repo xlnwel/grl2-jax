@@ -15,7 +15,6 @@ model:
     q:
         units_list: [512]
         layer_type: dense
-        norm: null
         kernel_initializer: glorot_uniform
         activation: relu
     quantile:
@@ -25,29 +24,26 @@ model:
 
 agent:
     algorithm: &algo iqn
-    replay_type: &replay 'uniform'
-    gamma: &gamma 0.99
+    replay_type: &replay uniform
+    gamma: &gamma .99
     batch_size: &bs 32
     n_steps: &nsteps 1      # n-step target
-    precision: &prec 32
     schedule_act_eps: True
     act_eps:
         - [0, 1]
-        - [1.e+6, .1]
+        - [1.e+6, .01]
     eval_act_eps: .001
 
     MAX_STEPS: 1e8      # maximum env frames
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 5e5
-    LOG_PERIOD: 1e4
+    LOG_PERIOD: 5e5
     N_UPDATES: 1
     RECORD: True
 
-    deterministic_evaluation: False
-
     # IQN params
-    N: 32                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
+    N: 8                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 8          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
@@ -57,23 +53,21 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    target_update_period: 2000  # trainning step
-    tbo: False                              # transformed Bellman Operator
+    target_update_period: 1500
+    tbo: False
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
     lr: 5e-5
     clip_norm: 40
-    epsilon: 3.125e-4
 
     # arguments for PER
-    per_alpha: .5
+    per_alpha: .6
     per_epsilon: 1e-4
 
 replay:
     replay_type: *replay
-    precision: 32
     # arguments for PER
     beta0: .4
     beta_steps: 1e5
@@ -83,6 +77,6 @@ replay:
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
-    min_size: 1600
+    min_size: 5e4
     capacity: 1e5
     has_next_obs: False

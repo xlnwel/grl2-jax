@@ -53,7 +53,7 @@ class Agent(BaseAgent):
     def __call__(self, obs, evaluation=False, **kwargs):
         return self.model.action(
             obs, 
-            deterministic=evaluation, 
+            evaluation=evaluation, 
             epsilon=self._act_eps).numpy()
 
     @step_track

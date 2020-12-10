@@ -65,9 +65,9 @@ class PPO(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
+    def action(self, x, evaluation=False, epsilon=0):
         x = self.encoder(x)
-        if deterministic:
+        if evaluation:
             act_dist = self.actor(x)
             action = act_dist.mode()
             return action

@@ -66,7 +66,7 @@ class DQNBase(BaseAgent):
         x = tf.convert_to_tensor(x)
         action, terms = self.model.action(
             x, 
-            deterministic=evaluation, 
+            evaluation=evaluation, 
             epsilon=tf.convert_to_tensor(eps, tf.float32))
         action = np.squeeze(action.numpy())
 

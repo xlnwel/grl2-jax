@@ -34,13 +34,13 @@ class Actor(Module):
     def max_ar(self):
         return self._max_ar
 
-    def __call__(self, x, deterministic=False, epsilon=0):
+    def __call__(self, x, evaluation=False, epsilon=0):
         x = self._layers(x)
 
         def fn(mlp, x):
             logits = mlp(x)
             dist = tfd.Categorical(logits=logits)
-            sample = dist.mode() if deterministic else dist.sample()
+            sample = dist.mode() if evaluation else dist.sample()
             if epsilon > 0:
                 rand_samp = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
                 sample = tf.where(
@@ -86,13 +86,13 @@ class SACIQNCRLAR(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
+    def action(self, x, evaluation=False, epsilon=0):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
-        action, ar = self.actor(x, deterministic=deterministic, epsilon=epsilon)
+        action, ar = self.actor(x, evaluation=evaluation, epsilon=epsilon)
         q_action = action * self.actor.max_ar + ar
         _, qtv = self.q(x, action=q_action)
         action = tf.squeeze(action)

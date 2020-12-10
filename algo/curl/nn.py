@@ -65,13 +65,13 @@ class Actor(Module):
                             activation=self._activation)
 
     @tf.function(experimental_relax_shapes=True)
-    def action(self, x, deterministic=False, epsilon=0):
+    def action(self, x, evaluation=False, epsilon=0):
         x = self._z(x)
         x = self._layers(x)
 
         if self._is_action_discrete:
             dist = tfd.Categorical(logits=x)
-            action = dist.mode() if deterministic else dist.sample()
+            action = dist.mode() if evaluation else dist.sample()
             if epsilon:
                 rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
                 action = tf.where(
@@ -83,7 +83,7 @@ class Actor(Module):
             logstd = .5 * (logstd + 1.) / (self.LOG_STD_MAX - self.LOG_STD_MIN) + self.LOG_STD_MIN
             std = tf.exp(logstd)
             dist = tfd.MultivariateNormalDiag(mu, std)
-            raw_action = dist.mode() if deterministic else dist.sample()
+            raw_action = dist.mode() if evaluation else dist.sample()
             action = tf.tanh(raw_action)
             if epsilon:
                 action = tf.clip_by_value(
@@ -181,13 +181,13 @@ class CURL(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
+    def action(self, x, evaluation=False, epsilon=0):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
-        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
+        action = self.actor(x, evaluation=evaluation, epsilon=epsilon)
         action = tf.squeeze(action)
 
         return action

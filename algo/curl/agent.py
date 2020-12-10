@@ -52,13 +52,13 @@ class Agent(BaseAgent):
     def __call__(self, obs, evaluation=False, **kwargs):
         return self.model.action(
             tf.convert_to_tensor(obs), 
-            deterministic=evaluation, 
+            evaluation=evaluation, 
             epsilon=self._act_eps).numpy()
 
     @tf.function
-    def action(self, obs, deterministic=False, **kwargs):
+    def action(self, obs, evaluation=False, **kwargs):
         x = self.encoder.cnn(obs)
-        action = self.actor.action(x, deterministic=deterministic, epsilon=self._act_eps)
+        action = self.actor.action(x, evaluation=evaluation, epsilon=self._act_eps)
         return action
 
     @step_track

@@ -156,8 +156,8 @@ class Agent(RNDBase):
             return action, terms
 
     @tf.function(experimental_relax_shapes=True)
-    def action(self, obs, deterministic=False):
-        if deterministic:
+    def action(self, obs, evaluation=False):
+        if evaluation:
             act_dist = self.ac(obs, return_value=False)
             return act_dist.mode()
         else:

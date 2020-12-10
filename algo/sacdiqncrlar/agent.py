@@ -70,7 +70,7 @@ class Agent(DQNBase):
             eps = self._act_eps
         action, ar, terms = self.model.action(
             tf.convert_to_tensor(x), 
-            deterministic=evaluation, 
+            evaluation=evaluation, 
             epsilon=tf.convert_to_tensor(eps, tf.float32))
         action = action.numpy()
         ar = ar.numpy()

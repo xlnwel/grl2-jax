@@ -282,7 +282,7 @@ class Evaluator(BaseEvaluator):
         if self._additional_input:
             self._prev_reward = env_output.reward
         action, self._state = self.q.action(x, self._state, self._mask, 
-            deterministic=self._deterministic_evaluation)
+            evaluation=self._deterministic_evaluation)
         if self._additional_input:
             self._prev_action = action
         return action.numpy()

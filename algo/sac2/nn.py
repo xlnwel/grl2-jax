@@ -25,8 +25,8 @@ class Actor(Module):
         self._is_action_discrete = is_action_discrete
         
     @tf.function
-    def __call__(self, x, deterministic=False, epsilon=0):
-        if deterministic:
+    def __call__(self, x, evaluation=False, epsilon=0):
+        if evaluation:
             action = self.step(x)[0].mode()
         else:
             act_dist = self.step(x)[0]
@@ -90,12 +90,12 @@ class SAC(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, deterministic=False, epsilon=0):
+    def action(self, x, evaluation=False, epsilon=0):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 2, x.shape
         
-        action = self.actor(x, deterministic=deterministic, epsilon=epsilon)
+        action = self.actor(x, evaluation=evaluation, epsilon=epsilon)
         action = tf.squeeze(action)
 
         return action

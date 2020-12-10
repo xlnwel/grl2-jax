@@ -190,7 +190,7 @@ class Worker(BaseWorker):
     def __call__(self, x, **kwargs):
         action = self.model.action(
             tf.convert_to_tensor(x), 
-            deterministic=False,
+            evaluation=False,
             epsilon=tf.convert_to_tensor(self._act_eps, tf.float32),
             return_stats=self._return_stats)
         action = tf.nest.map_structure(lambda x: x.numpy(), action)
@@ -329,10 +329,10 @@ class Evaluator(BaseEvaluator):
         
         self._info = collections.defaultdict(list)
 
-    def __call__(self, x, deterministic=True, **kwargs):
+    def __call__(self, x, evaluation=True, **kwargs):
         action = self.model.action(
             tf.convert_to_tensor(x), 
-            deterministic=deterministic,
+            evaluation=evaluation,
             epsilon=self._eval_act_eps)
         if isinstance(action, tuple):
             if len(action) == 2:

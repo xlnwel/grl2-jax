@@ -118,7 +118,7 @@ class RDQN(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, state, deterministic, epsilon=0, prev_action=None, prev_reward=None):
+    def action(self, x, state, evaluation, epsilon=0, prev_action=None, prev_reward=None):
         if x.shape.ndims % 2 != 0:
             # add batch dimension
             x = tf.expand_dims(x, axis=0)
