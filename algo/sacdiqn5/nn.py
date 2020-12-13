@@ -28,7 +28,7 @@ class SACIQN(Ensemble):
         if return_eval_stats:
             action, terms = action
             _, qt_embed = self.quantile(x)
-            _, qtv, q = self.q(x, qt_embed, return_q=True)
+            _, qtv, q = self.q(x, qt_embed, return_value=True)
             qtv = tf.transpose(qtv, [0, 2, 1])
             idx = tf.stack([tf.range(action.shape[0]), action], -1)
             qtv_max = tf.reduce_max(qtv, 1)

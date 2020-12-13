@@ -162,7 +162,6 @@ class Worker(BaseWorker):
         self._seqlen = buffer_config['seqlen']
         self.buffer = buffer_fn(buffer_config)
 
-        self._return_stats = 'encoder' in self.model or 'actor' not in self.model
         self._is_iqn = 'iqn' in self._algorithm or 'fqf' in self._algorithm
         
         if not hasattr(self, '_pull_names'):
@@ -213,7 +212,7 @@ class Worker(BaseWorker):
         if self._worker_side_prioritization:
             data_tensor = {k: tf.convert_to_tensor(v) for k, v in data.items()}
             data['priority'] = self.compute_priorities(**data_tensor).numpy()
-        data.pop('qtv', None)
+        data.pop('v', None)
         data.pop('q', None)
         replay.merge.remote(data, data['action'].shape[0])
         buffer.reset()

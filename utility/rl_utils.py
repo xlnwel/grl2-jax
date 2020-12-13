@@ -200,7 +200,7 @@ def compute_act_temp(config, model_config, worker_id, n_workers, envs_per_worker
         if n_exploit_envs:
             act_temps = np.concatenate(
                 [np.linspace(config['min_temp'], 1, n_exploit_envs), 
-                np.logspace(0, np.log10(config['max_temp']), n_envs - n_exploit_envs)],
+                np.logspace(0, np.log10(config['max_temp']), n_envs - n_exploit_envs+1)[1:]],
                 axis=-1).reshape(n_workers, envs_per_worker)
         else:
             act_temps = np.logspace(

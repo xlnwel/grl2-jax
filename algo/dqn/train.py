@@ -28,9 +28,7 @@ def train(agent, env, eval_env, replay):
     env_step = agent.env_step
     runner = Runner(env, agent, step=env_step, nsteps=agent.TRAIN_PERIOD)
     while not replay.good_to_learn():
-        env_step = runner.run(
-            action_selector=env.random_action, 
-            step_fn=collect)
+        env_step = runner.run(step_fn=collect)
 
     to_eval = Every(agent.EVAL_PERIOD)
     to_log = Every(agent.LOG_PERIOD)
@@ -74,13 +72,13 @@ def main(env_config, model_config, agent_config, replay_config):
     if env_config.get('n_envs', 1) > 1:
         agent_config = compute_act_eps(agent_config, 0, 1, env_config['n_envs'])
     if 'actor' in model_config:
-        model_config = compute_act_temp(agent_config, model_config, 0, 1, env_config.get('n_envs', 1))
+        model_config = compute_act_temp(agent_config, model_config, 0, 1, env_config['n_envs'])
     
     env = create_env(env_config)
     # if env_config['name'].startswith('procgen'):
     #     start_level = 200
     eval_env_config = env_config.copy()
-    eval_env_config['n_envs'] = 64 if 'procgen' in eval_env_config['name'] else 10
+    eval_env_config['n_envs'] = 64 if 'procgen' in eval_env_config['name'] else 1
     eval_env_config['np_obs'] = True
     reward_key = [k for k in eval_env_config.keys() if 'reward' in k]
     [eval_env_config.pop(k) for k in reward_key]

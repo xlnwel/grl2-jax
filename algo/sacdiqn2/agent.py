@@ -97,7 +97,7 @@ class Agent(DQNBase):
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
         act_probs = tf.reduce_mean(act_probs, 0)
-        # self.actor.update_prior(act_probs, self._prior_lr)
+        self.actor.update_prior(act_probs, self._prior_lr)
         if self.temperature.is_trainable():
             with tf.GradientTape() as tape:
                 log_temp, temp = self.temperature(x, action)
@@ -131,8 +131,8 @@ class Agent(DQNBase):
             temp=temp,
             explained_variance_q=explained_variance(q_target, q),
         ))
-        # for i in range(self.actor.action_dim):
-        #     terms[f'prior_{i}'] = self.actor.prior[i]
+        for i in range(self.actor.action_dim):
+            terms[f'prior_{i}'] = self.actor.prior[i]
 
         return terms
 

@@ -182,7 +182,6 @@ def evaluate(
     max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
     maxlen = min(video_len, max_steps)
     frames = collections.defaultdict(lambda:collections.deque(maxlen=maxlen))
-    name = env.name
     if hasattr(agent, 'reset_states'):
         agent.reset_states()
     env_output = env.reset()
@@ -245,8 +244,8 @@ def evaluate(
                         n_run_eps += len(reset_env_ids)
                         eo = env.reset(reset_env_ids)
                         for t, s in zip(env_output, eo):
-                            for i, di in enumerate(done_env_ids):
-                                t[di] = s[i]
+                            for i, ri in enumerate(reset_env_ids):
+                                t[ri] = s[i]
                     elif n_done_eps == n:
                         break
 

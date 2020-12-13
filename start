@@ -6,17 +6,17 @@ algos=(
     # iqn
     # apex-fqf
     # sacdiqn2
-    sacdiqn4
+    apex-sacdiqn5
 )
 suite=procgen
 envs=(
-    coinrun
     chaser
     # "ninja"
     plunder
     bigfish
-    miner
-    starpilot 
+    starpilot
+    coinrun
+    miner 
     caveflyer 
     climber
     dodgeball 

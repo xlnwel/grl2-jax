@@ -26,7 +26,7 @@ class ProcgenCNN(Module):
                     norm=None,
                     norm_kwargs={},
                     activation='relu',
-                    am='cbam',
+                    am='se',
                     am_kwargs={},
                     dropout_rate=0.,
                     rezero=False,

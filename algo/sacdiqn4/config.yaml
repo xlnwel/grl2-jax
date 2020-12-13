@@ -1,7 +1,7 @@
 ---
 env:
     name: atari_pong
-    sticky_actions: True
+    sticky_actions: False
     frame_skip: 4
     frame_stack: 4
     life_done: True

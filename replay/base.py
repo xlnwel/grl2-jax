@@ -26,6 +26,7 @@ class Replay(ABC):
                 'n_envs': self._n_envs,
                 'seqlen': self._seqlen,
                 'n_steps': self._n_steps,
+                'max_steps': getattr(self, '_max_steps', self._n_steps),
                 'gamma': self._gamma,
             })
 
@@ -59,7 +60,7 @@ class Replay(ABC):
             self._tmp_buf.add(**kwargs)
             if self._tmp_buf.is_full():
                 data = self._tmp_buf.sample()
-                self.merge(data)
+                self.merge(data, self._n_envs * self._seqlen)
                 self._tmp_buf.reset()
         else:
             """ Add a single transition to the replay buffer """

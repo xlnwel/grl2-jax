@@ -1,12 +1,12 @@
 ---
 env:
-    name: procgen_miner
+    name: procgen_coinrun
     distribution_mode: easy
     frame_skip: 1
     n_envs: &ne 64
     frame_stack: 1
     np_obs: True
-    reward_scale: 1
+    reward_scale: 2
     reward_clip: 10
 
 model:
@@ -28,13 +28,13 @@ model:
     quantile:
         tau_embed_size: 64
         phi_activation: relu
-        K: &K 32
+        K: &K 64
     temperature:
         temp_type: constant
         value: .01
     twin_q: False
     reward_entropy: False
-
+        
 agent:
     algorithm: &algo sacdiqn
     replay_type: &replay per
@@ -50,7 +50,7 @@ agent:
     schedule_act_temp: True
     eval_act_temp: .5
     n_exploit_envs: 0
-    min_temp: .5
+    min_temp: .1
     max_temp: 10
 
     MAX_STEPS: 2.5e7
@@ -61,10 +61,12 @@ agent:
     RECORD: True
 
     normalize_reward: False
+    return_stats: True
+    logger: True
 
     # IQN params
-    N: 32                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
+    N: 64                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
@@ -75,7 +77,6 @@ agent:
     model_name: *algo
 
     target_update_period: 1500
-    tbo: False
 
     # arguments for optimizer
     optimizer: adam
@@ -84,7 +85,6 @@ agent:
     actor_lr: 2.5e-4
     temp_lr: 2.5e-4
     prior_lr: 1.e-3
-    epsilon: 3.125e-4
     
     # arguments for PER
     per_alpha: .6
@@ -103,9 +103,9 @@ replay:
 
     # arguments for general replay
     n_steps: *nsteps
-    # max_steps: 5
+    max_steps: 5
     gamma: *gamma
     batch_size: *bs
-    min_size: 5e4
-    capacity: 1e5
+    min_size: 1600
+    capacity: 2.5e5
     has_next_obs: True

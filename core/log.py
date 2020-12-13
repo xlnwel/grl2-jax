@@ -204,11 +204,14 @@ class Logger:
         return stats
 
     def get_stats(self, mean=True, std=False, min=False, max=False):
-        stats = {} 
-        for k, v in self._store_dict.items():
+        stats = {}
+        old_std = std
+        for k in sorted(self._store_dict):
+            v = self._store_dict[k]
             if isscalar(v):
                 stats[k] = v
                 continue
+            std = old_std or 'norm' in k
             if mean:
                 stats[f'{k}'] = np.mean(v)
             if std:
@@ -239,6 +242,7 @@ class Logger:
                 logger.warning(f'All previous loggings are erased because you introduce a new key {key}')
                 self._out_file.seek(0)
                 self._out_file.truncate()
+                self._log_headers.clear()
                 self._log_headers.append(key)
                 self._first_row = True
             # assert key in self._log_headers, \

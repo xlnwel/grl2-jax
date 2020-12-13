@@ -34,7 +34,9 @@ class DQNBase(BaseAgent):
         self._is_per = self._replay_type.endswith('per')
         self.dataset = dataset
         self._action_dim = env.action_dim
+        self._return_stats = getattr(self, '_return_stats', False)
         self._schedule_act_eps = env.n_envs == 1 and self._schedule_act_eps
+
         if self._schedule_act_eps:
             if isinstance(self._act_eps, (float, int)):
                 self._act_eps = [(0, self._act_eps)]
@@ -64,13 +66,14 @@ class DQNBase(BaseAgent):
             else:
                 eps = self._act_eps
         x = tf.convert_to_tensor(x)
-        action, terms = self.model.action(
+        action = self.model.action(
             x, 
             evaluation=evaluation, 
-            epsilon=tf.convert_to_tensor(eps, tf.float32))
-        action = np.squeeze(action.numpy())
+            epsilon=tf.convert_to_tensor(eps, tf.float32),
+            return_stats=self._return_stats)
+        action = tf.nest.map_structure(lambda x: x.numpy(), action)
 
-        return action, terms
+        return action
 
     @step_track
     def learn_log(self, step):

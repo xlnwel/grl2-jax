@@ -77,6 +77,6 @@ replay:
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
-    min_size: 5e4
+    min_size: 1600
     capacity: 1e5
     has_next_obs: False

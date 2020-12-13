@@ -33,6 +33,7 @@ class EnvBuffer(LocalBuffer):
         return self._idx == self._memlen
 
     def reset(self):
+        assert self.is_full(), self._idx
         self._idx = self._extra_len
         for v in self._memory.values():
             v[:self._extra_len] = v[self._seqlen:]
@@ -80,8 +81,9 @@ class EnvVecBuffer:
         return self._idx == self._memlen
         
     def reset(self):
+        assert self.is_full(), self._idx
         self._idx = self._extra_len
-        for k, v in self._memory.items():
+        for v in self._memory.values():
             v[:, :self._extra_len] = v[:, self._seqlen:]
 
     def add(self, env_ids=None, **data):
