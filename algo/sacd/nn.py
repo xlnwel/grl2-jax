@@ -49,13 +49,14 @@ class Actor(Module):
                 dist = tfd.Categorical(logits)
                 action = dist.sample()
         else:
-            logits = logits * self.act_inv_temp
             if isinstance(epsilon, tf.Tensor) or epsilon:
-                prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))
-                prior_logits = tf.broadcast_to(prior_logits, logits.shape)
+                scaled_logits = logits * self.act_inv_temp
+                # prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))
+                # prior_logits = tf.broadcast_to(prior_logits, logits.shape)
                 cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
                 cond = tf.reshape(cond, (-1, 1))
-                logits = tf.where(cond, logits, prior_logits)
+                logits = tf.where(cond, logits, scaled_logits)
+                # logits = tf.where(cond, logits, prior_logits)
 
             dist = tfd.Categorical(logits)
             action = dist.sample()

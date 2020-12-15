@@ -58,7 +58,7 @@ def main():
     parser.add_argument('--legend', nargs='*')
     parser.add_argument('--legendtag', '-tag', default='Algo')
     parser.add_argument('--x', '-x', default='env_step', nargs='*')
-    parser.add_argument('--y', '-y', default='eval_score', nargs='*')
+    parser.add_argument('--y', '-y', default='score', nargs='*')
     parser.add_argument('--timing', default=None, choices=['Train', 'Eval', None], 
                         help='select timing to plot; both training and evaluation stats are plotted by default')
     args = parser.parse_args()
@@ -67,11 +67,10 @@ def main():
     if len(args.logdir) != 1:
         dirs = [f'{d}' for d in args.logdir]
     else:
-        dirs = glob.glob(args.logdir)
+        dirs = glob.glob(args.logdir[0])
 
     # dir follows pattern: logs/env/algo(/model_name)
     title = args.title or dirs[0].split('/')[1].split('_')[-1]
-    assert False, title
     # set up legends
     if args.legend:
         assert len(args.legend) == len(dirs), (

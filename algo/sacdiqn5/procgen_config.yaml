@@ -6,7 +6,7 @@ env:
     n_envs: &ne 64
     frame_stack: 1
     np_obs: True
-    reward_scale: 2
+    reward_scale: 1
     reward_clip: 10
 
 model:
@@ -43,7 +43,7 @@ agent:
     n_steps: &nsteps 3      # n-step target
     target_entropy_coef: .8
     
-    schedule_act_eps: True
+    schedule_act_eps: False
     act_eps_type: apex
     act_eps: .4
     eval_act_eps: 0
@@ -55,10 +55,11 @@ agent:
 
     MAX_STEPS: 2.5e7
     TRAIN_PERIOD: 1
-    EVAL_PERIOD: 2e5
-    LOG_PERIOD: 2e5
+    EVAL_PERIOD: 1e5
+    LOG_PERIOD: 2.5e5
     N_UPDATES: 1
     RECORD: True
+    N_EVAL_EPISODES: 64
 
     normalize_reward: False
     return_stats: True

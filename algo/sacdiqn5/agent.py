@@ -90,15 +90,13 @@ class Agent(DQNBase):
             actor_x = self.actor_encoder(obs, training=True)
             act_probs, act_logps = self.actor.train_step(actor_x)
             v = tf.reduce_sum(act_probs * (qs - temp * act_logps), axis=-1, keepdims=True)
-            a = tf.reduce_sum(act_probs * tf.stop_gradient(qs - v), axis=-1)
+            advs = tf.stop_gradient(qs - v)
+            a = tf.reduce_sum(act_probs * advs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
             actor_loss = -(a + temp * entropy)
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
-            tf.debugging.assert_shapes([
-                [qs, (None, self._action_dim)],
-                [actor_loss, (None, )]
-            ])
-            fm_loss = tf.reduce_mean(IS_ratio * (.5 * tf.reduce_mean((actor_x - x)**2, axis=-1)))
+            fm_loss = tf.reduce_mean(IS_ratio * (.5 * \
+                (tf.reduce_mean(actor_x, axis=-1) - tf.reduce_mean(x, axis=-1))**2))
             actor_total_loss = actor_loss + fm_loss
         terms['actor_norm'] = self._actor_opt(tape, actor_total_loss)
 
@@ -135,10 +133,10 @@ class Agent(DQNBase):
             prob_min=tf.reduce_min(act_probs),
             actor_loss=actor_loss,
             actor_total_loss=actor_total_loss,
-            a=a,
-            a_max=tf.reduce_max(a),
-            a_min=tf.reduce_min(a),
-            a_std=tf.math.reduce_std(a),
+            adv=advs,
+            adv_max=tf.reduce_max(advs),
+            adv_min=tf.reduce_min(advs),
+            adv_std=tf.math.reduce_std(advs),
             q=q,
             q_max=tf.reduce_max(q),
             q_min=tf.reduce_min(q),

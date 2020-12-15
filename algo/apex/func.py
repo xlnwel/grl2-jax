@@ -73,7 +73,6 @@ def create_worker(
     
     config = compute_act_eps(config, worker_id, n_workers, n_envs)
     model_config = compute_act_temp(config, model_config, worker_id, n_workers, n_envs)
-    
     n_cpus = config.get('n_worker_cpus', 1)
     n_gpus = config.get('n_worker_gpus', 0)
     RayWorker = ray.remote(num_cpus=n_cpus, num_gpus=n_gpus)(Worker)

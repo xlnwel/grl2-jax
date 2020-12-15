@@ -1,12 +1,13 @@
-import time
 import functools
 import numpy as np
 import tensorflow as tf
+import ray
 
 from core.tf_config import *
 from utility.utils import Every
 from utility.rl_utils import compute_act_temp, compute_act_eps
 from utility.graph import video_summary
+from utility.ray_setup import sigint_shutdown_ray
 from utility.timer import Timer
 from utility.run import Runner, evaluate
 from utility import pkg
@@ -38,51 +39,63 @@ def train(agent, env, eval_env, replay):
     tt = Timer('train')
     print('Training starts...')
     while env_step <= int(agent.MAX_STEPS):
-        while not to_log(env_step):
-            with rt:
-                env_step = runner.run(step_fn=collect)
-            with tt:
-                agent.learn_log(env_step)
-        
-        fps = rt.average() * agent.TRAIN_PERIOD
-        tps = tt.average() * agent.N_UPDATES
-        
-        agent.store(
-            env_step=agent.env_step,
-            train_step=agent.train_step,
-            fps=fps, 
-            tps=tps,
-        )
+        with rt:
+            env_step = runner.run(step_fn=collect)
+        with tt:
+            agent.learn_log(env_step)
 
         if to_eval(env_step):
             record = agent.RECORD and to_record(env_step)
             eval_score, eval_epslen, video = evaluate(
-                eval_env, agent, record=record)
+                eval_env, agent, record=record, n=agent.N_EVAL_EPISODES)
             if record:
                 video_summary(f'{agent.name}/sim', video, step=env_step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-        agent.log(env_step)
-        agent.save()
+        if to_log(env_step):
+            fps = rt.average() * agent.TRAIN_PERIOD
+            tps = tt.average() * agent.N_UPDATES
+            
+            agent.store(
+                env_step=agent.env_step,
+                train_step=agent.train_step,
+                fps=fps, 
+                tps=tps,
+            )
+            agent.log(env_step)
+            agent.save()
 
 def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
 
-    if env_config.get('n_envs', 1) > 1:
-        agent_config = compute_act_eps(agent_config, 0, 1, env_config['n_envs'])
+    use_ray = env_config.get('n_workers', 1) > 1
+    if use_ray:
+        ray.init()
+        sigint_shutdown_ray()
+
+    n_workers = env_config.get('n_workers', 1)
+    n_envs = env_config.get('n_envs', 1)
+    if n_envs > 1:
+        agent_config = compute_act_eps(
+            agent_config, None, n_workers, 
+            env_config['n_envs'])
     if 'actor' in model_config:
-        model_config = compute_act_temp(agent_config, model_config, 0, 1, env_config['n_envs'])
+        model_config = compute_act_temp(
+            agent_config, model_config, None, 
+            n_workers, n_envs)
     
     env = create_env(env_config)
     # if env_config['name'].startswith('procgen'):
     #     start_level = 200
     eval_env_config = env_config.copy()
+    eval_env_config['n_workers'] = 1
     eval_env_config['n_envs'] = 64 if 'procgen' in eval_env_config['name'] else 1
     eval_env_config['np_obs'] = True
     reward_key = [k for k in eval_env_config.keys() if 'reward' in k]
     [eval_env_config.pop(k) for k in reward_key]
     eval_env = create_env(eval_env_config)
+    replay_config['n_envs'] = n_workers * n_envs
     replay = create_replay(replay_config)
 
     am = pkg.import_module('agent', config=agent_config)
@@ -111,6 +124,9 @@ def main(env_config, model_config, agent_config, replay_config):
     ))
 
     train(agent, env, eval_env, replay)
+
+    if use_ray:
+        ray.shutdown()
 
     # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup
     # print('hey, v2')

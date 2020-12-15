@@ -76,11 +76,11 @@ class Agent(DQNBase):
             x_ext = tf.expand_dims(x, axis=1)
             action_ext = tf.expand_dims(action, axis=1)
             # q loss
-            qtvs_q, qs = self.q(x_ext, qt_embed, return_value=True)
-            qtv_q = tf.reduce_sum(qtvs_q * action_ext, axis=-1, keepdims=True)  # [B, N, 1]
-            error_q, qr_loss_q = quantile_regression_loss(
-                qtv_q, q_target, tau_hat, kappa=self.KAPPA, return_error=True)
-            qr_loss = tf.reduce_mean(IS_ratio * qr_loss_q)
+            qtvs, qs = self.q(x_ext, qt_embed, return_value=True)
+            qtv = tf.reduce_sum(qtvs * action_ext, axis=-1, keepdims=True)  # [B, N, 1]
+            error, qr_loss = quantile_regression_loss(
+                qtv, q_target, tau_hat, kappa=self.KAPPA, return_error=True)
+            qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
 
         terms['value_norm'] = self._value_opt(tape, qr_loss)
 
@@ -89,10 +89,6 @@ class Agent(DQNBase):
             q = tf.reduce_sum(act_probs * qs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
             actor_loss = -(q + temp * entropy)
-            tf.debugging.assert_shapes([
-                [qs, (None, self._action_dim)],
-                [actor_loss, (None, )]
-            ])
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
@@ -112,7 +108,7 @@ class Agent(DQNBase):
             terms['temp_norm'] = self._temp_opt(tape, temp_loss)
 
         if self._is_per:
-            error = tf.abs(error_q)
+            error = tf.abs(error)
             error = tf.reduce_max(tf.reduce_mean(error, axis=-1), axis=-1)
             priority = self._compute_priority(error)
             terms['priority'] = priority
@@ -131,8 +127,8 @@ class Agent(DQNBase):
             temp=temp,
             explained_variance_q=explained_variance(q_target, q),
         ))
-        for i in range(self.actor.action_dim):
-            terms[f'prior_{i}'] = self.actor.prior[i]
+        # for i in range(self.actor.action_dim):
+        #     terms[f'prior_{i}'] = self.actor.prior[i]
 
         return terms
 

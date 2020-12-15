@@ -1,22 +1,24 @@
 ---
 env:
-    name: procgen_miner
-    n_envs: &ne 64
-    # reward_scale: 2
-    # reward_clip: 10
+    name: procgen_coinrun
+    distribution_mode: easy
     frame_skip: 1
+    n_envs: &ne 64
     frame_stack: 1
     np_obs: True
+    reward_scale: 1
+    reward_clip: 10
 
 model:
     encoder: 
-        cnn_name: impala
+        cnn_name: procgen
     actor:
         units_list: [512]
         layer_type: dense
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
+        eval_act_temp: .5
     q:
         units_list: [512]
         layer_type: dense
@@ -26,44 +28,46 @@ model:
     quantile:
         tau_embed_size: 64
         phi_activation: relu
-        K: &K 32
+        K: &K 64
     temperature:
         temp_type: constant
         value: .01
     twin_q: False
     reward_entropy: False
-
+        
 agent:
     algorithm: &algo sacdiqn
     replay_type: &replay per
     gamma: &gamma .99
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
-    precision: &prec 32
     target_entropy_coef: .8
     
-    schedule_act_eps: True
+    schedule_act_eps: False
     act_eps_type: apex
     act_eps: .4
     eval_act_eps: 0
-    schedule_act_temp: False
+    schedule_act_temp: True
     eval_act_temp: .5
-    n_exploit_envs: 8
-    min_temp: .5
+    n_exploit_envs: 0
+    min_temp: .1
     max_temp: 10
-    
+
     MAX_STEPS: 2.5e7
     TRAIN_PERIOD: 1
-    EVAL_PERIOD: 2e5
-    LOG_PERIOD: 2e5
+    EVAL_PERIOD: 2.5e5
+    LOG_PERIOD: 2.5e5
     N_UPDATES: 1
     RECORD: True
+    N_EVAL_EPISODES: 200
 
     normalize_reward: False
+    return_stats: True
+    logger: True
 
     # IQN params
-    N: 32                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 32          # N' in paper, num of quantiles for target quantile network
+    N: 64                # N in paper, num of quantiles for online quantile network
+    N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
@@ -74,7 +78,6 @@ agent:
     model_name: *algo
 
     target_update_period: 1500
-    tbo: False
 
     # arguments for optimizer
     optimizer: adam
@@ -83,12 +86,11 @@ agent:
     actor_lr: 2.5e-4
     temp_lr: 2.5e-4
     prior_lr: 1.e-3
-    epsilon: 3.125e-4
     
     # arguments for PER
     per_alpha: .6
     per_epsilon: 1e-4
-    use_is_ratio: &is True
+    use_is_ratio: &is False
 
 replay:
     replay_type: *replay
@@ -96,14 +98,15 @@ replay:
     n_envs: *ne
     # arguments for PER
     beta0: .4
-    beta_steps: 5e4
+    beta_steps: 1e6
     to_update_top_priority: True
     use_is_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps
+    max_steps: 5
     gamma: *gamma
     batch_size: *bs
     min_size: 1600
-    capacity: 1e5
+    capacity: 2.5e5
     has_next_obs: True

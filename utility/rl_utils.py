@@ -166,16 +166,17 @@ def apex_epsilon_greedy(worker_id, envs_per_worker, n_workers, epsilon=.4, alpha
     assert worker_id < n_workers, (worker_id, n_workers)
     n_envs = n_workers * envs_per_worker
     env_ids = np.arange(n_envs)
-    if sequential:
-        env_ids = env_ids.reshape((n_workers, envs_per_worker))[worker_id]
-    else:
-        env_ids = env_ids.reshape((envs_per_worker, n_workers))[:, worker_id]
+    if worker_id is not None:
+        if sequential:
+            env_ids = env_ids.reshape((n_workers, envs_per_worker))[worker_id]
+        else:
+            env_ids = env_ids.reshape((envs_per_worker, n_workers))[:, worker_id]
     env_ids = n_envs - env_ids - 1  # reverse the indices
     return epsilon ** (1 + env_ids / (n_envs - 1) * alpha)
 
 def compute_act_eps(config, worker_id, n_workers, envs_per_worker):
     if config.get('schedule_act_eps'):
-        assert worker_id < n_workers, \
+        assert worker_id is not None and worker_id < n_workers, \
             f'worker ID({worker_id}) exceeds range. Valid range: [0, {config["n_workers"]})'
         act_eps_type = config.get('act_eps_type', 'apex')
         if act_eps_type == 'apex':
@@ -185,8 +186,10 @@ def compute_act_eps(config, worker_id, n_workers, envs_per_worker):
                 sequential=config.get('seq_act_eps', True))
         elif act_eps_type == 'line':
             config['act_eps'] = np.linspace(
-                0, config['act_eps'], n_workers * envs_per_worker)\
-                    .reshape(n_workers, envs_per_worker)[worker_id]
+                0, config['act_eps'], n_workers * envs_per_worker)
+            if worker_id is not None:
+                config['act_eps'] = config['act_eps'].reshape(
+                    n_workers, envs_per_worker)[worker_id]
         else:
             raise ValueError(f'Unknown type: {act_eps_type}')
 
@@ -200,12 +203,17 @@ def compute_act_temp(config, model_config, worker_id, n_workers, envs_per_worker
         if n_exploit_envs:
             act_temps = np.concatenate(
                 [np.linspace(config['min_temp'], 1, n_exploit_envs), 
-                np.logspace(0, np.log10(config['max_temp']), n_envs - n_exploit_envs+1)[1:]],
-                axis=-1).reshape(n_workers, envs_per_worker)
+                np.logspace(0, np.log10(config['max_temp']), 
+                n_envs - n_exploit_envs+1)[1:]],
+                axis=-1)
         else:
             act_temps = np.logspace(
                 np.log10(config['min_temp']), np.log10(config['max_temp']), 
-                n_workers * envs_per_worker).reshape(n_workers, envs_per_worker)
-        model_config['actor']['act_temp'] = act_temps[worker_id]
+                n_workers * envs_per_worker)
+        if worker_id is None:
+            model_config['actor']['act_temp'] = act_temps
+        else:
+            act_temps = act_temps.reshape(n_workers, envs_per_worker)
+            model_config['actor']['act_temp'] = act_temps[worker_id]
 
     return model_config

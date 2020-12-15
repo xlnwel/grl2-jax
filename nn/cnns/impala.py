@@ -9,7 +9,7 @@ class IMPALACNN(Module):
                  *, 
                  time_distributed=False, 
                  obs_range=[0, 1], 
-                 filters=[16, 32, 32],
+                 filters=[32, 64, 64],
                  kernel_initializer='glorot_uniform',
                  subsample_type='conv_maxpool',
                  subsample_kwargs={},
