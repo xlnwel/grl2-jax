@@ -51,8 +51,8 @@ agent:
     eval_act_eps: 0
     schedule_act_temp: True
     eval_act_temp: .5
-    n_exploit_envs: 0
-    min_temp: .1
+    n_exploit_envs: 8
+    min_temp: .5
     max_temp: 10
     
     MAX_STEPS: 1.5e7      # maximum env steps
@@ -76,6 +76,7 @@ agent:
     n_worker_gpus: .1
     run_mode: nsteps
     worker_side_prioritization: False
+    return_stats: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

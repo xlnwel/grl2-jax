@@ -184,7 +184,14 @@ class Worker(BaseWorker):
             
             self.compute_priorities = build(
                 self._compute_iqn_priorities if self._is_iqn else self._compute_dqn_priorities, TensorSpecs)
-        self._return_stats = self._worker_side_prioritization or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps')
+        if self._worker_side_prioritization \
+            or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps', 1):
+            if not getattr(self, '_return_stats', False):
+                err_msg = 'self._return_stats is not set or is False while '
+                err_msg += (f'worker_side_prioritization = {self._worker_side_prioritization}' 
+                    if self._worker_side_prioritization else
+                    f'max_steps ({buffer_config.get("max_steps", 0)}) > n_steps ({buffer_config.get("n_steps")})')
+                raise ValueError(err_msg)
         
     def __call__(self, x, **kwargs):
         action = self.model.action(

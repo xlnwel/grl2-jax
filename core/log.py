@@ -19,7 +19,7 @@ def log(logger, writer, model_name, prefix, step, print_terminal_info=True):
     )
     stats.update(logger.get_stats())
     scalar_summary(writer, stats, prefix=prefix, step=step)
-    log_stats(logger, stats, print_terminal_info=print_terminal_info)
+    logger.log_stats(stats, print_terminal_info=print_terminal_info)
     writer.flush()
 
 def log_stats(logger, stats, print_terminal_info=True):
@@ -226,6 +226,17 @@ class Logger:
     def get_count(self, name):
         return len(self._store_dict[name])
 
+    def log_stats(self, stats, print_terminal_info=True):
+        if not self._first_row and set(stats) != set(self._log_headers):
+            logger.warning(f'All previous loggings are erased because stats does not match first row\n'
+                f'stats = {set(stats)}\nfirst row = {set(self._log_headers)}')
+            self._out_file.seek(0)
+            self._out_file.truncate()
+            self._log_headers.clear()
+            self._first_row = True
+        [self.log_tabular(k, v) for k, v in stats.items()]
+        self.dump_tabular(print_terminal_info=print_terminal_info)
+
     def _log_tabular(self, key, val):
         """
         Log a value of some diagnostic.
@@ -238,16 +249,9 @@ class Logger:
         if self._first_row:
             self._log_headers.append(key)
         else:
-            if key not in self._log_headers:
-                logger.warning(f'All previous loggings are erased because you introduce a new key {key}')
-                self._out_file.seek(0)
-                self._out_file.truncate()
-                self._log_headers.clear()
-                self._log_headers.append(key)
-                self._first_row = True
-            # assert key in self._log_headers, \
-            #     f"Trying to introduce a new key {key} " \
-            #     "that you didn't include in the first iteration"
+            assert key in self._log_headers, \
+                f"Trying to introduce a new key {key} " \
+                "that you didn't include in the first iteration"
         assert key not in self._log_current_row, \
             f"You already set {key} this iteration. " \
             "Maybe you forgot to call dump_tabular()"

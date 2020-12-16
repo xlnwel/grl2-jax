@@ -116,6 +116,8 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
     for k, v in data.items():
         if k == 'q' or k == 'v':
             vs = v
+        elif k == 'logp':
+            continue
         else:
             results[k] = v.copy()[:, :seqlen]
     obs_exp_dims = tuple(range(1, data['obs'].ndim-1))
