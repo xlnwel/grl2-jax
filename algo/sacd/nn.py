@@ -50,13 +50,16 @@ class Actor(Module):
                 action = dist.sample()
         else:
             if isinstance(epsilon, tf.Tensor) or epsilon:
-                scaled_logits = logits * self.act_inv_temp
+                # scaled_logits = logits * self.act_inv_temp
                 # prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))
                 # prior_logits = tf.broadcast_to(prior_logits, logits.shape)
+                # cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
+                # cond = tf.reshape(cond, (-1, 1))
+                # logits = tf.where(cond, scaled_logits, prior_logits)
+                scaled_logits = logits * self.act_inv_temp
                 cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
                 cond = tf.reshape(cond, (-1, 1))
                 logits = tf.where(cond, logits, scaled_logits)
-                # logits = tf.where(cond, logits, prior_logits)
 
             dist = tfd.Categorical(logits)
             action = dist.sample()
@@ -75,15 +78,6 @@ class Actor(Module):
     def update_prior(self, x, lr):
         self.prior.assign_add(lr * (x - self.prior))
 
-
-class ActionPrior(Module):
-    def __init__(self, action_dim):
-        prior = np.ones(action_dim, dtype=np.float32)
-        prior /= np.sum(prior)
-        self.prior = tf.Variable(prior, trainable=False, name='prior')
-    
-    def call(self):
-        return self.prior
 
 class Q(Module):
     @config

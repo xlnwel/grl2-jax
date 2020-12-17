@@ -52,7 +52,7 @@ agent:
     RECORD: True
 
     normalize_reward: False
-    deterministic_evaluation: False
+    
 
     # IQN params
     N: 32                # N in paper, num of quantiles for online quantile network

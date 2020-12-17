@@ -14,9 +14,11 @@ class Agent(DQNBase):
             self._actor_lr = TFPiecewiseSchedule([(4e6, self._actor_lr), (7e6, 1e-5)])
             self._q_lr = TFPiecewiseSchedule([(4e6, self._q_lr), (7e6, 1e-5)])
 
-        self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
+        self._actor_opt = Optimizer(self._optimizer, self.actor, 
+            self._actor_lr, epsilon=self._epsilon)
         value_models = [self.encoder, self.q]
-        self._value_opt = Optimizer(self._optimizer, value_models, self._q_lr)
+        self._value_opt = Optimizer(self._optimizer, value_models, 
+            self._q_lr, epsilon=self._epsilon)
 
         if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)

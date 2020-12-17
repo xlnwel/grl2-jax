@@ -52,7 +52,7 @@ agent:
     n_workers: 5
     n_worker_cpus: 1
     n_worker_gpus: .1
-    deterministic_evaluation: False
+    
     run_mode: nsteps
     worker_side_prioritization: False
 
@@ -68,7 +68,7 @@ agent:
     n_workers: 6
     n_worker_cpus: 1
     n_worker_gpus: .1
-    deterministic_evaluation: False
+    
     run_mode: nsteps
 
     # model path: root_dir/model_name/models

@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow.python.keras.backend_config import epsilon
 
 from utility.rl_utils import n_step_target, quantile_regression_loss
 from utility.tf_utils import explained_variance
@@ -15,9 +16,11 @@ class Agent(DQNBase):
             self._q_lr = TFPiecewiseSchedule([(4e6, self._q_lr), (7e6, 1e-5)])
 
         actor_models = [self.actor_encoder, self.actor]
-        self._actor_opt = Optimizer(self._optimizer, actor_models, self._actor_lr)
+        self._actor_opt = Optimizer(self._optimizer, actor_models, 
+            self._actor_lr, epsilon=self._epsilon)
         value_models = [self.critic_encoder, self.q]
-        self._value_opt = Optimizer(self._optimizer, value_models, self._q_lr)
+        self._value_opt = Optimizer(self._optimizer, value_models, 
+            self._q_lr, epsilon=self._epsilon)
 
         if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)

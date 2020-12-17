@@ -22,7 +22,6 @@ default_agent_config = {
     'n_workers': 8,
     'n_worker_cpus': 1,
     'n_worker_gpus': 0,
-    'deterministic_evaluation': True,
 }
 
 def main(env_config, model_config, agent_config, replay_config):

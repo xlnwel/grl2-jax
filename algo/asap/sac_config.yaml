@@ -46,7 +46,7 @@ agent:
     n_workers: 8
     n_worker_cpus: 1
     n_worker_gpus: 0
-    deterministic_evaluation: True
+    
     run_mode: traj
 
     # SAP params

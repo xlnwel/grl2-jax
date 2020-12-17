@@ -55,11 +55,11 @@ agent:
 
     MAX_STEPS: 2.5e7
     TRAIN_PERIOD: 1
-    EVAL_PERIOD: 1e5
+    EVAL_PERIOD: 2.5e5
     LOG_PERIOD: 2.5e5
     N_UPDATES: 1
     RECORD: True
-    N_EVAL_EPISODES: 64
+    N_EVAL_EPISODES: 200
 
     normalize_reward: False
     return_stats: True
@@ -85,6 +85,7 @@ agent:
     q_lr: 2.5e-4
     actor_lr: 2.5e-4
     temp_lr: 2.5e-4
+    epsilon: 1e-7
     prior_lr: 1.e-3
     
     # arguments for PER
