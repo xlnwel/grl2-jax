@@ -65,6 +65,7 @@ class DQNBase(BaseAgent):
                 self.store(act_eps=eps)
             else:
                 eps = self._act_eps
+
         x = tf.convert_to_tensor(x)
         action = self.model.action(
             x, 
@@ -103,12 +104,11 @@ class DQNBase(BaseAgent):
 
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to initialize variables
-        obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else tf.float32
         TensorSpecs = dict(
-            obs=(env.obs_shape, obs_dtype, 'obs'),
+            obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=((self._action_dim,), tf.float32, 'action'),
             reward=((), tf.float32, 'reward'),
-            next_obs=(env.obs_shape, obs_dtype, 'next_obs'),
+            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
             discount=((), tf.float32, 'discount'),
         )
         if self._is_per:

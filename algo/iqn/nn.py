@@ -70,8 +70,9 @@ class Value(Module):
     def action(self, x, qt_embed=None, tau_range=None, return_stats=False):
         qtv, q = self.call(x, qt_embed, tau_range=tau_range, return_value=True)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
+        q = tf.reduce_max(q, axis=-1)
         if return_stats:
-            return action, qtv, q
+            return action, q
         else:
             return action
     
@@ -131,7 +132,7 @@ class IQN(Ensemble):
         action = self.q.action(x, qt_embed, return_stats=return_stats)
         terms = {}
         if return_stats:
-            action, _, q = action
+            action, q = action
             q = tf.squeeze(q)
             terms = {'q': q}
         if not evaluation:

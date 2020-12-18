@@ -137,6 +137,7 @@ class SAC(Ensemble):
 
 def create_components(config, env):
     assert env.is_action_discrete
+    config = config.copy()
     action_dim = env.action_dim
     actor_config = config['actor']
     q_config = config['q']

@@ -3,10 +3,10 @@
 
 algos=(
     # ppg
-    # iqn
+    iqn
     # apex-fqf
     # sacdiqn2
-    sacdiqn5
+    # sacdiqn5
 )
 suite=procgen
 envs=(
@@ -14,9 +14,9 @@ envs=(
     # "ninja"
     plunder
     bigfish
-    starpilot
-    coinrun
-    miner 
+    # starpilot
+    # coinrun
+    # miner 
     # caveflyer 
     # climber
     # dodgeball 
@@ -26,7 +26,7 @@ envs=(
     # heist
     # bossfight
 )
-args1=(True)
+args1=(1)
 args2=(2l)
 args3=(conv_maxblurpool)
 
