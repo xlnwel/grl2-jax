@@ -176,7 +176,7 @@ def apex_epsilon_greedy(worker_id, envs_per_worker, n_workers, epsilon=.4, alpha
 
 def compute_act_eps(config, worker_id, n_workers, envs_per_worker):
     if config.get('schedule_act_eps'):
-        assert worker_id is not None and worker_id < n_workers, \
+        assert worker_id is None or worker_id < n_workers, \
             f'worker ID({worker_id}) exceeds range. Valid range: [0, {config["n_workers"]})'
         act_eps_type = config.get('act_eps_type', 'apex')
         if act_eps_type == 'apex':

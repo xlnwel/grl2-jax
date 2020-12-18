@@ -32,7 +32,7 @@ def train(agent, env, eval_env, replay):
         env_step = runner.run(step_fn=collect)
 
     to_eval = Every(agent.EVAL_PERIOD)
-    to_log = Every(agent.LOG_PERIOD)
+    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     to_record = Every(agent.EVAL_PERIOD*10)
     rt = Timer('run')
@@ -76,10 +76,10 @@ def main(env_config, model_config, agent_config, replay_config):
 
     n_workers = env_config.get('n_workers', 1)
     n_envs = env_config.get('n_envs', 1)
-    if n_envs > 1:
+    if n_envs * n_workers > 1:
         agent_config = compute_act_eps(
             agent_config, None, n_workers, 
-            env_config['n_envs'])
+            n_envs)
     if 'actor' in model_config:
         model_config = compute_act_temp(
             agent_config, model_config, None, 

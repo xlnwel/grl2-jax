@@ -48,7 +48,7 @@ class DQNBase(BaseAgent):
         self._construct_optimizers()
         self._add_attributes()
         self._build_learn(env)
-        self._sync_target_nets()
+        self._sync_nets()
 
     def _add_attributes(self):
         pass
@@ -89,7 +89,7 @@ class DQNBase(BaseAgent):
             if self._to_sync(self.train_step):
                 self._sync_target_nets()
             if self._to_summary(step):
-                self.summary(data, terms)
+                self._summary(data, terms)
 
             terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
             if getattr(self, '_use_is_ratio', self._is_per):
@@ -126,8 +126,11 @@ class DQNBase(BaseAgent):
         priority **= self._per_alpha
         return priority
 
-    def summary(self, data, terms):
+    def _summary(self, data, terms):
         pass
+    
+    def _sync_nets(self):
+        self._sync_target_nets()
 
     @tf.function
     def _sync_target_nets(self):

@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.keras.backend_config import epsilon
 
 from utility.rl_utils import n_step_target, quantile_regression_loss
 from utility.tf_utils import explained_variance
@@ -28,7 +27,7 @@ class Agent(DQNBase):
                 self._target_entropy_coef = TFPiecewiseSchedule(self._target_entropy_coef)
 
     # @tf.function
-    # def summary(self, data, terms):
+    # def _summary(self, data, terms):
     #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
     #     tf.summary.histogram('learn/reward', data['reward'], step=self._env_step)
 
@@ -178,6 +177,11 @@ class Agent(DQNBase):
         qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
 
         return value, tf.abs(error), qr_loss
+
+    def _sync_nets(self):
+        [avar.assign(cvar) for avar, cvar in zip(
+            self.actor_encoder.variables, self.critic_encoder.variables)]
+        self._sync_target_nets()
 
     @tf.function
     def _sync_target_nets(self):
