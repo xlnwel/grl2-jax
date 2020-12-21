@@ -163,7 +163,7 @@ def retrace_lambda(reward, q, next_value, next_ratio, discount, lambda_=.95, rat
 
 def apex_epsilon_greedy(worker_id, envs_per_worker, n_workers, epsilon=.4, alpha=8, sequential=True):
     # the 𝝐-greedy schedule used in Ape-X and Agent57
-    assert worker_id < n_workers, (worker_id, n_workers)
+    assert worker_id is None or worker_id < n_workers, (worker_id, n_workers)
     n_envs = n_workers * envs_per_worker
     env_ids = np.arange(n_envs)
     if worker_id is not None:

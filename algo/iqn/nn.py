@@ -68,7 +68,7 @@ class Value(Module):
         return self._action_dim
 
     def action(self, x, qt_embed=None, tau_range=None, return_stats=False):
-        qtv, q = self.call(x, qt_embed, tau_range=tau_range, return_value=True)
+        _, q = self.call(x, qt_embed, tau_range=tau_range, return_value=True)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
         q = tf.reduce_max(q, axis=-1)
         if return_stats:

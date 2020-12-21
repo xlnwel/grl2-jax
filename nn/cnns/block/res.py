@@ -4,7 +4,6 @@ from tensorflow.keras import layers
 from core.module import Module
 from nn.registry import am_registry, layer_registry, block_registry, subsample_registry
 from nn.utils import *
-from nn.am.se import SE
 
 
 class ResidualBase(Module):

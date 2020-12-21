@@ -8,5 +8,4 @@ conventions.md
 **ray_test.pyw
 .pytest_cache*
 *ipynb
-**test**
 tmp**

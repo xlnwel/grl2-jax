@@ -12,16 +12,16 @@ env:
 model:
     encoder: 
         cnn_name: procgen
+    quantile:
+        tau_embed_size: 64
+        phi_activation: relu
+        K: &K 64
     q:
         units_list: [512]
         layer_type: noisy
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
-    quantile:
-        tau_embed_size: 64
-        phi_activation: relu
-        K: &K 64
 
 agent:
     algorithm: &algo iqn

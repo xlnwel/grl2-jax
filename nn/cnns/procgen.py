@@ -26,7 +26,7 @@ class ProcgenCNN(Module):
                     norm=None,
                     norm_kwargs={},
                     activation='relu',
-                    am='se',
+                    am='cbam',
                     am_kwargs={},
                     dropout_rate=0.,
                     rezero=False,
@@ -35,8 +35,7 @@ class ProcgenCNN(Module):
                  sa_pos=[],
                  sa_kwargs={},
                  deter_stoch=False,
-                 belief=False,
-                 out_activation='relu',
+                 out_activation=None,
                  out_size=None,
                  name='procgen',
                  **kwargs):
@@ -44,7 +43,6 @@ class ProcgenCNN(Module):
         self._obs_range = obs_range
         self._time_distributed = time_distributed
         self._deter_stoch = deter_stoch
-        self._belief = belief
 
         # kwargs specifies general kwargs for conv2d
         kwargs['kernel_initializer'] = get_initializer(kernel_initializer)
@@ -112,19 +110,12 @@ class ProcgenCNN(Module):
                 self._flat = layers.Flatten(name=prefix+'flatten')
                 if self.out_size:
                     self._dense = layers.Dense(self.out_size, activation=self._out_act, name=prefix+'out')
-            if belief:
-                bs_layer_cls = layer_registry.get('conv2d')
-                self._bs_layer = bs_layer_cls(2 * f, 3, 1, padding='same', **kwargs, name=prefix+'belief')
 
         self._training_cls += [block_cls, subsample_cls, sa_cls]
     
     @property
     def deter_stoch(self):
         return self._deter_stoch
-    
-    @property
-    def belief(self):
-        return self._belief
 
     def call(self, x, training=False):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)
@@ -134,23 +125,11 @@ class ProcgenCNN(Module):
         x = super().call(x, training=training)
         if self._deter_stoch:
             self.state = self._layers[-1].state
-        if self._belief:
-            mean, std, y = self.get_belief_state(x)
-            self.cnn_out = x
-            self.belief_state = State(x, mean, std, y)
-            x = x + y
-        else:
-            x = self._out_act(x)
-            self.cnn_out = x
+        x = self._out_act(x)
+        self.cnn_out = x
         if self._time_distributed:
             x = tf.reshape(x, [-1, t, *x.shape[1:]])
         z = self._flat(x)
         if self.out_size:
             z = self._dense(z)
         return z
-
-    def get_belief_state(self, x):
-        x = self._bs_layer(x)
-        mean, std, stoch = get_stoch_state(x, .1)
-
-        return mean, std, stoch
