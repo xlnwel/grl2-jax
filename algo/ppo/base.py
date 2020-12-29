@@ -44,7 +44,7 @@ class PPOBase(RMSBaseAgent):
         self._last_obs = self.normalize_obs(obs)
         
     def compute_value(self, obs=None):
-        # be sure you normalize obs first if normalization is required
+        # be sure you normalize obs first if obs normalization is required
         obs = obs or self._last_obs
         return self.model.compute_value(self._last_obs).numpy()
 

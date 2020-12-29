@@ -227,9 +227,10 @@ class Logger:
         return len(self._store_dict[name])
 
     def log_stats(self, stats, print_terminal_info=True):
-        if not self._first_row and set(stats) != set(self._log_headers):
-            logger.warning(f'All previous loggings are erased because stats does not match first row\n'
-                f'stats = {set(stats)}\nfirst row = {set(self._log_headers)}')
+        if not self._first_row and not set(stats).issubset(set(self._log_headers)):
+            if self._first_row:
+                logger.warning(f'All previous loggings are erased because stats does not match first row\n'
+                    f'stats = {set(stats)}\nfirst row = {set(self._log_headers)}')
             self._out_file.seek(0)
             self._out_file.truncate()
             self._log_headers.clear()

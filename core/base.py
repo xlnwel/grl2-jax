@@ -122,10 +122,10 @@ class RMSBaseAgent(BaseAgent):
 
     def update_obs_rms(self, obs):
         if self._normalize_obs:
-            # if obs.dtype == np.uint8 and obs.shape[-1] > 1:
-            #     # for stacked frames, we only use
-            #     # the most recent one for rms update
-            #     obs = obs[..., -1:]
+            if obs.dtype == np.uint8 and \
+                    getattr(self, '_image_normalization_warned', False):
+                logger.warning('Image observations are normalized. Make sure you intentionally do it.')
+                self._image_normalization_warned = True
             self._obs_rms.update(obs)
 
     def update_reward_rms(self, reward, discount=None):

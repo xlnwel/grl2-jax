@@ -78,34 +78,31 @@ def print_buffer(buffer, prefix=''):
 
 def adjust_n_steps(data, seqlen, n_steps, max_steps, gamma):
     results = {}
+    logp = data.get('logp', np.zeros_like(data['reward']))
     for k, v in data.items():
         if k == 'q' or k == 'v':
             vs = v
+        elif k == 'logp':
+            continue
         else:
             results[k] = v.copy()[:seqlen]
+    if max_steps < n_steps:
+        max_steps = n_steps
+    ent_rew = data['reward'] - logp
     for i in range(seqlen):
-        if n_steps < max_steps:
-            for j in range(1, max_steps):
-                if results['discount'][i] == 1:
-                    cum_rew = results['reward'][i] + gamma**j * data['reward'][i+j]
-                    if j >= n_steps and cum_rew + gamma**(j+1) * vs[i+j+1] * data['discount'][i+j+1] \
-                        <= results['reward'][i] + gamma**j * vs[i+j] * data['discount'][i+j]:
-                        print('break', i, j, cum_rew + gamma**(j+1) * vs[i+j+1] * data['discount'][i+j+1], \
-                            results['reward'][i] + gamma**j * vs[i+j] * data['discount'][i+j])
-                        break
-                    results['reward'][i] = cum_rew
-                    results['next_obs'][i] = data['next_obs'][i+j]
-                    results['discount'][i] = data['discount'][i+j]
-                    results['steps'][i] += 1
-                else:
+        for j in range(1, max_steps):
+            if results['discount'][i] == 1:
+                cum_rew = results['reward'][i] + gamma**j * ent_rew
+                if j >= n_steps and cum_rew + gamma**(j+1) * vs[i+j+1] * data['discount'][i+j+1] \
+                    <= results['reward'][i] + gamma**j * vs[i+j] * data['discount'][i+j]:
+                    print('break', i, j, cum_rew + gamma**(j+1) * vs[i+j+1] * data['discount'][i+j+1], \
+                        results['reward'][i] + gamma**j * vs[i+j] * data['discount'][i+j])
                     break
-        else:
-            for j in range(1, n_steps):
-                if results['discount'][i]:
-                    results['reward'][i] = results['reward'][i] * gamma**j * data['reward'][i+j]
-                    results['next_obs'][i] = data['next_obs'][i+j]
-                    results['discount'][i] = data['discount'][i+j]
-                    results['steps'][i] += 1
+                results['reward'][i] = cum_rew
+                results['next_obs'][i] = data['next_obs'][i+j]
+                results['discount'][i] = data['discount'][i+j]
+                results['steps'][i] += 1
+
     return results
 
 
@@ -123,11 +120,11 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
     obs_exp_dims = tuple(range(1, data['obs'].ndim-1))
     if max_steps < n_steps:
         max_steps = n_steps
+    ent_rew = data['reward'] - logp
     for i in range(seqlen):
         disc = results['discount'][:, i]
         for j in range(1, max_steps):
-            jth_rew = data['reward'][:, i+j] - logp[:, i+j]
-            cum_rew = results['reward'][:, i] + gamma**j * jth_rew * disc
+            cum_rew = results['reward'][:, i] + gamma**j * ent_rew[:, i+j] * disc
             if j < n_steps:
                 cond = disc == 1
             else:

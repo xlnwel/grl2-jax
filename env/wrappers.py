@@ -27,6 +27,7 @@ def post_wrap(env, config):
         log_episode=config.get('log_episode', False))
     return env
 
+
 class Dummy:
     """ Useful to break the inheritance of unexpected attributes """
     def __init__(self, env):
@@ -145,6 +146,7 @@ class NormalizeActions(gym.Wrapper):
         original = np.where(self._act_mask, original, action)
         return self.env.step(original, **kwargs)
 
+
 class GrayScale(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
@@ -189,28 +191,15 @@ class FrameSkip(gym.Wrapper):
 
 
 class FrameDiff(gym.Wrapper):
-    def __init__(self, env, n):
-        super().__init__(env)
-
-        original_space = self.observation_space
-        new_space = gym.spaces.Box(
-            low=0,
-            high=255,
-            shape=(*original_space.shape[:2], original_space.shape[-1]*2),
-            dtype=np.uint8,
-        )
-        self.observation_space = new_space
-
     def reset(self):
         obs = self.env.reset()
-        new_obs = np.concatenate([np.zeros_like(obs, dtype=obs.dtype), obs], axis=-1)
         self.prev_obs = obs
 
         return obs
 
     def step(self, action):
         obs, rew, done, info = self.env.step(action)
-        new_obs = np.concatenate([obs - self.prev_obs, obs], axis=-1)
+        new_obs = obs - self.prev_obs
         self.prev_obs = obs
 
         return new_obs, rew, done, info

@@ -4,7 +4,7 @@ env:
     distribution_mode: easy
     frame_skip: 1
     n_envs: &ne 64
-    frame_stack: 4
+    frame_stack: 1
     np_obs: True
     reward_scale: 2
     reward_clip: 10
@@ -12,7 +12,6 @@ env:
 model:
     encoder: 
         cnn_name: procgen
-        deter_stoch: True
     actor:
         units_list: [512]
         layer_type: dense
@@ -26,6 +25,7 @@ model:
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
+        duel: False
     quantile:
         tau_embed_size: 64
         phi_activation: relu

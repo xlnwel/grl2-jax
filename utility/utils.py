@@ -46,8 +46,19 @@ class RunningMeanStd(object):
             axis: axis along which we compute mean and std from incoming data. 
                 If it's None, we only receive at a time a sample without batch dimension
         """
+        if isinstance(axis, int):
+            axis = (axis, )
+        elif isinstance(axis, (tuple, list)):
+            axis = tuple(axis)
+        elif axis is None:
+            pass
+        else:
+            raise ValueError(f'Invalid axis({axis}) of type({type(axis)})')
         if isinstance(axis, tuple):
-            assert axis == tuple(range(np.min(axis), np.max(axis) + 1))
+            assert axis == tuple(range(len(axis))), \
+                f'axis should only specifies leading axes so that '\
+                f'mean and var can be broadcasted automatically when normalizing. '\
+                f'but receving axis = {axis}'
         self._axis = axis
         if self._axis is not None:
             self._shape_slice = np.s_[np.min(self._axis): np.max(self._axis) + 1]
@@ -63,7 +74,7 @@ class RunningMeanStd(object):
     def update(self, x, mask=None):
         if self._axis is None:
             assert mask is None
-            batch_mean, batch_var, batch_count = x, 0, 1
+            batch_mean, batch_var, batch_count = x, np.zeros_like(x), 1
         else:
             batch_mean, batch_var = moments(x, self._axis, mask)
             batch_count = np.prod(x.shape[self._shape_slice]) if mask is None else np.sum(mask)

@@ -19,7 +19,7 @@ class Replay:
 
         self._gamma = config['gamma']
         self._gae_discount = config['gamma'] * config['lam']
-        self._buff = Buffer(config, sample_keys=['obs', 'action', 'traj_ret', 'advantage', 'logpi'], **kwargs)
+        self._buff = Buffer(config, **kwargs)
         self._memory = {}
 
     def __getitem__(self, k):

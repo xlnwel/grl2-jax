@@ -67,7 +67,7 @@ agent:
     N_EPOCHS: 3
     N_MBS: &nmbs 8
     LOG_PERIOD: 100
-    EVAL_PERIOD: 500
+    EVAL_PERIOD: 5000
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
     
 
@@ -93,6 +93,7 @@ agent:
     clip_norm: 0.5
     opt_eps: 1e-8
     # arguments for loss
+    value_loss: mse
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
     value_coef: 1.

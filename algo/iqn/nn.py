@@ -54,13 +54,21 @@ class Value(Module):
         )
         self._kwargs = kwargs
 
+        if self._duel:
+            self._v_layers = mlp(
+                self._units_list,
+                out_size=action_dim, 
+                layer_type=self._layer_type,
+                norm=self._norm,
+                name=name+'/v',
+                **kwargs)
         # we do not define the phi net here to make it consistent with the CNN output size
         self._layers = mlp(
             self._units_list,
             out_size=action_dim, 
             layer_type=self._layer_type,
             norm=self._norm,
-            name=name,
+            name=name+('/a' if self._duel else '/q'),
             **kwargs)
 
     @property
@@ -89,8 +97,13 @@ class Value(Module):
             return qtv
 
     def qtv(self, x, action=None):
-        qtv = self._layers(x)   # [B, N, A]
-
+        if self._duel:
+            v = self._v_layers(x)
+            a = self._layers(x)
+            qtv = v + a - tf.reduce_mean(a, axis=-1, keepdims=True)
+        else:
+            qtv = self._layers(x)
+    
         if action is not None:
             assert self.action_dim != 1, f"action is not None when action_dim = {self.action_dim}"
             action = tf.expand_dims(action, axis=1)

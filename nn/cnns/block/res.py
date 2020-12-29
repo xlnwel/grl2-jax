@@ -147,7 +147,7 @@ class ResidualV2(ResidualBase):
         super().__init__(name=name, **kwargs)
 
     def _build_residual_branch(self, filters, kernel_size, strides, prefix, subsample_cls, conv_cls, act_cls, kwargs):
-        for i, (f, k, s) in enumerate(zip(filters, self._kernel_sizes, strides)):
+        for i, (f, k, s) in enumerate(zip(filters, kernel_size, strides)):
             name_fn = lambda cls_name: prefix+f'{cls_name}_f{f}_k{k}_{i}'
             if s > 1 and self._subsample_type:
                 self._layers.append(

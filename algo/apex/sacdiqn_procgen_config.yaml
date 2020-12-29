@@ -3,7 +3,7 @@ env:
     name: procgen_coinrun
     distribution_mode: easy
     frame_skip: 1
-    n_envs: &ne 4
+    n_envs: &ne 6
     frame_stack: 1
     np_obs: True
     reward_scale: 2
@@ -20,16 +20,17 @@ model:
         kernel_initializer: glorot_uniform
         activation: relu
         eval_act_temp: .5
+    quantile:
+        tau_embed_size: 64
+        phi_activation: relu
+        K: &K 64
     q:
         units_list: [512]
         layer_type: dense
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
-    quantile:
-        tau_embed_size: 64
-        phi_activation: relu
-        K: &K 64
+        duel: False
     temperature:
         temp_type: constant
         value: .01
@@ -44,16 +45,16 @@ agent:
     n_steps: &nsteps 3      # n-step target
     target_entropy_coef: .8
 
-    schedule_act_eps: True
+    schedule_act_eps: False
     act_eps_type: line
     act_eps: .3
     eval_act_eps: 0
     schedule_act_temp: True
-    n_exploit_envs: 8
+    n_exploit_envs: 18
     min_temp: .5
     max_temp: 10
     
-    MAX_STEPS: 1.5e7      # maximum env steps
+    MAX_STEPS: 2.5e7      # maximum env steps
     LOG_PERIOD: 100
     N_UPDATES: 1
     SYNC_PERIOD: 400

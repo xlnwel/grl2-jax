@@ -10,8 +10,6 @@ def make_procgen_env(config):
     assert 'procgen' in config['name'], config['name']
     gray_scale = config.setdefault('gray_scale', False)
     frame_skip = config.setdefault('frame_skip', 1)
-    frame_stack = config.setdefault('frame_stack', 1)
-    np_obs = config.setdefault('np_obs', False)
     env = Procgen(config)
     if gray_scale:
         env = wrappers.GrayScale(env)
@@ -20,8 +18,6 @@ def make_procgen_env(config):
             env = wrappers.MaxAndSkipEnv(env, frame_skip=frame_skip)
         else:
             env = wrappers.FrameSkip(env, frame_skip=frame_skip)
-    if frame_stack > 1:
-        env = wrappers.FrameStack(env, frame_stack, np_obs)
     config.setdefault('max_episode_steps', env.spec.max_episode_steps)
     
     return env

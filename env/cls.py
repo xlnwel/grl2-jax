@@ -4,31 +4,35 @@ import cv2
 import gym
 import ray
 
-from env.wrappers import *
-from env import atari
-from env import procgen
-from env import dmc
+from env import wrappers, atari, procgen, dmc
+
+EnvOutput = wrappers.EnvOutput
 
 
 def make_env(config):
     # config = config.copy()    # do not copy to make changes visible from the outside
     env_name = config['name'].lower()
-    
     if env_name.startswith('atari'):
         env = atari.make_atari_env(config)
-    elif env_name.startswith('procgen'):
-        env = procgen.make_procgen_env(config)
-    elif env_name.startswith('dmc'):
-        env = dmc.make_dmc_env(config)
     else:
-        env = gym.make(config['name']).env
-        env = Dummy(env)
-        config.setdefault('max_episode_steps', env.spec.max_episode_steps)
-        if config.get('frame_skip'):
-            env = FrameSkip(env, config['frame_skip'])
-    env = post_wrap(env, config)
+        frame_diff = config.setdefault('frame_diff', False)
+        frame_stack = config.setdefault('frame_stack', 1)
+        np_obs = config.setdefault('np_obs', False)
+        if env_name.startswith('procgen'):
+            env = procgen.make_procgen_env(config)
+        elif env_name.startswith('dmc'):
+            env = dmc.make_dmc_env(config)
+        else:
+            env = gym.make(config['name']).env
+            env = wrappers.Dummy(env)
+            config.setdefault('max_episode_steps', env.spec.max_episode_steps)
+        if frame_diff:
+            env = wrappers.FrameDiff(env)
+        if frame_stack > 1:
+            env = wrappers.FrameStack(env, frame_stack, np_obs)
+    env = wrappers.post_wrap(env, config)
     if config.get('reward_scale') or config.get('reward_clip'):
-        env = RewardHack(env, **config)
+        env = wrappers.RewardHack(env, **config)
 
     return env
 

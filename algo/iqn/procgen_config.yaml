@@ -11,17 +11,18 @@ env:
 
 model:
     encoder: 
-        cnn_name: procgen
+        cnn_name: impala
     quantile:
         tau_embed_size: 64
         phi_activation: relu
         K: &K 64
     q:
         units_list: [512]
-        layer_type: noisy
+        layer_type: dense
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
+        duel: False
 
 agent:
     algorithm: &algo iqn
@@ -30,9 +31,9 @@ agent:
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
 
-    schedule_act_eps: False
+    schedule_act_eps: True
     act_eps_type: apex
-    act_eps: .4
+    act_eps: .3
     eval_act_eps: 0
 
     MAX_STEPS: 2.5e7
