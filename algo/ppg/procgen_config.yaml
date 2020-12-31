@@ -9,40 +9,9 @@ env:
     gray_scale: False
 
 model:
-    architecture: shared
+    architecture: dual
     encoder: 
-        cnn_name: procgen
-        obs_range: [0, 1]
-        filters: [32, 64, 64, 64]
-        n_blocks: [1, 1, 1, 1]
-        kernel_initializer: glorot_uniform
-        stem: conv_maxblurpool
-        subsample: conv_maxblurpool
-        block: resv1
-        block_kwargs:
-            conv: conv2d
-            filter_coefs: []
-            kernel_sizes: [3, 3]
-            norm: null
-            norm_kwargs: {}
-            activation: relu
-            am: cbam
-            dropout_rate: 0
-            rezero: False
-        sa: conv_sa
-        sa_pos: []
-        sa_kwargs:
-            key_ratio: 1
-            val_ratio: 1
-            downsample_ratio: 1
-        deter_stoch: False
-        belief: False
-        out_activation: null
-        out_size: 256
-    # encoder: 
-    #     cnn_name: impala
-    #     filters: [16, 32, 32]
-    #     out_size: 256
+        cnn_name: impala
     actor:
         units_list: []
         layer_type: dense
@@ -61,18 +30,18 @@ agent:
     precision: 32
     gamma: &gamma .99
     
-    MAX_STEPS: 1e7
+    MAX_STEPS: 2.5e7
     N_STEPS: &nsteps 256
-    N_PI: &npi 16
+    N_PI: &npi 16           # 32
+    N_SEGS: &nsegs 4        # this should be no greater than N_PI. One shall expect improving performance on increasing this value, we select a small value to save memory and reduce training time
     N_EPOCHS: 1
     N_MBS: &nmbs 8
     N_AUX_EPOCHS: 6
-    N_AUX_MBS: &nambs 16
+    N_AUX_MBS_PER_SEG: &nambs 8    # 16, we use 8 so that minibatch size stays the same at both phases 
     LOG_PERIOD: 100
-    EVAL_PERIOD: 500
+    EVAL_PERIOD: 5000
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
     
-
     normalize_obs: False
     normalize_reward: True
     # (once, reuse, null)
@@ -97,14 +66,15 @@ agent:
     clip_norm: 0.5
     opt_eps: 1e-8
     # arguments for loss
+    value_loss: mse
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
     bc_coef: 1.
 
 buffer:
     N_PI: *npi
-    n_segs: 2   # make this smaller than N_PI when your memory or GPU capacity is limited
-    N_AUX_MBS: *nambs
+    n_segs: *nsegs
+    N_AUX_MBS_PER_SEG: *nambs
 
     adv_type: gae     # nae or gae
     gamma: *gamma
@@ -112,5 +82,5 @@ buffer:
     n_envs: *nenvs
     N_STEPS: *nsteps
     N_MBS: *nmbs        # number of minibatches
-    sample_keys: [obs, action, traj_ret, advantage, logpi]
+    sample_keys: [obs, action, value, traj_ret, advantage, logpi]
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

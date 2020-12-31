@@ -17,10 +17,15 @@ class PPOBase(RMSBaseAgent):
     def __init__(self, *, env, dataset):
         super().__init__()
         self.dataset = dataset
-        self._construct_optimizers()
         self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
         self._last_obs = None
         logger.info(f'Value update scheme: {self._value_update}')
+
+        self._add_attributes()
+        self._construct_optimizers()
+
+    def _add_attributes(self):
+        pass
 
     def _construct_optimizers(self):
         if getattr(self, 'schedule_lr', False):
@@ -75,22 +80,18 @@ class PPOBase(RMSBaseAgent):
             if self._value_update is not None:
                 last_value = self.compute_value()
                 self.dataset.finish(last_value)
-        self.store(**{'aux/kl': kl})
-        # if not isinstance(self._lr, float):
-        #     step = tf.cast(self._env_step, tf.float32)
-        #     self.store(lr=self._lr(step))
-        
+        self.store(**{'train/kl': kl})
+
         if self._to_summary(step):
             self.summary(data, terms)
-
+        
         return i * self.N_MBS + j
 
     def summary(self, data, terms):
-        pass
-        # tf.summary.histogram('traj_ret', data['train/traj_ret'], step=self._env_step)
+        tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
 
     @tf.function
-    def _learn(self, obs, action, traj_ret, value, advantage, logpi, mask=None, state=None):
+    def _learn(self, obs, action, value, traj_ret, advantage, logpi, state=None, mask=None):
         old_value = value
         terms = {}
         with tf.GradientTape() as tape:

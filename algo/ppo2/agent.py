@@ -21,8 +21,8 @@ class Agent(PPOBase):
         TensorSpecs = dict(
             obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
             action=((self._sample_size, *env.action_shape), env.action_dtype, 'action'),
-            traj_ret=((self._sample_size,), tf.float32, 'traj_ret'),
             value=((self._sample_size,), tf.float32, 'value'),
+            traj_ret=((self._sample_size,), tf.float32, 'traj_ret'),
             advantage=((self._sample_size,), tf.float32, 'advantage'),
             logpi=((self._sample_size,), tf.float32, 'logpi'),
             mask=((self._sample_size,), tf.float32, 'mask'),

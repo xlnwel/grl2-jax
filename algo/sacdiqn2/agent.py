@@ -56,9 +56,12 @@ class Agent(DQNBase):
         _, qt_embed = self.target_quantile(next_x, self.N_PRIME)
         next_x_ext = tf.expand_dims(next_x, axis=1)
         next_qtv = self.target_q(next_x_ext, qt_embed)
-        next_qtv_v = tf.reduce_sum(next_act_probs_ext 
-            * (next_qtv - temp * next_act_logps_ext), axis=-1)
-
+        
+        if self._soft_target:
+            next_qtv_v = tf.reduce_sum(next_act_probs_ext 
+                * (next_qtv - temp * next_act_logps_ext), axis=-1)
+        else:
+            next_qtv_v = tf.reduce_sum(next_act_probs_ext * next_qtv, axis=-1)
         reward = reward[:, None]
         discount = discount[:, None]
         if not isinstance(steps, int):

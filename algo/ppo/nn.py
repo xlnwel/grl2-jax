@@ -8,39 +8,43 @@ from nn.func import Encoder, mlp
 
 
 class Actor(Module):
-    @config
-    def __init__(self, action_dim, is_action_discrete, name='actor'):
+    def __init__(self, config, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
 
         self.action_dim = action_dim
         self.is_action_discrete = is_action_discrete
-
-        self.actor = mlp(self._units_list, 
-                        out_size=action_dim, 
-                        norm=self._norm,
-                        activation=self._activation, 
-                        kernel_initializer=self._kernel_initializer,
-                        out_dtype='float32',
-                        name=name,
-                        out_gain=.01,
-                        )
+        self.eval_act_temp = config.pop('eval_act_temp', .5)
+        assert self.eval_act_temp >= 0, self.eval_act_temp
 
         if not self.is_action_discrete:
+            self._init_std = config.pop('init_std', 1)
             self.logstd = tf.Variable(
                 initial_value=np.log(self._init_std)*np.ones(action_dim), 
                 dtype='float32', 
                 trainable=True, 
                 name=f'actor/logstd')
+        self.actor = mlp(**config, 
+                        out_size=action_dim, 
+                        out_dtype='float32',
+                        name=name,
+                        out_gain=.01)
 
-    def call(self, x):
+    def call(self, x, evaluation=False):
         actor_out = self.actor(x)
 
         if self.is_action_discrete:
-            act_dist = tfd.Categorical(actor_out)
+            logits = actor_out / self.eval_act_temp if evaluation and self.eval_act_temp else actor_out
+            act_dist = tfd.Categorical(logits)
         else:
-            act_dist = tfd.MultivariateNormalDiag(actor_out, tf.exp(self.logstd))
+            std = tf.exp(self.logstd)
+            if evaluation and self.eval_act_temp:
+                std = std * self.eval_act_temp
+            act_dist = tfd.MultivariateNormalDiag(actor_out, std)
         return act_dist
 
+    def action(self, dist, evaluation):
+        return dist.mode() if evaluation and self.eval_act_temp == 0 \
+            else dist.sample()
 class Value(Module):
     def __init__(self, config, name='value'):
         super().__init__(name=name)
@@ -65,14 +69,13 @@ class PPO(Ensemble):
     @tf.function
     def action(self, x, evaluation=False, epsilon=0):
         x = self.encoder(x)
+        act_dist = self.actor(x, evaluation=evaluation)
+        action = self.actor.action(act_dist, evaluation)
+        
         if evaluation:
-            act_dist = self.actor(x)
-            action = act_dist.mode()
             return action
         else:
-            act_dist = self.actor(x)
             value = self.value(x)
-            action = act_dist.sample()
             logpi = act_dist.log_prob(action)
             terms = {'logpi': logpi, 'value': value}
             return action, terms    # keep the batch dimension for later use

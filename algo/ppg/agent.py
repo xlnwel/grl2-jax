@@ -23,6 +23,7 @@ class Agent(PPOBase):
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=(env.action_shape, env.action_dtype, 'action'),
+            value=((), tf.float32, 'value'),
             traj_ret=((), tf.float32, 'traj_ret'),
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
@@ -31,9 +32,14 @@ class Agent(PPOBase):
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
             logits=(env.action_shape, tf.float32, 'logits'),
+            value=((), tf.float32, 'value'),
             traj_ret=((), tf.float32, 'traj_ret'),
         )
         self.aux_learn = build(self._aux_learn, TensorSpecs)
+
+    def _add_attributes(self):
+        assert self.N_SEGS <= self.N_PI, f'{self.N_SEGS} > {self.N_PI}'
+        self.N_AUX_MBS = self.N_SEGS * self.N_AUX_MBS_PER_SEG
 
     def _construct_optimizers(self):
         if getattr(self, 'schedule_lr', False):
@@ -104,31 +110,29 @@ class Agent(PPOBase):
         return i * self.N_MBS + j
 
     @tf.function
-    def _learn(self, obs, action, traj_ret, advantage, logpi, mask=None, state=None):
+    def _learn(self, obs, action, value, traj_ret, advantage, logpi, state=None, mask=None):
+        old_value = value
         terms = {}
-        with tf.GradientTape(persistent=True) as tape:
+        with tf.GradientTape() as tape:
             x = self.encoder(obs)
             if state is not None:
                 x, state = self.rnn(x, state, mask=mask)    
             act_dist = self.actor(x)
-            old_dist = tfd.Categorical(logpi)
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             log_ratio = new_logpi - logpi
             ppo_loss, entropy, kl, p_clip_frac = compute_ppo_loss(
                 log_ratio, advantage, self._clip_range, entropy)
             actor_loss = (ppo_loss - self._entropy_coef * entropy)
-
-            if hasattr(self, 'value_encoder'):
-                x_value = self.value_encoder(obs)
-                value = self.value(x_value)
-            else:
-                value = self.value(tf.stop_gradient(x))
-            value_loss = .5 * tf.reduce_mean((value - traj_ret)**2)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
+
+        with tf.GradientTape() as tape:
+            x_value = self.value_encoder(obs) if hasattr(self, 'value_encoder') else x
+            value = self.value(x_value)
+            value_loss = self.compute_value_loss(value, traj_ret, old_value, terms)
         terms['value_norm'] = self._value_opt(tape, value_loss)
 
-        terms = dict(
+        terms.update(dict(
             value=value,
             advantage=advantage, 
             ratio=tf.exp(log_ratio), 
@@ -138,7 +142,7 @@ class Agent(PPOBase):
             ppo_loss=ppo_loss,
             v_loss=value_loss,
             explained_variance=explained_variance(traj_ret, value)
-        )
+        ))
 
         return terms
     
@@ -151,6 +155,17 @@ class Agent(PPOBase):
                 x, state = self.rnn(x, state, mask=mask)    
             act_dist = self.actor(x)
             old_dist = tfd.Categorical(logits)
+
+    @tf.function
+    def _aux_learn(self, obs, logits, value, traj_ret, mask=None, state=None):
+        old_value = value
+        terms = {}
+        with tf.GradientTape() as tape:
+            x = self.encoder(obs)
+            if state is not None:
+                x, state = self.rnn(x, state, mask=mask)
+            act_dist = self.actor(x)
+            old_dist = tfd.Categorical(logits=logits)
             kl = tf.reduce_mean(old_dist.kl_divergence(act_dist))
             actor_loss = bc_loss = self._bc_coef * kl
             if hasattr(self, 'value_encoder'):
@@ -165,7 +180,7 @@ class Agent(PPOBase):
                 # allow gradients from value head if using a shared encoder
                 value = self.value(x)
 
-            value_loss = .5 * tf.reduce_mean((value - traj_ret)**2)
+            value_loss = self.compute_value_loss(value, traj_ret, old_value, terms)
             loss = actor_loss + value_loss
 
         terms['actor_norm'] = self._aux_opt(tape, loss)

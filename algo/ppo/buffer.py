@@ -59,7 +59,7 @@ def flatten_time_dim(memory, n_envs, n_steps):
 
 class Buffer:
     @config
-    def __init__(self, sample_keys=None, **kwargs):
+    def __init__(self, **kwargs):
         self._size = size = self._n_envs * self.N_STEPS
         self._mb_size = size // self.N_MBS
         self._idxes = np.arange(size)
@@ -67,7 +67,6 @@ class Buffer:
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
         self.reset()
-        self._sample_keys = sample_keys
         print(f'Batch size: {size}')
         print(f'Mini-batch size: {self._mb_size}')
 
@@ -86,7 +85,7 @@ class Buffer:
             self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             print_buffer(self._memory)
-            if self._sample_keys is None:
+            if getattr(self, '_sample_keys', None) is None:
                 self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             
         for k, v in data.items():

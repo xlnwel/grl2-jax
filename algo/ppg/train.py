@@ -33,7 +33,7 @@ def train(agent, env, eval_env, buffer):
     while step < agent.MAX_STEPS:
         for _ in range(agent.N_PI):
             start_env_step = agent.env_step
-            with Timer('env_time', 1000) as et:
+            with Timer('env', 1000) as et:
                 step = runner.run(step_fn=collect)
             agent.store(fps=(step-start_env_step)/et.last())
             agent.update_obs_rms(buffer['obs'])
@@ -44,7 +44,7 @@ def train(agent, env, eval_env, buffer):
             buffer.finish(value)
 
             start_train_step = agent.train_step
-            with Timer('train_time', 1000) as tt:
+            with Timer('train', 1000) as tt:
                 agent.learn_log(step)
             agent.store(tps=(agent.train_step-start_train_step)/tt.last())
             buffer.reset()

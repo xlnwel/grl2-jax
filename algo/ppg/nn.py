@@ -74,7 +74,13 @@ def create_components(config, env):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
 
-    if config['architecture'] == 'dual':
+    if config['architecture'] == 'shared':
+        models = dict(
+            encoder=Encoder(config['encoder']), 
+            actor=Actor(config['actor'], action_dim, is_action_discrete),
+            value=Value(config['value'])
+        )
+    elif config['architecture'] == 'dual':
         models = dict(
             encoder=Encoder(config['encoder']), 
             value_encoder=Encoder(config['encoder'], name='value_encoder'), 
@@ -83,11 +89,7 @@ def create_components(config, env):
             aux_value=Value(config['value'], name='aux_value'),
         )
     else:
-        models = dict(
-            encoder=Encoder(config['encoder']), 
-            actor=Actor(config['actor'], action_dim, is_action_discrete),
-            value=Value(config['value'])
-        )
+        raise ValueError(f'Unknown architecture: {config["architecture"]}')
     return models
 
 def create_model(config, env, **kwargs):

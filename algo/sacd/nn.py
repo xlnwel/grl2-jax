@@ -27,6 +27,7 @@ class Actor(Module):
         self.eval_act_temp = config.pop('eval_act_temp', .5)
         logger.info(f'{self.name} action temperature: {np.squeeze(act_temp)}\n'
             f'action temperature at evaluation: {self.eval_act_temp}')
+
         self._layers = mlp(
             **config, 
             out_size=action_dim,

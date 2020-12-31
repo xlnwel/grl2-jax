@@ -79,6 +79,8 @@ agent:
 
     target_update_period: 1500
 
+    soft_target: False
+    
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False

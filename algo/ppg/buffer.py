@@ -9,9 +9,8 @@ class Replay:
         self.N_STEPS = config['N_STEPS'] * self._n_segs
         buff_size = config['n_envs'] * config['N_STEPS']
         self._size = buff_size * self._n_segs
-        self._n_mbs = config['N_AUX_MBS']
+        self._n_mbs = self._n_segs * config['N_AUX_MBS_PER_SEG']
         self._mb_size = self._size // self._n_mbs
-        self._idxes = np.arange(self._size)
         self._shuffled_idxes = np.arange(self._size)
         self._idx = 0
         self._mb_idx = 0
@@ -54,15 +53,12 @@ class Replay:
         self._memory = flatten_time_dim(self._memory, self._n_envs, self.N_STEPS)
         for start in range(0, self._size, self._mb_size):
             end = start + self._mb_size
-            idxes = self._idxes[start:end]
             obs = self._memory['obs'][start:end]
             logits, value = fn(obs)
             value_list.append(value)
             logits_list.append(logits)
-        value = np.concatenate(value_list, axis=0)
-        self._memory['value'] = value
-        logits = np.concatenate(logits_list, axis=0)
-        self._memory['logits'] = logits
+        self._memory['value'] = np.concatenate(value_list, axis=0)
+        self._memory['logits'] = np.concatenate(logits_list, axis=0)
     
     def transfer_data(self):
         assert self._buff.ready()
@@ -88,7 +84,7 @@ class Replay:
         self._mb_idx, self._curr_idxes = compute_indices(
             self._shuffled_idxes, self._mb_idx, self._mb_size, self._n_mbs)
         return {k: self._memory[k][self._curr_idxes] for k in
-            ('obs', 'logits', 'traj_ret')}
+            ('obs', 'logits', 'value', 'traj_ret')}
 
     def finish(self, last_value):
         self._buff.finish(last_value)

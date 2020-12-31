@@ -33,7 +33,7 @@ class Buffer:
             self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             print_buffer(self._memory)
-            if not hasattr(self, '_sample_keys'):
+            if getattr(self, '_sample_keys', None) is None:
                 self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             
         for k, v in data.items():

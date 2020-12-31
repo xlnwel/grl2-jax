@@ -71,4 +71,5 @@ buffer:
     n_envs: *nenvs
     N_STEPS: *nsteps
     N_MBS: *nmbs        # number of minibatches
+    sample_keys: [obs, action, value, traj_ret, advantage, logpi]
     # mini-batch size = n_workers * n_envs * epslen / n_mbs
