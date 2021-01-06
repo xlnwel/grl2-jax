@@ -15,19 +15,19 @@ model:
     encoder: 
         cnn_name: nature
     rnn:
-        lstm_units: 256
-        lstm_ln: True
+        units: 256
+        use_ln: False
     actor:
         units_list: [256]
-        init_std: 1
         norm: null
-        kernel_initializer: glorot_uniformform
+        kernel_initializer: glorot_uniform
         activation: relu
     value:
         units_list: [256]
         norm: null
-        kernel_initializer: glorot_uniformform
+        kernel_initializer: glorot_uniform
         activation: relu
+    additional_rnn_input: &ain False
 
 agent:
     algorithm: &algo ppo2
@@ -45,6 +45,11 @@ agent:
     normalize_obs: False
     normalize_reward: False
     store_state: True
+    # (once, reuse, null)
+    # "once" updates value at the end of each epoch
+    # "reuse" updates value using value from learn, which is staler than once
+    # null don't update value.
+    value_update: null
     
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

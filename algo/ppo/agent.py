@@ -32,10 +32,8 @@ class Agent(PPOBase):
         out = tf.nest.map_structure(
             lambda x: x.numpy(), self.model.action(obs, evaluation))
         
-        if evaluation:
-            return out
-        else:
-            action, terms = out
+        if not evaluation:
+            terms = out[1]
             terms['obs'] = obs
             terms['reward'] = self.normalize_reward(env_output.reward)
-            return action, terms
+        return out

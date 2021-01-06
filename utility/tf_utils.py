@@ -144,7 +144,6 @@ class RunningMeanStd:
 
     def update(self, x):
         self._sum.assign_add(tf.reduce_sum(x, axis=0))
-        # TODO: sumsq may suffer from overflow, though we've intended to use tf.float64
         self._sumsq.assign_add(tf.cast(tf.reduce_sum(x**2, axis=0), self._sumsq.dtype))
         self._count.assign_add(tf.cast(tf.shape(x)[0], self._count.dtype))
 

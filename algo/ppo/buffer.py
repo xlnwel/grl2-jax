@@ -1,9 +1,12 @@
+import logging
 import numpy as np
 
 from core.decorator import config
 from utility.utils import moments, standardize
 from replay.utils import init_buffer, print_buffer
 
+
+logger = logging.getLogger(__name__)
 
 def compute_nae(reward, discount, value, last_value, traj_ret, gamma):
     next_return = last_value
@@ -66,8 +69,8 @@ class Buffer:
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
         self.reset()
-        print(f'Batch size: {size}')
-        print(f'Mini-batch size: {self._mb_size}')
+        logger.info(f'Batch size: {size}')
+        logger.info(f'Mini-batch size: {self._mb_size}')
 
     def __getitem__(self, k):
         return self._memory[k]

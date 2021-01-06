@@ -2,11 +2,9 @@ import numpy as np
 import tensorflow as tf
 
 from utility.rl_utils import *
-from utility.utils import Every
+from utility.rl_loss import retrace
 from utility.schedule import TFPiecewiseSchedule
-from utility.timer import TBTimer
 from core.tf_config import build
-from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.dqn.base import DQNBase
 
@@ -36,24 +34,6 @@ def get_data_format(env, batch_size, sample_size=None,
     return data_format
 
 class Agent(DQNBase):
-    @agent_config
-    def __init__(self, *, config, dataset, env):
-        super()
-        self._is_per = self._replay_type.endswith('per')
-        self.dataset = dataset
-
-        if self._schedule_lr:
-            self._lr = TFPiecewiseSchedule([(5e5, self._lr), (2e6, 5e-5)])
-
-        self._optimizer = Optimizer(self._optimizer, self.q, self._lr, 
-            clip_norm=self._clip_norm, epsilon=self._epsilon)
-    def _add_attributes(self):
-        self._state = None
-        self._prev_action = None
-        self._prev_reward = None
-
-        self._obs_shape = env.obs_shape
-        self._action_dim = env.action_dim
     def _construct_optimizers(self):
         if self._schedule_lr:
             self._lr = TFPiecewiseSchedule( [(5e5, self._lr), (2e6, 5e-5)])
@@ -61,13 +41,17 @@ class Agent(DQNBase):
         self._optimizer = Optimizer(
             self._optimizer, models, self._lr, clip_norm=self._clip_norm)
 
+    def _add_attributes(self):
+        self._state = None
+        self._prev_action = None
+        self._prev_reward = None
 
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
             obs=((self._sample_size+1, *env.obs_shape), tf.float32, 'obs'),
-            prev_action=((self._sample_size+1,), tf.int32, 'prev_action'),
-            prev_reward=((self._sample_size+1,), tf.float32, 'prev_reward'),
+            action=((self._sample_size+1,), tf.int32, 'prev_action'),
+            reward=((self._sample_size+1,), tf.float32, 'prev_reward'),
             logpi=((self._sample_size,), tf.float32, 'logpi'),
             discount=((self._sample_size,), tf.float32, 'discount'),
             mask=((self._sample_size+1,), tf.float32, 'mask')
@@ -91,132 +75,97 @@ class Agent(DQNBase):
     def get_states(self):
         return self._state, self._prev_action, self._prev_reward
 
-    def __call__(self, obs, reset=np.zeros(1), evaluation=False, env_output=0, **kwargs):
-        if self._additional_input:
-            self._prev_reward = env_output.reward
+    def __call__(self, obs, reset=np.zeros(1), evaluation=False, 
+                env_output=None, **kwargs):
         eps = self._get_eps(evaluation)
-        obs = np.reshape(obs, (-1, *self._obs_shape))
+        if obs.ndim % 2 != 0:
+            obs = np.expand_dims(obs, 0)    # add batch dimension
+        assert obs.ndim in (2, 4), obs.shape
+        self._prev_reward = env_output.reward
+
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=tf.shape(obs)[0])
-            if self._additional_input:
+            if self.model.additional_rnn_input:
                 self._prev_action = np.zeros(obs.shape[0], dtype=np.int32)
                 self._prev_reward = np.zeros(obs.shape[0])
-        mask = 1 - reset
-        if np.any(reset):
-            self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
-            if self._additional_input:
-                self._prev_action = self._prev_action * mask
-                self._prev_reward = self._prev_reward * mask
-        if evaluation:
-            action, self._state = self.q.action(
+        mask = 1 - reset   # mask is applied in LSTM
+        prev_state = self._state
+        out, self._state = self.q.action(
                 obs, self._state, True, 
                 prev_action=self._prev_action,
                 prev_reward=self._prev_reward)
-            if self._additional_input:
-                self._prev_action = action
-            return action.numpy()
-        else:
-            prev_state = self._state
-            action, terms, self._state = self.q.action(
-                obs, self._state, False, eps,
-                prev_action=self._prev_action,
-                prev_reward=self._prev_reward)
-            action = action.numpy()
+        out = tf.nest.map_structure(lambda x: x.numpy(), out)
+        if not evaluation:
+            terms = out[1]
             if self._store_state:
                 terms.update(prev_state._asdict())
-            terms = tf.nest.map_structure(lambda x: np.squeeze(x.numpy()), terms)
             terms['mask'] = mask
-            terms['prev_action'] = self._prev_action
-            terms['prev_reward'] = self._prev_reward
-
-            self._state = state
-            if self._additional_input:
-                self._prev_action = action
-            return action, terms
-
-    @step_track
-    def learn_log(self, step):
-        for i in range(self.N_UPDATES):
-            with TBTimer('sample', 1000):
-                data = self.dataset.sample()
-            if self._is_per:
-                idxes = data.pop('idxes').numpy()
-
-            with TBTimer('learn', 1000):
-                terms = self.learn(**data)
-            if self._to_sync(self.train_step+i):
-                self._sync_target_nets()
-
-            if self._schedule_lr:
-                terms['lr'] = self._lr(self._env_step)
-            terms = {k: v.numpy() for k, v in terms.items()}
-
-            if self._is_per:
-                self.dataset.update_priorities(terms['priority'], idxes)
-            self.store(**terms)
-        return self.N_UPDATES
+            if self.model.additional_rnn_input:
+                terms['prev_action'] = self._prev_action
+        if self.model.additional_rnn_input:
+            self._prev_action = out[0] if isinstance(out, tuple) else out
+        return out
 
     @tf.function
-    def _learn(self, obs, action, reward, discount, logpi, mask, state=None, IS_ratio=1):
+    def _learn(self, obs, action, reward, discount, prob, mask, 
+                IS_ratio=1, state=None, additional_rnn_input=[]):
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
-        # prev_action = prev_action * tf.cast(mask, prev_action.dtype)
-        # prev_reward = prev_reward * mask
+        if additional_rnn_input != []:
+            prev_action, prev_reward = additional_rnn_input
+            prev_action = tf.concat([prev_action, action[:, :-1]], axis=1)
+            prev_reward = tf.concat([prev_reward, reward[:, :-1]], axis=1)
+            add_inp = [prev_action, prev_reward]
+        else:
+            add_inp = additional_rnn_input
         mask = tf.expand_dims(mask, -1)
         with tf.GradientTape() as tape:
-            embed = self.q.cnn(obs)
-            t_embed = self.target_q.cnn(obs)
+            embed = self.encoder(obs)
+            t_embed = self.target_encoder(obs)
             if self._burn_in:
                 bis = self._burn_in_size
                 ss = self._sample_size - bis
                 bi_embed, embed = tf.split(embed, [bis, ss+1], 1)
                 tbi_embed, t_embed = tf.split(t_embed, [bis, ss+1], 1)
-                bi_prev_action, prev_action = tf.split(prev_action, [bis, ss+1], 1)
-                bi_prev_reward, prev_reward = tf.split(prev_reward, [bis, ss+1], 1)
+                if add_inp != []:
+                    bi_add_inp, add_inp = zip(
+                        *[tf.split(v, [bis, ss+1]) for v in add_inp])
+                else:
+                    bi_add_inp = []
                 bi_mask, mask = tf.split(mask, [bis, ss+1], 1)
                 bi_discount, discount = tf.split(discount, [bis, ss], 1)
-                _, logpi = tf.split(logpi, [bis, ss], 1)
-                if self._additional_input:
-                    pa, pr = bi_prev_action, bi_prev_reward
-                else:
-                    pa, pr = None, None
-                _, o_state = self.q.rnn(bi_embed, state, bi_mask,
-                    prev_action=pa, prev_reward=pr)
-                _, t_state = self.target_q.rnn(tbi_embed, state, bi_mask,
-                    prev_action=pa, prev_reward=pr)
+                _, prob = tf.split(prob, [bis, ss], 1)
+                _, o_state = self.rnn(bi_embed, state, bi_mask,
+                    additional_input=bi_add_inp)
+                _, t_state = self.target_rnn(tbi_embed, state, bi_mask,
+                    additional_input=bi_add_inp)
                 o_state = tf.nest.map_structure(tf.stop_gradient, o_state)
             else:
                 o_state = t_state = state
                 ss = self._sample_size
-            if self._additional_input:
-                pa, pr = prev_action, prev_reward
-            else:
-                pa, pr = None, None
-            x, _ = self.q.rnn(embed, o_state, mask,
-                prev_action=pa, prev_reward=pr)
-            t_x, _ = self.target_q.rnn(t_embed, t_state, mask,
-                prev_action=pa, prev_reward=pr)
+
+            x, _ = self.rnn(embed, o_state, mask,
+                additional_input=add_inp)
+            t_x, _ = self.target_rnn(t_embed, t_state, mask,
+                additional_input=add_inp)
             
             curr_x = x[:, :-1]
             next_x = x[:, 1:]
             t_next_x = t_x[:, 1:]
-            curr_action = prev_action[:, 1:]
-            next_action = prev_action[:, 2:]
-            reward = prev_reward[:, 1:]
+            curr_action = action[:, :-1]
+            next_action = action[:, 1:]
             discount = discount * self._gamma
             
-            q = self.q.mlp(curr_x, curr_action)
-            next_qs = self.q.mlp(next_x)    # TODO: remove this
+            q = self.q(curr_x, curr_action)
+            next_qs = self.q.action(next_x)
             new_next_action = tf.argmax(next_qs, axis=-1, output_type=tf.int32)
-            t_next_q = self.target_q.mlp(t_next_x, new_next_action)
-            next_pi = tf.math.equal(new_next_action, next_action)
-            next_pi = tf.cast(next_pi, logpi.dtype)
-            next_mu = tf.math.exp(logpi[:, 1:])
-            next_ratio = next_pi / next_mu
+            next_pi = tf.one_hot(new_next_action, self._action_dim, dtype=tf.float32)
+            t_next_qs = self.target_q(t_next_x)
+            next_mu_a = prob[:, 1:]
             returns = retrace(
-                reward, q, t_next_q, 
-                next_ratio, discount, 
+                reward, t_next_qs, next_action, 
+                next_pi, next_mu_a, discount,
                 lambda_=self._lambda, 
                 axis=1, tbo=self._tbo)
             returns = tf.stop_gradient(returns)
@@ -226,9 +175,8 @@ class Agent(DQNBase):
             [q, (None, ss)],
             [next_qs, (None, ss, self._action_dim)],
             [next_action, (None, ss-1)],
-            [curr_action, (None, ss)],
-            [next_pi, (None, ss-1)],
-            [next_ratio, (None, ss-1)],
+            [curr_action, (None, ss)√],
+            [next_pi, (None, ss, self._action_dim)],
             [returns, (None, ss)],
             [error, (None, ss)],
             [IS_ratio, (None,)],
@@ -262,5 +210,6 @@ class Agent(DQNBase):
 
     @tf.function
     def _sync_target_nets(self):
-        [tv.assign(mv) for mv, tv in zip(
-            self.q.trainable_variables, self.target_q.trainable_variables)]
+        mvars = [v.variables for v in [self.encoder, self.rnn, self.q]]
+        tvars = [v.variables for v in [self.target_encoder, self.target_rnn, self.target_q]]
+        [tv.assign(mv) for mv, tv in zip(mvars, tvars)]

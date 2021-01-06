@@ -147,7 +147,7 @@ class TestClass:
         from env.dummy import Dummy
         for burn_in_size in np.random.randint(1, config['sample_size'], 3):
             config['burn_in_size'] = burn_in_size
-            replay = create_replay(config, state_keys=['h', 'c', 'prev_reward'])
+            replay = create_replay(config, state_keys=['h', 'c'])
             env = Dummy()
             o = env.reset()
             prev_reward = 0
@@ -155,12 +155,11 @@ class TestClass:
                 no, r, d, _ = env.step()
                 h = np.ones(2) * r
                 c = np.ones(2) * r
-                replay.add(obs=o, reward=r, discount=d, h=h, c=c, prev_reward=prev_reward)
+                replay.add(obs=o, reward=r, discount=d, h=h, c=c)
                 if replay.good_to_learn():
                     data = replay.sample()
                     np.testing.assert_equal(data['reward'][:, 0], data['h'][:, 0])
                     np.testing.assert_equal(data['obs'][:, 0, 0], data['c'][:, 0])
-                    np.testing.assert_equal(data['prev_reward'][:], data['reward'][:, 0]-1)
                 if d: 
                     o = env.reset()
                     prev_reward = 0

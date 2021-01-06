@@ -33,6 +33,7 @@ class DQNBase(BaseAgent):
     def __init__(self, *, dataset, env):
         self._is_per = self._replay_type.endswith('per')
         self.dataset = dataset
+        self._obs_shape = env.obs_shape
         self._action_dim = env.action_dim
         self._return_stats = getattr(self, '_return_stats', False)
         self._schedule_act_eps = env.n_envs == 1 and self._schedule_act_eps
@@ -58,7 +59,10 @@ class DQNBase(BaseAgent):
 
     def __call__(self, x, evaluation=False, **kwargs):
         eps = self._get_eps(evaluation)
-
+        if x.ndim % 2 != 0:
+            x = np.expand_dims(x, 0)    # add batch dimension
+        assert x.ndim in (2, 4), x.shape
+        
         x = tf.convert_to_tensor(x)
         action = self.model.action(
             x, 
@@ -97,7 +101,7 @@ class DQNBase(BaseAgent):
                 self._summary(data, terms)
 
             terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
-            if getattr(self, '_use_is_ratio', self._is_per):
+            if self._is_per:
                 self.dataset.update_priorities(terms['train/priority'], idxes)
 
             self.store(**terms)

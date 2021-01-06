@@ -8,7 +8,6 @@ from core.module import Module, Ensemble
 from core.decorator import config
 from utility.rl_utils import epsilon_greedy
 from nn.func import Encoder, mlp
-from nn.layers import Noisy
 
 
 class Q(Module):

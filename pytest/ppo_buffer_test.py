@@ -20,8 +20,8 @@ config = dict(
 
 class TestClass:
     def test_gae0(self):
-        from algo.ppo.buffer import PPOBuffer
-        buffer = PPOBuffer(config)
+        from algo.ppo.buffer import Buffer
+        buffer = Buffer(config)
         n_envs = config['n_envs']
         n_steps = config['N_STEPS']
         d = np.zeros(n_envs)
@@ -34,8 +34,7 @@ class TestClass:
         last_value = np.random.rand(n_envs)
         buffer.finish(last_value)
 
-        memory = {k: v.copy().reshape((n_envs, -1)) for k, v in buffer._memory.items()}
-        mb_returns = np.zeros_like(memory['reward'])
+        memory = {k: v.copy().reshape(n_envs, -1) for k, v in buffer._memory.items()}
         mb_advs = np.zeros_like(memory['reward'])
         lastgaelam = 0
         for t in reversed(range(buffer._idx)):
@@ -51,87 +50,11 @@ class TestClass:
 
         np.testing.assert_allclose(mb_advs, memory['advantage'], atol=1e-5)
         
-    # def test_gae1(self):
-    #     from algo.ppo1.buffer import PPOBuffer
-    #     buffer = PPOBuffer(config)
-    #     n_envs = config['n_envs']
-    #     n_steps = config['n_steps']
-    #     d = np.zeros(n_envs)
-    #     m = np.ones(n_envs)
-    #     for i in range(n_steps):
-    #         r = np.random.rand(n_envs)
-    #         v = np.random.rand(n_envs)
-    #         if np.random.randint(2):
-    #             d[np.random.randint(n_envs)] = 1
-    #         buffer.add(reward=r, value=v, discount=1-d, mask=m)
-    #         m = 1 - d
-    #         # if np.all(d == 1):
-    #         #     break
-    #     last_value = np.random.rand(n_envs)
-    #     buffer.finish(last_value)
-
-    #     memory = {k: v.copy() for k, v in buffer._memory.items()}
-    #     # implementation originally from openai's baselines
-    #     # modified to add mask
-    #     mb_returns = np.zeros_like(memory['reward'])
-    #     mb_advs = np.zeros_like(memory['reward'])
-    #     lastgaelam = 0
-    #     for t in reversed(range(buffer._idx)):
-    #         if t == buffer._idx - 1:
-    #             nextdiscount = memory['discount'][:, t]
-    #             nextvalues = last_value
-    #         else:
-    #             nextdiscount = memory['discount'][:, t]
-    #             nextvalues = memory['value'][:, t+1]
-    #         delta = memory['reward'][:, t] + gamma * nextvalues * nextdiscount - memory['value'][:, t]
-    #         mb_advs[:, t] = lastgaelam = delta + gae_discount * nextdiscount * lastgaelam
-    #     mb_advs = standardize(mb_advs, mask=memory['mask'])
-
-    #     np.testing.assert_allclose(mb_advs, buffer._memory['advantage'], atol=1e-5)
-        
-    # def test_gae2(self):
-    #     from algo.ppo2.buffer import PPOBuffer
-    #     buffer = PPOBuffer(config)
-    #     n_envs = config['n_envs']
-    #     n_steps = config['n_steps']
-    #     d = np.zeros(n_envs)
-    #     m = np.ones(n_envs)
-    #     for i in range(n_steps):
-    #         r = np.random.rand(n_envs)
-    #         v = np.random.rand(n_envs)
-    #         if np.random.randint(2):
-    #             d[np.random.randint(n_envs)] = 1
-    #         buffer.add(reward=r, value=v, discount=1-d, mask=m)
-    #         m = 1 - d
-    #         # if np.all(d == 1):
-    #         #     break
-    #     last_value = np.random.rand(n_envs)
-    #     buffer.finish(last_value)
-
-    #     memory = {k: v.copy() for k, v in buffer._memory.items()}
-    #     # implementation originally from openai's baselines
-    #     # modified to add mask
-    #     mb_returns = np.zeros_like(memory['reward'])
-    #     mb_advs = np.zeros_like(memory['reward'])
-    #     lastgaelam = 0
-    #     for t in reversed(range(buffer._idx)):
-    #         if t == buffer._idx - 1:
-    #             nextdiscount = memory['discount'][:, t]
-    #             nextvalues = last_value
-    #         else:
-    #             nextdiscount = memory['discount'][:, t]
-    #             nextvalues = memory['value'][:, t+1]
-    #         delta = memory['reward'][:, t] + gamma * nextvalues * nextdiscount - memory['value'][:, t]
-    #         mb_advs[:, t] = lastgaelam = delta + gae_discount * nextdiscount * lastgaelam
-    #     mb_advs = standardize(mb_advs, mask=memory['mask'])
-
-    #     np.testing.assert_allclose(mb_advs, buffer._memory['advantage'], atol=1e-5)
-        
-    def test_gae3(self):
-        from algo.ppo2.buffer import PPOBuffer
+    def test_gae2(self):
+        from algo.ppo2.buffer import Buffer
         for prec in [16, 32]:
             config['precision'] = prec
-            buffer = PPOBuffer(config)
+            buffer = Buffer(config, state_keys=['h', 'c'])
             n_envs = config['n_envs']
             n_steps = config['N_STEPS']
             d = np.zeros(n_envs)
@@ -149,7 +72,6 @@ class TestClass:
             buffer.finish(last_value)
 
             memory = {k: v.copy().reshape((n_envs, -1)) for k, v in buffer._memory.items()}
-            mb_returns = np.zeros_like(memory['reward'])
             mb_advs = np.zeros_like(memory['reward'])
             lastgaelam = 0
             for t in reversed(range(buffer._idx)):

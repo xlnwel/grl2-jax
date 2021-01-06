@@ -84,7 +84,7 @@ def main(env_config, model_config, agent_config, buffer_config):
         eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1
     eval_env_config['n_envs'] = 4
-    for k in eval_env_config.keys():
+    for k in list(eval_env_config.keys()):
         # pop reward hacks
         if 'reward' in k:
             eval_env_config.pop(k)

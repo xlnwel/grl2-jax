@@ -1,8 +1,12 @@
+import logging
 import numpy as np
 
 from core.decorator import config
 from replay.utils import init_buffer, print_buffer
-from algo.ppo.buffer import compute_gae, compute_nae
+from algo.ppo.buffer import compute_indices, compute_gae, compute_nae
+
+
+logger = logging.getLogger(__name__)
 
 class Buffer:
     @config
@@ -12,12 +16,13 @@ class Buffer:
         size = self._n_envs * self.N_STEPS // self._sample_size
         self._mb_size = size // self.N_MBS
         self._idxes = np.arange(size)
+        self._shuffled_idxes = np.arange(size)
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
         self._state_keys = state_keys
         self.reset()
-        print(f'Batch size: {size} chunks of {self._sample_size} timesteps')
-        print(f'Mini-batch size: {self._mb_size} chunks of {self._sample_size} timesteps')
+        logger.info(f'Batch size: {size} chunks of {self._sample_size} timesteps')
+        logger.info(f'Mini-batch size: {self._mb_size} chunks of {self._sample_size} timesteps')
 
     def __getitem__(self, k):
         return self._memory[k]
@@ -52,23 +57,37 @@ class Buffer:
         else:
             raise ValueError(f'Unknown field: {field}. Valid fields: ("all", "mb")')
 
+    def update_value_with_func(self, fn):
+        assert self._mb_idx == 0, f'Unfinished sample: self._mb_idx({self._mb_idx}) != 0'
+        mb_idx = 0
+        for start in range(0, self._size, self._mb_size):
+            end = start + self._mb_size
+            curr_idxes = self._idxes[start:end]
+            obs = self._memory['obs'][curr_idxes]
+            state = (self._memory[k][curr_idxes, 0] for k in self._state_keys)
+            mask = self._memory['mask'][curr_idxes]
+            value, state = fn(obs, state=state, mask=mask, return_state=True)
+            self.update('value', value, mb_idxes=curr_idxes)
+        
+        assert mb_idx == 0, mb_idx
+
     def sample(self):
         assert self._ready
         if self._shuffle and self._mb_idx == 0:
-            np.random.shuffle(self._idxes)
-        start = self._mb_idx * self._mb_size
-        end = (self._mb_idx + 1) * self._mb_size
-        self._mb_idx = (self._mb_idx + 1) % self.N_MBS
+            np.random.shuffle(self._shuffled_idxes)
+        self._mb_idx, self._curr_idxes = compute_indices(
+            self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_MBS)
 
-        sample = {k: self._memory[k][self._idxes[start:end]][:, 0] 
+        sample = {k: self._memory[k][self._curr_idxes, 0]
             if k in self._state_keys 
-            else self._memory[k][self._idxes[start:end]] 
+            else self._memory[k][self._curr_idxes] 
             for k in self._sample_keys}
         
         return sample
 
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
+        self.reshape_to_store()
         if self._adv_type == 'nae':
             self._memory['advantage'], self._memory['traj_ret'] = \
                 compute_nae(reward=self._memory['reward'], 
@@ -88,16 +107,20 @@ class Buffer:
         else:
             raise NotImplementedError
 
-        for k, v in self._memory.items():
-            self._memory[k] = np.reshape(v, (-1, self._sample_size, *v.shape[2:]))
-            
+        self.reshape_to_sample()
         self._ready = True
 
     def reset(self):
         self._idx = 0
         self._mb_idx = 0
         self._ready = False
-
+        self.reshape_to_store()
+    
+    def reshape_to_sample(self):
+        for k, v in self._memory.items():
+            self._memory[k] = np.reshape(v, (-1, self._sample_size, *v.shape[2:]))
+    
+    def reshape_to_store(self):
         self._memory = {
-            k: np.reshape(v, (self._n_envs, -1, *v.shape[2:]))
+            k: np.reshape(v, (self._n_envs, self.N_STEPS, *v.shape[2:]))
             for k, v in self._memory.items()}
