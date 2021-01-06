@@ -76,7 +76,7 @@ class PERBase(Replay):
 
 class ProportionalPER(PERBase):
     """ Interface """
-    def __init__(self, config):
+    def __init__(self, config, **kwargs):
         super().__init__(config)
         self._data_structure = SumTree(self._capacity)        # mem_idx    -->     priority
         self._use_is_ratios = getattr(self, '_use_is_ratios', True)

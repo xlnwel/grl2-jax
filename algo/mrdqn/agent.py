@@ -1,16 +1,14 @@
 import numpy as np
 import tensorflow as tf
 
-from utility.display import pwc
 from utility.rl_utils import *
 from utility.utils import Every
-from utility.schedule import TFPiecewiseSchedule, PiecewiseSchedule
+from utility.schedule import TFPiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
-from core.base import BaseAgent
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
-
+from algo.dqn.base import DQNBase
 
 def get_data_format(env, batch_size, sample_size=None, 
         is_per=False, store_state=False, state_size=None, 
@@ -37,9 +35,10 @@ def get_data_format(env, batch_size, sample_size=None,
 
     return data_format
 
-class Agent(BaseAgent):
+class Agent(DQNBase):
     @agent_config
-    def __init__(self, *, dataset, env):
+    def __init__(self, *, config, dataset, env):
+        super()
         self._is_per = self._replay_type.endswith('per')
         self.dataset = dataset
 
@@ -48,14 +47,22 @@ class Agent(BaseAgent):
 
         self._optimizer = Optimizer(self._optimizer, self.q, self._lr, 
             clip_norm=self._clip_norm, epsilon=self._epsilon)
-
+    def _add_attributes(self):
         self._state = None
         self._prev_action = None
         self._prev_reward = None
 
         self._obs_shape = env.obs_shape
         self._action_dim = env.action_dim
+    def _construct_optimizers(self):
+        if self._schedule_lr:
+            self._lr = TFPiecewiseSchedule( [(5e5, self._lr), (2e6, 5e-5)])
+        models = [self.encoder, self.rnn, self.q]
+        self._optimizer = Optimizer(
+            self._optimizer, models, self._lr, clip_norm=self._clip_norm)
 
+
+    def _build_learn(self, env):
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
             obs=((self._sample_size+1, *env.obs_shape), tf.float32, 'obs'),
@@ -75,9 +82,6 @@ class Agent(BaseAgent):
             )
         self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
 
-        self._to_sync = Every(self._target_update_period)
-        self._sync_target_nets()
-
     def reset_states(self, state=None):
         if state is None:
             self._state, self._prev_action, self._prev_reward = None, None, None
@@ -90,15 +94,15 @@ class Agent(BaseAgent):
     def __call__(self, obs, reset=np.zeros(1), evaluation=False, env_output=0, **kwargs):
         if self._additional_input:
             self._prev_reward = env_output.reward
-        eps = self._act_eps
+        eps = self._get_eps(evaluation)
         obs = np.reshape(obs, (-1, *self._obs_shape))
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=tf.shape(obs)[0])
             if self._additional_input:
-                self._prev_action = tf.zeros(tf.shape(obs)[0])
-                self._prev_reward = tf.zeros(tf.shape(obs)[0])
+                self._prev_action = np.zeros(obs.shape[0], dtype=np.int32)
+                self._prev_reward = np.zeros(obs.shape[0])
+        mask = 1 - reset
         if np.any(reset):
-            mask = tf.cast(1. - reset, tf.float32)
             self._state = tf.nest.map_structure(lambda x: x * mask, self._state)
             if self._additional_input:
                 self._prev_action = self._prev_action * mask
@@ -112,20 +116,23 @@ class Agent(BaseAgent):
                 self._prev_action = action
             return action.numpy()
         else:
-            action, terms, state = self.q.action(
+            prev_state = self._state
+            action, terms, self._state = self.q.action(
                 obs, self._state, False, eps,
                 prev_action=self._prev_action,
                 prev_reward=self._prev_reward)
-            
+            action = action.numpy()
             if self._store_state:
-                terms.update(state._asdict())
-            terms['mask'] = mask
+                terms.update(prev_state._asdict())
             terms = tf.nest.map_structure(lambda x: np.squeeze(x.numpy()), terms)
+            terms['mask'] = mask
+            terms['prev_action'] = self._prev_action
+            terms['prev_reward'] = self._prev_reward
 
             self._state = state
             if self._additional_input:
                 self._prev_action = action
-            return action.numpy(), terms
+            return action, terms
 
     @step_track
     def learn_log(self, step):
@@ -150,12 +157,12 @@ class Agent(BaseAgent):
         return self.N_UPDATES
 
     @tf.function
-    def _learn(self, obs, prev_action, prev_reward, discount, logpi, mask, state=None, IS_ratio=1):
+    def _learn(self, obs, action, reward, discount, logpi, mask, state=None, IS_ratio=1):
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
-        prev_action = prev_action * tf.cast(mask, prev_action.dtype)
-        prev_reward = prev_reward * mask
+        # prev_action = prev_action * tf.cast(mask, prev_action.dtype)
+        # prev_reward = prev_reward * mask
         mask = tf.expand_dims(mask, -1)
         with tf.GradientTape() as tape:
             embed = self.q.cnn(obs)
@@ -200,13 +207,14 @@ class Agent(BaseAgent):
             discount = discount * self._gamma
             
             q = self.q.mlp(curr_x, curr_action)
-            next_qs = self.q.mlp(next_x)
+            next_qs = self.q.mlp(next_x)    # TODO: remove this
             new_next_action = tf.argmax(next_qs, axis=-1, output_type=tf.int32)
             t_next_q = self.target_q.mlp(t_next_x, new_next_action)
-            new_next_prob = tf.math.equal(new_next_action[:, :-1], next_action)
-            new_next_prob = tf.cast(new_next_prob, logpi.dtype)
-            next_ratio = new_next_prob / tf.math.exp(logpi[:, 1:])
-            returns = retrace_lambda(
+            next_pi = tf.math.equal(new_next_action, next_action)
+            next_pi = tf.cast(next_pi, logpi.dtype)
+            next_mu = tf.math.exp(logpi[:, 1:])
+            next_ratio = next_pi / next_mu
+            returns = retrace(
                 reward, q, t_next_q, 
                 next_ratio, discount, 
                 lambda_=self._lambda, 
@@ -219,7 +227,7 @@ class Agent(BaseAgent):
             [next_qs, (None, ss, self._action_dim)],
             [next_action, (None, ss-1)],
             [curr_action, (None, ss)],
-            [new_next_prob, (None, ss-1)],
+            [next_pi, (None, ss-1)],
             [next_ratio, (None, ss-1)],
             [returns, (None, ss)],
             [error, (None, ss)],

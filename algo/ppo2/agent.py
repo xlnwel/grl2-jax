@@ -3,9 +3,7 @@ import tensorflow as tf
 
 from core.tf_config import build
 from core.decorator import agent_config
-from nn.rnn import LSTMState
 from algo.ppo.base import PPOBase
-from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
 class Agent(PPOBase):
@@ -14,8 +12,9 @@ class Agent(PPOBase):
         super().__init__(dataset=dataset, env=env)
 
         # previous and current state of LSTM
-        self._state = self.model.get_initial_state(batch_size=env.n_envs)
+        self._state = None
         self._prev_action = None
+        self._prev_reward = None
         self._action_dim = env.action_dim
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
@@ -31,6 +30,11 @@ class Agent(PPOBase):
             state_type = type(self.model.state_size)
             TensorSpecs['state'] = state_type(*[((sz, ), self._dtype, name) 
                 for name, sz in self.model.state_size._asdict().items()])
+        if self.model.additional_rnn_input:
+            TensorSpecs['additional_rnn_input'] = [(
+                ((self._sample_size, self._action_dim), self._dtype, 'prev_action'),
+                ((self._sample_size, 1), self._dtype, 'prev_reward'),
+            )]
         self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
 
     def reset_states(self, states=None):
@@ -40,31 +44,55 @@ class Agent(PPOBase):
             self._state, self._prev_action, self._prev_reward= states
 
     def get_states(self):
-        return self._state, self._prev_action
+        return self._state, self._prev_action, self._prev_reward
 
-    def __call__(self, obs, reset=None, evaluation=False, 
-                update_curr_state=True, **kwargs):
-        if len(obs.shape) % 2 != 0:
+    def record_last_obs(self, env_output):
+        self.update_obs_rms(env_output.obs)
+        self._last_obs = self.normalize_obs(env_output.obs)
+        self._mask = 1 - env_output.reset
+
+    def compute_value(self, obs=None, state=None, mask=None, prev_action=None, prev_reward=None):
+        # be sure you normalize obs first if obs normalization is required
+        obs = obs or self._last_obs
+        mask = mask or self._mask
+        state = state or self._state
+        prev_action = prev_action or self._prev_action
+        prev_reward = prev_reward or self._prev_reward
+        value = self.model.compute_value(self._last_obs,
+            state, mask, prev_action, prev_reward)
+        return value.numpy()
+
+    def __call__(self, obs, reset=np.zeros(1), evaluation=False, 
+                env_output=None, **kwargs):
+        if obs.ndim % 2 != 0:
             obs = np.expand_dims(obs, 0)    # add batch dimension
-        assert len(obs.shape) in (2, 4), obs.shape  
+        assert obs.ndim in (2, 4), obs.shape
+        # update rms and normalize
+        if not evaluation:
+            self.update_obs_rms(obs)
+            self.update_reward_rms(env_output.reward, env_output.discount)
+        obs = self.normalize_obs(obs)
+        self._prev_reward = self.normalize_reward(env_output.reward)
+
         if self._state is None:
             self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
-            self._prev_action = tf.zeros(tf.shape(obs)[0], dtype=tf.int32)
-        if reset is None:
-            mask = tf.ones(tf.shape(obs)[0], dtype=tf.float32)
-        else:
-            mask = tf.cast(1. - reset, tf.float32)
-        obs = self.normalize_obs(obs)
+            if self.model.additional_rnn_input:
+                self._prev_action = np.zeros(obs.shape[0], dtype=np.int32)
+                self._prev_reward = np.zeros(obs.shape[0])
+        mask = 1. - reset   # mask is applied in LSTM
         prev_state = self._state
-        out, state = self.model.action(obs, self._state, mask, self._deterministic_evaluation)
-        if update_curr_state:
-            self._state = state
+        out, self._state = self.model.action(obs, self._state, mask, evaluation,
+            prev_action=self._prev_action, prev_reward=self._prev_reward)
+        out = tf.nest.map_structure(lambda x: x.numpy, out)
         if evaluation:
             return out.numpy()
         else:
             action, terms = out
-            terms['mask'] = mask
             if self._store_state:
                 terms.update(prev_state._asdict())
-            terms = tf.nest.map_structure(lambda x: x.numpy(), terms)
-            return action.numpy(), terms
+            terms['mask'] = mask
+            if self.model.additional_rnn_input:
+                terms['prev_action'] = self._prev_action
+                terms['reward'] = self._prev_reward
+                self._prev_action = action
+            return action, terms

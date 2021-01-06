@@ -68,6 +68,10 @@ class RunningMeanStd(object):
         self._count = epsilon
         self._clip = clip
 
+    @property
+    def axis(self):
+        return self._axis
+
     def get_stats(self):
         return self._mean, self._var, self._count
 

@@ -21,7 +21,7 @@ This repository is implemented with *Tensorflow2.1* and *ray0.8.4* for distribut
 ```
 python run/train.py algo -e env
 ```
-For available `algo`, please refer to the folder names in `/algo`. To run distributed algorithms, `algo` should be of form `distributed_architecture-algorithm`. For example, if you want to run Ape-X with DQN, replace 'algo' with `apex-dqn`. Currently supported distributed algorithms only include `apex-sac`, `apex-dqn`, `seed-dreamer`.
+For available `algo`, please refer to the folder names in `/algo`. To run distributed algorithms, `algo` should be of form `distributed_architecture-algorithm`. For example, if you want to run Ape-X with DQN, replace 'algo' with `apex-dqn`.
 
 
 ## Reference Papers
@@ -64,11 +64,13 @@ https://github.com/google/dopamine
 
 https://github.com/deepmind/dnc
 
-https://github.com/danijar/dreamer
+https://github.com/deepmind/trfl
 
 https://github.com/google-research/seed_rl
 
-https://github.com/ku2482
+https://github.com/danijar/dreamer
+
+https://github.com/microsoft/FQF
 
 ## Acknowledge
 

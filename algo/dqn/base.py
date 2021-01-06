@@ -57,14 +57,7 @@ class DQNBase(BaseAgent):
         pass
 
     def __call__(self, x, evaluation=False, **kwargs):
-        if evaluation:
-            eps = self._eval_act_eps
-        else:
-            if self._schedule_act_eps:
-                eps = self._act_eps.value(self.env_step)
-                self.store(act_eps=eps)
-            else:
-                eps = self._act_eps
+        eps = self._get_eps(evaluation)
 
         x = tf.convert_to_tensor(x)
         action = self.model.action(
@@ -75,6 +68,17 @@ class DQNBase(BaseAgent):
         action = tf.nest.map_structure(lambda x: x.numpy(), action)
 
         return action
+
+    def _get_eps(self, evaluation):
+        if evaluation:
+            eps = self._eval_act_eps
+        else:
+            if self._schedule_act_eps:
+                eps = self._act_eps.value(self.env_step)
+                self.store(act_eps=eps)
+            else:
+                eps = self._act_eps
+        return eps
 
     @step_track
     def learn_log(self, step):

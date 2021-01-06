@@ -34,8 +34,9 @@ class SequentialPER(ProportionalPER):
 
         self._tb_idx += 1
         if self._tb_idx == self._sample_size:
-            buff = {k: v[0] if k in self._state_keys 
-                    else convert_dtype(v, precision=self._precision)
+            # for k in self._state_keys:
+            #     assert len(self._temp_buff[k]) == self._temp_buff[k].maxlen, len(self._temp_buff[k])
+            buff = {k: v[0] if k in self._state_keys else v
                     for k, v in self._temp_buff.items()}
             self.merge(buff)
             self._tb_idx -= self._burn_in_size

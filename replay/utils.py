@@ -78,21 +78,21 @@ def print_buffer(buffer, prefix=''):
 
 def adjust_n_steps(data, seqlen, n_steps, max_steps, gamma):
     results = {}
-    logp = data.get('logp', np.zeros_like(data['reward']))
+    kl = data.get('kl', np.zeros_like(data['reward']))
     for k, v in data.items():
         if k == 'q' or k == 'v':
             vs = v
-        elif k == 'logp':
+        elif k == 'kl':
             continue
         else:
             results[k] = v.copy()[:seqlen]
     if max_steps < n_steps:
         max_steps = n_steps
-    ent_rew = data['reward'] - logp
+    reward_kl = data['reward'] - kl
     for i in range(seqlen):
         for j in range(1, max_steps):
             if results['discount'][i] == 1:
-                cum_rew = results['reward'][i] + gamma**j * ent_rew
+                cum_rew = results['reward'][i] + gamma**j * reward_kl
                 if j >= n_steps and cum_rew + gamma**(j+1) * vs[i+j+1] * data['discount'][i+j+1] \
                     <= results['reward'][i] + gamma**j * vs[i+j] * data['discount'][i+j]:
                     print('break', i, j, cum_rew + gamma**(j+1) * vs[i+j+1] * data['discount'][i+j+1], \
@@ -109,22 +109,22 @@ def adjust_n_steps(data, seqlen, n_steps, max_steps, gamma):
 def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
     # we do forward update since updating discount in a backward pass is problematic when max_steps > n_steps
     results = {}
-    logp = data.get('logp', np.zeros_like(data['reward']))
+    kl = data.get('kl', np.zeros_like(data['reward']))
     for k, v in data.items():
         if k == 'q' or k == 'v':
             vs = v
-        elif k == 'logp':
+        elif k == 'kl':
             continue
         else:
             results[k] = v.copy()[:, :seqlen]
     obs_exp_dims = tuple(range(1, data['obs'].ndim-1))
     if max_steps < n_steps:
         max_steps = n_steps
-    ent_rew = data['reward'] - logp
+    reward_kl = data['reward'] - kl
     for i in range(seqlen):
         disc = results['discount'][:, i]
         for j in range(1, max_steps):
-            cum_rew = results['reward'][:, i] + gamma**j * ent_rew[:, i+j] * disc
+            cum_rew = results['reward'][:, i] + gamma**j * reward_kl[:, i+j] * disc
             if j < n_steps:
                 cond = disc == 1
             else:

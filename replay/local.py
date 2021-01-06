@@ -6,6 +6,21 @@ from replay.utils import *
 
 
 class LocalBuffer(ABC):
+    @config
+    def __init__(self):
+        self._memory = {}
+        self._idx = 0
+        self._max_steps = getattr(self, '_max_steps', 0)
+        self._extra_len = max(self._n_steps, self._max_steps)
+        self._memlen = self._seqlen + self._extra_len
+
+    def is_full(self):
+        return self._idx == self._memlen
+
+    @property
+    def seqlen(self):
+        return self._seqlen
+        
     @abstractmethod
     def sample(self):
         raise NotImplementedError
@@ -21,17 +36,6 @@ class LocalBuffer(ABC):
 
 class EnvBuffer(LocalBuffer):
     """ Local memory only stores one episode of transitions from each of n environments """
-    @config
-    def __init__(self):
-        self._memory = {}
-        self._idx = 0
-        self._max_steps = getattr(self, '_max_steps', 0)
-        self._extra_len = max(self._n_steps, self._max_steps)
-        self._memlen = self._seqlen + self._extra_len
-
-    def is_full(self):
-        return self._idx == self._memlen
-
     def reset(self):
         assert self.is_full(), self._idx
         self._idx = self._extra_len
@@ -67,19 +71,8 @@ class EnvBuffer(LocalBuffer):
         return results
 
 
-class EnvVecBuffer:
+class EnvVecBuffer(LocalBuffer):
     """ Local memory only stores one episode of transitions from n environments """
-    @config
-    def __init__(self):
-        self._memory = {}
-        self._idx = 0
-        self._max_steps = getattr(self, '_max_steps', 0)
-        self._extra_len = max(self._n_steps, self._max_steps)
-        self._memlen = self._seqlen + self._extra_len
-
-    def is_full(self):
-        return self._idx == self._memlen
-        
     def reset(self):
         assert self.is_full(), self._idx
         self._idx = self._extra_len
@@ -110,11 +103,21 @@ class EnvVecBuffer:
     def sample(self):
         assert self.is_full(), self._idx
         results = adjust_n_steps_envvec(self._memory, self._seqlen, self._n_steps, self._max_steps, self._gamma)
+        value = None
         for k, v in results.items():
-            results[k] = v[:, :self._seqlen].reshape((-1, *v.shape[2:]))
-        if 'steps' in results:
-            results['steps'] = results['steps'].astype(np.float32)
+            if k in ('q', 'v'):
+                value = results[k]
+                pass
+            else:
+                results[k] = v[:, :self._seqlen].reshape(-1, *v.shape[2:])
+        if value:
+            idx = np.broadcast_to(np.arange(self._seqlen), (self._n_envs, self._seqlen))
+            results['q'] = value[idx]
+            results['next_q'] = value[idx + results.get('steps', 1)]
         if 'mask' in results:
             mask = results.pop('mask')
             results = {k: v[mask] for k, v in results.items()}
+        if 'steps' in results:
+            results['steps'] = results['steps'].astype(np.float32)
+
         return results

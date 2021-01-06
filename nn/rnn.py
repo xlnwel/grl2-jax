@@ -2,6 +2,8 @@ from collections import namedtuple
 import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers, regularizers, constraints
 
+from core.module import Module
+from utility.tf_utils import assert_rank
 
 LSTMState = namedtuple('LSTMState', ['h', 'c'])
 
@@ -122,6 +124,48 @@ class LSTMCell(layers.Layer):
         return LSTMState(
             h=tf.zeros([batch_size, state_size[0]], dtype),
             c=tf.zeros([batch_size, state_size[1]], dtype))
+
+
+class LSTM(Module):
+    def __init__(self, config, name='rnn'):
+        super().__init__(name=name)
+        units = config['units']
+        use_ln = config['use_ln']
+        cell = LSTMCell(units, use_ln=use_ln)
+        self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
+    
+    def call(self, x, state, mask, additional_input=[]):
+        xs = [x]
+        mask = tf.expand_dims(mask, axis=-1)
+        assert_rank(xs + additional_input + [mask], 3)
+        for k in additional_input:
+            k *= mask
+            xs.append(k)
+        x = tf.concat(xs, axis=-1) if len(xs) > 1 else x
+        x = self._rnn((x, mask), initial_state=state)
+        x, state = x[0], LSTMState(*x[1:])
+        return x, state
+
+    def reset_states(self, states=None):
+        self._rnn.reset_states(states)
+
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
+        if inputs is None:
+            assert batch_size is not None
+            inputs = tf.zeros([batch_size, 1, 1])
+        return LSTMState(*self._rnn.get_initial_state(inputs))
+        # if dtype is None:
+        #     dtype = global_policy().compute_dtype
+        # return LSTMState(*tf.nest.map_structure(lambda x: tf.cast(x, dtype), 
+        #             self._rnn.get_initial_state(inputs)))
+
+    @property
+    def state_size(self):
+        return self._rnn.cell.state_size
+
+    @property
+    def state_keys(self):
+        return ['h', 'c']
 
 
 if __name__ == '__main__':

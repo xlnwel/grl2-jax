@@ -115,7 +115,6 @@ class Agent(RNDBase):
         )
         self.learn = build(self._learn, TensorSpecs)
 
-        import collections
         self.eval_reward_int = []
         self.eval_reward_ext = []
         self.eval_action = []

@@ -28,7 +28,7 @@ agent:
     burn_in: True
     sample_size: &ss 20
     burn_in_size: &bis 10
-    additional_input: False
+    additional_rnn_input: False
 
     MAX_STEPS: 8e6
     LOG_PERIOD: &log 1000

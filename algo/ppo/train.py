@@ -35,10 +35,7 @@ def train(agent, env, eval_env, buffer):
         with Timer('env', 1000) as et:
             step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/et.last())
-        agent.update_obs_rms(buffer['obs'])
-        agent.update_reward_rms(buffer['reward'], buffer['discount'])
-        buffer.update('obs', agent.normalize_obs(buffer['obs']), field='all')
-        agent.record_last_obs(runner.env_output.obs)
+        agent.record_last_obs(runner.env_output)
         value = agent.compute_value()
         buffer.finish(value)
 
@@ -48,14 +45,20 @@ def train(agent, env, eval_env, buffer):
         agent.store(tps=(agent.train_step-start_train_step)/tt.last())
         buffer.reset()
 
-        if to_eval(agent.train_step):
+        if to_eval(agent.train_step) or step > agent.MAX_STEPS:
             with TempStore(agent.get_states, agent.reset_states):
-                scores, epslens, video = evaluate(
-                    eval_env, agent, record=agent.RECORD, size=(128, 128))
+                with Timer('eval', 1000) as eval_time:
+                    scores, epslens, video = evaluate(
+                        eval_env, agent, record=agent.RECORD, size=(128, 128))
                 if agent.RECORD:
                     video_summary(f'{agent.name}/sim', video, step=step)
-                agent.store(eval_score=scores, eval_epslen=epslens)
-        agent.store(env_time=et.total(), train_time=tt.total())
+                agent.store(
+                    eval_score=scores, 
+                    eval_epslen=epslens, 
+                    eval_time=eval_time.total())
+        agent.store(
+            env_time=et.total(), 
+            train_time=tt.total())
         if to_log(agent.train_step) and 'score' in agent._logger:
             agent.log(step)
             agent.save()

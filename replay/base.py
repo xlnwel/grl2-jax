@@ -8,7 +8,7 @@ from replay.utils import *
 class Replay(ABC):
     """ Interface """
     @config
-    def __init__(self):
+    def __init__(self, **kwargs):
         # params for general replay buffer
         self._min_size = max(self._min_size, self._batch_size*10)
         self._pre_dims = (self._capacity, )

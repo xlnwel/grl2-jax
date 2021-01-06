@@ -67,7 +67,7 @@ def change_config(kw, model_name, env_config, model_config, agent_config, replay
             assert configs, f'"{s}" does not appear in any config!'
             if len(configs) > 1:
                 pwc(f'All {key} appeared in the following configs will be changed: '
-                        + f'{list([n for n, _ in configs])}.\n', color='cyan')
+                        + f'{list([n for n, _ in configs])}.', color='cyan')
                 
             for _, c in configs:
                 c[key]  = value

@@ -205,6 +205,38 @@ class FrameDiff(gym.Wrapper):
         return new_obs, rew, done, info
 
 
+class CumulativeRewardObs(gym.Wrapper):
+    """Append cumulative reward to observation
+    """
+    def __init__(self, env, obs_reward_scale):
+        super().__init__(env)
+
+        self._cumulative_reward = 0
+        self._reward_scale = obs_reward_scale
+        low = self.env.observation_space.low
+        high = self.env.observation_space.high
+        reward_channel_low = np.zeros((*low.shape[:-1], 1), dtype=np.float32)
+        reward_channel_high = np.ones((*high.shape[:-1], 1), dtype=np.float32) * np.inf
+        low = np.concatenate([low, reward_channel_low], axis=-1)
+        high = np.concatenate([high, reward_channel_high], axis=-1)
+        self.observation_space = gym.spaces.Box(low=low, high=high, dtype=low.dtype)
+
+    def _get_ob(self, ob):
+        reward_channel = np.ones((*ob.shape[:-1], 1), dtype=np.float32) \
+            * self._reward_scale * self._cumulative_reward
+        return np.concatenate([ob, reward_channel], axis=-1)
+
+    def reset(self):
+        ob = self.env.reset()
+        self._cumulative_reward = 0
+        return self._get_ob(ob)
+
+    def step(self, action):
+        ob, reward, done, info = self.env.step(action)
+        self._cumulative_reward += reward
+        return self._get_ob(ob), reward, done, info
+
+
 class DataProcess(gym.Wrapper):
     def __init__(self, env, precision=32):
         super().__init__(env)

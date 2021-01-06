@@ -91,7 +91,7 @@ agent:
     schedule_lr: False
     lr: 5e-4
     clip_norm: 0.5
-    opt_eps: 1e-8
+    opt_eps: 1e-7
     # arguments for loss
     clip_range: .2          # clip range for ppo
     entropy_coef: .01

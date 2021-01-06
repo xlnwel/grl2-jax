@@ -2,21 +2,22 @@
 
 
 algos=(
+    ppo
+    ppo2
     # ppg
-    iqn
-    # apex-fqf
-    # sacdiqn2
+    # apex-iqn
+    # apex-sacdiqn2
+    # apex-sacdiqn2
     # sacdiqn5
 )
 suite=procgen
 envs=(
-    chaser
-    # "ninja"
     plunder
-    bigfish
+    # chaser
+    # bigfish
     # starpilot
     # coinrun
-    # miner 
+    # miner
     # caveflyer 
     # climber
     # dodgeball 
@@ -24,9 +25,11 @@ envs=(
     # jumper
     # fruitbot
     # heist
+    # ninja
     # bossfight
+    # maze
 )
-args1=(1)
+args1=(mse)
 args2=(2l)
 args3=(conv_maxblurpool)
 

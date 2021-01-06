@@ -73,12 +73,10 @@ class IMPALACNN(Module):
             t = x.shape[1]
             x = tf.reshape(x, [-1, *x.shape[2:]])
         x = super().call(x, training=training)
+        self.cnn_out = x
+        x = self._flat(x)
         if self._time_distributed:
             x = tf.reshape(x, [-1, t, *x.shape[1:]])
-        z = self._flat(x)
         if self.out_size:
-            z = self._dense(z)
-        if return_cnn_out:
-            return z, x
-        else:
-            return z
+            x = self._dense(x)
+        return x

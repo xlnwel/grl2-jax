@@ -9,7 +9,7 @@ env:
 model:
     cnn_name: nature
     out_size: null
-    additional_input: &ai False
+    additional_rnn_input: &ai False
     lstm_units: 512
     units_list: [512]
     activation: relu
@@ -27,7 +27,7 @@ agent:
     burn_in: True
     sample_size: &ss 120
     burn_in_size: &bis 40
-    additional_input: *ai
+    additional_rnn_input: *ai
     act_eps: 0.3
 
     MAX_STEPS: 1e9          # maximum env steps

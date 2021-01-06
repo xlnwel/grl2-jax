@@ -127,9 +127,9 @@ class ProcgenCNN(Module):
             self.state = self._layers[-1].state
         x = self._out_act(x)
         self.cnn_out = x
+        x = self._flat(x)
         if self._time_distributed:
             x = tf.reshape(x, [-1, t, *x.shape[1:]])
-        z = self._flat(x)
         if self.out_size:
-            z = self._dense(z)
-        return z
+            x = self._dense(x)
+        return x

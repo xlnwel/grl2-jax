@@ -45,8 +45,9 @@ class PPOBase(RMSBaseAgent):
     def get_states(self):
         return None
     
-    def record_last_obs(self, obs):
-        self._last_obs = self.normalize_obs(obs)
+    def record_last_obs(self, env_output):
+        self.update_obs_rms(env_output.obs)
+        self._last_obs = self.normalize_obs(env_output.obs)
         
     def compute_value(self, obs=None):
         # be sure you normalize obs first if obs normalization is required
@@ -91,13 +92,13 @@ class PPOBase(RMSBaseAgent):
         tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
 
     @tf.function
-    def _learn(self, obs, action, value, traj_ret, advantage, logpi, state=None, mask=None):
+    def _learn(self, obs, action, value, traj_ret, advantage, logpi, state=None, mask=None, additional_input=[]):
         old_value = value
         terms = {}
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
             if state is not None:
-                self.rnn(x, state, mask=mask)
+                x, _ = self.rnn(x, state, mask=mask, additional_input=additional_input)
             act_dist = self.actor(x)
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
@@ -114,8 +115,9 @@ class PPOBase(RMSBaseAgent):
 
         terms['ac_norm'] = self._optimizer(tape, ac_loss)
         terms.update(dict(
-            value=value,
-            advantage=advantage, 
+            value=tf.reduce_mean(value),
+            traj_ret=tf.reduce_mean(traj_ret), 
+            advantage=tf.reduce_mean(advantage), 
             ratio=tf.exp(log_ratio), 
             entropy=entropy, 
             kl=kl, 

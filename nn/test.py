@@ -29,55 +29,55 @@ def run_module(registry, name, keras_summary=True, shape=(64, 64, 12), **kwargs)
 def run_cnn(*, keras_summary=True, **new_kwargs):
     kwargs = {
         'cnn_name': 'procgen',
-        'obs_range': [0, 1],
-        'filters': [32, 64, 64, 64],
-        'n_blocks': [1, 1, 1, 1],
-        'kernel_initializer': 'glorot_uniform',
-        'stem': 'strided_resv1',
-        'stem_kwargs': {
-            # 'am': 'cbam',
-            # 'am_kwargs': {
-            #     'kernel_size': 1,
-            #     'excitation_type': '2l',
-            #     'sa_on': False,
-            # }
-        },
-        'subsample': 'strided_resv1',
-        'subsample_kwargs': {
-            # 'am': 'cbam',
-            # 'am_kwargs': {
-            #     'kernel_size': 1,
-            #     'excitation_type': '2l',
-            #     'sa_on': False,
-            # }
-        },
-        'block': 'resv1',
-        'block_kwargs': {
-            'conv': 'conv2d',
-            'filter_coefs': [],
-            'kernel_sizes': [3, 3],
-            'norm': None,
-            'norm_kwargs': {},
-            'activation': 'relu',
-            'am': 'cbam',
-            # 'am_kwargs': {
-            #     'kernel_size': 3,
-            #     'excitation_type': '2l',
-            #     'sa_on': False,
-            #     'out_activation': 'sigmoid',
-            # },
-            'rezero': True,
-            'dropout_rate': 0,
-        },
-        'sa': 'conv_sa',
-        'sa_kwargs': {
-            'key_ratio': 8,
-            'val_ratio': 2,
-            'downsample_ratio': 2,
-        },
-        'time_distributed': False,
-        'out_activation': 'relu',
-        'out_size': None,
+        # 'obs_range': [0, 1],
+        # 'filters': [32, 64, 64, 64],
+        # 'n_blocks': [1, 1, 1, 1],
+        # 'kernel_initializer': 'glorot_uniform',
+        # 'stem': 'strided_resv1',
+        # 'stem_kwargs': {
+        #     # 'am': 'cbam',
+        #     # 'am_kwargs': {
+        #     #     'kernel_size': 1,
+        #     #     'excitation_type': '2l',
+        #     #     'sa_on': False,
+        #     # }
+        # },
+        # 'subsample': 'strided_resv1',
+        # 'subsample_kwargs': {
+        #     # 'am': 'cbam',
+        #     # 'am_kwargs': {
+        #     #     'kernel_size': 1,
+        #     #     'excitation_type': '2l',
+        #     #     'sa_on': False,
+        #     # }
+        # },
+        # 'block': 'resv1',
+        # 'block_kwargs': {
+        #     'conv': 'conv2d',
+        #     'filter_coefs': [],
+        #     'kernel_sizes': [3, 3],
+        #     'norm': None,
+        #     'norm_kwargs': {},
+        #     'activation': 'relu',
+        #     'am': 'cbam',
+        #     # 'am_kwargs': {
+        #     #     'kernel_size': 3,
+        #     #     'excitation_type': '2l',
+        #     #     'sa_on': False,
+        #     #     'out_activation': 'sigmoid',
+        #     # },
+        #     'rezero': True,
+        #     'dropout_rate': 0,
+        # },
+        # 'sa': 'conv_sa',
+        # 'sa_kwargs': {
+        #     'key_ratio': 8,
+        #     'val_ratio': 2,
+        #     'downsample_ratio': 2,
+        # },
+        # 'time_distributed': False,
+        # 'out_activation': 'relu',
+        # 'out_size': None,
     }
     from nn.cnn import cnn
     if keras_summary:
@@ -107,20 +107,21 @@ if __name__ == "__main__":
         # 'filters': 8,
         # 'n_blocks': 1
     }
+    # run_cnn(keras_summary=True, cnn_name='procgen')
     # run_module(
     #     am_registry, 
     #     name='se', 
     #     keras_summary=True, 
     #     shape=(64, 64, 12),
     #     **kwargs)
-    import yaml
-    import os
-    path = os.path.abspath('experiments/saciqn.yaml')
-    with open(path) as f:
-        config = yaml.safe_load(f)
-    config = next(iter(config.values()))
-    config = config['config']['model']['custom_model_config']
-    kwargs = config['encoder']
-    for k, v in kwargs.items():
-        print(k, v)
-    run_cnn(keras_summary=True, **kwargs)
+    # import yaml
+    # import os
+    # path = os.path.abspath('experiments/saciqn.yaml')
+    # with open(path) as f:
+    #     config = yaml.safe_load(f)
+    # config = next(iter(config.values()))
+    # config = config['config']['model']['custom_model_config']
+    # kwargs = config['encoder']
+    # for k, v in kwargs.items():
+    #     print(k, v)
+    # run_cnn(keras_summary=True, **kwargs)

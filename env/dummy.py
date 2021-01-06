@@ -10,7 +10,7 @@ class Dummy(gym.Wrapper):
         self._reset_done_interval()
 
     def reset(self):
-        self.count = 0
+        self.count = 1
         self._reset_done_interval()
         return np.ones(self.observation_space.shape) * self.count
     

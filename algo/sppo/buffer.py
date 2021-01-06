@@ -1,6 +1,7 @@
 import numpy as np
 
 from core.decorator import config
+from utility.display import pwc
 from utility.utils import moments, standardize
 from replay.utils import init_buffer, print_buffer
 
@@ -16,20 +17,21 @@ def compute_nae(reward, discount, value, last_value, traj_ret, gamma):
     traj_ret_std = np.maximum(np.sqrt(traj_ret_var), 1e-8)
     value = standardize(value)
     # To have the same mean and std as trajectory return
-    value = (value + traj_ret_mean) / traj_ret_std     
+    value = (value + traj_ret_mean) / traj_ret_std
     advantage = standardize(traj_ret - value)
     traj_ret = standardize(traj_ret)
     return traj_ret, advantage
 
-def compute_gae(reward, discount, value, last_value, gamma, gae_discount):
+def compute_gae(reward, discount, value, last_value, gamma, gae_discount, kl):
     next_value = np.concatenate(
             [value[:, 1:], np.expand_dims(last_value, 1)], axis=1)
-    advs = delta = (reward + discount * gamma * next_value - value)
+    advs = delta = (reward - kl + discount * gamma * next_value - value)
     next_adv = 0
     for i in reversed(range(advs.shape[1])):
         advs[:, i] = next_adv = (delta[:, i] 
             + discount[:, i] * gae_discount * next_adv)
     traj_ret = advs + value
+    advs += kl
     advantage = standardize(advs)
     return traj_ret, advantage
 
@@ -125,6 +127,7 @@ class Buffer:
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
         self.restore_time_dim()
+        kl = self._kl_coef * self._memory['kl']
         if self._adv_type == 'nae':
             self._memory['advantage'], self._memory['traj_ret'] = \
                 compute_nae(reward=self._memory['reward'], 
@@ -140,7 +143,8 @@ class Buffer:
                             value=self._memory['value'],
                             last_value=last_value,
                             gamma=self._gamma,
-                            gae_discount=self._gae_discount)
+                            gae_discount=self._gae_discount,
+                            kl=kl)
         else:
             raise NotImplementedError
 

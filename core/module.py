@@ -70,11 +70,16 @@ class Ensemble:
     def __init__(self, 
                  *,
                  models=None, 
+                 config={},
                  model_fn=None, 
                  **kwargs):
         self.models = {}
+        for k, v in config.items():
+            if not isinstance(v, dict):
+                setattr(self, f'{k}', v)
+
         if models is None:
-            self.models = model_fn(**kwargs)
+            self.models = model_fn(config, **kwargs)
         else:
             self.models = models
         [setattr(self, n, m) for n, m in self.models.items()]

@@ -15,15 +15,11 @@ from core.dataset import Dataset, process_with_env
 
 
 def train(agent, env, eval_env, replay):
-    def collect(env, step, reset, obs, action, reward, next_obs, **kwargs):
-        kwargs['obs'] = env.prev_obs() if reset else next_obs
-        kwargs['prev_action'] = action
-        kwargs['prev_reward'] = reward
+    def collect(env, step, reset, next_obs, **kwargs):
         replay.add(**kwargs)
         if reset:
             replay.clear_temp_buffer()
-            replay.pre_add(obs=next_obs)
-    
+
     step = agent.env_step
     runner = Runner(env, agent, step=step)
     while not replay.good_to_learn():
@@ -86,7 +82,7 @@ def main(env_config, model_config, agent_config, replay_config):
     models = create_model(model_config, env)
 
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
-    replay = create_replay(replay_config, state_keys=['h', 'c'], prev_action=0, prev_reward=0)
+    replay = create_replay(replay_config, state_keys=['h', 'c', 'prev_action', 'prev_reward'])
     data_format = pkg.import_module('agent', algo).get_data_format(
         env, agent_config['batch_size'], agent_config['sample_size'],
         replay_config['replay_type'].endswith('per'), agent_config['store_state'], 

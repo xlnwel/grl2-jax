@@ -11,17 +11,17 @@ env:
 model:
     encoder: 
         cnn_name: impala
+        filters: [16, 32, 32]
+        out_size: 256
     actor:
         units_list: []
-        layer_type: dense
         norm: null
-        kernel_initializer: glorot_uniform
+        kernel_initializer: orthogonal
         activation: relu
     value:
         units_list: []
-        layer_type: dense
         norm: null
-        kernel_initializer: glorot_uniform
+        kernel_initializer: orthogonal
         activation: relu
 
 agent:
@@ -56,10 +56,10 @@ agent:
     optimizer: adam
     schedule_lr: False
     lr: 5e-4
-    clip_norm: 0.5
-    opt_eps: 1e-8
+    clip_norm: .5
+    opt_eps: 1e-7
     # arguments for loss
-    value_loss: mse
+    value_loss: clip
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
     value_coef: 1.

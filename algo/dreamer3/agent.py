@@ -5,7 +5,7 @@ from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
 from utility.utils import AttrDict, Every
-from utility.rl_utils import retrace_lambda
+from utility.rl_utils import retrace
 from utility.tf_utils import static_scan, huber_loss
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from core.tf_config import build
@@ -256,7 +256,7 @@ class Agent(BaseAgent):
             next_value = next_q - temp * next_logpi
             log_ratio = next_logpi - prev_logpi[:, 2:]
             ratio = tf.math.exp(log_ratio)
-            returns = retrace_lambda(
+            returns = retrace(
                 reward[:, :-1], q, next_value, 
                 ratio, discount, lambda_=self._lambda, 
                 ratio_clip=1, axis=1, tbo=self._tbo)

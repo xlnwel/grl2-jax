@@ -2,6 +2,7 @@ from tensorflow.keras import layers
 
 from nn.cnn import cnn
 from nn.mlp import *
+from nn.rnn import LSTM
 from nn.dnc.dnc import DNC
 
 
@@ -16,7 +17,6 @@ Encoder = create_encoder
 
 def mlp(units_list=[], out_size=None, **kwargs):
     return MLP(units_list, out_size=out_size, **kwargs)
-
 
 def dnc_rnn(output_size, 
             access_config=dict(memory_size=128, word_size=16, num_reads=4, num_writes=1), 

@@ -1,8 +1,6 @@
 import numpy as np
-import tensorflow as tf
 
 from core.decorator import config
-from utility.display import pwc
 from replay.utils import init_buffer, print_buffer
 from algo.ppo.buffer import compute_gae, compute_nae
 
@@ -24,12 +22,15 @@ class Buffer:
     def __getitem__(self, k):
         return self._memory[k]
     
+    def __contains__(self, k):
+        return k in self._memory
+    
+    def ready(self):
+        return self._ready
+
     def add(self, **data):
         if self._memory == {}:
-            state_dtype = {16: np.float16, 32: np.float32}[self._precision]
             init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
-            for k in self._state_keys:
-                self._memory[k].astype(state_dtype)
             self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             print_buffer(self._memory)
@@ -40,6 +41,16 @@ class Buffer:
             self._memory[k][:, self._idx] = v
 
         self._idx += 1
+
+    def update(self, key, value, field='mb', mb_idxes=None):
+        if field == 'mb':
+            mb_idxes = self._curr_idxes if mb_idxes is None else mb_idxes
+            self._memory[key][mb_idxes] = value
+        elif field == 'all':
+            assert self._memory[key].shape == value.shape, (self._memory[key].shape, value.shape)
+            self._memory[key] == value
+        else:
+            raise ValueError(f'Unknown field: {field}. Valid fields: ("all", "mb")')
 
     def sample(self):
         assert self._ready

@@ -165,3 +165,35 @@ def get_stoch_state(x, min_std):
         std = tf.nn.softplus(std) + min_std
         stoch = mean + tf.random.normal(tf.shape(mean)) * std
         return mean, std, stoch
+
+def assert_rank(tensors, rank):
+    if not tensors:
+        raise ValueError("List of tensors should be non-empty.")
+    
+    for tensor in tensors:
+        tensor_shape = tf.TensorShape(tensor.shape)
+        tensor_shape.assert_has_rank(rank)
+
+def assert_rank_and_shape_compatibility(tensors, rank):
+    """Asserts that the tensors have the correct rank and compatible shapes.
+
+    Shapes (of equal rank) are compatible if corresponding dimensions are all
+    equal or unspecified. E.g. `[2, 3]` is compatible with all of `[2, 3]`,
+    `[None, 3]`, `[2, None]` and `[None, None]`.
+
+    Args:
+        tensors: List of tensors.
+        rank: A scalar specifying the rank that the tensors passed need to have.
+
+    Raises:
+        ValueError: If the list of tensors is empty or fail the rank and mutual
+        compatibility asserts.
+    """
+    if not tensors:
+        raise ValueError("List of tensors should be non-empty.")
+
+    union_of_shapes = tf.TensorShape(None)
+    for tensor in tensors:
+        tensor_shape = tf.TensorShape(tensor.shape)
+        tensor_shape.assert_has_rank(rank)
+        union_of_shapes = union_of_shapes.merge_with(tensor_shape)

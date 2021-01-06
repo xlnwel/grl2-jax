@@ -147,14 +147,47 @@ class Agent(PPOBase):
         return terms
     
     @tf.function
-    def _aux_learn(self, obs, logits, traj_ret, mask=None, state=None):
+    def learn_policy(self, obs, action, advantage, logpi, state=None, mask=None):
         terms = {}
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
             if state is not None:
                 x, state = self.rnn(x, state, mask=mask)    
             act_dist = self.actor(x)
-            old_dist = tfd.Categorical(logits)
+            new_logpi = act_dist.log_prob(action)
+            entropy = act_dist.entropy()
+            log_ratio = new_logpi - logpi
+            ppo_loss, entropy, kl, p_clip_frac = compute_ppo_loss(
+                log_ratio, advantage, self._clip_range, entropy)
+            actor_loss = (ppo_loss - self._entropy_coef * entropy)
+        actor_norm = self._actor_opt(tape, actor_loss)
+        terms.update(dict(
+            ratio=tf.exp(log_ratio),
+            entropy=entropy,
+            kl=kl,
+            p_clip_frac=p_clip_frac,
+            ppo_loss = ppo_loss,
+            actor_loss = actor_loss,
+            actor_norm=actor_norm
+        ))
+        return terms
+    
+    @tf.function
+    def learn_value(self, obs, value, traj_ret, state, mask=None):
+        old_value = value
+        terms = {}
+        with tf.GradientTape() as tape:
+            x_value = self.value_encoder(obs) if hasattr(self, 'value_encoder') else x
+            if state is not None:
+                x_value, state = self.value_rnn(x_value, state, mask=mask)
+            value = self.value(x_value)
+            value_loss = self.compute_value_loss(value, traj_ret, old_value, terms)
+        value_norm = self._value_opt(tape, value_loss)
+        terms.update(dict(
+            value_norm=value_norm,
+            value_loss=value_loss,
+            explained_variance=explained_variance(traj_ret, value)
+        ))
 
     @tf.function
     def _aux_learn(self, obs, logits, value, traj_ret, mask=None, state=None):

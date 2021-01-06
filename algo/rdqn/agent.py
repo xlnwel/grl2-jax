@@ -196,7 +196,7 @@ class Agent(BaseAgent):
                 new_next_prob = tf.math.equal(new_next_action[:, :-1], next_action)
                 new_next_prob = tf.cast(new_next_prob, logpi.dtype)
                 next_ratio = new_next_prob / tf.math.exp(logpi[:, 1:-1])
-                returns = retrace_lambda(
+                returns = retrace(
                     reward, q, t_next_q, 
                     next_ratio, discount, 
                     lambda_=self._lambda, 

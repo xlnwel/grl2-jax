@@ -3,7 +3,6 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
 from core.module import Module, Ensemble
-from core.decorator import config
 from nn.func import Encoder, mlp
 
 
@@ -45,13 +44,15 @@ class Actor(Module):
     def action(self, dist, evaluation):
         return dist.mode() if evaluation and self.eval_act_temp == 0 \
             else dist.sample()
+
+
 class Value(Module):
     def __init__(self, config, name='value'):
         super().__init__(name=name)
         self._layers = mlp(**config,
                           out_size=1,
                           out_dtype='float32',
-                          name='value')
+                          name=name)
 
     def call(self, x):
         value = self._layers(x)
@@ -71,7 +72,7 @@ class PPO(Ensemble):
         x = self.encoder(x)
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)
-        
+
         if evaluation:
             return action
         else:

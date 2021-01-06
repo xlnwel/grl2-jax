@@ -5,7 +5,7 @@ env:
     n_envs: &ne 6
     frame_diff: False
     frame_skip: 1
-    frame_stack: 1
+    frame_stack: 4
     np_obs: True
     reward_scale: 2
     reward_clip: 10
@@ -36,7 +36,7 @@ model:
         temp_type: constant
         value: .01
     twin_q: False
-    reward_entropy: False
+    reward_kl: False
 
 agent:
     algorithm: &algo apex-sacdiqn
@@ -46,16 +46,16 @@ agent:
     n_steps: &nsteps 3      # n-step target
     target_entropy_coef: .8
 
-    schedule_act_eps: False
+    schedule_act_eps: True
     act_eps_type: line
     act_eps: .3
     eval_act_eps: 0
     schedule_act_temp: True
-    n_exploit_envs: 18
+    n_exploit_envs: 8
     min_temp: .5
     max_temp: 10
     
-    MAX_STEPS: 2.5e7      # maximum env steps
+    MAX_STEPS: 8e6      # maximum env steps
     LOG_PERIOD: 100
     N_UPDATES: 1
     SYNC_PERIOD: 400
@@ -76,7 +76,6 @@ agent:
     n_worker_gpus: .1
     run_mode: nsteps
     worker_side_prioritization: False
-    return_stats: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

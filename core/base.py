@@ -89,7 +89,7 @@ class BaseAgent(ABC):
 class RMSBaseAgent(BaseAgent):
     def __init__(self):
         from utility.utils import RunningMeanStd
-        self._normalized_axis = getattr(self, '_normalized_axis', (0, 1))
+        self._normalized_axis = getattr(self, '_normalized_axis', (0,))
         self._normalize_obs = getattr(self, '_normalize_obs', False)
         self._normalize_reward = getattr(self, '_normalize_reward', True)
         self._normalize_reward_with_reversed_return = \
@@ -145,8 +145,9 @@ class RMSBaseAgent(BaseAgent):
                 """
                 assert discount is not None, \
                     f"Normalizing rewards with reversed return requires environment's discount(i.e., 1-done) signals"
+                assert reward.ndim == discount.ndim == len(self._reward_rms.axis), (reward.shape, discount.shape, self._reward_rms.axis)
                 ret = backward_discounted_sum(self._reverse_return, reward, discount, self._gamma)
-                self._reverse_return = ret[:, -1]
+                self._reverse_return = ret[:, -1] if reward.ndim == 2 else ret
                 self._reward_rms.update(ret)
             else:
                 self._reward_rms.update(reward)
@@ -172,9 +173,17 @@ class RMSBaseAgent(BaseAgent):
 
 
 def backward_discounted_sum(prev_ret, reward, discount, gamma,):
-    _nenv, nstep = reward.shape
-    ret = np.zeros_like(reward)
-    for t in range(nstep):
-        prev_ret = ret[:, t] = reward[:, t] + gamma * prev_ret
-        prev_ret *= discount[:, t]
-    return ret
+    assert reward.ndim == discount.ndim, (reward.shape, discount.shape)
+    if reward.ndim == 1:
+        prev_ret = reward + gamma * prev_ret
+        prev_ret *= discount
+        return prev_ret
+    elif reward.ndim == 2:
+        _nenv, nstep = reward.shape
+        ret = np.zeros_like(reward)
+        for t in range(nstep):
+            prev_ret = ret[:, t] = reward[:, t] + gamma * prev_ret
+            prev_ret *= discount[:, t]
+        return ret
+    else:
+        raise ValueError(f'Unknown reward shape: {reward.shape}')

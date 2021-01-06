@@ -5,17 +5,15 @@ from tensorflow.keras import layers
 from tensorflow.keras.mixed_precision.experimental import global_policy
 from tensorflow_probability import distributions as tfd
 
-from utility.display import pwc
-from utility.timer import TBTimer
 from core.module import Module
 from core.decorator import config
-from nn.func import mlp
-from nn.layers import Noisy
-from nn.func import cnn
+from nn.func import Encoder, mlp
 from nn.rnn import LSTMCell, LSTMState
         
 
 LSTMState = collections.namedtuple('LSTMState', ['h', 'c'])
+
+
 class Q(Module):
     @config
     def __init__(self, action_dim, name='q'):
@@ -23,13 +21,6 @@ class Q(Module):
         self._dtype = global_policy().compute_dtype
 
         self._action_dim = action_dim
-
-        """ Network definition """
-        self._cnn = cnn(self._cnn_name, time_distributed=True)
-
-        # RNN layer
-        cell = LSTMCell(self._lstm_units)
-        self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
 
         if self._duel:
             self._v_head = mlp(
@@ -78,20 +69,6 @@ class Q(Module):
 
         return q, state
 
-    def cnn(self, x):
-        if self._cnn:
-            x = self._cnn(x)
-        return x
-
-    def rnn(self, x, state, mask, prev_action=None, prev_reward=None):
-        if prev_action is not None or prev_reward is not None:
-            prev_action = tf.one_hot(prev_action, self._action_dim, dtype=x.dtype)
-            prev_reward = tf.cast(tf.expand_dims(prev_reward, -1), dtype=x.dtype)
-            x = tf.concat([x, prev_action, prev_reward], axis=-1)
-        x = self._rnn((x, mask), initial_state=state)
-        x, state = x[0], LSTMState(*x[1:])
-        return x, state
-
     def mlp(self, x, action=None):
         if self._duel:
             v = self._v_head(x)
@@ -108,14 +85,23 @@ class Q(Module):
             
         return q
 
-    def reset_noisy(self):
-        if self._layer_type == 'noisy':
-            if self._duel:
-                self._v_head.reset()
-            self._a_head.reset()
-
     def reset_states(self, states=None):
         self._rnn.reset_states(states)
+
+class RNN(Module):
+    def __init__(self, config, name):
+        super().__init__(name)
+        cell = LSTMCell(config['units'])
+        self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
+
+    def call(self, x, state, mask, prev_action=None, prev_reward=None):
+        if prev_action is not None or prev_reward is not None:
+            prev_action = tf.one_hot(prev_action, self._action_dim, dtype=x.dtype)
+            prev_reward = tf.cast(tf.expand_dims(prev_reward, -1), dtype=x.dtype)
+            x = tf.concat([x, prev_action, prev_reward], axis=-1)
+        x = self._rnn((x, mask), initial_state=state)
+        x, state = x[0], LSTMState(*x[1:])
+        return x, state
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         if inputs is None:
@@ -135,6 +121,7 @@ def create_model(config, env):
     q = Q(config, action_dim, 'q')
     target_q = Q(config, action_dim, 'target_q')
     return dict(
+        encoder=Encoder(encoder_config, name='encoder'),
         q=q,
         target_q=target_q,
     )

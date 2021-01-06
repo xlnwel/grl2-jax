@@ -4,7 +4,7 @@ env:
     distribution_mode: easy
     frame_skip: 1
     n_envs: &ne 64
-    frame_stack: 1
+    frame_stack: 4
     np_obs: True
     reward_scale: 2
     reward_clip: 10
@@ -12,45 +12,35 @@ env:
 model:
     encoder: 
         cnn_name: procgen
-    actor:
-        units_list: [512]
-        layer_type: dense
-        norm: null
-        kernel_initializer: glorot_uniform
-        activation: relu
-        eval_act_temp: .5
+        deter_stoch: True
+    quantile:
+        tau_embed_size: 64
+        phi_activation: relu
+        K: &K 64
     q:
         units_list: [512]
         layer_type: dense
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
-        duel: False
-    quantile:
-        tau_embed_size: 64
-        phi_activation: relu
-        K: &K 64
-    temperature:
-        temp_type: constant
-        value: .01
-    twin_q: False
-    reward_entropy: False
+    actor:
+        eval_act_temp: .5
+        temp: .01
 
 agent:
-    algorithm: &algo sacdiqn
+    algorithm: &algo iqn
     replay_type: &replay per
     gamma: &gamma .99
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
-    target_entropy_coef: .8
-    
-    schedule_act_eps: True
+
+    schedule_act_eps: False
     act_eps_type: line
-    act_eps: .3
+    act_eps: .4
     eval_act_eps: 0
     schedule_act_temp: True
-    n_exploit_envs: 32
-    min_temp: .5
+    n_exploit_envs: 0
+    min_temp: .1
     max_temp: 10
 
     MAX_STEPS: 2.5e7
@@ -67,7 +57,6 @@ agent:
 
     # IQN params
     N: 64                # N in paper, num of quantiles for online quantile network
-    N_PRIME: 64          # N' in paper, num of quantiles for target quantile network
     K: *K               # K in paper, num of quantiles for action selection
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
@@ -79,14 +68,10 @@ agent:
 
     target_update_period: 1500
 
-    soft_target: False
-    
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    q_lr: 2.5e-4
-    actor_lr: 2.5e-4
-    temp_lr: 2.5e-4
+    lr: 2.5e-4
     epsilon: 1e-7
     prior_lr: 1.e-3
 

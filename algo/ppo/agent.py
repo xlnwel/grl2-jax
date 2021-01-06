@@ -22,9 +22,20 @@ class Agent(PPOBase):
         )
         self.learn = build(self._learn, TensorSpecs)
 
-    def __call__(self, obs, evaluation=False, **kwargs):
+    def __call__(self, obs, evaluation=False, env_output=None, **kwargs):
         if obs.ndim % 2 != 0:
-            obs = np.expand_dims(obs, 0)
+            obs = np.expand_dims(obs, 0)    # add batch dimension
+        if not evaluation:
+            self.update_obs_rms(obs)
+            self.update_reward_rms(env_output.reward, env_output.discount)
         obs = self.normalize_obs(obs)
-        return tf.nest.map_structure(
+        out = tf.nest.map_structure(
             lambda x: x.numpy(), self.model.action(obs, evaluation))
+        
+        if evaluation:
+            return out
+        else:
+            action, terms = out
+            terms['obs'] = obs
+            terms['reward'] = self.normalize_reward(env_output.reward)
+            return action, terms

@@ -168,31 +168,9 @@ class Worker(BaseWorker):
             self._pull_names = [k for k in self.model.keys() if 'target' not in k]
         
         self._info = collections.defaultdict(list)
-        if self._worker_side_prioritization:
-            TensorSpecs = dict(
-                obs=(self.env.obs_shape, self.env.obs_dtype, 'obs'),
-                action=(self.env.action_shape, self.env.action_dtype, 'action'),
-                reward=((), tf.float32, 'reward'),
-                next_obs=(self.env.obs_shape, self.env.obs_dtype, 'next_obs'),
-                discount=((), tf.float32, 'discount'),
-                steps=((), tf.float32, 'steps')
-            )
-            if self._is_iqn:
-                TensorSpecs['qtv'] = ((self.K,), tf.float32, 'qtv')
-            else:
-                TensorSpecs['q']= ((), tf.float32, 'q')
-            
-            self.compute_priorities = build(
-                self._compute_iqn_priorities if self._is_iqn else self._compute_dqn_priorities, TensorSpecs)
-        if self._worker_side_prioritization \
-            or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps', 1):
-            if not getattr(self, '_return_stats', False):
-                err_msg = 'self._return_stats is not set or is False while '
-                err_msg += (f'worker_side_prioritization = {self._worker_side_prioritization}' 
-                    if self._worker_side_prioritization else
-                    f'max_steps ({buffer_config.get("max_steps", 0)}) > n_steps ({buffer_config.get("n_steps")})')
-                raise ValueError(err_msg)
-        
+        self._return_stats = self._worker_side_prioritization \
+            or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps', 1)
+
     def __call__(self, x, **kwargs):
         action = self.model.action(
             tf.convert_to_tensor(x), 
@@ -217,63 +195,20 @@ class Worker(BaseWorker):
         data = buffer.sample()
 
         if self._worker_side_prioritization:
-            data_tensor = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-            data['priority'] = self.compute_priorities(**data_tensor).numpy()
-        data.pop('v', None)
+            data['priority'] = self._compute_priorities(**data)
         data.pop('q', None)
+        data.pop('next_q', None)
         replay.merge.remote(data, data['action'].shape[0])
         buffer.reset()
 
-    @tf.function
-    def _compute_dqn_priorities(self, obs, action, reward, next_obs, discount, steps, q=None):
-        if self._return_stats:
-            next_x = self.encoder(next_obs) if hasattr(self, 'encoder') else next_obs
-            next_action = self.q.action(next_x, False)
-            next_q = self.q.value(next_x, next_action)
-        else:
-            x = self.encoder(obs) if hasattr(self, 'encoder') else obs
-            q = self.q(x, action)
-            next_x = self.encoder(next_obs) if hasattr(self, 'encoder') else next_obs
-            # sac results in probs while others sample actions
-            next_act_probs, next_act_logps = self.actor.train_step(next_x)
-            # we do not use the target model to save some bandwidth
-            next_qs = self.q(next_x)
-            _, temp = self.temperature()
-            next_q = tf.reduce_sum(next_act_probs
-                * (next_qs - temp * next_act_logps), axis=-1)
-            
-        returns = n_step_target(reward, next_q, discount, self._gamma, steps)
-        
-        priority = tf.abs(returns - q)
+    def _compute_priorities(self, reward, discount, steps, q, next_q, **kwargs):
+        target_q = reward + discount * self._gamma**steps * next_q
+        priority = np.abs(target_q - q)
         priority += self._per_epsilon
         priority **= self._per_alpha
 
-        tf.debugging.assert_shapes([(priority, (None,))])
-
-        return tf.squeeze(priority)
+        return priority
     
-    @tf.function
-    def _compute_iqn_priorities(self, obs, action, reward, next_obs, discount, steps, qtv=None):
-        next_action = self.q.action(next_obs, self.K)
-        _, next_qtv, _ = self.q.value(next_obs, self.N_PRIME, next_action)
-        reward = reward[:, None, None]
-        discount = discount[:, None, None]
-        steps = steps[:, None, None]
-        returns = n_step_target(reward, next_qtv, discount, self._gamma, steps, self._tbo)
-        returns = tf.transpose(returns, (0, 2, 1))      # [B, 1, N']
-        qtv = tf.expand_dims(qtv, axis=-1)              # [B, K, 1], to avoid redundant computation, we use previously computed qtv here
-        tf.debugging.assert_shapes([[qtv, (self._seqlen, self.K, 1)]])
-        tf.debugging.assert_shapes([[returns, (self._seqlen, 1, self.N_PRIME)]])
-        
-        error = tf.abs(returns - qtv)
-        priority = tf.reduce_max(tf.reduce_mean(error, axis=2), axis=1)
-        priority += self._per_epsilon
-        priority **= self._per_alpha
-
-        tf.debugging.assert_shapes([(priority, (None,))])
-
-        return tf.squeeze(priority)
-
 def get_worker_class():
     return Worker
 
