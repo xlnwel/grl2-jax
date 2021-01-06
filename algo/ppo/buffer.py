@@ -102,7 +102,6 @@ class Buffer:
         elif field == 'all':
             assert self._memory[key].shape == value.shape, (self._memory[key].shape, value.shape)
             self._memory[key] = value
-            print(key, np.max(self._memory[key]), np.max(value))
         else:
             raise ValueError(f'Unknown field: {field}. Valid fields: ("all", "mb")')
 
