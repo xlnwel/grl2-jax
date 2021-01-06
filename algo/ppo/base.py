@@ -88,6 +88,7 @@ class PPOBase(RMSBaseAgent):
         return i * self.N_MBS + j
 
     def summary(self, data, terms):
+        tf.summary.histogram('sum/value', data['value'], step=self._env_step)
         tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
 
     @tf.function

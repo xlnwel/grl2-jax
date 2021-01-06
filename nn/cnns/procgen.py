@@ -79,37 +79,34 @@ class ProcgenCNN(Module):
                         sa_cls(name=f'{prefix}{sa}_{i}', **sa_kwargs)
                     ]
             out_act_cls = get_activation(out_activation, return_cls=True)
-            self._out_act = out_act_cls(name=prefix+out_activation if out_activation else '')
+            self._flat = layers.Flatten(name=prefix+'flatten')
             self.out_size = out_size
             if deter_stoch:
                 if out_size is None:
                     f = filters[-1]
                     subsample_kwargs['filters'] = f
                     ds_cls = block_registry.get('dsl')
-                    self._layers += [
-                        ds_cls(n_blocks=n_blocks[-1],
-                            subsample=subsample, 
-                            subsample_kwargs=subsample_kwargs, 
-                            block=block,
-                            block_kwargs=block_kwargs,
-                            name=f'{prefix}ds')
-                    ]
+                    self._ds_layer = ds_cls(n_blocks=n_blocks[-1],
+                        subsample=subsample, 
+                        subsample_kwargs=subsample_kwargs, 
+                        block=block,
+                        block_kwargs=block_kwargs,
+                        name=f'{prefix}ds')
+                    self._layers += [self._ds_layer]
                     self._training_cls.append(ds_cls)
-                    self._flat = layers.Flatten(name=prefix+'flatten')
                 else:
-                    self._flat = layers.Flatten(name=prefix+'flatten')
                     ds_cls = block_registry.get('dss')
-                    
-                    self._layers += [
-                        ds_cls('dense',
-                            self.out_size, 
-                            activation=self._out_act, 
-                            name=prefix+'out')
-                    ]
+                    # NOTE: try adding a relu here 
+                    self._dense = self._ds_layer = ds_cls(
+                        'dense',
+                        self.out_size, 
+                        activation=out_act_cls(), 
+                        name=prefix+'out')
             else:
-                self._flat = layers.Flatten(name=prefix+'flatten')
                 if self.out_size:
-                    self._dense = layers.Dense(self.out_size, activation=self._out_act, name=prefix+'out')
+                    self._dense = layers.Dense(self.out_size, activation=out_act_cls(), name=prefix+'out')
+            self._layers += [out_act_cls(name=prefix+out_activation)]
+
 
         self._training_cls += [block_cls, subsample_cls, sa_cls]
     
@@ -123,13 +120,12 @@ class ProcgenCNN(Module):
             t = x.shape[1]
             x = tf.reshape(x, [-1, *x.shape[2:]])
         x = super().call(x, training=training)
-        if self._deter_stoch:
-            self.state = self._layers[-1].state
-        x = self._out_act(x)
         self.cnn_out = x
         x = self._flat(x)
         if self._time_distributed:
             x = tf.reshape(x, [-1, t, *x.shape[1:]])
         if self.out_size:
             x = self._dense(x)
+        if self._deter_stoch:
+            self.state = self._ds_layer.state
         return x

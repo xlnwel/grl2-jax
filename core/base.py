@@ -144,10 +144,11 @@ class RMSBaseAgent(BaseAgent):
                 Yeah, you may not find the pseudocode. That's why I quote:-)
                 """
                 assert discount is not None, \
-                    f"Normalizing rewards with reversed return requires environment's discount(i.e., 1-done) signals"
-                assert reward.ndim == discount.ndim == len(self._reward_rms.axis), (reward.shape, discount.shape, self._reward_rms.axis)
-                ret = backward_discounted_sum(self._reverse_return, reward, discount, self._gamma)
-                self._reverse_return = ret[:, -1] if reward.ndim == 2 else ret
+                    f"Normalizing rewards with reversed return requires environment's reset signals"
+                assert reward.ndim == discount.ndim == len(self._reward_rms.axis), \
+                    (reward.shape, discount.shape, self._reward_rms.axis)
+                self._reverse_return, ret = backward_discounted_sum(
+                    self._reverse_return, reward, discount, self._gamma)
                 self._reward_rms.update(ret)
             else:
                 self._reward_rms.update(reward)
@@ -176,14 +177,15 @@ def backward_discounted_sum(prev_ret, reward, discount, gamma,):
     assert reward.ndim == discount.ndim, (reward.shape, discount.shape)
     if reward.ndim == 1:
         prev_ret = reward + gamma * prev_ret
+        ret = prev_ret.copy()
         prev_ret *= discount
-        return prev_ret
+        return prev_ret, ret
     elif reward.ndim == 2:
         _nenv, nstep = reward.shape
         ret = np.zeros_like(reward)
         for t in range(nstep):
-            prev_ret = ret[:, t] = reward[:, t] + gamma * prev_ret
-            prev_ret *= discount[:, t]
-        return ret
+            ret[:, t] = prev_ret = reward[:, t] + gamma * prev_ret
+            prev_ret *= discount
+        return prev_ret, ret
     else:
         raise ValueError(f'Unknown reward shape: {reward.shape}')

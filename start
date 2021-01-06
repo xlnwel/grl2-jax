@@ -3,7 +3,7 @@
 
 algos=(
     ppo
-    ppo2
+    # ppo2
     # ppg
     # apex-iqn
     # apex-sacdiqn2
@@ -13,11 +13,11 @@ algos=(
 suite=procgen
 envs=(
     plunder
-    # chaser
-    # bigfish
-    # starpilot
-    # coinrun
-    # miner
+    chaser
+    bigfish
+    starpilot
+    coinrun
+    miner
     # caveflyer 
     # climber
     # dodgeball 

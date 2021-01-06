@@ -58,11 +58,14 @@ class IMPALACNN(Module):
                 ]
             
             out_act_cls = get_activation(out_activation, return_cls=True)
-            self._layers.append(out_act_cls(name=prefix+out_activation))
+            self._layers += [
+                out_act_cls(name=prefix+out_activation)
+            ]
             self._flat = layers.Flatten(name=prefix+'flatten')
-            
             self.out_size = out_size
             if self.out_size:
+                if out_activation is None:
+                    self._layers.append[layers.ReLU()]
                 self._dense = layers.Dense(self.out_size, activation=out_act_cls(), name=prefix+'out')
         
         self._training_cls += [subsample_cls, block_cls]
@@ -77,6 +80,8 @@ class IMPALACNN(Module):
         x = self._flat(x)
         if self._time_distributed:
             x = tf.reshape(x, [-1, t, *x.shape[1:]])
+        
         if self.out_size:
             x = self._dense(x)
+
         return x

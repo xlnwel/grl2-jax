@@ -35,5 +35,4 @@ class Agent(PPOBase):
         if not evaluation:
             terms = out[1]
             terms['obs'] = obs
-            terms['reward'] = self.normalize_reward(env_output.reward)
         return out

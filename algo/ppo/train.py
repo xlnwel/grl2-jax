@@ -35,6 +35,7 @@ def train(agent, env, eval_env, buffer):
         with Timer('env', 1000) as et:
             step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/et.last())
+        buffer.update('reward', agent.normalize_reward(buffer['reward']), field='all')
         agent.record_last_obs(runner.env_output)
         value = agent.compute_value()
         buffer.finish(value)

@@ -94,7 +94,6 @@ class Agent(PPOBase):
                     lambda x: x.numpy(), prev_state._asdict()))
             terms['mask'] = mask
             terms['obs'] = obs
-            terms['reward'] = self._reward
             if self.model.additional_rnn_input:
                 terms['prev_action'] = self._prev_action
         if self.model.additional_rnn_input:
