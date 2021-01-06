@@ -82,7 +82,6 @@ class Agent(PPOBase):
             if self.model.additional_rnn_input:
                 self._prev_action = np.zeros(obs.shape[0], dtype=np.int32)
 
-
         mask = 1. - reset   # mask is applied in LSTM
         prev_state = self._state
         out, self._state = self.model.action(obs, self._state, mask, evaluation,

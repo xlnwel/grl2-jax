@@ -69,7 +69,7 @@ class PPO(Ensemble):
             if reward is not None:
                 reward = tf.reshape(reward, (-1, 1, 1))
                 results.append(reward)
-        [assert_rank(v, 3) for v in results]
+        assert_rank(results, 3)
         return results
 
     @property
