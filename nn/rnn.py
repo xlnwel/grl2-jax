@@ -129,9 +129,7 @@ class LSTMCell(layers.Layer):
 class LSTM(Module):
     def __init__(self, config, name='rnn'):
         super().__init__(name=name)
-        units = config['units']
-        use_ln = config['use_ln']
-        cell = LSTMCell(units, use_ln=use_ln)
+        cell = LSTMCell(**config)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
     
     def call(self, x, state, mask, additional_input=[]):

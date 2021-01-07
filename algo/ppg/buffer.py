@@ -39,7 +39,7 @@ class Replay:
             self._memory[key][mb_idxes] = value
         elif field == 'all':
             assert self._memory[key].shape == value.shape, (self._memory[key].shape, value.shape)
-            self._memory[key] == value
+            self._memory[key] = value
         else:
             raise ValueError(f'Unknown field: {field}. Valid fields: ("all", "mb")')
 
