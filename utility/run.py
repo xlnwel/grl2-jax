@@ -161,6 +161,7 @@ class Runner:
                 discount=discount, next_obs=next_obs)
             if mask:
                 kwargs['mask'] = self.env.mask()
+            assert 'reward' not in terms, 'reward in terms is from the preivous timestep and should not be used to override here'
             # allow terms to overwrite the values in kwargs
             kwargs.update(terms)
             step_fn(self.env, self.step, reset, **kwargs)

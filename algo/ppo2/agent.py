@@ -33,7 +33,7 @@ class Agent(PPOBase):
         if self.model.additional_rnn_input:
             TensorSpecs['additional_rnn_input'] = [(
                 ((self._sample_size, self._action_dim), self._dtype, 'prev_action'),
-                ((self._sample_size, 1), self._dtype, 'reward'),
+                ((self._sample_size, 1), self._dtype, 'reward'),    # this reward should be unnormlaized
             )]
         self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
 
@@ -75,7 +75,7 @@ class Agent(PPOBase):
             self.update_obs_rms(obs)
             self.update_reward_rms(env_output.reward, env_output.discount)
         obs = self.normalize_obs(obs)
-        self._reward = self.normalize_reward(env_output.reward)
+        self._reward = env_output.reward # use unnormalized reward to avoid potential inconsistency
 
         if self._state is None:
             self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
