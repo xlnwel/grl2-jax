@@ -136,11 +136,10 @@ class BaseAgent(AgentImpl):
         assert obs.ndim in (2, 4), obs.shape
 
         obs, kwargs = self._process_input(obs, evaluation, env_output)
-        kwargs.update({
-            'evaluation': evaluation,
-            'return_eval_stats': return_eval_stats
-        })
-        out = self._compute_action(obs, **kwargs)
+        out = self._compute_action(
+            obs, **kwargs, 
+            evaluation=evaluation, 
+            return_eval_stats=return_eval_stats)
         out = self._process_output(obs, kwargs, out, evaluation)
 
         return out
@@ -163,7 +162,7 @@ class BaseAgent(AgentImpl):
         Args:
             obs: Pre-processed observations
             kwargs, dict: kwargs necessary to model  
-            out (action, terms(, state)): Model output, optionally including rnn state
+            out (action, terms): Model output
         Returns:
             out: results supposed to return by __call__
         """
@@ -172,6 +171,7 @@ class BaseAgent(AgentImpl):
     @abstractmethod
     def _learn(self):
         raise NotImplementedError
+
 
 class RMSBaseAgent(BaseAgent):
     @override(BaseAgent)

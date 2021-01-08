@@ -48,7 +48,7 @@ class Runner:
                 obs, 
                 evaluation=False,
                 env_output=self.env_output)
-            obs = self.step_env(obs, action, step_fn)
+            obs, reset = self.step_env(obs, action, step_fn)
 
             # logging when env is reset 
             if reset:
@@ -71,7 +71,7 @@ class Runner:
                 obs, 
                 evaluation=False,
                 env_output=self.env_output)
-            obs = self.step_env(obs, action, step_fn)
+            obs, reset = self.step_env(obs, action, step_fn)
             
             # logging when any env is reset 
             done_env_ids = [i for i, r in enumerate(reset) if r]
@@ -97,7 +97,7 @@ class Runner:
                 obs, 
                 evaluation=False, 
                 env_output=self.env_output)
-            obs = self.step_env(obs, action, step_fn)
+            obs, reset = self.step_env(obs, action, step_fn)
 
             if reset:
                 break
@@ -111,7 +111,7 @@ class Runner:
 
     def _run_traj_envvec(self, action_selector=None, step_fn=None):
         action_selector = action_selector or self.agent
-        self.env_output = self.env.reset()
+        self.env_output = self.env.reset()  # explicitly reset envvect to turn off auto-reset
         obs = self.env_output.obs
         reset = self.env_output.reset
         
@@ -120,7 +120,7 @@ class Runner:
                 obs, 
                 evaluation=False,
                 env_output=self.env_output)
-            obs = self.step_env(obs, action, step_fn, mask=True)
+            obs, _ = self.step_env(obs, action, step_fn, mask=True)
 
             # logging when any env is reset 
             if np.all(self.env.game_over()):
@@ -162,7 +162,7 @@ class Runner:
             kwargs.update(terms)
             step_fn(self.env, self.step, reset, **kwargs)
 
-        return next_obs
+        return next_obs, reset
 
 def evaluate(
              env, 

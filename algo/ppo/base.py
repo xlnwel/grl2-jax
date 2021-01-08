@@ -2,7 +2,9 @@ import logging
 import tensorflow as tf
 
 from utility.tf_utils import explained_variance
+from utility.schedule import TFPiecewiseSchedule
 from core.base import RMSBaseAgent
+from core.optimizer import Optimizer
 from core.decorator import override, step_track
 from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
@@ -16,6 +18,18 @@ class PPOBase(RMSBaseAgent):
         super()._add_attributes(env, dataset)
         self._last_obs = None   # we record last obs before training to compute the last value
 
+    @override(RMSBaseAgent)
+    def _construct_optimizers(self):
+        if getattr(self, 'schedule_lr', False):
+            assert isinstance(self._lr, list)
+            self._lr = TFPiecewiseSchedule(self._lr)
+        models = [self.encoder, self.actor, self.value]
+        if hasattr(self, 'rnn'):
+            models.append(self.rnn)
+        self._optimizer = Optimizer(
+            self._optimizer, models, self._lr, 
+            clip_norm=self._clip_norm, epsilon=self._opt_eps)
+    
     """ Call """
     # @override(RMSBaseAgent)
     def _process_output(self, obs, kwargs, out, evaluation):
@@ -39,7 +53,7 @@ class PPOBase(RMSBaseAgent):
     def compute_value(self, obs=None):
         # be sure you normalize obs first if obs normalization is required
         obs = obs or self._last_obs
-        return self.model.compute_value(self._last_obs).numpy()
+        return self.model.compute_value(obs).numpy()
 
     @step_track
     def learn_log(self, step):
