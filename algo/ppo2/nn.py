@@ -50,10 +50,11 @@ class PPO(Ensemble):
         x = tf.expand_dims(x, 1)
         mask = tf.expand_dims(mask, 1)
         x = self.encoder(x)
-        additional_rnn_input = self._process_additional_input(
-            x, prev_action, reward)
-        x, state = self.rnn(x, state, mask, 
-            additional_input=additional_rnn_input)
+        if hasattr(self, 'rnn'):
+            additional_rnn_input = self._process_additional_input(
+                x, prev_action, reward)
+            x, state = self.rnn(x, state, mask, 
+                additional_input=additional_rnn_input)
         return x, state
 
     def _process_additional_input(self, x, prev_action, reward):

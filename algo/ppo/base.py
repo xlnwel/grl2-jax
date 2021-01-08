@@ -1,41 +1,29 @@
 import logging
 import tensorflow as tf
 
-from utility.utils import Every
 from utility.tf_utils import explained_variance
-from utility.schedule import TFPiecewiseSchedule
 from core.base import RMSBaseAgent
-from core.decorator import step_track
-from core.optimizer import Optimizer
+from core.decorator import override, step_track
 from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
 logger = logging.getLogger(__name__)
 
 class PPOBase(RMSBaseAgent):
-    def __init__(self, *, env, dataset):
-        super().__init__()
-        self.dataset = dataset
-        self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
-        self._last_obs = None
-        logger.info(f'Value update scheme: {self._value_update}')
+    """ Initialization """
+    @override(RMSBaseAgent)
+    def _add_attributes(self, env, dataset):
+        super()._add_attributes(env, dataset)
+        self._last_obs = None   # we record last obs before training to compute the last value
 
-        self._add_attributes()
-        self._construct_optimizers()
-
-    def _add_attributes(self):
-        pass
-
-    def _construct_optimizers(self):
-        if getattr(self, 'schedule_lr', False):
-            assert isinstance(self._lr, list)
-            self._lr = TFPiecewiseSchedule(self._lr)
-        models = [self.encoder, self.actor, self.value]
-        if hasattr(self, 'rnn'):
-            models.append(self.rnn)
-        self._optimizer = Optimizer(
-            self._optimizer, models, self._lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
+    """ Call """
+    # @override(RMSBaseAgent)
+    def _process_output(self, obs, kwargs, out, evaluation):
+        out = super()._process_output(obs, kwargs, out, evaluation)        
+        if self._normalize_obs and not evaluation:
+            terms = out[1]
+            terms['obs'] = obs
+        return out
 
     """ Standard PPO functions """
     def reset_states(self, state=None):
@@ -83,13 +71,9 @@ class PPOBase(RMSBaseAgent):
         self.store(**{'train/kl': kl})
 
         if self._to_summary(step):
-            self.summary(data, terms)
+            self._summary(data, terms)
         
         return i * self.N_MBS + j
-
-    def summary(self, data, terms):
-        tf.summary.histogram('sum/value', data['value'], step=self._env_step)
-        tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
 
     @tf.function
     def _learn(self, obs, action, value, traj_ret, advantage, logpi, state=None, mask=None, additional_input=[]):
@@ -108,7 +92,7 @@ class PPOBase(RMSBaseAgent):
                 log_ratio, advantage, self._clip_range, entropy)
             # value loss
             value = self.value(x)
-            value_loss = self.compute_value_loss(value, traj_ret, old_value, terms)
+            value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
             actor_loss = (ppo_loss - self._entropy_coef * entropy)
             value_loss = self._value_coef * value_loss
             ac_loss = actor_loss + value_loss
@@ -130,7 +114,7 @@ class PPOBase(RMSBaseAgent):
 
         return terms
 
-    def compute_value_loss(self, value, traj_ret, old_value, terms):
+    def _compute_value_loss(self, value, traj_ret, old_value, terms):
         value_loss_type = getattr(self, '_value_loss', 'mse')
         if value_loss_type == 'mse':
             value_loss = .5 * tf.reduce_mean((value - traj_ret)**2)

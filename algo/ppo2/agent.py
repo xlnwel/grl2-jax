@@ -1,21 +1,22 @@
+from core.base import RMSBaseAgent
 import numpy as np
 import tensorflow as tf
 
 from core.tf_config import build
-from core.decorator import agent_config
+from core.decorator import override
 from algo.ppo.base import PPOBase
 
 
 class Agent(PPOBase):
-    @agent_config
-    def __init__(self, *, dataset, env):
-        super().__init__(dataset=dataset, env=env)
-
+    @override(PPOBase)
+    def _add_attributes(self, env, dataset):
+        super()._add_attributes(env, dataset)
         # previous and current state of LSTM
         self._state = None
         self._prev_action = None
-        self._reward = None
-        self._action_dim = env.action_dim
+    
+    @override(PPOBase)
+    def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
@@ -32,19 +33,21 @@ class Agent(PPOBase):
                 for name, sz in self.model.state_size._asdict().items()])
         if self.model.additional_rnn_input:
             TensorSpecs['additional_rnn_input'] = [(
-                ((self._sample_size, self._action_dim), self._dtype, 'prev_action'),
+                ((self._sample_size, env.action_dim), self._dtype, 'prev_action'),
                 ((self._sample_size, 1), self._dtype, 'reward'),    # this reward should be unnormlaized
             )]
         self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
 
+    @override(PPOBase)
     def reset_states(self, states=None):
         if states is None:
-            self._state, self._prev_action, self._reward = None, None, None
+            self._state, self._prev_action = None, None
         else:
-            self._state, self._prev_action, self._reward = states
+            self._state, self._prev_action = states
 
+    @override(PPOBase)
     def get_states(self):
-        return self._state, self._prev_action, self._reward
+        return self._state, self._prev_action
 
     def record_last_obs(self, env_output):
         self.update_obs_rms(env_output.obs)
@@ -65,16 +68,9 @@ class Agent(PPOBase):
         else:
             return out[0].numpy()
 
-    def __call__(self, obs, reset=np.zeros(1), evaluation=False, 
-                env_output=None, **kwargs):
-        if obs.ndim % 2 != 0:
-            obs = np.expand_dims(obs, 0)    # add batch dimension
-        assert obs.ndim in (2, 4), obs.shape
-        # update rms and normalize
-        if not evaluation:
-            self.update_obs_rms(obs)
-            self.update_reward_rms(env_output.reward, env_output.discount)
-        obs = self.normalize_obs(obs)
+    @override(RMSBaseAgent)
+    def _process_input(self, obs, evaluation, env_output):
+        super()._process_input(obs, evaluation, env_output)
         self._reward = env_output.reward # use unnormalized reward to avoid potential inconsistency
 
         if self._state is None:

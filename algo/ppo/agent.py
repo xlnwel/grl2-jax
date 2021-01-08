@@ -1,16 +1,28 @@
 import numpy as np
 import tensorflow as tf
 
+from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
-from core.decorator import agent_config
+from core.decorator import override
+from core.optimizer import Optimizer
 from algo.ppo.base import PPOBase
 
 
 class Agent(PPOBase):
-    @agent_config
-    def __init__(self, *, dataset, env):
-        super().__init__(dataset=dataset, env=env)
+    @override(PPOBase)
+    def _construct_optimizers(self):
+        if getattr(self, 'schedule_lr', False):
+            assert isinstance(self._lr, list)
+            self._lr = TFPiecewiseSchedule(self._lr)
+        models = [self.encoder, self.actor, self.value]
+        if hasattr(self, 'rnn'):
+            models.append(self.rnn)
+        self._optimizer = Optimizer(
+            self._optimizer, models, self._lr, 
+            clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
+    @override(PPOBase)
+    def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
@@ -22,17 +34,7 @@ class Agent(PPOBase):
         )
         self.learn = build(self._learn, TensorSpecs)
 
-    def __call__(self, obs, evaluation=False, env_output=None, **kwargs):
-        if obs.ndim % 2 != 0:
-            obs = np.expand_dims(obs, 0)    # add batch dimension
-        if not evaluation:
-            self.update_obs_rms(obs)
-            self.update_reward_rms(env_output.reward, env_output.discount)
-        obs = self.normalize_obs(obs)
-        out = tf.nest.map_structure(
-            lambda x: x.numpy(), self.model.action(obs, evaluation))
-        
-        if not evaluation:
-            terms = out[1]
-            terms['obs'] = obs
-        return out
+    @override(PPOBase)
+    def _summary(self, data, terms):
+        tf.summary.histogram('sum/value', data['value'], step=self._env_step)
+        tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)

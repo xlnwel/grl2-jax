@@ -6,19 +6,15 @@ from tensorflow_probability import distributions as tfd
 from utility.schedule import TFPiecewiseSchedule
 from utility.tf_utils import explained_variance
 from core.tf_config import build
-from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
-from algo.ppo.base import PPOBase
-from algo.ppo.loss import compute_ppo_loss, compute_value_loss
+from algo.ppo.agent import Agent as PPOAgent
+from algo.ppo.loss import compute_ppo_loss
 
 
 logger = logging.getLogger(__name__)
 
-class Agent(PPOBase):
-    @agent_config
-    def __init__(self, *, dataset, env):
-        super().__init__(dataset=dataset, env=env)
-
+class Agent(PPOAgent):
+    def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
@@ -70,14 +66,6 @@ class Agent(PPOBase):
         self._aux_opt = Optimizer(
             self._optimizer, aux_models, self._aux_lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
-
-    def __call__(self, obs, evaluation=False, **kwargs):
-        if obs.ndim % 2 != 0:
-            obs = np.expand_dims(obs, 0)
-        obs = self.normalize_obs(obs)
-        out = self.model.action(obs, evaluation)
-        out = tf.nest.map_structure(lambda x: x.numpy(), out)
-        return out
 
     def compute_aux_data(self, obs):
         out = self.model.compute_aux_data(obs)

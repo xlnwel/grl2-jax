@@ -6,7 +6,7 @@ from utility.schedule import PiecewiseSchedule
 from utility.timer import TBTimer
 from core.tf_config import build
 from core.base import BaseAgent
-from core.decorator import agent_config, step_track
+from core.decorator import override, step_track
 
 
 def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
@@ -29,12 +29,10 @@ def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
 
 
 class DQNBase(BaseAgent):
-    @agent_config
-    def __init__(self, *, dataset, env):
-        self._is_per = self._replay_type.endswith('per')
-        self.dataset = dataset
-        self._obs_shape = env.obs_shape
-        self._action_dim = env.action_dim
+    """ Initialization """
+    @override(BaseAgent)
+    def _add_attributes(self, env, dataset):
+        self._is_per = dataset.name().endswith('per')
         self._return_stats = getattr(self, '_return_stats', False)
         self._schedule_act_eps = env.n_envs == 1 and self._schedule_act_eps
 
@@ -42,36 +40,41 @@ class DQNBase(BaseAgent):
             if isinstance(self._act_eps, (float, int)):
                 self._act_eps = [(0, self._act_eps)]
             self._act_eps = PiecewiseSchedule(self._act_eps)
-
-        self._to_sync = Every(self._target_update_period)
-        self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
-
-        self._construct_optimizers()
-        self._add_attributes()
-        self._build_learn(env)
-        self._sync_nets()
-
-    def _add_attributes(self):
-        pass
-
-    def reset_noisy(self):
-        pass
-
-    def __call__(self, x, evaluation=False, **kwargs):
-        eps = self._get_eps(evaluation)
-        if x.ndim % 2 != 0:
-            x = np.expand_dims(x, 0)    # add batch dimension
-        assert x.ndim in (2, 4), x.shape
         
-        x = tf.convert_to_tensor(x)
-        action = self.model.action(
-            x, 
-            evaluation=evaluation, 
-            epsilon=tf.convert_to_tensor(eps, tf.float32),
-            return_stats=self._return_stats)
-        action = tf.nest.map_structure(lambda x: x.numpy(), action)
+        self._to_sync = Every(self._target_update_period)
 
-        return action
+    @override(BaseAgent)
+    def _construct_optimizers(self):
+        raise NotImplementedError
+    
+    @override(BaseAgent)
+    def _build_learn(self, env):
+        # Explicitly instantiate tf.function to initialize variables
+        TensorSpecs = dict(
+            obs=(env.obs_shape, env.obs_dtype, 'obs'),
+            action=((env.action_dim,), tf.float32, 'action'),
+            reward=((), tf.float32, 'reward'),
+            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
+            discount=((), tf.float32, 'discount'),
+        )
+        if self._is_per:
+            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
+        if self._n_steps > 1:
+            TensorSpecs['steps'] = ((), tf.float32, 'steps')
+        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
+    
+    @tf.function
+    def _sync_nets(self):
+        tvars = self.target_encoder.variables + self.target_q.variables
+        mvars = self.encoder.variables + self.q.variables
+        [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
+
+    """ Call """
+    @override(BaseAgent)
+    def _process_input(self, obs, evaluation, env_ouput):
+        obs, kwargs = super()._process_input()
+        kwargs['epsilon'] = self._get_eps(evaluation)
+        return obs, kwargs
 
     def _get_eps(self, evaluation):
         if evaluation:
@@ -97,51 +100,24 @@ class DQNBase(BaseAgent):
                 terms = self.learn(**data)
             if self._to_sync(self.train_step):
                 self._sync_target_nets()
-            if self._to_summary(step):
-                self._summary(data, terms)
 
             terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
             if self._is_per:
                 self.dataset.update_priorities(terms['train/priority'], idxes)
 
             self.store(**terms)
+
+        if self._to_summary(step):
+            self._summary(data, terms)
+        
         return self.N_UPDATES
 
-    def _construct_optimizers(self):
-        raise NotImplementedError
-
-    def _build_learn(self, env):
-        # Explicitly instantiate tf.function to initialize variables
-        TensorSpecs = dict(
-            obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            action=((self._action_dim,), tf.float32, 'action'),
-            reward=((), tf.float32, 'reward'),
-            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
-            discount=((), tf.float32, 'discount'),
-        )
-        if self._is_per:
-            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
-        if self._n_steps > 1:
-            TensorSpecs['steps'] = ((), tf.float32, 'steps')
-        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
-
-    def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
-        raise NotImplementedError
-
+    
     def _compute_priority(self, priority):
         """ p = (p + 𝝐)**𝛼 """
         priority += self._per_epsilon
         priority **= self._per_alpha
         return priority
 
-    def _summary(self, data, terms):
+    def reset_noisy(self):
         pass
-    
-    def _sync_nets(self):
-        self._sync_target_nets()
-
-    @tf.function
-    def _sync_target_nets(self):
-        tvars = self.target_encoder.variables + self.target_q.variables
-        mvars = self.encoder.variables + self.q.variables
-        [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]

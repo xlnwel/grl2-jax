@@ -5,7 +5,6 @@ from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc
 from core.tf_config import build
-from core.base import BaseAgent
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.ppo.base import PPOBase

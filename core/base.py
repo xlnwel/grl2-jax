@@ -1,15 +1,22 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 import os
 import cloudpickle
 import logging
 
+from utility.display import pwc
+from utility.utils import Every
 from core.log import *
 from core.checkpoint import *
+from core.decorator import override, agent_config
 
 
 logger = logging.getLogger(__name__)
 
-class BaseAgent(ABC):
+class AgentImpl(ABC):
+    @abstractmethod
+    def __call__(self):
+        raise NotImplementedError
+
     """ Restore & save """
     def restore(self):
         """ Restore the latest parameter recorded by ckpt_manager
@@ -86,8 +93,89 @@ class BaseAgent(ABC):
         pwc(f'{self.name.upper()} is constructed...', color='cyan')
 
 
+class BaseAgent(AgentImpl):
+    """ Initialization """
+    @agent_config
+    def __init__(self, *, env, dataset):
+        super().__init__()
+        self.dataset = dataset
+
+        self._obs_shape = env.obs_shape
+        self._action_dim = env.action_dim
+
+        # intervals between calling self._summary
+        self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
+
+        self._add_attributes(env, dataset)
+        self._construct_optimizers()
+        self._build_learn(env)
+        self._sync_nets()
+    
+    def _add_attributes(self, env, dataset):
+        pass
+
+    @abstractmethod
+    def _construct_optimizers(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _build_learn(self, env):
+        raise NotImplementedError
+
+    def _sync_nets(self):
+        pass
+
+    def _summary(self, data, terms):
+        # add summaries other than scalars
+        pass 
+
+    """ Call """
+    def __call__(self, obs, evaluation=False, env_output=(), return_eval_stats=False):
+        if obs.ndim % 2 != 0:
+            obs = np.expand_dims(obs, 0)    # add batch dimension
+        assert obs.ndim in (2, 4), obs.shape
+
+        obs, kwargs = self._process_input(obs, evaluation, env_output)
+        kwargs.update({
+            'evaluation': evaluation,
+            'return_eval_stats': return_eval_stats
+        })
+        out = self._compute_action(obs, **kwargs)
+        out = self._process_output(obs, kwargs, out, evaluation)
+
+        return out
+
+    def _process_input(self, obs, evaluation, env_output):
+        """Do necessary pre-process and produce inputs to model
+        Args:
+            obs: Observations with added batch dimension
+        Returns: 
+            obs: Pre-processed observations
+            kwargs, dict: kwargs necessary to model  
+        """
+        return obs, {}
+    
+    def _compute_action(self, obs, **kwargs):
+        return self.model.action(obs, **kwargs)
+        
+    def _process_output(self, obs, kwargs, out, evaluation):
+        """Post-process output
+        Args:
+            obs: Pre-processed observations
+            kwargs, dict: kwargs necessary to model  
+            out (action, terms(, state)): Model output, optionally including rnn state
+        Returns:
+            out: results supposed to return by __call__
+        """
+        return tf.nest.map_structure(lambda x: x.numpy(), out)
+
+    @abstractmethod
+    def _learn(self):
+        raise NotImplementedError
+
 class RMSBaseAgent(BaseAgent):
-    def __init__(self):
+    @override(BaseAgent)
+    def _add_attributes(self, env, datset):
         from utility.utils import RunningMeanStd
         self._normalized_axis = getattr(self, '_normalized_axis', (0,))
         self._normalize_obs = getattr(self, '_normalize_obs', False)
@@ -103,9 +191,19 @@ class RMSBaseAgent(BaseAgent):
         else:
             self._reverse_return = -np.inf
         self._rms_path = f'{self._root_dir}/{self._model_name}/rms.pkl'
+
         logger.info(f'Observation normalization: {self._normalize_obs}')
         logger.info(f'Reward normalization: {self._normalize_reward}')
         logger.info(f'Reward normalization with reversed return: {self._normalize_reward_with_reversed_return}')
+
+    @override(BaseAgent)
+    def _process_input(self, obs, evaluation, env_output):
+        # update rms and normalize obs
+        if not evaluation:
+            self.update_obs_rms(obs)
+            self.update_reward_rms(env_output.reward, env_output.discount)
+        obs = self.normalize_obs(obs)
+        return obs, {}
 
     """ Functions for running mean and std """
     def get_running_stats(self):
@@ -160,6 +258,7 @@ class RMSBaseAgent(BaseAgent):
         return self._reward_rms.normalize(reward, subtract_mean=False) \
             if self._normalize_reward else reward
 
+    @override(BaseAgent)
     def restore(self):
         if os.path.exists(self._rms_path):
             with open(self._rms_path, 'rb') as f:
@@ -167,6 +266,7 @@ class RMSBaseAgent(BaseAgent):
                 logger.info(f'rms stats are restored from {self._rms_path}')
         super().restore()
 
+    @override(BaseAgent)
     def save(self, print_terminal_info=False):
         with open(self._rms_path, 'wb') as f:
             cloudpickle.dump((self._obs_rms, self._reward_rms), f)

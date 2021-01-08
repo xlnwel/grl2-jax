@@ -46,10 +46,9 @@ class Runner:
         for t in range(nsteps):
             action = action_selector(
                 obs, 
-                reset=reset, 
                 evaluation=False,
                 env_output=self.env_output)
-            obs, reset = self.step_env(obs, action, step_fn)
+            obs = self.step_env(obs, action, step_fn)
 
             # logging when env is reset 
             if reset:
@@ -70,10 +69,9 @@ class Runner:
         for t in range(nsteps):
             action = action_selector(
                 obs, 
-                reset=reset, 
                 evaluation=False,
                 env_output=self.env_output)
-            obs, reset = self.step_env(obs, action, step_fn)
+            obs = self.step_env(obs, action, step_fn)
             
             # logging when any env is reset 
             done_env_ids = [i for i, r in enumerate(reset) if r]
@@ -97,10 +95,9 @@ class Runner:
         for t in range(self._default_nsteps):
             action = action_selector(
                 obs, 
-                reset=reset, 
                 evaluation=False, 
                 env_output=self.env_output)
-            obs, reset = self.step_env(obs, action, step_fn)
+            obs = self.step_env(obs, action, step_fn)
 
             if reset:
                 break
@@ -121,10 +118,9 @@ class Runner:
         for t in range(self._default_nsteps):
             action = action_selector(
                 obs, 
-                reset=reset, 
                 evaluation=False,
                 env_output=self.env_output)
-            obs, reset = self.step_env(obs, action, step_fn, mask=True)
+            obs = self.step_env(obs, action, step_fn, mask=True)
 
             # logging when any env is reset 
             if np.all(self.env.game_over()):
@@ -166,7 +162,7 @@ class Runner:
             kwargs.update(terms)
             step_fn(self.env, self.step, reset, **kwargs)
 
-        return next_obs, reset
+        return next_obs
 
 def evaluate(
              env, 
