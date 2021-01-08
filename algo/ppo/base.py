@@ -39,7 +39,7 @@ class PPOBase(RMSBaseAgent):
             terms['obs'] = obs
         return out
 
-    """ Standard PPO functions """
+    """ Standard PPO methods """
     def reset_states(self, state=None):
         pass
 

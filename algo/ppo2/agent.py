@@ -8,13 +8,15 @@ from algo.ppo.base import PPOBase
 
 
 class Agent(PPOBase):
+    """ Initialization """
     @override(PPOBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
         # previous and current state of LSTM
         self._state = None
-        self._prev_action = None
-    
+        self._prev_action = 0
+        self._prev_reward = 0
+
     @override(PPOBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
@@ -34,9 +36,44 @@ class Agent(PPOBase):
         if self.model.additional_rnn_input:
             TensorSpecs['additional_rnn_input'] = [(
                 ((self._sample_size, env.action_dim), self._dtype, 'prev_action'),
-                ((self._sample_size, 1), self._dtype, 'reward'),    # this reward should be unnormlaized
+                ((self._sample_size, 1), self._dtype, 'prev_reward'),    # this reward should be unnormlaized
             )]
         self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
+
+    """ Call """
+    # @override(PPOBase)
+    def _process_input(self, obs, evaluation, env_output):
+        if self._state is None:
+            self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
+            if self.model.additional_rnn_input:
+                self._prev_action = tf.zeros(obs.shape[0], dtype=tf.int32)
+
+        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+        kwargs.update({
+            'state': self._state,
+            'mask': 1. - env_output.reset,   # mask is applied in LSTM
+            'prev_action': self._prev_action, 
+            'prev_reward': env_output.reward # use unnormalized reward to avoid potential inconsistency
+        })
+        return obs, kwargs
+        
+    # @override(PPOBase)
+    def _process_output(self, obs, kwargs, out, evaluation):
+        out, self._state = out
+        if self.model.additional_rnn_input:
+            self._prev_action = out[0]
+        
+        out = super()._process_output(obs, kwargs, out, evaluation)
+        if not evaluation:
+            terms = out[1]
+            if self._store_state:
+                terms.update(tf.nest.map_structure(
+                    lambda x: x.numpy(), kwargs['state']._asdict()))
+            terms.update({
+                'obs': obs,
+                'mask': kwargs['mask'],
+            })
+        return out
 
     @override(PPOBase)
     def reset_states(self, states=None):
@@ -49,49 +86,25 @@ class Agent(PPOBase):
     def get_states(self):
         return self._state, self._prev_action
 
+    @override(PPOBase)
     def record_last_obs(self, env_output):
         self.update_obs_rms(env_output.obs)
         self._last_obs = self.normalize_obs(env_output.obs)
         self._mask = 1 - env_output.reset
+        self._prev_reward = env_output.reward
 
-    def compute_value(self, obs=None, state=None, mask=None, prev_action=None, reward=None, return_state=False):
-        # be sure you normalize obs first if obs normalization is required
+    @override(PPOBase)
+    def compute_value(self, obs=None, state=None, mask=None, 
+                    prev_action=None, prev_reward=None, return_state=False):
+        # be sure obs is normalized if obs normalization is required
         obs = obs or self._last_obs
         mask = mask or self._mask
         state = state or self._state
         prev_action = prev_action or self._prev_action
-        reward = reward or self._reward
-        out = self.model.compute_value(self._last_obs,
-            state, mask, prev_action, reward)
+        prev_reward = prev_reward or self._prev_reward
+        out = self.model.compute_value(
+            obs, state, mask, prev_action, prev_reward)
         if return_state:
             return tf.nest.map_structure(lambda x: x.numpy(), out)
         else:
             return out[0].numpy()
-
-    @override(RMSBaseAgent)
-    def _process_input(self, obs, evaluation, env_output):
-        super()._process_input(obs, evaluation, env_output)
-        self._reward = env_output.reward # use unnormalized reward to avoid potential inconsistency
-
-        if self._state is None:
-            self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
-            if self.model.additional_rnn_input:
-                self._prev_action = np.zeros(obs.shape[0], dtype=np.int32)
-
-        mask = 1. - reset   # mask is applied in LSTM
-        prev_state = self._state
-        out, self._state = self.model.action(obs, self._state, mask, evaluation,
-            prev_action=self._prev_action, reward=self._reward)
-        out = tf.nest.map_structure(lambda x: x.numpy(), out)
-        if not evaluation:
-            terms = out[1]
-            if self._store_state:
-                terms.update(tf.nest.map_structure(
-                    lambda x: x.numpy(), prev_state._asdict()))
-            terms['mask'] = mask
-            terms['obs'] = obs
-            if self.model.additional_rnn_input:
-                terms['prev_action'] = self._prev_action
-        if self.model.additional_rnn_input:
-            self._prev_action = out[0] if isinstance(out, tuple) else out
-        return out
