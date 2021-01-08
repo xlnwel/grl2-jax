@@ -6,15 +6,17 @@ from utility.tf_utils import explained_variance
 from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
 from core.decorator import override
-from algo.dqn.base import get_data_format, DQNBase
+from algo.dqn.base import DQNBase, get_data_format
 
 
 class Agent(DQNBase):
     @override(DQNBase)
     def _construct_optimizers(self):
         if self._schedule_lr:
-            self._actor_lr = TFPiecewiseSchedule([(4e6, self._actor_lr), (7e6, 1e-5)])
-            self._q_lr = TFPiecewiseSchedule([(4e6, self._q_lr), (7e6, 1e-5)])
+            assert isinstance(self._actor_lr, list), self._actor_lr
+            assert isinstance(self._q_lr, list), self._q_lr
+            self._actor_lr = TFPiecewiseSchedule(self._actor_lr)
+            self._q_lr = TFPiecewiseSchedule(self._q_lr)
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, 
             self._actor_lr, epsilon=self._epsilon)
@@ -36,14 +38,6 @@ class Agent(DQNBase):
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}
-        if self.temperature.is_trainable():
-            # Entropy of a uniform distribution
-            self._target_entropy = np.log(self._action_dim)
-            target_entropy_coef = self._target_entropy_coef \
-                if isinstance(self._target_entropy_coef, float) \
-                else self._target_entropy_coef(self._train_step)
-            target_entropy = self._target_entropy * target_entropy_coef
-
         if self.temperature.type == 'schedule':
             _, temp = self.temperature(self._train_step)
         elif self.temperature.type == 'state-action':
@@ -103,6 +97,12 @@ class Agent(DQNBase):
         act_probs = tf.reduce_mean(act_probs, 0)
         self.actor.update_prior(act_probs, self._prior_lr)
         if self.temperature.is_trainable():
+            # Entropy of a uniform distribution
+            self._target_entropy = np.log(self._action_dim)
+            target_entropy_coef = self._target_entropy_coef \
+                if isinstance(self._target_entropy_coef, float) \
+                else self._target_entropy_coef(self._train_step)
+            target_entropy = self._target_entropy * target_entropy_coef
             with tf.GradientTape() as tape:
                 log_temp, temp = self.temperature(x, action)
                 entropy_diff = target_entropy - entropy

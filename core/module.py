@@ -74,15 +74,13 @@ class Ensemble:
                  model_fn=None, 
                  **kwargs):
         self.models = {}
-        for k, v in config.items():
-            if not isinstance(v, dict):
-                setattr(self, f'{k}', v)
-
         if models is None:
             self.models = model_fn(config, **kwargs)
         else:
             self.models = models
         [setattr(self, n, m) for n, m in self.models.items()]
+        [setattr(self, k, v) for k, v in config.items() 
+            if not isinstance(v, dict)]
 
     def get_weights(self, name=None):
         """ Return a list/dict of weights

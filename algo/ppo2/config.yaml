@@ -11,23 +11,25 @@ model:
         kernel_initializer: glorot_uniform
         activation: relu
     rnn:
-        lstm_units: 64
-        lstm_ln: False
+        units: 64
+        use_ln: False
     actor:
-        units_list: [64]
+        units_list: []
         init_std: 1
         norm: null
-        kernel_initializer: glorot_uniform
+        kernel_initializer: orthogonal
         activation: relu
     value:
-        units_list: [64]
+        units_list: []
         norm: null
-        kernel_initializer: glorot_uniform
+        kernel_initializer: orthogonal
         activation: relu
+    additional_rnn_input: False
 
 agent:
     algorithm: &algo ppo2
-    precision: &prec 32
+    precision: 32
+    gamma: &gamma .99
 
     MAX_STEPS: 5e7
     N_STEPS: &nsteps 256
@@ -36,12 +38,17 @@ agent:
     sample_size: &ss 16       # BPTT length
     LOG_PERIOD: 100
     EVAL_PERIOD: 1000
-    max_kl: .1            # early stop when max_kl is violated. 0 or null suggests unbound
+    max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     normalize_obs: True
     normalize_reward: True
     store_state: True
-    
+    # (once, reuse, null)
+    # "once" updates values at the end of each epoch
+    # "reuse" updates values using value from learn, which is staler than once
+    # null doesn't update values.
+    value_update: null
+
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
@@ -54,15 +61,16 @@ agent:
     schedule_lr: False
     lr: 3e-4
     clip_norm: .5
+    opt_eps: 1e-7
     # arguments for loss
+    value_loss: clip
     clip_range: .2          # clip range for ppo
     entropy_coef: .0
     value_coef: .001
 
 buffer:
-    adv_type: gae           # nae or gae
-    precision: *prec
-    gamma: .99
+    adv_type: gae     # nae or gae
+    gamma: *gamma
     lam: .95
     n_envs: *nenvs
     N_STEPS: *nsteps

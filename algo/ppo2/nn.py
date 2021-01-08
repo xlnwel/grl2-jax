@@ -1,9 +1,9 @@
 import tensorflow as tf
 
+from utility.tf_utils import assert_rank
 from core.module import Ensemble
 from algo.ppo.nn import Encoder, Actor, Value
 from nn.func import LSTM
-from utility.tf_utils import assert_rank
 
 
 class PPO(Ensemble):
@@ -93,7 +93,8 @@ def create_components(config, env):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
 
-    config['encoder']['time_distributed'] = True
+    if 'cnn_name' in config['encoder']:
+        config['encoder']['time_distributed'] = True
     models = dict(
         encoder=Encoder(config['encoder']), 
         actor=Actor(config['actor'], action_dim, is_action_discrete),

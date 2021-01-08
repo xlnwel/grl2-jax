@@ -5,7 +5,7 @@ from tensorflow.keras import layers
 
 from core.module import Module, Ensemble
 from core.decorator import config
-from utility.rl_utils import logpi_correction
+from utility.rl_utils import logpi_correction, epsilon_greedy
 from utility.tf_distributions import Categorical
 from utility.schedule import TFPiecewiseSchedule
 from nn.func import mlp
@@ -16,6 +16,7 @@ class Actor(Module):
     def __init__(self, config, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
         self._is_action_discrete = is_action_discrete
+        self._action_dim = action_dim
         self.LOG_STD_MIN = config.pop('LOG_STD_MIN', -20)
         self.LOG_STD_MAX = config.pop('LOG_STD_MAX', 2)
 
@@ -28,11 +29,6 @@ class Actor(Module):
         if self._is_action_discrete:
             dist = tfd.Categorical(logits=x)
             action = dist.mode() if evaluation else dist.sample()
-            if epsilon:
-                rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
-                action = tf.where(
-                    tf.random.uniform(action.shape[:-1], 0, 1) < epsilon,
-                    rand_act, action)
         else:
             mu, logstd = tf.split(x, 2, -1)
             logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
@@ -40,9 +36,8 @@ class Actor(Module):
             dist = tfd.MultivariateNormalDiag(mu, std)
             raw_action = dist.mode() if evaluation else dist.sample()
             action = tf.tanh(raw_action)
-            if epsilon:
-                action = tf.clip_by_value(
-                    tfd.Normal(action, epsilon).sample(), -1, 1)
+        if epsilon:
+            action = epsilon_greedy(action, epsilon, self._is_action_discrete, self._action_dim)
 
         return action
 
@@ -170,7 +165,7 @@ def create_components(config, env):
     q2 = Q(q_config, 'q2')
     target_q = Q(q_config, 'target_q')
     target_q2 = Q(q_config, 'target_q2')
-    if temperature_config['_temp_type'] == 'constant':
+    if temperature_config['temp_type'] == 'constant':
         temperature = temperature_config['value']
     else:
         temperature = Temperature(temperature_config)

@@ -27,7 +27,7 @@ model:
         norm: null
         kernel_initializer: orthogonal
         activation: relu
-    additional_rnn_input: &ain False
+    additional_rnn_input: False
 
 agent:
     algorithm: &algo ppo2

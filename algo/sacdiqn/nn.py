@@ -17,12 +17,12 @@ class SACIQN(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, obs, evaluation=False, epsilon=0, return_stats=False, return_eval_stats=False, **kwargs):
-        if obs.shape.ndims % 2 != 0:
-            obs = tf.expand_dims(obs, axis=0)
-        assert obs.shape.ndims == 4, obs.shape
+    def action(self, x, evaluation=False, epsilon=0, return_stats=False, return_eval_stats=False, **kwargs):
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 4, x.shape
 
-        x = self.encoder(obs)
+        x = self.encoder(x)
         action = self.actor(x, evaluation=evaluation, epsilon=epsilon)
         terms = {}
         if return_eval_stats:

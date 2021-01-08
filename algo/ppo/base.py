@@ -21,11 +21,9 @@ class PPOBase(RMSBaseAgent):
     @override(RMSBaseAgent)
     def _construct_optimizers(self):
         if getattr(self, 'schedule_lr', False):
-            assert isinstance(self._lr, list)
+            assert isinstance(self._lr, list), self._lr
             self._lr = TFPiecewiseSchedule(self._lr)
-        models = [self.encoder, self.actor, self.value]
-        if hasattr(self, 'rnn'):
-            models.append(self.rnn)
+        models = list(self.model.values())
         self._optimizer = Optimizer(
             self._optimizer, models, self._lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)

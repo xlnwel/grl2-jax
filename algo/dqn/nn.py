@@ -4,9 +4,9 @@ from tensorflow.keras import layers
 from tensorflow.keras.mixed_precision.experimental import global_policy
 from tensorflow_probability import distributions as tfd
 
+from utility.rl_utils import epsilon_greedy
 from core.module import Module, Ensemble
 from core.decorator import config
-from utility.rl_utils import epsilon_greedy
 from nn.func import Encoder, mlp
 
 
@@ -75,9 +75,11 @@ class DQN(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, epsilon=0, return_stats=False):
-        if x.shape.ndims % 2 != 0:
-            x = tf.expand_dims(x, axis=0)
+    def action(self, x, 
+            evaluation=False, 
+            epsilon=0,
+            return_stats=False,
+            return_eval_stats=False):
         assert x.shape.ndims in (2, 4), x.shape
 
         x = self.encoder(x)
@@ -87,8 +89,10 @@ class DQN(Ensemble):
         terms = {}
         if return_stats:
             terms = {'q': q}
-        action = epsilon_greedy(action, epsilon,
-            is_action_discrete=True, action_dim=self.q.action_dim)
+        if isinstance(epsilon, tf.Tensor) or epsilon:
+            action = epsilon_greedy(action, epsilon,
+                is_action_discrete=True, 
+                action_dim=self.q.action_dim)
         action = tf.squeeze(action)
 
         return action, terms

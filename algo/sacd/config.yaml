@@ -33,7 +33,7 @@ agent:
     replay_type: &replay 'uniform'
     gamma: &gamma .99
     batch_size: &bs 32
-    n_steps: &nsteps 3      # n-step target
+    n_steps: &nsteps 3
     precision: &prec 32
     schedule_act_eps: False
     act_eps: 0
@@ -45,6 +45,7 @@ agent:
     EVAL_PERIOD: 5e5
     LOG_PERIOD: 1e4
     N_UPDATES: 1
+    N_EVAL_EPISODES: 1
     RECORD: True
 
     # model path: root_dir/model_name/models

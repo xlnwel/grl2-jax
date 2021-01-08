@@ -45,14 +45,6 @@ class Agent(DQNBase):
         self._prev_reward = 0
 
     @override(DQNBase)
-    def _construct_optimizers(self):
-        if self._schedule_lr:
-            self._lr = TFPiecewiseSchedule( [(5e5, self._lr), (2e6, 5e-5)])
-        models = [self.encoder, self.rnn, self.q]
-        self._optimizer = Optimizer(
-            self._optimizer, models, self._lr, clip_norm=self._clip_norm)
-
-    @override(DQNBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
@@ -69,9 +61,15 @@ class Agent(DQNBase):
             state_type = type(self.model.state_size)
             TensorSpecs['state'] = state_type(*[((sz, ), self._dtype, name) 
                 for name, sz in self.model.state_size._asdict().items()])
+        if self.model.additional_rnn_input:
+            TensorSpecs['additional_rnn_input'] = [(
+                ((self._sample_size, env.action_dim), self._dtype, 'prev_action'),
+                ((self._sample_size, 1), self._dtype, 'prev_reward'),    # this reward should be unnormlaized
+            )]
         self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
 
     """ Call """
+    @override(DQNBase)
     def _process_input(self, obs, evaluation, env_output):
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=tf.shape(obs)[0])
@@ -87,7 +85,8 @@ class Agent(DQNBase):
             'prev_reward': env_output.reward # use unnormalized reward to avoid potential inconsistency
         })
         return obs, kwargs
-        
+
+    @override(DQNBase)
     def _process_output(self, obs, kwargs, out, evaluation):
         out, self._state = out
         if self.model.additional_rnn_input:

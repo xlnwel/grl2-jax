@@ -5,6 +5,8 @@ import tensorflow as tf
 from utility.utils import Every
 from utility.schedule import PiecewiseSchedule
 from utility.timer import TBTimer
+from utility.schedule import TFPiecewiseSchedule
+from core.optimizer import Optimizer
 from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import override, step_track
@@ -37,15 +39,26 @@ class DQNBase(BaseAgent):
     def _add_attributes(self, env, dataset):
         self._is_per = dataset.name().endswith('per')
         self._return_stats = getattr(self, '_return_stats', False)
-        self._schedule_act_eps = env.n_envs == 1 and self._schedule_act_eps
+        self._schedule_act_eps = env.n_envs == 1 \
+            and getattr(self, '_schedule_act_eps', False)
 
         if self._schedule_act_eps:
             if isinstance(self._act_eps, (float, int)):
                 self._act_eps = [(0, self._act_eps)]
             self._act_eps = PiecewiseSchedule(self._act_eps)
         
-        self._to_sync = Every(self._target_update_period)
+        if hasattr(self, '_target_update_period'):
+            self._to_sync = Every(self._target_update_period)
     
+    @override(BaseAgent)
+    def _construct_optimizers(self):
+        if self._schedule_lr:
+            assert isinstance(self._lr, list), self._lr
+            self._lr = TFPiecewiseSchedule(self._lr)
+        models = [self.model[k] for k in self.model.items() if 'target' not in k]
+        self._optimizer = Optimizer(
+            self._optimizer, models, self._lr, clip_norm=self._clip_norm)
+
     @override(BaseAgent)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to initialize variables
@@ -62,21 +75,28 @@ class DQNBase(BaseAgent):
             TensorSpecs['steps'] = ((), tf.float32, 'steps')
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
     
-    
     @tf.function
     def _sync_nets(self):
-        tms = [getattr(self, f'target_{k}') for k in self.model if f'target_{k}' in self.model]
-        oms = [getattr(self, f'{k}') for k in self.model if f'target_{k}' in self.model]
-        logger.info(f"Target modules: {tms}")
-        logger.info(f"Online modules: {oms}")
-        tvars = list(itertools.chain(*[v.variables for v in tms]))
-        ovars = list(itertools.chain(*[v.variables for v in oms]))
+        tns = self.get_target_nets()
+        ons = self.get_online_nets()
+        logger.info(f"Target networks: {tns}")
+        logger.info(f"Online networks: {ons}")
+        tvars = list(itertools.chain(*[v.variables for v in tns]))
+        ovars = list(itertools.chain(*[v.variables for v in ons]))
         [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
+    
+    def get_online_nets(self):
+        return [getattr(self, f'{k}') for k in self.model 
+            if f'target_{k}' in self.model]
+
+    def get_target_nets(self):
+        return [getattr(self, f'target_{k}') for k in self.model 
+            if f'target_{k}' in self.model]
 
     """ Call """
     @override(BaseAgent)
-    def _process_input(self, obs, evaluation, env_ouput):
-        obs, kwargs = super()._process_input()
+    def _process_input(self, obs, evaluation, env_output):
+        obs, kwargs = super()._process_input(obs, evaluation, env_output)
         kwargs['epsilon'] = self._get_eps(evaluation)
         return obs, kwargs
 

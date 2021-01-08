@@ -1,27 +1,22 @@
-import numpy as np
+import itertools
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
 
-from utility.display import pwc
-from utility.rl_utils import n_step_target
+from utility.rl_loss import n_step_target
 from utility.schedule import TFPiecewiseSchedule
 from utility.timer import TBTimer
-from core.tf_config import build
-from core.base import BaseAgent
-from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
-from algo.dqn.base import get_data_format
+from core.decorator import override, step_track
+from algo.dqn.base import DQNBase, get_data_format
 
 
-class Agent(BaseAgent):
-    @agent_config
-    def __init__(self, *, dataset, env):
-        self._is_per = self._replay_type.endswith('per')
-        self.dataset = dataset
-
+class Agent(DQNBase):
+    @override(DQNBase)
+    def _construct_optimizers(self):
         if self._schedule_lr:
-            self._actor_lr = TFPiecewiseSchedule([(2e5, self._actor_lr), (1e6, 1e-5)])
-            self._q_lr = TFPiecewiseSchedule([(2e5, self._q_lr), (1e6, 1e-5)])
+            assert isinstance(self._actor_lr, list), self._actor_lr
+            assert isinstance(self._q_lr, list), self._q_lr
+            self._actor_lr = TFPiecewiseSchedule(self._actor_lr)
+            self._q_lr = TFPiecewiseSchedule(self._q_lr)
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
         self._q_opt = Optimizer(self._optimizer, [self.q, self.q2], self._q_lr)
@@ -29,52 +24,30 @@ class Agent(BaseAgent):
         if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
 
-        self._action_dim = env.action_dim
-        self._is_action_discrete = env.is_action_discrete
-        if not hasattr(self, '_target_entropy'):
-            self._target_entropy = .98 * np.log(self._action_dim) \
-                if self._is_action_discrete else -self._action_dim
-
-        TensorSpecs = dict(
-            obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            action=((env.action_dim,), tf.float32, 'action'),
-            reward=((), tf.float32, 'reward'),
-            next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
-            discount=((), tf.float32, 'discount'),
-        )
-        if self._is_per:
-            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
-        if self._n_steps > 1:
-            TensorSpecs['steps'] = ((), tf.float32, 'steps')
-        self.learn = build(self._learn, TensorSpecs)
-
-        self._sync_target_nets()
-
-    def __call__(self, obs, evaluation=False, **kwargs):
-        return self.model.action(
-            obs, 
-            evaluation=evaluation, 
-            epsilon=self._act_eps).numpy()
-
     @step_track
     def learn_log(self, step):
-        data = self.dataset.sample()
-        if self._is_per:
-            idxes = data.pop('idxes').numpy()
+        for _ in range(self.N_UPDATES):
+            with TBTimer('sample', 2500):
+                data = self.dataset.sample()
 
-        terms = self.learn(**data)
-        self._update_target_nets()
+            if self._is_per:
+                idxes = data.pop('idxes').numpy()
 
-        if self._schedule_lr:
-            step = tf.convert_to_tensor(step, tf.float32)
-            terms['actor_lr'] = self._actor_lr(step)
-            terms['q_lr'] = self._q_lr(step)
-        terms = {k: v.numpy() for k, v in terms.items()}
+            with TBTimer('learn', 2500):
+                terms = self.learn(**data)
+            
+            self._update_target_nets()
 
-        if self._is_per:
-            self.dataset.update_priorities(terms['priority'], idxes)
-        self.store(**terms)
-        return 1
+            terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
+            if self._is_per:
+                self.dataset.update_priorities(terms['train/priority'], idxes)
+
+            self.store(**terms)
+
+        if self._to_summary(step):
+            self._summary(data, terms)
+        
+        return self.N_UPDATES
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
@@ -113,10 +86,11 @@ class Agent(BaseAgent):
         self._actor_opt(actor_tape, actor_loss)
 
         if self.temperature.is_trainable():
+            target_entropy = getattr(self, '_target_entropy', -self._action_dim)
             with tf.GradientTape() as temp_tape:
                 log_temp, temp = self.temperature(obs, action)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
-                    * tf.stop_gradient(logpi + self._target_entropy))
+                    * tf.stop_gradient(logpi + target_entropy))
             self._temp_opt(temp_tape, temp_loss)
             terms.update(dict(
                 temp=temp,
@@ -146,14 +120,10 @@ class Agent(BaseAgent):
         return priority
 
     @tf.function
-    def _sync_target_nets(self):
-        tvars = self.target_q.variables + self.target_q2.variables
-        mvars = self.q.variables + self.q2.variables
-        [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
-
-    @tf.function
     def _update_target_nets(self):
-        tvars = self.target_q.trainable_variables + self.target_q2.trainable_variables
-        mvars = self.q.trainable_variables + self.q2.trainable_variables
-        [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
-            for tvar, mvar in zip(tvars, mvars)]
+        tns = self.get_target_nets()
+        ons = self.get_online_nets()
+        tvars = list(itertools.chain(*[v.variables for v in tns]))
+        ovars = list(itertools.chain(*[v.variables for v in ons]))
+        [tvar.assign(self._polyak * tvar + (1. - self._polyak) * ovar) 
+            for tvar, ovar in zip(tvars, ovars)]

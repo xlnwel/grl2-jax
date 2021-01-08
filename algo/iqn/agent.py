@@ -9,14 +9,6 @@ from algo.dqn.base import DQNBase, get_data_format
 
 class Agent(DQNBase):
     @override(DQNBase)
-    def _construct_optimizers(self):
-        if self._schedule_lr:
-            self._lr = TFPiecewiseSchedule([(5e5, self._lr), (2e6, 5e-5)])
-        models = [self.encoder, self.quantile, self.q]
-        self._optimizer = Optimizer(self._optimizer, models, 
-            self._lr, epsilon=self._epsilon)
-
-    @override(DQNBase)
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}

@@ -135,7 +135,11 @@ class IQN(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, epsilon=0, return_stats=False):
+    def action(self, x, 
+            evaluation=False, 
+            epsilon=0,
+            return_stats=False,
+            return_eval_stats=False):
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
@@ -146,9 +150,10 @@ class IQN(Ensemble):
             action, q = action
             q = tf.squeeze(q)
             terms = {'q': q}
-        if not evaluation:
+        if isinstance(epsilon, tf.Tensor) or epsilon:
             action = epsilon_greedy(action, epsilon,
-                is_action_discrete=True, action_dim=self.q.action_dim)
+                is_action_discrete=True, 
+                action_dim=self.q.action_dim)
         action = tf.squeeze(action)
 
         return action, terms
