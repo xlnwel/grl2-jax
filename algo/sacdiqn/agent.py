@@ -1,14 +1,16 @@
 import numpy as np
 import tensorflow as tf
 
-from utility.rl_utils import n_step_target, quantile_regression_loss
+from utility.rl_loss import n_step_target, quantile_regression_loss
 from utility.tf_utils import explained_variance
 from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
+from core.decorator import override
 from algo.dqn.base import get_data_format, DQNBase
 
 
 class Agent(DQNBase):
+    @override(DQNBase)
     def _construct_optimizers(self):
         if self._schedule_lr:
             self._actor_lr = TFPiecewiseSchedule([(4e6, self._actor_lr), (7e6, 1e-5)])
@@ -30,6 +32,7 @@ class Agent(DQNBase):
     #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
     #     tf.summary.histogram('learn/reward', data['reward'], step=self._env_step)
 
+    @override(DQNBase)
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}
@@ -155,11 +158,3 @@ class Agent(DQNBase):
         qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
 
         return value, tf.abs(error), qr_loss
-
-    @tf.function
-    def _sync_target_nets(self):
-        tvars = self.target_encoder.variables + self.target_quantile.variables \
-            + self.target_actor.variables + self.target_q.variables
-        mvars = self.encoder.variables + self.quantile.variables \
-            + self.actor.variables + self.q.variables
-        [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]

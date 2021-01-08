@@ -7,6 +7,7 @@ from utility.schedule import TFPiecewiseSchedule
 from utility.tf_utils import explained_variance
 from core.tf_config import build
 from core.optimizer import Optimizer
+from core.decorator import override
 from algo.ppo.agent import Agent as PPOAgent
 from algo.ppo.loss import compute_ppo_loss
 
@@ -14,29 +15,14 @@ from algo.ppo.loss import compute_ppo_loss
 logger = logging.getLogger(__name__)
 
 class Agent(PPOAgent):
-    def _build_learn(self, env):
-        # Explicitly instantiate tf.function to avoid unintended retracing
-        TensorSpecs = dict(
-            obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            action=(env.action_shape, env.action_dtype, 'action'),
-            value=((), tf.float32, 'value'),
-            traj_ret=((), tf.float32, 'traj_ret'),
-            advantage=((), tf.float32, 'advantage'),
-            logpi=((), tf.float32, 'logpi'),
-        )
-        self.learn = build(self._learn, TensorSpecs)
-        TensorSpecs = dict(
-            obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            logits=(env.action_shape, tf.float32, 'logits'),
-            value=((), tf.float32, 'value'),
-            traj_ret=((), tf.float32, 'traj_ret'),
-        )
-        self.aux_learn = build(self._aux_learn, TensorSpecs)
-
-    def _add_attributes(self):
+    """ Initialization """
+    @override(PPOAgent)
+    def _add_attributes(self, env, dateset):
+        super()._add_attributes(env, dateset)
         assert self.N_SEGS <= self.N_PI, f'{self.N_SEGS} > {self.N_PI}'
         self.N_AUX_MBS = self.N_SEGS * self.N_AUX_MBS_PER_SEG
 
+    @override(PPOAgent)
     def _construct_optimizers(self):
         if getattr(self, 'schedule_lr', False):
             assert isinstance(self._actor_lr, list)
@@ -67,6 +53,27 @@ class Agent(PPOAgent):
             self._optimizer, aux_models, self._aux_lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
+    @override(PPOAgent)
+    def _build_learn(self, env):
+        # Explicitly instantiate tf.function to avoid unintended retracing
+        TensorSpecs = dict(
+            obs=(env.obs_shape, env.obs_dtype, 'obs'),
+            action=(env.action_shape, env.action_dtype, 'action'),
+            value=((), tf.float32, 'value'),
+            traj_ret=((), tf.float32, 'traj_ret'),
+            advantage=((), tf.float32, 'advantage'),
+            logpi=((), tf.float32, 'logpi'),
+        )
+        self.learn = build(self._learn, TensorSpecs)
+        TensorSpecs = dict(
+            obs=(env.obs_shape, env.obs_dtype, 'obs'),
+            logits=(env.action_shape, tf.float32, 'logits'),
+            value=((), tf.float32, 'value'),
+            traj_ret=((), tf.float32, 'traj_ret'),
+        )
+        self.aux_learn = build(self._aux_learn, TensorSpecs)
+
+    """ PPG methods """
     def compute_aux_data(self, obs):
         out = self.model.compute_aux_data(obs)
         out = tf.nest.map_structure(lambda x: x.numpy(), out)
@@ -93,7 +100,7 @@ class Agent(PPOAgent):
         self.store(**{'aux/kl': kl})
         
         if self._to_summary(step):
-            self.summary(data, terms)
+            self._summary(data, terms)
 
         return i * self.N_MBS + j
 
@@ -117,7 +124,7 @@ class Agent(PPOAgent):
         with tf.GradientTape() as tape:
             x_value = self.value_encoder(obs) if hasattr(self, 'value_encoder') else x
             value = self.value(x_value)
-            value_loss = self.compute_value_loss(value, traj_ret, old_value, terms)
+            value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
         terms['value_norm'] = self._value_opt(tape, value_loss)
 
         terms.update(dict(
@@ -169,7 +176,7 @@ class Agent(PPOAgent):
             if state is not None:
                 x_value, state = self.value_rnn(x_value, state, mask=mask)
             value = self.value(x_value)
-            value_loss = self.compute_value_loss(value, traj_ret, old_value, terms)
+            value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
         value_norm = self._value_opt(tape, value_loss)
         terms.update(dict(
             value_norm=value_norm,
@@ -201,7 +208,7 @@ class Agent(PPOAgent):
                 # allow gradients from value head if using a shared encoder
                 value = self.value(x)
 
-            value_loss = self.compute_value_loss(value, traj_ret, old_value, terms)
+            value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
             loss = actor_loss + value_loss
 
         terms['actor_norm'] = self._aux_opt(tape, loss)

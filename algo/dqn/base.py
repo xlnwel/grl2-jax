@@ -1,4 +1,5 @@
-import numpy as np
+import itertools
+import logging
 import tensorflow as tf
 
 from utility.utils import Every
@@ -8,6 +9,8 @@ from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import override, step_track
 
+
+logger = logging.getLogger(__name__)
 
 def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
     obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
@@ -42,10 +45,6 @@ class DQNBase(BaseAgent):
             self._act_eps = PiecewiseSchedule(self._act_eps)
         
         self._to_sync = Every(self._target_update_period)
-
-    @override(BaseAgent)
-    def _construct_optimizers(self):
-        raise NotImplementedError
     
     @override(BaseAgent)
     def _build_learn(self, env):
@@ -63,11 +62,16 @@ class DQNBase(BaseAgent):
             TensorSpecs['steps'] = ((), tf.float32, 'steps')
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
     
+    
     @tf.function
     def _sync_nets(self):
-        tvars = self.target_encoder.variables + self.target_q.variables
-        mvars = self.encoder.variables + self.q.variables
-        [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
+        tms = [getattr(self, f'target_{k}') for k in self.model if f'target_{k}' in self.model]
+        oms = [getattr(self, f'{k}') for k in self.model if f'target_{k}' in self.model]
+        logger.info(f"Target modules: {tms}")
+        logger.info(f"Online modules: {oms}")
+        tvars = list(itertools.chain(*[v.variables for v in tms]))
+        ovars = list(itertools.chain(*[v.variables for v in oms]))
+        [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
 
     """ Call """
     @override(BaseAgent)
@@ -99,7 +103,7 @@ class DQNBase(BaseAgent):
             with TBTimer('learn', 2500):
                 terms = self.learn(**data)
             if self._to_sync(self.train_step):
-                self._sync_target_nets()
+                self._sync_nets()
 
             terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
             if self._is_per:
@@ -111,7 +115,6 @@ class DQNBase(BaseAgent):
             self._summary(data, terms)
         
         return self.N_UPDATES
-
     
     def _compute_priority(self, priority):
         """ p = (p + 𝝐)**𝛼 """

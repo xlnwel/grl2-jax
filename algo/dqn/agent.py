@@ -13,9 +13,6 @@ class Agent(DQNBase):
         self._optimizer = Optimizer(
             self._optimizer, models, self._lr, clip_norm=self._clip_norm)
 
-    def reset_noisy(self):
-        self.q.reset_noisy()
-
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         loss_fn = dict(
@@ -47,3 +44,6 @@ class Agent(DQNBase):
         ))
 
         return terms
+
+    def reset_noisy(self):
+        self.q.reset_noisy()

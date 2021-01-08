@@ -7,6 +7,7 @@ from algo.ppo.base import PPOBase
 
 
 class Agent(PPOBase):
+    """ Initialization """
     @override(PPOBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing

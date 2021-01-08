@@ -13,10 +13,6 @@ from core.decorator import override, agent_config
 logger = logging.getLogger(__name__)
 
 class AgentImpl(ABC):
-    @abstractmethod
-    def __call__(self):
-        raise NotImplementedError
-
     """ Restore & save """
     def restore(self):
         """ Restore the latest parameter recorded by ckpt_manager

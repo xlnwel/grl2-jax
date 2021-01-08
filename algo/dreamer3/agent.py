@@ -88,7 +88,7 @@ class Agent(BaseAgent):
 
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
-        self._sync_target_nets()
+        self._sync_nets()
         
     def reset_states(self, state=(None, None)):
         self._state, self._prev_action = state
@@ -316,7 +316,7 @@ class Agent(BaseAgent):
             step=self._env_step)
 
     @tf.function
-    def _sync_target_nets(self):
+    def _sync_nets(self):
         tvars = self.target_q.variables + self.target_q2.variables
         mvars = self.q.variables + self.q2.variables
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]

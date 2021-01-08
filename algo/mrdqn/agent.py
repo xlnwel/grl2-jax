@@ -6,7 +6,9 @@ from utility.rl_loss import retrace
 from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
 from core.optimizer import Optimizer
+from core.decorator import override
 from algo.dqn.base import DQNBase
+
 
 def get_data_format(env, batch_size, sample_size=None, 
         is_per=False, store_state=False, state_size=None, 
@@ -34,6 +36,15 @@ def get_data_format(env, batch_size, sample_size=None,
     return data_format
 
 class Agent(DQNBase):
+    """ Initialization """
+    @override(DQNBase)
+    def _add_attributes(self, env, dataset):
+        super()._add_attributes(env, dataset)
+        self._state = None
+        self._prev_action = 0
+        self._prev_reward = 0
+
+    @override(DQNBase)
     def _construct_optimizers(self):
         if self._schedule_lr:
             self._lr = TFPiecewiseSchedule( [(5e5, self._lr), (2e6, 5e-5)])
@@ -41,69 +52,57 @@ class Agent(DQNBase):
         self._optimizer = Optimizer(
             self._optimizer, models, self._lr, clip_norm=self._clip_norm)
 
-    def _add_attributes(self):
-        self._state = None
-        self._prev_action = None
-        self._prev_reward = None
-
+    @override(DQNBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
             obs=((self._sample_size+1, *env.obs_shape), tf.float32, 'obs'),
             action=((self._sample_size+1,), tf.int32, 'prev_action'),
             reward=((self._sample_size+1,), tf.float32, 'prev_reward'),
-            logpi=((self._sample_size,), tf.float32, 'logpi'),
+            prob=((self._sample_size,), tf.float32, 'prob'),
             discount=((self._sample_size,), tf.float32, 'discount'),
             mask=((self._sample_size+1,), tf.float32, 'mask')
         )
         if self._is_per:
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
         if self._store_state:
-            state_size = self.q.state_size
-            TensorSpecs['state'] = (
-               [((sz, ), self._dtype, name) 
-               for name, sz in state_size._asdict().items()]
-            )
+            state_type = type(self.model.state_size)
+            TensorSpecs['state'] = state_type(*[((sz, ), self._dtype, name) 
+                for name, sz in self.model.state_size._asdict().items()])
         self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
 
-    def reset_states(self, state=None):
-        if state is None:
-            self._state, self._prev_action, self._prev_reward = None, None, None
-        else:
-            self._state, self._prev_action, self._prev_reward= state
-
-    def get_states(self):
-        return self._state, self._prev_action, self._prev_reward
-
-    def __call__(self, obs, reset=np.zeros(1), evaluation=False, 
-                env_output=None, **kwargs):
-        eps = self._get_eps(evaluation)
-        if obs.ndim % 2 != 0:
-            obs = np.expand_dims(obs, 0)    # add batch dimension
-        assert obs.ndim in (2, 4), obs.shape
-        self._prev_reward = env_output.reward
-
+    """ Call """
+    def _process_input(self, obs, evaluation, env_output):
         if self._state is None:
             self._state = self.q.get_initial_state(batch_size=tf.shape(obs)[0])
             if self.model.additional_rnn_input:
-                self._prev_action = np.zeros(obs.shape[0], dtype=np.int32)
+                self._prev_action = tf.zeros(obs.shape[0], dtype=tf.int32)
                 self._prev_reward = np.zeros(obs.shape[0])
-        mask = 1 - reset   # mask is applied in LSTM
-        prev_state = self._state
-        out, self._state = self.q.action(
-                obs, self._state, True, 
-                prev_action=self._prev_action,
-                prev_reward=self._prev_reward)
-        out = tf.nest.map_structure(lambda x: x.numpy(), out)
+
+        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+        kwargs.update({
+            'state': self._state,
+            'mask': 1. - env_output.reset,   # mask is applied in LSTM
+            'prev_action': self._prev_action, 
+            'prev_reward': env_output.reward # use unnormalized reward to avoid potential inconsistency
+        })
+        return obs, kwargs
+        
+    def _process_output(self, obs, kwargs, out, evaluation):
+        out, self._state = out
+        if self.model.additional_rnn_input:
+            self._prev_action = out[0]
+        
+        out = super()._process_output(obs, kwargs, out, evaluation)
         if not evaluation:
             terms = out[1]
             if self._store_state:
-                terms.update(prev_state._asdict())
-            terms['mask'] = mask
-            if self.model.additional_rnn_input:
-                terms['prev_action'] = self._prev_action
-        if self.model.additional_rnn_input:
-            self._prev_action = out[0] if isinstance(out, tuple) else out
+                terms.update(tf.nest.map_structure(
+                    lambda x: x.numpy(), kwargs['state']._asdict()))
+            terms.update({
+                'obs': obs,
+                'mask': kwargs['mask'],
+            })
         return out
 
     @tf.function
@@ -163,21 +162,21 @@ class Agent(DQNBase):
             next_pi = tf.one_hot(new_next_action, self._action_dim, dtype=tf.float32)
             t_next_qs = self.target_q(t_next_x)
             next_mu_a = prob[:, 1:]
-            returns = retrace(
+            target = retrace(
                 reward, t_next_qs, next_action, 
                 next_pi, next_mu_a, discount,
                 lambda_=self._lambda, 
                 axis=1, tbo=self._tbo)
-            returns = tf.stop_gradient(returns)
-            error = returns - q
+            target = tf.stop_gradient(target)
+            error = target - q
             loss = tf.reduce_mean(IS_ratio[:, None] * loss_fn(error))
         tf.debugging.assert_shapes([
             [q, (None, ss)],
             [next_qs, (None, ss, self._action_dim)],
             [next_action, (None, ss-1)],
-            [curr_action, (None, ss)√],
+            [curr_action, (None, ss)],
             [next_pi, (None, ss, self._action_dim)],
-            [returns, (None, ss)],
+            [target, (None, ss)],
             [error, (None, ss)],
             [IS_ratio, (None,)],
             [loss, ()]
@@ -191,10 +190,8 @@ class Agent(DQNBase):
         
         terms.update(dict(
             q=q,
-            logpi=logpi,
-            max_ratio=tf.math.reduce_max(next_ratio),
-            ratio=next_ratio,
-            returns=returns,
+            prob=prob,
+            target=target,
             loss=loss,
         ))
 
@@ -208,8 +205,11 @@ class Agent(DQNBase):
         priority **= self._per_alpha
         return priority
 
-    @tf.function
-    def _sync_target_nets(self):
-        mvars = [v.variables for v in [self.encoder, self.rnn, self.q]]
-        tvars = [v.variables for v in [self.target_encoder, self.target_rnn, self.target_q]]
-        [tv.assign(mv) for mv, tv in zip(mvars, tvars)]
+    def reset_states(self, state=None):
+        if state is None:
+            self._state, self._prev_action, self._prev_reward = None, None, None
+        else:
+            self._state, self._prev_action, self._prev_reward= state
+
+    def get_states(self):
+        return self._state, self._prev_action, self._prev_reward

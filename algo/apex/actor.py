@@ -4,21 +4,17 @@ import functools
 import collections
 import numpy as np
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
 import ray
 
 from core.tf_config import *
-from core.base import BaseAgent
 from core.decorator import config
 from utility.display import pwc
 from utility.utils import Every
-from utility.timer import Timer
-from utility.rl_utils import n_step_target
 from utility.ray_setup import cpu_affinity
 from utility.run import Runner, evaluate, RunMode
 from utility import pkg
 from env.func import create_env
-from core.dataset import process_with_env, DataFormat, RayDataset
+from core.dataset import process_with_env, RayDataset
     
 
 def get_base_learner_class(BaseAgent):

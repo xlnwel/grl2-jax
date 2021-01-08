@@ -119,9 +119,7 @@ class RDQN(Ensemble):
 
     @tf.function
     def action(self, x, state, evaluation, epsilon=0, prev_action=None, prev_reward=None):
-        if x.shape.ndims % 2 != 0:
-            # add batch dimension
-            x = tf.expand_dims(x, axis=0)
+        assert x.shape.ndims == 4, x.shape
         # add time dimension
         x = tf.expand_dims(x, axis=1)
         prev_action = tf.reshape(prev_action, (-1, 1))

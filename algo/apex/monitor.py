@@ -5,11 +5,11 @@ import tensorflow as tf
 import ray
 
 from core.decorator import record
-from core.base import BaseAgent
+from core.base import AgentImpl
 from utility.graph import video_summary
 
 
-class Monitor(BaseAgent):
+class Monitor(AgentImpl):
     @record
     def __init__(self, config):
         self._ready = np.zeros(config['n_workers'])

@@ -6,8 +6,7 @@ from tensorflow_probability import distributions as tfd
 
 from core.module import Module
 from core.decorator import config
-from nn.func import Encoder, LSTM, mlp
-from nn.rnn import LSTMCell, LSTMState
+from nn.func import Encoder, LSTM
 from algo.dqn.nn import Q
 
 LSTMState = collections.namedtuple('LSTMState', ['h', 'c'])

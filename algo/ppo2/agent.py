@@ -75,6 +75,7 @@ class Agent(PPOBase):
             })
         return out
 
+    """ PPO methods """
     @override(PPOBase)
     def reset_states(self, states=None):
         if states is None:

@@ -105,7 +105,7 @@ class ProcgenCNN(Module):
             else:
                 if self.out_size:
                     self._dense = layers.Dense(self.out_size, activation=out_act_cls(), name=prefix+'out')
-            self._layers += [out_act_cls(name=prefix+out_activation)]
+            self._layers += [out_act_cls(name=prefix+out_activation if out_activation else '')]
 
 
         self._training_cls += [block_cls, subsample_cls, sa_cls]

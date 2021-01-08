@@ -16,27 +16,16 @@ class PPG(Ensemble):
             config=config,
             env=env,
             **kwargs)
-    
-    @tf.function
-    def __call__(self, obs):
-        x = self.encoder(obs)
-        act_dist = self.actor(x)
-        logits = act_dist.logits
-        if hasattr(self, 'value_encoder'):
-            x = self.value_encoder(obs)
-        value = self.value(x)
-        return logits, value
 
     @tf.function
-    def action(self, obs, evaluation=False, epsilon=0):
+    def action(self, obs, evaluation=False, return_eval_stats=0):
         x = self.encoder(obs)
+        act_dist = self.actor(x, evaluation=evaluation)
+        action = self.actor.action(act_dist, evaluation)
+
         if evaluation:
-            act_dist = self.actor(x)
-            action = tf.squeeze(act_dist.mode())
             return action
         else:
-            act_dist = self.actor(x)
-            action = act_dist.sample()
             logpi = act_dist.log_prob(action)
             if hasattr(self, 'value_encoder'):
                 x = self.value_encoder(obs)
