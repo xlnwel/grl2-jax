@@ -3,11 +3,10 @@ import threading
 import functools
 import collections
 import numpy as np
-import tensorflow as tf
 import ray
 
 from core.tf_config import *
-from core.decorator import config
+from core.decorator import config, override
 from utility.display import pwc
 from utility.utils import Every
 from utility.ray_setup import cpu_affinity
@@ -56,23 +55,26 @@ def get_learner_class(BaseAgent):
 
             env = create_env(env_config)
             
-            algo = config['algorithm'].split('-', 1)[-1]
-            is_per = ray.get(replay.name.remote()).endswith('per')
-            n_steps = config['n_steps']
-            data_format = pkg.import_module('agent', algo).get_data_format(
-                env, is_per, n_steps)
+            while not ray.get(replay.good_to_learn.remote()):
+                time.sleep(1)
+            data = ray.get(replay.sample.remote())
+            data_format = {k: (v.shape, v.dtype) for k, v in data.items()}
+            print('data format')
+            for k, v in data_format.items():
+                print('\t', k, v)
             one_hot_action = config.get('one_hot_action', True)
             process = functools.partial(process_with_env, 
                 env=env, one_hot_action=one_hot_action)
             dataset = RayDataset(replay, data_format, process)
 
-            self.model = model_fn(
+            model = model_fn(
                 config=model_config, 
                 env=env)
 
             super().__init__(
+                name='learner',
                 config=config, 
-                models=self.model,
+                models=model,
                 dataset=dataset,
                 env=env,
             )
@@ -80,210 +82,190 @@ def get_learner_class(BaseAgent):
     return Learner
 
 
-class BaseWorker:
-    @config
-    def __init__(self,
-                 *,
-                 worker_id,
-                 model_config, 
-                 env_config, 
-                 buffer_config,
-                 model_fn,
-                 buffer_fn):
-        silence_tf_logs()
-        configure_threads(1, 1)
-        configure_gpu()
-        self._id = worker_id
+def get_worker_class(BaseAgent):
+    class Worker(BaseAgent):
+        """ Initialization """
+        def __init__(self,
+                    *,
+                    config,
+                    worker_id,
+                    model_config, 
+                    env_config, 
+                    buffer_config,
+                    model_fn,
+                    buffer_fn):
+            silence_tf_logs()
+            configure_threads(1, 1)
+            configure_gpu()
+            configure_precision(config.get('precision', 32))
+            self._id = worker_id
 
-        self.env = create_env(env_config)
-        self.n_envs = self.env.n_envs
+            self.env = create_env(env_config)
+            self.n_envs = self.env.n_envs
 
-        self.model = model_fn( 
-            config=model_config, 
-            env=self.env)
+            self._seqlen = buffer_config['seqlen']
+            self.buffer = buffer_fn(buffer_config)
 
-        self._run_mode = getattr(self, '_run_mode', RunMode.NSTEPS)
-        self.runner = Runner(
-            self.env, self, 
-            nsteps=self.SYNC_PERIOD if self._run_mode == RunMode.NSTEPS else None,
-            run_mode=self._run_mode)
-        
-        assert self._run_mode in [RunMode.NSTEPS, RunMode.TRAJ]
-        print(f'{worker_id} action epsilon:', self._act_eps)
-        if hasattr(self.model, 'actor'):
-            print(f'{worker_id} action inv_temp:', np.squeeze(self.model.actor.act_inv_temp))
+            models = model_fn( 
+                config=model_config, 
+                env=self.env)
 
-    def run(self, learner, replay, monitor):
-        while True:
-            weights = self._pull_weights(learner)
-            self._run(weights, replay)
-            self._send_episode_info(monitor)
+            super().__init__(
+                name=f'worker_{worker_id}',
+                config=config,
+                models=models,
+                dataset=self.buffer,
+                env=self.env)
+            
+            self._run_mode = getattr(self, '_run_mode', RunMode.NSTEPS)
+            assert self._run_mode in [RunMode.NSTEPS, RunMode.TRAJ]
+            self.runner = Runner(
+                self.env, self, 
+                nsteps=self.SYNC_PERIOD if self._run_mode == RunMode.NSTEPS else None,
+                run_mode=self._run_mode)
 
-    def store(self, score, epslen):
-        if isinstance(score, (int, float)):
-            self._info['score'].append(score)
-            self._info['epslen'].append(epslen)
-        else:
-            self._info['score'] += list(score)
-            self._info['epslen'] += list(epslen)
+            self._return_stats = self._worker_side_prioritization \
+                or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps', 1)
+            collect_fn = pkg.import_module('agent', algo=self._algorithm, place=-1).collect
+            self._collect = functools.partial(collect_fn, self.buffer)
 
-    def _pull_weights(self, learner):
-        return ray.get(learner.get_weights.remote(name=self._pull_names))
+            if not hasattr(self, '_pull_names'):
+                self._pull_names = [k for k in self.model.keys() if 'target' not in k]
+            self._info = collections.defaultdict(list)
+            
+            print(f'{worker_id} action epsilon:', self._act_eps)
+            if hasattr(self.model, 'actor'):
+                print(f'{worker_id} action inv_temp:', np.squeeze(self.model.actor.act_inv_temp))
 
-    def _send_episode_info(self, learner):
-        if self._info:
-            learner.record_episode_info.remote(self._id, **self._info)
-            self._info.clear()
+        """ Call """
+        def _process_input(self, obs, evaluation, env_output):
+            obs, kwargs = super()._process_input(obs, evaluation, env_output)
+            kwargs['return_stats'] = self._return_stats
+            return obs, kwargs
 
-class Worker(BaseWorker):
-    def __init__(self, 
-                *,
-                worker_id,
-                config,
-                model_config,
-                env_config, 
-                buffer_config,
-                model_fn,
-                buffer_fn):
-        super().__init__(
-            worker_id=worker_id,
-            config=config,
-            model_config=model_config,
-            env_config=env_config,
-            buffer_config=buffer_config,
-            model_fn=model_fn,
-            buffer_fn=buffer_fn
-        )
+        """ Worker Methods """
+        def prefill_replay(self, replay):
+            while not ray.get(replay.good_to_learn.remote()):
+                self._run(replay)
 
-        self._seqlen = buffer_config['seqlen']
-        self.buffer = buffer_fn(buffer_config)
+        def run(self, learner, replay, monitor):
+            while True:
+                weights = self._pull_weights(learner)
+                self.model.set_weights(weights)
+                self._run(replay)
+                self._send_episode_info(monitor)
 
-        self._is_iqn = 'iqn' in self._algorithm or 'fqf' in self._algorithm
-        
-        if not hasattr(self, '_pull_names'):
-            self._pull_names = [k for k in self.model.keys() if 'target' not in k]
-        
-        self._info = collections.defaultdict(list)
-        self._return_stats = self._worker_side_prioritization \
-            or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps', 1)
+        def store(self, score, epslen):
+            if isinstance(score, (int, float)):
+                self._info['score'].append(score)
+                self._info['epslen'].append(epslen)
+            else:
+                self._info['score'] += list(score)
+                self._info['epslen'] += list(epslen)
 
-    def __call__(self, x, **kwargs):
-        action = self.model.action(
-            tf.convert_to_tensor(x), 
-            evaluation=False,
-            epsilon=tf.convert_to_tensor(self._act_eps, tf.float32),
-            return_stats=self._return_stats)
-        action = tf.nest.map_structure(lambda x: x.numpy(), action)
-        return action
+        def _pull_weights(self, learner):
+            return ray.get(learner.get_weights.remote(name=self._pull_names))
 
-    def _run(self, weights, replay):
-        def collect(env, step, reset, **kwargs):
-            self.buffer.add(**kwargs)
-            if self.buffer.is_full():
-                self._send_data(replay)
-        start_step = self.runner.step
-        self.model.set_weights(weights)
-        end_step = self.runner.run(step_fn=collect)
-        return end_step - start_step
+        def _run(self, replay):
+            def collect(*args, **kwargs):
+                self._collect(*args, **kwargs)
+                if self.buffer.is_full():
+                    self._send_data(replay)
+            start_step = self.runner.step
+            end_step = self.runner.run(step_fn=collect)
+            return end_step - start_step
 
-    def _send_data(self, replay, buffer=None):
-        buffer = buffer or self.buffer
-        data = buffer.sample()
+        def _send_data(self, replay, buffer=None):
+            buffer = buffer or self.buffer
+            data = buffer.sample()
 
-        if self._worker_side_prioritization:
-            data['priority'] = self._compute_priorities(**data)
-        data.pop('q', None)
-        data.pop('next_q', None)
-        replay.merge.remote(data, data['action'].shape[0])
-        buffer.reset()
+            if self._worker_side_prioritization:
+                data['priority'] = self._compute_priorities(**data)
+            data.pop('q', None)
+            data.pop('next_q', None)
+            replay.merge.remote(data, data['action'].shape[0])
+            buffer.reset()
 
-    def _compute_priorities(self, reward, discount, steps, q, next_q, **kwargs):
-        target_q = reward + discount * self._gamma**steps * next_q
-        priority = np.abs(target_q - q)
-        priority += self._per_epsilon
-        priority **= self._per_alpha
+        def _send_episode_info(self, learner):
+            if self._info:
+                learner.record_episode_info.remote(self._id, **self._info)
+                self._info.clear()
 
-        return priority
+        def _compute_priorities(self, reward, discount, steps, q, next_q, **kwargs):
+            target_q = reward + discount * self._gamma**steps * next_q
+            priority = np.abs(target_q - q)
+            priority += self._per_epsilon
+            priority **= self._per_alpha
+
+            return priority
     
-def get_worker_class():
     return Worker
 
 
-class BaseEvaluator:
-    def run(self, learner, monitor):
-        step = 0
-        if getattr(self, 'RECORD_PERIOD', False):
-            to_record = Every(self.RECORD_PERIOD)
-        else:
-            to_record = lambda x: False 
-        while True:
-            step += 1
-            weights = self._pull_weights(learner)
-            self._run(weights, record=to_record(step))
-            self._send_episode_info(monitor)
+def get_evaluator_class(BaseAgent):
+    class Evaluator(BaseAgent):
+        """ Initialization """
+        def __init__(self, 
+                    *,
+                    config,
+                    name='evaluator',
+                    model_config,
+                    env_config,
+                    model_fn):
+            silence_tf_logs()
+            configure_threads(1, 1)
 
-    def _run(self, weights, record):        
-        self.model.set_weights(weights)
-        score, epslen, video = evaluate(self.env, self, 
-            record=record, n=self.N_EVALUATION)
-        self.store(score, epslen, video)
+            env_config.pop('reward_clip', False)
+            self.env = env = create_env(env_config)
+            self.n_envs = self.env.n_envs
 
-    def store(self, score, epslen, video):
-        self._info['eval_score'] += score
-        self._info['eval_epslen'] += epslen
-        if video is not None:
-            self._info['video'] = video
-
-    def _pull_weights(self, learner):
-        return ray.get(learner.get_weights.remote(name=self._pull_names))
-
-    def _send_episode_info(self, learner):
-        if self._info:
-            learner.record_episode_info.remote(**self._info)
-            self._info.clear()
-
-
-class Evaluator(BaseEvaluator):
-    @config
-    def __init__(self, 
-                *,
-                model_config,
-                env_config,
-                model_fn):
-        silence_tf_logs()
-        configure_threads(1, 1)
-
-        env_config.pop('reward_clip', False)
-        self.env = env = create_env(env_config)
-        self.n_envs = self.env.n_envs
-
-        self.model = model_fn(
-                config=model_config, 
-                env=env)
+            model = model_fn(
+                    config=model_config, 
+                    env=env)
+            
+            super().__init__(
+                name='learner',
+                config=config, 
+                models=model,
+                dataset=None,
+                env=env,
+            )
         
-        if not hasattr(self, '_pull_names'):
-            self._pull_names = [k for k in self.model.keys() if 'target' not in k]
-        
-        self._info = collections.defaultdict(list)
+            if not hasattr(self, '_pull_names'):
+                self._pull_names = [k for k in self.model.keys() if 'target' not in k]
+            self._info = collections.defaultdict(list)
 
-    def __call__(self, x, evaluation=True, **kwargs):
-        action = self.model.action(
-            tf.convert_to_tensor(x), 
-            evaluation=evaluation,
-            epsilon=self._eval_act_eps)
-        if isinstance(action, tuple):
-            if len(action) == 2:
-                action, terms = action
-                return action.numpy()
-            elif len(action) == 3:
-                action, ar, terms = action
-                return action.numpy(), ar.numpy()
+        """ Evaluator Methods """
+        def run(self, learner, monitor):
+            step = 0
+            if getattr(self, 'RECORD_PERIOD', False):
+                to_record = Every(self.RECORD_PERIOD)
             else:
-                raise ValueError(action)
-        action = action.numpy()
-        
-        return action
+                to_record = lambda x: False 
+            while True:
+                step += 1
+                weights = self._pull_weights(learner)
+                self.model.set_weights(weights)
+                self._run(record=to_record(step))
+                self._send_episode_info(monitor)
 
+        def _pull_weights(self, learner):
+            return ray.get(learner.get_weights.remote(name=self._pull_names))
 
-def get_evaluator_class():
+        def _run(self, record):        
+            score, epslen, video = evaluate(self.env, self, 
+                record=record, n=self.N_EVALUATION)
+            self.store(score, epslen, video)
+
+        def store(self, score, epslen, video):
+            self._info['eval_score'] += score
+            self._info['eval_epslen'] += epslen
+            if video is not None:
+                self._info['video'] = video
+
+        def _send_episode_info(self, learner):
+            if self._info:
+                learner.record_episode_info.remote(**self._info)
+                self._info.clear()
+    
     return Evaluator

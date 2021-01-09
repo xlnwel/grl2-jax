@@ -40,10 +40,10 @@ def agent_config(init_fn):
         """ For the basic configuration, see config.yaml in algo/*/ """
         _config_attr(self, config)
 
-        # name is used for better bookkeeping, 
-        # while model_name is used for create save/log files
+        # name is used in stdout/stderr as the agent's identifier
+        # while model_name is used for logging and checkpoint
         # e.g., all workers share the same name, but with differnt model_names
-        self.name = name or f'{config["algorithm"]}'
+        self.name = name or config["algorithm"]
         self._model_name = self._model_name or 'baseline'
 
         self._dtype = global_policy().compute_dtype

@@ -4,15 +4,14 @@ env:
     distribution_mode: easy
     frame_skip: 1
     n_envs: &ne 64
-    gray_scale: False
-    frame_stack: 4
+    frame_stack: 1
     np_obs: True
-    reward_scale: 2
+    reward_scale: 1
     reward_clip: 10
 
 model:
     encoder:
-        cnn_name: procgen
+        cnn_name: impala
     fpn:
         N: &N 64
     qe:
@@ -24,28 +23,29 @@ model:
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
+        duel: False
 
 agent:
     algorithm: &algo fqf
-    replay_type: &replay uniform
-    batch_size: &bs 32
+    replay_type: &replay per
     gamma: &gamma 0.99
+    batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
-    precision: &prec 32
     schedule_act_eps: True
-    act_eps: 
-        - [0, 1]
-        - [1.e+6, .1]
-    eval_act_eps: .001
+    act_eps_type: apex
+    act_eps: .3
+    eval_act_eps: 0
 
-    MAX_STEPS: 1e8      # maximum env frames
-    TRAIN_PERIOD: 4    # #frames
-    EVAL_PERIOD: 5e5
-    LOG_PERIOD: 1e4
+    MAX_STEPS: 2.5e7
+    TRAIN_PERIOD: 1
+    EVAL_PERIOD: 2.5e5
+    LOG_PERIOD: 2.5e5
     N_UPDATES: 1
     RECORD: True
+    N_EVAL_EPISODES: 200
 
-    normalize_reward: False
+    return_stats: True
+    logger: True
 
     # IQN params
     N: *N               # N in paper, num of quantiles for online quantile network
@@ -57,7 +57,7 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    target_update_period: 2000  # trainning step
+    target_update_period: 1500  # trainning step
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
@@ -71,21 +71,24 @@ agent:
     epsilon: 3.125e-4
 
     # arguments for PER
-    per_alpha: .5
+    per_alpha: .6
     per_epsilon: 1e-4
 
 replay:
     replay_type: *replay
-    precision: 32
+    seqlen: 10
+    n_envs: *ne
     # arguments for PER
     beta0: .4
-    beta_steps: 1e5
+    beta_steps: 1e6
     to_update_top_priority: True
+    use_is_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps
+    max_steps: 5
     gamma: *gamma
     batch_size: *bs
-    min_size: 5e4
-    capacity: 1e5
-    has_next_obs: False
+    min_size: 1600
+    capacity: 2.5e5
+    has_next_obs: True

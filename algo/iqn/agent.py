@@ -1,10 +1,8 @@
 import tensorflow as tf
 
 from utility.rl_loss import n_step_target, quantile_regression_loss
-from utility.schedule import TFPiecewiseSchedule
-from core.optimizer import Optimizer
 from core.decorator import override
-from algo.dqn.base import DQNBase, get_data_format
+from algo.dqn.base import DQNBase, get_data_format, collect
 
 
 class Agent(DQNBase):

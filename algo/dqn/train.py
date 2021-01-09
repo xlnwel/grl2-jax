@@ -17,6 +17,8 @@ from core.dataset import Dataset, process_with_env
 
 
 def train(agent, env, eval_env, replay):
+    collect_fn = pkg.import_module('agent', algo=).collect
+    collect = functools.partial(collect_fn, )
     def collect(env, env_step, reset, **kwargs):
         # if reset:
         #     # we reset noisy every episode. Theoretically, 
@@ -110,7 +112,6 @@ def main(env_config, model_config, agent_config, replay_config):
     create_model, Agent = pkg.import_agent(config=agent_config)
     models = create_model(model_config, env)
     agent = Agent(
-        name=env.name,
         config=agent_config, 
         models=models, 
         dataset=dataset, 

@@ -3,16 +3,15 @@ env:
     name: procgen_coinrun
     distribution_mode: easy
     frame_skip: 1
-    n_envs: &ne 4
-    gray_scale: False
-    frame_stack: 4
+    n_envs: &ne 6
+    frame_stack: 1
     np_obs: True
-    reward_scale: 2
+    reward_scale: 1
     reward_clip: 10
 
 model:
     encoder:
-        cnn_name: procgen
+        cnn_name: impala
     fpn:
         N: &N 64
     qe:
@@ -28,17 +27,16 @@ model:
 agent:
     algorithm: &algo apex-fqf
     replay_type: &replay per
+    gamma: &gamma .99
     batch_size: &bs 64
-    gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
-    precision: &prec 32
     schedule_act_eps: True
     act_eps_type: apex
     act_eps: .3
     eval_act_eps: 0
     
     # timer&interval
-    MAX_STEPS: 1e7      # maximum env steps
+    MAX_STEPS: 2.5e7
     LOG_PERIOD: 100
     N_UPDATES: 1
     SYNC_PERIOD: 400
@@ -56,7 +54,6 @@ agent:
     n_workers: 5
     n_worker_cpus: 1
     n_worker_gpus: .1
-    
     run_mode: nsteps
     worker_side_prioritization: False
 
@@ -66,8 +63,6 @@ agent:
     n_workers: 5
     n_worker_cpus: 1
     n_worker_gpus: .1
-    
-    run_mode: nsteps
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -105,6 +100,7 @@ replay:
 
     # arguments for general replay
     n_steps: *nsteps
+    max_steps: 5
     gamma: *gamma
     batch_size: *bs
     min_size: 1600

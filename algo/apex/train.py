@@ -38,6 +38,28 @@ def main(env_config, model_config, agent_config, replay_config):
 
     monitor = fm.create_monitor(config=agent_config)
 
+    Worker = am.get_worker_class(Agent)
+    workers = []
+    for wid in range(agent_config['n_workers']):
+        worker = fm.create_worker(
+            Worker=Worker, 
+            worker_id=wid, 
+            model_fn=model_fn,
+            config=agent_config, 
+            model_config=model_config, 
+            env_config=env_config, 
+            buffer_config=replay_config)
+        worker.prefill_replay.remote(replay)
+        workers.append(worker)
+
+    Evaluator = am.get_evaluator_class(Agent)
+    evaluator = fm.create_evaluator(
+        Evaluator=Evaluator,
+        model_fn=model_fn,
+        config=agent_config,
+        model_config=model_config,
+        env_config=env_config)
+
     Learner = am.get_learner_class(Agent)
     learner = fm.create_learner(
         Learner=Learner, 
@@ -48,32 +70,10 @@ def main(env_config, model_config, agent_config, replay_config):
         env_config=env_config,
         replay_config=replay_config)
 
-    Worker = am.get_worker_class()
-    workers = []
-    pids = []
-    for wid in range(agent_config['n_workers']):
-        worker = fm.create_worker(
-            Worker=Worker, 
-            worker_id=wid, 
-            model_fn=model_fn,
-            config=agent_config, 
-            model_config=model_config, 
-            env_config=env_config, 
-            buffer_config=replay_config)
-        pids.append(worker.run.remote(learner, replay, monitor))
-        workers.append(worker)
-
-    Evaluator = am.get_evaluator_class()
-    evaluator = fm.create_evaluator(
-        Evaluator=Evaluator,
-        model_fn=model_fn,
-        config=agent_config,
-        model_config=model_config,
-        env_config=env_config)
-    evaluator.run.remote(learner, monitor)
-
     learner.start_learning.remote()
-
+    [w.run.remote(learner, replay, monitor) for w in workers]
+    evaluator.run.remote(learner, monitor)
+    
     elapsed_time = 0
     interval = 10
     while not ray.get(monitor.is_over.remote()):

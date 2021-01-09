@@ -32,12 +32,21 @@ def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
 
     return data_format
 
+def collect(replay, env, env_step, reset, **kwargs):
+    # if reset:
+    #     # we reset noisy every episode. Theoretically, 
+    #     # this follows the guide of deep exploration.
+    #     # More importantly, it saves time!
+    #     if hasattr(agent, 'reset_noisy'):
+    #         agent.reset_noisy()
+    replay.add(**kwargs)
+
 
 class DQNBase(BaseAgent):
     """ Initialization """
     @override(BaseAgent)
     def _add_attributes(self, env, dataset):
-        self._is_per = dataset.name().endswith('per')
+        self._is_per = False if dataset is None else dataset.name().endswith('per')
         self._return_stats = getattr(self, '_return_stats', False)
         self._schedule_act_eps = env.n_envs == 1 \
             and getattr(self, '_schedule_act_eps', False)
@@ -55,9 +64,10 @@ class DQNBase(BaseAgent):
         if self._schedule_lr:
             assert isinstance(self._lr, list), self._lr
             self._lr = TFPiecewiseSchedule(self._lr)
-        models = [self.model[k] for k in self.model.items() if 'target' not in k]
+        models = [v for k, v in self.model.items() if 'target' not in k]
         self._optimizer = Optimizer(
-            self._optimizer, models, self._lr, clip_norm=self._clip_norm)
+            self._optimizer, models, self._lr, 
+            clip_norm=getattr(self, '_clip_norm', None))
 
     @override(BaseAgent)
     def _build_learn(self, env):
@@ -109,7 +119,7 @@ class DQNBase(BaseAgent):
                 self.store(act_eps=eps)
             else:
                 eps = self._act_eps
-        return eps
+        return tf.convert_to_tensor(eps, tf.float32)
 
     @step_track
     def learn_log(self, step):

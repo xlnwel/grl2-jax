@@ -13,7 +13,6 @@ env:
 model:
     encoder: 
         cnn_name: procgen
-        deter_stoch: True
     actor:
         units_list: [512]
         layer_type: dense

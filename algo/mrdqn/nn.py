@@ -27,8 +27,7 @@ class RDQN(Ensemble):
 
         x, state = self._encode(
             x, state, mask, prev_action, prev_reward)
-        noisy = not evaluation
-        q = self.q(x, noisy=noisy, reset=False)
+        q = self.q(x)
         action = tf.argmax(q, axis=-1, output_type=tf.int32)
         
         eps_action = epsilon_greedy(action, epsilon,

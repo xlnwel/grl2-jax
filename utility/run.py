@@ -113,7 +113,6 @@ class Runner:
         action_selector = action_selector or self.agent
         self.env_output = self.env.reset()  # explicitly reset envvect to turn off auto-reset
         obs = self.env_output.obs
-        reset = self.env_output.reset
         
         for t in range(self._default_nsteps):
             action = action_selector(

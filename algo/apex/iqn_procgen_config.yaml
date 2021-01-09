@@ -35,7 +35,7 @@ agent:
     act_eps: .3
     eval_act_eps: 0
 
-    MAX_STEPS: 2.5e7      # maximum env steps
+    MAX_STEPS: 2.5e7
     LOG_PERIOD: 100
     N_UPDATES: 1
     SYNC_PERIOD: 400

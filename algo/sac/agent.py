@@ -6,7 +6,7 @@ from utility.schedule import TFPiecewiseSchedule
 from utility.timer import TBTimer
 from core.optimizer import Optimizer
 from core.decorator import override, step_track
-from algo.dqn.base import DQNBase, get_data_format
+from algo.dqn.base import DQNBase, get_data_format, collect
 
 
 class Agent(DQNBase):

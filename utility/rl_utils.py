@@ -83,6 +83,7 @@ def compute_act_eps(config, worker_id, n_workers, envs_per_worker):
                     n_workers, envs_per_worker)[worker_id]
         else:
             raise ValueError(f'Unknown type: {act_eps_type}')
+        config['schedule_act_eps'] = False
 
     return config
 
@@ -107,5 +108,6 @@ def compute_act_temp(config, model_config, worker_id, n_workers, envs_per_worker
         else:
             act_temps = act_temps.reshape(n_workers, envs_per_worker)
             model_config['actor']['act_temp'] = act_temps[worker_id]
+        config['schedule_act_temp'] = False
 
     return model_config

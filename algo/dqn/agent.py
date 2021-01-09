@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from utility.rl_utils import n_step_target, huber_loss
-from algo.dqn.base import DQNBase, get_data_format
+from algo.dqn.base import DQNBase, get_data_format, collect
 
 class Agent(DQNBase):
     @tf.function

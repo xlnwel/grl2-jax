@@ -135,5 +135,8 @@ class Replay(ABC):
                 results['next_obs'] = np.array(
                     [np.array(self._memory['obs'][i], copy=False) 
                     for i in next_idxes])
+        
+        if 'steps' in results:
+            results['steps'] = results['steps'].astype(np.float32)
 
         return results

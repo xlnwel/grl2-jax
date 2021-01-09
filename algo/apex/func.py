@@ -35,9 +35,6 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
     else:
         RayLearner = ray.remote(num_cpus=n_cpus)(Learner)
 
-    config['schedule_act_eps'] = False
-    config['schedule_act_temp'] = False
-
     learner = RayLearner.remote( 
         config=config, 
         model_config=model_config, 
@@ -71,8 +68,14 @@ def create_worker(
     if 'seed' in env_config:
         env_config['seed'] += worker_id * 100
     
+    config['display_var'] = False
+    config['save_code'] = False
+    config['logger'] = False
+    config['writer'] = False
+
     config = compute_act_eps(config, worker_id, n_workers, n_envs)
     model_config = compute_act_temp(config, model_config, worker_id, n_workers, n_envs)
+
     n_cpus = config.get('n_worker_cpus', 1)
     n_gpus = config.get('n_worker_gpus', 0)
     RayWorker = ray.remote(num_cpus=n_cpus, num_gpus=n_gpus)(Worker)
@@ -91,6 +94,11 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
     config = config.copy()
     model_config = model_config.copy()
     env_config = env_config.copy()
+
+    config['display_var'] = False
+    config['save_code'] = False
+    config['logger'] = False
+    config['writer'] = False
 
     if 'seed' in env_config:
         env_config['seed'] += 999

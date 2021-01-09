@@ -54,7 +54,7 @@ class Value(Module):
         )
         self._kwargs = kwargs
 
-        if self._duel:
+        if getattr(self, '_duel', False):
             self._v_layers = mlp(
                 self._units_list,
                 out_size=action_dim, 
@@ -68,7 +68,7 @@ class Value(Module):
             out_size=action_dim, 
             layer_type=self._layer_type,
             norm=self._norm,
-            name=name+('/a' if self._duel else '/q'),
+            name=name,
             **kwargs)
 
     @property

@@ -5,7 +5,7 @@ from utility.rl_utils import n_step_target, quantile_regression_loss
 from utility.tf_utils import explained_variance
 from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
-from algo.dqn.base import get_data_format, DQNBase
+from algo.dqn.base import get_data_format, collect, DQNBase
 
 
 class Agent(DQNBase):

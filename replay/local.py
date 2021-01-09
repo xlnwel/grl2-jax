@@ -14,6 +14,9 @@ class LocalBuffer(ABC):
         self._extra_len = max(self._n_steps, self._max_steps)
         self._memlen = self._seqlen + self._extra_len
 
+    def name(self):
+        return self._replay_type
+
     def is_full(self):
         return self._idx == self._memlen
 

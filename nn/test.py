@@ -107,7 +107,7 @@ if __name__ == "__main__":
         # 'filters': 8,
         # 'n_blocks': 1
     }
-    # run_cnn(keras_summary=True, cnn_name='procgen')
+    run_cnn(keras_summary=True, cnn_name='procgen')
     # run_module(
     #     am_registry, 
     #     name='se', 

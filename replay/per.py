@@ -100,6 +100,6 @@ class ProportionalPER(PERBase):
         samples['idxes'] = idxes
         if self._use_is_ratios:
             IS_ratios = self._compute_IS_ratios(probabilities)
-            samples['IS_ratio'] = IS_ratios
+            samples['IS_ratio'] = IS_ratios.astype(np.float32)
 
         return samples

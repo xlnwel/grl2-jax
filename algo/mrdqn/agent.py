@@ -10,26 +10,26 @@ from core.decorator import override
 from algo.dqn.base import DQNBase
 
 
-def get_data_format(env, batch_size, sample_size=None, 
+def get_data_format(env, sample_size=None, 
         is_per=False, store_state=False, state_size=None, 
         dtype=tf.float32, **kwargs):
     obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
     data_format = dict(
-        obs=((batch_size, sample_size+1, *env.obs_shape), obs_dtype),
-        prev_action=((batch_size, sample_size+1, *env.action_shape), tf.int32),
-        prev_reward=((batch_size, sample_size+1), dtype), 
-        logpi=((batch_size, sample_size), dtype),
-        discount=((batch_size, sample_size), dtype),
-        mask=((batch_size, sample_size+1), dtype),
+        obs=((None, sample_size+1, *env.obs_shape), obs_dtype),
+        prev_action=((None, sample_size+1, *env.action_shape), tf.int32),
+        prev_reward=((None, sample_size+1), dtype), 
+        prob=((None, sample_size), dtype),
+        discount=((None, sample_size), dtype),
+        mask=((None, sample_size+1), dtype),
     )
     if is_per:
-        data_format['IS_ratio'] = ((batch_size), dtype)
-        data_format['idxes'] = ((batch_size), tf.int32)
+        data_format['IS_ratio'] = ((None), dtype)
+        data_format['idxes'] = ((None), tf.int32)
     if store_state:
         from tensorflow.keras.mixed_precision.experimental import global_policy
         state_dtype = global_policy().compute_dtype
         data_format.update({
-            k: ((batch_size, v), state_dtype)
+            k: ((None, v), state_dtype)
                 for k, v in state_size._asdict().items()
         })
 
