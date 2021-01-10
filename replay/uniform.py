@@ -2,7 +2,6 @@ import numpy as np
 
 from core.decorator import override
 from replay.base import Replay
-from replay.utils import init_buffer
 
 
 class UniformReplay(Replay):

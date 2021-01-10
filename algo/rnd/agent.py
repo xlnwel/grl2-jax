@@ -9,7 +9,7 @@ from core.tf_config import build
 from core.base import BaseAgent
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
-from algo.ppo.loss import compute_ppo_loss, compute_value_loss
+from algo.ppo.loss import ppo_loss, ppo_value_loss
 
 
 class RNDBase(BaseAgent):
@@ -215,12 +215,12 @@ class Agent(RNDBase):
             entropy = act_dist.entropy()
             # policy loss
             log_ratio = new_logpi - logpi
-            ppo_loss, entropy, approx_kl, p_clip_frac = compute_ppo_loss(
+            ppo_loss, entropy, approx_kl, p_clip_frac = ppo_loss(
                 log_ratio, advantage, self._clip_range, entropy)
             # value loss
             v_loss_int = .5 * tf.reduce_mean(tf.square(traj_ret_int - value_int))
             v_loss_ext = .5 * tf.reduce_mean(tf.square(traj_ret_ext - value_ext))
-            # v_loss_ext, v_clip_frac_ext = compute_value_loss(
+            # v_loss_ext, v_clip_frac_ext = ppo_value_loss(
             #     value_ext, traj_ret_ext, old_value_ext, self._clip_range)
 
             entropy_loss = - self._entropy_coef * entropy

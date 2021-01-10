@@ -1,7 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers
-from tensorflow_probability import distributions as tfd
 
 from core.module import Module, Ensemble
 from core.decorator import config
@@ -17,7 +15,7 @@ class Quantile(Module):
     def call(self, x, n_qt=None):
         batch_size, cnn_out_size = x.shape
         # phi network
-        n_qt = n_qt or self.K
+        n_qt = n_qt or self.N
         tau_hat = tf.random.uniform([batch_size, n_qt, 1], 
             minval=0, maxval=1, dtype=tf.float32)   # [B, N, 1]
         pi = tf.convert_to_tensor(np.pi, tf.float32)
@@ -50,24 +48,21 @@ class Value(Module):
         kwargs = dict(
             kernel_initializer=getattr(self, '_kernel_initializer', 'glorot_uniform'),
             activation=getattr(self, '_activation', 'relu'),
+            layer_type=getattr(self, '_layer_type', 'dense'),
+            norm=getattr(self, '_norm', None),
             out_dtype='float32',
         )
-        self._kwargs = kwargs
 
         if getattr(self, '_duel', False):
             self._v_layers = mlp(
                 self._units_list,
-                out_size=action_dim, 
-                layer_type=self._layer_type,
-                norm=self._norm,
+                out_size=1, 
                 name=name+'/v',
                 **kwargs)
         # we do not define the phi net here to make it consistent with the CNN output size
         self._layers = mlp(
             self._units_list,
             out_size=action_dim, 
-            layer_type=self._layer_type,
-            norm=self._norm,
             name=name,
             **kwargs)
 
@@ -97,7 +92,7 @@ class Value(Module):
             return qtv
 
     def qtv(self, x, action=None):
-        if self._duel:
+        if getattr(self, '_duel', False):
             v = self._v_layers(x)
             a = self._layers(x)
             qtv = v + a - tf.reduce_mean(a, axis=-1, keepdims=True)
@@ -110,6 +105,8 @@ class Value(Module):
             if len(action.shape) < len(qtv.shape):
                 action = tf.one_hot(action, self._action_dim, dtype=qtv.dtype)
             qtv = tf.reduce_sum(qtv * action, axis=-1)       # [B, N]
+        if self._action_dim == 1:
+            qtv = tf.squeeze(qtv, axis=-1)
             
         return qtv
 

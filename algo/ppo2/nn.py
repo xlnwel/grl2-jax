@@ -43,15 +43,6 @@ class PPO(Ensemble):
         value = tf.squeeze(value, 1)
         return value, state
 
-    def reset_states(self, states=None):
-        if hasattr(self, 'rnn'):
-            self.rnn.reset_states(states)
-
-    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
-        return self.rnn.get_initial_state(
-            inputs, batch_size=batch_size, dtype=dtype) \
-                if hasattr(self, 'rnn') else None
-
     def _encode(self, x, state, mask, prev_action=None, prev_reward=None):
         x = tf.expand_dims(x, 1)
         mask = tf.expand_dims(mask, 1)
@@ -80,6 +71,15 @@ class PPO(Ensemble):
                 results.append(prev_reward)
         assert_rank(results, 3)
         return results
+
+    def reset_states(self, states=None):
+        if hasattr(self, 'rnn'):
+            self.rnn.reset_states(states)
+
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
+        return self.rnn.get_initial_state(
+            inputs, batch_size=batch_size, dtype=dtype) \
+                if hasattr(self, 'rnn') else None
 
     @property
     def state_size(self):

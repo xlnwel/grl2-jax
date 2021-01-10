@@ -32,7 +32,8 @@ class Actor(Module):
         actor_out = self.actor(x)
 
         if self.is_action_discrete:
-            logits = actor_out / self.eval_act_temp if evaluation and self.eval_act_temp else actor_out
+            logits = actor_out / self.eval_act_temp \
+                if evaluation and self.eval_act_temp else actor_out
             act_dist = tfd.Categorical(logits)
         else:
             std = tf.exp(self.logstd)

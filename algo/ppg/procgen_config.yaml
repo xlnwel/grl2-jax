@@ -38,7 +38,7 @@ agent:
     N_EPOCHS: 1
     N_MBS: &nmbs 8
     N_AUX_EPOCHS: 6
-    N_AUX_MBS_PER_SEG: &nambs 16    # 16, we use 8 so that minibatch size stays the same at both phases 
+    N_AUX_MBS_PER_SEG: &nambs 16    # 16, we use 8 so that minibatch size stays the same in both phases 
     LOG_PERIOD: 100
     EVAL_PERIOD: 5000
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound

@@ -1,5 +1,6 @@
 import math
 import collections
+from threading import local
 import numpy as np
 
 from utility.utils import convert_dtype
@@ -7,59 +8,55 @@ from replay.per import ProportionalPER
 
 
 class SequentialPER(ProportionalPER):
-    def __init__(self, config, state_keys=[]):
+    def __init__(self, config, state_keys=None):
+        self._state_keys = state_keys or getattr(self, '_state_keys', [])
         super().__init__(config)
-        self._state_keys = state_keys
-        self._temp_buff = {}
         self._memory = collections.deque(maxlen=self._capacity)
-        # one may use self._trace_size instead of self._burn_in_size in self.add to reduce overlapping
-        # self._trace_size = self._sample_size - self._burn_in_size
-        self._tb_idx = 0
+
+    def _construct_temp_buff(self):
+        from replay.func import create_local_buffer
+        self._tmp_buf = create_local_buffer({
+            'replay_type': self._replay_type,
+            'n_envs': self._n_envs,
+            'seqlen': self._sample_size,
+            'reset_shift': self._burn_in_size,
+            'state_keys': self._state_keys,
+            'extra_keys': self._extra_keys,
+            'burn_in_size': self._burn_in_size
+        })
 
     def __len__(self):
         return len(self._memory)
         
-    def add(self, **kwargs):
-        assert self._tb_idx < self._sample_size
-        for k, v in kwargs.items():
-            if k in self._temp_buff:
-                pass
-            elif k in self._state_keys:
-                self._temp_buff[k] = collections.deque(
-                    maxlen=math.ceil(self._sample_size / self._burn_in_size))
-            else:
-                self._temp_buff[k] = collections.deque(maxlen=self._sample_size)
-            if k not in self._state_keys or self._tb_idx % self._burn_in_size == 0:
-                self._temp_buff[k].append(v)
-
-        self._tb_idx += 1
-        if self._tb_idx == self._sample_size:
-            # for k in self._state_keys:
-            #     assert len(self._temp_buff[k]) == self._temp_buff[k].maxlen, len(self._temp_buff[k])
-            buff = {k: v[0] if k in self._state_keys else v
-                    for k, v in self._temp_buff.items()}
-            self.merge(buff)
-            self._tb_idx -= self._burn_in_size
-        
-        discount = kwargs['discount']
-        if discount == 0:
-            self.clear_temp_buffer()
+    def add(self, **data):
+        self._tmp_buf.add(**data)
+        if self._tmp_buf.is_full():
+            self.merge(self._tmp_buf.sample())
 
     def merge(self, local_buffer):
         """ Add local_buffer to memory """
-        priority = local_buffer.pop('priority', self._top_priority)
-        np.testing.assert_array_less(0, priority)
-        self._data_structure.update(self._mem_idx, priority)
-        self._memory.append(local_buffer)
-        self._mem_idx = (self._mem_idx + 1) % self._capacity
-        if not self._is_full and self._mem_idx == 0:
+        if isinstance(local_buffer, (list, tuple)):
+            length = len(local_buffer)
+            mem_idxes = np.arange(self._mem_idx, self._mem_idx + length) % self._capacity
+            priorities = np.array([b.pop('priority', self._top_priority) for b in local_buffer])
+            np.testing.assert_array_less(0, priorities)
+            self._data_structure.batch_update(mem_idxes, priorities)
+            self._memory.extend(local_buffer)
+            self._mem_idx = self._mem_idx + length
+        else:
+            priority = local_buffer.pop('priority', self._top_priority)
+            assert priority > 0, priority
+            self._data_structure.update(self._mem_idx, priority)
+            self._memory.append(local_buffer)
+            self._mem_idx = self._mem_idx + 1
+        
+        if not self._is_full and self._mem_idx >= self._capacity:
             print(f'Memory is full({len(self)})')
             self._is_full = True
+        self._mem_idx = self._mem_idx % self._capacity
 
     def clear_temp_buffer(self):
-        for k in self._temp_buff:
-            self._temp_buff[k].clear()
-        self._tb_idx = 0
+        self._tmp_buf.clear()
 
     def _get_samples(self, idxes):
         results = collections.defaultdict(list)
@@ -67,5 +64,10 @@ class SequentialPER(ProportionalPER):
         results = {k: np.stack(v) for k, v in results.items()}
 
         for k, v in results.items():
-            np.testing.assert_equal(v.shape[0], self._batch_size)
+            if k in self._state_keys:
+                np.testing.assert_equal(v.shape[0], self._batch_size)
+            elif k in self._extra_keys:
+                assert v.shape[:2] == (self._batch_size, self._seqlen+1)
+            else:
+                assert v.shape[:2] == (self._batch_size, self._seqlen)
         return results

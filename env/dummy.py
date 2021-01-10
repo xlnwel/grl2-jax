@@ -2,13 +2,16 @@ import numpy as np
 import gym
 
 
-class Dummy(gym.Wrapper):
-    def __init__(self, obs_shape=(4,), action_dim=3, is_action_discrete=True):
+class Dummy():
+    def __init__(self, obs_shape=(4,), action_dim=3, is_action_discrete=True, **kwargs):
         self.count = 0
         self.observation_space = gym.spaces.Box(high=float('inf'), low=0, shape=obs_shape)
         self.action_space = gym.spaces.Discrete(action_dim)
         self.action_dim = action_dim
         self.is_action_discrete = is_action_discrete
+        self.max_episode_steps = int(1e3)
+        self.reward_range = (-float('inf'), float('inf'))
+        self.metadata = {}
         self._reset_done_interval()
 
     def reset(self):

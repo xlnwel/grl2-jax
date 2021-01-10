@@ -32,14 +32,15 @@ def train(agent, env, eval_env, buffer):
     print('Training starts...')
     while step < agent.MAX_STEPS:
         start_env_step = agent.env_step
+        agent.before_run(env)
         with Timer('env', 1000) as et:
             step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/et.last())
         # NOTE: normalizing rewards here may introduce some inconsistency 
-        # if rewards will be fed as an input to the network.
+        # if normalized rewards is fed as an input to the network.
         # One can reconcile this by moving normalization to collect 
         # or feeding the network with unnormalized rewards.
-        # The latter is adopted in our implementation of agent, 
+        # The latter is adopted in our implementation, 
         # but the following line currently doesn't store a copy of 
         # unnormalized rewards
         buffer.update('reward', agent.normalize_reward(buffer['reward']), field='all')

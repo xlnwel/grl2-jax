@@ -10,19 +10,25 @@ class Replay(ABC):
     @config
     def __init__(self, **kwargs):
         # params for general replay buffer
-        self._min_size = max(self._min_size, self._batch_size*10)
-        self._pre_dims = (self._capacity, )
         self._precision = getattr(self, '_precision', 32)
-
-        self._is_full = False
-        self._mem_idx = 0
         
         self._memory = {}
-
+        self._mem_idx = 0
+        self._min_size = max(self._min_size, self._batch_size*10)
         self._n_envs = getattr(self, '_n_envs', 1)
+        self._is_full = False
+
+        self._add_attributes()
+        self._construct_temp_buff()
+
+    def _add_attributes(self):
+        self._pre_dims = (self._capacity, )
+
+    def _construct_temp_buff(self):
         if self._n_envs > 1:
-            from replay.local import EnvVecBuffer
-            self._tmp_buf = EnvVecBuffer({
+            from replay.func import create_local_buffer
+            self._tmp_buf = create_local_buffer({
+                'replay_type': self._replay_type,
                 'n_envs': self._n_envs,
                 'seqlen': self._seqlen,
                 'n_steps': self._n_steps,

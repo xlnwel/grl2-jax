@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+import collections
+import math
 import numpy as np
 
 from core.decorator import config
@@ -10,9 +12,11 @@ class LocalBuffer(ABC):
     def __init__(self):
         self._memory = {}
         self._idx = 0
-        self._max_steps = getattr(self, '_max_steps', 0)
-        self._extra_len = max(self._n_steps, self._max_steps)
-        self._memlen = self._seqlen + self._extra_len
+
+        self._add_attributes()
+    
+    def _add_attributes(self):
+        self._memlen = self._seqlen
 
     def name(self):
         return self._replay_type
@@ -23,13 +27,10 @@ class LocalBuffer(ABC):
     @property
     def seqlen(self):
         return self._seqlen
-        
-    @abstractmethod
-    def sample(self):
-        raise NotImplementedError
+
 
     @abstractmethod
-    def reset(self):
+    def sample(self):
         raise NotImplementedError
 
     @abstractmethod
@@ -37,7 +38,14 @@ class LocalBuffer(ABC):
         raise NotImplementedError
 
 
-class EnvBuffer(LocalBuffer):
+class NStepBuffer(LocalBuffer):
+    def _add_attributes(self):
+        self._max_steps = getattr(self, '_max_steps', 0)
+        self._extra_len = max(self._n_steps, self._max_steps)
+        self._memlen = self._seqlen + self._extra_len
+
+
+class EnvNStepBuffer(NStepBuffer):
     """ Local memory only stores one episode of transitions from each of n environments """
     def reset(self):
         assert self.is_full(), self._idx
@@ -71,10 +79,11 @@ class EnvBuffer(LocalBuffer):
                     for i in next_idxes]
         if 'steps' in results:
             results['steps'] = results['steps'].astype(np.float32)
+
         return results
 
 
-class EnvVecBuffer(LocalBuffer):
+class EnvVecNStepBuffer(NStepBuffer):
     """ Local memory only stores one episode of transitions from n environments """
     def reset(self):
         assert self.is_full(), self._idx
@@ -90,7 +99,6 @@ class EnvVecBuffer(LocalBuffer):
                         has_steps=self._extra_len>1, **data)
             print_buffer(self._memory, 'Local Buffer')
 
-        env_ids = env_ids or range(self._n_envs)
         idx = self._idx
         
         for k, v in data.items():
@@ -101,7 +109,7 @@ class EnvVecBuffer(LocalBuffer):
                     self._memory[k][i][idx] = v[i]
         self._memory['steps'][:, idx] = 1
 
-        self._idx = self._idx + 1
+        self._idx += 1
 
     def sample(self):
         assert self.is_full(), self._idx
@@ -122,5 +130,73 @@ class EnvVecBuffer(LocalBuffer):
             results = {k: v[mask] for k, v in results.items()}
         if 'steps' in results:
             results['steps'] = results['steps'].astype(np.float32)
+
+        return results
+
+
+class SequentialBuffer(LocalBuffer):
+    def reset(self):
+        self._idx = self._reset_shift + self._extra_len
+
+    def _add_attributes(self):
+        self._burn_in_size = self._burn_in_size or self._seqlen
+        self._extra_len = 1
+        self._memlen = self._seqlen + self._extra_len
+
+    def add(self, **data):
+        if self._memory == {}:
+            for k in data:
+                if k in self._state_keys:
+                    self._memory[k] = collections.deque(
+                        maxlen=math.ceil(self._seqlen / self._burn_in_size))
+                else:
+                    self._memory[k] = collections.deque(maxlen=self._memlen)
+
+        for k, v in data.items():
+            if k not in self._state_keys or self._idx % self._burn_in_size == 0:
+                self._memory[k].append(v)
+        
+        self._idx += 1
+    
+    def clear(self):
+        self._idx = 0
+
+
+class EnvSequentialBuffer(SequentialBuffer):
+    def sample(self):
+        assert self.is_full(), self._idx
+        results = {}
+        for k, v in self._memory.items():
+            if k in self._state_keys:
+                results[k] = v[0]
+            elif k in self._extra_keys:
+                results[k] = v
+            else:
+                results[k] = list(v)[:self._seqlen]
+
+        return results
+
+
+class EnvVecSequentialBuffer(SequentialBuffer):
+    def sample(self):
+        assert self.is_full(), self._idx
+        results = {}
+        for k, v in self._memory.items():
+            if k in self._state_keys:
+                results[k] = v[0]
+            elif k in self._extra_keys:
+                results[k] = np.swapaxes(np.array(v), 0, 1)
+            else:
+                results[k] = np.swapaxes(np.array(list(v)[:self._seqlen]), 0, 1)
+        
+        results = [{k: v[i]} for k, v in results.items() for i in range(self._n_envs)]
+        for seq in results:
+            for k, v in seq.items():
+                if k in self._state_keys:
+                    pass
+                elif k in self._extra_keys:
+                    assert v.shape[0] == self._seqlen + self._extra_len, (k, v.shape, self._seqlen + self._extra_len, np.array(self._memory[k]).shape)
+                else:
+                    assert v.shape[0] == self._seqlen, (k, v.shape)
 
         return results

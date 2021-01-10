@@ -15,53 +15,53 @@ default_config = dict(
 )
 
 class TestClass:
-    # def test_Env(self):
-    #     for name in ['atari_pong', 'atari_breakout', 'BipedalWalkerHardcore-v3']:
-    #         for life_done in [False, True]:
-    #             for _ in range(2):
-    #                 config = default_config.copy()
-    #                 config['name'] = name
-    #                 config['n_envs'] = 1
-    #                 config['life_done'] = life_done
-    #                 env = create_env(config)
-    #                 cr = 0
-    #                 n = 0
-    #                 re = 0
-    #                 for i in range(2000):
-    #                     a = env.random_action()
-    #                     s, r, d, re = env.step(a)
-    #                     cr += r
-    #                     if r != 0:
-    #                         print(name, i, r, cr, env.score())
-    #                     n += env.info().get('frame_skip', 1)
-    #                     np.testing.assert_equal(cr, env.score())
-    #                     np.testing.assert_equal(n, env.epslen())
-    #                     if env.info().get('game_over'):
-    #                         cr = 0
-    #                         n = 0
+    def test_Env(self):
+        for name in ['atari_pong', 'atari_breakout', 'BipedalWalkerHardcore-v3']:
+            for life_done in [False, True]:
+                for _ in range(2):
+                    config = default_config.copy()
+                    config['name'] = name
+                    config['n_envs'] = 1
+                    config['life_done'] = life_done
+                    env = create_env(config)
+                    cr = 0
+                    n = 0
+                    re = 0
+                    for i in range(2000):
+                        a = env.random_action()
+                        s, r, d, re = env.step(a)
+                        cr += r
+                        if r != 0:
+                            print(name, i, r, cr, env.score())
+                        n += env.info().get('frame_skip', 1)
+                        np.testing.assert_equal(cr, env.score())
+                        np.testing.assert_equal(n, env.epslen())
+                        if env.info().get('game_over'):
+                            cr = 0
+                            n = 0
 
-    # def test_EnVec(self):
-    #     for name in ['atari_pong', 'atari_breakout', 'BipedalWalkerHardcore-v3']:
-    #         for _ in range(3):
-    #             config = default_config.copy()
-    #             config['name'] = name
-    #             config['n_envs'] = 2
-    #             env = create_env(config)
-    #             cr = np.zeros(env.n_envs)
-    #             n = np.zeros(env.n_envs)
-    #             for _ in range(2000):
-    #                 a = env.random_action()
-    #                 s, r, d, re = env.step(a)
-    #                 cr += r
-    #                 n += np.array([i.get('frame_skip', 1) for i in env.info()])
-    #                 np.testing.assert_allclose(cr, env.score(), rtol=1e-5, atol=1e-5)
-    #                 np.testing.assert_equal(n, env.epslen())
-    #                 if np.any(re):
-    #                     info = env.info()
-    #                     for k, i in enumerate(info):
-    #                         if i.get('game_over'):
-    #                             cr[k] = 0
-    #                             n[k] = 0
+    def test_EnVec(self):
+        for name in ['atari_pong', 'atari_breakout', 'BipedalWalkerHardcore-v3']:
+            for _ in range(3):
+                config = default_config.copy()
+                config['name'] = name
+                config['n_envs'] = 2
+                env = create_env(config)
+                cr = np.zeros(env.n_envs)
+                n = np.zeros(env.n_envs)
+                for _ in range(2000):
+                    a = env.random_action()
+                    s, r, d, re = env.step(a)
+                    cr += r
+                    n += np.array([i.get('frame_skip', 1) for i in env.info()])
+                    np.testing.assert_allclose(cr, env.score(), rtol=1e-5, atol=1e-5)
+                    np.testing.assert_equal(n, env.epslen())
+                    if np.any(re):
+                        info = env.info()
+                        for k, i in enumerate(info):
+                            if i.get('game_over'):
+                                cr[k] = 0
+                                n[k] = 0
 
     def test_RayEnvVec(self):
         for name in ['atari_pong', 'atari_breakout', 'BipedalWalkerHardcore-v3']:

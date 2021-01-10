@@ -8,17 +8,15 @@ from replay.ds.sum_tree import SumTree
 
 class PERBase(Replay):
     """ Base class for PER, left in case one day I implement rank-based PER """
-    def __init__(self, config):
-        super().__init__(config)
-        self._data_structure = None            
-
-        # params for prioritized replay
-        self._beta = float(config.get('beta0', .4))
-        if '_beta_steps' in config:
-            self._beta_schedule = PiecewiseSchedule([(0, self._beta), (self._beta_steps, 1.)])
-
+    def _add_attributes(self):
+        super()._add_attributes()
         self._top_priority = 1.
-
+        self._data_structure = None            
+        self._use_is_ratios = getattr(self, '_use_is_ratios', True)
+        self._beta = float(getattr(self, 'beta0', .4))
+        if getattr(self, '_beta_schedule', None):
+            assert isinstance(self._beta_schedule, list)
+            self._beta_schedule = PiecewiseSchedule(self._beta_schedule)
         self._sample_i = 0   # count how many times self._sample is called
 
     @override(Replay)
@@ -76,10 +74,9 @@ class PERBase(Replay):
 
 class ProportionalPER(PERBase):
     """ Interface """
-    def __init__(self, config, **kwargs):
-        super().__init__(config)
+    def _add_attributes(self):
+        super()._add_attributes()
         self._data_structure = SumTree(self._capacity)        # mem_idx    -->     priority
-        self._use_is_ratios = getattr(self, '_use_is_ratios', True)
 
     """ Implementation """
     @override(PERBase)

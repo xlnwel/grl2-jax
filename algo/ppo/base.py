@@ -2,11 +2,11 @@ import logging
 import tensorflow as tf
 
 from utility.tf_utils import explained_variance
+from utility.rl_loss import ppo_loss, ppo_value_loss
 from utility.schedule import TFPiecewiseSchedule
 from core.base import RMSBaseAgent
 from core.optimizer import Optimizer
 from core.decorator import override, step_track
-from algo.ppo.loss import compute_ppo_loss, compute_value_loss
 
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,9 @@ class PPOBase(RMSBaseAgent):
 
     def get_states(self):
         return None
+    
+    def before_run(self, env):
+        pass
     
     def record_last_obs(self, env_output):
         self.update_obs_rms(env_output.obs)
@@ -100,12 +103,13 @@ class PPOBase(RMSBaseAgent):
             entropy = act_dist.entropy()
             # policy loss
             log_ratio = new_logpi - logpi
-            ppo_loss, entropy, kl, p_clip_frac = compute_ppo_loss(
+            policy_loss, entropy, kl, p_clip_frac = ppo_loss(
                 log_ratio, advantage, self._clip_range, entropy)
             # value loss
             value = self.value(x)
             value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
-            actor_loss = (ppo_loss - self._entropy_coef * entropy)
+            
+            actor_loss = (policy_loss - self._entropy_coef * entropy)
             value_loss = self._value_coef * value_loss
             ac_loss = actor_loss + value_loss
 
@@ -118,7 +122,7 @@ class PPOBase(RMSBaseAgent):
             entropy=entropy, 
             kl=kl, 
             p_clip_frac=p_clip_frac,
-            ppo_loss=ppo_loss,
+            ppo_loss=policy_loss,
             actor_loss=actor_loss,
             v_loss=value_loss,
             explained_variance=explained_variance(traj_ret, value)
@@ -131,7 +135,7 @@ class PPOBase(RMSBaseAgent):
         if value_loss_type == 'mse':
             value_loss = .5 * tf.reduce_mean((value - traj_ret)**2)
         elif value_loss_type == 'clip':
-            value_loss, v_clip_frac = compute_value_loss(
+            value_loss, v_clip_frac = ppo_value_loss(
                 value, traj_ret, old_value, self._clip_range)
             terms['v_clip_frac'] = v_clip_frac
         else:

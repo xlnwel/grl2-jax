@@ -244,6 +244,27 @@ class RetraceTest(tf.test.TestCase):
     #     with self.assertRaises(ValueError):
     #         retrace_ops.retrace(*bad_args)
 
+    def testRandomLastAction(self):
+        vs = []
+        for v in [self.rewards, self.qs, self.targnet_qs, self.actions, 
+            self.target_policy_probs, self.behaviour_policy_probs, self.pcontinues]:
+            vs.append(tf.convert_to_tensor(v))
+        rewards, qs, targnet_qs, actions, target_policy_probs, \
+            behaviour_policy_probs, pcontinues = vs
+        target = retrace(rewards[:-1], targnet_qs[1:], actions[1:], 
+            target_policy_probs[1:], behaviour_policy_probs[1:],
+            pcontinues[:-1], self.lambda_)
+
+        import copy
+        actions2 = copy.deepcopy(self.actions)
+        act_dim = qs.shape[-1]
+        actions2[-1] = (np.random.randint(0, act_dim, len(actions[-1]))).tolist()
+        self.assertNotAllClose(self.actions, actions2)
+        actions2 = tf.convert_to_tensor(actions2)
+        target2 = retrace(rewards[:-1], targnet_qs[1:], actions2[1:], 
+            target_policy_probs[1:], behaviour_policy_probs[1:],
+            pcontinues[:-1], self.lambda_)
+        self.assertAllClose(target, target2)
 
 if __name__ == '__main__':
   tf.test.main()

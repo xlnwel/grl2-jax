@@ -131,7 +131,7 @@ class TestClass:
             
     def test_sper(self):
         config = dict(
-            replay_type='sper',                      # per or uniform
+            replay_type='seqper',                      # per or uniform
             precision=32,
             # arguments for PER
             beta0=0.4,
@@ -143,26 +143,40 @@ class TestClass:
             burn_in_size=2,
             min_size=2,
             capacity=10000,
+            extra_keys=['obs', 'action', 'prob', 'mask']
+        )
+        env_config = dict(
+            n_envs=1,
+            name='dummy'
         )
         from env.dummy import Dummy
-        for burn_in_size in np.random.randint(1, config['sample_size'], 3):
-            config['burn_in_size'] = burn_in_size
-            replay = create_replay(config, state_keys=['h', 'c'])
-            env = Dummy()
-            o = env.reset()
-            prev_reward = 0
-            for i in range(1, 100000):
-                no, r, d, _ = env.step()
-                h = np.ones(2) * r
-                c = np.ones(2) * r
-                replay.add(obs=o, reward=r, discount=d, h=h, c=c)
-                if replay.good_to_learn():
-                    data = replay.sample()
-                    np.testing.assert_equal(data['reward'][:, 0], data['h'][:, 0])
-                    np.testing.assert_equal(data['obs'][:, 0, 0], data['c'][:, 0])
-                if d: 
-                    o = env.reset()
-                    prev_reward = 0
-                else:
-                    o = no
-                    prev_reward = r
+        from env import wrappers
+        from env.func import create_env
+        def mkenv(config):
+            env = Dummy(**config)
+            env = wrappers.post_wrap(env, config)
+            return env
+        for n_envs in np.arange(1, 3):
+            config['n_envs'] = n_envs
+            env_config['n_envs'] = n_envs
+            for burn_in_size in np.arange(0, config['sample_size']):
+                config['burn_in_size'] = burn_in_size
+                replay = create_replay(config, state_keys=['h', 'c', 'prev_reward'])
+                env = create_env(env_config, mkenv)
+                out = env.output()
+                o, prev_reward, d, reset = out
+                for i in range(1, 10000):
+                    a = np.random.randint(0, 10, n_envs)
+                    no, r, d, reset = env.step(a)
+                    h = np.ones(2) * r
+                    c = np.ones(2) * r
+                    replay.add(obs=o, reward=r, discount=d, h=h, c=c, mask=1-reset, prev_reward=prev_reward)
+                    if replay.good_to_learn():
+                        data = replay.sample()
+                        np.testing.assert_equal(data['reward'][:, 0], data['h'][:, 0])
+                        np.testing.assert_equal(data['obs'][:, 0, 0], data['c'][:, 0])
+                    if np.any(d): 
+                        prev_reward = np.where(d, 0, r)
+                    else:
+                        o = no
+                        prev_reward = r

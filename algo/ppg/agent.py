@@ -5,11 +5,11 @@ from tensorflow_probability import distributions as tfd
 
 from utility.schedule import TFPiecewiseSchedule
 from utility.tf_utils import explained_variance
+from utility.rl_loss import ppo_loss, ppo_value_loss
 from core.tf_config import build
 from core.optimizer import Optimizer
 from core.decorator import override
 from algo.ppo.agent import Agent as PPOAgent
-from algo.ppo.loss import compute_ppo_loss
 
 
 logger = logging.getLogger(__name__)
@@ -116,9 +116,9 @@ class Agent(PPOAgent):
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             log_ratio = new_logpi - logpi
-            ppo_loss, entropy, kl, p_clip_frac = compute_ppo_loss(
+            policy_loss, entropy, kl, p_clip_frac = ppo_loss(
                 log_ratio, advantage, self._clip_range, entropy)
-            actor_loss = (ppo_loss - self._entropy_coef * entropy)
+            actor_loss = (policy_loss - self._entropy_coef * entropy)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
         with tf.GradientTape() as tape:
@@ -134,7 +134,7 @@ class Agent(PPOAgent):
             entropy=entropy, 
             kl=kl, 
             p_clip_frac=p_clip_frac,
-            ppo_loss=ppo_loss,
+            ppo_loss=policy_loss,
             v_loss=value_loss,
             explained_variance=explained_variance(traj_ret, value)
         ))
@@ -152,7 +152,7 @@ class Agent(PPOAgent):
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             log_ratio = new_logpi - logpi
-            ppo_loss, entropy, kl, p_clip_frac = compute_ppo_loss(
+            ppo_loss, entropy, kl, p_clip_frac = ppo_loss(
                 log_ratio, advantage, self._clip_range, entropy)
             actor_loss = (ppo_loss - self._entropy_coef * entropy)
         actor_norm = self._actor_opt(tape, actor_loss)
