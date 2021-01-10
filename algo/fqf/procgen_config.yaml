@@ -61,9 +61,9 @@ agent:
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
-    iqn_opt: adam
+    q_opt: adam
     schedule_lr: False
-    iqn_lr: 2.5e-4
+    q_lr: 2.5e-4
     fpn_opt: rmsprop
     fpn_lr: 2.5e-9
     ent_coef: .001
@@ -73,6 +73,7 @@ agent:
     # arguments for PER
     per_alpha: .6
     per_epsilon: 1e-4
+    use_is_ratio: &is False
 
 replay:
     replay_type: *replay

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from utility.rl_utils import n_step_target, quantile_regression_loss
+from utility.rl_loss import n_step_target, quantile_regression_loss
 from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
 from algo.dqn.base import DQNBase, get_data_format, collect
@@ -9,7 +9,7 @@ from algo.dqn.base import DQNBase, get_data_format, collect
 class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
-            self._q_lr = TFPiecewiseSchedule([(5e5, self._q_lr), (2e6, 5e-5)])
+            self._q_lr = TFPiecewiseSchedule(self._q_lr)
         self._q_opt = Optimizer(
             self._q_opt, [self.encoder, self.qe, self.q], self._q_lr, 
             clip_norm=self._clip_norm, epsilon=1e-2/self._batch_size)
@@ -104,9 +104,3 @@ class Agent(DQNBase):
         ))
 
         return terms
-
-    @tf.function
-    def _sync_target_nets(self):
-        mv = self.encoder.variables + self.q.variables + self.qe.variables
-        tv = self.target_encoder.variables + self.target_q.variables + self.target_qe.variables
-        [tv.assign(mv) for mv, tv in zip(mv, tv)]

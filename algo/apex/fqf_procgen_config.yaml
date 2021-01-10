@@ -56,13 +56,7 @@ agent:
     n_worker_gpus: .1
     run_mode: nsteps
     worker_side_prioritization: False
-
-    # distributed algo params
-    n_learner_cpus: 3
-    n_learner_gpus: .3
-    n_workers: 5
-    n_worker_cpus: 1
-    n_worker_gpus: .1
+    return_stats: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -79,7 +73,7 @@ agent:
     q_lr: 2.5e-4
     fpn_opt: rmsprop
     fpn_lr: 2.5e-9
-    ent_coef: .01
+    ent_coef: .001
     clip_norm: 0
     epsilon: 1.5e-4
 

@@ -14,21 +14,23 @@ from core.decorator import override, step_track
 
 logger = logging.getLogger(__name__)
 
-def get_data_format(env, is_per=False, n_steps=1, dtype=tf.float32):
-    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
-    action_dtype = tf.int32 if env.is_action_discrete else dtype
+def get_data_format(*, env, replay_config, **kwargs):
+    is_per = replay_config['replay_type'].endswith['per']
+    n_steps = replay_config['n_steps']
+    obs_dtype = tf.uint8 if len(env.obs_shape) == 3 else tf.float32
+    action_dtype = tf.int32 if env.is_action_discrete else tf.float32
     data_format = dict(
         obs=((None, *env.obs_shape), obs_dtype),
         action=((None, *env.action_shape), action_dtype),
-        reward=((None, ), dtype), 
+        reward=((None, ), tf.float32), 
         next_obs=((None, *env.obs_shape), obs_dtype),
-        discount=((None, ), dtype),
+        discount=((None, ), tf.float32),
     )
     if is_per:
-        data_format['IS_ratio'] = ((None, ), dtype)
+        data_format['IS_ratio'] = ((None, ), tf.float32)
         data_format['idxes'] = ((None, ), tf.int32)
     if n_steps > 1:
-        data_format['steps'] = ((None, ), dtype)
+        data_format['steps'] = ((None, ), tf.float32)
 
     return data_format
 

@@ -8,7 +8,7 @@ from core.tf_config import build
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.ppo.base import PPOBase
-from algo.tppo.loss import compute_tppo_loss, compute_value_loss
+from algo.tppo.loss import compute_tppo_loss, ppo_value_loss
 
 
 class Agent(PPOBase):
@@ -111,7 +111,7 @@ class Agent(PPOBase):
             ppo_loss, entropy, p_clip_frac = compute_tppo_loss(
                 log_ratio, kl, advantage, self._kl_weight, self._clip_range, entropy)
             # value loss
-            value_loss, v_clip_frac = compute_value_loss(
+            value_loss, v_clip_frac = ppo_value_loss(
                 value, traj_ret, old_value, self._clip_range)
 
             policy_loss = (ppo_loss - self._entropy_coef * entropy)

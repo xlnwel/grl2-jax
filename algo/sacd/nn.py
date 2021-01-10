@@ -1,12 +1,11 @@
 import logging
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers
 from tensorflow_probability import distributions as tfd
 
 from core.module import Module, Ensemble
 from core.decorator import config
-from nn.func import mlp, cnn
+from nn.func import mlp
 from algo.sac.nn import Temperature
 from algo.dqn.nn import Encoder
 

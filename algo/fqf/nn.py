@@ -1,7 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers
-from tensorflow_probability import distributions as tfd
 
 from core.module import Module, Ensemble
 from core.decorator import config
@@ -74,23 +72,26 @@ class FQF(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, epsilon=0, return_stats=False):
-        if x.shape.ndims % 2 != 0:
-            x = tf.expand_dims(x, axis=0)
+    def action(self, x, 
+            evaluation=False, 
+            epsilon=0,
+            return_stats=False,
+            return_eval_stats=False):
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
         tau, tau_hat = self.fpn(x)
         qt_embed = self.qe(x, tau_hat)
-        qtv, q = self.q(x, qt_embed, tau_range=tau)
-        action = tf.argmax(q, axis=-1, output_type=tf.int32)
+        action = self.q.action(x, qt_embed, return_stats=return_stats)
         terms = {}
         if return_stats:
-            action, _, q = action
+            action, q = action
             q = tf.squeeze(q)
             terms = {'q': q}
-        action = epsilon_greedy(action, epsilon,
-            is_action_discrete=True, action_dim=self.q.action_dim)
+        if isinstance(epsilon, tf.Tensor) or epsilon:
+            action = epsilon_greedy(action, epsilon,
+                is_action_discrete=True, 
+                action_dim=self.q.action_dim)
         action = tf.squeeze(action)
 
         return action, terms

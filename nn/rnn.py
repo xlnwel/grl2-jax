@@ -11,7 +11,7 @@ class LSTMCell(layers.Layer):
     def __init__(self,
                  units,
                  activation='tanh',
-                 recurrent_activation='hard_sigmoid',
+                 recurrent_activation='sigmoid',
                  use_bias=True,
                  kernel_initializer='glorot_uniform',
                  recurrent_initializer='orthogonal',

@@ -117,6 +117,8 @@ if __name__ == '__main__':
             if '-' in algo:
                 config = get_config(algo.split('-')[-1], env)
                 dist_config = get_config(algo, env)
+                assert config, config
+                assert dist_config, dist_config
                 config = deep_update(config, dist_config)
             else:
                 config = get_config(algo, env)

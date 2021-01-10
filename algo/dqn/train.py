@@ -1,6 +1,4 @@
 import functools
-import numpy as np
-import tensorflow as tf
 import ray
 
 from core.tf_config import *
@@ -17,7 +15,7 @@ from core.dataset import Dataset, process_with_env
 
 
 def train(agent, env, eval_env, replay):
-    collect_fn = pkg.import_module('agent', algo=).collect
+    collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, )
     def collect(env, env_step, reset, **kwargs):
         # if reset:
@@ -98,19 +96,19 @@ def main(env_config, model_config, agent_config, replay_config):
     [eval_env_config.pop(k) for k in reward_key]
     eval_env = create_env(eval_env_config)
     replay_config['n_envs'] = n_workers * n_envs
+    replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
     replay = create_replay(replay_config)
 
+    create_model, Agent = pkg.import_agent(config=agent_config)
+    models = create_model(model_config, env)
+    
     am = pkg.import_module('agent', config=agent_config)
     data_format = am.get_data_format(
-        env=env, 
-        is_per=replay_config['replay_type'].endswith('per'), 
-        n_steps=replay_config['n_steps'])
+        env=env, replay_config=replay_config, agent_config=agent_config, model=models)
     process = functools.partial(process_with_env, 
         env=env, one_hot_action=replay_config.get('one_hot_action', True))
     dataset = Dataset(replay, data_format, process_fn=process)
     
-    create_model, Agent = pkg.import_agent(config=agent_config)
-    models = create_model(model_config, env)
     agent = Agent(
         config=agent_config, 
         models=models, 
