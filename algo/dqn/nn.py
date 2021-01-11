@@ -22,20 +22,21 @@ class Q(Module):
         kwargs = dict(
             kernel_initializer=getattr(self, '_kernel_initializer', 'glorot_uniform'),
             activation=getattr(self, '_activation', 'relu'),
+            layer_type=getattr(self, '_layer_type', 'dense'),
+            norm=getattr(self, '_norm', None),
+            out_dtype='float32',
         )
         
         if self._duel:
-            self._v_head = mlp(
+            self._v_layers = mlp(
                 self._units_list, 
-                layer_type=self._layer_type,
                 out_size=1, 
-                name='v',
+                name=name+'/v',
                 **kwargs)
-        self._a_head = mlp(
+        self._layers = mlp(
             self._units_list, 
-            layer_type=self._layer_type,
             out_size=action_dim, 
-            name='a' if self._duel else 'q',
+            name=name,
             **kwargs)
 
     def action(self, x, noisy=True, reset=True):
@@ -46,11 +47,11 @@ class Q(Module):
         kwargs = dict(noisy=noisy, reset=reset) if self._layer_type == 'noisy' else {}
 
         if self._duel:
-            v = self._v_head(x, **kwargs)
-            a = self._a_head(x, **kwargs)
+            v = self._v_layers(x, **kwargs)
+            a = self._layers(x, **kwargs)
             q = v + a - tf.reduce_mean(a, axis=-1, keepdims=True)
         else:
-            q = self._a_head(x, **kwargs)
+            q = self._layers(x, **kwargs)
 
         if action is not None:
             if len(action.shape) < len(q.shape):
@@ -62,8 +63,8 @@ class Q(Module):
     def reset_noisy(self):
         if self._layer_type == 'noisy':
             if self._duel:
-                self._v_head.reset()
-            self._a_head.reset()
+                self._v_layers.reset()
+            self._layers.reset()
 
 
 class DQN(Ensemble):

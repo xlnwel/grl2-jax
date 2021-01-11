@@ -102,7 +102,8 @@ def main(env_config, model_config, agent_config, buffer_config):
     models = create_model(model_config, env)
 
     buffer_config['n_envs'] = env.n_envs
-    buffer = Buffer(buffer_config, state_keys=models.state_keys)
+    buffer_config['state_keys'] = models.state_keys
+    buffer = Buffer(buffer_config)
     
     agent = Agent(name=env.name, 
                 config=agent_config, 

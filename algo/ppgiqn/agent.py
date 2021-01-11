@@ -5,26 +5,18 @@ from tensorflow_probability import distributions as tfd
 
 from utility.schedule import TFPiecewiseSchedule
 from utility.tf_utils import explained_variance
-from utility.rl_loss import ppo_loss
+from utility.rl_loss import ppo_loss, quantile_regression_loss
 from core.tf_config import build
 from core.optimizer import Optimizer
 from core.decorator import override
-from algo.ppo.agent import Agent as PPOAgent
+from algo.ppg.agent import Agent as PPGAgent
 
 
 logger = logging.getLogger(__name__)
 
-class Agent(PPOAgent):
+class Agent(PPGAgent):
     """ Initialization """
-    @override(PPOAgent)
-    def _add_attributes(self, env, dateset):
-        super()._add_attributes(env, dateset)
-        assert self.N_SEGS <= self.N_PI, f'{self.N_SEGS} > {self.N_PI}'
-        self.N_AUX_MBS = self.N_SEGS * self.N_AUX_MBS_PER_SEG
-        self._batch_size = env.n_envs * self.N_STEPS // self.N_MBS
-        self._aux_batch_size = env.n_envs * self.N_STEPS // self.N_AUX_MBS_PER_SEG
-
-    @override(PPOAgent)
+    @override(PPGAgent)
     def _construct_optimizers(self):
         if getattr(self, 'schedule_lr', False):
             assert isinstance(self._actor_lr, list)
@@ -41,7 +33,7 @@ class Agent(PPOAgent):
             self._optimizer, actor_models, self._actor_lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
-        value_models = [self.value]
+        value_models = [self.value, self.quantile]
         if hasattr(self, 'value_encoder'):
             value_models.append(self.value_encoder)
         if hasattr(self, 'value_rnn'):
@@ -55,62 +47,49 @@ class Agent(PPOAgent):
             self._optimizer, aux_models, self._aux_lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
-    @override(PPOAgent)
+    @override(PPGAgent)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=(env.action_shape, env.action_dtype, 'action'),
-            value=((), tf.float32, 'value'),
-            traj_ret=((), tf.float32, 'traj_ret'),
-            advantage=((), tf.float32, 'advantage'),
+            value=((self.N,), tf.float32, 'value'),
+            traj_ret=((self.N,), tf.float32, 'traj_ret'),
+            advantage=((self.N,), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            # logits=((env.action_dim,), tf.float32, 'logits'),
-            logits=(env.action_shape, tf.float32, 'logits'),
-            value=((), tf.float32, 'value'),
-            traj_ret=((), tf.float32, 'traj_ret'),
+            logits=((env.action_dim,), tf.float32, 'logits'),
+            value=((self.N,), tf.float32, 'value'),
+            traj_ret=((self.N,), tf.float32, 'traj_ret'),
         )
-        self.aux_learn = build(self._aux_learn, TensorSpecs)
+        self.aux_learn = build(self._aux_learn, TensorSpecs, batch_size=self._aux_batch_size)
 
-    """ PPG methods """
+    def _process_input(self, obs, evaluation, env_output):
+        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+        kwargs['tau_hat'] = self._tau_hat
+        return obs, kwargs
+
+    def before_run(self, env):
+        self._tau_hat = self.quantile.sample_tau(env.n_envs)
+        self._aux_tau_hat = self.quantile.sample_tau(self._aux_batch_size)
+
+    def compute_value(self, obs=None):
+        # be sure you normalize obs first if obs normalization is required
+        obs = obs or self._last_obs
+        return self.model.compute_value(obs, self._tau_hat).numpy()
+    
     def compute_aux_data(self, obs):
-        out = self.model.compute_aux_data(obs)
+        out = self.model.compute_aux_data(obs, self._aux_tau_hat)
         out = tf.nest.map_structure(lambda x: x.numpy(), out)
         return out
 
-    def aux_learn_log(self, step):
-        for i in range(self.N_AUX_EPOCHS):
-            for j in range(self.N_AUX_MBS):
-                data = self.dataset.sample_aux_data()
-                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-                terms = self.aux_learn(**data)
-
-                terms = {f'aux/{k}': v.numpy() for k, v in terms.items()}
-                kl = terms.pop('aux/kl')
-                value = terms.pop('aux/value')
-                self.store(**terms, value=value.mean())
-                if self._value_update == 'reuse':
-                    self.dataset.aux_update('value', value)
-            if self._value_update == 'once':
-                self.dataset.compute_aux_data_with_func(self.compute_value)
-            if self._value_update is not None:
-                last_value = self.compute_value()
-                self.dataset.aux_finish(last_value)
-        self.store(**{'aux/kl': kl})
-        
-        if self._to_summary(step):
-            self._summary(data, terms)
-
-        return i * self.N_MBS + j
-
     @tf.function
     def _learn(self, obs, action, value, traj_ret, advantage, logpi, state=None, mask=None):
-        old_value = value
         terms = {}
+        advantage = tf.reduce_mean(advantage, axis=-1)
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
             if state is not None:
@@ -125,9 +104,15 @@ class Agent(PPOAgent):
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
         with tf.GradientTape() as tape:
-            x_value = self.value_encoder(obs) if hasattr(self, 'value_encoder') else x
-            value = self.value(x_value)
-            value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
+            x_value = self.value_encoder(obs)
+            tau_hat, qt_embed = self.quantile(x_value, self.N)
+            x_value = tf.expand_dims(x_value, 1)
+            value = self.value(x_value, qt_embed)
+            value_ext = tf.expand_dims(value, axis=-1)
+            traj_ret_ext = tf.expand_dims(traj_ret, axis=1)
+            value_loss = quantile_regression_loss(
+                value_ext, traj_ret_ext, tau_hat, kappa=self.KAPPA)
+            value_loss = tf.reduce_mean(value_loss)
         terms['value_norm'] = self._value_opt(tape, value_loss)
 
         terms.update(dict(
@@ -147,6 +132,7 @@ class Agent(PPOAgent):
     @tf.function
     def learn_policy(self, obs, action, advantage, logpi, state=None, mask=None):
         terms = {}
+        advantage = tf.reduce_mean(advantage, axis=-1)
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
             if state is not None:
@@ -189,8 +175,9 @@ class Agent(PPOAgent):
 
     @tf.function
     def _aux_learn(self, obs, logits, value, traj_ret, mask=None, state=None):
-        old_value = value
         terms = {}
+        traj_ret_ext = tf.expand_dims(traj_ret, axis=1)
+        traj_ret = tf.reduce_mean(traj_ret, axis=-1)
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
             if state is not None:
@@ -199,20 +186,20 @@ class Agent(PPOAgent):
             old_dist = tfd.Categorical(logits=logits)
             kl = tf.reduce_mean(old_dist.kl_divergence(act_dist))
             actor_loss = bc_loss = self._bc_coef * kl
-            if hasattr(self, 'value_encoder'):
-                aux_value = self.aux_value(x)
-                aux_loss = .5 * tf.reduce_mean((aux_value - traj_ret)**2)
-                terms['bc_loss'] = bc_loss
-                terms['aux_loss'] = aux_loss
-                actor_loss = aux_loss + bc_loss
-
-                x_value = self.value_encoder(obs)
-                value = self.value(x_value)
-            else:
-                # allow gradients from value head if using a shared encoder
-                value = self.value(x)
-
-            value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
+            aux_value = self.aux_value(x)
+            aux_loss = .5 * tf.reduce_mean((aux_value - traj_ret)**2)
+            terms['bc_loss'] = bc_loss
+            terms['aux_loss'] = aux_loss
+            actor_loss = aux_loss + bc_loss
+            
+            x_value = self.value_encoder(obs)
+            tau_hat, qt_embed = self.quantile(x_value, self.N)
+            x_value = tf.expand_dims(x_value, 1)
+            value = self.value(x_value, qt_embed)
+            value_ext = tf.expand_dims(value, axis=-1)
+            value_loss = quantile_regression_loss(
+                value_ext, traj_ret_ext, tau_hat, kappa=self.KAPPA)
+            value_loss = tf.reduce_mean(value_loss)
             loss = actor_loss + value_loss
 
         terms['actor_norm'] = self._aux_opt(tape, loss)

@@ -42,7 +42,7 @@ def compute_indices(idxes, mb_idx, mb_size, N_MBS):
     curr_idxes = idxes[start: end]
     return mb_idx, curr_idxes
 
-def restore_time_dim(memory, n_envs, n_steps):
+def reshape_to_store(memory, n_envs, n_steps):
     if 'reward' in memory and memory['reward'].shape[:2] != (n_envs, n_steps):
         for k, v in memory.items():
             memory[k] = v.reshape((n_envs, n_steps, *v.shape[1:]))
@@ -50,7 +50,7 @@ def restore_time_dim(memory, n_envs, n_steps):
     return memory
 
 
-def flatten_time_dim(memory, n_envs, n_steps):
+def reshape_to_sample(memory, n_envs, n_steps):
     if 'reward' in memory and memory['reward'].shape[:2] == (n_envs, n_steps):
         for k, v in memory.items():
             memory[k] = v.reshape((-1, *v.shape[2:]))
@@ -126,7 +126,7 @@ class Buffer:
 
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
-        self.restore_time_dim()
+        self.reshape_to_store()
         kl = self._kl_coef * self._memory['kl']
         if self._adv_type == 'nae':
             self._memory['advantage'], self._memory['traj_ret'] = \
@@ -148,20 +148,20 @@ class Buffer:
         else:
             raise NotImplementedError
 
-        self.flatten_time_dim()
+        self.reshape_to_sample()
         self._ready = True
 
     def reset(self):
         self._idx = 0
         self._mb_idx = 0
         self._ready = False
-        self.restore_time_dim()
+        self.reshape_to_store()
 
-    def restore_time_dim(self):
-        self._memory = restore_time_dim(self._memory, self._n_envs, self.N_STEPS)
+    def reshape_to_store(self):
+        self._memory = reshape_to_store(self._memory, self._n_envs, self.N_STEPS)
 
-    def flatten_time_dim(self):
-        self._memory = flatten_time_dim(self._memory, self._n_envs, self.N_STEPS)
+    def reshape_to_sample(self):
+        self._memory = reshape_to_sample(self._memory, self._n_envs, self.N_STEPS)
 
     def clear(self):
         self._memory = {}

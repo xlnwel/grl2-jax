@@ -31,6 +31,7 @@ def train(agent, env, eval_env, buffer):
     to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
     while step < agent.MAX_STEPS:
+        agent.before_run(env)
         for _ in range(agent.N_PI):
             start_env_step = agent.env_step
             with Timer('env', 1000) as et:
@@ -56,8 +57,9 @@ def train(agent, env, eval_env, buffer):
 
         # auxiliary phase
         buffer.compute_aux_data_with_func(agent.compute_aux_data)
-        value = agent.compute_value()
-        buffer.aux_finish(value)
+        if agent.AUX_RECOMPUTE:
+            value = agent.compute_value()
+            buffer.aux_finish(value)
 
         with Timer('aux_time', 1000) as at:
             agent.aux_learn_log(step)
@@ -107,7 +109,8 @@ def main(env_config, model_config, agent_config, buffer_config):
     models = create_model(model_config, env)
 
     buffer_config['n_envs'] = env.n_envs
-    buffer = Buffer(buffer_config, state_keys=models.state_keys)
+    buffer_config['state_keys'] = models.state_keys
+    buffer = Buffer(buffer_config)
     
     agent = Agent(name=env.name, 
                 config=agent_config, 

@@ -43,31 +43,49 @@ def compute_indices(idxes, mb_idx, mb_size, N_MBS):
     curr_idxes = idxes[start: end]
     return mb_idx, curr_idxes
 
-def restore_time_dim(memory, n_envs, n_steps):
-    if 'reward' in memory and memory['reward'].shape[:2] != (n_envs, n_steps):
-        for k, v in memory.items():
-            memory[k] = v.reshape((n_envs, n_steps, *v.shape[1:]))
+def reshape_to_store(memory, n_envs, n_steps, sample_size=None):
+    start_dim = 2 if sample_size else 1
+    memory = {k: v.reshape(n_envs, n_steps, *v.shape[start_dim:])
+        for k, v in memory.items()}
 
     return memory
 
 
-def flatten_time_dim(memory, n_envs, n_steps):
-    if 'reward' in memory and memory['reward'].shape[:2] == (n_envs, n_steps):
-        for k, v in memory.items():
-            memory[k] = v.reshape((-1, *v.shape[2:]))
+def reshape_to_sample(memory, n_envs, n_steps, sample_size=None):
+    leading_dims = (-1, sample_size) if sample_size else (-1,)
+    memory = {k: v.reshape(*leading_dims, *v.shape[2:])
+            for k, v in memory.items()}
+    if sample_size:
+        for v in memory.values():
+            assert v.shape[:2] == (n_envs * n_steps / sample_size, sample_size), v.shape
+    else:
+        for v in memory.values():
+            assert v.shape[0] == (n_envs * n_steps), v.shape
 
     return memory
 
 
 class Buffer:
     @config
-    def __init__(self, **kwargs):
-        self._size = size = self._n_envs * self.N_STEPS
+    def __init__(self):
+        self._add_attributes()
+
+    def _add_attributes(self):
+        self._sample_size = getattr(self, '_sample_size', None)
+        if self._sample_size:
+            assert self._n_envs * self.N_STEPS % self._sample_size == 0, \
+                f'{self._n_envs} * {self.N_STEPS} % {self._sample_size} != 0'
+            size = self._n_envs * self.N_STEPS // self._sample_size
+            logger.info(f'Sample size: {self._sample_size}')
+        else:
+            size = self._n_envs * self.N_STEPS
+        self._size = size
         self._mb_size = size // self.N_MBS
         self._idxes = np.arange(size)
         self._shuffled_idxes = np.arange(size)
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
+        self._is_store_shape = True
         self.reset()
         logger.info(f'Batch size: {size}')
         logger.info(f'Mini-batch size: {self._mb_size}')
@@ -127,7 +145,8 @@ class Buffer:
 
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
-        self.restore_time_dim()
+        assert not self._ready, self._ready
+        self.reshape_to_store()
         if self._adv_type == 'nae':
             self._memory['advantage'], self._memory['traj_ret'] = \
                 compute_nae(reward=self._memory['reward'], 
@@ -147,20 +166,26 @@ class Buffer:
         else:
             raise NotImplementedError
 
-        self.flatten_time_dim()
+        self.reshape_to_sample()
         self._ready = True
 
     def reset(self):
         self._idx = 0
         self._mb_idx = 0
         self._ready = False
-        self.restore_time_dim()
+        self.reshape_to_store()
 
-    def restore_time_dim(self):
-        self._memory = restore_time_dim(self._memory, self._n_envs, self.N_STEPS)
+    def reshape_to_store(self):
+        if not self._is_store_shape:
+            self._memory = reshape_to_store(
+                self._memory, self._n_envs, self.N_STEPS, self._sample_size)
+            self._is_store_shape = True
 
-    def flatten_time_dim(self):
-        self._memory = flatten_time_dim(self._memory, self._n_envs, self.N_STEPS)
+    def reshape_to_sample(self):
+        if self._is_store_shape:
+            self._memory = reshape_to_sample(
+                self._memory, self._n_envs, self.N_STEPS, self._sample_size)
+            self._is_store_shape = False
 
     def clear(self):
         self._memory = {}

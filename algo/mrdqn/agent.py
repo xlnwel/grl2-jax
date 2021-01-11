@@ -3,29 +3,30 @@ import tensorflow as tf
 
 from utility.rl_utils import *
 from utility.rl_loss import retrace
-from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
-from core.optimizer import Optimizer
 from core.decorator import override
 from algo.dqn.base import DQNBase
 
 
-def get_data_format(env, sample_size=None, 
-        is_per=False, store_state=False, state_size=None, 
-        dtype=tf.float32, **kwargs):
-    obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else dtype
+def get_data_format(*, env, replay_config, agent_config,
+        model, **kwargs):
+    is_per = replay_config['replay_type'].endswith['per']
+    store_state = agent_config['store_state']
+    sample_size = agent_config['sample_size']
+    obs_dtype = tf.uint8 if len(env.obs_shape) == 3 else tf.float32
     data_format = dict(
         obs=((None, sample_size+1, *env.obs_shape), obs_dtype),
-        prev_action=((None, sample_size+1, *env.action_shape), tf.int32),
-        prev_reward=((None, sample_size+1), dtype), 
-        prob=((None, sample_size), dtype),
-        discount=((None, sample_size), dtype),
-        mask=((None, sample_size+1), dtype),
+        action=((None, sample_size+1, *env.action_shape), tf.int32),
+        reward=((None, sample_size), tf.float32), 
+        prob=((None, sample_size+1), tf.float32),
+        discount=((None, sample_size), tf.float32),
+        mask=((None, sample_size+1), tf.float32),
     )
     if is_per:
-        data_format['IS_ratio'] = ((None), dtype)
+        data_format['IS_ratio'] = ((None), tf.float32)
         data_format['idxes'] = ((None), tf.int32)
     if store_state:
+        state_size = model.state_size
         from tensorflow.keras.mixed_precision.experimental import global_policy
         state_dtype = global_policy().compute_dtype
         data_format.update({
@@ -34,6 +35,11 @@ def get_data_format(env, sample_size=None,
         })
 
     return data_format
+
+def collect(replay, env, step, reset, next_obs, **kwargs):
+    replay.add(**kwargs)
+    if reset:
+        replay.clear_temp_buffer()
 
 class Agent(DQNBase):
     """ Initialization """
@@ -50,8 +56,8 @@ class Agent(DQNBase):
         TensorSpecs = dict(
             obs=((self._sample_size+1, *env.obs_shape), tf.float32, 'obs'),
             action=((self._sample_size+1,), tf.int32, 'prev_action'),
-            reward=((self._sample_size+1,), tf.float32, 'prev_reward'),
-            prob=((self._sample_size,), tf.float32, 'prob'),
+            reward=((self._sample_size,), tf.float32, 'prev_reward'),
+            prob=((self._sample_size+1,), tf.float32, 'prob'),
             discount=((self._sample_size,), tf.float32, 'discount'),
             mask=((self._sample_size+1,), tf.float32, 'mask')
         )
@@ -71,8 +77,8 @@ class Agent(DQNBase):
     """ Call """
     @override(DQNBase)
     def _process_input(self, obs, evaluation, env_output):
-        if self._state is None:
-            self._state = self.q.get_initial_state(batch_size=tf.shape(obs)[0])
+        if hasattr(self, 'rnn') and self._state is None:
+            self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
             if self.model.additional_rnn_input:
                 self._prev_action = tf.zeros(obs.shape[0], dtype=tf.int32)
                 self._prev_reward = np.zeros(obs.shape[0])
@@ -107,8 +113,6 @@ class Agent(DQNBase):
     @tf.function
     def _learn(self, obs, action, reward, discount, prob, mask, 
                 IS_ratio=1, state=None, additional_rnn_input=[]):
-        loss_fn = dict(
-            huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
         if additional_rnn_input != []:
             prev_action, prev_reward = additional_rnn_input
@@ -119,13 +123,13 @@ class Agent(DQNBase):
             add_inp = additional_rnn_input
         mask = tf.expand_dims(mask, -1)
         with tf.GradientTape() as tape:
-            embed = self.encoder(obs)
-            t_embed = self.target_encoder(obs)
-            if self._burn_in:
+            x = self.encoder(obs)
+            t_x = self.target_encoder(obs)
+            if hasattr(self, 'rnn') and self._burn_in:
                 bis = self._burn_in_size
                 ss = self._sample_size - bis
-                bi_embed, embed = tf.split(embed, [bis, ss+1], 1)
-                tbi_embed, t_embed = tf.split(t_embed, [bis, ss+1], 1)
+                bi_x, x = tf.split(x, [bis, ss+1], 1)
+                tbi_x, t_x = tf.split(t_x, [bis, ss+1], 1)
                 if add_inp != []:
                     bi_add_inp, add_inp = zip(
                         *[tf.split(v, [bis, ss+1]) for v in add_inp])
@@ -134,19 +138,20 @@ class Agent(DQNBase):
                 bi_mask, mask = tf.split(mask, [bis, ss+1], 1)
                 bi_discount, discount = tf.split(discount, [bis, ss], 1)
                 _, prob = tf.split(prob, [bis, ss], 1)
-                _, o_state = self.rnn(bi_embed, state, bi_mask,
+                _, o_state = self.rnn(bi_x, state, bi_mask,
                     additional_input=bi_add_inp)
-                _, t_state = self.target_rnn(tbi_embed, state, bi_mask,
+                _, t_state = self.target_rnn(tbi_x, state, bi_mask,
                     additional_input=bi_add_inp)
                 o_state = tf.nest.map_structure(tf.stop_gradient, o_state)
             else:
                 o_state = t_state = state
                 ss = self._sample_size
 
-            x, _ = self.rnn(embed, o_state, mask,
-                additional_input=add_inp)
-            t_x, _ = self.target_rnn(t_embed, t_state, mask,
-                additional_input=add_inp)
+            if hasattr(self, 'rnn'):
+                x, _ = self.rnn(x, o_state, mask,
+                    additional_input=add_inp)
+                t_x, _ = self.target_rnn(t_x, t_state, mask,
+                    additional_input=add_inp)
             
             curr_x = x[:, :-1]
             next_x = x[:, 1:]
@@ -168,7 +173,8 @@ class Agent(DQNBase):
                 axis=1, tbo=self._tbo)
             target = tf.stop_gradient(target)
             error = target - q
-            loss = tf.reduce_mean(IS_ratio[:, None] * loss_fn(error))
+            loss = tf.reduce_mean(.5 * error**2, axis=-1)
+            loss = tf.reduce_mean(IS_ratio * loss)
         tf.debugging.assert_shapes([
             [q, (None, ss)],
             [next_qs, (None, ss, self._action_dim)],

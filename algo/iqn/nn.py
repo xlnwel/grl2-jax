@@ -12,12 +12,18 @@ class Quantile(Module):
     def __init__(self, name='phi'):
         super().__init__(name=name)
 
-    def call(self, x, n_qt=None):
+    def sample_tau(self, batch_size, n=None):
+        n = n or self.N
+        tau_hat = tf.random.uniform([batch_size, n, 1], 
+            minval=0, maxval=1, dtype=tf.float32)   # [B, N, 1]
+        return tau_hat
+    
+    def call(self, x, n_qt=None, tau_hat=None):
         batch_size, cnn_out_size = x.shape
         # phi network
         n_qt = n_qt or self.N
-        tau_hat = tf.random.uniform([batch_size, n_qt, 1], 
-            minval=0, maxval=1, dtype=tf.float32)   # [B, N, 1]
+        if tau_hat is None:
+            tau_hat = self.sample_tau(batch_size, n_qt)   # [B, N, 1]
         pi = tf.convert_to_tensor(np.pi, tf.float32)
         degree = tf.cast(tf.range(1, self._tau_embed_size+1), tau_hat.dtype) * pi * tau_hat
         qt_embed = tf.math.cos(degree)              # [B, N, E]

@@ -125,12 +125,12 @@ def build(func, TensorSpecs, sequential=False, batch_size=None, print_terminal_i
         A concrete function of func
     """
     TensorSpecs = get_TensorSpecs(TensorSpecs, sequential, batch_size)
-    if print_terminal_info:
-        logger.debug(f'{func.__name__} is built with TensorSpecs:')
-        if isinstance(TensorSpecs, dict):
-            [logger.debug(f'\t{k}={v}') for k, v in TensorSpecs.items()]
-        else:
-            [logger.debug('\t', v) for v in TensorSpecs]
+    fn = print if print_terminal_info else logger.info
+    fn(f'{func.__name__} is built with TensorSpecs:')
+    if isinstance(TensorSpecs, dict):
+        [fn(f'\t{k}={v}') for k, v in TensorSpecs.items()]
+    else:
+        [fn('\t', v) for v in TensorSpecs]
     if isinstance(TensorSpecs, dict):
         return func.get_concrete_function(**TensorSpecs)
     else: 

@@ -7,7 +7,6 @@ from core.module import Ensemble
 from nn.func import Encoder, LSTM
 from algo.dqn.nn import Q
 
-LSTMState = collections.namedtuple('LSTMState', ['h', 'c'])
 
 class RDQN(Ensemble):
     def __init__(self, config, env, **kwargs):
@@ -68,6 +67,23 @@ class RDQN(Ensemble):
                 results.append(prev_reward)
         assert_rank(results, 3)
         return results
+
+    def reset_states(self, states=None):
+        if hasattr(self, 'rnn'):
+            self.rnn.reset_states(states)
+
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
+        return self.rnn.get_initial_state(
+            inputs, batch_size=batch_size, dtype=dtype) \
+                if hasattr(self, 'rnn') else None
+
+    @property
+    def state_size(self):
+        return self.rnn.state_size if hasattr(self, 'rnn') else None
+        
+    @property
+    def state_keys(self):
+        return self.rnn.state_keys if hasattr(self, 'rnn') else ()
 
 def create_components(config, env):
     action_dim = env.action_dim

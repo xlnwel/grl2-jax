@@ -2,9 +2,10 @@ from algo.ppo.buffer import *
 
 
 class Replay:
-    def __init__(self, config, **kwargs):
+    def __init__(self, config):
         self.N_PI = config['N_PI']
         self._n_segs = config['n_segs']
+        assert self.N_PI >= self._n_segs, (self.N_PI, self._n_segs)
         self._n_envs = config['n_envs']
         self.N_STEPS = config['N_STEPS'] * self._n_segs
         buff_size = config['n_envs'] * config['N_STEPS']
@@ -18,7 +19,7 @@ class Replay:
 
         self._gamma = config['gamma']
         self._gae_discount = config['gamma'] * config['lam']
-        self._buff = Buffer(config, **kwargs)
+        self._buff = Buffer(config)
         self._memory = {}
 
     def __getitem__(self, k):
@@ -50,7 +51,7 @@ class Replay:
         assert self._idx == 0, self._idx
         value_list = []
         logits_list = []
-        self._memory = flatten_time_dim(self._memory, self._n_envs, self.N_STEPS)
+        self._memory = reshape_to_sample(self._memory, self._n_envs, self.N_STEPS)
         for start in range(0, self._size, self._mb_size):
             end = start + self._mb_size
             obs = self._memory['obs'][start:end]
@@ -62,7 +63,7 @@ class Replay:
     
     def transfer_data(self):
         assert self._buff.ready()
-        self._buff.restore_time_dim()
+        self._buff.reshape_to_store()
         if self._idx >= self.N_PI - self._n_segs:
             for k in ('obs', 'reward', 'discount'):
                 v = self._buff[k]
@@ -91,7 +92,7 @@ class Replay:
     
     def aux_finish(self, last_value):
         assert self._idx == 0, self._idx
-        self._memory = restore_time_dim(self._memory, self._n_envs, self.N_STEPS)
+        self._memory = reshape_to_store(self._memory, self._n_envs, self.N_STEPS)
         self._memory['traj_ret'], _ = \
             compute_gae(reward=self._memory['reward'], 
                         discount=self._memory['discount'],
@@ -99,9 +100,8 @@ class Replay:
                         last_value=last_value,
                         gamma=self._gamma,
                         gae_discount=self._gae_discount)
-        self._memory = flatten_time_dim(self._memory, self._n_envs, self.N_STEPS)
-        for k, v in self._memory.items():
-            assert v.shape[0] == self._n_envs * self.N_STEPS, (k, v.shape)
+        
+        self._memory = reshape_to_sample(self._memory, self._n_envs, self.N_STEPS)
         self._ready = True
 
     def reset(self):
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     n_mbs = 4
     config = dict(
         N_PI=16,
-        N_AUX_MBS=16,
+        N_AUX_MBS_PER_SEG=16,
         n_segs=16,
         adv_type='gae',
         gamma=.99,
