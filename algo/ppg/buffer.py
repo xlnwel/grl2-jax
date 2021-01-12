@@ -1,32 +1,36 @@
+import numpy as np
+
+from utility.utils import config_attr
 from algo.ppo.buffer import *
 
 
 class Replay:
     def __init__(self, config):
-        self.N_PI = config['N_PI']
-        self._n_segs = config['n_segs']
+        config_attr(self, config)
         assert self.N_PI >= self._n_segs, (self.N_PI, self._n_segs)
-        self._n_envs = config['n_envs']
-        self.N_STEPS = config['N_STEPS'] * self._n_segs
-        buff_size = config['n_envs'] * config['N_STEPS']
+        self.TOTAL_STEPS = self.N_STEPS * self._n_segs
+        buff_size = self._n_envs * self.N_STEPS
         self._size = buff_size * self._n_segs
-        self._n_mbs = self._n_segs * config['N_AUX_MBS_PER_SEG']
+        self._n_mbs = self._n_segs * self.N_AUX_MBS_PER_SEG
         self._mb_size = self._size // self._n_mbs
         self._shuffled_idxes = np.arange(self._size)
         self._idx = 0
         self._mb_idx = 0
         self._ready = False
 
-        self._gamma = config['gamma']
-        self._gae_discount = config['gamma'] * config['lam']
+        self._gae_discount = self._gamma * self._lam
         self._buff = Buffer(config)
         self._memory = {}
+        self._is_store_shape = True
 
     def __getitem__(self, k):
         return self._buff[k]
 
     def ready(self):
         return self._ready
+    
+    def set_ready(self):
+        self._ready = True
 
     def add(self, **data):
         self._buff.add(**data)
@@ -51,7 +55,7 @@ class Replay:
         assert self._idx == 0, self._idx
         value_list = []
         logits_list = []
-        self._memory = reshape_to_sample(self._memory, self._n_envs, self.N_STEPS)
+        self.reshape_to_sample()
         for start in range(0, self._size, self._mb_size):
             end = start + self._mb_size
             obs = self._memory['obs'][start:end]
@@ -65,9 +69,12 @@ class Replay:
         assert self._buff.ready()
         self._buff.reshape_to_store()
         if self._idx >= self.N_PI - self._n_segs:
-            for k in ('obs', 'reward', 'discount'):
+            for k in self._transfer_keys:
                 v = self._buff[k]
                 if k in self._memory:
+                    # NOTE: we concatenate segments along the sequential dimension,
+                    # which increases the horizon when computing targets and advantages
+                    # The effect is unclear and may correlate with the value of 𝝀
                     self._memory[k] = np.concatenate(
                         [self._memory[k], v], axis=1
                     )
@@ -92,7 +99,7 @@ class Replay:
     
     def aux_finish(self, last_value):
         assert self._idx == 0, self._idx
-        self._memory = reshape_to_store(self._memory, self._n_envs, self.N_STEPS)
+        self.reshape_to_store()
         self._memory['traj_ret'], _ = \
             compute_gae(reward=self._memory['reward'], 
                         discount=self._memory['discount'],
@@ -101,7 +108,7 @@ class Replay:
                         gamma=self._gamma,
                         gae_discount=self._gae_discount)
         
-        self._memory = reshape_to_sample(self._memory, self._n_envs, self.N_STEPS)
+        self.reshape_to_sample()
         self._ready = True
 
     def reset(self):
@@ -113,46 +120,21 @@ class Replay:
         assert self._ready, self._idx
         self._ready = False
         self._idx = 0
+        self._is_store_shape = True
         self._memory.clear()
-    
+
+    def reshape_to_store(self):
+        if not self._is_store_shape:
+            self._memory = reshape_to_store(self._memory, self._n_envs, self.TOTAL_STEPS)
+            self._is_store_shape = True
+
+    def reshape_to_sample(self):
+        if self._is_store_shape:
+            self._memory = reshape_to_sample(self._memory, self._n_envs, self.TOTAL_STEPS)
+            self._is_store_shape = False
+
     def clear(self):
         self._idx = 0
         self._ready = False
         self._buff.clear()
         self._memory.clear()
-
-
-if __name__ == '__main__':
-    n_envs = 2
-    n_steps = 50
-    n_mbs = 4
-    config = dict(
-        N_PI=16,
-        N_AUX_MBS_PER_SEG=16,
-        n_segs=16,
-        adv_type='gae',
-        gamma=.99,
-        lam=.95,
-        n_envs=n_envs,
-        N_STEPS=n_steps,
-        N_MBS=n_mbs,
-    )
-    replay = Replay(config)
-    i = 0
-    while not replay.ready():
-        i += 1
-        print(i, replay._idx)
-        replay.reset()
-        for _ in range(n_steps):
-            replay.add(
-                obs=np.ones((2, 64, 64, 3)) * i, 
-                reward=np.random.uniform(size=(2,)),
-                value=np.random.uniform(size=(2,)),
-                discount=np.random.uniform(size=(2,)))
-        replay.finish(np.random.uniform(size=(2,)))
-        
-    print('obs' in replay._memory)
-    if 'obs' in replay._memory:
-        print(replay._memory['obs'].shape)
-    for i in range(16):
-        print(replay._memory['obs'][i*100, 0, 0, 0])

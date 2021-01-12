@@ -69,12 +69,11 @@ class Agent(PPOAgent):
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            # logits=((env.action_dim,), tf.float32, 'logits'),
-            logits=(env.action_shape, tf.float32, 'logits'),
+            logits=((env.action_dim,), tf.float32, 'logits'),
             value=((), tf.float32, 'value'),
             traj_ret=((), tf.float32, 'traj_ret'),
         )
-        self.aux_learn = build(self._aux_learn, TensorSpecs)
+        self.aux_learn = build(self._aux_learn, TensorSpecs, batch_size=self._aux_batch_size)
 
     """ PPG methods """
     def compute_aux_data(self, obs):

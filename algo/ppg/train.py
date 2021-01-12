@@ -60,6 +60,9 @@ def train(agent, env, eval_env, buffer):
         if agent.AUX_RECOMPUTE:
             value = agent.compute_value()
             buffer.aux_finish(value)
+        else:
+            buffer.reshape_to_sample()
+            buffer.set_ready()
 
         with Timer('aux_time', 1000) as at:
             agent.aux_learn_log(step)
