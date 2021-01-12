@@ -3,6 +3,7 @@ import logging
 import tensorflow as tf
 from tensorflow.keras.mixed_precision.experimental import global_policy
 
+from utility.utils import config_attr
 from utility.display import display_model_var_info
 from core.checkpoint import setup_checkpoint
 from core.log import setup_logger, setup_tensorboard, save_code
@@ -38,7 +39,7 @@ def agent_config(init_fn):
         """
 
         """ For the basic configuration, see config.yaml in algo/*/ """
-        _config_attr(self, config)
+        config_attr(self, config)
 
         # name is used in stdout/stderr as the agent's identifier
         # while model_name is used for logging and checkpoint
@@ -96,7 +97,7 @@ def agent_config(init_fn):
 
 def config(init_fn):
     def wrapper(self, config, *args, **kwargs):
-        _config_attr(self, config)
+        config_attr(self, config)
 
         init_fn(self, *args, **kwargs)
 
@@ -123,16 +124,3 @@ def override(cls):
         return method
 
     return check_override
-
-def _config_attr(obj, config):
-    for k, v in config.items():
-        if k.islower():
-            k = f'_{k}'
-        if isinstance(v, str):
-            try:
-                v = float(v)
-            except:
-                pass
-        if isinstance(v, float) and v == int(v):
-            v = int(v)
-        setattr(obj, k, v)

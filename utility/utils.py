@@ -21,6 +21,19 @@ def deep_update(source, target):
             source[k] = v
     return source
 
+def config_attr(obj, config):
+    for k, v in config.items():
+        if k.islower():
+            k = f'_{k}'
+        if isinstance(v, str):
+            try:
+                v = float(v)
+            except:
+                pass
+        if isinstance(v, float) and v == int(v):
+            v = int(v)
+        setattr(obj, k, v)
+
 class Every:
     def __init__(self, period, start=0):
         self._period = period
