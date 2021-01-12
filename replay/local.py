@@ -136,10 +136,10 @@ class EnvVecNStepBuffer(NStepBuffer):
 
 class SequentialBuffer(LocalBuffer):
     def reset(self):
-        self._idx = self._reset_shift + self._extra_len
+        self._idx = self._memlen - self._reset_shift
 
     def _add_attributes(self):
-        self._burn_in_size = self._burn_in_size or self._seqlen
+        self._reset_shift = self._reset_shift or self._seqlen
         self._extra_len = 1
         self._memlen = self._seqlen + self._extra_len
 
@@ -148,12 +148,12 @@ class SequentialBuffer(LocalBuffer):
             for k in data:
                 if k in self._state_keys:
                     self._memory[k] = collections.deque(
-                        maxlen=math.ceil(self._seqlen / self._burn_in_size))
+                        maxlen=math.ceil(self._memlen / self._reset_shift))
                 else:
                     self._memory[k] = collections.deque(maxlen=self._memlen)
 
         for k, v in data.items():
-            if k not in self._state_keys or self._idx % self._burn_in_size == 0:
+            if k not in self._state_keys or self._idx % self._reset_shift == 0:
                 self._memory[k].append(v)
         
         self._idx += 1
@@ -170,9 +170,9 @@ class EnvSequentialBuffer(SequentialBuffer):
             if k in self._state_keys:
                 results[k] = v[0]
             elif k in self._extra_keys:
-                results[k] = v
+                results[k] = np.array(v)
             else:
-                results[k] = list(v)[:self._seqlen]
+                results[k] = np.array(v)[:self._seqlen]
 
         return results
 
@@ -189,14 +189,15 @@ class EnvVecSequentialBuffer(SequentialBuffer):
             else:
                 results[k] = np.swapaxes(np.array(list(v)[:self._seqlen]), 0, 1)
         
-        results = [{k: v[i]} for k, v in results.items() for i in range(self._n_envs)]
+        results = [{k: v[i] for k, v in results.items()} for i in range(self._n_envs)] 
         for seq in results:
             for k, v in seq.items():
                 if k in self._state_keys:
                     pass
                 elif k in self._extra_keys:
-                    assert v.shape[0] == self._seqlen + self._extra_len, (k, v.shape, self._seqlen + self._extra_len, np.array(self._memory[k]).shape)
+                    assert v.shape[0] == self._seqlen + self._extra_len, (k, v.shape)
                 else:
                     assert v.shape[0] == self._seqlen, (k, v.shape)
-
+        assert len(results) == self._n_envs, results
+        
         return results

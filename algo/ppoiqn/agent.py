@@ -35,7 +35,7 @@ class Agent(PPOBase):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            action=(env.action_shape, env.action_dtype, 'action'),
+            action=((env.action_dim,), env.action_dtype, 'action'),
             value=((self.N,), tf.float32, 'value'),
             traj_ret=((self.N,), tf.float32, 'traj_ret'),
             advantage=((self.N,), tf.float32, 'advantage'),

@@ -10,7 +10,7 @@ from algo.dqn.base import DQNBase
 
 def get_data_format(*, env, replay_config, agent_config,
         model, **kwargs):
-    is_per = replay_config['replay_type'].endswith['per']
+    is_per = replay_config['replay_type'].endswith('per')
     store_state = agent_config['store_state']
     sample_size = agent_config['sample_size']
     obs_dtype = tf.uint8 if len(env.obs_shape) == 3 else tf.float32
@@ -38,8 +38,7 @@ def get_data_format(*, env, replay_config, agent_config,
 
 def collect(replay, env, step, reset, next_obs, **kwargs):
     replay.add(**kwargs)
-    if reset:
-        replay.clear_temp_buffer()
+
 
 class Agent(DQNBase):
     """ Initialization """
@@ -72,7 +71,7 @@ class Agent(DQNBase):
                 ((self._sample_size, env.action_dim), self._dtype, 'prev_action'),
                 ((self._sample_size, 1), self._dtype, 'prev_reward'),    # this reward should be unnormlaized
             )]
-        self.learn = build(self._learn, TensorSpecs, print_terminal_info=True)
+        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     """ Call """
     @override(DQNBase)
@@ -161,8 +160,7 @@ class Agent(DQNBase):
             discount = discount * self._gamma
             
             q = self.q(curr_x, curr_action)
-            next_qs = self.q.action(next_x)
-            new_next_action = tf.argmax(next_qs, axis=-1, output_type=tf.int32)
+            new_next_action = self.q.action(next_x)
             next_pi = tf.one_hot(new_next_action, self._action_dim, dtype=tf.float32)
             t_next_qs = self.target_q(t_next_x)
             next_mu_a = prob[:, 1:]
@@ -177,8 +175,7 @@ class Agent(DQNBase):
             loss = tf.reduce_mean(IS_ratio * loss)
         tf.debugging.assert_shapes([
             [q, (None, ss)],
-            [next_qs, (None, ss, self._action_dim)],
-            [next_action, (None, ss-1)],
+            [next_action, (None, ss)],
             [curr_action, (None, ss)],
             [next_pi, (None, ss, self._action_dim)],
             [target, (None, ss)],

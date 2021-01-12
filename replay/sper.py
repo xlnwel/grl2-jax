@@ -22,7 +22,6 @@ class SequentialPER(ProportionalPER):
             'reset_shift': self._burn_in_size,
             'state_keys': self._state_keys,
             'extra_keys': self._extra_keys,
-            'burn_in_size': self._burn_in_size
         })
 
     def __len__(self):
@@ -32,6 +31,7 @@ class SequentialPER(ProportionalPER):
         self._tmp_buf.add(**data)
         if self._tmp_buf.is_full():
             self.merge(self._tmp_buf.sample())
+            self._tmp_buf.reset()
 
     def merge(self, local_buffer):
         """ Add local_buffer to memory """
@@ -54,20 +54,20 @@ class SequentialPER(ProportionalPER):
             print(f'Memory is full({len(self)})')
             self._is_full = True
         self._mem_idx = self._mem_idx % self._capacity
-
+        
     def clear_temp_buffer(self):
         self._tmp_buf.clear()
 
     def _get_samples(self, idxes):
+        assert len(idxes) == self._batch_size, idxes
         results = collections.defaultdict(list)
         [results[k].append(v) for i in idxes for k, v in self._memory[i].items()]
         results = {k: np.stack(v) for k, v in results.items()}
-
         for k, v in results.items():
             if k in self._state_keys:
-                np.testing.assert_equal(v.shape[0], self._batch_size)
+                assert v.shape[0] == self._batch_size, (k, v.shape)
             elif k in self._extra_keys:
-                assert v.shape[:2] == (self._batch_size, self._seqlen+1)
+                assert v.shape[:2] == (self._batch_size, self._sample_size+1), (k, v.shape)
             else:
-                assert v.shape[:2] == (self._batch_size, self._seqlen)
+                assert v.shape[:2] == (self._batch_size, self._sample_size), (k, v.shape)
         return results

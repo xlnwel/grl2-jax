@@ -16,15 +16,7 @@ from core.dataset import Dataset, process_with_env
 
 def train(agent, env, eval_env, replay):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
-    collect = functools.partial(collect_fn, )
-    def collect(env, env_step, reset, **kwargs):
-        # if reset:
-        #     # we reset noisy every episode. Theoretically, 
-        #     # this follows the guide of deep exploration.
-        #     # More importantly, it saves time!
-        #     if hasattr(agent, 'reset_noisy'):
-        #         agent.reset_noisy()
-        replay.add(**kwargs)
+    collect = functools.partial(collect_fn, replay)
     
     env_step = agent.env_step
     runner = Runner(env, agent, step=env_step, nsteps=agent.TRAIN_PERIOD)

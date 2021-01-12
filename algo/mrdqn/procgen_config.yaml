@@ -1,38 +1,53 @@
 ---
 env:
-    name: atari_pong
-    life_done: False
-    sticky_actions: True
-    frame_skip: 4
-    seed: 0
+    name: procgen_miner
+    distribution_mode: easy
+    frame_skip: 1
+    n_envs: &ne 64
+    frame_stack: 1
+    np_obs: True
+    reward_scale: 1
+    reward_clip: 10
 
 model:
-    cnn_name: nature
-    lstm_units: 512
-    units_list: [512]
-    activation: relu
-    duel: True
+    encoder:
+        cnn_name: impala
+    # rnn:
+    #     units: 512
+    q:
+        units_list: [512]
+        layer_type: dense
+        norm: null
+        kernel_initializer: glorot_uniform
+        activation: relu
+        duel: False
+    additional_rnn_input: False
 
 agent:
     algorithm: &algo rdqn
-    replay_type: &replay 'sper'
+    replay_type: &replay seqper
     gamma: 0.99
     lambda: .95
     precision: &prec 16
     batch_size: &bs 32
 
-    store_state: True
-    burn_in: True
-    sample_size: &ss 120
-    burn_in_size: &bis 40
-    additional_rnn_inputnput: False
-    act_eps: 0.3
+    schedule_act_eps: True
+    act_eps_type: apex
+    act_eps: .3
+    eval_act_eps: 0
 
-    MAX_STEPS: 8e6          # maximum env steps
-    LOG_PERIOD: 1e3         # train steps
-    EVAL_PERIOD: 1e3
-    TRAIN_PERIOD: 1000
-    N_UPDATES: 100
+    store_state: False
+    burn_in: False
+    sample_size: &ss 16
+    burn_in_size: &bis 0
+
+    MAX_STEPS: 2.5e7          # maximum env steps
+    TRAIN_PERIOD: 1
+    EVAL_PERIOD: 2.5e5
+    LOG_PERIOD: 2.5e5
+    N_UPDATES: 1
+    RECORD: True
+    N_EVAL_EPISODES: 200
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -69,3 +84,5 @@ replay:
     burn_in_size: *bis
     min_size: 100
     capacity: 10000
+    state_keys: ['h', 'c']
+    extra_keys: ['obs', 'action', 'prob', 'mask']

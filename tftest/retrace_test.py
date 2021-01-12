@@ -266,5 +266,32 @@ class RetraceTest(tf.test.TestCase):
             pcontinues[:-1], self.lambda_)
         self.assertAllClose(target, target2)
 
+    def testRetraceAxis1(self):
+        """Subject Retrace to a two-sequence, three-timestep minibatch."""
+        vs = []
+        for v in [self.rewards, self.qs, self.targnet_qs, self.actions, 
+            self.target_policy_probs, self.behaviour_policy_probs, self.pcontinues]:
+            v = tf.convert_to_tensor(v)
+            if v.shape.ndims == 3:
+                v = tf.transpose(v, [1, 0, 2])
+            elif v.shape.ndims == 2:
+                v = tf.transpose(v, [1, 0])
+            else:
+                raise ValueError(v)
+            vs.append(v)
+        rewards, qs, targnet_qs, actions, target_policy_probs, \
+            behaviour_policy_probs, pcontinues = vs
+        a_oh = tf.one_hot(actions, tf.shape(qs)[-1], dtype=qs.dtype)
+        q = tf.reduce_sum(qs * a_oh, axis=-1)[:, :-1]
+        target = retrace(rewards[:, :-1], targnet_qs[:, 1:], a_oh[:, 1:], 
+            target_policy_probs[:, 1:], behaviour_policy_probs[:, 1:],
+            pcontinues[:, :-1], self.lambda_, axis=1)
+
+        loss = .5 * (target - q)**2
+
+        # transform loss back to time major
+        loss = tf.transpose(loss, [1, 0])
+        self.assertAllClose(loss, self.expected_result)
+
 if __name__ == '__main__':
   tf.test.main()

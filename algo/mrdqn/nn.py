@@ -88,16 +88,23 @@ class RDQN(Ensemble):
 def create_components(config, env):
     action_dim = env.action_dim
     encoder_config = config['encoder']
-    rnn_config = config['rnn']
     q_config = config['q']
-    return dict(
+
+    encoder_config['time_distributed'] = True
+    model = dict(
         encoder=Encoder(encoder_config, name='encoder'),
-        rnn=LSTM(rnn_config, name='rnn'),
         q=Q(q_config, action_dim, name='q'),
         target_encoder=Encoder(encoder_config, name='target_encoder'),
-        target_rnn=LSTM(rnn_config, name='target_rnn'),
         target_q=Q(q_config, action_dim, name='target_q'),
     )
+    if 'rnn' in config:
+        rnn_config = config['rnn']
+        model.update({
+            'rnn': LSTM(rnn_config, name='rnn'),
+            'target_rnn': LSTM(rnn_config, name='target_rnn')
+        })
+
+    return model
 
 def create_model(config, env, **kwargs):
     return RDQN(config, env, **kwargs)

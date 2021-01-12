@@ -14,8 +14,8 @@ replay_type = dict(
     seqper=SequentialPER
 )
 
-def create_local_buffer(config, n_envs=None):
-    n_envs = n_envs or config.get('n_envs', 1)
+def create_local_buffer(config):
+    n_envs = config.get('n_envs', 1)
     is_sequential = config['replay_type'].startswith('seq')
     is_envvec = n_envs > 1
     buffer_type = {

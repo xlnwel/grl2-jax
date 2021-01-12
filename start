@@ -29,8 +29,8 @@ envs=(
     # bossfight
     # maze
 )
-args1=(4 8)
-args2=(True False)
+args1=(2 4)
+args2=(True)
 args3=(conv_maxblurpool)
 
 # for e in "${envs[@]}"; do

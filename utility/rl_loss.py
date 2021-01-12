@@ -89,28 +89,29 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, lambda_=
     """
     if isinstance(discount, (int, float)):
         discount = discount * tf.ones_like(reward)
-    if tf.rank(next_action) < tf.rank(next_pi):
+    if next_action.dtype.is_integer:
         next_action = tf.one_hot(next_action, next_pi.shape[-1], dtype=next_pi.dtype)
+    assert_rank_and_shape_compatibility([next_action, next_pi], 3)
     next_pi_a = tf.reduce_sum(next_pi * next_action, axis=-1)
     next_ratio = next_pi_a / next_mu_a
     if ratio_clip is not None:
         next_ratio = tf.minimum(next_ratio, ratio_clip)
     next_c = next_ratio * lambda_
 
-    # swap 'axis' with the 0-th dimension
-    dims = list(range(reward.shape.ndims))
-    dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
-    if axis != 0:
-        reward = tf.transpose(reward, dims)
-        next_qs = tf.transpose(next_qs, dims)
-        next_c = tf.transpose(next_c, dims)
-        discount = tf.transpose(discount, dims)
-    
     if tbo:
         next_qs = inverse_h(next_qs)
     next_v = tf.reduce_sum(next_qs * next_pi, axis=-1)
     next_q = tf.reduce_sum(next_qs * next_action, axis=-1)
     current = reward + discount * (next_v - next_c * next_q)
+
+    # swap 'axis' with the 0-th dimension
+    dims = list(range(reward.shape.ndims))
+    dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
+    if axis != 0:
+        next_q = tf.transpose(next_q, dims)
+        current = tf.transpose(current, dims)
+        discount = tf.transpose(discount, dims)
+        next_c = tf.transpose(next_c, dims)
 
     assert_rank_and_shape_compatibility([current, discount, next_c], 2)
     target = static_scan(
