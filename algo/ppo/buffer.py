@@ -148,7 +148,7 @@ class Buffer:
         assert not self._ready, self._ready
         self.reshape_to_store()
         if self._adv_type == 'nae':
-            self._memory['advantage'], self._memory['traj_ret'] = \
+            self._memory['traj_ret'], self._memory['advantage'] = \
                 compute_nae(reward=self._memory['reward'], 
                             discount=self._memory['discount'],
                             value=self._memory['value'],
