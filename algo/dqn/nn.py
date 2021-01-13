@@ -1,9 +1,6 @@
-import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers
-from tensorflow.keras.mixed_precision.experimental import global_policy
-from tensorflow_probability import distributions as tfd
 
+from utility.tf_utils import assert_shape_compatibility
 from utility.rl_utils import epsilon_greedy
 from core.module import Module, Ensemble
 from core.decorator import config
@@ -54,9 +51,9 @@ class Q(Module):
             q = self._layers(x, **kwargs)
 
         if action is not None:
-            if len(action.shape) < len(q.shape):
+            if action.dtype.is_integer:
                 action = tf.one_hot(action, self.action_dim, dtype=q.dtype)
-            assert q.shape[-1] == action.shape[-1], f'{q.shape} vs {action.shape}'
+            assert_shape_compatibility([action, q])
             q = tf.reduce_sum(q * action, -1)
         return q
 

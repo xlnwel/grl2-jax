@@ -53,6 +53,7 @@ class RDQN(Ensemble):
                 additional_input=additional_rnn_input)
         else:
             state = None
+        x = tf.squeeze(x, 1)
         return x, state
 
     def _process_additional_input(self, x, prev_action, prev_reward):

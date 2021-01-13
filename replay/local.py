@@ -139,9 +139,10 @@ class SequentialBuffer(LocalBuffer):
         self._idx = self._memlen - self._reset_shift
 
     def _add_attributes(self):
-        self._reset_shift = self._reset_shift or self._seqlen
+        if not hasattr(self, '_reset_shift'):
+            self._reset_shift = getattr(self, '_burn_in_size', 0) or self._sample_size
         self._extra_len = 1
-        self._memlen = self._seqlen + self._extra_len
+        self._memlen = self._sample_size + self._extra_len
 
     def add(self, **data):
         if self._memory == {}:
@@ -172,7 +173,7 @@ class EnvSequentialBuffer(SequentialBuffer):
             elif k in self._extra_keys:
                 results[k] = np.array(v)
             else:
-                results[k] = np.array(v)[:self._seqlen]
+                results[k] = np.array(v)[:self._sample_size]
 
         return results
 
@@ -187,7 +188,7 @@ class EnvVecSequentialBuffer(SequentialBuffer):
             elif k in self._extra_keys:
                 results[k] = np.swapaxes(np.array(v), 0, 1)
             else:
-                results[k] = np.swapaxes(np.array(list(v)[:self._seqlen]), 0, 1)
+                results[k] = np.swapaxes(np.array(list(v)[:self._sample_size]), 0, 1)
         
         results = [{k: v[i] for k, v in results.items()} for i in range(self._n_envs)] 
         for seq in results:
@@ -195,9 +196,9 @@ class EnvVecSequentialBuffer(SequentialBuffer):
                 if k in self._state_keys:
                     pass
                 elif k in self._extra_keys:
-                    assert v.shape[0] == self._seqlen + self._extra_len, (k, v.shape)
+                    assert v.shape[0] == self._sample_size + self._extra_len, (k, v.shape)
                 else:
-                    assert v.shape[0] == self._seqlen, (k, v.shape)
+                    assert v.shape[0] == self._sample_size, (k, v.shape)
         assert len(results) == self._n_envs, results
         
         return results

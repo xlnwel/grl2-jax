@@ -89,12 +89,12 @@ class DQNBase(BaseAgent):
     
     @tf.function
     def _sync_nets(self):
-        tns = self.get_target_nets()
         ons = self.get_online_nets()
-        logger.info(f"Target networks: {tns}")
-        logger.info(f"Online networks: {ons}")
-        tvars = list(itertools.chain(*[v.variables for v in tns]))
+        tns = self.get_target_nets()
+        logger.info(f"Online networks: {[n.name for n in ons]}")
+        logger.info(f"Target networks: {[n.name for n in tns]}")
         ovars = list(itertools.chain(*[v.variables for v in ons]))
+        tvars = list(itertools.chain(*[v.variables for v in tns]))
         [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
     
     def get_online_nets(self):

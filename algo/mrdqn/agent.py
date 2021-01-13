@@ -53,9 +53,9 @@ class Agent(DQNBase):
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
-            obs=((self._sample_size+1, *env.obs_shape), tf.float32, 'obs'),
-            action=((self._sample_size+1,), tf.int32, 'prev_action'),
-            reward=((self._sample_size,), tf.float32, 'prev_reward'),
+            obs=((self._sample_size+1, *env.obs_shape), env.obs_dtype, 'obs'),
+            action=((self._sample_size+1, env.action_dim), tf.float32, 'action'),
+            reward=((self._sample_size,), tf.float32, 'reward'),
             prob=((self._sample_size+1,), tf.float32, 'prob'),
             discount=((self._sample_size,), tf.float32, 'discount'),
             mask=((self._sample_size+1,), tf.float32, 'mask')
@@ -76,7 +76,7 @@ class Agent(DQNBase):
     """ Call """
     @override(DQNBase)
     def _process_input(self, obs, evaluation, env_output):
-        if hasattr(self, 'rnn') and self._state is None:
+        if 'rnn' in self.model and self._state is None:
             self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
             if self.model.additional_rnn_input:
                 self._prev_action = tf.zeros(obs.shape[0], dtype=tf.int32)
@@ -124,29 +124,29 @@ class Agent(DQNBase):
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
             t_x = self.target_encoder(obs)
-            if hasattr(self, 'rnn') and self._burn_in:
-                bis = self._burn_in_size
-                ss = self._sample_size - bis
-                bi_x, x = tf.split(x, [bis, ss+1], 1)
-                tbi_x, t_x = tf.split(t_x, [bis, ss+1], 1)
-                if add_inp != []:
-                    bi_add_inp, add_inp = zip(
-                        *[tf.split(v, [bis, ss+1]) for v in add_inp])
+            if 'rnn' in self.model:
+                if self._burn_in:
+                    bis = self._burn_in_size
+                    ss = self._sample_size - bis
+                    bi_x, x = tf.split(x, [bis, ss+1], 1)
+                    tbi_x, t_x = tf.split(t_x, [bis, ss+1], 1)
+                    if add_inp != []:
+                        bi_add_inp, add_inp = zip(
+                            *[tf.split(v, [bis, ss+1]) for v in add_inp])
+                    else:
+                        bi_add_inp = []
+                    bi_mask, mask = tf.split(mask, [bis, ss+1], 1)
+                    bi_discount, discount = tf.split(discount, [bis, ss], 1)
+                    _, prob = tf.split(prob, [bis, ss], 1)
+                    _, o_state = self.rnn(bi_x, state, bi_mask,
+                        additional_input=bi_add_inp)
+                    _, t_state = self.target_rnn(tbi_x, state, bi_mask,
+                        additional_input=bi_add_inp)
+                    o_state = tf.nest.map_structure(tf.stop_gradient, o_state)
                 else:
-                    bi_add_inp = []
-                bi_mask, mask = tf.split(mask, [bis, ss+1], 1)
-                bi_discount, discount = tf.split(discount, [bis, ss], 1)
-                _, prob = tf.split(prob, [bis, ss], 1)
-                _, o_state = self.rnn(bi_x, state, bi_mask,
-                    additional_input=bi_add_inp)
-                _, t_state = self.target_rnn(tbi_x, state, bi_mask,
-                    additional_input=bi_add_inp)
-                o_state = tf.nest.map_structure(tf.stop_gradient, o_state)
-            else:
-                o_state = t_state = state
-                ss = self._sample_size
+                    o_state = t_state = state
+                    ss = self._sample_size
 
-            if hasattr(self, 'rnn'):
                 x, _ = self.rnn(x, o_state, mask,
                     additional_input=add_inp)
                 t_x, _ = self.target_rnn(t_x, t_state, mask,
@@ -175,8 +175,6 @@ class Agent(DQNBase):
             loss = tf.reduce_mean(IS_ratio * loss)
         tf.debugging.assert_shapes([
             [q, (None, ss)],
-            [next_action, (None, ss)],
-            [curr_action, (None, ss)],
             [next_pi, (None, ss, self._action_dim)],
             [target, (None, ss)],
             [error, (None, ss)],

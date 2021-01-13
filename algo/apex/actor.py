@@ -178,11 +178,18 @@ def get_worker_class(BaseAgent):
             buffer = buffer or self.buffer
             data = buffer.sample()
 
-            if self._worker_side_prioritization:
-                data['priority'] = self._compute_priorities(**data)
-            data.pop('q', None)
-            data.pop('next_q', None)
-            replay.merge.remote(data, data['action'].shape[0])
+            if isinstance(data, dict):
+                # regular dqn families
+                if self._worker_side_prioritization:
+                    data['priority'] = self._compute_priorities(**data)
+                data.pop('q', None)
+                data.pop('next_q', None)
+            elif isinstance(data, (list, tuple)):
+                # recurrent dqn families
+                pass
+            else:
+                raise ValueError(f'Unknown data of type: {type(data)}')
+            replay.merge.remote(data)
             buffer.reset()
 
         def _send_episode_info(self, learner):

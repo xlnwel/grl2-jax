@@ -1,24 +1,26 @@
-import math
+import logging
 import collections
-from threading import local
 import numpy as np
 
 from utility.utils import convert_dtype
 from replay.per import ProportionalPER
 
 
+logger = logging.getLogger(__name__)
+
 class SequentialPER(ProportionalPER):
     def __init__(self, config, state_keys=None):
         self._state_keys = state_keys or getattr(self, '_state_keys', [])
         super().__init__(config)
         self._memory = collections.deque(maxlen=self._capacity)
-
+        self._first = True
+        
     def _construct_temp_buff(self):
         from replay.func import create_local_buffer
         self._tmp_buf = create_local_buffer({
             'replay_type': self._replay_type,
             'n_envs': self._n_envs,
-            'seqlen': self._sample_size,
+            'sample_size': self._sample_size,
             'reset_shift': self._burn_in_size,
             'state_keys': self._state_keys,
             'extra_keys': self._extra_keys,
@@ -49,6 +51,11 @@ class SequentialPER(ProportionalPER):
             self._data_structure.update(self._mem_idx, priority)
             self._memory.append(local_buffer)
             self._mem_idx = self._mem_idx + 1
+        if self._first:
+            logger.info('First sample')
+            for k, v in self._memory[0].items():
+                logger.info(f'{k}, {v.shape}, {v.dtype}')
+            self._first = False
         
         if not self._is_full and self._mem_idx >= self._capacity:
             print(f'Memory is full({len(self)})')
@@ -70,4 +77,5 @@ class SequentialPER(ProportionalPER):
                 assert v.shape[:2] == (self._batch_size, self._sample_size+1), (k, v.shape)
             else:
                 assert v.shape[:2] == (self._batch_size, self._sample_size), (k, v.shape)
+        
         return results

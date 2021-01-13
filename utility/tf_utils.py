@@ -166,9 +166,19 @@ def get_stoch_state(x, min_std):
         return mean, std, stoch
 
 def assert_rank(tensors, rank):
+    if not isinstance(tensors, (list, tuple)):
+        tensors = [tensors]
+
     for tensor in tensors:
         tensor_shape = tf.TensorShape(tensor.shape)
         tensor_shape.assert_has_rank(rank)
+
+def assert_shape_compatibility(tensors):
+    assert isinstance(tensors, (list, tuple)), tensors
+    union_of_shapes = tf.TensorShape(None)
+    for tensor in tensors:
+        tensor_shape = tf.TensorShape(tensor.shape)
+        union_of_shapes = union_of_shapes.merge_with(tensor_shape)
 
 def assert_rank_and_shape_compatibility(tensors, rank):
     """Asserts that the tensors have the correct rank and compatible shapes.
@@ -185,6 +195,9 @@ def assert_rank_and_shape_compatibility(tensors, rank):
         ValueError: If the list of tensors is empty or fail the rank and mutual
         compatibility asserts.
     """
+    if not isinstance(tensors, (list, tuple)):
+        tensors = [tensors]
+
     union_of_shapes = tf.TensorShape(None)
     for tensor in tensors:
         tensor_shape = tf.TensorShape(tensor.shape)

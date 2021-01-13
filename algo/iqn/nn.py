@@ -1,9 +1,10 @@
 import numpy as np
 import tensorflow as tf
 
+from utility.tf_utils import assert_shape_compatibility
+from utility.rl_utils import epsilon_greedy
 from core.module import Module, Ensemble
 from core.decorator import config
-from utility.rl_utils import epsilon_greedy
 from nn.func import Encoder, mlp
         
 
@@ -108,8 +109,9 @@ class Value(Module):
         if action is not None:
             assert self.action_dim != 1, f"action is not None when action_dim = {self.action_dim}"
             action = tf.expand_dims(action, axis=1)
-            if len(action.shape) < len(qtv.shape):
+            if action.dtype.is_integer:
                 action = tf.one_hot(action, self._action_dim, dtype=qtv.dtype)
+            assert_shape_compatibility([action, qtv])
             qtv = tf.reduce_sum(qtv * action, axis=-1)       # [B, N]
         if self._action_dim == 1:
             qtv = tf.squeeze(qtv, axis=-1)

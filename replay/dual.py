@@ -60,10 +60,10 @@ class DualReplay(Replay):
 
         return samples
 
-    def merge(self, local_buffer, length, target_replay):
+    def merge(self, local_buffer, target_replay):
         if target_replay == 'fast_replay':
-            self._fast_replay.merge(local_buffer, length)
+            self._fast_replay.merge(local_buffer)
         elif target_replay == 'slow_replay':
-            self._slow_replay.merge(local_buffer, length)
+            self._slow_replay.merge(local_buffer)
         else:
             raise NotImplementedError
