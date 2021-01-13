@@ -1,6 +1,7 @@
 from collections import namedtuple
 import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers, regularizers, constraints
+from tensorflow.keras.mixed_precision.experimental import global_policy
 
 from core.module import Module
 from utility.tf_utils import assert_rank
@@ -98,8 +99,6 @@ class LSTMCell(layers.Layer):
         x, mask = tf.nest.flatten(x)
         h, c = states
         if mask is not None:
-            # an advantage of using Layer as superclass is
-            # that we don't need to worry about precision
             h = h * mask
             c = c * mask
         
@@ -120,7 +119,7 @@ class LSTMCell(layers.Layer):
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
         if dtype is None:
-            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+            dtype = global_policy().compute_dtype
         return LSTMState(
             h=tf.zeros([batch_size, state_size[0]], dtype),
             c=tf.zeros([batch_size, state_size[1]], dtype))
@@ -140,6 +139,8 @@ class LSTM(Module):
             k *= mask
             xs.append(k)
         x = tf.concat(xs, axis=-1) if len(xs) > 1 else x
+        if not mask.dtype.is_compatible_with(global_policy().compute_dtype):
+            mask = tf.cast(mask, global_policy().compute_dtype)
         x = self._rnn((x, mask), initial_state=state)
         x, state = x[0], LSTMState(*x[1:])
         return x, state
@@ -151,11 +152,7 @@ class LSTM(Module):
         if inputs is None:
             assert batch_size is not None
             inputs = tf.zeros([batch_size, 1, 1])
-        return LSTMState(*self._rnn.get_initial_state(inputs))
-        # if dtype is None:
-        #     dtype = global_policy().compute_dtype
-        # return LSTMState(*tf.nest.map_structure(lambda x: tf.cast(x, dtype), 
-        #             self._rnn.get_initial_state(inputs)))
+        return LSTMState(*self._rnn.cell.get_initial_state(inputs, dtype=dtype))
 
     @property
     def state_size(self):

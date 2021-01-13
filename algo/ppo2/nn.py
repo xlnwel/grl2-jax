@@ -24,14 +24,13 @@ class PPO(Ensemble):
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)
         if evaluation:
-            action = tf.squeeze(action)
             return action, state
         else:
             value = self.value(x)
             logpi = act_dist.log_prob(action)
             terms = {'logpi': logpi, 'value': value}
             # intend to keep the batch dimension for later use
-            out = tf.nest.map_structure(lambda x: tf.squeeze(x, 1), (action, terms))
+            out = (action, terms)
             return out, state
 
     @tf.function
@@ -40,7 +39,6 @@ class PPO(Ensemble):
         x, state = self._encode(
             x, state, mask, prev_action, prev_reward)
         value = self.value(x)
-        value = tf.squeeze(value, 1)
         return value, state
 
     def _encode(self, x, state, mask, prev_action=None, prev_reward=None):
@@ -54,6 +52,7 @@ class PPO(Ensemble):
                 additional_input=additional_rnn_input)
         else:
             state = None
+        x = tf.squeeze(x, 1)
         return x, state
 
     def _process_additional_input(self, x, prev_action, prev_reward):

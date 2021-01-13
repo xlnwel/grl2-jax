@@ -47,7 +47,7 @@ class Agent(PPOBase):
             self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
             if self.model.additional_rnn_input:
                 self._prev_action = tf.zeros(obs.shape[0], dtype=tf.int32)
-
+        
         obs, kwargs = super()._process_input(obs, evaluation, env_output)
         kwargs.update({
             'state': self._state,
