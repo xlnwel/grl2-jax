@@ -238,7 +238,7 @@ class TemporalLinkage(tf.Module):
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
         if dtype is None:
-            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+            dtype = tf.keras.mixed_precision.global_policy().compute_dtype
         return TemporalLinkageState(
             link=tf.zeros([batch_size, *state_size.link], dtype=dtype),
             precedence_weights=tf.zeros([batch_size, *state_size.precedence_weights], dtype=dtype),
@@ -423,6 +423,6 @@ class Freeness(tf.Module):
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
         if dtype is None:
-            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+            dtype = tf.keras.mixed_precision.global_policy().compute_dtype
         return tf.zeros([batch_size, *state_size], dtype=dtype)
         

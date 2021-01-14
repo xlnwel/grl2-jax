@@ -1,7 +1,7 @@
 import os
 import logging
 import tensorflow as tf
-from tensorflow.keras.mixed_precision import experimental as mixed_precision
+from tensorflow.keras import mixed_precision
 
 from utility.display import pwc
 

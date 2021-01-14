@@ -3,7 +3,7 @@ import functools
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers
-from tensorflow.keras.mixed_precision.experimental import global_policy # useful for modules import nn.utils
+from tensorflow.keras.mixed_precision import global_policy # useful for modules import nn.utils
 
 from nn.norm import EvoNorm
 

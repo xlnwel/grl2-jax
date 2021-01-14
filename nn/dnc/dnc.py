@@ -129,7 +129,7 @@ class DNC(layers.Layer):
             assert batch_size is None or batch_size == tf.shape(inputs)[0]
             batch_size = tf.shape(inputs)[0]
         if dtype is None:
-            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+            dtype = tf.keras.mixed_precision.global_policy().compute_dtype
         return DNCState(
             access_output=tf.zeros([batch_size, *self._access.output_size], dtype=dtype),
             access_state=self._access.get_initial_state(batch_size=batch_size, dtype=dtype),

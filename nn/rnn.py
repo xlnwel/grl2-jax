@@ -1,7 +1,7 @@
 from collections import namedtuple
 import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers, regularizers, constraints
-from tensorflow.keras.mixed_precision.experimental import global_policy
+from tensorflow.keras.mixed_precision import global_policy
 
 from core.module import Module
 from utility.tf_utils import assert_rank

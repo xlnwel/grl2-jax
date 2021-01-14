@@ -1,7 +1,10 @@
 import re
+import logging
 import tensorflow as tf
-from tensorflow.keras.mixed_precision import experimental as prec
+from tensorflow.keras import mixed_precision as prec
 
+
+logger = logging.getLogger(__name__)
 
 def select_optimizer(name):
     opts = dict(
@@ -26,10 +29,11 @@ class Optimizer(tf.Module):
         self._return_grads = return_grads
         # useful for mixed precision training on GPUs to
         # avoid numerical underflow caused by using float16 gradients
-        self._mpt = prec.global_policy().should_cast_variables
+        prec_policy = prec.global_policy()
+        self._mpt = prec_policy.compute_dtype == prec_policy.variable_dtype
         if self._mpt:
-            print('Mixed precision training will be performed')
-            self._opt = prec.LossScaleOptimizer(self._opt, 'dynamic')
+            logger.info('Mixed precision training will be performed')
+            self._opt = prec.LossScaleOptimizer(self._opt)
         # we do not initialize variables here, as models may not be initialized at this point
         self._variables = None
 
@@ -73,3 +77,9 @@ class Optimizer(tf.Module):
         for var in self._variables:
             if re.search(self._wdpattern, var.name):
                 strategy.extended.update(var, lambda var: self._weight_decay * var)
+
+if __name__ == '__main__':
+    prec.set_global_policy('mixed_float16')
+    policy = prec.global_policy()
+    print(policy.compute_dtype)
+    print(policy.variable_dtype)

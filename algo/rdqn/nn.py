@@ -2,7 +2,7 @@ import collections
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
-from tensorflow.keras.mixed_precision.experimental import global_policy
+from tensorflow.keras.mixed_precision import global_policy
 from tensorflow_probability import distributions as tfd
 
 from utility.display import pwc

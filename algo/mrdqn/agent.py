@@ -27,7 +27,7 @@ def get_data_format(*, env, replay_config, agent_config,
         data_format['idxes'] = ((None), tf.int32)
     if store_state:
         state_size = model.state_size
-        from tensorflow.keras.mixed_precision.experimental import global_policy
+        from tensorflow.keras.mixed_precision import global_policy
         state_dtype = global_policy().compute_dtype
         data_format.update({
             k: ((None, v), state_dtype)
@@ -124,6 +124,7 @@ class Agent(DQNBase):
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
             t_x = self.target_encoder(obs)
+            ss = self._sample_size
             if 'rnn' in self.model:
                 if self._burn_in:
                     bis = self._burn_in_size
@@ -145,7 +146,6 @@ class Agent(DQNBase):
                     o_state = tf.nest.map_structure(tf.stop_gradient, o_state)
                 else:
                     o_state = t_state = state
-                    ss = self._sample_size
 
                 x, _ = self.rnn(x, o_state, mask,
                     additional_input=add_inp)

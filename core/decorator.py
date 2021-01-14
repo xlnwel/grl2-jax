@@ -1,7 +1,7 @@
 from functools import wraps
 import logging
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
+from tensorflow.keras.mixed_precision import global_policy
 
 from utility.utils import config_attr
 from utility.display import display_model_var_info

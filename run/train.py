@@ -16,7 +16,15 @@ from run.args import parse_args
 
 
 logger = logging.getLogger(__name__)
-    
+
+def get_algo_name(algo):
+    algo_mapping = {
+        'r2d2': 'apex-mrdqn',
+    }
+    if algo in algo_mapping:
+        return algo_mapping[algo]
+    return algo
+
 def get_config(algo, env):
     def search_add(word, files, filename):
         if [f for f in files if word in f]:
@@ -114,6 +122,7 @@ if __name__ == '__main__':
         model_name = cmd_args.model_name
 
         for algo, env in algo_env:
+            algo = get_algo_name(algo)
             if '-' in algo:
                 config = get_config(algo.split('-')[-1], env)
                 dist_config = get_config(algo, env)

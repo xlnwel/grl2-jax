@@ -3,7 +3,7 @@ import time
 import functools
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
+from tensorflow.keras.mixed_precision import global_policy
 import ray
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs

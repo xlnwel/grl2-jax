@@ -27,7 +27,7 @@ def get_data_format(env, batch_size, sample_size=None,
         data_format['IS_ratio'] = ((batch_size), dtype)
         data_format['idxes'] = ((batch_size), tf.int32)
     if store_state:
-        from tensorflow.keras.mixed_precision.experimental import global_policy
+        from tensorflow.keras.mixed_precision import global_policy
         state_dtype = global_policy().compute_dtype
         data_format.update({
             k: ((batch_size, v), state_dtype)
