@@ -9,7 +9,6 @@ from algo.iqn.nn import Quantile, Value
 class SACIQN(Ensemble):
     def __init__(self, config, *, model_fn=None, env, **kwargs):
         model_fn = model_fn or create_components
-        self._reward_kl = config.pop('reward_kl', False)
         super().__init__(
             model_fn=model_fn, 
             config=config,
@@ -36,12 +35,12 @@ class SACIQN(Ensemble):
             action_best_q = tf.argmax(q, 1)
             qtv = tf.gather_nd(qtv, idx)
             q = tf.gather_nd(q, idx)
+            q = tf.squeeze(q)
             action = tf.squeeze(action)
             action_best_q = tf.squeeze(action_best_q)
             qtv_max = tf.squeeze(qtv_max)
             qtv = tf.squeeze(qtv)
             q_max = tf.squeeze(q_max)
-            q = tf.squeeze(q)
             terms = {
                 'action': action,
                 'action_best_q': action_best_q,
@@ -54,7 +53,9 @@ class SACIQN(Ensemble):
             _, qt_embed = self.quantile(x)
             x_ext = tf.expand_dims(x, axis=1)
             _, q = self.q(x_ext, qt_embed, action=action, return_value=True)
-            if self._reward_kl:
+            q = tf.squeeze(q)
+            terms['q'] = q
+            if self.reward_kl:
                 kl = -tfd.Categorical(self.actor.logits).entropy()
                 if self.temperature.type == 'schedule':
                     _, temp = self.temperature(self._train_step)
@@ -64,8 +65,6 @@ class SACIQN(Ensemble):
                     _, temp = self.temperature()
                 kl = temp * kl
                 terms['kl'] = kl
-            q = tf.squeeze(q)
-            terms['q'] = q
         action = tf.squeeze(action)
         return action, terms
 

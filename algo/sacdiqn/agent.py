@@ -1,3 +1,4 @@
+import functools
 import numpy as np
 import tensorflow as tf
 
@@ -18,11 +19,16 @@ class Agent(DQNBase):
             self._actor_lr = TFPiecewiseSchedule(self._actor_lr)
             self._q_lr = TFPiecewiseSchedule(self._q_lr)
 
-        self._actor_opt = Optimizer(self._optimizer, self.actor, 
-            self._actor_lr, epsilon=self._epsilon)
+        PartialOpt = functools.partial(
+            Optimizer,
+            name=self._optimizer,
+            weight_decay=self._weight_decay, 
+            clip_norm=self._clip_norm,
+            epsilon=self._epsilon
+        )
+        self._actor_opt = PartialOpt(models=self.actor, lr=self._actor_lr)
         value_models = [self.encoder, self.q]
-        self._value_opt = Optimizer(self._optimizer, value_models, 
-            self._q_lr, epsilon=self._epsilon)
+        self._value_opt = PartialOpt(models=value_models, lr=self._q_lr)
 
         if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
