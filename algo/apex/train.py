@@ -1,10 +1,9 @@
+import os
 import time
 import ray
 
 from utility.ray_setup import sigint_shutdown_ray
-from utility.yaml_op import load_config
 from utility import pkg
-from env.func import create_env
 from replay.func import create_replay_center
 
 
@@ -25,7 +24,7 @@ default_agent_config = {
 }
 
 def main(env_config, model_config, agent_config, replay_config):
-    ray.init(num_cpus=12, num_gpus=1)
+    ray.init(num_cpus=os.cpu_count(), num_gpus=1)
     sigint_shutdown_ray()
     default_agent_config.update(agent_config)
     agent_config = default_agent_config

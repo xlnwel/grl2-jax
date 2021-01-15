@@ -91,36 +91,65 @@ class Q(Module):
             activation=self._activation,
             out_dtype='float32')
 
-    def call(self, x, a=None):
+    def call(self, x, action=None):
         q = self._layers(x)
-        if a is not None:
-            if len(a.shape) < len(q.shape):
-                a = tf.one_hot(a, q.shape[-1])
-            assert a.shape[1:] == q.shape[1:]
-            q = tf.reduce_sum(q * a, axis=-1)
+        if action is not None:
+            if action.dtype.is_integer:
+                action = tf.one_hot(action, q.shape[-1])
+            assert action.shape[1:] == q.shape[1:], (action.shape, q.shape)
+            q = tf.reduce_sum(q * action, axis=-1)
 
         return q
 
 
 class SAC(Ensemble):
-    def __init__(self, config, env, **kwargs):
+    def __init__(self, config, *, model_fn=None, env, **kwargs):
+        model_fn = model_fn or create_components
         super().__init__(
-            model_fn=create_components, 
+            model_fn=model_fn, 
             config=config,
             env=env,
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, epsilon=0):
+    def action(self, x, evaluation=False, epsilon=0, return_stats=False, return_eval_stats=False, **kwargs):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
         action = self.actor(x, evaluation=evaluation, epsilon=epsilon)
-        action = tf.squeeze(action)
+        terms = {}
+        if return_eval_stats:
+            action, terms = action
+            q = self.q(x)
+            q = tf.squeeze(q)
+            idx = tf.stack([tf.range(action.shape[0]), action], -1)
+            q = tf.gather_nd(q, idx)
 
-        return action, {}
+            action_best_q = tf.argmax(q, 1)
+            action_best_q = tf.squeeze(action_best_q)
+            terms = {
+                'action': action,
+                'action_best_q': action_best_q,
+                'q': q,
+            }
+        elif return_stats:
+            q = self.q(x, action=action)
+            q = tf.squeeze(q)
+            terms['q'] = q
+            if self.reward_kl:
+                kl = -tfd.Categorical(self.actor.logits).entropy()
+                if self.temperature.type == 'schedule':
+                    _, temp = self.temperature(self._train_step)
+                elif self.temperature.type == 'state-action':
+                    raise NotImplementedError
+                else:
+                    _, temp = self.temperature()
+                kl = temp * kl
+                terms['kl'] = kl
+        action = tf.squeeze(action)
+        return action, terms
 
     @tf.function
     def value(self, x):
@@ -139,15 +168,17 @@ def create_components(config, env):
     assert env.is_action_discrete
     config = config.copy()
     action_dim = env.action_dim
+    encoder_config = config['encoder']
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
         
     models = dict(
-        encoder=Encoder(config['encoder'], name='encoder'),
-        target_encoder=Encoder(config['encoder'], name='target_encoder'),
+        encoder=Encoder(encoder_config, name='encoder'),
         actor=Actor(actor_config, action_dim),
         q=Q(q_config, action_dim, name='q'),
+        target_encoder=Encoder(encoder_config, name='target_encoder'),
+        target_actor=Actor(actor_config, action_dim, name='target_actor'),
         target_q=Q(q_config, action_dim, name='target_q'),
         temperature=Temperature(temperature_config),
     )
@@ -158,4 +189,4 @@ def create_components(config, env):
     return models
 
 def create_model(config, env, **kwargs):
-    return SAC(config, env, **kwargs)
+    return SAC(config=config, env=env, **kwargs)

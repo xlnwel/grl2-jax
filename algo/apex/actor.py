@@ -6,30 +6,37 @@ import numpy as np
 import ray
 
 from core.tf_config import *
-from core.decorator import config, override
-from utility.display import pwc
 from utility.utils import Every
-from utility.ray_setup import cpu_affinity
+from utility.ray_setup import cpu_affinity, get_num_cpus
 from utility.run import Runner, evaluate, RunMode
 from utility import pkg
 from env.func import create_env
-from core.dataset import process_with_env, RayDataset
+from core.dataset import create_dataset, RayDataset
     
 
+def config_actor(name, config):
+    cpu_affinity('Learner')
+    silence_tf_logs()
+    num_cpus = get_num_cpus()
+    configure_threads(num_cpus, num_cpus)
+    configure_gpu()
+    configure_precision(config.get('precision', 32))
+
 def get_base_learner_class(BaseAgent):
-    class BaseLearner(BaseAgent):            
+    class BaseLearner(BaseAgent):
         def start_learning(self):
-            self._learning_thread = threading.Thread(target=self._learning, daemon=True)
+            self._learning_thread = threading.Thread(
+                target=self._learning, daemon=True)
             self._learning_thread.start()
             
         def _learning(self):
             while not self.dataset.good_to_learn():
                 time.sleep(1)
-            pwc(f'{self.name} starts learning...', color='blue')
+            print(f'{self.name} starts learning...')
 
             while True:
                 self.learn_log()
-            
+                
         def get_weights(self, name=None):
             return self.model.get_weights(name=name)
 
@@ -47,29 +54,11 @@ def get_learner_class(BaseAgent):
                     env_config,
                     model_fn,
                     replay):
-            cpu_affinity('Learner')
-            silence_tf_logs()
-            configure_threads(config['n_learner_cpus'], config['n_learner_cpus'])
-            configure_gpu()
-            configure_precision(config.get('precision', 32))
+            config_actor('Learner', config)
 
             env = create_env(env_config)
-            
-            while not ray.get(replay.good_to_learn.remote()):
-                time.sleep(1)
-            data = ray.get(replay.sample.remote())
-            data_format = {k: (v.shape, v.dtype) for k, v in data.items()}
-            print('data format')
-            for k, v in data_format.items():
-                print('\t', k, v)
-            one_hot_action = config.get('one_hot_action', True)
-            process = functools.partial(process_with_env, 
-                env=env, one_hot_action=one_hot_action)
-            dataset = RayDataset(replay, data_format, process)
-
-            model = model_fn(
-                config=model_config, 
-                env=env)
+            dataset = create_dataset(replay, env, DatasetClass=RayDataset)
+            model = model_fn(config=model_config, env=env)
 
             super().__init__(
                 name='learner',
@@ -78,12 +67,49 @@ def get_learner_class(BaseAgent):
                 dataset=dataset,
                 env=env,
             )
-            
+
     return Learner
 
 
+def get_base_worker_class(BaseAgent):
+    class BaseWorker(BaseAgent):
+        def _send_data(self, replay, buffer=None):
+            buffer = buffer or self.buffer
+            data = buffer.sample()
+
+            if isinstance(data, dict):
+                # regular dqn families
+                if self._worker_side_prioritization:
+                    data['priority'] = self._compute_priorities(**data)
+                data.pop('q', None)
+                data.pop('next_q', None)
+            elif isinstance(data, (list, tuple)):
+                # recurrent dqn families
+                pass
+            else:
+                raise ValueError(f'Unknown data of type: {type(data)}')
+            replay.merge.remote(data)
+            buffer.reset()
+
+        def _send_episode_info(self, learner):
+            if self._info:
+                learner.record_episode_info.remote(self._id, **self._info)
+                self._info.clear()
+
+        def _compute_priorities(self, reward, discount, steps, q, next_q, **kwargs):
+            target_q = reward + discount * self._gamma**steps * next_q
+            priority = np.abs(target_q - q)
+            priority += self._per_epsilon
+            priority **= self._per_alpha
+
+            return priority
+
+    return BaseWorker
+
+
 def get_worker_class(BaseAgent):
-    class Worker(BaseAgent):
+    BaseWorker = get_base_worker_class(BaseAgent)
+    class Worker(BaseWorker):
         """ Initialization """
         def __init__(self,
                     *,
@@ -173,37 +199,6 @@ def get_worker_class(BaseAgent):
             start_step = self.runner.step
             end_step = self.runner.run(step_fn=collect)
             return end_step - start_step
-
-        def _send_data(self, replay, buffer=None):
-            buffer = buffer or self.buffer
-            data = buffer.sample()
-
-            if isinstance(data, dict):
-                # regular dqn families
-                if self._worker_side_prioritization:
-                    data['priority'] = self._compute_priorities(**data)
-                data.pop('q', None)
-                data.pop('next_q', None)
-            elif isinstance(data, (list, tuple)):
-                # recurrent dqn families
-                pass
-            else:
-                raise ValueError(f'Unknown data of type: {type(data)}')
-            replay.merge.remote(data)
-            buffer.reset()
-
-        def _send_episode_info(self, learner):
-            if self._info:
-                learner.record_episode_info.remote(self._id, **self._info)
-                self._info.clear()
-
-        def _compute_priorities(self, reward, discount, steps, q, next_q, **kwargs):
-            target_q = reward + discount * self._gamma**steps * next_q
-            priority = np.abs(target_q - q)
-            priority += self._per_epsilon
-            priority **= self._per_alpha
-
-            return priority
     
     return Worker
 

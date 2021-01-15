@@ -11,7 +11,7 @@ from utility.run import Runner, evaluate
 from utility import pkg
 from env.func import create_env
 from replay.func import create_replay
-from core.dataset import Dataset, process_with_env
+from core.dataset import construct_dataset
 
 
 def train(agent, env, eval_env, replay):
@@ -87,19 +87,20 @@ def main(env_config, model_config, agent_config, replay_config):
     reward_key = [k for k in eval_env_config.keys() if 'reward' in k]
     [eval_env_config.pop(k) for k in reward_key]
     eval_env = create_env(eval_env_config)
-    replay_config['n_envs'] = n_workers * n_envs
-    replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
-    replay = create_replay(replay_config)
 
     create_model, Agent = pkg.import_agent(config=agent_config)
     models = create_model(model_config, env)
-    
+
+    replay_config['n_envs'] = n_workers * n_envs
+    if getattr(models, 'state_size', None):
+        replay_config['state_keys'] = list(models.state_keys)
+    replay = create_replay(replay_config)
+
     am = pkg.import_module('agent', config=agent_config)
     data_format = am.get_data_format(
-        env=env, replay_config=replay_config, agent_config=agent_config, model=models)
-    process = functools.partial(process_with_env, 
-        env=env, one_hot_action=replay_config.get('one_hot_action', True))
-    dataset = Dataset(replay, data_format, process_fn=process)
+        env=env, replay_config=replay_config, 
+        agent_config=agent_config, model=models)
+    dataset = construct_dataset(replay, env, data_format=data_format)
     
     agent = Agent(
         config=agent_config, 
