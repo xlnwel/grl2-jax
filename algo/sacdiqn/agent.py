@@ -15,9 +15,9 @@ class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
             assert isinstance(self._actor_lr, list), self._actor_lr
-            assert isinstance(self._q_lr, list), self._q_lr
+            assert isinstance(self._value_lr, list), self._value_lr
             self._actor_lr = TFPiecewiseSchedule(self._actor_lr)
-            self._q_lr = TFPiecewiseSchedule(self._q_lr)
+            self._value_lr = TFPiecewiseSchedule(self._value_lr)
 
         PartialOpt = functools.partial(
             Optimizer,
@@ -28,7 +28,7 @@ class Agent(DQNBase):
         )
         self._actor_opt = PartialOpt(models=self.actor, lr=self._actor_lr)
         value_models = [self.encoder, self.q]
-        self._value_opt = PartialOpt(models=value_models, lr=self._q_lr)
+        self._value_opt = PartialOpt(models=value_models, lr=self._value_lr)
 
         if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)

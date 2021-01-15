@@ -60,7 +60,7 @@ agent:
     optimizer: adam
     schedule_lr: False
     actor_lr: 3e-4
-    q_lr: 3e-4
+    value_lr: 3e-4
     temp_lr: 3e-4
     
     # arguments for PER

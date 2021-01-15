@@ -1,27 +1,47 @@
 This repository is implemented with *Tensorflow2.1* and *ray0.8.4* for distributed learning. Algorithms are tested with the default configurations.
 
-## Current Implemented Algorithm
+## Current Implemented Algorithms/Networks
 
-- [x] Ape-X
-- [x] DNC (Differentiable Neural Computer)
-- [x] Dreamer
+### On Policy RL
+
 - [x] GAE
 - [x] PPO (with FNN and all algorithmic details following OpenAI's baselines)
 - [x] PPO2 (with masked LSTM)
+- [x] PPG
+- [x] RND
+
+### Off Policy RL
+
+- [x] Ape-X
+- [x] Dreamer
 - [x] Rainbow
 - [x] IQN
+- [x] FQF
 - [x] Retrace(𝝀)
-- [x] RND
 - [x] SAC with adaptive temperature
 - [x] TBO (Transformed Bellman Operator)
 - [x] SEED-Dreamer
+
+### Networks
+
+- [x] DNC (Differentiable Neural Computer)
+- [x] Mask LSTM
+- [x] ResNet
+- [x] SENet
+- [x] CBAM
+- [x] SN (Spectral Norm)
+- [x] Self Attention
+- [x] Procgen (A network I used in Procgen Competition)
+- [x] MobileNet*
+- [x] EfficientNet*
+
 
 ## Get Started
 
 ```
 python run/train.py algo -e env
 ```
-For available `algo`, please refer to the folder names in `/algo`. To run distributed algorithms, `algo` should be of form `distributed_architecture-algorithm`. For example, if you want to run Ape-X with DQN, replace 'algo' with `apex-dqn`.
+For available `algo`, please refer to the folder names in `/algo`. To run distributed algorithms, `algo` should be of form `distributed_architecture-algorithm`. For example, if you want to run Ape-X with DQN, replace 'algo' with `apex-dqn`. Configures are set in `*config.yaml` in each fold.
 
 
 ## Reference Papers
@@ -55,6 +75,8 @@ Machado, Marlos C., Marc G. Bellemare, Erik Talvitie, Joel Veness, Matthew Hausk
 Hafner, Danijar, Timothy Lillicrap, Jimmy Ba, and Mohammad Norouzi. 2020. “Dream to Control: Learning Behaviors by Latent Imagination.” ICLR, 1–20. http://arxiv.org/abs/1912.01603.
 
 Hafner, Danijar, Timothy Lillicrap, Ian Fischer, Ruben Villegas, David Ha, Honglak Lee, and James Davidson. 2019. “Learning Latent Dynamics for Planning from Pixels.” 36th International Conference on Machine Learning, ICML 2019 2019-June: 4528–47.
+
+Sorry for that I've lost of track. Please let me know if I miss any referencess.
 
 ## Reference Repositories
 

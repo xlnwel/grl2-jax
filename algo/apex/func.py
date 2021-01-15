@@ -36,11 +36,12 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
         RayLearner = ray.remote(num_cpus=n_cpus)(Learner)
 
     learner = RayLearner.remote( 
+        model_fn=model_fn, 
+        replay=replay,
         config=config, 
         model_config=model_config, 
         env_config=env_config,
-        model_fn=model_fn, 
-        replay=replay)
+        replay_config=replay_config)
     ray.get(learner.save_config.remote(dict(
         env=env_config,
         model=model_config,

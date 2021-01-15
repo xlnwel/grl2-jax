@@ -14,12 +14,12 @@ class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
             assert isinstance(self._actor_lr, list), self._actor_lr
-            assert isinstance(self._q_lr, list), self._q_lr
+            assert isinstance(self._value_lr, list), self._value_lr
             self._actor_lr = TFPiecewiseSchedule(self._actor_lr)
-            self._q_lr = TFPiecewiseSchedule(self._q_lr)
+            self._value_lr = TFPiecewiseSchedule(self._value_lr)
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
-        self._q_opt = Optimizer(self._optimizer, [self.q, self.q2], self._q_lr)
+        self._q_opt = Optimizer(self._optimizer, [self.q, self.q2], self._value_lr)
 
         if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
@@ -70,10 +70,10 @@ class Agent(DQNBase):
             q2 = self.q2(obs, action)
             q_error = target_q - q
             q2_error = target_q - q2
-            q_loss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
+            value_losss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
             q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
-            q_loss = q_loss + q2_loss
-        terms['q_norm'] = self._q_opt(tape, q_loss)
+            value_losss = value_losss + q2_loss
+        terms['value_norm'] = self._q_opt(tape, value_losss)
 
         with tf.GradientTape() as actor_tape:
             action, logpi, actor_terms = self.actor.train_step(obs)
@@ -107,7 +107,7 @@ class Agent(DQNBase):
             q2=q2,
             logpi=logpi,
             target_q=target_q,
-            q_loss=q_loss, 
+            value_losss=value_losss, 
         ))
 
         return terms

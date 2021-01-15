@@ -37,11 +37,15 @@ class Monitor(AgentImpl):
         if train_step == 0:
             return
         duration = time.time() - self.time
+        env_steps = self.env_step - self.last_env_step
+        train_steps = train_step - self.last_train_step
         self.store(
             train_step=train_step, 
             env_step=self.env_step, 
-            fps=(self.env_step - self.last_env_step) / duration,
-            tps=(train_step - self.last_train_step) / duration,
+            fps= env_steps / duration,
+            tps= train_steps / duration,
+            fpt= env_steps / train_steps,
+            tpf= train_steps / env_steps,
             **stats)
         self.log(self.env_step)
         self.last_train_step = train_step

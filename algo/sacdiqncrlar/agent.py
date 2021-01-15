@@ -42,14 +42,14 @@ class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
             self._actor_lr = TFPiecewiseSchedule([(4e6, self._actor_lr), (7e6, 1e-5)])
-            self._q_lr = TFPiecewiseSchedule([(4e6, self._q_lr), (7e6, 1e-5)])
+            self._value_lr = TFPiecewiseSchedule([(4e6, self._value_lr), (7e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
         q_models = [self.encoder, self.q]
         self._twin_q = hasattr(self, 'q2')
         if self._twin_q:
             q_models.append(self.q2)
-        self._q_opt = Optimizer(self._optimizer, q_models, self._q_lr)
+        self._q_opt = Optimizer(self._optimizer, q_models, self._value_lr)
         self._crl_opt = Optimizer(self._optimizer, [self.encoder, self.crl], self._crl_lr)
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -176,7 +176,7 @@ class Agent(DQNBase):
                 labels=labels, logits=logits)
             infonce = tf.reduce_mean(infonce)
             crl_loss = self._crl_coef * infonce
-        terms['q_norm'] = self._q_opt(tape, qr_loss)
+        terms['value_norm'] = self._q_opt(tape, qr_loss)
         terms['crl_norm'] = self._crl_opt(tape, crl_loss)
 
         action = tf.one_hot(action, self._action_dim)

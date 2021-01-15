@@ -12,14 +12,14 @@ class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
             self._actor_lr = TFPiecewiseSchedule([(4e6, self._actor_lr), (7e6, 1e-5)])
-            self._q_lr = TFPiecewiseSchedule([(4e6, self._q_lr), (7e6, 1e-5)])
+            self._value_lr = TFPiecewiseSchedule([(4e6, self._value_lr), (7e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
         q_models = [self.encoder, self.q, self.trans, self.reward]
         self._twin_q = hasattr(self, 'q2')
         if self._twin_q:
             q_models.append(self.q2)
-        self._q_opt = Optimizer(self._optimizer, q_models, self._q_lr)
+        self._q_opt = Optimizer(self._optimizer, q_models, self._value_lr)
 
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -96,7 +96,7 @@ class Agent(DQNBase):
             trans_loss = tf.reduce_mean(tf.abs(next_cnn_out - next_cnn_out_pred))
             reward_loss = tf.reduce_mean(tf.abs(reward - reward_pred))
             loss = qr_loss + self._trans_coef * trans_loss + self._reward_coef * reward_loss
-        terms['q_norm'] = self._q_opt(tape, loss)
+        terms['value_norm'] = self._q_opt(tape, loss)
 
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)

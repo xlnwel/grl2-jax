@@ -30,6 +30,7 @@ class Actor(Module):
         self._layers = mlp(
             **config, 
             out_size=action_dim,
+            out_dtype='float32',
             name=name)
         self._action_dim = action_dim
     
@@ -37,7 +38,7 @@ class Actor(Module):
     def action_dim(self):
         return self._action_dim
 
-    def call(self, x, evaluation=False, epsilon=0, return_distribution=False):
+    def call(self, x, evaluation=False, epsilon=0):
         self.logits = logits = self._layers(x)
 
         if evaluation:
@@ -50,24 +51,21 @@ class Actor(Module):
                 action = dist.sample()
         else:
             if isinstance(epsilon, tf.Tensor) or epsilon:
-                scaled_logits = logits * self.act_inv_temp
-                prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))
-                prior_logits = tf.broadcast_to(prior_logits, logits.shape)
-                cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
-                cond = tf.reshape(cond, (-1, 1))
-                logits = tf.where(cond, scaled_logits, prior_logits)
                 # scaled_logits = logits * self.act_inv_temp
+                # prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))
+                # prior_logits = tf.broadcast_to(prior_logits, logits.shape)
                 # cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
                 # cond = tf.reshape(cond, (-1, 1))
-                # logits = tf.where(cond, logits, scaled_logits)
+                # logits = tf.where(cond, scaled_logits, prior_logits)
+                scaled_logits = logits * self.act_inv_temp
+                cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
+                cond = tf.reshape(cond, (-1, 1))
+                logits = tf.where(cond, logits, scaled_logits)
 
             dist = tfd.Categorical(logits)
             action = dist.sample()
 
-        if return_distribution:
-            return action, dist
-        else:
-            return action
+        return action
 
     def train_step(self, x):
         x = self._layers(x)

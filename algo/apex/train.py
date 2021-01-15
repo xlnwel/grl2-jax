@@ -25,7 +25,9 @@ default_agent_config = {
 
 def main(env_config, model_config, agent_config, replay_config):
     ray.init(num_cpus=os.cpu_count(), num_gpus=1)
+    
     sigint_shutdown_ray()
+
     default_agent_config.update(agent_config)
     agent_config = default_agent_config
 

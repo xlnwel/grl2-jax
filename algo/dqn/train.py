@@ -11,7 +11,7 @@ from utility.run import Runner, evaluate
 from utility import pkg
 from env.func import create_env
 from replay.func import create_replay
-from core.dataset import construct_dataset
+from core.dataset import create_dataset
 
 
 def train(agent, env, eval_env, replay):
@@ -100,7 +100,7 @@ def main(env_config, model_config, agent_config, replay_config):
     data_format = am.get_data_format(
         env=env, replay_config=replay_config, 
         agent_config=agent_config, model=models)
-    dataset = construct_dataset(replay, env, data_format=data_format)
+    dataset = create_dataset(replay, env, data_format=data_format)
     
     agent = Agent(
         config=agent_config, 

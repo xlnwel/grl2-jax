@@ -50,7 +50,7 @@ class Agent(BaseAgent):
         )
         self._model_opt = DreamerOpt(models=dynamics_models, lr=self._model_lr)
         self._actor_opt = DreamerOpt(models=self.actor, lr=self._actor_lr, return_grads=True)
-        self._q_opt = DreamerOpt(models=[self.q, self.q2], lr=self._q_lr, return_grads=True)
+        self._q_opt = DreamerOpt(models=[self.q, self.q2], lr=self._value_lr, return_grads=True)
 
         if isinstance(self.temperature, float):
             # convert to variable, useful for scheduling
@@ -263,13 +263,13 @@ class Agent(BaseAgent):
             # returns = reward[:, :-1] + discount * next_value
             returns = tf.stop_gradient(returns)
 
-            q_loss = tf.reduce_mean(loss_fn(returns - q))
+            value_losss = tf.reduce_mean(loss_fn(returns - q))
             q2_loss = tf.reduce_mean(loss_fn(returns - q2))
-            q_loss = q_loss + q2_loss
+            value_losss = value_losss + q2_loss
 
         terms['model_norm'] = self._model_opt(model_tape, model_loss)
         terms['actor_norm'], actor_vg = self._actor_opt(actor_tape, actor_loss)
-        terms['q_norm'], q_vg = self._q_opt(q_tape, q_loss)
+        terms['value_norm'], q_vg = self._q_opt(q_tape, value_losss)
         if not isinstance(self.temperature, (float, tf.Variable)):
             terms['temp_norm'] = self._temp_opt(temp_tape, temp_loss)
         
@@ -286,9 +286,9 @@ class Agent(BaseAgent):
             **terms,
             model_loss=model_loss,
             actor_loss=actor_loss,
-            q_loss=q_loss,
+            value_losss=value_losss,
             q2_loss=q2_loss,
-            q_loss = q_loss
+            value_losss = value_losss
         )
 
         if log_images:

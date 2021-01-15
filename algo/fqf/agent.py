@@ -9,9 +9,9 @@ from algo.dqn.base import DQNBase, get_data_format, collect
 class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
-            self._q_lr = TFPiecewiseSchedule(self._q_lr)
+            self._value_lr = TFPiecewiseSchedule(self._value_lr)
         self._q_opt = Optimizer(
-            self._q_opt, [self.encoder, self.qe, self.q], self._q_lr, 
+            self._q_opt, [self.encoder, self.qe, self.q], self._value_lr, 
             clip_norm=self._clip_norm, epsilon=1e-2/self._batch_size)
         self._fpn_opt = Optimizer(self._fpn_opt, self.fpn, self._fpn_lr, 
             rho=.95, epsilon=1e-5, centered=True)

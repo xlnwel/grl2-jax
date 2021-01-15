@@ -15,7 +15,7 @@ from core.dataset import create_dataset, RayDataset
     
 
 def config_actor(name, config):
-    cpu_affinity('Learner')
+    cpu_affinity(name)
     silence_tf_logs()
     num_cpus = get_num_cpus()
     configure_threads(num_cpus, num_cpus)
@@ -49,17 +49,28 @@ def get_learner_class(BaseAgent):
     BaseLearner = get_base_learner_class(BaseAgent)
     class Learner(BaseLearner):
         def __init__(self,
+                    model_fn,
+                    replay,
                     config, 
                     model_config,
                     env_config,
-                    model_fn,
-                    replay):
+                    replay_config):
             config_actor('Learner', config)
 
             env = create_env(env_config)
-            dataset = create_dataset(replay, env, DatasetClass=RayDataset)
+
             model = model_fn(config=model_config, env=env)
 
+            am = pkg.import_module('agent', config=config, place=-1)
+            data_format = am.get_data_format(
+                env=env, replay_config=replay_config, 
+                agent_config=config, model=model)
+            dataset = create_dataset(
+                replay, 
+                env, 
+                data_format=data_format, 
+                DatasetClass=RayDataset)
+            
             super().__init__(
                 name='learner',
                 config=config, 
@@ -91,9 +102,9 @@ def get_base_worker_class(BaseAgent):
             replay.merge.remote(data)
             buffer.reset()
 
-        def _send_episode_info(self, learner):
+        def _send_episode_info(self, monitor):
             if self._info:
-                learner.record_episode_info.remote(self._id, **self._info)
+                monitor.record_episode_info.remote(self._id, **self._info)
                 self._info.clear()
 
         def _compute_priorities(self, reward, discount, steps, q, next_q, **kwargs):
@@ -120,10 +131,7 @@ def get_worker_class(BaseAgent):
                     buffer_config,
                     model_fn,
                     buffer_fn):
-            silence_tf_logs()
-            configure_threads(1, 1)
-            configure_gpu()
-            configure_precision(config.get('precision', 32))
+            config_actor(f'Worker_{worker_id}', config)
             self._id = worker_id
 
             self.env = create_env(env_config)
@@ -213,8 +221,7 @@ def get_evaluator_class(BaseAgent):
                     model_config,
                     env_config,
                     model_fn):
-            silence_tf_logs()
-            configure_threads(1, 1)
+            config_actor(f'Evaluator', config)
 
             env_config.pop('reward_clip', False)
             self.env = env = create_env(env_config)
@@ -225,7 +232,7 @@ def get_evaluator_class(BaseAgent):
                     env=env)
             
             super().__init__(
-                name='learner',
+                name=name,
                 config=config, 
                 models=model,
                 dataset=None,

@@ -15,20 +15,20 @@ class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
             assert isinstance(self._actor_lr, list), self._actor_lr
-            assert isinstance(self._q_lr, list), self._q_lr
+            assert isinstance(self._value_lr, list), self._value_lr
             self._actor_lr = TFPiecewiseSchedule(self._actor_lr)
-            self._q_lr = TFPiecewiseSchedule(self._q_lr)
+            self._value_lr = TFPiecewiseSchedule(self._value_lr)
         
         PartialOpt = functools.partial(
             Optimizer,
             name=self._optimizer,
-            weight_decay=self._weight_decay, 
-            clip_norm=self._clip_norm,
-            epsilon=self._epsilon
+            weight_decay=getattr(self, '_weight_decay', None),
+            clip_norm=getattr(self, '_clip_norm', None),
+            epsilon=getattr(self, '_epsilon', 1e-7)
         )
         self._actor_opt = PartialOpt(models=self.actor, lr=self._actor_lr)
         value_models = [self.encoder, self.q]
-        self._value_opt = PartialOpt(models=value_models, lr=self._q_lr)
+        self._value_opt = PartialOpt(models=value_models, lr=self._value_lr)
 
         if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
@@ -69,9 +69,9 @@ class Agent(DQNBase):
         ])
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
-            qs, error, q_loss = self._compute_q_loss(
+            qs, error, value_losss = self._compute_value_losss(
                 self.q, x, action, q_target, IS_ratio)
-        terms['q_norm'] = self._value_opt(tape, q_loss)
+        terms['value_norm'] = self._value_opt(tape, value_losss)
 
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
@@ -113,16 +113,16 @@ class Agent(DQNBase):
             entropy=entropy,
             entropy_max=tf.reduce_max(entropy),
             entropy_min=tf.reduce_min(entropy),
-            q_loss=q_loss, 
+            value_losss=value_losss, 
             temp=temp,
             explained_variance_q=explained_variance(q_target, q),
         ))
 
         return terms
 
-    def _compute_q_loss(self, q_fn, x, action, returns, IS_ratio):
+    def _compute_value_losss(self, q_fn, x, action, returns, IS_ratio):
         qs = q_fn(x)
         q = tf.reduce_sum(qs * action, axis=-1)
         q_error = returns - q
-        q_loss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
-        return qs, tf.abs(q_error), q_loss
+        value_losss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
+        return qs, tf.abs(q_error), value_losss

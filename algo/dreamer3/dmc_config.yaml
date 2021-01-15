@@ -77,7 +77,7 @@ agent:
     model_lr: 6e-4
     actor_lr: 8e-5
     value_lr: 8e-5
-    q_lr: 8e-5
+    value_lr: 8e-5
     temp_lr: 3e-4
 
 replay:

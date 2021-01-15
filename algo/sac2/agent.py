@@ -21,11 +21,11 @@ class Agent(BaseAgent):
 
         if self._schedule_lr:
             self._actor_lr = TFPiecewiseSchedule([(2e5, self._actor_lr), (1e6, 1e-5)])
-            self._q_lr = TFPiecewiseSchedule([(2e5, self._q_lr), (1e6, 1e-5)])
+            self._value_lr = TFPiecewiseSchedule([(2e5, self._value_lr), (1e6, 1e-5)])
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr)
-        self._value_opt = Optimizer(self._optimizer, self.value, self._q_lr)
-        self._q_opt = Optimizer(self._optimizer, [self.q, self.q2], self._q_lr)
+        self._value_opt = Optimizer(self._optimizer, self.value, self._value_lr)
+        self._q_opt = Optimizer(self._optimizer, [self.q, self.q2], self._value_lr)
 
         if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
@@ -69,7 +69,7 @@ class Agent(BaseAgent):
         if self._schedule_lr:
             step = tf.convert_to_tensor(step, tf.float32)
             terms['actor_lr'] = self._actor_lr(step)
-            terms['q_lr'] = self._q_lr(step)
+            terms['value_lr'] = self._value_lr(step)
         terms = {k: v.numpy() for k, v in terms.items()}
 
         if self._is_per:
@@ -117,9 +117,9 @@ class Agent(BaseAgent):
             target_q = tf.stop_gradient(target_q)
             q_error = target_q - q
             q2_error = target_q - q2
-            q_loss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
+            value_losss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
             q2_loss = .5 * tf.reduce_mean(IS_ratio * q2_error**2)
-            q_loss = q_loss + q2_loss
+            value_losss = value_losss + q2_loss
 
         if self._is_per:
             priority = self._compute_priority((tf.abs(q_error) + tf.abs(q2_error)) / 2.)
@@ -127,7 +127,7 @@ class Agent(BaseAgent):
 
         terms['actor_norm'] = self._actor_opt(actor_tape, actor_loss)
         terms['value_norm'] = self._value_opt(value_tape, value_loss)
-        terms['q_norm'] = self._q_opt(q_tape, q_loss)
+        terms['value_norm'] = self._q_opt(q_tape, value_losss)
         if not isinstance(self.temperature, (float, tf.Variable)):
             terms['temp_norm'] = self._temp_opt(temp_tape, temp_loss)
             
@@ -138,7 +138,7 @@ class Agent(BaseAgent):
             logpi=new_logpi,
             action_entropy=act_dist.entropy(),
             target_q=target_q,
-            q_loss=q_loss, 
+            value_losss=value_losss, 
             q2_loss=q2_loss,
         ))
 

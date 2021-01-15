@@ -35,7 +35,7 @@ def configure_threads(intra_num_threads, inter_num_threads):
 def configure_precision(precision=16):
     if precision == 16:
         policy = mixed_precision.Policy('mixed_float16')
-        mixed_precision.set_policy(policy)
+        mixed_precision.set_global_policy(policy)
 
 def silence_tf_logs():
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'

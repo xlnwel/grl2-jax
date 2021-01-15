@@ -55,7 +55,7 @@ agent:
     optimizer: adam
     schedule_lr: False
     actor_lr: 1e-3
-    q_lr: 1e-3
+    value_lr: 1e-3
     curl_lr: 1e-3
     temp_lr: 1e-4
     

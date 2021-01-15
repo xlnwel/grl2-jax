@@ -69,7 +69,9 @@ class DQNBase(BaseAgent):
         models = [v for k, v in self.model.items() if 'target' not in k]
         self._optimizer = Optimizer(
             self._optimizer, models, self._lr, 
-            clip_norm=getattr(self, '_clip_norm', None))
+            weight_decay=getattr(self, '_weight_decay', None),
+            clip_norm=getattr(self, '_clip_norm', None),
+            epsilon=getattr(self, '_epsilon', 1e-7))
 
     @override(BaseAgent)
     def _build_learn(self, env):
