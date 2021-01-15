@@ -151,26 +151,16 @@ if __name__ == '__main__':
                     separate_process=len(algo_env) > 1, delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
-                    if algo == 'sacdiqn':
-                        processes += gs(value=[0.01, 0.])
-                    elif algo == 'iqn':
-                        processes += gs()
-                    elif algo == 'fqf':
-                        processes += gs(normalize_reward=[True, False])
-                    elif 'ppo' in algo:
+                    if 'ppo' in algo:
                         processes += gs(normalize_reward=[True, False])
                     else:
-                        # Grid search happens here
                         processes += gs()
                 else:
                     processes += gs()
             else:
                 dir_prefix = prefix + '-' if prefix else prefix
                 agent_config['root_dir'] = f'{logdir}/{dir_prefix}{env_config["name"]}/{agent_config["algorithm"]}'
-                if 'video_path' in env_config:
-                    env_config['video_path'] = (f'{agent_config["root_dir"]}/'
-                                                f'{agent_config["model_name"]}/'
-                                                f'{env_config["video_path"]}')
+                replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')
                 if len(algo_env) > 1:
                     p = Process(target=main,
                                 args=(env_config, 

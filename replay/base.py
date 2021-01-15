@@ -41,9 +41,15 @@ class Replay(ABC):
 
     def good_to_learn(self):
         return len(self) >= self._min_size
+    
+    def load_data(self):
+        pass
 
     def __len__(self):
         return self._capacity if self._is_full else self._mem_idx
+    
+    def size(self):
+        return len(self)
 
     def __call__(self):
         while True:

@@ -1,5 +1,6 @@
-import collections
 import logging
+import functools
+import collections
 import numpy as np
 import tensorflow as tf
 import ray
@@ -7,25 +8,6 @@ import ray
 
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 logger = logging.getLogger(__name__)
-
-def process_with_env(data, env, obs_range=None, one_hot_action=True, dtype=tf.float32):
-    with tf.device('cpu:0'):
-        if env.obs_dtype == np.uint8 and obs_range is not None:
-            if obs_range == [0, 1]:
-                for k, v in data.items():
-                    if 'obs' in k:
-                        data[k] = tf.cast(data[k], dtype) / 255.
-            elif obs_range == [-.5, .5]:
-                for k, v in data.items():
-                    if 'obs' in k:
-                        data[k] = tf.cast(data[k], dtype) / 255. - .5
-            else:
-                raise ValueError(obs_range)
-        if env.is_action_discrete and one_hot_action:
-            for k, v in data.items():
-                if 'action' in k:
-                    data[k] = tf.one_hot(data[k], env.action_dim, dtype=dtype)
-    return data
 
 class Dataset:
     def __init__(self, 
@@ -98,3 +80,47 @@ class RayDataset(Dataset):
 
     def update_priorities(self, priorities, indices):
         self._buffer.update_priorities.remote(priorities, indices)
+
+def process_with_env(data, env, obs_range=None, one_hot_action=True, dtype=tf.float32):
+    with tf.device('cpu:0'):
+        if env.obs_dtype == np.uint8 and obs_range is not None:
+            if obs_range == [0, 1]:
+                for k in data:
+                    if 'obs' in k:
+                        data[k] = tf.cast(data[k], dtype) / 255.
+            elif obs_range == [-.5, .5]:
+                for k in data:
+                    if 'obs' in k:
+                        data[k] = tf.cast(data[k], dtype) / 255. - .5
+            else:
+                raise ValueError(obs_range)
+        if env.is_action_discrete and one_hot_action:
+            for k in data:
+                if 'action' in k:
+                    data[k] = tf.one_hot(data[k], env.action_dim, dtype=dtype)
+    return data
+
+
+def create_dataset(replay, env, data_format=None, DatasetClass=Dataset, one_hot_action=True):
+    if data_format is None:
+        import time
+        i = 0
+        while not ray.get(replay.good_to_learn.remote()):
+            time.sleep(1)
+            i += 1
+            if i % 60 == 0:
+                size = ray.get(replay.size.remote())
+                if size == 0:
+                    import sys
+                    print('Replay does not collect any data in 60s. Specify data_format for dataset construction explicitly')
+                    sys.exit()
+                print(f'Dataset Construction: replay size = {size}')
+        data = ray.get(replay.sample.remote())
+        data_format = {k: (v.shape, v.dtype) for k, v in data.items()}
+        print('data format')
+        for k, v in data_format.items():
+            print('\t', k, v)
+    process = functools.partial(process_with_env, 
+        env=env, one_hot_action=one_hot_action)
+    dataset = DatasetClass(replay, data_format, process)
+    return dataset

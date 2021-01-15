@@ -97,6 +97,7 @@ class BaseAgent(AgentImpl):
         self.dataset = dataset
 
         self._obs_shape = env.obs_shape
+        self._action_shape = env.action_shape
         self._action_dim = env.action_dim
 
         # intervals between calling self._summary
@@ -126,7 +127,14 @@ class BaseAgent(AgentImpl):
         pass 
 
     """ Call """
-    def __call__(self, obs, evaluation=False, env_output=(), return_eval_stats=False):
+    def __call__(self, env_output=(), evaluation=False, return_eval_stats=False):
+        """ Call the agent to interact with the environment
+        Args:
+            obs: Observation(s), we keep a separate observation to for legacy reasons
+            evaluation bool: evaluation mode or not
+            env_output tuple: (obs, reward, discount, reset)
+        """
+        obs = env_output.obs
         if obs.ndim % 2 != 0:
             obs = np.expand_dims(obs, 0)    # add batch dimension
         assert obs.ndim in (2, 4), obs.shape

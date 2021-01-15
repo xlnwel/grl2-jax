@@ -45,9 +45,8 @@ class Runner:
         
         for t in range(nsteps):
             action = action_selector(
-                obs, 
-                evaluation=False,
-                env_output=self.env_output)
+                self.env_output,
+                evaluation=False)
             obs, reset = self.step_env(obs, action, step_fn)
 
             # logging when env is reset 
@@ -68,9 +67,8 @@ class Runner:
         
         for t in range(nsteps):
             action = action_selector(
-                obs, 
-                evaluation=False,
-                env_output=self.env_output)
+                self.env_output,
+                evaluation=False)
             obs, reset = self.step_env(obs, action, step_fn)
             
             # logging when any env is reset 
@@ -94,9 +92,8 @@ class Runner:
         
         for t in range(self._default_nsteps):
             action = action_selector(
-                obs, 
-                evaluation=False, 
-                env_output=self.env_output)
+                self.env_output,
+                evaluation=False)
             obs, reset = self.step_env(obs, action, step_fn)
 
             if reset:
@@ -116,13 +113,12 @@ class Runner:
         
         for t in range(self._default_nsteps):
             action = action_selector(
-                obs, 
-                evaluation=False,
-                env_output=self.env_output)
+                self.env_output,
+                evaluation=False)
             obs, _ = self.step_env(obs, action, step_fn, mask=True)
 
             # logging when any env is reset 
-            if np.all(self.env.game_over()):
+            if np.all(self.env_output.discount == 0):
                 break
         info = self.env.info()
         score = [i['score'] for i in info]
@@ -196,8 +192,10 @@ def evaluate(
                     for i in range(min(4, env.n_envs)):
                         frames[i].append(img[i])
                     
-            action = agent(obs, evaluation=True, 
-                env_output=env_output, return_eval_stats=record_stats)
+            action = agent(
+                env_output, 
+                evaluation=True, 
+                return_eval_stats=record_stats)
             terms = {}
             if isinstance(action, tuple):
                 if len(action) == 2:
