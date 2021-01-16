@@ -312,6 +312,7 @@ class EnvStats(gym.Wrapper):
         if not self._output.reset:
             return self._reset()
         else:
+            logger.warning('Repetitively calling reset results in no environment interaction')
             return self._output
 
     def _reset(self):
@@ -338,6 +339,7 @@ class EnvStats(gym.Wrapper):
     def step(self, action, **kwargs):
         if self.game_over():
             assert self.auto_reset == False
+            # step after the game is over
             reward = self.float_dtype(0)
             discount = self.float_dtype(0)
             reset = self.float_dtype(0)

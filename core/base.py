@@ -5,6 +5,7 @@ import logging
 
 from utility.display import pwc
 from utility.utils import Every
+from utility.timer import Timer
 from core.log import *
 from core.checkpoint import *
 from core.decorator import override, agent_config
@@ -109,7 +110,8 @@ class BaseAgent(AgentImpl):
         self._sync_nets()
     
     def _add_attributes(self, env, dataset):
-        pass
+        self._sample_timer = Timer('sample')
+        self._train_timer = Timer('train')
 
     @abstractmethod
     def _construct_optimizers(self):
@@ -123,7 +125,7 @@ class BaseAgent(AgentImpl):
         pass
 
     def _summary(self, data, terms):
-        # add summaries other than scalars
+        """ Add non-scalar summaries """
         pass 
 
     """ Call """
@@ -179,7 +181,9 @@ class BaseAgent(AgentImpl):
 
 class RMSBaseAgent(BaseAgent):
     @override(BaseAgent)
-    def _add_attributes(self, env, datset):
+    def _add_attributes(self, env, dataset):
+        super()._add_attributes(env, dataset)
+
         from utility.utils import RunningMeanStd
         self._normalized_axis = getattr(self, '_normalized_axis', (0,))
         self._normalize_obs = getattr(self, '_normalize_obs', False)

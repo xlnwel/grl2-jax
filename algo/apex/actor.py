@@ -7,6 +7,7 @@ import ray
 
 from core.tf_config import *
 from utility.utils import Every
+from utility.timer import Timer
 from utility.ray_setup import cpu_affinity, get_num_cpus
 from utility.run import Runner, evaluate, RunMode
 from utility import pkg
@@ -205,7 +206,11 @@ def get_worker_class(BaseAgent):
                 if self.buffer.is_full():
                     self._send_data(replay)
             start_step = self.runner.step
-            end_step = self.runner.run(step_fn=collect)
+            
+            with Timer('run') as rt:
+                end_step = self.runner.run(step_fn=collect)
+            self._info[f'time/run_{self._id}'] = rt.average()
+
             return end_step - start_step
     
     return Worker
@@ -260,7 +265,7 @@ def get_evaluator_class(BaseAgent):
         def _pull_weights(self, learner):
             return ray.get(learner.get_weights.remote(name=self._pull_names))
 
-        def _run(self, record):        
+        def _run(self, record):
             score, epslen, video = evaluate(self.env, self, 
                 record=record, n=self.N_EVALUATION)
             self.store(score, epslen, video)

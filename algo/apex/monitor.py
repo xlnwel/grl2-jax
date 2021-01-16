@@ -21,18 +21,23 @@ class Monitor(AgentImpl):
         self.last_train_step = 0
         self.MAX_STEPS = int(float(config['MAX_STEPS']))
     
-    def record_episode_info(self, worker_id=None, **stats):
+    def record_episode_info(self, worker_name=None, **stats):
         video = stats.pop('video', None)
         if 'epslen' in stats:
             self.env_step += np.sum(stats['epslen'])
-        if worker_id is not None:
-            stats = {f'{k}_{worker_id}': v for k, v in stats.items()}
+        if worker_name is not None:
+            stats = {f'{k}_{worker_name}': v for k, v in stats.items()}
         with self._locker:
             self.store(**stats)
         if video is not None:
             video_summary(f'{self.name}/sim', video, step=self.env_step)
 
-    def record_stats(self, learner):
+    def record_run_stats(self, worker_name=None, **stats):
+        if worker_name is not None:
+            stats = {f'{k}_{worker_name}': v for k, v in stats.items()}
+        self.store(**stats)
+        
+    def record_train_stats(self, learner):
         train_step, stats = ray.get(learner.get_stats.remote())
         if train_step == 0:
             return

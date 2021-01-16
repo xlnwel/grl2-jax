@@ -81,7 +81,7 @@ def main(env_config, model_config, agent_config, replay_config):
         time.sleep(interval)
         elapsed_time += interval
         if elapsed_time % agent_config['LOG_PERIOD'] == 0:
-            monitor.record_stats.remote(learner)
+            monitor.record_train_stats.remote(learner)
 
     ray.get(learner.save.remote())
     

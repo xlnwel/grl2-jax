@@ -4,7 +4,6 @@ import tensorflow as tf
 
 from utility.utils import Every
 from utility.schedule import PiecewiseSchedule
-from utility.timer import TBTimer
 from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
 from core.tf_config import build
@@ -48,6 +47,8 @@ class DQNBase(BaseAgent):
     """ Initialization """
     @override(BaseAgent)
     def _add_attributes(self, env, dataset):
+        super()._add_attributes(env, dataset)
+
         self._is_per = False if dataset is None else dataset.name().endswith('per')
         self._return_stats = getattr(self, '_return_stats', False)
         self._schedule_act_eps = env.n_envs == 1 \
@@ -128,14 +129,15 @@ class DQNBase(BaseAgent):
     @step_track
     def learn_log(self, step):
         for _ in range(self.N_UPDATES):
-            with TBTimer('sample', 2500):
+            with self._sample_timer:
                 data = self.dataset.sample()
 
             if self._is_per:
                 idxes = data.pop('idxes').numpy()
 
-            with TBTimer('learn', 2500):
+            with self._train_timer:
                 terms = self.learn(**data)
+
             if self._to_sync(self.train_step):
                 self._sync_nets()
 
@@ -147,6 +149,11 @@ class DQNBase(BaseAgent):
 
         if self._to_summary(step):
             self._summary(data, terms)
+        
+        self.store(**{
+            'time/sample': self._sample_timer.average(),
+            'time/train': self._train_timer.average()
+        })
         
         return self.N_UPDATES
     

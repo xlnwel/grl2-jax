@@ -24,7 +24,6 @@ def create_learner(Learner, model_fn, replay, config, model_config, env_config, 
     env_config = env_config.copy()
     replay_config = replay_config.copy()
     
-    env_config['n_workers'] = env_config['n_envs'] = 1
     n_cpus = config.setdefault('n_learner_cpus', 3)
     config['writer'] = False
     config['logger'] = False

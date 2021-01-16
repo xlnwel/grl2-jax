@@ -25,7 +25,7 @@ model:
     additional_rnn_input: False
 
 agent:
-    algorithm: &algo apex-iqn
+    algorithm: &algo apex-mrdqn
     replay_type: &replay seqper
     gamma: &gamma .99
     lambda: .95
@@ -57,7 +57,7 @@ agent:
     n_worker_gpus: .1
     run_mode: nsteps
     worker_side_prioritization: False
-    return_stats: True
+    return_stats: False
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

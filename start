@@ -16,7 +16,7 @@ envs=(
     # chaser
     # bigfish
     # starpilot
-    coinrun
+    # coinrun
     # miner
     # caveflyer 
     # climber
@@ -24,12 +24,12 @@ envs=(
     # leaper
     # jumper
     # fruitbot
-    # heist
-    # ninja
+    heist
+    ninja
     # bossfight
     # maze
 )
-args1=(32 64)
+args1=(32)
 args2=(True)
 args3=(conv_maxblurpool)
 
@@ -62,7 +62,7 @@ for e in "${envs[@]}"; do
             dir="logs/${suite}_${e}/${a}"
             mkdir -p $dir
             # py_script="train ${a} -e ${suite}_${e} -v info $@ >& ${dir}/outputs.txt"
-            py_script="train ${a} -e ${suite}_${e} -v info -kw N_SEGS=$a1 AUX_RECOMPUTE=$a2 >& ${dir}/outputs.txt"
+            py_script="train ${a} -e ${suite}_${e} -v info -kw cnn_name=procgen sample_size=$a1 >& ${dir}/outputs.txt"
             echo $py_script
             eval $py_script
             last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

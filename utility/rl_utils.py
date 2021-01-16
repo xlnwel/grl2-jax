@@ -2,8 +2,8 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-
 from utility.tf_utils import assert_rank, assert_shape_compatibility
+
 
 def huber_loss(x, *, y=None, threshold=1.):
     if y != None:   # if y is passed, take x-y as error, otherwise, take x as error

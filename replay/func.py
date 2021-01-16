@@ -15,9 +15,11 @@ replay_type = dict(
 )
 
 def create_local_buffer(config):
+    config = config.copy()
+
     n_envs = config.get('n_envs', 1)
     is_sequential = config['replay_type'].startswith('seq')
-    is_envvec = n_envs > 1
+    is_envvec = config.pop('force_envvec', False) or n_envs > 1
     buffer_type = {
         (False, False): EnvNStepBuffer, 
         (False, True): EnvVecNStepBuffer, 
@@ -28,9 +30,13 @@ def create_local_buffer(config):
     return buffer_type(config)
 
 def create_replay(config, **kwargs):
+    config = config.copy()
+
     return replay_type[config['replay_type']](config, **kwargs)
 
 def create_replay_center(config, **kwargs):
+    config = config.copy()
+    
     plain_type = replay_type[config['replay_type']]
     ray_type = ray.remote(plain_type)
     return ray_type.remote(config, **kwargs)

@@ -21,7 +21,7 @@ def configure_gpu(idx=0):
             # restrict TensorFlow to only use the i-th GPU
             tf.config.experimental.set_visible_devices(gpus[idx], 'GPU')
             logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-            logger.debug(f'{len(gpus)} Physical GPUs, {len(logical_gpus)} Logical GPU')
+            logger.info(f'{len(gpus)} Physical GPUs, {len(logical_gpus)} Logical GPU')
         except RuntimeError as e:
             # visible devices must be set before GPUs have been initialized
             logger.warning(e)
