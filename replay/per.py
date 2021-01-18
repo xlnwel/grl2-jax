@@ -87,7 +87,7 @@ class ProportionalPER(PERBase):
         intervals = np.linspace(0, total_priorities, batch_size+1)
         values = np.random.uniform(intervals[:-1], intervals[1:])
         priorities, idxes = self._data_structure.batch_find(values)
-        assert np.max(idxes) < len(self), f'{idxes}\n{values}\n{priorities}\n{total_priorities}, {len(self)}'
+        assert np.max(idxes) < len(self), f'idxes: {idxes}\nvalues: {values}\npriorities: {priorities}\ntotal: {total_priorities}, len: {len(self)}'
         assert np.min(priorities) > 0, f'idxes: {idxes}\nvalues: {values}\npriorities: {priorities}\ntotal: {total_priorities}, len: {len(self)}'
 
         probabilities = priorities / total_priorities

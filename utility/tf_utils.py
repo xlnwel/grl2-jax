@@ -33,17 +33,32 @@ def explained_variance(y, pred):
     diff_var = tf.math.reduce_variance(y - pred, axis=0)
     return tf.maximum(-1., 1-(diff_var / y_var))
 
-def logsumexp(value, axis=None, keepdims=False):
+def softmax(x, tau, axis=-1):
+    """ sfotmax(x / tau) """
+    x_max = tf.reduce_max(x, axis=axis, keepdims=True)
+    x = x - x_max
+    return tf.nn.softmax(x / tau, axis=axis)
+
+def logsumexp(x, tau, axis=None, keepdims=False):
+    """ tau * logsumexp(x / tau) """
     if axis is not None:
-        max_value = tf.reduce_max(value, axis=axis, keepdims=True)
-        value0 = value - max_value    # for numerical stability
+        x_max = tf.reduce_max(x, axis=axis, keepdims=True)
+        x = x - x_max    # for numerical stability
         if keepdims is False:
-            max_value = tf.squeeze(max_value)
-        return max_value + tf.log(tf.reduce_sum(tf.exp(value0),
-                                                axis=axis, keepdims=keepdims))
+            x_max = tf.squeeze(x_max)
+        y = x_max + tf.log(tf.reduce_sum(
+            tf.exp(x), axis=axis, keepdims=keepdims))
     else:
-        max_value = tf.reduce_max(value)
-        return max_value + tf.log(tf.reduce_sum(tf.exp(value - max_value)))
+        x_max = tf.reduce_max(x)
+        y = x_max + tf.log(tf.reduce_sum(tf.exp(x - x_max)))
+    return tau * y
+
+def log_softmax(x, tau, axis=-1):
+    """ tau * log_softmax(x / tau) """
+    x_max = tf.reduce_max(x, axis=axis, keepdims=True)
+    x = x - x_max
+    x = x - tau * tf.reduce_logsumexp(x / tau, axis=axis, keepdims=True)
+    return x
 
 def square_sum(x):
     return 2 * tf.nn.l2_loss(x)

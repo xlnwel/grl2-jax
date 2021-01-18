@@ -24,13 +24,13 @@ model:
         norm: null
         activation: relu
     temperature:
-        temp_type: 'variable'
+        temp_type: variable
         value: .1
     twin_q: True
 
 agent:
     algorithm: &algo sacd
-    replay_type: &replay 'uniform'
+    replay_type: &replay per
     gamma: &gamma .99
     batch_size: &bs 32
     n_steps: &nsteps 3

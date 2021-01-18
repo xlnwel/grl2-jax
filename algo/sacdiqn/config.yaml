@@ -32,7 +32,7 @@ model:
 
 agent:
     algorithm: &algo sacdiqn
-    replay_type: &replay 'uniform'
+    replay_type: &replay per
     gamma: &gamma .99
     batch_size: &bs 32
     n_steps: &nsteps 1      # n-step target

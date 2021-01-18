@@ -3,13 +3,12 @@ import functools
 import threading
 import time
 import numpy as np
-import psutil
 import tensorflow as tf
-from tensorflow.keras.mixed_precision.experimental import global_policy
+from tensorflow.keras.mixed_precision import global_policy
 import ray
 
 from core.tf_config import *
-from core.dataset import Dataset, process_with_env
+from core.dataset import create_dataset
 from utility.display import pwc
 from utility.timer import TBTimer
 from utility.utils import Every, convert_dtype
@@ -18,10 +17,12 @@ from utility import pkg
 from env.func import create_env
 from replay.func import create_replay
 from algo.dreamer.env import make_env
+from algo.apex.actor import config_actor, get_base_learner_class
 
 
 def get_learner_class(BaseAgent):
-    class Learner(BaseAgent):
+    BaseLearner = get_base_learner_class(BaseAgent)
+    class Learner(BaseLearner):
         """ Interface """
         def __init__(self,
                     name, 
@@ -30,42 +31,23 @@ def get_learner_class(BaseAgent):
                     model_config,
                     env_config,
                     replay_config):
-            cpu_affinity('Learner')
-            silence_tf_logs()
-            num_cpus = get_num_cpus()
-            configure_threads(num_cpus, num_cpus)
-            configure_gpu()
-            configure_precision(config['precision'])
+            config_actor('Learner', config)
 
             self._envs_per_worker = env_config['n_envs']
-            env_config['n_envs'] = 1
-            env = create_env(env_config, make_env)
-            assert env.obs_dtype == np.uint8, \
-                f'Expect observation of type uint8, but get {env.obs_dtype}'
-            self._action_shape = env.action_shape
-            self._action_dim = env.action_dim
-            self._frame_skip = getattr(env, 'frame_skip', 1)
-
+            env = create_env(env_config)
+            
             models = model_fn(model_config, env)
-
-            replay_config['dir'] = config['root_dir'].replace('logs', 'data')
+            
+            if getattr(models, 'state_size', None):
+                replay_config['state_keys'] = list(models.state_keys)
             self.replay = create_replay(replay_config)
-            if hasattr(self.replay, 'load_data'):
-                self.replay.load_data()
-            am = pkg.import_module('agent', config=config, place=-1)
+            self.replay.load_data()
+
+            am = pkg.import_module('agent', config=config)
             data_format = am.get_data_format(
-                env=env, 
-                batch_size=config['batch_size'], 
-                sample_size=config['sample_size'], 
-                store_state=config['store_state'],
-                state_size=models['rssm'].state_size,
-                dtype=global_policy().compute_dtype)
-            process = functools.partial(
-                process_with_env, 
-                env=env, 
-                obs_range=[-.5, .5],
-                dtype=global_policy().compute_dtype)
-            dataset = Dataset(self.replay, data_format, process, prefetch=10)
+                env=env, replay_config=replay_config, 
+                agent_config=config, model=models)
+            dataset = create_dataset(self.replay, env, data_format=data_format)
 
             super().__init__(
                 name=name, 
@@ -83,11 +65,6 @@ def get_learner_class(BaseAgent):
                 self.rssm.get_initial_state(batch_size=1, dtype=self._dtype))
             self._prev_action = collections.defaultdict(lambda:
                 tf.zeros((1, self._action_dim), self._dtype))
-
-        def start_learning(self):
-            self._learning_thread = threading.Thread(
-                target=self._learning, daemon=True)
-            self._learning_thread.start()
 
         def reset_states(self, worker_id, env_id):
             self._state[(worker_id, env_id)] = self._state.default_factory()

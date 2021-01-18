@@ -177,7 +177,6 @@ def evaluate(
     if hasattr(agent, 'reset_states'):
         agent.reset_states()
     env_output = env.reset()
-    obs = env_output.obs
     n_run_eps = env.n_envs  # count the number of episodes that has begun to run
     n = max(n, env.n_envs)
     n_done_eps = 0
@@ -209,7 +208,7 @@ def evaluate(
                 env_output = env.step(action, frame_skip=frame_skip)
             else:
                 env_output = env.step(action)
-            obs, reward, discount, reset = env_output
+            _, reward, _, _ = env_output
 
             if step_fn:
                 step_fn(reward=reward, **terms)
@@ -221,7 +220,6 @@ def evaluate(
                     if n_run_eps < n:
                         n_run_eps += 1
                         env_output = env.reset()
-                        obs = env_output.obs
                         if hasattr(agent, 'reset_states'):
                             agent.reset_states()
                     break

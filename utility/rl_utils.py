@@ -2,17 +2,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from utility.tf_utils import assert_rank, assert_shape_compatibility
-
-
-def huber_loss(x, *, y=None, threshold=1.):
-    if y != None:   # if y is passed, take x-y as error, otherwise, take x as error
-        assert_shape_compatibility([x, y])
-        x = x - y
-    return tf.where(tf.abs(x) <= threshold, 
-                    0.5 * tf.square(x), 
-                    threshold * (tf.abs(x) - 0.5 * threshold), 
-                    name='huber_loss')
 
 def epsilon_greedy(action, epsilon, is_action_discrete, action_dim=None):
     if is_action_discrete:
@@ -88,26 +77,19 @@ def compute_act_eps(act_eps_type, act_eps, worker_id, n_workers, envs_per_worker
     return act_eps
 
 
-def compute_act_temp(config, model_config, worker_id, n_workers, envs_per_worker):
-    if config.get('schedule_act_temp'):
-        n_exploit_envs = config.get('n_exploit_envs', 0)
-        n_envs = n_workers * envs_per_worker
-        n_exploit_envs = config.get('n_exploit_envs')
-        if n_exploit_envs:
-            act_temps = np.concatenate(
-                [np.linspace(config['min_temp'], 1, n_exploit_envs), 
-                np.logspace(0, np.log10(config['max_temp']), 
-                n_envs - n_exploit_envs+1)[1:]],
-                axis=-1)
-        else:
-            act_temps = np.logspace(
-                np.log10(config['min_temp']), np.log10(config['max_temp']), 
-                n_workers * envs_per_worker)
-        if worker_id is None:
-            model_config['actor']['act_temp'] = act_temps
-        else:
-            act_temps = act_temps.reshape(n_workers, envs_per_worker)
-            model_config['actor']['act_temp'] = act_temps[worker_id]
-        config['schedule_act_temp'] = False
-
-    return model_config
+def compute_act_temp(min_temp, max_temp, n_exploit_envs, worker_id, n_workers, envs_per_worker):
+    n_envs = n_workers * envs_per_worker
+    if n_exploit_envs:
+        act_temps = np.concatenate(
+            [np.linspace(min_temp, 1, n_exploit_envs), 
+            np.logspace(0, np.log10(max_temp), 
+            n_envs - n_exploit_envs+1)[1:]],
+            axis=-1)
+    else:
+        act_temps = np.logspace(
+            np.log10(min_temp), np.log10(max_temp), 
+            n_workers * envs_per_worker)
+    if worker_id is not None:
+        act_temps = act_temps.reshape(n_workers, envs_per_worker)[worker_id]
+    
+    return act_temps

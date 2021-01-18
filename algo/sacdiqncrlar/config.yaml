@@ -32,7 +32,7 @@ model:
         out_size: 128
         activation: relu
     temperature:
-        temp_type: 'variable'
+        temp_type: variable
         value: .1
 
 agent:

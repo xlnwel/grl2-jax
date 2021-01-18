@@ -22,7 +22,7 @@ class Value(IQNValue):
         super().__init__(config=config, action_dim=action_dim, name=name)
 
     def v(self, qs):
-        v = self.temp * tf.reduce_logsumexp(1 / self.temp * qs, axis=-1)
+        v = tf.reduce_logsumexp(1 / self.temp * qs, axis=-1)
         return v
 
     def logits(self, qs, v=None):

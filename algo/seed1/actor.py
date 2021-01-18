@@ -55,7 +55,7 @@ def get_actor_class(BaseAgent):
                 config['n_workers'], 
                 self._n_envvecs * self._n_envs)
             self._act_eps_mapping = act_eps.reshape(config['n_workers'], self._n_envvecs, self._n_envs)
-            print(self.name, self._act_eps_mapping)
+            # print(self.name, self._act_eps_mapping)
 
             # agent's state
             if 'rnn' in self.model:
