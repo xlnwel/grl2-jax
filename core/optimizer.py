@@ -30,7 +30,7 @@ class Optimizer(tf.Module):
         # useful for mixed precision training on GPUs to
         # avoid numerical underflow caused by using float16 gradients
         prec_policy = prec.global_policy()
-        self._mpt = prec_policy.compute_dtype == prec_policy.variable_dtype
+        self._mpt = prec_policy.compute_dtype != prec_policy.variable_dtype
         if self._mpt:
             logger.info('Mixed precision training will be performed')
             self._opt = prec.LossScaleOptimizer(self._opt)
