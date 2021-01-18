@@ -12,7 +12,7 @@ model:
         duel: True
 agent:
     algorithm: &algo dqn
-    replay_type: &replay per
+    replay_type: &replay uniform
     batch_size: &bs 256
     n_steps: &nsteps 3      # n-step target
     gamma: &gamma 0.99
@@ -20,6 +20,10 @@ agent:
     schedule_act_eps: False
     act_eps: 0.3
     eval_act_eps: 0
+
+    tau: .003
+    alpha: .9
+    clip_logpi_min: -1
 
     MAX_STEPS: 1e8          # maximum training steps
     TRAIN_PERIOD: 1          # #frames = 4 agent step when frame skip = 4

@@ -49,6 +49,9 @@ class DQNBase(BaseAgent):
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
 
+        self.RECORD = getattr(self, 'RECORD', True)
+        self.N_EVAL_EPISODES = getattr(self, 'N_EVAL_EPISODES', 1)
+
         self._is_per = False if dataset is None else dataset.name().endswith('per')
         self._double = getattr(self, '_double', False)
         self._return_stats = getattr(self, '_return_stats', False)

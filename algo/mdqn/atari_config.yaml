@@ -1,30 +1,46 @@
 ---
 env:
-    name: LunarLander-v2
+    name: atari_pong
+    sticky_actions: False
+    frame_skip: 4
+    frame_stack: 4
+    life_done: True
+    reward_clip: 1
     seed: 0
+
 model:
     encoder:
-        units_list: []
+        cnn_name: nature
+        out_size: null
     q:
-        units_list: [128, 128]
+        kernel_initializer: glorot_uniform
+        units_list: [512]
         activation: relu
         layer_type: dense
-        duel: True
+        duel: False
+
 agent:
     algorithm: &algo dqn
     replay_type: &replay per
-    batch_size: &bs 256
-    n_steps: &nsteps 3      # n-step target
     gamma: &gamma 0.99
+    batch_size: &bs 32
+    n_steps: &nsteps 1      # n-step target
+    precision: &prec 32
 
-    schedule_act_eps: False
-    act_eps: 0.3
-    eval_act_eps: 0
+    schedule_act_eps: True
+    act_eps: 
+        - [0, 1]
+        - [1.e+6, .01]
+    eval_act_eps: .001
 
-    MAX_STEPS: 1e8          # maximum training steps
-    TRAIN_PERIOD: 1          # #frames = 4 agent step when frame skip = 4
-    EVAL_PERIOD: 10000
-    LOG_PERIOD: 10000
+    tau: .003
+    alpha: .9
+    clip_logpi_min: -1
+
+    MAX_STEPS: 4e6      # maximum training frames
+    TRAIN_PERIOD: 16    # #frames
+    EVAL_PERIOD: 5e5
+    LOG_PERIOD: 1e4
     N_UPDATES: 1
     RECORD: False
 
@@ -35,29 +51,32 @@ agent:
     model_name: *algo
 
     loss_type: huber   # huber or mse
-    target_update_period: 3000
+    target_update_period: 2000  # trainning step
     tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 1e-4
-    clip_norm: 10
-    
+    lr: 5e-5
+    clip_norm: 0
+    epsilon: 3.125e-4
+
     # arguments for PER
-    per_alpha: 0.5
+    per_alpha: .5
     per_epsilon: 1e-4
 
 replay:
     replay_type: *replay
+    precision: 32
     # arguments for PER
-    beta0: 0.4
+    beta0: .4
+    beta_steps: 1e5
     to_update_top_priority: True
 
     # arguments for general replay
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
-    min_size: 1e4
+    min_size: 20000
     capacity: 1e5
-    has_next_obs: False
+    has_next_obs: True
