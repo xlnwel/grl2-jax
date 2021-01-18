@@ -69,13 +69,21 @@ def main(env_config, model_config, agent_config, replay_config):
     n_workers = env_config.get('n_workers', 1)
     n_envs = env_config.get('n_envs', 1)
     if n_envs * n_workers > 1:
-        agent_config = compute_act_eps(
-            agent_config, None, n_workers, 
-            n_envs)
+        agent_config['act_eps'] = compute_act_eps(
+            agent_config['act_eps_type'], 
+            agent_config['act_eps'], 
+            None, 
+            n_workers, 
+            n_envs) 
     if 'actor' in model_config:
-        model_config = compute_act_temp(
-            agent_config, model_config, None, 
-            n_workers, n_envs)
+        model_config['actor']['act_temps'] = compute_act_temp(
+            agent_config['min_temp'],
+            agent_config['max_temp'],
+            agent_config.get('n_exploit_envs', 0),
+            None,
+            n_workers,
+            n_envs
+        )
     
     env = create_env(env_config)
     # if env_config['name'].startswith('procgen'):

@@ -1,7 +1,8 @@
 import tensorflow as tf
 
-from utility.rl_utils import n_step_target, huber_loss
+from utility.rl_loss import n_step_target, huber_loss
 from algo.dqn.base import DQNBase, get_data_format, collect
+
 
 class Agent(DQNBase):
     @tf.function
@@ -10,9 +11,12 @@ class Agent(DQNBase):
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
         # compute target returns
-        next_x = self.encoder(next_obs)
-        next_action = self.q.action(next_x, noisy=False)
         next_x = self.target_encoder(next_obs)
+        if self._double:
+            next_x_online = self.encoder(next_obs)
+            next_action = self.q.action(next_x_online, noisy=False)
+        else:
+            next_action = self.target_q.action(next_x, noisy=False)
         next_q = self.target_q(next_x, next_action, noisy=False)
         returns = n_step_target(reward, next_q, discount, self._gamma, steps, self._tbo)
 

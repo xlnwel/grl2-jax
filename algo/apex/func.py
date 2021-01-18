@@ -73,8 +73,22 @@ def create_worker(
     config['logger'] = False
     config['writer'] = False
 
-    config = compute_act_eps(config, worker_id, n_workers, n_envs)
-    model_config = compute_act_temp(config, model_config, worker_id, n_workers, n_envs)
+    if config.get('schedule_act_eps'):
+        config['act_eps'] = compute_act_eps(
+            config['act_eps_type'], 
+            config['act_eps'], 
+            worker_id, 
+            n_workers, 
+            n_envs)
+    if config.get('schedule_act_temp') and 'actor' in model_config:
+        model_config['actor']['act_temps'] = compute_act_temp(
+            config['min_temp'],
+            config['max_temp'],
+            config.get('n_exploit_envs', 0),
+            worker_id,
+            n_workers,
+            n_envs
+        )
 
     n_cpus = config.get('n_worker_cpus', 1)
     n_gpus = config.get('n_worker_gpus', 0)
@@ -99,6 +113,9 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
     config['save_code'] = False
     config['logger'] = False
     config['writer'] = False
+
+    config['schedule_act_eps'] = False
+    config['schedule_act_temp'] = False
 
     if 'seed' in env_config:
         env_config['seed'] += 999

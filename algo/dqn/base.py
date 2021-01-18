@@ -14,7 +14,7 @@ from core.decorator import override, step_track
 logger = logging.getLogger(__name__)
 
 def get_data_format(*, env, replay_config, **kwargs):
-    is_per = replay_config['replay_type'].endswith['per']
+    is_per = replay_config['replay_type'].endswith('per')
     n_steps = replay_config['n_steps']
     obs_dtype = tf.uint8 if len(env.obs_shape) == 3 else tf.float32
     action_dtype = tf.int32 if env.is_action_discrete else tf.float32
@@ -50,13 +50,14 @@ class DQNBase(BaseAgent):
         super()._add_attributes(env, dataset)
 
         self._is_per = False if dataset is None else dataset.name().endswith('per')
+        self._double = getattr(self, '_double', False)
         self._return_stats = getattr(self, '_return_stats', False)
         self._schedule_act_eps = env.n_envs == 1 \
             and getattr(self, '_schedule_act_eps', False)
 
         if self._schedule_act_eps:
-            if isinstance(self._act_eps, (float, int)):
-                self._act_eps = [(0, self._act_eps)]
+            assert isinstance(self._act_eps, (list, tuple)), self._act_eps
+            logger.info(f'Schedule action epsilon: {self._act_eps}')
             self._act_eps = PiecewiseSchedule(self._act_eps)
         
         if hasattr(self, '_target_update_period'):
@@ -154,7 +155,7 @@ class DQNBase(BaseAgent):
             'time/sample': self._sample_timer.average(),
             'time/train': self._train_timer.average()
         })
-        
+
         return self.N_UPDATES
     
     def _compute_priority(self, priority):

@@ -17,7 +17,7 @@ model:
 
 agent:
     algorithm: &algo apex-dqn
-    replay_type: &replay 'uniform'
+    replay_type: &replay per
     batch_size: &bs 64
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target

@@ -5,25 +5,29 @@ env:
     frame_skip: 4
     frame_stack: 4
     life_done: True
-    reward_clip: True
+    reward_clip: 1
+    np_obs: False
     seed: 0
 
 model:
-    cnn_name: nature
-    out_size: null
-    kernel_initializer: glorot_uniform
-    units_list: [512]
-    activation: relu
-    layer_type: noisy
-    duel: False
+    encoder:
+        cnn_name: nature
+        out_size: null
+    q:
+        kernel_initializer: glorot_uniform
+        units_list: [512]
+        activation: relu
+        layer_type: dense
+        duel: False
 
 agent:
     algorithm: &algo dqn
-    replay_type: &replay 'per'
+    replay_type: &replay per
     gamma: &gamma 0.99
     batch_size: &bs 32
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
+
     schedule_act_eps: True
     act_eps: 0.01
     eval_act_eps: .001
@@ -48,9 +52,9 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 1e-4
-    clip_norm: 10
-    epsilon: 1.5e-4
+    lr: 5e-5
+    clip_norm: 0
+    epsilon: 3.125e-4
 
     # arguments for PER
     per_alpha: .5
@@ -68,6 +72,6 @@ replay:
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
-    min_size: 1600
+    min_size: 20000
     capacity: 1e5
     has_next_obs: True

@@ -73,7 +73,7 @@ def get_learner_class(BaseAgent):
                 DatasetClass=RayDataset)
             
             super().__init__(
-                name='learner',
+                name='Learner',
                 config=config, 
                 models=model,
                 dataset=dataset,
@@ -111,6 +111,10 @@ def get_base_worker_class(BaseAgent):
         def _compute_priorities(self, reward, discount, steps, q, next_q, **kwargs):
             target_q = reward + discount * self._gamma**steps * next_q
             priority = np.abs(target_q - q)
+            if priority.ndim == 2:
+                priority = self._per_eta*priority.max(axis=1) \
+                    + (1-self._per_eta)*priority.mean(axis=1)
+            assert priority.ndim == 1, priority.shape
             priority += self._per_epsilon
             priority **= self._per_alpha
 
@@ -125,8 +129,8 @@ def get_worker_class(BaseAgent):
         """ Initialization """
         def __init__(self,
                     *,
-                    config,
                     worker_id,
+                    config,
                     model_config, 
                     env_config, 
                     buffer_config,
@@ -145,7 +149,7 @@ def get_worker_class(BaseAgent):
                 env=self.env)
 
             super().__init__(
-                name=f'worker_{worker_id}',
+                name=f'Worker_{worker_id}',
                 config=config,
                 models=models,
                 dataset=self.buffer,
@@ -222,11 +226,11 @@ def get_evaluator_class(BaseAgent):
         def __init__(self, 
                     *,
                     config,
-                    name='evaluator',
+                    name='Evaluator',
                     model_config,
                     env_config,
                     model_fn):
-            config_actor(f'Evaluator', config)
+            config_actor(name, config)
 
             env_config.pop('reward_clip', False)
             self.env = env = create_env(env_config)

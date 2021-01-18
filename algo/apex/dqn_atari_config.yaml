@@ -4,36 +4,39 @@ env:
     sticky_actions: False
     frame_skip: 4
     frame_stack: 4
-    np_obs: True
-    reward_clip: 4
     life_done: True
-    reward_clip: True
-    n_envs: 2
+    reward_clip: 1
+    np_obs: True
+    n_envs: 4
     seed: 0
 
 model:
-    cnn_name: nature
-    out_size: null
-    kernel_initializer: glorot_uniform
-    units_list: [512]
-    activation: relu
-    layer_type: dense
-    duel: True
+    encoder:
+        cnn_name: nature
+        out_size: null
+    q:
+        kernel_initializer: glorot_uniform
+        units_list: [512]
+        activation: relu
+        layer_type: dense
+        duel: False
 
 agent:
     algorithm: &algo apex-dqn
-    replay_type: &replay 'uniform'
-    batch_size: &bs 64
+    replay_type: &replay per
     gamma: &gamma 0.99
+    batch_size: &bs 32
     n_steps: &nsteps 3      # n-step target
     precision: &prec 32
+
     schedule_act_eps: True
-    act_eps: 0  # will be overwritten in func.py
+    act_eps_type: apex
+    act_eps: .4  # will be overwritten in func.py
     eval_act_eps: .001
     
     # timer&interval
     MAX_STEPS: 1e9
-    LOG_PERIOD: &log 1000
+    LOG_PERIOD: &log 100
     N_UPDATES: *log
     SYNC_PERIOD: 1000
     RECORD_PERIOD: 10
@@ -41,7 +44,12 @@ agent:
     
     # distributed algo params
     n_learner_cpus: 3
-    n_workers: 6
+    n_learner_gpus: .3
+    n_workers: 5
+    n_worker_cpus: 1
+    n_worker_gpus: .1
+    run_mode: nsteps
+    worker_side_prioritization: False
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -57,8 +65,8 @@ agent:
     optimizer: adam
     schedule_lr: False
     lr: 1e-4
-    clip_norm: 40
-    epsilon: 1.5e-4
+    clip_norm: 0
+    epsilon: 3.125e-4
 
     # arguments for PER
     per_alpha: .5

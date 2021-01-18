@@ -11,7 +11,7 @@ model:
     duel: True
 agent:
     algorithm: &algo dqn
-    replay_type: &replay 'per'
+    replay_type: &replay per
     batch_size: &bs 256
     n_steps: &nsteps 3      # n-step target
     gamma: &gamma 0.99

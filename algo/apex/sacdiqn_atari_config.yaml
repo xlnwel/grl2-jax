@@ -28,12 +28,12 @@ model:
         phi_activation: relu
         K: &K 32
     temperature:
-        temp_type: 'variable'
+        temp_type: variable
         value: .1
 
 agent:
     algorithm: &algo apex-sacd
-    replay_type: &replay 'uniform'
+    replay_type: &replay per
     batch_size: &bs 64
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target

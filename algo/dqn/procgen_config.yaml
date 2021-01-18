@@ -6,17 +6,19 @@ env:
     frame_stack: 4
 
 model:
-    cnn_name: impala
-    cnn_out_size: null
-    kernel_initializer: glorot_uniform
-    units_list: [512]
-    activation: relu
-    layer_type: dense
-    duel: False
+    encoder:
+        cnn_name: impala
+        cnn_out_size: null
+    q:
+        units_list: [512]
+        kernel_initializer: glorot_uniform
+        activation: relu
+        layer_type: dense
+        duel: False
 
 agent:
     algorithm: &algo dqn
-    replay_type: &replay 'per'
+    replay_type: &replay per
     gamma: &gamma 0.99
     precision: &prec 32
     batch_size: &bs 64
