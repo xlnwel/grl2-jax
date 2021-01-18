@@ -90,7 +90,7 @@ class RunningMeanStd(object):
 
     def update(self, x, mask=None):
         if self._axis is None:
-            assert mask is None
+            assert mask is None, mask
             batch_mean, batch_var, batch_count = x, np.zeros_like(x), 1
         else:
             batch_mean, batch_var = moments(x, self._axis, mask)
@@ -120,6 +120,7 @@ class RunningMeanStd(object):
 
     def normalize(self, x, subtract_mean=True, use_tf=False):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
+        assert self._var is not None, (self._mean, self._var, self._count)
         if subtract_mean:
             x = x - self._mean
         if use_tf:
@@ -159,6 +160,8 @@ def step_str(step):
         return f'{step/1000000:.3g}m'
 
 def moments(x, axis=None, mask=None):
+    if x.dtype == np.uint8:
+        x = x.astype(np.int32)
     if mask is None:
         x_mean = np.mean(x, axis=axis)
         x2_mean = np.mean(x**2, axis=axis)
@@ -184,7 +187,7 @@ def moments(x, axis=None, mask=None):
         x_mean = np.sum(x_mask, axis=axis) / n
         x2_mean = np.sum(x_mask**2, axis=axis) / n
     x_var = x2_mean - x_mean**2
-
+    
     return x_mean, x_var
     
 def standardize(x, axis=None, epsilon=1e-8, mask=None):
