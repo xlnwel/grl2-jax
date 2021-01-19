@@ -20,10 +20,10 @@ class Module(tf.Module):
 
     def __call__(self, x=None, *args, **kwargs):
         if x is not None and not self._is_built:
-            if isinstance(x, tf.Tensor):
-                self._build(x.shape)
+            if isinstance(x, (list, tuple)):
+                self._build(*tf.nest.map_structure(x))
             else:
-                self._build(x)
+                self._build(x.shape)
         return self._call(x, *args, **kwargs)
         
     def _build(self, input_shape):

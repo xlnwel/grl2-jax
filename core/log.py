@@ -77,6 +77,9 @@ def get_raw_stats(logger):
 def get_stats(logger, mean=True, std=False, min=False, max=False):
     return logger.get_stats(mean=mean, std=std, min=min, max=max)
 
+def contains_stats(logger, key):
+    return key in logger
+    
 def save_code(root_dir, model_name):
     dest_dir = f'{root_dir}/{model_name}/src'
     if os.path.isdir(dest_dir):

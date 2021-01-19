@@ -85,6 +85,9 @@ class AgentImpl(ABC):
 
     def get_stats(self, mean=True, std=False, min=False, max=False):
         return get_stats(self._logger, mean=mean, std=std, min=min, max=max)
+    
+    def contains_stats(self, key):
+        return contains_stats(self._logger, key)
 
     def print_construction_complete(self):
         pwc(f'{self.name.upper()} is constructed...', color='cyan')
