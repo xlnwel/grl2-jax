@@ -1,7 +1,6 @@
 import numpy as np
 
 from core.decorator import config
-from utility.display import pwc
 from replay.utils import init_buffer, print_buffer
 from algo.ppo.buffer import compute_gae
 
@@ -18,6 +17,8 @@ class Buffer:
         self.reset()
         print(f'Mini-batch size: {self._mb_size}')
 
+    def __getitem__(self, k):
+        return self._memory[k]
 
     def add(self, **data):
         if self._memory == {}:

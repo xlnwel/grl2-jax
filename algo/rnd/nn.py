@@ -7,7 +7,6 @@ from core.decorator import config
 from utility.tf_distributions import DiagGaussian, Categorical, TanhBijector
 from nn.func import cnn, mlp
 from nn.utils import get_initializer
-from nn.block.cnn import convert_obs
 
 
 class AC(Module):
@@ -65,8 +64,23 @@ class AC(Module):
         else:
             return act_dist
 
+    @tf.function
+    def compute_value(self, x):
+        x = self._cnn(x)
+        x = self._mlps[0](x)
+        ax, vx = x, x
+        ax = self._mlps[1](ax) + ax
+        vx = self._mlps[2](vx) + vx
+        value_int = tf.squeeze(self._value_int(vx), -1)
+        value_ext = tf.squeeze(self._value_ext(vx), -1)
+        return value_int, value_ext
+        
     def reset_states(self, **kwargs):
         return
+    
+    def action(self, dist, evaluation):
+        return dist.mode() if evaluation and self.eval_act_temp == 0 \
+            else dist.sample()
 
 
 class Target(Module):
@@ -81,8 +95,6 @@ class Target(Module):
     def call(self, x):
         assert x.shape[-3:] == (84, 84, 1), x.shape
         x = self._cnn(x)
-        shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
-        x = tf.reshape(x, shape)
         x = self._out(x)
 
         return x
@@ -102,8 +114,6 @@ class Predictor(Module):
     def call(self, x):
         assert x.shape[-3:] == (84, 84, 1), x.shape
         x = self._cnn(x)
-        shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
-        x = tf.reshape(x, shape)
         x = self._mlp(x)
         x = self._out(x)
 

@@ -1,10 +1,15 @@
 ---
 env:
     name: &env_name atari_MontezumaRevenge
-    n_workers: 12
-    n_envs: &nenvs 10
+    max_episode_steps: 18000
+    n_workers: 8
+    n_envs: &nenvs 16
     seed: 0
-    frame_stack: True
+    frame_skip: 4
+    frame_stack: 4
+    gray_scale: True
+    np_obs: True
+    reward_clip: 1
 
 model:
     cnn_name: nature
@@ -14,7 +19,7 @@ model:
 
 agent:
     algorithm: &algo rnd
-    precision: &prec 16
+    precision: &prec 32
     gamma_int: &gi .99
     gamma_ext: &ge .999
 
@@ -22,9 +27,17 @@ agent:
     N_STEPS: &nsteps 128
     N_UPDATES: 4
     N_MBS: &nmbs 4
-    LOG_PERIOD: 200
-    EVAL_PERIOD: 2000
+    LOG_PERIOD: 100
+    EVAL_PERIOD: 500
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
+
+    normalize_obs: False
+    normalize_reward: False
+    # (once, reuse, null)
+    # "once" updates values at the end of each epoch
+    # "reuse" updates values using value from learn, which is staler than once
+    # null doesn't update values.
+    value_update: null
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

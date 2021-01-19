@@ -7,7 +7,7 @@ from copy import copy
 
 cv2.ocl.setUseOpenCL(False)
 
-from env.wrappers import EnvStats, get_wrapper_by_name
+from env.wrappers import get_wrapper_by_name, post_wrap
 
 
 def unwrap(env):
@@ -71,13 +71,15 @@ class PenalizeLossLife(gym.Wrapper):
         return o, r, d, i
 
 
-class ClipRewardEnv(gym.RewardWrapper):
+class ClipRewardEnv(gym.Wrapper):
     def __init__(self, env):
-        gym.RewardWrapper.__init__(self, env)
+        gym.Wrapper.__init__(self, env)
 
-    def reward(self, reward):
-        """Bin reward to {+1, 0, -1} by its sign."""
-        return float(np.sign(reward))
+    def step(self, action, **kwargs):
+        obs, reward, done, info = self.env.step(action, **kwargs)
+        info['reward'] = reward
+        reward = float(np.sign(reward))
+        return obs, reward, done, info
 
 class WarpFrame(gym.ObservationWrapper):
     def __init__(self, env):
@@ -279,21 +281,5 @@ def make_env(config):
     env = wrap_deepmind(env, 
                     reward_clips=config.get('reward_clips', True),
                     frame_stack=config.get('frame_stack', False))
-    env = EnvStats(env, max_episode_steps,
-                    precision=config.get('precision', 32), 
-                    timeout_done=config.get('timeout_done', False))
+    env = post_wrap(env, config)
     return env
-
-if __name__ == '__main__':
-    config = dict(
-        name='atari_MontezumaRevenge',
-        frame_stack=True
-    )
-    env = make_env(config)
-    env.reset()
-    wrap = get_wrapper_by_name(env, 'TimeLimit')
-    for k in range(4501):
-        o, r, d, i = env.step(11)
-        print(k)
-        
-    
