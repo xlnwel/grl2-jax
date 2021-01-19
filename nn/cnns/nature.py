@@ -20,7 +20,8 @@ class NatureCNN(Module):
         self._time_distributed = time_distributed
 
         gain = kwargs.pop('gain', calculate_gain(activation))
-        kwargs['kernel_initializer'] = get_initializer(kernel_initializer, gain=gain)
+        kernel_initializer = get_initializer(kernel_initializer, gain=gain)
+        kwargs['kernel_initializer'] = kernel_initializer
         activation = get_activation(activation)
         kwargs['activation'] = activation
         kwargs['padding'] = padding
@@ -33,7 +34,8 @@ class NatureCNN(Module):
         self._flat = layers.Flatten()
         self.out_size = out_size
         if out_size:
-            self._dense = layers.Dense(self.out_size, activation=activations.relu)
+            self._dense = layers.Dense(self.out_size, activation=activation, 
+                kernel_initializer=kernel_initializer)
 
     def call(self, x):
         x = convert_obs(x, self._obs_range, global_policy().compute_dtype)

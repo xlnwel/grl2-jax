@@ -104,10 +104,15 @@ def run_cnn(*, keras_summary=True, **new_kwargs):
 if __name__ == "__main__":
     load_nn()
     kwargs = {
+        'cnn_name': 'procgen',
+        'out_size': 256,
+        'cnn_out_activation': 'relu',
+        'out_activation': 'relu',
+        'deter_stoch': True
         # 'filters': 8,
         # 'n_blocks': 1
     }
-    run_cnn(keras_summary=True, cnn_name='procgen')
+    run_cnn(keras_summary=True, **kwargs)
     # run_module(
     #     am_registry, 
     #     name='se', 
@@ -116,11 +121,10 @@ if __name__ == "__main__":
     #     **kwargs)
     # import yaml
     # import os
-    # path = os.path.abspath('experiments/saciqn.yaml')
+    # path = os.path.abspath('algo/sacdiqn/procgen_config.yaml')
     # with open(path) as f:
     #     config = yaml.safe_load(f)
-    # config = next(iter(config.values()))
-    # config = config['config']['model']['custom_model_config']
+    # config = config['model']
     # kwargs = config['encoder']
     # for k, v in kwargs.items():
     #     print(k, v)

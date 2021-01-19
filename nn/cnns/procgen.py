@@ -15,6 +15,7 @@ class ProcgenCNN(Module):
                  filters=[32, 64, 64, 64],
                  n_blocks=[1, 1, 1, 1],
                  kernel_initializer='glorot_uniform',
+                 activation='relu',
                  stem='conv_maxblurpool',
                  stem_kwargs={},
                  subsample='conv_maxblurpool',
@@ -25,7 +26,6 @@ class ProcgenCNN(Module):
                     kernel_sizes=[3, 3],
                     norm=None,
                     norm_kwargs={},
-                    activation='relu',
                     am='cbam',
                     am_kwargs={},
                     dropout_rate=0.,
@@ -35,6 +35,7 @@ class ProcgenCNN(Module):
                  sa_pos=[],
                  sa_kwargs={},
                  deter_stoch=False,
+                 cnn_out_activation=None,
                  out_activation=None,
                  out_size=None,
                  name='procgen',
@@ -45,8 +46,10 @@ class ProcgenCNN(Module):
         self._deter_stoch = deter_stoch
 
         # kwargs specifies general kwargs for conv2d
-        kwargs['kernel_initializer'] = get_initializer(kernel_initializer)
-        assert 'activation' not in kwargs, kwargs
+        gain = kwargs.pop('gain', calculate_gain(activation))
+        ki = get_initializer(kernel_initializer, gain=gain)
+        kwargs['kernel_initializer'] = ki
+        kwargs['activation'] = activation
 
         stem_cls = subsample_registry.get(stem)
         stem_kwargs.update(kwargs.copy())
@@ -78,35 +81,42 @@ class ProcgenCNN(Module):
                     self._layers += [
                         sa_cls(name=f'{prefix}{sa}_{i}', **sa_kwargs)
                     ]
-            out_act_cls = get_activation(out_activation, return_cls=True)
             self._flat = layers.Flatten(name=prefix+'flatten')
             self.out_size = out_size
-            if deter_stoch:
-                if out_size is None:
-                    f = filters[-1]
-                    subsample_kwargs['filters'] = f
-                    ds_cls = block_registry.get('dsl')
-                    self._ds_layer = ds_cls(n_blocks=n_blocks[-1],
-                        subsample=subsample, 
-                        subsample_kwargs=subsample_kwargs, 
-                        block=block,
-                        block_kwargs=block_kwargs,
-                        name=f'{prefix}ds')
-                    self._layers += [self._ds_layer]
-                    self._training_cls.append(ds_cls)
-                else:
+            if out_size:
+                gain = kwargs.pop('gain', calculate_gain(out_activation))
+                out_ki = get_initializer(kernel_initializer, gain=gain)
+                if deter_stoch:
                     ds_cls = block_registry.get('dss')
-                    # NOTE: try adding a relu here 
                     self._dense = self._ds_layer = ds_cls(
                         'dense',
                         self.out_size, 
-                        activation=out_act_cls(), 
-                        name=prefix+'out')
+                        activation=out_activation, 
+                        kernel_initializer=out_ki,
+                        name=f'{prefix}out')
+                else:
+                    self._dense = layers.Dense(
+                        self.out_size, 
+                        activation=out_activation, 
+                        kernel_initializer=out_ki,
+                        name=f'{prefix}out')
             else:
-                if self.out_size:
-                    self._dense = layers.Dense(self.out_size, activation=out_act_cls(), name=prefix+'out')
-            self._layers += [out_act_cls(name=prefix+out_activation if out_activation else '')]
-
+                if deter_stoch:
+                    if out_size is None:
+                        f = filters[-1]
+                        subsample_kwargs['filters'] = f
+                        ds_cls = block_registry.get('dsl')
+                        self._ds_layer = ds_cls(n_blocks=n_blocks[-1],
+                            subsample=subsample, 
+                            subsample_kwargs=subsample_kwargs, 
+                            block=block,
+                            block_kwargs=block_kwargs,
+                            name=f'{prefix}ds')
+                        self._layers += [self._ds_layer]
+                        self._training_cls.append(ds_cls)
+            if cnn_out_activation:
+                cnn_out_act_cls = get_activation(cnn_out_activation, return_cls=True)
+                self._layers.append(cnn_out_act_cls(name=prefix+cnn_out_activation))
 
         self._training_cls += [block_cls, subsample_cls, sa_cls]
     

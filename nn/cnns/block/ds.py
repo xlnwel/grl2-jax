@@ -11,20 +11,26 @@ State = namedtuple("State", ["deter", 'mean', 'std', 'stoch'])
 
 @block_registry.register('dss')
 class DeterStochSimple(Module):
-    def __init__(self, layer_type, units, **kwargs):
+    def __init__(self, 
+                 layer_type, 
+                 units, 
+                 name='ds', 
+                 min_std=.1,
+                 **kwargs):
+        super().__init__(name=name)
         layer_cls = layer_registry.get(layer_type)
         
-        
-        self._deter_layer = layer_cls(units // 2, **kwargs, name=f'{self.scope_name}/stoch')
-        self._stoch_layer = layer_cls(units, **kwargs, name=f'{self.scope_name}/deter')
-    
+        self._deter_layer = layer_cls(units // 2, **kwargs, name=f'{self.scope_name}/deter')
+        self._stoch_layer = layer_cls(units, **kwargs, name=f'{self.scope_name}/stoch')
+        self._min_std = min_std
+
     def call(self, x):
         deter = self._deter_layer(x)
         stoch = self._stoch_layer(x)
         mean, std, stoch = get_stoch_state(stoch, min_std=self._min_std)
 
         self.state = State(deter, mean, std, stoch)
-        x = self._concat([deter, stoch])
+        x = tf.concat([deter, stoch], axis=-1)
         return x
 
 @block_registry.register('dsb')
@@ -49,7 +55,7 @@ class DeterStochBlock(Module):
 
         self._block = block
         self._block_kwargs = block_kwargs
-        self._min_std = .1
+        self._min_std = min_std
 
     def build(self, input_shape):
         block_cls = block_registry.get(self._block)

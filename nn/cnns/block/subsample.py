@@ -138,7 +138,6 @@ conv_maxblurpool = functools.partial(ConvPool, pool_type='maxblur', name='conv_m
 conv_blurpool = functools.partial(ConvPool, pool_type='blur', name='conv_blurpool')
 
 
-@block_registry.register('strided_conv')
 @subsample_registry.register('strided_conv')
 class StridedConv(Module):
     def __init__(self, 
@@ -149,7 +148,7 @@ class StridedConv(Module):
                  norm=None,
                  norm_kwargs={},
                  name='strided_conv', 
-                 activation=None,
+                 activation='relu',
                  **kwargs):
         super().__init__(name=name)
         self._filters = filters
