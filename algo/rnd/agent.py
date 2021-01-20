@@ -86,7 +86,7 @@ class Agent(PPOAgent):
     @override(PPOAgent)
     def compute_value(self, obs=None):
         obs = obs or self._last_obs
-        out = self.ac.compute_value(obs)
+        out = self.model.compute_value(obs)
         return tf.nest.map_structure(lambda x: x.numpy(), out)
 
     @step_track
