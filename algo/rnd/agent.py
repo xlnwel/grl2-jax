@@ -72,10 +72,6 @@ class Agent(PPOAgent):
         return obs, {}
 
     @override(PPOAgent)
-    def _compute_action(self, obs, **kwargs):
-        return self.action(obs, **kwargs)
-
-    @override(PPOAgent)
     def _process_output(self, obs, kwargs, out, evaluation):
         out = super()._process_output(obs, kwargs, out, evaluation)
         if evaluation:
@@ -92,17 +88,6 @@ class Agent(PPOAgent):
         obs = obs or self._last_obs
         out = self.ac.compute_value(obs)
         return tf.nest.map_structure(lambda x: x.numpy(), out)
-
-    @tf.function(experimental_relax_shapes=True)
-    def action(self, obs, evaluation=False, return_eval_stats=True):
-        if evaluation:
-            act_dist = self.ac(obs, return_value=False)
-            return act_dist.mode()
-        else:
-            act_dist, value_int, value_ext = self.ac(obs, return_value=True)
-            action = act_dist.sample()
-            logpi = act_dist.log_prob(action)
-            return action, dict(logpi=logpi, value_int=value_int, value_ext=value_ext)
 
     @step_track
     def learn_log(self, step):

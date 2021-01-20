@@ -12,10 +12,11 @@ env:
     reward_clip: 1
 
 model:
-    cnn_name: nature
-    kernel_initializer: glorot_uniform
-    activation: relu
-    init_std: 1
+    ac:
+        cnn_name: nature
+        kernel_initializer: orthogonal
+        activation: relu
+        init_std: 1
 
 agent:
     algorithm: &algo rnd
