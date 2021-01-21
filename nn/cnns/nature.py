@@ -1,7 +1,11 @@
+import logging
+
 from core.module import Module
 from nn.registry import cnn_registry
 from nn.utils import *
 
+
+logger = logging.getLogger(__name__)
 
 @cnn_registry.register('nature')
 class NatureCNN(Module):
@@ -20,6 +24,7 @@ class NatureCNN(Module):
         self._time_distributed = time_distributed
 
         gain = kwargs.pop('gain', calculate_gain(activation))
+        logger.debug(f'{self.name} gain: {gain}')
         kernel_initializer = get_initializer(kernel_initializer, gain=gain)
         kwargs['kernel_initializer'] = kernel_initializer
         activation = get_activation(activation)
