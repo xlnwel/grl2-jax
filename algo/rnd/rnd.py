@@ -55,6 +55,7 @@ class RND:
         self._int_return_rms.update(reward)
 
     def normalize_obs(self, obs):
+        assert len(obs.shape) == 5, obs.shape
         obs = self._obs_rms.normalize(obs[..., -1:])
         return obs
 

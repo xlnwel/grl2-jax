@@ -1,4 +1,3 @@
-import time
 import numpy as np
 import ray 
 
@@ -9,7 +8,7 @@ from utility.graph import video_summary, image_summary
 from utility.run import Runner, evaluate
 from utility.timer import Timer
 from utility import pkg
-# from algo.rnd.env import make_env
+from algo.rnd.env import make_env
 from env.func import create_env
 
 
@@ -116,54 +115,40 @@ def train(agent, env, eval_env, buffer):
             agent.save()
 
 def main(env_config, model_config, agent_config, buffer_config):
-    algo = agent_config['algorithm']
-    env = env_config['name']
-    if 'atari' not in env:
-        print('Any changes to config is dropped as we switch to a non-atari environment')
-        from utility import yaml_op
-        root_dir = agent_config['root_dir']
-        model_name = agent_config['model_name']
-        directory = pkg.get_package(algo, 0, '/')
-        config = yaml_op.load_config(f'{directory}/config2.yaml')
-        env_config = config['env']
-        model_config = config['model']
-        agent_config = config['agent']
-        buffer_config = config['buffer']
-        agent_config['root_dir'] = root_dir
-        agent_config['model_name'] = model_name
-        env_config['name'] = env
-
-    create_model, Agent = pkg.import_agent(config=agent_config)
-    Buffer = pkg.import_module('buffer', algo=algo).Buffer
-
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config['precision'])
+
+    create_model, Agent = pkg.import_agent(config=agent_config)
+    Buffer = pkg.import_module('buffer', config=agent_config).Buffer
 
     use_ray = env_config.get('n_workers', 1) > 1
     if use_ray:
         ray.init()
         sigint_shutdown_ray()
 
-    env = create_env(env_config, force_envvec=True)
+    env = create_env(env_config, env_fn=make_env, force_envvec=True)
     eval_env_config = env_config.copy()
     eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1
     eval_env_config['n_envs'] = 1
-    eval_env_config['reward_clips'] = 0
-    eval_env = create_env(eval_env_config, force_envvec=True)
+    for k in list(eval_env_config.keys()):
+        # pop reward hacks
+        if 'reward' in k:
+            eval_env_config.pop(k)
+    eval_env = create_env(eval_env_config, env_fn=make_env, force_envvec=True)
+
+    models = create_model(model_config, env)
 
     buffer_config['n_envs'] = env.n_envs
     buffer = Buffer(buffer_config)
-
-    models = create_model(model_config, env)
     
     agent = Agent(name='ppo', 
                 config=agent_config, 
                 models=models, 
                 dataset=buffer,
                 env=env)
-    # restore RMSs
+
     agent.save_config(dict(
         env=env_config,
         model=model_config,

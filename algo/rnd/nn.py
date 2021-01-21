@@ -51,7 +51,6 @@ class AC(Module):
                             name='value_ext')
 
     def call(self, x, return_value=False):
-        print(f'{self.name} is retracing: x={x.shape}')
         x = self._cnn(x)
         x = self._mlps[0](x)
         ax, vx = x, x
@@ -87,54 +86,53 @@ class AC(Module):
             else dist.sample()
 
 
+class RandomNet(Module):
+    def __init__(self, name):
+        super().__init__(name)
+
+        conv_cls = tf.keras.layers.Conv2D
+        kwargs = {
+            'kernel_initializer': get_initializer('orthogonal', gain=np.sqrt(2)),
+            'activation': tf.keras.layers.LeakyReLU()
+        }
+        self._layers = [
+            conv_cls(32, 8, 4, **kwargs),
+            conv_cls(64, 4, 2, **kwargs),
+            conv_cls(64, 3, 1, **kwargs),
+        ]
+    
+    def call(self, x):
+        assert x.shape[-3:] == (84, 84, 1), x.shape
+        x = super().call(x)
+        x = tf.reshape(x, (*x.shape[:2], -1))
+        return x
+
 class Target(Module):
     def __init__(self, name='target'):
         super().__init__(name=name)
-        
-        self._cnn = cnn(
-            'nature', 
-            kernel_initializer='orthogonal', 
-            time_distributed=True, 
-            out_size=None, 
-            activation='leaky_relu')
-        ki = get_initializer('orthogonal', gain=np.sqrt(2))
-        self._out = tf.keras.layers.Dense(512, kernel_initializer=ki, dtype='float32')
 
-    def call(self, x):
-        assert x.shape[-3:] == (84, 84, 1), x.shape
-        x = self._cnn(x)
-        x = self._out(x)
-
-        return x
+        kwargs = {
+            'kernel_initializer': get_initializer('orthogonal', gain=np.sqrt(2)),
+        }
+        self._layers = [
+            RandomNet(name),
+            tf.keras.layers.Dense(512, **kwargs, dtype='float32')
+        ]
 
 
 class Predictor(Module):
     def __init__(self, name='predictor'):
         super().__init__(name=name)
 
-        self._cnn = cnn(
-            'nature', 
-            kernel_initializer='orthogonal', 
-            time_distributed=True, 
-            out_size=None, 
-            activation='leaky_relu')
-        ki = get_initializer('orthogonal', gain=np.sqrt(2))
-        self._mlp = mlp(
-            [512, 512], 
-            out_size=512,
-            kernel_initializer=ki,
-            gain=np.sqrt(2), 
-            activation='relu',
-            out_dtype='float32',
-            out_gain=np.sqrt(2))
-
-    def call(self, x):
-        assert x.shape[-3:] == (84, 84, 1), x.shape
-        x = self._cnn(x)
-        x = self._mlp(x)
-
-        return x
-
+        kwargs = {
+            'kernel_initializer': get_initializer('orthogonal', gain=np.sqrt(2)),
+            'activation': 'relu'
+        }
+        self._layers = [
+            RandomNet(name),
+            mlp([512, 512], out_size=512, **kwargs, 
+                out_dtype='float32', out_gain=np.sqrt(2))
+        ]
 
 class RND(Ensemble):
     def __init__(self, config, env, **kwargs):
