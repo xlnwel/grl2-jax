@@ -8,62 +8,67 @@ from nn.func import cnn, mlp
 from nn.utils import get_initializer
 
 
+class ACNet(Module):
+    def __init__(self, name):
+        super().__init__(name)
+
+        kwargs = {
+            'kernel_initializer': get_initializer('orthogonal', gain=np.sqrt(2)),
+            'activation': 'relu'
+        }
+        self._layers = [
+            tf.keras.layers.Conv2D(32, 8, 4, **kwargs, name=f'{name}1'),
+            tf.keras.layers.Conv2D(64, 4, 2, **kwargs, name=f'{name}2'),
+            tf.keras.layers.Conv2D(64, 4, 1, **kwargs, name=f'{name}3'),
+            tf.keras.layers.Flatten(),
+            tf.keras.layers.Dense(256, **kwargs, name=f'{name}4'),
+            tf.keras.layers.Dense(448, **kwargs, name=f'{name}5'),
+        ]
+
+    def call(self, x):
+        x = tf.cast(x, tf.float32)
+        x = super().call(x)
+        return x
+
+
 class AC(Module):
     @config
-    def __init__(self, action_dim, is_action_discrete, name='ac'):
+    def __init__(self, action_dim, name='ac'):
         super().__init__(name=name)
-
-        self._is_action_discrete = is_action_discrete
         
         """ Network definition """
-        self._cnn = cnn(
-            self._cnn_name, 
-            time_distributed=False, 
-            kernel_initializer=self._kernel_initializer,
-            out_size=256)
+        self._cnn = ACNet(name)
         
         self._eval_act_temp = getattr(self, '_eval_act_temp', 0)
         
-        self._mlps = []
-        for i in range(3):
-            self._mlps.append(mlp([448], 
-                            activation=self._activation, 
-                            kernel_initializer=self._kernel_initializer,
-                            gain=np.sqrt(2) if i == 0 else .1,
-                            name=f'mlp{i}'))
-        self._actor = mlp(out_size=action_dim, 
-                        activation=self._activation, 
-                        kernel_initializer=self._kernel_initializer,
-                        out_dtype='float32',
-                        out_gain=.01,
-                        name='actor')
-        self._value_int = mlp(out_size=1,
-                            activation=self._activation, 
-                            kernel_initializer=self._kernel_initializer,
-                            out_dtype='float32',
-                            out_gain=.01,
-                            name='value_int')
-        self._value_ext = mlp(out_size=1,
-                            activation=self._activation, 
-                            kernel_initializer=self._kernel_initializer,
-                            out_dtype='float32',
-                            out_gain=.01,
-                            name='value_ext')
+        self._mlps = [
+            tf.keras.layers.Dense(448, activation='relu', 
+                kernel_initializer=get_initializer('orthogonal', gain=.1),
+                name='fc2act'),
+            tf.keras.layers.Dense(448, activation='relu', 
+                kernel_initializer=get_initializer('orthogonal', gain=.1),
+                name='fc2val'),
+        ]
+        self._actor = tf.keras.layers.Dense(action_dim, 
+            kernel_initializer=get_initializer('orthogonal', gain=.01),
+            name='actor', dtype='float32')
+        self._value_int = tf.keras.layers.Dense(1, 
+            kernel_initializer=get_initializer('orthogonal', gain=.01),
+            name='value_int', dtype='float32')
+        self._value_ext = tf.keras.layers.Dense(1, 
+            kernel_initializer=get_initializer('orthogonal', gain=.01),
+            name='value_ext', dtype='float32')
 
     def call(self, x, return_value=False):
         x = self._cnn(x)
-        x = self._mlps[0](x)
         ax, vx = x, x
-        ax = self._mlps[1](ax) + ax
+        ax = self._mlps[0](ax) + ax
         actor_out = self._actor(ax)
 
-        if self._is_action_discrete:
-            act_dist = tfd.Categorical(actor_out)
-        else:
-            act_dist = tfd.MultivariateNormalDiag(actor_out, tf.exp(self.logstd))
+        act_dist = tfd.Categorical(actor_out)
 
         if return_value:
-            vx = self._mlps[2](vx) + vx
+            vx = self._mlps[1](vx) + vx
             value_int = tf.squeeze(self._value_int(vx), -1)
             value_ext = tf.squeeze(self._value_ext(vx), -1)
             return act_dist, value_int, value_ext
@@ -72,8 +77,7 @@ class AC(Module):
 
     def compute_value(self, x):
         x = self._cnn(x)
-        x = self._mlps[0](x)
-        x = self._mlps[2](x) + x
+        x = self._mlps[1](x) + x
         value_int = tf.squeeze(self._value_int(x), -1)
         value_ext = tf.squeeze(self._value_ext(x), -1)
         return value_int, value_ext
@@ -90,21 +94,25 @@ class RandomNet(Module):
     def __init__(self, name):
         super().__init__(name)
 
-        conv_cls = tf.keras.layers.Conv2D
         kwargs = {
             'kernel_initializer': get_initializer('orthogonal', gain=np.sqrt(2)),
             'activation': tf.keras.layers.LeakyReLU()
         }
         self._layers = [
-            conv_cls(32, 8, 4, **kwargs),
-            conv_cls(64, 4, 2, **kwargs),
-            conv_cls(64, 3, 1, **kwargs),
+            tf.keras.layers.Conv2D(32, 8, 4, **kwargs, name=f'{name}1'),
+            tf.keras.layers.Conv2D(64, 4, 2, **kwargs, name=f'{name}2'),
+            tf.keras.layers.Conv2D(64, 3, 1, **kwargs, name=f'{name}3'),
+            tf.keras.layers.Flatten()
         ]
     
     def call(self, x):
-        assert x.shape[-3:] == (84, 84, 1), x.shape
+        assert x.shape.rank == 5, x
+        assert x.shape[-3:] == (84, 84, 1), x
+        assert x.dtype == tf.float32, x
+        t = x.shape[1]
+        x = tf.reshape(x, (-1, *x.shape[-3:]))
         x = super().call(x)
-        x = tf.reshape(x, (*x.shape[:2], -1))
+        x = tf.reshape(x, (-1, t, x.shape[-1]))
         return x
 
 class Target(Module):
@@ -131,7 +139,7 @@ class Predictor(Module):
         self._layers = [
             RandomNet(name),
             mlp([512, 512], out_size=512, **kwargs, 
-                out_dtype='float32', out_gain=np.sqrt(2))
+                out_dtype='float32', out_gain=np.sqrt(2), name=name)
         ]
 
 class RND(Ensemble):
@@ -166,9 +174,8 @@ class RND(Ensemble):
 
 def create_components(config, env):
     action_dim = env.action_dim
-    is_action_discrete = env.is_action_discrete
 
-    return dict(ac=AC(config['ac'], action_dim, is_action_discrete),
+    return dict(ac=AC(config['ac'], action_dim),
                 target=Target(),
                 predictor=Predictor())
 

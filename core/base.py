@@ -188,7 +188,7 @@ class RMSBaseAgent(BaseAgent):
         super()._add_attributes(env, dataset)
 
         from utility.utils import RunningMeanStd
-        self._normalized_axis = getattr(self, '_normalized_axis', (0,))
+        self._normalized_axis = getattr(self, '_normalized_axis', (0, 1))
         self._normalize_obs = getattr(self, '_normalize_obs', False)
         self._normalize_reward = getattr(self, '_normalize_reward', True)
         self._normalize_reward_with_reversed_return = \
@@ -209,21 +209,14 @@ class RMSBaseAgent(BaseAgent):
 
     @override(BaseAgent)
     def _process_input(self, obs, evaluation, env_output):
-        # update rms and normalize obs
-        if not evaluation:
-            self.update_obs_rms(obs)
-            self.update_reward_rms(env_output.reward, env_output.discount)
         obs = self.normalize_obs(obs)
         return obs, {}
 
     """ Functions for running mean and std """
     def get_running_stats(self):
-        stats = ()
-        if self._normalize_obs:
-            stats += self._obs_rms.get_stats()
-        if self._normalize_reward:
-            stats += self._reward_rms.get_stats()
-        return stats
+        obs_rms = self._obs_rms.get_stats() if self._normalize_obs else ()
+        rew_rms = self._reward_rms.get_stats() if self._normalize_reward else ()
+        return obs_rms, rew_rms
 
     @property
     def is_obs_or_reward_normalized(self):

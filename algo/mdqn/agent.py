@@ -19,11 +19,11 @@ class Agent(DQNBase):
         logpi_a = tf.clip_by_value(logpi_a, self._clip_logpi_min, 0)
         reward = reward + self._alpha * logpi_a
 
-        next_x = self.target_encoder(next_obs)
         if self._double:
             next_x_online = self.encoder(next_obs)
             next_qs = self.q(next_x_online)
         else:
+            next_x = self.target_encoder(next_obs)
             next_qs = self.target_q(next_x)
         next_pi = softmax(next_qs, self._tau)
         next_logpi = log_softmax(next_qs, self._tau)

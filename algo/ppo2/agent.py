@@ -88,7 +88,7 @@ class Agent(PPOBase):
         return self._state, self._prev_action
 
     @override(PPOBase)
-    def record_last_obs(self, env_output):
+    def record_last_env_output(self, env_output):
         self.update_obs_rms(env_output.obs)
         self._last_obs = self.normalize_obs(env_output.obs)
         self._mask = 1 - env_output.reset

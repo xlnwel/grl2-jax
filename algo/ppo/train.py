@@ -1,4 +1,3 @@
-import time
 import ray 
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
@@ -17,34 +16,35 @@ def train(agent, env, eval_env, buffer):
 
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
-    # if step == 0 and agent.is_obs_or_reward_normalized:
-    #     print('Start to initialize running stats...')
-    #     for _ in range(50):
-    #         runner.run(action_selector=env.random_action, step_fn=collect)
-    #         agent.update_obs_rms(buffer['obs'])
-    #         agent.update_reward_rms(buffer['reward'], buffer['discount'])
-    #         buffer.reset()
-    # buffer.clear()
+    if step == 0 and agent.is_obs_or_reward_normalized:
+        print('Start to initialize running stats...')
+        for _ in range(50):
+            runner.run(action_selector=env.random_action, step_fn=collect)
+            agent.update_obs_rms(buffer['obs'])
+            agent.update_reward_rms(buffer['reward'], buffer['discount'])
+            buffer.reset()
+    buffer.clear()
     runner.step = step
-    print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_running_stats() if k])
+    # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_running_stats() if k])
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
     while step < agent.MAX_STEPS:
         start_env_step = agent.env_step
         agent.before_run(env)
-        with Timer('env', 1000) as et:
+        with Timer('env', 1000) as tt:
             step = runner.run(step_fn=collect)
-        agent.store(fps=(step-start_env_step)/et.last())
+        agent.store(fps=(step-start_env_step)/tt.last())
         # NOTE: normalizing rewards here may introduce some inconsistency 
         # if normalized rewards is fed as an input to the network.
         # One can reconcile this by moving normalization to collect 
         # or feeding the network with unnormalized rewards.
-        # The latter is adopted in our implementation, 
-        # but the following line currently doesn't store a copy of 
-        # unnormalized rewards
+        # The latter is adopted in our implementation. 
+        # However, the following line currently doesn't store
+        # a copy of unnormalized rewards
+        agent.update_reward_rms(buffer['reward'], buffer['discount'])
         buffer.update('reward', agent.normalize_reward(buffer['reward']), field='all')
-        agent.record_last_obs(runner.env_output)
+        agent.record_last_env_output(runner.env_output)
         value = agent.compute_value()
         buffer.finish(value)
 
@@ -52,6 +52,7 @@ def train(agent, env, eval_env, buffer):
         with Timer('train', 1000) as tt:
             agent.learn_log(step)
         agent.store(tps=(agent.train_step-start_train_step)/tt.last())
+        agent.update_obs_rms(buffer['obs'])
         buffer.reset()
 
         if to_eval(agent.train_step) or step > agent.MAX_STEPS:
@@ -65,22 +66,22 @@ def train(agent, env, eval_env, buffer):
                     eval_score=scores, 
                     eval_epslen=epslens, 
                     eval_time=eval_time.total())
-        agent.store(
-            env_time=et.total(), 
-            train_time=tt.total())
-        if to_log(agent.train_step) and 'score' in agent._logger:
+
+        if to_log(agent.train_step) and agent.contains_stats('score'):
+            agent.store(
+                train_step=agent.train_step,
+                env_time=tt.total(), 
+                train_time=tt.total())
             agent.log(step)
             agent.save()
 
 def main(env_config, model_config, agent_config, buffer_config):
-    algo = agent_config['algorithm']
-
-    create_model, Agent = pkg.import_agent(config=agent_config)
-    Buffer = pkg.import_module('buffer', algo=algo).Buffer
-
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config['precision'])
+
+    create_model, Agent = pkg.import_agent(config=agent_config)
+    Buffer = pkg.import_module('buffer', config=agent_config).Buffer
 
     use_ray = env_config.get('n_workers', 1) > 1
     if use_ray:

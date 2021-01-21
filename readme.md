@@ -1,4 +1,4 @@
-This repository is implemented with *Tensorflow2.1* and *ray0.8.4* for distributed learning. Algorithms are tested with the default configurations.
+A modulated and versatile library for reinforcement learning algorithms, implemented in *Tensorflow2.4*. *ray1.1.0* is used for distributed training. 
 
 ## Current Implemented Algorithms/Networks
 
@@ -12,15 +12,21 @@ This repository is implemented with *Tensorflow2.1* and *ray0.8.4* for distribut
 
 ### Off Policy RL
 
+- [x] SEED<sup>[1](#footnote1)</sup>
 - [x] Ape-X
-- [x] Dreamer
 - [x] Rainbow
 - [x] IQN
 - [x] FQF
+- [x] M-DQN
+- [x] M-IQN
+- [x] MRDQN (Recurrent DQN with masked LSTM)
 - [x] Retrace(𝝀)
-- [x] SAC with adaptive temperature
 - [x] TBO (Transformed Bellman Operator)
-- [x] SEED-Dreamer
+- [x] SAC (w/ and w/o adaptive temperature)
+
+### Model-Based RL
+
+- [x] Dreamer
 
 ### Networks
 
@@ -30,8 +36,7 @@ This repository is implemented with *Tensorflow2.1* and *ray0.8.4* for distribut
 - [x] SENet
 - [x] CBAM
 - [x] SN (Spectral Norm)
-- [x] Self Attention
-- [x] Procgen (A network I used in Procgen Competition)
+- [x] Attention
 - [x] MobileNet*
 - [x] EfficientNet*
 
@@ -97,3 +102,5 @@ https://github.com/microsoft/FQF
 ## Acknowledge
 
 I'd like to especially thank @danijar for his great help with Dreamer.
+
+<a name="footnote1">1</a>: our seed built upon ray is less efficient with a single GPU compared to Apex with gpu workers.

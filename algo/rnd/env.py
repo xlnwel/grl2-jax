@@ -49,28 +49,6 @@ class MaxAndSkipEnv(gym.Wrapper):
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
 
-    def get_screen(self):
-        return self.env.ale.getScreenRGB2()
-
-        
-class PenalizeLossLife(gym.Wrapper):
-    def __init__(self, env):
-        gym.Wrapper.__init__(self, env)
-        self._lives = 0
-    
-    def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
-        self._lives = self.ale.lives()
-        return obs
-
-    def step(self, action):
-        o, r, d, i = env.step(action)
-        if self._lives < self.ale.lives():
-            r += -1
-            self._lives = self.ale.lives()
-        return o, r, d, i
-
-
 class ClipRewardEnv(gym.Wrapper):
     def __init__(self, env):
         gym.Wrapper.__init__(self, env)
@@ -124,7 +102,7 @@ class FrameStack(gym.Wrapper):
 
     def _get_ob(self):
         assert len(self.frames) == self.k
-        return np.concatenate(self.frames, axis=2)
+        return np.concatenate(self.frames, axis=-1)
 
 class ScaledFloatFrame(gym.ObservationWrapper):
     def __init__(self, env):
@@ -238,16 +216,16 @@ def make_atari(env_id, max_episode_steps=4500):
     env = AddRandomStateToInfo(env)
     return env
 
-def wrap_deepmind(env, reward_clips=True, frame_stack=False, scale=False):
+def wrap_deepmind(env, reward_clip=True, frame_stack=4, scale=False):
     """Configure environment for DeepMind-style Atari.
     """
     env = WarpFrame(env)
     if scale:
         env = ScaledFloatFrame(env)
-    if reward_clips:
+    if reward_clip:
         env = ClipRewardEnv(env)
     if frame_stack:
-        env = FrameStack(env, 4)
+        env = FrameStack(env, frame_stack)
     # env = NormalizeObservation(env)
     return env
 
@@ -279,7 +257,7 @@ def make_env(config):
     config['max_episode_steps'] = max_episode_steps = 4500 * 4
     env = make_atari(name, max_episode_steps=max_episode_steps)
     env = wrap_deepmind(env, 
-                    reward_clips=config.get('reward_clips', True),
-                    frame_stack=config.get('frame_stack', False))
+                    reward_clip=config.get('reward_clip', True),
+                    frame_stack=config.get('frame_stack', 4))
     env = post_wrap(env, config)
     return env

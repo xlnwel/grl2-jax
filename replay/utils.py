@@ -58,7 +58,7 @@ def infer_info(precision, **kwargs):
     pre_dims_len = 0 if isinstance(kwargs['reward'], (int, float)) \
         else len(kwargs['reward'].shape)
     for k, v in kwargs.items():
-        logger.debug(f'{k}, {v}, {type(v)}')
+        logger.debug(f'{k}, {type(v)}')
         if isinstance(v, (int, float, np.floating, np.signedinteger, np.ndarray)):
             np_v = np.array(v, copy=False)
             dtype = infer_dtype(np_v.dtype, precision)

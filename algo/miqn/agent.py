@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+from utility.tf_utils import softmax, log_softmax
 from utility.rl_loss import n_step_target, quantile_regression_loss
 from core.decorator import override
 from algo.dqn.base import DQNBase, get_data_format, collect
@@ -11,20 +12,27 @@ class Agent(DQNBase):
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}
         # compute the target
-        next_x = self.target_encoder(next_obs)
-        _, next_qt_embed = self.target_quantile(next_x, self.N_PRIME)
+        x = self.target_encoder(obs)
+        _, qt_embed = self.target_quantile(x, self.N_PRIME)
+        qtvs = self.target_q(x, qt_embed)
+        logpi = log_softmax(qtvs, self._tau, axis=-1)
+        logpi_a = tf.reduce_sum(logpi * action, axis=-1)
+        logpi_a = tf.clip_by_value(logpi_a, self._clip_logpi_min, 0)
+        reward = reward[:, None]
+        reward = reward + self._alpha * logpi_a
+
         if self._double:
             next_x_online = self.encoder(next_obs)
             _, next_qt_embed_online = self.quantile(next_x_online, self.N)
-            next_action = self.q.action(next_x_online, next_qt_embed_online)
-            next_qtv = self.target_q(next_x, next_qt_embed, action=next_action)
+            next_qtvs = self.q(next_x_online, next_qt_embed_online)
         else:
-            next_action = self.target_q.action(next_x, next_qt_embed)
+            next_x = self.target_encoder(next_obs)
+            _, next_qt_embed = self.target_quantile(next_x, self.N_PRIME)
             next_qtvs = self.target_q(next_x, next_qt_embed)
-            next_action = tf.argmax(next_qtvs, axis=-1, output_type=tf.int32)
-            next_action = tf.one_hot(next_action, next_qtvs.shape[-1], dtype=next_qtvs.dtype)
-            next_qtv = tf.reduce_sum(next_qtvs * next_action, axis=-1)
-        reward = reward[:, None]
+        next_pi = softmax(next_qtvs, self._tau)
+        next_logpi = log_softmax(next_qtvs, self._tau)
+        next_qtv = tf.reduce_sum((next_qtvs - next_logpi)*next_pi, axis=-1)
+        
         discount = discount[:, None]
         if not isinstance(steps, int):
             steps = steps[:, None]

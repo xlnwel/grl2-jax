@@ -1,7 +1,7 @@
 ---
 env:
-    name: atari_pong
-    sticky_actions: False
+    name: atari_breakout
+    sticky_actions: True
     frame_skip: 4
     frame_stack: 4
     life_done: True
@@ -9,43 +9,40 @@ env:
     seed: 0
 
 model:
-    encoder: 
+    encoder:
         cnn_name: nature
         out_size: null
-        kernel_initializer: glorot_uniform
-    actor:
-        units_list: [512]
-        kernel_initializer: glorot_uniform
-        activation: relu
-    q:
-        units_list: [512]
-        kernel_initializer: glorot_uniform
-        activation: relu
-        duel: False
-
+    quantile:
         tau_embed_size: 64
         phi_activation: relu
-        K: &K 32
-    temperature:
-        temp_type: variable
-        value: .1
+        N: &K 32
+    q:
+        units_list: [512]
+        layer_type: dense
+        kernel_initializer: glorot_uniform
+        activation: relu
 
 agent:
-    algorithm: &algo sacdiqn
-    replay_type: &replay per
+    algorithm: &algo iqn
+    replay_type: &replay uniform
     gamma: &gamma .99
     batch_size: &bs 32
-    n_steps: &nsteps 3      # n-step target
-    precision: &prec 32
-    schedule_act_eps: False
-    act_eps: 0
-    eval_act_eps: 0
-    target_entropy_coef: .5
-    
-    MAX_STEPS: 1e8
+    n_steps: &nsteps 1      # n-step target
+
+    schedule_act_eps: True
+    act_eps:
+        - [0, 1]
+        - [1.e+6, .01]
+    eval_act_eps: .001
+
+    tau: .003
+    alpha: .9
+    clip_logpi_min: -1
+
+    MAX_STEPS: 1e8      # maximum env frames
     TRAIN_PERIOD: 16    # #frames = 4 agent step when frame skip = 4
     EVAL_PERIOD: 5e5
-    LOG_PERIOD: 1e4
+    LOG_PERIOD: 5e5
     N_UPDATES: 1
     RECORD: True
 
@@ -61,31 +58,30 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    target_update_period: 2000
+    target_update_period: 1500
     tbo: False
-
+    
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    value_lr: 3e-4
-    actor_lr: 3e-4
-    temp_lr: 3e-4
-    
+    lr: 5e-5
+    clip_norm: 40
+
     # arguments for PER
-    per_alpha: .5
+    per_alpha: .6
     per_epsilon: 1e-4
 
 replay:
     replay_type: *replay
     # arguments for PER
     beta0: .4
-    beta_steps: 5e4
+    beta_steps: 1e5
     to_update_top_priority: True
 
     # arguments for general replay
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
-    min_size: 2e4
+    min_size: 1600
     capacity: 1e5
     has_next_obs: False

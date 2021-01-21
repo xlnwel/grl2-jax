@@ -16,6 +16,7 @@ class PPOBase(RMSBaseAgent):
     @override(RMSBaseAgent)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
+
         self._last_obs = None   # we record last obs before training to compute the last value
 
     @override(RMSBaseAgent)
@@ -29,7 +30,7 @@ class PPOBase(RMSBaseAgent):
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
     
     """ Call """
-    # @override(RMSBaseAgent)
+    @override(RMSBaseAgent)
     def _process_output(self, obs, kwargs, out, evaluation):
         out = super()._process_output(obs, kwargs, out, evaluation)        
         if self._normalize_obs and not evaluation:
@@ -47,10 +48,9 @@ class PPOBase(RMSBaseAgent):
     def before_run(self, env):
         pass
     
-    def record_last_obs(self, env_output):
-        self.update_obs_rms(env_output.obs)
+    def record_last_env_output(self, env_output):
         self._last_obs = self.normalize_obs(env_output.obs)
-        
+
     def compute_value(self, obs=None):
         # be sure you normalize obs first if obs normalization is required
         obs = obs or self._last_obs
@@ -60,14 +60,17 @@ class PPOBase(RMSBaseAgent):
     def learn_log(self, step):
         for i in range(self.N_EPOCHS):
             for j in range(1, self.N_MBS+1):
-                data = self.dataset.sample()
+                with self._sample_timer:
+                    data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-                terms = self.learn(**data)
+                
+                with self._train_timer:
+                    terms = self.learn(**data)
 
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
                 kl = terms.pop('train/kl')
                 value = terms.pop('train/value')
-                self.store(**terms, value=value.mean())
+                self.store(**terms, **{'train/value': value.mean()})
                 if getattr(self, '_max_kl', None) and kl > self._max_kl:
                     break
                 if self._value_update == 'reuse':
@@ -83,11 +86,23 @@ class PPOBase(RMSBaseAgent):
             if self._value_update is not None:
                 last_value = self.compute_value()
                 self.dataset.finish(last_value)
-        self.store(**{'train/kl': kl})
-
+        
         if self._to_summary(step):
             self._summary(data, terms)
-        
+
+        self.store(**{
+            'train/kl': kl,
+            'time/sample': self._sample_timer.average(),
+            'time/train': self._train_timer.average()
+        })
+
+        _, rew_rms = self.get_running_stats()
+        if rew_rms:
+            self.store(**{
+                'train/reward_int_rms_mean': rew_rms.mean,
+                'train/reward_int_rms_var': rew_rms.var
+            })
+
         return i * self.N_MBS + j
 
     @tf.function
@@ -107,7 +122,7 @@ class PPOBase(RMSBaseAgent):
                 log_ratio, advantage, self._clip_range, entropy)
             # value loss
             value = self.value(x)
-            value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
+            value_loss, v_clip_frac = self._compute_value_loss(value, traj_ret, old_value)
             
             actor_loss = (policy_loss - self._entropy_coef * entropy)
             value_loss = self._value_coef * value_loss
@@ -125,19 +140,20 @@ class PPOBase(RMSBaseAgent):
             ppo_loss=policy_loss,
             actor_loss=actor_loss,
             v_loss=value_loss,
-            explained_variance=explained_variance(traj_ret, value)
+            explained_variance=explained_variance(traj_ret, value),
+            v_clip_frac=v_clip_frac
         ))
 
         return terms
 
-    def _compute_value_loss(self, value, traj_ret, old_value, terms):
+    def _compute_value_loss(self, value, traj_ret, old_value):
         value_loss_type = getattr(self, '_value_loss', 'mse')
+        v_clip_frac = 0
         if value_loss_type == 'mse':
             value_loss = .5 * tf.reduce_mean((value - traj_ret)**2)
         elif value_loss_type == 'clip':
             value_loss, v_clip_frac = ppo_value_loss(
                 value, traj_ret, old_value, self._clip_range)
-            terms['v_clip_frac'] = v_clip_frac
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
-        return value_loss
+        return value_loss, v_clip_frac

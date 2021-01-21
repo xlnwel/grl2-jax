@@ -16,9 +16,9 @@ def train(agent, env, eval_env, buffer):
     obs_list = []
     def collect_obs(env, step, reset, obs, **kwargs):
         obs_list.append(obs)
-        if len(obs) >= 100:
-            obs = np.stack(obs_list, axis=1)
-            agent.update_obs_rms(obs)
+        if len(obs_list) >= 100:
+            obs_array = np.stack(obs_list, axis=1)
+            agent.update_obs_rms(obs_array)
             obs_list[:] = []
 
     def collect(env, step, reset, next_obs, **kwargs):
@@ -38,17 +38,14 @@ def train(agent, env, eval_env, buffer):
         runner.step = step
     del obs_list
 
-    # print("Initial running stats:", *[
-    #     k.shape if isinstance(k, np.ndarray) else f'{k:.4g}' 
-    #     for k in agent.get_running_stats() if k])
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
     while step < agent.MAX_STEPS:
         start_env_step = agent.env_step
-        with Timer('env') as et:
+        with Timer('env') as rt:
             step = runner.run(step_fn=collect)
-        agent.store(fps=(step-start_env_step)/et.last())
+        agent.store(fps=(step-start_env_step)/rt.last())
 
         agent.record_last_env_output(runner.env_output)
         value_int, value_ext = agent.compute_value()
@@ -57,6 +54,7 @@ def train(agent, env, eval_env, buffer):
         assert obs.dtype == np.uint8
         agent.update_obs_rms(obs)
         norm_obs = agent.normalize_obs(obs)
+        # compute intrinsic reward from the next normalized obs
         reward_int = agent.compute_int_reward(norm_obs[:, 1:])
         buffer.finish(reward_int, norm_obs[:, :-1], value_int, value_ext)
         agent.store(
@@ -110,6 +108,8 @@ def train(agent, env, eval_env, buffer):
             agent.store(
                 episodes=runner.episodes,
                 train_step=agent.train_step,
+                env_time=tt.total(), 
+                train_time=tt.total()
             )
             agent.log(step)
             agent.save()

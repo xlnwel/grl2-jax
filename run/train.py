@@ -152,7 +152,7 @@ if __name__ == '__main__':
 
                 if cmd_args.grid_search:
                     if 'ppo' in algo:
-                        processes += gs(normalize_reward=[True, False])
+                        processes += gs(normalize_reward=[True, False], value=dict(norm=['layer', None]), lr=np.logspace(-4, -3, 2))
                     else:
                         processes += gs()
                 else:

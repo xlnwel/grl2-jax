@@ -27,11 +27,16 @@ class Agent(DQNBase):
         # compute target returns
         next_x = self.encoder(next_obs)
         
-        next_tau, next_tau_hat = self.fpn(next_x)
-        next_qt_embed = self.qe(next_x, next_tau_hat)
-        next_action = self.q.action(next_x, next_qt_embed, tau_range=next_tau)
+        next_tau, next_tau_hat = self.target_fpn(next_x)
         next_x = self.target_encoder(next_obs)
         next_qt_embed = self.target_qe(next_x, next_tau_hat)
+        if self._double:
+            next_tau_online, next_tau_hat_online = self.fpn(next_x)
+            next_x_online = self.encoder(next_obs)
+            next_qt_embed_online = self.qe(next_x_online, next_tau_hat_online)
+            next_action = self.q.action(next_x_online, next_qt_embed_online, tau_range=next_tau_online)
+        else:
+            next_action = self.target_q.action(next_x, next_qt_embed, tau_range=next_tau)
         next_qtv = self.target_q(next_x, next_qt_embed, action=next_action)
         
         reward = reward[:, None]

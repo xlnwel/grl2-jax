@@ -29,6 +29,7 @@ model:
 agent:
     algorithm: &algo ppo
     precision: &prec 32
+    gamma: &gamma .99
 
     MAX_STEPS: 1e10
     N_STEPS: &nsteps 256
@@ -62,7 +63,7 @@ agent:
 buffer:
     adv_type: gae     # nae or gae
     precision: *prec
-    gamma: .99
+    gamma: *gamma
     lam: .95
     n_envs: *nenvs
     N_STEPS: *nsteps

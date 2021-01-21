@@ -22,7 +22,7 @@ model:
         value: .01
 agent:
     algorithm: &algo asap-sac
-    replay_type: &replay 'uniform'
+    replay_type: &replay per
     gamma: &gamma 0.99
     n_steps: &nsteps 3      # n-step target
     polyak: .995

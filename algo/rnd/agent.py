@@ -43,7 +43,7 @@ class Agent(PPOAgent):
         norm_obs_shape = env.obs_shape[:-1] + (1,)
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            norm_obs=(norm_obs_shape, tf.float32, 'norm_obs'),
+            obs_norm=(norm_obs_shape, tf.float32, 'obs_norm'),
             action=(env.action_shape, env.action_dtype, 'action'),
             traj_ret_int=((), tf.float32, 'traj_ret_int'),
             traj_ret_ext=((), tf.float32, 'traj_ret_ext'),
@@ -125,23 +125,36 @@ class Agent(PPOAgent):
             if self._value_update is not None:
                 last_value = self.compute_value()
                 self.dataset.finish(last_value)
-        self.store(**{'train/kl': kl})
 
         if self._to_summary(step):
             self._summary(data, terms)
+        
+        self.store(**{
+            'train/kl': kl,
+            'time/sample': self._sample_timer.average(),
+            'time/train': self._train_timer.average()
+        })
+
+        _, rew_rms = self.get_running_stats()
+        if rew_rms:
+            self.store(**{
+                'train/reward_int_rms_mean': rew_rms.mean,
+                'train/reward_int_rms_var': rew_rms.var
+            })
 
         return i * self.N_MBS + j
 
     @tf.function
-    def _learn(self, obs, norm_obs, action, traj_ret_int, traj_ret_ext, 
+    def _learn(self, obs, obs_norm, action, traj_ret_int, traj_ret_ext, 
             value_int, value_ext, advantage, logpi):
         old_value_int, old_value_ext = value_int, value_ext
-        norm_obs = tf.reshape(norm_obs, 
-            (self._n_envs, self.N_STEPS // self.N_MBS, *norm_obs.shape[-3:]))
+        obs_norm = tf.reshape(obs_norm, 
+            (self._n_envs, self.N_STEPS // self.N_MBS, *obs_norm.shape[-3:]))
+        assert obs_norm.dtype == tf.float32, obs_norm
         terms = {}
         with tf.GradientTape() as pred_tape:
-            target_feat = tf.stop_gradient(self.target(norm_obs))
-            pred_feat = self.predictor(norm_obs)
+            target_feat = tf.stop_gradient(self.target(obs_norm))
+            pred_feat = self.predictor(obs_norm)
             pred_loss = tf.reduce_mean(tf.square(target_feat - pred_feat), axis=-1)
             tf.debugging.assert_shapes([[pred_loss, (self._n_envs, self.N_STEPS // self.N_MBS)]])
             mask = tf.random.uniform(pred_loss.shape, maxval=1., dtype=pred_loss.dtype)
@@ -231,11 +244,4 @@ class Agent(PPOAgent):
 
     @override(PPOAgent)
     def get_running_stats(self):
-        stats = ()
-        if self._normalize_obs:
-            stats += self._obs_rms.get_stats()
-        if self._normalize_reward:
-            stats += self._reward_rms.get_stats()
-        assert stats == (), stats
-        stats = self.rnd.get_running_stats()
-        return stats
+        return self.rnd.get_running_stats()

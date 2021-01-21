@@ -120,6 +120,7 @@ def create_components(config, env, **kwargs):
         qe=QuantileEmbed(config['qe'], name='qe'),
         q=Value(config['q'], action_dim, name='iqn'),
         target_encoder=Encoder(config['encoder'], name='target_cnn'),
+        target_fpn=FractionProposalNetwork(config['fpn'], name='fpn'),
         target_qe=QuantileEmbed(config['qe'], name='qe'),
         target_q=Value(config['q'], action_dim, name='target_iqn'),
     )

@@ -126,7 +126,8 @@ class Agent(PPOAgent):
         with tf.GradientTape() as tape:
             x_value = self.value_encoder(obs) if hasattr(self, 'value_encoder') else x
             value = self.value(x_value)
-            value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
+            value_loss, v_clip_frac = self._compute_value_loss(
+                value, traj_ret, old_value, terms)
         terms['value_norm'] = self._value_opt(tape, value_loss)
 
         terms.update(dict(
@@ -138,7 +139,8 @@ class Agent(PPOAgent):
             p_clip_frac=p_clip_frac,
             ppo_loss=policy_loss,
             v_loss=value_loss,
-            explained_variance=explained_variance(traj_ret, value)
+            explained_variance=explained_variance(traj_ret, value),
+            v_clip_frac=v_clip_frac
         ))
 
         return terms
@@ -178,12 +180,14 @@ class Agent(PPOAgent):
             if state is not None:
                 x_value, state = self.value_rnn(x_value, state, mask=mask)
             value = self.value(x_value)
-            value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
+            value_loss, v_clip_frac = self._compute_value_loss(
+                value, traj_ret, old_value, terms)
         value_norm = self._value_opt(tape, value_loss)
         terms.update(dict(
             value_norm=value_norm,
             value_loss=value_loss,
-            explained_variance=explained_variance(traj_ret, value)
+            explained_variance=explained_variance(traj_ret, value),
+            v_clip_frac=v_clip_frac,
         ))
 
     @tf.function
@@ -211,7 +215,8 @@ class Agent(PPOAgent):
                 # allow gradients from value head if using a shared encoder
                 value = self.value(x)
 
-            value_loss = self._compute_value_loss(value, traj_ret, old_value, terms)
+            value_loss, v_clip_frac = self._compute_value_loss(
+                value, traj_ret, old_value, terms)
             loss = actor_loss + value_loss
 
         terms['actor_norm'] = self._aux_opt(tape, loss)
@@ -221,7 +226,8 @@ class Agent(PPOAgent):
             kl=kl, 
             actor_loss=actor_loss,
             v_loss=value_loss,
-            explained_variance=explained_variance(traj_ret, value)
+            explained_variance=explained_variance(traj_ret, value),
+            v_clip_frac=v_clip_frac
         )
 
         return terms

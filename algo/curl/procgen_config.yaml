@@ -24,7 +24,7 @@ model:
         norm: null
         activation: relu
     temperature:
-        temp_type: 'variable'
+        temp_type: variable
         value: 0
     curl:
         # units_list: []
@@ -32,7 +32,7 @@ model:
         z_size: *zsize
 agent:
     algorithm: &algo curl
-    replay_type: &replay 'uniform'
+    replay_type: &replay per
     gamma: &gamma .99
     batch_size: &bs 128
     q_polyak: .99

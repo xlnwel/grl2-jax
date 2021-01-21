@@ -25,7 +25,7 @@ class Buffer:
             init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
             self._memory['discount_int'] = np.ones_like(self._memory['discount'])   # non-episodic
             norm_obs_shape = self._memory['obs'].shape[:-1] + (1, )
-            self._memory['norm_obs'] = np.zeros(norm_obs_shape, dtype=np.float32)
+            self._memory['obs_norm'] = np.zeros(norm_obs_shape, dtype=np.float32)
             self._memory['traj_ret_int'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['traj_ret_ext'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
             self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
@@ -36,6 +36,29 @@ class Buffer:
 
         self._idx += 1
 
+    def update(self, key, value, field='mb', mb_idxes=None):
+        if field == 'mb':
+            mb_idxes = self._curr_idxes if mb_idxes is None else mb_idxes
+            self._memory[key][mb_idxes] = value
+        elif field == 'all':
+            assert self._memory[key].shape == value.shape, (self._memory[key].shape, value.shape)
+            self._memory[key] = value
+        else:
+            raise ValueError(f'Unknown field: {field}. Valid fields: ("all", "mb")')
+
+    def update_value_with_func(self, fn):
+        assert self._mb_idx == 0, f'Unfinished sample: self._mb_idx({self._mb_idx}) != 0'
+        mb_idx = 0
+        for start in range(0, self._size, self._mb_size):
+            end = start + self._mb_size
+            curr_idxes = self._idxes[start:end]
+            obs = self._memory['obs'][curr_idxes]
+            value_int, value_ext = fn(obs)
+            self.update('value_int', value_int, mb_idxes=curr_idxes)
+            self.update('value_ext', value_ext, mb_idxes=curr_idxes)
+        
+        assert mb_idx == 0, mb_idx
+
     def sample(self):
         assert self._ready
         if self._mb_idx == 0:
@@ -44,7 +67,7 @@ class Buffer:
         end = (self._mb_idx + 1) * self._mb_size
         self._mb_idx = (self._mb_idx + 1) % self.N_MBS
 
-        keys = ['obs', 'norm_obs', 'action', 'traj_ret_int', 'traj_ret_ext', 
+        keys = ['obs', 'obs_norm', 'action', 'traj_ret_int', 'traj_ret_ext', 
             'value_int', 'value_ext', 'advantage', 'logpi']
         
         return {k: self._memory[k][self._idxes[start: end]] for k in keys}
@@ -54,10 +77,10 @@ class Buffer:
         return np.concatenate(
             [self._memory['obs'], np.expand_dims(last_obs, 1)], axis=1)
 
-    def finish(self, reward_int, norm_obs, last_value_int, last_value_ext):
+    def finish(self, reward_int, obs_norm, last_value_int, last_value_ext):
         assert self._idx == self.N_STEPS, self._idx
-        assert norm_obs.shape == self._memory['norm_obs'].shape, norm_obs.shape
-        self._memory['norm_obs'] = norm_obs
+        assert obs_norm.shape == self._memory['obs_norm'].shape, obs_norm.shape
+        self._memory['obs_norm'] = obs_norm
 
         self._memory['traj_ret_int'], adv_int = \
             compute_gae(reward=reward_int, 

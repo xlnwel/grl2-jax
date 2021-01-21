@@ -1,11 +1,11 @@
 import os, random
+import itertools
 import collections
 import ast
 import os.path as osp
 import math
 import multiprocessing
 import numpy as np
-import tensorflow as tf
 
 
 class AttrDict(dict):
@@ -51,7 +51,7 @@ class Every:
 
 class RunningMeanStd(object):
     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
-    def __init__(self, axis, epsilon=1e-8, clip=10):
+    def __init__(self, axis, epsilon=1e-8, clip=None):
         """ Compute running mean and std from data
         A reimplementation of RunningMeanStd from OpenAI's baselines
 
@@ -86,51 +86,50 @@ class RunningMeanStd(object):
         return self._axis
 
     def get_stats(self):
-        return self._mean, self._var, self._count
+        Stats = collections.namedtuple('RMS', 'mean var count')
+        return Stats(self._mean, self._var, self._count)
 
     def update(self, x, mask=None):
+        x = x.astype(np.float64)
         if self._axis is None:
             assert mask is None, mask
             batch_mean, batch_var, batch_count = x, np.zeros_like(x), 1
         else:
             batch_mean, batch_var = moments(x, self._axis, mask)
+            # print(x.shape, np.array(batch_var).shape)
             batch_count = np.prod(x.shape[self._shape_slice]) if mask is None else np.sum(mask)
         if batch_count > 0:
             self.update_from_moments(batch_mean, batch_var, batch_count)
 
     def update_from_moments(self, batch_mean, batch_var, batch_count):
         if self._count == self._epsilon:
-            self._mean = batch_mean
-            self._var = batch_var
-            self._count = batch_count
-        else:
-            delta = batch_mean - self._mean
-            total_count = self._count + batch_count
+            self._mean = np.zeros_like(batch_mean, 'float64')
+            self._var = np.ones_like(batch_var, 'float64')
 
-            new_mean = self._mean + delta * batch_count / total_count
-            # no minus one here to be consistent with np.std
-            m_a = self._var * self._count
-            m_b = batch_var * batch_count
-            M2 = m_a + m_b + delta**2 * self._count * batch_count / total_count
-            assert np.all(np.isfinite(M2)), f'M2: {M2}'
-            new_var = M2 / total_count
-            self._mean = new_mean
-            self._var = new_var
-            self._count += batch_count
+        delta = batch_mean - self._mean
+        total_count = self._count + batch_count
 
-    def normalize(self, x, subtract_mean=True, use_tf=False):
+        new_mean = self._mean + delta * batch_count / total_count
+        # no minus one here to be consistent with np.std
+        m_a = self._var * self._count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + delta**2 * self._count * batch_count / total_count
+        assert np.all(np.isfinite(M2)), f'M2: {M2}'
+        new_var = M2 / total_count
+
+        self._mean = new_mean
+        self._var = new_var
+        self._count = total_count
+        assert np.all(self._var > 0), self._var[self._var <= 0]
+
+    def normalize(self, x, subtract_mean=True):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
         assert self._var is not None, (self._mean, self._var, self._count)
         if subtract_mean:
             x = x - self._mean
-        if use_tf:
-            x = tf.clip_by_value(x / tf.math.sqrt(tf.cast(self._var, x.dtype)) + self._epsilon,
-                -self._clip, self._clip)
-            x = tf.cast(x, tf.float32)
-        else:
-            x = np.clip(x / (np.sqrt(self._var) + self._epsilon), 
-                -self._clip, self._clip)
-            x = x.astype(np.float32)
+        if self._clip:
+            x = np.clip(x / np.sqrt(self._var), -self._clip, self._clip)
+        x = x.astype(np.float32)
         return x
 
 class TempStore:
@@ -187,7 +186,7 @@ def moments(x, axis=None, mask=None):
         x_mean = np.sum(x_mask, axis=axis) / n
         x2_mean = np.sum(x_mask**2, axis=axis) / n
     x_var = x2_mean - x_mean**2
-    
+
     return x_mean, x_var
     
 def standardize(x, axis=None, epsilon=1e-8, mask=None):
@@ -357,3 +356,49 @@ def convert_dtype(value, precision=32, dtype=None, **kwargs):
     if dtype is None:
         dtype = infer_dtype(value.dtype, precision)
     return value.astype(dtype)
+
+def flatten_dict(**kwargs):
+    """ Flatten a dict of lists into a list of dicts
+    For example
+    f(lr=[1, 2], a=[10,3], b=dict(c=[2, 4], d=np.arange(3)))
+    >>>
+    [{'lr': 1, 'a': 10, 'b': {'c': 2, 'd': 0}},
+    {'lr': 1, 'a': 10, 'b': {'c': 2, 'd': 1}},
+    {'lr': 1, 'a': 10, 'b': {'c': 2, 'd': 2}},
+    {'lr': 1, 'a': 10, 'b': {'c': 4, 'd': 0}},
+    {'lr': 1, 'a': 10, 'b': {'c': 4, 'd': 1}},
+    {'lr': 1, 'a': 10, 'b': {'c': 4, 'd': 2}},
+    {'lr': 1, 'a': 3, 'b': {'c': 2, 'd': 0}},
+    {'lr': 1, 'a': 3, 'b': {'c': 2, 'd': 1}},
+    {'lr': 1, 'a': 3, 'b': {'c': 2, 'd': 2}},
+    {'lr': 1, 'a': 3, 'b': {'c': 4, 'd': 0}},
+    {'lr': 1, 'a': 3, 'b': {'c': 4, 'd': 1}},
+    {'lr': 1, 'a': 3, 'b': {'c': 4, 'd': 2}},
+    {'lr': 2, 'a': 10, 'b': {'c': 2, 'd': 0}},
+    {'lr': 2, 'a': 10, 'b': {'c': 2, 'd': 1}},
+    {'lr': 2, 'a': 10, 'b': {'c': 2, 'd': 2}},
+    {'lr': 2, 'a': 10, 'b': {'c': 4, 'd': 0}},
+    {'lr': 2, 'a': 10, 'b': {'c': 4, 'd': 1}},
+    {'lr': 2, 'a': 10, 'b': {'c': 4, 'd': 2}},
+    {'lr': 2, 'a': 3, 'b': {'c': 2, 'd': 0}},
+    {'lr': 2, 'a': 3, 'b': {'c': 2, 'd': 1}},
+    {'lr': 2, 'a': 3, 'b': {'c': 2, 'd': 2}},
+    {'lr': 2, 'a': 3, 'b': {'c': 4, 'd': 0}},
+    {'lr': 2, 'a': 3, 'b': {'c': 4, 'd': 1}},
+    {'lr': 2, 'a': 3, 'b': {'c': 4, 'd': 2}}]
+    """
+    ks, vs = [], []
+    for k, v in kwargs.items():
+        ks.append(k)
+        if isinstance(v, dict):
+            vs.append(flatten_dict(**v))
+        elif isinstance(v, (int, float)):
+            vs.append([v])
+        else:
+            vs.append(v)
+
+    result = []
+    for k, v in itertools.product([ks], itertools.product(*vs)):
+        result.append(dict(zip(k, v)))
+
+    return result

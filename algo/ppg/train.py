@@ -44,8 +44,9 @@ def train(agent, env, eval_env, buffer):
             # The latter is adopted in our implementation, 
             # but the following line currently doesn't store a copy of 
             # unnormalized rewards
+            agent.update_reward_rms(buffer['reward'], buffer['discount'])
             buffer.update('reward', agent.normalize_reward(buffer['reward']), field='all')
-            agent.record_last_obs(runner.env_output)
+            agent.record_last_env_output(runner.env_output)
             value = agent.compute_value()
             buffer.finish(value)
 
@@ -53,6 +54,7 @@ def train(agent, env, eval_env, buffer):
             with Timer('train', 1000) as tt:
                 agent.learn_log(step)
             agent.store(tps=(agent.train_step-start_train_step)/tt.last())
+            agent.update_obs_rms(buffer['obs'])
             buffer.reset()
 
         # auxiliary phase

@@ -12,9 +12,9 @@ class RND:
         self.target = model['target']
         self._gamma_int = gamma_int
         axis = (0, 1)
-        self._obs_rms = RunningMeanStd(axis=axis, clip=5)
+        self._obs_rms = RunningMeanStd(axis=axis, epsilon=1e-4, clip=5)
         self._returns_int = 0
-        self._int_return_rms = RunningMeanStd(axis=axis)
+        self._int_return_rms = RunningMeanStd(axis=axis, epsilon=1e-4)
         self._rms_path = rms_path
         self._rms_restored = False
 
@@ -37,6 +37,7 @@ class RND:
         return int_reward
 
     def _compute_intrinsic_return(self, reward):
+        assert reward.ndim == 1, reward.shape
         # we intend to do the discoutning backwards in time as the future is yet to ocme
         self._returns_int = reward + self._gamma_int * self._returns_int
         return self._returns_int
@@ -50,14 +51,15 @@ class RND:
         assert obs.dtype == np.uint8, obs.dtype
         self._obs_rms.update(obs)
 
-    def _update_int_return_rms(self, reward):
-        assert len(reward.shape) == 2
-        self._int_return_rms.update(reward)
+    def _update_int_return_rms(self, int_return):
+        assert len(int_return.shape) == 2
+        self._int_return_rms.update(int_return)
 
     def normalize_obs(self, obs):
         assert len(obs.shape) == 5, obs.shape
-        obs = self._obs_rms.normalize(obs[..., -1:])
-        return obs
+        obs_norm = self._obs_rms.normalize(obs[..., -1:])
+        assert not np.any(np.isnan(obs_norm))
+        return obs_norm
 
     def _normalize_int_reward(self, reward):
         return self._int_return_rms.normalize(reward, subtract_mean=False)
@@ -80,7 +82,4 @@ class RND:
         return self._rms_restored
     
     def get_running_stats(self):
-        stats = ()
-        stats += self._obs_rms.get_stats()
-        stats += self._int_return_rms.get_stats()
-        return stats
+        return self._obs_rms.get_stats(), self._int_return_rms.get_stats()

@@ -32,7 +32,7 @@ model:
     #     units_list: [400, 400, 400]
     #     activation: elu
     temperature:
-        temp_type: 'variable'
+        temp_type: variable
         value: .01
 agent:
     algorithm: &algo dreamer3
