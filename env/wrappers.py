@@ -100,32 +100,6 @@ class MaxAndSkipEnv(gym.Wrapper):
         return self.env.reset(**kwargs)
 
 
-class FrameStack(gym.Wrapper):
-    def __init__(self, env, k, np_obs):
-        super().__init__(env)
-        self.k = k
-        self.np_obs = np_obs
-        self.frames = collections.deque([], maxlen=k)
-        shp = env.observation_space.shape
-        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(shp[:-1] + (shp[-1] * k,)), dtype=env.observation_space.dtype)
-
-    def reset(self):
-        ob = self.env.reset()
-        for _ in range(self.k):
-            self.frames.append(ob)
-        return self._get_ob()
-
-    def step(self, action, **kwargs):
-        ob, reward, done, info = self.env.step(action, **kwargs)
-        self.frames.append(ob)
-        return self._get_ob(), reward, done, info
-
-    def _get_ob(self):
-        assert len(self.frames) == self.k
-        return np.concatenate(self.frames, axis=-1) \
-            if self.np_obs else LazyFrames(list(self.frames))
-
-
 """ Custom wrappers """
 class NormalizeActions(gym.Wrapper):
     """ Normalize infinite action dimension in range [-1, 1] """
@@ -191,18 +165,42 @@ class FrameSkip(gym.Wrapper):
 
 
 class FrameDiff(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+
+        original_space = self.observation_space
+        new_space = gym.spaces.Box(
+            low=0,
+            high=255,
+            shape=(*original_space.shape[:2], original_space.shape[-1]+1),
+            dtype=np.uint8,
+        )
+        assert original_space.dtype == np.uint8, original_space.dtype
+        assert len(original_space.shape) == 3, original_space.shape
+        self.observation_space = new_space
+    
+    def _residual(self, obs):
+        gray_obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+        gray_obs = np.expand_dims(gray_obs, -1)
+        assert self.prev_obs.shape == gray_obs.shape, (self.prev_obs.shape, gray_obs.shape)
+        res_obs = gray_obs - self.prev_obs
+        obs = np.concatenate([obs, res_obs], axis=-1)
+        assert obs.shape == self.observation_space.shape, (obs.shape, self.observation_space.shape)
+        self.prev_obs = gray_obs
+
+        return obs
+
     def reset(self):
         obs = self.env.reset()
-        self.prev_obs = obs
-
+        obs = self._residual(obs)
+        
         return obs
 
     def step(self, action):
         obs, rew, done, info = self.env.step(action)
-        new_obs = obs - self.prev_obs
-        self.prev_obs = obs
+        obs = self._residual(obs)
 
-        return new_obs, rew, done, info
+        return obs, rew, done, info
 
 
 class CumulativeRewardObs(gym.Wrapper):
@@ -235,6 +233,47 @@ class CumulativeRewardObs(gym.Wrapper):
         ob, reward, done, info = self.env.step(action)
         self._cumulative_reward += reward
         return self._get_ob(ob), reward, done, info
+
+
+class RewardHack(gym.Wrapper):
+    def __init__(self, env, reward_scale=1, reward_clip=None, **kwargs):
+        super().__init__(env)
+        self.reward_scale = reward_scale
+        self.reward_clip = reward_clip
+
+    def step(self, action, **kwargs):
+        obs, reward, done, info = self.env.step(action, **kwargs)
+        info['reward'] = reward
+        reward = reward * self.reward_scale
+        if self.reward_clip:
+            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
+        return obs, reward, done, info
+
+
+class FrameStack(gym.Wrapper):
+    def __init__(self, env, k, np_obs):
+        super().__init__(env)
+        self.k = k
+        self.np_obs = np_obs
+        self.frames = collections.deque([], maxlen=k)
+        shp = env.observation_space.shape
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(shp[:-1] + (shp[-1] * k,)), dtype=env.observation_space.dtype)
+
+    def reset(self):
+        ob = self.env.reset()
+        for _ in range(self.k):
+            self.frames.append(ob)
+        return self._get_ob()
+
+    def step(self, action, **kwargs):
+        ob, reward, done, info = self.env.step(action, **kwargs)
+        self.frames.append(ob)
+        return self._get_ob(), reward, done, info
+
+    def _get_ob(self):
+        assert len(self.frames) == self.k
+        return np.concatenate(self.frames, axis=-1) \
+            if self.np_obs else LazyFrames(list(self.frames))
 
 
 class DataProcess(gym.Wrapper):
@@ -349,7 +388,7 @@ class EnvStats(gym.Wrapper):
 
         assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
-        self._score += reward
+        self._score += info.get('reward', reward)
         self._epslen += info.get('frame_skip', 1)
         self._game_over = info.get('game_over', done)
         if self._epslen >= self.max_episode_steps:
@@ -416,23 +455,6 @@ class EnvStats(gym.Wrapper):
         
     def output(self):
         return self._output
-
-
-class RewardHack(gym.Wrapper):
-    """ This wrapper should be invoked after EnvStats to avoid inaccurate bookkeeping """
-    def __init__(self, env, reward_scale=1, reward_clip=None, **kwargs):
-        super().__init__(env)
-        self.reward_scale = reward_scale
-        self.reward_clip = reward_clip
-
-    def step(self, action, **kwargs):
-        output = self.env.step(action, **kwargs)
-        obs, reward, discount, reset = output
-        reward *= self.reward_scale
-        if self.reward_clip:
-            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
-        reward = self.float_dtype(reward)
-        return EnvOutput(obs, reward, discount, reset)
 
 
 def get_wrapper_by_name(env, classname):

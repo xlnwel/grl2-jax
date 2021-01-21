@@ -23,7 +23,7 @@ class Atari:
     Adapted for more general cases
     """
     def __init__(self, name, *, frame_skip=4, life_done=False,
-                image_size=(84, 84), frame_stack=1, noop=30, 
+                image_size=(84, 84), noop=30, 
                 sticky_actions=True, gray_scale=True, 
                 np_obs=False, **kwargs):
         version = 0 if sticky_actions else 4
@@ -42,7 +42,6 @@ class Atari:
         self.env = env.env
         self.life_done = life_done
         self.frame_skip = frame_skip
-        self.frame_stack = frame_stack
         self.gray_scale = gray_scale
         self.noop = noop
         self.image_size = (image_size, image_size) \
@@ -51,8 +50,6 @@ class Atari:
 
         assert self.frame_skip > 0, \
             f'Frame skip should be strictly positive, got {self.frame_skip}'
-        assert self.frame_stack > 0, \
-            f'Frame stack should be strictly positive, got {self.frame_stack}'
         assert np.all([s > 0 for s in self.image_size]), \
             f'Screen size should be strictly positive, got {image_size}'
 
@@ -66,9 +63,6 @@ class Atari:
 
         self.lives = 0  # Will need to be set by reset().
         self._game_over = True
-        if self.frame_stack > 1:
-            # Stores LazyFrames for memory efficiency
-            self._frames = deque([], maxlen=self.frame_stack)
         self._frames_in_step = 0    # count the frames elapsed in a single step
 
     @property
@@ -76,7 +70,6 @@ class Atari:
         # Return the observation space adjusted to match the shape of the processed
         # observations.
         c = 1 if self.gray_scale else 3
-        c *= self.frame_stack
         shape = self.image_size + (c, )
         return Box(low=0, high=255, shape=shape,
                 dtype=np.uint8)
@@ -124,10 +117,6 @@ class Atari:
         self._get_screen(self._buffer[0])
         self._buffer[1].fill(0)
         obs = self._pool_and_resize()
-        if self.frame_stack > 1:
-            for _ in range(self.frame_stack):
-                self._frames.append(obs)
-            obs = self._get_obs()
 
         self._game_over = False
         return obs
@@ -184,9 +173,6 @@ class Atari:
 
         # Pool the last two observations.
         obs = self._pool_and_resize()
-        if self.frame_stack > 1:
-            self._frames.append(obs)
-            obs = self._get_obs()
 
         self._game_over = done
         info['frame_skip'] = step
@@ -215,9 +201,3 @@ class Atari:
             self.env.ale.getScreenGrayscale(output)
         else:
             self.env.ale.getScreenRGB2(output)
-
-    def _get_obs(self):
-        assert len(self._frames) == self.frame_stack, f'{len(self._frames)} vs {self.frame_stack}'
-        return np.concatenate(self._frames, axis=-1) \
-            if self.np_obs else wrappers.LazyFrames(list(self._frames))
-

@@ -10,14 +10,11 @@ EnvOutput = wrappers.EnvOutput
 
 
 def make_env(config):
-    # config = config.copy()    # do not copy to make changes visible from the outside
+    config = config.copy()
     env_name = config['name'].lower()
     if env_name.startswith('atari'):
         env = atari.make_atari_env(config)
     else:
-        frame_diff = config.setdefault('frame_diff', False)
-        frame_stack = config.setdefault('frame_stack', 1)
-        np_obs = config.setdefault('np_obs', False)
         if env_name.startswith('procgen'):
             env = procgen.make_procgen_env(config)
         elif env_name.startswith('dmc'):
@@ -26,13 +23,16 @@ def make_env(config):
             env = gym.make(config['name']).env
             env = wrappers.Dummy(env)
             config.setdefault('max_episode_steps', env.spec.max_episode_steps)
-        if frame_diff:
-            env = wrappers.FrameDiff(env)
-        if frame_stack > 1:
-            env = wrappers.FrameStack(env, frame_stack, np_obs)
-    env = wrappers.post_wrap(env, config)
     if config.get('reward_scale') or config.get('reward_clip'):
         env = wrappers.RewardHack(env, **config)
+    frame_diff = config.setdefault('frame_diff', False)
+    frame_stack = config.setdefault('frame_stack', 1)
+    np_obs = config.setdefault('np_obs', False)
+    if frame_diff:
+        env = wrappers.FrameDiff(env)
+    if frame_stack > 1:
+        env = wrappers.FrameStack(env, frame_stack, np_obs)
+    env = wrappers.post_wrap(env, config)
 
     return env
 
