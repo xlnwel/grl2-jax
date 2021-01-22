@@ -1,8 +1,8 @@
-import os
 import cloudpickle
 import numpy as np
 import tensorflow as tf
 
+from core.base import backward_discounted_sum
 from utility.utils import RunningMeanStd
 
 
@@ -24,7 +24,8 @@ class RND:
         assert next_obs.dtype == np.float32, next_obs.dtype
         assert next_obs.shape[-1] == 1, next_obs.shape
         reward_int = self._intrinsic_reward(next_obs).numpy()
-        returns_int = np.array([self._compute_intrinsic_return(r) for r in reward_int.T])
+        returns_int = backward_discounted_sum(
+            self._returns_int, reward_int, np.ones(reward_int), self._gamma_int)
         self._update_int_return_rms(returns_int)
         reward_int = self._normalize_int_reward(reward_int)
         return reward_int
@@ -35,12 +36,6 @@ class RND:
         pred_feat = self.predictor(next_obs)
         int_reward = tf.reduce_mean(tf.square(target_feat - pred_feat), axis=-1)
         return int_reward
-
-    def _compute_intrinsic_return(self, reward):
-        assert reward.ndim == 1, reward.shape
-        # we intend to do the discoutning backwards in time as the future is yet to ocme
-        self._returns_int = reward + self._gamma_int * self._returns_int
-        return self._returns_int
 
     def update_obs_rms(self, obs):
         if obs.dtype == np.uint8 and obs.shape[-1] > 1:

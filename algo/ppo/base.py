@@ -99,8 +99,8 @@ class PPOBase(RMSBaseAgent):
         _, rew_rms = self.get_running_stats()
         if rew_rms:
             self.store(**{
-                'train/reward_int_rms_mean': rew_rms.mean,
-                'train/reward_int_rms_var': rew_rms.var
+                'train/reward_rms_mean': rew_rms.mean,
+                'train/reward_rms_var': rew_rms.var
             })
 
         return i * self.N_MBS + j

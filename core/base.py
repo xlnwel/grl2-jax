@@ -277,7 +277,7 @@ class RMSBaseAgent(BaseAgent):
         super().save(print_terminal_info=print_terminal_info)
 
 
-def backward_discounted_sum(prev_ret, reward, discount, gamma,):
+def backward_discounted_sum(prev_ret, reward, discount, gamma):
     assert reward.ndim == discount.ndim, (reward.shape, discount.shape)
     if reward.ndim == 1:
         prev_ret = reward + gamma * prev_ret
@@ -289,7 +289,7 @@ def backward_discounted_sum(prev_ret, reward, discount, gamma,):
         ret = np.zeros_like(reward)
         for t in range(nstep):
             ret[:, t] = prev_ret = reward[:, t] + gamma * prev_ret
-            prev_ret *= discount
+            prev_ret *= discount[:, t]
         return prev_ret, ret
     else:
         raise ValueError(f'Unknown reward shape: {reward.shape}')
