@@ -261,3 +261,15 @@ def make_env(config):
                     frame_stack=config.get('frame_stack', 4))
     env = post_wrap(env, config)
     return env
+
+
+if __name__ == '__main__':
+    import time
+
+    start = time.time()
+    env = make_env({
+        
+    })
+    for _ in range(5*128):
+        act = env.action_space.sample()
+

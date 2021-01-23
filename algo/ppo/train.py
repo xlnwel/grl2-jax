@@ -16,14 +16,14 @@ def train(agent, env, eval_env, buffer):
 
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
-    if step == 0 and agent.is_obs_or_reward_normalized:
-        print('Start to initialize running stats...')
-        for _ in range(50):
-            runner.run(action_selector=env.random_action, step_fn=collect)
-            agent.update_obs_rms(buffer['obs'])
-            agent.update_reward_rms(buffer['reward'], buffer['discount'])
-            buffer.reset()
-    buffer.clear()
+    # if step == 0 and agent.is_obs_or_reward_normalized:
+    #     print('Start to initialize running stats...')
+    #     for _ in range(50):
+    #         runner.run(action_selector=env.random_action, step_fn=collect)
+    #         agent.update_obs_rms(buffer['obs'])
+    #         agent.update_reward_rms(buffer['reward'], buffer['discount'])
+    #         buffer.reset()
+    # buffer.clear()
     runner.step = step
     # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_running_stats() if k])
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
@@ -32,7 +32,7 @@ def train(agent, env, eval_env, buffer):
     while step < agent.MAX_STEPS:
         start_env_step = agent.env_step
         agent.before_run(env)
-        with Timer('env', 1000) as tt:
+        with Timer('env') as tt:
             step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/tt.last())
         # NOTE: normalizing rewards here may introduce some inconsistency 
@@ -49,7 +49,7 @@ def train(agent, env, eval_env, buffer):
         buffer.finish(value)
 
         start_train_step = agent.train_step
-        with Timer('train', 1000) as tt:
+        with Timer('train') as tt:
             agent.learn_log(step)
         agent.store(tps=(agent.train_step-start_train_step)/tt.last())
         agent.update_obs_rms(buffer['obs'])
@@ -57,7 +57,7 @@ def train(agent, env, eval_env, buffer):
 
         if to_eval(agent.train_step) or step > agent.MAX_STEPS:
             with TempStore(agent.get_states, agent.reset_states):
-                with Timer('eval', 1000) as eval_time:
+                with Timer('eval') as eval_time:
                     scores, epslens, video = evaluate(
                         eval_env, agent, record=agent.RECORD, size=(128, 128))
                 if agent.RECORD:

@@ -4,7 +4,7 @@ import cv2
 import gym
 import ray
 
-from env import wrappers, atari, procgen, dmc
+from env import wrappers, atari, pg, dmc
 
 EnvOutput = wrappers.EnvOutput
 
@@ -16,7 +16,7 @@ def make_env(config):
         env = atari.make_atari_env(config)
     else:
         if env_name.startswith('procgen'):
-            env = procgen.make_procgen_env(config)
+            env = pg.make_procgen_env(config)
         elif env_name.startswith('dmc'):
             env = dmc.make_dmc_env(config)
         else:

@@ -18,7 +18,13 @@ GymOutput = collections.namedtuple('GymOutput', 'obs reward discount')
 def post_wrap(env, config):
     """ Does some post processing and bookkeeping. 
     Does not change anything that will affect the agent's performance 
-    """
+        """
+    # env.is_action_discrete = isinstance(env.env.action_space, gym.spaces.Discrete)
+    # env.obs_shape = env.observation_space.shape
+    # env.action_shape = env.action_space.shape
+    # env.action_dim = env.action_space.n if env.is_action_discrete else env.action_shape[0]
+    # env.obs_dtype = env.observation_space.dtype
+    # env.action_dtype = env.action_space.dtype
     env = DataProcess(env, config.get('precision', 32))
     env = EnvStats(
         env, config.get('max_episode_steps', None), 
@@ -289,25 +295,24 @@ class DataProcess(gym.Wrapper):
         self.obs_dtype = infer_dtype(self.observation_space.dtype, precision)
         self.action_dtype = np.int32 if self.is_action_discrete \
             else infer_dtype(self.action_space.dtype, self.precision)
-        self.float_dtype = infer_dtype(np.float32, self.precision)
 
-    def observation(self, observation):
-        if isinstance(observation, np.ndarray):
-            return convert_dtype(observation, self.precision)
-        return observation
+    # def observation(self, observation):
+    #     if isinstance(observation, np.ndarray):
+    #         return convert_dtype(observation, self.precision)
+    #     return observation
     
-    def action(self, action):
-        if isinstance(action, np.ndarray):
-            return convert_dtype(action, self.precision)
-        return np.int32(action) # always keep int32 for integers as tf.one_hot does not support int16
+    # def action(self, action):
+    #     if isinstance(action, np.ndarray):
+    #         return convert_dtype(action, self.precision)
+    #     return np.int32(action) # always keep int32 for integers as tf.one_hot does not support int16
 
-    def reset(self):
-        obs = self.env.reset()
-        return self.observation(obs)
+    # def reset(self):
+    #     obs = self.env.reset()
+    #     return self.observation(obs)
 
-    def step(self, action, **kwargs):
-        obs, reward, done, info = self.env.step(action, **kwargs)
-        return self.observation(obs), self.float_dtype(reward), self.float_dtype(done), info
+    # def step(self, action, **kwargs):
+    #     obs, reward, done, info = self.env.step(action, **kwargs)
+    #     return self.observation(obs), self.float_dtype(reward), self.float_dtype(done), info
 
 
 """ 
@@ -351,7 +356,7 @@ class EnvStats(gym.Wrapper):
         if not self._output.reset:
             return self._reset()
         else:
-            logger.warning('Repetitively calling reset results in no environment interaction')
+            logger.debug('Repetitively calling reset results in no environment interaction')
             return self._output
 
     def _reset(self):

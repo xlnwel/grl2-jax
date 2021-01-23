@@ -18,46 +18,38 @@ def create_env(config, env_fn=None, force_envvec=False):
 
 
 if __name__ == '__main__':
+    def run(config):
+        env = create_env(config)
+        env.reset()
+        st = time.time()
+        for _ in range(10000):
+            a = env.random_action()
+            _, _, d, _ = env.step(a)
+            if np.any(d == 0):
+                idx = [i for i, dd in enumerate(d) if dd == 0]
+                # print(idx)
+                env.reset(idx)
+        return time.time() - st
     import ray
     # performance test
     config = dict(
-        name='atari_breakout',
+        name='procgen_coinrun',
         wrapper='baselines',
         sticky_actions=True,
         frame_stack=4,
-        life_done=True,
+        life_done=False,
         np_obs=False,
         seed=0,
     )
     import time
     ray.init()
-    config['n_envs'] = 2
-    config['n_workers'] = 4
-    env = create_env(config)
-    st = time.time()
-    s = env.reset()
-    for _ in range(1000):
-        a = env.random_action()
-        s, r, d, re = env.step(a)
-        if np.any(re):
-            idx = [i for i, rr in enumerate(re) if rr]
-            info = env.info(idx)
-            for i in info:
-                print(idx, info, i)
-    print(f'RayEnvVec({config["n_workers"]}, {config["n_envs"]})', time.time() - st)
+    config['n_envs'] = 4
+    config['n_workers'] = 8
+    duration = run(config)
+    print(f'RayEnvVec({config["n_workers"]}, {config["n_envs"]})', duration)
     
     ray.shutdown()
     config['n_envs'] = config['n_workers'] * config['n_envs']
     config['n_workers'] = 1
-    env = create_env(config)
-    s = env.reset()
-    for _ in range(1000):
-        a = env.random_action()
-        s, r, d, re = env.step(a)
-        if np.any(re):
-            idx = [i for i, rr in enumerate(re) if rr]
-            info = env.info(idx)
-            for i in info:
-                print(i)
-    print(f'EnvVec({config["n_workers"]}, {config["n_envs"]})', time.time() - st)
-    
+    duration = run(config)
+    print(f'EnvVec({config["n_workers"]}, {config["n_envs"]})', duration)

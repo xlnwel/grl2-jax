@@ -30,7 +30,7 @@ class PPOBase(RMSBaseAgent):
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
     
     """ Call """
-    @override(RMSBaseAgent)
+    # @override(RMSBaseAgent)
     def _process_output(self, obs, kwargs, out, evaluation):
         out = super()._process_output(obs, kwargs, out, evaluation)        
         if self._normalize_obs and not evaluation:

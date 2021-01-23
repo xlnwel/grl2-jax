@@ -1,6 +1,4 @@
-import time
 import gym
-import numpy as np
 
 from procgen.env import ENV_NAMES as VALID_ENV_NAMES
 from env import wrappers
@@ -76,7 +74,7 @@ class Procgen(gym.Env):
         return self.env.close()
 
     def seed(self, seed=None):
-        return self.env.seed()
+        return seed
 
     def __repr__(self):
         return self.env.__repr()

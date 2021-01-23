@@ -61,7 +61,7 @@ agent:
 buffer:
     precision: *prec
     gamma_int: *gi
-    gamma_ext: *ge
+    gamma: *ge
     int_coef: 1
     ext_coef: 2
     lam: .95

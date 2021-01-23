@@ -49,7 +49,7 @@ class Every:
     def step(self):
         return self._next - self._period
 
-class RunningMeanStd(object):
+class RunningMeanStd:
     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
     def __init__(self, axis, epsilon=1e-8, clip=None):
         """ Compute running mean and std from data
@@ -96,7 +96,6 @@ class RunningMeanStd(object):
             batch_mean, batch_var, batch_count = x, np.zeros_like(x), 1
         else:
             batch_mean, batch_var = moments(x, self._axis, mask)
-            # print(x.shape, np.array(batch_var).shape)
             batch_count = np.prod(x.shape[self._shape_slice]) if mask is None else np.sum(mask)
         if batch_count > 0:
             self.update_from_moments(batch_mean, batch_var, batch_count)
@@ -127,8 +126,9 @@ class RunningMeanStd(object):
         assert self._var is not None, (self._mean, self._var, self._count)
         if subtract_mean:
             x = x - self._mean
+        x /= np.sqrt(self._var)
         if self._clip:
-            x = np.clip(x / np.sqrt(self._var), -self._clip, self._clip)
+            x = np.clip(x, -self._clip, self._clip)
         x = x.astype(np.float32)
         return x
 

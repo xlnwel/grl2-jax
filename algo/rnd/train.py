@@ -1,5 +1,4 @@
 import numpy as np
-import ray 
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.utils import Every, TempStore
@@ -13,30 +12,21 @@ from env.func import create_env
 
 
 def train(agent, env, eval_env, buffer):
-    obs_list = []
-    def collect_obs(env, step, reset, obs, **kwargs):
-        obs_list.append(obs)
-        if len(obs_list) >= 100:
-            obs_array = np.stack(obs_list, axis=1)
-            agent.update_obs_rms(obs_array)
-            obs_list[:] = []
-
     def collect(env, step, reset, next_obs, **kwargs):
         buffer.add(**kwargs)
 
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
+    actsel = lambda *args, **kwargs: np.random.randint(0, env.action_dim, size=env.n_envs)
     if not agent.rnd_rms_restored():
         print('Start to initialize observation running stats...')
-        runner.run(action_selector=env.random_action, 
-                    step_fn=collect_obs, 
-                    nsteps=50*agent.N_STEPS)
-        if obs_list:
-            obs = np.stack(obs_list, axis=1)
-            agent.update_obs_rms(obs)
+        for _ in range(50):
+            runner.run(action_selector=actsel, step_fn=collect)
+            agent.update_obs_rms(buffer['obs'])
+            buffer.reset()
+        buffer.clear()
         agent.save()
         runner.step = step
-    del obs_list
 
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
@@ -52,10 +42,12 @@ def train(agent, env, eval_env, buffer):
         obs = buffer.get_obs(runner.env_output.obs)
         assert obs.shape[:2] == (env.n_envs, agent.N_STEPS+1)
         assert obs.dtype == np.uint8
-        agent.update_obs_rms(obs)
+        agent.update_obs_rms(obs[:, :-1])
         norm_obs = agent.normalize_obs(obs)
         # compute intrinsic reward from the next normalized obs
         reward_int = agent.compute_int_reward(norm_obs[:, 1:])
+        agent.update_int_reward_rms(reward_int)
+        reward_int = agent.normalize_int_reward(reward_int)
         buffer.finish(reward_int, norm_obs[:, :-1], value_int, value_ext)
         agent.store(
             reward_int_max=np.max(reward_int),
@@ -124,6 +116,7 @@ def main(env_config, model_config, agent_config, buffer_config):
 
     use_ray = env_config.get('n_workers', 1) > 1
     if use_ray:
+        import ray
         ray.init()
         sigint_shutdown_ray()
 
@@ -159,4 +152,5 @@ def main(env_config, model_config, agent_config, buffer_config):
     train(agent, env, eval_env, buffer)
 
     if use_ray:
+        import ray
         ray.shutdown()

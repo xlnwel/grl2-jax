@@ -54,10 +54,10 @@ class Agent(PPOAgent):
         )
         self.learn = build(self._learn, TensorSpecs)
 
-    @tf.function
-    def _summary(self, data, terms):
-        tf.summary.histogram('sum/value_int', data['value_int'], step=self._env_step)
-        tf.summary.histogram('sum/value_ext', data['value_ext'], step=self._env_step)
+    # @tf.function
+    # def _summary(self, data, terms):
+    #     tf.summary.histogram('sum/value_int', data['value_int'], step=self._env_step)
+    #     tf.summary.histogram('sum/value_ext', data['value_ext'], step=self._env_step)
 
     """ Call """
     @override(PPOAgent)
@@ -67,6 +67,7 @@ class Agent(PPOAgent):
             norm_obs = np.expand_dims(obs, 1)
             norm_obs = self.normalize_obs(norm_obs)
             reward_int = self.compute_int_reward(norm_obs)
+            reward_int = self.normalize_int_reward(reward_int)
             self.eval_reward_int.append(np.squeeze(reward_int))
             self.eval_reward_ext.append(np.squeeze(env_output.reward))
         return obs, {}
@@ -79,6 +80,7 @@ class Agent(PPOAgent):
             self.eval_actions.append(out)
         return out
 
+    """ PPO Methods """
     @override(PPOAgent)
     def record_last_env_output(self, env_output):
         self._last_obs = env_output.obs
@@ -211,6 +213,12 @@ class Agent(PPOAgent):
     """ RND Methods """
     def compute_int_reward(self, next_obs):
         return self.rnd.compute_int_reward(next_obs)
+
+    def update_int_reward_rms(self, reward):
+        self.rnd.update_int_reward_rms(reward)
+    
+    def normalize_int_reward(self, reward):
+        return self.rnd.normalize_int_reward(reward)
 
     def update_obs_rms(self, obs):
         self.rnd.update_obs_rms(obs)

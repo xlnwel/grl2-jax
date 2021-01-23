@@ -4,16 +4,32 @@ from tensorflow_probability import distributions as tfd
 
 from core.module import Module, Ensemble
 from core.decorator import config
-from nn.func import cnn, mlp
-from nn.utils import get_initializer
 
+
+def ortho_init(scale):
+    # return tf.keras.initializers.orthogonal(gain=scale)
+    def _ortho_init(shape, dtype, partition_info=None):
+        #lasagne ortho init for tf
+        shape = tuple(shape)
+        if len(shape) == 2:
+            flat_shape = shape
+        elif len(shape) == 4: # assumes NHWC
+            flat_shape = (np.prod(shape[:-1]), shape[-1])
+        else:
+            raise NotImplementedError
+        a = np.random.normal(0.0, 1.0, flat_shape)
+        u, _, v = np.linalg.svd(a, full_matrices=False)
+        q = u if u.shape == flat_shape else v # pick the one with the correct shape
+        q = q.reshape(shape)
+        return (scale * q[:shape[0], :shape[1]]).astype(np.float32)
+    return _ortho_init
 
 class ACNet(Module):
     def __init__(self, name):
         super().__init__(name)
 
         kwargs = {
-            'kernel_initializer': get_initializer('orthogonal', gain=np.sqrt(2)),
+            'kernel_initializer': ortho_init(np.sqrt(2)),
             'activation': 'relu'
         }
         self._layers = [
@@ -43,20 +59,20 @@ class AC(Module):
         
         self._mlps = [
             tf.keras.layers.Dense(448, activation='relu', 
-                kernel_initializer=get_initializer('orthogonal', gain=.1),
+                kernel_initializer=ortho_init(.1),
                 name='fc2act'),
             tf.keras.layers.Dense(448, activation='relu', 
-                kernel_initializer=get_initializer('orthogonal', gain=.1),
+                kernel_initializer=ortho_init(.1),
                 name='fc2val'),
         ]
         self._actor = tf.keras.layers.Dense(action_dim, 
-            kernel_initializer=get_initializer('orthogonal', gain=.01),
+            kernel_initializer=ortho_init(.01),
             name='actor', dtype='float32')
         self._value_int = tf.keras.layers.Dense(1, 
-            kernel_initializer=get_initializer('orthogonal', gain=.01),
+            kernel_initializer=ortho_init(.01),
             name='value_int', dtype='float32')
         self._value_ext = tf.keras.layers.Dense(1, 
-            kernel_initializer=get_initializer('orthogonal', gain=.01),
+            kernel_initializer=ortho_init(.01),
             name='value_ext', dtype='float32')
 
     def call(self, x, return_value=False):
@@ -95,7 +111,7 @@ class RandomNet(Module):
         super().__init__(name)
 
         kwargs = {
-            'kernel_initializer': get_initializer('orthogonal', gain=np.sqrt(2)),
+            'kernel_initializer': ortho_init(np.sqrt(2)),
             'activation': tf.keras.layers.LeakyReLU()
         }
         self._layers = [
@@ -115,12 +131,13 @@ class RandomNet(Module):
         x = tf.reshape(x, (-1, t, x.shape[-1]))
         return x
 
+
 class Target(Module):
     def __init__(self, name='target'):
         super().__init__(name=name)
 
         kwargs = {
-            'kernel_initializer': get_initializer('orthogonal', gain=np.sqrt(2)),
+            'kernel_initializer': ortho_init(np.sqrt(2)),
         }
         self._layers = [
             RandomNet(name),
@@ -133,13 +150,13 @@ class Predictor(Module):
         super().__init__(name=name)
 
         kwargs = {
-            'kernel_initializer': get_initializer('orthogonal', gain=np.sqrt(2)),
-            'activation': 'relu'
+            'kernel_initializer': ortho_init(np.sqrt(2)),
         }
         self._layers = [
             RandomNet(name),
-            mlp([512, 512], out_size=512, **kwargs, 
-                out_dtype='float32', out_gain=np.sqrt(2), name=name)
+            tf.keras.layers.Dense(512, activation='relu', **kwargs),
+            tf.keras.layers.Dense(512, activation='relu', **kwargs),
+            tf.keras.layers.Dense(512, **kwargs, dtype='float32'),
         ]
 
 class RND(Ensemble):

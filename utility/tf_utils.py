@@ -170,7 +170,10 @@ class RunningMeanStd:
             mean = tf.cast(mean, x.dtype)
             x = x - mean
         x = x / std
-        x = tf.clip_by_value(self._scale * x, -self._clip, self._clip)
+        if self._scale is not None and self._scale != 1:
+            x *= self._scale
+        if self._clip is not None:
+            x = tf.clip_by_value(x, -self._clip, self._clip)
         return x
         
 def get_stoch_state(x, min_std):

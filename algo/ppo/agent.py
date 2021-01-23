@@ -22,6 +22,6 @@ class Agent(PPOBase):
         self.learn = build(self._learn, TensorSpecs)
 
     # @override(PPOBase)
-    def _summary(self, data, terms):
-        tf.summary.histogram('sum/value', data['value'], step=self._env_step)
-        tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
+    # def _summary(self, data, terms):
+    #     tf.summary.histogram('sum/value', data['value'], step=self._env_step)
+    #     tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)

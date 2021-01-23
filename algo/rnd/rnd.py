@@ -1,3 +1,4 @@
+import logging
 import cloudpickle
 import numpy as np
 import tensorflow as tf
@@ -6,6 +7,8 @@ from core.base import backward_discounted_sum
 from utility.utils import RunningMeanStd
 
 
+logger = logging.getLogger(__name__)
+
 class RND:
     def __init__(self, model, gamma_int, rms_path):
         self.predictor = model['predictor']
@@ -13,7 +16,7 @@ class RND:
         self._gamma_int = gamma_int
         axis = (0, 1)
         self._obs_rms = RunningMeanStd(axis=axis, epsilon=1e-4, clip=5)
-        self._returns_int = 0
+        self._prev_int_return = 0
         self._int_return_rms = RunningMeanStd(axis=axis, epsilon=1e-4)
         self._rms_path = rms_path
         self._rms_restored = False
@@ -23,12 +26,17 @@ class RND:
         assert len(next_obs.shape) == 5, next_obs.shape
         assert next_obs.dtype == np.float32, next_obs.dtype
         assert next_obs.shape[-1] == 1, next_obs.shape
-        reward_int = self._intrinsic_reward(next_obs).numpy()
-        returns_int = backward_discounted_sum(
-            self._returns_int, reward_int, np.ones(reward_int), self._gamma_int)
-        self._update_int_return_rms(returns_int)
-        reward_int = self._normalize_int_reward(reward_int)
-        return reward_int
+        int_reward = self._intrinsic_reward(next_obs).numpy()
+        return int_reward
+
+    def update_int_reward_rms(self, int_reward):
+        self._prev_int_return, int_return = backward_discounted_sum(
+            self._prev_int_return, int_reward, np.ones_like(int_reward), self._gamma_int)
+        self._int_return_rms.update(int_return)
+
+    def normalize_int_reward(self, reward):
+        norm_reward = self._int_return_rms.normalize(reward, subtract_mean=False)
+        return norm_reward
 
     @tf.function
     def _intrinsic_reward(self, next_obs):
@@ -42,36 +50,29 @@ class RND:
             # for stacked frames, we only use
             # the most recent one for rms update
             obs = obs[..., -1:]
-        assert len(obs.shape) == 5, obs.shape
+        assert len(obs.shape) == 5 and obs.shape[-1] == 1, obs.shape
         assert obs.dtype == np.uint8, obs.dtype
         self._obs_rms.update(obs)
 
-    def _update_int_return_rms(self, int_return):
-        assert len(int_return.shape) == 2
-        self._int_return_rms.update(int_return)
-
     def normalize_obs(self, obs):
         assert len(obs.shape) == 5, obs.shape
-        obs_norm = self._obs_rms.normalize(obs[..., -1:])
-        assert not np.any(np.isnan(obs_norm))
-        return obs_norm
-
-    def _normalize_int_reward(self, reward):
-        return self._int_return_rms.normalize(reward, subtract_mean=False)
+        next_obs = self._obs_rms.normalize(obs[..., -1:])
+        assert not np.any(np.isnan(next_obs))
+        return next_obs
 
     def restore(self):
         import os
         if os.path.exists(self._rms_path):
             with open(self._rms_path, 'rb') as f:
-                self._obs_rms, self._int_return_rms = \
+                self._obs_rms, self._int_return_rms, self._prev_int_return = \
                     cloudpickle.load(f)
-            print('RMSs are restored')
+            logger.info('RMSs are restored')
             self._rms_restored = True
 
     def save(self):
         with open(self._rms_path, 'wb') as f:
             cloudpickle.dump(
-                (self._obs_rms, self._int_return_rms), f)
+                (self._obs_rms, self._int_return_rms, self._prev_int_return), f)
 
     def rms_restored(self):
         return self._rms_restored

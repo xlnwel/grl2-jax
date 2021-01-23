@@ -101,12 +101,7 @@ class Buffer:
 
     def add(self, **data):
         if self._memory == {}:
-            init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
-            self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
-            self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
-            print_buffer(self._memory)
-            if getattr(self, '_sample_keys', None) is None:
-                self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
+            self._init_buffer(data)
             
         for k, v in data.items():
             self._memory[k][:, self._idx] = v
@@ -170,10 +165,15 @@ class Buffer:
         self._ready = True
 
     def reset(self):
+        self.reshape_to_store()
+        self._is_store_shape = True
         self._idx = 0
         self._mb_idx = 0
         self._ready = False
-        self.reshape_to_store()
+
+    def clear(self):
+        self._memory = {}
+        self.reset()
 
     def reshape_to_store(self):
         if not self._is_store_shape:
@@ -187,6 +187,10 @@ class Buffer:
                 self._memory, self._n_envs, self.N_STEPS, self._sample_size)
             self._is_store_shape = False
 
-    def clear(self):
-        self._memory = {}
-        self.reset()
+    def _init_buffer(self, data):
+        init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
+        self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
+        self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
+        print_buffer(self._memory)
+        if getattr(self, '_sample_keys', None) is None:
+            self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
