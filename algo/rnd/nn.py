@@ -7,6 +7,7 @@ from core.decorator import config
 
 
 def ortho_init(scale):
+    # it seems that tf.orthogonal slows training. 
     # return tf.keras.initializers.orthogonal(gain=scale)
     def _ortho_init(shape, dtype, partition_info=None):
         #lasagne ortho init for tf

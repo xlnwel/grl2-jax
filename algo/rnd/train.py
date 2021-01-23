@@ -120,7 +120,7 @@ def main(env_config, model_config, agent_config, buffer_config):
         ray.init()
         sigint_shutdown_ray()
 
-    env = create_env(env_config, env_fn=make_env, force_envvec=True)
+    env = create_env(env_config, force_envvec=True)
     eval_env_config = env_config.copy()
     eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1
@@ -129,7 +129,7 @@ def main(env_config, model_config, agent_config, buffer_config):
         # pop reward hacks
         if 'reward' in k:
             eval_env_config.pop(k)
-    eval_env = create_env(eval_env_config, env_fn=make_env, force_envvec=True)
+    eval_env = create_env(eval_env_config, force_envvec=True)
 
     models = create_model(model_config, env)
 

@@ -24,7 +24,7 @@ def compute_nae(reward, discount, value, last_value, traj_ret, gamma):
     traj_ret = standardize(traj_ret)
     return traj_ret, advantage
 
-def compute_gae(reward, discount, value, last_value, gamma, gae_discount):
+def compute_gae(reward, discount, value, last_value, gamma, gae_discount, norm_adv=True):
     next_value = np.concatenate(
             [value[:, 1:], np.expand_dims(last_value, 1)], axis=1)
     advs = delta = (reward + discount * gamma * next_value - value)
@@ -33,8 +33,9 @@ def compute_gae(reward, discount, value, last_value, gamma, gae_discount):
         advs[:, i] = next_adv = (delta[:, i] 
             + discount[:, i] * gae_discount * next_adv)
     traj_ret = advs + value
-    advantage = standardize(advs)
-    return traj_ret, advantage
+    if norm_adv:
+        advs = standardize(advs)
+    return traj_ret, advs
 
 def compute_indices(idxes, mb_idx, mb_size, N_MBS):
     start = mb_idx * mb_size

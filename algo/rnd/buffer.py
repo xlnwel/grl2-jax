@@ -42,14 +42,16 @@ class Buffer(BufferBase):
                         value=self._memory['value_int'],
                         last_value=last_value_int,
                         gamma=self._gamma_int,
-                        gae_discount=self._gae_discount_int)
+                        gae_discount=self._gae_discount_int,
+                        norm_adv=False)
         self._memory['traj_ret_ext'], adv_ext = \
             compute_gae(reward=self._memory['reward'], 
                         discount=self._memory['discount'],
                         value=self._memory['value_ext'],
                         last_value=last_value_ext,
                         gamma=self._gamma,
-                        gae_discount=self._gae_discount)
+                        gae_discount=self._gae_discount,
+                        norm_adv=False)
 
         self._memory['advantage'] = self._int_coef*adv_int + self._ext_coef*adv_ext
 
