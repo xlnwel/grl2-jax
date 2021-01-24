@@ -1,7 +1,4 @@
 import os, sys
-import importlib
-import argparse
-from copy import deepcopy
 import numpy as np
 import ray
 
@@ -14,24 +11,8 @@ from utility.run import evaluate
 from utility.graph import save_video
 from utility import pkg
 from env.func import create_env
+from run.args import parse_eval_args
 
-
-def parse_cmd_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('directory',
-                        type=str,
-                        help='directory where checkpoints and "config.yaml" exist')
-    parser.add_argument('--record', '-r',
-                        action='store_true')
-    parser.add_argument('--video_len', '-v', type=int, default=1000)
-    parser.add_argument('--n_episodes', '-n', type=int, default=1)
-    parser.add_argument('--n_envs', '-ne', type=int, default=0)
-    parser.add_argument('--n_workers', '-nw', type=int, default=0)
-    parser.add_argument('--size', '-s', nargs='+', type=int, default=[0, 0])
-    parser.add_argument('--fps', type=int, default=30)
-    args = parser.parse_args()
-
-    return args
 
 def main(env_config, model_config, agent_config, n, record=False, size=(128, 128), video_len=1000, fps=30):
     silence_tf_logs()
@@ -73,7 +54,7 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
         ray.shutdown()
 
 if __name__ == '__main__':
-    args = parse_cmd_args()
+    args = parse_eval_args()
 
     # search for config.yaml
     directory = args.directory

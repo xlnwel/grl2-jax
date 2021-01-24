@@ -118,7 +118,7 @@ class Replay:
     
     def aux_reset(self):
         assert self._ready, self._idx
-        self.reshape_to_store()
+        self._memory.clear()
         self._is_store_shape = True
         self._idx = 0
         self._mb_idx = 0

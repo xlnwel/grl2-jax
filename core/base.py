@@ -220,7 +220,15 @@ class RMSBaseAgent(BaseAgent):
 
     @property
     def is_obs_or_reward_normalized(self):
-        return self._obs_rms or self._reward_rms
+        return self._normalize_obs or self._normalize_reward
+    
+    @property
+    def is_obs_normalized(self):
+        return self._normalize_obs
+
+    @property
+    def is_reward_normalized(self):
+        return self._normalize_reward
 
     def update_obs_rms(self, obs):
         if self._normalize_obs:

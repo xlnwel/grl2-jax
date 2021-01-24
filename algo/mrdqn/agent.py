@@ -104,7 +104,6 @@ class Agent(DQNBase):
                 terms.update(tf.nest.map_structure(
                     lambda x: x.numpy(), kwargs['state']._asdict()))
             terms.update({
-                'obs': obs,
                 'mask': kwargs['mask'],
             })
         return out

@@ -67,4 +67,6 @@ class Buffer(BufferBase):
         self._memory['traj_ret_ext'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
         self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
         print_buffer(self._memory)
-        self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward', 'discount_int', 'reward_int'))
+        if self._inferred_sample_keys or getattr(self, '_sample_keys', None) is None:
+            self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
+            self._inferred_sample_keys = True

@@ -3,16 +3,15 @@ import logging
 import time
 import itertools
 from multiprocessing import Process
-from copy import deepcopy
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utility.utils import deep_update, str2bool, eval_str
+from utility.utils import deep_update, eval_str
 from utility.yaml_op import load_config
-from utility.display import assert_colorize, pwc
+from utility.display import pwc
 from utility import pkg
 from run.grid_search import GridSearch
-from run.args import parse_args
+from run.args import parse_train_args
 
 
 logger = logging.getLogger(__name__)
@@ -106,7 +105,7 @@ def load_run(directory):
     main(env_config, model_config, agent_config, replay_config)
 
 if __name__ == '__main__':
-    cmd_args = parse_args()
+    cmd_args = parse_train_args()
     verbose = getattr(logging, cmd_args.verbose.upper())
     logging.basicConfig(level=verbose)
     processes = []

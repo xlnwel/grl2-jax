@@ -142,6 +142,7 @@ def get_worker_class(BaseAgent):
             self.env = create_env(env_config)
             self.n_envs = self.env.n_envs
 
+            buffer_config['n_envs'] = self.n_envs
             self.buffer = buffer_fn(buffer_config)
 
             models = model_fn( 

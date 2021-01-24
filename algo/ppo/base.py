@@ -18,6 +18,7 @@ class PPOBase(RMSBaseAgent):
         super()._add_attributes(env, dataset)
 
         self._last_obs = None   # we record last obs before training to compute the last value
+        self._value_update = None
 
     @override(RMSBaseAgent)
     def _construct_optimizers(self):

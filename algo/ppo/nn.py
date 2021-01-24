@@ -15,8 +15,8 @@ class Actor(Module):
         self.eval_act_temp = config.pop('eval_act_temp', .5)
         assert self.eval_act_temp >= 0, self.eval_act_temp
 
+        self._init_std = config.pop('init_std', 1)
         if not self.is_action_discrete:
-            self._init_std = config.pop('init_std', 1)
             self.logstd = tf.Variable(
                 initial_value=np.log(self._init_std)*np.ones(action_dim), 
                 dtype='float32', 

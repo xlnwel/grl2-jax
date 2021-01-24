@@ -26,7 +26,7 @@ def train(agent, env, eval_env, buffer):
     #         buffer.reset()
     # buffer.clear()
     runner.step = step
-    print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_running_stats() if k])
+    # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_running_stats() if k])
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
@@ -117,11 +117,11 @@ def main(env_config, model_config, agent_config, buffer_config):
     buffer_config['state_keys'] = models.state_keys
     buffer = Buffer(buffer_config)
     
-    agent = Agent(name=env.name, 
-                config=agent_config, 
-                models=models, 
-                dataset=buffer,
-                env=env)
+    agent = Agent( 
+        config=agent_config, 
+        models=models, 
+        dataset=buffer,
+        env=env)
 
     agent.save_config(dict(
         env=env_config,

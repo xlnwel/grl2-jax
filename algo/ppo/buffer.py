@@ -61,7 +61,7 @@ def reshape_to_sample(memory, n_envs, n_steps, sample_size=None):
             assert v.shape[:2] == (n_envs * n_steps / sample_size, sample_size), v.shape
     else:
         for v in memory.values():
-            assert v.shape[0] == (n_envs * n_steps), v.shape
+            assert v.shape[0] == (n_envs * n_steps), (v.shape, n_envs, n_steps)
 
     return memory
 
@@ -87,6 +87,7 @@ class Buffer:
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
         self._is_store_shape = True
+        self._inferred_sample_keys = False
         self.reset()
         logger.info(f'Batch size: {size}')
         logger.info(f'Mini-batch size: {self._mb_size}')
@@ -193,5 +194,6 @@ class Buffer:
         self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
         self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
         print_buffer(self._memory)
-        if getattr(self, '_sample_keys', None) is None:
+        if self._inferred_sample_keys or getattr(self, '_sample_keys', None) is None:
             self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
+            self._inferred_sample_keys = True

@@ -62,7 +62,6 @@ def create_worker(
 
     n_workers = config['n_workers']
     n_envs = env_config.get('n_envs', 1)
-    buffer_config['n_envs'] = env_config.get('n_envs', 1)
     buffer_fn = create_local_buffer
 
     if 'seed' in env_config:

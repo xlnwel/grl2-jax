@@ -1,7 +1,7 @@
 import argparse
 
 
-def parse_args():
+def parse_train_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('algorithm',
                         type=str,
@@ -39,6 +39,24 @@ def parse_args():
     parser.add_argument('--verbose', '-v',
                         type=str,
                         default='warning')
+    args = parser.parse_args()
+
+    return args
+
+
+def parse_eval_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('directory',
+                        type=str,
+                        help='directory where checkpoints and "config.yaml" exist')
+    parser.add_argument('--record', '-r',
+                        action='store_true')
+    parser.add_argument('--video_len', '-v', type=int, default=1000)
+    parser.add_argument('--n_episodes', '-n', type=int, default=1)
+    parser.add_argument('--n_envs', '-ne', type=int, default=0)
+    parser.add_argument('--n_workers', '-nw', type=int, default=0)
+    parser.add_argument('--size', '-s', nargs='+', type=int, default=[0, 0])
+    parser.add_argument('--fps', type=int, default=30)
     args = parser.parse_args()
 
     return args

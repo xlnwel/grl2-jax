@@ -12,7 +12,6 @@ env:
 model:
     encoder:
         cnn_name: impala
-        cnn_out_size: null
     q:
         units_list: [512]
         kernel_initializer: glorot_uniform

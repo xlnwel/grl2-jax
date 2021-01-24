@@ -2,10 +2,10 @@
 
 
 algos=(
-    # ppg
+    # ppo
     # ppo2
-    # ppg
-    apex-mrdqn
+    ppg
+    # apex-mrdqn
     # apex-sacdiqn2
     # apex-sacdiqn2
     # sacdiqn5
@@ -62,7 +62,7 @@ for e in "${envs[@]}"; do
             dir="logs/${suite}_${e}/${a}"
             mkdir -p $dir
             # py_script="train ${a} -e ${suite}_${e} -v info $@ >& ${dir}/outputs.txt"
-            py_script="train ${a} -e ${suite}_${e} -v info -kw cnn_name=procgen sample_size=$a1 >& ${dir}/outputs.txt"
+            py_script="train ${a} -e ${suite}_${e} -v info -kw cnn_name=procgen >& ${dir}/outputs.txt"
             echo $py_script
             eval $py_script
             last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

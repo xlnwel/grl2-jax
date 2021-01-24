@@ -2,8 +2,9 @@
 env:
     name: procgen_coinrun
     distribution_mode: easy
-    frame_skip: 1
     n_envs: &ne 6
+    frame_diff: False
+    frame_skip: 1
     frame_stack: 1
     np_obs: True
     reward_scale: 1
@@ -30,6 +31,7 @@ agent:
     gamma: &gamma .99
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
+    
     schedule_act_eps: True
     act_eps_type: apex
     act_eps: .3
@@ -41,7 +43,6 @@ agent:
     SYNC_PERIOD: 400
     RECORD_PERIOD: 100
     N_EVALUATION: 10
-    logger: True
 
     # IQN params
     N: 64                # N in paper, num of quantiles for online quantile network
@@ -57,7 +58,7 @@ agent:
     n_worker_gpus: .1
     run_mode: nsteps
     worker_side_prioritization: False
-    return_stats: True
+    return_stats: False
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -72,7 +73,7 @@ agent:
     optimizer: adam
     schedule_lr: False
     lr: 2.5e-4
-    epsilon: 1e-7
+    epsilon: 1.5e-4
 
     # arguments for PER
     per_alpha: .6
@@ -91,7 +92,7 @@ replay:
 
     # arguments for general replay
     n_steps: *nsteps
-    max_steps: 5
+    max_steps: 3
     gamma: *gamma
     batch_size: *bs
     min_size: 1600

@@ -127,7 +127,7 @@ class Agent(PPOAgent):
             x_value = self.value_encoder(obs) if hasattr(self, 'value_encoder') else x
             value = self.value(x_value)
             value_loss, v_clip_frac = self._compute_value_loss(
-                value, traj_ret, old_value, terms)
+                value, traj_ret, old_value)
         terms['value_norm'] = self._value_opt(tape, value_loss)
 
         terms.update(dict(
@@ -181,7 +181,7 @@ class Agent(PPOAgent):
                 x_value, state = self.value_rnn(x_value, state, mask=mask)
             value = self.value(x_value)
             value_loss, v_clip_frac = self._compute_value_loss(
-                value, traj_ret, old_value, terms)
+                value, traj_ret, old_value)
         value_norm = self._value_opt(tape, value_loss)
         terms.update(dict(
             value_norm=value_norm,
@@ -216,7 +216,7 @@ class Agent(PPOAgent):
                 value = self.value(x)
 
             value_loss, v_clip_frac = self._compute_value_loss(
-                value, traj_ret, old_value, terms)
+                value, traj_ret, old_value)
             loss = actor_loss + value_loss
 
         terms['actor_norm'] = self._aux_opt(tape, loss)

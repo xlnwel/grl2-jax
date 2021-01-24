@@ -11,7 +11,8 @@ env:
 model:
     architecture: dual
     encoder: 
-        cnn_name: impala
+        cnn_name: procgen
+        filters: [16, 32, 32, 32]
         out_size: 256
     actor:
         units_list: []
@@ -27,11 +28,11 @@ model:
         activation: relu
 
 agent:
-    algorithm: &algo ppo
+    algorithm: &algo ppg
     precision: 32
     gamma: &gamma .99
     
-    MAX_STEPS: 2.5e7
+    MAX_STEPS: 1e7
     N_STEPS: &nsteps 256
     N_PI: &npi 32           # 32
     N_SEGS: &nsegs 4        # this should be no greater than N_PI. 
