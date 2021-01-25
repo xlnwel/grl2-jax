@@ -25,8 +25,8 @@ class Actor(Module):
         self.actor = mlp(**config, 
                         out_size=action_dim, 
                         out_dtype='float32',
-                        name=name,
-                        out_gain=.01)
+                        out_gain=.01,
+                        name=name)
 
     def call(self, x, evaluation=False):
         actor_out = self.actor(x)
@@ -53,6 +53,7 @@ class Value(Module):
         self._layers = mlp(**config,
                           out_size=1,
                           out_dtype='float32',
+                          out_gain=.01,
                           name=name)
 
     def call(self, x):

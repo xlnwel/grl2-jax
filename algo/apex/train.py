@@ -1,5 +1,6 @@
 import os
 import time
+import tensorflow as tf
 import ray
 
 from utility.ray_setup import sigint_shutdown_ray
@@ -24,7 +25,8 @@ default_agent_config = {
 }
 
 def main(env_config, model_config, agent_config, replay_config):
-    ray.init(num_cpus=os.cpu_count(), num_gpus=1)
+    gpus = tf.config.list_physical_devices('GPU')
+    ray.init(num_cpus=os.cpu_count(), num_gpus=len(gpus))
     
     sigint_shutdown_ray()
 

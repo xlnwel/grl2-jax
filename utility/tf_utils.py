@@ -177,11 +177,10 @@ class RunningMeanStd:
         return x
         
 def get_stoch_state(x, min_std):
-    with tf.name_scope('stoch'):
-        mean, std = tf.split(x, 2, -1)
-        std = tf.nn.softplus(std) + min_std
-        stoch = mean + tf.random.normal(tf.shape(mean)) * std
-        return mean, std, stoch
+    mean, std = tf.split(x, 2, -1)
+    std = tf.nn.softplus(std) + min_std
+    stoch = mean + tf.random.normal(tf.shape(mean)) * std
+    return mean, std, stoch
 
 def assert_rank(tensors, rank):
     if not isinstance(tensors, (list, tuple)):

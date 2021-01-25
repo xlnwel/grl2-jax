@@ -19,11 +19,10 @@ model:
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
-        eval_act_temp: .5
     quantile:
         tau_embed_size: 64
         phi_activation: relu
-        K: &K 64
+        N: &K 64
     q:
         units_list: [512]
         layer_type: dense
@@ -53,6 +52,7 @@ agent:
     n_exploit_envs: 8
     min_temp: .5
     max_temp: 10
+    eval_act_temp: .5
     
     MAX_STEPS: 8e6      # maximum env steps
     LOG_PERIOD: 100
@@ -68,7 +68,7 @@ agent:
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # distributed algo params
-    n_learner_cpus: 3
+    n_learner_cpus: 1
     n_learner_gpus: .3
     n_workers: 5
     n_worker_cpus: 1

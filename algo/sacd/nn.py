@@ -16,48 +16,41 @@ class Actor(Module):
     def __init__(self, config, action_dim, name='actor'):
         super().__init__(name=name)
         
-        prior = np.ones(action_dim, dtype=np.float32)
-        prior /= np.sum(prior)
-        self.prior = tf.Variable(prior, trainable=False, name='prior')
-        act_temp = config.pop('act_temp', 1.)
-        if isinstance(act_temp, (list, tuple, np.ndarray)):
-            act_temp = np.expand_dims(act_temp, axis=-1)
-        self.act_inv_temp = 1. / act_temp
-        self.eval_act_temp = config.pop('eval_act_temp', .5)
-        logger.info(f'{self.name} action temperature: {np.squeeze(act_temp)}\n'
-            f'action temperature at evaluation: {self.eval_act_temp}')
+        self._action_dim = action_dim
+        # prior = np.ones(action_dim, dtype=np.float32)
+        # prior /= np.sum(prior)
+        # self.prior = tf.Variable(prior, trainable=False, name='prior')
 
         self._layers = mlp(
             **config, 
             out_size=action_dim,
             out_dtype='float32',
             name=name)
-        self._action_dim = action_dim
     
     @property
     def action_dim(self):
         return self._action_dim
 
-    def call(self, x, evaluation=False, epsilon=0):
+    def call(self, x, evaluation=False, epsilon=0, temp=1):
         self.logits = logits = self._layers(x)
 
         if evaluation:
-            if self.eval_act_temp == 0:
+            if temp == 0:
                 dist = tfd.Categorical(logits)
                 action = dist.mode()
             else:
-                logits = logits / self.eval_act_temp
+                logits = logits / temp
                 dist = tfd.Categorical(logits)
                 action = dist.sample()
         else:
             if isinstance(epsilon, tf.Tensor) or epsilon:
-                # scaled_logits = logits * self.act_inv_temp
+                # scaled_logits = logits / temp
                 # prior_logits = tf.math.log(tf.maximum(self.prior, 1e-8))
                 # prior_logits = tf.broadcast_to(prior_logits, logits.shape)
                 # cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
                 # cond = tf.reshape(cond, (-1, 1))
                 # logits = tf.where(cond, scaled_logits, prior_logits)
-                scaled_logits = logits * self.act_inv_temp
+                scaled_logits = logits / temp
                 cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
                 cond = tf.reshape(cond, (-1, 1))
                 logits = tf.where(cond, logits, scaled_logits)

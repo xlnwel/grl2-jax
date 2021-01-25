@@ -11,6 +11,7 @@ from algo.dqn.base import DQNBase, get_data_format, collect
 
 
 class Agent(DQNBase):
+    """ Initialization """
     @override(DQNBase)
     def _construct_optimizers(self):
         if self._schedule_lr:
@@ -39,7 +40,13 @@ class Agent(DQNBase):
     # def summary(self, data, terms):
     #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
     #     tf.summary.histogram('learn/reward', data['reward'], step=self._env_step)
+    """ Call """
+    def _process_input(self, obs, evaluation, env_output):
+        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+        kwargs['temp'] = self._eval_act_temp if evaluation else self._act_temp
+        return obs, kwargs
 
+    """ SACIQN Methods"""
     @override(DQNBase)
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
@@ -101,7 +108,7 @@ class Agent(DQNBase):
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
         act_probs = tf.reduce_mean(act_probs, 0)
-        self.actor.update_prior(act_probs, self._prior_lr)
+        # self.actor.update_prior(act_probs, self._prior_lr)
         if self.temperature.is_trainable():
             # Entropy of a uniform distribution
             self._target_entropy = np.log(self._action_dim)
@@ -127,7 +134,6 @@ class Agent(DQNBase):
             priority = self._compute_priority(error)
             terms['priority'] = priority
             
-        
         q_target = tf.reduce_mean(q_target, axis=(1, 2))
         terms.update(dict(
             steps=steps,

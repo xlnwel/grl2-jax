@@ -53,7 +53,7 @@ agent:
     n_learner_gpus: .3
     n_actors: 2
     n_actor_gpus: .1
-    n_workers: 6
+    n_workers: 5
     n_worker_cpus: 1
     n_worker_gpus: 0
     run_mode: nsteps

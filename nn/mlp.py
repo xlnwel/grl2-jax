@@ -15,9 +15,6 @@ class MLP(Module):
         layer_cls = layer_registry.get(layer_type)
         Layer = layer_registry.get('layer')
         logger.debug(f'{self.name} gain: {kwargs.get("gain", units_list)}')
-        # Follows OpenAI's baselines, which uses a small-scale initializer
-        # for policy head when using orthogonal initialization
-        # out_gain = kwargs.pop('out_gain', .01)
 
         self._layers = [
             Layer(u, layer_type=layer_cls, norm=norm, 

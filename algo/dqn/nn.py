@@ -8,33 +8,26 @@ from nn.func import Encoder, mlp
 
 
 class Q(Module):
-    @config
-    def __init__(self, action_dim, name='q'):
+    def __init__(self, config, action_dim, name='q'):
         super().__init__(name=name)
 
         self.action_dim = action_dim
+        self._duel = config.pop('duel', False)
 
         """ Network definition """
-        kwargs = {}
-        kwargs = dict(
-            kernel_initializer=getattr(self, '_kernel_initializer', 'glorot_uniform'),
-            activation=getattr(self, '_activation', 'relu'),
-            layer_type=getattr(self, '_layer_type', 'dense'),
-            norm=getattr(self, '_norm', None),
-            out_dtype='float32',
-        )
-        
         if self._duel:
             self._v_layers = mlp(
                 self._units_list, 
                 out_size=1, 
                 name=name+'/v',
-                **kwargs)
+                out_dtype='float32',
+                **config)
         self._layers = mlp(
             self._units_list, 
             out_size=action_dim, 
             name=name,
-            **kwargs)
+            out_dtype='float32',
+            **config)
 
     def action(self, x, noisy=True, reset=True):
         q = self.call(x, noisy=noisy, reset=reset)

@@ -49,7 +49,7 @@ agent:
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # distributed algo params
-    n_learner_cpus: 3
+    n_learner_cpus: 1
     n_learner_gpus: .3
     n_workers: 5
     n_worker_cpus: 1

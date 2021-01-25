@@ -2,7 +2,7 @@
 env:
     name: &env_name atari_MontezumaRevenge
     max_episode_steps: 18000
-    n_workers: 8
+    n_workers: 5
     n_envs: &nenvs 4
     seed: 0
     frame_skip: 4

@@ -38,9 +38,9 @@ agent:
     N_EVALUATION: 10
 
     # distributed algo params
-    n_learner_cpus: 3
+    n_learner_cpus: 1
     n_learner_gpus: 1
-    n_workers: 8
+    n_workers: 5
     n_worker_cpus: 1
     n_worker_gpus: 0
     

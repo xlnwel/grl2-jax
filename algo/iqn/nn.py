@@ -1,7 +1,9 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow_probability import distributions as tfd
 
 from utility.rl_utils import epsilon_greedy
+from utility.tf_utils import softmax
 from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import Encoder, mlp
@@ -11,6 +13,8 @@ class Quantile(Module):
     @config
     def __init__(self, name='phi'):
         super().__init__(name=name)
+        if not hasattr(self, 'N'):
+            self.N = self.K
 
     def sample_tau(self, batch_size, n=None):
         n = n or self.N
@@ -44,42 +48,42 @@ class Quantile(Module):
 
 
 class Value(Module):
-    @config
-    def __init__(self, action_dim, name='value'):
+    def __init__(self, config, action_dim, name='value'):
         super().__init__(name=name)
 
         self._action_dim = action_dim
+        self._duel = config.pop('duel', False)
+        self._stoch_action = config.pop('stoch_action', False)
 
         """ Network definition """
-        kwargs = dict(
-            kernel_initializer=getattr(self, '_kernel_initializer', 'glorot_uniform'),
-            activation=getattr(self, '_activation', 'relu'),
-            layer_type=getattr(self, '_layer_type', 'dense'),
-            norm=getattr(self, '_norm', None),
-            out_dtype='float32',
-        )
-
         if getattr(self, '_duel', False):
             self._v_layers = mlp(
-                self._units_list,
+                **config,
                 out_size=1, 
                 name=name+'/v',
-                **kwargs)
+                out_dtype='float32')
         # we do not define the phi net here to make it consistent with the CNN output size
         self._layers = mlp(
-            self._units_list,
+            **config,
             out_size=action_dim, 
             name=name,
-            **kwargs)
+            out_dtype='float32')
 
     @property
     def action_dim(self):
         return self._action_dim
 
-    def action(self, x, qt_embed=None, tau_range=None, return_stats=False):
-        _, q = self.call(x, qt_embed, tau_range=tau_range, return_value=True)
-        action = tf.argmax(q, axis=-1, output_type=tf.int32)
-        q = tf.reduce_max(q, axis=-1)
+    def action(self, x, qt_embed=None, tau_range=None, temp=1, return_stats=False):
+        _, qs = self.call(x, qt_embed, tau_range=tau_range, return_value=True)
+        if self._stoch_action:
+            probs = softmax(qs, temp)
+            dist = tfd.Categorical(probs=probs)
+            action = tfd.sample(dist)
+            one_hot = tf.one_hot(action, qs.shape[-1])
+            q = tf.reduce_sum(qs * one_hot, axis=-1)
+        else:
+            action = tf.argmax(qs, axis=-1, output_type=tf.int32)
+            q = tf.reduce_max(qs, axis=-1)
         if return_stats:
             return action, q
         else:

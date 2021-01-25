@@ -1,10 +1,7 @@
 import logging
-import numpy as np
 import tensorflow as tf
 import ray
 
-from utility.rl_utils import compute_act_eps, compute_act_temp
-from utility import pkg
 from replay.func import create_local_buffer
 from algo.apex.monitor import Monitor
 
@@ -60,8 +57,6 @@ def create_worker(
     env_config = env_config.copy()
     buffer_config = buffer_config.copy()
 
-    n_workers = config['n_workers']
-    n_envs = env_config.get('n_envs', 1)
     buffer_fn = create_local_buffer
 
     if 'seed' in env_config:
@@ -71,23 +66,6 @@ def create_worker(
     config['save_code'] = False
     config['logger'] = False
     config['writer'] = False
-
-    if config.get('schedule_act_eps'):
-        config['act_eps'] = compute_act_eps(
-            config['act_eps_type'], 
-            config['act_eps'], 
-            worker_id, 
-            n_workers, 
-            n_envs)
-    if config.get('schedule_act_temp') and 'actor' in model_config:
-        model_config['actor']['act_temps'] = compute_act_temp(
-            config['min_temp'],
-            config['max_temp'],
-            config.get('n_exploit_envs', 0),
-            worker_id,
-            n_workers,
-            n_envs
-        )
 
     n_cpus = config.get('n_worker_cpus', 1)
     n_gpus = config.get('n_worker_gpus', 0)
@@ -120,8 +98,6 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
         env_config['seed'] += 999
     env_config['n_workers'] = 1
     env_config['n_envs'] = 4 if 'procgen' in env_config['name'] else 1
-    if 'actor' in model_config:
-        model_config['actor']['act_temp'] = config.pop('eval_act_temp', .5)
 
     RayEvaluator = ray.remote(num_cpus=1)(Evaluator)
     evaluator = RayEvaluator.remote(

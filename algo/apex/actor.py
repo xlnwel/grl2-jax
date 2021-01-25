@@ -172,10 +172,6 @@ def get_worker_class(BaseAgent):
                 self._pull_names = [k for k in self.model.keys() if 'target' not in k]
             self._info = collections.defaultdict(list)
             
-            print(f'{worker_id} action epsilon:', self._act_eps)
-            if hasattr(self.model, 'actor'):
-                print(f'{worker_id} action inv_temp:', np.squeeze(self.model.actor.act_inv_temp))
-
         """ Call """
         def _process_input(self, obs, evaluation, env_output):
             obs, kwargs = super()._process_input(obs, evaluation, env_output)

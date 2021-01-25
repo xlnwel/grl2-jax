@@ -26,7 +26,7 @@ model:
         
         tau_embed_size: 64
         phi_activation: relu
-        K: &K 32
+        N: &K 32
     temperature:
         temp_type: variable
         value: .1
@@ -56,8 +56,8 @@ agent:
     KAPPA: 1            # 𝜅 in paper, used as the threshold for the huber loss
 
     # distributed algo params
-    n_learner_cpus: 3
-    n_workers: 6
+    n_learner_cpus: 1
+    n_workers: 5
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

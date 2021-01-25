@@ -16,7 +16,7 @@ def train(agent, env, eval_env, buffer):
 
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
-    if step == 0 and agent.is_obs_or_reward_normalized:
+    if step == 0 and agent.is_obs_normalized:
         print('Start to initialize running stats...')
         for _ in range(50):
             runner.run(action_selector=env.random_action, step_fn=collect)

@@ -1,5 +1,3 @@
-from core.base import RMSBaseAgent
-import numpy as np
 import tensorflow as tf
 
 from core.tf_config import build

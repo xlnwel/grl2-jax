@@ -3,8 +3,6 @@ import logging
 import tensorflow as tf
 from tensorflow.keras import mixed_precision
 
-from utility.display import pwc
-
 logger = logging.getLogger(__name__)
 
 def configure_gpu(idx=0):

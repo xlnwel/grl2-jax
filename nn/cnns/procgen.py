@@ -1,8 +1,6 @@
 from core.module import Module
-from nn.registry import cnn_registry, subsample_registry, block_registry, layer_registry
+from nn.registry import cnn_registry, subsample_registry, block_registry
 from nn.utils import *
-from utility.tf_utils import get_stoch_state
-from nn.cnns.block.ds import State
 
 
 @cnn_registry.register('procgen')
@@ -139,3 +137,6 @@ class ProcgenCNN(Module):
         if self._deter_stoch:
             self.state = self._ds_layer.state
         return x
+
+ProcgenSmall = functools.partial(ProcgenCNN, filters=[16, 32, 32, 32], name='procgen_small')
+cnn_registry.register('procgen_small')(ProcgenSmall)
