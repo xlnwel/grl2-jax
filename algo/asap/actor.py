@@ -10,12 +10,12 @@ from utility.display import pwc
 from utility.run import Runner
 from utility.timer import Timer
 from env.func import create_env
-from algo.apex.actor import Worker as BaseWorker
+from algo.apex.actor import Worker as WorkerBase
 from algo.apex.actor import get_learner_class, get_evaluator_class
 from algo.asap.utils import *
 
 
-class Worker(BaseWorker):
+class Worker(WorkerBase):
     def __init__(self, 
                 *,
                 worker_id,

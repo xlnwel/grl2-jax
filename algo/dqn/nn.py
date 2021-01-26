@@ -3,7 +3,6 @@ import tensorflow as tf
 from utility.tf_utils import assert_shape_compatibility
 from utility.rl_utils import epsilon_greedy
 from core.module import Module, Ensemble
-from core.decorator import config
 from nn.func import Encoder, mlp
 
 
@@ -13,21 +12,20 @@ class Q(Module):
 
         self.action_dim = action_dim
         self._duel = config.pop('duel', False)
+        self._layer_type = config.get('layer_type', 'dense')
 
         """ Network definition """
         if self._duel:
             self._v_layers = mlp(
-                self._units_list, 
+                **config,
                 out_size=1, 
                 name=name+'/v',
-                out_dtype='float32',
-                **config)
+                out_dtype='float32')
         self._layers = mlp(
-            self._units_list, 
+            **config, 
             out_size=action_dim, 
             name=name,
-            out_dtype='float32',
-            **config)
+            out_dtype='float32')
 
     def action(self, x, noisy=True, reset=True):
         q = self.call(x, noisy=noisy, reset=reset)

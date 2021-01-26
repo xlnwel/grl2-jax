@@ -9,7 +9,7 @@ from utility.rl_utils import retrace
 from utility.tf_utils import static_scan, huber_loss
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from core.tf_config import build
-from core.base import BaseAgent
+from core.base import AgentBase
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.dreamer3.nn import RSSMState
@@ -31,7 +31,7 @@ def get_data_format(env, batch_size, sample_size=None,
         })
     return data_format
 
-class Agent(BaseAgent):
+class Agent(AgentBase):
     @agent_config
     def __init__(self, *, dataset, env):
         # dataset for input pipline optimization

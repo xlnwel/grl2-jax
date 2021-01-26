@@ -23,8 +23,8 @@ def config_actor(name, config):
     configure_gpu()
     configure_precision(config.get('precision', 32))
 
-def get_base_learner_class(BaseAgent):
-    class BaseLearner(BaseAgent):
+def get_base_learner_class(AgentBase):
+    class LearnerBase(AgentBase):
         def start_learning(self):
             self._learning_thread = threading.Thread(
                 target=self._learning, daemon=True)
@@ -44,11 +44,11 @@ def get_base_learner_class(BaseAgent):
         def get_stats(self):
             return self.train_step, super().get_stats()
 
-    return BaseLearner
+    return LearnerBase
 
-def get_learner_class(BaseAgent):
-    BaseLearner = get_base_learner_class(BaseAgent)
-    class Learner(BaseLearner):
+def get_learner_class(AgentBase):
+    LearnerBase = get_base_learner_class(AgentBase)
+    class Learner(LearnerBase):
         def __init__(self,
                     model_fn,
                     replay,
@@ -83,8 +83,8 @@ def get_learner_class(BaseAgent):
     return Learner
 
 
-def get_base_worker_class(BaseAgent):
-    class BaseWorker(BaseAgent):
+def get_base_worker_class(AgentBase):
+    class WorkerBase(AgentBase):
         def _send_data(self, replay, buffer=None):
             buffer = buffer or self.buffer
             data = buffer.sample()
@@ -120,12 +120,12 @@ def get_base_worker_class(BaseAgent):
 
             return priority
 
-    return BaseWorker
+    return WorkerBase
 
 
-def get_worker_class(BaseAgent):
-    BaseWorker = get_base_worker_class(BaseAgent)
-    class Worker(BaseWorker):
+def get_worker_class(AgentBase):
+    WorkerBase = get_base_worker_class(AgentBase)
+    class Worker(WorkerBase):
         """ Initialization """
         def __init__(self,
                     *,
@@ -217,8 +217,8 @@ def get_worker_class(BaseAgent):
     return Worker
 
 
-def get_evaluator_class(BaseAgent):
-    class Evaluator(BaseAgent):
+def get_evaluator_class(AgentBase):
+    class Evaluator(AgentBase):
         """ Initialization """
         def __init__(self, 
                     *,

@@ -19,8 +19,8 @@ from algo.dreamer.env import make_env
 from algo.apex.actor import config_actor, get_learner_class, get_base_worker_class, get_evaluator_class
 
 
-def get_actor_class(BaseAgent):
-    class Actor(BaseAgent):
+def get_actor_class(AgentBase):
+    class Actor(AgentBase):
         def __init__(self,
                     actor_id,
                     model_fn,
@@ -142,8 +142,8 @@ def get_actor_class(BaseAgent):
 
 
 def get_worker_class():
-    BaseWorker = get_base_worker_class(object)
-    class Worker(BaseWorker):
+    WorkerBase = get_base_worker_class(object)
+    class Worker(WorkerBase):
         def __init__(self, worker_id, config, env_config, buffer_config):
             config_attr(self, config)
             cpu_affinity(f'Worker_{worker_id}')

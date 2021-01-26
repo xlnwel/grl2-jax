@@ -2,18 +2,16 @@ import tensorflow as tf
 
 from core.tf_config import build
 from core.decorator import override
+from core.base import Memory
 from algo.ppo.base import PPOBase
 
 
-class Agent(PPOBase):
+class Agent(Memory, PPOBase):
     """ Initialization """
     @override(PPOBase)
     def _add_attributes(self, env, dataset):
-        super()._add_attributes(env, dataset)
-        # previous and current state of LSTM
-        self._state = None
-        self._prev_action = 0
-        self._prev_reward = 0
+        PPOBase._add_attributes(self, env, dataset)
+        Memory._add_attributes(self)
 
     @override(PPOBase)
     def _build_learn(self, env):
@@ -41,50 +39,19 @@ class Agent(PPOBase):
     """ Call """
     # @override(PPOBase)
     def _process_input(self, obs, evaluation, env_output):
-        if self._state is None:
-            self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
-            if self.model.additional_rnn_input:
-                self._prev_action = tf.zeros(obs.shape[0], dtype=tf.int32)
-        
-        obs, kwargs = super()._process_input(obs, evaluation, env_output)
-        kwargs.update({
-            'state': self._state,
-            'mask': 1. - env_output.reset,   # mask is applied in LSTM
-            'prev_action': self._prev_action, 
-            'prev_reward': env_output.reward # use unnormalized reward to avoid potential inconsistency
-        })
+        obs, kwargs = PPOBase._process_input(self, obs, evaluation, env_output)
+        obs, kwargs = Memory._process_input(self, obs, env_output, kwargs)
         return obs, kwargs
-        
+
     # @override(PPOBase)
     def _process_output(self, obs, kwargs, out, evaluation):
-        out, self._state = out
-        if self.model.additional_rnn_input:
-            self._prev_action = out[0]
-        
-        out = super()._process_output(obs, kwargs, out, evaluation)
+        out = Memory._process_output(self, obs, kwargs, out, evaluation)
+        out = PPOBase._process_output(self, obs, kwargs, out, evaluation)
         if not evaluation:
-            terms = out[1]
-            if self._store_state:
-                terms.update(tf.nest.map_structure(
-                    lambda x: x.numpy(), kwargs['state']._asdict()))
-            terms.update({
-                'obs': obs,
-                'mask': kwargs['mask'],
-            })
+            out[1]['mask'] = kwargs['mask']
         return out
 
     """ PPO methods """
-    @override(PPOBase)
-    def reset_states(self, states=None):
-        if states is None:
-            self._state, self._prev_action = None, None
-        else:
-            self._state, self._prev_action = states
-
-    @override(PPOBase)
-    def get_states(self):
-        return self._state, self._prev_action
-
     @override(PPOBase)
     def record_last_env_output(self, env_output):
         self.update_obs_rms(env_output.obs)

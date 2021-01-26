@@ -5,6 +5,7 @@ from utility.rl_utils import *
 from utility.rl_loss import retrace
 from core.tf_config import build
 from core.decorator import override
+from core.base import Memory
 from algo.dqn.base import DQNBase
 
 
@@ -40,14 +41,12 @@ def collect(replay, env, step, reset, next_obs, **kwargs):
     replay.add(**kwargs)
 
 
-class Agent(DQNBase):
+class Agent(Memory, DQNBase):
     """ Initialization """
     @override(DQNBase)
     def _add_attributes(self, env, dataset):
-        super()._add_attributes(env, dataset)
-        self._state = None
-        self._prev_action = 0
-        self._prev_reward = 0
+        DQNBase._add_attributes(self, env, dataset)
+        Memory._add_attributes(self)
 
     @override(DQNBase)
     def _build_learn(self, env):
@@ -74,40 +73,21 @@ class Agent(DQNBase):
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     """ Call """
-    @override(DQNBase)
+    # @override(DQNBase)
     def _process_input(self, obs, evaluation, env_output):
-        if 'rnn' in self.model and self._state is None:
-            self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
-            if self.model.additional_rnn_input:
-                self._prev_action = tf.zeros(obs.shape[0], dtype=tf.int32)
-                self._prev_reward = np.zeros(obs.shape[0])
-
-        obs, kwargs = super()._process_input(obs, evaluation, env_output)
-        kwargs.update({
-            'state': self._state,
-            'mask': 1. - env_output.reset,   # mask is applied in LSTM
-            'prev_action': self._prev_action, 
-            'prev_reward': env_output.reward # use unnormalized reward to avoid potential inconsistency
-        })
+        obs, kwargs = DQNBase._process_input(self, obs, evaluation, env_output)
+        obs, kwargs = Memory._process_input(self, obs, env_output, kwargs)
         return obs, kwargs
 
-    @override(DQNBase)
+    # @override(DQNBase)
     def _process_output(self, obs, kwargs, out, evaluation):
-        out, self._state = out
-        if self.model.additional_rnn_input:
-            self._prev_action = out[0]
-        
-        out = super()._process_output(obs, kwargs, out, evaluation)
+        out = Memory._process_output(self, obs, kwargs, out, evaluation)
+        out = DQNBase._process_output(self, obs, kwargs, out, evaluation)
         if not evaluation:
-            terms = out[1]
-            if self._store_state:
-                terms.update(tf.nest.map_structure(
-                    lambda x: x.numpy(), kwargs['state']._asdict()))
-            terms.update({
-                'mask': kwargs['mask'],
-            })
+            out[1]['mask'] = kwargs['mask']
         return out
 
+    """ MRDQN methods """
     @tf.function
     def _learn(self, obs, action, reward, discount, prob, mask, 
                 IS_ratio=1, state=None, additional_rnn_input=[]):
@@ -203,12 +183,3 @@ class Agent(DQNBase):
         priority += self._per_epsilon
         priority **= self._per_alpha
         return priority
-
-    def reset_states(self, state=None):
-        if state is None:
-            self._state, self._prev_action, self._prev_reward = None, None, None
-        else:
-            self._state, self._prev_action, self._prev_reward= state
-
-    def get_states(self):
-        return self._state, self._prev_action, self._prev_reward

@@ -93,7 +93,7 @@ class AgentImpl(ABC):
         pwc(f'{self.name.upper()} is constructed...', color='cyan')
 
 
-class BaseAgent(AgentImpl):
+class AgentBase(AgentImpl):
     """ Initialization """
     @agent_config
     def __init__(self, *, env, dataset):
@@ -182,8 +182,8 @@ class BaseAgent(AgentImpl):
         raise NotImplementedError
 
 
-class RMSBaseAgent(BaseAgent):
-    @override(BaseAgent)
+class RMSAgentBase(AgentBase):
+    @override(AgentBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
 
@@ -207,10 +207,18 @@ class RMSBaseAgent(BaseAgent):
         logger.info(f'Reward normalization: {self._normalize_reward}')
         logger.info(f'Reward normalization with reversed return: {self._normalize_reward_with_reversed_return}')
 
-    @override(BaseAgent)
+    # @override(AgentBase)
     def _process_input(self, obs, evaluation, env_output):
         obs = self.normalize_obs(obs)
         return obs, {}
+    
+    @override(AgentBase)
+    def _process_output(self, obs, kwargs, out, evaluation):
+        out = super()._process_output(obs, kwargs, out, evaluation)        
+        if self._normalize_obs and not evaluation:
+            terms = out[1]
+            terms['obs'] = obs
+        return out
 
     """ Functions for running mean and std """
     def get_running_stats(self):
@@ -270,7 +278,7 @@ class RMSBaseAgent(BaseAgent):
         return self._reward_rms.normalize(reward, subtract_mean=False) \
             if self._normalize_reward else reward
 
-    @override(BaseAgent)
+    @override(AgentBase)
     def restore(self):
         if os.path.exists(self._rms_path):
             with open(self._rms_path, 'rb') as f:
@@ -278,7 +286,7 @@ class RMSBaseAgent(BaseAgent):
                 logger.info(f'rms stats are restored from {self._rms_path}')
         super().restore()
 
-    @override(BaseAgent)
+    @override(AgentBase)
     def save(self, print_terminal_info=False):
         with open(self._rms_path, 'wb') as f:
             cloudpickle.dump((self._obs_rms, self._reward_rms, self._reverse_return), f)
@@ -301,3 +309,48 @@ def backward_discounted_sum(prev_ret, reward, discount, gamma):
         return prev_ret, ret
     else:
         raise ValueError(f'Unknown reward shape: {reward.shape}')
+
+
+class Memory(ABC):
+    """ Following Python's MRO, this class should be positioned 
+    before AgentBase to enable reset&get state operations"""
+    @abstractmethod
+    def _add_attributes(self):
+        self._state = None
+        self._prev_action = 0
+        self._prev_reward = 0
+    
+    @abstractmethod
+    def _process_input(self, obs, env_output, kwargs):
+        if self._state is None:
+            self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
+            self._prev_action = tf.zeros(obs.shape[0], dtype=tf.int32)
+            self._prev_reward = np.zeros(obs.shape[0])
+
+        kwargs.update({
+            'state': self._state,
+            'mask': 1. - env_output.reset,   # mask is applied in LSTM
+            'prev_action': self._prev_action, 
+            'prev_reward': env_output.reward # use unnormalized reward to avoid potential inconsistency
+        })
+        return obs, kwargs
+    
+    @abstractmethod
+    def _process_output(self, obs, kwargs, out, evaluation):
+        out, self._state = out
+        if self.model.additional_rnn_input:
+            self._prev_action = out[0] if isinstance(out, tuple) else out
+        
+        if not evaluation:
+            if self._store_state:
+                out[1].update(kwargs['state']._asdict())
+        return out
+
+    def reset_states(self, state=None):
+        if state is None:
+            self._state, self._prev_action, self._prev_reward = None, None, None
+        else:
+            self._state, self._prev_action, self._prev_reward= state
+
+    def get_states(self):
+        return self._state, self._prev_action, self._prev_reward

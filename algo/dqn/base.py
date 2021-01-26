@@ -9,7 +9,7 @@ from utility.schedule import PiecewiseSchedule
 from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
 from core.tf_config import build
-from core.base import BaseAgent
+from core.base import AgentBase
 from core.decorator import override, step_track
 
 
@@ -46,9 +46,9 @@ def collect(replay, env, env_step, reset, **kwargs):
     replay.add(**kwargs)
 
 
-class DQNBase(BaseAgent):
+class DQNBase(AgentBase):
     """ Initialization """
-    @override(BaseAgent)
+    @override(AgentBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
 
@@ -100,7 +100,7 @@ class DQNBase(BaseAgent):
         if hasattr(self, '_target_update_period'):
             self._to_sync = Every(self._target_update_period)
     
-    @override(BaseAgent)
+    @override(AgentBase)
     def _construct_optimizers(self):
         if self._schedule_lr:
             assert isinstance(self._lr, list), self._lr
@@ -112,7 +112,7 @@ class DQNBase(BaseAgent):
             clip_norm=getattr(self, '_clip_norm', None),
             epsilon=getattr(self, '_epsilon', 1e-7))
 
-    @override(BaseAgent)
+    @override(AgentBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(

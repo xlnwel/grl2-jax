@@ -4,23 +4,23 @@ import tensorflow as tf
 from utility.tf_utils import explained_variance
 from utility.rl_loss import ppo_loss, ppo_value_loss
 from utility.schedule import TFPiecewiseSchedule
-from core.base import RMSBaseAgent
+from core.base import RMSAgentBase
 from core.optimizer import Optimizer
 from core.decorator import override, step_track
 
 
 logger = logging.getLogger(__name__)
 
-class PPOBase(RMSBaseAgent):
+class PPOBase(RMSAgentBase):
     """ Initialization """
-    @override(RMSBaseAgent)
+    @override(RMSAgentBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
 
         self._last_obs = None   # we record last obs before training to compute the last value
         self._value_update = None
 
-    @override(RMSBaseAgent)
+    @override(RMSAgentBase)
     def _construct_optimizers(self):
         if getattr(self, 'schedule_lr', False):
             assert isinstance(self._lr, list), self._lr
@@ -29,15 +29,6 @@ class PPOBase(RMSBaseAgent):
         self._optimizer = Optimizer(
             self._optimizer, models, self._lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
-    
-    """ Call """
-    # @override(RMSBaseAgent)
-    def _process_output(self, obs, kwargs, out, evaluation):
-        out = super()._process_output(obs, kwargs, out, evaluation)        
-        if self._normalize_obs and not evaluation:
-            terms = out[1]
-            terms['obs'] = obs
-        return out
 
     """ Standard PPO methods """
     def reset_states(self, state=None):

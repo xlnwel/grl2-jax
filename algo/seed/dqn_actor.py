@@ -20,8 +20,8 @@ from core.dataset import Dataset, process_with_env
 from algo.d3qn.train import get_data_format
 
 
-def get_learner_class(BaseAgent):
-    class Learner(BaseAgent):
+def get_learner_class(AgentBase):
+    class Learner(AgentBase):
         """ Interface """
         def __init__(self,
                     name, 
@@ -116,8 +116,8 @@ def get_learner_class(BaseAgent):
     return Learner
 
 
-def get_actor_class(BaseAgent):
-    class Actor(BaseAgent):
+def get_actor_class(AgentBase):
+    class Actor(AgentBase):
         def __init__(self,
                     name,
                     model_fn,
