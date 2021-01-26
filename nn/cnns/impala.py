@@ -10,7 +10,7 @@ class IMPALACNN(Module):
                  time_distributed=False, 
                  obs_range=[0, 1], 
                  filters=[16, 32, 32],
-                 kernel_initializer='glorot_uniform',
+                 kernel_initializer='glorot_uniform',   # there is no need to use orthogonal here
                  subsample_type='conv_maxpool',
                  subsample_kwargs={},
                  block='resv2',

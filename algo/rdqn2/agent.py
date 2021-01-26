@@ -28,8 +28,6 @@ class Agent(DQNBase):
             discount=((self._sample_size,), tf.float32, 'discount'),
             mask=((self._sample_size+1,), tf.float32, 'mask')
         )
-        if self._is_per:
-            TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
         if self._store_state:
             state_type = type(self.model.state_size)
             TensorSpecs['state'] = state_type(*[((sz, ), self._dtype, name) 
@@ -148,11 +146,6 @@ class Agent(DQNBase):
             [IS_ratio, (None,)],
             [loss, ()]
         ])
-        if self._is_per:
-            # we intend to use error as priority instead of TD error used in the paper
-            priority = self._compute_priority(tf.abs(error))
-            terms['priority'] = priority
-        
         terms['norm'] = self._optimizer(tape, loss)
         
         terms.update(dict(
@@ -163,14 +156,6 @@ class Agent(DQNBase):
         ))
 
         return terms
-
-    def _compute_priority(self, priority):
-        """ p = (p + 𝝐)**𝛼 """
-        priority = (self._per_eta*tf.math.reduce_max(priority, axis=1) 
-                    + (1-self._per_eta)*tf.math.reduce_mean(priority, axis=1))
-        priority += self._per_epsilon
-        priority **= self._per_alpha
-        return priority
 
     def reset_states(self, state=None):
         if state is None:

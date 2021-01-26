@@ -40,6 +40,7 @@ class Agent(DQNBase):
     # def summary(self, data, terms):
     #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
     #     tf.summary.histogram('learn/reward', data['reward'], step=self._env_step)
+    
     """ Call """
     def _process_input(self, obs, evaluation, env_output):
         obs, kwargs = super()._process_input(obs, evaluation, env_output)
@@ -108,7 +109,7 @@ class Agent(DQNBase):
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
         act_probs = tf.reduce_mean(act_probs, 0)
-        # self.actor.update_prior(act_probs, self._prior_lr)
+        self.actor.update_prior(act_probs, self._prior_lr)
         if self.temperature.is_trainable():
             # Entropy of a uniform distribution
             self._target_entropy = np.log(self._action_dim)

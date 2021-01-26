@@ -17,7 +17,5 @@
 - seed2: seed with an external replay center
 - tppo: truly ppo
 - sacdiqn: sacd + iqn
-- sacdiqn2: sacd + iqn, seperate quantile
-- sacdiqn3: sacd + iqn, advantage in actor loss
 - sacdiqn4: sacd + iqn, combine loss
 - sacdiqn5: sacd + iqn, separate actor network

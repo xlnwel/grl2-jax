@@ -2,18 +2,18 @@
 
 
 algos=(
-    ppo
+    # ppo
     # ppo2
     # ppg
     # apex-mrdqn
-    # apex-sacdiqn2
+    apex-sacdiqn
     # apex-sacdiqn2
     # sacdiqn5
 )
 suite=procgen
 envs=(
-    # plunder
-    chaser
+    plunder
+    # chaser
     bigfish
     # starpilot
     # coinrun
@@ -29,7 +29,7 @@ envs=(
     # bossfight
     # maze
 )
-args1=(conv_maxblurpool)
+args1=(True False)
 args2=(glorot_uniform)
 args3=(conv_maxblurpool)
 
@@ -38,12 +38,12 @@ for e in "${envs[@]}"; do
         for a1 in "${args1[@]}"; do
             for a2 in "${args2[@]}"; do
                 for a3 in "${args3[@]}"; do
-                    # sed -e "s/ET/${a2}/g" -e "s/AM/${a1}/g" -e "s/SUB/${a3}/g" \
-                    #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
+                    sed -e "s/KI/${a2}/g" \
+                        algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
                     dir="logs/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -kw cnn_name=procgen_small >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} -kw actor_adv=$a1 max_steps=3 >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)
