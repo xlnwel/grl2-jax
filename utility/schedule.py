@@ -46,7 +46,6 @@ class PiecewiseSchedule:
             self._exp_base = [(self._endpoints[i+1][1] / self._endpoints[i][1])\
                                 **(1/(self._endpoints[i+1][0] - self._endpoints[i][0]))
                             for i in range(len(self._endpoints)-1)]
-            print(self._exp_base)
         self._outside_value = self._endpoints[-1][1]
 
     def value(self, t):

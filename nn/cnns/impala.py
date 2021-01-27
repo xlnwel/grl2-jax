@@ -85,3 +85,6 @@ class IMPALACNN(Module):
             x = self._dense(x)
 
         return x
+
+IMPALALarge = functools.partial(IMPALACNN, filters=[32, 64, 64], name='impala_large')
+cnn_registry.register('impala_large')(IMPALALarge)

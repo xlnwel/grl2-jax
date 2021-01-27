@@ -83,7 +83,7 @@ class DeterStochLarge(Module):
     def __init__(self,
                  *, 
                  n_blocks,
-                 subsample='strided_resv1',
+                 subsample='conv_maxblurpool',
                  subsample_kwargs={},
                  block='resv1',
                  block_kwargs=dict(

@@ -222,7 +222,6 @@ class RetraceTest(tf.test.TestCase):
         static_args, diff_args, target = self._get_retrace_core()
         qs = diff_args[0]
         a = static_args[1]
-        print(qs.shape, qs.dtype)
         a = tf.one_hot(a, qs.shape[-1], dtype=qs.dtype)
         q = tf.reduce_sum(qs * a, axis=-1)
         loss = .5 * (target - q)**2

@@ -1,8 +1,8 @@
 ---
 env:
     name: &env_name procgen_coinrun
-    n_workers: 1
-    n_envs: &nenvs 64
+    n_workers: 8
+    n_envs: &nenvs 16
     frame_skip: 1
     frame_stack: 1
     np_obs: True
@@ -11,18 +11,15 @@ env:
 model:
     architecture: dual
     encoder: 
-        cnn_name: procgen
-        filters: [16, 32, 32, 32]
+        cnn_name: impala
         out_size: 256
     actor:
         units_list: []
-        layer_type: dense
         norm: null
         kernel_initializer: orthogonal
         activation: relu
     value:
         units_list: []
-        layer_type: dense
         norm: null
         kernel_initializer: orthogonal
         activation: relu
@@ -32,7 +29,7 @@ agent:
     precision: 32
     gamma: &gamma .99
     
-    MAX_STEPS: 1e7
+    MAX_STEPS: 2.5e7
     N_STEPS: &nsteps 256
     N_PI: &npi 32           # 32
     N_SEGS: &nsegs 4        # this should be no greater than N_PI. 
@@ -40,7 +37,7 @@ agent:
     N_MBS: &nmbs 8
     N_AUX_EPOCHS: 6
     N_AUX_MBS_PER_SEG: &nambs 16    # 16
-    LOG_PERIOD: 50
+    LOG_PERIOD: 30
     EVAL_PERIOD: 5000
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
     
