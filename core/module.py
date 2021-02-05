@@ -5,11 +5,12 @@ from tensorflow.keras import layers
 
 
 class Module(tf.Module):
-    """ This class aims to substitute keras.layers.Layer when 
+    """ This class is an alternative to keras.layers.Layer when 
     encapsulating multiple layers. It provides more fine-grained 
-    output for keras.Model.summary.
-    Moreover, you can now, without worries about name conflicts,
-    define `self._layers`, which is used by default in `call`.
+    output for keras.Model.summary and automatically handles 
+    training signal for batch normalization and dropout. 
+    Moreover, you can now, without worries about name conflicts, 
+    define `self._layers`, which is by default used in `call`.
     """
     def __init__(self, name):
         self.scope_name = name

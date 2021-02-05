@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod
 import os
-import cloudpickle
 import logging
+import itertools
+import cloudpickle
 
 from utility.display import pwc
 from utility.utils import Every
 from utility.timer import Timer
+from utility.schedule import PiecewiseSchedule
+from utility.rl_utils import compute_act_temp, compute_act_eps
 from core.log import *
 from core.checkpoint import *
 from core.decorator import override, agent_config
@@ -317,40 +320,131 @@ class Memory(ABC):
     @abstractmethod
     def _add_attributes(self):
         self._state = None
-        self._prev_action = 0
-        self._prev_reward = 0
+        self._additional_inputs = getattr(self, '_additional_inputs', {})
     
     @abstractmethod
     def _process_input(self, obs, env_output, kwargs):
         if self._state is None:
             self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
-            self._prev_action = tf.zeros(obs.shape[0], dtype=tf.int32)
-            self._prev_reward = np.zeros(obs.shape[0])
+            for k, v in self._additional_inputs.items():
+                assert v in ('float32', 'int32', 'float16'), v
+                self._additional_inputs[k] = tf.zeros(obs.shape[0], dtype=v)
+
+        if 'prev_reward' in self._additional_inputs:
+            self._additional_inputs['prev_reward'] = tf.convert_to_tensor(
+                env_output.reward, tf.float32)
 
         kwargs.update({
             'state': self._state,
             'mask': 1. - env_output.reset,   # mask is applied in LSTM
-            'prev_action': self._prev_action, 
-            'prev_reward': env_output.reward # use unnormalized reward to avoid potential inconsistency
+            **tf.nest.map_structure(lambda x: x.numpy(), self._additional_inputs)
         })
         return obs, kwargs
     
     @abstractmethod
     def _process_output(self, obs, kwargs, out, evaluation):
         out, self._state = out
-        if self.model.additional_rnn_input:
-            self._prev_action = out[0] if isinstance(out, tuple) else out
+        if 'prev_action' in self._additional_inputs:
+            self._additional_inputs['prev_action'] = \
+                out[0] if isinstance(out, tuple) else out
         
         if not evaluation:
             if self._store_state:
                 out[1].update(kwargs['state']._asdict())
         return out
+    
+    def _add_non_tensor_to_terms(self, out, kwargs, evaluation):
+        """ add additional input terms, which are of non-Tensor type """
+        if not evaluation:
+            out[1]['mask'] = kwargs['mask']
+        return out
 
     def reset_states(self, state=None):
         if state is None:
-            self._state, self._prev_action, self._prev_reward = None, None, None
+            self._state, self._additional_inputs = None, {}
         else:
-            self._state, self._prev_action, self._prev_reward= state
+            self._state, self._additional_inputs = state
 
     def get_states(self):
-        return self._state, self._prev_action, self._prev_reward
+        return self._state, self._additional_inputs
+
+
+class ActionScheduler:
+    def _setup_action_schedule(self, env):
+        self._eval_act_eps = tf.convert_to_tensor(
+            getattr(self, '_eval_act_eps', 0), tf.float32)
+        self._eval_act_temp = tf.convert_to_tensor(
+            getattr(self, '_eval_act_temp', .5), tf.float32)
+        self._schedule_act_eps = getattr(self, '_schedule_act_eps', False)
+        self._schedule_act_temp = getattr(self, '_schedule_act_temp', False)
+        if self._schedule_act_eps:
+            if isinstance(self._act_eps, (list, tuple)):
+                logger.info(f'Schedule action epsilon: {self._act_eps}')
+                self._act_eps = PiecewiseSchedule(self._act_eps)
+            else:
+                self._act_eps = compute_act_eps(
+                    self._act_eps_type, 
+                    self._act_eps, 
+                    getattr(self, '_id', None), 
+                    getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
+                    env.n_envs)
+                if env.action_shape != ():
+                    self._act_eps = self._act_eps.reshape(-1, 1)
+                self._schedule_act_eps = False  # not run-time scheduling
+        if not isinstance(getattr(self, '_act_eps', None), PiecewiseSchedule):
+            self._act_eps = tf.convert_to_tensor(self._act_eps, tf.float32)
+        
+        if self._schedule_act_temp:
+            self._act_temp = compute_act_temp(
+                self._min_temp,
+                self._max_temp,
+                getattr(self, '_n_exploit_envs', 0),
+                getattr(self, '_id', None),
+                getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
+                env.n_envs)
+            if env.action_shape != ():
+                self._act_temp = self._act_temp.reshape(-1, 1)
+            self._schedule_act_temp = False         # not run-time scheduling    
+        else:
+            self._act_temp = getattr(self, '_act_temp', 1)
+        self._act_temp = tf.convert_to_tensor(self._act_temp, tf.float32)
+        print('Action epsilon:', self._act_eps)
+        print('Action temperature:', self._act_temp)
+
+    def _get_eps(self, evaluation):
+        if evaluation:
+            eps = self._eval_act_eps
+        else:
+            if self._schedule_act_eps:
+                eps = self._act_eps.value(self.env_step)
+                self.store(act_eps=eps)
+                eps = tf.convert_to_tensor(eps, tf.float32)
+            else:
+                eps = self._act_eps
+        return eps
+    
+    def _get_temp(self, evaluation):
+        return self._eval_act_temp if evaluation else self._act_temp
+
+class TargetNetOps:
+    def _setup_target_net_sync(self):
+        if hasattr(self, '_target_update_period'):
+            self._to_sync = Every(self._target_update_period)
+
+    @tf.function
+    def _sync_nets(self):
+        ons = self.get_online_nets()
+        tns = self.get_target_nets()
+        logger.info(f"Online networks: {[n.name for n in ons]}")
+        logger.info(f"Target networks: {[n.name for n in tns]}")
+        ovars = list(itertools.chain(*[v.variables for v in ons]))
+        tvars = list(itertools.chain(*[v.variables for v in tns]))
+        [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
+    
+    def get_online_nets(self):
+        return [getattr(self, f'{k}') for k in self.model 
+            if f'target_{k}' in self.model]
+
+    def get_target_nets(self):
+        return [getattr(self, f'target_{k}') for k in self.model 
+            if f'target_{k}' in self.model]
