@@ -1,12 +1,11 @@
 ---
 env:
     name: &env_name procgen_coinrun
-    n_workers: 12
-    n_envs: &nenvs 8
+    n_workers: 8
+    n_envs: &nenvs 12
     frame_skip: 1
     frame_stack: 1
     np_obs: True
-    gray_scale: False
 
 model:
     encoder: 

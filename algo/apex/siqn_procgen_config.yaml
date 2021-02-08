@@ -11,7 +11,7 @@ env:
 
 model:
     encoder: 
-        cnn_name: procgen
+        cnn_name: impala
     actor:
         eval_act_temp: .5
         temp: .01

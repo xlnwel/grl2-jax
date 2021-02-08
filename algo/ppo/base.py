@@ -18,7 +18,7 @@ class PPOBase(RMSAgentBase):
         super()._add_attributes(env, dataset)
 
         self._last_obs = None   # we record last obs before training to compute the last value
-        self._value_update = None
+        self._value_update = getattr(self, '_value_update', None)
 
     @override(RMSAgentBase)
     def _construct_optimizers(self):
@@ -45,7 +45,7 @@ class PPOBase(RMSAgentBase):
 
     def compute_value(self, obs=None):
         # be sure you normalize obs first if obs normalization is required
-        obs = obs or self._last_obs
+        obs = self._last_obs if obs is None else obs
         return self.model.compute_value(obs).numpy()
 
     @step_track
@@ -122,7 +122,7 @@ class PPOBase(RMSAgentBase):
 
         terms['ac_norm'] = self._optimizer(tape, ac_loss)
         terms.update(dict(
-            value=tf.reduce_mean(value),
+            value=value,
             traj_ret=tf.reduce_mean(traj_ret), 
             advantage=tf.reduce_mean(advantage), 
             ratio=tf.exp(log_ratio), 

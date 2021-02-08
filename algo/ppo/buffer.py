@@ -142,7 +142,6 @@ class Buffer:
 
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
-        assert not self._ready, self._ready
         self.reshape_to_store()
         if self._adv_type == 'nae':
             self._memory['traj_ret'], self._memory['advantage'] = \

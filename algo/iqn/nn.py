@@ -73,19 +73,26 @@ class Value(Module):
     def action_dim(self):
         return self._action_dim
 
+    @property
+    def stoch_action(self):
+        return self._stoch_action
+
     def action(self, x, qt_embed=None, tau_range=None, temp=1, return_stats=False):
         _, qs = self.call(x, qt_embed, tau_range=tau_range, return_value=True)
         if self._stoch_action:
             probs = softmax(qs, temp)
-            dist = tfd.Categorical(probs=probs)
-            action = tfd.sample(dist)
+            self.dist = tfd.Categorical(probs=probs)
+            self._action = action = tfd.sample(self.dist)
             one_hot = tf.one_hot(action, qs.shape[-1])
-            q = tf.reduce_sum(qs * one_hot, axis=-1)
         else:
-            action = tf.argmax(qs, axis=-1, output_type=tf.int32)
-            q = tf.reduce_max(qs, axis=-1)
+            self._action = action = tf.argmax(qs, axis=-1, output_type=tf.int32)
         if return_stats:
-            return action, q
+            if self._stoch_action:
+                one_hot = tf.one_hot(action, qs.shape[-1])
+                q = tf.reduce_sum(qs * one_hot, axis=-1)
+            else:
+                q = tf.reduce_max(qs, axis=-1)
+            return action, {'q': tf.squeeze(q)}
         else:
             return action
     
@@ -131,6 +138,8 @@ class Value(Module):
 
         return v
 
+    def compute_prob(self):
+        return self.dist.prob(self._action) if self._stoch_action else 1
 
 class IQN(Ensemble):
     def __init__(self, config, *, model_fn=None, env, **kwargs):
@@ -145,18 +154,17 @@ class IQN(Ensemble):
     def action(self, x, 
             evaluation=False, 
             epsilon=0,
+            temp=1.,
             return_stats=False,
             return_eval_stats=False):
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
         _, qt_embed = self.quantile(x)
-        action = self.q.action(x, qt_embed, return_stats=return_stats)
+        action = self.q.action(x, qt_embed, temp=temp, return_stats=return_stats)
         terms = {}
         if return_stats:
-            action, q = action
-            q = tf.squeeze(q)
-            terms = {'q': q}
+            action, terms = action
         if isinstance(epsilon, tf.Tensor) or epsilon:
             action = epsilon_greedy(action, epsilon,
                 is_action_discrete=True, 

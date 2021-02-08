@@ -11,7 +11,7 @@ env:
 
 model:
     encoder: 
-        cnn_name: procgen
+        cnn_name: impala
         filters: [16, 32, 32, 32]
     quantile:
         tau_embed_size: 64

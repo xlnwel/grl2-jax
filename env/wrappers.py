@@ -184,6 +184,7 @@ class FrameDiff(gym.Wrapper):
         assert original_space.dtype == np.uint8, original_space.dtype
         assert len(original_space.shape) == 3, original_space.shape
         self.observation_space = new_space
+        self.defualt_gray_obs = np.zeros(self.observation_space.shape[:2] + (1,))
     
     def _residual(self, obs):
         gray_obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
@@ -198,6 +199,7 @@ class FrameDiff(gym.Wrapper):
 
     def reset(self):
         obs = self.env.reset()
+        self.prev_obs = self.defualt_gray_obs
         obs = self._residual(obs)
         
         return obs

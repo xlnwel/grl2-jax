@@ -86,5 +86,5 @@ class IMPALACNN(Module):
 
         return x
 
-IMPALALarge = functools.partial(IMPALACNN, filters=[32, 64, 64], name='impala_large')
-cnn_registry.register('impala_large')(IMPALALarge)
+IMPALA64 = functools.partial(IMPALACNN, filters=[32, 64, 64], name='impala64')
+cnn_registry.register('impala64')(IMPALA64)

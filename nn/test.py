@@ -104,11 +104,11 @@ def run_cnn(*, keras_summary=True, **new_kwargs):
 if __name__ == "__main__":
     load_nn()
     kwargs = {
-        'cnn_name': 'procgen',
+        'cnn_name': 'impala',
         # 'out_size': 256,
         # 'cnn_out_activation': 'relu',
         # 'out_activation': 'relu',
-        'deter_stoch': True
+        # 'deter_stoch': True
         # 'filters': 8,
         # 'n_blocks': 1
     }

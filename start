@@ -2,10 +2,12 @@
 
 
 algos=(
-    ppo
+    # ppo
     # ppo2
     # ppg
-    # apex-mrdqn
+    apex-dqn
+    apex-iqn
+    apex-mrdqn
     # apex-sacdiqn
     # apex-mrdqn
     # sacdiqn5
@@ -16,8 +18,8 @@ envs=(
     chaser
     bigfish
     starpilot
-    # coinrun
-    # miner
+    coinrun
+    miner
     # caveflyer 
     # climber
     dodgeball 
@@ -29,8 +31,8 @@ envs=(
     # bossfight
     # maze
 )
-args1=(None once reuse)
-args2=(glorot_uniform)
+args1=(True)
+args2=(clip)
 args3=(conv_maxblurpool)
 
 for e in "${envs[@]}"; do
@@ -38,12 +40,15 @@ for e in "${envs[@]}"; do
         for a1 in "${args1[@]}"; do
             for a2 in "${args2[@]}"; do
                 for a3 in "${args3[@]}"; do
+                    # if [[ $e = plunder && $a1 = None ]]
+                    # then continue
+                    # fi
                     # sed -e "s/KI/${a2}/g" \
                     #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
                     dir="logs/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -kw value_update=$a1 >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

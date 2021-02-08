@@ -130,6 +130,12 @@ class AgentBase(AgentImpl):
     def _sync_nets(self):
         pass
 
+    def reset_states(self, states=None):
+        pass
+
+    def get_states(self):
+        pass
+
     def _summary(self, data, terms):
         """ Add non-scalar summaries """
         pass 
@@ -314,16 +320,14 @@ def backward_discounted_sum(prev_ret, reward, discount, gamma):
         raise ValueError(f'Unknown reward shape: {reward.shape}')
 
 
-class Memory(ABC):
-    """ Following Python's MRO, this class should be positioned 
-    before AgentBase to enable reset&get state operations"""
-    @abstractmethod
-    def _add_attributes(self):
+class Memory:
+    """ According to Python's MRO, this class should be positioned 
+    before AgentBase to override reset&get state operations. """
+    def _setup_memory_state_record(self):
         self._state = None
         self._additional_inputs = getattr(self, '_additional_inputs', {})
     
-    @abstractmethod
-    def _process_input(self, obs, env_output, kwargs):
+    def _add_memory_state_to_kwargs(self, obs, env_output, kwargs):
         if self._state is None:
             self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
             for k, v in self._additional_inputs.items():
@@ -341,8 +345,7 @@ class Memory(ABC):
         })
         return obs, kwargs
     
-    @abstractmethod
-    def _process_output(self, obs, kwargs, out, evaluation):
+    def _add_tensor_memory_state_to_terms(self, obs, kwargs, out, evaluation):
         out, self._state = out
         if 'prev_action' in self._additional_inputs:
             self._additional_inputs['prev_action'] = \
@@ -353,7 +356,7 @@ class Memory(ABC):
                 out[1].update(kwargs['state']._asdict())
         return out
     
-    def _add_non_tensor_to_terms(self, out, kwargs, evaluation):
+    def _add_non_tensor_memory_states_to_terms(self, out, kwargs, evaluation):
         """ add additional input terms, which are of non-Tensor type """
         if not evaluation:
             out[1]['mask'] = kwargs['mask']
@@ -427,6 +430,9 @@ class ActionScheduler:
         return self._eval_act_temp if evaluation else self._act_temp
 
 class TargetNetOps:
+    """ According to Python's MRO, this class should be positioned 
+    before AgentBase to override _sync_nets. Otherwise, you have to 
+    explicitly call TargetNetOps._sync_nets(self) """
     def _setup_target_net_sync(self):
         if hasattr(self, '_target_update_period'):
             self._to_sync = Every(self._target_update_period)
@@ -437,6 +443,8 @@ class TargetNetOps:
         tns = self.get_target_nets()
         logger.info(f"Online networks: {[n.name for n in ons]}")
         logger.info(f"Target networks: {[n.name for n in tns]}")
+        print(f"Online networks: {[n.name for n in ons]}")
+        print(f"Target networks: {[n.name for n in tns]}")
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
         [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]

@@ -7,5 +7,5 @@ vs.code-workspace
 conventions.md
 **ray_test.pyw
 .pytest_cache*
-*ipynb
 tmp**
+.ipynb_checkpoints

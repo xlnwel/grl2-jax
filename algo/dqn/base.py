@@ -1,15 +1,10 @@
-import itertools
 import logging
-import numpy as np
 import tensorflow as tf
 
-from utility.utils import Every
-from utility.rl_utils import compute_act_temp, compute_act_eps
-from utility.schedule import PiecewiseSchedule
 from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
 from core.tf_config import build
-from core.base import AgentBase
+from core.base import AgentBase, ActionScheduler, TargetNetOps
 from core.decorator import override, step_track
 
 
@@ -46,7 +41,7 @@ def collect(replay, env, env_step, reset, **kwargs):
     replay.add(**kwargs)
 
 
-class DQNBase(AgentBase):
+class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
     """ Initialization """
     @override(AgentBase)
     def _add_attributes(self, env, dataset):
@@ -58,48 +53,10 @@ class DQNBase(AgentBase):
         self._is_per = False if dataset is None else dataset.name().endswith('per')
         self._double = getattr(self, '_double', False)
         self._return_stats = getattr(self, '_return_stats', False)
-
-        self._eval_act_eps = tf.convert_to_tensor(
-            getattr(self, '_eval_act_eps', 0), tf.float32)
-        self._eval_act_temp = tf.convert_to_tensor(
-            getattr(self, '_eval_act_temp', .5), tf.float32)
-        self._schedule_act_eps = env.n_envs == 1 \
-            and getattr(self, '_schedule_act_eps', False)
-        self._schedule_act_temp = getattr(self, '_schedule_act_temp', False)
-
-        if self._schedule_act_eps:
-            if isinstance(self._act_eps, (list, tuple)):
-                logger.info(f'Schedule action epsilon: {self._act_eps}')
-                self._act_eps = PiecewiseSchedule(self._act_eps)
-            else:
-                self._act_eps = compute_act_eps(
-                    self._act_eps_type, 
-                    self._act_eps, 
-                    getattr(self, '_id', None), 
-                    getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
-                    env.n_envs)
-                self._act_eps = self._act_temp.reshape(-1, 1)
-                self._schedule_act_eps = False  # not run-time scheduling
-        if not isinstance(getattr(self, '_act_eps', None), PiecewiseSchedule):
-            self._act_eps = tf.convert_to_tensor(self._act_eps, tf.float32)
         
-        if self._schedule_act_temp:
-            self._act_temp = compute_act_temp(
-                self._min_temp,
-                self._max_temp,
-                getattr(self, '_n_exploit_envs', 0),
-                getattr(self, '_id', None),
-                getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
-                env.n_envs)
-            self._act_temp = self._act_temp.reshape(-1, 1)
-            self._schedule_act_temp = False         # not run-time scheduling    
-        else:
-            self._act_temp = getattr(self, '_act_temp', 1)
-        self._act_temp = tf.convert_to_tensor(self._act_temp, tf.float32)
+        self._setup_action_schedule(env)
+        self._setup_target_net_sync()
         
-        if hasattr(self, '_target_update_period'):
-            self._to_sync = Every(self._target_update_period)
-    
     @override(AgentBase)
     def _construct_optimizers(self):
         if self._schedule_lr:
@@ -127,42 +84,13 @@ class DQNBase(AgentBase):
         if self._n_steps > 1:
             TensorSpecs['steps'] = ((), tf.float32, 'steps')
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
-    
-    @tf.function
-    def _sync_nets(self):
-        ons = self.get_online_nets()
-        tns = self.get_target_nets()
-        logger.info(f"Online networks: {[n.name for n in ons]}")
-        logger.info(f"Target networks: {[n.name for n in tns]}")
-        ovars = list(itertools.chain(*[v.variables for v in ons]))
-        tvars = list(itertools.chain(*[v.variables for v in tns]))
-        [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
-    
-    def get_online_nets(self):
-        return [getattr(self, f'{k}') for k in self.model 
-            if f'target_{k}' in self.model]
-
-    def get_target_nets(self):
-        return [getattr(self, f'target_{k}') for k in self.model 
-            if f'target_{k}' in self.model]
 
     """ Call """
     def _process_input(self, obs, evaluation, env_output):
         obs, kwargs = super()._process_input(obs, evaluation, env_output)
         kwargs['epsilon'] = self._get_eps(evaluation)
+        kwargs['temp'] = self._get_temp(evaluation)
         return obs, kwargs
-
-    def _get_eps(self, evaluation):
-        if evaluation:
-            eps = self._eval_act_eps
-        else:
-            if self._schedule_act_eps:
-                eps = self._act_eps.value(self.env_step)
-                self.store(act_eps=eps)
-                eps = tf.convert_to_tensor(eps, tf.float32)
-            else:
-                eps = self._act_eps
-        return eps
 
     @step_track
     def learn_log(self, step):

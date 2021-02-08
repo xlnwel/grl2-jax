@@ -1,6 +1,7 @@
 import tensorflow as tf
+from tensorflow_probability import distributions as tfd
 
-from utility.tf_utils import assert_shape_compatibility
+from utility.tf_utils import assert_shape_compatibility, softmax
 from utility.rl_utils import epsilon_greedy
 from core.module import Module, Ensemble
 from nn.func import Encoder, mlp
@@ -10,9 +11,10 @@ class Q(Module):
     def __init__(self, config, action_dim, name='q'):
         super().__init__(name=name)
 
-        self.action_dim = action_dim
+        self._action_dim = action_dim
         self._duel = config.pop('duel', False)
         self._layer_type = config.get('layer_type', 'dense')
+        self._stoch_action = config.get('stoch_action', False)
 
         """ Network definition """
         if self._duel:
@@ -27,9 +29,33 @@ class Q(Module):
             name=name,
             out_dtype='float32')
 
-    def action(self, x, noisy=True, reset=True):
-        q = self.call(x, noisy=noisy, reset=reset)
-        return tf.argmax(q, axis=-1, output_type=tf.int32)
+    @property
+    def action_dim(self):
+        return self._action_dim
+
+    @property
+    def stoch_action(self):
+        return self._stoch_action
+
+    def action(self, x, noisy=True, reset=True, temp=1, return_stats=False):
+        qs = self.call(x, noisy=noisy, reset=reset)
+
+        if self._stoch_action:
+            probs = softmax(qs, temp)
+            self.dist = tfd.Categorical(probs=probs)
+            self._action = action = tfd.sample(self.dist)
+            one_hot = tf.one_hot(action, qs.shape[-1])
+        else:
+            self._action = action = tf.argmax(qs, axis=-1, output_type=tf.int32)
+        if return_stats:
+            if self._stoch_action:
+                one_hot = tf.one_hot(action, qs.shape[-1])
+                q = tf.reduce_sum(qs * one_hot, axis=-1)
+            else:
+                q = tf.reduce_max(qs, axis=-1)
+            return action, {'q': tf.squeeze(q)}
+        else:
+            return action
     
     def call(self, x, action=None, noisy=True, reset=True):
         kwargs = dict(noisy=noisy, reset=reset) if self._layer_type == 'noisy' else {}
@@ -53,6 +79,9 @@ class Q(Module):
             if self._duel:
                 self._v_layers.reset()
             self._layers.reset()
+    
+    def compute_prob(self):
+        return self.dist.prob(self._action) if self._stoch_action else 1
 
 
 class DQN(Ensemble):
@@ -67,17 +96,17 @@ class DQN(Ensemble):
     def action(self, x, 
             evaluation=False, 
             epsilon=0,
+            temp=1.,
             return_stats=False,
             return_eval_stats=False):
         assert x.shape.ndims in (2, 4), x.shape
 
         x = self.encoder(x)
         noisy = not evaluation
-        q = self.q(x, noisy=noisy, reset=False)
-        action = tf.argmax(q, axis=-1, output_type=tf.int32)
+        action = self.q.action(x, noisy=noisy, reset=noisy, temp=temp, return_stats=return_stats)
         terms = {}
         if return_stats:
-            terms = {'q': q}
+            action, terms = action
         if isinstance(epsilon, tf.Tensor) or epsilon:
             action = epsilon_greedy(action, epsilon,
                 is_action_discrete=True, 

@@ -7,7 +7,7 @@ env:
 
 model:
     encoder: 
-        cnn_name: procgen
+        cnn_name: impala
         obs_range: [0, 1]
         filters: [16, 32, 32, 32]
         kernel_initializer: glorot_uniform

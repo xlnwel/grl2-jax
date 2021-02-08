@@ -20,25 +20,27 @@ class RDQN(Ensemble):
     def action(self, x, state, mask,
             prev_action=None, prev_reward=None,
             evaluation=False, epsilon=0,
-            return_stats=False,
+            temp=1, return_stats=False,
             return_eval_stats=False):
         assert x.shape.ndims in (2, 4), x.shape
 
         x, state = self._encode(
             x, state, mask, prev_action, prev_reward)
-        q = self.q(x)
-        action = tf.argmax(q, axis=-1, output_type=tf.int32)
-        
-        eps_action = epsilon_greedy(action, epsilon,
-            is_action_discrete=True, action_dim=self.q.action_dim)
+        action = self.q.action(x, temp=temp, return_stats=return_stats)
 
         if evaluation:
-            return tf.squeeze(eps_action), state
+            return tf.squeeze(action), state
         else:
-            eps_prob = epsilon / self.q.action_dim
-            terms = {'prob': tf.where(action == eps_action, 1-epsilon+eps_prob, eps_prob)}
+            terms = {}
             if return_stats:
-                terms = {'q': q}
+                action, terms = action
+            eps_action = epsilon_greedy(action, epsilon,
+                is_action_discrete=True, 
+                action_dim=self.q.action_dim)
+            eps_prob = epsilon / self.q.action_dim * self.q.compute_prob()
+            terms.update({
+                'prob': tf.where(action == eps_action, 1-epsilon+eps_prob, eps_prob)
+            })
             out = tf.nest.map_structure(lambda x: tf.squeeze(x), (action, terms))
             return out, state
 

@@ -108,6 +108,7 @@ if __name__ == '__main__':
     cmd_args = parse_train_args()
     verbose = getattr(logging, cmd_args.verbose.upper())
     logging.basicConfig(level=verbose)
+    
     processes = []
     if cmd_args.directory != '':
         load_run(cmd_args.directory)

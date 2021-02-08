@@ -8,7 +8,7 @@ from core.tf_config import build
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.ppo.base import PPOBase
-from algo.tppo.loss import compute_tppo_loss, ppo_value_loss
+from algo.ppo.loss import compute_tppo_loss, ppo_value_loss
 
 
 class Agent(PPOBase):

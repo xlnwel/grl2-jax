@@ -11,7 +11,7 @@ env:
 
 model:
     encoder: 
-        cnn_name: procgen
+        cnn_name: impala
     actor:
         units_list: [512]
         layer_type: dense

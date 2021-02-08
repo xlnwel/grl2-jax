@@ -12,7 +12,7 @@ env:
 
 model:
     encoder: 
-        cnn_name: procgen
+        cnn_name: impala
     # rnn:
     #     units: 512
     q:
@@ -39,10 +39,10 @@ agent:
 
     store_state: False
     burn_in: False
-    sample_size: &ss 32
+    sample_size: &ss 16
     burn_in_size: &bis 0
 
-    MAX_STEPS: 1e7
+    MAX_STEPS: 2.5e7
     LOG_PERIOD: 100
     N_UPDATES: 1
     SYNC_PERIOD: 400

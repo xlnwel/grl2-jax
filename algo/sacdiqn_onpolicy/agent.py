@@ -1,3 +1,4 @@
+from algo.ppo.nn import PPO
 import functools
 import numpy as np
 import tensorflow as tf
@@ -7,12 +8,17 @@ from utility.tf_utils import explained_variance
 from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
 from core.decorator import override
-from algo.dqn.base import DQNBase, get_data_format, collect
+from core.base import ActionScheduler
+from algo.ppo.base import PPOBase
 
 
-class Agent(DQNBase):
+class Agent(PPOBase, ActionScheduler):
     """ Initialization """
-    @override(DQNBase)
+    def _add_attributes(self, env, dataset):
+        super()._add_attributes(env, dataset)
+        self._setup_action_schedule(env)
+
+    @override(PPOBase)
     def _construct_optimizers(self):
         if self._schedule_lr:
             assert isinstance(self._actor_lr, list), self._actor_lr
@@ -43,11 +49,13 @@ class Agent(DQNBase):
     
     """ Call """
     def _process_input(self, obs, evaluation, env_output):
-        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+        obs, kwargs = PPOBase._process_input(self, obs, evaluation, env_output)
+        kwargs['epsilon'] = self._get_eps(evaluation)
+        kwargs['temp'] = self._get_temp(evaluation)
         return obs, kwargs
 
     """ SACIQN Methods"""
-    @override(DQNBase)
+    @override(PPOBase)
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         terms = {}

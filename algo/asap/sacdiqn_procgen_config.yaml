@@ -9,7 +9,7 @@ env:
 
 model:
     encoder: 
-        cnn_name: procgen
+        cnn_name: impala
         obs_range: [0, 1]
         filters: [16, 32, 32, 32]
         n_blocks: [1, 1, 1, 1]

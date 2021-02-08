@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+from utility.tf_utils import softmax, log_softmax
 from utility.rl_loss import n_step_target, huber_loss
 from algo.dqn.base import DQNBase, get_data_format, collect
 
@@ -11,14 +12,33 @@ class Agent(DQNBase):
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
         terms = {}
         # compute target returns
-        next_x = self.target_encoder(next_obs)
-        if self._double:
-            next_x_online = self.encoder(next_obs)
-            next_action = self.q.action(next_x_online, noisy=False)
+        if self.MUNCHAUSEN:
+            x = self.target_encoder(obs)
+            qs = self.target_q(x)
+            logpi = log_softmax(qs, self._tau, axis=-1)
+            logpi_a = tf.reduce_sum(logpi * action, axis=-1)
+            logpi_a = tf.clip_by_value(logpi_a, self._clip_logpi_min, 0)
+            reward = reward + self._alpha * logpi_a
+
+            if self._double:
+                next_x_online = self.encoder(next_obs)
+                next_qs = self.q(next_x_online)
+            else:
+                next_x = self.target_encoder(next_obs)
+                next_qs = self.target_q(next_x)
+            next_pi = softmax(next_qs, self._tau)
+            next_logpi = log_softmax(next_qs, self._tau)
+            next_v = tf.reduce_sum((next_qs - next_logpi)*next_pi, axis=-1)
         else:
-            next_action = self.target_q.action(next_x, noisy=False)
-        next_q = self.target_q(next_x, next_action, noisy=False)
-        returns = n_step_target(reward, next_q, discount, self._gamma, steps, self._tbo)
+            next_x = self.target_encoder(next_obs)
+            if self._double:
+                next_x_online = self.encoder(next_obs)
+                next_action = self.q.action(next_x_online, noisy=False)
+            else:
+                next_action = self.target_q.action(next_x, noisy=False)
+            next_v = self.target_q(next_x, next_action, noisy=False)
+
+        returns = n_step_target(reward, next_v, discount, self._gamma, steps, self._tbo)
 
         with tf.GradientTape() as tape:
             x = self.encoder(obs)

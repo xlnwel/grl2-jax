@@ -10,8 +10,8 @@ class Agent(Memory, PPOBase):
     """ Initialization """
     @override(PPOBase)
     def _add_attributes(self, env, dataset):
-        PPOBase._add_attributes(self, env, dataset)
-        Memory._add_attributes(self)
+        super()._add_attributes(env, dataset)
+        self._setup_memory_state_record()
 
     @override(PPOBase)
     def _build_learn(self, env):
@@ -39,16 +39,15 @@ class Agent(Memory, PPOBase):
     """ Call """
     # @override(PPOBase)
     def _process_input(self, obs, evaluation, env_output):
-        obs, kwargs = PPOBase._process_input(self, obs, evaluation, env_output)
-        obs, kwargs = Memory._process_input(self, obs, env_output, kwargs)
+        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+        obs, kwargs = self._add_memory_state_to_kwargs(obs, env_output, kwargs)
         return obs, kwargs
 
     # @override(PPOBase)
     def _process_output(self, obs, kwargs, out, evaluation):
-        out = Memory._process_output(self, obs, kwargs, out, evaluation)
-        out = PPOBase._process_output(self, obs, kwargs, out, evaluation)
-        if not evaluation:
-            out[1]['mask'] = kwargs['mask']
+        out = self._add_tensor_memory_state_to_terms(obs, kwargs, out, evaluation)
+        out = super()._process_output(obs, kwargs, out, evaluation)
+        out = self._add_non_tensor_memory_states_to_terms(out, kwargs, evaluation)
         return out
 
     """ PPO methods """
