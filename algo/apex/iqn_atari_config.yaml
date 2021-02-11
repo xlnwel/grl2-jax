@@ -37,6 +37,10 @@ agent:
     act_eps: .4
     eval_act_eps: .001
 
+    tau: .003
+    alpha: .9
+    clip_logpi_min: -1
+
     # timer&interval
     MAX_STEPS: 1e9
     LOG_PERIOD: &log 100

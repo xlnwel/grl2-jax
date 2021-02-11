@@ -46,7 +46,7 @@ class Agent(Memory, DQNBase):
     @override(DQNBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
-        self._add_memory_state_to_kwargs()
+        self._setup_memory_state_record()
 
     @override(DQNBase)
     def _build_learn(self, env):
@@ -75,8 +75,8 @@ class Agent(Memory, DQNBase):
     """ Call """
     # @override(DQNBase)
     def _process_input(self, obs, evaluation, env_output):
-        obs, kwargs = super()._process_input(self, obs, evaluation, env_output)
-        obs, kwargs = self._add_memory_state_to_kwargs(self, obs, env_output, kwargs)
+        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+        obs, kwargs = self._add_memory_state_to_kwargs(obs, env_output, kwargs)
         return obs, kwargs
 
     # @override(DQNBase)
@@ -168,6 +168,7 @@ class Agent(Memory, DQNBase):
         
         terms.update(dict(
             q=q,
+            prob_min=tf.reduce_min(prob),
             prob=prob,
             target=target,
             loss=loss,

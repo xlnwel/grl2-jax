@@ -78,6 +78,7 @@ replay:
     # arguments for PER
     beta0: 0
     to_update_top_priority: False
+    use_is_ratio: *is
 
     # arguments for general replay
     n_steps: *nsteps

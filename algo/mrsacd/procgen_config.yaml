@@ -84,14 +84,14 @@ agent:
     per_alpha: .9
     per_eta: .9
     per_epsilon: 1e-4
-    use_is_ratio: &is False
+    
 
 replay:
     replay_type: *replay
     # arguments for PER
     beta0: .5
     to_update_top_priority: False
-    use_is_ratio: *is
+    use_is_ratio: True
 
     # arguments for sequential replay
     batch_size: *bs

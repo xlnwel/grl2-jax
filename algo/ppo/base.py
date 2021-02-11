@@ -31,12 +31,6 @@ class PPOBase(RMSAgentBase):
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
     """ Standard PPO methods """
-    def reset_states(self, state=None):
-        pass
-
-    def get_states(self):
-        return None
-    
     def before_run(self, env):
         pass
     

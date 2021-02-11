@@ -1,5 +1,4 @@
 import functools
-import numpy as np
 import tensorflow as tf
 
 from utility.rl_utils import *
@@ -70,7 +69,7 @@ class Agent(RAgent):
                     else:
                         bi_add_inp = []
                     bi_mask, mask = tf.split(mask, [bis, ss+1], 1)
-                    bi_discount, discount = tf.split(discount, [bis, ss], 1)
+                    _, discount = tf.split(discount, [bis, ss], 1)
                     _, prob = tf.split(prob, [bis, ss], 1)
                     _, o_state = self.rnn(bi_x, state, bi_mask,
                         additional_input=bi_add_inp)

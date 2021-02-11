@@ -18,6 +18,7 @@ model:
         activation: relu
         layer_type: dense
         duel: False
+        stoch_action: False
 
 agent:
     algorithm: &algo dqn

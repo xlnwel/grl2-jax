@@ -23,6 +23,7 @@ model:
         kernel_initializer: glorot_uniform
         activation: relu
         duel: False
+        stoch_action: False
 
 agent:
     algorithm: &algo iqn
@@ -30,6 +31,13 @@ agent:
     gamma: &gamma .99
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
+
+    MUNCHAUSEN: False   # whether to use munchausen rl target
+    probabilistic_regularization: null
+
+    tau: .003
+    alpha: .9
+    clip_logpi_min: -1
 
     schedule_act_eps: True
     act_eps_type: apex

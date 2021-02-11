@@ -2,6 +2,8 @@ A modulated and versatile library for reinforcement learning algorithms, impleme
 
 ## Current Implemented Algorithms/Networks
 
+Many algorithms are simply improvements of their predecessors. Therefore, instead of implementing them as separate algorithms, we pvodie options to turn these on/off in `config.yaml`.
+
 ### On Policy RL
 
 - [x] PPO (with FNN and all algorithmic details following OpenAI's baselines)

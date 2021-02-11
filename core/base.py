@@ -394,6 +394,7 @@ class ActionScheduler:
                 if env.action_shape != ():
                     self._act_eps = self._act_eps.reshape(-1, 1)
                 self._schedule_act_eps = False  # not run-time scheduling
+        print('Action epsilon:', self._act_eps)
         if not isinstance(getattr(self, '_act_eps', None), PiecewiseSchedule):
             self._act_eps = tf.convert_to_tensor(self._act_eps, tf.float32)
         
@@ -405,14 +406,12 @@ class ActionScheduler:
                 getattr(self, '_id', None),
                 getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
                 env.n_envs)
-            if env.action_shape != ():
-                self._act_temp = self._act_temp.reshape(-1, 1)
+            self._act_temp = self._act_temp.reshape(-1, 1)
             self._schedule_act_temp = False         # not run-time scheduling    
         else:
             self._act_temp = getattr(self, '_act_temp', 1)
-        self._act_temp = tf.convert_to_tensor(self._act_temp, tf.float32)
-        print('Action epsilon:', self._act_eps)
         print('Action temperature:', self._act_temp)
+        self._act_temp = tf.convert_to_tensor(self._act_temp, tf.float32)
 
     def _get_eps(self, evaluation):
         if evaluation:
@@ -443,12 +442,21 @@ class TargetNetOps:
         tns = self.get_target_nets()
         logger.info(f"Online networks: {[n.name for n in ons]}")
         logger.info(f"Target networks: {[n.name for n in tns]}")
-        print(f"Online networks: {[n.name for n in ons]}")
-        print(f"Target networks: {[n.name for n in tns]}")
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
         [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
-    
+
+    @tf.function
+    def _update_target_nets(self):
+        ons = self.get_online_nets()
+        tns = self.get_target_nets()
+        logger.info(f"Online networks: {[n.name for n in ons]}")
+        logger.info(f"Target networks: {[n.name for n in tns]}")
+        ovars = list(itertools.chain(*[v.variables for v in ons]))
+        tvars = list(itertools.chain(*[v.variables for v in tns]))
+        [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
+            for tvar, mvar in zip(tvars, ovars)]
+
     def get_online_nets(self):
         return [getattr(self, f'{k}') for k in self.model 
             if f'target_{k}' in self.model]

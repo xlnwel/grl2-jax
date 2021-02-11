@@ -5,33 +5,33 @@ algos=(
     # ppo
     # ppo2
     # ppg
-    apex-dqn
+    # apex-dqn
     apex-iqn
-    apex-mrdqn
+    # apex-mrdqn
     # apex-sacdiqn
     # apex-mrdqn
     # sacdiqn5
 )
 suite=procgen
 envs=(
-    plunder
-    chaser
-    bigfish
-    starpilot
+    # plunder
+    # chaser
+    # bigfish
+    # starpilot
     coinrun
-    miner
+    # miner
     # caveflyer 
     # climber
-    dodgeball 
+    # dodgeball 
     # leaper
     # jumper
     # fruitbot
-    heist
-    ninja
+    # heist
+    # ninja
     # bossfight
     # maze
 )
-args1=(True)
+args1=(0.01 0.005 0.001)
 args2=(clip)
 args3=(conv_maxblurpool)
 
@@ -48,7 +48,7 @@ for e in "${envs[@]}"; do
                     dir="logs/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} -kw tau=$a1 >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

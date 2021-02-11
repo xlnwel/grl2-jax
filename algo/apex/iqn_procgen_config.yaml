@@ -5,9 +5,9 @@ env:
     n_envs: &ne 6
     frame_diff: False
     frame_skip: 1
-    frame_stack: 1
+    frame_stack: 4
     np_obs: True
-    reward_scale: 1
+    reward_scale: 2
     reward_clip: 10
 
 model:
@@ -24,6 +24,8 @@ model:
         kernel_initializer: glorot_uniform
         activation: relu
         duel: False
+        stoch_action: True
+        tau: &tau 0.003
 
 agent:
     algorithm: &algo apex-iqn
@@ -31,13 +33,25 @@ agent:
     gamma: &gamma .99
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
-    
+
+    MUNCHAUSEN: False   # whether to use munchausen rl target
+    probabilistic_regularization: entropy
+
+    tau: *tau
+    alpha: .9
+    clip_logpi_min: -1
+
     schedule_act_eps: True
     act_eps_type: apex
     act_eps: .3
     eval_act_eps: 0
+    schedule_act_temp: True
+    n_exploit_envs: 8
+    min_temp: .5
+    max_temp: 10
+    eval_act_temp: .5
 
-    MAX_STEPS: 2.5e7
+    MAX_STEPS: 1e7
     LOG_PERIOD: 100
     N_UPDATES: 1
     SYNC_PERIOD: 400

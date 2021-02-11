@@ -12,7 +12,7 @@ class PERBase(Replay):
         super()._add_attributes()
         self._top_priority = 1.
         self._data_structure = None            
-        self._use_is_ratios = getattr(self, '_use_is_ratios', True)
+        self._use_is_ratio = getattr(self, '_use_is_ratio', True)
         self._beta = float(getattr(self, 'beta0', .4))
         if getattr(self, '_beta_schedule', None):
             assert isinstance(self._beta_schedule, list)
@@ -95,7 +95,7 @@ class ProportionalPER(PERBase):
         # compute importance sampling ratios
         samples = self._get_samples(idxes)
         samples['idxes'] = idxes
-        if self._use_is_ratios:
+        if self._use_is_ratio:
             IS_ratios = self._compute_IS_ratios(probabilities)
             samples['IS_ratio'] = IS_ratios.astype(np.float32)
 

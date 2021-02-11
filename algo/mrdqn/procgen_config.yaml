@@ -21,6 +21,7 @@ model:
         kernel_initializer: glorot_uniform
         activation: relu
         duel: False
+        stoch_action: False
     additional_rnn_input: False
 
 agent:

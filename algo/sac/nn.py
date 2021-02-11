@@ -13,52 +13,41 @@ from nn.utils import get_initializer
 
 
 class Actor(Module):
-    def __init__(self, config, action_dim, is_action_discrete, name='actor'):
+    def __init__(self, config, action_dim, name='actor'):
         super().__init__(name=name)
-        self._is_action_discrete = is_action_discrete
         self._action_dim = action_dim
         self.LOG_STD_MIN = config.pop('LOG_STD_MIN', -20)
         self.LOG_STD_MAX = config.pop('LOG_STD_MAX', 2)
 
-        out_size = action_dim if is_action_discrete else 2*action_dim
+        out_size = 2*action_dim
         self._layers = mlp(**config, out_size=out_size, name=name)
 
-    def call(self, x, evaluation=False, epsilon=0):
+    def call(self, x, evaluation=False, epsilon=0, temp=1):
         x = self._layers(x)
 
-        if self._is_action_discrete:
-            dist = tfd.Categorical(logits=x)
-            action = dist.mode() if evaluation else dist.sample()
-        else:
-            mu, logstd = tf.split(x, 2, -1)
-            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-            std = tf.exp(logstd)
-            dist = tfd.MultivariateNormalDiag(mu, std)
-            raw_action = dist.mode() if evaluation else dist.sample()
-            action = tf.tanh(raw_action)
-        if epsilon:
-            action = epsilon_greedy(action, epsilon, self._is_action_discrete, self._action_dim)
+        mu, logstd = tf.split(x, 2, -1)
+        logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+        std = tf.exp(logstd)
+        dist = tfd.MultivariateNormalDiag(mu, std*temp)
+        raw_action = dist.mode() if evaluation else dist.sample()
+        action = tf.tanh(raw_action)
+        if isinstance(epsilon, tf.Tensor) or epsilon:
+            action = epsilon_greedy(action, epsilon, False)
 
         return action
 
     def train_step(self, x):
         x = self._layers(x)
 
-        if self._is_action_discrete:
-            dist = Categorical(logits=x)
-            action = dist.sample(one_hot=True)
-            logpi = dist.log_prob(action)
-            terms = {}
-        else:
-            mu, logstd = tf.split(x, 2, -1)
-            logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
-            std = tf.exp(logstd)
-            dist = tfd.MultivariateNormalDiag(mu, std)
-            raw_action = dist.sample()
-            raw_logpi = dist.log_prob(raw_action)
-            action = tf.tanh(raw_action)
-            logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
-            terms = dict(raw_act_std=std)
+        mu, logstd = tf.split(x, 2, -1)
+        logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
+        std = tf.exp(logstd)
+        dist = tfd.MultivariateNormalDiag(mu, std)
+        raw_action = dist.sample()
+        raw_logpi = dist.log_prob(raw_action)
+        action = tf.tanh(raw_action)
+        logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
+        terms = dict(raw_act_std=std)
 
         terms['entropy']= dist.entropy()
 
@@ -120,6 +109,8 @@ class Temperature(Module):
                 isinstance(x, tf.Tensor) and x.shape == ())
             temp = self._temp(x)
             log_temp = tf.math.log(temp)
+        else:
+            raise ValueError(self._temp_type)
     
         return log_temp, temp
 
@@ -133,7 +124,7 @@ class SAC(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, epsilon=0, **kwargs):
+    def action(self, x, evaluation=False, epsilon=0, temp=1, **kwargs):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 2, x.shape
@@ -156,11 +147,11 @@ class SAC(Ensemble):
 
 def create_components(config, env):
     action_dim = env.action_dim
-    is_action_discrete = env.is_action_discrete
+
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
-    actor = Actor(actor_config, action_dim, is_action_discrete)
+    actor = Actor(actor_config, action_dim)
     q = Q(q_config, 'q')
     q2 = Q(q_config, 'q2')
     target_q = Q(q_config, 'target_q')

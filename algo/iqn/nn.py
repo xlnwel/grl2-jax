@@ -2,8 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from utility.rl_utils import epsilon_greedy
-from utility.tf_utils import softmax
+from utility.rl_utils import epsilon_greedy, epsilon_scaled_logits
 from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import Encoder, mlp
@@ -54,6 +53,7 @@ class Value(Module):
         self._action_dim = action_dim
         self._duel = config.pop('duel', False)
         self._stoch_action = config.pop('stoch_action', False)
+        self._tau = config.pop('tau', 0)
 
         """ Network definition """
         if getattr(self, '_duel', False):
@@ -77,12 +77,14 @@ class Value(Module):
     def stoch_action(self):
         return self._stoch_action
 
-    def action(self, x, qt_embed=None, tau_range=None, temp=1, return_stats=False):
+    def action(self, x, qt_embed=None, tau_range=None, evaluation=False, epsilon=0, temp=1, return_stats=False):
         _, qs = self.call(x, qt_embed, tau_range=tau_range, return_value=True)
         if self._stoch_action:
-            probs = softmax(qs, temp)
-            self.dist = tfd.Categorical(probs=probs)
-            self._action = action = tfd.sample(self.dist)
+            logits = (qs - tf.reduce_max(qs, axis=-1, keepdims=True)) / self._tau
+            if isinstance(epsilon, tf.Tensor) or epsilon:
+                logits = epsilon_scaled_logits(logits, epsilon, temp)
+            self.dist = tfd.Categorical(logits)
+            self._action = action = self.dist.sample()
             one_hot = tf.one_hot(action, qs.shape[-1])
         else:
             self._action = action = tf.argmax(qs, axis=-1, output_type=tf.int32)
@@ -161,7 +163,7 @@ class IQN(Ensemble):
 
         x = self.encoder(x)
         _, qt_embed = self.quantile(x)
-        action = self.q.action(x, qt_embed, temp=temp, return_stats=return_stats)
+        action = self.q.action(x, qt_embed, epsilon=epsilon, temp=temp, return_stats=return_stats)
         terms = {}
         if return_stats:
             action, terms = action

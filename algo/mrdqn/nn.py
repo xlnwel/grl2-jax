@@ -37,9 +37,10 @@ class RDQN(Ensemble):
             eps_action = epsilon_greedy(action, epsilon,
                 is_action_discrete=True, 
                 action_dim=self.q.action_dim)
-            eps_prob = epsilon / self.q.action_dim * self.q.compute_prob()
+            prob = (1 - epsilon) * self.q.compute_prob()
+            eps_prob = epsilon / self.q.action_dim
             terms.update({
-                'prob': tf.where(action == eps_action, 1-epsilon+eps_prob, eps_prob)
+                'prob': tf.where(action == eps_action, prob + eps_prob, eps_prob)
             })
             out = tf.nest.map_structure(lambda x: tf.squeeze(x), (action, terms))
             return out, state

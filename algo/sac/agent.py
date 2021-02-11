@@ -1,11 +1,9 @@
-import itertools
 import tensorflow as tf
 
 from utility.rl_loss import n_step_target
 from utility.schedule import TFPiecewiseSchedule
-from utility.timer import TBTimer
-from core.optimizer import Optimizer
 from core.decorator import override, step_track
+from core.optimizer import Optimizer
 from algo.dqn.base import DQNBase, get_data_format, collect
 
 
@@ -27,13 +25,13 @@ class Agent(DQNBase):
     @step_track
     def learn_log(self, step):
         for _ in range(self.N_UPDATES):
-            with TBTimer('sample', 2500):
+            with self._sample_timer:
                 data = self.dataset.sample()
 
             if self._is_per:
                 idxes = data.pop('idxes').numpy()
 
-            with TBTimer('learn', 2500):
+            with self._train_timer:
                 terms = self.learn(**data)
             
             self._update_target_nets()
@@ -111,19 +109,3 @@ class Agent(DQNBase):
         ))
 
         return terms
-
-    def _compute_priority(self, priority):
-        """ p = (p + 𝝐)**𝛼 """
-        priority += self._per_epsilon
-        priority **= self._per_alpha
-        tf.debugging.assert_greater(priority, 0.)
-        return priority
-
-    @tf.function
-    def _update_target_nets(self):
-        tns = self.get_target_nets()
-        ons = self.get_online_nets()
-        tvars = list(itertools.chain(*[v.variables for v in tns]))
-        ovars = list(itertools.chain(*[v.variables for v in ons]))
-        [tvar.assign(self._polyak * tvar + (1. - self._polyak) * ovar) 
-            for tvar, ovar in zip(tvars, ovars)]

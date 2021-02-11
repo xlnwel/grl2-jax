@@ -73,7 +73,7 @@ agent:
     # arguments for PER
     per_alpha: .6
     per_epsilon: 1e-4
-    use_is_ratio: &is False
+    
 
 replay:
     replay_type: *replay
@@ -83,7 +83,7 @@ replay:
     beta0: .4
     beta_steps: 1e6
     to_update_top_priority: True
-    use_is_ratio: *is
+    use_is_ratio: True
 
     # arguments for general replay
     n_steps: *nsteps

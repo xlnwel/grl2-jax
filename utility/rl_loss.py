@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from utility.tf_utils import assert_rank_and_shape_compatibility, static_scan
+from utility.tf_utils import assert_rank, assert_rank_and_shape_compatibility, static_scan
 
 
 def huber_loss(x, *, y=None, threshold=1.):
@@ -16,6 +16,7 @@ def quantile_regression_loss(qtv, target, tau_hat, kappa=1., return_error=False)
     assert qtv.shape[-1] == 1, qtv.shape
     assert target.shape[-2] == 1, target.shape
     assert tau_hat.shape[-1] == 1, tau_hat.shape
+    assert_rank([qtv, target, tau_hat], 3)
     error = target - qtv           # [B, N, N']
     weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))   # [B, N, N']
     huber = huber_loss(error, threshold=kappa)                  # [B, N, N']

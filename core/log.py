@@ -208,13 +208,11 @@ class Logger:
 
     def get_stats(self, mean=True, std=False, min=False, max=False):
         stats = {}
-        old_std = std
         for k in sorted(self._store_dict):
             v = self._store_dict[k]
             if isscalar(v):
                 stats[k] = v
                 continue
-            std = old_std or 'norm' in k
             if mean:
                 stats[f'{k}'] = np.mean(v)
             if std:

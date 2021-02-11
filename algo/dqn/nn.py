@@ -14,7 +14,7 @@ class Q(Module):
         self._action_dim = action_dim
         self._duel = config.pop('duel', False)
         self._layer_type = config.get('layer_type', 'dense')
-        self._stoch_action = config.get('stoch_action', False)
+        self._stoch_action = config.pop('stoch_action', False)
 
         """ Network definition """
         if self._duel:
@@ -43,7 +43,7 @@ class Q(Module):
         if self._stoch_action:
             probs = softmax(qs, temp)
             self.dist = tfd.Categorical(probs=probs)
-            self._action = action = tfd.sample(self.dist)
+            self._action = action = self.dist.sample()
             one_hot = tf.one_hot(action, qs.shape[-1])
         else:
             self._action = action = tf.argmax(qs, axis=-1, output_type=tf.int32)

@@ -24,8 +24,9 @@ def get_data_format(*, env, replay_config, **kwargs):
         discount=((None, ), tf.float32),
     )
     if is_per:
-        data_format['IS_ratio'] = ((None, ), tf.float32)
         data_format['idxes'] = ((None, ), tf.int32)
+        if replay_config.get('use_is_ratio'):
+            data_format['IS_ratio'] = ((None, ), tf.float32)
     if n_steps > 1:
         data_format['steps'] = ((None, ), tf.float32)
 
@@ -51,9 +52,14 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
         self.N_EVAL_EPISODES = getattr(self, 'N_EVAL_EPISODES', 1)
 
         self._is_per = False if dataset is None else dataset.name().endswith('per')
+        self._probabilistic_regularization = getattr(self, '_probabilistic_regularization', None)
         self._double = getattr(self, '_double', False)
+        logger.info(f'Prioritized replay: {self._is_per}')
+        logger.info(f'Double Q-learning: {self._double}')
+        logger.info(f'Probabilistic regularization: {self._probabilistic_regularization}')
+
         self._return_stats = getattr(self, '_return_stats', False)
-        
+
         self._setup_action_schedule(env)
         self._setup_target_net_sync()
         
@@ -79,7 +85,7 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
             next_obs=(env.obs_shape, env.obs_dtype, 'next_obs'),
             discount=((), tf.float32, 'discount'),
         )
-        if self._is_per:
+        if self._is_per and getattr(self, '_use_is_ratio', self._is_per):
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
         if self._n_steps > 1:
             TensorSpecs['steps'] = ((), tf.float32, 'steps')

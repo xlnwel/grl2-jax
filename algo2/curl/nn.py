@@ -72,7 +72,7 @@ class Actor(Module):
         if self._is_action_discrete:
             dist = tfd.Categorical(logits=x)
             action = dist.mode() if evaluation else dist.sample()
-            if epsilon:
+            if isinstance(epsilon, tf.Tensor) or epsilon:
                 rand_act = tfd.Categorical(tf.zeros_like(dist.logits)).sample()
                 action = tf.where(
                     tf.random.uniform(action.shape[:-1], 0, 1) < epsilon,
@@ -85,7 +85,7 @@ class Actor(Module):
             dist = tfd.MultivariateNormalDiag(mu, std)
             raw_action = dist.mode() if evaluation else dist.sample()
             action = tf.tanh(raw_action)
-            if epsilon:
+            if isinstance(epsilon, tf.Tensor) or epsilon:
                 action = tf.clip_by_value(
                     tfd.Normal(action, epsilon).sample(), -1, 1)
 

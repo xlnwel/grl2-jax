@@ -16,6 +16,13 @@ def epsilon_greedy(action, epsilon, is_action_discrete, action_dim=None):
             tfd.Normal(action, epsilon).sample(), -1, 1)
     return action
 
+def epsilon_scaled_logits(logits, epsilon, temp):
+    scaled_logits = logits / temp
+    cond = tf.random.uniform(tf.shape(epsilon), 0, 1) > epsilon
+    cond = tf.reshape(cond, (-1, 1))
+    logits = tf.where(cond, logits, scaled_logits)
+    return logits
+
 def clip_but_pass_gradient(x, l=-1., u=1.):
     clip_up = tf.cast(x > u, tf.float32)
     clip_low = tf.cast(x < l, tf.float32)

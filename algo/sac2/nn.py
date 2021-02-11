@@ -5,7 +5,7 @@ from tensorflow.keras import layers
 
 from core.module import Module, Ensemble
 from core.decorator import config
-from utility.rl_utils import logpi_correction
+from utility.rl_utils import epsilon_greedy
 from utility.tf_distributions import Categorical, TanhBijector, SampleDist
 from nn.func import mlp
 from algo.sac.nn import Temperature
@@ -13,32 +13,29 @@ from algo.sac.nn import Temperature
 
 class Actor(Module):
     @config
-    def __init__(self, action_dim, is_action_discrete, name='actor'):
+    def __init__(self, action_dim, name='actor'):
         super().__init__(name=name)
 
         """ Network definition """
-        out_size = action_dim if is_action_discrete else 2*action_dim
+        out_size = 2*action_dim
         self._layers = mlp(self._units_list, 
                             out_size=out_size,
                             activation=self._activation)
-
-        self._is_action_discrete = is_action_discrete
         
     @tf.function
-    def __call__(self, x, evaluation=False, epsilon=0):
+    def __call__(self, x, evaluation=False, epsilon=0, temp=1):
         if evaluation:
-            action = self.step(x)[0].mode()
+            action = self.step(x, temp=temp)[0].mode()
         else:
-            act_dist = self.step(x)[0]
+            act_dist = self.step(x, temp=temp)[0]
             action = act_dist.sample()
-            if epsilon:
-                action = tf.clip_by_value(
-                    tfd.Normal(action, self._act_eps).sample(), -1, 1)
+            if isinstance(epsilon, tf.Tensor) or epsilon:
+                action = epsilon_greedy(action, epsilon, False)
         
         return action
 
     @tf.Module.with_name_scope
-    def step(self, x):
+    def step(self, x, temp=1):
         x = self._layers(x)
 
         if self._is_action_discrete:
@@ -53,7 +50,7 @@ class Actor(Module):
             # interestingly, algo/sac does not suffer this problem
             mean = self._mean_scale * tf.tanh(mean / self._mean_scale)
             std = tf.nn.softplus(std + raw_init_std) + self._min_std
-            dist = tfd.Normal(mean, std)
+            dist = tfd.Normal(mean, std*temp)
             dist = tfd.TransformedDistribution(dist, TanhBijector())
             dist = tfd.Independent(dist, 1)
             dist = SampleDist(dist)
@@ -71,8 +68,7 @@ class Q(Module):
                             out_size=1,
                             activation=self._activation)
     
-    @tf.Module.with_name_scope
-    def __call__(self, x):
+    def call(self, x):
         x = self._layers(x)
         rbd = 0 if x.shape[-1] == 1 else 1  # #reinterpreted batch dimensions
         x = tf.squeeze(x)
@@ -90,7 +86,7 @@ class SAC(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, epsilon=0):
+    def action(self, x, evaluation=False, epsilon=0, **kwargs):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 2, x.shape
