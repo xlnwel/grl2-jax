@@ -21,7 +21,6 @@ class SequentialPER(ProportionalPER):
             'replay_type': self._replay_type,
             'n_envs': self._n_envs,
             'sample_size': self._sample_size,
-            'reset_shift': self._burn_in_size,
             'state_keys': self._state_keys,
             'extra_keys': self._extra_keys,
         })
@@ -54,7 +53,7 @@ class SequentialPER(ProportionalPER):
         if self._first:
             logger.info('First sample')
             for k, v in self._memory[0].items():
-                logger.info(f'{k}, {v.shape}, {v.dtype}')
+                logger.info(f'\t{k}, {v.shape}, {v.dtype}')
             self._first = False
         
         if not self._is_full and self._mem_idx >= self._capacity:
@@ -77,5 +76,5 @@ class SequentialPER(ProportionalPER):
                 assert v.shape[:2] == (self._batch_size, self._sample_size+1), (k, v.shape)
             else:
                 assert v.shape[:2] == (self._batch_size, self._sample_size), (k, v.shape)
-        
+
         return results

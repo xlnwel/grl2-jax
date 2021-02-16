@@ -1,8 +1,8 @@
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from utility.tf_utils import assert_shape_compatibility, softmax
-from utility.rl_utils import epsilon_greedy
+from utility.tf_utils import assert_shape_compatibility
+from utility.rl_utils import epsilon_greedy, epsilon_scaled_logits
 from core.module import Module, Ensemble
 from nn.func import Encoder, mlp
 
@@ -15,6 +15,7 @@ class Q(Module):
         self._duel = config.pop('duel', False)
         self._layer_type = config.get('layer_type', 'dense')
         self._stoch_action = config.pop('stoch_action', False)
+        self._tau = config.pop('tau', 1)
 
         """ Network definition """
         if self._duel:
@@ -37,16 +38,24 @@ class Q(Module):
     def stoch_action(self):
         return self._stoch_action
 
-    def action(self, x, noisy=True, reset=True, temp=1, return_stats=False):
+    def action(self, x, noisy=True, reset=True, epsilon=0, temp=1, return_stats=False):
         qs = self.call(x, noisy=noisy, reset=reset)
 
         if self._stoch_action:
-            probs = softmax(qs, temp)
-            self.dist = tfd.Categorical(probs=probs)
+            self._action_temp = temp
+            self._action_epsilon = epsilon
+            self._raw_logits = logits = (qs - tf.reduce_max(qs, axis=-1, keepdims=True)) / self._tau
+            if isinstance(epsilon, tf.Tensor) or epsilon:
+                self._logits = logits = epsilon_scaled_logits(logits, epsilon, temp)
+            self.dist = tfd.Categorical(logits)
             self._action = action = self.dist.sample()
-            one_hot = tf.one_hot(action, qs.shape[-1])
         else:
-            self._action = action = tf.argmax(qs, axis=-1, output_type=tf.int32)
+            self._action_epsilon = epsilon
+            self._raw_action = tf.argmax(qs, axis=-1, output_type=tf.int32)
+            self._action = action = epsilon_greedy(
+                self._raw_action, epsilon,
+                is_action_discrete=True, 
+                action_dim=self.action_dim)
         if return_stats:
             if self._stoch_action:
                 one_hot = tf.one_hot(action, qs.shape[-1])
@@ -81,7 +90,14 @@ class Q(Module):
             self._layers.reset()
     
     def compute_prob(self):
-        return self.dist.prob(self._action) if self._stoch_action else 1
+        if self._stoch_action:
+            # TODO: compute exact probs taking into account temp and epsilon
+            prob = self.dist.prob(self._action)
+        else:
+            eps_prob = self._action_epsilon / self.action_dim
+            max_prob = 1 - self._action_epsilon + eps_prob
+            prob = tf.where(self._action == self._raw_action, max_prob, eps_prob)
+        return prob
 
 
 class DQN(Ensemble):
@@ -103,14 +119,10 @@ class DQN(Ensemble):
 
         x = self.encoder(x)
         noisy = not evaluation
-        action = self.q.action(x, noisy=noisy, reset=noisy, temp=temp, return_stats=return_stats)
+        action = self.q.action(x, noisy=noisy, reset=noisy, epsilon=epsilon, temp=temp, return_stats=return_stats)
         terms = {}
         if return_stats:
             action, terms = action
-        if isinstance(epsilon, tf.Tensor) or epsilon:
-            action = epsilon_greedy(action, epsilon,
-                is_action_discrete=True, 
-                action_dim=self.q.action_dim)
         action = tf.squeeze(action)
 
         return action, terms

@@ -53,7 +53,7 @@ class Value(Module):
         self._action_dim = action_dim
         self._duel = config.pop('duel', False)
         self._stoch_action = config.pop('stoch_action', False)
-        self._tau = config.pop('tau', 0)
+        self._tau = config.pop('tau', 1)
 
         """ Network definition """
         if getattr(self, '_duel', False):
@@ -80,14 +80,18 @@ class Value(Module):
     def action(self, x, qt_embed=None, tau_range=None, evaluation=False, epsilon=0, temp=1, return_stats=False):
         _, qs = self.call(x, qt_embed, tau_range=tau_range, return_value=True)
         if self._stoch_action:
-            logits = (qs - tf.reduce_max(qs, axis=-1, keepdims=True)) / self._tau
+            self.logits = (qs - tf.reduce_max(qs, axis=-1, keepdims=True)) / self._tau
             if isinstance(epsilon, tf.Tensor) or epsilon:
-                logits = epsilon_scaled_logits(logits, epsilon, temp)
+                logits = epsilon_scaled_logits(self.logits, epsilon, temp)
             self.dist = tfd.Categorical(logits)
             self._action = action = self.dist.sample()
             one_hot = tf.one_hot(action, qs.shape[-1])
         else:
+            # self.logits = qs    # fake logits, only here to avoid error
             self._action = action = tf.argmax(qs, axis=-1, output_type=tf.int32)
+            action = epsilon_greedy(action, epsilon,
+                is_action_discrete=True, 
+                action_dim=self.action_dim)
         if return_stats:
             if self._stoch_action:
                 one_hot = tf.one_hot(action, qs.shape[-1])
@@ -140,8 +144,8 @@ class Value(Module):
 
         return v
 
-    def compute_prob(self):
-        return self.dist.prob(self._action) if self._stoch_action else 1
+    def compute_prob(self, action):
+        return self.dist.prob(action) if self._stoch_action else 1
 
 class IQN(Ensemble):
     def __init__(self, config, *, model_fn=None, env, **kwargs):
@@ -167,10 +171,6 @@ class IQN(Ensemble):
         terms = {}
         if return_stats:
             action, terms = action
-        if isinstance(epsilon, tf.Tensor) or epsilon:
-            action = epsilon_greedy(action, epsilon,
-                is_action_discrete=True, 
-                action_dim=self.q.action_dim)
         action = tf.squeeze(action)
 
         return action, terms

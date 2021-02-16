@@ -10,8 +10,32 @@ class Agent(DQNBase):
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
-        terms = {}
-        # compute target returns
+        target, terms = self._compute_target(obs, action, reward, next_obs, discount, steps)
+
+        with tf.GradientTape() as tape:
+            x = self.encoder(obs)
+            q = self.q(x, action)
+            error = target - q
+            loss = tf.reduce_mean(IS_ratio * loss_fn(error))
+
+        if self._is_per:
+            priority = self._compute_priority(tf.abs(error))
+            terms['priority'] = priority
+        
+        terms['norm'] = self._optimizer(tape, loss)
+        
+        terms.update(dict(
+            q=q,
+            target=target,
+            loss=loss,
+        ))
+
+        return terms
+
+    def reset_noisy(self):
+        self.q.reset_noisy()
+
+    def _compute_target(self, obs, action, reward, next_obs, discount, steps):
         if self.MUNCHAUSEN:
             x = self.target_encoder(obs)
             qs = self.target_q(x)
@@ -38,27 +62,6 @@ class Agent(DQNBase):
                 next_action = self.target_q.action(next_x, noisy=False)
             next_v = self.target_q(next_x, next_action, noisy=False)
 
-        returns = n_step_target(reward, next_v, discount, self._gamma, steps, self._tbo)
+        target = n_step_target(reward, next_v, discount, self._gamma, steps, self._tbo)
 
-        with tf.GradientTape() as tape:
-            x = self.encoder(obs)
-            q = self.q(x, action)
-            error = returns - q
-            loss = tf.reduce_mean(IS_ratio * loss_fn(error))
-
-        if self._is_per:
-            priority = self._compute_priority(tf.abs(error))
-            terms['priority'] = priority
-        
-        terms['norm'] = self._optimizer(tape, loss)
-        
-        terms.update(dict(
-            q=q,
-            returns=returns,
-            loss=loss,
-        ))
-
-        return terms
-
-    def reset_noisy(self):
-        self.q.reset_noisy()
+        return target

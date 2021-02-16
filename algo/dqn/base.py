@@ -9,7 +9,6 @@ from core.decorator import override, step_track
 
 
 logger = logging.getLogger(__name__)
-logger.addFilter(logging.StreamHandler)
 
 def get_data_format(*, env, replay_config, **kwargs):
     is_per = replay_config['replay_type'].endswith('per')

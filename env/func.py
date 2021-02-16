@@ -1,7 +1,6 @@
 import numpy as np
-import gym
 
-from env.cls import Env, EnvVec, RayEnvVec, make_env
+from env.cls import Env, EnvVec, make_env
 
 
 def create_env(config, env_fn=None, force_envvec=False):
@@ -11,6 +10,7 @@ def create_env(config, env_fn=None, force_envvec=False):
         EnvType = EnvVec if force_envvec or config.get('n_envs', 1) > 1 else Env
         env = EnvType(config, env_fn)
     else:
+        from env.ray_env import RayEnvVec
         EnvType = EnvVec if config.get('n_envs', 1) > 1 else Env
         env = RayEnvVec(EnvType, config, env_fn)
 

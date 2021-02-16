@@ -358,7 +358,8 @@ class EnvStats(gym.Wrapper):
         if not self._output.reset:
             return self._reset()
         else:
-            logger.debug('Repetitively calling reset results in no environment interaction')
+            if EnvStats.manual_reset_warning:
+                logger.debug('Repetitively calling reset results in no environment interaction')
             return self._output
 
     def _reset(self):

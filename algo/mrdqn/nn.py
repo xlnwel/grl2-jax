@@ -1,4 +1,3 @@
-import collections
 import tensorflow as tf
 
 from utility.rl_utils import epsilon_greedy
@@ -26,7 +25,7 @@ class RDQN(Ensemble):
 
         x, state = self._encode(
             x, state, mask, prev_action, prev_reward)
-        action = self.q.action(x, temp=temp, return_stats=return_stats)
+        action = self.q.action(x, epsilon=epsilon, temp=temp, return_stats=return_stats)
 
         if evaluation:
             return tf.squeeze(action), state
@@ -34,13 +33,8 @@ class RDQN(Ensemble):
             terms = {}
             if return_stats:
                 action, terms = action
-            eps_action = epsilon_greedy(action, epsilon,
-                is_action_discrete=True, 
-                action_dim=self.q.action_dim)
-            prob = (1 - epsilon) * self.q.compute_prob()
-            eps_prob = epsilon / self.q.action_dim
             terms.update({
-                'prob': tf.where(action == eps_action, prob + eps_prob, eps_prob)
+                'prob': self.q.compute_prob()
             })
             out = tf.nest.map_structure(lambda x: tf.squeeze(x), (action, terms))
             return out, state

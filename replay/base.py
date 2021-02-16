@@ -72,7 +72,7 @@ class Replay(ABC):
             self._tmp_buf.add(**kwargs)
             if self._tmp_buf.is_full():
                 data = self._tmp_buf.sample()
-                self.merge(data, self._n_envs * self._seqlen)
+                self.merge(data)
                 self._tmp_buf.reset()
         else:
             """ Add a single transition to the replay buffer """

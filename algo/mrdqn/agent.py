@@ -24,8 +24,9 @@ def get_data_format(*, env, replay_config, agent_config,
         mask=((None, sample_size+1), tf.float32),
     )
     if is_per:
-        data_format['IS_ratio'] = ((None), tf.float32)
         data_format['idxes'] = ((None), tf.int32)
+        if replay_config.get('use_is_ratio'):
+            data_format['IS_ratio'] = ((None, ), tf.float32)
     if store_state:
         state_size = model.state_size
         from tensorflow.keras.mixed_precision import global_policy
@@ -59,7 +60,7 @@ class Agent(Memory, DQNBase):
             discount=((self._sample_size,), tf.float32, 'discount'),
             mask=((self._sample_size+1,), tf.float32, 'mask')
         )
-        if self._is_per:
+        if self._is_per and getattr(self, '_use_is_ratio', self._is_per):
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
         if self._store_state:
             state_type = type(self.model.state_size)
@@ -90,7 +91,7 @@ class Agent(Memory, DQNBase):
     @tf.function
     def _learn(self, obs, action, reward, discount, prob, mask, 
                 IS_ratio=1, state=None, additional_rnn_input=[]):
-        terms = {}
+        mask = tf.expand_dims(mask, -1)
         if additional_rnn_input != []:
             prev_action, prev_reward = additional_rnn_input
             prev_action = tf.concat([prev_action, action[:, :-1]], axis=1)
@@ -98,7 +99,16 @@ class Agent(Memory, DQNBase):
             add_inp = [prev_action, prev_reward]
         else:
             add_inp = additional_rnn_input
-        mask = tf.expand_dims(mask, -1)
+        
+        # if 'rnn' in self.model and self._burn_in:
+        #     bi_obs, val_obs = tf.split(obs, 
+        #         [self._burn_in_size, self._sample_size - self._burn_in_size + 1], 1)
+            
+            
+        # target, terms = self._compute_target(
+        #     obs, bi_obs, action, reward, discount, 
+        #     prob, mask, state, additional_rnn_input)
+        terms = {}
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
             t_x = self.target_encoder(obs)
@@ -160,7 +170,6 @@ class Agent(Memory, DQNBase):
             [loss, ()]
         ])
         if self._is_per:
-            # we intend to use error as priority instead of TD error used in the paper
             priority = self._compute_priority(tf.abs(error))
             terms['priority'] = priority
         
@@ -170,6 +179,7 @@ class Agent(Memory, DQNBase):
             q=q,
             prob_min=tf.reduce_min(prob),
             prob=prob,
+            prob_std=tf.math.reduce_std(prob),
             target=target,
             loss=loss,
         ))
@@ -183,3 +193,36 @@ class Agent(Memory, DQNBase):
         priority += self._per_epsilon
         priority **= self._per_alpha
         return priority
+
+    def _compute_target(self, obs, bi_obs, action, reward, discount, prob, mask, state, additional_rnn_input):
+        if additional_rnn_input != []:
+            prev_action, prev_reward = additional_rnn_input
+            prev_action = tf.concat([prev_action, action[:, :-1]], axis=1)
+            prev_reward = tf.concat([prev_reward, reward[:, :-1]], axis=1)
+            add_inp = [prev_action, prev_reward]
+        else:
+            add_inp = additional_rnn_input
+        t_x = self.target_encoder(obs)
+        ss = self._sample_size
+        if 'rnn' in self.model:
+            if self._burn_in:
+                bis = self._burn_in_size
+                ss = self._sample_size - bis
+                bi_x = self.encoder(bi_obs)
+                tbi_x, t_x = tf.split(t_x, [bis, ss+1], 1)
+                if add_inp != []:
+                    bi_add_inp, add_inp = zip(
+                        *[tf.split(v, [bis, ss+1]) for v in add_inp])
+                else:
+                    bi_add_inp = []
+                bi_mask, mask = tf.split(mask, [bis, ss+1], 1)
+                _, discount = tf.split(discount, [bis, ss], 1)
+                _, prob = tf.split(prob, [bis, ss], 1)
+                _, o_state = self.rnn(bi_x, state, bi_mask,
+                    additional_input=bi_add_inp)
+                _, t_state = self.target_rnn(tbi_x, state, bi_mask,
+                    additional_input=bi_add_inp)
+                o_state = tf.nest.map_structure(tf.stop_gradient, o_state)
+            else:
+                o_state = t_state = state
+

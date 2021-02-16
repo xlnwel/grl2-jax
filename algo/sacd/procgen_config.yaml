@@ -18,7 +18,6 @@ model:
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
-        eval_act_temp: .5
     q:
         units_list: [512]
         layer_type: dense

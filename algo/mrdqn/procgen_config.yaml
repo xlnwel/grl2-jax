@@ -21,7 +21,8 @@ model:
         kernel_initializer: glorot_uniform
         activation: relu
         duel: False
-        stoch_action: False
+        stoch_action: True
+        tau: &tau 0.01
     additional_rnn_input: False
 
 agent:
@@ -31,6 +32,13 @@ agent:
     lambda: .95
     batch_size: &bs 32
     precision: 16
+
+    MUNCHAUSEN: False   # whether to use munchausen rl target
+    probabilistic_regularization: null
+
+    tau: *tau
+    alpha: .9
+    clip_logpi_min: -1
 
     schedule_act_eps: True
     act_eps_type: apex
@@ -42,11 +50,11 @@ agent:
     sample_size: &ss 16
     burn_in_size: &bis 0
 
-    MAX_STEPS: 2.5e7          # maximum env steps
-    TRAIN_PERIOD: 1
+    MAX_STEPS: 1e7          # maximum env steps
+    TRAIN_PERIOD: 256
     EVAL_PERIOD: 2.5e5
     LOG_PERIOD: 2.5e5
-    N_UPDATES: 1
+    N_UPDATES: 24
     RECORD: True
     N_EVAL_EPISODES: 200
 

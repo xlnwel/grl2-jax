@@ -1,9 +1,7 @@
 import functools
-import ray
 
 from core.tf_config import *
 from utility.utils import Every
-from utility.rl_utils import compute_act_temp, compute_act_eps
 from utility.graph import video_summary
 from utility.ray_setup import sigint_shutdown_ray
 from utility.timer import Timer
@@ -65,6 +63,7 @@ def main(env_config, model_config, agent_config, replay_config):
 
     use_ray = env_config.get('n_workers', 1) > 1
     if use_ray:
+        import ray
         ray.init()
         sigint_shutdown_ray()
 
