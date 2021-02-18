@@ -394,7 +394,7 @@ class ActionScheduler:
                 if env.action_shape != ():
                     self._act_eps = self._act_eps.reshape(-1, 1)
                 self._schedule_act_eps = False  # not run-time scheduling
-        print('Action epsilon:', self._act_eps)
+        print('Action epsilon:', np.reshape(self._act_eps, -1))
         if not isinstance(getattr(self, '_act_eps', None), PiecewiseSchedule):
             self._act_eps = tf.convert_to_tensor(self._act_eps, tf.float32)
         
@@ -410,7 +410,7 @@ class ActionScheduler:
             self._schedule_act_temp = False         # not run-time scheduling    
         else:
             self._act_temp = getattr(self, '_act_temp', 1)
-        print('Action temperature:', self._act_temp)
+        print('Action temperature:', np.reshape(self._act_temp, -1))
         self._act_temp = tf.convert_to_tensor(self._act_temp, tf.float32)
 
     def _get_eps(self, evaluation):

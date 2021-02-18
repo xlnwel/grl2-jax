@@ -22,14 +22,14 @@ class Actor(Module):
                 dtype='float32', 
                 trainable=True, 
                 name=f'actor/logstd')
-        self.actor = mlp(**config, 
+        self._layers = mlp(**config, 
                         out_size=action_dim, 
                         out_dtype='float32',
                         out_gain=.01,
                         name=name)
 
     def call(self, x, evaluation=False):
-        actor_out = self.actor(x)
+        actor_out = self._layers(x)
 
         if self.is_action_discrete:
             logits = actor_out / self.eval_act_temp \

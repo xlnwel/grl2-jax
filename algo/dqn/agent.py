@@ -13,10 +13,13 @@ class Agent(DQNBase):
         target, terms = self._compute_target(obs, action, reward, next_obs, discount, steps)
 
         with tf.GradientTape() as tape:
-            x = self.encoder(obs)
-            q = self.q(x, action)
+            q = self._compute_qs(obs, action=action)
             error = target - q
             loss = tf.reduce_mean(IS_ratio * loss_fn(error))
+        tf.debugging.assert_shapes([
+            [target, (None)],
+            [q, (None)],
+        ])
 
         if self._is_per:
             priority = self._compute_priority(tf.abs(error))
@@ -34,34 +37,45 @@ class Agent(DQNBase):
 
     def reset_noisy(self):
         self.q.reset_noisy()
-
-    def _compute_target(self, obs, action, reward, next_obs, discount, steps):
-        if self.MUNCHAUSEN:
+    
+    def _compute_qs(self, obs, online=True, action=None):
+        if online:
+            x = self.encoder(obs)
+            qs = self.q(x, action)
+        else:
             x = self.target_encoder(obs)
-            qs = self.target_q(x)
-            logpi = log_softmax(qs, self._tau, axis=-1)
-            logpi_a = tf.reduce_sum(logpi * action, axis=-1)
-            logpi_a = tf.clip_by_value(logpi_a, self._clip_logpi_min, 0)
-            reward = reward + self._alpha * logpi_a
-
+            qs = self.target_q(x, action)
+        if action is None:
+            tf.debugging.assert_shapes([[qs, (None, self.q.action_dim)]])
+        else:
+            tf.debugging.assert_shapes([[qs, (None,)]])
+        return qs
+    
+    def _compute_target(self, obs, action, reward, next_obs, discount, steps):
+        terms = {}
+        if self.MUNCHAUSEN:
+            qs = self._compute_qs(obs, False)
+            reward, terms = self._compute_reward(reward, qs, action)
+        
+        next_qs = self._compute_qs(next_obs, False)
+        if self._probabilistic_regularization is None:
             if self._double:
-                next_x_online = self.encoder(next_obs)
-                next_qs = self.q(next_x_online)
+                next_online_qs = self._compute_qs(next_obs)
+                next_action = self.q.compute_greedy_action(next_online_qs, one_hot=True)
             else:
-                next_x = self.target_encoder(next_obs)
-                next_qs = self.target_q(next_x)
+                next_action = self.target_q.compute_greedy_action(next_qs, one_hot=True)
+            next_v = tf.reduce_sum(next_qs * next_action, axis=-1)
+        elif self._probabilistic_regularization == 'prob':
+            next_pi = softmax(next_qs, self._tau)
+            next_v = tf.reduce_sum(next_qs * next_pi, axis=-1)
+        elif self._probabilistic_regularization == 'entropy':
             next_pi = softmax(next_qs, self._tau)
             next_logpi = log_softmax(next_qs, self._tau)
-            next_v = tf.reduce_sum((next_qs - next_logpi)*next_pi, axis=-1)
+            terms['next_entropy'] = - tf.reduce_sum(next_pi * next_logpi / self._tau, axis=-1)
+            next_v = tf.reduce_sum((next_qs - next_logpi) * next_pi, axis=-1)
         else:
-            next_x = self.target_encoder(next_obs)
-            if self._double:
-                next_x_online = self.encoder(next_obs)
-                next_action = self.q.action(next_x_online, noisy=False)
-            else:
-                next_action = self.target_q.action(next_x, noisy=False)
-            next_v = self.target_q(next_x, next_action, noisy=False)
+            raise ValueError(self._probabilistic_regularization)
 
         target = n_step_target(reward, next_v, discount, self._gamma, steps, self._tbo)
 
-        return target
+        return target, terms

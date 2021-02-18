@@ -6,18 +6,18 @@ algos=(
     # ppo2
     # ppg
     # apex-dqn
-    apex-iqn
-    # apex-mrdqn
+    # apex-iqn
+    apex-mrdqn
     # apex-sacdiqn
     # apex-mrdqn
     # sacdiqn5
 )
 suite=procgen
 envs=(
-    # plunder
+    plunder
     # chaser
     # bigfish
-    # starpilot
+    starpilot
     coinrun
     # miner
     # caveflyer 
@@ -31,9 +31,9 @@ envs=(
     # bossfight
     # maze
 )
-args1=(0.01 0.005 0.001)
-args2=(clip)
-args3=(conv_maxblurpool)
+args1=(0.01 0.005)
+args2=(entropy prob)
+args3=(1)
 
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
@@ -48,7 +48,7 @@ for e in "${envs[@]}"; do
                     dir="logs/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -kw tau=$a1 >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} -kw tau=$a1 probabilistic_regularization=$a2 reward_scale=$a3 >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

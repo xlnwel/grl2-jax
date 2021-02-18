@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
+from utility.tf_utils import softmax, log_softmax
 from utility.rl_utils import *
 from utility.rl_loss import retrace
 from core.tf_config import build
@@ -47,6 +48,7 @@ class Agent(Memory, DQNBase):
     @override(DQNBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
+        self._burn_in = 'rnn' in self.model and self._burn_in
         self._setup_memory_state_record()
 
     @override(DQNBase)
@@ -99,73 +101,36 @@ class Agent(Memory, DQNBase):
             add_inp = [prev_action, prev_reward]
         else:
             add_inp = additional_rnn_input
-        
-        # if 'rnn' in self.model and self._burn_in:
-        #     bi_obs, val_obs = tf.split(obs, 
-        #         [self._burn_in_size, self._sample_size - self._burn_in_size + 1], 1)
             
-            
-        # target, terms = self._compute_target(
-        #     obs, bi_obs, action, reward, discount, 
-        #     prob, mask, state, additional_rnn_input)
-        terms = {}
-        with tf.GradientTape() as tape:
-            x = self.encoder(obs)
-            t_x = self.target_encoder(obs)
-            ss = self._sample_size
-            if 'rnn' in self.model:
-                if self._burn_in:
-                    bis = self._burn_in_size
-                    ss = self._sample_size - bis
-                    bi_x, x = tf.split(x, [bis, ss+1], 1)
-                    tbi_x, t_x = tf.split(t_x, [bis, ss+1], 1)
-                    if add_inp != []:
-                        bi_add_inp, add_inp = zip(
-                            *[tf.split(v, [bis, ss+1]) for v in add_inp])
-                    else:
-                        bi_add_inp = []
-                    bi_mask, mask = tf.split(mask, [bis, ss+1], 1)
-                    bi_discount, discount = tf.split(discount, [bis, ss], 1)
-                    _, prob = tf.split(prob, [bis, ss], 1)
-                    _, o_state = self.rnn(bi_x, state, bi_mask,
-                        additional_input=bi_add_inp)
-                    _, t_state = self.target_rnn(tbi_x, state, bi_mask,
-                        additional_input=bi_add_inp)
-                    o_state = tf.nest.map_structure(tf.stop_gradient, o_state)
-                else:
-                    o_state = t_state = state
+        target, terms = self._compute_target(
+            obs, action, reward, discount, 
+            prob, mask, state, add_inp)
+        if self._burn_in:
+            bis = self._burn_in_size
+            ss = self._sample_size - bis
+            bi_obs, obs = tf.split(obs, [bis, ss], 1)
+            bi_mask, mask = tf.split(mask, [bis, ss+1], 1)
+            if add_inp:
+                bi_add_inp, add_inp = zip(*[tf.split(v, [bis, ss+1]) for v in add_inp])
+            else:
+                bi_add_inp = []
+            _, state = self._compute_embed(bi_obs, bi_mask, state, bi_add_inp)
 
-                x, _ = self.rnn(x, o_state, mask,
-                    additional_input=add_inp)
-                t_x, _ = self.target_rnn(t_x, t_state, mask,
-                    additional_input=add_inp)
+        with tf.GradientTape() as tape:
+            x, state = self._compute_embed(obs, mask, state, add_inp)
             
             curr_x = x[:, :-1]
-            next_x = x[:, 1:]
-            t_next_x = t_x[:, 1:]
             curr_action = action[:, :-1]
-            next_action = action[:, 1:]
-            discount = discount * self._gamma
+
             
             q = self.q(curr_x, curr_action)
-            new_next_action = self.q.action(next_x)
-            next_pi = tf.one_hot(new_next_action, self._action_dim, dtype=tf.float32)
-            t_next_qs = self.target_q(t_next_x)
-            next_mu_a = prob[:, 1:]
-            target = retrace(
-                reward, t_next_qs, next_action, 
-                next_pi, next_mu_a, discount,
-                lambda_=self._lambda, 
-                axis=1, tbo=self._tbo)
-            target = tf.stop_gradient(target)
             error = target - q
             loss = tf.reduce_mean(.5 * error**2, axis=-1)
             loss = tf.reduce_mean(IS_ratio * loss)
         tf.debugging.assert_shapes([
-            [q, (None, ss)],
-            [next_pi, (None, ss, self._action_dim)],
-            [target, (None, ss)],
-            [error, (None, ss)],
+            [q, (None, self._sample_size)],
+            [target, (None, self._sample_size)],
+            [error, (None, self._sample_size)],
             [IS_ratio, (None,)],
             [loss, ()]
         ])
@@ -194,35 +159,55 @@ class Agent(Memory, DQNBase):
         priority **= self._per_alpha
         return priority
 
-    def _compute_target(self, obs, bi_obs, action, reward, discount, prob, mask, state, additional_rnn_input):
-        if additional_rnn_input != []:
-            prev_action, prev_reward = additional_rnn_input
-            prev_action = tf.concat([prev_action, action[:, :-1]], axis=1)
-            prev_reward = tf.concat([prev_reward, reward[:, :-1]], axis=1)
-            add_inp = [prev_action, prev_reward]
-        else:
-            add_inp = additional_rnn_input
-        t_x = self.target_encoder(obs)
-        ss = self._sample_size
+    def _compute_embed(self, obs, mask, state, add_inp, online=True):
+        encoder = self.encoder if online else self.target_encoder
+        x = encoder(obs)
         if 'rnn' in self.model:
-            if self._burn_in:
-                bis = self._burn_in_size
-                ss = self._sample_size - bis
-                bi_x = self.encoder(bi_obs)
-                tbi_x, t_x = tf.split(t_x, [bis, ss+1], 1)
-                if add_inp != []:
-                    bi_add_inp, add_inp = zip(
-                        *[tf.split(v, [bis, ss+1]) for v in add_inp])
-                else:
-                    bi_add_inp = []
-                bi_mask, mask = tf.split(mask, [bis, ss+1], 1)
-                _, discount = tf.split(discount, [bis, ss], 1)
-                _, prob = tf.split(prob, [bis, ss], 1)
-                _, o_state = self.rnn(bi_x, state, bi_mask,
-                    additional_input=bi_add_inp)
-                _, t_state = self.target_rnn(tbi_x, state, bi_mask,
-                    additional_input=bi_add_inp)
-                o_state = tf.nest.map_structure(tf.stop_gradient, o_state)
-            else:
-                o_state = t_state = state
+            rnn = self.rnn if online else self.target_rnn
+            x, state = rnn(x, state, mask, additional_input=add_inp)
+        return x, state
+    
+    def _compute_target(self, obs, action, reward, discount, 
+                        prob, mask, state, add_inp):
+        terms = {}
+        x, _ = self._compute_embed(obs, mask, state, add_inp, online=False)
+        if self._burn_in:
+            bis = self._burn_in_size
+            ss = self._sample_size - bis
+            _, reward = tf.split(reward, [bis, ss], 1)
+            _, discount = tf.split(discount, [bis, ss], 1)
+            _, next_mu_a = tf.split(prob, [bis+1, ss], 1)
+            _, next_x = tf.split(x, [bis+1, ss], 1)
+            _, next_action = tf.split(action, [bis+1, ss], 1)
+        else:
+            _, next_mu_a = tf.split(prob, [1, self._sample_size], 1)
+            _, next_x = tf.split(x, [1, self._sample_size], 1)
+            _, next_action = tf.split(action, [1, self._sample_size], 1)
 
+        next_qs = self.target_q(next_x)
+        if self._probabilistic_regularization is None:
+            if self._double:
+                online_x, _ = self._compute_embed(obs, mask, state, add_inp)
+                next_online_x = tf.split(online_x, [bis+1, ss-1], 1)
+                next_online_qs = self.q(next_online_x)
+                next_pi = self.compute_greedy_action(next_online_qs, one_hot=True)
+            else:    
+                next_pi = self.target_q.compute_greedy_action(next_qs, one_hot=True)
+        elif self._probabilistic_regularization == 'prob':
+            next_pi = softmax(next_qs, self._tau)
+        elif self._probabilistic_regularization == 'entropy':
+            next_pi = softmax(next_qs, self._tau)
+            next_logpi = log_softmax(next_qs, self._tau)
+            neg_entropy = tf.reduce_sum(next_pi * next_logpi, axis=-1)
+            terms['next_entropy'] = - neg_entropy / self._tau
+        else:
+            raise ValueError(self._probabilistic_regularization)
+
+        discount = discount * self._gamma
+        target = retrace(
+            reward, next_qs, next_action, 
+            next_pi, next_mu_a, discount,
+            lambda_=self._lambda, 
+            axis=1, tbo=self._tbo)
+
+        return target, terms

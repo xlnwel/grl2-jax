@@ -1,6 +1,7 @@
 import logging
 import tensorflow as tf
 
+from utility.tf_utils import log_softmax
 from utility.schedule import TFPiecewiseSchedule
 from core.optimizer import Optimizer
 from core.tf_config import build
@@ -49,6 +50,7 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
 
         self.RECORD = getattr(self, 'RECORD', True)
         self.N_EVAL_EPISODES = getattr(self, 'N_EVAL_EPISODES', 1)
+        self.MUNCHAUSEN = False
 
         self._is_per = False if dataset is None else dataset.name().endswith('per')
         self._probabilistic_regularization = getattr(self, '_probabilistic_regularization', None)
@@ -128,6 +130,17 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
 
         return self.N_UPDATES
     
+    def _compute_reward(self, reward, qs, action):
+        terms = {}
+        if self.MUNCHAUSEN:
+            logpi = log_softmax(qs, self._tau, axis=-1)
+            logpi_a = tf.reduce_sum(logpi * action, axis=-1)
+            logpi_a = tf.clip_by_value(logpi_a, self._clip_logpi_min, 0)
+            terms['reward'] = reward
+            terms['logpi_a'] = logpi_a
+            reward = reward + self._alpha * logpi_a
+        return reward, terms
+
     def _compute_priority(self, priority):
         """ p = (p + 𝝐)**𝛼 """
         priority += self._per_epsilon

@@ -87,8 +87,13 @@ def process_with_env(data, env, obs_range=None, one_hot_action=True, dtype=tf.fl
     return data
 
 
-def create_dataset(replay, env, data_format=None, DatasetClass=Dataset, one_hot_action=True):
+def create_dataset(replay, env, data_format=None, use_ray=False, one_hot_action=True):
     process = functools.partial(process_with_env, 
         env=env, one_hot_action=one_hot_action)
+    if use_ray:
+        from core.ray_dataset import RayDataset
+        DatasetClass = RayDataset
+    else:
+        DatasetClass = Dataset
     dataset = DatasetClass(replay, data_format, process)
     return dataset

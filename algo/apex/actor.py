@@ -12,7 +12,7 @@ from utility.ray_setup import cpu_affinity, get_num_cpus
 from utility.run import Runner, evaluate, RunMode
 from utility import pkg
 from env.func import create_env
-from core.dataset import create_dataset, RayDataset
+from core.dataset import create_dataset
     
 
 def config_actor(name, config):
@@ -70,7 +70,7 @@ def get_learner_class(AgentBase):
                 replay, 
                 env, 
                 data_format=data_format, 
-                DatasetClass=RayDataset)
+                use_ray=True)
             
             super().__init__(
                 name='Learner',

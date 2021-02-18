@@ -14,7 +14,7 @@ from utility.run import Runner, evaluate
 from utility import pkg
 from env.func import create_env
 from replay.func import create_replay
-from core.dataset import DataFormat, Dataset, process_with_env
+from core.dataset import Dataset, process_with_env
 from algo.dreamer.env import make_env
 
 

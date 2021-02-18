@@ -40,17 +40,15 @@ def softmax(x, tau, axis=-1):
     return tf.nn.softmax(x / tau, axis=axis)
 
 def logsumexp(x, tau, axis=None, keepdims=False):
-    """ tau * logsumexp(x / tau) """
-    if axis is not None:
-        x_max = tf.reduce_max(x, axis=axis, keepdims=True)
-        x = x - x_max    # for numerical stability
-        if keepdims is False:
-            x_max = tf.squeeze(x_max)
-        y = x_max + tf.log(tf.reduce_sum(
-            tf.exp(x), axis=axis, keepdims=keepdims))
-    else:
-        x_max = tf.reduce_max(x)
-        y = x_max + tf.log(tf.reduce_sum(tf.exp(x - x_max)))
+    """ reimplementation of tau * tf.logsumexp(x / tau), it turns out 
+    that tf.logsumexp is numerical stable """
+    x /= tau
+    x_max = tf.reduce_max(x, axis=axis, keepdims=True)
+    x = x - x_max    # for numerical stability
+    if keepdims is False:
+        x_max = tf.squeeze(x_max)
+    y = x_max + tf.math.log(tf.reduce_sum(
+        tf.exp(x), axis=axis, keepdims=keepdims))
     return tau * y
 
 def log_softmax(x, tau, axis=-1):

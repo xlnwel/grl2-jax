@@ -8,7 +8,7 @@ from nn.func import Encoder, mlp
 
 
 class Q(Module):
-    def __init__(self, config, action_dim, name='q'):
+    def __init__(self, config, action_dim, name='value'):
         super().__init__(name=name)
 
         self._action_dim = action_dim
@@ -17,17 +17,20 @@ class Q(Module):
         self._stoch_action = config.pop('stoch_action', False)
         self._tau = config.pop('tau', 1)
 
+        self._add_layer(config)
+
+    def _add_layer(self, config):
         """ Network definition """
         if self._duel:
             self._v_layers = mlp(
                 **config,
                 out_size=1, 
-                name=name+'/v',
+                name=self.name+'/v',
                 out_dtype='float32')
         self._layers = mlp(
             **config, 
-            out_size=action_dim, 
-            name=name,
+            out_size=self.action_dim, 
+            name=self.name,
             out_dtype='float32')
 
     @property
@@ -40,22 +43,9 @@ class Q(Module):
 
     def action(self, x, noisy=True, reset=True, epsilon=0, temp=1, return_stats=False):
         qs = self.call(x, noisy=noisy, reset=reset)
+        
+        action = self.compute_runtime_action(qs, epsilon, temp)
 
-        if self._stoch_action:
-            self._action_temp = temp
-            self._action_epsilon = epsilon
-            self._raw_logits = logits = (qs - tf.reduce_max(qs, axis=-1, keepdims=True)) / self._tau
-            if isinstance(epsilon, tf.Tensor) or epsilon:
-                self._logits = logits = epsilon_scaled_logits(logits, epsilon, temp)
-            self.dist = tfd.Categorical(logits)
-            self._action = action = self.dist.sample()
-        else:
-            self._action_epsilon = epsilon
-            self._raw_action = tf.argmax(qs, axis=-1, output_type=tf.int32)
-            self._action = action = epsilon_greedy(
-                self._raw_action, epsilon,
-                is_action_discrete=True, 
-                action_dim=self.action_dim)
         if return_stats:
             if self._stoch_action:
                 one_hot = tf.one_hot(action, qs.shape[-1])
@@ -66,7 +56,7 @@ class Q(Module):
         else:
             return action
     
-    def call(self, x, action=None, noisy=True, reset=True):
+    def call(self, x, action=None, noisy=False, reset=False):
         kwargs = dict(noisy=noisy, reset=reset) if self._layer_type == 'noisy' else {}
 
         if self._duel:
@@ -89,6 +79,29 @@ class Q(Module):
                 self._v_layers.reset()
             self._layers.reset()
     
+    def compute_greedy_action(self, qs, one_hot=False):
+        action = tf.argmax(qs, axis=-1, output_type=tf.int32)
+        if one_hot:
+            action = tf.one_hot(action, self.action_dim, dtype=qs.dtype)
+        return action
+    
+    def compute_runtime_action(self, qs, epsilon, temp):
+        self._action_epsilon = epsilon
+        if self._stoch_action:
+            self._action_temp = temp
+            self._raw_logits = logits = (qs - tf.reduce_max(qs, axis=-1, keepdims=True)) / self._tau
+            if isinstance(epsilon, tf.Tensor) or epsilon:
+                self._logits = logits = epsilon_scaled_logits(logits, epsilon, temp)
+            self.dist = tfd.Categorical(logits)
+            self._action = action = self.dist.sample()
+        else:
+            self._raw_action = self.compute_greedy_action(qs)
+            self._action = action = epsilon_greedy(
+                self._raw_action, epsilon,
+                is_action_discrete=True, 
+                action_dim=self.action_dim)
+        return action
+
     def compute_prob(self):
         if self._stoch_action:
             # TODO: compute exact probs taking into account temp and epsilon
@@ -119,7 +132,10 @@ class DQN(Ensemble):
 
         x = self.encoder(x)
         noisy = not evaluation
-        action = self.q.action(x, noisy=noisy, reset=noisy, epsilon=epsilon, temp=temp, return_stats=return_stats)
+        action = self.q.action(
+            x, noisy=noisy, reset=noisy, 
+            epsilon=epsilon, temp=temp, 
+            return_stats=return_stats)
         terms = {}
         if return_stats:
             action, terms = action

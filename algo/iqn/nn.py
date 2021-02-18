@@ -1,10 +1,9 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
 
-from utility.rl_utils import epsilon_greedy, epsilon_scaled_logits
 from core.module import Module, Ensemble
 from core.decorator import config
+from algo.dqn.nn import Q
 from nn.func import Encoder, mlp
         
 
@@ -46,52 +45,27 @@ class Quantile(Module):
         return tau_hat, qt_embed
 
 
-class Value(Module):
-    def __init__(self, config, action_dim, name='value'):
-        super().__init__(name=name)
-
-        self._action_dim = action_dim
-        self._duel = config.pop('duel', False)
-        self._stoch_action = config.pop('stoch_action', False)
-        self._tau = config.pop('tau', 1)
-
+class Value(Q):
+    def _add_layer(self, config):
         """ Network definition """
         if getattr(self, '_duel', False):
             self._v_layers = mlp(
                 **config,
                 out_size=1, 
-                name=name+'/v',
+                name=self.name+'/v',
                 out_dtype='float32')
         # we do not define the phi net here to make it consistent with the CNN output size
         self._layers = mlp(
             **config,
-            out_size=action_dim, 
-            name=name,
+            out_size=self.action_dim, 
+            name=self.name,
             out_dtype='float32')
 
-    @property
-    def action_dim(self):
-        return self._action_dim
-
-    @property
-    def stoch_action(self):
-        return self._stoch_action
-
-    def action(self, x, qt_embed=None, tau_range=None, evaluation=False, epsilon=0, temp=1, return_stats=False):
+    def action(self, x, qt_embed=None, tau_range=None, epsilon=0, temp=1, return_stats=False):
         _, qs = self.call(x, qt_embed, tau_range=tau_range, return_value=True)
-        if self._stoch_action:
-            self.logits = (qs - tf.reduce_max(qs, axis=-1, keepdims=True)) / self._tau
-            if isinstance(epsilon, tf.Tensor) or epsilon:
-                logits = epsilon_scaled_logits(self.logits, epsilon, temp)
-            self.dist = tfd.Categorical(logits)
-            self._action = action = self.dist.sample()
-            one_hot = tf.one_hot(action, qs.shape[-1])
-        else:
-            # self.logits = qs    # fake logits, only here to avoid error
-            self._action = action = tf.argmax(qs, axis=-1, output_type=tf.int32)
-            action = epsilon_greedy(action, epsilon,
-                is_action_discrete=True, 
-                action_dim=self.action_dim)
+
+        action = self.compute_runtime_action(qs, epsilon, temp)
+
         if return_stats:
             if self._stoch_action:
                 one_hot = tf.one_hot(action, qs.shape[-1])
@@ -144,8 +118,6 @@ class Value(Module):
 
         return v
 
-    def compute_prob(self, action):
-        return self.dist.prob(action) if self._stoch_action else 1
 
 class IQN(Ensemble):
     def __init__(self, config, *, model_fn=None, env, **kwargs):
@@ -167,7 +139,9 @@ class IQN(Ensemble):
 
         x = self.encoder(x)
         _, qt_embed = self.quantile(x)
-        action = self.q.action(x, qt_embed, epsilon=epsilon, temp=temp, return_stats=return_stats)
+        action = self.q.action(
+            x, qt_embed, epsilon=epsilon, 
+            temp=temp, return_stats=return_stats)
         terms = {}
         if return_stats:
             action, terms = action

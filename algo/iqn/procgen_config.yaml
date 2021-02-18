@@ -44,12 +44,17 @@ agent:
     act_eps_type: apex
     act_eps: .3
     eval_act_eps: 0
+    schedule_act_temp: True
+    n_exploit_envs: 8
+    min_temp: .5
+    max_temp: 10
+    eval_act_temp: .5
 
     MAX_STEPS: 1e7
-    TRAIN_PERIOD: 256
+    TRAIN_PERIOD: 2
     EVAL_PERIOD: 2.5e5
     LOG_PERIOD: 2.5e5
-    N_UPDATES: 24
+    N_UPDATES: 1
     RECORD: True
     N_EVAL_EPISODES: 200
 

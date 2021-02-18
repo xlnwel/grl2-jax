@@ -7,7 +7,7 @@ env:
     frame_skip: 1
     frame_stack: 4
     np_obs: True
-    reward_scale: 2
+    reward_scale: 1
     reward_clip: 10
 
 model:
@@ -35,7 +35,7 @@ agent:
     n_steps: &nsteps 3      # n-step target
 
     MUNCHAUSEN: False   # whether to use munchausen rl target
-    probabilistic_regularization: entropy
+    probabilistic_regularization: prob
 
     tau: *tau
     alpha: .9

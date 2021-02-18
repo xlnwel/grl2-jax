@@ -26,8 +26,6 @@ class MetaGradientTest(tf.test.TestCase):
             self.assertAllEqual(y, [[-.75]])
             loss = tf.reduce_mean((1 - y)**2)
             self.assertAllEqual(loss, 3.0625)
-        
-        # Second
         g2 = t1.gradient(loss, l.variables)
         self.assertAllEqual(g2[0], [[-1.75], [-3.5]])
         self.assertAllEqual(g2[1], [-3.5])
@@ -36,6 +34,7 @@ class MetaGradientTest(tf.test.TestCase):
         mgc = t1.gradient(g, c, output_gradients=g2)
         self.assertAllEqual(mgc, -7.875)
 
+        # Second
         x = tf.convert_to_tensor([[1, .5]])
         x2 = tf.convert_to_tensor([[.5, .5]])
         with tf.GradientTape(persistent=True) as t1:

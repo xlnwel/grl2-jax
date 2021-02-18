@@ -15,7 +15,6 @@ from core.tf_config import *
 from env.func import create_env
 from env.cls import EnvOutput
 from replay.func import create_local_buffer
-from algo.dreamer.env import make_env
 from algo.apex.actor import config_actor, get_learner_class, get_base_worker_class, get_evaluator_class
 
 
@@ -33,7 +32,7 @@ def get_actor_class(AgentBase):
 
             self._n_envvecs = env_config['n_envvecs']
             self._n_envs = env_config['n_envs']
-            env = create_env(env_config, make_env)
+            env = create_env(env_config)
 
             models = model_fn(model_config, env)
 

@@ -83,7 +83,7 @@ def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
     return target
 
 
-def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, lambda_=.95, ratio_clip=1, axis=0, tbo=False):
+def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, lambda_=.95, ratio_clip=1, axis=0, tbo=False, regularization=0):
     """
     discount = gamma * (1-done). 
     axis specifies the time dimension
@@ -102,6 +102,8 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, lambda_=
     if tbo:
         next_qs = inverse_h(next_qs)
     next_v = tf.reduce_sum(next_qs * next_pi, axis=-1)
+    if regularization:
+        next_v -= regularization
     next_q = tf.reduce_sum(next_qs * next_action, axis=-1)
     current = reward + discount * (next_v - next_c * next_q)
 
