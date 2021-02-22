@@ -171,44 +171,82 @@ class FrameSkip(gym.Wrapper):
 
 
 class FrameDiff(gym.Wrapper):
-    def __init__(self, env):
+    def __init__(self, env, gray_scale, distance=1):
         super().__init__(env)
 
-        original_space = self.observation_space
+        self._gray_scale = gray_scale
+        self._distance = distance
+        self._residual_channel = 1 if self._gray_scale else 3
+        w, h, c = self.observation_space.shape
+        assert c == 3, self.observation_space.shape
+        assert self.observation_space.dtype == np.uint8, self.observation_space.dtype
+        assert len(self.observation_space.shape) == 3, self.observation_space.shape
         new_space = gym.spaces.Box(
             low=0,
             high=255,
-            shape=(*original_space.shape[:2], original_space.shape[-1]+1),
+            shape=(w, h, c+self._residual_channel),
             dtype=np.uint8,
         )
-        assert original_space.dtype == np.uint8, original_space.dtype
-        assert len(original_space.shape) == 3, original_space.shape
         self.observation_space = new_space
-        self.defualt_gray_obs = np.zeros(self.observation_space.shape[:2] + (1,))
+        self._buff = np.zeros((w, h, self._residual_channel*(self._distance+1)))
     
-    def _residual(self, obs):
-        gray_obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
-        gray_obs = np.expand_dims(gray_obs, -1)
-        assert self.prev_obs.shape == gray_obs.shape, (self.prev_obs.shape, gray_obs.shape)
-        res_obs = gray_obs - self.prev_obs
-        obs = np.concatenate([obs, res_obs], axis=-1)
-        assert obs.shape == self.observation_space.shape, (obs.shape, self.observation_space.shape)
-        self.prev_obs = gray_obs
-
+    def _append_residual(self, obs):
+        res = (self._buff[..., -self._residual_channel:].astype(np.int16) 
+            - self._buff[..., :self._residual_channel].astype(np.int16))
+        res = (res + 255) // 2
+        obs = np.concatenate([obs, res.astype(np.uint8)], axis=-1)
+        assert obs.dtype == np.uint8
         return obs
+    
+    def _add_obs_to_buff(self, obs):
+        self._buff = np.roll(self._buff, -self._residual_channel, axis=-1)
+
+        if self._gray_scale:
+            self._buff[..., -1] = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+        else:
+            self._buff[..., -self._residual_channel:] = obs
 
     def reset(self):
         obs = self.env.reset()
-        self.prev_obs = self.defualt_gray_obs
-        obs = self._residual(obs)
+        
+        buff_obs = np.expand_dims(cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY), -1) \
+            if self._gray_scale else obs
+        self._buff = np.tile(buff_obs, [1, 1, self._distance+1])
+        obs = self._append_residual(obs)
         
         return obs
 
     def step(self, action):
         obs, rew, done, info = self.env.step(action)
-        obs = self._residual(obs)
+        self._add_obs_to_buff(obs)
+        res_obs = self._append_residual(obs)
+        self._plot(obs, res_obs)
 
-        return obs, rew, done, info
+        return res_obs, rew, done, info
+
+    def _plot(self, obs, res_obs):
+        import matplotlib.pyplot as plt
+        res_obs = np.squeeze(res_obs[..., -self._residual_channel:])
+        fig, axs = plt.subplots(1, 6, figsize=(20, 6))
+        fig.suptitle("FrameDifference Plot")
+        axs[0].imshow(np.squeeze(self._buff[:, :, :self._residual_channel]))
+        axs[0].set_title("oldest frame")
+        axs[1].imshow(np.squeeze(self._buff[:, :, -self._residual_channel:]))
+        axs[1].set_title("newest frame")
+        axs[2].imshow(res_obs)
+        axs[2].set_title("frame diff")
+        axs[3].imshow(obs)
+        axs[3].set_title("newest obs")
+        axs[4].hist(res_obs.flatten())
+        axs[4].set_title("Frame difference histogram")
+        axs[5].hist(obs.flatten())
+        axs[5].set_title("Observation histogram")
+        print(obs.min())
+        print(obs.max())
+        print(res_obs.mean())
+        print(res_obs.std())
+        print()
+        plt.show()
 
 
 class CumulativeRewardObs(gym.Wrapper):
