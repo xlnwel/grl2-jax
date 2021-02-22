@@ -1,6 +1,3 @@
-import time
-import ray 
-
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.utils import Every, TempStore
 from utility.ray_setup import sigint_shutdown_ray
@@ -56,6 +53,9 @@ def train(agent, env, eval_env, buffer):
             agent.store(tps=(agent.train_step-start_train_step)/tt.last())
             agent.update_obs_rms(buffer['obs'])
             buffer.reset()
+            if to_log(agent.train_step) and 'score' in agent._logger:
+                agent.log(step)
+                agent.save()
 
         # auxiliary phase
         buffer.compute_aux_data_with_func(agent.compute_aux_data)
@@ -80,9 +80,6 @@ def train(agent, env, eval_env, buffer):
                     video_summary(f'{agent.name}/sim', video, step=step)
                 agent.store(eval_score=scores, eval_epslen=epslens, eval_time=eval_time.total())
         agent.store(env_time=et.total(), train_time=tt.total())
-        if to_log(agent.train_step) and 'score' in agent._logger:
-            agent.log(step)
-            agent.save()
 
 def main(env_config, model_config, agent_config, buffer_config):
     algo = agent_config['algorithm']
@@ -96,6 +93,7 @@ def main(env_config, model_config, agent_config, buffer_config):
 
     use_ray = env_config.get('n_workers', 1) > 1
     if use_ray:
+        import ray 
         ray.init()
         sigint_shutdown_ray()
 

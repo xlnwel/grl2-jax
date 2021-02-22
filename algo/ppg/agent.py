@@ -9,14 +9,14 @@ from utility.rl_loss import ppo_loss
 from core.tf_config import build
 from core.optimizer import Optimizer
 from core.decorator import override
-from algo.ppo.agent import Agent as PPOAgent
+from algo.ppo.base import PPOBase
 
 
 logger = logging.getLogger(__name__)
 
-class Agent(PPOAgent):
+class Agent(PPOBase):
     """ Initialization """
-    @override(PPOAgent)
+    @override(PPOBase)
     def _add_attributes(self, env, dateset):
         super()._add_attributes(env, dateset)
         assert self.N_SEGS <= self.N_PI, f'{self.N_SEGS} > {self.N_PI}'
@@ -24,7 +24,7 @@ class Agent(PPOAgent):
         self._batch_size = env.n_envs * self.N_STEPS // self.N_MBS
         self._aux_batch_size = env.n_envs * self.N_STEPS // self.N_AUX_MBS_PER_SEG
 
-    @override(PPOAgent)
+    @override(PPOBase)
     def _construct_optimizers(self):
         if getattr(self, 'schedule_lr', False):
             assert isinstance(self._actor_lr, list)
@@ -55,7 +55,7 @@ class Agent(PPOAgent):
             self._optimizer, aux_models, self._aux_lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
-    @override(PPOAgent)
+    @override(PPOBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
@@ -99,12 +99,15 @@ class Agent(PPOAgent):
             if self._value_update is not None:
                 last_value = self.compute_value()
                 self.dataset.aux_finish(last_value)
-        self.store(**{'aux/kl': kl})
-        
-        if self._to_summary(step):
-            self._summary(data, terms)
+        if self.N_AUX_EPOCHS:
+            self.store(**{'aux/kl': kl})
+            
+            if self._to_summary(step):
+                self._summary(data, terms)
 
-        return i * self.N_MBS + j
+            return i * self.N_MBS + j
+        else:
+            return 0
 
     @tf.function
     def _learn(self, obs, action, value, traj_ret, advantage, logpi, state=None, mask=None):
