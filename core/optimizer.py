@@ -11,7 +11,9 @@ def select_optimizer(name):
         adam=tf.keras.optimizers.Adam,
         rmsprop=tf.keras.optimizers.RMSprop,
     )
-    return opts[name.lower()]
+    if isinstance(name, str):
+        return opts[name.lower()]
+    return name
 
 
 class Optimizer(tf.Module):
@@ -41,6 +43,10 @@ class Optimizer(tf.Module):
     def variables(self):
         return self._opt.variables()
     
+    def get_transformed_grads(self, var_list=[]):
+        assert hasattr(self._opt, 'get_transformed_grads'), f'{self._opt} does not support "get_transformed_grads"'
+        return self._opt.get_transformed_grads(var_list or self._variables)
+
     def __call__(self, tape, loss, output_gradients=None):
         if self._variables is None:
             variables = [m.trainable_variables for m in self._models]
@@ -49,7 +55,8 @@ class Optimizer(tf.Module):
                 scales = [[self._scales[i] for _ in m.trainable_variables] 
                     for i, m in enumerate(self._models)]
                 self._scales = tf.nest.flatten(scales)
-        assert loss.shape == (), loss.shape
+        if isinstance(loss, tf.Tensor):
+            assert loss.shape == (), loss.shape
         if self._mpt:
             with tape:
                 loss = self._opt.get_scaled_loss(loss)
@@ -66,6 +73,7 @@ class Optimizer(tf.Module):
         if self._weight_decay:
             context = tf.distribute.get_replica_context()
             context.merge_call(self._apply_weight_decay)
+        self.grads = grads
         self._opt.apply_gradients(zip(grads, self._variables))
 
         if self._return_grads:
