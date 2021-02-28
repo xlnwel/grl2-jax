@@ -70,13 +70,13 @@ class ConvPool(Module):
     def __init__(self, 
                  filters=None, 
                  filter_size=3, 
+                 strides=2,
                  conv=layers.Conv2D,
                  pool_type='max', 
                  pad_mode='REFLECT', # for blur pooling layer
-                 strides=2,
                  norm=None,
                  norm_kwargs={},
-                 activation='relu',
+                 activation=None,
                  act_kwargs={},
                  name='conv_maxpool',
                  **kwargs):

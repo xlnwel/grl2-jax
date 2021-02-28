@@ -1,20 +1,23 @@
 import logging
-import functools
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers
-from tensorflow.keras.mixed_precision import global_policy # useful for modules import nn.utils
 
 from nn.norm import EvoNorm
 
 logger = logging.getLogger(__name__)
 
 
-dummy_cls = tf.autograph.experimental.do_not_convert(lambda **kw: lambda x: x)
+class Dummy:
+    def __init__(self, **kwargs):
+        pass
+
+    def __call__(self, x, **kwargs):
+        return x
 
 def get_activation(act_name, return_cls=False, **kwargs):
     custom_activations = {
-        None: dummy_cls,
+        None: Dummy,
         'relu': layers.ReLU,
         'leaky_relu': layers.LeakyReLU,
         'lrelu': layers.LeakyReLU,
@@ -38,7 +41,7 @@ def get_activation(act_name, return_cls=False, **kwargs):
 
 def get_norm(name):
     norm_layers = {
-        None: dummy_cls,
+        None: Dummy,
         'layer': layers.LayerNormalization,
         'batch': layers.BatchNormalization,
         'evonorm': EvoNorm,

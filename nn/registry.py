@@ -1,10 +1,10 @@
 import functools
-from nn.utils import dummy_cls
+from nn.utils import Dummy
 
 
 class Registry:
     def __init__(self, name):
-        self._mapping = {None: dummy_cls}
+        self._mapping = {None: Dummy}
     
     def register(self, name):
         def _thunk(func):

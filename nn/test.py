@@ -82,7 +82,7 @@ def run_cnn(*, keras_summary=True, **new_kwargs):
     from nn.cnn import cnn
     if keras_summary:
         kwargs.update(new_kwargs)
-        shape = (64, 64, 12)
+        shape = (64, 64, 3)
         x = layers.Input(shape)
         net = cnn(**kwargs)
         y = net(x)
@@ -96,7 +96,7 @@ def run_cnn(*, keras_summary=True, **new_kwargs):
         def fn(x):
             return net(x)
         tf.summary.trace_on(graph=True, profiler=True)
-        y = fn(tf.random.normal((4, 64, 64, 12)))
+        y = fn(tf.random.normal((4, 64, 64, 3)))
         with writer.as_default():
             tf.summary.trace_export(name=logdir, step=0, profiler_outdir=logdir)
 
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     load_nn()
     kwargs = {
         'cnn_name': 'impala',
-        # 'out_size': 256,
+        'out_size': 256,
         # 'cnn_out_activation': 'relu',
         # 'out_activation': 'relu',
         # 'deter_stoch': True
