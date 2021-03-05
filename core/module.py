@@ -3,6 +3,8 @@ import inspect
 import tensorflow as tf
 from tensorflow.keras import layers
 
+from nn.utils import Dummy
+
 
 class Module(tf.Module):
     """ This class is an alternative to keras.layers.Layer when 
@@ -25,6 +27,9 @@ class Module(tf.Module):
                 self._build(*tf.nest.map_structure(x))
             else:
                 self._build(x.shape)
+        if hasattr(self, '_layers') and isinstance(self._layers, (list, tuple)):
+            self._layers = [l for l in self._layers if not isinstance(l, Dummy)]
+
         return self._call(x, *args, **kwargs)
         
     def _build(self, input_shape):
