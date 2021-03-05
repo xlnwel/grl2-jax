@@ -34,7 +34,7 @@ def post_wrap(env, config):
     return env
 
 
-class Dummy:
+class DummyEnv:
     """ Useful to break the inheritance of unexpected attributes """
     def __init__(self, env):
         self.env = env

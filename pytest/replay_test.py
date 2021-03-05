@@ -179,11 +179,11 @@ class TestClass:
             n_envs=1,
             name='dummy'
         )
-        from env.dummy import Dummy
+        from env.dummy import DummyEnv
         from env import wrappers
         from env.func import create_env
         def mkenv(config):
-            env = Dummy(**config)
+            env = DummyEnv(**config)
             env = wrappers.post_wrap(env, config)
             return env
         for n_envs in np.arange(2, 3):
@@ -238,11 +238,11 @@ class TestClass:
             n_envs=1,
             name='dummy'
         )
-        from env.dummy import Dummy
+        from env.dummy import DummyEnv
         from env import wrappers
         from env.func import create_env
         def mkenv(config):
-            env = Dummy(**config)
+            env = DummyEnv(**config)
             env = wrappers.post_wrap(env, config)
             return env
         for n_envs in np.arange(2, 3):

@@ -2,7 +2,7 @@ import numpy as np
 import gym
 
 
-class Dummy():
+class DummyEnv():
     def __init__(self, obs_shape=(4,), action_dim=3, is_action_discrete=True, **kwargs):
         self.count = 0
         self.observation_space = gym.spaces.Box(high=float('inf'), low=0, shape=obs_shape)
