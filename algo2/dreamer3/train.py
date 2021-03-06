@@ -1,13 +1,8 @@
-import os
 import time
 import functools
-import collections
-import numpy as np
 import tensorflow as tf
-import ray
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
-from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
 from utility.utils import Every, TempStore
 from utility.run import evaluate
@@ -87,6 +82,8 @@ def main(env_config, model_config, agent_config, replay_config):
 
     use_ray = env_config.get('n_workers', 0) > 1
     if use_ray:
+        import ray
+        from utility.ray_setup import sigint_shutdown_ray
         ray.init()
         sigint_shutdown_ray()
 

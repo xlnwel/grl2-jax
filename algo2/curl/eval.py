@@ -1,10 +1,8 @@
 import numpy as np
 import tensorflow as tf
-import ray
 
 from core.tf_config import *
 from utility.display import pwc
-from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
 from utility import pkg
 from env.func import create_env
@@ -16,6 +14,8 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
 
     use_ray = env_config.get('n_workers', 0) > 1
     if use_ray:
+        import ray
+        from utility.ray_setup import sigint_shutdown_ray
         ray.init()
         sigint_shutdown_ray()
         

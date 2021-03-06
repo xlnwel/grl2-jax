@@ -1,6 +1,5 @@
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.utils import Every, TempStore
-from utility.ray_setup import sigint_shutdown_ray
 from utility.graph import video_summary
 from utility.run import Runner, evaluate
 from utility.timer import Timer
@@ -84,7 +83,8 @@ def main(env_config, model_config, agent_config, buffer_config):
 
     use_ray = env_config.get('n_workers', 1) > 1
     if use_ray:
-        import ray 
+        import ray
+        from utility.ray_setup import sigint_shutdown_ray 
         ray.init()
         sigint_shutdown_ray()
 

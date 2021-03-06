@@ -1,6 +1,5 @@
 import os, sys
 import numpy as np
-import ray
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.tf_config import *
@@ -21,6 +20,7 @@ def main(env_config, model_config, agent_config, n, record=False, size=(128, 128
 
     use_ray = env_config.get('n_workers', 0) > 1
     if use_ray:
+        import ray
         ray.init()
         sigint_shutdown_ray()
 

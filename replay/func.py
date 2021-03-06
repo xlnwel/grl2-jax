@@ -1,5 +1,3 @@
-import ray
-
 from replay.uniform import UniformReplay
 from replay.per import ProportionalPER
 from replay.eps import EpisodicReplay
@@ -38,6 +36,7 @@ def create_replay_center(config, **kwargs):
     config = config.copy()
     
     plain_type = replay_type[config['replay_type']]
+    import ray
     ray_type = ray.remote(plain_type)
     return ray_type.remote(config, **kwargs)
     
