@@ -17,7 +17,7 @@ def make_procgen_env(config):
         else:
             env = wrappers.FrameSkip(env, frame_skip=frame_skip)
     config.setdefault('max_episode_steps', env.spec.max_episode_steps)
-    
+    # env = HeistActionWrapper(env)
     return env
 
 class Procgen(gym.Env):
@@ -91,3 +91,38 @@ class Procgen(gym.Env):
     
     def set_game_over(self):
         return self._game_over
+
+    def get_combos(self):
+        return [
+            ("LEFT", "DOWN"),
+            ("LEFT",),
+            ("LEFT", "UP"),
+            ("DOWN",),
+            (),
+            ("UP",),
+            ("RIGHT", "DOWN"),
+            ("RIGHT",),
+            ("RIGHT", "UP"),
+            ("D",),
+            ("A",),
+            ("W",),
+            ("S",),
+            ("Q",),
+            ("E",),
+        ]
+
+class HeistActionWrapper(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+
+        self.action_space = gym.spaces.Discrete(4)
+        self._act_map = {
+            0: 0,
+            1: 2,
+            2: 6,
+            3: 8,
+        }
+    
+    def step(self, action, **kwargs):
+        action = self._act_map[action]
+        return self.env.step(action)

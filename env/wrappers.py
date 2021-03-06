@@ -220,7 +220,7 @@ class FrameDiff(gym.Wrapper):
         obs, rew, done, info = self.env.step(action)
         self._add_obs_to_buff(obs)
         res_obs = self._append_residual(obs)
-        self._plot(obs, res_obs)
+        # self._plot(obs, res_obs)
 
         return res_obs, rew, done, info
 
