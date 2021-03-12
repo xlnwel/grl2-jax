@@ -1,6 +1,7 @@
 from replay.uniform import UniformReplay
 from replay.per import ProportionalPER
 from replay.eps import EpisodicReplay
+from replay.seq import SequentialReplay
 from replay.sper import SequentialPER
 from replay.local import *
 
@@ -9,6 +10,7 @@ replay_type = dict(
     uniform=UniformReplay,
     per=ProportionalPER,
     episodic=EpisodicReplay,
+    seq=SequentialReplay,
     seqper=SequentialPER
 )
 

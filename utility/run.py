@@ -167,13 +167,15 @@ def evaluate(
              size=None, 
              video_len=1000, 
              step_fn=None, 
-             record_stats=False):
+             record_stats=False,
+             n_windows=4):
     assert get_wrapper_by_name(env, 'EnvStats') is not None
     scores = []
     epslens = []
     max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
     maxlen = min(video_len, max_steps)
-    frames = collections.defaultdict(lambda:collections.deque(maxlen=maxlen))
+    frames = [collections.deque(maxlen=maxlen) 
+        for _ in range(min(n_windows, env.n_envs))]
     if hasattr(agent, 'reset_states'):
         agent.reset_states()
     env_output = env.reset()
@@ -188,7 +190,7 @@ def evaluate(
                 if env.env_type == 'Env':
                     frames[0].append(img)
                 else:
-                    for i in range(min(4, env.n_envs)):
+                    for i in range(len(frames)):
                         frames[i].append(img[i])
                     
             action = agent(
@@ -242,7 +244,6 @@ def evaluate(
                         break
 
     if record:
-        frames = list(frames.values())
         max_len = np.max([len(f) for f in frames])
         # padding to make all sequences of the same length
         for i, f in enumerate(frames):

@@ -18,7 +18,7 @@ class Replay(ABC):
         self._n_envs = getattr(self, '_n_envs', 1)
         self._is_full = False
 
-        self._add_attributes()
+        self._add_attributes(**kwargs)
         self._construct_temp_buff()
 
     def _add_attributes(self):

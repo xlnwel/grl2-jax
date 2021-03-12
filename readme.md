@@ -23,7 +23,7 @@ Many algorithms are simply improvements of their predecessors. Therefore, instea
 - [x] Retrace(𝝀)
 - [x] TBO (Transformed Bellman Operator)
 - [x] SAC (w/ or w/o adaptive temperature)
-- [x] SACD  (SAC for discrete action space)
+- [x] SACD (SAC for discrete action space)
 
 ### Distributed RL
 
@@ -171,5 +171,7 @@ https://github.com/danijar/dreamer
 https://github.com/microsoft/FQF
 
 https://github.com/rwightman/pytorch-image-models
+
+https://github.com/juntang-zhuang/Adabelief-Optimizer
 
 <a name="dreamer">1</a>: dreamer was tested before, but some dependent code such as `Runner` has been changed since then. Due to the expiration of my mojuco liscence, I can no longer test it and I decide to leave it as it is.

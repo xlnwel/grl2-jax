@@ -1,6 +1,7 @@
 import tensorflow as tf
 
-from utility.tf_utils import assert_rank, assert_rank_and_shape_compatibility, static_scan
+from utility.tf_utils import assert_rank, \
+    assert_rank_and_shape_compatibility, static_scan
 
 
 def huber_loss(x, *, y=None, threshold=1.):
@@ -16,11 +17,11 @@ def quantile_regression_loss(qtv, target, tau_hat, kappa=1., return_error=False)
     assert qtv.shape[-1] == 1, qtv.shape
     assert target.shape[-2] == 1, target.shape
     assert tau_hat.shape[-1] == 1, tau_hat.shape
-    assert_rank([qtv, target, tau_hat], 3)
+    assert_rank([qtv, target, tau_hat])
     error = target - qtv           # [B, N, N']
     weight = tf.abs(tau_hat - tf.cast(error < 0, tf.float32))   # [B, N, N']
     huber = huber_loss(error, threshold=kappa)                  # [B, N, N']
-    qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=2), axis=1) # [B]
+    qr_loss = tf.reduce_sum(tf.reduce_mean(weight * huber, axis=-1), axis=-2) # [B]
 
     if return_error:
         return error, qr_loss
@@ -83,7 +84,7 @@ def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
     return target
 
 
-def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, lambda_=.95, ratio_clip=1, axis=0, tbo=False, regularization=0):
+def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, lambda_=.95, ratio_clip=1, axis=0, tbo=False, regularization=None):
     """
     discount = gamma * (1-done). 
     axis specifies the time dimension
@@ -92,7 +93,7 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, lambda_=
         discount = discount * tf.ones_like(reward)
     if next_action.dtype.is_integer:
         next_action = tf.one_hot(next_action, next_pi.shape[-1], dtype=next_pi.dtype)
-    assert_rank_and_shape_compatibility([next_action, next_pi], 3)
+    assert_rank_and_shape_compatibility([next_action, next_pi], reward.shape.ndims + 1)
     next_pi_a = tf.reduce_sum(next_pi * next_action, axis=-1)
     next_ratio = next_pi_a / next_mu_a
     if ratio_clip is not None:
@@ -102,7 +103,7 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, lambda_=
     if tbo:
         next_qs = inverse_h(next_qs)
     next_v = tf.reduce_sum(next_qs * next_pi, axis=-1)
-    if regularization:
+    if regularization is not None:
         next_v -= regularization
     next_q = tf.reduce_sum(next_qs * next_action, axis=-1)
     current = reward + discount * (next_v - next_c * next_q)
@@ -116,7 +117,7 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, lambda_=
         discount = tf.transpose(discount, dims)
         next_c = tf.transpose(next_c, dims)
 
-    assert_rank_and_shape_compatibility([current, discount, next_c], 2)
+    assert_rank([current, discount, next_c])
     target = static_scan(
         lambda acc, x: x[0] + x[1] * x[2] * acc,
         next_q[-1], (current, discount, next_c), 

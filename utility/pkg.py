@@ -1,9 +1,21 @@
 import importlib
 
 
-def get_package(algo, place=0, separator='.'):
+def pkg_str(root_dir, separator, algo):
+    return f'{root_dir}{separator}{algo}'
+
+def get_package(algo, place=0, separator='.', root_dir=None):
     algo = algo.split('-', 1)[place]
-    pkg = f'algo{separator}{algo}'
+    if root_dir is None:
+        root_dir = 'algo'
+        for i in range(1, 4):
+            indexed_root_dir = f'{root_dir}' if i == 1 else f'{root_dir}{i}'
+            pkg = pkg_str(indexed_root_dir, '.', algo)
+            if importlib.util.find_spec(pkg) is not None:
+                pkg = pkg_str(indexed_root_dir, separator, algo)
+                break
+    else:
+        pkg = f'{root_dir}{separator}{algo}'
 
     return pkg
 
@@ -29,3 +41,6 @@ def import_main(module, algo=None, *, config=None):
     m = importlib.import_module(f'{pkg}.{module}')
 
     return m.main
+
+if __name__ == '__main__':
+    print(get_package('asap'))

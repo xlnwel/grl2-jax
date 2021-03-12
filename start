@@ -2,38 +2,38 @@
 
 
 algos=(
-    # ppo
-    # ppo2
-    # ppg
+    ppo
+    # ppo_meta
+    # ppg2
     # apex-dqn
     # apex-iqn
-    apex-mrdqn
+    # apex-mrdqn
     # apex-sacdiqn
     # apex-mrdqn
     # sacdiqn5
 )
 suite=procgen
 envs=(
-    plunder
-    # chaser
-    # bigfish
-    starpilot
-    coinrun
+    # plunder
+    ninja
+    chaser
+    # starpilot
     # miner
-    # caveflyer 
     # climber
-    # dodgeball 
+    # dodgeball
+    # bigfish
+    # coinrun
+    # heist
+    # caveflyer 
     # leaper
     # jumper
     # fruitbot
-    # heist
-    # ninja
     # bossfight
     # maze
 )
-args1=(0.01 0.005)
-args2=(entropy prob)
-args3=(1)
+args1=(.999)
+args2=(True)
+args3=(t2)
 
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
@@ -48,7 +48,7 @@ for e in "${envs[@]}"; do
                     dir="logs/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -kw tau=$a1 probabilistic_regularization=$a2 reward_scale=$a3 >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} -kw gamma=$a1 >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

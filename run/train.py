@@ -81,7 +81,7 @@ def change_config(kw, model_name, env_config, model_config, agent_config, replay
             
     return model_name
 
-def load_run(directory):
+def load_and_run(directory):
     # load model and log path
     config_file = None
     for root, _, files in os.walk(directory):
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     
     processes = []
     if cmd_args.directory != '':
-        load_run(cmd_args.directory)
+        load_and_run(cmd_args.directory)
     else:
         algorithm = list(cmd_args.algorithm)
         environment = list(cmd_args.environment)

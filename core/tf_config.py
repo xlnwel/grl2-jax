@@ -23,8 +23,10 @@ def configure_gpu(idx=0):
         except RuntimeError as e:
             # visible devices must be set before GPUs have been initialized
             logger.warning(e)
+        return True
     else:
         logger.warning('No gpu is used')
+        return False
 
 def configure_threads(intra_num_threads, inter_num_threads):
     tf.config.threading.set_intra_op_parallelism_threads(intra_num_threads)

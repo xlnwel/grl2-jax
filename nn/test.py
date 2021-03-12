@@ -1,3 +1,4 @@
+import argparse
 import tensorflow as tf
 from tensorflow.keras import layers
 
@@ -101,17 +102,23 @@ def run_cnn(*, keras_summary=True, **new_kwargs):
             tf.summary.trace_export(name=logdir, step=0, profiler_outdir=logdir)
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    _, unknown = parser.parse_known_args()
+    for arg in unknown:
+        if arg.startswith(('-', '--')):
+            name, val = arg.split('=')
+            try:
+                val = eval(val)
+            except:
+                pass
+            parser.add_argument(name, type=type(val))
+    args = parser.parse_args()
+    return vars(args)
+
 if __name__ == "__main__":
     load_nn()
-    kwargs = {
-        'cnn_name': 'impala',
-        'out_size': 256,
-        # 'cnn_out_activation': 'relu',
-        # 'out_activation': 'relu',
-        # 'deter_stoch': True
-        # 'filters': 8,
-        # 'n_blocks': 1
-    }
+    kwargs = parse_args()
     run_cnn(keras_summary=True, **kwargs)
     # run_module(
     #     am_registry, 
