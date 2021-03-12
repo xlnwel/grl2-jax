@@ -98,7 +98,7 @@ class Agent(DQNBase):
         self.actor.update_prior(act_probs, self._prior_lr)
         if self.temperature.is_trainable():
             with tf.GradientTape() as tape:
-                log_temp, temp = self.temperature(x, action)
+                log_temp, temp = self.temperature(x)
                 entropy_diff = target_entropy - entropy
                 temp_loss = -log_temp * entropy_diff
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])

@@ -3,7 +3,7 @@ env:
     name: procgen_coinrun
     distribution_mode: easy
     frame_skip: 1
-    n_envs: &ne 6
+    n_envs: &ne 4
     frame_stack: 1
     np_obs: True
     reward_scale: 1

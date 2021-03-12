@@ -20,7 +20,9 @@ def config_actor(name, config):
     silence_tf_logs()
     num_cpus = get_num_cpus()
     configure_threads(num_cpus, num_cpus)
-    configure_gpu()
+    use_gpu = configure_gpu()
+    if not use_gpu and 'precision' in config:
+        config['precision'] = 32
     configure_precision(config.get('precision', 32))
 
 def get_base_learner_class(AgentBase):
@@ -277,9 +279,9 @@ def get_evaluator_class(AgentBase):
             if video is not None:
                 self._info['video'] = video
 
-        def _send_episode_info(self, learner):
+        def _send_episode_info(self, monitor):
             if self._info:
-                learner.record_episode_info.remote(**self._info)
+                monitor.record_episode_info.remote(**self._info)
                 self._info.clear()
     
     return Evaluator

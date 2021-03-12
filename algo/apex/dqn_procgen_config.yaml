@@ -2,7 +2,7 @@
 env:
     name: procgen_coinrun
     distribution_mode: easy
-    n_envs: &ne 6
+    n_envs: &ne 4
     frame_diff: False
     frame_skip: 1
     frame_stack: 1

@@ -63,7 +63,7 @@ class Agent(DQNBase):
         if isinstance(self.temperature, (tf.Variable)):
             temp = self.temperature
         else:
-            _, temp = self.temperature(next_x, next_act_probs)
+            _, temp = self.temperature(next_x)
         reward = reward[:, None]
         discount = discount[:, None]
         if not isinstance(steps, int):
@@ -109,7 +109,7 @@ class Agent(DQNBase):
 
         if not isinstance(self.temperature, (float, tf.Variable)):
             with tf.GradientTape() as tape:
-                log_temp, temp = self.temperature(x, action)
+                log_temp, temp = self.temperature(x)
                 entropy_diff = target_entropy - entropy
                 temp_loss = -log_temp * entropy_diff
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])

@@ -2,7 +2,7 @@
 env:
     name: procgen_coinrun
     distribution_mode: easy
-    n_envs: &ne 6
+    n_envs: &ne 4
     frame_diff: False
     frame_skip: 1
     frame_stack: 4
@@ -35,7 +35,7 @@ agent:
     n_steps: &nsteps 3      # n-step target
 
     MUNCHAUSEN: False   # whether to use munchausen rl target
-    probabilistic_regularization: prob
+    probabilistic_regularization: null
 
     tau: *tau
     alpha: .9

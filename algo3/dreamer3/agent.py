@@ -221,7 +221,7 @@ class Agent(AgentBase):
             act_dist, terms = self.actor(feature)
             new_action = act_dist.sample()
             new_logpi = act_dist.log_prob(new_action)
-            _, temp = self.temperature(feature, new_action)
+            _, temp = self.temperature(feature)
             q_with_actor = self.q(feature, new_action)
             q2_with_actor = self.q2(feature, new_action)
             q_with_actor = tf.minimum(q_with_actor, q2_with_actor)
@@ -232,7 +232,7 @@ class Agent(AgentBase):
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = self.temperature
             else:
-                log_temp, temp = self.temperature(feature, new_action)
+                log_temp, temp = self.temperature(feature)
                 temp_loss = -tf.reduce_mean(log_temp 
                     * tf.stop_gradient(new_logpi + target_entropy))
                 terms['temp'] = temp

@@ -1,6 +1,4 @@
-import numpy as np
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
 
 from core.module import Ensemble
 from nn.func import Encoder
@@ -16,7 +14,7 @@ class SPPO(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, epsilon=0):
+    def action(self, x, evaluation=False, return_eval_stats=False):
         x = self.encoder(x)
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)

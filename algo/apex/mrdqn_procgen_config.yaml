@@ -2,9 +2,8 @@
 env:
     name: procgen_coinrun
     distribution_mode: easy
-    n_envs: &ne 6
+    n_envs: &ne 4
     frame_diff: False
-    frame_skip: 1
     frame_stack: 1
     np_obs: True
     reward_scale: 1
@@ -23,19 +22,19 @@ model:
         activation: relu
         duel: False
         stoch_action: True
-        tau: &tau 0.003
+        tau: &tau 0.01
     additional_rnn_input: False
 
 agent:
     algorithm: &algo apex-mrdqn
-    replay_type: &replay seqper
-    gamma: &gamma .99
+    replay_type: &replay seq
+    gamma: .99
     lambda: .95
     batch_size: &bs 32
-    precision: 32
+    precision: 16
 
     MUNCHAUSEN: False   # whether to use munchausen rl target
-    probabilistic_regularization: prob
+    probabilistic_regularization: entropy
 
     tau: *tau
     alpha: .9
