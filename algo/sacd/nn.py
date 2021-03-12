@@ -1,9 +1,9 @@
 import logging
-from utility.rl_utils import epsilon_scaled_logits
 import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
+from utility.rl_utils import epsilon_greedy, epsilon_scaled_logits
 from core.module import Module, Ensemble
 from core.decorator import config
 from nn.func import mlp
@@ -21,6 +21,7 @@ class Actor(Module):
         prior = np.ones(action_dim, dtype=np.float32)
         prior /= np.sum(prior)
         self.prior = tf.Variable(prior, trainable=False, name='prior')
+        self._epsilon_scaled_logits = config.pop('epsilon_scaled_logits', False)
 
         self._layers = mlp(
             **config, 
@@ -44,11 +45,20 @@ class Actor(Module):
                 dist = tfd.Categorical(logits)
                 action = dist.sample()
         else:
-            if isinstance(epsilon, tf.Tensor) or epsilon:
-                logits = epsilon_scaled_logits(logits, epsilon, temp)
+            if self._epsilon_scaled_logits and \
+                    isinstance(epsilon, tf.Tensor) or epsilon:
+                self.logits = epsilon_scaled_logits(logits, epsilon, temp)
+            else:
+                self.logits = logits / temp
 
-            dist = tfd.Categorical(logits)
+            dist = tfd.Categorical(self.logits)
             action = dist.sample()
+            if not self._epsilon_scaled_logits and \
+                    isinstance(epsilon, tf.Tensor) or epsilon:
+                action = epsilon_greedy(action, epsilon, True, self.action_dim)
+
+        self._dist = dist
+        self._action = action
 
         return action
 
@@ -60,6 +70,11 @@ class Actor(Module):
 
     def update_prior(self, x, lr):
         self.prior.assign_add(lr * (x - self.prior))
+    
+    def compute_prob(self):
+        # do not take into account epsilon and temperature to reduce variance
+        prob = self._dist.prob(self._action)
+        return prob
 
 
 class Q(Module):
@@ -95,13 +110,13 @@ class SAC(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, epsilon=0, return_stats=False, return_eval_stats=False, **kwargs):
+    def action(self, x, evaluation=False, epsilon=0, temp=1., return_stats=False, return_eval_stats=False, **kwargs):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
         assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
-        action = self.actor(x, evaluation=evaluation, epsilon=epsilon)
+        action = self.actor(x, evaluation=evaluation, epsilon=epsilon, temp=temp)
         terms = {}
         if return_eval_stats:
             action, terms = action

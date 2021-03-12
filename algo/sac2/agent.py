@@ -62,7 +62,7 @@ class Agent(DQNBase):
             if isinstance(self.temperature, (float, tf.Variable)):
                 temp = self.temperature
             else:
-                _, temp = self.temperature(obs, new_action)
+                _, temp = self.temperature(obs)
             q_with_actor = q_value(self.q, obs, new_action)
             q2_with_actor = q_value(self.q2, obs, new_action)
             q_with_actor = tf.minimum(q_with_actor, q2_with_actor)
@@ -71,7 +71,7 @@ class Agent(DQNBase):
         
         if self.temperature.is_trainable():
             with tf.GradientTape() as temp_tape:
-                log_temp, temp = self.temperature(obs, new_action)
+                log_temp, temp = self.temperature(obs)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
                     * tf.stop_gradient(new_logpi + self._target_entropy))
                 terms['temp_loss'] = temp_loss

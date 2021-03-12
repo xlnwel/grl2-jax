@@ -91,8 +91,8 @@ class Agent(DQNBase):
             target_entropy = self._target_entropy * target_entropy_coef
             with tf.GradientTape() as tape:
                 log_temp, temp = self.temperature()
-                entropy_diff = target_entropy - entropy
-                temp_loss = -log_temp * entropy_diff
+                entropy_diff = entropy - target_entropy
+                temp_loss = log_temp * entropy_diff
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])
                 temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
             terms['target_entropy'] = target_entropy

@@ -69,8 +69,8 @@ class Agent(DQNBase):
             qtv = tf.reduce_sum(qtvs * action_ext, axis=-1, keepdims=True)  # [B, N, 1]
             error, qr_loss = quantile_regression_loss(
                 qtv, target, tau_hat, kappa=self.KAPPA, return_error=True)
-            qr_loss = tf.reduce_mean(IS_ratio * qr_loss)
-        terms['value_norm'] = self._value_opt(tape, qr_loss)
+            value_loss = tf.reduce_mean(IS_ratio * qr_loss)
+        terms['value_norm'] = self._value_opt(tape, value_loss)
 
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
@@ -90,9 +90,9 @@ class Agent(DQNBase):
                 else self._target_entropy_coef(self._train_step)
             target_entropy = self._target_entropy * target_entropy_coef
             with tf.GradientTape() as tape:
-                log_temp, temp = self.temperature(x, action)
-                entropy_diff = target_entropy - entropy
-                temp_loss = -log_temp * entropy_diff
+                log_temp, temp = self.temperature(x)
+                entropy_diff = entropy - target_entropy
+                temp_loss = log_temp * entropy_diff
                 tf.debugging.assert_shapes([[temp_loss, (None, )]])
                 temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
             terms['target_entropy'] = target_entropy
@@ -117,7 +117,7 @@ class Agent(DQNBase):
             entropy=entropy,
             entropy_max=tf.reduce_max(entropy),
             entropy_min=tf.reduce_min(entropy),
-            qr_loss=qr_loss, 
+            value_loss=value_loss, 
             temp=temp,
             explained_variance_q=explained_variance(target, q),
         ))

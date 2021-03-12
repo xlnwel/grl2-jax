@@ -27,7 +27,7 @@ model:
 
 agent:
     algorithm: &algo rdqn
-    replay_type: &replay seqper
+    replay_type: &replay seq
     gamma: 0.99
     lambda: .95
     batch_size: &bs 64
@@ -44,6 +44,11 @@ agent:
     act_eps_type: apex
     act_eps: .3
     eval_act_eps: 0
+    schedule_act_temp: True
+    n_exploit_envs: 8
+    min_temp: .5
+    max_temp: 10
+    eval_act_temp: .5
 
     store_state: False
     burn_in: False

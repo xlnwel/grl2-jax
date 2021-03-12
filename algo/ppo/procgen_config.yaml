@@ -6,6 +6,7 @@ env:
     frame_skip: 1
     frame_stack: 1
     np_obs: True
+    num_levels: 0
 
 model:
     encoder: 
@@ -16,6 +17,7 @@ model:
         norm: null
         kernel_initializer: orthogonal
         activation: relu
+        eval_act_temp: 1
     value:
         units_list: []
         norm: null
@@ -32,7 +34,7 @@ agent:
     N_EPOCHS: 3
     N_MBS: &nmbs 8
     LOG_PERIOD: 100
-    EVAL_PERIOD: 5000
+    EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     normalize_obs: False

@@ -12,6 +12,10 @@ env:
 model:
     encoder:
         cnn_name: impala
+    quantile:
+        tau_embed_size: 64
+        phi_activation: relu
+        K: &K 64
     # rnn:
     #     units: 512
     q:
@@ -27,8 +31,8 @@ model:
 
 agent:
     algorithm: &algo rdqn
-    replay_type: &replay seqper
-    gamma: 0.99
+    replay_type: &replay seq
+    gamma: .99
     lambda: .95
     batch_size: &bs 64
     precision: 16
@@ -44,6 +48,11 @@ agent:
     act_eps_type: apex
     act_eps: .3
     eval_act_eps: 0
+    schedule_act_temp: True
+    n_exploit_envs: 8
+    min_temp: .5
+    max_temp: 10
+    eval_act_temp: .5
 
     store_state: False
     burn_in: False
@@ -64,10 +73,9 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    loss_type: mse   # huber or mse
     target_update_period: 1500
-    tbo: False                              # transformed Bellman Operator
-    
+    tbo: False
+
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False

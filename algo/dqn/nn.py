@@ -92,8 +92,8 @@ class Q(Module):
             self._raw_logits = logits = (qs - tf.reduce_max(qs, axis=-1, keepdims=True)) / self._tau
             if isinstance(epsilon, tf.Tensor) or epsilon:
                 self._logits = logits = epsilon_scaled_logits(logits, epsilon, temp)
-            self.dist = tfd.Categorical(logits)
-            self._action = action = self.dist.sample()
+            self._dist = tfd.Categorical(logits)
+            self._action = action = self._dist.sample()
         else:
             self._raw_action = self.compute_greedy_action(qs)
             self._action = action = epsilon_greedy(
@@ -105,7 +105,7 @@ class Q(Module):
     def compute_prob(self):
         if self._stoch_action:
             # TODO: compute exact probs taking into account temp and epsilon
-            prob = self.dist.prob(self._action)
+            prob = self._dist.prob(self._action)
         else:
             eps_prob = self._action_epsilon / self.action_dim
             max_prob = 1 - self._action_epsilon + eps_prob

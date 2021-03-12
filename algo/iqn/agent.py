@@ -6,14 +6,36 @@ from core.decorator import override
 from algo.dqn.base import DQNBase, get_data_format, collect
 
 
-class Agent(DQNBase):
+class IQNOps:
+    def _compute_qtvs_from_obs(self, obs, N, online=True, action=None):
+        if online:
+            x = self.encoder(obs)
+        else:
+            x = self.target_encoder(obs)
+        return self._compute_qtvs(x, N, online=online, action=action)
+
+    def _compute_qtvs(self, x, N, online=True, action=None):
+        if online:
+            tau_hat, qt_embed = self.quantile(x, N)
+            qtv = self.q(x, qt_embed, action=action)
+        else:
+            tau_hat, qt_embed = self.target_quantile(x, N)
+            qtv = self.target_q(x, qt_embed, action=action)
+        return tau_hat, qtv
+
+    def _compute_error(self, error):
+        error = tf.abs(error)
+        error = tf.reduce_max(tf.reduce_mean(error, axis=-1), axis=-1)
+        return error
+
+class Agent(DQNBase, IQNOps):
     @override(DQNBase)
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         target, terms = self._compute_target(obs, action, reward, next_obs, discount, steps)
 
         with tf.GradientTape() as tape:
-            tau_hat, qtv = self._compute_qtvs(obs, self.N, action=action)
+            tau_hat, qtv = self._compute_qtvs_from_obs(obs, self.N, action=action)
             qtv = tf.expand_dims(qtv, axis=-1)  # [B, N, 1]
             error, qr_loss = quantile_regression_loss(
                 qtv, target, tau_hat, kappa=self.KAPPA, return_error=True)
@@ -22,8 +44,7 @@ class Agent(DQNBase):
         terms['norm'] = self._optimizer(tape, loss)
 
         if self._is_per:
-            error = tf.abs(error)
-            error = tf.reduce_max(tf.reduce_mean(error, axis=-1), axis=-1)
+            error = self._compute_error(error)
             priority = self._compute_priority(error)
             terms['priority'] = priority
         
@@ -37,29 +58,18 @@ class Agent(DQNBase):
 
         return terms
 
-    def _compute_qtvs(self, obs, N, online=True, action=None):
-        if online:
-            x = self.encoder(obs)
-            tau_hat, qt_embed = self.quantile(x, N)
-            qtv = self.q(x, qt_embed, action=action)
-        else:
-            x = self.target_encoder(obs)
-            tau_hat, qt_embed = self.target_quantile(x, N)
-            qtv = self.target_q(x, qt_embed, action=action)
-        return tau_hat, qtv
-
     def _compute_target(self, obs, action, reward, next_obs, discount, steps):
         terms = {}
         if self.MUNCHAUSEN:
-            _, qtvs = self._compute_qtvs(obs, self.N_PRIME, False)
+            _, qtvs = self._compute_qtvs_from_obs(obs, self.N_PRIME, False)
             qs = self.q.value(qtvs)
             reward, terms = self._compute_reward(reward, qs, action)
         reward = reward[:, None]
 
-        _, next_qtvs = self._compute_qtvs(next_obs, self.N_PRIME, False)
+        _, next_qtvs = self._compute_qtvs_from_obs(next_obs, self.N_PRIME, False)
         if self._probabilistic_regularization is None:
             if self._double:
-                _, next_online_qtvs = self._compute_qtvs(next_obs, self.N_PRIME)
+                _, next_online_qtvs = self._compute_qtvs_from_obs(next_obs, self.N_PRIME)
                 next_qs = self.q.value(next_online_qtvs)
                 next_action = self.q.compute_greedy_action(next_qs, one_hot=True)
             else:
@@ -102,4 +112,5 @@ class Agent(DQNBase):
             [next_qtv, (None, self.N_PRIME)],
             [target, (None, 1, self.N_PRIME)],
         ])
+
         return target, terms

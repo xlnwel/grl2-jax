@@ -22,10 +22,10 @@ class Actor(Module):
                 dtype='float32', 
                 trainable=True, 
                 name=f'actor/logstd')
+        config.setdefault('out_gain', .01)
         self._layers = mlp(**config, 
                         out_size=action_dim, 
                         out_dtype='float32',
-                        out_gain=.01,
                         name=name)
 
     def call(self, x, evaluation=False):
@@ -50,10 +50,10 @@ class Actor(Module):
 class Value(Module):
     def __init__(self, config, name='value'):
         super().__init__(name=name)
+        config.setdefault('out_gain', 1)
         self._layers = mlp(**config,
                           out_size=1,
                           out_dtype='float32',
-                          out_gain=.01,
                           name=name)
 
     def call(self, x):

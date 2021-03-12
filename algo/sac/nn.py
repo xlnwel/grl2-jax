@@ -6,7 +6,6 @@ from tensorflow.keras import layers
 from core.module import Module, Ensemble
 from core.decorator import config
 from utility.rl_utils import logpi_correction, epsilon_greedy
-from utility.tf_distributions import Categorical
 from utility.schedule import TFPiecewiseSchedule
 from nn.func import mlp
 from nn.utils import get_initializer
@@ -91,9 +90,8 @@ class Temperature(Module):
     def is_trainable(self):
         return self.type in ('state-action', 'variable')
 
-    def call(self, x=None, a=None):
-        if self._temp_type == 'state-action':
-            x = tf.concat([x, a], axis=-1)
+    def call(self, x=None):
+        if self._temp_type == 'state':
             x = self._layer(x)
             log_temp = -tf.nn.softplus(x)
             log_temp = tf.squeeze(log_temp)

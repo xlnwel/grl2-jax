@@ -107,14 +107,14 @@ class Value(Q):
             
         return qtv
 
-    def value(self, qtv, tau_range=None):
+    def value(self, qtv, tau_range=None, axis=1):
         if tau_range is None:
-            v = tf.reduce_mean(qtv, axis=1)     # [B, A] / [B]
+            v = tf.reduce_mean(qtv, axis=axis)     # [B, A] / [B]
         else:
             diff = tau_range[..., 1:] - tau_range[..., :-1]
             if len(qtv.shape) > len(diff.shape):
                 diff = tf.expand_dims(diff, axis=-1)        # expand diff if qtv includes the action dimension
-            v = tf.reduce_sum(diff * qtv, axis=1)
+            v = tf.reduce_sum(diff * qtv, axis=axis)
 
         return v
 

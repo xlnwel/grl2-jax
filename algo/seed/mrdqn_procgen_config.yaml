@@ -25,7 +25,7 @@ model:
 
 agent:
     algorithm: &algo seed-mrdqn
-    replay_type: &replay seqper
+    replay_type: &replay seq
     gamma: &gamma .99
     lambda: .95
     batch_size: &bs 32

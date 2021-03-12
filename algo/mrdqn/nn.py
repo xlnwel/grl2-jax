@@ -34,7 +34,7 @@ class RDQN(Ensemble):
             if return_stats:
                 action, terms = action
             terms.update({
-                'prob': self.q.compute_prob()
+                'mu': self.q.compute_prob()
             })
             out = tf.nest.map_structure(lambda x: tf.squeeze(x), (action, terms))
             return out, state

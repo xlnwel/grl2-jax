@@ -56,7 +56,7 @@ class Agent(DQNBase):
         if self.temperature.type == 'schedule':
             _, temp = self.temperature(self._train_step)
         elif self.temperature.type == 'state-action':
-            _, temp = self.temperature(next_obs, next_action)
+            _, temp = self.temperature(next_obs)
         else:
             _, temp = self.temperature()
         next_value = next_q_with_actor - temp * next_logpi
@@ -86,7 +86,7 @@ class Agent(DQNBase):
         if self.temperature.is_trainable():
             target_entropy = getattr(self, '_target_entropy', -self._action_dim)
             with tf.GradientTape() as temp_tape:
-                log_temp, temp = self.temperature(obs, action)
+                log_temp, temp = self.temperature(obs)
                 temp_loss = -tf.reduce_mean(IS_ratio * log_temp 
                     * tf.stop_gradient(logpi + target_entropy))
             self._temp_opt(temp_tape, temp_loss)

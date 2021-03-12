@@ -3,7 +3,7 @@ env:
     name: procgen_coinrun
     distribution_mode: easy
     n_envvecs: 4
-    n_envs: &ne 6
+    n_envs: &ne 4
     frame_diff: False
     frame_skip: 1
     frame_stack: 1
@@ -36,7 +36,7 @@ model:
 
 agent:
     algorithm: &algo seed-mrdqn
-    replay_type: &replay seqper
+    replay_type: &replay seq
     gamma: &gamma .99
     lambda: .95
     batch_size: &bs 64

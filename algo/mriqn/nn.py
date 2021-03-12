@@ -1,10 +1,9 @@
 import tensorflow as tf
 
-from utility.rl_utils import epsilon_greedy
 from utility.tf_utils import assert_rank
 from core.module import Ensemble
 from nn.func import Encoder, LSTM
-from algo.dqn.nn import Q
+from algo.iqn.nn import Quantile, Value
 
 
 class RDQN(Ensemble):
@@ -25,7 +24,9 @@ class RDQN(Ensemble):
 
         x, state = self._encode(
             x, state, mask, prev_action, prev_reward)
-        action = self.q.action(x, epsilon=epsilon, temp=temp, return_stats=return_stats)
+        _, qt_embed = self.quantile(x)
+        action = self.q.action(x, qt_embed, 
+            epsilon=epsilon, temp=temp, return_stats=return_stats)
 
         if evaluation:
             return tf.squeeze(action), state
@@ -34,7 +35,7 @@ class RDQN(Ensemble):
             if return_stats:
                 action, terms = action
             terms.update({
-                'prob': self.q.compute_prob()
+                'mu': self.q.compute_prob()
             })
             out = tf.nest.map_structure(lambda x: tf.squeeze(x), (action, terms))
             return out, state
@@ -86,14 +87,17 @@ class RDQN(Ensemble):
 def create_components(config, env):
     action_dim = env.action_dim
     encoder_config = config['encoder']
+    quantile_config = config['quantile']
     q_config = config['q']
 
     encoder_config['time_distributed'] = True
     model = dict(
         encoder=Encoder(encoder_config, name='encoder'),
-        q=Q(q_config, action_dim, name='q'),
+        quantile=Quantile(quantile_config, name='phi'),
+        q=Value(q_config, action_dim, name='q'),
         target_encoder=Encoder(encoder_config, name='target_encoder'),
-        target_q=Q(q_config, action_dim, name='target_q'),
+        target_quantile=Quantile(quantile_config, name='target_phi'),
+        target_q=Value(q_config, action_dim, name='target_q'),
     )
     if 'rnn' in config:
         rnn_config = config['rnn']
