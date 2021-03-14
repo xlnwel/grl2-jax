@@ -140,6 +140,15 @@ class Buffer:
             self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_MBS)
         return {k: self._memory[k][self._curr_idxes] for k in self._sample_keys}
 
+    def sample_reward_stats(self):
+        reward = self._memory['reward'][self._curr_idxes]
+        return {
+            'reward': np.mean(reward),
+            'reward_max': np.max(reward),
+            'reward_min': np.min(reward),
+            'reward_std': np.min(reward),
+        }
+
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
         self.reshape_to_store()

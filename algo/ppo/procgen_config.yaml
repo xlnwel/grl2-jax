@@ -6,7 +6,7 @@ env:
     frame_skip: 1
     frame_stack: 1
     np_obs: True
-    num_levels: 0
+    num_levels: 200
 
 model:
     encoder: 
@@ -27,7 +27,7 @@ model:
 agent:
     algorithm: &algo ppo
     precision: 32
-    gamma: &gamma .99
+    gamma: &gamma .999
 
     MAX_STEPS: 2.5e7
     N_STEPS: &nsteps 256
@@ -62,7 +62,7 @@ agent:
     value_loss: clip
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
-    value_coef: 1.
+    value_coef: .5
 
 buffer:
     adv_type: gae     # nae or gae

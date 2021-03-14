@@ -57,6 +57,7 @@ class PPOBase(RMSAgentBase):
                 kl = terms.pop('train/kl')
                 value = terms.pop('train/value')
                 self.store(**terms, **{'train/value': value.mean()})
+                self.store(**self.dataset.sample_reward_stats())
                 if getattr(self, '_max_kl', None) and kl > self._max_kl:
                     break
                 if self._value_update == 'reuse':
