@@ -204,8 +204,8 @@ class RMSAgentBase(AgentBase):
             getattr(self, '_normalize_reward_with_reversed_return', True)
         
         axis = tuple(self._normalized_axis)
-        self._obs_rms = self._normalize_obs and RunningMeanStd(axis)
-        self._reward_rms = self._normalize_reward and RunningMeanStd(axis)
+        self._obs_rms = self._normalize_obs and RunningMeanStd(axis, clip=getattr(self, '_obs_clip', None))
+        self._reward_rms = self._normalize_reward and RunningMeanStd(axis, clip=getattr(self, '_rew_clip', 10))
         if self._normalize_reward_with_reversed_return:
             self._reverse_return = 0
         else:
