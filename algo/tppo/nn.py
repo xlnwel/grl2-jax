@@ -94,9 +94,12 @@ class TPPO(Ensemble):
 def create_components(config, env):
     action_dim = env.action_dim
     is_action_discrete = env.is_action_discrete
-    ac = AC(config, action_dim, is_action_discrete, name='ac')
-
-    return dict(ac=ac)
+    
+    return dict(
+        encoder=Encoder(config['encoder']), 
+        actor=Actor(config['actor'], action_dim, is_action_discrete),
+        value=Value(config['value'])
+    )
 
 def create_model(config, env, **kwargs):
     return TPPO(config, env, **kwargs)

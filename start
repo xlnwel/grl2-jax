@@ -14,21 +14,22 @@ algos=(
 )
 suite=procgen
 envs=(
-    # plunder
-    ninja
-    chaser
-    # starpilot
-    # miner
-    # climber
-    # dodgeball
+    # ninja
+    # chaser
     # bigfish
+    # plunder
     # coinrun
     # heist
-    # caveflyer 
-    # leaper
-    # jumper
-    # fruitbot
-    # bossfight
+    starpilot
+    miner
+    climber
+    dodgeball
+    bigfish
+    caveflyer 
+    leaper
+    jumper
+    fruitbot
+    bossfight
     # maze
 )
 args1=(.999)
@@ -48,7 +49,7 @@ for e in "${envs[@]}"; do
                     dir="logs/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -kw gamma=$a1 >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

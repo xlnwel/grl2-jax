@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 
+from env.wrappers import EnvOutput
 from algo.ppo.buffer import compute_indices
 from algo.ppo.buffer import Buffer as BufferBase
 

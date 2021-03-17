@@ -56,14 +56,13 @@ class RDQN(Ensemble):
 
     def _process_additional_input(self, x, prev_action, prev_reward):
         results = []
-        if self.additional_rnn_input:
-            if prev_action is not None:
-                prev_action = tf.reshape(prev_action, (-1, 1))
-                prev_action = tf.one_hot(prev_action, self.actor.action_dim, dtype=x.dtype)
-                results.append(prev_action)
-            if prev_reward is not None:
-                prev_reward = tf.reshape(prev_reward, (-1, 1, 1))
-                results.append(prev_reward)
+        if prev_action is not None:
+            prev_action = tf.reshape(prev_action, (-1, 1))
+            prev_action = tf.one_hot(prev_action, self.actor.action_dim, dtype=x.dtype)
+            results.append(prev_action)
+        if prev_reward is not None:
+            prev_reward = tf.reshape(prev_reward, (-1, 1, 1))
+            results.append(prev_reward)
         assert_rank(results, 3)
         return results
 

@@ -116,6 +116,13 @@ class Ensemble:
             assert len(self.variables) == len(weights)
             [v.assign(w) for v, w in zip(self.variables, weights)]
     
+    def reset_states(self, **kwargs):
+        return
+
+    @property
+    def state_keys(self):
+        return None
+
     """ Auxiliary functions that make Ensemble like a dict """
     # def __getattr__(self, key):
     #     if key in self.models:

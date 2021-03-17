@@ -6,12 +6,11 @@ env:
     frame_skip: 1
     frame_stack: 1
     np_obs: True
-    gray_scale: False
+    num_levels: 200
 
 model:
     encoder: 
         cnn_name: impala
-        filters: [16, 32, 32]
         out_size: 256
     rnn:
         units: 256
@@ -22,17 +21,17 @@ model:
         norm: null
         kernel_initializer: orthogonal
         activation: relu
+        eval_act_temp: 1
     value:
         units_list: []
         norm: null
         kernel_initializer: orthogonal
         activation: relu
-    additional_rnn_input: False
 
 agent:
     algorithm: &algo ppo2
-    precision: 32
-    gamma: &gamma .99
+    precision: 16
+    gamma: &gamma .999
 
     MAX_STEPS: 2.5e7
     N_STEPS: &nsteps 256
@@ -40,12 +39,14 @@ agent:
     N_MBS: &nmbs 8
     sample_size: &ss 16       # BPTT length
     LOG_PERIOD: 100
-    EVAL_PERIOD: 5000
+    EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     normalize_obs: False
     normalize_reward: True
     store_state: True
+    # additional_rnn_inputs:
+    #     prev_reward: float32
     # (once, reuse, null)
     # "once" updates values at the end of each epoch
     # "reuse" updates values using value from learn, which is staler than once
@@ -64,12 +65,12 @@ agent:
     schedule_lr: False
     lr: 5e-4
     clip_norm: .5
-    opt_eps: 1e-7
+    opt_eps: 1e-5
     # arguments for loss
     value_loss: clip
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
-    value_coef: 1.
+    value_coef: .5
 
 buffer:
     adv_type: gae     # nae or gae
@@ -78,7 +79,8 @@ buffer:
     n_envs: *nenvs
     N_STEPS: *nsteps
     N_MBS: *nmbs        # number of minibatches
-    # sample_keys: [obs, action, value, traj_ret, advantage, logpi, mask]
+    sample_keys: [obs, action, value, traj_ret, advantage, logpi, mask, h, c]
+    # sample_keys: [obs, action, value, traj_ret, advantage, logpi, mask, h, c, prev_action, prev_reward]
     sample_size: *ss
     shuffle: True
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

@@ -325,35 +325,41 @@ class Memory:
     before AgentBase to override reset&get state operations. """
     def _setup_memory_state_record(self):
         self._state = None
-        self._additional_inputs = getattr(self, '_additional_inputs', {})
+        self._additional_rnn_inputs = getattr(self, '_additional_rnn_inputs', {})
     
-    def _add_memory_state_to_kwargs(self, obs, env_output, kwargs):
+    def _add_memory_state_to_kwargs(self, obs, env_output, kwargs, state=None):
         if self._state is None:
-            self._state = self.model.get_initial_state(batch_size=tf.shape(obs)[0])
-            for k, v in self._additional_inputs.items():
-                assert v in ('float32', 'int32', 'float16'), v
-                self._additional_inputs[k] = tf.zeros(obs.shape[0], dtype=v)
+            B = tf.shape(obs)[0]
+            self._state = self.model.get_initial_state(batch_size=B)
+            for k, v in self._additional_rnn_inputs.items():
+                assert isinstance(v[0], (tuple, list)), v
+                assert v[1] in ('float32', 'int32', 'float16'), v
+                self._additional_rnn_inputs[k] = tf.zeros(B, dtype=v)
 
-        if 'prev_reward' in self._additional_inputs:
-            self._additional_inputs['prev_reward'] = tf.convert_to_tensor(
+        if 'prev_reward' in self._additional_rnn_inputs:
+            self._additional_rnn_inputs['prev_reward'] = tf.convert_to_tensor(
                 env_output.reward, tf.float32)
 
         kwargs.update({
-            'state': self._state,
+            'state': state or self._state,
             'mask': 1. - env_output.reset,   # mask is applied in LSTM
-            **tf.nest.map_structure(lambda x: x.numpy(), self._additional_inputs)
+            **self._additional_rnn_inputs
         })
         return obs, kwargs
     
     def _add_tensor_memory_state_to_terms(self, obs, kwargs, out, evaluation):
         out, self._state = out
-        if 'prev_action' in self._additional_inputs:
-            self._additional_inputs['prev_action'] = \
+        if 'prev_action' in self._additional_rnn_inputs:
+            self._additional_rnn_inputs['prev_action'] = \
                 out[0] if isinstance(out, tuple) else out
         
         if not evaluation:
             if self._store_state:
                 out[1].update(kwargs['state']._asdict())
+            if 'prev_action' in self._additional_rnn_inputs:
+                out[1]['prev_action'] = self._additional_rnn_inputs['prev_action']
+            if 'prev_reward' in self._additional_rnn_inputs:
+                out[1]['prev_reward'] = self._additional_rnn_inputs['prev_reward']
         return out
     
     def _add_non_tensor_memory_states_to_terms(self, out, kwargs, evaluation):
@@ -364,12 +370,12 @@ class Memory:
 
     def reset_states(self, state=None):
         if state is None:
-            self._state, self._additional_inputs = None, {}
+            self._state, self._additional_rnn_inputs = None, {}
         else:
-            self._state, self._additional_inputs = state
+            self._state, self._additional_rnn_inputs = state
 
     def get_states(self):
-        return self._state, self._additional_inputs
+        return self._state, self._additional_rnn_inputs
 
 
 class ActionScheduler:

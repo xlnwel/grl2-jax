@@ -12,7 +12,7 @@ class Actor(Module):
 
         self.action_dim = action_dim
         self.is_action_discrete = is_action_discrete
-        self.eval_act_temp = config.pop('eval_act_temp', .5)
+        self.eval_act_temp = config.pop('eval_act_temp', 1)
         assert self.eval_act_temp >= 0, self.eval_act_temp
 
         self._init_std = config.pop('init_std', 1)
@@ -71,7 +71,7 @@ class PPO(Ensemble):
 
     @tf.function
     def action(self, x, evaluation=False, return_eval_stats=False):
-        x = self.encoder(x)
+        x = self.encode(x)
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)
 
@@ -88,13 +88,9 @@ class PPO(Ensemble):
         x = self.encoder(x)
         value = self.value(x)
         return value
-    
-    def reset_states(self, **kwargs):
-        return
 
-    @property
-    def state_keys(self):
-        return None
+    def encode(self, x):
+        return self.encoder(x)
 
 def create_components(config, env):
     action_dim = env.action_dim

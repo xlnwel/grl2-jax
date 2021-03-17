@@ -19,7 +19,7 @@ class PPO(Ensemble):
             prev_action=None, prev_reward=None,
             return_eval_stats=False):
         assert x.shape.ndims % 2 == 0, x.shape
-        x, state = self._encode(
+        x, state = self.encode(
             x, state, mask, prev_action, prev_reward)
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)
@@ -33,17 +33,24 @@ class PPO(Ensemble):
             out = (action, terms)
             return out, state
 
-    @tf.function
+    @tf.function(experimental_relax_shapes=True)
     def compute_value(self, x, state, mask, 
-                    prev_action=None, prev_reward=None):
-        x, state = self._encode(
+                    prev_action=None, prev_reward=None, return_state=False):
+        x, state = self.encode(
             x, state, mask, prev_action, prev_reward)
         value = self.value(x)
-        return value, state
+        if return_state:
+            return value, state
+        else:
+            return value
 
-    def _encode(self, x, state, mask, prev_action=None, prev_reward=None):
-        x = tf.expand_dims(x, 1)
-        mask = tf.expand_dims(mask, 1)
+    def encode(self, x, state, mask, prev_action=None, prev_reward=None):
+        assert x.shape.ndims != 1 and x.shape.ndims != 3, x.shape
+        if x.shape.ndims % 2 == 0:
+            x = tf.expand_dims(x, 1)
+        if mask.shape.ndims < 2:
+            mask = tf.reshape(mask, (-1, 1))
+        assert_rank(mask, 2)
         x = self.encoder(x)
         if hasattr(self, 'rnn'):
             additional_rnn_input = self._process_additional_input(
@@ -52,22 +59,27 @@ class PPO(Ensemble):
                 additional_input=additional_rnn_input)
         else:
             state = None
-        x = tf.squeeze(x, 1)
+        if x.shape[1] == 1:
+            x = tf.squeeze(x, 1)
         return x, state
 
     def _process_additional_input(self, x, prev_action, prev_reward):
         results = []
-        if self.additional_rnn_input:
-            if prev_action is not None:
-                if self.actor.is_action_discrete:
-                    prev_action = tf.reshape(prev_action, (-1, 1))
-                    prev_action = tf.one_hot(prev_action, self.actor.action_dim, dtype=x.dtype)
-                else:
-                    prev_action = tf.reshape(prev_action, (-1, 1, self.actor.action_dim))
-                results.append(prev_action)
-            if prev_reward is not None:
+        if prev_action is not None:
+            if self.actor.is_action_discrete:
+                prev_action = tf.reshape(prev_action, (-1, 1))
+                prev_action = tf.one_hot(prev_action, self.actor.action_dim, dtype=x.dtype)
+            else:
+                prev_action = tf.reshape(prev_action, (-1, 1, self.actor.action_dim))
+            assert_rank(prev_action, 3)
+            results.append(prev_action)
+        if prev_reward is not None:
+            if prev_reward.shape.ndims < 2:
                 prev_reward = tf.reshape(prev_reward, (-1, 1, 1))
-                results.append(prev_reward)
+            elif prev_reward.shape.ndims == 2:
+                prev_reward = tf.expand_dims(prev_reward, -1)
+            assert_rank(prev_reward, 3)
+            results.append(prev_reward)
         assert_rank(results, 3)
         return results
 

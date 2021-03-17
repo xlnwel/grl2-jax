@@ -146,7 +146,7 @@ class Buffer:
             'reward': np.mean(reward),
             'reward_max': np.max(reward),
             'reward_min': np.min(reward),
-            'reward_std': np.min(reward),
+            'reward_std': np.std(reward),
         }
 
     def finish(self, last_value):

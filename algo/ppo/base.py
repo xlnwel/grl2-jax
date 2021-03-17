@@ -93,13 +93,16 @@ class PPOBase(RMSAgentBase):
         return i * self.N_MBS + j
 
     @tf.function
-    def _learn(self, obs, action, value, traj_ret, advantage, logpi, state=None, mask=None, additional_input=[]):
+    def _learn(self, obs, action, value, traj_ret, advantage, logpi, 
+                state=None, mask=None, prev_action=None, prev_reward=None):
         old_value = value
         terms = {}
         with tf.GradientTape() as tape:
-            x = self.encoder(obs)
-            if state is not None:
-                x, _ = self.rnn(x, state, mask=mask, additional_input=additional_input)
+            if hasattr(self.model, 'rnn'):
+                x, state = self.model.encode(obs, state, mask,
+                    prev_action=prev_action, prev_reward=prev_reward)
+            else:
+                x = self.encoder(obs)
             act_dist = self.actor(x)
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
