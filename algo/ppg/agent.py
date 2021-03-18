@@ -21,7 +21,6 @@ class Agent(PPOBase):
         super()._add_attributes(env, dateset)
         assert self.N_SEGS <= self.N_PI, f'{self.N_SEGS} > {self.N_PI}'
         self.N_AUX_MBS = self.N_SEGS * self.N_AUX_MBS_PER_SEG
-        self._batch_size = env.n_envs * self.N_STEPS // self.N_MBS
         self._aux_batch_size = env.n_envs * self.N_STEPS // self.N_AUX_MBS_PER_SEG
 
     @override(PPOBase)
@@ -83,7 +82,7 @@ class Agent(PPOBase):
 
     def aux_learn_log(self, step):
         for i in range(self.N_AUX_EPOCHS):
-            for j in range(self.N_AUX_MBS):
+            for j in range(1, self.N_AUX_MBS+1):
                 data = self.dataset.sample_aux_data()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 terms = self.aux_learn(**data)
@@ -123,7 +122,7 @@ class Agent(PPOBase):
             log_ratio = new_logpi - logpi
             policy_loss, entropy, kl, p_clip_frac = ppo_loss(
                 log_ratio, advantage, self._clip_range, entropy)
-            actor_loss = (policy_loss - self._entropy_coef * entropy)
+            actor_loss = policy_loss - self._entropy_coef * entropy
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
         with tf.GradientTape() as tape:
@@ -147,51 +146,6 @@ class Agent(PPOBase):
         ))
 
         return terms
-    
-    @tf.function
-    def learn_policy(self, obs, action, advantage, logpi, state=None, mask=None):
-        terms = {}
-        with tf.GradientTape() as tape:
-            x = self.encoder(obs)
-            if state is not None:
-                x, state = self.rnn(x, state, mask=mask)    
-            act_dist = self.actor(x)
-            new_logpi = act_dist.log_prob(action)
-            entropy = act_dist.entropy()
-            log_ratio = new_logpi - logpi
-            policy_loss, entropy, kl, p_clip_frac = ppo_loss(
-                log_ratio, advantage, self._clip_range, entropy)
-            actor_loss = (policy_loss - self._entropy_coef * entropy)
-        actor_norm = self._actor_opt(tape, actor_loss)
-        terms.update(dict(
-            ratio=tf.exp(log_ratio),
-            entropy=entropy,
-            kl=kl,
-            p_clip_frac=p_clip_frac,
-            ppo_loss = policy_loss,
-            actor_loss = actor_loss,
-            actor_norm=actor_norm
-        ))
-        return terms
-    
-    @tf.function
-    def learn_value(self, obs, value, traj_ret, state, mask=None):
-        old_value = value
-        terms = {}
-        with tf.GradientTape() as tape:
-            x_value = self.value_encoder(obs)
-            if state is not None:
-                x_value, state = self.value_rnn(x_value, state, mask=mask)
-            value = self.value(x_value)
-            value_loss, v_clip_frac = self._compute_value_loss(
-                value, traj_ret, old_value)
-        value_norm = self._value_opt(tape, value_loss)
-        terms.update(dict(
-            value_norm=value_norm,
-            value_loss=value_loss,
-            explained_variance=explained_variance(traj_ret, value),
-            v_clip_frac=v_clip_frac,
-        ))
 
     @tf.function
     def _aux_learn(self, obs, logits, value, traj_ret, mask=None, state=None):
@@ -224,13 +178,13 @@ class Agent(PPOBase):
 
         terms['actor_norm'] = self._aux_opt(tape, loss)
 
-        terms = dict(
+        terms.update(dict(
             value=value, 
             kl=kl, 
             actor_loss=actor_loss,
             v_loss=value_loss,
             explained_variance=explained_variance(traj_ret, value),
             v_clip_frac=v_clip_frac
-        )
+        ))
 
         return terms

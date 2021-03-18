@@ -1,1 +1,0 @@
-When running Ape-X, if your network is small or you have many CPUs and they are fast, save your GPU for the learner. Otherwise, you may need to allocate GPUs for workers to speed up inference. If you don't do so, your algorithm may suffer from overfitting and end up with a poor performance.

@@ -30,7 +30,7 @@ model:
 
 agent:
     algorithm: &algo ppo2
-    precision: 16
+    precision: 32
     gamma: &gamma .999
 
     MAX_STEPS: 2.5e7
@@ -47,6 +47,7 @@ agent:
     store_state: True
     # additional_rnn_inputs:
     #     prev_reward: float32
+    #     prev_action: int32
     # (once, reuse, null)
     # "once" updates values at the end of each epoch
     # "reuse" updates values using value from learn, which is staler than once

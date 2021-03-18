@@ -9,7 +9,7 @@ env:
     num_levels: 200
 
 model:
-    architecture: dual
+    architecture: shared
     encoder: 
         cnn_name: impala
         out_size: 256
@@ -32,13 +32,13 @@ agent:
     MAX_STEPS: 2.5e7
     N_STEPS: &nsteps 256
     N_PI: &npi 32           # 32
-    N_SEGS: &nsegs 4        # this should be no greater than N_PI. 
+    N_SEGS: &nsegs 32        # this should be no greater than N_PI. 
     N_EPOCHS: 1
     N_MBS: &nmbs 8
     N_AUX_EPOCHS: 6
     N_AUX_MBS_PER_SEG: &nambs 16    # 16
-    LOG_PERIOD: 20
-    EVAL_PERIOD: 20
+    LOG_PERIOD: 40
+    EVAL_PERIOD: 40
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
     
     normalize_obs: False
@@ -74,7 +74,7 @@ agent:
 
 buffer:
     N_PI: *npi
-    n_segs: *npi
+    N_SEGS: *npi
     N_AUX_MBS_PER_SEG: *nambs
 
     adv_type: gae     # nae or gae

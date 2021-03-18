@@ -326,14 +326,14 @@ class Memory:
     def _setup_memory_state_record(self):
         self._state = None
         self._additional_rnn_inputs = getattr(self, '_additional_rnn_inputs', {})
+        self._default_additional_rnn_inputs = self._additional_rnn_inputs.copy()
     
     def _add_memory_state_to_kwargs(self, obs, env_output, kwargs, state=None):
         if self._state is None:
             B = tf.shape(obs)[0]
             self._state = self.model.get_initial_state(batch_size=B)
             for k, v in self._additional_rnn_inputs.items():
-                assert isinstance(v[0], (tuple, list)), v
-                assert v[1] in ('float32', 'int32', 'float16'), v
+                assert v in ('float32', 'int32', 'float16'), v
                 self._additional_rnn_inputs[k] = tf.zeros(B, dtype=v)
 
         if 'prev_reward' in self._additional_rnn_inputs:
@@ -370,7 +370,7 @@ class Memory:
 
     def reset_states(self, state=None):
         if state is None:
-            self._state, self._additional_rnn_inputs = None, {}
+            self._state, self._additional_rnn_inputs = None, self._default_additional_rnn_inputs.copy()
         else:
             self._state, self._additional_rnn_inputs = state
 

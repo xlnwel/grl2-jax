@@ -19,6 +19,7 @@ class PPOBase(RMSAgentBase):
 
         self._last_obs = None   # we record last obs before training to compute the last value
         self._value_update = getattr(self, '_value_update', None)
+        self._batch_size = env.n_envs * self.N_STEPS // self.N_MBS
 
     @override(RMSAgentBase)
     def _construct_optimizers(self):
@@ -57,7 +58,6 @@ class PPOBase(RMSAgentBase):
                 kl = terms.pop('train/kl')
                 value = terms.pop('train/value')
                 self.store(**terms, **{'train/value': value.mean()})
-                self.store(**self.dataset.sample_reward_stats())
                 if getattr(self, '_max_kl', None) and kl > self._max_kl:
                     break
                 if self._value_update == 'reuse':
@@ -74,6 +74,7 @@ class PPOBase(RMSAgentBase):
                 last_value = self.compute_value()
                 self.dataset.finish(last_value)
         
+        self.store(**self.dataset.sample_stats('reward'))
         if self._to_summary(step):
             self._summary(data, terms)
 

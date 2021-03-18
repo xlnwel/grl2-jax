@@ -67,10 +67,12 @@ class PPO(Ensemble):
         results = []
         if prev_action is not None:
             if self.actor.is_action_discrete:
-                prev_action = tf.reshape(prev_action, (-1, 1))
+                if prev_action.shape.ndims < 2:
+                    prev_action = tf.reshape(prev_action, (-1, 1))
                 prev_action = tf.one_hot(prev_action, self.actor.action_dim, dtype=x.dtype)
             else:
-                prev_action = tf.reshape(prev_action, (-1, 1, self.actor.action_dim))
+                if prev_action.shape.ndims < 3:
+                    prev_action = tf.reshape(prev_action, (-1, 1, self.actor.action_dim))
             assert_rank(prev_action, 3)
             results.append(prev_action)
         if prev_reward is not None:

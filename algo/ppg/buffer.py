@@ -7,21 +7,26 @@ from algo.ppo.buffer import *
 class Replay:
     def __init__(self, config):
         config_attr(self, config)
-        assert self.N_PI >= self._n_segs, (self.N_PI, self._n_segs)
-        self.TOTAL_STEPS = self.N_STEPS * self._n_segs
+        self._buff = Buffer(config)
+        self._add_attributes()
+
+    def _add_attributes(self):
+        assert self.N_PI >= self.N_SEGS, (self.N_PI, self.N_SEGS)
+        self.TOTAL_STEPS = self.N_STEPS * self.N_PI
         buff_size = self._n_envs * self.N_STEPS
-        self._size = buff_size * self._n_segs
-        self._n_mbs = self._n_segs * self.N_AUX_MBS_PER_SEG
-        self._mb_size = self._size // self._n_mbs
+        self._size = buff_size * self.N_SEGS
+        self._mb_size = buff_size // self.N_AUX_MBS_PER_SEG
+        self._n_aux_mbs = self._size / self._mb_size
         self._shuffled_idxes = np.arange(self._size)
         self._idx = 0
         self._mb_idx = 0
         self._ready = False
 
         self._gae_discount = self._gamma * self._lam
-        self._buff = Buffer(config)
         self._memory = {}
         self._is_store_shape = True
+        logger.info(f'Memory size: {self._size}')
+        logger.info(f'Aux mini-batch size: {self._mb_size}')
 
     def __getitem__(self, k):
         return self._buff[k]
@@ -68,7 +73,7 @@ class Replay:
     def transfer_data(self):
         assert self._buff.ready()
         self._buff.reshape_to_store()
-        if self._idx >= self.N_PI - self._n_segs:
+        if self._idx >= self.N_PI - self.N_SEGS:
             for k in self._transfer_keys:
                 v = self._buff[k]
                 if k in self._memory:
@@ -90,9 +95,12 @@ class Replay:
         if self._mb_idx == 0:
             np.random.shuffle(self._shuffled_idxes)
         self._mb_idx, self._curr_idxes = compute_indices(
-            self._shuffled_idxes, self._mb_idx, self._mb_size, self._n_mbs)
+            self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_SEGS)
         return {k: self._memory[k][self._curr_idxes] for k in self._aux_sample_keys}
 
+    def sample_stats(self, stats='reward'):
+        return self._buff.sample_stats(stats)
+    
     def finish(self, last_value):
         self._buff.finish(last_value)
     

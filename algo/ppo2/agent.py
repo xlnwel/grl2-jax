@@ -31,13 +31,10 @@ class Agent(Memory, PPOBase):
             TensorSpecs['state'] = state_type(*[((sz, ), self._dtype, name) 
                 for name, sz in self.model.state_size._asdict().items()])
         if self._additional_rnn_inputs:
-            TensorSpecs['additional_rnn_input'] = []
             if 'prev_action' in self._additional_rnn_inputs:
-                TensorSpecs['additional_rnn_input'].append(
-                    ((self._sample_size, env.action_dim), self._dtype, 'prev_action'))
+                TensorSpecs['prev_action'] = ((self._sample_size, *env.action_shape), env.action_dtype, 'prev_action')
             if 'prev_reward' in self._additional_rnn_inputs:
-                TensorSpecs['additional_rnn_input'].append(
-                    ((self._sample_size, 1), self._dtype, 'prev_reward'))    # this reward should be unnormlaized
+                TensorSpecs['prev_reward'] = ((self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
         self.learn = build(self._learn, TensorSpecs)
 
     """ Call """

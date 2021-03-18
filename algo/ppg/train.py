@@ -55,6 +55,15 @@ def train(agent, env, eval_env, buffer):
             if to_log(agent.train_step) and 'score' in agent._logger:
                 agent.log(step)
                 agent.save()
+            if to_eval(agent.train_step) or step > agent.MAX_STEPS:
+                with TempStore(agent.get_states, agent.reset_states):
+                    with Timer('eval') as eval_time:
+                        scores, epslens, video = evaluate(
+                            eval_env, agent, record=agent.RECORD, size=(128, 128))
+                    if agent.RECORD:
+                        video_summary(f'{agent.name}/sim', video, step=step)
+                    agent.store(eval_score=scores, eval_epslen=epslens, eval_time=eval_time.total())
+            agent.store(env_time=et.total(), train_time=tt.total())
 
         # auxiliary phase
         buffer.compute_aux_data_with_func(agent.compute_aux_data)
@@ -69,16 +78,6 @@ def train(agent, env, eval_env, buffer):
             agent.aux_learn_log(step)
         agent.store(atps=(agent.N_AUX_EPOCHS * agent.N_AUX_MBS)/at.last())
         buffer.aux_reset()
-
-        if to_eval(agent.train_step) or step > agent.MAX_STEPS:
-            with TempStore(agent.get_states, agent.reset_states):
-                with Timer('eval') as eval_time:
-                    scores, epslens, video = evaluate(
-                        eval_env, agent, record=agent.RECORD, size=(128, 128))
-                if agent.RECORD:
-                    video_summary(f'{agent.name}/sim', video, step=step)
-                agent.store(eval_score=scores, eval_epslen=epslens, eval_time=eval_time.total())
-        agent.store(env_time=et.total(), train_time=tt.total())
 
 def main(env_config, model_config, agent_config, buffer_config):
     algo = agent_config['algorithm']
@@ -102,7 +101,6 @@ def main(env_config, model_config, agent_config, buffer_config):
     if 'seed' in eval_env_config:
         eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1
-    eval_env_config['n_envs'] = 4
     for k in list(eval_env_config.keys()):
         # pop reward hacks
         if 'reward' in k:
