@@ -64,11 +64,11 @@ class RDQNBase(Memory, DQNBase):
             state_type = type(self.model.state_size)
             TensorSpecs['state'] = state_type(*[((sz, ), self._dtype, name) 
                 for name, sz in self.model.state_size._asdict().items()])
-        if self.model.additional_rnn_input:
-            TensorSpecs['additional_rnn_input'] = [(
-                ((self._sample_size, env.action_dim), self._dtype, 'prev_action'),
-                ((self._sample_size, 1), self._dtype, 'prev_reward'),    # this reward should be unnormlaized
-            )]
+        if self._additional_rnn_inputs:
+            if 'prev_action' in self._additional_rnn_inputs:
+                TensorSpecs['prev_action'] = ((self._sample_size, *env.action_shape), env.action_dtype, 'prev_action')
+            if 'prev_reward' in self._additional_rnn_inputs:
+                TensorSpecs['prev_reward'] = ((self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     """ Call """
@@ -100,3 +100,38 @@ class RDQNBase(Memory, DQNBase):
             rnn = self.rnn if online else self.target_rnn
             x, state = rnn(x, state, mask, additional_input=add_inp)
         return x, state
+
+    def _compute_target_and_process_data(self, 
+            obs, action, reward, 
+            discount, mu, mask, state=None, 
+            prev_action=None, prev_reward=None):
+        mask = tf.expand_dims(mask, -1)
+        add_inp = []
+        if prev_action is not None:
+            prev_action = tf.concat([prev_action, action[:, :-1]], axis=1)
+            add_inp.append(prev_action)
+        if prev_reward is not None:
+            prev_reward = tf.concat([prev_reward, reward[:, :-1]], axis=1)
+            add_inp.append(prev_action)
+            
+        target, terms = self._compute_target(
+            obs, action, reward, discount, 
+            mu, mask, state, add_inp)
+        if self._burn_in:
+            bis = self._burn_in_size
+            ss = self._sample_size - bis
+            bi_obs, obs, _ = tf.split(obs, [bis, ss, 1], 1)
+            bi_mask, mask, _ = tf.split(mask, [bis, ss, 1], 1)
+            _, mu, _ = tf.split(mu, [bis, ss, 1], 1)
+            if add_inp:
+                bi_add_inp, add_inp, _ = zip(*[tf.split(v, [bis, ss, 1]) for v in add_inp])
+            else:
+                bi_add_inp = []
+            _, state = self._compute_embed(bi_obs, bi_mask, state, bi_add_inp)
+        else:
+            obs, _ = tf.split(obs, [self._sample_size, 1], 1)
+            mask, _ = tf.split(mask, [self._sample_size, 1], 1)
+            mu, _ = tf.split(mu, [self._sample_size, 1], 1)
+        action, _ = tf.split(action, [self._sample_size, 1], 1)
+
+        return obs, action, mu, mask, target, state, add_inp, terms

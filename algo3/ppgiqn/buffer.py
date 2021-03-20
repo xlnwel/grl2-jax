@@ -2,7 +2,7 @@ import numpy as np
 
 from algo.ppo.buffer import compute_gae, reshape_to_store, reshape_to_sample
 from algo.ppg.buffer import Replay as ReplayBase
-from algo.ppoiqn.buffer import Buffer
+from algo.ppo.buffer import Buffer
 
 class Replay(ReplayBase):
     def __init__(self, config):

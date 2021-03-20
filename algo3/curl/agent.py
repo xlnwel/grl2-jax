@@ -19,7 +19,7 @@ class Agent(AgentBase):
         self.dataset = dataset
 
         self._actor_opt = Optimizer(self._optimizer, self.actor, self._actor_lr, return_grads=True)
-        self._q_opt = Optimizer(self._optimizer, [self.encoder, self.q], self._value_lr, return_grads=True)
+        self._value_opt = Optimizer(self._optimizer, [self.encoder, self.q], self._value_lr, return_grads=True)
         # self._curl_opt = Optimizer(self._optimizer, [self.encoder, self.curl], self._curl_lr)
         if not isinstance(self.temperature, (float, tf.Variable)):
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr, beta_1=.5, return_grads=True)
@@ -124,7 +124,7 @@ class Agent(AgentBase):
             #     labels=labels, logits=logits)
             # curl_loss = tf.reduce_mean(curl_loss)
 
-        terms['value_norm'], q_grads = self._q_opt(tape, value_losss)
+        terms['value_norm'], q_grads = self._value_opt(tape, value_losss)
         # terms['curl_norm'] = self._curl_opt(tape, curl_loss)
 
         if self._is_per:

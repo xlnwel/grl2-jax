@@ -37,7 +37,6 @@ class Actor(Module):
 
     def train_step(self, x):
         x = self._layers(x)
-
         mu, logstd = tf.split(x, 2, -1)
         logstd = tf.clip_by_value(logstd, self.LOG_STD_MIN, self.LOG_STD_MAX)
         std = tf.exp(logstd)
@@ -71,7 +70,7 @@ class Temperature(Module):
     def __init__(self, name='temperature'):
         super().__init__(name=name)
 
-        if self._temp_type == 'state-action':
+        if self._temp_type == 'state':
             kernel_initializer = get_initializer('orthogonal', gain=.01)
             self._layer = layers.Dense(1, name=name)
         elif self._temp_type == 'variable':
@@ -88,7 +87,7 @@ class Temperature(Module):
         return self._temp_type
 
     def is_trainable(self):
-        return self.type in ('state-action', 'variable')
+        return self.type in ('state', 'variable')
 
     def call(self, x=None):
         if self._temp_type == 'state':
@@ -154,10 +153,7 @@ def create_components(config, env):
     q2 = Q(q_config, 'q2')
     target_q = Q(q_config, 'target_q')
     target_q2 = Q(q_config, 'target_q2')
-    if temperature_config['temp_type'] == 'constant':
-        temperature = temperature_config['value']
-    else:
-        temperature = Temperature(temperature_config)
+    temperature = Temperature(temperature_config)
         
     return dict(
         actor=actor,

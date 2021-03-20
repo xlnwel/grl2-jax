@@ -1,10 +1,10 @@
 import tensorflow as tf
 
-from utility.rl_utils import epsilon_greedy
 from utility.tf_utils import assert_rank
 from core.module import Ensemble
 from nn.func import Encoder, LSTM
 from algo.dqn.nn import Q
+from algo.sacd.nn import Actor
 
 
 class RDQN(Ensemble):
@@ -25,7 +25,10 @@ class RDQN(Ensemble):
 
         x, state = self._encode(
             x, state, mask, prev_action, prev_reward)
-        action = self.q.action(x, epsilon=epsilon, temp=temp, return_stats=return_stats)
+        if hasattr(self, 'actor'):
+            action = self.actor(x, evaluation=evaluation, epsilon=epsilon, temp=temp)
+        else:
+            action = self.q.action(x, epsilon=epsilon, temp=temp, return_stats=return_stats)
 
         if evaluation:
             return tf.squeeze(action), state
@@ -34,7 +37,8 @@ class RDQN(Ensemble):
             if return_stats:
                 action, terms = action
             terms.update({
-                'mu': self.q.compute_prob()
+                'mu': self.actor.compute_prob() if hasattr(self, 'actor') \
+                    else self.q.compute_prob()
             })
             out = tf.nest.map_structure(lambda x: tf.squeeze(x), (action, terms))
             return out, state
@@ -87,7 +91,8 @@ def create_components(config, env):
     encoder_config = config['encoder']
     q_config = config['q']
 
-    encoder_config['time_distributed'] = True
+    if 'cnn_name' in encoder_config:
+        encoder_config['time_distributed'] = True
     model = dict(
         encoder=Encoder(encoder_config, name='encoder'),
         q=Q(q_config, action_dim, name='q'),
@@ -99,6 +104,12 @@ def create_components(config, env):
         model.update({
             'rnn': LSTM(rnn_config, name='rnn'),
             'target_rnn': LSTM(rnn_config, name='target_rnn')
+        })
+    if 'actor' in config:
+        actor_config = config['actor']
+        model.update({
+            'actor': Actor(actor_config, action_dim, name='actor'),
+            'target_actor': Actor(actor_config, action_dim, name='target_actor')
         })
 
     return model

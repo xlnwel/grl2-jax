@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name procgen_coinrun
+    name: &env_name procgen_climber
     n_workers: 1
     n_envs: &nenvs 64
     frame_skip: 1
@@ -45,9 +45,11 @@ agent:
     normalize_obs: False
     normalize_reward: True
     store_state: True
+    
     # additional_rnn_inputs:
     #     prev_reward: float32
     #     prev_action: int32
+
     # (once, reuse, null)
     # "once" updates values at the end of each epoch
     # "reuse" updates values using value from learn, which is staler than once

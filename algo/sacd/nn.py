@@ -5,10 +5,9 @@ from tensorflow_probability import distributions as tfd
 
 from utility.rl_utils import epsilon_greedy, epsilon_scaled_logits
 from core.module import Module, Ensemble
-from core.decorator import config
 from nn.func import mlp
 from algo.sac.nn import Temperature
-from algo.dqn.nn import Encoder
+from algo.dqn.nn import Encoder, Q
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +36,13 @@ class Actor(Module):
         self.logits = logits = self._layers(x)
 
         if evaluation:
-            if temp == 0:
-                dist = tfd.Categorical(logits)
-                action = dist.mode()
-            else:
-                logits = logits / temp
-                dist = tfd.Categorical(logits)
-                action = dist.sample()
+            temp = tf.where(temp == 0, 1e-9, temp)
+            logits = logits / temp
+            dist = tfd.Categorical(logits)
+            action = dist.sample()
         else:
             if self._epsilon_scaled_logits and \
-                    isinstance(epsilon, tf.Tensor) or epsilon:
+                    (isinstance(epsilon, tf.Tensor) or epsilon):
                 self.logits = epsilon_scaled_logits(logits, epsilon, temp)
             else:
                 self.logits = logits / temp
@@ -54,7 +50,7 @@ class Actor(Module):
             dist = tfd.Categorical(self.logits)
             action = dist.sample()
             if not self._epsilon_scaled_logits and \
-                    isinstance(epsilon, tf.Tensor) or epsilon:
+                    (isinstance(epsilon, tf.Tensor) or epsilon):
                 action = epsilon_greedy(action, epsilon, True, self.action_dim)
 
         self._dist = dist
@@ -77,29 +73,6 @@ class Actor(Module):
         return prob
 
 
-class Q(Module):
-    @config
-    def __init__(self, action_dim, name='q'):
-        super().__init__(name=name)
-
-        self._layers = mlp(
-            self._units_list, 
-            out_size=action_dim,
-            kernel_initializer=self._kernel_initializer,
-            activation=self._activation,
-            out_dtype='float32')
-
-    def call(self, x, action=None):
-        q = self._layers(x)
-        if action is not None:
-            if action.dtype.is_integer:
-                action = tf.one_hot(action, q.shape[-1])
-            assert action.shape[1:] == q.shape[1:], (action.shape, q.shape)
-            q = tf.reduce_sum(q * action, axis=-1)
-
-        return q
-
-
 class SAC(Ensemble):
     def __init__(self, config, *, model_fn=None, env, **kwargs):
         model_fn = model_fn or create_components
@@ -113,7 +86,6 @@ class SAC(Ensemble):
     def action(self, x, evaluation=False, epsilon=0, temp=1., return_stats=False, return_eval_stats=False, **kwargs):
         if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, axis=0)
-        assert x.shape.ndims == 4, x.shape
 
         x = self.encoder(x)
         action = self.actor(x, evaluation=evaluation, epsilon=epsilon, temp=temp)
@@ -140,7 +112,7 @@ class SAC(Ensemble):
                 kl = -tfd.Categorical(self.actor.logits).entropy()
                 if self.temperature.type == 'schedule':
                     _, temp = self.temperature(self._train_step)
-                elif self.temperature.type == 'state-action':
+                elif self.temperature.type == 'state':
                     raise NotImplementedError
                 else:
                     _, temp = self.temperature()
@@ -180,9 +152,6 @@ def create_components(config, env):
         target_q=Q(q_config, action_dim, name='target_q'),
         temperature=Temperature(temperature_config),
     )
-    if config['twin_q']:
-        models['q2'] = Q(q_config, action_dim, name='q2')
-        models['target_q2'] = Q(q_config, action_dim, name='target_q2')
 
     return models
 

@@ -39,7 +39,7 @@ class Agent(RAgent):
                 IS_ratio=1, state=None, additional_rnn_input=[]):
         if self.temperature.type == 'schedule':
             _, temp = self.temperature(self._train_step)
-        elif self.temperature.type == 'state-action':
+        elif self.temperature.type == 'state':
             raise NotImplementedError
         else:
             _, temp = self.temperature()

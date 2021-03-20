@@ -23,8 +23,8 @@ agent:
 
     MAX_STEPS: 1e8          # maximum training steps
     TRAIN_PERIOD: 1          # #frames = 4 agent step when frame skip = 4
-    EVAL_PERIOD: 10000
-    LOG_PERIOD: 10000
+    EVAL_PERIOD: 1000
+    LOG_PERIOD: 1000
     N_UPDATES: 1
     RECORD: False
 
@@ -41,7 +41,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 1e-4
+    value_lr: 1e-4
     clip_norm: 10
     
     # arguments for PER

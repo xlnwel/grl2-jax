@@ -2,9 +2,9 @@
 
 
 algos=(
-    ppo
+    # ppo
     # ppo_meta
-    # ppg2
+    ppg
     # apex-dqn
     # apex-iqn
     # apex-mrdqn
@@ -46,10 +46,10 @@ for e in "${envs[@]}"; do
                     # fi
                     # sed -e "s/KI/${a2}/g" \
                     #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
-                    dir="logs/${suite}_${e}/${a}"
+                    dir="logs/t-${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} -p t >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)
@@ -61,22 +61,3 @@ for e in "${envs[@]}"; do
         done
     done
 done
-
-# for e in "${envs[@]}"; do
-#     for a in "${algos[@]}"; do
-#         for a1 in "${args1[@]}"; do
-#             for a2 in "${args2[@]}"; do
-#             dir="logs/${suite}_${e}/${a}"
-#             mkdir -p $dir
-#             # py_script="train ${a} -e ${suite}_${e} -v info $@ >& ${dir}/outputs.txt"
-#             py_script="train ${a} -e ${suite}_${e} -v info -kw cnn_name=procgen subsample=$a1 kernel_initializer=$a2 >& ${dir}/outputs.txt"
-#             echo $py_script
-#             eval $py_script
-#             last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)
-#             mv_script="mv ${dir}/outputs.txt ${last_dir}/outputs.txt"
-#             echo $mv_script
-#             eval $mv_script
-#             done
-#         done
-#     done
-# done

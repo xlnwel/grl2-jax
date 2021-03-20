@@ -3,7 +3,6 @@ import tensorflow as tf
 
 from utility.tf_utils import log_softmax
 from utility.schedule import TFPiecewiseSchedule
-from core.optimizer import Optimizer
 from core.tf_config import build
 from core.base import AgentBase, ActionScheduler, TargetNetOps
 from core.decorator import override, step_track
@@ -25,7 +24,7 @@ def get_data_format(*, env, replay_config, **kwargs):
     )
     if is_per:
         data_format['idxes'] = ((None, ), tf.int32)
-        if replay_config.get('use_is_ratio'):
+        if replay_config.get('use_is_ratio', is_per):
             data_format['IS_ratio'] = ((None, ), tf.float32)
     if n_steps > 1:
         data_format['steps'] = ((None, ), tf.float32)
@@ -48,7 +47,7 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
 
-        self.RECORD = getattr(self, 'RECORD', True)
+        self.RECORD = getattr(self, 'RECORD', False)
         self.N_EVAL_EPISODES = getattr(self, 'N_EVAL_EPISODES', 1)
         self.MUNCHAUSEN = False
 
@@ -63,18 +62,25 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
 
         self._setup_action_schedule(env)
         self._setup_target_net_sync()
-        
+
     @override(AgentBase)
     def _construct_optimizers(self):
-        if self._schedule_lr:
-            assert isinstance(self._lr, list), self._lr
-            self._lr = TFPiecewiseSchedule(self._lr)
-        models = [v for k, v in self.model.items() if 'target' not in k]
-        self._optimizer = Optimizer(
-            self._optimizer, models, self._lr, 
-            weight_decay=getattr(self, '_weight_decay', None),
-            clip_norm=getattr(self, '_clip_norm', None),
-            epsilon=getattr(self, '_epsilon', 1e-7))
+        if 'actor' in self.model:
+            self._actor_opt = super()._construct_opt(self.actor, lr=self._actor_lr)
+            logger.info(f'Actor model: {self.actor}')
+        value_models = [self.q]
+        if 'encoder' in self.model:
+            value_models.append(self.encoder)
+        if 'q2' in self.model:
+            value_models.append(self.q2)
+        logger.info(f'Value model: {value_models}')
+        self._value_opt = super()._construct_opt(value_models, lr=self._value_lr)
+
+        if hasattr(self, 'temperature') and self.temperature.is_trainable():
+            self._temp_opt = super()._construct_opt(self.temperature, lr=self._temp_lr)
+            if isinstance(getattr(self, '_target_entropy_coef', None), (list, tuple)):
+                self._target_entropy_coef = TFPiecewiseSchedule(self._target_entropy_coef)
+            logger.info(f'Temperature model: {self.temperature}')
 
     @override(AgentBase)
     def _build_learn(self, env):
@@ -111,8 +117,11 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
             with self._train_timer:
                 terms = self.learn(**data)
 
-            if self._to_sync(self.train_step):
-                self._sync_nets()
+            if self._to_sync is not None:
+                if self._to_sync(self.train_step):
+                    self._sync_nets()
+            else:
+                self._update_nets()
 
             terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
             if self._is_per:

@@ -50,7 +50,7 @@ class Agent(AgentBase):
         )
         self._model_opt = DreamerOpt(models=dynamics_models, lr=self._model_lr)
         self._actor_opt = DreamerOpt(models=self.actor, lr=self._actor_lr, return_grads=True)
-        self._q_opt = DreamerOpt(models=[self.q, self.q2], lr=self._value_lr, return_grads=True)
+        self._value_opt = DreamerOpt(models=[self.q, self.q2], lr=self._value_lr, return_grads=True)
 
         if isinstance(self.temperature, float):
             # convert to variable, useful for scheduling
@@ -178,7 +178,7 @@ class Agent(AgentBase):
             terms = self.learn(**data, log_images=log_images)
             terms = {k: v.numpy() for k, v in terms.items()}
             self.store(**terms)
-            self._update_target_nets()
+            self._update_nets()
         return self.N_UPDATES
 
     @tf.function
@@ -269,7 +269,7 @@ class Agent(AgentBase):
 
         terms['model_norm'] = self._model_opt(model_tape, model_loss)
         terms['actor_norm'], actor_vg = self._actor_opt(actor_tape, actor_loss)
-        terms['value_norm'], q_vg = self._q_opt(q_tape, value_losss)
+        terms['value_norm'], q_vg = self._value_opt(q_tape, value_losss)
         if not isinstance(self.temperature, (float, tf.Variable)):
             terms['temp_norm'] = self._temp_opt(temp_tape, temp_loss)
         
@@ -322,7 +322,7 @@ class Agent(AgentBase):
         [tvar.assign(mvar) for tvar, mvar in zip(tvars, mvars)]
 
     @tf.function
-    def _update_target_nets(self):
+    def _update_nets(self):
         tvars = self.target_q.trainable_variables + self.target_q2.trainable_variables
         mvars = self.q.trainable_variables + self.q2.trainable_variables
         [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 

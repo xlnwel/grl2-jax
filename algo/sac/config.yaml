@@ -1,45 +1,45 @@
 ---
 env:
     name: LunarLanderContinuous-v2
-    seed: 0
+
 model:
     actor:
-        units_list: [128, 64]
+        units_list: [128, 128]
         norm: null
         activation: relu
         LOG_STD_MIN: -20
         LOG_STD_MAX: 2
     q:
-        units_list: [128, 64]
+        units_list: [128, 128]
         norm: null
         activation: relu
     temperature:
         temp_type: variable
-        value: .1
+        value: .01
+
 agent:
     algorithm: &algo sac
-    replay_type: &replay 'uniform'
+    replay_type: &replay per
     gamma: &gamma .99
     batch_size: &bs 256
     n_steps: &nsteps 3
     polyak: .995
-
-    act_eps: 0
+    act_eps: .3
     eval_act_eps: 0
 
     MAX_STEPS: 3e6
     TRAIN_PERIOD: 1
-    LOG_PERIOD: 10000
-    EVAL_PERIOD: 10000
+    LOG_PERIOD: 1000
+    EVAL_PERIOD: 1000
     N_UPDATES: 1
     N_EVAL_EPISODES: 100
+    RECORD: True
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: False
 
     # arguments for optimizer
     optimizer: adam
@@ -47,6 +47,7 @@ agent:
     actor_lr: 3e-4
     value_lr: 3e-4
     temp_lr: 3e-4
+    # clip_norm: 10
     
     # arguments for PER
     per_alpha: .5
@@ -54,15 +55,16 @@ agent:
 
 replay:
     replay_type: *replay
+    seqlen: 50
     # arguments for PER
     beta0: .4
-    beta_steps: 5e+4
+    beta_steps: 5e4
     to_update_top_priority: True
 
     # arguments for general replay
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs
-    min_size: 1e+4
-    capacity: 1e+6
+    min_size: 1e4
+    capacity: 1e5
     has_next_obs: False

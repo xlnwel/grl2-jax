@@ -20,14 +20,15 @@ class Agent(RDQNBase):
         PartialOpt = functools.partial(
             Optimizer,
             name=self._optimizer,
-            weight_decay=self._weight_decay, 
-            clip_norm=self._clip_norm,
-            epsilon=self._epsilon
+            weight_decay=getattr(self, '_weight_decay', None),
+            clip_norm=getattr(self, '_clip_norm', None),
+            epsilon=getattr(self, '_epsilon', 1e-7)
         )
-        self._actor_opt = PartialOpt(models=self.actor, lr=self._actor_lr)
         value_models = [self.encoder, self.q]
         self._value_opt = PartialOpt(models=value_models, lr=self._value_lr)
-
+        
+        if 'actor' in self.model:
+            self._actor_opt = PartialOpt(models=self.actor, lr=self._actor_lr)
         if self.temperature.is_trainable():
             self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
             if isinstance(self._target_entropy_coef, (list, tuple)):
@@ -82,15 +83,16 @@ class Agent(RDQNBase):
         ])
         terms['value_norm'] = self._optimizer(tape, value_loss)
         
-        with tf.GradientTape as tape:
-            pi, logpi = self.actor.train_step(x)
-            loo_loss = tf.math.minimum(self._loo_c, 1 / mu) * error * logpi + tf.reduce_sum(qs * pi, axis=-1)
-            loo_loss = tf.reduce_mean(loo_loss, axis=-1)
-            actor_loss = tf.reduce_mean(IS_ratio, loo_loss)
-        tf.debugging.assert_shape([
-            [loo_loss, (None)],
-        ])
-        terms['actor_norm'] = self._act_opt(tape, actor_loss)
+        if 'actor' in self.model:
+            with tf.GradientTape as tape:
+                pi, logpi = self.actor.train_step(x)
+                loo_loss = tf.math.minimum(self._loo_c, 1 / mu) * error * logpi + tf.reduce_sum(qs * pi, axis=-1)
+                loo_loss = tf.reduce_mean(loo_loss, axis=-1)
+                actor_loss = tf.reduce_mean(IS_ratio, loo_loss)
+            tf.debugging.assert_shape([
+                [loo_loss, (None)],
+            ])
+            terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
         if self._is_per:
             priority = self._compute_priority(tf.abs(error))

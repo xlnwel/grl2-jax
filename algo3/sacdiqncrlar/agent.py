@@ -49,7 +49,7 @@ class Agent(DQNBase):
         self._twin_q = hasattr(self, 'q2')
         if self._twin_q:
             q_models.append(self.q2)
-        self._q_opt = Optimizer(self._optimizer, q_models, self._value_lr)
+        self._value_opt = Optimizer(self._optimizer, q_models, self._value_lr)
         self._crl_opt = Optimizer(self._optimizer, [self.encoder, self.crl], self._crl_lr)
         if isinstance(self.temperature, float):
             self.temperature = tf.Variable(self.temperature, trainable=False)
@@ -176,7 +176,7 @@ class Agent(DQNBase):
                 labels=labels, logits=logits)
             infonce = tf.reduce_mean(infonce)
             crl_loss = self._crl_coef * infonce
-        terms['value_norm'] = self._q_opt(tape, qr_loss)
+        terms['value_norm'] = self._value_opt(tape, qr_loss)
         terms['crl_norm'] = self._crl_opt(tape, crl_loss)
 
         action = tf.one_hot(action, self._action_dim)

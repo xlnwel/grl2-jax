@@ -8,7 +8,7 @@ from algo.dqn.nn import Q
 from algo.sacd.nn import Actor
 
 
-class RDQN(Ensemble):
+class LOO(Ensemble):
     def __init__(self, config, env, **kwargs):
         super().__init__(
             model_fn=create_components, 

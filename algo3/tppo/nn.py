@@ -1,13 +1,11 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers
 from tensorflow_probability import distributions as tfd
-from tensorflow.keras.mixed_precision import global_policy
 
 from core.module import Module, Ensemble
 from core.decorator import config
-from utility.tf_distributions import DiagGaussian, Categorical, TanhBijector
 from nn.func import cnn, mlp
+from algo.ppo.nn import *
 
 
 class AC(Module):

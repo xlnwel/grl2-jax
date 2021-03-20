@@ -6,40 +6,18 @@ from utility.rl_utils import *
 from utility.rl_loss import quantile_regression_loss, retrace
 from core.decorator import override
 from algo.mrdqn.base import RDQNBase, get_data_format, collect
-from algo.iqn.agent import IQNOps
+from algo.iqn.base import IQNOps
 
 
 class Agent(RDQNBase, IQNOps):
     """ MRIQN methods """
     @tf.function
     def _learn(self, obs, action, reward, discount, mu, mask, 
-                IS_ratio=1, state=None, additional_rnn_input=[]):
-        mask = tf.expand_dims(mask, -1)
-        if additional_rnn_input != []:
-            prev_action, prev_reward = additional_rnn_input
-            prev_action = tf.concat([prev_action, action[:, :-1]], axis=1)
-            prev_reward = tf.concat([prev_reward, reward[:, :-1]], axis=1)
-            add_inp = [prev_action, prev_reward]
-        else:
-            add_inp = additional_rnn_input
-            
-        target, terms = self._compute_target(
-            obs, action, reward, discount, 
-            mu, mask, state, add_inp)
-        if self._burn_in:
-            bis = self._burn_in_size
-            ss = self._sample_size - bis
-            bi_obs, obs, _ = tf.split(obs, [bis, ss, 1], 1)
-            bi_mask, mask, _ = tf.split(mask, [bis, ss, 1], 1)
-            if add_inp:
-                bi_add_inp, add_inp, _ = zip(*[tf.split(v, [bis, ss, 1]) for v in add_inp])
-            else:
-                bi_add_inp = []
-            _, state = self._compute_embed(bi_obs, bi_mask, state, bi_add_inp)
-        else:
-            obs, _ = tf.split(obs, [self._sample_size, 1], 1)
-            mask, _ = tf.split(mask, [self._sample_size, 1], 1)
-        action, _ = tf.split(action, [self._sample_size, 1], 1)
+                IS_ratio=1, state=None, prev_action=None, prev_reward=None):
+        obs, action, mu, mask, target, state, add_inp, terms = \
+            self._compute_target_and_process_data(
+                obs, action, reward, discount, mu, mask, 
+                state, prev_action, prev_reward)
 
         with tf.GradientTape() as tape:
             x, _ = self._compute_embed(obs, mask, state, add_inp)
@@ -120,7 +98,7 @@ class Agent(RDQNBase, IQNOps):
             else:
                 next_qs = self.target_q.value(next_qtvs, axis=2)
                 next_pi = self.target_q.compute_greedy_action(next_qs, one_hot=True)
-        elif self._probabilistic_regularization == 'mu':
+        elif self._probabilistic_regularization == 'prob':
             next_qs = self.target_q.value(next_qtvs, axis=2)
             next_pi = softmax(next_qs, self._tau)
         elif self._probabilistic_regularization == 'entropy':

@@ -11,14 +11,12 @@ from algo.ppo.base import PPOBase
 class Agent(PPOBase):
     """ Initialization """
     @override(PPOBase)
-    def _build_learn(self, env):
-        # optimizer
-        self._optimizer = Optimizer(
-            self._optimizer, self.ac, self._lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
-
+    def _add_attributes(self, env, dataset):
+        super()._add_attributes(env, dataset)
         self._is_action_discrete = env.is_action_discrete
 
+    @override(PPOBase)
+    def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),

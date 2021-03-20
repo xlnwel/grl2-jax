@@ -137,7 +137,7 @@ class TestClass:
             seqlen=16,
             reset_shift=2,
             state_keys=['h', 'c', 'prev_reward'],
-            extra_keys=['obs', 'action', 'prob', 'mask']
+            extra_keys=['obs', 'action', 'mu', 'mask']
         )
         obs_shape = (4,)
         for n_envs in np.arange(1, 3):
@@ -173,7 +173,7 @@ class TestClass:
             seqlen=16,
             reset_shift=2,
             state_keys=['h', 'c', 'prev_reward'],
-            extra_keys=['obs', 'action', 'prob', 'mask']
+            extra_keys=['obs', 'action', 'mu', 'mask']
         )
         env_config = dict(
             n_envs=1,
@@ -232,7 +232,7 @@ class TestClass:
             min_size=2,
             capacity=10000,
             state_keys=['h', 'c', 'prev_reward'],
-            extra_keys=['obs', 'action', 'prob', 'mask']
+            extra_keys=['obs', 'action', 'mu', 'mask']
         )
         env_config = dict(
             n_envs=1,

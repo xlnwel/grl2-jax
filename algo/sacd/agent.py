@@ -1,38 +1,12 @@
-import functools
-import numpy as np
 import tensorflow as tf
 
 from utility.rl_loss import n_step_target
 from utility.tf_utils import explained_variance
-from utility.schedule import TFPiecewiseSchedule
-from core.optimizer import Optimizer
 from core.decorator import override
 from algo.dqn.base import DQNBase, get_data_format, collect
+from algo.sacd.base import TempLearner
 
-
-class Agent(DQNBase):
-    @override(DQNBase)
-    def _construct_optimizers(self):
-        if self._schedule_lr:
-            assert isinstance(self._actor_lr, list), self._actor_lr
-            assert isinstance(self._value_lr, list), self._value_lr
-            self._actor_lr = TFPiecewiseSchedule(self._actor_lr)
-            self._value_lr = TFPiecewiseSchedule(self._value_lr)
-        
-        PartialOpt = functools.partial(
-            Optimizer,
-            name=self._optimizer,
-            weight_decay=getattr(self, '_weight_decay', None),
-            clip_norm=getattr(self, '_clip_norm', None),
-            epsilon=getattr(self, '_epsilon', 1e-7)
-        )
-        self._actor_opt = PartialOpt(models=self.actor, lr=self._actor_lr)
-        value_models = [self.encoder, self.q]
-        self._value_opt = PartialOpt(models=value_models, lr=self._value_lr)
-
-        if self.temperature.is_trainable():
-            self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
-
+class Agent(DQNBase, TempLearner):
     # @tf.function
     # def summary(self, data, terms):
     #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
@@ -44,14 +18,13 @@ class Agent(DQNBase):
         terms = {}
         if self.temperature.type == 'schedule':
             _, temp = self.temperature(self._train_step)
-        elif self.temperature.type == 'state-action':
+        elif self.temperature.type == 'state':
             raise NotImplementedError
         else:
             _, temp = self.temperature()
 
-        next_x = self.target_encoder(next_obs, training=False)
+        next_x = self.target_encoder(next_obs)
         next_act_probs, next_act_logps = self.target_actor.train_step(next_x)
-        # next_x = self.target_encoder(next_obs)
         next_qs = self.target_q(next_x)
         if self._soft_target:
             next_value = tf.reduce_sum(next_act_probs 
@@ -82,24 +55,7 @@ class Agent(DQNBase):
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
-        if self.temperature.is_trainable():
-            # Entropy of a uniform distribution
-            self._target_entropy = np.log(self._action_dim)
-            target_entropy_coef = self._target_entropy_coef \
-                if isinstance(self._target_entropy_coef, float) \
-                else self._target_entropy_coef(self._train_step)
-            target_entropy = self._target_entropy * target_entropy_coef
-            with tf.GradientTape() as tape:
-                log_temp, temp = self.temperature()
-                entropy_diff = entropy - target_entropy
-                temp_loss = log_temp * entropy_diff
-                tf.debugging.assert_shapes([[temp_loss, (None, )]])
-                temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
-            terms['target_entropy'] = target_entropy
-            terms['entropy_diff'] = entropy_diff
-            terms['log_temp'] = log_temp
-            terms['temp_loss'] = temp_loss
-            terms['temp_norm'] = self._temp_opt(tape, temp_loss)
+        temp_terms = self._learn_temp(x, entropy, IS_ratio)
 
         if self._is_per:
             priority = self._compute_priority(error)
@@ -113,9 +69,10 @@ class Agent(DQNBase):
             entropy=entropy,
             entropy_max=tf.reduce_max(entropy),
             entropy_min=tf.reduce_min(entropy),
-            value_losss=value_losss, 
+            value_loss=value_losss, 
             temp=temp,
             explained_variance_q=explained_variance(q_target, q),
+            **temp_terms
         ))
 
         return terms

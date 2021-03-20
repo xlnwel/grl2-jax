@@ -75,6 +75,7 @@ class FQF(Ensemble):
     def action(self, x, 
             evaluation=False, 
             epsilon=0,
+            temp=1.,
             return_stats=False,
             return_eval_stats=False):
         assert x.shape.ndims == 4, x.shape
@@ -82,7 +83,9 @@ class FQF(Ensemble):
         x = self.encoder(x)
         tau, tau_hat = self.fpn(x)
         qt_embed = self.qe(x, tau_hat)
-        action = self.q.action(x, qt_embed, return_stats=return_stats)
+        action = self.q.action(
+            x, qt_embed, epsilon=epsilon, 
+            temp=temp, return_stats=return_stats)
         terms = {}
         if return_stats:
             action, q = action

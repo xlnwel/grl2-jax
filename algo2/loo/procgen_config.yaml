@@ -1,25 +1,25 @@
 ---
 env:
-    name: procgen_coinrun
+    name: procgen_miner
     distribution_mode: easy
-    n_envs: &ne 4
-    frame_diff: False
     frame_skip: 1
+    n_envs: &ne 64
     frame_stack: 1
     np_obs: True
     reward_scale: 1
     reward_clip: 10
 
 model:
-    encoder: 
+    encoder:
         cnn_name: impala
+    # rnn:
+    #     units: 512
     actor:
         units_list: [512]
         layer_type: dense
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
-        eval_act_temp: .5
     q:
         units_list: [512]
         layer_type: dense
@@ -27,50 +27,46 @@ model:
         kernel_initializer: glorot_uniform
         activation: relu
         duel: False
-    temperature:
-        temp_type: constant
-        value: .01
-    reward_kl: False
+        stoch_action: False
+        tau: &tau 0.01
     additional_rnn_input: False
 
 agent:
-    algorithm: &algo apex-mrsacd
+    algorithm: &algo rdqn
     replay_type: &replay seq
-    gamma: &gamma .99
+    gamma: 0.99
     lambda: .95
     batch_size: &bs 64
-    precision: 32
+    precision: 16
 
-    schedule_act_eps: False
-    act_eps_type: line
+    probabilistic_regularization: null
+
+    tau: *tau
+    alpha: .9
+    clip_logpi_min: -1
+
+    schedule_act_eps: True
+    act_eps_type: apex
     act_eps: .3
     eval_act_eps: 0
     schedule_act_temp: True
     n_exploit_envs: 8
     min_temp: .5
     max_temp: 10
-    
+    eval_act_temp: .5
+
     store_state: False
     burn_in: False
-    sample_size: &ss 32
+    sample_size: &ss 16
     burn_in_size: &bis 0
 
-    MAX_STEPS: 2.5e7      # maximum env steps
-    LOG_PERIOD: 100
-    N_UPDATES: 1
-    SYNC_PERIOD: 400
-    RECORD_PERIOD: 100
-    N_EVALUATION: 10
-    logger: True
-
-    # distributed algo params
-    n_learner_cpus: 1
-    n_learner_gpus: .3
-    n_workers: 5
-    n_worker_cpus: 1
-    n_worker_gpus: .1
-    run_mode: nsteps
-    worker_side_prioritization: False
+    MAX_STEPS: 1e7          # maximum env steps
+    TRAIN_PERIOD: 256
+    EVAL_PERIOD: 2.5e5
+    LOG_PERIOD: 2.5e5
+    N_UPDATES: 24
+    RECORD: True
+    N_EVAL_EPISODES: 200
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -78,32 +74,28 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
+    loss_type: mse   # huber or mse
     target_update_period: 1500
+    tbo: False                              # transformed Bellman Operator
     
-    soft_target: True
-
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    value_lr: 2.5e-4
     actor_lr: 2.5e-4
-    temp_lr: 2.5e-4
-    weight_decay: null
-    clip_norm: 0
-    epsilon: 1e-7
-    prior_lr: 1.e-3
-    
+    value_lr: 2.5e-4
+    opt_eps: 1e-7
+
     # arguments for PER
-    per_alpha: .6
+    per_alpha: .9
+    per_eta: .9
     per_epsilon: 1e-4
     use_is_ratio: &is False
 
 replay:
     replay_type: *replay
-    n_envs: *ne
     # arguments for PER
     beta0: .5
-    to_update_top_priority: True
+    to_update_top_priority: False
     use_is_ratio: *is
 
     # arguments for sequential replay
@@ -112,4 +104,5 @@ replay:
     burn_in_size: *bis
     min_size: 100
     capacity: 10000
-    extra_keys: ['obs', 'action', 'prob', 'mask']
+    state_keys: ['h', 'c']
+    extra_keys: ['obs', 'action', 'mu', 'mask']

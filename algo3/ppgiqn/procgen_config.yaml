@@ -41,7 +41,7 @@ agent:
     N_EPOCHS: 1
     N_MBS: &nmbs 8
     N_AUX_EPOCHS: 6
-    N_AUX_MBS_PER_SEG: &nambs 16    # 16
+    N_AUX_MBS: &nambs 16    # 16
     LOG_PERIOD: 50
     EVAL_PERIOD: 5000
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
@@ -81,7 +81,7 @@ agent:
 buffer:
     N_PI: *npi
     n_segs: *npi
-    N_AUX_MBS_PER_SEG: *nambs
+    N_AUX_MBS: *nambs
 
     adv_type: gae     # nae or gae
     gamma: *gamma

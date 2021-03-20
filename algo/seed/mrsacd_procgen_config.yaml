@@ -91,7 +91,7 @@ agent:
     temp_lr: 2.5e-4
     weight_decay: null
     clip_norm: 0
-    epsilon: 1e-7
+    opt_eps: 1e-7
     prior_lr: 1.e-3
     
     # arguments for PER
@@ -113,4 +113,4 @@ replay:
     burn_in_size: *bis
     min_size: 100
     capacity: 10000
-    extra_keys: ['obs', 'action', 'prob', 'mask']
+    extra_keys: ['obs', 'action', 'mu', 'mask']

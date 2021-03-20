@@ -92,7 +92,8 @@ def main(env_config, model_config, agent_config, buffer_config):
 
     env = create_env(env_config, force_envvec=True)
     eval_env_config = env_config.copy()
-    eval_env_config['num_levels'] = 0
+    if 'num_levels' in eval_env_config:
+        eval_env_config['num_levels'] = 0
     if 'seed' in eval_env_config:
         eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1

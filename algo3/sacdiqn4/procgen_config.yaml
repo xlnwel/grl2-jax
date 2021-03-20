@@ -85,7 +85,7 @@ agent:
     lr: 2.5e-4
     value_coef: 1
     temp_lr: 2.5e-4
-    epsilon: 3.125e-4
+    opt_eps: 3.125e-4
     prior_lr: 1.e-3
     
     # arguments for PER

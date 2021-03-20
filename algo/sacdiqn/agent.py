@@ -1,41 +1,15 @@
-import functools
-import numpy as np
 import tensorflow as tf
 
 from utility.rl_loss import n_step_target, quantile_regression_loss
 from utility.tf_utils import explained_variance
-from utility.schedule import TFPiecewiseSchedule
-from core.optimizer import Optimizer
 from core.decorator import override
 from algo.dqn.base import DQNBase, get_data_format, collect
+from algo.sacd.base import TempLearner
+from algo.iqn.base import IQNOps
 
 
-class Agent(DQNBase):
+class Agent(DQNBase, IQNOps, TempLearner):
     """ Initialization """
-    @override(DQNBase)
-    def _construct_optimizers(self):
-        if self._schedule_lr:
-            assert isinstance(self._actor_lr, list), self._actor_lr
-            assert isinstance(self._value_lr, list), self._value_lr
-            self._actor_lr = TFPiecewiseSchedule(self._actor_lr)
-            self._value_lr = TFPiecewiseSchedule(self._value_lr)
-
-        PartialOpt = functools.partial(
-            Optimizer,
-            name=self._optimizer,
-            weight_decay=self._weight_decay, 
-            clip_norm=self._clip_norm,
-            epsilon=self._epsilon
-        )
-        self._actor_opt = PartialOpt(models=self.actor, lr=self._actor_lr)
-        value_models = [self.encoder, self.q]
-        self._value_opt = PartialOpt(models=value_models, lr=self._value_lr)
-
-        if self.temperature.is_trainable():
-            self._temp_opt = Optimizer(self._optimizer, self.temperature, self._temp_lr)
-            if isinstance(self._target_entropy_coef, (list, tuple)):
-                self._target_entropy_coef = TFPiecewiseSchedule(self._target_entropy_coef)
-
     # @tf.function
     # def summary(self, data, terms):
     #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
@@ -52,7 +26,7 @@ class Agent(DQNBase):
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):
         if self.temperature.type == 'schedule':
             _, temp = self.temperature(self._train_step)
-        elif self.temperature.type == 'state-action':
+        elif self.temperature.type == 'state':
             raise NotImplementedError
         else:
             _, temp = self.temperature()
@@ -82,24 +56,8 @@ class Agent(DQNBase):
 
         act_probs = tf.reduce_mean(act_probs, 0)
         self.actor.update_prior(act_probs, self._prior_lr)
-        if self.temperature.is_trainable():
-            # Entropy of a uniform distribution
-            self._target_entropy = np.log(self._action_dim)
-            target_entropy_coef = self._target_entropy_coef \
-                if isinstance(self._target_entropy_coef, float) \
-                else self._target_entropy_coef(self._train_step)
-            target_entropy = self._target_entropy * target_entropy_coef
-            with tf.GradientTape() as tape:
-                log_temp, temp = self.temperature(x)
-                entropy_diff = entropy - target_entropy
-                temp_loss = log_temp * entropy_diff
-                tf.debugging.assert_shapes([[temp_loss, (None, )]])
-                temp_loss = tf.reduce_mean(IS_ratio * temp_loss)
-            terms['target_entropy'] = target_entropy
-            terms['entropy_diff'] = entropy_diff
-            terms['log_temp'] = log_temp
-            terms['temp_loss'] = temp_loss
-            terms['temp_norm'] = self._temp_opt(tape, temp_loss)
+
+        temp_terms = self._learn_temp(x, entropy, IS_ratio)
 
         if self._is_per:
             error = tf.abs(error)
@@ -120,6 +78,7 @@ class Agent(DQNBase):
             value_loss=value_loss, 
             temp=temp,
             explained_variance_q=explained_variance(target, q),
+            **temp_terms
         ))
         # for i in range(self.actor.action_dim):
         #     terms[f'prior_{i}'] = self.actor.prior[i]

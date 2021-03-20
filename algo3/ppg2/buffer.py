@@ -11,8 +11,7 @@ class Replay:
         self.TOTAL_STEPS = self.N_STEPS * self._n_segs
         buff_size = self._n_envs * self.N_STEPS
         self._size = buff_size * self._n_segs
-        self._n_mbs = self._n_segs * self.N_AUX_MBS_PER_SEG
-        self._mb_size = self._size // self._n_mbs
+        self._mb_size = self._size // self.N_AUX_MBS
         self._shuffled_idxes = np.arange(self._size)
         self._idx = 0
         self._mb_idx = 0
@@ -91,7 +90,7 @@ class Replay:
         if self._mb_idx == 0:
             np.random.shuffle(self._shuffled_idxes)
         self._mb_idx, self._curr_idxes = compute_indices(
-            self._shuffled_idxes, self._mb_idx, self._mb_size, self._n_mbs)
+            self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_AUX_MBS)
         return {k: self._memory[k][self._curr_idxes] for k in self._aux_sample_keys}
 
     def finish(self, last_value):

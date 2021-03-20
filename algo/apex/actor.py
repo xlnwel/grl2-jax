@@ -165,6 +165,7 @@ def get_worker_class(AgentBase):
                 nsteps=self.SYNC_PERIOD if self._run_mode == RunMode.NSTEPS else None,
                 run_mode=self._run_mode)
 
+            self._worker_side_prioritization = getattr(self, '_worker_side_prioritization', False)
             self._return_stats = self._worker_side_prioritization \
                 or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps', 1)
             collect_fn = pkg.import_module('agent', algo=self._algorithm, place=-1).collect

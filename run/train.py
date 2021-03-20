@@ -32,8 +32,8 @@ def get_config(algo, env):
         return filename
     algo_dir = pkg.get_package(algo, 0, '/')
     if env == '' and '-' in algo:
-        pwc('Config Warning: set atari as the default env, otherwise specify env explicitly', color='green')
-        env = 'atari_'
+        pwc('Config Warning: set Procgen as the default env, otherwise specify env explicitly', color='green')
+        env = 'procgen_'
     files = [f for f in os.listdir(algo_dir) if 'config.yaml' in f]
     filename = 'config.yaml'
     if '_' in env:

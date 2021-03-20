@@ -20,9 +20,7 @@ class Agent(PPOBase):
     def _add_attributes(self, env, dateset):
         super()._add_attributes(env, dateset)
         assert self.N_SEGS <= self.N_PI, f'{self.N_SEGS} > {self.N_PI}'
-        self.N_AUX_MBS = self.N_SEGS * self.N_AUX_MBS_PER_SEG
-        self._batch_size = env.n_envs * self.N_STEPS // self.N_MBS
-        self._aux_batch_size = env.n_envs * self.N_STEPS // self.N_AUX_MBS_PER_SEG
+        self._aux_batch_size = env.n_envs * self.N_STEPS * self.N_SEGS // self.N_AUX_MBS
         # self._inner_entropy_coef = tf.Variable(self._inner_entropy_coef)
 
     @override(PPOBase)

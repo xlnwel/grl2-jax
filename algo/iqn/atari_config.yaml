@@ -60,7 +60,7 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 5e-5
+    value_lr: 5e-5
     clip_norm: 40
 
     # arguments for PER

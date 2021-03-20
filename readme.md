@@ -1,8 +1,10 @@
+## Distributed Deep Reinforcement Learning (D2RL)
+
 A modulated and versatile library for reinforcement learning algorithms, implemented in *Tensorflow2.4*. *ray1.1.0* is used for distributed training. 
 
 ## Current Implemented Algorithms/Networks
 
-Many algorithms are simply improvements of their predecessors. Therefore, instead of implementing them as separate algorithms, we pvodie options to turn these on/off in `config.yaml`.
+Many algorithms are simply improvements/minor modifications of their predecessors. Therefore, instead of implementing them as separate algorithms, we provide options to turn these on/off in `config.yaml`. Also, some hyperparameters may be obsolete.
 
 ### On Policy RL
 
@@ -20,6 +22,7 @@ Many algorithms are simply improvements of their predecessors. Therefore, instea
 - [x] M-DQN
 - [x] M-IQN
 - [x] RDQN (Recurrent DQN with masked LSTM)
+- [x] Reactor
 - [x] Retrace(𝝀)
 - [x] TBO (Transformed Bellman Operator)
 - [x] SAC (w/ or w/o adaptive temperature)
@@ -53,6 +56,7 @@ The following networks are implemented for RL experiments only.
 ```shell
 python run/train.py algo -e env
 ```
+
 For available `algo`, please refer to the folder names in `/algo`. To run distributed algorithms, `algo` should be of form `{distributed_architecture}-{algorithm}`. For example, if you want to run Ape-X with DQN, replace 'algo' with `apex-dqn`. Configures are set in `*config.yaml` in each fold following convention `{algo}_{env_suite}_config.yaml`, where `algo` is omitted when there is no ambiguous and `env_suite` is omitted when there is no corresponding suite name. `env` follows convention `{suite}_{name}`, current available `suite` includes `[atari, procgen, dmc]`.  
 
 Examples
@@ -72,6 +76,7 @@ You can also make some simple changes to `*config.yaml` from command line
 # change learning rate to 0.0001, `lr` must appear in `*config.yaml`
 python run/train.py ppo -e procgen_coinrun -kw lr=0.0001
 ```
+See more examples in file `start`
 
 ## Acknowledge
 

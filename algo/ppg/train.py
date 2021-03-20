@@ -80,14 +80,12 @@ def train(agent, env, eval_env, buffer):
         buffer.aux_reset()
 
 def main(env_config, model_config, agent_config, buffer_config):
-    algo = agent_config['algorithm']
-
-    create_model, Agent = pkg.import_agent(config=agent_config)
-    Buffer = pkg.import_module('buffer', algo=algo).Replay
-
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config['precision'])
+
+    create_model, Agent = pkg.import_agent(config=agent_config)
+    Buffer = pkg.import_module('buffer', config=agent_config).Replay
 
     use_ray = env_config.get('n_workers', 1) > 1
     if use_ray:
@@ -98,6 +96,8 @@ def main(env_config, model_config, agent_config, buffer_config):
 
     env = create_env(env_config, force_envvec=True)
     eval_env_config = env_config.copy()
+    if 'num_levels' in eval_env_config:
+        eval_env_config['num_levels'] = 0
     if 'seed' in eval_env_config:
         eval_env_config['seed'] += 1000
     eval_env_config['n_workers'] = 1

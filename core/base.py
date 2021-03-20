@@ -7,9 +7,10 @@ import cloudpickle
 from utility.display import pwc
 from utility.utils import Every
 from utility.timer import Timer
-from utility.schedule import PiecewiseSchedule
+from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from utility.rl_utils import compute_act_temp, compute_act_eps
 from core.log import *
+from core.optimizer import Optimizer
 from core.checkpoint import *
 from core.decorator import override, agent_config
 
@@ -121,7 +122,25 @@ class AgentBase(AgentImpl):
 
     @abstractmethod
     def _construct_optimizers(self):
-        raise NotImplementedError
+        self._optimizer = self._construct_opt()
+
+    def _construct_opt(self, models=None, lr=None, opt=None, 
+            weight_decay=None, clip_norm=None, epsilon=None):
+        lr = lr or self._lr
+        opt = opt or getattr(self, '_optimizer', 'adam')
+        weight_decay = weight_decay or getattr(self, '_weight_decay', None)
+        clip_norm = clip_norm or getattr(self, '_clip_norm', None)
+        epsilon = epsilon or getattr(self, '_opt_eps', 1e-7)
+        if isinstance(lr, (tuple, list)):
+            lr = TFPiecewiseSchedule(lr)
+        models = models or [v for k, v in self.model.items() if 'target' not in k]
+        opt = Optimizer(
+            opt, models, lr, 
+            weight_decay=weight_decay,
+            clip_norm=clip_norm,
+            epsilon=epsilon
+        )
+        return opt
 
     @abstractmethod
     def _build_learn(self, env):
@@ -439,25 +458,25 @@ class TargetNetOps:
     before AgentBase to override _sync_nets. Otherwise, you have to 
     explicitly call TargetNetOps._sync_nets(self) """
     def _setup_target_net_sync(self):
-        if hasattr(self, '_target_update_period'):
-            self._to_sync = Every(self._target_update_period)
+        self._to_sync = Every(self._target_update_period) \
+            if hasattr(self, '_target_update_period') else None
 
     @tf.function
     def _sync_nets(self):
         ons = self.get_online_nets()
         tns = self.get_target_nets()
-        logger.info(f"Online networks: {[n.name for n in ons]}")
-        logger.info(f"Target networks: {[n.name for n in tns]}")
+        logger.info(f"Sync Net | Online networks: {[n.name for n in ons]}")
+        logger.info(f"Sync Net | Target networks: {[n.name for n in tns]}")
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
         [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
 
     @tf.function
-    def _update_target_nets(self):
+    def _update_nets(self):
         ons = self.get_online_nets()
         tns = self.get_target_nets()
-        logger.info(f"Online networks: {[n.name for n in ons]}")
-        logger.info(f"Target networks: {[n.name for n in tns]}")
+        logger.info(f"Update Net | Online networks: {[n.name for n in ons]}")
+        logger.info(f"Update Net | Target networks: {[n.name for n in tns]}")
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
         [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 

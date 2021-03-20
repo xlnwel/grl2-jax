@@ -14,6 +14,12 @@ model:
         cnn_name: impala
     # rnn:
     #     units: 512
+    # actor:
+    #     units_list: [512]
+    #     layer_type: dense
+    #     norm: null
+    #     kernel_initializer: glorot_uniform
+    #     activation: relu
     q:
         units_list: [512]
         layer_type: dense
@@ -23,7 +29,6 @@ model:
         duel: False
         stoch_action: False
         tau: &tau 0.01
-    additional_rnn_input: False
 
 agent:
     algorithm: &algo rdqn
@@ -54,6 +59,9 @@ agent:
     burn_in: False
     sample_size: &ss 16
     burn_in_size: &bis 0
+    # additional_rnn_inputs:
+    #     prev_reward: float32
+    #     prev_action: int32
 
     MAX_STEPS: 1e7          # maximum env steps
     TRAIN_PERIOD: 256
@@ -73,11 +81,13 @@ agent:
     target_update_period: 1500
     tbo: False                              # transformed Bellman Operator
     
+    loo_c: 1.
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 2.5e-4
-    epsilon: 1e-7
+    actor_lr: 2.5e-4
+    value_lr: 2.5e-4
+    opt_eps: 1e-7
 
     # arguments for PER
     per_alpha: .9
@@ -99,4 +109,4 @@ replay:
     min_size: 100
     capacity: 10000
     state_keys: ['h', 'c']
-    extra_keys: ['obs', 'action', 'prob', 'mask']
+    extra_keys: ['obs', 'action', 'mu', 'mask']

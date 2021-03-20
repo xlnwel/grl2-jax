@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from utility.tf_utils import softmax, log_softmax
+from utility.tf_utils import softmax, log_softmax, explained_variance
 from utility.rl_loss import n_step_target, huber_loss
 from algo.dqn.base import DQNBase, get_data_format, collect
 
@@ -25,12 +25,13 @@ class Agent(DQNBase):
             priority = self._compute_priority(tf.abs(error))
             terms['priority'] = priority
         
-        terms['norm'] = self._optimizer(tape, loss)
+        terms['norm'] = self._value_opt(tape, loss)
         
         terms.update(dict(
             q=q,
             target=target,
             loss=loss,
+            explained_variance_q=explained_variance(target, q),
         ))
 
         return terms

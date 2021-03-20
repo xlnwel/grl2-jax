@@ -202,7 +202,7 @@ class Temperature(Module):
 
         self.temp_type = config['temp_type']
 
-        if self.temp_type == 'state-action':
+        if self.temp_type == 'state':
             self.intra_layer = layers.Dense(1)
         elif self.temp_type == 'variable':
             self.log_temp = tf.Variable(np.log(config['value']), dtype=tf.float32)
@@ -210,7 +210,7 @@ class Temperature(Module):
             raise NotImplementedError(f'Error temp type: {self.temp_type}')
     
     def call(self, x, a):
-        if self.temp_type == 'state-action':
+        if self.temp_type == 'state':
             x = tf.concat([x, a], axis=-1)
             x = self.intra_layer(x)
             log_temp = tf.squeeze(log_temp)

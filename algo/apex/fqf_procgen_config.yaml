@@ -1,10 +1,9 @@
 ---
 env:
-    name: procgen_coinrun
+    name: procgen_starpilot
     distribution_mode: easy
-    frame_skip: 1
     n_envs: &ne 4
-    frame_stack: 1
+    frame_stack: 4
     np_obs: True
     reward_scale: 1
     reward_clip: 10
@@ -23,6 +22,9 @@ model:
         norm: null
         kernel_initializer: glorot_uniform
         activation: relu
+        duel: False
+        stoch_action: True
+        tau: &tau 0.003
 
 agent:
     algorithm: &algo apex-fqf
@@ -30,19 +32,31 @@ agent:
     gamma: &gamma .99
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
+
+    MUNCHAUSEN: False   # whether to use munchausen rl target
+    probabilistic_regularization: null
+
+    tau: *tau
+    alpha: .9
+    clip_logpi_min: -1
+
     schedule_act_eps: True
     act_eps_type: apex
     act_eps: .3
     eval_act_eps: 0
+    schedule_act_temp: True
+    n_exploit_envs: 8
+    min_temp: .5
+    max_temp: 10
+    eval_act_temp: .5
     
     # timer&interval
-    MAX_STEPS: 2.5e7
+    MAX_STEPS: 1e7
     LOG_PERIOD: 100
     N_UPDATES: 1
     SYNC_PERIOD: 400
     RECORD_PERIOD: 100
     N_EVALUATION: 10
-    logger: True
 
     # IQN params
     N: *N               # N in paper, num of quantiles for online quantile network
@@ -68,14 +82,14 @@ agent:
     tbo: False
 
     # arguments for optimizer
-    q_opt: adam
+    value_opt: adam
     schedule_lr: False
     value_lr: 2.5e-4
     fpn_opt: rmsprop
     fpn_lr: 2.5e-9
     ent_coef: .001
     clip_norm: 0
-    epsilon: 1.5e-4
+    opt_eps: 1.5e-4
 
     # arguments for PER
     per_alpha: .6
@@ -94,7 +108,7 @@ replay:
 
     # arguments for general replay
     n_steps: *nsteps
-    max_steps: 5
+    max_steps: 3
     gamma: *gamma
     batch_size: *bs
     min_size: 1600

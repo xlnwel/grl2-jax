@@ -33,7 +33,7 @@ model:
     
 agent:
     algorithm: &algo sacd
-    replay_type: &replay per
+    replay_type: &replay uniform
     gamma: &gamma .99
     batch_size: &bs 64
     n_steps: &nsteps 3      # n-step target
@@ -78,8 +78,7 @@ agent:
     temp_lr: 2.5e-4
     weight_decay: null
     clip_norm: 0 
-    epsilon: 1e-7
-    prior_lr: 1.e-3
+    opt_eps: 1e-7
     
     # arguments for PER
     per_alpha: .6

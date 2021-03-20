@@ -10,8 +10,8 @@ class Agent(DQNBase):
     def _construct_optimizers(self):
         if self._schedule_lr:
             self._value_lr = TFPiecewiseSchedule(self._value_lr)
-        self._q_opt = Optimizer(
-            self._q_opt, [self.encoder, self.qe, self.q], self._value_lr, 
+        self._value_opt = Optimizer(
+            self._value_opt, [self.encoder, self.qe, self.q], self._value_lr, 
             clip_norm=self._clip_norm, epsilon=1e-2/self._batch_size)
         self._fpn_opt = Optimizer(self._fpn_opt, self.fpn, self._fpn_lr, 
             rho=.95, epsilon=1e-5, centered=True)
@@ -94,7 +94,7 @@ class Agent(DQNBase):
             priority = self._compute_priority(error)
             terms['priority'] = priority
         
-        terms['iqn_norm'] = self._q_opt(tape, qr_loss)
+        terms['iqn_norm'] = self._value_opt(tape, qr_loss)
         terms['fpn_norm'] = self._fpn_opt(tape, fpn_loss)
         
         terms.update(dict(
