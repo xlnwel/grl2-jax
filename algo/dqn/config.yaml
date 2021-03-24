@@ -36,7 +36,7 @@ agent:
 
     loss_type: huber   # huber or mse
     target_update_period: 3000
-    tbo: True                              # transformed Bellman Operator
+    tbo: False                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam
