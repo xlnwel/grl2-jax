@@ -28,11 +28,15 @@ def train(agent, env, eval_env, buffer):
     # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_running_stats() if k])
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
+    rt = Timer('run')
+    tt = Timer('train')
+    et = Timer('eval')
+    lt = Timer('log')
     print('Training starts...')
     while step < agent.MAX_STEPS:
         start_env_step = agent.env_step
         agent.before_run(env)
-        with Timer('env') as tt:
+        with rt:
             step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/tt.last())
         # NOTE: normalizing rewards here may introduce some inconsistency 
@@ -49,7 +53,7 @@ def train(agent, env, eval_env, buffer):
         buffer.finish(value)
 
         start_train_step = agent.train_step
-        with Timer('train') as tt:
+        with tt:
             agent.learn_log(step)
         agent.store(tps=(agent.train_step-start_train_step)/tt.last())
         agent.update_obs_rms(buffer['obs'])
@@ -57,23 +61,25 @@ def train(agent, env, eval_env, buffer):
 
         if to_eval(agent.train_step) or step > agent.MAX_STEPS:
             with TempStore(agent.get_states, agent.reset_states):
-                with Timer('eval') as eval_time:
-                    scores, epslens, video = evaluate(
-                        eval_env, agent, record=agent.RECORD, size=(128, 128))
+                with et:
+                    eval_score, eval_epslen, video = evaluate(
+                        eval_env, agent, n=agent.N_EVAL_EPISODES, 
+                        record=agent.RECORD, size=(64, 64))
                 if agent.RECORD:
                     video_summary(f'{agent.name}/sim', video, step=step)
                 agent.store(
-                    eval_score=scores, 
-                    eval_epslen=epslens, 
-                    eval_time=eval_time.total())
+                    eval_score=eval_score, 
+                    eval_epslen=eval_epslen)
 
         if to_log(agent.train_step) and agent.contains_stats('score'):
-            agent.store(
-                train_step=agent.train_step,
-                env_time=tt.total(), 
-                train_time=tt.total())
-            agent.log(step)
-            agent.save()
+            with lt:
+                agent.store(
+                    train_step=agent.train_step,
+                    env_time=rt.total(), 
+                    train_time=tt.total(),
+                    eval_time=et.total())
+                agent.log(step)
+                agent.save()
 
 def main(env_config, model_config, agent_config, buffer_config):
     silence_tf_logs()

@@ -21,12 +21,12 @@ agent:
     algorithm: &algo rdqn
     replay_type: &replay seq
     gamma: 0.99
-    lambda: .95
+    lambda: 1
     precision: *prec
-    batch_size: &bs 16
+    batch_size: &bs 32
 
     store_state: True
-    burn_in: True
+    burn_in: False
     sample_size: &ss 60
     burn_in_size: &bis 20
     schedule_act_eps: False

@@ -144,36 +144,46 @@ def static_scan(fn, start, inputs, reverse=False):
     # reconstruct outputs to have the same structure as start
     return tf.nest.pack_sequence_as(start, outputs)
 
-class RunningMeanStd:
-    def __init__(self, shape=(), scale=1., clip=10., epsilon=1e-2):
+class TFRunningMeanStd:
+    """ Different from PopArt, this is only for on-policy training, """
+    def __init__(self, axis, shape=(), clip=None, epsilon=1e-2, dtype=tf.float32):
         # use tf.float64 to avoid overflow
         self._sum = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float64, name='sum')
         self._sumsq = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float64, name='sum_squares')
         self._count = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float64, name='count')
-        self._scale = scale
+        self._mean = None
+        self._std = None
+        self._axis = axis
         self._clip = clip
         self._epsilon = epsilon
-
+        self._dtype = dtype
 
     def update(self, x):
-        self._sum.assign_add(tf.reduce_sum(x, axis=0))
-        self._sumsq.assign_add(tf.cast(tf.reduce_sum(x**2, axis=0), self._sumsq.dtype))
-        self._count.assign_add(tf.cast(tf.shape(x)[0], self._count.dtype))
-
-    def normalize(self, x, subtract_mean=True):
+        x = tf.cast(x, tf.float64)
+        self._sum.assign_add(tf.reduce_sum(x, axis=self._axis))
+        self._sumsq.assign_add(tf.cast(tf.reduce_sum(x**2, axis=self._axis), self._sumsq.dtype))
+        self._count.assign_add(tf.cast(tf.math.reduce_prod(tf.shape(x)[:len(self._axis)]), self._count.dtype))
         mean = self._sum / self._count
-        std = tf.sqrt(tf.maximum(self._sumsq / self._count - mean**2, self._epsilon))
-        std = tf.cast(std, x.dtype)
-        if subtract_mean:
-            mean = tf.cast(mean, x.dtype)
-            x = x - mean
-        x = x / std
-        if self._scale is not None and self._scale != 1:
-            x *= self._scale
+        std = tf.sqrt(tf.maximum(
+            self._sumsq / self._count - mean**2, self._epsilon))
+        self._mean = tf.cast(mean, self._dtype)
+        self._std = tf.cast(std, self._dtype)
+
+    def normalize(self, x, zero_center=True):
+        if zero_center:
+            x = x - self._mean
+        x = x / self._std
         if self._clip is not None:
             x = tf.clip_by_value(x, -self._clip, self._clip)
         return x
+    
+    def denormalize(self, x, zero_center=True):
+        x = x * self._std
+        if zero_center:
+            x = x + self._mean
+        return x
         
+
 def get_stoch_state(x, min_std):
     mean, std = tf.split(x, 2, -1)
     std = tf.nn.softplus(std) + min_std

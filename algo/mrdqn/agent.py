@@ -38,14 +38,22 @@ class Agent(RDQNBase):
             with tf.GradientTape() as tape:
                 pi, logpi = self.actor.train_step(x)
                 pi_a = tf.reduce_sum(pi * action, -1)
-                loo_loss = tf.minimum(1. / mu, self._loo_c) * error * pi_a \
-                    + tf.reduce_sum(qs * pi, axis=-1)
+                a_pi_loss = tf.minimum(1. / mu, self._loo_c) * error * pi_a
+                q_pi_loss = tf.reduce_sum(qs * pi, axis=-1)
+                loo_loss =  q_pi_loss
                 loo_loss = tf.reduce_mean(loo_loss, axis=-1)
-                actor_loss = tf.reduce_mean(IS_ratio * loo_loss)
-                terms['entropy'] = -tf.reduce_mean(pi * logpi)
+                if self._probabilistic_regularization is None:
+                    entropy = -tf.reduce_mean(pi * logpi, axis=(-2, -1))
+                    terms['entropy'] = tf.reduce_mean(entropy)
+                    actor_loss = loo_loss - self._entropy_coef * entropy
+                else:
+                    actor_loss = loo_loss
+                actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
                 terms['actor_loss'] = actor_loss
                 terms['ratio'] = tf.reduce_mean(pi_a / mu)
             tf.debugging.assert_shapes([
+                [pi, (None, self._sample_size, self._action_dim)],
+                [qs, (None, self._sample_size, self._action_dim)],
                 [loo_loss, (None)],
             ])
             terms['actor_norm'] = self._actor_opt(tape, actor_loss)
@@ -56,11 +64,15 @@ class Agent(RDQNBase):
         
         terms.update(dict(
             q=q,
+            q_std=tf.math.reduce_std(q),
+            error=error,
+            error_std=tf.math.reduce_std(error),
             mu_min=tf.reduce_min(mu),
             mu=mu,
+            mu_inv=tf.reduce_mean(1/mu),
             mu_std=tf.math.reduce_std(mu),
             target=target,
-            q_explained_variance=explained_variance(target, q)
+            explained_variance_q=explained_variance(target, q)
         ))
 
         return terms
@@ -84,7 +96,7 @@ class Agent(RDQNBase):
 
         next_qs = self.target_q(next_x)
         regularization = None
-        if hasattr(self, 'actor'):
+        if 'actor' in self.model:
             next_pi, next_logpi = self.actor.train_step(next_x)
             if self._probabilistic_regularization == 'entropy':
                 regularization = self._tau * tf.reduce_sum(next_pi * next_logpi, axis=-1)

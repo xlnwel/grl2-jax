@@ -53,7 +53,7 @@ agent:
     optimizer: adam
     schedule_lr: False
     lr: 5e-5
-    clip_norm: 0
+    clip_norm: 10
     opt_eps: 3.125e-4
 
     # arguments for PER

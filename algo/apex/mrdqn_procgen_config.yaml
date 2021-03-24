@@ -1,10 +1,9 @@
 ---
 env:
-    name: procgen_coinrun
+    name: procgen_starpilot
     distribution_mode: easy
     n_envs: &ne 4
-    frame_diff: False
-    frame_stack: 1
+    frame_stack: 4
     np_obs: True
     reward_scale: 1
     reward_clip: 10
@@ -21,7 +20,7 @@ model:
         kernel_initializer: glorot_uniform
         activation: relu
         duel: False
-        stoch_action: True
+        stoch_action: False
         tau: &tau 0.01
 
 agent:
@@ -33,7 +32,7 @@ agent:
     precision: 16
 
     MUNCHAUSEN: False   # whether to use munchausen rl target
-    probabilistic_regularization: entropy
+    probabilistic_regularization: null
 
     tau: *tau
     alpha: .9
@@ -43,7 +42,7 @@ agent:
     act_eps_type: apex
     act_eps: .3
     eval_act_eps: 0
-    schedule_act_temp: True
+    schedule_act_temp: False
     n_exploit_envs: 8
     min_temp: .5
     max_temp: 10

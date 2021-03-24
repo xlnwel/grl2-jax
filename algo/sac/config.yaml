@@ -1,16 +1,17 @@
 ---
 env:
     name: LunarLanderContinuous-v2
+    # reward_clip: 10
 
 model:
     actor:
-        units_list: [128, 128]
+        units_list: [128, 64]
         norm: null
         activation: relu
         LOG_STD_MIN: -20
         LOG_STD_MAX: 2
     q:
-        units_list: [128, 128]
+        units_list: [128, 64]
         norm: null
         activation: relu
     temperature:
@@ -24,16 +25,19 @@ agent:
     batch_size: &bs 256
     n_steps: &nsteps 3
     polyak: .995
-    act_eps: .3
+
+    act_eps: 0
     eval_act_eps: 0
 
     MAX_STEPS: 3e6
     TRAIN_PERIOD: 1
-    LOG_PERIOD: 1000
-    EVAL_PERIOD: 1000
+    LOG_PERIOD: 5000
+    EVAL_PERIOD: 5000
     N_UPDATES: 1
-    N_EVAL_EPISODES: 100
-    RECORD: True
+    N_EVAL_EPISODES: 1
+    # RECORD: True
+
+    tbo: False
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -55,7 +59,7 @@ agent:
 
 replay:
     replay_type: *replay
-    seqlen: 50
+    seqlen: 10
     # arguments for PER
     beta0: .4
     beta_steps: 5e4
@@ -66,5 +70,5 @@ replay:
     gamma: *gamma
     batch_size: *bs
     min_size: 1e4
-    capacity: 1e5
+    capacity: 1e6
     has_next_obs: False

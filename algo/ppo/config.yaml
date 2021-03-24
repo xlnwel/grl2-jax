@@ -2,20 +2,19 @@
 env:
     name: &env_name BipedalWalker-v3
     n_workers: 1
-    n_envs: &nenvs 8
+    n_envs: &nenvs 64
     seed: 0
     precision: &prec 32
 
 model:
     encoder: 
         units_list: []
-        kernel_initializer: glorot_uniform
         activation: relu
     actor:
         units_list: [64, 64]
         init_std: 1
         norm: null
-        kernel_initializer: glorot_uniform
+        kernel_initializer: orthogonal
         activation: relu
     value:
         units_list: [64, 64]

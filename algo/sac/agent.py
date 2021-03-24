@@ -19,7 +19,8 @@ class Agent(DQNBase):
         else:
             _, temp = self.temperature()
         next_value = next_q_with_actor - temp * next_logpi
-        q_target = n_step_target(reward, next_value, discount, self._gamma, steps)
+        q_target = n_step_target(reward, next_value, discount, 
+            self._gamma, steps, tbo=self._tbo)
 
         terms = {}
         with tf.GradientTape() as tape:

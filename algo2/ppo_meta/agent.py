@@ -16,6 +16,20 @@ logger = logging.getLogger(__name__)
 class Agent(PPOBase):
     """ Initialization """
     @override(PPOBase)
+    def _construct_optimizers(self):
+        if getattr(self, 'schedule_lr', False):
+            assert isinstance(self._lr, list), self._lr
+            self._lr = TFPiecewiseSchedule(self._lr)
+        # TODO: should we put meta_embed here?
+        ac = [self.encoder, self.actor, self.value, self.meta_embed]
+        self._ac_opt = Optimizer(
+            Adam, ac, self._ac_lr, 
+            clip_norm=self._clip_norm, epsilon=self._opt_eps)
+        self._meta_opt = Optimizer(
+            Adam, self.meta, self._meta_lr, 
+            clip_norm=self._clip_norm, epsilon=self._opt_eps)
+
+    @override(PPOBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
@@ -77,19 +91,6 @@ class Agent(PPOBase):
             })
 
         return i * self.N_MBS + j
-
-    @override(PPOBase)
-    def _construct_optimizers(self):
-        if getattr(self, 'schedule_lr', False):
-            assert isinstance(self._lr, list), self._lr
-            self._lr = TFPiecewiseSchedule(self._lr)
-        ac = [self.encoder, self.actor, self.value, self.meta_embed]
-        self._ac_opt = Optimizer(
-            Adam, ac, self._ac_lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
-        self._meta_opt = Optimizer(
-            Adam, self.meta, self._meta_lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
     # @override(PPOBase)
     # def _summary(self, data, terms):

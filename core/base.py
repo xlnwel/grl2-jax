@@ -120,14 +120,18 @@ class AgentBase(AgentImpl):
         self._sample_timer = Timer('sample')
         self._train_timer = Timer('train')
 
+        self.RECORD = getattr(self, 'RECORD', False)
+        self.N_EVAL_EPISODES = getattr(self, 'N_EVAL_EPISODES', 1)
+
     @abstractmethod
     def _construct_optimizers(self):
         self._optimizer = self._construct_opt()
 
-    def _construct_opt(self, models=None, lr=None, opt=None, 
+    def _construct_opt(self, models=None, lr=None, opt=None, l2_reg=None,
             weight_decay=None, clip_norm=None, epsilon=None):
         lr = lr or self._lr
         opt = opt or getattr(self, '_optimizer', 'adam')
+        l2_reg = l2_reg or getattr(self, '_l2_reg', None)
         weight_decay = weight_decay or getattr(self, '_weight_decay', None)
         clip_norm = clip_norm or getattr(self, '_clip_norm', None)
         epsilon = epsilon or getattr(self, '_opt_eps', 1e-7)
@@ -136,6 +140,7 @@ class AgentBase(AgentImpl):
         models = models or [v for k, v in self.model.items() if 'target' not in k]
         opt = Optimizer(
             opt, models, lr, 
+            l2_reg=l2_reg,
             weight_decay=weight_decay,
             clip_norm=clip_norm,
             epsilon=epsilon
@@ -218,7 +223,7 @@ class RMSAgentBase(AgentBase):
         from utility.utils import RunningMeanStd
         self._normalized_axis = getattr(self, '_normalized_axis', (0, 1))
         self._normalize_obs = getattr(self, '_normalize_obs', False)
-        self._normalize_reward = getattr(self, '_normalize_reward', True)
+        self._normalize_reward = getattr(self, '_normalize_reward', False)
         self._normalize_reward_with_reversed_return = \
             getattr(self, '_normalize_reward_with_reversed_return', True)
         
@@ -303,7 +308,7 @@ class RMSAgentBase(AgentBase):
         return self._obs_rms.normalize(obs) if self._normalize_obs else obs
 
     def normalize_reward(self, reward):
-        return self._reward_rms.normalize(reward, subtract_mean=False) \
+        return self._reward_rms.normalize(reward, zero_center=False) \
             if self._normalize_reward else reward
 
     @override(AgentBase)

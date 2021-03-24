@@ -31,7 +31,8 @@ class Agent(DQNBase, TempLearner):
                 * (next_qs - temp * next_act_logps), axis=-1)
         else:
             next_value = tf.reduce_sum(next_act_probs * next_qs, axis=-1)
-        q_target = n_step_target(reward, next_value, discount, self._gamma, steps)
+        q_target = n_step_target(reward, next_value, discount, 
+            self._gamma, steps, tbo=self._tbo)
         tf.debugging.assert_shapes([
             [next_value, (None,)],
             [reward, (None,)],

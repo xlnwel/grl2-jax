@@ -29,7 +29,7 @@ agent:
     polyak: .995
     evaluation: False
 
-    MAX_STEPS: 1e8
+    MAX_STEPS: 1e6
     LOG_PERIOD: &log 100
     N_UPDATES: *log
     SYNC_PERIOD: 1000

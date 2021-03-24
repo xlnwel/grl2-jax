@@ -98,6 +98,7 @@ class ResidualBase(Module):
             if self._dropout_rate != 0:
                 noise_shape = (None, 1, 1, 1)
                 # Drop the entire residual branch with certain probability, https://arxiv.org/pdf/1603.09382.pdf
+                # TODO: recalibrate the output at test time
                 self._layers.append(
                     layers.Dropout(self._dropout_rate, noise_shape, name=prefix+'dropout'))
             if self._use_rezero:

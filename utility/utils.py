@@ -14,8 +14,10 @@ class AttrDict(dict):
 
 def deep_update(source, target):
     for k, v in target.items():
-        if isinstance(v, collections.abc.Mapping) \
-            and isinstance(source[k], collections.abc.Mapping):
+        if isinstance(v, collections.abc.Mapping):
+            assert k in source, f'{k} does not exist in {source}'
+            assert isinstance(source[k], collections.abc.Mapping), \
+                f'Inconsistent types: {type(v)} vs {type(source[k])}'
             source[k] = deep_update(source.get(k, {}), v)
         else:
             source[k] = v
@@ -118,15 +120,16 @@ class RunningMeanStd:
 
         self._mean = new_mean
         self._var = new_var
+        self._std = np.sqrt(self._var)
         self._count = total_count
         assert np.all(self._var > 0), self._var[self._var <= 0]
 
-    def normalize(self, x, subtract_mean=True):
+    def normalize(self, x, zero_center=True):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
         assert self._var is not None, (self._mean, self._var, self._count)
-        if subtract_mean:
+        if zero_center:
             x = x - self._mean
-        x /= np.sqrt(self._var)
+        x /= self._std
         if self._clip:
             x = np.clip(x, -self._clip, self._clip)
         x = x.astype(np.float32)

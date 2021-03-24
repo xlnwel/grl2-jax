@@ -25,7 +25,7 @@ def ortho_init(scale):
         return (scale * q[:shape[0], :shape[1]]).astype(np.float32)
     return _ortho_init
 
-class ACNet(Module):
+class ACCNN(Module):
     def __init__(self, name):
         super().__init__(name)
 
@@ -54,7 +54,7 @@ class AC(Module):
         super().__init__(name=name)
         
         """ Network definition """
-        self._cnn = ACNet(name)
+        self._cnn = ACCNN(name)
         
         self._eval_act_temp = getattr(self, '_eval_act_temp', 0)
         

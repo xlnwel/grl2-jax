@@ -20,6 +20,7 @@ def computer_vision():
             Month[3]: {
                 'relation': 1,
                 'layer': 1,
+                'network': 4,
             }
         }
     }
@@ -39,10 +40,10 @@ def reinforcement_learning():
     papers = {
         'reinforcement_learning': {
             Month[3]: {
-                'pg': 2,                # policy gradient
+                'policy gradient': 2,                # policy gradient
                 'generalization': 1,
                 'marl': 6,              # multi-agent RL
-                'ns': 1,                # neuron science
+                'neuron science': 1,                # neuron science
                 'auxiliary task': 1,
                 'tricks': 2,
             }

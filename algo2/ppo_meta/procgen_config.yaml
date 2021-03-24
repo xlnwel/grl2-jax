@@ -5,7 +5,7 @@ env:
     n_envs: &nenvs 64
     frame_skip: 1
     frame_stack: 1
-    np_obs: True
+    num_levels: 200
 
 model:
     encoder: 
@@ -28,22 +28,22 @@ model:
             act: sigmoid
             units: 16
         value_coef: 
-            init: 0
-            outer: &vc 1.
+            init: 4.96
+            outer: &vc .5
             act: sigmoid
             units: 16
 
 agent:
     algorithm: &algo ppo
     precision: 32
-    gamma: &gamma .99
+    gamma: &gamma .999
 
     MAX_STEPS: 2.5e7
     N_STEPS: &nsteps 256
     N_EPOCHS: 3
     N_MBS: &nmbs 8
     LOG_PERIOD: 100
-    EVAL_PERIOD: 5000
+    EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     normalize_obs: False

@@ -14,12 +14,12 @@ model:
         cnn_name: impala
     # rnn:
     #     units: 512
-    # actor:
-    #     units_list: [512]
-    #     layer_type: dense
-    #     norm: null
-    #     kernel_initializer: glorot_uniform
-    #     activation: relu
+    actor:
+        units_list: [512]
+        layer_type: dense
+        norm: null
+        kernel_initializer: glorot_uniform
+        activation: relu
     q:
         units_list: [512]
         layer_type: dense
@@ -36,10 +36,10 @@ agent:
     gamma: 0.99
     lambda: .95
     batch_size: &bs 64
-    precision: 16
+    precision: 32
 
     MUNCHAUSEN: False   # whether to use munchausen rl target
-    probabilistic_regularization: null
+    probabilistic_regularization: entropy
 
     tau: *tau
     alpha: .9
@@ -82,6 +82,7 @@ agent:
     tbo: False                              # transformed Bellman Operator
     
     loo_c: 1.
+    entropy_coef: .01
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False

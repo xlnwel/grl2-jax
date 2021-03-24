@@ -47,8 +47,6 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
 
-        self.RECORD = getattr(self, 'RECORD', False)
-        self.N_EVAL_EPISODES = getattr(self, 'N_EVAL_EPISODES', 1)
         self.MUNCHAUSEN = False
 
         self._is_per = False if dataset is None else dataset.name().endswith('per')

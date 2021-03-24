@@ -62,6 +62,10 @@ class Q(Module):
         if self._duel:
             v = self._v_layers(x, **kwargs)
             a = self._layers(x, **kwargs)
+            tf.debugging.assert_shapes([
+                [v, (None, 1)],
+                [a, (None, self._action_dim)],
+            ])
             q = v + a - tf.reduce_mean(a, axis=-1, keepdims=True)
         else:
             q = self._layers(x, **kwargs)

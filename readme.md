@@ -8,11 +8,12 @@ Many algorithms are simply improvements/minor modifications of their predecessor
 
 ### On Policy RL
 
-- [x] PPO (with FNN and all algorithmic details following OpenAI's baselines)
+All implementation details from OpenAI's baselines are implemented for PPO families 
+
+- [x] PPO (with FNN)
 - [x] PPO2 (with masked LSTM)
 - [x] PPG
 - [x] RND
-- [x] GAE
 
 ### Off Policy RL
 
@@ -22,7 +23,6 @@ Many algorithms are simply improvements/minor modifications of their predecessor
 - [x] M-DQN
 - [x] M-IQN
 - [x] RDQN (Recurrent DQN with masked LSTM)
-- [x] Reactor
 - [x] Retrace(𝝀)
 - [x] TBO (Transformed Bellman Operator)
 - [x] SAC (w/ or w/o adaptive temperature)
@@ -30,8 +30,8 @@ Many algorithms are simply improvements/minor modifications of their predecessor
 
 ### Distributed RL
 
-- [x] SEED
 - [x] Ape-X
+- [x] SEED
 
 ### Model-Based RL
 
@@ -41,15 +41,16 @@ Many algorithms are simply improvements/minor modifications of their predecessor
 
 The following networks are implemented for RL experiments only.
 
+- [x] CBAM
+- [x] Convolutional Attention
 - [x] DNC (Differentiable Neural Computer)
 - [x] Mask LSTM
-- [x] ResNet
-- [x] SENet
-- [x] CBAM
-- [x] SN (Spectral Norm)
-- [x] Convolutional Attention
 - [x] MobileNet Block
 - [x] Randomized Network (for Generalization)
+- [x] ResNet
+- [x] SENet
+- [x] SN (Spectral Norm)
+- [x] Stochastic
 
 ## Get Started
 

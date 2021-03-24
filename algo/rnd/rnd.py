@@ -35,7 +35,7 @@ class RND:
         self._int_return_rms.update(int_return)
 
     def normalize_int_reward(self, reward):
-        norm_reward = self._int_return_rms.normalize(reward, subtract_mean=False)
+        norm_reward = self._int_return_rms.normalize(reward, zero_center=False)
         return norm_reward
 
     @tf.function

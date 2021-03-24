@@ -1,7 +1,7 @@
 ---
 env:
     name: LunarLander-v2
-    seed: 0
+
 model:
     encoder:
         units_list: []
@@ -9,7 +9,7 @@ model:
         units_list: [128, 128]
         activation: relu
         layer_type: dense
-        duel: True
+        duel: False
 agent:
     algorithm: &algo dqn
     replay_type: &replay per
@@ -23,8 +23,8 @@ agent:
 
     MAX_STEPS: 1e8          # maximum training steps
     TRAIN_PERIOD: 1          # #frames = 4 agent step when frame skip = 4
-    EVAL_PERIOD: 1000
-    LOG_PERIOD: 1000
+    EVAL_PERIOD: 5000
+    LOG_PERIOD: 5000
     N_UPDATES: 1
     RECORD: False
 
@@ -36,7 +36,7 @@ agent:
 
     loss_type: huber   # huber or mse
     target_update_period: 3000
-    tbo: False                              # transformed Bellman Operator
+    tbo: True                              # transformed Bellman Operator
     
     # arguments for optimizer
     optimizer: adam

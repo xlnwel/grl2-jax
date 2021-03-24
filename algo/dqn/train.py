@@ -1,7 +1,7 @@
 import functools
 
 from core.tf_config import *
-from utility.utils import Every
+from utility.utils import Every, TempStore
 from utility.graph import video_summary
 from utility.timer import Timer
 from utility.run import Runner, evaluate
@@ -26,34 +26,48 @@ def train(agent, env, eval_env, replay):
     to_record = Every(agent.EVAL_PERIOD*10)
     rt = Timer('run')
     tt = Timer('train')
+    et = Timer('eval')
+    lt = Timer('log')
+    total_time = Timer('total')
     print('Training starts...')
     while env_step <= int(agent.MAX_STEPS):
-        with rt:
-            env_step = runner.run(step_fn=collect)
-        with tt:
-            agent.learn_log(env_step)
+        with total_time:
+            with rt:
+                env_step = runner.run(step_fn=collect)
+            with tt:
+                agent.learn_log(env_step)
 
-        if to_eval(env_step):
-            record = agent.RECORD and to_record(env_step)
-            eval_score, eval_epslen, video = evaluate(
-                eval_env, agent, record=record, n=agent.N_EVAL_EPISODES)
-            if record:
-                video_summary(f'{agent.name}/sim', video, step=env_step)
-            agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-        if to_log(env_step):
-            fps = rt.average() * agent.TRAIN_PERIOD
-            tps = tt.average() * agent.N_UPDATES
-            
-            agent.store(
-                env_step=agent.env_step,
-                train_step=agent.train_step,
-                env_time=tt.total(), 
-                train_time=tt.total(),
-                fps=fps, 
-                tps=tps,
-            )
-            agent.log(env_step)
-            agent.save()
+            if to_eval(env_step):
+                with TempStore(agent.get_states, agent.reset_states):
+                    with et:
+                        record = agent.RECORD and to_record(env_step)
+                        eval_score, eval_epslen, video = evaluate(
+                            eval_env, agent, n=agent.N_EVAL_EPISODES, 
+                            record=agent.RECORD, size=(64, 64))
+                        if record:
+                            video_summary(f'{agent.name}/sim', video, step=env_step)
+                        agent.store(
+                            eval_score=eval_score, 
+                            eval_epslen=eval_epslen)
+
+            if to_log(env_step):
+                with lt:
+                    fps = rt.average() * agent.TRAIN_PERIOD
+                    tps = tt.average() * agent.N_UPDATES
+                    
+                    agent.store(
+                        env_step=agent.env_step,
+                        train_step=agent.train_step,
+                        env_time=tt.total(), 
+                        train_time=tt.total(),
+                        eval_time=et.total(),
+                        log_time=lt.total(),
+                        total_time=total_time.total(),
+                        fps=fps, 
+                        tps=tps,
+                    )
+                    agent.log(env_step)
+                    agent.save()
 
 def main(env_config, model_config, agent_config, replay_config):
     silence_tf_logs()
@@ -68,8 +82,6 @@ def main(env_config, model_config, agent_config, replay_config):
         sigint_shutdown_ray()
 
     env = create_env(env_config)
-    # if env_config['name'].startswith('procgen'):
-    #     start_level = 200
     eval_env_config = env_config.copy()
     eval_env_config['n_workers'] = 1
     eval_env_config['n_envs'] = 64 if 'procgen' in eval_env_config['name'] else 1
