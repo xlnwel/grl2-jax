@@ -14,7 +14,7 @@ class MLP(Module):
         super().__init__(name=name)
         layer_cls = layer_registry.get(layer_type)
         Layer = layer_registry.get('layer')
-        logger.debug(f'{self.name} gain: {kwargs.get("gain", units_list)}')
+        logger.debug(f'{self.name} gain: {kwargs.get("gain", None)}')
 
         self._layers = [
             Layer(u, layer_type=layer_cls, norm=norm, 

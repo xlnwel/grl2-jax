@@ -10,7 +10,8 @@ from nn.func import Encoder, mlp
 class Q(Module):
     def __init__(self, config, action_dim, name='value'):
         super().__init__(name=name)
-
+        config = config.copy()
+        
         self._action_dim = action_dim
         self._duel = config.pop('duel', False)
         self._layer_type = config.get('layer_type', 'dense')
@@ -62,10 +63,6 @@ class Q(Module):
         if self._duel:
             v = self._v_layers(x, **kwargs)
             a = self._layers(x, **kwargs)
-            tf.debugging.assert_shapes([
-                [v, (None, 1)],
-                [a, (None, self._action_dim)],
-            ])
             q = v + a - tf.reduce_mean(a, axis=-1, keepdims=True)
         else:
             q = self._layers(x, **kwargs)

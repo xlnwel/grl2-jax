@@ -1,6 +1,6 @@
 ## Distributed Deep Reinforcement Learning (D2RL)
 
-A modulated and versatile library for reinforcement learning algorithms, implemented in *Tensorflow2.4*. *ray1.1.0* is used for distributed training. 
+A modulated and versatile library for deep reinforcement learning, implemented in *Tensorflow2.4*.
 
 ## Current Implemented Algorithms/Networks
 
@@ -17,20 +17,24 @@ All implementation details from OpenAI's baselines are implemented for PPO famil
 
 ### Off Policy RL
 
-- [x] Rainbow
-- [x] IQN
 - [x] FQF
+- [x] IQN
 - [x] M-DQN
 - [x] M-IQN
-- [x] RDQN (Recurrent DQN with masked LSTM)
+- [x] Rainbow
+- [x] Reactor
 - [x] Retrace(𝝀)
-- [x] TBO (Transformed Bellman Operator)
+- [x] RDQN (Recurrent DQN with masked LSTM)
 - [x] SAC (w/ or w/o adaptive temperature)
 - [x] SACD (SAC for discrete action space)
+- [x] TBO (Transformed Bellman Operator)
 
 ### Distributed RL
 
+*ray1.1.0* is used for distributed training. 
+
 - [x] Ape-X
+- [x] R2D2
 - [x] SEED
 
 ### Model-Based RL
@@ -39,18 +43,16 @@ All implementation details from OpenAI's baselines are implemented for PPO famil
 
 ### Networks
 
-The following networks are implemented for RL experiments only.
-
 - [x] CBAM
 - [x] Convolutional Attention
 - [x] DNC (Differentiable Neural Computer)
 - [x] Mask LSTM
 - [x] MobileNet Block
+- [x] Multi-Head Attention
 - [x] Randomized Network (for Generalization)
 - [x] ResNet
 - [x] SENet
 - [x] SN (Spectral Norm)
-- [x] Stochastic
 
 ## Get Started
 

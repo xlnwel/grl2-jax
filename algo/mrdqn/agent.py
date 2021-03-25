@@ -3,6 +3,7 @@ import tensorflow as tf
 from utility.tf_utils import softmax, log_softmax, explained_variance
 from utility.rl_utils import *
 from utility.rl_loss import retrace
+from core.decorator import override
 from algo.mrdqn.base import RDQNBase, get_data_format, collect
 
 
@@ -38,23 +39,26 @@ class Agent(RDQNBase):
             with tf.GradientTape() as tape:
                 pi, logpi = self.actor.train_step(x)
                 pi_a = tf.reduce_sum(pi * action, -1)
-                a_pi_loss = tf.minimum(1. / mu, self._loo_c) * error * pi_a
-                q_pi_loss = tf.reduce_sum(qs * pi, axis=-1)
-                loo_loss =  q_pi_loss
+                pi_loss_a = -tf.minimum(1. / mu, self._loo_c) * error * pi_a
+                pi_loss_q = -tf.reduce_sum(qs * pi, axis=-1)
+                loo_loss = pi_loss_a + pi_loss_q
                 loo_loss = tf.reduce_mean(loo_loss, axis=-1)
+                terms['pi_loss_a'] = pi_loss_a
+                terms['pi_loss_q'] = pi_loss_q
+                terms['loo_loss'] = loo_loss
                 if self._probabilistic_regularization is None:
                     entropy = -tf.reduce_mean(pi * logpi, axis=(-2, -1))
                     terms['entropy'] = tf.reduce_mean(entropy)
-                    actor_loss = loo_loss - self._entropy_coef * entropy
+                    actor_loss = loo_loss - self._tau * entropy
                 else:
                     actor_loss = loo_loss
                 actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
                 terms['actor_loss'] = actor_loss
-                terms['ratio'] = tf.reduce_mean(pi_a / mu)
+                # terms['ratio'] = tf.reduce_mean(pi_a / mu)
             tf.debugging.assert_shapes([
                 [pi, (None, self._sample_size, self._action_dim)],
                 [qs, (None, self._sample_size, self._action_dim)],
-                [loo_loss, (None)],
+                # [loo_loss, (None)],
             ])
             terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
@@ -77,6 +81,7 @@ class Agent(RDQNBase):
 
         return terms
     
+    @override(RDQNBase)
     def _compute_target(self, obs, action, reward, discount, 
                         mu, mask, state, add_inp):
         terms = {}
@@ -97,7 +102,7 @@ class Agent(RDQNBase):
         next_qs = self.target_q(next_x)
         regularization = None
         if 'actor' in self.model:
-            next_pi, next_logpi = self.actor.train_step(next_x)
+            next_pi, next_logpi = self.target_actor.train_step(next_x)
             if self._probabilistic_regularization == 'entropy':
                 regularization = self._tau * tf.reduce_sum(next_pi * next_logpi, axis=-1)
             else:

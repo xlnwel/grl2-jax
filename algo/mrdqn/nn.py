@@ -25,7 +25,7 @@ class RDQN(Ensemble):
 
         x, state = self._encode(
             x, state, mask, prev_action, prev_reward)
-        if hasattr(self, 'actor'):
+        if getattr(self, 'actor') is not None:
             action = self.actor(x, evaluation=evaluation, epsilon=epsilon, temp=temp)
         else:
             action = self.q.action(x, epsilon=epsilon, temp=temp, return_stats=return_stats)
@@ -37,7 +37,7 @@ class RDQN(Ensemble):
             if return_stats:
                 action, terms = action
             terms.update({
-                'mu': self.actor.compute_prob() if hasattr(self, 'actor') \
+                'mu': self.actor.compute_prob() if getattr(self, 'actor') \
                     else self.q.compute_prob()
             })
             out = tf.nest.map_structure(lambda x: tf.squeeze(x), (action, terms))
@@ -45,7 +45,7 @@ class RDQN(Ensemble):
 
     def _encode(self, x, state, mask, prev_action=None, prev_reward=None):
         x = tf.expand_dims(x, 1)
-        mask = tf.expand_dims(mask, 1)
+        mask = tf.reshape(mask, (-1, 1))
         x = self.encoder(x)
         if hasattr(self, 'rnn'):
             additional_rnn_input = self._process_additional_input(
@@ -99,13 +99,13 @@ def create_components(config, env):
         target_encoder=Encoder(encoder_config, name='target_encoder'),
         target_q=Q(q_config, action_dim, name='target_q'),
     )
-    if 'rnn' in config:
+    if config.get('rnn'):
         rnn_config = config['rnn']
         model.update({
             'rnn': LSTM(rnn_config, name='rnn'),
             'target_rnn': LSTM(rnn_config, name='target_rnn')
         })
-    if 'actor' in config:
+    if config.get('actor'):
         actor_config = config['actor']
         model.update({
             'actor': Actor(actor_config, action_dim, name='actor'),

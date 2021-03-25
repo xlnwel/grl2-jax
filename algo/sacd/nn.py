@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class Actor(Module):
     def __init__(self, config, action_dim, name='actor'):
         super().__init__(name=name)
+        config = config.copy()
         
         self._action_dim = action_dim
         prior = np.ones(action_dim, dtype=np.float32)

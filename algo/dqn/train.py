@@ -58,7 +58,7 @@ def train(agent, env, eval_env, replay):
                     agent.store(
                         env_step=agent.env_step,
                         train_step=agent.train_step,
-                        env_time=tt.total(), 
+                        env_time=rt.total(), 
                         train_time=tt.total(),
                         eval_time=et.total(),
                         log_time=lt.total(),

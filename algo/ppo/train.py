@@ -38,7 +38,7 @@ def train(agent, env, eval_env, buffer):
         agent.before_run(env)
         with rt:
             step = runner.run(step_fn=collect)
-        agent.store(fps=(step-start_env_step)/tt.last())
+        agent.store(fps=(step-start_env_step)/rt.last())
         # NOTE: normalizing rewards here may introduce some inconsistency 
         # if normalized rewards is fed as an input to the network.
         # One can reconcile this by moving normalization to collect 

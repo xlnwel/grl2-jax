@@ -14,6 +14,8 @@ from nn.utils import get_initializer
 class Actor(Module):
     def __init__(self, config, action_dim, name='actor'):
         super().__init__(name=name)
+        config = config.copy()
+
         self._action_dim = action_dim
         self.LOG_STD_MIN = config.pop('LOG_STD_MIN', -20)
         self.LOG_STD_MAX = config.pop('LOG_STD_MAX', 2)
@@ -54,7 +56,8 @@ class Actor(Module):
 class Q(Module):
     def __init__(self, config, name='q'):
         super().__init__(name=name)
-
+        config = config.copy()
+        
         self._layers = mlp(**config, out_size=1, name=name)
 
     def call(self, x, a):

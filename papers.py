@@ -45,7 +45,8 @@ def reinforcement_learning():
                 'marl': 6,              # multi-agent RL
                 'neuron science': 1,                # neuron science
                 'auxiliary task': 1,
-                'tricks': 2,
+                'tricks': 3,
+                'hrl': 2,
             }
     }
     }

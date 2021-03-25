@@ -98,7 +98,7 @@ def create_components(config, env):
         target_quantile=Quantile(quantile_config, name='target_phi'),
         target_q=Value(q_config, action_dim, name='target_q'),
     )
-    if 'rnn' in config:
+    if config.get('rnn'):
         rnn_config = config['rnn']
         model.update({
             'rnn': LSTM(rnn_config, name='rnn'),

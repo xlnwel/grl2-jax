@@ -351,6 +351,7 @@ class Memory:
         self._state = None
         self._additional_rnn_inputs = getattr(self, '_additional_rnn_inputs', {})
         self._default_additional_rnn_inputs = self._additional_rnn_inputs.copy()
+        self._squeeze_batch = False
     
     def _add_memory_state_to_kwargs(self, obs, env_output, kwargs, state=None):
         if self._state is None:
@@ -359,6 +360,7 @@ class Memory:
             for k, v in self._additional_rnn_inputs.items():
                 assert v in ('float32', 'int32', 'float16'), v
                 self._additional_rnn_inputs[k] = tf.zeros(B, dtype=v)
+            self._squeeze_batch = B == 1
 
         if 'prev_reward' in self._additional_rnn_inputs:
             self._additional_rnn_inputs['prev_reward'] = tf.convert_to_tensor(
@@ -384,6 +386,12 @@ class Memory:
                 out[1]['prev_action'] = self._additional_rnn_inputs['prev_action']
             if 'prev_reward' in self._additional_rnn_inputs:
                 out[1]['prev_reward'] = self._additional_rnn_inputs['prev_reward']
+            if self._squeeze_batch:
+                for k, v in out[1]:
+                    if isinstance(v, tf.Tensor):
+                        v = v.numpy()
+                    if len(out[1][k].shape) > 0 and out[1][k].shape[0] == 1:
+                        out[1][k] = np.squeeze(v, 0)
         return out
     
     def _add_non_tensor_memory_states_to_terms(self, out, kwargs, evaluation):

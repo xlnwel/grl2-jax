@@ -2,7 +2,6 @@
 env:
     name: procgen_miner
     distribution_mode: easy
-    frame_skip: 1
     n_envs: &ne 64
     frame_stack: 1
     np_obs: True
@@ -82,7 +81,7 @@ agent:
     tbo: False                              # transformed Bellman Operator
     
     loo_c: 1.
-    entropy_coef: .01
+    tau: *tau
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False

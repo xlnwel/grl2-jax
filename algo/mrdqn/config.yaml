@@ -2,13 +2,13 @@
 env:
     name: LunarLander-v2
     seed: 0
-    precision: &prec 32
+    n_envs: 4   # do not support n_envs = 1, don't want to complicate the code
 
 model:
     encoder:
         units_list: [128]
     rnn:
-        units: 65
+        units: 64
     actor:
         units_list: [64]
         activation: relu
@@ -22,7 +22,7 @@ agent:
     replay_type: &replay seq
     gamma: 0.99
     lambda: 1
-    precision: *prec
+    precision: 32
     batch_size: &bs 32
 
     store_state: True
@@ -33,7 +33,7 @@ agent:
     additional_rnn_inputnput: False
     act_eps: 0.3
 
-    MAX_STEPS: 1e7          # maximum training steps
+    MAX_STEPS: 3e6          # maximum training steps
     LOG_PERIOD: 1e4
     EVAL_PERIOD: 5e5
     TRAIN_PERIOD: 50
@@ -49,6 +49,8 @@ agent:
     target_update_period: 3000
     tbo: False                              # transformed Bellman Operator
     
+    loo_c: 1.
+    entropy_coef: .01
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
@@ -64,7 +66,6 @@ agent:
 
 replay:
     replay_type: *replay
-    precision: *prec
     # arguments for PER
     beta0: 0
     to_update_top_priority: False

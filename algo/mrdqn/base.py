@@ -101,11 +101,13 @@ class RDQNBase(Memory, DQNBase):
             x, state = rnn(x, state, mask, additional_input=add_inp)
         return x, state
 
+    def _compute_target(self):
+        raise NotImplementedError
+
     def _compute_target_and_process_data(self, 
             obs, action, reward, 
             discount, mu, mask, state=None, 
             prev_action=None, prev_reward=None):
-        mask = tf.expand_dims(mask, -1)
         add_inp = []
         if prev_action is not None:
             prev_action = tf.concat([prev_action, action[:, :-1]], axis=1)
@@ -113,7 +115,7 @@ class RDQNBase(Memory, DQNBase):
         if prev_reward is not None:
             prev_reward = tf.concat([prev_reward, reward[:, :-1]], axis=1)
             add_inp.append(prev_action)
-            
+        
         target, terms = self._compute_target(
             obs, action, reward, discount, 
             mu, mask, state, add_inp)

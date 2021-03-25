@@ -9,6 +9,7 @@ from nn.func import Encoder, mlp
 class Actor(Module):
     def __init__(self, config, action_dim, is_action_discrete, name='actor'):
         super().__init__(name=name)
+        config = config.copy()
 
         self.action_dim = action_dim
         self.is_action_discrete = is_action_discrete
@@ -50,6 +51,8 @@ class Actor(Module):
 class Value(Module):
     def __init__(self, config, name='value'):
         super().__init__(name=name)
+        config = config.copy()
+        
         config.setdefault('out_gain', 1)
         self._layers = mlp(**config,
                           out_size=1,
