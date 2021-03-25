@@ -97,6 +97,7 @@ class LSTMCell(layers.Layer):
 
     def call(self, x, states):
         x, mask = tf.nest.flatten(x)
+        assert_rank([x, mask], 2)
         h, c = states
         if mask is not None:
             h = h * mask
@@ -132,12 +133,11 @@ class LSTM(Module):
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
     
     def call(self, x, state, mask, additional_input=[]):
-        xs = [x]
+        xs = [x] + additional_input
         mask = tf.expand_dims(mask, axis=-1)
-        assert_rank(xs + additional_input + [mask], 3)
-        for k in additional_input:
-            k *= mask
-            xs.append(k)
+        assert_rank(xs + [mask], 3)
+        for v in xs:
+            v *= tf.cast(mask, v.dtype)
         x = tf.concat(xs, axis=-1) if len(xs) > 1 else x
         if not mask.dtype.is_compatible_with(global_policy().compute_dtype):
             mask = tf.cast(mask, global_policy().compute_dtype)
@@ -169,9 +169,9 @@ if __name__ == '__main__':
     shape = (32, 16, 512)
     x0 = tf.random.normal(shape)
     m = tf.random.uniform(shape[:2], 0, 2, dtype=tf.int32)
-    m = tf.cast(m[..., None], tf.float32)
+    em = tf.cast(m[..., None], tf.float32)
     run_times = 1000
-    assert x0.shape.ndims == m.shape.ndims
+    assert x0.shape.ndims == em.shape.ndims
     # keras lstm
     c = tf.keras.layers.LSTMCell(512)
     l = tf.keras.layers.RNN(c, return_sequences=True, return_state=True)
@@ -191,14 +191,29 @@ if __name__ == '__main__':
     timeit(keras_lstm_call, to_print=True)
 
     # custom lstm
-    mc = LSTMCell(512)
-    ml = tf.keras.layers.RNN(mc, return_sequences=True, return_state=True)
+    c = LSTMCell(512)
+    l = tf.keras.layers.RNN(c, return_sequences=True, return_state=True)
+    opt = tf.keras.optimizers.Adam(5e-5)
+
+    def custom_lstm_cell_call():
+        for _ in range(run_times):
+            with tf.GradientTape() as tape:
+                x = l((x0, em), initial_state=None)
+                x, s = x[0], x[1:]
+                y = tf.ones_like(x)
+                loss = tf.reduce_mean((y-x)**2)
+            gs = tape.gradient(loss, lv)
+            opt.apply_gradients(zip(gs, lv))
+    
+    timeit(custom_lstm_cell_call, to_print=True)
+
+    l = LSTM({'units': 512})
+    opt = tf.keras.optimizers.Adam(5e-5)
 
     def custom_lstm_call():
         for _ in range(run_times):
             with tf.GradientTape() as tape:
-                x = ml((x0, m), initial_state=None)
-                x, s = x[0], x[1:]
+                x, s = l(x0, None, m)
                 y = tf.ones_like(x)
                 loss = tf.reduce_mean((y-x)**2)
             gs = tape.gradient(loss, lv)
@@ -206,17 +221,19 @@ if __name__ == '__main__':
     
     timeit(custom_lstm_call, to_print=True)
 
-    mlc = LSTMCell(512, use_ln=True)
-    mll = tf.keras.layers.RNN(mlc, return_sequences=True, return_state=True)
+    c = LSTMCell(512, use_ln=True)
+    l = tf.keras.layers.RNN(c, return_sequences=True, return_state=True)
+    opt = tf.keras.optimizers.Adam(5e-5)
 
-    def custom_lstm_call():
+    def custom_lstmln_call():
         for _ in range(run_times):
             with tf.GradientTape() as tape:
-                x = mll((x0, m), initial_state=None)
+                x = l((x0, em), initial_state=None)
                 x, s = x[0], x[1:]
                 y = tf.ones_like(x)
                 loss = tf.reduce_mean((y-x)**2)
             gs = tape.gradient(loss, lv)
             opt.apply_gradients(zip(gs, lv))
     
-    timeit(custom_lstm_call, to_print=True)
+    timeit(custom_lstmln_call, to_print=True)
+

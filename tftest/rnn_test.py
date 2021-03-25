@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from nn.rnn import LSTM
+from nn.rnn import LSTMCell, LSTM
 
 
 class LSTMTest(tf.test.TestCase):
@@ -23,14 +23,39 @@ class LSTMTest(tf.test.TestCase):
 
         return lstm
     
+    def _get_x(self):
+        x = np.random.rand(self.bs, self.seqlen, self.x_dim).astype(np.float32)
+        return x
+    
+    def _get_mask(self):
+        mask = np.random.randint(0, 2, (self.bs, self.seqlen)).astype(np.float32)
+        return mask
+
+    def test_lstm(self):
+        for seed in np.random.randint(0, 100, 3):
+            mask = self._get_mask()
+            x = self._get_x()
+
+            tf.random.set_seed(seed)
+            c = LSTMCell(self.config['units'])
+            l = tf.keras.layers.RNN(c, return_sequences=True, return_state=True)        
+            y = l((x, mask[..., None]), initial_state=None)
+            y, s = y[0], y[1:]
+
+            tf.random.set_seed(seed)
+            l = LSTM(self.config)
+            my, ms = l(x, None, mask)
+            tf.debugging.assert_near(y, my)
+            tf.debugging.assert_near(s, ms)
+
     def test_state_with_zero_states(self):
         for ln in [True, False]:
             config = self.config.copy()
             config['use_ln'] = ln
             lstm = self._get_lstm(config)
 
-            mask = np.random.randint(0, 2, (self.bs, self.seqlen)).astype(np.float32)
-            x = np.random.rand(self.bs, self.seqlen, self.x_dim).astype(np.float32)
+            mask = self._get_mask()
+            x = self._get_x()
             # step states
             states = lstm.get_initial_state(x)
             for s in states:
@@ -66,8 +91,8 @@ class LSTMTest(tf.test.TestCase):
             config['use_ln'] = ln
             lstm = self._get_lstm(config)
 
-            mask = np.random.randint(0, 2, (self.bs, self.seqlen)).astype(np.float32)
-            x = np.random.rand(self.bs, self.seqlen, self.x_dim).astype(np.float32)
+            mask = self._get_mask()
+            x = self._get_x()
             rnn_state_shape = (self.bs, self.config['units'])
             init_state = [tf.random.normal((rnn_state_shape)), 
                     tf.random.normal(rnn_state_shape)]
@@ -100,11 +125,11 @@ class LSTMTest(tf.test.TestCase):
     
     def test_mask(self):
         lstm = self._get_lstm()
-        mask1 = np.random.randint(0, 2, (self.bs, self.seqlen)).astype(np.float32)
-        mask2 = np.random.randint(0, 2, (self.bs, self.seqlen)).astype(np.float32)
+        mask1 = self._get_mask()
+        mask2 = self._get_mask()
         while np.all(mask1 == mask2):
-            mask2 = np.random.randint(0, 2, (self.bs, self.seqlen)).astype(np.float32)
-        x = np.random.rand(self.bs, self.seqlen, self.x_dim).astype(np.float32)    
+            mask2 = self._get_mask()
+        x = self._get_x()    
         rnn_state_shape = (self.bs, self.config['units'])
         init_state = [tf.random.normal((rnn_state_shape)), 
                     tf.random.normal(rnn_state_shape)]
@@ -116,26 +141,28 @@ class LSTMTest(tf.test.TestCase):
         self.assertNotAllClose(state1, state2)
 
     def test_mask_grads(self):
-        lstm = self._get_lstm()
-        mask1 = np.random.randint(0, 2, (self.bs, self.seqlen)).astype(np.float32)
-        mask2 = mask1[:, -1:] = 0
-        x1 = np.random.rand(self.bs, self.seqlen, self.x_dim).astype(np.float32)
-        x2 = x1[:, -1:]
-        state = lstm.get_initial_state(x1)
-        with tf.GradientTape() as t:
-            y1, state1 = lstm(x1, state, mask1)
-            y1 = y1[:, -1:]
-            loss1 = tf.reduce_mean(.5 * (1 - y1)**2)
-        g1 = t.gradient(loss1, lstm.variables)
+        def loss(y):
+            return tf.reduce_mean(.5 * (1 - y)**2)
+        for n in np.random.randint(1, self.seqlen/2, 3):
+            lstm = self._get_lstm()
+            mask1 = self._get_mask()
+            mask1[:, -n:] = 0
+            x1 = self._get_x()
+            state = lstm.get_initial_state(x1)
+            with tf.GradientTape() as t:
+                y1, state1 = lstm(x1, state, mask1)
+                y1 = y1[:, -n:]
+                loss1 = loss(y1)
+            g1 = t.gradient(loss1, lstm.variables)
 
-        with tf.GradientTape() as t:
-            _, state2 = lstm(x1[:, :-1], state, mask1[:, :-1])
-            state2 = [tf.stop_gradient(s) for s in state2]
-            y2, state2 = lstm(x1[:, -1:], state2, mask1[:, -1:])
-            loss2 = tf.reduce_mean(.5 * (1 - y2)**2)
-        g2 = t.gradient(loss2, lstm.variables)
+            with tf.GradientTape() as t:
+                _, state2 = lstm(x1[:, :-n], state, mask1[:, :-n])
+                state2 = [tf.stop_gradient(s) for s in state2]
+                y2, state2 = lstm(x1[:, -n:], state2, mask1[:, -n:])
+                loss2 = loss(y2)
+            g2 = t.gradient(loss2, lstm.variables)
 
-        self.assertAllClose(y1, y2)
-        self.assertAllClose(state1, state2)
-        self.assertAllClose(loss1, loss2)
-        self.assertAllClose(g1, g2)
+            self.assertAllClose(y1, y2)
+            self.assertAllClose(state1, state2)
+            self.assertAllClose(loss1, loss2)
+            self.assertAllClose(g1, g2)
