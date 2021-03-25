@@ -48,7 +48,7 @@ def reinforcement_learning():
                 'tricks': 3,
                 'hrl': 2,
             }
-    }
+        }
     }
     return papers
 
