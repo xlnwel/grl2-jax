@@ -470,20 +470,30 @@ class TargetNetOps:
     def _sync_nets(self):
         ons = self.get_online_nets()
         tns = self.get_target_nets()
-        logger.info(f"Sync Net | Online networks: {[n.name for n in ons]}")
-        logger.info(f"Sync Net | Target networks: {[n.name for n in tns]}")
+        logger.info(f"Sync Networks | Online networks: {[n.name for n in ons]}")
+        logger.info(f"Sync Networks | Target networks: {[n.name for n in tns]}")
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
+        logger.info(f"Sync Networks | Online network parameters:\n" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in ovars]))
+        logger.info(f"Sync Networks | Target network parameters:\n" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]))
+        assert len(tvars) == len(ovars), f'{tvars}\n{ovars}'
         [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
 
     @tf.function
     def _update_nets(self):
         ons = self.get_online_nets()
         tns = self.get_target_nets()
-        logger.info(f"Update Net | Online networks: {[n.name for n in ons]}")
-        logger.info(f"Update Net | Target networks: {[n.name for n in tns]}")
+        logger.info(f"Update Networks | Online networks: {[n.name for n in ons]}")
+        logger.info(f"Update Networks | Target networks: {[n.name for n in tns]}")
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
+        logger.info(f"Update Networks | Online network parameters:\n" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in ovars]))
+        logger.info(f"Update Networks | Target network parameters:\n" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]))
+        assert len(tvars) == len(ovars), f'{tvars}\n{ovars}'
         [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
             for tvar, mvar in zip(tvars, ovars)]
 
