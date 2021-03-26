@@ -44,19 +44,20 @@ class RDQNBase(Memory, DQNBase):
     @override(DQNBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
-        self._burn_in = 'rnn' in self.model and self._burn_in
+        self._burn_in_size = 'rnn' in self.model and self._burn_in_size
         self._setup_memory_state_record()
 
     @override(DQNBase)
     def _build_learn(self, env):
+        seqlen = self._sample_size + self._burn_in_size
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
-            obs=((self._sample_size+1, *env.obs_shape), env.obs_dtype, 'obs'),
-            action=((self._sample_size+1, env.action_dim), tf.float32, 'action'),
-            reward=((self._sample_size,), tf.float32, 'reward'),
-            mu=((self._sample_size+1,), tf.float32, 'mu'),
-            discount=((self._sample_size,), tf.float32, 'discount'),
-            mask=((self._sample_size+1,), tf.float32, 'mask')
+            obs=((seqlen+1, *env.obs_shape), env.obs_dtype, 'obs'),
+            action=((seqlen+1, env.action_dim), tf.float32, 'action'),
+            reward=((seqlen,), tf.float32, 'reward'),
+            mu=((seqlen+1,), tf.float32, 'mu'),
+            discount=((seqlen,), tf.float32, 'discount'),
+            mask=((seqlen+1,), tf.float32, 'mask')
         )
         if self._is_per and getattr(self, '_use_is_ratio', self._is_per):
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
@@ -66,9 +67,9 @@ class RDQNBase(Memory, DQNBase):
                 for name, sz in self.model.state_size._asdict().items()])
         if self._additional_rnn_inputs:
             if 'prev_action' in self._additional_rnn_inputs:
-                TensorSpecs['prev_action'] = ((self._sample_size, *env.action_shape), env.action_dtype, 'prev_action')
+                TensorSpecs['prev_action'] = ((seqlen, *env.action_shape), env.action_dtype, 'prev_action')
             if 'prev_reward' in self._additional_rnn_inputs:
-                TensorSpecs['prev_reward'] = ((self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
+                TensorSpecs['prev_reward'] = ((seqlen,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     """ Call """
@@ -119,9 +120,9 @@ class RDQNBase(Memory, DQNBase):
         target, terms = self._compute_target(
             obs, action, reward, discount, 
             mu, mask, state, add_inp)
-        if self._burn_in:
+        if self._burn_in_size:
             bis = self._burn_in_size
-            ss = self._sample_size - bis
+            ss = self._sample_size
             bi_obs, obs, _ = tf.split(obs, [bis, ss, 1], 1)
             bi_mask, mask, _ = tf.split(mask, [bis, ss, 1], 1)
             _, mu, _ = tf.split(mu, [bis, ss, 1], 1)

@@ -1,3 +1,5 @@
+from tensorflow.keras.mixed_precision import global_policy
+
 from core.module import Module
 from nn.registry import cnn_registry, subsample_registry, block_registry
 from nn.utils import *

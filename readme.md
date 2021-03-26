@@ -10,9 +10,10 @@ Many algorithms are simply improvements/minor modifications of their predecessor
 
 All implementation details from OpenAI's baselines are implemented for PPO families 
 
+- [x] DAAC
+- [x] PPG
 - [x] PPO (with FNN)
 - [x] PPO2 (with masked LSTM)
-- [x] PPG
 - [x] RND
 
 ### Off Policy RL
@@ -160,7 +161,7 @@ Engstrom, Logan, Andrew Ilyas, Shibani Santurkar, Dimitris Tsipras, Firdaus Jano
 
 Lee, Kimin, Kibok Lee, Jinwoo Shin, and Honglak Lee. 2020. “Network Randomization: A Simple Technique for Generalization in Deep Reinforcement Learning.” Iclr 2020, 1–22. http://arxiv.org/abs/1910.05396.
 
-Sorry for that I've lost of track. Please let me know if I miss any referencess.
+**Please let me know if I miss any references.**
 
 ## Reference Repositories
 

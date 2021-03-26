@@ -73,7 +73,7 @@ class Agent(RDQNBase, IQNOps):
                         mu, mask, state, add_inp):
         terms = {}
         x, _ = self._compute_embed(obs, mask, state, add_inp, online=False)
-        if self._burn_in:
+        if self._burn_in_size:
             bis = self._burn_in_size
             ss = self._sample_size - bis
             _, reward = tf.split(reward, [bis, ss], 1)

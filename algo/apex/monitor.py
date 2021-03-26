@@ -47,10 +47,10 @@ class Monitor(AgentImpl):
         self.store(
             train_step=train_step, 
             env_step=self.env_step, 
-            fps= env_steps / duration,
-            tps= train_steps / duration,
-            fpt= env_steps / train_steps,
-            tpf= train_steps / env_steps,
+            fps=env_steps / duration,
+            tps=train_steps / duration,
+            fpt=env_steps / train_steps,
+            tpf=train_steps / env_steps,
             **stats)
         self.log(self.env_step)
         self.last_train_step = train_step

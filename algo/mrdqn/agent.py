@@ -39,27 +39,33 @@ class Agent(RDQNBase):
             with tf.GradientTape() as tape:
                 pi, logpi = self.actor.train_step(x)
                 pi_a = tf.reduce_sum(pi * action, -1)
-                pi_loss_a = -tf.minimum(1. / mu, self._loo_c) * error * pi_a
-                pi_loss_q = -tf.reduce_sum(qs * pi, axis=-1)
-                loo_loss = pi_loss_a + pi_loss_q
+                # reinforce = tf.minimum(1. / mu, self._loo_c) * error * pi_a
+                v = tf.reduce_sum(qs * pi, axis=-1)
+                entropy = -tf.reduce_mean(pi * logpi, axis=-1)
+                # loo_loss = -(v + reinforce)
+                # tf.debugging.assert_shapes([
+                #     [pi, (None, self._sample_size, self._action_dim)],
+                #     [qs, (None, self._sample_size, self._action_dim)],
+                #     [v, (None, self._sample_size)],
+                #     [reinforce, (None, self._sample_size)],
+                #     [entropy, (None, self._sample_size)],
+                # ])
+                loo_loss = -v
+                actor_loss = loo_loss - self._tau * entropy
                 loo_loss = tf.reduce_mean(loo_loss, axis=-1)
-                terms['pi_loss_a'] = pi_loss_a
-                terms['pi_loss_q'] = pi_loss_q
-                terms['loo_loss'] = loo_loss
-                if self._probabilistic_regularization is None:
-                    entropy = -tf.reduce_mean(pi * logpi, axis=(-2, -1))
-                    terms['entropy'] = tf.reduce_mean(entropy)
-                    actor_loss = loo_loss - self._tau * entropy
-                else:
-                    actor_loss = loo_loss
+                entropy = - tf.reduce_sum(pi * logpi, axis=-1)
+                actor_loss = -(v + self._tau * entropy)
                 actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
-                terms['actor_loss'] = actor_loss
-                # terms['ratio'] = tf.reduce_mean(pi_a / mu)
-            tf.debugging.assert_shapes([
-                [pi, (None, self._sample_size, self._action_dim)],
-                [qs, (None, self._sample_size, self._action_dim)],
-                # [loo_loss, (None)],
-            ])
+                terms.update(dict(
+                    # reinforce=reinforce,
+                    # v=v,
+                    # loo_loss=loo_loss,
+                    entropy=entropy,
+                    actor_loss=actor_loss,
+                    ratio=tf.reduce_mean(pi_a / mu),
+                    pi_min=tf.reduce_min(pi),
+                    pi_std=tf.math.reduce_std(pi)
+                ))
             terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
         if self._is_per:
@@ -86,9 +92,9 @@ class Agent(RDQNBase):
                         mu, mask, state, add_inp):
         terms = {}
         x, _ = self._compute_embed(obs, mask, state, add_inp, online=False)
-        if self._burn_in:
+        if self._burn_in_size:
             bis = self._burn_in_size
-            ss = self._sample_size - bis
+            ss = self._sample_size
             _, reward = tf.split(reward, [bis, ss], 1)
             _, discount = tf.split(discount, [bis, ss], 1)
             _, next_mu_a = tf.split(mu, [bis+1, ss], 1)

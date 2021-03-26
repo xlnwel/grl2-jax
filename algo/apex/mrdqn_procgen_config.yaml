@@ -20,7 +20,7 @@ model:
         kernel_initializer: glorot_uniform
         activation: relu
         duel: False
-        stoch_action: False
+        stoch_action: True
         tau: &tau 0.01
 
 agent:
@@ -85,7 +85,8 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    lr: 2.5e-4
+    actor_lr: 2.5e-4
+    value_lr: 2.5e-4
     opt_eps: 1e-7
 
     # arguments for PER
@@ -107,6 +108,6 @@ replay:
     sample_size: *ss
     burn_in_size: *bis
     min_size: 100
-    capacity: 10000
+    capacity: 30000
     state_keys: ['h', 'c']
     extra_keys: ['obs', 'action', 'mu', 'mask']

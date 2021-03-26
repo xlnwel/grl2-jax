@@ -16,6 +16,8 @@ model:
         units_list: [64]
         activation: relu
         duel: True
+        stoch_action: False
+        tau: &tau 0.01
 
 agent:
     algorithm: &algo rdqn
@@ -24,6 +26,23 @@ agent:
     lambda: 1
     precision: 32
     batch_size: &bs 32
+    
+    MUNCHAUSEN: False   # whether to use munchausen rl target
+    probabilistic_regularization: null
+
+    tau: *tau
+    alpha: .9
+    clip_logpi_min: -1
+
+    schedule_act_eps: True
+    act_eps_type: apex
+    act_eps: .3
+    eval_act_eps: 0
+    schedule_act_temp: False
+    n_exploit_envs: 8
+    min_temp: .5
+    max_temp: 10
+    eval_act_temp: .5
 
     store_state: True
     burn_in: False
@@ -50,7 +69,7 @@ agent:
     tbo: False                              # transformed Bellman Operator
     
     loo_c: 1.
-    entropy_coef: .01
+    tau: *tau
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
