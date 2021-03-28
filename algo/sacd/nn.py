@@ -61,9 +61,8 @@ class Actor(Module):
 
     def train_step(self, x):
         x = self._layers(x)
-        probs = tf.nn.softmax(x)
-        logps = tf.math.log(tf.maximum(probs, 1e-8))    # bound logps to avoid numerical instability
-        return probs, logps
+        pi = tf.nn.softmax(x)
+        return pi
 
     def update_prior(self, x, lr):
         self.prior.assign_add(lr * (x - self.prior))

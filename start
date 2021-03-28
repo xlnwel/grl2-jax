@@ -32,7 +32,7 @@ envs=(
     # bossfight
     # maze
 )
-args1=(32)
+args1=(32 128)
 args2=(1 0)
 args3=(1 0)
 

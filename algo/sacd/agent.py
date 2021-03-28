@@ -4,9 +4,13 @@ from utility.rl_loss import n_step_target
 from utility.tf_utils import explained_variance
 from core.decorator import override
 from algo.dqn.base import DQNBase, get_data_format, collect
-from algo.sacd.base import TempLearner
+from algo.sacd.base import TempLearner, DiscreteRegularizer
 
-class Agent(DQNBase, TempLearner):
+class Agent(DQNBase, TempLearner, DiscreteRegularizer):
+    def _add_attributes(self, env, dataset):
+        super()._add_attributes(env, dataset)
+        self._add_regularizer_attr()
+
     # @tf.function
     # def summary(self, data, terms):
     #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
@@ -24,21 +28,19 @@ class Agent(DQNBase, TempLearner):
             _, temp = self.temperature()
 
         next_x = self.target_encoder(next_obs)
-        next_act_probs, next_act_logps = self.target_actor.train_step(next_x)
+        next_pi = self.target_actor.train_step(next_x)
         next_qs = self.target_q(next_x)
-        if self._soft_target:
-            next_value = tf.reduce_sum(next_act_probs 
-                * (next_qs - temp * next_act_logps), axis=-1)
-        else:
-            next_value = tf.reduce_sum(next_act_probs * next_qs, axis=-1)
+        next_value = tf.reduce_sum(next_pi * next_qs, axis=-1)
+        if self._regularizer is not None:
+            next_value += self.tau * self._compute_regularization(next_pi)
         q_target = n_step_target(reward, next_value, discount, 
             self._gamma, steps, tbo=self._tbo)
         tf.debugging.assert_shapes([
             [next_value, (None,)],
             [reward, (None,)],
-            [next_act_probs, (None, self._action_dim)],
-            [next_act_logps, (None, self._action_dim)],
+            [next_pi, (None, self._action_dim)],
             [next_qs, (None, self._action_dim)],
+            [next_value, (None,)],
             [q_target, (None)],
         ])
         with tf.GradientTape() as tape:
@@ -48,15 +50,15 @@ class Agent(DQNBase, TempLearner):
         terms['value_norm'] = self._value_opt(tape, value_losss)
 
         with tf.GradientTape() as tape:
-            act_probs, act_logps = self.actor.train_step(x)
-            v = tf.reduce_sum(act_probs * qs, axis=-1)
-            entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
-            actor_loss = -(v + temp * entropy)
+            pi = self.actor.train_step(x)
+            v = tf.reduce_sum(pi * qs, axis=-1)
+            regularization = self._compute_regularization(pi)
+            actor_loss = -(v + temp * regularization)
             tf.debugging.assert_shapes([[actor_loss, (None, )]])
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
-        temp_terms = self._learn_temp(x, entropy, IS_ratio)
+        temp_terms = self._learn_temp(x, regularization, IS_ratio)
 
         if self._is_per:
             priority = self._compute_priority(error)
@@ -67,9 +69,9 @@ class Agent(DQNBase, TempLearner):
             reward_min=tf.reduce_min(reward),
             actor_loss=actor_loss,
             v=v, 
-            entropy=entropy,
-            entropy_max=tf.reduce_max(entropy),
-            entropy_min=tf.reduce_min(entropy),
+            regularization=regularization,
+            regularization_max=tf.reduce_max(regularization),
+            regularization_min=tf.reduce_min(regularization),
             value_loss=value_losss, 
             temp=temp,
             explained_variance_q=explained_variance(q_target, q),

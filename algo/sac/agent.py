@@ -39,8 +39,7 @@ class Agent(DQNBase):
             q_with_actor = self.q(obs, action)
             q2_with_actor = self.q2(obs, action)
             q_with_actor = tf.minimum(q_with_actor, q2_with_actor)
-            actor_loss = tf.reduce_mean(IS_ratio * 
-                (temp * logpi - q_with_actor))
+            actor_loss = tf.reduce_mean(IS_ratio * (temp * logpi - q_with_actor))
         self._actor_opt(actor_tape, actor_loss)
 
         if self.temperature.is_trainable():
