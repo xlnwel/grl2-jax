@@ -47,6 +47,8 @@ def reinforcement_learning():
                 'auxiliary task': 1,
                 'tricks': 3,
                 'hrl': 2,
+                'model-based': 1,
+                'regularized rl': 1,
             }
         }
     }

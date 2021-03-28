@@ -4,10 +4,10 @@
 algos=(
     # ppo
     # ppo_meta
-    ppg
+    # ppg
     # apex-dqn
     # apex-iqn
-    # apex-mrdqn
+    apex-mrdqn
     # apex-sacdiqn
     # apex-mrdqn
     # sacdiqn5
@@ -19,37 +19,37 @@ envs=(
     # bigfish
     # plunder
     # coinrun
-    # heist
-    starpilot
-    miner
-    climber
-    dodgeball
-    bigfish
-    caveflyer 
-    leaper
-    jumper
-    fruitbot
-    bossfight
+    heist
+    # starpilot
+    # miner
+    # climber
+    # dodgeball
+    # bigfish
+    # caveflyer 
+    # leaper
+    # jumper
+    # fruitbot
+    # bossfight
     # maze
 )
-args1=(.999)
-args2=(True)
-args3=(t2)
+args1=(32)
+args2=(1 0)
+args3=(1 0)
 
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
         for a1 in "${args1[@]}"; do
             for a2 in "${args2[@]}"; do
                 for a3 in "${args3[@]}"; do
-                    # if [[ $e = plunder && $a1 = None ]]
-                    # then continue
-                    # fi
+                    if [[ $a2 == $a3 ]]
+                    then continue
+                    fi
                     # sed -e "s/KI/${a2}/g" \
                     #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
-                    dir="logs/t-${suite}_${e}/${a}"
+                    dir="logs/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -p t >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} -kw batch_size=$a1 v_pi_coef=$a2 reinforce_coef=$a3 >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

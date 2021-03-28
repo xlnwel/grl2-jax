@@ -10,7 +10,8 @@ class LSTMTest(tf.test.TestCase):
 
         self.config = dict(
             units=16,
-            use_ln=False
+            use_ln=False,
+            state_mask=True
         )
 
         self.bs = 32
@@ -23,12 +24,16 @@ class LSTMTest(tf.test.TestCase):
 
         return lstm
     
-    def _get_x(self):
-        x = np.random.rand(self.bs, self.seqlen, self.x_dim).astype(np.float32)
+    def _get_x(self, bs=None, seqlen=None):
+        bs = bs or self.bs
+        seqlen = seqlen or self.seqlen
+        x = np.random.rand(bs, seqlen, self.x_dim).astype(np.float32)
         return x
     
-    def _get_mask(self):
-        mask = np.random.randint(0, 2, (self.bs, self.seqlen)).astype(np.float32)
+    def _get_mask(self, bs=None, seqlen=None):
+        bs = bs or self.bs
+        seqlen = seqlen or self.seqlen
+        mask = np.random.randint(0, 2, (bs, seqlen)).astype(np.float32)
         return mask
 
     def test_lstm(self):
@@ -166,3 +171,32 @@ class LSTMTest(tf.test.TestCase):
             self.assertAllClose(state1, state2)
             self.assertAllClose(loss1, loss2)
             self.assertAllClose(g1, g2)
+    
+    def test_state_mask(self):
+        for n in np.random.randint(1, self.seqlen/2, 3):
+            lstm = self._get_lstm()
+            mask = np.ones((self.bs, self.seqlen))
+            mask[:, -n] = 0
+            x = self._get_x()
+            y1, state1 = lstm(x, None, mask)
+            y1 = y1[:, -n:]
+            y2, state2 = lstm(x[:, -n:], None, np.ones((self.bs, n)))
+        
+            self.assertAllClose(state1, state2)
+            self.assertAllClose(y1, y2)
+
+    def test_no_state_mask(self):
+        config = self.config    # no need to copy as any changes only visible here
+        config['state_mask'] = False
+        for n in np.random.randint(1, self.seqlen/2, 3):
+            lstm = self._get_lstm()
+            mask = np.ones((self.bs, self.seqlen))
+            mask[:, -n] = 0
+            x = self._get_x()
+            y1, state1 = lstm(x, None, mask)
+            y1 = y1[:, -n:]
+            y2, state2 = lstm(x[:, -n:], None, np.ones((self.bs, n)))
+            print(y1)
+            print(y2)
+            self.assertNotAllClose(state1, state2)
+            self.assertNotAllClose(y1, y2)

@@ -12,7 +12,7 @@
 - ppo: PPO with FNN
 - ppo2: PPO with masked lstm
 - rnd: Random network distillation
-- sac: SAC with adaptive temperature
+- sac: SAC, TAC
 - sacd: SAC for discrete action space and CNN
 - sacdiqn: SAC + IQN for discrete action space and CNN
 - seed: SEED for distributed training

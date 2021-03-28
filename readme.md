@@ -4,7 +4,7 @@ A modulated and versatile library for deep reinforcement learning, implemented i
 
 ## Current Implemented Algorithms/Networks
 
-Many algorithms are simply improvements/minor modifications of their predecessors. Therefore, instead of implementing them as separate algorithms, we provide options to turn these on/off in `config.yaml`. Also, some hyperparameters may be obsolete.
+Many algorithms are simply improvements/minor modifications of their predecessors. Therefore, instead of implementing them as separate algorithms, we provide options to turn these on/off in `config.yaml`. Refer to [algo/readme.md](./algo.readme.md) for more details.
 
 ### On Policy RL
 
@@ -28,6 +28,7 @@ All implementation details from OpenAI's baselines are implemented for PPO famil
 - [x] RDQN (Recurrent DQN with masked LSTM)
 - [x] SAC (w/ or w/o adaptive temperature)
 - [x] SACD (SAC for discrete action space)
+- [x] TAC
 - [x] TBO (Transformed Bellman Operator)
 
 ### Distributed RL
