@@ -129,6 +129,8 @@ class LSTMCell(layers.Layer):
 class LSTM(Module):
     def __init__(self, config, name='rnn'):
         super().__init__(name=name)
+        config = config.copy()
+        self._state_mask = config.pop('state_mask', True)
         cell = LSTMCell(**config)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
     
@@ -136,9 +138,11 @@ class LSTM(Module):
         xs = [x] + additional_input
         mask = tf.expand_dims(mask, axis=-1)
         assert_rank(xs + [mask], 3)
-        for v in xs:
-            v *= tf.cast(mask, v.dtype)
-        x = tf.concat(xs, axis=-1) if len(xs) > 1 else x
+        if not self._state_mask:
+            # mask out inputs
+            for i, v in enumerate(xs):
+                xs[i] *= tf.cast(mask, v.dtype)
+        x = tf.concat(xs, axis=-1) if len(xs) > 1 else xs[0]
         if not mask.dtype.is_compatible_with(global_policy().compute_dtype):
             mask = tf.cast(mask, global_policy().compute_dtype)
         x = self._rnn((x, mask), initial_state=state)

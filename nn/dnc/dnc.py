@@ -33,7 +33,7 @@ DNCState = collections.namedtuple('DNCState', ('access_output', 'access_state',
                                                'controller_state'))
 
 
-class DNC(layers.Layer):
+class DNC(tf.Module):
     """DNC core module.
 
     Contains controller and memory access module.
@@ -75,6 +75,9 @@ class DNC(layers.Layer):
         else:
             return x
 
+    def __call__(self, inputs, prev_state):
+        return self.call(inputs, prev_state)
+    
     def call(self, inputs, prev_state):
         """Connects the DNC core into the graph.
 

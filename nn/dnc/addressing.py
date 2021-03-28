@@ -58,7 +58,6 @@ class CosineWeights(tf.Module):
         self._word_size = word_size
         self._strength_op = tf.nn.softplus
 
-    @tf.Module.with_name_scope
     def __call__(self, memory, keys, strengths):
         """Connects the CosineWeights module into the graph.
 
@@ -109,7 +108,6 @@ class TemporalLinkage(tf.Module):
         self._memory_size = memory_size
         self._num_writes = num_writes
 
-    @tf.Module.with_name_scope
     def __call__(self, write_weights, prev_state):
         """Calculate the updated linkage state given the write weights.
 
@@ -133,7 +131,6 @@ class TemporalLinkage(tf.Module):
         return TemporalLinkageState(
             link=link, precedence_weights=precedence_weights)
 
-    @tf.Module.with_name_scope
     def directional_read_weights(self, link, prev_read_weights, forward):
         """Calculates the forward or the backward read weights (f/b).
 
@@ -231,7 +228,6 @@ class TemporalLinkage(tf.Module):
                                                 self._memory_size])
         )
 
-    @tf.Module.with_name_scope
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         state_size = self.state_size
         if inputs is not None:
@@ -271,7 +267,6 @@ class Freeness(tf.Module):
         super().__init__(name=name)
         self._memory_size = memory_size
     
-    @tf.Module.with_name_scope
     def usage(self, write_weights, free_gate, read_weights, prev_usage):
         """Calculates the new memory usage u_t.
 
@@ -302,7 +297,6 @@ class Freeness(tf.Module):
 
         return usage
 
-    @tf.Module.with_name_scope
     def write_allocation_weights(self, usage, write_gates, num_writes=3):
         """Calculates freeness-based locations for writing to.
 
@@ -416,7 +410,6 @@ class Freeness(tf.Module):
         """Returns the shape of the state tensor."""
         return tf.TensorShape([self._memory_size])
     
-    @tf.Module.with_name_scope
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         state_size = self.state_size
         if inputs is not None:
@@ -426,3 +419,26 @@ class Freeness(tf.Module):
             dtype = tf.keras.mixed_precision.global_policy().compute_dtype
         return tf.zeros([batch_size, *state_size], dtype=dtype)
         
+if __name__ == '__main__':
+    import numpy as np
+    batch_size = 7
+    memory_size = 3
+    num_writes = 5
+    module = TemporalLinkage(
+        memory_size=memory_size, num_writes=num_writes)
+
+    prev_precedence_weights = np.random.rand(batch_size, num_writes,
+                                            memory_size)
+    write_weights = np.random.rand(batch_size, num_writes, memory_size)
+
+    # These should sum to at most 1 for each write head in each batch.
+    write_weights /= write_weights.sum(2, keepdims=True) + 1
+    prev_precedence_weights /= prev_precedence_weights.sum(2, keepdims=True) + 1
+
+    write_weights[0, 1, :] = 0  # batch 0 head 1: no writing
+    write_weights[1, 2, :] /= write_weights[1, 2, :].sum()  # b1 h2: all writing
+
+    precedence_weights = module._precedence_weights(
+        prev_precedence_weights=tf.convert_to_tensor(prev_precedence_weights),
+        write_weights=tf.convert_to_tensor(write_weights))
+    print(module.trainable_variables)

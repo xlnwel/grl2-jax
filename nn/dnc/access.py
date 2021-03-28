@@ -20,7 +20,6 @@ from __future__ import print_function
 
 from collections import namedtuple
 import tensorflow as tf
-from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras import activations
 
@@ -72,7 +71,7 @@ def _erase_and_write(memory, address, erase_weights, values):
 
     return memory
 
-class MemoryAccess(layers.Layer):
+class MemoryAccess(tf.Module):
     """Access module of the Differentiable Neural Computer.
 
     This memory module supports multiple read and write heads. It makes use of:
@@ -108,7 +107,7 @@ class MemoryAccess(layers.Layer):
             memory_init_value: The initial value for memory
             name: The name of the module.
         """
-        super().__init__(name=name, dtype=dtype)
+        super().__init__(name=name)
         self._memory_size = memory_size
         self._word_size = word_size
         self._num_reads = num_reads
@@ -126,7 +125,6 @@ class MemoryAccess(layers.Layer):
         Dense = layers.Dense
         sigmoid = activations.sigmoid
         oneplus = lambda x: activations.softplus(x) + 1
-        softplus = activations.softplus
 
         self._layers = dict(
             read_keys=Dense(self._num_reads*self._word_size, name='read_keys', dtype=dtype),
@@ -141,6 +139,9 @@ class MemoryAccess(layers.Layer):
             read_mode=Dense(self._num_reads * (2 * self._num_writes + 1),name='read_mode', dtype=dtype),
         )
 
+    def __call__(self, inputs, prev_state):
+        return self.call(inputs, prev_state)
+    
     def call(self, inputs, prev_state):
         """Connects the MemoryAccess module into the graph.
 
@@ -388,3 +389,4 @@ if __name__ == '__main__':
     print(output)
     output, _ = module_rnn(inputs, initial_state=initial_state)
     print(output)
+    print(module.trainable_variables)
