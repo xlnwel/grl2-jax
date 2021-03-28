@@ -39,27 +39,25 @@ class Agent(RDQNBase):
             with tf.GradientTape() as tape:
                 pi, logpi = self.actor.train_step(x)
                 pi_a = tf.reduce_sum(pi * action, -1)
-                # reinforce = tf.minimum(1. / mu, self._loo_c) * error * pi_a
+                reinforce = tf.minimum(1. / mu, self._loo_c) * error * pi_a
                 v = tf.reduce_sum(qs * pi, axis=-1)
-                entropy = -tf.reduce_mean(pi * logpi, axis=-1)
-                # loo_loss = -(v + reinforce)
-                # tf.debugging.assert_shapes([
-                #     [pi, (None, self._sample_size, self._action_dim)],
-                #     [qs, (None, self._sample_size, self._action_dim)],
-                #     [v, (None, self._sample_size)],
-                #     [reinforce, (None, self._sample_size)],
-                #     [entropy, (None, self._sample_size)],
-                # ])
-                loo_loss = -v
-                actor_loss = loo_loss - self._tau * entropy
+                entropy = -tf.reduce_sum(pi * logpi, axis=-1)
+                loo_loss = -(self._v_pi_coef * v + self._reinforce_coef * reinforce)
+                tf.debugging.assert_shapes([
+                    [pi, (None, self._sample_size, self._action_dim)],
+                    [qs, (None, self._sample_size, self._action_dim)],
+                    [v, (None, self._sample_size)],
+                    [reinforce, (None, self._sample_size)],
+                    [entropy, (None, self._sample_size)],
+                ])
                 loo_loss = tf.reduce_mean(loo_loss, axis=-1)
-                entropy = - tf.reduce_sum(pi * logpi, axis=-1)
-                actor_loss = -(v + self._tau * entropy)
+                entropy = tf.reduce_mean(entropy, axis=-1)
+                actor_loss = loo_loss - self._tau * entropy
                 actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
                 terms.update(dict(
-                    # reinforce=reinforce,
-                    # v=v,
-                    # loo_loss=loo_loss,
+                    reinforce=reinforce,
+                    v=v,
+                    loo_loss=loo_loss,
                     entropy=entropy,
                     actor_loss=actor_loss,
                     ratio=tf.reduce_mean(pi_a / mu),

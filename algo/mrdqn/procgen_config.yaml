@@ -17,7 +17,8 @@ model:
         units_list: [512]
         layer_type: dense
         norm: null
-        kernel_initializer: glorot_uniform
+        kernel_initializer: orthogonal
+        out_gain: .01
         activation: relu
     q:
         units_list: [512]
@@ -81,6 +82,8 @@ agent:
     tbo: False                              # transformed Bellman Operator
     
     loo_c: 1.
+    v_pi_coef: 1.
+    reinforce_coef: 1.
     tau: *tau
     # arguments for optimizer
     optimizer: adam

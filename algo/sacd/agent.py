@@ -43,15 +43,15 @@ class Agent(DQNBase, TempLearner):
         ])
         with tf.GradientTape() as tape:
             x = self.encoder(obs)
-            qs, error, value_losss = self._compute_value_losss(
+            q, qs, error, value_losss = self._compute_value_losss(
                 self.q, x, action, q_target, IS_ratio)
         terms['value_norm'] = self._value_opt(tape, value_losss)
 
         with tf.GradientTape() as tape:
             act_probs, act_logps = self.actor.train_step(x)
-            q = tf.reduce_sum(act_probs * qs, axis=-1)
+            v = tf.reduce_sum(act_probs * qs, axis=-1)
             entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
-            actor_loss = -(q + temp * entropy)
+            actor_loss = -(v + temp * entropy)
             tf.debugging.assert_shapes([[actor_loss, (None, )]])
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
@@ -66,7 +66,7 @@ class Agent(DQNBase, TempLearner):
             steps=steps,
             reward_min=tf.reduce_min(reward),
             actor_loss=actor_loss,
-            q=q, 
+            v=v, 
             entropy=entropy,
             entropy_max=tf.reduce_max(entropy),
             entropy_min=tf.reduce_min(entropy),
@@ -83,4 +83,4 @@ class Agent(DQNBase, TempLearner):
         q = tf.reduce_sum(qs * action, axis=-1)
         q_error = returns - q
         value_losss = .5 * tf.reduce_mean(IS_ratio * q_error**2)
-        return qs, tf.abs(q_error), value_losss
+        return q, qs, tf.abs(q_error), value_losss
