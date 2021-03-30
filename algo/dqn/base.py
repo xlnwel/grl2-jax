@@ -4,7 +4,7 @@ import tensorflow as tf
 from utility.tf_utils import log_softmax
 from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
-from core.base import AgentBase, ActionScheduler, TargetNetOps
+from core.base import AgentBase, ActionScheduler, TargetNetOps, DiscreteRegularizer
 from core.decorator import override, step_track
 
 
@@ -41,20 +41,19 @@ def collect(replay, env, env_step, reset, **kwargs):
     replay.add(**kwargs)
 
 
-class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
+class DQNBase(TargetNetOps, AgentBase, ActionScheduler, DiscreteRegularizer):
     """ Initialization """
     @override(AgentBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
+        self._add_regularizer_attr()
 
         self.MUNCHAUSEN = False
 
         self._is_per = False if dataset is None else dataset.name().endswith('per')
-        self._probabilistic_regularization = getattr(self, '_probabilistic_regularization', None)
         self._double = getattr(self, '_double', False)
         logger.info(f'Prioritized replay: {self._is_per}')
         logger.info(f'Double Q-learning: {self._double}')
-        logger.info(f'Probabilistic regularization: {self._probabilistic_regularization}')
 
         self._return_stats = getattr(self, '_return_stats', False)
 

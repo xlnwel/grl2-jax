@@ -4,9 +4,9 @@ from utility.rl_loss import n_step_target
 from utility.tf_utils import explained_variance
 from core.decorator import override
 from algo.dqn.base import DQNBase, get_data_format, collect
-from algo.sacd.base import TempLearner, DiscreteRegularizer
+from algo.sacd.base import TempLearner
 
-class Agent(DQNBase, TempLearner, DiscreteRegularizer):
+class Agent(DQNBase, TempLearner):
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
         self._add_regularizer_attr()
@@ -31,8 +31,8 @@ class Agent(DQNBase, TempLearner, DiscreteRegularizer):
         next_pi = self.target_actor.train_step(next_x)
         next_qs = self.target_q(next_x)
         next_value = tf.reduce_sum(next_pi * next_qs, axis=-1)
-        if self._regularizer is not None:
-            next_value += self.tau * self._compute_regularization(next_pi)
+        if self._probabilistic_regularization is not None:
+            next_value += temp * self._compute_regularization(next_pi)
         q_target = n_step_target(reward, next_value, discount, 
             self._gamma, steps, tbo=self._tbo)
         tf.debugging.assert_shapes([
@@ -52,7 +52,8 @@ class Agent(DQNBase, TempLearner, DiscreteRegularizer):
         with tf.GradientTape() as tape:
             pi = self.actor.train_step(x)
             v = tf.reduce_sum(pi * qs, axis=-1)
-            regularization = self._compute_regularization(pi)
+            regularization = self._compute_regularization(pi, 
+                    self._probabilistic_regularization or 'entropy')
             actor_loss = -(v + temp * regularization)
             tf.debugging.assert_shapes([[actor_loss, (None, )]])
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)

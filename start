@@ -7,15 +7,15 @@ algos=(
     # ppg
     # apex-dqn
     # apex-iqn
-    apex-mrdqn
-    # apex-sacdiqn
+    # apex-mrdqn
+    apex-sacdiqn
     # apex-mrdqn
     # sacdiqn5
 )
 suite=procgen
 envs=(
     # ninja
-    # chaser
+    chaser
     # bigfish
     # plunder
     # coinrun
@@ -32,24 +32,24 @@ envs=(
     # bossfight
     # maze
 )
-args1=(32 128)
-args2=(1 0)
-args3=(1 0)
+args1=(tsallis entropy)
+args2=(1 2)
+args3=(1)
 
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
         for a1 in "${args1[@]}"; do
             for a2 in "${args2[@]}"; do
                 for a3 in "${args3[@]}"; do
-                    if [[ $a2 == $a3 ]]
-                    then continue
-                    fi
+                    # if [[ $a2 == $a3 ]]
+                    # then continue
+                    # fi
                     # sed -e "s/KI/${a2}/g" \
                     #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
                     dir="logs/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -kw batch_size=$a1 v_pi_coef=$a2 reinforce_coef=$a3 >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} -kw probabilistic_regularization=$a1 -p t${a2} >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

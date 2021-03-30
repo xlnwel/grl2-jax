@@ -37,28 +37,29 @@ class Agent(RDQNBase):
 
         if 'actor' in self.model:
             with tf.GradientTape() as tape:
-                pi, logpi = self.actor.train_step(x)
+                pi = self.actor.train_step(x)
                 pi_a = tf.reduce_sum(pi * action, -1)
                 reinforce = tf.minimum(1. / mu, self._loo_c) * error * pi_a
                 v = tf.reduce_sum(qs * pi, axis=-1)
-                entropy = -tf.reduce_sum(pi * logpi, axis=-1)
+                regularization = self._compute_regularization(pi, 
+                    self._probabilistic_regularization or 'entropy')
                 loo_loss = -(self._v_pi_coef * v + self._reinforce_coef * reinforce)
                 tf.debugging.assert_shapes([
                     [pi, (None, self._sample_size, self._action_dim)],
                     [qs, (None, self._sample_size, self._action_dim)],
                     [v, (None, self._sample_size)],
                     [reinforce, (None, self._sample_size)],
-                    [entropy, (None, self._sample_size)],
+                    [regularization, (None, self._sample_size)],
                 ])
                 loo_loss = tf.reduce_mean(loo_loss, axis=-1)
-                entropy = tf.reduce_mean(entropy, axis=-1)
-                actor_loss = loo_loss - self._tau * entropy
+                regularization = tf.reduce_mean(regularization, axis=-1)
+                actor_loss = loo_loss - self._tau * regularization
                 actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
                 terms.update(dict(
                     reinforce=reinforce,
                     v=v,
                     loo_loss=loo_loss,
-                    entropy=entropy,
+                    regularization=regularization,
                     actor_loss=actor_loss,
                     ratio=tf.reduce_mean(pi_a / mu),
                     pi_min=tf.reduce_min(pi),
@@ -106,11 +107,8 @@ class Agent(RDQNBase):
         next_qs = self.target_q(next_x)
         regularization = None
         if 'actor' in self.model:
-            next_pi, next_logpi = self.target_actor.train_step(next_x)
-            if self._probabilistic_regularization == 'entropy':
-                regularization = self._tau * tf.reduce_sum(next_pi * next_logpi, axis=-1)
-            else:
-                regularization = None
+            next_pi = self.target_actor.train_step(next_x)
+            regularization = self._compute_regularization(next_pi)
         else:
             if self._probabilistic_regularization is None:
                 if self._double:    # don't suggest to use double Q here, but implement it anyway

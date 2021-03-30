@@ -40,6 +40,8 @@ agent:
     n_steps: &nsteps 3      # n-step target
     target_entropy_coef: .8
 
+    probabilistic_regularization: entropy
+
     schedule_act_eps: True
     act_eps_type: line
     act_eps: .3
@@ -73,8 +75,6 @@ agent:
     model_name: *algo
 
     target_update_period: 1500
-    
-    soft_target: True
 
     # arguments for optimizer
     optimizer: adam

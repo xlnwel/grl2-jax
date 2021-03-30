@@ -39,6 +39,8 @@ agent:
     n_steps: &nsteps 3      # n-step target
     target_entropy_coef: .8
 
+    probabilistic_regularization: entropy
+
     schedule_act_eps: True
     act_eps_type: line
     act_eps: .3

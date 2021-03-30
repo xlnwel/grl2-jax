@@ -12,7 +12,7 @@ class Agent(DQNBase, IQNOps, TempLearner):
     """ Initialization """
     # @tf.function
     # def summary(self, data, terms):
-    #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
+    #     tf.summary.histogram('learn/regularization', terms['regularization'], step=self._env_step)
     #     tf.summary.histogram('learn/reward', data['reward'], step=self._env_step)
     
     """ Call """
@@ -47,17 +47,18 @@ class Agent(DQNBase, IQNOps, TempLearner):
         terms['value_norm'] = self._value_opt(tape, value_loss)
 
         with tf.GradientTape() as tape:
-            act_probs, act_logps = self.actor.train_step(x)
-            q = tf.reduce_sum(act_probs * qs, axis=-1)
-            entropy = - tf.reduce_sum(act_probs * act_logps, axis=-1)
-            actor_loss = -(q + temp * entropy)
+            pi = self.actor.train_step(x)
+            regularization = self._compute_regularization(pi, 
+                    self._probabilistic_regularization or 'entropy')
+            q = tf.reduce_sum(pi * qs, axis=-1)
+            actor_loss = -(q + temp * regularization)
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
         terms['actor_norm'] = self._actor_opt(tape, actor_loss)
 
-        act_probs = tf.reduce_mean(act_probs, 0)
-        self.actor.update_prior(act_probs, self._prior_lr)
+        pi = tf.reduce_mean(pi, 0)
+        self.actor.update_prior(pi, self._prior_lr)
 
-        temp_terms = self._learn_temp(x, entropy, IS_ratio)
+        temp_terms = self._learn_temp(x, regularization, IS_ratio)
 
         if self._is_per:
             error = tf.abs(error)
@@ -72,9 +73,9 @@ class Agent(DQNBase, IQNOps, TempLearner):
             reward_min=tf.reduce_min(reward),
             actor_loss=actor_loss,
             q=q,
-            entropy=entropy,
-            entropy_max=tf.reduce_max(entropy),
-            entropy_min=tf.reduce_min(entropy),
+            regularization=regularization,
+            regularization_max=tf.reduce_max(regularization),
+            regularization_min=tf.reduce_min(regularization),
             value_loss=value_loss, 
             temp=temp,
             explained_variance_q=explained_variance(target, q),
@@ -89,18 +90,20 @@ class Agent(DQNBase, IQNOps, TempLearner):
         terms = {}
 
         next_x = self.target_encoder(next_obs, training=False)
-        next_act_probs, next_act_logps = self.target_actor.train_step(next_x)
-        next_act_probs_ext = tf.expand_dims(next_act_probs, axis=1)  # [B, 1, A]
-        next_act_logps_ext = tf.expand_dims(next_act_logps, axis=1)  # [B, 1, A]
+        next_pi = self.target_actor.train_step(next_x)
         _, qt_embed = self.target_quantile(next_x, self.N_PRIME)
         next_x_ext = tf.expand_dims(next_x, axis=1)
         next_qtv = self.target_q(next_x_ext, qt_embed)
         
-        if self._soft_target:
-            next_qtv_v = tf.reduce_sum(next_act_probs_ext 
-                * (next_qtv - temp * next_act_logps_ext), axis=-1)
-        else:
-            next_qtv_v = tf.reduce_sum(next_act_probs_ext * next_qtv, axis=-1)
+        next_pi_ext = tf.expand_dims(next_pi, axis=-2)
+        next_qtv_v = tf.reduce_sum(next_pi_ext * next_qtv, axis=-1)
+        tf.debugging.assert_shapes([
+            [next_qtv_v, (None, self.N_PRIME)],
+            [next_pi_ext, (None, 1, self._action_dim)],
+        ])
+        if self._probabilistic_regularization is not None:
+            next_qtv_v += temp * self._compute_regularization(next_pi_ext)
+            
         reward = reward[:, None]
         discount = discount[:, None]
         if not isinstance(steps, int):
@@ -109,8 +112,6 @@ class Agent(DQNBase, IQNOps, TempLearner):
         target = tf.expand_dims(target, axis=1)      # [B, 1, N']
         tf.debugging.assert_shapes([
             [next_qtv_v, (None, self.N_PRIME)],
-            [next_act_probs_ext, (None, 1, self._action_dim)],
-            [next_act_logps_ext, (None, 1, self._action_dim)],
             [target, (None, 1, self.N_PRIME)],
         ])
         return target, terms

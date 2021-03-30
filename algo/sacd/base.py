@@ -25,21 +25,3 @@ class TempLearner:
             terms['temp_norm'] = self._temp_opt(tape, temp_loss)
 
         return terms
-    
-class DiscreteRegularizer:
-    def _add_regularizer_attr(self):
-        self._regularizer = getattr(self, '_regularizer', 'entropy').lower()
-        if self._regularizer == 'tsallis':
-            self._tsallis_q = getattr(self, '_tsallis_q', 1.2)
-
-    def _compute_regularization(self, pi):
-        if self._regularizer is None:
-            return 1
-        elif self._regularizer == 'entropy':
-            phi = tf.math.log(tf.maximum(pi, 1e-8))
-        elif self._regularizer == 'tsallis':
-            phi = (pi**(self._tsallis_q - 1) - 1) / (self._tsallis_q - 1)
-        else:
-            raise NotImplementedError
-        
-        return -tf.reduce_sum(pi * phi, axis=-1)

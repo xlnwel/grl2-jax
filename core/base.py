@@ -512,3 +512,26 @@ class TargetNetOps:
     def get_target_nets(self):
         return [getattr(self, f'target_{k}') for k in self.model 
             if f'target_{k}' in self.model]
+
+class DiscreteRegularizer:
+    def _add_regularizer_attr(self):
+        self._probabilistic_regularization = getattr(self, 
+            '_probabilistic_regularization', None)
+        if self._probabilistic_regularization == 'tsallis':
+            self._tsallis_q = getattr(self, '_tsallis_q', 1.2)
+        logger.info(f'Probabilistic regularization: {self._probabilistic_regularization}')
+
+    def _compute_regularization(self, pi, regularization=None):
+        regularization = regularization or self._probabilistic_regularization
+        pi = tf.maximum(pi, 1e-8)
+        if regularization is None:
+            return None
+        elif regularization == 'entropy' \
+                or (regularization == 'tsallis' and self._tsallis_q == 1):
+            phi = -tf.math.log(pi)
+        elif regularization == 'tsallis':
+            phi = (pi**(self._tsallis_q - 1) - 1) / (1 - self._tsallis_q)
+        else:
+            raise NotImplementedError
+        
+        return tf.reduce_sum(pi * phi, axis=-1)
