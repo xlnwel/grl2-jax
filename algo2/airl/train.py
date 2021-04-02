@@ -1,19 +1,36 @@
-from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
+import functools
+
 from utility.utils import Every, TempStore
 from utility.graph import video_summary
 from utility.run import Runner, evaluate
 from utility.timer import Timer
-from utility import pkg
-from env.func import create_env
+from replay.func import create_replay
+from algo.ppo.train import main
 
 
+def get_expert_data(data_path):
+    config = dict(
+        dir=data_path,
+        replay_type='uniform',
+        capacity=int(1e6),
+        n_steps=1,
+        min_size=100,
+        batch_size=64,
+        has_next_obs=True
+    )
+    exp_buffer = create_replay(config)
+    exp_buffer.load_data()
+    print(f'Expert buffer size: {len(exp_buffer)}')
+    return exp_buffer
+    
 def train(agent, env, eval_env, buffer):
     def collect(env, step, reset, next_obs, **kwargs):
         buffer.add(**kwargs)
 
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
-    
+    exp_buffer = get_expert_data(buffer.DATA_PATH)
+
     if step == 0 and agent.is_obs_normalized:
         print('Start to initialize running stats...')
         for _ in range(50):
@@ -39,6 +56,11 @@ def train(agent, env, eval_env, buffer):
         with rt:
             step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/rt.last())
+        buffer.reshape_to_sample()
+        agent.disc_learn_log(exp_buffer)
+        buffer.compute_reward_with_func(agent.compute_reward)
+        buffer.reshape_to_store()
+
         # NOTE: normalizing rewards here may introduce some inconsistency 
         # if normalized rewards is fed as an input to the network.
         # One can reconcile this by moving normalization to collect 
@@ -81,54 +103,5 @@ def train(agent, env, eval_env, buffer):
                 agent.log(step)
                 agent.save()
 
-def main(env_config, model_config, agent_config, buffer_config, train=train):
-    silence_tf_logs()
-    configure_gpu()
-    configure_precision(agent_config['precision'])
 
-    create_model, Agent = pkg.import_agent(config=agent_config)
-    Buffer = pkg.import_module('buffer', config=agent_config).Buffer
-
-    use_ray = env_config.get('n_workers', 1) > 1
-    if use_ray:
-        import ray
-        from utility.ray_setup import sigint_shutdown_ray
-        ray.init()
-        sigint_shutdown_ray()
-
-    env = create_env(env_config, force_envvec=True)
-    eval_env_config = env_config.copy()
-    if 'num_levels' in eval_env_config:
-        eval_env_config['num_levels'] = 0
-    if 'seed' in eval_env_config:
-        eval_env_config['seed'] += 1000
-    eval_env_config['n_workers'] = 1
-    for k in list(eval_env_config.keys()):
-        # pop reward hacks
-        if 'reward' in k:
-            eval_env_config.pop(k)
-    eval_env = create_env(eval_env_config, force_envvec=True)
-
-    models = create_model(model_config, env)
-
-    buffer_config['n_envs'] = env.n_envs
-    buffer_config['state_keys'] = models.state_keys
-    buffer = Buffer(buffer_config)
-    
-    agent = Agent(
-        config=agent_config, 
-        models=models, 
-        dataset=buffer,
-        env=env)
-
-    agent.save_config(dict(
-        env=env_config,
-        model=model_config,
-        agent=agent_config,
-        buffer=buffer_config
-    ))
-
-    train(agent, env, eval_env, buffer)
-
-    if use_ray:
-        ray.shutdown()
+main = functools.partial(main, train=train)

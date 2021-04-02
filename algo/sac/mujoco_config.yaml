@@ -1,6 +1,6 @@
 ---
 env:
-    name: Hopper-v3
+    name: LunarLanderContinuous-v2
     # reward_clip: 10
 
 model:
@@ -29,7 +29,7 @@ agent:
     act_eps: 0
     eval_act_eps: 0
 
-    MAX_STEPS: 3e6
+    MAX_STEPS: 5e5
     TRAIN_PERIOD: 50
     LOG_PERIOD: 5000
     EVAL_PERIOD: 5000

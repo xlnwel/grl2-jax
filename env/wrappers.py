@@ -35,7 +35,8 @@ def post_wrap(env, config):
 
 
 class DummyEnv:
-    """ Useful to break the inheritance of unexpected attributes """
+    """ Useful to break the inheritance of unexpected attributes,
+    For example, control tasks in gym by default use frame_skip=4."""
     def __init__(self, env):
         self.env = env
         self.observation_space = env.observation_space
@@ -336,23 +337,23 @@ class DataProcess(gym.Wrapper):
         self.action_dtype = np.int32 if self.is_action_discrete \
             else infer_dtype(self.action_space.dtype, self.precision)
 
-    # def observation(self, observation):
-    #     if isinstance(observation, np.ndarray):
-    #         return convert_dtype(observation, self.precision)
-    #     return observation
+    def observation(self, observation):
+        if isinstance(observation, np.ndarray):
+            return convert_dtype(observation, self.precision)
+        return observation
     
     # def action(self, action):
     #     if isinstance(action, np.ndarray):
     #         return convert_dtype(action, self.precision)
     #     return np.int32(action) # always keep int32 for integers as tf.one_hot does not support int16
 
-    # def reset(self):
-    #     obs = self.env.reset()
-    #     return self.observation(obs)
+    def reset(self):
+        obs = self.env.reset()
+        return self.observation(obs)
 
-    # def step(self, action, **kwargs):
-    #     obs, reward, done, info = self.env.step(action, **kwargs)
-    #     return self.observation(obs), self.float_dtype(reward), self.float_dtype(done), info
+    def step(self, action, **kwargs):
+        obs, reward, done, info = self.env.step(action, **kwargs)
+        return self.observation(obs), reward, done, info
 
 
 """ 

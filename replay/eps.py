@@ -1,10 +1,14 @@
-import uuid
 from datetime import datetime
+import logging
 from pathlib import Path
 import random
+import uuid
 import numpy as np
 
 from core.decorator import config
+
+logger = logging.getLogger(__name__)
+
 
 class EpisodicReplay:
     @config
@@ -70,12 +74,12 @@ class EpisodicReplay:
                             episode = np.load(f)
                             episode = {k: episode[k] for k in episode.keys()}
                     except Exception as e:
-                        print(f'Could not load episode: {e}')
+                        logger.warning(f'Could not load episode: {e}')
                         continue
                     self._memory[filename] = episode
-            print(f'{len(self)} episodes are loaded')
+            logger.info(f'{len(self)} episodes are loaded')
         else:
-            print(f'There are already {len(self)} episodes in the memory. No further loading is performed')
+            logger.warning(f'There are already {len(self)} episodes in the memory. No further loading is performed')
 
     def sample(self, batch_size=None):
         batch_size = batch_size or self._batch_size
@@ -111,4 +115,4 @@ class EpisodicReplay:
                 if filename in self._memory:
                     del self._memory[filename]
             filenames = filenames[start:]
-            print(f'{start} files are removed')
+            logger.info(f'{start} files are removed')

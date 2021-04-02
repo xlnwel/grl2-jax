@@ -1,6 +1,5 @@
 from algo.dqn.train import *
 # import time
-# import functools
 
 # from core.tf_config import *
 # from utility.utils import Every
@@ -80,14 +79,14 @@ from algo.dqn.train import *
 #         replay=replay_config
 #     ))
     
-#     train(agent, env, eval_env, replay)
+#     # train(agent, env, eval_env, replay)
 
 #     # This training process is used for Mujoco tasks, following the same process as OpenAI's spinningup
 #     # out = env.reset()
 #     # obs, _, _, _ = out
 #     # epslen = 0
 #     # from utility.utils import Every
-#     # to_log = Every(agent.LOG_PERIOD, start=int(1e4)+2*agent.LOG_PERIOD)
+#     # to_log = Every(agent.LOG_PERIOD)
 #     # for t in range(int(agent.MAX_STEPS)):
 #     #     if t > 1e4:
 #     #         action = agent(out)
@@ -106,9 +105,8 @@ from algo.dqn.train import *
 #     #         obs, _, _, _ = env.reset()
 #     #         epslen = 0
 
-#     #     if replay.good_to_learn() and t % 50 == 0:
-#     #         for _ in range(50):
-#     #             agent.learn_log(t)
+#     #     if replay.good_to_learn() and t % agent.TRAIN_PERIOD == 0:
+#     #         agent.learn_log(t)
 #     #     if to_log(t):
 #     #         eval_score, eval_epslen, _ = evaluate(eval_env, agent)
 

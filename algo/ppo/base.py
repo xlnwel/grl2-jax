@@ -27,7 +27,7 @@ class PPOBase(RMSAgentBase):
             assert isinstance(self._lr, list), self._lr
             self._lr = TFPiecewiseSchedule(self._lr)
         models = list(self.model.values())
-        self._optimizer = Optimizer(
+        self._ac_opt = Optimizer(
             self._optimizer, models, self._lr, 
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
@@ -119,7 +119,7 @@ class PPOBase(RMSAgentBase):
             value_loss = self._value_coef * value_loss
             ac_loss = actor_loss + value_loss
 
-        terms['ac_norm'] = self._optimizer(tape, ac_loss)
+        terms['ac_norm'] = self._ac_opt(tape, ac_loss)
         terms.update(dict(
             value=value,
             traj_ret=tf.reduce_mean(traj_ret), 

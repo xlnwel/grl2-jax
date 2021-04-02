@@ -149,6 +149,7 @@ class Agent(PPOBase):
             tf.debugging.assert_rank(adv, 1)
             adv_loss = .5 * tf.reduce_mean((adv - advantage)**2)
             loss = actor_loss + self._adv_coef * adv_loss
+
         actor_norm = self._actor_opt(tape, loss)
         terms.update(dict(
             ratio=tf.exp(log_ratio),

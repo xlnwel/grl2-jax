@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class MLP(Module):
     def __init__(self, units_list, out_size=None, layer_type='dense', 
                 norm=None, activation=None, kernel_initializer='glorot_uniform', 
-                name=None, out_dtype=None, out_gain=1, **kwargs):
+                name=None, out_dtype='float32', out_gain=1, **kwargs):
         super().__init__(name=name)
         layer_cls = layer_registry.get(layer_type)
         Layer = layer_registry.get('layer')

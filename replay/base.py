@@ -1,8 +1,13 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
+import logging
+from pathlib import Path
 import numpy as np
 
 from core.decorator import config
 from replay.utils import *
+
+logger = logging.getLogger(__name__)
 
 
 class Replay(ABC):
@@ -10,6 +15,14 @@ class Replay(ABC):
     @config
     def __init__(self, **kwargs):
         # params for general replay buffer
+        self._save = getattr(self, '_save', False)
+        self._dir = getattr(self, '_dir', '')
+        self._dir = Path(self._dir).expanduser()
+        if self._save:
+            self._dir.mkdir(parents=True, exist_ok=True)
+        self._transition_per_file = getattr(self, '_transition_per_file',
+            self._capacity // 10)
+
         self._precision = getattr(self, '_precision', 32)
         
         self._memory = {}
@@ -43,7 +56,32 @@ class Replay(ABC):
         return len(self) >= self._min_size
     
     def load_data(self):
-        pass
+        if self._memory == {}:
+            for filename in self._dir.glob('*.npz'):
+                try:
+                    with filename.open('rb') as f:
+                        data = np.load(f)
+                        data = {k: data[k] for k in data.keys()}
+                except Exception as e:
+                    logger.warning(f'Could not load data: {e}')
+                    continue
+                self.merge(data)
+        else:
+            logger.warning(f'There are already {len(self)} transitions in the memory. No further loading is performed')
+
+    def save(self):
+        if self._save:
+            size = len(self)
+            tpf = self._transition_per_file
+
+            for start in np.arange(0, size, tpf):
+                end = min(start + tpf, size)
+                timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
+                filename = self._dir / f'{timestamp}-{start}-{end}.npz'
+                data = {k: v[start: end] for k, v in self._memory.items()}
+                with filename.open('wb') as f:
+                    np.savez_compressed(f, **data)
+                print(f'{end-start} transitions are saved at {filename}')
 
     def __len__(self):
         return self._capacity if self._is_full else self._mem_idx

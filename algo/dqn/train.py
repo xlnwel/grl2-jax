@@ -18,7 +18,9 @@ def train(agent, env, eval_env, replay):
     env_step = agent.env_step
     runner = Runner(env, agent, step=env_step, nsteps=agent.TRAIN_PERIOD)
     while not replay.good_to_learn():
-        env_step = runner.run(step_fn=collect)
+        env_step = runner.run(
+            action_selector=env.random_action,
+            step_fn=collect)
 
     to_eval = Every(agent.EVAL_PERIOD)
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)

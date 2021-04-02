@@ -41,12 +41,11 @@ def collect(replay, env, env_step, reset, **kwargs):
     replay.add(**kwargs)
 
 
-class DQNBase(TargetNetOps, AgentBase, ActionScheduler, DiscreteRegularizer):
+class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
     """ Initialization """
     @override(AgentBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
-        self._add_regularizer_attr()
 
         self.MUNCHAUSEN = False
 

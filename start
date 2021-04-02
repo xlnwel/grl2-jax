@@ -8,7 +8,7 @@ algos=(
     # apex-dqn
     # apex-iqn
     # apex-mrdqn
-    apex-sacdiqn
+    daac
     # apex-mrdqn
     # sacdiqn5
 )
@@ -16,24 +16,24 @@ suite=procgen
 envs=(
     # ninja
     chaser
-    # bigfish
-    # plunder
-    # coinrun
+    bigfish
+    plunder
+    coinrun
     heist
-    # starpilot
-    # miner
-    # climber
-    # dodgeball
-    # bigfish
-    # caveflyer 
-    # leaper
-    # jumper
-    # fruitbot
-    # bossfight
-    # maze
+    starpilot
+    miner
+    climber
+    dodgeball
+    bigfish
+    caveflyer 
+    leaper
+    jumper
+    fruitbot
+    bossfight
+    maze
 )
-args1=(tsallis entropy)
-args2=(1 2)
+args1=(entropy)
+args2=(1)
 args3=(1)
 
 for e in "${envs[@]}"; do
@@ -49,7 +49,7 @@ for e in "${envs[@]}"; do
                     dir="logs/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -kw probabilistic_regularization=$a1 -p t${a2} >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

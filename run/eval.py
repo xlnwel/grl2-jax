@@ -13,7 +13,9 @@ from env.func import create_env
 from run.args import parse_eval_args
 
 
-def main(env_config, model_config, agent_config, n, record=False, size=(128, 128), video_len=1000, fps=30):
+def main(env_config, model_config, agent_config, replay_config,
+        n, record=False, size=(128, 128), video_len=1000, 
+        fps=30, save=False):
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
@@ -75,6 +77,7 @@ if __name__ == '__main__':
     env_config = config['env']
     model_config = config['model']
     agent_config = config['agent']
+    replay_config = config.get('buffer') or config.get('replay')
     agent_config['logger'] = False
 
     # get the main function
@@ -82,7 +85,6 @@ if __name__ == '__main__':
         main = pkg.import_main('eval', config=agent_config)
     except:
         print('Default main is used for evaluation')
-    record = args.record
 
     # set up env_config
     n = args.n_episodes
@@ -92,10 +94,7 @@ if __name__ == '__main__':
         env_config['n_envs'] = args.n_envs
     n = max(args.n_workers * args.n_envs, n)
     env_config['seed'] = np.random.randint(1000)
-    size = tuple(args.size)
-    if size == (0, 0):
-        size = None # use the default size specified by the environment
-    
-    main(env_config, model_config, agent_config, n=n, 
-        record=record, size=size, 
-        video_len=args.video_len, fps=args.fps)
+
+    main(env_config, model_config, agent_config, 
+        replay_config, n=n, record=args.record, size=args.size, 
+        video_len=args.video_len, fps=args.fps, save=args.save)

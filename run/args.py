@@ -10,6 +10,10 @@ def parse_train_args():
                         type=str,
                         nargs='*',
                         default=[''])
+    parser.add_argument('--directory', '-d',
+                        type=str,
+                        default='',
+                        help='directory where checkpoints and "config.yaml" exist')
     parser.add_argument('--kwargs', '-kw',
                         type=str,
                         nargs='*',
@@ -24,10 +28,6 @@ def parse_train_args():
     parser.add_argument('--model-name', '-n',
                         default='',
                         help='model name')
-    parser.add_argument('--directory', '-d',
-                        type=str,
-                        default='',
-                        help='directory where checkpoints and "config.yaml" exist')
     parser.add_argument('--logdir', '-ld',
                         type=str,
                         default='logs')
@@ -55,7 +55,8 @@ def parse_eval_args():
     parser.add_argument('--n_episodes', '-n', type=int, default=1)
     parser.add_argument('--n_envs', '-ne', type=int, default=0)
     parser.add_argument('--n_workers', '-nw', type=int, default=0)
-    parser.add_argument('--size', '-s', nargs='+', type=int, default=[0, 0])
+    parser.add_argument('--size', '-s', nargs='+', type=int, default=None)
+    parser.add_argument('--save', action='store_true')
     parser.add_argument('--fps', type=int, default=30)
     args = parser.parse_args()
 

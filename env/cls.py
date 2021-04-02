@@ -20,7 +20,7 @@ def make_env(config):
             env = dmc.make_dmc_env(config)
         else:
             env = gym.make(config['name']).env
-            # env = wrappers.DummyEnv(env)
+            env = wrappers.DummyEnv(env)    # useful for hidding unexpected frame_skip
             config.setdefault('max_episode_steps', env.spec.max_episode_steps)
     if config.get('reward_scale') or config.get('reward_clip'):
         env = wrappers.RewardHack(env, **config)
@@ -35,7 +35,7 @@ def make_env(config):
         distance = config.setdefault('distance', 1)
         env = wrappers.FrameDiff(env, gray_scale_residual, distance)
     env = wrappers.post_wrap(env, config)
-
+    
     return env
 
 

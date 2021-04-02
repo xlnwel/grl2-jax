@@ -159,8 +159,7 @@ class Runner:
 
         return next_obs, reset
 
-def evaluate(
-             env, 
+def evaluate(env, 
              agent, 
              n=1, 
              record=False, 
@@ -183,6 +182,7 @@ def evaluate(
     n = max(n, env.n_envs)
     n_done_eps = 0
     frame_skip = None
+    obs = env_output.obs
     while n_done_eps < n:
         for k in range(max_steps):
             if record:
@@ -210,10 +210,13 @@ def evaluate(
                 env_output = env.step(action, frame_skip=frame_skip)
             else:
                 env_output = env.step(action)
-            _, reward, _, _ = env_output
+            next_obs, reward, discount, reset = env_output
 
             if step_fn:
-                step_fn(reward=reward, **terms)
+                step_fn(obs=obs, action=action, reward=reward, 
+                    discount=discount, next_obs=next_obs, 
+                    reset=reset, **terms)
+            obs = next_obs
             if env.env_type == 'Env':
                 if env.game_over():
                     scores.append(env.score())

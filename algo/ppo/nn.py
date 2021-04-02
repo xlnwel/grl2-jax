@@ -64,10 +64,22 @@ class Value(Module):
         value = tf.squeeze(value, -1)
         return value
 
+
+def create_components(config, env):
+    action_dim = env.action_dim
+    is_action_discrete = env.is_action_discrete
+
+    return dict(
+        encoder=Encoder(config['encoder']), 
+        actor=Actor(config['actor'], action_dim, is_action_discrete),
+        value=Value(config['value'])
+    )
+
+
 class PPO(Ensemble):
-    def __init__(self, config, env, **kwargs):
+    def __init__(self, config, env, model_fn=create_components, **kwargs):
         super().__init__(
-            model_fn=create_components, 
+            model_fn=model_fn, 
             config=config,
             env=env,
             **kwargs)
@@ -95,15 +107,6 @@ class PPO(Ensemble):
     def encode(self, x):
         return self.encoder(x)
 
-def create_components(config, env):
-    action_dim = env.action_dim
-    is_action_discrete = env.is_action_discrete
-
-    return dict(
-        encoder=Encoder(config['encoder']), 
-        actor=Actor(config['actor'], action_dim, is_action_discrete),
-        value=Value(config['value'])
-    )
 
 def create_model(config, env, **kwargs):
-    return PPO(config, env, **kwargs)
+    return PPO(config, env, create_components, **kwargs)

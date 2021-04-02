@@ -21,19 +21,16 @@ class Module(tf.Module):
         name = name and name.split('/')[-1]
         super().__init__(name=name)
 
-    def __call__(self, x=None, *args, **kwargs):
-        if x is not None and not self._is_built:
-            if isinstance(x, (list, tuple)):
-                self._build(*tf.nest.map_structure(x))
-            else:
-                self._build(x.shape)
+    def __call__(self, *args, **kwargs):
+        if not self._is_built:
+            self._build(*tf.nest.map_structure(lambda x: x.shape, args))
         if hasattr(self, '_layers') and isinstance(self._layers, (list, tuple)):
             self._layers = [l for l in self._layers if not isinstance(l, Dummy)]
 
-        return self._call(x, *args, **kwargs)
+        return self._call(*args, **kwargs)
         
-    def _build(self, input_shape):
-        self.build(input_shape)
+    def _build(self, *args):
+        self.build(*args)
         self._is_built = True
 
     def build(self, *args, **kwargs):
