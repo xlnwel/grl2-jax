@@ -5,6 +5,7 @@
 - dqn: raibow(except c51)
 - dreamer: Dreamer for DMC
 - fqf: FQF
+- gail: GAIL
 - iqn: IQN
 - mrdqn: masked recurrent DQN with retrace(𝝀) and 𝛽-LOO(from Reactor)
 - mriqn: masked recurrent IQN with retrace(𝝀)

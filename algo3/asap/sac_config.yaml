@@ -4,6 +4,7 @@ env:
     n_envs: 1
     seed: 0
     reward_clip: 10
+
 model:
     actor:
         units_list: [512, 256, 128]
@@ -18,8 +19,9 @@ model:
         norm: null
         activation: relu
     temperature:
-        temp_type: 'constant'
+        temp_type: constant
         value: .01
+
 agent:
     algorithm: &algo asap-sac
     replay_type: &replay uniform
@@ -37,7 +39,7 @@ agent:
     LOG_PERIOD: &log 1000
     N_UPDATES: *log
     SYNC_PERIOD: 1000
-    RECORD_PERIOD: False
+    RECORD_PERIOD: 100
     N_EVALUATION: 10
 
     # distributed algo params

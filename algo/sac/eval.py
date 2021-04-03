@@ -1,5 +1,5 @@
+import logging
 import numpy as np
-import tensorflow as tf
 
 from core.tf_config import *
 from utility.display import pwc
@@ -14,6 +14,7 @@ from replay.func import create_replay
 def main(env_config, model_config, agent_config, replay_config,
         n, record=False, size=(128, 128), video_len=1000, 
         fps=30, save=False):
+    logging.basicConfig(level=logging.DEBUG)
     silence_tf_logs()
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
@@ -48,8 +49,10 @@ def main(env_config, model_config, agent_config, replay_config,
         n_envs = env_config.get('n_envs', 1)
         replay_config['n_envs'] = n_workers * n_envs
         replay_config['replay_type'] = 'uniform'
-        replay_config['dir'] = 'data/sac-humanoid'
+        replay_config['dir'] = f'data/{agent.name.lower()}-{env.name.lower()}'
+        replay_config['n_steps'] = 1
         replay_config['save'] = True
+        replay_config['save_temp'] = True
         replay_config['capacity'] = int(1e6)
         replay_config['has_next_obs'] = True
         replay = create_replay(replay_config)

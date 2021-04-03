@@ -16,8 +16,9 @@ model:
         norm: null
         activation: relu
     temperature:
-        temp_type: 'constant'
+        temp_type: constant
         value: .01
+
 agent:
     algorithm: &algo apex-sac
     replay_type: &replay per
