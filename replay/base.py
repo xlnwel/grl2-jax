@@ -16,6 +16,8 @@ class Replay(ABC):
     def __init__(self, **kwargs):
         # params for general replay buffer
         self._save = getattr(self, '_save', False)
+        self._save_stats = getattr(self, '_save_stats', None)
+        self._save_temp = getattr(self, '_save_temp', False)
         self._dir = getattr(self, '_dir', '')
         self._dir = Path(self._dir).expanduser()
         if self._save:
@@ -58,19 +60,17 @@ class Replay(ABC):
     def load_data(self):
         if self._memory == {}:
             for filename in self._dir.glob('*.npz'):
-                try:
-                    with filename.open('rb') as f:
-                        data = np.load(f)
-                        data = {k: data[k] for k in data.keys()}
-                except Exception as e:
-                    logger.warning(f'Could not load data: {e}')
-                    continue
-                self.merge(data)
+                data = load_data(filename)
+                if data is not None:
+                    self.merge(data)
         else:
             logger.warning(f'There are already {len(self)} transitions in the memory. No further loading is performed')
 
     def save(self):
         if self._save:
+            if self._save_temp:
+                data = self._tmp_buf.retrieve()
+                self.merge(data)
             size = len(self)
             tpf = self._transition_per_file
 
@@ -78,9 +78,8 @@ class Replay(ABC):
                 end = min(start + tpf, size)
                 timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
                 filename = self._dir / f'{timestamp}-{start}-{end}.npz'
-                data = {k: v[start: end] for k, v in self._memory.items()}
-                with filename.open('wb') as f:
-                    np.savez_compressed(f, **data)
+                data = {k: self._memory[k][start: end] for k in self._save_stats or self._memory.keys()}
+                save_data(filename, data)
                 print(f'{end-start} transitions are saved at {filename}')
 
     def __len__(self):

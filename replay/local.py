@@ -65,11 +65,15 @@ class EnvNStepBuffer(NStepBuffer):
 
     def sample(self):
         assert self.is_full(), self._idx
+        return self.retrieve(self._seqlen)
+
+    def retrieve(self, seqlen=None):
+        seqlen = seqlen or self._idx
         results = {}
         for k, v in self._memory.items():
-            results[k] = v[:self._idx-self._n_steps]
+            results[k] = v[:seqlen]
         if 'next_obs' not in self._memory:
-            idxes = np.arange(self._idx-self._n_steps)
+            idxes = np.arange(seqlen)
             steps = results.get('steps', 1)
             next_idxes = idxes + steps
             if isinstance(self._memory['obs'], np.ndarray):
@@ -107,22 +111,27 @@ class EnvVecNStepBuffer(NStepBuffer):
             else:
                 for i in range(self._n_envs):
                     self._memory[k][i][idx] = v[i]
-        self._memory['steps'][:, idx] = 1
+        if self._extra_len > 1:
+            self._memory['steps'][:, idx] = 1
 
         self._idx += 1
 
     def sample(self):
         assert self.is_full(), self._idx
-        results = adjust_n_steps_envvec(self._memory, self._seqlen, self._n_steps, self._max_steps, self._gamma)
+        return self.retrieve(self._seqlen)
+    
+    def retrieve(self, seqlen=None):
+        seqlen = seqlen or self._idx
+        results = adjust_n_steps_envvec(self._memory, seqlen, self._n_steps, self._max_steps, self._gamma)
         value = None
         for k, v in results.items():
             if k in ('q', 'v'):
                 value = results[k]
                 pass
             else:
-                results[k] = v[:, :self._seqlen].reshape(-1, *v.shape[2:])
+                results[k] = v[:, :seqlen].reshape(-1, *v.shape[2:])
         if value:
-            idx = np.broadcast_to(np.arange(self._seqlen), (self._n_envs, self._seqlen))
+            idx = np.broadcast_to(np.arange(seqlen), (self._n_envs, seqlen))
             results['q'] = value[idx]
             results['next_q'] = value[idx + results.get('steps', 1)]
         if 'mask' in results:

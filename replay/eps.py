@@ -6,6 +6,7 @@ import uuid
 import numpy as np
 
 from core.decorator import config
+from replay.utils import load_data, save_data
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,7 @@ class EpisodicReplay:
             filename = self._dir / f'{timestamp}-{identifier}-{length}.npz'
             self._memory[filename] = eps
             if self._save:
-                with filename.open('wb') as f1:
-                    np.savez_compressed(f1, **eps)
+                save_data(filename, eps)
         if self._save:
             self._remove_files()
 
@@ -69,14 +69,9 @@ class EpisodicReplay:
             # load data from files
             for filename in self._dir.glob('*.npz'):
                 if filename not in self._memory:
-                    try:
-                        with filename.open('rb') as f:
-                            episode = np.load(f)
-                            episode = {k: episode[k] for k in episode.keys()}
-                    except Exception as e:
-                        logger.warning(f'Could not load episode: {e}')
-                        continue
-                    self._memory[filename] = episode
+                    data = load_data(filename)
+                    if data is not None:
+                        self._memory[filename] = data
             logger.info(f'{len(self)} episodes are loaded')
         else:
             logger.warning(f'There are already {len(self)} episodes in the memory. No further loading is performed')

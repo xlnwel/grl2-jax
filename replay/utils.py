@@ -143,3 +143,17 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
                 cond, np.ones_like(cond, dtype=np.uint8), np.zeros_like(cond, dtype=np.uint8))
         
     return results
+
+def load_data(filename):
+    data = None
+    try:
+        with filename.open('rb') as f:
+            data = np.load(f)
+            data = {k: data[k] for k in data.keys()}
+    except Exception as e:
+        logger.warning(f'Could not load data: {e}')
+    return data
+
+def save_data(filename, data):
+    with filename.open('wb') as f:
+        np.savez_compressed(f, **data)
