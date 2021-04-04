@@ -87,15 +87,14 @@ class FQF(Ensemble):
             x, qt_embed, epsilon=epsilon, 
             temp=temp, return_stats=return_stats)
         terms = {}
+        action = tf.nest.map_structure(lambda x: tf.squeeze(x), action)
         if return_stats:
-            action, q = action
-            q = tf.squeeze(q)
-            terms = {'q': q}
+            action, terms = action
         if isinstance(epsilon, tf.Tensor) or epsilon:
+            
             action = epsilon_greedy(action, epsilon,
                 is_action_discrete=True, 
                 action_dim=self.q.action_dim)
-        action = tf.squeeze(action)
 
         return action, terms
 

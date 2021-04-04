@@ -169,7 +169,7 @@ class RND(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, return_eval_stats=False):
+    def action(self, x, evaluation=False, **kwargs):
         if evaluation:
             act_dist = self.ac(x, return_value=False)
             return act_dist.mode()

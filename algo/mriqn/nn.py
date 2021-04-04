@@ -32,6 +32,7 @@ class RDQN(Ensemble):
             return tf.squeeze(action), state
         else:
             terms = {}
+            action = tf.nest.map_structure(lambda x: tf.squeeze(x), action)
             if return_stats:
                 action, terms = action
             terms.update({

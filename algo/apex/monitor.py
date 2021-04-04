@@ -1,7 +1,6 @@
 import time
 import threading
 import numpy as np
-import tensorflow as tf
 import ray
 
 from core.decorator import record

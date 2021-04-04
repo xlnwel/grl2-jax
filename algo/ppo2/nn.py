@@ -16,8 +16,7 @@ class PPO(Ensemble):
     
     @tf.function
     def action(self, x, state, mask, evaluation=False, 
-            prev_action=None, prev_reward=None,
-            return_eval_stats=False):
+            prev_action=None, prev_reward=None, **kwargs):
         assert x.shape.ndims % 2 == 0, x.shape
         x, state = self.encode(
             x, state, mask, prev_action, prev_reward)

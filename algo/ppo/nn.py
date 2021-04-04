@@ -85,7 +85,7 @@ class PPO(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, return_eval_stats=False):
+    def action(self, x, evaluation=False, **kwargs):
         x = self.encode(x)
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)

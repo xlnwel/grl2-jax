@@ -13,7 +13,7 @@ class PPG(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, obs, evaluation=False, return_eval_stats=0):
+    def action(self, obs, evaluation=False, **kwargs):
         x = self.encoder(obs)
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)

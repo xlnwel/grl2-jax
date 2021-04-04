@@ -120,6 +120,8 @@ class AgentBase(AgentImpl):
         self._sample_timer = Timer('sample')
         self._train_timer = Timer('train')
 
+        self._return_stats = getattr(self, '_return_stats', False)
+
         self.RECORD = getattr(self, 'RECORD', False)
         self.N_EVAL_EPISODES = getattr(self, 'N_EVAL_EPISODES', 1)
 
@@ -181,6 +183,7 @@ class AgentBase(AgentImpl):
         out = self._compute_action(
             obs, **kwargs, 
             evaluation=evaluation, 
+            return_stats=self._return_stats,
             return_eval_stats=return_eval_stats)
         out = self._process_output(obs, kwargs, out, evaluation)
 
@@ -512,26 +515,3 @@ class TargetNetOps:
     def get_target_nets(self):
         return [getattr(self, f'target_{k}') for k in self.model 
             if f'target_{k}' in self.model]
-
-class DiscreteRegularizer:
-    def _add_regularizer_attr(self):
-        self._probabilistic_regularization = getattr(self, 
-            '_probabilistic_regularization', None)
-        if self._probabilistic_regularization == 'tsallis':
-            self._tsallis_q = getattr(self, '_tsallis_q', 1.2)
-        logger.info(f'Probabilistic regularization: {self._probabilistic_regularization}')
-
-    def _compute_regularization(self, pi, regularization=None):
-        regularization = regularization or self._probabilistic_regularization
-        pi = tf.maximum(pi, 1e-8)
-        if regularization is None:
-            return None
-        elif regularization == 'entropy' \
-                or (regularization == 'tsallis' and self._tsallis_q == 1):
-            phi = -tf.math.log(pi)
-        elif regularization == 'tsallis':
-            phi = (pi**(self._tsallis_q - 1) - 1) / (1 - self._tsallis_q)
-        else:
-            raise NotImplementedError
-        
-        return tf.reduce_sum(pi * phi, axis=-1)

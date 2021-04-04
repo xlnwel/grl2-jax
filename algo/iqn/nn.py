@@ -72,7 +72,7 @@ class Value(Q):
                 q = tf.reduce_sum(qs * one_hot, axis=-1)
             else:
                 q = tf.reduce_max(qs, axis=-1)
-            return action, {'q': tf.squeeze(q)}
+            return action, {'q': q}
         else:
             return action
     
@@ -143,9 +143,9 @@ class IQN(Ensemble):
             x, qt_embed, epsilon=epsilon, 
             temp=temp, return_stats=return_stats)
         terms = {}
+        action = tf.nest.map_structure(lambda x: tf.squeeze(x), action)
         if return_stats:
             action, terms = action
-        action = tf.squeeze(action)
 
         return action, terms
 

@@ -100,7 +100,7 @@ replay:
 
     # arguments for general replay
     n_steps: *nsteps
-    max_steps: 5
+    max_steps: 3
     gamma: *gamma
     batch_size: *bs
     min_size: 1600

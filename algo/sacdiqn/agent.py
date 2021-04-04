@@ -47,9 +47,8 @@ class Agent(DQNBase, IQNOps, TempLearner):
         terms['value_norm'] = self._value_opt(tape, value_loss)
 
         with tf.GradientTape() as tape:
-            pi = self.actor.train_step(x)
-            regularization = self._compute_regularization(pi, 
-                    self._probabilistic_regularization or 'entropy')
+            pi, logpi = self.actor.train_step(x)
+            regularization = -tf.reduce_sum(pi * logpi, axis=-1)
             q = tf.reduce_sum(pi * qs, axis=-1)
             actor_loss = -(q + temp * regularization)
             actor_loss = tf.reduce_mean(IS_ratio * actor_loss)
@@ -90,19 +89,20 @@ class Agent(DQNBase, IQNOps, TempLearner):
         terms = {}
 
         next_x = self.target_encoder(next_obs, training=False)
-        next_pi = self.target_actor.train_step(next_x)
+        next_pi, next_logpi = self.target_actor.train_step(next_x)
         _, qt_embed = self.target_quantile(next_x, self.N_PRIME)
         next_x_ext = tf.expand_dims(next_x, axis=1)
         next_qtv = self.target_q(next_x_ext, qt_embed)
         
         next_pi_ext = tf.expand_dims(next_pi, axis=-2)
+        next_logpi_ext = tf.expand_dims(next_logpi, axis=-2)
         next_qtv_v = tf.reduce_sum(next_pi_ext * next_qtv, axis=-1)
         tf.debugging.assert_shapes([
             [next_qtv_v, (None, self.N_PRIME)],
             [next_pi_ext, (None, 1, self._action_dim)],
         ])
         if self._probabilistic_regularization is not None:
-            next_qtv_v += temp * self._compute_regularization(next_pi_ext)
+            next_qtv_v += temp * -tf.reduce_sum(next_pi_ext * next_logpi_ext, axis=-1)
             
         reward = reward[:, None]
         discount = discount[:, None]

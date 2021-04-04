@@ -178,7 +178,6 @@ def get_worker_class(AgentBase):
         """ Call """
         def _process_input(self, obs, evaluation, env_output):
             obs, kwargs = super()._process_input(obs, evaluation, env_output)
-            kwargs['return_stats'] = self._return_stats
             return obs, kwargs
 
         """ Worker Methods """

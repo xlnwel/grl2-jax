@@ -122,7 +122,8 @@ class EnvVecNStepBuffer(NStepBuffer):
     
     def retrieve(self, seqlen=None):
         seqlen = seqlen or self._idx
-        results = adjust_n_steps_envvec(self._memory, seqlen, self._n_steps, self._max_steps, self._gamma)
+        results = adjust_n_steps_envvec(self._memory, seqlen, 
+            self._n_steps, self._max_steps, self._gamma)
         value = None
         for k, v in results.items():
             if k in ('q', 'v'):

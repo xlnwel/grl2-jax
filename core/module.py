@@ -23,7 +23,8 @@ class Module(tf.Module):
 
     def __call__(self, *args, **kwargs):
         if not self._is_built:
-            self._build(*tf.nest.map_structure(lambda x: x.shape, args))
+            self._build(*tf.nest.map_structure(
+                lambda x: x.shape if isinstance(x, tf.Tensor) else x, args))
         if hasattr(self, '_layers') and isinstance(self._layers, (list, tuple)):
             self._layers = [l for l in self._layers if not isinstance(l, Dummy)]
 

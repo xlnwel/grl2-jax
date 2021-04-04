@@ -1,6 +1,6 @@
 ---
 env:
-    name: procgen_miner
+    name: procgen_starpilot
     distribution_mode: easy
     n_envs: &ne 64
     frame_stack: 1

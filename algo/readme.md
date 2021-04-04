@@ -18,3 +18,5 @@
 - sacd: SAC for discrete action space and CNN
 - sacdiqn: SAC + IQN for discrete action space and CNN
 - seed: SEED for distributed training
+
+**Note:** Do not run value-based algorithms on the 'procgen' suite. Run the Ape-X version instead! 

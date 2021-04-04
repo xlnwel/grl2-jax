@@ -52,7 +52,7 @@ class Agent(PPOBase):
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 
                 with self._train_timer:
-                    terms = self.meta_learn(**data) if j == 1 else self.learn(**data)
+                    terms = self.meta_learn(**data) if i == 0 else self.learn(**data)
 
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
                 kl = terms.pop('train/kl')
