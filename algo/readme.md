@@ -1,5 +1,6 @@
 ## Algorithms implemented in each folder
 
+- airl
 - apex: Ape-X for distributed training
 - daac: Decoupled advantage actor-critic
 - dqn: raibow(except c51)

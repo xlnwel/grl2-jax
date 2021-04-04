@@ -1,10 +1,10 @@
-from datetime import datetime
 import functools
 
 from utility.utils import Every, TempStore
 from utility.graph import video_summary
 from utility.run import Runner, evaluate
 from utility.timer import Timer
+from utility import pkg
 from replay.func import create_replay
 from algo.ppo.train import main
 
@@ -25,10 +25,10 @@ def get_expert_data(data_path):
     exp_buffer.load_data()
     print(f'Expert buffer size: {len(exp_buffer)}')
     return exp_buffer
-    
+
 def train(agent, env, eval_env, buffer):
-    def collect(env, step, reset, **kwargs):
-        buffer.add(**kwargs)
+    collect_fn = pkg.import_module('agent', algo=agent.name).collect
+    collect = functools.partial(collect_fn, buffer)
 
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)

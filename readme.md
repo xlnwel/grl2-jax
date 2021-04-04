@@ -43,6 +43,11 @@ All implementation details from OpenAI's baselines are implemented for PPO famil
 
 - [x] Dreamer<sup>[1](dreamer)</sup>
 
+### Imitation Learning
+
+- [x] AIRL
+- [x] GAIL
+
 ### Networks
 
 - [x] CBAM

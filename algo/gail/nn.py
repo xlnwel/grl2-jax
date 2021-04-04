@@ -10,8 +10,7 @@ class Discriminator(Module):
         super().__init__(name)
         config = config.copy()
 
-        self._obs_action = config.pop('obs_action', True)
-        self._layers = mlp(**config, out_size=1, name='g')
+        self._layers = mlp(**config, out_size=1)
         
     def call(self, obs, action):
         x = tf.concat([obs, action], axis=-1)

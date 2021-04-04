@@ -3,7 +3,6 @@ env:
     name: &env_name Hopper-v3
     n_workers: 1
     n_envs: &nenvs 100
-    seed: 0
 
 model:
     encoder: 
@@ -14,15 +13,15 @@ model:
         init_std: 1
         norm: null
         kernel_initializer: orthogonal
-        activation: relu
+        activation: tanh
     value:
         units_list: [64, 64]
         norm: null
         kernel_initializer: glorot_uniform
-        activation: relu
+        activation: tanh
     discriminator:
         units_list: [100, 100]
-        activation: relu
+        activation: tanh
         obs_action: True
 
 agent:
@@ -33,7 +32,7 @@ agent:
     N_DISC_EPOCHS: 10
     disc_batch_size: 64
 
-    MAX_STEPS: 3e7
+    MAX_STEPS: 1e10
     N_STEPS: &nsteps 100
     N_EPOCHS: 50
     N_MBS: &nmbs 1
@@ -60,7 +59,7 @@ agent:
     opt_eps: 1e-5
     # arguments for loss
     clip_range: .2          # clip range for ppo
-    entropy_coef: .0
+    entropy_coef: .001
     value_coef: 1
 
 buffer:
@@ -74,4 +73,4 @@ buffer:
     # mini-batch size = n_workers * n_envs * epslen / n_mbs
 
     # expert data path
-    DATA_PATH: data/sac-humanoid
+    DATA_PATH: data/sac

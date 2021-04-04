@@ -1,6 +1,6 @@
 ---
 env:
-    name: procgen_coinrun
+    name: procgen_starpilot
     distribution_mode: easy
     n_envs: &ne 4
     frame_diff: False

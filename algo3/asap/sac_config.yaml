@@ -1,10 +1,9 @@
 ---
 env:
     name: BipedalWalkerHardcore-v3
-    n_envs: 1
+    n_envs: 4
     seed: 0
     reward_clip: 10
-
 model:
     actor:
         units_list: [512, 256, 128]
@@ -21,42 +20,47 @@ model:
     temperature:
         temp_type: constant
         value: .01
-
 agent:
     algorithm: &algo asap-sac
-    replay_type: &replay uniform
-    gamma: &gamma 0.99
+    replay_type: &replay per
+    gamma: &gamma .99
+    batch_size: &bs 512
     n_steps: &nsteps 3      # n-step target
-    schedule_act_eps: False
-    act_eps: 0
-    eval_act_eps: 0
     polyak: .995
     evaluation: False
-    act_eps: 0
-
+    
     # timer&interval
-    MAX_STEPS: 1e8
-    LOG_PERIOD: &log 1000
+    MAX_STEPS: 1e10
+    LOG_PERIOD: &log 100
     N_UPDATES: *log
     SYNC_PERIOD: 1000
-    RECORD_PERIOD: 100
+    RECORD_PERIOD: False
     N_EVALUATION: 10
+
+    schedule_act_eps: True
+    act_eps_type: line
+    act_eps: .3
+    eval_act_eps: 0
+    schedule_act_temp: True
+    n_exploit_envs: 8
+    min_temp: .5
+    max_temp: 10
 
     # distributed algo params
     n_learner_cpus: 1
-    n_learner_gpus: 1
+    n_learner_gpus: .3
     n_workers: 5
     n_worker_cpus: 1
-    n_worker_gpus: 0
-    
+    n_worker_gpus: .1
     run_mode: traj
+    worker_side_prioritization: False
 
     # SAP params
     n_eval_envs: 1
     REPO_CAP: 10
     MIN_EVOLVE_MODELS: 2
     MAX_EVOLVE_MODELS: 10
-    MIN_LEARN_PROB: .3
+    MIN_LEARN_PROB: .7
     MIN_EVOLVE_PROB: .3
     EVOLVE_LEARN_PROB: 0  # probability to further average evolved weights with the learned parameter
     REEVAL_PROB: .05
@@ -73,7 +77,7 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    loss_type: mse
+    loss_type: mse                          # huber or mse
 
     # arguments for optimizer
     optimizer: adam
@@ -84,7 +88,7 @@ agent:
     # clip_norm: 10
     
     # arguments for PER
-    per_alpha: 0.7
+    per_alpha: 0.5
     per_epsilon: 1e-4
 
 replay:
@@ -102,7 +106,7 @@ replay:
     # arguments for general replay
     n_steps: *nsteps
     gamma: *gamma
-    batch_size: 512
+    batch_size: *bs
     min_size: 5e4
     capacity: 1e6
     has_next_obs: True

@@ -34,6 +34,10 @@ class Actor(Module):
         action = tf.tanh(raw_action)
         if isinstance(epsilon, tf.Tensor) or epsilon:
             action = epsilon_greedy(action, epsilon, False)
+        if evaluation:
+            raw_logpi = dist.log_prob(raw_action)
+            logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
+            return action, {'logpi': logpi}
 
         return action
 
@@ -47,9 +51,10 @@ class Actor(Module):
         raw_logpi = dist.log_prob(raw_action)
         action = tf.tanh(raw_action)
         logpi = logpi_correction(raw_action, raw_logpi, is_action_squashed=False)
-        terms = dict(raw_act_std=std)
-
-        terms['entropy']= dist.entropy()
+        
+        terms = dict(
+            raw_act_std=std,
+        )
 
         return action, logpi, terms
 
@@ -130,7 +135,7 @@ class SAC(Ensemble):
         assert x.shape.ndims == 2, x.shape
         
         action = self.actor(x, evaluation=evaluation, epsilon=epsilon)
-        action = tf.squeeze(action)
+        action = tf.nest.map_structure(lambda x: tf.squeeze(x), action)
 
         return action
 
@@ -151,20 +156,14 @@ def create_components(config, env):
     actor_config = config['actor']
     q_config = config['q']
     temperature_config = config['temperature']
-    actor = Actor(actor_config, action_dim)
-    q = Q(q_config, 'q')
-    q2 = Q(q_config, 'q2')
-    target_q = Q(q_config, 'target_q')
-    target_q2 = Q(q_config, 'target_q2')
-    temperature = Temperature(temperature_config)
         
     return dict(
-        actor=actor,
-        q=q,
-        q2=q2,
-        target_q=target_q,
-        target_q2=target_q2,
-        temperature=temperature,
+        actor=Actor(actor_config, action_dim),
+        q=Q(q_config, 'q'),
+        q2=Q(q_config, 'q2'),
+        target_q=Q(q_config, 'target_q'),
+        target_q2=Q(q_config, 'target_q2'),
+        temperature=Temperature(temperature_config),
     )
 
 def create_model(config, env, **kwargs):

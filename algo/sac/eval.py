@@ -56,9 +56,9 @@ def main(env_config, model_config, agent_config, replay_config,
         replay_config['capacity'] = int(1e6)
         replay_config['has_next_obs'] = True
         replay = create_replay(replay_config)
-        def collect(obs, action, reward, discount, next_obs, **kwargs):
+        def collect(obs, action, reward, discount, next_obs, logpi, **kwargs):
             replay.add(obs=obs, action=action, reward=reward, 
-                discount=discount, next_obs=next_obs)
+                discount=discount, next_obs=next_obs, logpi=logpi)
     else:
         def collect(**kwargs):
             pass

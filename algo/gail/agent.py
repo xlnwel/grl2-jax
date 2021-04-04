@@ -6,6 +6,9 @@ from core.optimizer import Optimizer
 from algo.ppo.base import PPOBase
 
 
+def collect(buffer, env, step, reset, **kwargs):
+    buffer.add(**kwargs)
+
 class Agent(PPOBase):
     @override(PPOBase)
     def _construct_optimizers(self):

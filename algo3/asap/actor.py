@@ -36,10 +36,11 @@ def get_worker_class(AgentBase):
             self._tag = Tag.LEARNED
             # self.reevaluation_bookkeeping = BookKeeping('reeval')
 
-        def run(self, learner, replay):
+        def run(self, learner, replay, monitor):
             while True:
                 mode, score, self._tag, weights, eval_times = self._choose_weights(learner)
-                self._run(weights, replay)
+                self.model.set_weights(weights)
+                self._run(replay)
                 eval_times += 1
                 curr_score = self._info['score'][-1] if self._tag == Tag.LEARNED \
                     else self._info['evolved_score'][-1]
@@ -54,7 +55,7 @@ def get_worker_class(AgentBase):
                     f'Score: {score:.3g}',
                     f'Decision: {status}', color='green')
                 print_repo(self._weight_repo, self._id)
-                self._send_episode_info(learner)
+                self._send_episode_info(monitor)
                 
                 self._update_mode_prob()
 

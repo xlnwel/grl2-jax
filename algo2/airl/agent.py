@@ -6,6 +6,9 @@ from core.optimizer import Optimizer
 from algo.ppo.base import PPOBase
 
 
+def collect(buffer, env, step, reset, **kwargs):
+    buffer.add(**kwargs)
+
 class Agent(PPOBase):
     @override(PPOBase)
     def _construct_optimizers(self):
@@ -46,7 +49,7 @@ class Agent(PPOBase):
         for i in range(self.N_DISC_EPOCHS):
             data = self.dataset.sample_for_disc(self._disc_batch_size)
             data_exp = exp_buffer.sample(self._disc_batch_size)
-            data_exp = {f'{k}_exp': data_exp[k] for k in data_exp.keys()}
+            data_exp = {f'{k}_exp': data_exp[k] for k in ['obs', 'action', 'discount', 'logpi', 'next_obs']}
             terms = self.learn_discriminator(**data, **data_exp)
             terms = {f'disc/{k}': v.numpy() for k, v in terms.items()}
             self.store(**terms)

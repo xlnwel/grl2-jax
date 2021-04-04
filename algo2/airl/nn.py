@@ -30,7 +30,8 @@ class Discriminator(Module):
 
     def compute_reward(self, obs, action, discount, next_obs, logpi):
         logits = self(obs, action, discount, next_obs, logpi)
-        return tf.math.log_sigmoid(logits) - tf.math.log_sigmoid(-logits)
+        # return tf.math.log_sigmoid(logits) - tf.math.log_sigmoid(-logits)
+        return -tf.math.log_sigmoid(-logits)
 
 def create_components(config, env):
     action_dim = env.action_dim

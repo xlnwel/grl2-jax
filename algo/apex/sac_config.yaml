@@ -19,29 +19,37 @@ model:
         value: .01
 agent:
     algorithm: &algo apex-sac
-    replay_type: &replay uniform
+    replay_type: &replay per
     gamma: &gamma .99
-    batch_size: &bs 256
+    batch_size: &bs 512
     n_steps: &nsteps 3      # n-step target
-    schedule_act_eps: False
-    act_eps: 0
-    eval_act_eps: 0
     polyak: .995
     evaluation: False
 
-    MAX_STEPS: 1e6
+    MAX_STEPS: 1e10
     LOG_PERIOD: &log 100
     N_UPDATES: *log
     SYNC_PERIOD: 1000
     RECORD_PERIOD: False
     N_EVALUATION: 10
 
+    schedule_act_eps: True
+    act_eps_type: line
+    act_eps: .3
+    eval_act_eps: 0
+    schedule_act_temp: True
+    n_exploit_envs: 8
+    min_temp: .5
+    max_temp: 10
+
     # distributed algo params
     n_learner_cpus: 1
-    n_learner_gpus: 1
+    n_learner_gpus: .3
     n_workers: 5
     n_worker_cpus: 1
-    n_worker_gpus: 0
+    n_worker_gpus: .1
+    run_mode: nsteps
+    worker_side_prioritization: False
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs

@@ -13,16 +13,15 @@ model:
         init_std: 1
         norm: null
         kernel_initializer: orthogonal
-        activation: relu
+        activation: tanh
     value:
         units_list: [64, 64]
         norm: null
         kernel_initializer: glorot_uniform
-        activation: relu
+        activation: tanh
     discriminator:
         units_list: [100, 100]
-        activation: relu
-        obs_action: True
+        activation: tanh
 
 agent:
     algorithm: &algo gail
@@ -59,7 +58,7 @@ agent:
     opt_eps: 1e-5
     # arguments for loss
     clip_range: .2          # clip range for ppo
-    entropy_coef: .0
+    entropy_coef: .001
     value_coef: 1
 
 buffer:
