@@ -1,6 +1,6 @@
 ---
 env:
-    name: HalfCheetah-v2
+    name: HalfCheetah-v3
     # reward_clip: 10
 
 model:
@@ -22,7 +22,7 @@ agent:
     algorithm: &algo sac
     replay_type: &replay uniform
     gamma: &gamma .99
-    batch_size: &bs 256
+    batch_size: &bs 100
     n_steps: &nsteps 3
     polyak: .995
 

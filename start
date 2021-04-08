@@ -23,9 +23,9 @@ envs=(
     # starpilot
     # miner
     # climber
-    dodgeball
-    bigfish
-    caveflyer 
+    # dodgeball
+    # bigfish
+    # caveflyer 
     leaper
     jumper
     fruitbot
