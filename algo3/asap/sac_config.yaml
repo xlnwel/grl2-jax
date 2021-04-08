@@ -30,7 +30,7 @@ agent:
     evaluation: False
     
     # timer&interval
-    MAX_STEPS: 1e10
+    MAX_STEPS: 1e7
     LOG_PERIOD: &log 100
     N_UPDATES: *log
     SYNC_PERIOD: 1000
@@ -41,10 +41,10 @@ agent:
     act_eps_type: line
     act_eps: .3
     eval_act_eps: 0
-    schedule_act_temp: True
-    n_exploit_envs: 8
-    min_temp: .5
-    max_temp: 10
+    schedule_act_temp: False
+    n_exploit_envs: 2
+    min_temp: 1
+    max_temp: 1
 
     # distributed algo params
     n_learner_cpus: 1

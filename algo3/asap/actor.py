@@ -41,10 +41,8 @@ def get_worker_class(AgentBase):
                 mode, score, self._tag, weights, eval_times = self._choose_weights(learner)
                 self.model.set_weights(weights)
                 self._run(replay)
-                eval_times += 1
-                curr_score = self._info['score'][-1] if self._tag == Tag.LEARNED \
-                    else self._info['evolved_score'][-1]
-                score = (score + curr_score) / eval_times
+                eval_times += self.env.n_envs
+                score = (score + self._sum_score) / eval_times
                 status = self._make_decision(mode, score, eval_times)
                 if status == Status.ACCEPTED:
                     store_weights(
@@ -109,6 +107,7 @@ def get_worker_class(AgentBase):
                 else:
                     self._info['evolved_score'] += score
                     self._info['epslen'] += epslen
+            self._sum_score = np.sum(score)
 
         def _make_decision(self, mode, score, eval_times):
             if len(self._weight_repo) < self.REPO_CAP or score > min(self._weight_repo):
