@@ -488,9 +488,9 @@ class TargetNetOps:
         logger.info(f"Sync Networks | Target networks: {[n.name for n in tns]}")
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
-        logger.info(f"Sync Networks | Online network parameters:\n" 
+        logger.info(f"Sync Networks | Online network parameters:\n\t" 
             + '\n\t'.join([f'{n.name}, {n.shape}' for n in ovars]))
-        logger.info(f"Sync Networks | Target network parameters:\n" 
+        logger.info(f"Sync Networks | Target network parameters:\n\t" 
             + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]))
         assert len(tvars) == len(ovars), f'{tvars}\n{ovars}'
         [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
