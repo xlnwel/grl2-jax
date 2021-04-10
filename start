@@ -26,9 +26,9 @@ envs=(
     # dodgeball
     # bigfish
     # caveflyer 
-    leaper
-    jumper
-    fruitbot
+    # leaper
+    # jumper
+    # fruitbot
     bossfight
     maze
 )

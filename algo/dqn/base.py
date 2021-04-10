@@ -56,7 +56,9 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
 
-        self.MUNCHAUSEN = False
+        self.MUNCHAUSEN = getattr(self, 'MUNCHAUSEN', False)
+        self._probabilistic_regularization = getattr(
+            self,  '_probabilistic_regularization', None)
 
         self._is_per = False if dataset is None else dataset.name().endswith('per')
         self._double = getattr(self, '_double', False)

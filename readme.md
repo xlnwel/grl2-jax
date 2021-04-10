@@ -4,9 +4,9 @@ A modulated and versatile library for deep reinforcement learning, implemented i
 
 ## Instructions
 
-If you want to know how an algorithm works, simply study `agent.py` and `nn.py`.
+If you want to know how an algorithm works, simply study `agent.py` and `nn.py` in each folder of [algo](https://github.com/xlnwel/d2rl/tree/master/algo).
 
-If you want to run some algorithm, see [Get Start](#example).
+If you want to run some algorithm, refer to [Get Start](#example).
 
 ## Current Implemented Algorithms/Networks
 
@@ -47,7 +47,7 @@ All implementation details from OpenAI's baselines are implemented for PPO famil
 
 ### Model-Based RL
 
-- [x] Dreamer<sup>[1](dreamer)</sup>
+- [x] Dreamer
 
 ### Imitation Learning
 
@@ -67,7 +67,7 @@ All implementation details from OpenAI's baselines are implemented for PPO famil
 - [x] SENet
 - [x] SN (Spectral Norm)
 
-<a name="example"></a>## Get Started
+## <a name="example"></a>Get Started
 
 ```shell
 python run/train.py algo -e env
@@ -86,7 +86,7 @@ python run/train.py apex-iqn -e procgen_coinrun
 
 By default, all the checkpoints and loggings are saved to `./logs/{env}/{algo}/{model_name}/`.
 
-You can also make some simple changes to `*config.yaml` from command line
+You can also make some simple changes to `*config.yaml` from the command line
 
 ```
 # change learning rate to 0.0001, `lr` must appear in `*config.yaml`
@@ -194,5 +194,3 @@ https://github.com/microsoft/FQF
 https://github.com/rwightman/pytorch-image-models
 
 https://github.com/juntang-zhuang/Adabelief-Optimizer
-
-<a name="dreamer">1</a>: dreamer was tested before, but some dependent code such as `Runner` has been changed since then. Due to the expiration of my mojuco liscence, I can no longer test it and I decide to leave it as it is.
