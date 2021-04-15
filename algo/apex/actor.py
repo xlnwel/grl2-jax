@@ -163,7 +163,8 @@ def get_worker_class(AgentBase):
             self.runner = Runner(
                 self.env, self, 
                 nsteps=self.SYNC_PERIOD if self._run_mode == RunMode.NSTEPS else None,
-                run_mode=self._run_mode)
+                run_mode=self._run_mode,
+                record_envs=getattr(self, '_record_envs', None))
 
             self._worker_side_prioritization = getattr(self, '_worker_side_prioritization', False)
             self._return_stats = self._worker_side_prioritization \

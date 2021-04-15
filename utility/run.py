@@ -12,7 +12,8 @@ class RunMode:
 
 
 class Runner:
-    def __init__(self, env, agent, step=0, nsteps=None, run_mode=RunMode.NSTEPS):
+    def __init__(self, env, agent, step=0, nsteps=None, 
+                run_mode=RunMode.NSTEPS, record_envs=None):
         self.env = env
         if env.max_episode_steps == int(1e9):
             logger.info(f'Maximum episode steps is not specified'
@@ -36,6 +37,9 @@ class Runner:
         self._frame_skip = getattr(env, 'frame_skip', 1)
         self._frames_per_step = self.env.n_envs * self._frame_skip
         self._default_nsteps = nsteps or env.max_episode_steps // self._frame_skip
+
+        record_envs = record_envs or self.env.n_envs
+        self._record_envs = list(range(record_envs))
 
     def _run_env(self, *, action_selector=None, step_fn=None, nsteps=None):
         action_selector = action_selector or self.agent
@@ -77,10 +81,11 @@ class Runner:
                 info = self.env.info(done_env_ids)
                 # further filter done caused by life loss
                 done_env_ids = [k for k, i in enumerate(info) if i.get('game_over')]
-                info = [info[i] for i in done_env_ids]
-                score = [i['score'] for i in info]
-                epslen = [i['epslen'] for i in info]
-                self.agent.store(score=score, epslen=epslen)
+                info = [info[i] for i in done_env_ids if i in self._record_envs]
+                if info:
+                    score = [i['score'] for i in info]
+                    epslen = [i['epslen'] for i in info]
+                    self.agent.store(score=score, epslen=epslen)
                 self.episodes[done_env_ids] += 1
 
         return self.step
@@ -120,7 +125,7 @@ class Runner:
             # logging when any env is reset 
             if np.all(self.env_output.discount == 0):
                 break
-        info = self.env.info()
+        info = [i for idx, i in enumerate(self.env.info()) if idx in self._record_envs]
         score = [i['score'] for i in info]
         epslen = [i['epslen'] for i in info]
         self.agent.store(score=score, epslen=epslen)

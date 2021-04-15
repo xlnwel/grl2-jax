@@ -1,6 +1,4 @@
-import numpy as np
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
 
 from core.module import Module, Ensemble
 from nn.func import Encoder

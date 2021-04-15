@@ -30,7 +30,7 @@ def get_worker_class(AgentBase):
                 buffer_fn=buffer_fn)
 
             self._weight_repo = {}                                 # map score to Weights
-            self._mode = (Mode.LEARNING, Mode.EVOLUTION, Mode.REEVALUATION)
+            self._valid_mode = (Mode.LEARNING, Mode.EVOLUTION, Mode.REEVALUATION)
             self._mode_prob = [.6, .3, 0.1]
             self._raw_bookkeeping = BookKeeping('raw')
             self._tag = Tag.LEARNED
@@ -38,18 +38,18 @@ def get_worker_class(AgentBase):
 
         def run(self, learner, replay, monitor):
             while True:
-                mode, score, self._tag, weights, eval_times = self._choose_weights(learner)
+                self._mode, score, self._tag, weights, eval_times = self._choose_weights(learner)
                 self.model.set_weights(weights)
                 self._run(replay)
-                eval_times += self.env.n_envs
+                eval_times += self._record_envs
                 score = (score + self._sum_score) / eval_times
-                status = self._make_decision(mode, score, eval_times)
+                status = self._make_decision(self._mode, score, eval_times)
                 if status == Status.ACCEPTED:
                     store_weights(
-                        self._weight_repo, mode, score, self._tag, weights, 
+                        self._weight_repo, self._mode, score, self._tag, weights, 
                         eval_times, self.REPO_CAP, fifo=self.FIFO,
                         fitness_method=self._fitness_method, c=self._cb_c)
-                pwc(f'{self._id} Mode({mode}): {self._tag} model has been evaluated({eval_times}).', 
+                pwc(f'{self._id} Mode({self._mode}): {self._tag} model has been evaluated({eval_times}).', 
                     f'Score: {score:.3g}',
                     f'Decision: {status}', color='green')
                 print_repo(self._weight_repo, self._id)
@@ -57,11 +57,17 @@ def get_worker_class(AgentBase):
                 
                 self._update_mode_prob()
 
+        def _process_input(self, obs, evaluation, env_output):
+            evaluation = self._evaluation and self._valid_mode == Mode.REEVALUATION
+            obs, kwargs = super()._process_input(obs, evaluation, env_output)
+            kwargs['evaluation'] = evaluation
+            return obs, kwargs
+
         def _choose_weights(self, learner):
             if len(self._weight_repo) < self.MIN_EVOLVE_MODELS:
                 mode = Mode.LEARNING
             else:
-                mode = random.choices(self._mode, weights=self._mode_prob)[0]
+                mode = random.choices(self._valid_mode, weights=self._mode_prob)[0]
 
             if mode == Mode.LEARNING:
                 with Timer('pull_weights', 1000):

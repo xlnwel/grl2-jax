@@ -167,7 +167,8 @@ class Buffer:
                             value=self._memory['value'],
                             last_value=last_value,
                             gamma=self._gamma,
-                            gae_discount=self._gae_discount)
+                            gae_discount=self._gae_discount,
+                            norm_adv=getattr(self, '_norm_adv', True))
         else:
             raise NotImplementedError
 

@@ -133,6 +133,12 @@ class Agent(PPOBase):
         terms['value_norm'] = self._value_opt(tape, value_loss)
 
         terms.update(dict(
+            x=tf.reduce_mean(x),
+            x_std=tf.math.reduce_std(x),
+            x_max=tf.math.reduce_max(x),
+            x_value=tf.reduce_mean(x_value),
+            x_value_std=tf.math.reduce_std(x_value),
+            x_value_max=tf.math.reduce_max(x_value),
             value=value,
             advantage=advantage, 
             ratio=tf.exp(log_ratio), 

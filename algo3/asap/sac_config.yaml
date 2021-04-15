@@ -7,7 +7,8 @@ env:
 model:
     actor:
         units_list: [512, 256, 128]
-        # kernel_initializer: glorot_uniform
+        kernel_initializer: orthogonal
+        out_gain: .01
         norm: null
         activation: relu
         LOG_STD_MIN: -20
@@ -23,28 +24,30 @@ model:
 agent:
     algorithm: &algo asap-sac
     replay_type: &replay per
-    gamma: &gamma .99
+    gamma: &gamma .995
     batch_size: &bs 512
     n_steps: &nsteps 3      # n-step target
     polyak: .995
     evaluation: False
     
     # timer&interval
-    MAX_STEPS: 1e7
-    LOG_PERIOD: &log 100
+    MAX_STEPS: 2e7
+    LOG_PERIOD: &log 60
     N_UPDATES: *log
     SYNC_PERIOD: 1000
     RECORD_PERIOD: False
     N_EVALUATION: 10
 
     schedule_act_eps: True
-    act_eps_type: line
+    act_eps_type: apex
     act_eps: .3
     eval_act_eps: 0
-    schedule_act_temp: False
+    schedule_act_temp: True
     n_exploit_envs: 2
-    min_temp: 1
-    max_temp: 1
+    min_temp: .5
+    max_temp: 2
+
+    record_envs: 2
 
     # distributed algo params
     n_learner_cpus: 1
@@ -60,7 +63,7 @@ agent:
     REPO_CAP: 10
     MIN_EVOLVE_MODELS: 2
     MAX_EVOLVE_MODELS: 10
-    MIN_LEARN_PROB: .7
+    MIN_LEARN_PROB: .5
     MIN_EVOLVE_PROB: .3
     EVOLVE_LEARN_PROB: 0  # probability to further average evolved weights with the learned parameter
     REEVAL_PROB: .05

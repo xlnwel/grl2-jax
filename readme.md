@@ -73,7 +73,7 @@ All implementation details from OpenAI's baselines are implemented for PPO famil
 python run/train.py algo -e env
 ```
 
-For available `algo`, please refer to the folder names in `/algo`. To run distributed algorithms, `algo` should be of form `{distributed_architecture}-{algorithm}`. For example, if you want to run Ape-X with DQN, replace 'algo' with `apex-dqn`. Configures are set in `*config.yaml` in each fold following convention `{algo}_{env_suite}_config.yaml`, where `algo` is omitted when there is no ambiguous and `env_suite` is omitted when there is no corresponding suite name. `env` follows convention `{suite}_{name}`, current available `suite` includes `[atari, procgen, dmc]`.  
+For available `algo`, please refer to the folder names in `/algo`. To run distributed algorithms, `algo` should be of form `{distributed_architecture}-{algorithm}`. For example, if you want to run Ape-X with DQN, replace `algo` with `apex-dqn`. Configures are set in `*config.yaml` in each fold following convention `{algo}_{env_suite}_config.yaml`, where `algo` is omitted when there is no ambiguous and `env_suite` is omitted when there is no corresponding suite name. `env` follows convention `{suite}_{name}`, current available `suite` includes `[atari, procgen, dmc]`.  
 
 Examples
 

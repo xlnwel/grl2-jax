@@ -37,7 +37,7 @@ agent:
     N_AUX_EPOCHS: 6
     N_AUX_MBS_PER_SEG: &nambs 16    # 16
     LOG_PERIOD: 40
-    EVAL_PERIOD: 40
+    EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
     
     normalize_obs: False

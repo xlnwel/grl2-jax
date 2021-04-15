@@ -180,9 +180,9 @@ class AgentBase(AgentImpl):
         assert obs.ndim in (2, 4), obs.shape
 
         obs, kwargs = self._process_input(obs, evaluation, env_output)
+        kwargs['evaluation'] = kwargs.get('evaluation', evaluation)
         out = self._compute_action(
             obs, **kwargs, 
-            evaluation=evaluation, 
             return_stats=self._return_stats,
             return_eval_stats=return_eval_stats)
         out = self._process_output(obs, kwargs, out, evaluation)
