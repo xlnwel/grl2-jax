@@ -4,16 +4,17 @@
 algos=(
     # ppo
     # ppo_meta
-    # ppg
+    ppg
     # apex-dqn
     # apex-iqn
     # apex-mrdqn
-    daac
+    # daac
     # apex-mrdqn
     # sacdiqn5
 )
 suite=procgen
 envs=(
+    leaper
     ninja
     chaser
     bigfish
@@ -26,7 +27,6 @@ envs=(
     dodgeball
     bigfish
     caveflyer 
-    leaper
     jumper
     fruitbot
     bossfight
@@ -49,7 +49,7 @@ for e in "${envs[@]}"; do
                     dir="logs/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -kw norm_adv=False >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from nn.rnn import LSTMCell, LSTM
+from nn.rnns.lstm import LSTMCell, LSTM
 
 
 class LSTMTest(tf.test.TestCase):

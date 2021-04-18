@@ -2,7 +2,7 @@ from tensorflow.keras import layers
 
 from nn.cnn import cnn
 from nn.mlp import *
-from nn.rnn import LSTM
+from nn.rnns.lstm import LSTM
 from nn.dnc.dnc import DNC
 
 

@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 class MLP(Module):
     def __init__(self, units_list, out_size=None, layer_type='dense', 
                 norm=None, activation=None, kernel_initializer='glorot_uniform', 
-                name=None, out_dtype=None, out_gain=1, **kwargs):
+                name=None, out_dtype=None, out_gain=1, norm_after_activation=False, 
+                norm_kwargs={}, **kwargs):
         super().__init__(name=name)
         layer_cls = layer_registry.get(layer_type)
         Layer = layer_registry.get('layer')
@@ -21,6 +22,7 @@ class MLP(Module):
         self._layers = [
             Layer(u, layer_type=layer_cls, norm=norm, 
                 activation=activation, kernel_initializer=kernel_initializer, 
+                norm_after_activation=norm_after_activation, norm_kwargs=norm_kwargs,
                 name=f'{name}/{layer_type}_{i}', **kwargs)
             for i, u in enumerate(units_list)]
         if out_size:

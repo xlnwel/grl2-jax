@@ -18,13 +18,7 @@ GymOutput = collections.namedtuple('GymOutput', 'obs reward discount')
 def post_wrap(env, config):
     """ Does some post processing and bookkeeping. 
     Does not change anything that will affect the agent's performance 
-        """
-    # env.is_action_discrete = isinstance(env.env.action_space, gym.spaces.Discrete)
-    # env.obs_shape = env.observation_space.shape
-    # env.action_shape = env.action_space.shape
-    # env.action_dim = env.action_space.n if env.is_action_discrete else env.action_shape[0]
-    # env.obs_dtype = env.observation_space.dtype
-    # env.action_dtype = env.action_space.dtype
+    """
     env = DataProcess(env, config.get('precision', 32))
     env = EnvStats(
         env, config.get('max_episode_steps', None), 

@@ -42,7 +42,8 @@ def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **kwargs):
         if 'next_obs' in buffer:
             buffer['next_obs'][k] = kwargs['next_obs']
 
-def copy_buffer(dest_buffer, dest_start, dest_end, orig_buffer, orig_start, orig_end, dest_keys=True):
+def copy_buffer(dest_buffer, dest_start, dest_end, orig_buffer, 
+                orig_start, orig_end, dest_keys=True):
     assert dest_end - dest_start == orig_end - orig_start, (
             f'Inconsistent lengths of dest_buffer(dest_end - dest_start)'
             f'and orig_buffer({orig_end - orig_start}).')

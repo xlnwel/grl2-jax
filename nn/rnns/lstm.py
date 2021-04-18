@@ -78,11 +78,11 @@ class LSTMCell(layers.Layer):
             else:
                 bias_initializer = self.bias_initializer
             self.bias = self.add_weight(
-              shape=(self.units * 4,),
-              name='bias',
-              initializer=bias_initializer,
-              regularizer=self.bias_regularizer,
-              constraint=self.bias_constraint)
+                shape=(self.units * 4,),
+                name='bias',
+                initializer=bias_initializer,
+                regularizer=self.bias_regularizer,
+                constraint=self.bias_constraint)
         else:
             self.bias = None
 
@@ -110,6 +110,7 @@ class LSTMCell(layers.Layer):
         i, f, o = self.recurrent_activation(i), self.recurrent_activation(f), self.recurrent_activation(o)
         c_ = self.activation(c_)
         c = f * c + i * c_
+        # following OpenAI's baselines, we perform layer normalization on c
         h = o * self.activation(self.c_ln(c))
             
         return h, LSTMState(h, c)

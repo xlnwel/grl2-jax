@@ -13,7 +13,8 @@ from utility import tf_utils
 class Layer(Module):
     def __init__(self, *args, layer_type=layers.Dense, norm=None, 
                 activation=None, kernel_initializer='glorot_uniform', 
-                name=None, norm_kwargs={}, **kwargs):
+                name=None, norm_after_activation=False, 
+                norm_kwargs={}, **kwargs):
         super().__init__(name=name)
         if isinstance(layer_type, str):
             layer_type = layer_registry.get(layer_type)
@@ -27,15 +28,19 @@ class Layer(Module):
         self._norm_cls = get_norm(norm)
         if self._norm:
             self._norm_layer = self._norm_cls(**norm_kwargs, name=f'{self.scope_name}/norm')
+        self._norm_after_activation = norm_after_activation
         self.activation = get_activation(activation)
 
     def call(self, x, training=True, **kwargs):
         x = self._layer(x, **kwargs)
-        if self._norm is not None:
+        
+        if not self._norm_after_activation and self._norm is not None:
             x = call_norm(self._norm, self._norm_layer, x, training=training)
         if self.activation is not None:
             x = self.activation(x)
-        
+        if self._norm_after_activation and self._norm is not None:
+            x = call_norm(self._norm, self._norm_layer, x, training=training)
+
         return x
     
     def reset(self):

@@ -170,16 +170,11 @@ class AgentBase(AgentImpl):
     def __call__(self, env_output=(), evaluation=False, return_eval_stats=False):
         """ Call the agent to interact with the environment
         Args:
-            obs: Observation(s), we keep a separate observation to for legacy reasons
-            evaluation bool: evaluation mode or not
             env_output tuple: (obs, reward, discount, reset)
+            evaluation bool: evaluation mode or not
         """
-        obs = env_output.obs
-        if obs.ndim % 2 != 0:
-            obs = np.expand_dims(obs, 0)    # add batch dimension
-        assert obs.ndim in (2, 4), obs.shape
-
-        obs, kwargs = self._process_input(obs, evaluation, env_output)
+        env_output = self._reshape_output(env_output)
+        obs, kwargs = self._process_input(env_output, evaluation)
         kwargs['evaluation'] = kwargs.get('evaluation', evaluation)
         out = self._compute_action(
             obs, **kwargs, 
@@ -189,15 +184,23 @@ class AgentBase(AgentImpl):
 
         return out
 
-    def _process_input(self, obs, evaluation, env_output):
+    def _reshape_output(self, env_output):
+        obs = env_output.obs
+        if obs.ndim % 2 != 0:
+            obs = np.expand_dims(obs, 0)    # add batch dimension
+        assert obs.ndim in (2, 4), obs.shape
+        return type(env_output)(obs, *env_output[1:])
+
+    def _process_input(self, env_output, evaluation):
         """Do necessary pre-process and produce inputs to model
         Args:
-            obs: Observations with added batch dimension
+            env_output tuple: (obs, reward, discount, reset)
+            evaluation bool: evaluation mode or not
         Returns: 
             obs: Pre-processed observations
             kwargs, dict: kwargs necessary to model  
         """
-        return obs, {}
+        return env_output.obs, {}
     
     def _compute_action(self, obs, **kwargs):
         return self.model.action(obs, **kwargs)
