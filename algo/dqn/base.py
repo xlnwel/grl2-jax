@@ -106,8 +106,8 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
         self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     """ Call """
-    def _process_input(self, obs, evaluation, env_output):
-        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+    def _process_input(self, env_output, evaluation):
+        obs, kwargs = super()._process_input(env_output, evaluation)
         kwargs['epsilon'] = self._get_eps(evaluation)
         kwargs['temp'] = self._get_temp(evaluation)
         return obs, kwargs

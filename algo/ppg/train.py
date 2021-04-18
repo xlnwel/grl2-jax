@@ -1,4 +1,5 @@
 import functools
+import numpy as np
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.utils import Every, TempStore
@@ -15,33 +16,39 @@ def train(agent, env, eval_env, buffer):
 
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
-    # if step == 0 and agent.is_obs_or_reward_normalized:
-    #     print('Start to initialize running stats...')
-    #     for _ in range(50):
-    #         runner.run(action_selector=env.random_action, step_fn=collect)
-    #         agent.update_obs_rms(buffer['obs'])
-    #         agent.update_reward_rms(buffer['reward'], buffer['discount'])
-    #         buffer.reset()
-    # buffer.clear()
+    if step == 0 and agent.is_obs_or_reward_normalized:
+        print('Start to initialize running stats...')
+        for _ in range(10):
+            runner.run(action_selector=env.random_action, step_fn=collect)
+            agent.update_obs_rms(np.concatenate(buffer['obs']))
+            agent.update_reward_rms(buffer['reward'], buffer['discount'])
+            buffer.reset()
+        buffer.clear()
+        agent.save(print_terminal_info=True)
+
     runner.step = step
     # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_running_stats() if k])
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
+    rt = Timer('run')
+    tt = Timer('train')
+    et = Timer('eval')
+    at = Timer('aux')
     print('Training starts...')
     while step < agent.MAX_STEPS:
         agent.before_run(env)
         for _ in range(agent.N_PI):
             start_env_step = agent.env_step
-            with Timer('env') as et:
+            with rt:
                 step = runner.run(step_fn=collect)
-            agent.store(fps=(step-start_env_step)/et.last())
+            agent.store(fps=(step-start_env_step)/rt.last())
             # NOTE: normalizing rewards here may introduce some inconsistency 
             # if normalized rewards is fed as an input to the network.
             # One can reconcile this by moving normalization to collect 
             # or feeding the network with unnormalized rewards.
-            # The latter is adopted in our implementation, 
-            # but the following line currently doesn't store a copy of 
-            # unnormalized rewards
+            # The latter is adopted in our implementation. 
+            # However, the following line currently doesn't store
+            # a copy of unnormalized rewards
             agent.update_reward_rms(buffer['reward'], buffer['discount'])
             buffer.update('reward', agent.normalize_reward(buffer['reward']), field='all')
             agent.record_last_env_output(runner.env_output)
@@ -49,22 +56,21 @@ def train(agent, env, eval_env, buffer):
             buffer.finish(value)
 
             start_train_step = agent.train_step
-            with Timer('train') as tt:
+            with tt:
                 agent.learn_log(step)
             agent.store(tps=(agent.train_step-start_train_step)/tt.last())
-            agent.update_obs_rms(buffer['obs'])
             buffer.reset()
             if to_log(agent.train_step) and 'score' in agent._logger:
                 agent.log(step)
                 agent.save()
             if to_eval(agent.train_step) or step > agent.MAX_STEPS:
                 with TempStore(agent.get_states, agent.reset_states):
-                    with Timer('eval') as eval_time:
+                    with et:
                         scores, epslens, video = evaluate(
                             eval_env, agent, record=agent.RECORD, size=(128, 128))
                     if agent.RECORD:
                         video_summary(f'{agent.name}/sim', video, step=step)
-                    agent.store(eval_score=scores, eval_epslen=epslens, eval_time=eval_time.total())
+                    agent.store(eval_score=scores, eval_epslen=epslens, eval_time=et.total())
             agent.store(env_time=et.total(), train_time=tt.total())
 
         # auxiliary phase
@@ -76,7 +82,7 @@ def train(agent, env, eval_env, buffer):
             buffer.reshape_to_sample()
             buffer.set_ready()
 
-        with Timer('aux_time') as at:
+        with at:
             agent.aux_learn_log(step)
         agent.store(atps=(agent.N_AUX_EPOCHS * agent.N_AUX_MBS)/at.last())
         buffer.aux_reset()

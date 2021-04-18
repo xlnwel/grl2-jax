@@ -61,16 +61,16 @@ class Agent(PPOAgent):
 
     """ Call """
     @override(PPOAgent)
-    def _process_input(self, obs, evaluation, env_output):
+    def _process_input(self, env_output, evaluation):
         # update rms and normalize obs
         if evaluation:
-            norm_obs = np.expand_dims(obs, 1)
+            norm_obs = np.expand_dims(env_output.obs, 1)
             norm_obs = self.normalize_obs(norm_obs)
             reward_int = self.compute_int_reward(norm_obs)
             reward_int = self.normalize_int_reward(reward_int)
             self.eval_reward_int.append(np.squeeze(reward_int))
             self.eval_reward_ext.append(np.squeeze(env_output.reward))
-        return obs, {}
+        return env_output.obs, {}
 
     @override(PPOAgent)
     def _process_output(self, obs, kwargs, out, evaluation):

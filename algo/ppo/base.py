@@ -87,12 +87,18 @@ class PPOBase(RMSAgentBase):
             'time/train': self._train_timer.average()
         })
 
-        _, rew_rms = self.get_running_stats()
+        obs_rms, rew_rms = self.get_running_stats()
         if rew_rms:
             self.store(**{
                 'train/reward_rms_mean': rew_rms.mean,
                 'train/reward_rms_var': rew_rms.var
             })
+        if obs_rms:
+            for k, v in obs_rms.items():
+                self.store(**{
+                    f'train/{k}_rms_mean': v.mean,
+                    f'train/{k}_rms_var': v.var,
+                })
 
         return i * self.N_MBS + j
 

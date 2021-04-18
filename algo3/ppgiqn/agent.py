@@ -67,8 +67,8 @@ class Agent(PPGAgent):
         )
         self.aux_learn = build(self._aux_learn, TensorSpecs, batch_size=self._aux_batch_size)
 
-    def _process_input(self, obs, evaluation, env_output):
-        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+    def _process_input(self, env_output, evaluation):
+        obs, kwargs = super()._process_input(env_output, evaluation)
         kwargs['tau_hat'] = self._tau_hat
         return obs, kwargs
 

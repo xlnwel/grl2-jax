@@ -57,9 +57,9 @@ def get_worker_class(AgentBase):
                 
                 self._update_mode_prob()
 
-        def _process_input(self, obs, evaluation, env_output):
+        def _process_input(self, env_output, evaluation):
             evaluation = self._evaluation and self._valid_mode == Mode.REEVALUATION
-            obs, kwargs = super()._process_input(obs, evaluation, env_output)
+            obs, kwargs = super()._process_input(env_output, evaluation)
             kwargs['evaluation'] = evaluation
             return obs, kwargs
 

@@ -48,8 +48,8 @@ class Agent(PPOBase):
         tf.summary.histogram('sum/value', data['value'], step=self._env_step)
         tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
 
-    def _process_input(self, obs, evaluation, env_output):
-        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+    def _process_input(self, env_output, evaluation):
+        obs, kwargs = super()._process_input(env_output, evaluation)
         kwargs['tau_hat'] = self._tau_hat
         return obs, kwargs
 

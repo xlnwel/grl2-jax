@@ -2,8 +2,8 @@ import tensorflow as tf
 
 from utility.tf_utils import assert_rank
 from core.module import Ensemble
-from algo.ppo.nn import Encoder, Actor, Value
 from nn.func import LSTM
+from algo.ppo.nn import Encoder, Actor, Value
 
 
 class PPO(Ensemble):

@@ -227,15 +227,24 @@ class RMSAgentBase(AgentBase):
         super()._add_attributes(env, dataset)
 
         from utility.utils import RunningMeanStd
-        self._normalized_axis = getattr(self, '_normalized_axis', (0, 1))
+        self._reward_normalized_axis = tuple(
+            getattr(self, '_reward_normalized_axis', (0, 1)))
+        self._obs_normalized_axis = tuple(
+            getattr(self, '_obs_normalized_axis', (0,)))
         self._normalize_obs = getattr(self, '_normalize_obs', False)
         self._normalize_reward = getattr(self, '_normalize_reward', False)
         self._normalize_reward_with_reversed_return = \
             getattr(self, '_normalize_reward_with_reversed_return', True)
         
-        axis = tuple(self._normalized_axis)
-        self._obs_rms = self._normalize_obs and RunningMeanStd(axis, clip=getattr(self, '_obs_clip', None))
-        self._reward_rms = self._normalize_reward and RunningMeanStd(axis, clip=getattr(self, '_rew_clip', 10))
+        if self._normalize_obs:
+            self._obs_rms = {}
+            for k in getattr(self, '_obs_names', ['obs']):
+                self._obs_rms[k] = RunningMeanStd(
+                    self._obs_normalized_axis, clip=getattr(self, '_obs_clip', 5))
+        else:
+            self._obs_rms = None
+        self._reward_rms = self._normalize_reward \
+            and RunningMeanStd(self._reward_normalized_axis, clip=getattr(self, '_rew_clip', 10))
         if self._normalize_reward_with_reversed_return:
             self._reverse_return = 0
         else:
@@ -247,8 +256,13 @@ class RMSAgentBase(AgentBase):
         logger.info(f'Reward normalization with reversed return: {self._normalize_reward_with_reversed_return}')
 
     # @override(AgentBase)
-    def _process_input(self, obs, evaluation, env_output):
-        obs = self.normalize_obs(obs)
+    def _process_input(self, env_output, evaluation):
+        obs = env_output.obs
+        self.update_obs_rms(obs)
+        if isinstance(obs, dict):
+            obs = {k: self.normalize_obs(v, k) for k, v in obs.items()}
+        else:
+            obs = self.normalize_obs(obs)
         return obs, {}
     
     @override(AgentBase)
@@ -261,7 +275,8 @@ class RMSAgentBase(AgentBase):
 
     """ Functions for running mean and std """
     def get_running_stats(self):
-        obs_rms = self._obs_rms.get_stats() if self._normalize_obs else ()
+        obs_rms = {k: v.get_stats() for k, v in self._obs_rms.items()} \
+            if self._normalize_obs else {}
         rew_rms = self._reward_rms.get_stats() if self._normalize_reward else ()
         return obs_rms, rew_rms
 
@@ -277,17 +292,17 @@ class RMSAgentBase(AgentBase):
     def is_reward_normalized(self):
         return self._normalize_reward
 
-    def update_obs_rms(self, obs):
+    def update_obs_rms(self, obs, name='obs'):
         if self._normalize_obs:
             if obs.dtype == np.uint8 and \
                     getattr(self, '_image_normalization_warned', False):
                 logger.warning('Image observations are normalized. Make sure you intentionally do it.')
                 self._image_normalization_warned = True
-            self._obs_rms.update(obs)
+            self._obs_rms[name].update(obs)
 
     def update_reward_rms(self, reward, discount=None):
         if self._normalize_reward:
-            assert len(reward.shape) == len(self._normalized_axis), (reward.shape, self._normalized_axis)
+            assert len(reward.shape) == len(self._reward_normalized_axis), (reward.shape, self._normalized_axis)
             if self._normalize_reward_with_reversed_return:
                 """
                 Pseudocode can be found in https://arxiv.org/pdf/1811.02553.pdf
@@ -310,8 +325,8 @@ class RMSAgentBase(AgentBase):
             else:
                 self._reward_rms.update(reward)
 
-    def normalize_obs(self, obs):
-        return self._obs_rms.normalize(obs) if self._normalize_obs else obs
+    def normalize_obs(self, obs, name='obs'):
+        return self._obs_rms[name].normalize(obs) if self._normalize_obs else obs
 
     def normalize_reward(self, reward):
         return self._reward_rms.normalize(reward, zero_center=False) \
@@ -361,7 +376,7 @@ class Memory:
     
     def _add_memory_state_to_kwargs(self, obs, env_output, kwargs, state=None):
         if self._state is None:
-            B = tf.shape(obs)[0]
+            B = tf.shape(obs[0])[0] if isinstance(obs, dict) else tf.shape(obs)[0]
             self._state = self.model.get_initial_state(batch_size=B)
             for k, v in self._additional_rnn_inputs.items():
                 assert v in ('float32', 'int32', 'float16'), v
@@ -372,6 +387,10 @@ class Memory:
             self._squeeze_batch = B == 1
 
         if 'prev_reward' in self._additional_rnn_inputs:
+            # by default, we do not process rewards. However, if you want to use
+            # rewards as additional rnn inputs, you need make sure it contains 
+            # the batch dimension
+            assert self._additional_rnn_inputs['prev_reward'].ndims == env_output.reward.ndim, env_output.reward
             self._additional_rnn_inputs['prev_reward'] = tf.convert_to_tensor(
                 env_output.reward, self._additional_rnn_inputs['prev_reward'].dtype)
 

@@ -5,10 +5,10 @@ env:
     n_envs: &nenvs 64
     frame_skip: 1
     frame_stack: 1
-    # num_levels: 200
+    num_levels: 200
 
 model:
-    architecture: shared
+    architecture: dual
     encoder: 
         cnn_name: impala
         out_size: 256

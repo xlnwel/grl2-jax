@@ -74,8 +74,8 @@ class RDQNBase(Memory, DQNBase):
 
     """ Call """
     # @override(DQNBase)
-    def _process_input(self, obs, evaluation, env_output):
-        obs, kwargs = super()._process_input(obs, evaluation, env_output)
+    def _process_input(self, env_output, evaluation):
+        obs, kwargs = super()._process_input(env_output, evaluation)
         obs, kwargs = self._add_memory_state_to_kwargs(obs, env_output, kwargs)
         return obs, kwargs
 

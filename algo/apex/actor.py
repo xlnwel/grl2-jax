@@ -175,11 +175,6 @@ def get_worker_class(AgentBase):
             if not hasattr(self, '_pull_names'):
                 self._pull_names = [k for k in self.model.keys() if 'target' not in k]
             self._info = collections.defaultdict(list)
-            
-        """ Call """
-        def _process_input(self, obs, evaluation, env_output):
-            obs, kwargs = super()._process_input(obs, evaluation, env_output)
-            return obs, kwargs
 
         """ Worker Methods """
         def prefill_replay(self, replay):
