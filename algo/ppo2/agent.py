@@ -41,7 +41,8 @@ class Agent(Memory, PPOBase):
     # @override(PPOBase)
     def _process_input(self, env_output, evaluation):
         obs, kwargs = super()._process_input(env_output, evaluation)
-        obs, kwargs = self._add_memory_state_to_kwargs(obs, env_output, kwargs)
+        mask = 1. - env_output.reset
+        obs, kwargs = self._add_memory_state_to_kwargs(obs, mask, kwargs=kwargs)
         return obs, kwargs
 
     # @override(PPOBase)
@@ -54,15 +55,16 @@ class Agent(Memory, PPOBase):
     """ PPO methods """
     @override(PPOBase)
     def record_last_env_output(self, env_output):
-        self.update_obs_rms(env_output.obs)
         self._env_output = EnvOutput(
             self.normalize_obs(env_output.obs), *env_output[1:])
 
     @override(PPOBase)
-    def compute_value(self, env_output=None, return_state=False):
+    def compute_value(self, obs=None, state=None, mask=None, prev_reward=None, return_state=False):
         # be sure obs is normalized if obs normalization is required
-        env_output = env_output or self._env_output
-        obs, kwargs = self._add_memory_state_to_kwargs(env_output.obs, env_output, {})
+        obs = obs or self._env_output.obs
+        mask = 1. - self._env_output.reset if mask is None else mask
+        obs, kwargs = self._add_memory_state_to_kwargs(
+            obs, mask, state=state, prev_reward=prev_reward)
         kwargs['return_state'] = return_state
         out = self.model.compute_value(obs, **kwargs)
         return tf.nest.map_structure(lambda x: x.numpy(), out)

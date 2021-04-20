@@ -44,7 +44,6 @@ class PPO(Ensemble):
             return value
 
     def encode(self, x, state, mask, prev_action=None, prev_reward=None):
-        assert x.shape.ndims != 1 and x.shape.ndims != 3, x.shape
         if x.shape.ndims % 2 == 0:
             x = tf.expand_dims(x, 1)
         if mask.shape.ndims < 2:

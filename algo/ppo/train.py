@@ -11,8 +11,6 @@ from env.func import create_env
 
 
 def train(agent, env, eval_env, buffer):
-    def collect(env, step, reset, next_obs, **kwargs):
-        buffer.add(**kwargs)
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
 
@@ -27,6 +25,7 @@ def train(agent, env, eval_env, buffer):
             agent.update_reward_rms(buffer['reward'], buffer['discount'])
             buffer.reset()
         buffer.clear()
+        agent.env_step = runner.step
         agent.save(print_terminal_info=True)
 
     runner.step = step
@@ -77,11 +76,17 @@ def train(agent, env, eval_env, buffer):
 
         if to_log(agent.train_step) and agent.contains_stats('score'):
             with lt:
-                agent.store(
-                    train_step=agent.train_step,
-                    env_time=rt.total(), 
-                    train_time=tt.total(),
-                    eval_time=et.total())
+                agent.store(**{
+                    'train_step': agent.train_step,
+                    'time/run': rt.total(), 
+                    'time/train': tt.total(),
+                    'time/eval': et.total(),
+                    'time/log': lt.total(),
+                    'time/run_mean': rt.average(), 
+                    'time/train_mean': tt.average(),
+                    'time/eval_mean': et.average(),
+                    'time/log_mean': lt.average(),
+                })
                 agent.log(step)
                 agent.save()
 

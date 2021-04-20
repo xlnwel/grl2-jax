@@ -1,7 +1,6 @@
 import logging
 import numpy as np
 
-from env.wrappers import EnvOutput
 from algo.ppo.buffer import compute_indices
 from algo.ppo.buffer import Buffer as BufferBase
 
@@ -27,7 +26,7 @@ class Buffer(BufferBase):
 
     def sample(self):
         assert self._ready
-        if self._shuffle and self._mb_idx == 0:
+        if self._mb_idx == 0:
             np.random.shuffle(self._shuffled_idxes)
         self._mb_idx, self._curr_idxes = compute_indices(
             self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_MBS)

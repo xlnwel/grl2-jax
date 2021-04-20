@@ -72,7 +72,7 @@ class Agent(PPOBase):
                     data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(data[k]) for k in self._policy_data}
                 
-                with self._train_timer:
+                with self._learn_timer:
                     terms = self.learn_policy(**data)
                 
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
@@ -95,8 +95,7 @@ class Agent(PPOBase):
                     data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(data[k]) for k in self._value_data}
 
-                with self._train_timer:
-                    terms = self.learn_value(**data)
+                terms = self.learn_value(**data)
 
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
                 value = terms.pop('train/value')
@@ -115,8 +114,8 @@ class Agent(PPOBase):
 
         self.store(**{
             'train/kl': kl,
-            'time/sample': self._sample_timer.average(),
-            'time/train': self._train_timer.average()
+            'time/sample_mean': self._sample_timer.average(),
+            'time/learn_mean': self._learn_timer.average()
         })
 
         _, rew_rms = self.get_running_stats()

@@ -98,11 +98,17 @@ def train(agent, env, eval_env, buffer):
 
         if to_log(agent.train_step) and agent.contains_stats('score'):
             with lt:
-                agent.store(
-                    train_step=agent.train_step,
-                    env_time=rt.total(), 
-                    train_time=tt.total(),
-                    eval_time=et.total())
+                agent.store(**{
+                    'train_step': agent.train_step,
+                    'time/run': rt.total(), 
+                    'time/train': tt.total(),
+                    'time/eval': et.total(),
+                    'time/log': lt.total(),
+                    'time/run_mean': rt.average(), 
+                    'time/train_mean': tt.average(),
+                    'time/eval_mean': et.average(),
+                    'time/log_mean': lt.average(),
+                })
                 agent.log(step)
                 agent.save()
 

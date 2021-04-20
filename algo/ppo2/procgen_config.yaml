@@ -84,5 +84,4 @@ buffer:
     sample_keys: [obs, action, value, traj_ret, advantage, logpi, mask, h, c]
     # sample_keys: [obs, action, value, traj_ret, advantage, logpi, mask, h, c, prev_action, prev_reward]
     sample_size: *ss
-    shuffle: True
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

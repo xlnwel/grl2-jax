@@ -405,3 +405,10 @@ def flatten_dict(**kwargs):
         result.append(dict(zip(k, v)))
 
     return result
+
+def batch_dicts(x, func=np.stack):
+    keys = x[0].keys()
+    vals = [o.values() for o in x]
+    vals = [func(v) for v in zip(*vals)]
+    x = {k: v for k, v in zip(keys, vals)}
+    return x

@@ -26,7 +26,7 @@ class Runner:
                 f'as run_mode == {RunMode.TRAJ} and env_type == EnvVec')
         self.env_output = self.env.output()
         self.episodes = np.zeros(env.n_envs)
-        assert get_wrapper_by_name(self.env, 'EnvStats').auto_reset
+        assert getattr(self.env, 'auto_reset', None), getattr(self.env, 'auto_reset', None)
         self.run = {
             f'{RunMode.NSTEPS}-Env': self._run_env,
             f'{RunMode.NSTEPS}-EnvVec': self._run_envvec,
@@ -48,9 +48,7 @@ class Runner:
         reset = self.env_output.reset
         
         for t in range(nsteps):
-            action = action_selector(
-                self.env_output,
-                evaluation=False)
+            action = action_selector(self.env_output, evaluation=False)
             obs, reset = self.step_env(obs, action, step_fn)
 
             # logging when env is reset 
@@ -70,13 +68,12 @@ class Runner:
         reset = self.env_output.reset
         
         for t in range(nsteps):
-            action = action_selector(
-                self.env_output,
-                evaluation=False)
+            action = action_selector(self.env_output, evaluation=False)
             obs, reset = self.step_env(obs, action, step_fn)
             
             # logging when any env is reset 
-            done_env_ids = [i for i, r in enumerate(reset) if r]
+            done_env_ids = [i for i, r in enumerate(reset)
+                if (np.all(r) if isinstance(r, np.ndarray) else r)]
             if done_env_ids:
                 info = self.env.info(done_env_ids)
                 # further filter done caused by life loss
@@ -96,9 +93,7 @@ class Runner:
         reset = self.env_output.reset
         
         for t in range(self._default_nsteps):
-            action = action_selector(
-                self.env_output,
-                evaluation=False)
+            action = action_selector(self.env_output, evaluation=False)
             obs, reset = self.step_env(obs, action, step_fn)
 
             if reset:
@@ -117,9 +112,7 @@ class Runner:
         obs = self.env_output.obs
         
         for t in range(self._default_nsteps):
-            action = action_selector(
-                self.env_output,
-                evaluation=False)
+            action = action_selector(self.env_output, evaluation=False)
             obs, _ = self.step_env(obs, action, step_fn, mask=True)
 
             # logging when any env is reset 
@@ -173,7 +166,6 @@ def evaluate(env,
              step_fn=None, 
              record_stats=False,
              n_windows=4):
-    assert get_wrapper_by_name(env, 'EnvStats') is not None
     scores = []
     epslens = []
     max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
@@ -188,6 +180,7 @@ def evaluate(env,
     n_done_eps = 0
     frame_skip = None
     obs = env_output.obs
+    prev_done = np.zeros(env.n_envs)
     while n_done_eps < n:
         for k in range(max_steps):
             if record:
@@ -234,7 +227,9 @@ def evaluate(env,
                             agent.reset_states()
                     break
             else:
-                done_env_ids = [i for i, (d, m) in enumerate(zip(env.game_over(), env.mask())) if d and m]
+                done = env.game_over()
+                done_env_ids = [i for i, (d, pd) in 
+                    enumerate(zip(done, prev_done)) if d and not pd]
                 n_done_eps += len(done_env_ids)
                 if done_env_ids:
                     score = env.score(done_env_ids)
@@ -250,6 +245,7 @@ def evaluate(env,
                                 t[ri] = s[i]
                     elif n_done_eps == n:
                         break
+                prev_done = done
 
     if record:
         max_len = np.max([len(f) for f in frames])

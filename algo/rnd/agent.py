@@ -134,7 +134,7 @@ class Agent(PPOAgent):
         self.store(**{
             'train/kl': kl,
             'time/sample': self._sample_timer.average(),
-            'time/train': self._train_timer.average()
+            'time/train': self._learn_timer.average()
         })
 
         _, rew_rms = self.get_running_stats()

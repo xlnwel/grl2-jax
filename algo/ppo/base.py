@@ -7,6 +7,7 @@ from utility.schedule import TFPiecewiseSchedule
 from core.base import RMSAgentBase
 from core.optimizer import Optimizer
 from core.decorator import override, step_track
+from env.wrappers import EnvOutput
 
 
 logger = logging.getLogger(__name__)
@@ -39,11 +40,12 @@ class PPOBase(RMSAgentBase):
         pass
     
     def record_last_env_output(self, env_output):
-        self._last_obs = self.normalize_obs(env_output.obs)
+        self._env_output = EnvOutput(
+            self.normalize_obs(env_output.obs), *env_output[1:])
 
     def compute_value(self, obs=None):
         # be sure you normalize obs first if obs normalization is required
-        obs = self._last_obs if obs is None else obs
+        obs = self._env_output.obs if obs is None else obs
         return self.model.compute_value(obs).numpy()
 
     @step_track
@@ -53,8 +55,8 @@ class PPOBase(RMSAgentBase):
                 with self._sample_timer:
                     data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-                
-                with self._train_timer:
+
+                with self._learn_timer:
                     terms = self.learn(**data)
 
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
@@ -83,8 +85,8 @@ class PPOBase(RMSAgentBase):
 
         self.store(**{
             'train/kl': kl,
-            'time/sample': self._sample_timer.average(),
-            'time/train': self._train_timer.average()
+            'time/sample_mean': self._sample_timer.average(),
+            'time/learn_mean': self._learn_timer.average()
         })
 
         obs_rms, rew_rms = self.get_running_stats()

@@ -3,7 +3,6 @@ import numpy as np
 import ray
 
 from env.func import create_env
-from utility.timer import Timer
 
 
 default_config = dict(
@@ -31,10 +30,8 @@ class TestClass:
                         a = env.random_action()
                         s, r, d, re = env.step(a)
                         cr += r
-                        if r != 0:
-                            print(name, i, r, cr, env.score())
                         n += env.info().get('frame_skip', 1)
-                        np.testing.assert_equal(cr, env.score())
+                        np.testing.assert_allclose(cr, env.score(), 1e-5, 1e-5)
                         np.testing.assert_equal(n, env.epslen())
                         if env.info().get('game_over'):
                             cr = 0
@@ -79,7 +76,7 @@ class TestClass:
                     s, r, d, re = env.step(a)
                     cr += r
                     n += np.array([i.get('frame_skip', 1) for i in env.info()])
-                    np.testing.assert_allclose(cr, env.score())
+                    np.testing.assert_allclose(cr, env.score(), 1e-5, 1e-5)
                     np.testing.assert_equal(n, env.epslen())
                     if np.any(re):
                         info = env.info()

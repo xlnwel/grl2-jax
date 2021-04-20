@@ -20,24 +20,13 @@ logger = logging.getLogger(__name__)
 class AgentImpl(ABC):
     """ Restore & save """
     def restore(self):
-        """ Restore the latest parameter recorded by ckpt_manager
-
-        Args:
-            ckpt_manager: An instance of tf.train.CheckpointManager
-            ckpt: An instance of tf.train.Checkpoint
-            ckpt_path: The directory in which to write checkpoints
-            name: optional name for print
-        """
+        """ Restore the latest parameter recorded by ckpt_manager """
         restore(self._ckpt_manager, self._ckpt, self._ckpt_path, self._model_name)
         self.env_step = self._env_step.numpy()
         self.train_step = self._train_step.numpy()
 
     def save(self, print_terminal_info=False):
-        """ Save Model
-        
-        Args:
-            ckpt_manager: An instance of tf.train.CheckpointManager
-        """
+        """ Save Model """
         self._env_step.assign(self.env_step)
         self._train_step.assign(self.train_step)
         save(self._ckpt_manager, print_terminal_info=print_terminal_info)
@@ -118,7 +107,7 @@ class AgentBase(AgentImpl):
     
     def _add_attributes(self, env, dataset):
         self._sample_timer = Timer('sample')
-        self._train_timer = Timer('train')
+        self._learn_timer = Timer('train')
 
         self._return_stats = getattr(self, '_return_stats', False)
 
@@ -236,9 +225,10 @@ class RMSAgentBase(AgentBase):
         self._normalize_reward_with_reversed_return = \
             getattr(self, '_normalize_reward_with_reversed_return', True)
         
+        self._obs_names = getattr(self, '_obs_names', ['obs'])
         if self._normalize_obs:
             self._obs_rms = {}
-            for k in getattr(self, '_obs_names', ['obs']):
+            for k in self._obs_names:
                 self._obs_rms[k] = RunningMeanStd(
                     self._obs_normalized_axis, clip=getattr(self, '_obs_clip', 5))
         else:
@@ -258,10 +248,12 @@ class RMSAgentBase(AgentBase):
     # @override(AgentBase)
     def _process_input(self, env_output, evaluation):
         obs = env_output.obs
-        self.update_obs_rms(obs)
         if isinstance(obs, dict):
-            obs = {k: self.normalize_obs(v, k) for k, v in obs.items()}
+            for k, v in obs.items():
+                self.update_obs_rms(v, k)
+                obs[k] = self.normalize_obs(v, k)
         else:
+            self.update_obs_rms(obs)
             obs = self.normalize_obs(obs)
         return obs, {}
     
@@ -302,7 +294,8 @@ class RMSAgentBase(AgentBase):
 
     def update_reward_rms(self, reward, discount=None):
         if self._normalize_reward:
-            assert len(reward.shape) == len(self._reward_normalized_axis), (reward.shape, self._normalized_axis)
+            assert len(reward.shape) == len(self._reward_normalized_axis), \
+                (reward.shape, self._reward_normalized_axis)
             if self._normalize_reward_with_reversed_return:
                 """
                 Pseudocode can be found in https://arxiv.org/pdf/1811.02553.pdf
@@ -374,8 +367,8 @@ class Memory:
         self._default_additional_rnn_inputs = self._additional_rnn_inputs.copy()
         self._squeeze_batch = False
     
-    def _add_memory_state_to_kwargs(self, obs, env_output, kwargs, state=None):
-        if self._state is None:
+    def _add_memory_state_to_kwargs(self, obs, mask, state=None, kwargs={}, prev_reward=None):
+        if state is None and self._state is None:
             B = tf.shape(obs[0])[0] if isinstance(obs, dict) else tf.shape(obs)[0]
             self._state = self.model.get_initial_state(batch_size=B)
             for k, v in self._additional_rnn_inputs.items():
@@ -390,20 +383,22 @@ class Memory:
             # by default, we do not process rewards. However, if you want to use
             # rewards as additional rnn inputs, you need make sure it contains 
             # the batch dimension
-            assert self._additional_rnn_inputs['prev_reward'].ndims == env_output.reward.ndim, env_output.reward
+            assert self._additional_rnn_inputs['prev_reward'].ndims == prev_reward.ndim, prev_reward
             self._additional_rnn_inputs['prev_reward'] = tf.convert_to_tensor(
-                env_output.reward, self._additional_rnn_inputs['prev_reward'].dtype)
+                prev_reward, self._additional_rnn_inputs['prev_reward'].dtype)
+
+        if state is None:
+            state = self._state
 
         kwargs.update({
-            'state': state or self._state,
-            'mask': 1. - env_output.reset,   # mask is applied in LSTM
+            'state': state,
+            'mask': np.float32(mask),   # mask is applied in RNN
             **self._additional_rnn_inputs
         })
         return obs, kwargs
     
     def _add_tensor_memory_state_to_terms(self, obs, kwargs, out, evaluation):
         out, self._state = out
-        
         if not evaluation:
             if self._store_state:
                 out[1].update(kwargs['state']._asdict())

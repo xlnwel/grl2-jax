@@ -121,7 +121,7 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
             if self._is_per:
                 idxes = data.pop('idxes').numpy()
 
-            with self._train_timer:
+            with self._learn_timer:
                 terms = self.learn(**data)
 
             if self._to_sync is not None:
@@ -140,8 +140,8 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
             self._summary(data, terms)
         
         self.store(**{
-            'time/sample': self._sample_timer.average(),
-            'time/train': self._train_timer.average()
+            'time/sample_mean': self._sample_timer.average(),
+            'time/learn_mean': self._learn_timer.average()
         })
 
         return self.N_UPDATES

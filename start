@@ -14,14 +14,14 @@ algos=(
 )
 suite=procgen
 envs=(
-    leaper
-    ninja
-    chaser
-    bigfish
-    plunder
-    coinrun
-    heist
-    starpilot
+    # leaper
+    # ninja
+    # chaser
+    # bigfish
+    # plunder
+    # coinrun
+    # heist
+    # starpilot
     miner
     climber
     dodgeball

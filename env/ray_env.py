@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.lib.arraysetops import isin
 import ray
 
 from env.cls import *
@@ -22,38 +23,35 @@ class RayEnvVec(EnvVecBase):
 
         self.env = EnvType(config, env_fn)
         self.max_episode_steps = self.env.max_episode_steps
+        self._combine_func = np.stack if isinstance(self.env, Env) else np.concatenate
         super().__init__()
 
     def reset(self, idxes=None):
-        output = self._remote_call('reset', idxes, single_output=False)
-
-        if isinstance(self.env, Env):
-            output = [np.stack(o, 0) for o in output]
-        else:
-            output = [np.concatenate(o, 0) for o in output]
-        return EnvOutput(*output)
+        out = self._remote_call('reset', idxes, single_output=False)
+        return EnvOutput(*out)
 
     def random_action(self, *args, **kwargs):
-        return np.reshape(ray.get([env.random_action.remote() for env in self.envs]), 
-                          (self.n_envs, *self.action_shape))
+        return self._combine_func(ray.get([env.random_action.remote() for env in self.envs]))
 
     def step(self, actions, **kwargs):
-        actions = np.squeeze(actions.reshape(self.n_workers, self.envsperworker, *self.action_shape))
+        actions = [np.squeeze(a) for a in np.split(actions, self.n_workers)]
         if kwargs:
-            kwargs = dict([(k, np.squeeze(v.reshape(self.n_workers, self.envsperworker, -1))) for k, v in kwargs.items()])
+            kwargs = {k: np.squeeze(np.split(v, self.n_workers)) for k, v in kwargs.items()}
             kwargs = [dict(x) for x in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
-            output = ray.get([env.step.remote(a, **kw) 
+            out = ray.get([env.step.remote(a, **kw) 
                 for env, a, kw in zip(self.envs, actions, kwargs)])
         else:
-            output = ray.get([env.step.remote(a) 
+            out = ray.get([env.step.remote(a) 
                 for env, a in zip(self.envs, actions)])
-        output = list(zip(*output))
-
-        if isinstance(self.env, Env):
-            output = [np.stack(o, 0) for o in output]
-        else:
-            output = [np.concatenate(o, 0) for o in output]
-        return EnvOutput(*output)
+        # for i, os in enumerate(zip(*out)):
+        #     for j, o in enumerate(os):
+        #         print(i, j)
+        #         if isinstance(o, dict):
+        #             print(list(o))
+        #         else:
+        #             print(o.shape, o.dtype)
+        out = [self._convert_batch(o, self._combine_func) for o in zip(*out)]
+        return EnvOutput(*out)
 
     def score(self, idxes=None):
         return self._remote_call('score', idxes)
@@ -68,41 +66,45 @@ class RayEnvVec(EnvVecBase):
         return self._remote_call('prev_obs', idxes)
 
     def info(self, idxes=None):
-        return self._remote_call('info', idxes)
+        return self._remote_call('info', idxes, convert_batch=False)
     
     def output(self, idxes=None):
-        output = self._remote_call('output', idxes, single_output=False)
+        out = self._remote_call('output', idxes, single_output=False)
+        
+        return EnvOutput(*out)
 
-        if isinstance(self.env, Env):
-            output = [np.stack(o, 0) for o in output]
-        else:
-            output = [np.concatenate(o, 0) for o in output]
-        return EnvOutput(*output)
-
-    def _remote_call(self, name, idxes, single_output=True):
+    def _remote_call(self, name, idxes, single_output=True, convert_batch=True):
         """
         single_output: if the call produces only one output
         """
         method = lambda e: getattr(e, name)
         if idxes is None:
-            output = ray.get([method(e).remote() for e in self.envs])
+            out = ray.get([method(e).remote() for e in self.envs])
         else:
             if isinstance(self.env, Env):
-                output = ray.get([method(self.envs[i]).remote() for i in idxes])
+                out = ray.get([method(self.envs[i]).remote() for i in idxes])
             else:
                 new_idxes = [[] for _ in range(self.n_workers)]
                 for i in idxes:
                     new_idxes[i // self.envsperworker].append(i % self.envsperworker)
-                output = ray.get([method(self.envs[i]).remote(j) 
+                out = ray.get([method(self.envs[i]).remote(j) 
                     for i, j in enumerate(new_idxes) if j])
+
         if single_output:
             if isinstance(self.env, Env):
-                return output
-            # for these outputs, we expect them to be of form [[output*], [output*]]
-            # and we chain them into [output*]
-            return list(itertools.chain(*output))
+                return self._convert_batch(out) if convert_batch else out
+            # for these outputs, we expect them to be of form [[out*], [out*]]
+            # and we chain them into [out*]
+            out = list(itertools.chain(*out))
+            if convert_batch:
+                # always stack as chain has flattened the data
+                out = self._convert_batch(out)
+            return out
         else:
-            return list(zip(*output))
+            out = list(zip(*out))
+            if convert_batch:
+                out = [self._convert_batch(o, self._combine_func) for o in out]
+            return out
 
     def close(self):
         del self

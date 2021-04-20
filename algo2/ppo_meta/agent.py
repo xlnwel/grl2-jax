@@ -51,7 +51,7 @@ class Agent(PPOBase):
                     data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 
-                with self._train_timer:
+                with self._learn_timer:
                     terms = self.meta_learn(**data) if i == 0 else self.learn(**data)
 
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
@@ -79,8 +79,8 @@ class Agent(PPOBase):
 
         self.store(**{
             'train/kl': kl,
-            'time/sample': self._sample_timer.average(),
-            'time/train': self._train_timer.average()
+            'time/sample_mean': self._sample_timer.average(),
+            'time/learn_mean': self._learn_timer.average()
         })
 
         _, rew_rms = self.get_running_stats()
