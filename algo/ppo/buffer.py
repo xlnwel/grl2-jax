@@ -8,7 +8,7 @@ from replay.utils import init_buffer, print_buffer
 
 logger = logging.getLogger(__name__)
 
-def compute_nae(reward, discount, value, last_value, traj_ret, gamma):
+def compute_nae(reward, discount, value, last_value, traj_ret, gamma, mask=None):
     next_return = last_value
     for i in reversed(range(reward.shape[1])):
         traj_ret[:, i] = next_return = (reward[:, i]
@@ -17,14 +17,16 @@ def compute_nae(reward, discount, value, last_value, traj_ret, gamma):
     # Standardize traj_ret and advantages
     traj_ret_mean, traj_ret_var = moments(traj_ret)
     traj_ret_std = np.maximum(np.sqrt(traj_ret_var), 1e-8)
-    value = standardize(value)
+    value = standardize(value, mask=mask)
     # To have the same mean and std as trajectory return
     value = (value + traj_ret_mean) / traj_ret_std     
-    advantage = standardize(traj_ret - value)
-    traj_ret = standardize(traj_ret)
+    advantage = standardize(traj_ret - value, mask=mask)
+    traj_ret = standardize(traj_ret, mask=mask)
+
     return advantage, traj_ret
 
-def compute_gae(reward, discount, value, last_value, gamma, gae_discount, norm_adv=True):
+def compute_gae(reward, discount, value, last_value, gamma, 
+                gae_discount, norm_adv=True, mask=None):
     next_value = np.concatenate(
             [value[:, 1:], np.expand_dims(last_value, 1)], axis=1)
     advs = delta = (reward + discount * gamma * next_value - value)
@@ -34,7 +36,7 @@ def compute_gae(reward, discount, value, last_value, gamma, gae_discount, norm_a
             + discount[:, i] * gae_discount * next_adv)
     traj_ret = advs + value
     if norm_adv:
-        advs = standardize(advs)
+        advs = standardize(advs, mask=mask)
     return advs, traj_ret
 
 def compute_indices(idxes, mb_idx, mb_size, N_MBS):
@@ -199,7 +201,7 @@ class Buffer:
             self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             self._inferred_sample_keys = True
 
-    def _compute_advantage_return(self, reward, discount, value, last_value, traj_ret=None):
+    def _compute_advantage_return(self, reward, discount, value, last_value, traj_ret=None, mask=None):
         if self._adv_type == 'nae':
             assert traj_ret is not None, traj_ret
             advantage, traj_ret = \
@@ -208,7 +210,8 @@ class Buffer:
                             value=value,
                             last_value=last_value,
                             traj_ret=traj_ret,
-                            gamma=self._gamma)
+                            gamma=self._gamma,
+                            mask=mask)
         elif self._adv_type == 'gae':
             advantage, traj_ret = compute_gae(reward=reward, 
                             discount=discount,
@@ -216,7 +219,8 @@ class Buffer:
                             last_value=last_value,
                             gamma=self._gamma,
                             gae_discount=self._gae_discount,
-                            norm_adv=getattr(self, '_norm_adv', True))
+                            norm_adv=getattr(self, '_norm_adv', True),
+                            mask=mask)
         else:
             raise NotImplementedError
         
