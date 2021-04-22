@@ -97,9 +97,6 @@ class AgentBase(AgentImpl):
         self._action_shape = env.action_shape
         self._action_dim = env.action_dim
 
-        # intervals between calling self._summary
-        self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
-
         self._add_attributes(env, dataset)
         self._construct_optimizers()
         self._build_learn(env)
@@ -113,6 +110,9 @@ class AgentBase(AgentImpl):
 
         self.RECORD = getattr(self, 'RECORD', False)
         self.N_EVAL_EPISODES = getattr(self, 'N_EVAL_EPISODES', 1)
+
+        # intervals between calling self._summary
+        self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
 
     @abstractmethod
     def _construct_optimizers(self):

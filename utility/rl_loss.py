@@ -133,11 +133,9 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount,
     return target
 
 def ppo_loss(log_ratio, advantages, clip_range, entropy):
-    ratio = tf.exp(log_ratio)
-    neg_adv = -advantages
-    loss1 = neg_adv * ratio
-    loss2 = neg_adv * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
-    
+    ratio, loss1, loss2 = _compute_ppo_policy_losses(
+        log_ratio, advantages, clip_range)
+
     ppo_loss = tf.reduce_mean(tf.maximum(loss1, loss2))
     entropy = tf.reduce_mean(entropy)
     # debug stats: KL between old and current policy and fraction of data being clipped
@@ -148,46 +146,44 @@ def ppo_loss(log_ratio, advantages, clip_range, entropy):
     return ppo_loss, entropy, approx_kl, clip_frac
 
 def ppo_value_loss(value, traj_ret, old_value, clip_range):
-    value_clipped = old_value + tf.clip_by_value(value - old_value, -clip_range, clip_range)
-    loss1 = tf.square(value - traj_ret)
-    loss2 = tf.square(value_clipped - traj_ret)
+    value_diff, loss1, loss2 = _compute_ppo_value_losses(
+        value, traj_ret, old_value, clip_range)
     
     value_loss = .5 * tf.reduce_mean(tf.maximum(loss1, loss2))
     clip_frac = tf.reduce_mean(
-        tf.cast(tf.greater(tf.abs(value-old_value), clip_range), tf.float32))
+        tf.cast(tf.greater(tf.abs(value_diff), clip_range), value.dtype))
 
     return value_loss, clip_frac
 
 def _reduce_mean(x, n):
     return tf.reduce_mean(x) if n is None else tf.reduce_sum(x) / n
 
-def ppo_policy_loss_with_mask(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
-    assert (mask is None) == (n is None), \
-        f'Both/Neither mask and/nor n should be None, but get \nmask:{mask}\nn:{n}'
-    m = 1. if mask is None else mask
-    ratio = tf.exp(log_ratio)
-    loss1 = -advantages * ratio
-    loss2 = -advantages * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
+def ppo_policy_loss_with_mask(log_ratio, advantages, clip_range, entropy, mask, n=None):
+    if n is None:
+        n = tf.reduce_sum(mask)
+    assert_rank_and_shape_compatibility([log_ratio, advantages, mask])
+    ratio, loss1, loss2 = _compute_ppo_policy_losses(
+        log_ratio, advantages, clip_range)
     
-    ppo_loss = _reduce_mean(tf.maximum(loss1, loss2) * m, n)
-    entropy = _reduce_mean(entropy * m, n)
+    ppo_loss = _reduce_mean(tf.maximum(loss1, loss2) * mask, n)
+    entropy = _reduce_mean(entropy * mask, n)
     # debug stats: KL between old and current policy and fraction of data being clipped
-    approx_kl = .5 * _reduce_mean((-log_ratio)**2 * m, n)
-    clip_frac = _reduce_mean(tf.cast(tf.greater(tf.abs(ratio - 1.), clip_range), ratio.dtype) * m, n)
+    approx_kl = .5 * _reduce_mean((-log_ratio)**2 * mask, n)
+    clip_frac = _reduce_mean(tf.cast(tf.greater(
+        tf.abs(ratio - 1.), clip_range), ratio.dtype) * mask, n)
 
     return ppo_loss, entropy, approx_kl, clip_frac
 
-def ppo_value_loss_with_mask(value, traj_ret, old_value, clip_range, mask=None, n=None):
-    assert (mask is None) == (n is None), \
-        f'Both/Neither mask and/nor n should be None, but get \nmask:{mask}\nn:{n}'
-    m = 1. if mask is None else mask
-    value_clipped = old_value + tf.clip_by_value(value - old_value, -clip_range, clip_range)
-    loss1 = (value - traj_ret)**2
-    loss2 = (value_clipped - traj_ret)**2
+def ppo_value_loss_with_mask(value, traj_ret, old_value, clip_range, mask, n=None):
+    if n is None:
+        n = tf.reduce_sum(mask)
+    assert_rank_and_shape_compatibility([value, traj_ret, old_value, mask])
+    value_diff, loss1, loss2 = _compute_ppo_value_losses(
+        value, traj_ret, old_value, clip_range)
     
-    value_loss = .5 * _reduce_mean(tf.maximum(loss1, loss2) * m, n)
+    value_loss = .5 * _reduce_mean(tf.maximum(loss1, loss2) * mask, n)
     clip_frac = _reduce_mean(
-        tf.cast(tf.greater(tf.abs(value-old_value), clip_range), value.dtype) * m, n)
+        tf.cast(tf.greater(tf.abs(value_diff), clip_range), value.dtype) * mask, n)
 
     return value_loss, clip_frac
 
@@ -206,3 +202,18 @@ def tppo_loss(log_ratio, kl, advantages, kl_weight, clip_range, entropy):
     entropy = tf.reduce_mean(entropy)
 
     return tppo_loss, entropy, clip_frac
+
+def _compute_ppo_policy_losses(log_ratio, advantages, clip_range):
+    ratio = tf.exp(log_ratio)
+    neg_adv = -advantages
+    loss1 = neg_adv * ratio
+    loss2 = neg_adv * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
+    return ratio, loss1, loss2
+
+def _compute_ppo_value_losses(value, traj_ret, old_value, clip_range):
+    value_diff = value - old_value,
+    value_clipped = old_value + tf.clip_by_value(value_diff, -clip_range, clip_range)
+    loss1 = tf.square(value - traj_ret)
+    loss2 = tf.square(value_clipped - traj_ret)
+
+    return value_diff, loss1, loss2

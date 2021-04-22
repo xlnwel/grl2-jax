@@ -19,6 +19,15 @@ Encoder = create_encoder
 def mlp(units_list=[], out_size=None, **kwargs):
     return MLP(units_list, out_size=out_size, **kwargs)
 
+def rnn(config, name):
+    rnn_name = config.pop('rnn_name')
+    if rnn_name == 'gru':
+        return GRU(config, name=name)
+    elif rnn_name == 'lstm':
+        return LSTM(config, name=name)
+    else:
+        raise ValueError(f'Unkown rnn: {rnn_name}')
+
 def dnc_rnn(output_size, 
             access_config=dict(memory_size=128, word_size=16, num_reads=4, num_writes=1), 
             controller_config=dict(hidden_size=128),

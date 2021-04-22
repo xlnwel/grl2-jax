@@ -5,7 +5,6 @@ from utility.tf_utils import explained_variance
 from utility.rl_loss import ppo_loss, ppo_value_loss
 from utility.schedule import TFPiecewiseSchedule
 from core.base import RMSAgentBase
-from core.optimizer import Optimizer
 from core.decorator import override, step_track
 from env.wrappers import EnvOutput
 
@@ -30,10 +29,7 @@ class PPOBase(RMSAgentBase):
         if getattr(self, 'schedule_lr', False):
             assert isinstance(self._lr, list), self._lr
             self._lr = TFPiecewiseSchedule(self._lr)
-        models = list(self.model.values())
-        self._ac_opt = Optimizer(
-            self._optimizer, models, self._lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
+        self._ac_opt = self._construct_opt()
 
     """ Standard PPO methods """
     def before_run(self, env):
@@ -50,59 +46,11 @@ class PPOBase(RMSAgentBase):
 
     @step_track
     def learn_log(self, step):
-        for i in range(self.N_EPOCHS):
-            for j in range(1, self.N_MBS+1):
-                with self._sample_timer:
-                    data = self.dataset.sample()
-                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+        n = self._sample_learn()
+        self._store_buffer_stats()
+        self._store_run_stats()
 
-                with self._learn_timer:
-                    terms = self.learn(**data)
-
-                terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
-                kl = terms.pop('train/kl')
-                value = terms.pop('train/value')
-                self.store(**terms, **{'train/value': value.mean()})
-                if getattr(self, '_max_kl', None) and kl > self._max_kl:
-                    break
-                if self._value_update == 'reuse':
-                    self.dataset.update('value', value)
-            if getattr(self, '_max_kl', None) and kl > self._max_kl:
-                logger.info(f'{self._model_name}: Eearly stopping after '
-                    f'{i*self.N_MBS+j} update(s) due to reaching max kl.'
-                    f'Current kl={kl:.3g}')
-                break
-            
-            if self._value_update == 'once':
-                self.dataset.update_value_with_func(self.compute_value)
-            if self._value_update is not None:
-                last_value = self.compute_value()
-                self.dataset.finish(last_value)
-        
-        self.store(**self.dataset.sample_stats('reward'))
-        if self._to_summary(step):
-            self._summary(data, terms)
-
-        self.store(**{
-            'train/kl': kl,
-            'time/sample_mean': self._sample_timer.average(),
-            'time/learn_mean': self._learn_timer.average()
-        })
-
-        obs_rms, rew_rms = self.get_running_stats()
-        if rew_rms:
-            self.store(**{
-                'train/reward_rms_mean': rew_rms.mean,
-                'train/reward_rms_var': rew_rms.var
-            })
-        if obs_rms:
-            for k, v in obs_rms.items():
-                self.store(**{
-                    f'train/{k}_rms_mean': v.mean,
-                    f'train/{k}_rms_var': v.var,
-                })
-
-        return i * self.N_MBS + j
+        return n
 
     @tf.function
     def _learn(self, obs, action, value, traj_ret, advantage, logpi, 
@@ -132,9 +80,6 @@ class PPOBase(RMSAgentBase):
 
         terms['ac_norm'] = self._ac_opt(tape, ac_loss)
         terms.update(dict(
-            value=value,
-            traj_ret=tf.reduce_mean(traj_ret), 
-            advantage=tf.reduce_mean(advantage), 
             ratio=tf.exp(log_ratio), 
             entropy=entropy, 
             kl=kl, 
@@ -159,3 +104,67 @@ class PPOBase(RMSAgentBase):
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
         return value_loss, v_clip_frac
+
+    def _sample_learn(self):
+        for i in range(self.N_EPOCHS):
+            for j in range(1, self.N_MBS+1):
+                with self._sample_timer:
+                    data = self.dataset.sample()
+                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+
+                with self._learn_timer:
+                    terms = self.learn(**data)
+
+                kl = terms.pop('kl').numpy()
+                value = terms.pop('value').numpy()
+                terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
+                
+                self.store(**terms)
+                if getattr(self, '_max_kl', None) and kl > self._max_kl:
+                    break
+                if self._value_update == 'reuse':
+                    self.dataset.update('value', value)
+            if getattr(self, '_max_kl', None) and kl > self._max_kl:
+                logger.info(f'{self._model_name}: Eearly stopping after '
+                    f'{i*self.N_MBS+j} update(s) due to reaching max kl.'
+                    f'Current kl={kl:.3g}')
+                break
+            
+            if self._value_update == 'once':
+                self.dataset.update_value_with_func(self.compute_value)
+            if self._value_update is not None:
+                last_value = self.compute_value()
+                self.dataset.finish(last_value)
+
+        self.store(**{
+            'train/kl': kl,
+            'time/sample_mean': self._sample_timer.average(),
+            'time/learn_mean': self._learn_timer.average()
+        })
+
+        n = i * self.N_MBS + j
+        if self._to_summary(self.train_step + n):
+            self._summary(data, terms)
+        
+        return n
+    
+    def _store_buffer_stats(self):
+        self.store(**self.dataset.compute_mean_max_std('reward'))
+        # self.store(**self.dataset.compute_mean_max_std('obs'))
+        self.store(**self.dataset.compute_mean_max_std('advantage'))
+        self.store(**self.dataset.compute_mean_max_std('value'))
+        self.store(**self.dataset.compute_mean_max_std('traj_ret'))
+
+    def _store_run_stats(self):
+        obs_rms, rew_rms = self.get_running_stats()
+        if rew_rms:
+            self.store(**{
+                'train/reward_rms_mean': rew_rms.mean,
+                'train/reward_rms_var': rew_rms.var
+            })
+        if obs_rms:
+            for k, v in obs_rms.items():
+                self.store(**{
+                    f'train/{k}_rms_mean': v.mean,
+                    f'train/{k}_rms_var': v.var,
+                })

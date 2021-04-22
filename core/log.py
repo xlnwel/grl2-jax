@@ -87,7 +87,7 @@ def save_code(root_dir, model_name):
     
     shutil.copytree('.', dest_dir, 
         ignore=shutil.ignore_patterns(
-            '*logs*', '*/data/*', '.*', '*pycache*', '*.md', '*test*'))
+            '*logs*', 'data*' '*/data/*', '.*', '*pycache*', '*.md', '*test*'))
 
 def clear_ndarray(config):
     for k, v in config.items():

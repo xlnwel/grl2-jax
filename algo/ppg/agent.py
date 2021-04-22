@@ -36,23 +36,17 @@ class Agent(PPOBase):
         actor_models = [self.encoder, self.actor]
         if hasattr(self, 'rnn'):
             actor_models.append(self.rnn)
-        self._actor_opt = Optimizer(
-            self._optimizer, actor_models, self._actor_lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
+        self._actor_opt = self._construct_opt(actor_models, self._actor_lr)
 
         value_models = [self.value]
         if hasattr(self, 'value_encoder'):
             value_models.append(self.value_encoder)
         if hasattr(self, 'value_rnn'):
             value_models.append(self.value_rnn)
-        self._value_opt = Optimizer(
-            self._optimizer, value_models, self._value_lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
+        self._value_opt = self._construct_opt(value_models, self._value_lr)
         
         aux_models = list(self.model.values())
-        self._aux_opt = Optimizer(
-            self._optimizer, aux_models, self._aux_lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
+        self._aux_opt = self._construct_opt(aux_models, self._aux_lr)
 
     @override(PPOBase)
     def _build_learn(self, env):
@@ -98,15 +92,8 @@ class Agent(PPOBase):
             if self._value_update is not None:
                 last_value = self.compute_value()
                 self.dataset.aux_finish(last_value)
-        if self.N_AUX_EPOCHS:
-            self.store(**{'aux/kl': kl})
-            
-            if self._to_summary(step):
-                self._summary(data, terms)
 
-            return i * self.N_MBS + j
-        else:
-            return 0
+        self.store(**{'aux/kl': kl})
 
     @tf.function
     def _learn(self, obs, action, value, traj_ret, advantage, logpi, state=None, mask=None):

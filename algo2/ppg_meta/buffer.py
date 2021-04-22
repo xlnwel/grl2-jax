@@ -98,8 +98,8 @@ class Replay:
             self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_SEGS)
         return {k: self._memory[k][self._curr_idxes] for k in self._aux_sample_keys}
 
-    def sample_stats(self, stats='reward'):
-        return self._buff.sample_stats(stats)
+    def compute_mean_max_std(self, stats='reward'):
+        return self._buff.compute_mean_max_std(stats)
     
     def finish(self, last_value):
         self._buff.finish(last_value)

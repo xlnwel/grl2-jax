@@ -22,7 +22,7 @@ def compute_nae(reward, discount, value, last_value, traj_ret, gamma):
     value = (value + traj_ret_mean) / traj_ret_std     
     advantage = standardize(traj_ret - value)
     traj_ret = standardize(traj_ret)
-    return traj_ret, advantage
+    return advantage, traj_ret
 
 def compute_gae(reward, discount, value, last_value, gamma, gae_discount, norm_adv=True):
     next_value = np.concatenate(
@@ -35,7 +35,7 @@ def compute_gae(reward, discount, value, last_value, gamma, gae_discount, norm_a
     traj_ret = advs + value
     if norm_adv:
         advs = standardize(advs)
-    return traj_ret, advs
+    return advs, traj_ret
 
 def compute_indices(idxes, mb_idx, mb_size, N_MBS):
     start = mb_idx * mb_size
@@ -140,37 +140,29 @@ class Buffer:
             self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_MBS)
         return {k: self._memory[k][self._curr_idxes] for k in self._sample_keys}
 
-    def sample_stats(self, stats='reward'):
-        reward = self._memory[stats]
+    def compute_mean_max_std(self, name):
+        stats = self._memory[name]
         return {
-            'reward': np.mean(reward),
-            'reward_max': np.max(reward),
-            'reward_min': np.min(reward),
-            'reward_std': np.std(reward),
+            name: np.mean(stats),
+            f'{name}_max': np.max(stats),
+            f'{name}_min': np.min(stats),
+            f'{name}_std': np.std(stats),
+        }
+    
+    def compute_fraction(self, name):
+        stats = self._memory[name]
+        return {
+            f'{name}_frac': np.sum(stats) / np.prod(stats.shape)
         }
 
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
         self.reshape_to_store()
-        if self._adv_type == 'nae':
-            self._memory['traj_ret'], self._memory['advantage'] = \
-                compute_nae(reward=self._memory['reward'], 
-                            discount=self._memory['discount'],
-                            value=self._memory['value'],
-                            last_value=last_value,
-                            traj_ret=self._memory['traj_ret'],
-                            gamma=self._gamma)
-        elif self._adv_type == 'gae':
-            self._memory['traj_ret'], self._memory['advantage'] = \
-                compute_gae(reward=self._memory['reward'], 
-                            discount=self._memory['discount'],
-                            value=self._memory['value'],
-                            last_value=last_value,
-                            gamma=self._gamma,
-                            gae_discount=self._gae_discount,
-                            norm_adv=getattr(self, '_norm_adv', True))
-        else:
-            raise NotImplementedError
+        self._memory['advantage'], self._memory['traj_ret'] = \
+            self._compute_advantage_return(
+                self._memory['reward'], self._memory['discount'], 
+                self._memory['value'], last_value
+            )
 
         self.reshape_to_sample()
         self._ready = True
@@ -206,3 +198,26 @@ class Buffer:
         if self._inferred_sample_keys or getattr(self, '_sample_keys', None) is None:
             self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             self._inferred_sample_keys = True
+
+    def _compute_advantage_return(self, reward, discount, value, last_value, traj_ret=None):
+        if self._adv_type == 'nae':
+            assert traj_ret is not None, traj_ret
+            advantage, traj_ret = \
+                compute_nae(reward=reward, 
+                            discount=discount,
+                            value=value,
+                            last_value=last_value,
+                            traj_ret=traj_ret,
+                            gamma=self._gamma)
+        elif self._adv_type == 'gae':
+            advantage, traj_ret = compute_gae(reward=reward, 
+                            discount=discount,
+                            value=value,
+                            last_value=last_value,
+                            gamma=self._gamma,
+                            gae_discount=self._gae_discount,
+                            norm_adv=getattr(self, '_norm_adv', True))
+        else:
+            raise NotImplementedError
+        
+        return advantage, traj_ret

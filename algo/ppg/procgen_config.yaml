@@ -9,14 +9,19 @@ env:
 
 model:
     architecture: dual
-    encoder: 
+    actor_encoder: 
         cnn_name: impala
+        deter_stoch: True
         out_size: 256
     actor:
         units_list: []
         norm: null
         kernel_initializer: orthogonal
         activation: relu
+    value_encoder: 
+        cnn_name: impala
+        # deter_stoch: True
+        out_size: 256
     value:
         units_list: []
         norm: null

@@ -62,7 +62,7 @@ def train(agent, env, eval_env, buffer):
                 agent.learn_log(step)
             agent.store(tps=(agent.train_step-start_train_step)/tt.last())
             buffer.reset()
-            if to_log(agent.train_step) and 'score' in agent._logger:
+            if step > agent.MAX_STEPS or (to_log(agent.train_step) and 'score' in agent._logger):
                 with lt:
                     agent.store(**{
                         'train_step': agent.train_step,
@@ -90,6 +90,8 @@ def train(agent, env, eval_env, buffer):
             
             if step >= agent.MAX_STEPS:
                 break
+        if step >= agent.MAX_STEPS:
+            break
 
         # auxiliary phase
         buffer.compute_aux_data_with_func(agent.compute_aux_data)

@@ -107,7 +107,8 @@ class ProcgenCNN(Module):
                         f = filters[-1]
                         subsample_kwargs['filters'] = f
                         ds_cls = block_registry.get('dsl')
-                        self._ds_layer = ds_cls(n_blocks=n_blocks[-1],
+                        self._ds_layer = ds_cls(
+                            n_blocks=n_blocks[-1],
                             subsample=subsample, 
                             subsample_kwargs=subsample_kwargs, 
                             block=block,
