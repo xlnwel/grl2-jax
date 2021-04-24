@@ -88,6 +88,10 @@ class Env(gym.Wrapper):
 
     def game_over(self):
         return self.env.game_over()
+    
+    def close(self):
+        if hasattr(self.env, 'close'):
+            self.env.close()
 
     def get_screen(self, size=None):
         if hasattr(self.env, 'get_screen'):
@@ -205,3 +209,8 @@ class EnvVec(EnvVecBase):
             out = zip(*[method(env)() for env in self.envs])
 
         return EnvOutput(*[self._convert_batch(o) for o in out])
+
+    def close(self):
+        if hasattr(self.env, 'close'):
+            self.env.close()
+            [env.close() for env in self.envs]

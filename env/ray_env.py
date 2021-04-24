@@ -107,4 +107,6 @@ class RayEnvVec(EnvVecBase):
             return out
 
     def close(self):
+        self.env.close()
+        [env.close() for env in self.envs]
         del self
