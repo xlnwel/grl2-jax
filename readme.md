@@ -61,7 +61,8 @@ All implementation details from OpenAI's baselines are implemented for PPO famil
 - [x] CBAM
 - [x] Convolutional Attention
 - [x] DNC (Differentiable Neural Computer)
-- [x] Mask LSTM
+- [x] Customized LSTM
+- [x] Customized GRU
 - [x] MobileNet Block
 - [x] Multi-Head Attention
 - [x] Randomized Network (for Generalization)
@@ -109,8 +110,6 @@ Evaluation is simple—you only need to know your checkpoint directory, which is
 python run/train.py ppo -e BipedalWalker-v3       # train
 python run/eval.py logs/BipedalWalker-v3/ppo      # eval
 ````
-
-
 
 ## Acknowledge
 

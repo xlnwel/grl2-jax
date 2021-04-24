@@ -48,7 +48,8 @@ class Buffer(BufferBase):
         self._memory['advantage'], self._memory['traj_ret'] = \
             self._compute_advantage_return(
                 self._memory['reward'], self._memory['discount'], 
-                self._memory['value'], last_value, mask=self._memory['life_mask']
+                self._memory['value'], last_value, 
+                mask=self._memory['life_mask']
             )
 
         self.reshape_to_sample()

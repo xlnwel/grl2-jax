@@ -1,6 +1,5 @@
 import time
 import functools
-import tensorflow as tf
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.graph import video_summary

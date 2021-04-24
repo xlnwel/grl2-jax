@@ -1,5 +1,5 @@
+import atexit
 import numpy as np
-from numpy.lib.arraysetops import isin
 import ray
 
 from env.cls import *
@@ -24,7 +24,11 @@ class RayEnvVec(EnvVecBase):
         self.env = EnvType(config, env_fn)
         self.max_episode_steps = self.env.max_episode_steps
         self._combine_func = np.stack if isinstance(self.env, Env) else np.concatenate
+        self.env.close()
+
         super().__init__()
+
+        atexit.register(lambda: self.close())
 
     def reset(self, idxes=None):
         out = self._remote_call('reset', idxes, single_output=False)
@@ -107,6 +111,6 @@ class RayEnvVec(EnvVecBase):
             return out
 
     def close(self):
+        ray.get([env.close.remote() for env in self.envs])
         self.env.close()
-        [env.close() for env in self.envs]
         del self

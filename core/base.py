@@ -250,23 +250,36 @@ class RMSAgentBase(AgentBase):
         self._rms_path = f'{self._root_dir}/{self._model_name}/rms.pkl'
 
         logger.info(f'Observation normalization: {self._normalize_obs}')
+        logger.info(f'Normalized observation names: {self._obs_names}')
         logger.info(f'Reward normalization: {self._normalize_reward}')
         logger.info(f'Reward normalization with reversed return: '
                     f'{self._normalize_reward_with_reversed_return}')
 
     # @override(AgentBase)
     def _process_input(self, env_output, evaluation):
-        obs = env_output.obs
+        self._process_obs(env_output.obs)
+        return env_output.obs, {}
+
+    def _process_obs(self, obs, update_rms=True, mask=None):
+        """
+        Args:
+            mask: life mask, implying if the agent is still alive,
+                useful for multi-agent environments, where 
+                some agents might be dead before others.
+        """
         if isinstance(obs, dict):
-            for k, v in obs.items():
-                self.update_obs_rms(v, k)
-                obs[k] = self.normalize_obs(v, k)
+            for k in self._obs_names:
+                v = obs[k]
+                if update_rms:
+                    self.update_obs_rms(v, k, mask=mask)
+                # mask is important here as the value function still matters
+                # even after the agent is dead
+                obs[k] = self.normalize_obs(v, k, mask=mask)
         else:
             self.update_obs_rms(obs)
-            obs = self.normalize_obs(obs)
-        return obs, {}
+            obs = self.normalize_obs(obs, mask=mask)
     
-    @override(AgentBase)
+    # @override(AgentBase)
     def _process_output(self, obs, kwargs, out, evaluation):
         out = super()._process_output(obs, kwargs, out, evaluation)        
         if self._normalize_obs and not evaluation:
@@ -327,11 +340,12 @@ class RMSAgentBase(AgentBase):
             else:
                 self._reward_rms.update(reward, mask=mask)
 
-    def normalize_obs(self, obs, name='obs'):
-        return self._obs_rms[name].normalize(obs) if self._normalize_obs else obs
+    def normalize_obs(self, obs, name='obs', mask=None):
+        return self._obs_rms[name].normalize(obs, mask=mask) \
+            if self._normalize_obs else obs
 
-    def normalize_reward(self, reward):
-        return self._reward_rms.normalize(reward, zero_center=False) \
+    def normalize_reward(self, reward, mask=None):
+        return self._reward_rms.normalize(reward, zero_center=False, mask=mask) \
             if self._normalize_reward else reward
 
     @override(AgentBase)
@@ -391,7 +405,7 @@ class Memory:
 
         if 'prev_reward' in self._additional_rnn_inputs:
             # by default, we do not process rewards. However, if you want to use
-            # rewards as additional rnn inputs, you need make sure it contains 
+            # rewards as additional rnn inputs, you need to make sure it contains 
             # the batch dimension
             assert self._additional_rnn_inputs['prev_reward'].ndims == prev_reward.ndim, prev_reward
             self._additional_rnn_inputs['prev_reward'] = tf.convert_to_tensor(
@@ -546,3 +560,15 @@ class TargetNetOps:
     def get_target_nets(self):
         return [getattr(self, f'target_{k}') for k in self.model 
             if f'target_{k}' in self.model]
+
+class MultiAgentSharedNet:
+    def _reshape_output(self, env_output):
+        """ merge the batch and agent dimensions """
+        obs, reward, discount, reset = env_output
+        new_obs = {}
+        for k, v in obs.items():
+            new_obs[k] = np.concatenate(v)
+            assert new_obs[k].ndim ==2, new_obs[k].shape    # don't consider images
+        discount = np.concatenate(discount)
+        reset = np.concatenate(reset)
+        return type(env_output)(new_obs, reward, discount, reset)

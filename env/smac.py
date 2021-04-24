@@ -568,7 +568,7 @@ class SMAC(gym.Env):
             # Observe here so that we know if the episode is over.
             self._obs = self._controller.observe()
         except (protocol.ProtocolError, protocol.ConnectionError):
-            print('except for restart')
+            print('Restart due to an exception')
             self.full_restart()
             terminated = True
             available_actions = []

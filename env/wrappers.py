@@ -479,11 +479,6 @@ class EnvStats(EnvStatsBase):
 
 class MAEnvStats(EnvStatsBase):
     manual_reset_warning = True
-    # def __init__(self, env, max_episode_steps=None, timeout_done=False, 
-    #         auto_reset=True):
-    #     super().__init__(env, max_episode_steps, timeout_done, auto_reset)
-    #     self.n_agents = self.env.n_agents
-
     def _reset(self):
         obs = super()._reset()
         reward = np.zeros(self.n_agents, self.float_dtype)

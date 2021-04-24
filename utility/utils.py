@@ -6,7 +6,6 @@ import os.path as osp
 import math
 import multiprocessing
 import numpy as np
-from tensorflow.python.ops.gen_array_ops import expand_dims
 
 
 class AttrDict(dict):
@@ -93,14 +92,13 @@ def moments(x, axis=None, mask=None):
     
 def standardize(x, axis=None, epsilon=1e-8, mask=None):
     if mask is not None:
-        while len(mask.shape) < len(x.shape):
-            mask = np.expand_dims(mask, -1)
+        mask = expand_dims_match(mask, x)
     x_mean, x_var = moments(x, axis=axis, mask=mask)
     x_std = np.maximum(np.sqrt(x_var), epsilon)
-    x = (x - x_mean) / x_std
+    y = (x - x_mean) / x_std
     if mask is not None:
-        x *= mask
-    return x
+        y = np.where(mask == 1, y, x)
+    return y
 
 def str2bool(v):
     if isinstance(v, bool):
