@@ -125,6 +125,7 @@ class Buffer:
     def update_value_with_func(self, fn):
         assert self._mb_idx == 0, f'Unfinished sample: self._mb_idx({self._mb_idx}) != 0'
         mb_idx = 0
+
         for start in range(0, self._size, self._mb_size):
             end = start + self._mb_size
             curr_idxes = self._idxes[start:end]
@@ -150,7 +151,7 @@ class Buffer:
             f'{name}_min': np.min(stats),
             f'{name}_std': np.std(stats),
         }
-    
+
     def compute_fraction(self, name):
         stats = self._memory[name]
         return {
@@ -204,23 +205,24 @@ class Buffer:
     def _compute_advantage_return(self, reward, discount, value, last_value, traj_ret=None, mask=None):
         if self._adv_type == 'nae':
             assert traj_ret is not None, traj_ret
-            advantage, traj_ret = \
-                compute_nae(reward=reward, 
-                            discount=discount,
-                            value=value,
-                            last_value=last_value,
-                            traj_ret=traj_ret,
-                            gamma=self._gamma,
-                            mask=mask)
+            advantage, traj_ret = compute_nae(
+                reward=reward, 
+                discount=discount,
+                value=value,
+                last_value=last_value,
+                traj_ret=traj_ret,
+                gamma=self._gamma,
+                mask=mask)
         elif self._adv_type == 'gae':
-            advantage, traj_ret = compute_gae(reward=reward, 
-                            discount=discount,
-                            value=value,
-                            last_value=last_value,
-                            gamma=self._gamma,
-                            gae_discount=self._gae_discount,
-                            norm_adv=getattr(self, '_norm_adv', True),
-                            mask=mask)
+            advantage, traj_ret = compute_gae(
+                reward=reward, 
+                discount=discount,
+                value=value,
+                last_value=last_value,
+                gamma=self._gamma,
+                gae_discount=self._gae_discount,
+                norm_adv=getattr(self, '_norm_adv', True),
+                mask=mask)
         else:
             raise NotImplementedError
         

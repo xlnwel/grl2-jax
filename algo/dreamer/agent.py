@@ -107,7 +107,7 @@ class Agent(Memory, AgentBase):
         return obs, kwargs
 
     def _process_output(self, obs, kwargs, out, evaluation):
-        out = self._add_tensor_memory_state_to_terms(obs, kwargs, out, evaluation)
+        out = self._add_tensors_to_terms(obs, kwargs, out, evaluation)
         if not evaluation:
             out[1]['prev_action'] = self._additional_rnn_inputs['prev_action']
         out = super()._process_output(obs, kwargs, out, evaluation)

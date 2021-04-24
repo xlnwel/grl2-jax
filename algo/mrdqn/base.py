@@ -82,9 +82,9 @@ class RDQNBase(Memory, DQNBase):
 
     # @override(DQNBase)
     def _process_output(self, obs, kwargs, out, evaluation):
-        out = self._add_tensor_memory_state_to_terms(obs, kwargs, out, evaluation)
+        out = self._add_tensors_to_terms(obs, kwargs, out, evaluation)
         out = super()._process_output(obs, kwargs, out, evaluation)
-        out = self._add_non_tensor_memory_states_to_terms(out, kwargs, evaluation)
+        out = self._add_non_tensors_to_terms(out, kwargs, evaluation)
         return out
 
     def _compute_priority(self, priority):
