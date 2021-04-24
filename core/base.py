@@ -216,8 +216,10 @@ class RMSAgentBase(AgentBase):
         super()._add_attributes(env, dataset)
 
         from utility.utils import RunningMeanStd
+        # by default, we update reward stats once every N steps so we normalize long the first two axis
         self._reward_normalized_axis = tuple(
             getattr(self, '_reward_normalized_axis', (0, 1)))
+        # by default, we update obs stats every step so we normalize along the first axis
         self._obs_normalized_axis = tuple(
             getattr(self, '_obs_normalized_axis', (0,)))
         self._normalize_obs = getattr(self, '_normalize_obs', False)
@@ -227,14 +229,19 @@ class RMSAgentBase(AgentBase):
         
         self._obs_names = getattr(self, '_obs_names', ['obs'])
         if self._normalize_obs:
+            # we use dict to track a set of observation features
             self._obs_rms = {}
             for k in self._obs_names:
                 self._obs_rms[k] = RunningMeanStd(
-                    self._obs_normalized_axis, clip=getattr(self, '_obs_clip', 5))
+                    self._obs_normalized_axis, 
+                    clip=getattr(self, '_obs_clip', 5), 
+                    name=f'{k}_rms', ndim=1)
         else:
             self._obs_rms = None
         self._reward_rms = self._normalize_reward \
-            and RunningMeanStd(self._reward_normalized_axis, clip=getattr(self, '_rew_clip', 10))
+            and RunningMeanStd(self._reward_normalized_axis, 
+                clip=getattr(self, '_rew_clip', 10), 
+                name='reward_rms', ndim=0)
         if self._normalize_reward_with_reversed_return:
             self._reverse_return = 0
         else:
@@ -243,7 +250,8 @@ class RMSAgentBase(AgentBase):
 
         logger.info(f'Observation normalization: {self._normalize_obs}')
         logger.info(f'Reward normalization: {self._normalize_reward}')
-        logger.info(f'Reward normalization with reversed return: {self._normalize_reward_with_reversed_return}')
+        logger.info(f'Reward normalization with reversed return: '
+                    f'{self._normalize_reward_with_reversed_return}')
 
     # @override(AgentBase)
     def _process_input(self, env_output, evaluation):
@@ -284,15 +292,15 @@ class RMSAgentBase(AgentBase):
     def is_reward_normalized(self):
         return self._normalize_reward
 
-    def update_obs_rms(self, obs, name='obs'):
+    def update_obs_rms(self, obs, name='obs', mask=None):
         if self._normalize_obs:
             if obs.dtype == np.uint8 and \
                     getattr(self, '_image_normalization_warned', False):
                 logger.warning('Image observations are normalized. Make sure you intentionally do it.')
                 self._image_normalization_warned = True
-            self._obs_rms[name].update(obs)
+            self._obs_rms[name].update(obs, mask=mask)
 
-    def update_reward_rms(self, reward, discount=None):
+    def update_reward_rms(self, reward, discount=None, mask=None):
         if self._normalize_reward:
             assert len(reward.shape) == len(self._reward_normalized_axis), \
                 (reward.shape, self._reward_normalized_axis)
@@ -314,9 +322,9 @@ class RMSAgentBase(AgentBase):
                     (reward.shape, discount.shape, self._reward_rms.axis)
                 self._reverse_return, ret = backward_discounted_sum(
                     self._reverse_return, reward, discount, self._gamma)
-                self._reward_rms.update(ret)
+                self._reward_rms.update(ret, mask=mask)
             else:
-                self._reward_rms.update(reward)
+                self._reward_rms.update(reward, mask=mask)
 
     def normalize_obs(self, obs, name='obs'):
         return self._obs_rms[name].normalize(obs) if self._normalize_obs else obs
@@ -366,6 +374,7 @@ class Memory:
         self._additional_rnn_inputs = getattr(self, '_additional_rnn_inputs', {})
         self._default_additional_rnn_inputs = self._additional_rnn_inputs.copy()
         self._squeeze_batch = False
+        logger.info(f'Additional rnn inputs: {self._additional_rnn_inputs}')
     
     def _add_memory_state_to_kwargs(self, obs, mask, state=None, kwargs={}, prev_reward=None):
         if state is None and self._state is None:
@@ -397,7 +406,7 @@ class Memory:
         })
         return obs, kwargs
     
-    def _add_tensor_memory_state_to_terms(self, obs, kwargs, out, evaluation):
+    def _add_tensors_to_terms(self, obs, kwargs, out, evaluation):
         out, self._state = out
         if not evaluation:
             if self._store_state:
@@ -417,7 +426,7 @@ class Memory:
 
         return out
     
-    def _add_non_tensor_memory_states_to_terms(self, out, kwargs, evaluation):
+    def _add_non_tensors_to_terms(self, out, kwargs, evaluation):
         """ add additional input terms, which are of non-Tensor type """
         if not evaluation:
             out[1]['mask'] = kwargs['mask']
@@ -488,6 +497,7 @@ class ActionScheduler:
     
     def _get_temp(self, evaluation):
         return self._eval_act_temp if evaluation else self._act_temp
+
 
 class TargetNetOps:
     """ According to Python's MRO, this class should be positioned 

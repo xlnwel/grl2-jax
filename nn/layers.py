@@ -34,11 +34,11 @@ class Layer(Module):
     def call(self, x, training=True, **kwargs):
         x = self._layer(x, **kwargs)
         
-        if not self._norm_after_activation and self._norm is not None:
+        if self._norm is not None and not self._norm_after_activation:
             x = call_norm(self._norm, self._norm_layer, x, training=training)
         if self.activation is not None:
             x = self.activation(x)
-        if self._norm_after_activation and self._norm is not None:
+        if self._norm is not None and self._norm_after_activation:
             x = call_norm(self._norm, self._norm_layer, x, training=training)
 
         return x

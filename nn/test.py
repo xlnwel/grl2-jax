@@ -3,7 +3,6 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 from nn.registry import *
-from nn.cnn import load_nn
 
 
 def run_module(registry, name, keras_summary=True, shape=(64, 64, 12), **kwargs):
@@ -116,8 +115,8 @@ def parse_args():
     args = parser.parse_args()
     return vars(args)
 
+
 if __name__ == "__main__":
-    load_nn()
     kwargs = parse_args()
     run_cnn(keras_summary=True, **kwargs)
     # run_module(

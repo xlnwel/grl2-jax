@@ -94,8 +94,8 @@ class GRUCell(layers.Layer):
 
     def call(self, x, states):
         x, mask = tf.nest.flatten(x)
-        assert_rank([x, mask], 2)
         h = states[0]
+        assert_rank([x, h, mask], 2)
         if mask is not None:
             h = h * mask
         
@@ -107,7 +107,6 @@ class GRUCell(layers.Layer):
         r, c, z = tf.split(x, 3, 1)
         r, z = self.recurrent_activation(r), self.recurrent_activation(z)
         c = self.activation(c)
-        # following Dreamer V2, we do not perform normalization on h
         h = z * c + (1-z) * h
 
         return h, GRUState(h)

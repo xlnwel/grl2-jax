@@ -18,6 +18,8 @@ class MLP(Module):
         Layer = layer_registry.get('layer')
         logger.debug(f'{self.name} gain: {kwargs.get("gain", None)}')
         self._out_dtype = out_dtype
+        if activation is None and (len(units_list) > 1 or (units_list and out_size)):
+            logger.warning(f'MLP({name}) with units_list({units_list}) and out_size({out_size}) has no activation.')
 
         self._layers = [
             Layer(u, layer_type=layer_cls, norm=norm, 
@@ -44,3 +46,21 @@ class MLP(Module):
                 and self._out_dtype != 'float32':
             x = tf.cast(x, self._out_dtype)
         return x
+
+if __name__ == '__main__':
+    config = {
+        'units_list': [64, 64, 64],
+        'activation': 'relu',
+        'norm': 'layer',
+        'norm_after_activation': True,
+        'norm_kwargs': {
+            'epsilon': 1e-5
+        }
+    }
+    from tensorflow.keras import layers
+    x = layers.Input((64))
+    net = MLP(**config)
+    y = net(x)
+
+    model = tf.keras.Model(x, y)
+    model.summary(200)
