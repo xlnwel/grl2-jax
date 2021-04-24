@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+from utility.tf_utils import tensor2numpy
 from core.tf_config import build
 from core.decorator import override
 from core.base import Memory
@@ -67,4 +68,4 @@ class Agent(Memory, PPOBase):
             obs, mask, state=state, prev_reward=prev_reward)
         kwargs['return_state'] = return_state
         out = self.model.compute_value(obs, **kwargs)
-        return tf.nest.map_structure(lambda x: x.numpy(), out)
+        return tensor2numpy(out)

@@ -4,7 +4,7 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
 from utility.schedule import TFPiecewiseSchedule
-from utility.tf_utils import explained_variance
+from utility.tf_utils import explained_variance, tensor2numpy
 from utility.rl_loss import ppo_loss
 from core.tf_config import build
 from core.optimizer import Optimizer
@@ -77,7 +77,7 @@ class Agent(PPOBase):
     """ PPG methods """
     def compute_aux_data(self, obs):
         out = self.model.compute_aux_data(obs)
-        out = tf.nest.map_structure(lambda x: x.numpy(), out)
+        out = tensor2numpy(out)
         return out
 
     def aux_learn_log(self, step):

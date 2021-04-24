@@ -4,6 +4,7 @@ import tensorflow as tf
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.graph import video_summary
+from utility.tf_utils import tensor2numpy
 from utility.utils import Every, TempStore
 from utility.run import evaluate
 from utility import pkg
@@ -17,7 +18,7 @@ def run(env, agent, replay, step, obs=None, already_done=None, nsteps=0):
     assert env.n_envs == 1
     if agent._store_state:
         reset_terms = dict(prev_logpi=0, 
-            **tf.nest.map_structure(lambda x: x.numpy(), 
+            **tensor2numpy(
                 agent.rssm.get_initial_state(batch_size=env.n_envs)._asdict()))
     else:
         reset_terms = dict(prev_logpi=0)

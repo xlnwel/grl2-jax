@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import tensorflow as tf
 
+from utility.tf_utils import tensor2numpy
 from utility.rl_loss import ppo_loss
 from core.tf_config import build
 from core.decorator import override
@@ -89,7 +90,7 @@ class Agent(PPOAgent):
     def compute_value(self, obs=None):
         obs = obs or self._last_obs
         out = self.model.compute_value(obs)
-        return tf.nest.map_structure(lambda x: x.numpy(), out)
+        return tensor2numpy(out)
 
     @step_track
     def learn_log(self, step):

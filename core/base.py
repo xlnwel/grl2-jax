@@ -6,6 +6,7 @@ import cloudpickle
 
 from utility.display import pwc
 from utility.utils import Every
+from utility.tf_utils import tensor2numpy
 from utility.timer import Timer
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from utility.rl_utils import compute_act_temp, compute_act_eps
@@ -203,7 +204,7 @@ class AgentBase(AgentImpl):
         Returns:
             out: results supposed to return by __call__
         """
-        return tf.nest.map_structure(lambda x: x.numpy(), out)
+        return tensor2numpy(out)
 
     @abstractmethod
     def _learn(self):

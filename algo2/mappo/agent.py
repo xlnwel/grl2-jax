@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from utility.schedule import TFPiecewiseSchedule
-from utility.tf_utils import explained_variance
+from utility.tf_utils import explained_variance, tensor2numpy
 from utility.rl_loss import ppo_loss
 from core.base import Memory
 from core.tf_config import build
@@ -114,7 +114,7 @@ class Agent(Memory, PPOBase):
     # @override(PPOBase)
     def _process_output(self, obs, kwargs, out, evaluation):
         out = self._add_tensors_to_terms(obs, kwargs, out, evaluation)
-        out = super()._process_output(obs, kwargs, out, evaluation)
+        out = tensor2numpy(out)
         out = self._add_non_tensors_to_terms(obs, out, kwargs, evaluation)
         return out
     
@@ -146,7 +146,7 @@ class Agent(Memory, PPOBase):
             shared_state, mask, state=state, prev_reward=prev_reward)
         kwargs['return_state'] = return_state
         out = self.model.compute_value(shared_state, **kwargs)
-        return tf.nest.map_structure(lambda x: x.numpy(), out)
+        return tensor2numpy(out)
 
     @tf.function
     def _learn(self, obs, shared_state, action_mask, action, value, traj_ret, advantage, 
@@ -163,7 +163,8 @@ class Agent(Memory, PPOBase):
         return terms
 
     def _learn_actor(self, obs, action_mask, action, advantage, logpi, 
-            actor_state=None, life_mask=None, mask=None, prev_action=None, prev_reward=None):
+                    actor_state=None, life_mask=None, mask=None, 
+                    prev_action=None, prev_reward=None):
         with tf.GradientTape() as tape:
             x_actor, _ = self.model.encode(
                 obs, actor_state, mask, 'actor',
@@ -180,8 +181,8 @@ class Agent(Memory, PPOBase):
         actor_norm = self._actor_opt(tape, actor_loss)
         terms = dict(
             actor_norm=actor_norm,
-            entropy=entropy, 
-            kl=kl, 
+            entropy=entropy,
+            kl=kl,
             p_clip_frac=p_clip_frac,
             ppo_loss=policy_loss,
             actor_loss=actor_loss,
@@ -190,7 +191,8 @@ class Agent(Memory, PPOBase):
         return terms
 
     def _learn_value(self, shared_state, value, traj_ret, 
-            value_state=None, life_mask=None, mask=None, prev_action=None, prev_reward=None):
+                    value_state=None, life_mask=None, mask=None, 
+                    prev_action=None, prev_reward=None):
         old_value = value
         with tf.GradientTape() as tape:
             x_value, _ = self.model.encode(
@@ -211,6 +213,7 @@ class Agent(Memory, PPOBase):
             explained_variance=explained_variance(traj_ret, value),
             v_clip_frac=v_clip_frac,
         )
+
         return terms
 
     def _process_obs(self, obs, update_rms=True, mask=None):

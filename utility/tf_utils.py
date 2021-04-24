@@ -2,6 +2,9 @@ import numpy as np
 import tensorflow as tf
 
 
+def tensor2numpy(x):
+    return tf.nest.map_structure(lambda x: x.numpy(), x)
+
 def upsample(x):
     h, w = x.get_shape().as_list()[1:-1]
     x = tf.image.resize_nearest_neighbor(x, [2 * h, 2 * w])
