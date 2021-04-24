@@ -1,7 +1,6 @@
 import logging
 import numpy as np
 
-from algo.ppo.buffer import compute_gae, compute_nae
 from algo.ppo2.buffer import Buffer as BufferBase
 
 
@@ -46,25 +45,11 @@ class Buffer(BufferBase):
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
         self.reshape_to_store()
-        if self._adv_type == 'nae':
-            self._memory['traj_ret'], self._memory['advantage'] = \
-                compute_nae(reward=self._memory['reward'], 
-                            discount=self._memory['discount'],
-                            value=self._memory['value'],
-                            last_value=last_value,
-                            traj_ret=self._memory['traj_ret'],
-                            gamma=self._gamma)
-        elif self._adv_type == 'gae':
-            self._memory['traj_ret'], self._memory['advantage'] = \
-                compute_gae(reward=self._memory['reward'], 
-                            discount=self._memory['discount'],
-                            value=self._memory['value'],
-                            last_value=last_value,
-                            gamma=self._gamma,
-                            gae_discount=self._gae_discount,
-                            norm_adv=getattr(self, '_norm_adv', True))
-        else:
-            raise NotImplementedError
+        self._memory['advantage'], self._memory['traj_ret'] = \
+            self._compute_advantage_return(
+                self._memory['reward'], self._memory['discount'], 
+                self._memory['value'], last_value, mask=self._memory['life_mask']
+            )
 
         self.reshape_to_sample()
         self._ready = True

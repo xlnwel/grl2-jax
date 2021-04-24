@@ -27,8 +27,10 @@ def train(agent, env, eval_env, buffer):
         print('Start to initialize running stats...')
         for _ in range(10):
             runner.run(action_selector=random_action, step_fn=collect)
-            agent.update_obs_rms(np.concatenate(buffer['obs']))
-            agent.update_obs_rms(np.concatenate(buffer['shared_state']), 'shared_state')
+            life_mask = np.concatenate(buffer['life_mask'])
+            agent.update_obs_rms(np.concatenate(buffer['obs']), mask=life_mask)
+            agent.update_obs_rms(np.concatenate(buffer['shared_state']), 
+                'shared_state', mask=life_mask)
             agent.update_reward_rms(buffer['reward'], buffer['discount'])
             buffer.reset()
         # obs_rms, rew_rms = agent.get_running_stats()

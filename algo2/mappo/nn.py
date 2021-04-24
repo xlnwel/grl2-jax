@@ -5,7 +5,7 @@ from tensorflow_probability import distributions as tfd
 
 from utility.tf_utils import assert_rank
 from core.module import Module, Ensemble
-from nn.func import Encoder, GRU, mlp
+from nn.func import Encoder, rnn, mlp
 from algo.ppo.nn import Actor, Value
 
 State = collections.namedtuple('State', 'actor_h value_h')
@@ -50,7 +50,8 @@ class Actor(Module):
             action = dist.mode()
         else:
             action = dist.sample()
-            # ensures all actions are valid. This is time-consuming, and we opt to allow invalid actions
+            # ensures all actions are valid. This is time-consuming, 
+            # and we opt to allow invalid actions, which is very unlikely to happen
             # def cond(a, x):
             #     i = tf.stack([tf.range(3), a], 1)
             #     return tf.reduce_all(tf.gather_nd(action_mask, i))
@@ -66,11 +67,11 @@ def create_components(config, env):
     is_action_discrete = env.is_action_discrete
 
     return dict(
-        actor_encoder=Encoder(config['actor_encoder']), 
-        actor_rnn=GRU(config['actor_gru']), 
+        actor_encoder=Encoder(config['actor_encoder'], name='actor_encoder'), 
+        actor_rnn=rnn(config['actor_rnn'], name='actor_rnn'), 
         actor=Actor(config['actor'], action_dim, is_action_discrete),
-        value_encoder=Encoder(config['value_encoder']),
-        value_rnn=GRU(config['value_gru']),
+        value_encoder=Encoder(config['value_encoder'], name='value_encoder'),
+        value_rnn=rnn(config['value_rnn'], name='value_rnn'),
         value=Value(config['value'])
     )
 
@@ -87,6 +88,7 @@ class PPO(Ensemble):
     def action(self, obs, shared_state, action_mask, state, mask, 
             evaluation=False, prev_action=None, prev_reward=None, **kwargs):
         assert obs.shape.ndims % 2 == 0, obs.shape
+
         actor_state, value_state = state
         x_actor, actor_state = self.encode(
             obs, actor_state, mask, 'actor', prev_action, prev_reward)
@@ -94,14 +96,15 @@ class PPO(Ensemble):
         action = self.actor.action(act_dist, action_mask, evaluation)
 
         if evaluation:
+            # we do not compute the value state at evaluation 
             return action, State(actor_state, value_state)
         else:
             x_value, value_state = self.encode(
-                shared_state, actor_state, mask, 'value', prev_action, prev_reward)
+                shared_state, value_state, mask, 'value', 
+                prev_action, prev_reward)
             value = self.value(x_value)
             logpi = act_dist.log_prob(action)
             terms = {'logpi': logpi, 'value': value}
-            # intend to keep the batch dimension for later use
             out = (action, terms)
             return out, State(actor_state, value_state)
 
@@ -137,7 +140,7 @@ class PPO(Ensemble):
             additional_input=additional_rnn_input)
         if x.shape[1] == 1:
             x = tf.squeeze(x, 1)
-        return x, state.h
+        return x, *state
 
     def _process_additional_input(self, x, prev_action, prev_reward):
         results = []
@@ -145,10 +148,12 @@ class PPO(Ensemble):
             if self.actor.is_action_discrete:
                 if prev_action.shape.ndims < 2:
                     prev_action = tf.reshape(prev_action, (-1, 1))
-                prev_action = tf.one_hot(prev_action, self.actor.action_dim, dtype=x.dtype)
+                prev_action = tf.one_hot(
+                    prev_action, self.actor.action_dim, dtype=x.dtype)
             else:
                 if prev_action.shape.ndims < 3:
-                    prev_action = tf.reshape(prev_action, (-1, 1, self.actor.action_dim))
+                    prev_action = tf.reshape(
+                        prev_action, (-1, 1, self.actor.action_dim))
             assert_rank(prev_action, 3)
             results.append(prev_action)
         if prev_reward is not None:
@@ -173,12 +178,12 @@ class PPO(Ensemble):
         value_state = self.value_rnn.get_initial_state(
             inputs, batch_size=batch_size, dtype=dtype) \
                 if hasattr(self, 'value_rnn') else None
-        return State(actor_state.h, value_state.h)
+        return State(*actor_state, *value_state)
 
     @property
     def state_size(self):
-        return State(self.actor_rnn.state_size.h, self.value_rnn.state_size.h)
-        
+        return State(*self.actor_rnn.state_size, *self.value_rnn.state_size)
+
     @property
     def state_keys(self):
         return State(*State._fields)
