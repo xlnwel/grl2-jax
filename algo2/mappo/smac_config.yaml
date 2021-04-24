@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name smac_3m
+    name: &env_name smac_8m
     n_workers: 8
     n_envs: &nenvs 1
     use_state_agent: True
@@ -49,15 +49,15 @@ agent:
 
     MAX_STEPS: 4e6
     N_STEPS: &nsteps 400
-    N_EPOCHS: 5
+    N_EPOCHS: 15
     N_MBS: &nmbs 1
     sample_size: &ss 10       # BPTT length
     LOG_PERIOD: 20
     EVAL_PERIOD: 2000
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
-    policy_life_mask: True
-    value_life_mask: True
+    actor_life_mask: True
+    value_life_mask: False
 
     obs_names: [obs, shared_state]
     normalize_obs: True

@@ -4,7 +4,7 @@ import tensorflow as tf
 from utility.schedule import TFPiecewiseSchedule
 from utility.tf_utils import explained_variance, tensor2numpy
 from utility.rl_loss import ppo_loss
-from core.base import Memory
+from core.base import Memory, MultiAgentSharedNet
 from core.tf_config import build
 from core.decorator import override
 from algo.ppo.base import PPOBase
@@ -17,13 +17,16 @@ def collect(buffer, env, step, reset, reward, discount, next_obs, **kwargs):
     kwargs['discount'] = np.concatenate(discount)
     buffer.add(**kwargs)
 
-class Agent(Memory, PPOBase):
+class Agent(MultiAgentSharedNet, Memory, PPOBase):
     """ Initialization """
     @override(PPOBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
-        self.n_agents = env.n_agents
         self._setup_memory_state_record()
+        if self._value_life_mask == False:
+            self._value_life_mask = None
+        if self._actor_life_mask == False:
+            self._actor_life_mask = None
 
     @override(PPOBase)
     def _construct_optimizers(self):
@@ -88,17 +91,6 @@ class Agent(Memory, PPOBase):
     #     tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
 
     """ Call """
-    def _reshape_output(self, env_output):
-        """ merge the batch and agent dimensions """
-        obs, reward, discount, reset = env_output
-        new_obs = {}
-        for k, v in obs.items():
-            new_obs[k] = np.concatenate(v)
-            assert new_obs[k].ndim ==2, new_obs[k].shape    # don't consider images
-        discount = np.concatenate(discount)
-        reset = np.concatenate(reset)
-        return type(env_output)(new_obs, reward, discount, reset)
-
     # @override(PPOBase)
     def _process_input(self, env_output, evaluation):
         if evaluation:
@@ -131,12 +123,12 @@ class Agent(Memory, PPOBase):
         return out
 
     """ PPO methods """
-    @override(PPOBase)
+    # @override(PPOBase)
     def record_last_env_output(self, env_output):
         self._env_output = self._reshape_output(env_output)
         self._process_obs(self._env_output.obs, update_rms=False)    
 
-    @override(PPOBase)
+    # @override(PPOBase)
     def compute_value(self, shared_state=None, state=None, mask=None, prev_reward=None, return_state=False):
         # be sure obs is normalized if obs normalization is required
         shared_state = shared_state or self._env_output.obs['shared_state']
@@ -149,8 +141,9 @@ class Agent(Memory, PPOBase):
         return tensor2numpy(out)
 
     @tf.function
-    def _learn(self, obs, shared_state, action_mask, action, value, traj_ret, advantage, 
-            logpi, state=None, life_mask=None, mask=None, prev_action=None, prev_reward=None):
+    def _learn(self, obs, shared_state, action_mask, action, value, 
+            traj_ret, advantage, logpi, state=None, life_mask=None, 
+            mask=None, prev_action=None, prev_reward=None):
         actor_state, value_state = state
 
         actor_terms = self._learn_actor(obs, action_mask, action, advantage, logpi, 
@@ -175,7 +168,7 @@ class Agent(Memory, PPOBase):
             log_ratio = new_logpi - logpi
             policy_loss, entropy, kl, p_clip_frac = ppo_loss(
                 log_ratio, advantage, self._clip_range, entropy, 
-                self._policy_life_mask and life_mask)
+                self._actor_life_mask and life_mask)
             actor_loss = policy_loss - self._entropy_coef * entropy
         
         actor_norm = self._actor_opt(tape, actor_loss)
@@ -216,13 +209,6 @@ class Agent(Memory, PPOBase):
 
         return terms
 
-    def _process_obs(self, obs, update_rms=True, mask=None):
-        for k in self._obs_names:
-            v = obs[k]
-            if update_rms:
-                self.update_obs_rms(v, k, mask=mask)
-            obs[k] = self.normalize_obs(v, k)   # mask is not necessary here as the action does not matter at all if the agent is dead
-    
     def _divide_obs(self, obs):
         kwargs = {
             'shared_state': obs['shared_state'],
