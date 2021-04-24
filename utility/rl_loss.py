@@ -163,23 +163,25 @@ def reduce_mean(x, mask=None, n=None):
 def ppo_loss(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
-    assert_rank_and_shape_compatibility([log_ratio, advantages, mask])
+        assert_rank_and_shape_compatibility([advantages, mask])
+    assert_rank_and_shape_compatibility([log_ratio, advantages])
     ratio, loss1, loss2 = _compute_ppo_policy_losses(
         log_ratio, advantages, clip_range)
     
-    ppo_loss = reduce_mean(tf.maximum(loss1, loss2), mask, n)
+    policy_loss = reduce_mean(tf.maximum(loss1, loss2), mask, n)
     entropy = reduce_mean(entropy, mask, n)
     # debug stats: KL between old and current policy and fraction of data being clipped
     approx_kl = .5 * reduce_mean((-log_ratio)**2, mask, n)
     clip_frac = reduce_mean(tf.cast(tf.greater(
         tf.abs(ratio - 1.), clip_range), ratio.dtype), mask, n)
 
-    return ppo_loss, entropy, approx_kl, clip_frac
+    return policy_loss, entropy, approx_kl, clip_frac
 
 def ppo_value_loss(value, traj_ret, old_value, clip_range, mask=None, n=None):
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
-    assert_rank_and_shape_compatibility([value, traj_ret, old_value, mask])
+        assert_rank_and_shape_compatibility([value, mask])
+    assert_rank_and_shape_compatibility([value, traj_ret, old_value])
     value_diff, loss1, loss2 = _compute_ppo_value_losses(
         value, traj_ret, old_value, clip_range)
     
@@ -199,11 +201,11 @@ def tppo_loss(log_ratio, kl, advantages, kl_weight, clip_range, entropy):
         ratio * advantages
     )
 
-    tppo_loss = -tf.reduce_mean(objective)
+    policy_loss = -tf.reduce_mean(objective)
     clip_frac = tf.reduce_mean(tf.cast(condition, tf.float32))
     entropy = tf.reduce_mean(entropy)
 
-    return tppo_loss, entropy, clip_frac
+    return policy_loss, entropy, clip_frac
 
 def _compute_ppo_policy_losses(log_ratio, advantages, clip_range):
     ratio = tf.exp(log_ratio)
