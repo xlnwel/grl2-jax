@@ -34,7 +34,8 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
             assert isinstance(self._lr, list), self._lr
             self._lr = TFPiecewiseSchedule(self._lr)
         actor_models = [v for k, v in self.model.items() if 'actor' in k]
-        self._actor_opt = self._construct_opt(actor_models, self._lr)
+        self._actor_opt = self._construct_opt(actor_models, self._lr, 
+            weight_decay=self._actor_weight_decay)
         value_models = [v for k, v in self.model.items() if 'value' in k]
         self._value_opt = self._construct_opt(value_models, self._lr)
     
@@ -216,6 +217,23 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
         }
         obs = obs['obs']
         return obs, kwargs
+
+    def _sample_learn(self):
+        n = super()._sample_learn()
+
+        for _ in range(self.N_VALUE_EPOCHS):
+            for _ in range(self.N_MBS):
+                with self._sample_timer:
+                    data = self.dataset.sample(['shared_state', 'value', 
+                        'traj_ret', 'value_h', 'life_mask', 'mask'])
+                data['value_state'] = data.pop('value_h')
+                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+                
+                terms = self.learn_value(**data)
+                terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
+                self.store(**terms)
+        
+        return n
 
     def _store_buffer_stats(self):
         self.store(**self.dataset.compute_mean_max_std('reward'))

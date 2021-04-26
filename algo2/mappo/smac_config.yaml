@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name smac_8m
+    name: &env_name smac_10m_vs_11m
     n_workers: 8
     n_envs: &nenvs 1
     use_state_agent: True
@@ -47,9 +47,10 @@ agent:
     precision: 32
     gamma: &gamma .99
 
-    MAX_STEPS: 4e6
+    MAX_STEPS: 5e6
     N_STEPS: &nsteps 400
-    N_EPOCHS: 15
+    N_EPOCHS: 5
+    N_VALUE_EPOCHS: 3
     N_MBS: &nmbs 1
     sample_size: &ss 10       # BPTT length
     LOG_PERIOD: 20
@@ -82,12 +83,12 @@ agent:
     lr: 5e-4
     clip_norm: 10
     opt_eps: 1e-5
-    weight_decay: 0
+    actor_weight_decay: 0
     # arguments for loss
     value_loss: clip
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
-    value_coef: 1
+    value_coef: 2
 
 buffer:
     adv_type: gae     # nae or gae

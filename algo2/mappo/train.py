@@ -8,6 +8,7 @@ from utility.timer import Timer
 from utility import pkg
 from algo.ppo.train import main
 
+
 def train(agent, env, eval_env, buffer):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
@@ -88,6 +89,7 @@ def train(agent, env, eval_env, buffer):
         #         agent.store(
         #             eval_score=eval_score, 
         #             eval_epslen=eval_epslen)
+        #         eval_env.close()
 
         if to_log(agent.train_step) and agent.contains_stats('score'):
             with lt:
