@@ -11,7 +11,7 @@ model:
     architecture: dual
     actor_encoder: 
         cnn_name: impala
-        deter_stoch: True
+        # deter_stoch: True
         out_size: 256
     actor:
         units_list: []
@@ -20,7 +20,7 @@ model:
         activation: relu
     value_encoder: 
         cnn_name: impala
-        # deter_stoch: True
+        deter_stoch: True
         out_size: 256
     value:
         units_list: []

@@ -1,5 +1,4 @@
 import logging
-import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
@@ -7,7 +6,6 @@ from utility.schedule import TFPiecewiseSchedule
 from utility.tf_utils import explained_variance, tensor2numpy
 from utility.rl_loss import ppo_loss
 from core.tf_config import build
-from core.optimizer import Optimizer
 from core.decorator import override
 from algo.ppo.base import PPOBase, collect
 
@@ -34,8 +32,8 @@ class Agent(PPOBase):
             self._aux_lr = TFPiecewiseSchedule(self._aux_lr)
 
         actor_models = [self.encoder, self.actor]
-        if hasattr(self, 'rnn'):
-            actor_models.append(self.rnn)
+        if hasattr(self, 'actor_rnn'):
+            actor_models.append(self.actor_rnn)
         self._actor_opt = self._construct_opt(actor_models, self._actor_lr)
 
         value_models = [self.value]

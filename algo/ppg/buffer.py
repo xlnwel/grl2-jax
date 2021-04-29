@@ -1,13 +1,17 @@
+import functools
+import logging
 import numpy as np
 
 from utility.utils import config_attr
-from algo.ppo.buffer import *
+from algo.ppo.buffer import Buffer as PPOBuffer, reshape_to_sample, reshape_to_store, compute_indices
 
 
-class Replay:
-    def __init__(self, config):
+logger = logging.getLogger(__name__)
+
+class Buffer:
+    def __init__(self, config, BufferBase=PPOBuffer):
         config_attr(self, config)
-        self._buff = Buffer(config)
+        self._buff = BufferBase(config)
         self._add_attributes()
 
     def _add_attributes(self):

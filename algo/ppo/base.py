@@ -118,7 +118,7 @@ class PPOBase(RMSAgentBase):
                 kl = terms.pop('kl').numpy()
                 value = terms.pop('value').numpy()
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
-                
+
                 self.store(**terms)
                 if getattr(self, '_max_kl', None) and kl > self._max_kl:
                     break
@@ -136,13 +136,14 @@ class PPOBase(RMSAgentBase):
                 last_value = self.compute_value()
                 self.dataset.finish(last_value)
 
+        n = i * self.N_MBS + j
         self.store(**{
             'train/kl': kl,
+            'train/policy_updates': n,
             'time/sample_mean': self._sample_timer.average(),
-            'time/learn_mean': self._learn_timer.average()
+            'time/learn_mean': self._learn_timer.average(),
         })
 
-        n = i * self.N_MBS + j
         if self._to_summary(self.train_step + n):
             self._summary(data, terms)
         

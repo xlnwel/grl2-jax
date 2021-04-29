@@ -28,7 +28,7 @@ class RayEnvVec(EnvVecBase):
 
         super().__init__()
 
-        atexit.register(lambda: self.close())
+        atexit.register(self.close)
 
     def reset(self, idxes=None):
         out = self._remote_call('reset', idxes, single_output=False)
@@ -40,8 +40,10 @@ class RayEnvVec(EnvVecBase):
     def step(self, actions, **kwargs):
         actions = [np.squeeze(a) for a in np.split(actions, self.n_workers)]
         if kwargs:
-            kwargs = {k: np.squeeze(np.split(v, self.n_workers)) for k, v in kwargs.items()}
-            kwargs = [dict(x) for x in zip(*[itertools.product([k], v) for k, v in kwargs.items()])]
+            kwargs = {k: [np.squeeze(x) for x in np.split(v, self.n_workers)] 
+                for k, v in kwargs.items()}
+            kwargs = [dict(x) for x in zip(*[itertools.product([k], v) 
+                for k, v in kwargs.items()])]
             out = ray.get([env.step.remote(a, **kw) 
                 for env, a, kw in zip(self.envs, actions, kwargs)])
         else:

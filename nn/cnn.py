@@ -1,9 +1,3 @@
-"""
-This file defines general CNN architectures used in RL
-"""
-import os, glob
-import types
-import importlib
 from nn.registry import cnn_registry
 
 

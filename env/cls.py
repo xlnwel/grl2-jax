@@ -143,7 +143,8 @@ class EnvVec(EnvVecBase):
         super().__init__()
 
     def random_action(self, *args, **kwargs):
-        return np.stack([env.action_space.sample() for env in self.envs])
+        return np.stack([env.random_action() if hasattr(env, 'random_action') \
+            else env.action_space.sample() for env in self.envs])
 
     def reset(self, idxes=None, **kwargs):
         idxes = self._get_idxes(idxes)
@@ -202,6 +203,8 @@ class EnvVec(EnvVecBase):
     def _envvec_op(self, name, **kwargs):
         method = lambda e: getattr(e, name)
         if kwargs:
+            kwargs = {k: [np.squeeze(x) for x in np.split(v, self.n_envs)] 
+                for k, v in kwargs.items()}
             kwargs = [dict(x) for x in zip(*[itertools.product([k], v) 
                 for k, v in kwargs.items()])]
             out = zip(*[method(env)(**kw) for env, kw in zip(self.envs, kwargs)])

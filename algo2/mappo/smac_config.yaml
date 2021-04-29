@@ -1,8 +1,8 @@
 ---
 env:
-    name: &env_name smac_10m_vs_11m
+    name: &env_name smac_3s_vs_5z
     n_workers: 8
-    n_envs: &nenvs 1
+    n_envs: &nenvs 4
     use_state_agent: True
     use_mustalive: True
     add_center_xy: True
@@ -26,6 +26,8 @@ model:
         units_list: []
         kernel_initializer: orthogonal
         eval_act_temp: 1
+        attention_action: False
+        embed_dim: 32
     value_encoder:
         units_list: [64, 64, 64]
         activation: relu
@@ -47,7 +49,7 @@ agent:
     precision: 32
     gamma: &gamma .99
 
-    MAX_STEPS: 5e6
+    MAX_STEPS: 1e7
     N_STEPS: &nsteps 400
     N_EPOCHS: 5
     N_VALUE_EPOCHS: 3
@@ -88,7 +90,7 @@ agent:
     value_loss: clip
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
-    value_coef: 2
+    value_coef: 1
 
 buffer:
     adv_type: gae     # nae or gae

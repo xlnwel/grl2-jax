@@ -339,7 +339,7 @@ class SMAC(gym.Env):
         self._controller = None
 
         # Try to avoid leaking SC2 processes on shutdown
-        atexit.register(lambda: self.close())
+        atexit.register(self.close)
 
         self.action_spaces = []
         self.observation_spaces = []

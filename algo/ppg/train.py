@@ -1,13 +1,12 @@
 import functools
 import numpy as np
 
-from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from utility.utils import Every, TempStore
 from utility.graph import video_summary
 from utility.run import Runner, evaluate
 from utility.timer import Timer
 from utility import pkg
-from env.func import create_env
+from algo.ppo.train import main
 
 
 def train(agent, env, eval_env, buffer):
@@ -107,54 +106,4 @@ def train(agent, env, eval_env, buffer):
         agent.store(atps=(agent.N_AUX_EPOCHS * agent.N_AUX_MBS)/at.last())
         buffer.aux_reset()
 
-def main(env_config, model_config, agent_config, buffer_config):
-    silence_tf_logs()
-    configure_gpu()
-    configure_precision(agent_config['precision'])
-
-    create_model, Agent = pkg.import_agent(config=agent_config)
-    Buffer = pkg.import_module('buffer', config=agent_config).Replay
-
-    use_ray = env_config.get('n_workers', 1) > 1
-    if use_ray:
-        import ray 
-        from utility.ray_setup import sigint_shutdown_ray
-        ray.init()
-        sigint_shutdown_ray()
-
-    env = create_env(env_config, force_envvec=True)
-    eval_env_config = env_config.copy()
-    if 'num_levels' in eval_env_config:
-        eval_env_config['num_levels'] = 0
-    if 'seed' in eval_env_config:
-        eval_env_config['seed'] += 1000
-    eval_env_config['n_workers'] = 1
-    for k in list(eval_env_config.keys()):
-        # pop reward hacks
-        if 'reward' in k:
-            eval_env_config.pop(k)
-    eval_env = create_env(eval_env_config, force_envvec=True)
-
-    models = create_model(model_config, env)
-
-    buffer_config['n_envs'] = env.n_envs
-    buffer_config['state_keys'] = models.state_keys
-    buffer = Buffer(buffer_config)
-    
-    agent = Agent( 
-        config=agent_config, 
-        models=models, 
-        dataset=buffer,
-        env=env)
-
-    agent.save_config(dict(
-        env=env_config,
-        model=model_config,
-        agent=agent_config,
-        buffer=buffer_config
-    ))
-
-    train(agent, env, eval_env, buffer)
-
-    if use_ray:
-        ray.shutdown()
+main = functools.partial(main, train=train)

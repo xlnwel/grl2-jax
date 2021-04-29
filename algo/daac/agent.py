@@ -28,20 +28,16 @@ class Agent(PPOBase):
             self._value_lr = TFPiecewiseSchedule(self._value_lr)
 
         actor_models = [self.encoder, self.actor, self.advantage]
-        if hasattr(self, 'rnn'):
-            actor_models.append(self.rnn)
-        self._actor_opt = Optimizer(
-            self._optimizer, actor_models, self._actor_lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
+        if hasattr(self, 'actor_rnn'):
+            actor_models.append(self.actor_rnn)
+        self._actor_opt = self._construct_opt(actor_models, self._actor_lr)
 
         value_models = [self.value]
         if hasattr(self, 'value_encoder'):
             value_models.append(self.value_encoder)
         if hasattr(self, 'value_rnn'):
             value_models.append(self.value_rnn)
-        self._value_opt = Optimizer(
-            self._optimizer, value_models, self._value_lr, 
-            clip_norm=self._clip_norm, epsilon=self._opt_eps)
+        self._value_opt = self._construct_opt(value_models, self._value_lr)
 
     @override(PPOBase)
     def _build_learn(self, env):
@@ -69,14 +65,6 @@ class Agent(PPOBase):
         pass
 
     """ DAAC methods """
-    @step_track
-    def learn_log(self, step):
-        n = self._sample_learn()
-        self._store_buffer_stats()
-        self._store_run_stats()
-
-        return n
-    
     @tf.function
     def _learn_policy(self, obs, action, advantage, logpi, state=None, mask=None):
         terms = {}

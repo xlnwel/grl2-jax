@@ -121,6 +121,34 @@ class Noisy(layers.Dense):
             dtype=self._compute_dtype))
 
 
+@layer_registry.register('glu')
+class GLU(Module):
+    def __init__(self, *args, layer_type=layers.Dense, activation='sigmoid',
+                kernel_initializer='glorot_uniform', name=None, **kwargs):
+        super().__init__(name=name)
+        if isinstance(layer_type, str):
+            layer_type = layer_registry.get(layer_type)
+
+        gain = kwargs.pop('gain', 1)
+        kernel_initializer = get_initializer(kernel_initializer, gain=gain)
+
+        self._layer = layer_type(
+            *args, kernel_initializer=kernel_initializer, name=name, **kwargs)
+        self.activation = get_activation(activation)
+
+    def call(self, x):
+        x = self._layer(x)
+        x, gate = tf.split(x, 2, axis=-1)
+        gate = self.activation(gate)
+        x = x * gate
+        return x
+    
+    def reset(self):
+        # reset noisy layer
+        if isinstance(self._layer, Noisy):
+            self._layer.reset()
+
+
 @layer_registry.register('sndense')
 class SNDense(layers.Layer):
     def __init__(self,

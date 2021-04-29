@@ -75,6 +75,7 @@ class Buffer:
 
     def _add_attributes(self):
         self._sample_size = getattr(self, '_sample_size', None)
+        self._state_keys = getattr(self, '_state_keys', [])
         if self._sample_size:
             assert self._n_envs * self.N_STEPS % self._sample_size == 0, \
                 f'{self._n_envs} * {self.N_STEPS} % {self._sample_size} != 0'
@@ -130,18 +131,33 @@ class Buffer:
             end = start + self._mb_size
             curr_idxes = self._idxes[start:end]
             obs = self._memory['obs'][curr_idxes]
-            value = fn(obs)
-            self.update('value', value, mb_idxes=curr_idxes)
+            if self._sample_size:
+                state = (self._memory[k][curr_idxes, 0] for k in self._state_keys)
+                mask = self._memory['mask'][curr_idxes]
+                value, state = fn(obs, state=state, mask=mask, return_state=True)
+                self.update('value', value, mb_idxes=curr_idxes)
+                next_idxes = curr_idxes + self._mb_size
+                self.update('state', state, mb_idxes=next_idxes)
+            else:
+                value = fn(obs)
+                self.update('value', value, mb_idxes=curr_idxes)
         
         assert mb_idx == 0, mb_idx
 
-    def sample(self):
+    def sample(self, sample_keys=None):
         assert self._ready
         if self._mb_idx == 0:
             np.random.shuffle(self._shuffled_idxes)
+        sample_keys = sample_keys or self._sample_keys
         self._mb_idx, self._curr_idxes = compute_indices(
             self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_MBS)
-        return {k: self._memory[k][self._curr_idxes] for k in self._sample_keys}
+        
+        sample = {k: self._memory[k][self._curr_idxes, 0]
+            if k in self._state_keys 
+            else self._memory[k][self._curr_idxes] 
+            for k in sample_keys}
+        
+        return sample
 
     def compute_mean_max_std(self, name):
         stats = self._memory[name]

@@ -1,4 +1,7 @@
+import atexit
 import functools
+import signal
+import sys
 import numpy as np
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
@@ -118,6 +121,13 @@ def main(env_config, model_config, agent_config, buffer_config, train=train):
             eval_env_config.pop(k)
     eval_env = create_env(eval_env_config, force_envvec=True)
 
+    def sigint_handler(sig, frame):
+        signal.signal(sig, signal.SIG_IGN)
+        env.close()
+        eval_env.close()
+        sys.exit(0)
+    signal.signal(signal.SIGINT, sigint_handler)
+
     models = create_model(model_config, env)
 
     buffer_config['n_envs'] = env.n_envs
@@ -140,4 +150,6 @@ def main(env_config, model_config, agent_config, buffer_config, train=train):
     train(agent, env, eval_env, buffer)
 
     if use_ray:
+        env.close()
+        eval_env.close()
         ray.shutdown()
