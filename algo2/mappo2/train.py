@@ -17,10 +17,10 @@ def train(agent, env, eval_env, buffer):
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     def random_action(env_output, **kwargs):
         obs = env_output.obs
-        a = np.concatenate(env.random_action())
+        a = env.random_action()
         terms = {
-            'obs': np.concatenate(obs['obs']), 
-            'shared_state': np.concatenate(obs['shared_state']),
+            'obs': obs['obs'], 
+            'shared_state': obs['shared_state'],
         }
         return a, terms
     

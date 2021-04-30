@@ -49,6 +49,8 @@ agent:
     precision: 32
     gamma: &gamma .99
 
+    reward_normalized_axis: [0, 1, 2]
+    obs_normalized_axis: [0, 1]
     MAX_STEPS: 1e7
     N_STEPS: &nsteps 400
     N_EPOCHS: 5

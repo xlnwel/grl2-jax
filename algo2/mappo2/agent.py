@@ -4,25 +4,25 @@ import tensorflow as tf
 from utility.schedule import TFPiecewiseSchedule
 from utility.tf_utils import explained_variance, tensor2numpy
 from utility.rl_loss import ppo_loss
-from core.base import Memory, MultiAgentSharedNet
+from core.base import Memory
 from core.tf_config import build
 from core.decorator import override
 from algo.ppo.base import PPOBase
 
-def collect(buffer, env, step, reset, reward, discount, next_obs, **kwargs):
-    kwargs['reward'] = np.concatenate(reward)
-    kwargs['life_mask'] = np.concatenate(discount)
+def collect(buffer, env, step, reset, discount, next_obs, **kwargs):
+    kwargs['life_mask'] = discount.copy()
     # discount is zero only when all agents are done
     discount[np.any(discount, 1)] = 1
-    kwargs['discount'] = np.concatenate(discount)
+    kwargs['discount'] = discount
     buffer.add(**kwargs)
 
-class Agent(MultiAgentSharedNet, Memory, PPOBase):
+class Agent(Memory, PPOBase):
     """ Initialization """
     @override(PPOBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
         self._setup_memory_state_record()
+        self._n_agents = env.n_agents
         if self._value_life_mask == False:
             self._value_life_mask = None
         if self._actor_life_mask == False:
@@ -44,16 +44,16 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
-            shared_state=((self._sample_size, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
-            action_mask=((self._sample_size, env.action_dim), tf.bool, 'action_mask'),
-            action=((self._sample_size, *env.action_shape), env.action_dtype, 'action'),
-            value=((self._sample_size, ), tf.float32, 'value'),
-            traj_ret=((self._sample_size, ), tf.float32, 'traj_ret'),
-            advantage=((self._sample_size, ), tf.float32, 'advantage'),
-            logpi=((self._sample_size, ), tf.float32, 'logpi'),
-            life_mask=((self._sample_size,), tf.float32, 'life_mask'),
-            mask=((self._sample_size,), tf.float32, 'mask'),
+            obs=((self._sample_size, self._n_agents, *env.obs_shape), env.obs_dtype, 'obs'),
+            shared_state=((self._sample_size, self._n_agents, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
+            action_mask=((self._sample_size, self._n_agents, env.action_dim), tf.bool, 'action_mask'),
+            action=((self._sample_size, self._n_agents, *env.action_shape), env.action_dtype, 'action'),
+            value=((self._sample_size, self._n_agents), tf.float32, 'value'),
+            traj_ret=((self._sample_size, self._n_agents), tf.float32, 'traj_ret'),
+            advantage=((self._sample_size, self._n_agents), tf.float32, 'advantage'),
+            logpi=((self._sample_size, self._n_agents), tf.float32, 'logpi'),
+            life_mask=((self._sample_size, self._n_agents), tf.float32, 'life_mask'),
+            mask=((self._sample_size, self._n_agents), tf.float32, 'mask'),
         )
         if self._store_state:
             state_type = type(self.model.state_size)
@@ -67,11 +67,11 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
         self.learn = build(self._learn, TensorSpecs)
 
         TensorSpecs = dict(
-            shared_state=((self._sample_size, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
-            value=((self._sample_size,), tf.float32, 'value'),
-            traj_ret=((self._sample_size,), tf.float32, 'traj_ret'),
-            life_mask=((self._sample_size,), tf.float32, 'life_mask'),
-            mask=((self._sample_size,), tf.float32, 'mask'),
+            shared_state=((self._sample_size, self._n_agents, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
+            value=((self._sample_size, self._n_agents), tf.float32, 'value'),
+            traj_ret=((self._sample_size, self._n_agents), tf.float32, 'traj_ret'),
+            life_mask=((self._sample_size, self._n_agents), tf.float32, 'life_mask'),
+            mask=((self._sample_size, self._n_agents), tf.float32, 'mask'),
         )
         if self._store_state:
             state_type = type(self.model.value_state_size)
@@ -93,6 +93,10 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
 
     """ Call """
     # @override(PPOBase)
+    def _reshape_output(self, env_output):
+        return env_output
+
+    # @override(PPOBase)
     def _process_input(self, env_output, evaluation):
         if evaluation:
             self._process_obs(env_output.obs, update_rms=False)
@@ -101,7 +105,8 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
             self._process_obs(env_output.obs, mask=life_mask)
         mask = 1. - env_output.reset
         obs, kwargs = self._divide_obs(env_output.obs)
-        obs, kwargs = self._add_memory_state_to_kwargs(obs, mask=mask, kwargs=kwargs)
+        obs, kwargs = self._add_memory_state_to_kwargs(
+            obs, mask=mask, kwargs=kwargs, batch_size=obs.shape[0] * self._n_agents)
         return obs, kwargs
 
     # @override(PPOBase)
@@ -230,6 +235,7 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
                         'traj_ret', 'value_c', 'value_h', 'life_mask', 'mask'])
                 data['c'] = data.pop('value_c')
                 data['h'] = data.pop('value_h')
+
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 
                 terms = self.learn_value(**data)

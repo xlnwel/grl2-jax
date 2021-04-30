@@ -103,7 +103,7 @@ class PPO(Ensemble):
     @tf.function
     def action(self, obs, shared_state, action_mask, state, mask, 
             evaluation=False, prev_action=None, prev_reward=None, **kwargs):
-        assert obs.shape.ndims % 2 == 0, obs.shape
+        assert obs.shape.ndims % 2 != 0, obs.shape
 
         mid = len(state) // 2
         actor_state, value_state = state[:mid], state[mid:]
@@ -145,18 +145,29 @@ class PPO(Ensemble):
         else:
             encoder = self.value_encoder
             rnn = self.value_rnn
-        if x.shape.ndims % 2 == 0:
+        if x.shape.ndims % 2 != 0:
             x = tf.expand_dims(x, 1)
-        if mask.shape.ndims < 2:
-            mask = tf.reshape(mask, (-1, 1))
-        assert_rank(mask, 2)
+        if mask.shape.ndims < 3:
+            mask = tf.reshape(mask, (-1, 1, mask.shape[-1]))
+        assert_rank(mask, 3)
 
         x = encoder(x)
+        seqlen, n_agents = x.shape[1:3]
+        # pool = tf.reduce_sum(x, axis=2, keepdims=True)
+        # n = x.shape[-1]
+        # feat = tf.reshape(tf.range(n), (1, 1, 1, -1))
+        # x = tf.where(feat < n * .25, pool, x)
+        x = tf.transpose(x, [0, 2, 1, 3])
+        x = tf.reshape(x, [-1, *x.shape[2:]])
+        mask = tf.transpose(mask, [0, 2, 1])
+        mask = tf.reshape(mask, [-1, mask.shape[-1]])
         additional_rnn_input = self._process_additional_input(
             x, prev_action, prev_reward)
         x, state = rnn(x, state, mask, 
             additional_input=additional_rnn_input)
-        if x.shape[1] == 1:
+        x = tf.reshape(x, (-1, n_agents, seqlen, x.shape[-1]))
+        x = tf.transpose(x, [0, 2, 1, 3])
+        if seqlen == 1:
             x = tf.squeeze(x, 1)
         return x, state
 
