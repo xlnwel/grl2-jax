@@ -112,7 +112,7 @@ class Buffer:
         assert self._idx == 0, self._idx
         self.reshape_to_store()
         _, self._memory['traj_ret'] = \
-            self._compute_advantage_return(
+            self._buff._compute_advantage_return(
                 self._memory['reward'], self._memory['discount'], 
                 self._memory['value'], last_value
             )

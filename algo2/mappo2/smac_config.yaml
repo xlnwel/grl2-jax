@@ -104,5 +104,5 @@ buffer:
     N_STEPS: *nsteps
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
-    norm_adv: True
+    norm_adv: minibatch
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

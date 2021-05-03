@@ -90,7 +90,7 @@ def moments(x, axis=None, mask=None):
 
     return x_mean, x_var
     
-def standardize(x, axis=None, epsilon=1e-8, mask=None):
+def standardize(x, mask=None, axis=None, epsilon=1e-8):
     if mask is not None:
         mask = expand_dims_match(mask, x)
     x_mean, x_var = moments(x, axis=axis, mask=mask)

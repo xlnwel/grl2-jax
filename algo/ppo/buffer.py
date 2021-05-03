@@ -94,6 +94,7 @@ class Buffer:
         self._is_store_shape = True
         self._inferred_sample_keys = False
         self._norm_adv = getattr(self, '_norm_adv', 'minibatch')
+        self._epsilon = 1e-5
         self.reset()
         logger.info(f'Batch size: {size}')
         logger.info(f'Mini-batch size: {self._mb_size}')
@@ -151,6 +152,7 @@ class Buffer:
         assert self._ready
         if self._mb_idx == 0:
             np.random.shuffle(self._shuffled_idxes)
+
         sample_keys = sample_keys or self._sample_keys
         self._mb_idx, self._curr_idxes = compute_indices(
             self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_MBS)
@@ -161,7 +163,8 @@ class Buffer:
             for k in sample_keys}
         
         if self._norm_adv == 'minibatch':
-            sample['advantage'] = standardize(sample['advantage'])
+            sample['advantage'] = standardize(
+                sample['advantage'], epsilon=self._epsilon)
         
         return sample
 
@@ -186,7 +189,8 @@ class Buffer:
         self._memory['advantage'], self._memory['traj_ret'] = \
             self._compute_advantage_return(
                 self._memory['reward'], self._memory['discount'], 
-                self._memory['value'], last_value
+                self._memory['value'], last_value,
+                epsilon=self._epsilon
             )
 
         self.reshape_to_sample()

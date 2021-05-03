@@ -104,7 +104,7 @@ def main(env_config, model_config, agent_config, replay_config):
     n_workers = env_config.get('n_workers', 1)
     n_envs = env_config.get('n_envs', 1)
     replay_config['n_envs'] = n_workers * n_envs
-    if getattr(models, 'state_size', None):
+    if getattr(models, 'state_keys', ()):
         replay_config['state_keys'] = list(models.state_keys)
     replay = create_replay(replay_config)
 

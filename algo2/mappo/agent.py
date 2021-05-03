@@ -23,8 +23,11 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
         self._setup_memory_state_record()
+
+        self._n_agents = env.n_agents
         self._value_life_mask = self._value_life_mask or None
         self._actor_life_mask = self._actor_life_mask or None
+        
         state_keys = self.model.state_keys
         mid = len(state_keys) // 2
         self._actor_state_keys = state_keys[:mid]

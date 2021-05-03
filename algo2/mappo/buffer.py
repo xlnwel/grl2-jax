@@ -8,27 +8,6 @@ from algo.ppo.buffer import Buffer as BufferBase, \
 logger = logging.getLogger(__name__)
 
 class Buffer(BufferBase):
-    def _add_attributes(self):
-        self._sample_size = getattr(self, '_sample_size', None)
-        self._n_real_envs = self._n_envs    # n_envs takes into account n_agents, i.e., n_envs = n_real_envs * n_agents
-        if self._sample_size:
-            assert self._n_envs * self.N_STEPS % self._sample_size == 0, \
-                f'{self._n_envs} * {self.N_STEPS} % {self._sample_size} != 0'
-            size = self._n_envs * self.N_STEPS // self._sample_size
-            logger.info(f'Sample size: {self._sample_size}')
-        else:
-            size = self._n_envs * self.N_STEPS
-        self._size = size
-        self._mb_size = size // self.N_MBS
-        self._gae_discount = self._gamma * self._lam
-        self._memory = {}
-        self._is_store_shape = True
-        self._inferred_sample_keys = False
-        self._epsilon = 1e-5
-        self.reset()
-        logger.info(f'Batch size(without taking into account #agents): {size}')
-        logger.info(f'Mini-batch size(without taking into account #agents): {self._mb_size}')
-
     def update_value_with_func(self, fn):
         assert self._mb_idx == 0, f'Unfinished sample: self._mb_idx({self._mb_idx}) != 0'
         mb_idx = 0
@@ -58,9 +37,9 @@ class Buffer(BufferBase):
             else self._memory[k][self._curr_idxes] 
             for k in sample_keys}
         
-        if self._norm_adv == 'minibatch':
+        if 'advantage' in sample and self._norm_adv == 'minibatch':
             sample['advantage'] = standardize(
-                sample['advantage'], maks=sample['life_mask'])
+                sample['advantage'], mask=sample['life_mask'], epsilon=self._epsilon)
         
         return sample
 
