@@ -37,6 +37,8 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
             'traj_ret', 'life_mask', 'mask'
         ] + list(self._value_state_keys)
 
+        self._basic_shape = (self._sample_size, )
+
     @override(PPOBase)
     def _construct_optimizers(self):
         if getattr(self, 'schedule_lr', False):
@@ -53,16 +55,16 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
-            shared_state=((self._sample_size, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
-            action_mask=((self._sample_size, env.action_dim), tf.bool, 'action_mask'),
-            action=((self._sample_size, *env.action_shape), env.action_dtype, 'action'),
-            value=((self._sample_size, ), tf.float32, 'value'),
-            traj_ret=((self._sample_size, ), tf.float32, 'traj_ret'),
-            advantage=((self._sample_size, ), tf.float32, 'advantage'),
-            logpi=((self._sample_size, ), tf.float32, 'logpi'),
-            life_mask=((self._sample_size,), tf.float32, 'life_mask'),
-            mask=((self._sample_size,), tf.float32, 'mask'),
+            obs=((*self._basic_shape, *env.obs_shape), env.obs_dtype, 'obs'),
+            shared_state=((*self._basic_shape, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
+            action_mask=((*self._basic_shape, env.action_dim), tf.bool, 'action_mask'),
+            action=((*self._basic_shape, *env.action_shape), env.action_dtype, 'action'),
+            value=(self._basic_shape, tf.float32, 'value'),
+            traj_ret=(self._basic_shape, tf.float32, 'traj_ret'),
+            advantage=(self._basic_shape, tf.float32, 'advantage'),
+            logpi=(self._basic_shape, tf.float32, 'logpi'),
+            life_mask=(self._basic_shape, tf.float32, 'life_mask'),
+            mask=(self._basic_shape, tf.float32, 'mask'),
         )
         if self._store_state:
             state_type = type(self.model.state_size)
@@ -71,18 +73,18 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
         if self._additional_rnn_inputs:
             if 'prev_action' in self._additional_rnn_inputs:
                 TensorSpecs['prev_action'] = (
-                    (self._sample_size, *env.action_shape), env.action_dtype, 'prev_action')
+                    (*self._basic_shape, *env.action_shape), env.action_dtype, 'prev_action')
             if 'prev_reward' in self._additional_rnn_inputs:
                 TensorSpecs['prev_reward'] = (
-                    (self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
+                    self._basic_shape, self._dtype, 'prev_reward')    # this reward should be unnormlaized
         self.learn = build(self._learn, TensorSpecs)
 
         TensorSpecs = dict(
-            shared_state=((self._sample_size, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
-            value=((self._sample_size,), tf.float32, 'value'),
-            traj_ret=((self._sample_size,), tf.float32, 'traj_ret'),
-            life_mask=((self._sample_size,), tf.float32, 'life_mask'),
-            mask=((self._sample_size,), tf.float32, 'mask'),
+            shared_state=((*self._basic_shape, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
+            value=(self._basic_shape, tf.float32, 'value'),
+            traj_ret=(self._basic_shape, tf.float32, 'traj_ret'),
+            life_mask=(self._basic_shape, tf.float32, 'life_mask'),
+            mask=(self._basic_shape, tf.float32, 'mask'),
         )
         if self._store_state:
             state_type = type(self.model.value_state_size)
