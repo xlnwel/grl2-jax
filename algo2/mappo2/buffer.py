@@ -1,7 +1,8 @@
 import logging
 import numpy as np
 
-from algo.ppo.buffer import init_buffer, print_buffer, compute_indices
+from algo.ppo.buffer import init_buffer, print_buffer, \
+    compute_indices, standardize
 from algo.ppo2.buffer import Buffer as BufferBase
 
 
@@ -59,10 +60,15 @@ class Buffer(BufferBase):
         self._mb_idx, self._curr_idxes = compute_indices(
             self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_MBS)
         
-        sample = {k: self._memory[k][self._curr_idxes, 0].reshape(-1, self._states[k].shape[-1])
+        sample = {k: self._memory[k][self._curr_idxes, :, 0].\
+                reshape(-1, self._states[k].shape[-1])
             if k in self._state_keys 
             else self._memory[k][self._curr_idxes] 
             for k in sample_keys}
+        
+        if self._norm_adv == 'minibatch':
+            sample['advantage'] = standardize(
+                sample['advantage'], maks=sample['life_mask'])
         
         return sample
 
@@ -108,9 +114,10 @@ class Buffer(BufferBase):
         self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS, self._n_agents), dtype=np.float32)
         self._states = {}
         for k in self._state_keys:
-            self._memory[k] = self._states[k] = np.zeros(
-                (self._n_envs * self._n_agents, self.N_STEPS, data[k].shape[-1]), 
-                dtype=np.float32)
+            if k in data:
+                self._memory[k] = self._states[k] = np.zeros(
+                    (self._n_envs * self._n_agents, self.N_STEPS, data[k].shape[-1]), 
+                    dtype=np.float32)
 
         print_buffer(self._memory)
         if self._inferred_sample_keys or getattr(self, '_sample_keys', None) is None:

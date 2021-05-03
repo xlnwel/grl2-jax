@@ -1,7 +1,8 @@
 import logging
 import numpy as np
 
-from algo.ppo2.buffer import Buffer as BufferBase
+from algo.ppo.buffer import Buffer as BufferBase, \
+    compute_indices, standardize
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class Buffer(BufferBase):
         self._memory = {}
         self._is_store_shape = True
         self._inferred_sample_keys = False
+        self._epsilon = 1e-5
         self.reset()
         logger.info(f'Batch size(without taking into account #agents): {size}')
         logger.info(f'Mini-batch size(without taking into account #agents): {self._mb_size}')
@@ -42,6 +44,26 @@ class Buffer(BufferBase):
         
         assert mb_idx == 0, mb_idx
 
+    def sample(self, sample_keys=None):
+        assert self._ready
+        if self._mb_idx == 0:
+            np.random.shuffle(self._shuffled_idxes)
+
+        sample_keys = sample_keys or self._sample_keys
+        self._mb_idx, self._curr_idxes = compute_indices(
+            self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_MBS)
+        
+        sample = {k: self._memory[k][self._curr_idxes, 0]
+            if k in self._state_keys 
+            else self._memory[k][self._curr_idxes] 
+            for k in sample_keys}
+        
+        if self._norm_adv == 'minibatch':
+            sample['advantage'] = standardize(
+                sample['advantage'], maks=sample['life_mask'])
+        
+        return sample
+
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
         self.reshape_to_store()
@@ -49,7 +71,8 @@ class Buffer(BufferBase):
             self._compute_advantage_return(
                 self._memory['reward'], self._memory['discount'], 
                 self._memory['value'], last_value, 
-                mask=self._memory['life_mask']
+                mask=self._memory['life_mask'],
+                epsilon=self._epsilon
             )
 
         self.reshape_to_sample()

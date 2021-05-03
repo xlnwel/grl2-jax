@@ -67,6 +67,11 @@ class Direction(enum.IntEnum):
     WEST = 3
 
 
+def info_func(agent, info):
+    won = [i['won'] for i in info]
+    agent.store(win_rate=won)
+
+
 class SMAC(gym.Env):
     """The StarCraft II environment for decentralised multi-agent
     micromanagement scenarios.
@@ -312,6 +317,7 @@ class SMAC(gym.Env):
         self.enemies = {}
         self._episode_count = 0
         self._episode_steps = 0
+        self._score = 0
         self._total_steps = 0
         self._obs = None
         self.battles_won = 0
@@ -461,6 +467,7 @@ class SMAC(gym.Env):
         Returns initial observations and states.
         """
         self._episode_steps = 0
+        self._score = 0
         if self._episode_count == 0:
             # Launch StarCraft II
             self._launch()
@@ -614,7 +621,7 @@ class SMAC(gym.Env):
             rewards = np.zeros(self.n_agents, np.float32)
             info = batch_dicts(infos)
             info.update({
-                'score': self.win_counted,
+                'score': self._score,
                 'epslen': self._episode_steps,
                 'game_over': terminated
             })
@@ -684,6 +691,7 @@ class SMAC(gym.Env):
         if self.reward_scale:
             reward /= self.max_reward / self.reward_scale_rate
 
+        self._score += reward
         rewards = reward*np.ones(self.n_agents, np.float32)
 
         if self.use_state_agent:
@@ -710,7 +718,7 @@ class SMAC(gym.Env):
         )
         info = batch_dicts(infos)
         info.update({
-            'score': self.win_counted,
+            'score': self._score,
             'epslen': self._episode_steps,
             'game_over': terminated
         })

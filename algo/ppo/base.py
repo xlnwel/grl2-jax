@@ -80,6 +80,7 @@ class PPOBase(RMSAgentBase):
 
         terms['ac_norm'] = self._ac_opt(tape, ac_loss)
         terms.update(dict(
+            value=value,
             ratio=tf.exp(log_ratio), 
             entropy=entropy, 
             kl=kl, 
@@ -110,6 +111,7 @@ class PPOBase(RMSAgentBase):
             for j in range(1, self.N_MBS+1):
                 with self._sample_timer:
                     data = self.dataset.sample()
+
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
 
                 with self._learn_timer:

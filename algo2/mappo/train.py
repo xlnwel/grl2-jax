@@ -13,8 +13,11 @@ def train(agent, env, eval_env, buffer):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
 
+    info_func = None
+    if env.name.startswith('smac'):
+        from env.smac import info_func
     step = agent.env_step
-    runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
+    runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS, info_func=info_func)
     def random_action(env_output, **kwargs):
         obs = env_output.obs
         a = np.concatenate(env.random_action())

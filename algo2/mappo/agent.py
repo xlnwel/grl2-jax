@@ -23,10 +23,16 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
         self._setup_memory_state_record()
-        if self._value_life_mask == False:
-            self._value_life_mask = None
-        if self._actor_life_mask == False:
-            self._actor_life_mask = None
+        self._value_life_mask = self._value_life_mask or None
+        self._actor_life_mask = self._actor_life_mask or None
+        state_keys = self.model.state_keys
+        mid = len(state_keys) // 2
+        self._actor_state_keys = state_keys[:mid]
+        self._value_state_keys = state_keys[mid:]
+        self._value_sample_keys = [
+            'shared_state', 'value', 
+            'traj_ret', 'life_mask', 'mask'
+        ] + list(self._value_state_keys)
 
     @override(PPOBase)
     def _construct_optimizers(self):
@@ -61,9 +67,11 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
                 for name, sz in self.model.state_size._asdict().items()])
         if self._additional_rnn_inputs:
             if 'prev_action' in self._additional_rnn_inputs:
-                TensorSpecs['prev_action'] = ((self._sample_size, *env.action_shape), env.action_dtype, 'prev_action')
+                TensorSpecs['prev_action'] = (
+                    (self._sample_size, *env.action_shape), env.action_dtype, 'prev_action')
             if 'prev_reward' in self._additional_rnn_inputs:
-                TensorSpecs['prev_reward'] = ((self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
+                TensorSpecs['prev_reward'] = (
+                    (self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
         self.learn = build(self._learn, TensorSpecs)
 
         TensorSpecs = dict(
@@ -75,7 +83,7 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
         )
         if self._store_state:
             state_type = type(self.model.value_state_size)
-            TensorSpecs['value_state'] = state_type(*[((sz, ), self._dtype, name) 
+            TensorSpecs['value_state'] = state_type(*[((sz, ), self._dtype, f'value_{name}') 
                 for name, sz in self.model.value_state_size._asdict().items()])
         if self._additional_rnn_inputs:
             if 'prev_action' in self._additional_rnn_inputs:
@@ -101,17 +109,18 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
             self._process_obs(env_output.obs, mask=life_mask)
         mask = 1. - env_output.reset
         obs, kwargs = self._divide_obs(env_output.obs)
-        obs, kwargs = self._add_memory_state_to_kwargs(obs, mask=mask, kwargs=kwargs)
+        obs, kwargs = self._add_memory_state_to_kwargs(
+            obs, mask=mask, kwargs=kwargs)
         return obs, kwargs
 
     # @override(PPOBase)
     def _process_output(self, obs, kwargs, out, evaluation):
         out = self._add_tensors_to_terms(obs, kwargs, out, evaluation)
         out = tensor2numpy(out)
-        out = self._add_non_tensors_to_terms(obs, out, kwargs, evaluation)
+        out = self._add_non_tensors_to_terms(obs, kwargs, out, evaluation)
         return out
     
-    def _add_non_tensors_to_terms(self, obs, out, kwargs, evaluation):
+    def _add_non_tensors_to_terms(self, obs, kwargs, out, evaluation):
         if evaluation:
             out = [out]
         else:
@@ -226,10 +235,8 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
         for _ in range(self.N_VALUE_EPOCHS):
             for _ in range(self.N_MBS):
                 with self._sample_timer:
-                    data = self.dataset.sample(['shared_state', 'value', 
-                        'traj_ret', 'value_c', 'value_h', 'life_mask', 'mask'])
-                data['c'] = data.pop('value_c')
-                data['h'] = data.pop('value_h')
+                    data = self.dataset.sample(self._value_sample_keys)
+
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 
                 terms = self.learn_value(**data)

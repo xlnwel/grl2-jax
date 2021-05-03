@@ -53,8 +53,8 @@ def step_str(step):
 def expand_dims_match(x, target):
     """ Expands dimensions of x to match target,
     an efficient way of the following process 
-        while len(mask.shape) < len(x.shape):
-            mask = np.expand_dims(mask, -1)
+        while len(x.shape) < len(target.shape):
+            x = np.expand_dims(x, -1)
     """
     assert x.shape == target.shape[:x.ndim], (x.shape, target.shape)
     return x[(*[slice(None) for _ in x.shape], *(None,)*(target.ndim - x.ndim))]
@@ -94,7 +94,7 @@ def standardize(x, axis=None, epsilon=1e-8, mask=None):
     if mask is not None:
         mask = expand_dims_match(mask, x)
     x_mean, x_var = moments(x, axis=axis, mask=mask)
-    x_std = np.maximum(np.sqrt(x_var), epsilon)
+    x_std = np.sqrt(x_var + epsilon)
     y = (x - x_mean) / x_std
     if mask is not None:
         y = np.where(mask == 1, y, x)
@@ -347,6 +347,7 @@ class RunningMeanStd:
             pass
         else:
             raise ValueError(f'Invalid axis({axis}) of type({type(axis)})')
+
         if isinstance(axis, tuple):
             assert axis == tuple(range(len(axis))), \
                 f'Axis should only specifies leading axes so that '\
@@ -388,6 +389,8 @@ class RunningMeanStd:
         if self._count == self._epsilon:
             self._mean = np.zeros_like(batch_mean, 'float64')
             self._var = np.ones_like(batch_var, 'float64')
+        assert self._mean.shape == batch_mean.shape
+        assert self._var.shape == batch_var.shape
 
         delta = batch_mean - self._mean
         total_count = self._count + batch_count
@@ -409,6 +412,8 @@ class RunningMeanStd:
     def normalize(self, x, zero_center=True, mask=None):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
         assert self._var is not None, (self._mean, self._var, self._count)
+        assert x.ndim == self._var.ndim + (0 if self._axis is None else len(self._axis)), \
+            (x.shape, self._var.shape, self._axis)
         if mask is not None:
             assert mask.ndim == len(self._axis), (mask.shape, self._axis)
             old = x.copy()

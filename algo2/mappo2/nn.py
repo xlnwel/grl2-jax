@@ -1,105 +1,10 @@
-import collections
-import numpy as np
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
 
 from utility.tf_utils import assert_rank
-from core.module import Module, Ensemble
-from nn.func import Encoder, rnn, mlp
-from algo.ppo.nn import Actor, Value
-
-State = collections.namedtuple('State', 'actor_c actor_h value_c value_h')
+from algo2.mappo.nn import PPO as PPOBase, create_components
 
 
-class Actor(Module):
-    def __init__(self, config, action_dim, is_action_discrete, name='actor'):
-        super().__init__(name=name)
-        config = config.copy()
-
-        self.action_dim = action_dim
-        self.is_action_discrete = is_action_discrete
-        self.eval_act_temp = config.pop('eval_act_temp', 1)
-        assert self.eval_act_temp >= 0, self.eval_act_temp
-
-        self.attention_action = config.pop('attention_action', False)
-        self.embed_dim = config.pop('embed_dim', 10)
-        if self.attention_action:
-            self.embed = tf.Variable(tf.random.uniform(
-                (action_dim, self.embed_dim), -0.1, 0.1), trainable=True)
-        self._init_std = config.pop('init_std', 1)
-        if not self.is_action_discrete:
-            self.logstd = tf.Variable(
-                initial_value=np.log(self._init_std)*np.ones(action_dim), 
-                dtype='float32', 
-                trainable=True, 
-                name=f'actor/logstd')
-        config.setdefault('out_gain', .01)
-        self._layers = mlp(**config, 
-                        out_size=self.embed_dim if self.attention_action else action_dim, 
-                        out_dtype='float32',
-                        name=name)
-
-    def call(self, x, action_mask, evaluation=False):
-        x = self._layers(x)
-        if self.attention_action:
-            action_mask_exp = tf.expand_dims(action_mask, -1)
-            action_embed = tf.where(action_mask_exp, self.embed, 0)
-            if x.shape.ndims == 2:
-                x = tf.einsum('be,bae->ba', x, action_embed)
-                tf.debugging.assert_shapes(
-                    [[x, (None, self.action_dim)]])
-            else:
-                x = tf.einsum('bse,bsae->bsa', x, action_embed)
-                tf.debugging.assert_shapes(
-                    [[x, (None, None, self.action_dim)]])
-
-        logits = x / self.eval_act_temp \
-            if evaluation and self.eval_act_temp else x
-        assert logits.shape[1:] == action_mask.shape[1:], (logits.shape, action_mask.shape)
-        logits = tf.where(action_mask, logits, -1e10)
-        act_dist = tfd.Categorical(logits)
-
-        return act_dist
-
-    def action(self, dist, evaluation):
-        if evaluation:
-            action = dist.mode()
-        else:
-            action = dist.sample()
-            # ensures all actions are valid. This is time-consuming, 
-            # and we opt to allow invalid actions, which is very unlikely to happen
-            # def cond(a, x):
-            #     i = tf.stack([tf.range(3), a], 1)
-            #     return tf.reduce_all(tf.gather_nd(action_mask, i))
-            # def body(a, x):
-            #     d = tfd.Categorical(x)
-            #     a = d.sample()
-            #     return (a, x)
-            # action = tf.while_loop(cond, body, [action, logits])[0]
-        return action
-
-def create_components(config, env):
-    action_dim = env.action_dim
-    is_action_discrete = env.is_action_discrete
-
-    return dict(
-        actor_encoder=Encoder(config['actor_encoder'], name='actor_encoder'), 
-        actor_rnn=rnn(config['actor_rnn'], name='actor_rnn'), 
-        actor=Actor(config['actor'], action_dim, is_action_discrete),
-        value_encoder=Encoder(config['value_encoder'], name='value_encoder'),
-        value_rnn=rnn(config['value_rnn'], name='value_rnn'),
-        value=Value(config['value'])
-    )
-
-
-class PPO(Ensemble):
-    def __init__(self, config, env, model_fn=create_components, **kwargs):
-        super().__init__(
-            model_fn=model_fn, 
-            config=config,
-            env=env,
-            **kwargs)
-
+class PPO(PPOBase):
     @tf.function
     def action(self, obs, shared_state, action_mask, state, mask, 
             evaluation=False, prev_action=None, prev_reward=None, **kwargs):
@@ -115,7 +20,7 @@ class PPO(Ensemble):
 
         if evaluation:
             # we do not compute the value state at evaluation 
-            return action, State(*actor_state, *value_state)
+            return action, self.State(*actor_state, *value_state)
         else:
             x_value, value_state = self.encode(
                 shared_state, value_state, mask, 'value', 
@@ -124,7 +29,7 @@ class PPO(Ensemble):
             logpi = act_dist.log_prob(action)
             terms = {'logpi': logpi, 'value': value}
             out = (action, terms)
-            return out, State(*actor_state, *value_state)
+            return out, self.State(*actor_state, *value_state)
 
     @tf.function(experimental_relax_shapes=True)
     def compute_value(self, shared_state, state, mask, 
@@ -150,50 +55,30 @@ class PPO(Ensemble):
         if mask.shape.ndims < 3:
             mask = tf.reshape(mask, (-1, 1, mask.shape[-1]))
         assert_rank(mask, 3)
+        assert_rank(x, 4)
 
-        x = encoder(x)
+        x = encoder(x)                          # [B, S, A, F]
         seqlen, n_agents = x.shape[1:3]
-        # pool = tf.reduce_sum(x, axis=2, keepdims=True)
-        # n = x.shape[-1]
-        # feat = tf.reshape(tf.range(n), (1, 1, 1, -1))
-        # x = tf.where(feat < n * .25, pool, x)
-        x = tf.transpose(x, [0, 2, 1, 3])
-        x = tf.reshape(x, [-1, *x.shape[2:]])
-        mask = tf.transpose(mask, [0, 2, 1])
-        mask = tf.reshape(mask, [-1, mask.shape[-1]])
+        if self.pool_communication:
+            pool = tf.reduce_max(x, axis=2, keepdims=True)
+            n = x.shape[-1]
+            i = tf.reshape(tf.range(n, dtype=tf.int32), (1, 1, 1, -1))
+            x = tf.where(i < tf.cast(n * self.pool_frac, tf.int32), pool, x)
+        x = tf.transpose(x, [0, 2, 1, 3])       # [B, A, S, F]
+        x = tf.reshape(x, [-1, *x.shape[2:]])   # [B * A, S, F]
+        mask = tf.transpose(mask, [0, 2, 1])    # [B, A, S]
+        mask = tf.reshape(mask, [-1, mask.shape[-1]])   # [B * A, S]
         additional_rnn_input = self._process_additional_input(
             x, prev_action, prev_reward)
         x, state = rnn(x, state, mask, 
             additional_input=additional_rnn_input)
-        x = tf.reshape(x, (-1, n_agents, seqlen, x.shape[-1]))
-        x = tf.transpose(x, [0, 2, 1, 3])
+        x = tf.reshape(x, (-1, n_agents, seqlen, x.shape[-1]))  # [B, A, S, F]
+        x = tf.transpose(x, [0, 2, 1, 3])       # [B, S, A, F]
+
         if seqlen == 1:
             x = tf.squeeze(x, 1)
+        
         return x, state
-
-    def _process_additional_input(self, x, prev_action, prev_reward):
-        results = []
-        if prev_action is not None:
-            if self.actor.is_action_discrete:
-                if prev_action.shape.ndims < 2:
-                    prev_action = tf.reshape(prev_action, (-1, 1))
-                prev_action = tf.one_hot(
-                    prev_action, self.actor.action_dim, dtype=x.dtype)
-            else:
-                if prev_action.shape.ndims < 3:
-                    prev_action = tf.reshape(
-                        prev_action, (-1, 1, self.actor.action_dim))
-            assert_rank(prev_action, 3)
-            results.append(prev_action)
-        if prev_reward is not None:
-            if prev_reward.shape.ndims < 2:
-                prev_reward = tf.reshape(prev_reward, (-1, 1, 1))
-            elif prev_reward.shape.ndims == 2:
-                prev_reward = tf.expand_dims(prev_reward, -1)
-            assert_rank(prev_reward, 3)
-            results.append(prev_reward)
-        assert_rank(results, 3)
-        return results
 
     def reset_states(self, states=None):
         actor_state, value_state = states
@@ -207,11 +92,11 @@ class PPO(Ensemble):
         value_state = self.value_rnn.get_initial_state(
             inputs, batch_size=batch_size, dtype=dtype) \
                 if hasattr(self, 'value_rnn') else None
-        return State(*actor_state, *value_state)
+        return self.State(*actor_state, *value_state)
 
     @property
     def state_size(self):
-        return State(*self.actor_rnn.state_size, *self.value_rnn.state_size)
+        return self.State(*self.actor_rnn.state_size, *self.value_rnn.state_size)
 
     @property
     def actor_state_size(self):
@@ -223,7 +108,7 @@ class PPO(Ensemble):
 
     @property
     def state_keys(self):
-        return State(*State._fields)
+        return self.State(*self.State._fields)
 
 
 def create_model(config, env, **kwargs):

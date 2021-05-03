@@ -2,8 +2,6 @@ import collections
 import logging
 import numpy as np
 
-from env.wrappers import get_wrapper_by_name
-
 logger = logging.getLogger(__name__)
 
 class RunMode:
@@ -13,7 +11,7 @@ class RunMode:
 
 class Runner:
     def __init__(self, env, agent, step=0, nsteps=None, 
-                run_mode=RunMode.NSTEPS, record_envs=None):
+                run_mode=RunMode.NSTEPS, record_envs=None, info_func=None):
         self.env = env
         if env.max_episode_steps == int(1e9):
             logger.info(f'Maximum episode steps is not specified'
@@ -41,6 +39,8 @@ class Runner:
         record_envs = record_envs or self.env.n_envs
         self._record_envs = list(range(record_envs))
 
+        self._info_func = info_func
+
     def _run_env(self, *, action_selector=None, step_fn=None, nsteps=None):
         action_selector = action_selector or self.agent
         nsteps = nsteps or self._default_nsteps
@@ -55,8 +55,7 @@ class Runner:
             if reset:
                 info = self.env.info()
                 if 'score' in info:
-                    self.agent.store(
-                        score=info['score'], epslen=info['epslen'])
+                    self.store_info(info)
                     self.episodes += 1
 
         return self.step
@@ -80,9 +79,7 @@ class Runner:
                 done_env_ids = [k for k, i in enumerate(info) if i.get('game_over')]
                 info = [info[i] for i in done_env_ids if i in self._record_envs]
                 if info:
-                    score = [i['score'] for i in info]
-                    epslen = [i['epslen'] for i in info]
-                    self.agent.store(score=score, epslen=epslen)
+                    self.store_info(info)
                 self.episodes[done_env_ids] += 1
 
         return self.step
@@ -100,8 +97,7 @@ class Runner:
                 break
         
         info = self.env.info()
-        self.agent.store(
-            score=info['score'], epslen=info['epslen'])
+        self.store_info(info)
         self.episodes += 1
                 
         return self.step
@@ -119,9 +115,7 @@ class Runner:
             if np.all(self.env_output.discount == 0):
                 break
         info = [i for idx, i in enumerate(self.env.info()) if idx in self._record_envs]
-        score = [i['score'] for i in info]
-        epslen = [i['epslen'] for i in info]
-        self.agent.store(score=score, epslen=epslen)
+        self.store_info(info)
         self.episodes += 1
 
         return self.step
@@ -156,6 +150,17 @@ class Runner:
             step_fn(self.env, self.step, reset, **kwargs)
 
         return next_obs, reset
+    
+    def store_info(self, info):
+        if isinstance(info, list):
+            score = [i['score'] for i in info]
+            epslen = [i['epslen'] for i in info]
+        else:
+            score = info['score']
+            epslen = info['epslen']
+        self.agent.store(score=score, epslen=epslen)
+        if self._info_func is not None:
+            self._info_func(self.agent, info)
 
 def evaluate(env, 
              agent, 

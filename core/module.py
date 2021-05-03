@@ -117,7 +117,7 @@ class Ensemble:
 
     @property
     def state_keys(self):
-        return None
+        return ()
 
     """ Auxiliary functions that make Ensemble like a dict """
     # def __getattr__(self, key):

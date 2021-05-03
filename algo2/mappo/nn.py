@@ -8,8 +8,6 @@ from core.module import Module, Ensemble
 from nn.func import Encoder, rnn, mlp
 from algo.ppo.nn import Actor, Value
 
-State = collections.namedtuple('State', 'actor_c actor_h value_c value_h')
-
 
 class Actor(Module):
     def __init__(self, config, action_dim, is_action_discrete, name='actor'):
@@ -94,6 +92,13 @@ def create_components(config, env):
 
 class PPO(Ensemble):
     def __init__(self, config, env, model_fn=create_components, **kwargs):
+        state = {
+            'lstm': 'actor_h actor_c value_h value_c',
+            'gru': 'actor_h value_h'
+        }
+        self.State = collections.namedtuple(
+            'State', state[config['actor_rnn']['rnn_name']])
+        
         super().__init__(
             model_fn=model_fn, 
             config=config,
@@ -115,7 +120,7 @@ class PPO(Ensemble):
 
         if evaluation:
             # we do not compute the value state at evaluation 
-            return action, State(*actor_state, *value_state)
+            return action, self.State(*actor_state, *value_state)
         else:
             x_value, value_state = self.encode(
                 shared_state, value_state, mask, 'value', 
@@ -124,7 +129,7 @@ class PPO(Ensemble):
             logpi = act_dist.log_prob(action)
             terms = {'logpi': logpi, 'value': value}
             out = (action, terms)
-            return out, State(*actor_state, *value_state)
+            return out, self.State(*actor_state, *value_state)
 
     @tf.function(experimental_relax_shapes=True)
     def compute_value(self, shared_state, state, mask, 
@@ -191,16 +196,14 @@ class PPO(Ensemble):
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         actor_state = self.actor_rnn.get_initial_state(
-            inputs, batch_size=batch_size, dtype=dtype) \
-                if hasattr(self, 'actor_rnn') else None
+            inputs, batch_size=batch_size, dtype=dtype)
         value_state = self.value_rnn.get_initial_state(
-            inputs, batch_size=batch_size, dtype=dtype) \
-                if hasattr(self, 'value_rnn') else None
-        return State(*actor_state, *value_state)
+            inputs, batch_size=batch_size, dtype=dtype)
+        return self.State(*actor_state, *value_state)
 
     @property
     def state_size(self):
-        return State(*self.actor_rnn.state_size, *self.value_rnn.state_size)
+        return self.State(*self.actor_rnn.state_size, *self.value_rnn.state_size)
 
     @property
     def actor_state_size(self):
@@ -212,7 +215,7 @@ class PPO(Ensemble):
 
     @property
     def state_keys(self):
-        return State(*State._fields)
+        return self.State(*self.State._fields)
 
 
 def create_model(config, env, **kwargs):

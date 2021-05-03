@@ -64,7 +64,7 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
         if isinstance(x, tf.TensorSpec):
             return x
         elif isinstance(x, (list, tuple)):
-            if len(x) > 1 and isinstance(x[1], tuple):
+            if hasattr(x, '_fields') or (len(x) > 1 and isinstance(x[1], tuple)):
                 # x is a list/tuple of TensorSpecs, recursively construct them
                 return get_TensorSpecs(x, sequential=sequential, batch_size=batch_size)
             if len(x) == 1:

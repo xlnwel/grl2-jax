@@ -18,7 +18,7 @@ model:
         norm_kwargs:
             epsilon: 1.e-5
     actor_rnn:
-        rnn_name: lstm
+        rnn_name: gru
         units: 64
         kernel_initializer: orthogonal
         use_ln: True
@@ -36,7 +36,7 @@ model:
         norm_kwargs:
             epsilon: 1.e-5
     value_rnn:
-        rnn_name: lstm
+        rnn_name: gru
         units: 64
         kernel_initializer: orthogonal
         use_ln: True
@@ -99,7 +99,6 @@ buffer:
     n_envs: *nenvs
     N_STEPS: *nsteps
     N_MBS: *nmbs        # number of minibatches
-    sample_keys: [obs, shared_state, action_mask, action, value, traj_ret, advantage, logpi, actor_c, actor_h, value_c, value_h, life_mask, mask]
     sample_size: *ss
     norm_adv: True
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

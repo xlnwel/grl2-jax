@@ -1,8 +1,8 @@
 ---
 env:
-    name: &env_name smac_3s_vs_5z
+    name: &env_name smac_10m_vs_11m
     n_workers: 8
-    n_envs: &nenvs 4
+    n_envs: &nenvs 1
     use_state_agent: True
     use_mustalive: True
     add_center_xy: True
@@ -43,9 +43,11 @@ model:
     value:
         units_list: []
         kernel_initializer: orthogonal
+    pool_communication: False
+    pool_frac: .25
 
 agent:
-    algorithm: &algo mappo
+    algorithm: &algo mappo2
     precision: 32
     gamma: &gamma .99
 
@@ -101,7 +103,6 @@ buffer:
     n_envs: *nenvs
     N_STEPS: *nsteps
     N_MBS: *nmbs        # number of minibatches
-    sample_keys: [obs, shared_state, action_mask, action, value, traj_ret, advantage, logpi, actor_c, actor_h, value_c, value_h, life_mask, mask]
     sample_size: *ss
     norm_adv: True
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

@@ -2,13 +2,14 @@ import logging
 import numpy as np
 
 from core.decorator import config
-from utility.utils import moments, standardize
+from utility.utils import moments, standardize, expand_dims_match
 from replay.utils import init_buffer, print_buffer
 
 
 logger = logging.getLogger(__name__)
 
-def compute_nae(reward, discount, value, last_value, traj_ret, gamma, mask=None):
+def compute_nae(reward, discount, value, last_value, traj_ret, 
+                gamma, mask=None, epsilon=1e-8):
     next_return = last_value
     for i in reversed(range(reward.shape[1])):
         traj_ret[:, i] = next_return = (reward[:, i]
@@ -17,18 +18,19 @@ def compute_nae(reward, discount, value, last_value, traj_ret, gamma, mask=None)
     # Standardize traj_ret and advantages
     traj_ret_mean, traj_ret_var = moments(traj_ret)
     traj_ret_std = np.maximum(np.sqrt(traj_ret_var), 1e-8)
-    value = standardize(value, mask=mask)
+    value = standardize(value, mask=mask, epsilon=epsilon)
     # To have the same mean and std as trajectory return
     value = (value + traj_ret_mean) / traj_ret_std     
-    advantage = standardize(traj_ret - value, mask=mask)
-    traj_ret = standardize(traj_ret, mask=mask)
+    advantage = standardize(traj_ret - value, mask=mask, epsilon=epsilon)
+    traj_ret = standardize(traj_ret, mask=mask, epsilon=epsilon)
 
     return advantage, traj_ret
 
 def compute_gae(reward, discount, value, last_value, gamma, 
-                gae_discount, norm_adv=True, mask=None):
-    next_value = np.concatenate(
-            [value[:, 1:], np.expand_dims(last_value, 1)], axis=1)
+                gae_discount, norm_adv=False, mask=None, epsilon=1e-8):
+    last_value = np.expand_dims(last_value, 1)
+    next_value = np.concatenate([value[:, 1:], last_value], axis=1)
+    assert value.shape == next_value.shape, (value.shape, next_value.shape)
     advs = delta = (reward + discount * gamma * next_value - value)
     next_adv = 0
     for i in reversed(range(advs.shape[1])):
@@ -36,7 +38,7 @@ def compute_gae(reward, discount, value, last_value, gamma,
             + discount[:, i] * gae_discount * next_adv)
     traj_ret = advs + value
     if norm_adv:
-        advs = standardize(advs, mask=mask)
+        advs = standardize(advs, mask=mask, epsilon=epsilon)
     return advs, traj_ret
 
 def compute_indices(idxes, mb_idx, mb_size, N_MBS):
@@ -91,6 +93,7 @@ class Buffer:
         self._memory = {}
         self._is_store_shape = True
         self._inferred_sample_keys = False
+        self._norm_adv = getattr(self, '_norm_adv', 'minibatch')
         self.reset()
         logger.info(f'Batch size: {size}')
         logger.info(f'Mini-batch size: {self._mb_size}')
@@ -157,6 +160,9 @@ class Buffer:
             else self._memory[k][self._curr_idxes] 
             for k in sample_keys}
         
+        if self._norm_adv == 'minibatch':
+            sample['advantage'] = standardize(sample['advantage'])
+        
         return sample
 
     def compute_mean_max_std(self, name):
@@ -218,7 +224,8 @@ class Buffer:
             self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             self._inferred_sample_keys = True
 
-    def _compute_advantage_return(self, reward, discount, value, last_value, traj_ret=None, mask=None):
+    def _compute_advantage_return(self, reward, discount, value, last_value, 
+                                traj_ret=None, mask=None, epsilon=1e-8):
         if self._adv_type == 'nae':
             assert traj_ret is not None, traj_ret
             advantage, traj_ret = compute_nae(
@@ -228,7 +235,8 @@ class Buffer:
                 last_value=last_value,
                 traj_ret=traj_ret,
                 gamma=self._gamma,
-                mask=mask)
+                mask=mask,
+                epsilon=epsilon)
         elif self._adv_type == 'gae':
             advantage, traj_ret = compute_gae(
                 reward=reward, 
@@ -237,8 +245,9 @@ class Buffer:
                 last_value=last_value,
                 gamma=self._gamma,
                 gae_discount=self._gae_discount,
-                norm_adv=getattr(self, '_norm_adv', True),
-                mask=mask)
+                norm_adv=self._norm_adv == 'batch',
+                mask=mask,
+                epsilon=epsilon)
         else:
             raise NotImplementedError
         

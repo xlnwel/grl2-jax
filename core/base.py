@@ -276,7 +276,7 @@ class RMSAgentBase(AgentBase):
                 # even after the agent is dead
                 obs[k] = self.normalize_obs(v, k, mask=mask)
         else:
-            self.update_obs_rms(obs)
+            self.update_obs_rms(obs, mask=mask)
             obs = self.normalize_obs(obs, mask=mask)
     
     # @override(AgentBase)
@@ -370,16 +370,13 @@ def backward_discounted_sum(prev_ret, reward, discount, gamma):
         ret = prev_ret.copy()
         prev_ret *= discount
         return prev_ret, ret
-    elif reward.ndim == 2:
-        _nenv, nstep = reward.shape
+    else:
+        nstep = reward.shape[1]
         ret = np.zeros_like(reward)
         for t in range(nstep):
             ret[:, t] = prev_ret = reward[:, t] + gamma * prev_ret
             prev_ret *= discount[:, t]
         return prev_ret, ret
-    else:
-        raise ValueError(f'Unknown reward shape: {reward.shape}')
-
 
 class Memory:
     """ According to Python's MRO, this class should be positioned 
@@ -391,17 +388,20 @@ class Memory:
         self._squeeze_batch = False
         logger.info(f'Additional rnn inputs: {self._additional_rnn_inputs}')
     
-    def _add_memory_state_to_kwargs(self, obs, mask, state=None, kwargs={}, prev_reward=None):
+    def _add_memory_state_to_kwargs(self, 
+            obs, mask, state=None, kwargs={}, prev_reward=None, batch_size=None):
         if state is None and self._state is None:
-            B = tf.shape(obs[0])[0] if isinstance(obs, dict) else tf.shape(obs)[0]
-            self._state = self.model.get_initial_state(batch_size=B)
+            batch_size = batch_size or (tf.shape(obs[0])[0] 
+                if isinstance(obs, dict) else tf.shape(obs)[0])
+            self._state = self.model.get_initial_state(batch_size=batch_size)
             for k, v in self._additional_rnn_inputs.items():
                 assert v in ('float32', 'int32', 'float16'), v
                 if k == 'prev_action':
-                    self._additional_rnn_inputs[k] = tf.zeros((B, *self._action_shape), dtype=v)
+                    self._additional_rnn_inputs[k] = tf.zeros(
+                        (batch_size, *self._action_shape), dtype=v)
                 else:
-                    self._additional_rnn_inputs[k] = tf.zeros(B, dtype=v)
-            self._squeeze_batch = B == 1
+                    self._additional_rnn_inputs[k] = tf.zeros(batch_size, dtype=v)
+            self._squeeze_batch = batch_size == 1
 
         if 'prev_reward' in self._additional_rnn_inputs:
             # by default, we do not process rewards. However, if you want to use
