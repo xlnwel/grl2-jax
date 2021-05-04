@@ -14,6 +14,15 @@ def collect(buffer, env, step, reset, discount, next_obs, **kwargs):
     kwargs['discount'] = discount
     buffer.add(**kwargs)
 
+def random_actor(env_output, env=None, **kwargs):
+    obs = env_output.obs
+    a = env.random_action()
+    terms = {
+        'obs': obs['obs'], 
+        'shared_state': obs['shared_state'],
+    }
+    return a, terms
+
 class Agent(AgentBase):    
     """ PPO methods """
     @override(PPOBase)

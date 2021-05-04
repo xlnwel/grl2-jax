@@ -9,6 +9,7 @@ from core.tf_config import build
 from core.decorator import override
 from algo.ppo.base import PPOBase
 
+
 def collect(buffer, env, step, reset, reward, discount, next_obs, **kwargs):
     kwargs['reward'] = np.concatenate(reward)
     kwargs['life_mask'] = np.concatenate(discount)
@@ -16,6 +17,15 @@ def collect(buffer, env, step, reset, reward, discount, next_obs, **kwargs):
     discount[np.any(discount, 1)] = 1
     kwargs['discount'] = np.concatenate(discount)
     buffer.add(**kwargs)
+
+def random_actor(env_output, env=None, **kwargs):
+    obs = env_output.obs
+    a = np.concatenate(env.random_action())
+    terms = {
+        'obs': np.concatenate(obs['obs']), 
+        'shared_state': np.concatenate(obs['shared_state']),
+    }
+    return a, terms
 
 class Agent(MultiAgentSharedNet, Memory, PPOBase):
     """ Initialization """

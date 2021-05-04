@@ -12,25 +12,19 @@ from algo.ppo.train import main
 def train(agent, env, eval_env, buffer):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
+    random_actor = pkg.import_module('agent', algo=agent.name).random_actor
+    random_actor = functools.partial(random_actor, env=env)
 
     info_func = None
     if env.name.startswith('smac'):
         from env.smac import info_func
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS, info_func=info_func)
-    def random_action(env_output, **kwargs):
-        obs = env_output.obs
-        a = np.concatenate(env.random_action())
-        terms = {
-            'obs': np.concatenate(obs['obs']), 
-            'shared_state': np.concatenate(obs['shared_state']),
-        }
-        return a, terms
     
     if step == 0 and agent.is_obs_normalized:
         print('Start to initialize running stats...')
         for _ in range(10):
-            runner.run(action_selector=random_action, step_fn=collect)
+            runner.run(action_selector=random_actor, step_fn=collect)
             life_mask = np.concatenate(buffer['life_mask'])
             agent.update_obs_rms(np.concatenate(buffer['obs']), mask=life_mask)
             agent.update_obs_rms(np.concatenate(buffer['shared_state']), 
