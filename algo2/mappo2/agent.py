@@ -1,7 +1,5 @@
 import numpy as np
-import tensorflow as tf
 
-from core.tf_config import build
 from core.decorator import override
 from algo.ppo.base import PPOBase
 from algo2.mappo.agent import Agent as AgentBase
