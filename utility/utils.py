@@ -71,6 +71,7 @@ def moments(x, axis=None, mask=None):
         else:
             axis = (axis,) if isinstance(axis, int) else tuple(axis)
         assert mask.ndim == len(axis), (mask.shape, axis)
+        # the following process is about 5x faster than np.nan*
         # expand mask to match the dimensionality of x
         mask = expand_dims_match(mask, x)
         # compute valid entries in x corresponding to True in mask

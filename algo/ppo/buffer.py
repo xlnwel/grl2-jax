@@ -232,6 +232,7 @@ class Buffer:
                                 traj_ret=None, mask=None, epsilon=1e-8):
         if self._adv_type == 'nae':
             assert traj_ret is not None, traj_ret
+            assert self._norm_adv == 'batch', self._norm_adv
             advantage, traj_ret = compute_nae(
                 reward=reward, 
                 discount=discount,

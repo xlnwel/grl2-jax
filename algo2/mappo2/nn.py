@@ -10,8 +10,7 @@ class PPO(PPOBase):
             evaluation=False, prev_action=None, prev_reward=None, **kwargs):
         assert obs.shape.ndims % 2 != 0, obs.shape
 
-        mid = len(state) // 2
-        actor_state, value_state = state[:mid], state[mid:]
+        actor_state, value_state = self.split_state(state)
         x_actor, actor_state = self.encode(
             obs, actor_state, mask, 'actor', 
             prev_action, prev_reward)

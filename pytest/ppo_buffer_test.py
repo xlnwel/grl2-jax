@@ -1,4 +1,3 @@
-import random
 import numpy as np
 
 from utility.utils import standardize
@@ -46,19 +45,18 @@ class TestClass:
                 nextvalues = memory['value'][:, t+1]
             delta = memory['reward'][:, t] + gamma * nextvalues * nextdiscount - memory['value'][:, t]
             mb_advs[:, t] = lastgaelam = delta + gae_discount * nextdiscount * lastgaelam
-        mb_advs = standardize(mb_advs)
 
         np.testing.assert_allclose(mb_advs, memory['advantage'], atol=1e-5)
         
     def test_gae2(self):
-        from algo.ppo2.buffer import Buffer
+        from algo.ppo.buffer import Buffer
+        config['state_keys'] = ['h', 'c']
         for prec in [16, 32]:
             config['precision'] = prec
-            buffer = Buffer(config, state_keys=['h', 'c'])
+            buffer = Buffer(config)
             n_envs = config['n_envs']
             n_steps = config['N_STEPS']
             d = np.zeros(n_envs)
-            m = np.ones(n_envs)
             for i in range(n_steps):
                 r = np.random.rand(n_envs)
                 v = np.random.rand(n_envs)
@@ -66,8 +64,7 @@ class TestClass:
                 c = np.random.rand(n_envs, 32)
                 if np.random.randint(2):
                     d[np.random.randint(n_envs)] = 1
-                buffer.add(reward=r, value=v, discount=1-d, mask=m, c=c, h=h)
-                m = 1 - d
+                buffer.add(reward=r, value=v, discount=1-d, c=c, h=h)
             last_value = np.random.rand(n_envs)
             buffer.finish(last_value)
 
@@ -83,8 +80,5 @@ class TestClass:
                     nextvalues = memory['value'][:, t+1]
                 delta = memory['reward'][:, t] + gamma * nextvalues * nextdiscount - memory['value'][:, t]
                 mb_advs[:, t] = lastgaelam = delta + gae_discount * nextdiscount * lastgaelam
-            # no mask is used here
-            mb_advs = standardize(mb_advs)
 
             np.testing.assert_allclose(mb_advs, memory['advantage'], atol=1e-5)
-            

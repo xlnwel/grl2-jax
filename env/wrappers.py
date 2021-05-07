@@ -507,7 +507,8 @@ class MAEnvStats(EnvStatsBase):
         self._game_over = info['game_over']
         if self._epslen >= self.max_episode_steps:
             self._game_over = True
-            done = np.ones_like(done) * self.timeout_done
+            if self.timeout_done:
+                done = np.ones_like(done)
             info['timeout'] = True
         discount = 1-np.array(done, np.float32)
         # reset env
@@ -521,6 +522,8 @@ class MAEnvStats(EnvStatsBase):
         self._info = info
 
         self._output = EnvOutput(obs, reward, discount, reset)
+        # assert np.all(done) == info.get('game_over', False), (reset, info['game_over'])
+        # assert np.all(reset) == info.get('game_over', False), (reset, info['game_over'])
         return self._output
 
 
@@ -538,15 +541,14 @@ def get_wrapper_by_name(env, classname):
 if __name__ == '__main__':
     from env.func import create_env
     env = create_env(dict(
-        name='LunarLander-v2',
+        name='smac_3s5z',
         seed=0
     ))
-    n_act = env.action_dim
-    for i in range(500):
-        out = env.step(i % n_act)
-        print(i, out)
-        print(env.score(), env.epslen())
-        if out.reset:
+
+    for i in range(10000):
+        a = env.random_action()
+        out = env.step(a)
+        print(out[2:])
+        if np.all(out.reset):
             info = env.info()
             print(info['score'], info['epslen'])
-            break

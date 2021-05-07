@@ -245,7 +245,22 @@ class SMAC(gym.Env):
         self.add_center_xy = add_center_xy
         self.use_stacked_frames = use_stacked_frames
         self.stacked_frames = stacked_frames
-        
+        # print(self.name)
+        # print(self.add_local_obs)
+        # print(self.add_move_state)
+        # print(self.add_visible_state)
+        # print(self.add_distance_state)
+        # print(self.add_xy_state)
+        # print(self.add_enemy_action_state)
+        # print(self.add_agent_id)
+        # print(self.use_state_agent)
+        # print(self.use_mustalive)
+        # print(self.add_center_xy)
+        # print(self.use_stacked_frames)
+        # print(self.stacked_frames)
+        # import sys
+        # sys.exit()
+
         map_params = get_map_params(self.name)
         self.n_agents = map_params["n_agents"]
         self.n_enemies = map_params["n_enemies"]
@@ -496,7 +511,7 @@ class SMAC(gym.Env):
         available_actions = self.get_avail_actions()
 
         if self.debug:
-            logging.debug("Started Episode {}"
+            print("Started Episode {}"
                           .format(self._episode_count).center(60, "*"))
 
         if self.use_state_agent:
@@ -554,7 +569,7 @@ class SMAC(gym.Env):
         # Collect individual actions
         sc_actions = []
         if self.debug:
-            logging.debug("Actions".center(60, "-"))
+            print("Actions".center(60, "-"))
 
         for a_id, action in enumerate(actions_int):
             if not self.heuristic_ai:
@@ -630,7 +645,6 @@ class SMAC(gym.Env):
 
         self._total_steps += 1
         self._episode_steps += 1
-
         # Update units
         game_end_code = self.update_units()
 
@@ -683,7 +697,7 @@ class SMAC(gym.Env):
                     dones[i] = False
 
         if self.debug:
-            logging.debug("Reward = {}".format(reward).center(60, '-'))
+            print("Reward = {}".format(reward).center(60, '-'))
 
         if terminated:
             self._episode_count += 1
@@ -722,6 +736,7 @@ class SMAC(gym.Env):
             'epslen': self._episode_steps,
             'game_over': terminated
         })
+        assert np.all(dones) == terminated, (dones, terminated)
 
         return obs_dict, rewards, dones, info
 
@@ -740,7 +755,7 @@ class SMAC(gym.Env):
             # no-op (valid only when dead)
             assert unit.health == 0, "No-op only available for dead agents."
             if self.debug:
-                logging.debug("Agent {}: Dead".format(a_id))
+                print("Agent {}: Dead".format(a_id))
             return None
         elif action == 1:
             # stop
@@ -749,7 +764,7 @@ class SMAC(gym.Env):
                 unit_tags=[tag],
                 queue_command=False)
             if self.debug:
-                logging.debug("Agent {}: Stop".format(a_id))
+                print("Agent {}: Stop".format(a_id))
 
         elif action == 2:
             # move north
@@ -760,7 +775,7 @@ class SMAC(gym.Env):
                 unit_tags=[tag],
                 queue_command=False)
             if self.debug:
-                logging.debug("Agent {}: Move North".format(a_id))
+                print("Agent {}: Move North".format(a_id))
 
         elif action == 3:
             # move south
@@ -771,7 +786,7 @@ class SMAC(gym.Env):
                 unit_tags=[tag],
                 queue_command=False)
             if self.debug:
-                logging.debug("Agent {}: Move South".format(a_id))
+                print("Agent {}: Move South".format(a_id))
 
         elif action == 4:
             # move east
@@ -782,7 +797,7 @@ class SMAC(gym.Env):
                 unit_tags=[tag],
                 queue_command=False)
             if self.debug:
-                logging.debug("Agent {}: Move East".format(a_id))
+                print("Agent {}: Move East".format(a_id))
 
         elif action == 5:
             # move west
@@ -793,7 +808,7 @@ class SMAC(gym.Env):
                 unit_tags=[tag],
                 queue_command=False)
             if self.debug:
-                logging.debug("Agent {}: Move West".format(a_id))
+                print("Agent {}: Move West".format(a_id))
         else:
             # attack/heal units that are in range
             target_id = action - self.n_actions_no_attack
@@ -814,7 +829,7 @@ class SMAC(gym.Env):
                 queue_command=False)
 
             if self.debug:
-                logging.debug("Agent {} {}s unit # {}".format(
+                print("Agent {} {}s unit # {}".format(
                     a_id, action_name, target_id))
 
         sc_action = sc_pb.Action(action_raw=r_pb.ActionRaw(unit_command=cmd))
@@ -1241,14 +1256,14 @@ class SMAC(gym.Env):
         if self.obs_timestep_number:
             agent_obs = np.append(agent_obs, self._episode_steps / self.max_episode_steps)
 
-        if self.debug:
-            logging.debug("Obs Agent: {}".format(agent_id).center(60, "-"))
-            logging.debug("Avail. actions {}".format(
-                self.get_avail_agent_actions(agent_id)))
-            logging.debug("Move feats {}".format(move_feats))
-            logging.debug("Enemy feats {}".format(enemy_feats))
-            logging.debug("Ally feats {}".format(ally_feats))
-            logging.debug("Own feats {}".format(own_feats))
+        # if self.debug:
+        #     print("Obs Agent: {}".format(agent_id).center(60, "-"))
+        #     print("Avail. actions {}".format(
+        #         self.get_avail_agent_actions(agent_id)))
+        #     print("Move feats {}".format(move_feats))
+        #     print("Enemy feats {}".format(enemy_feats))
+        #     print("Ally feats {}".format(ally_feats))
+        #     print("Own feats {}".format(own_feats))
 
         return agent_obs
 
@@ -1425,13 +1440,13 @@ class SMAC(gym.Env):
 
         state = state.astype(dtype=np.float32)
 
-        if self.debug:
-            logging.debug("STATE".center(60, "-"))
-            logging.debug("Ally state {}".format(ally_state))
-            logging.debug("Enemy state {}".format(enemy_state))
-            logging.debug("Move state {}".format(move_state))
-            if self.state_last_action:
-                logging.debug("Last actions {}".format(self.last_action))
+        # if self.debug:
+        #     print("STATE".center(60, "-"))
+        #     print("Ally state {}".format(ally_state))
+        #     print("Enemy state {}".format(enemy_state))
+        #     print("Move state {}".format(move_state))
+        #     if self.state_last_action:
+        #         print("Last actions {}".format(self.last_action))
 
         return state
     
@@ -1619,14 +1634,14 @@ class SMAC(gym.Env):
         if self.state_timestep_number:
             state = np.append(state, self._episode_steps / self.max_episode_steps)
 
-        if self.debug:
-            logging.debug("Obs Agent: {}".format(agent_id).center(60, "-"))
-            logging.debug("Avail. actions {}".format(
-                self.get_avail_agent_actions(agent_id)))
-            logging.debug("Move feats {}".format(move_feats))
-            logging.debug("Enemy feats {}".format(enemy_feats))
-            logging.debug("Ally feats {}".format(ally_feats))
-            logging.debug("Own feats {}".format(own_feats))
+        # if self.debug:
+        #     print("Obs Agent: {}".format(agent_id).center(60, "-"))
+        #     print("Avail. actions {}".format(
+        #         self.get_avail_agent_actions(agent_id)))
+        #     print("Move feats {}".format(move_feats))
+        #     print("Enemy feats {}".format(enemy_feats))
+        #     print("Ally feats {}".format(ally_feats))
+        #     print("Own feats {}".format(own_feats))
 
         return state
 
@@ -2019,7 +2034,7 @@ class SMAC(gym.Env):
             for i in range(len(ally_units_sorted)):
                 self.agents[i] = ally_units_sorted[i]
                 if self.debug:
-                    logging.debug(
+                    print(
                         "Unit {} is {}, x = {}, y = {}".format(
                             len(self.agents),
                             self.agents[i].unit_type,
@@ -2167,3 +2182,27 @@ class SMAC(gym.Env):
             "restarts": self.force_restarts,
         }
         return stats
+
+if __name__ == '__main__':
+    config = dict(
+        name='3s5z',
+        add_local_obs=False,
+        add_move_state=False,
+        add_visible_state=False,
+        add_distance_state=False,
+        add_xy_state=False,
+        add_enemy_action_state=False,
+        add_agent_id=False,
+        use_state_agent=False,
+        use_mustalive=False,
+        add_center_xy=False,
+        use_stacked_frames=False,
+        stacked_frames=False,
+    )
+    env = SMAC(**config)
+    env.reset()
+    for _ in range(100000):
+        a = env.random_action()
+        _, _, d, _ = env.step(a)
+        if np.all(d):
+            env.reset()

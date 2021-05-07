@@ -5,7 +5,7 @@ from utility.tf_utils import assert_rank, \
 
 
 def huber_loss(x, *, y=None, threshold=1.):
-    if y != None:   # if y is passed, take x-y as error, otherwise, take x as error
+    if y is not None:   # if y is passed, take x-y as error, otherwise, take x as error
         x = x - y
     return tf.where(tf.abs(x) <= threshold, 
                     0.5 * tf.square(x), 
@@ -177,15 +177,16 @@ def ppo_loss(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
 
     return policy_loss, entropy, approx_kl, clip_frac
 
-def ppo_value_loss(value, traj_ret, old_value, clip_range, mask=None, n=None):
+def ppo_value_loss(value, traj_ret, old_value, clip_range, 
+                    mask=None, n=None, huber_threshold=None):
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
         assert_rank_and_shape_compatibility([value, mask])
     assert_rank_and_shape_compatibility([value, traj_ret, old_value])
     value_diff, loss1, loss2 = _compute_ppo_value_losses(
-        value, traj_ret, old_value, clip_range)
+        value, traj_ret, old_value, clip_range, huber_threshold)
     
-    value_loss = .5 * reduce_mean(tf.maximum(loss1, loss2), mask, n)
+    value_loss = reduce_mean(tf.maximum(loss1, loss2), mask, n)
     clip_frac = reduce_mean(
         tf.cast(tf.greater(tf.abs(value_diff), clip_range), value.dtype), mask, n)
 
@@ -214,11 +215,15 @@ def _compute_ppo_policy_losses(log_ratio, advantages, clip_range):
     loss2 = neg_adv * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
     return ratio, loss1, loss2
 
-def _compute_ppo_value_losses(value, traj_ret, old_value, clip_range):
+def _compute_ppo_value_losses(value, traj_ret, old_value, clip_range, huber_threshold=None):
     value_diff = value - old_value,
     value_clipped = old_value + tf.clip_by_value(value_diff, -clip_range, clip_range)
-    loss1 = tf.square(value - traj_ret)
-    loss2 = tf.square(value_clipped - traj_ret)
+    if huber_threshold is None:
+        loss1 = 0.5 * tf.square(value - traj_ret)
+        loss2 = 0.5 * tf.square(value_clipped - traj_ret)
+    else:
+        loss1 = huber_loss(value, traj_ret, threshold=huber_threshold)
+        loss2 = huber_loss(value_clipped, traj_ret, threshold=huber_threshold)
 
     return value_diff, loss1, loss2
 

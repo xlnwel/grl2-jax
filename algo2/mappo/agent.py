@@ -13,6 +13,8 @@ from algo.ppo.base import PPOBase
 def collect(buffer, env, step, reset, reward, discount, next_obs, **kwargs):
     kwargs['reward'] = np.concatenate(reward)
     kwargs['life_mask'] = np.concatenate(discount)
+    # kwargs['life_mask'] = np.concatenate(
+    #     np.logical_or(discount, 1-np.any(discount, 1, keepdims=True))).astype(np.float32)
     # discount is zero only when all agents are done
     discount[np.any(discount, 1)] = 1
     kwargs['discount'] = np.concatenate(discount)
@@ -170,8 +172,7 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
     def _learn(self, obs, shared_state, action_mask, action, value, 
             traj_ret, advantage, logpi, state=None, life_mask=None, 
             mask=None, prev_action=None, prev_reward=None):
-        mid = len(state) // 2
-        actor_state, value_state = state[:mid], state[mid:]
+        actor_state, value_state = self.model.split_state(state)
 
         actor_terms = self._learn_actor(obs, action_mask, action, advantage, logpi, 
             actor_state, life_mask, mask, prev_action, prev_reward)
@@ -199,8 +200,12 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
             actor_loss = policy_loss - self._entropy_coef * entropy
         
         actor_norm = self._actor_opt(tape, actor_loss)
+        n_actions = tf.reduce_sum(tf.cast(action_mask, tf.float32), -1)
+        uniform_prob = 1 / n_actions
         terms = dict(
             actor_norm=actor_norm,
+            n_avail_actions=n_actions,
+            uniform_entropy=-tf.reduce_sum(tf.math.log(uniform_prob) * life_mask) / tf.reduce_sum(life_mask),
             entropy=entropy,
             kl=kl,
             p_clip_frac=p_clip_frac,
@@ -249,8 +254,7 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
 
         for _ in range(self.N_VALUE_EPOCHS):
             for _ in range(self.N_MBS):
-                with self._sample_timer:
-                    data = self.dataset.sample(self._value_sample_keys)
+                data = self.dataset.sample(self._value_sample_keys)
 
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 

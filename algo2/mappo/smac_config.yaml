@@ -7,18 +7,19 @@ env:
     use_mustalive: True
     add_center_xy: True
     timeout_done: True
-    add_agent_id: True
+    add_agent_id: False
 
 model:
     actor_encoder: 
         units_list: [64, 64, 64]
+        kernel_initializer: orthogonal
         activation: relu
         norm: layer
         norm_after_activation: True
         norm_kwargs:
             epsilon: 1.e-5
     actor_rnn:
-        rnn_name: lstm
+        rnn_name: gru
         units: 64
         kernel_initializer: orthogonal
         use_ln: True
@@ -30,13 +31,14 @@ model:
         embed_dim: 32
     value_encoder:
         units_list: [64, 64, 64]
+        kernel_initializer: orthogonal
         activation: relu
         norm: layer
         norm_after_activation: True
         norm_kwargs:
             epsilon: 1.e-5
     value_rnn:
-        rnn_name: lstm
+        rnn_name: gru
         units: 64
         kernel_initializer: orthogonal
         use_ln: True
@@ -91,6 +93,7 @@ agent:
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
     value_coef: 1
+    huber_threshold: 10
 
 buffer:
     adv_type: gae     # nae or gae

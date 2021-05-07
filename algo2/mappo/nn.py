@@ -6,7 +6,7 @@ from tensorflow_probability import distributions as tfd
 from utility.tf_utils import assert_rank
 from core.module import Module, Ensemble
 from nn.func import Encoder, rnn, mlp
-from algo.ppo.nn import Actor, Value
+from algo.ppo.nn import Value
 
 
 class Actor(Module):
@@ -22,8 +22,10 @@ class Actor(Module):
         self.attention_action = config.pop('attention_action', False)
         self.embed_dim = config.pop('embed_dim', 10)
         if self.attention_action:
-            self.embed = tf.Variable(tf.random.uniform(
-                (action_dim, self.embed_dim), -0.1, 0.1), trainable=True)
+            self.embed = tf.Variable(
+                tf.random.uniform((action_dim, self.embed_dim), -0.1, 0.1), 
+                dtype='float32',
+                trainable=True)
         self._init_std = config.pop('init_std', 1)
         if not self.is_action_discrete:
             self.logstd = tf.Variable(
@@ -65,7 +67,8 @@ class Actor(Module):
         else:
             action = dist.sample()
             # ensures all actions are valid. This is time-consuming, 
-            # and we opt to allow invalid actions, which is very unlikely to happen
+            # it turns out that tfd.Categorical ignore events with 
+            # extremely low logits
             # def cond(a, x):
             #     i = tf.stack([tf.range(3), a], 1)
             #     return tf.reduce_all(tf.gather_nd(action_mask, i))
@@ -110,8 +113,7 @@ class PPO(Ensemble):
             evaluation=False, prev_action=None, prev_reward=None, **kwargs):
         assert obs.shape.ndims % 2 == 0, obs.shape
 
-        mid = len(state) // 2
-        actor_state, value_state = state[:mid], state[mid:]
+        actor_state, value_state = self.split_state(state)
         x_actor, actor_state = self.encode(
             obs, actor_state, mask, 'actor', 
             prev_action, prev_reward)
@@ -189,8 +191,13 @@ class PPO(Ensemble):
         assert_rank(results, 3)
         return results
 
-    def reset_states(self, states=None):
-        actor_state, value_state = states
+    def split_state(self, state):
+        mid = len(state) // 2
+        actor_state, value_state = state[:mid], state[mid:]
+        return actor_state, value_state
+
+    def reset_states(self, state=None):
+        actor_state, value_state = self.split_state(state)
         self.actor_rnn.reset_states(actor_state)
         self.value_rnn.reset_states(value_state)
 
