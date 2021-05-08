@@ -414,9 +414,19 @@ class Memory:
         if state is None:
             state = self._state
 
+        mask = np.float32(mask)
+        mask_exp = np.expand_dims(mask, -1)
+        if isinstance(state, tuple):
+            state_type = type(state)
+            if len(state) == 1:
+                state = state_type(v * mask_exp for v in state)
+            else:
+                state = state_type(*[v * mask_exp for v in state])
+        else:
+            state = state * mask_exp
         kwargs.update({
             'state': state,
-            'mask': np.float32(mask),   # mask is applied in RNN
+            'mask': mask,   # mask is applied in RNN
             **self._additional_rnn_inputs
         })
         return obs, kwargs

@@ -12,9 +12,14 @@ from algo.ppo.base import PPOBase
 
 def collect(buffer, env, step, reset, reward, discount, next_obs, **kwargs):
     kwargs['reward'] = np.concatenate(reward)
-    kwargs['life_mask'] = np.concatenate(discount)
-    # kwargs['life_mask'] = np.concatenate(
-    #     np.logical_or(discount, 1-np.any(discount, 1, keepdims=True))).astype(np.float32)
+    # life_mask = discount does not work well in practice
+    # the game over step turns out playing an important role
+    # even for dead agents. I conjecture that this is due to 
+    # the fact that games usually provide a distinct 
+    # win-loss reward in the end
+    # kwargs['life_mask'] = np.concatenate(discount)
+    kwargs['life_mask'] = np.concatenate(
+        np.logical_or(discount, 1-np.any(discount, 1, keepdims=True))).astype(np.float32)
     # discount is zero only when all agents are done
     discount[np.any(discount, 1)] = 1
     kwargs['discount'] = np.concatenate(discount)
@@ -205,7 +210,8 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
         terms = dict(
             actor_norm=actor_norm,
             n_avail_actions=n_actions,
-            uniform_entropy=-tf.reduce_sum(tf.math.log(uniform_prob) * life_mask) / tf.reduce_sum(life_mask),
+            uniform_entropy=-tf.reduce_sum(
+                tf.math.log(uniform_prob) * life_mask) / tf.reduce_sum(life_mask),
             entropy=entropy,
             kl=kl,
             p_clip_frac=p_clip_frac,
