@@ -136,7 +136,7 @@ class Buffer:
             curr_idxes = self._idxes[start:end]
             obs = self._memory['obs'][curr_idxes]
             if self._sample_size:
-                state = (self._memory[k][curr_idxes, 0] for k in self._state_keys)
+                state = tuple([self._memory[k][curr_idxes, 0] for k in self._state_keys])
                 mask = self._memory['mask'][curr_idxes]
                 value, state = fn(obs, state=state, mask=mask, return_state=True)
                 self.update('value', value, mb_idxes=curr_idxes)

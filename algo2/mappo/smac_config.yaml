@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name smac_3s_vs_5z
+    name: &env_name smac_3s5z_vs_3s6z
     n_workers: 8
     n_envs: &nenvs 1
     use_state_agent: True
@@ -103,5 +103,5 @@ buffer:
     N_STEPS: *nsteps
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
-    norm_adv: minibatch
+    norm_adv: batch
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

@@ -6,7 +6,8 @@ from algo2.mappo.agent import Agent as AgentBase
 
 
 def collect(buffer, env, step, reset, discount, next_obs, **kwargs):
-    kwargs['life_mask'] = discount.copy()
+    kwargs['life_mask'] = np.logical_or(
+        discount, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
     # discount is zero only when all agents are done
     discount[np.any(discount, 1)] = 1
     kwargs['discount'] = discount
@@ -45,8 +46,9 @@ class Agent(AgentBase):
         else:
             life_mask = env_output.discount
             self._process_obs(env_output.obs, mask=life_mask)
-        mask = 1. - env_output.reset
+        mask = np.concatenate(1. - env_output.reset)
         obs, kwargs = self._divide_obs(env_output.obs)
         obs, kwargs = self._add_memory_state_to_kwargs(
             obs, mask=mask, kwargs=kwargs, batch_size=obs.shape[0] * self._n_agents)
+        kwargs['mask'] = mask.reshape(-1, self._n_agents)
         return obs, kwargs

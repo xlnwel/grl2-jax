@@ -1,4 +1,3 @@
-import atexit
 import functools
 import signal
 import sys

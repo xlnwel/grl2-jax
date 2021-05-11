@@ -163,13 +163,19 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
     # @override(PPOBase)
     def compute_value(self, shared_state=None, state=None, mask=None, prev_reward=None, return_state=False):
         # be sure obs is normalized if obs normalization is required
-        shared_state = shared_state or self._env_output.obs['shared_state']
-        mask = 1. - self._env_output.reset if mask is None else mask
+        if shared_state is None:
+            shared_state = self._env_output.obs['shared_state']
+        if state is None:
+            state = self._state
         mid = len(self._state) // 2
-        state = self._state[mid:] if state is None else state
-        shared_state, kwargs = self._add_memory_state_to_kwargs(
-            shared_state, mask, state=state, prev_reward=prev_reward)
-        kwargs['return_state'] = return_state
+        state = state[mid:]
+        if mask is None:
+            mask = 1. - self._env_output.reset
+        kwargs = dict(
+            state=state,
+            mask=mask,
+            return_state=return_state,
+        )
         out = self.model.compute_value(shared_state, **kwargs)
         return tensor2numpy(out)
 

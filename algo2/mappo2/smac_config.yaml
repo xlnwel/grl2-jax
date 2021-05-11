@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name smac_10m_vs_11m
+    name: &env_name smac_3s5z_vs_3s6z
     n_workers: 8
     n_envs: &nenvs 1
     use_state_agent: True
@@ -97,6 +97,7 @@ agent:
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
     value_coef: 1
+    huber_threshold: 10
 
 buffer:
     adv_type: gae     # nae or gae
@@ -106,5 +107,5 @@ buffer:
     N_STEPS: *nsteps
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
-    norm_adv: minibatch
+    norm_adv: batch
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

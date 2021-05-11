@@ -416,7 +416,7 @@ class Memory:
 
         mask = np.float32(mask)
         mask_exp = np.expand_dims(mask, -1)
-        if isinstance(state, tuple):
+        if isinstance(state, (list, tuple)):
             state_type = type(state)
             if len(state) == 1:
                 state = state_type(v * mask_exp for v in state)

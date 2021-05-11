@@ -62,8 +62,12 @@ class Agent(Memory, PPOBase):
     @override(PPOBase)
     def compute_value(self, obs=None, state=None, mask=None, prev_reward=None, return_state=False):
         # be sure obs is normalized if obs normalization is required
-        obs = obs or self._env_output.obs
-        mask = 1. - self._env_output.reset if mask is None else mask
+        if obs is None:
+            obs = self._env_output.obs
+        if state is None:
+            state = self._state
+        if mask is None:
+            mask = 1. - self._env_output.reset
         obs, kwargs = self._add_memory_state_to_kwargs(
             obs, mask, state=state, prev_reward=prev_reward)
         kwargs['return_state'] = return_state
