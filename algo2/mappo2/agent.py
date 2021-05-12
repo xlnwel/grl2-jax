@@ -46,9 +46,18 @@ class Agent(AgentBase):
         else:
             life_mask = env_output.discount
             self._process_obs(env_output.obs, mask=life_mask)
-        mask = np.concatenate(1. - env_output.reset)
+        mask = self._get_mask(env_output.reset)
+        mask_flat = np.concatenate(mask)
         obs, kwargs = self._divide_obs(env_output.obs)
-        obs, kwargs = self._add_memory_state_to_kwargs(
-            obs, mask=mask, kwargs=kwargs, batch_size=obs.shape[0] * self._n_agents)
-        kwargs['mask'] = mask.reshape(-1, self._n_agents)
+        kwargs = self._add_memory_state_to_kwargs(
+            obs, mask=mask_flat, kwargs=kwargs, batch_size=obs.shape[0] * self._n_agents)
+        kwargs['mask'] = mask
         return obs, kwargs
+
+    """ PPO methods """
+    def record_last_env_output(self, env_output):
+        self._env_output = self._reshape_output(env_output)
+        self._process_obs(self._env_output.obs, update_rms=False)
+        mask = self._get_mask(self._env_output.reset)
+        mask = np.concatenate(mask)
+        self._state = self._apply_mask_to_state(self._state, mask)

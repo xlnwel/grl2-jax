@@ -55,7 +55,7 @@ agent:
 
     reward_normalized_axis: [0, 1, 2]
     obs_normalized_axis: [0, 1]
-    MAX_STEPS: 1e7
+    MAX_STEPS: 2e7
     N_STEPS: &nsteps 400
     N_EPOCHS: 5
     N_VALUE_EPOCHS: 0

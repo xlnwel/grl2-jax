@@ -129,9 +129,9 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
         else:
             life_mask = env_output.discount
             self._process_obs(env_output.obs, mask=life_mask)
-        mask = 1. - env_output.reset
+        mask = self._get_mask(env_output.reset)
         obs, kwargs = self._divide_obs(env_output.obs)
-        obs, kwargs = self._add_memory_state_to_kwargs(
+        kwargs = self._add_memory_state_to_kwargs(
             obs, mask=mask, kwargs=kwargs)
         return obs, kwargs
 
@@ -158,7 +158,9 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
     # @override(PPOBase)
     def record_last_env_output(self, env_output):
         self._env_output = self._reshape_output(env_output)
-        self._process_obs(self._env_output.obs, update_rms=False)    
+        self._process_obs(self._env_output.obs, update_rms=False)
+        mask = self._get_mask(self._env_output.reset)
+        self._state = self._apply_mask_to_state(self._state, mask)
 
     # @override(PPOBase)
     def compute_value(self, shared_state=None, state=None, mask=None, prev_reward=None, return_state=False):
@@ -170,7 +172,7 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
         mid = len(self._state) // 2
         state = state[mid:]
         if mask is None:
-            mask = 1. - self._env_output.reset
+            mask = self._get_mask(self._env_output.reset)
         kwargs = dict(
             state=state,
             mask=mask,
