@@ -190,8 +190,7 @@ class Buffer:
             self._compute_advantage_return(
                 self._memory['reward'], self._memory['discount'], 
                 self._memory['value'], last_value,
-                epsilon=self._epsilon
-            )
+                epsilon=self._epsilon)
 
         self.reshape_to_sample()
         self._ready = True

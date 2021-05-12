@@ -103,7 +103,7 @@ class Agent(Memory, AgentBase):
     def _process_input(self, env_output, evaluation):
         obs, kwargs = super()._process_input(env_output, evaluation)
         mask = 1. - env_output.reset
-        obs, kwargs = self._add_memory_state_to_kwargs(obs, mask, kwargs)
+        kwargs = self._add_memory_state_to_kwargs(obs, mask, kwargs)
         return obs, kwargs
 
     def _process_output(self, obs, kwargs, out, evaluation):

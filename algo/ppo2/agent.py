@@ -43,7 +43,7 @@ class Agent(Memory, PPOBase):
     def _process_input(self, env_output, evaluation):
         obs, kwargs = super()._process_input(env_output, evaluation)
         mask = 1. - env_output.reset
-        obs, kwargs = self._add_memory_state_to_kwargs(obs, mask, kwargs=kwargs)
+        kwargs = self._add_memory_state_to_kwargs(obs, mask, kwargs=kwargs)
         return obs, kwargs
 
     # @override(PPOBase)
@@ -68,7 +68,7 @@ class Agent(Memory, PPOBase):
             state = self._state
         if mask is None:
             mask = 1. - self._env_output.reset
-        obs, kwargs = self._add_memory_state_to_kwargs(
+        kwargs = self._add_memory_state_to_kwargs(
             obs, mask, state=state, prev_reward=prev_reward)
         kwargs['return_state'] = return_state
         out = self.model.compute_value(obs, **kwargs)

@@ -414,22 +414,13 @@ class Memory:
         if state is None:
             state = self._state
 
-        mask = np.float32(mask)
-        mask_exp = np.expand_dims(mask, -1)
-        if isinstance(state, (list, tuple)):
-            state_type = type(state)
-            if len(state) == 1:
-                state = state_type(v * mask_exp for v in state)
-            else:
-                state = state_type(*[v * mask_exp for v in state])
-        else:
-            state = state * mask_exp
+        state = self._apply_mask_to_state(state, mask)
         kwargs.update({
             'state': state,
             'mask': mask,   # mask is applied in RNN
             **self._additional_rnn_inputs
         })
-        return obs, kwargs
+        return kwargs
     
     def _add_tensors_to_terms(self, obs, kwargs, out, evaluation):
         out, self._state = out
@@ -456,6 +447,21 @@ class Memory:
         if not evaluation:
             out[1]['mask'] = kwargs['mask']
         return out
+
+    def _get_mask(self, reset):
+        return np.float32(1. - reset)
+
+    def _apply_mask_to_state(self, state, mask):
+        mask_exp = np.expand_dims(mask, -1)
+        if isinstance(state, (list, tuple)):
+            state_type = type(state)
+            if len(state) == 1:
+                state = state_type(v * mask_exp for v in state)
+            else:
+                state = state_type(*[v * mask_exp for v in state])
+        else:
+            state = state * mask_exp
+        return state
 
     def reset_states(self, state=None):
         if state is None:
@@ -579,6 +585,7 @@ class MultiAgentSharedNet:
         for k, v in obs.items():
             new_obs[k] = np.concatenate(v)
             assert new_obs[k].ndim ==2, new_obs[k].shape    # don't consider images
+        reward = np.concatenate(reward)
         discount = np.concatenate(discount)
         reset = np.concatenate(reset)
         return type(env_output)(new_obs, reward, discount, reset)
