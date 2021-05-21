@@ -25,14 +25,16 @@ def config_actor(name, config):
         config['precision'] = 32
     configure_precision(config.get('precision', 32))
 
-def get_base_learner_class(AgentBase):
+def get_learner_base_class(AgentBase):
     class LearnerBase(AgentBase):
+        """ Only implements minimal functionality for learners """
         def start_learning(self):
             self._learning_thread = threading.Thread(
                 target=self._learning, daemon=True)
             self._learning_thread.start()
             
         def _learning(self):
+            # waits for enough data to learn
             while not self.dataset.good_to_learn():
                 time.sleep(1)
             print(f'{self.name} starts learning...')
@@ -44,12 +46,13 @@ def get_base_learner_class(AgentBase):
             return self.model.get_weights(name=name)
 
         def get_stats(self):
+            """ retrieve traning stats for the monotor to record """
             return self.train_step, super().get_stats()
 
     return LearnerBase
 
 def get_learner_class(AgentBase):
-    LearnerBase = get_base_learner_class(AgentBase)
+    LearnerBase = get_learner_base_class(AgentBase)
     class Learner(LearnerBase):
         def __init__(self,
                     model_fn,
@@ -85,32 +88,51 @@ def get_learner_class(AgentBase):
     return Learner
 
 
-def get_base_worker_class(AgentBase):
+def get_worker_base_class(AgentBase):
     class WorkerBase(AgentBase):
+        """ Only implements minimal functionality for workers """
         def _send_data(self, replay, buffer=None):
-            buffer = buffer or self.buffer
+            """ Sends data to replay and resets buffer """
+            if buffer is None:
+                buffer = self.buffer
             data = buffer.sample()
 
             if isinstance(data, dict):
                 # regular dqn families
                 if self._worker_side_prioritization:
                     data['priority'] = self._compute_priorities(**data)
+                # drops q-values as we don't need them for training
                 data.pop('q', None)
                 data.pop('next_q', None)
             elif isinstance(data, (list, tuple)):
                 # recurrent dqn families
+                q = [d.pop('q', None) for d in data]
+                next_q = [d.pop('next_q', None) for d in data]
+                if self._worker_side_prioritization:
+                    kwargs = {
+                        'reward': np.array([d['reward'] for d in data]),
+                        'discount': np.array([d['discount'] for d in data]),
+                        'steps': np.array([d['steps'] for d in data]),
+                        'q': np.array(q),
+                        'next_q': np.array(next_q)
+                    }
+                    priority = self._compute_priorities(**kwargs)
+                    for d, p in zip(data, priority):
+                        d['priority'] = p
                 pass
             else:
                 raise ValueError(f'Unknown data of type: {type(data)}')
             replay.merge.remote(data)
             buffer.reset()
 
-        def _send_episode_info(self, monitor):
+        def _send_episodic_info(self, monitor):
+            """ Sends episodic info to monitor for bookkeeping """
             if self._info:
-                monitor.record_episode_info.remote(self._id, **self._info)
+                monitor.record_episodic_info.remote(self._id, **self._info)
                 self._info.clear()
 
         def _compute_priorities(self, reward, discount, steps, q, next_q, **kwargs):
+            """ Computes priorities for prioritized replay"""
             target_q = reward + discount * self._gamma**steps * next_q
             priority = np.abs(target_q - q)
             if priority.ndim == 2:
@@ -126,9 +148,8 @@ def get_base_worker_class(AgentBase):
 
 
 def get_worker_class(AgentBase):
-    WorkerBase = get_base_worker_class(AgentBase)
+    WorkerBase = get_worker_base_class(AgentBase)
     class Worker(WorkerBase):
-        """ Initialization """
         def __init__(self,
                     *,
                     worker_id,
@@ -142,9 +163,8 @@ def get_worker_class(AgentBase):
             self._id = worker_id
 
             self.env = create_env(env_config)
-            self.n_envs = self.env.n_envs
 
-            buffer_config['n_envs'] = self.n_envs
+            buffer_config['n_envs'] = self.env.n_envs
             self.buffer = buffer_fn(buffer_config)
 
             models = model_fn( 
@@ -158,6 +178,7 @@ def get_worker_class(AgentBase):
                 dataset=self.buffer,
                 env=self.env)
             
+            # setup runner
             self._run_mode = getattr(self, '_run_mode', RunMode.NSTEPS)
             assert self._run_mode in [RunMode.NSTEPS, RunMode.TRAJ]
             self.runner = Runner(
@@ -166,14 +187,20 @@ def get_worker_class(AgentBase):
                 run_mode=self._run_mode,
                 record_envs=getattr(self, '_record_envs', None))
 
-            self._worker_side_prioritization = getattr(self, '_worker_side_prioritization', False)
+            self._worker_side_prioritization = getattr(
+                self, '_worker_side_prioritization', False)
             self._return_stats = self._worker_side_prioritization \
                 or buffer_config.get('max_steps', 0) > buffer_config.get('n_steps', 1)
+
+            # setups self._collect using <collect> function from the algorithm module
             collect_fn = pkg.import_module('agent', algo=self._algorithm, place=-1).collect
             self._collect = functools.partial(collect_fn, self.buffer)
 
+            # the names of network modules that should be in sync with the learner
             if not hasattr(self, '_pull_names'):
                 self._pull_names = [k for k in self.model.keys() if 'target' not in k]
+            
+            # used for recording worker side info 
             self._info = collections.defaultdict(list)
 
         """ Worker Methods """
@@ -186,7 +213,7 @@ def get_worker_class(AgentBase):
                 weights = self._pull_weights(learner)
                 self.model.set_weights(weights)
                 self._run(replay)
-                self._send_episode_info(monitor)
+                self._send_episodic_info(monitor)
 
         def store(self, score, epslen):
             if isinstance(score, (int, float)):
@@ -204,8 +231,8 @@ def get_worker_class(AgentBase):
                 self._collect(*args, **kwargs)
                 if self.buffer.is_full():
                     self._send_data(replay)
+
             start_step = self.runner.step
-            
             with Timer('run') as rt:
                 end_step = self.runner.run(step_fn=collect)
             self._info[f'time/run_{self._id}'] = rt.average()
@@ -229,11 +256,10 @@ def get_evaluator_class(AgentBase):
 
             env_config.pop('reward_clip', False)
             self.env = env = create_env(env_config)
-            self.n_envs = self.env.n_envs
 
             model = model_fn(
-                    config=model_config, 
-                    env=env)
+                config=model_config, 
+                env=env)
             
             super().__init__(
                 name=name,
@@ -243,23 +269,28 @@ def get_evaluator_class(AgentBase):
                 env=env,
             )
         
+            # the names of network modules that should be in sync with the learner
             if not hasattr(self, '_pull_names'):
                 self._pull_names = [k for k in self.model.keys() if 'target' not in k]
+            
+            # used for recording evaluator side info 
             self._info = collections.defaultdict(list)
 
         """ Evaluator Methods """
         def run(self, learner, monitor):
             step = 0
             if getattr(self, 'RECORD_PERIOD', False):
+                # how often to record videos
                 to_record = Every(self.RECORD_PERIOD)
             else:
                 to_record = lambda x: False 
+
             while True:
                 step += 1
                 weights = self._pull_weights(learner)
                 self.model.set_weights(weights)
                 self._run(record=to_record(step))
-                self._send_episode_info(monitor)
+                self._send_episodic_info(monitor)
 
         def _pull_weights(self, learner):
             return ray.get(learner.get_weights.remote(name=self._pull_names))
@@ -275,9 +306,9 @@ def get_evaluator_class(AgentBase):
             if video is not None:
                 self._info['video'] = video
 
-        def _send_episode_info(self, monitor):
+        def _send_episodic_info(self, monitor):
             if self._info:
-                monitor.record_episode_info.remote(**self._info)
+                monitor.record_episodic_info.remote(**self._info)
                 self._info.clear()
     
     return Evaluator

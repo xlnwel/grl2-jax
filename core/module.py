@@ -67,8 +67,8 @@ class Module(tf.Module):
 
 
 class Ensemble:
-    """ This class groups all models used by off-policy algorithms together
-    so that one can easily get and set all variables """
+    """ This class groups all models together so that 
+    one can easily get and set all variables """
     def __init__(self, 
                  *,
                  models=None, 
@@ -85,7 +85,7 @@ class Ensemble:
             if not isinstance(v, dict)]
 
     def get_weights(self, name=None):
-        """ Return a list/dict of weights
+        """ Returns a list/dict of weights
         Returns:
             If name is provided, it returns a dict of weights for models specified by keys.
             Otherwise it returns a list of all weights
@@ -96,10 +96,10 @@ class Ensemble:
             name = [name]
         assert isinstance(name, (tuple, list))
 
-        return dict((n, self.models[n].get_weights()) for n in name)
+        return {n: self.models[n].get_weights() for n in name}
 
     def set_weights(self, weights):
-        """Set weights 
+        """Sets weights 
         Args:
             weights: a dict or list of weights. If it's a dict, 
             it sets weights for models specified by the keys.

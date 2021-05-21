@@ -15,7 +15,7 @@ from core.tf_config import *
 from env.func import create_env
 from env.cls import EnvOutput
 from replay.func import create_local_buffer
-from algo.apex.actor import config_actor, get_learner_class, get_base_worker_class, get_evaluator_class
+from algo.apex.actor import config_actor, get_learner_class, get_worker_base_class, get_evaluator_class
 
 
 def get_actor_class(AgentBase):
@@ -141,7 +141,7 @@ def get_actor_class(AgentBase):
 
 
 def get_worker_class():
-    WorkerBase = get_base_worker_class(object)
+    WorkerBase = get_worker_base_class(object)
     class Worker(WorkerBase):
         def __init__(self, worker_id, config, env_config, buffer_config):
             config_attr(self, config)
@@ -190,7 +190,7 @@ def get_worker_class():
                 self._info['score'] += self._envvecs[eid].score(done_env_ids)
                 self._info['epslen'] += self._envvecs[eid].epslen(done_env_ids)
                 if len(self._info['score']) > 10:
-                    self._send_episode_info(self._monitor)
+                    self._send_episodic_info(self._monitor)
 
             return env_output
     

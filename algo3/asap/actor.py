@@ -53,7 +53,7 @@ def get_worker_class(AgentBase):
                     f'Score: {score:.3g}',
                     f'Decision: {status}', color='green')
                 print_repo(self._weight_repo, self._id)
-                self._send_episode_info(monitor)
+                self._send_episodic_info(monitor)
                 
                 self._update_mode_prob()
 
@@ -138,9 +138,9 @@ def get_worker_class(AgentBase):
             self._mode_prob[1] = self.MIN_EVOLVE_PROB + fracs['frac_evolved'] * remain_prob
             np.testing.assert_allclose(sum(self._mode_prob), 1)
 
-        def _send_episode_info(self, learner):
+        def _send_episodic_info(self, learner):
             if 'evolved_score' in self._info and self._weight_repo:
-                learner.record_episode_info.remote(
+                learner.record_episodic_info.remote(
                     **self._raw_bookkeeping.stats(),
                     **self._info, 
                     **analyze_repo(self._weight_repo),

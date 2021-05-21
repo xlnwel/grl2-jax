@@ -419,9 +419,11 @@ class EnvStatsBase(gym.Wrapper):
 
 
 """ 
-Distinctions several signals:
+We distinguish several signals:
     done: an episode is done, may due to life loss(Atari)
-    game over: a game is over, may due to timeout. Life loss is not game over
+    game over: a game is over, may due to timeout. Life loss in Atari 
+        is not game over. Do store <game_over> in <info> 
+        for multi-agent environments.
     reset: an new episode starts after done. In auto-reset mode, environment 
         resets when game's over. Life loss should be automatically handled by
         the environment/previous wrapper.
@@ -463,6 +465,7 @@ class EnvStats(EnvStatsBase):
         # return reset in info when resetting
         reset = self.float_dtype(info.get('reset', False))
 
+        assert isinstance(self._game_over, bool), self._game_over
         # reset env
         if self._game_over:
             info['game_over'] = self._game_over
@@ -510,7 +513,7 @@ class MAEnvStats(EnvStatsBase):
             if self.timeout_done:
                 done = np.ones_like(done)
             info['timeout'] = True
-        discount = 1-np.array(done, np.float32)
+        discount = 1-np.array(done, self.float_dtype)
         # reset env
         if self._game_over:
             if self.auto_reset:

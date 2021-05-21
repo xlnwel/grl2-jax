@@ -330,7 +330,7 @@ class Every:
 class RunningMeanStd:
     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
     def __init__(self, axis, epsilon=1e-8, clip=None, name=None, ndim=None):
-        """ Compute running mean and std from data
+        """ Computes running mean and std from data
         A reimplementation of RunningMeanStd from OpenAI's baselines
 
         Args:

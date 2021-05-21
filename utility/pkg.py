@@ -20,7 +20,7 @@ def get_package(algo, place=0, separator='.', root_dir=None):
     return pkg
 
 def import_module(name=None, algo=None, *, config=None, place=0):
-    """ import module according to algo or algorithm in config """
+    """ import <name> module according to algo or algorithm in config """
     algo = algo or config['algorithm']
     assert isinstance(algo, str), algo
     pkg = get_package(algo=algo, place=place)

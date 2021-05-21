@@ -44,16 +44,19 @@ class AgentImpl(ABC):
         log_stats(self._logger, stats, print_terminal_info=print_terminal_info)
 
     def set_summary_step(self, step):
+        """ Sets tensorboard step """
         set_summary_step(step)
 
     def scalar_summary(self, stats, prefix=None, step=None):
+        """ Adds scalar summary to tensorboard """
         scalar_summary(self._writer, stats, prefix=prefix, step=step)
 
     def histogram_summary(self, stats, prefix=None, step=None):
+        """ Adds histogram summary to tensorboard """
         histogram_summary(self._writer, stats, prefix=prefix, step=step)
 
     def graph_summary(self, sum_type, *args, step=None):
-        """
+        """ Adds graph summary to tensorboard
         Args:
             sum_type str: either "video" or "image"
             args: Args passed to summary function defined in utility.graph,
@@ -65,8 +68,9 @@ class AgentImpl(ABC):
         args[0] = f'{self.name}/{args[0]}'
         graph_summary(self._writer, sum_type, args, step=step)
 
-    def store(self, **kwargs):
-        store(self._logger, **kwargs)
+    def store(self, **stats):
+        """ Stores stats """
+        store(self._logger, **stats)
 
     def get_raw_item(self, key):
         return get_raw_item(self._logger, key)
@@ -115,12 +119,12 @@ class AgentBase(AgentImpl):
         # intervals between calling self._summary
         self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
 
-    @abstractmethod
     def _construct_optimizers(self):
         self._optimizer = self._construct_opt()
 
     def _construct_opt(self, models=None, lr=None, opt=None, l2_reg=None,
             weight_decay=None, clip_norm=None, epsilon=None):
+        """ Constructs an optimizer """
         lr = lr or self._lr
         opt = opt or getattr(self, '_optimizer', 'adam')
         l2_reg = l2_reg or getattr(self, '_l2_reg', None)
@@ -141,6 +145,7 @@ class AgentBase(AgentImpl):
 
     @abstractmethod
     def _build_learn(self, env):
+        """ Builds @tf.function for model training """
         raise NotImplementedError
 
     def _sync_nets(self):
@@ -153,7 +158,7 @@ class AgentBase(AgentImpl):
         pass
 
     def _summary(self, data, terms):
-        """ Add non-scalar summaries """
+        """ Adds non-scalar summaries here """
         pass 
 
     """ Call """
@@ -162,6 +167,9 @@ class AgentBase(AgentImpl):
         Args:
             env_output tuple: (obs, reward, discount, reset)
             evaluation bool: evaluation mode or not
+            return_eval_stats bool: if return evaluation stats
+        Return:
+            action and terms.
         """
         env_output = self._reshape_output(env_output)
         obs, kwargs = self._process_input(env_output, evaluation)
@@ -175,20 +183,21 @@ class AgentBase(AgentImpl):
         return out
 
     def _reshape_output(self, env_output):
-        obs = env_output.obs
-        if obs.ndim % 2 != 0:
-            obs = np.expand_dims(obs, 0)    # add batch dimension
-        assert obs.ndim in (2, 4), obs.shape
-        return type(env_output)(obs, *env_output[1:])
+        """ Reshapes env_output to meet the needs for the model
+        Adds the batch dimension if it's missing """
+        if np.shape(env_output.reward) == ():
+            env_output = tf.nest.map_structure(
+                lambda x: np.expand_dims(x, 0), env_output)
+        return env_output
 
     def _process_input(self, env_output, evaluation):
-        """Do necessary pre-process and produce inputs to model
+        """ Does necessary pre-process and produces inputs to model
         Args:
             env_output tuple: (obs, reward, discount, reset)
             evaluation bool: evaluation mode or not
         Returns: 
             obs: Pre-processed observations
-            kwargs, dict: kwargs necessary to model  
+            kwargs, dict: kwargs necessary for model to compute actions 
         """
         return env_output.obs, {}
     
@@ -196,13 +205,13 @@ class AgentBase(AgentImpl):
         return self.model.action(obs, **kwargs)
         
     def _process_output(self, obs, kwargs, out, evaluation):
-        """Post-process output
+        """Post-processes output
         Args:
             obs: Pre-processed observations
             kwargs, dict: kwargs necessary to model  
             out (action, terms): Model output
         Returns:
-            out: results supposed to return by __call__
+            out: results returned to the environment
         """
         return tensor2numpy(out)
 
@@ -378,11 +387,81 @@ def backward_discounted_sum(prev_ret, reward, discount, gamma):
             prev_ret *= discount[:, t]
         return prev_ret, ret
 
+
+class ActionScheduler:
+    def _setup_action_schedule(self, env):
+        # eval action epsilon and temperature
+        self._eval_act_eps = tf.convert_to_tensor(
+            getattr(self, '_eval_act_eps', 0), tf.float32)
+        self._eval_act_temp = tf.convert_to_tensor(
+            getattr(self, '_eval_act_temp', .5), tf.float32)
+
+        self._schedule_act_eps = getattr(self, '_schedule_act_eps', False)
+        self._schedule_act_temp = getattr(self, '_schedule_act_temp', False)
+        
+        self._schedule_act_epsilon(env)
+        self._schedule_act_temperature(env)
+
+    def _schedule_act_epsilon(self, env):
+        # schedule action epsilon
+        if self._schedule_act_eps:
+            if isinstance(self._act_eps, (list, tuple)):
+                logger.info(f'Schedule action epsilon: {self._act_eps}')
+                self._act_eps = PiecewiseSchedule(self._act_eps)
+            else:
+                self._act_eps = compute_act_eps(
+                    self._act_eps_type, 
+                    self._act_eps, 
+                    getattr(self, '_id', None), 
+                    getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
+                    env.n_envs)
+                if env.action_shape != ():
+                    self._act_eps = self._act_eps.reshape(-1, 1)
+                self._schedule_act_eps = False  # not run-time scheduling
+        print('Action epsilon:', np.reshape(self._act_eps, -1))
+        if not isinstance(getattr(self, '_act_eps', None), PiecewiseSchedule):
+            self._act_eps = tf.convert_to_tensor(self._act_eps, tf.float32)
+
+    def _schedule_act_temperature(self, env):
+        if self._schedule_act_temp:
+            self._act_temp = compute_act_temp(
+                self._min_temp,
+                self._max_temp,
+                getattr(self, '_n_exploit_envs', 0),
+                getattr(self, '_id', None),
+                getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
+                env.n_envs)
+            self._act_temp = self._act_temp.reshape(-1, 1)
+            self._schedule_act_temp = False         # not run-time scheduling    
+        else:
+            self._act_temp = getattr(self, '_act_temp', 1)
+        print('Action temperature:', np.reshape(self._act_temp, -1))
+        self._act_temp = tf.convert_to_tensor(self._act_temp, tf.float32)
+
+    def _get_eps(self, evaluation):
+        if evaluation:
+            eps = self._eval_act_eps
+        else:
+            if self._schedule_act_eps:
+                eps = self._act_eps.value(self.env_step)
+                self.store(act_eps=eps)
+                eps = tf.convert_to_tensor(eps, tf.float32)
+            else:
+                eps = self._act_eps
+        return eps
+    
+    def _get_temp(self, evaluation):
+        return self._eval_act_temp if evaluation else self._act_temp
+
+
+""" According to Python's MRO, the following classes should be positioned 
+before AgentBase to override the corresponding functions. """
 class Memory:
-    """ According to Python's MRO, this class should be positioned 
-    before AgentBase to override reset&get state operations. """
     def _setup_memory_state_record(self):
         self._state = None
+        # do specify additional_rnn_inputs in *config.yaml. Otherwise, 
+        # no additional rnn input is expected.
+        # additional_rnn_inputs is expected to be a dict of name-dtypes
         self._additional_rnn_inputs = getattr(self, '_additional_rnn_inputs', {})
         self._default_additional_rnn_inputs = self._additional_rnn_inputs.copy()
         self._squeeze_batch = False
@@ -390,6 +469,9 @@ class Memory:
     
     def _add_memory_state_to_kwargs(self, 
             obs, mask, state=None, kwargs={}, prev_reward=None, batch_size=None):
+        """ Adds memory state to kwargs. Call this in self._process_input 
+        when introducing sequential memory.
+        """
         if state is None and self._state is None:
             batch_size = batch_size or (tf.shape(obs[0])[0] 
                 if isinstance(obs, dict) else tf.shape(obs)[0])
@@ -405,7 +487,7 @@ class Memory:
 
         if 'prev_reward' in self._additional_rnn_inputs:
             # by default, we do not process rewards. However, if you want to use
-            # rewards as additional rnn inputs, you need to make sure it contains 
+            # rewards as additional rnn inputs, you need to make sure it has 
             # the batch dimension
             assert self._additional_rnn_inputs['prev_reward'].ndims == prev_reward.ndim, prev_reward
             self._additional_rnn_inputs['prev_reward'] = tf.convert_to_tensor(
@@ -423,8 +505,11 @@ class Memory:
         return kwargs
     
     def _add_tensors_to_terms(self, obs, kwargs, out, evaluation):
+        """ Adds tensors to terms, which will be subsequently stored in the replay,
+        call this before converting tensors to np.ndarray """
         out, self._state = out
         if not evaluation:
+            # out is (action, terms), we add necessary stats to terms
             if self._store_state:
                 out[1].update(kwargs['state']._asdict())
             if 'prev_action' in self._additional_rnn_inputs:
@@ -432,6 +517,7 @@ class Memory:
             if 'prev_reward' in self._additional_rnn_inputs:
                 out[1]['prev_reward'] = self._additional_rnn_inputs['prev_reward']
             if self._squeeze_batch:
+                # squeeze the batch dimension
                 for k, v in out[1].items():
                     if len(out[1][k].shape) > 0 and out[1][k].shape[0] == 1:
                         out[1][k] = tf.squeeze(v, 0)
@@ -473,73 +559,14 @@ class Memory:
         return self._state, self._additional_rnn_inputs
 
 
-class ActionScheduler:
-    def _setup_action_schedule(self, env):
-        self._eval_act_eps = tf.convert_to_tensor(
-            getattr(self, '_eval_act_eps', 0), tf.float32)
-        self._eval_act_temp = tf.convert_to_tensor(
-            getattr(self, '_eval_act_temp', .5), tf.float32)
-        self._schedule_act_eps = getattr(self, '_schedule_act_eps', False)
-        self._schedule_act_temp = getattr(self, '_schedule_act_temp', False)
-        if self._schedule_act_eps:
-            if isinstance(self._act_eps, (list, tuple)):
-                logger.info(f'Schedule action epsilon: {self._act_eps}')
-                self._act_eps = PiecewiseSchedule(self._act_eps)
-            else:
-                self._act_eps = compute_act_eps(
-                    self._act_eps_type, 
-                    self._act_eps, 
-                    getattr(self, '_id', None), 
-                    getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
-                    env.n_envs)
-                if env.action_shape != ():
-                    self._act_eps = self._act_eps.reshape(-1, 1)
-                self._schedule_act_eps = False  # not run-time scheduling
-        print('Action epsilon:', np.reshape(self._act_eps, -1))
-        if not isinstance(getattr(self, '_act_eps', None), PiecewiseSchedule):
-            self._act_eps = tf.convert_to_tensor(self._act_eps, tf.float32)
-        
-        if self._schedule_act_temp:
-            self._act_temp = compute_act_temp(
-                self._min_temp,
-                self._max_temp,
-                getattr(self, '_n_exploit_envs', 0),
-                getattr(self, '_id', None),
-                getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
-                env.n_envs)
-            self._act_temp = self._act_temp.reshape(-1, 1)
-            self._schedule_act_temp = False         # not run-time scheduling    
-        else:
-            self._act_temp = getattr(self, '_act_temp', 1)
-        print('Action temperature:', np.reshape(self._act_temp, -1))
-        self._act_temp = tf.convert_to_tensor(self._act_temp, tf.float32)
-
-    def _get_eps(self, evaluation):
-        if evaluation:
-            eps = self._eval_act_eps
-        else:
-            if self._schedule_act_eps:
-                eps = self._act_eps.value(self.env_step)
-                self.store(act_eps=eps)
-                eps = tf.convert_to_tensor(eps, tf.float32)
-            else:
-                eps = self._act_eps
-        return eps
-    
-    def _get_temp(self, evaluation):
-        return self._eval_act_temp if evaluation else self._act_temp
-
-
 class TargetNetOps:
-    """ According to Python's MRO, this class should be positioned 
-    before AgentBase to override _sync_nets. Otherwise, you have to 
-    explicitly call TargetNetOps._sync_nets(self) """
     def _setup_target_net_sync(self):
         self._to_sync = Every(self._target_update_period) \
             if hasattr(self, '_target_update_period') else None
 
     @tf.function
     def _sync_nets(self):
+        # synchronize the target net with the online net
         ons = self.get_online_nets()
         tns = self.get_target_nets()
         logger.info(f"Sync Networks | Online networks: {[n.name for n in ons]}")
@@ -555,6 +582,7 @@ class TargetNetOps:
 
     @tf.function
     def _update_nets(self):
+        # update the target net towards online net using exponentially moving average
         ons = self.get_online_nets()
         tns = self.get_target_nets()
         logger.info(f"Update Networks | Online networks: {[n.name for n in ons]}")

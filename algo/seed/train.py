@@ -89,7 +89,6 @@ def main(env_config, model_config, agent_config, replay_config):
         actor.start.remote(workers[aid*wpa:(aid+1)*wpa], learner, monitor)
         actors.append(actor)
     
-
     elapsed_time = 0
     interval = 10
     while not ray.get(monitor.is_over.remote()):
