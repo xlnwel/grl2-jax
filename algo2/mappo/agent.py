@@ -13,12 +13,14 @@ from algo.ppo.base import PPOBase
 def infer_life_mask(mask, discount, concat=True):
     life_mask = np.logical_or(
         mask, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
+    # np.testing.assert_equal(life_mask, mask)
     if concat:
         life_mask = np.concatenate(life_mask)
     return life_mask
 
-def collect(buffer, env, step, reset, life_mask, reward, discount, next_obs, **kwargs):
-    kwargs['life_mask'] = infer_life_mask(life_mask, discount)
+def collect(buffer, env, step, reset, life_mask, reward, 
+            discount, next_obs, **kwargs):
+    kwargs['life_mask'] = infer_life_mask(discount, discount)
     kwargs['reward'] = np.concatenate(reward)
     # discount is zero only when all agents are done
     discount[np.any(discount, 1)] = 1
@@ -163,9 +165,9 @@ class Agent(Memory, PPOBase):
         else:
             out[1].update({
                 'obs': obs, # ensure obs is placed in terms even when no observation normalization is performed
+                'shared_state': kwargs['shared_state'],
                 'mask': kwargs['mask'],
                 'action_mask': kwargs['action_mask'],
-                'shared_state': kwargs['shared_state'],
                 'life_mask': kwargs['life_mask'].reshape(-1, self._n_agents),
             })
         return out

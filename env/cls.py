@@ -4,7 +4,7 @@ import cv2
 import gym
 
 from utility.utils import batch_dicts
-from env import wrappers, atari, pg, dmc, smac
+from env import wrappers
 
 EnvOutput = wrappers.EnvOutput
 
@@ -12,16 +12,26 @@ EnvOutput = wrappers.EnvOutput
 def make_env(config):
     config = config.copy()
     env_name = config['name'].lower()
-    if env_name.startswith('smac'):
+    if env_name.startswith('smac2'):
+        from env import smac2
+        env = smac2.make_smac_env(config)
+        # smac2 resembles single agent environments, in which done and reward are team-based
+        env = wrappers.EnvStats(env)
+        return env
+    elif env_name.startswith('smac'):
+        from env import smac
         env = smac.make_smac_env(config)
         env = wrappers.MAEnvStats(env)
         return env
-    if env_name.startswith('atari'):
+    elif env_name.startswith('atari'):
+        from env import atari
         env = atari.make_atari_env(config)
     else:
         if env_name.startswith('procgen'):
+            from env import pg
             env = pg.make_procgen_env(config)
         elif env_name.startswith('dmc'):
+            from env import dmc
             env = dmc.make_dmc_env(config)
         else:
             env = gym.make(config['name']).env
@@ -217,3 +227,21 @@ class EnvVec(EnvVecBase):
         if hasattr(self.env, 'close'):
             self.env.close()
             [env.close() for env in self.envs]
+
+if __name__ == '__main__':
+    config = dict(
+        name='smac2_3m',
+        n_workers=8,
+        n_envs=1,
+        use_state_agent=True,
+        use_mustalive=True,
+        add_center_xy=True,
+        timeout_done=True,
+        add_agent_id=False,
+        obs_agent_id=False,
+    )
+    env = Env(config)
+    for k in range(100):
+        o, r, d, re = env.step(env.random_action())
+        print(k, d, re, o['episodic_mask'])
+        print(r, env.score(), env.epslen())

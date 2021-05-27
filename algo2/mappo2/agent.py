@@ -2,12 +2,11 @@ import numpy as np
 
 from core.decorator import override
 from algo.ppo.base import PPOBase
-from algo2.mappo.agent import Agent as AgentBase
+from algo2.mappo.agent import Agent as AgentBase, infer_life_mask
 
 
-def collect(buffer, env, step, reset, discount, next_obs, **kwargs):
-    kwargs['life_mask'] = np.logical_or(
-        discount, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
+def collect(buffer, env, step, reset, life_mask, discount, next_obs, **kwargs):
+    kwargs['life_mask'] = infer_life_mask(life_mask, discount, concat=False)
     # discount is zero only when all agents are done
     discount[np.any(discount, 1)] = 1
     kwargs['discount'] = discount
@@ -36,7 +35,7 @@ class Agent(AgentBase):
 
     """ Call """
     # @override(PPOBase)
-    def _reshape_output(self, env_output):
+    def _reshape_env_output(self, env_output):
         return env_output
 
     # @override(PPOBase)
@@ -44,7 +43,7 @@ class Agent(AgentBase):
         if evaluation:
             self._process_obs(env_output.obs, update_rms=False)
         else:
-            life_mask = env_output.discount
+            life_mask = env_output.obs['life_mask']
             self._process_obs(env_output.obs, mask=life_mask)
         mask = self._get_mask(env_output.reset)
         mask_flat = np.concatenate(mask)
@@ -56,7 +55,7 @@ class Agent(AgentBase):
 
     """ PPO methods """
     def record_last_env_output(self, env_output):
-        self._env_output = self._reshape_output(env_output)
+        self._env_output = self._reshape_env_output(env_output)
         self._process_obs(self._env_output.obs, update_rms=False)
         mask = self._get_mask(self._env_output.reset)
         mask = np.concatenate(mask)

@@ -68,7 +68,10 @@ class Direction(enum.IntEnum):
 
 
 def info_func(agent, info):
-    won = [i['won'] for i in info]
+    if isinstance(info, list):
+        won = [i['won'] for i in info]
+    else:
+        won = info['won']
     agent.store(win_rate=won)
 
 
@@ -535,8 +538,8 @@ class SMAC(gym.Env):
         self.mask = np.ones(self.n_agents, np.float32)
         obs_dict = dict(
             obs=local_obs,
-            shared_state=global_state,
-            action_mask=available_actions,
+            shared_state=np.array(global_state, np.float32),
+            action_mask=np.array(available_actions, np.bool),
             life_mask=self.mask
         )
 
@@ -635,8 +638,8 @@ class SMAC(gym.Env):
             
             obs_dict = dict(
                 obs=local_obs,
-                shared_state=global_state,
-                action_mask=available_actions,
+                shared_state=np.array(global_state, np.float32),
+                action_mask=np.array(available_actions, np.bool),
                 life_mask=self.mask
             )
             rewards = np.zeros(self.n_agents, np.float32)
@@ -734,8 +737,8 @@ class SMAC(gym.Env):
 
         obs_dict = dict(
             obs=local_obs,
-            shared_state=global_state,
-            action_mask=available_actions,
+            shared_state=np.array(global_state, np.float32),
+            action_mask=np.array(available_actions, np.bool),
             life_mask=self.mask
         )
         info = batch_dicts(infos)
@@ -1280,7 +1283,8 @@ class SMAC(gym.Env):
         NOTE: Agents should have access only to their local observations
         during decentralised execution.
         """
-        agents_obs = [self.get_obs_agent(i) for i in range(self.n_agents)]
+        agents_obs = np.array(
+            [self.get_obs_agent(i) for i in range(self.n_agents)], dtype=np.float32)
         return agents_obs
 
     def get_state(self, agent_id=-1):

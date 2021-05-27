@@ -491,8 +491,7 @@ class MAEnvStats(EnvStatsBase):
         if not np.any(self._output.reset):
             return self._reset()
         else:
-            if EnvStats.manual_reset_warning:
-                logger.debug('Repetitively calling reset results in no environment interaction')
+            logger.debug('Repetitively calling reset results in no environment interaction')
             return self._output
 
     def _reset(self):
@@ -508,9 +507,9 @@ class MAEnvStats(EnvStatsBase):
         if self.game_over():
             assert self.auto_reset == False
             # step after the game is over
-            reward = np.zeros(self.n_agents, self.float_dtype)
-            discount = np.zeros(self.n_agents, self.float_dtype)
-            reset = np.zeros(self.n_agents, self.float_dtype)
+            reward = np.zeros_like(self._output.reward, self.float_dtype)
+            discount = np.zeros_like(self._output.discount, self.float_dtype)
+            reset = np.zeros_like(self._output.reset, self.float_dtype)
             self._output = EnvOutput(self._output.obs, reward, discount, reset)
             self._info['mask'] = np.zeros(self.n_agents, np.bool)
             return self._output
@@ -528,11 +527,10 @@ class MAEnvStats(EnvStatsBase):
             info['timeout'] = True
         discount = 1-np.array(done, self.float_dtype)
         # reset env
-        if self._game_over:
-            if self.auto_reset:
-                info['prev_env_output'] = GymOutput(obs, reward, discount)
-                # when resetting, we override the obs and reset but keep the others
-                obs, _, _, reset = self._reset()
+        if self._game_over and self.auto_reset:
+            info['prev_env_output'] = GymOutput(obs, reward, discount)
+            # when resetting, we override the obs and reset but keep the others
+            obs, _, _, reset = self._reset()
         else:
             reset = np.zeros(self.n_agents, self.float_dtype)
         self._info = info
