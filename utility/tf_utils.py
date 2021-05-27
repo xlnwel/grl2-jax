@@ -27,6 +27,11 @@ def standard_normalization(x):
     
     return x
 
+def reduce_mean(x, mask=None, n=None, axis=None):
+    if mask is not None and n is None:
+        n = tf.reduce_sum(mask)
+    return tf.reduce_mean(x) if mask is None else tf.reduce_sum(x * mask) / n
+
 def explained_variance(y, pred):
     if None in y.shape:
         assert y.shape.ndims == pred.shape.ndims, (y.shape, pred.shape)

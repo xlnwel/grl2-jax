@@ -4,6 +4,7 @@ from tensorflow_probability import distributions as tfd
 
 
 def epsilon_greedy(action, epsilon, is_action_discrete, action_dim=None):
+    assert action.shape.ndims == epsilon.shape.ndims, action.shape
     if is_action_discrete:
         assert action_dim is not None
         rand_act = tf.random.uniform(

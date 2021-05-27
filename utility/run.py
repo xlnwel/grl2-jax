@@ -35,7 +35,7 @@ class Runner:
         self._frame_skip = getattr(env, 'frame_skip', 1)
         self._frames_per_step = self.env.n_envs * self._frame_skip
         self._default_nsteps = nsteps or env.max_episode_steps // self._frame_skip
-
+        
         record_envs = record_envs or self.env.n_envs
         self._record_envs = list(range(record_envs))
 
@@ -46,7 +46,7 @@ class Runner:
         nsteps = nsteps or self._default_nsteps
         obs = self.env_output.obs
         reset = self.env_output.reset
-        
+
         for t in range(nsteps):
             action = action_selector(self.env_output, evaluation=False)
             obs, reset = self.step_env(obs, action, step_fn)
@@ -114,6 +114,7 @@ class Runner:
             # logging when any env is reset 
             if np.all(self.env_output.discount == 0):
                 break
+
         info = [i for idx, i in enumerate(self.env.info()) if idx in self._record_envs]
         self.store_info(info)
         self.episodes += 1

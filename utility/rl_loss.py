@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from utility.tf_utils import assert_rank, \
-    assert_rank_and_shape_compatibility, static_scan
+from utility.tf_utils import static_scan, reduce_mean, \
+    assert_rank, assert_rank_and_shape_compatibility
 
 
 def huber_loss(x, *, y=None, threshold=1.):
@@ -153,12 +153,7 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount,
 #     clip_frac = tf.reduce_mean(
 #         tf.cast(tf.greater(tf.abs(value_diff), clip_range), value.dtype))
 
-    return value_loss, clip_frac
-
-def reduce_mean(x, mask=None, n=None):
-    if mask is not None and n is None:
-        n = tf.reduce_sum(mask)
-    return tf.reduce_mean(x) if mask is None else tf.reduce_sum(x * mask) / n
+#     return value_loss, clip_frac
 
 def ppo_loss(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
     if mask is not None and n is None:
