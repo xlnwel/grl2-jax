@@ -171,7 +171,7 @@ class AgentBase(AgentImpl):
         Return:
             action and terms.
         """
-        env_output = self._reshape_output(env_output)
+        env_output = self._reshape_env_output(env_output)
         obs, kwargs = self._process_input(env_output, evaluation)
         kwargs['evaluation'] = kwargs.get('evaluation', evaluation)
         out = self._compute_action(
@@ -182,7 +182,7 @@ class AgentBase(AgentImpl):
 
         return out
 
-    def _reshape_output(self, env_output):
+    def _reshape_env_output(self, env_output):
         """ Reshapes env_output to meet the needs for the model
         Adds the batch dimension if it's missing """
         if np.shape(env_output.reward) == ():
@@ -502,6 +502,7 @@ class Memory:
             'mask': mask,   # mask is applied in RNN
             **self._additional_rnn_inputs
         })
+        
         return kwargs
     
     def _add_tensors_to_terms(self, obs, kwargs, out, evaluation):
@@ -604,16 +605,3 @@ class TargetNetOps:
     def get_target_nets(self):
         return [getattr(self, f'target_{k}') for k in self.model 
             if f'target_{k}' in self.model]
-
-class MultiAgentSharedNet:
-    def _reshape_output(self, env_output):
-        """ merge the batch and agent dimensions """
-        obs, reward, discount, reset = env_output
-        new_obs = {}
-        for k, v in obs.items():
-            new_obs[k] = np.concatenate(v)
-            assert new_obs[k].ndim ==2, new_obs[k].shape    # don't consider images
-        reward = np.concatenate(reward)
-        discount = np.concatenate(discount)
-        reset = np.concatenate(reset)
-        return type(env_output)(new_obs, reward, discount, reset)

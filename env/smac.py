@@ -428,6 +428,7 @@ class SMAC(gym.Env):
 
     def _launch(self):
         """Launch the StarCraft II game."""
+        self.dones = np.zeros((self.n_agents), dtype=bool)
         self._run_config = run_configs.get(version=self.game_version)
         _map = maps.get(self.name)
         self._seed += 1
@@ -531,10 +532,12 @@ class SMAC(gym.Env):
             local_obs = self.stacked_local_obs.reshape(self.n_agents, -1)
             global_state = self.stacked_global_state.reshape(self.n_agents, -1)
 
+        self.mask = np.ones(self.n_agents, np.float32)
         obs_dict = dict(
             obs=local_obs,
             shared_state=global_state,
-            action_mask=available_actions
+            action_mask=available_actions,
+            life_mask=self.mask
         )
 
         return obs_dict
@@ -544,6 +547,7 @@ class SMAC(gym.Env):
         There is a trigger in the SC2Map file, which restarts the
         episode when there are no units left.
         """
+        self.dones = np.zeros((self.n_agents), dtype=bool)
         try:
             self._kill_all_units()
             self._controller.step(2)
@@ -560,7 +564,8 @@ class SMAC(gym.Env):
         """A single environment step. Returns reward, terminated, info."""
         terminated = False
         infos = [{} for i in range(self.n_agents)]
-        dones = np.zeros((self.n_agents), dtype=bool)
+        self.mask = (1 - self.dones).astype(np.float32)
+        self.dones = dones = np.zeros((self.n_agents), dtype=bool)
 
         actions_int = [int(a) for a in action]
 
@@ -631,7 +636,8 @@ class SMAC(gym.Env):
             obs_dict = dict(
                 obs=local_obs,
                 shared_state=global_state,
-                action_mask=available_actions
+                action_mask=available_actions,
+                life_mask=self.mask
             )
             rewards = np.zeros(self.n_agents, np.float32)
             info = batch_dicts(infos)
@@ -685,7 +691,8 @@ class SMAC(gym.Env):
                 "battles_game": self.battles_game,
                 "battles_draw": self.timeouts,
                 "restarts": self.force_restarts,
-                "won": self.win_counted
+                "won": self.win_counted,
+                "mask": self.mask[i]
             }
 
             if terminated:
@@ -728,7 +735,8 @@ class SMAC(gym.Env):
         obs_dict = dict(
             obs=local_obs,
             shared_state=global_state,
-            action_mask=available_actions
+            action_mask=available_actions,
+            life_mask=self.mask
         )
         info = batch_dicts(infos)
         info.update({

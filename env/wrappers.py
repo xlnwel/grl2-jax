@@ -376,19 +376,6 @@ class EnvStatsBase(gym.Wrapper):
             logger.info('Timeout is treated as done')
         self._reset()
 
-    def reset(self):
-        if self.auto_reset:
-            self.auto_reset = False
-            if EnvStats.manual_reset_warning:
-                logger.info('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation')
-                EnvStats.manual_reset_warning = False
-        if not self._output.reset:
-            return self._reset()
-        else:
-            if EnvStats.manual_reset_warning:
-                logger.debug('Repetitively calling reset results in no environment interaction')
-            return self._output
-
     def _reset(self):
         obs = self.env.reset()
         self._score = 0
@@ -429,7 +416,20 @@ We distinguish several signals:
         the environment/previous wrapper.
 """
 class EnvStats(EnvStatsBase):
-    manual_reset_warning = True 
+    manual_reset_warning = True
+    def reset(self):
+        if self.auto_reset:
+            self.auto_reset = False
+            if EnvStats.manual_reset_warning:
+                logger.info('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation')
+                EnvStats.manual_reset_warning = False
+        if not self._output.reset:
+            return self._reset()
+        else:
+            if EnvStats.manual_reset_warning:
+                logger.debug('Repetitively calling reset results in no environment interaction')
+            return self._output
+
     def _reset(self):
         obs = super()._reset()
         reward = self.float_dtype(0)
@@ -482,6 +482,19 @@ class EnvStats(EnvStatsBase):
 
 class MAEnvStats(EnvStatsBase):
     manual_reset_warning = True
+    def reset(self):
+        if self.auto_reset:
+            self.auto_reset = False
+            if EnvStats.manual_reset_warning:
+                logger.info('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation')
+                EnvStats.manual_reset_warning = False
+        if not np.any(self._output.reset):
+            return self._reset()
+        else:
+            if EnvStats.manual_reset_warning:
+                logger.debug('Repetitively calling reset results in no environment interaction')
+            return self._output
+
     def _reset(self):
         obs = super()._reset()
         reward = np.zeros(self.n_agents, self.float_dtype)

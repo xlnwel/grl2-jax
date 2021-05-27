@@ -82,7 +82,7 @@ def process_with_env(data, env, obs_range=None, one_hot_action=True, dtype=tf.fl
                 raise ValueError(obs_range)
         if env.is_action_discrete and one_hot_action:
             for k in data:
-                if 'action' in k:
+                if k.endswith('action'):
                     data[k] = tf.one_hot(data[k], env.action_dim, dtype=dtype)
     return data
 

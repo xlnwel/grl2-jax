@@ -23,7 +23,7 @@ class Actor(Module):
         self.embed_dim = config.pop('embed_dim', 10)
         if self.attention_action:
             self.embed = tf.Variable(
-                tf.random.uniform((action_dim, self.embed_dim), -0.1, 0.1), 
+                tf.random.uniform((action_dim, self.embed_dim), -0.01, 0.01), 
                 dtype='float32',
                 trainable=True)
         self._init_std = config.pop('init_std', 1)
@@ -97,7 +97,9 @@ class PPO(Ensemble):
     def __init__(self, config, env, model_fn=create_components, **kwargs):
         state = {
             'lstm': 'actor_h actor_c value_h value_c',
-            'gru': 'actor_h value_h'
+            'mlstm': 'actor_h actor_c value_h value_c',
+            'gru': 'actor_h value_h',
+            'mgru': 'actor_h value_h',
         }
         self.State = collections.namedtuple(
             'State', state[config['actor_rnn']['rnn_name']])

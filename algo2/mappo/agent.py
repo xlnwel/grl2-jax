@@ -4,22 +4,22 @@ import tensorflow as tf
 from utility.schedule import TFPiecewiseSchedule
 from utility.tf_utils import explained_variance, tensor2numpy
 from utility.rl_loss import ppo_loss
-from core.base import Memory, MultiAgentSharedNet
+from core.base import Memory
 from core.tf_config import build
 from core.decorator import override
 from algo.ppo.base import PPOBase
 
 
-def collect(buffer, env, step, reset, reward, discount, next_obs, **kwargs):
+def infer_life_mask(mask, discount, concat=True):
+    life_mask = np.logical_or(
+        mask, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
+    if concat:
+        life_mask = np.concatenate(life_mask)
+    return life_mask
+
+def collect(buffer, env, step, reset, life_mask, reward, discount, next_obs, **kwargs):
+    kwargs['life_mask'] = infer_life_mask(life_mask, discount)
     kwargs['reward'] = np.concatenate(reward)
-    # life_mask = discount does not work well in practice
-    # the game over step turns out playing an important role
-    # even for dead agents. I conjecture that this is due to 
-    # the fact that games usually provide a distinct 
-    # win-loss reward in the end
-    # kwargs['life_mask'] = np.concatenate(discount)
-    kwargs['life_mask'] = np.concatenate(
-        np.logical_or(discount, 1-np.any(discount, 1, keepdims=True))).astype(np.float32)
     # discount is zero only when all agents are done
     discount[np.any(discount, 1)] = 1
     kwargs['discount'] = np.concatenate(discount)
@@ -31,10 +31,11 @@ def random_actor(env_output, env=None, **kwargs):
     terms = {
         'obs': np.concatenate(obs['obs']), 
         'shared_state': np.concatenate(obs['shared_state']),
+        'life_mask': obs['life_mask'],
     }
     return a, terms
 
-class Agent(MultiAgentSharedNet, Memory, PPOBase):
+class Agent(Memory, PPOBase):
     """ Initialization """
     @override(PPOBase)
     def _add_attributes(self, env, dataset):
@@ -109,9 +110,11 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
                 for name, sz in self.model.value_state_size._asdict().items()])
         if self._additional_rnn_inputs:
             if 'prev_action' in self._additional_rnn_inputs:
-                TensorSpecs['prev_action'] = ((self._sample_size, *env.action_shape), env.action_dtype, 'prev_action')
+                TensorSpecs['prev_action'] = (
+                    (self._sample_size, *env.action_shape), env.action_dtype, 'prev_action')
             if 'prev_reward' in self._additional_rnn_inputs:
-                TensorSpecs['prev_reward'] = ((self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
+                TensorSpecs['prev_reward'] = (
+                    (self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
         
         learn_value = tf.function(self._learn_value)
         self.learn_value = build(learn_value, TensorSpecs)
@@ -122,12 +125,24 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
     #     tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
 
     """ Call """
+    def _reshape_env_output(self, env_output):
+        """ merges the batch and agent dimensions """
+        obs, reward, discount, reset = env_output
+        new_obs = {}
+        for k, v in obs.items():
+            new_obs[k] = np.concatenate(v)
+        # reward and discount are not used for inference so we do not process them
+        # reward = np.concatenate(reward)
+        # discount = np.concatenate(discount)
+        reset = np.concatenate(reset)
+        return type(env_output)(new_obs, reward, discount, reset)
+
     # @override(PPOBase)
     def _process_input(self, env_output, evaluation):
         if evaluation:
             self._process_obs(env_output.obs, update_rms=False)
         else:
-            life_mask = env_output.discount
+            life_mask = env_output.obs['life_mask']
             self._process_obs(env_output.obs, mask=life_mask)
         mask = self._get_mask(env_output.reset)
         obs, kwargs = self._divide_obs(env_output.obs)
@@ -151,13 +166,14 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
                 'mask': kwargs['mask'],
                 'action_mask': kwargs['action_mask'],
                 'shared_state': kwargs['shared_state'],
+                'life_mask': kwargs['life_mask'].reshape(-1, self._n_agents),
             })
         return out
 
     """ PPO methods """
     # @override(PPOBase)
     def record_last_env_output(self, env_output):
-        self._env_output = self._reshape_output(env_output)
+        self._env_output = self._reshape_env_output(env_output)
         self._process_obs(self._env_output.obs, update_rms=False)
         mask = self._get_mask(self._env_output.reset)
         self._state = self._apply_mask_to_state(self._state, mask)
@@ -187,7 +203,8 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
             mask=None, prev_action=None, prev_reward=None):
         actor_state, value_state = self.model.split_state(state)
 
-        actor_terms = self._learn_actor(obs, action_mask, action, advantage, logpi, 
+        actor_terms = self._learn_actor(
+            obs, action_mask, action, advantage, logpi, 
             actor_state, life_mask, mask, prev_action, prev_reward)
         value_terms = self._learn_value(shared_state, value, traj_ret, 
             value_state, life_mask, mask, prev_action, prev_reward)
@@ -258,7 +275,8 @@ class Agent(MultiAgentSharedNet, Memory, PPOBase):
     def _divide_obs(self, obs):
         kwargs = {
             'shared_state': obs['shared_state'],
-            'action_mask': obs['action_mask'].astype(np.bool)
+            'action_mask': obs['action_mask'].astype(np.bool),
+            'life_mask': obs['life_mask']
         }
         obs = obs['obs']
         return obs, kwargs

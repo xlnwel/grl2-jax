@@ -162,7 +162,7 @@ class EnvVec(EnvVecBase):
     def epslen(self, idxes=None):
         idxes = self._get_idxes(idxes)
         return [self.envs[i].epslen() for i in idxes]
-    
+
     def mask(self, idxes=None):
         idxes = self._get_idxes(idxes)
         return np.stack([self.envs[i].mask() for i in idxes])

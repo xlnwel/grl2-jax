@@ -19,7 +19,7 @@ model:
         norm_kwargs:
             epsilon: 1.e-5
     actor_rnn:
-        rnn_name: gru
+        rnn_name: mgru
         units: 64
         kernel_initializer: orthogonal
         use_ln: True
@@ -38,7 +38,7 @@ model:
         norm_kwargs:
             epsilon: 1.e-5
     value_rnn:
-        rnn_name: gru
+        rnn_name: mgru
         units: 64
         kernel_initializer: orthogonal
         use_ln: True
