@@ -72,6 +72,7 @@ class Q(Module):
                 action = tf.one_hot(action, self.action_dim, dtype=q.dtype)
             assert_shape_compatibility([action, q])
             q = tf.reduce_sum(q * action, -1)
+        
         return q
 
     def reset_noisy(self):

@@ -16,6 +16,7 @@ class EpisodicReplay:
     @config
     def __init__(self, state_keys=[]):
         self._dir = Path(self._dir).expanduser()
+        self._save = getattr(self, '_save', False)
         if self._save:
             self._dir.mkdir(parents=True, exist_ok=True)
         self._memory = {}
@@ -32,11 +33,26 @@ class EpisodicReplay:
     def __len__(self):
         return len(self._memory)
 
-    def add(self, i, reset, **data):
-        while i >= len(self._tmp_bufs):
-            self._tmp_bufs.append(EpisodicBuffer({}))
-        self._tmp_bufs[i].add(**data)
-        if reset:
+    def add(self, **data):
+        if self._n_envs > 1:
+            if self._n_envs != len(self._tmp_bufs):
+                logger.info(f'Initialize {self._n_envs} temporary buffer')
+                self._tmp_bufs = [EpisodicBuffer({}) for _ in range(self._n_envs)]
+            for i in range(self._n_envs):
+                d = {k: v[i] for k, v in data.items()}
+                self._tmp_bufs[i].add(**d)
+        else:
+            if self._tmp_bufs == []:
+                self._tmp_bufs = EpisodicBuffer({})
+            self._tmp_bufs.add(**data)
+    
+    def finish_episodes(self, i=None):
+        if i is None:
+            if self._n_envs > 1:
+                [self.merge(buf.sample()) for buf in self._tmp_bufs]
+            else:
+                self.merge(self._tmp_bufs.sample())
+        else:
             self.merge(self._tmp_bufs[i].sample())
         
     def merge(self, episodes):
@@ -93,6 +109,7 @@ class EpisodicReplay:
                 for k in samples[0].keys()}
         else:
             data = self._sample()
+        
         return data
 
     def _sample(self):

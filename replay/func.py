@@ -31,7 +31,6 @@ def create_local_buffer(config):
 
 def create_replay(config, **kwargs):
     config = config.copy()
-
     return replay_type[config['replay_type']](config, **kwargs)
 
 def create_replay_center(config, **kwargs):

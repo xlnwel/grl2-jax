@@ -183,8 +183,7 @@ class AgentBase(AgentImpl):
         return out
 
     def _reshape_env_output(self, env_output):
-        """ Reshapes env_output to meet the needs for the model
-        Adds the batch dimension if it's missing """
+        """ Adds the batch dimension if it's missing """
         if np.shape(env_output.reward) == ():
             env_output = tf.nest.map_structure(
                 lambda x: np.expand_dims(x, 0), env_output)
@@ -509,6 +508,7 @@ class Memory:
         """ Adds tensors to terms, which will be subsequently stored in the replay,
         call this before converting tensors to np.ndarray """
         out, self._state = out
+
         if not evaluation:
             # out is (action, terms), we add necessary stats to terms
             if self._store_state:
@@ -530,7 +530,7 @@ class Memory:
         return out
     
     def _add_non_tensors_to_terms(self, out, kwargs, evaluation):
-        """ add additional input terms, which are of non-Tensor type """
+        """ Adds additional input terms, which are of non-Tensor type """
         if not evaluation:
             out[1]['mask'] = kwargs['mask']
         return out
@@ -542,10 +542,7 @@ class Memory:
         mask_exp = np.expand_dims(mask, -1)
         if isinstance(state, (list, tuple)):
             state_type = type(state)
-            if len(state) == 1:
-                state = state_type(v * mask_exp for v in state)
-            else:
-                state = state_type(*[v * mask_exp for v in state])
+            state = state_type(*[v * mask_exp for v in state])
         else:
             state = state * mask_exp
         return state
