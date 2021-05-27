@@ -8,7 +8,8 @@ from utility.tf_utils import assert_rank
 
 LSTMState = namedtuple('LSTMState', ['h', 'c'])
 
-class LSTMCell(layers.Layer):
+
+class MLSTMCell(layers.Layer):
     def __init__(self,
                  units,
                  activation='tanh',
@@ -127,12 +128,12 @@ class LSTMCell(layers.Layer):
             c=tf.zeros([batch_size, state_size[1]], dtype))
 
 
-class LSTM(Module):
+class MLSTM(Module):
     def __init__(self, config, name='rnn'):
         super().__init__(name=name)
         config = config.copy()
         self._state_mask = config.pop('state_mask', True)
-        cell = LSTMCell(**config)
+        cell = MLSTMCell(**config)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
     
     def call(self, x, state, mask, additional_input=[]):
@@ -196,7 +197,7 @@ if __name__ == '__main__':
     timeit(keras_lstm_call, to_print=True)
 
     # custom lstm
-    c = LSTMCell(512)
+    c = MLSTMCell(512)
     l = tf.keras.layers.RNN(c, return_sequences=True, return_state=True)
     opt = tf.keras.optimizers.Adam(5e-5)
 
@@ -212,7 +213,7 @@ if __name__ == '__main__':
     
     timeit(custom_lstm_cell_call, to_print=True)
 
-    l = LSTM({'units': 512})
+    l = MLSTM({'units': 512})
     opt = tf.keras.optimizers.Adam(5e-5)
 
     def custom_lstm_call():
@@ -226,7 +227,7 @@ if __name__ == '__main__':
     
     timeit(custom_lstm_call, to_print=True)
 
-    c = LSTMCell(512, use_ln=True)
+    c = MLSTMCell(512, use_ln=True)
     l = tf.keras.layers.RNN(c, return_sequences=True, return_state=True)
     opt = tf.keras.optimizers.Adam(5e-5)
 

@@ -8,7 +8,8 @@ from utility.tf_utils import assert_rank
 
 GRUState = namedtuple('GRUState', ['h'])
 
-class GRUCell(layers.Layer):
+
+class MGRUCell(layers.Layer):
     def __init__(self,
                  units,
                  activation='tanh',
@@ -121,12 +122,12 @@ class GRUCell(layers.Layer):
         return GRUState(h=tf.zeros([batch_size, state_size[0]], dtype))
 
 
-class GRU(Module):
+class MGRU(Module):
     def __init__(self, config, name='rnn'):
         super().__init__(name=name)
         config = config.copy()
         self._state_mask = config.pop('state_mask', True)
-        cell = GRUCell(**config)
+        cell = MGRUCell(**config)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
     
     def call(self, x, state, mask, additional_input=[]):
@@ -190,7 +191,7 @@ if __name__ == '__main__':
     # timeit(keras_gru_call, to_print=True)
 
     # # custom lstm
-    # c = GRUCell(256)
+    # c = MGRUCell(256)
     # l = tf.keras.layers.RNN(c, return_sequences=True, return_state=True)
     # opt = tf.keras.optimizers.Adam(5e-5)
 
@@ -206,7 +207,7 @@ if __name__ == '__main__':
     
     # timeit(custom_gru_cell_call, to_print=True)
 
-    # l = GRU({'units': 256})
+    # l = MGRU({'units': 256})
     # opt = tf.keras.optimizers.Adam(5e-5)
 
     # def custom_gru_call():
@@ -220,7 +221,7 @@ if __name__ == '__main__':
     
     # timeit(custom_gru_call, to_print=True)
 
-    c = GRUCell(256, use_ln=True)
+    c = MGRUCell(256, use_ln=True)
     l = tf.keras.layers.RNN(c, return_sequences=True, return_state=True)
     opt = tf.keras.optimizers.Adam(5e-5)
 
