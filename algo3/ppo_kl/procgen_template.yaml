@@ -1,11 +1,12 @@
 ---
 env:
     name: &env_name procgen_coinrun
-    n_workers: 1
-    n_envs: &nenvs 64
+    n_workers: 8
+    n_envs: &nenvs 8
     frame_skip: 1
     frame_stack: 1
-    num_levels: 200
+    np_obs: True
+    gray_scale: False
 
 model:
     encoder: 
@@ -21,29 +22,18 @@ model:
         norm: null
         kernel_initializer: orthogonal
         activation: relu
-    meta:
-        entropy_coef: 
-            init: 4.96
-            outer: &ec .01
-            act: sigmoid
-            units: 16
-        value_coef: 
-            init: 4.96
-            outer: &vc .5
-            act: sigmoid
-            units: 16
 
 agent:
     algorithm: &algo ppo
     precision: 32
-    gamma: &gamma .999
+    gamma: &gamma .99
 
     MAX_STEPS: 2.5e7
     N_STEPS: &nsteps 256
     N_EPOCHS: 3
     N_MBS: &nmbs 8
     LOG_PERIOD: 100
-    EVAL_PERIOD: 100
+    EVAL_PERIOD: 5000
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     normalize_obs: False
@@ -64,15 +54,15 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    ac_lr: 5e-4
-    meta_lr: 1e-3
+    lr: 5e-4
     clip_norm: .5
-    opt_eps: 1e-5
+    opt_kwargs:
+        epsilon: 1e-7
     # arguments for loss
     value_loss: clip
     clip_range: .2          # clip range for ppo
-    entropy_coef: *ec
-    value_coef: *vc
+    entropy_coef: .01
+    value_coef: 1.
 
 buffer:
     adv_type: gae     # nae or gae

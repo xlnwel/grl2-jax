@@ -1,12 +1,12 @@
 ---
 env:
     name: &env_name procgen_coinrun
-    n_workers: 1
-    n_envs: &nenvs 64
+    n_workers: 8
+    n_envs: &nenvs 8
     frame_skip: 1
     frame_stack: 1
     np_obs: True
-    num_levels: 200
+    gray_scale: False
 
 model:
     encoder: 
@@ -17,13 +17,6 @@ model:
         norm: null
         kernel_initializer: orthogonal
         activation: relu
-        eval_act_temp: 1
-    prior:
-        units_list: []
-        norm: null
-        kernel_initializer: orthogonal
-        activation: relu
-        dropout: .1
     value:
         units_list: []
         norm: null
@@ -40,7 +33,7 @@ agent:
     N_EPOCHS: 3
     N_MBS: &nmbs 8
     LOG_PERIOD: 100
-    EVAL_PERIOD: 100
+    EVAL_PERIOD: 5000
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     normalize_obs: False
@@ -63,13 +56,13 @@ agent:
     schedule_lr: False
     lr: 5e-4
     clip_norm: .5
-    opt_eps: 1e-5
+    opt_kwargs:
+        epsilon: 1e-7
     # arguments for loss
     value_loss: clip
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
     value_coef: 1.
-    kl_coef: .1
 
 buffer:
     adv_type: gae     # nae or gae
