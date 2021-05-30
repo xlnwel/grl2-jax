@@ -28,6 +28,7 @@ from env.smac_maps import get_map_params
 
 
 def make_smac_env(config):
+    config = config.copy()
     config['name'] = config['name'][5:]
     env = SMAC(**config)
     return env
@@ -550,7 +551,7 @@ class SMAC(gym.Env):
         There is a trigger in the SC2Map file, which restarts the
         episode when there are no units left.
         """
-        self.dones = np.zeros((self.n_agents), dtype=bool)
+        self.dones = np.zeros(self.n_agents, dtype=bool)
         try:
             self._kill_all_units()
             self._controller.step(2)
@@ -2197,7 +2198,7 @@ class SMAC(gym.Env):
 
 if __name__ == '__main__':
     config = dict(
-        name='3s5z',
+        name='3m',
         add_local_obs=False,
         add_move_state=False,
         add_visible_state=False,
@@ -2212,7 +2213,7 @@ if __name__ == '__main__':
         stacked_frames=False,
     )
     env = SMAC(**config)
-    env.reset()
+    o = env.reset()
     for _ in range(100000):
         a = env.random_action()
         _, _, d, _ = env.step(a)

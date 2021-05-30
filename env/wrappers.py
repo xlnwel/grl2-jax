@@ -452,8 +452,14 @@ class EnvStats(EnvStatsBase):
 
         assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
-        self._score += info.get('reward', reward)
-        self._epslen += info.get('frame_skip', 1)
+        if 'score' in info:
+            self._score = info['score']
+        else:
+            self._score += info.get('reward', reward)
+        if 'epslen' in info:
+            self._epslen = info['epslen']
+        else:
+            self._epslen += info.get('frame_skip', 1)
         self._game_over = info.get('game_over', done)
         if self._epslen >= self.max_episode_steps:
             self._game_over = True
