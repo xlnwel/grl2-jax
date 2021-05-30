@@ -86,7 +86,8 @@ agent:
     schedule_lr: False
     lr: 5e-4
     clip_norm: 10
-    opt_eps: 1e-5
+    opt_kwargs:
+        epsilon: 1e-5
     actor_weight_decay: 0
     # arguments for loss
     value_loss: clip

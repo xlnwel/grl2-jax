@@ -61,7 +61,6 @@ class AgentImpl(ABC):
             sum_type str: either "video" or "image"
             args: Args passed to summary function defined in utility.graph,
                 of which the first must be a str to specify the tag in Tensorboard
-            
         """
         assert isinstance(args[0], str), f'args[0] is expected to be a name string, but got "{args[0]}"'
         args = list(args)
@@ -123,14 +122,15 @@ class AgentBase(AgentImpl):
         self._optimizer = self._construct_opt()
 
     def _construct_opt(self, models=None, lr=None, opt=None, l2_reg=None,
-            weight_decay=None, clip_norm=None, epsilon=None):
+            weight_decay=None, clip_norm=None, opt_kwargs={}):
         """ Constructs an optimizer """
         lr = lr or self._lr
         opt = opt or getattr(self, '_optimizer', 'adam')
         l2_reg = l2_reg or getattr(self, '_l2_reg', None)
         weight_decay = weight_decay or getattr(self, '_weight_decay', None)
         clip_norm = clip_norm or getattr(self, '_clip_norm', None)
-        epsilon = epsilon or getattr(self, '_opt_eps', 1e-7)
+        if opt_kwargs == {}:
+            opt_kwargs = getattr(self, '_opt_kwargs', {})
         if isinstance(lr, (tuple, list)):
             lr = TFPiecewiseSchedule(lr)
         models = models or [v for k, v in self.model.items() if 'target' not in k]
@@ -139,7 +139,7 @@ class AgentBase(AgentImpl):
             l2_reg=l2_reg,
             weight_decay=weight_decay,
             clip_norm=clip_norm,
-            epsilon=epsilon
+            **opt_kwargs
         )
         return opt
 

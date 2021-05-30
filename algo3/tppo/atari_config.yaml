@@ -47,7 +47,8 @@ agent:
     schedule_lr: False
     lr: 2.5e-4
     clip_norm: .5
-    opt_eps: 1e-5
+    opt_kwargs:
+        epsilon: 1e-5
     # arguments for loss
     clip_range: .0008          # clip range for tppo
     kl_weight: 20

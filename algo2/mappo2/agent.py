@@ -49,8 +49,10 @@ class Agent(AgentBase):
         mask_flat = np.concatenate(mask)
         obs, kwargs = self._divide_obs(env_output.obs)
         kwargs = self._add_memory_state_to_kwargs(
-            obs, mask=mask_flat, kwargs=kwargs, batch_size=obs.shape[0] * self._n_agents)
+            obs, mask=mask_flat, kwargs=kwargs, 
+            batch_size=obs.shape[0] * self._n_agents)
         kwargs['mask'] = mask
+        
         return obs, kwargs
 
     """ PPO methods """
