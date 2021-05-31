@@ -87,7 +87,7 @@ agent:
     meta_lr: 1e-3
     clip_norm: 0.5
     opt_kwargs:
-        epsilon: 1e-7
+        epsilon: 1.e-7
     # arguments for loss
     value_loss: clip
     clip_range: .2          # clip range for ppo

@@ -72,14 +72,14 @@ class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
 
     @override(AgentBase)
     def _construct_optimizers(self):
-        if 'actor' in self.model:
-            self._actor_opt = super()._construct_opt(self.actor, lr=self._actor_lr)
+        if [k for k in self.model.keys() if 'actor' in k]:
+            actor_models = [v for k, v in self.model.items() 
+                if 'actor' in k and 'target' not in k]
+            self._actor_opt = super()._construct_opt(actor_models, lr=self._actor_lr)
             logger.info(f'Actor model: {self.actor}')
-        value_models = [self.q]
-        if 'encoder' in self.model:
-            value_models.append(self.encoder)
-        if 'q2' in self.model:
-            value_models.append(self.q2)
+        value_models = [v for k, v in self.model.items() \
+            if k != 'temperature' and 'actor' not in k
+            and 'target' not in k]
         logger.info(f'Value model: {value_models}')
         self._value_opt = super()._construct_opt(value_models, lr=self._value_lr)
 

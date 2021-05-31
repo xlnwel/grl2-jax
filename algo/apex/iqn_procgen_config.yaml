@@ -90,7 +90,7 @@ agent:
 
     # arguments for PER
     per_alpha: .6
-    per_epsilon: 1e-4
+    per_epsilon: 1.e-4
     use_is_ratio: &is False
 
 replay:
