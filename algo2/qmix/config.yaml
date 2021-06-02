@@ -27,11 +27,13 @@ model:
         activation: relu
 
 agent:
-    algorithm: &algo dqn
+    algorithm: &algo qmix
     replay_type: &replay episodic
     batch_size: &bs 32
-    n_steps: &nsteps 3      # n-step target
+    n_steps: &nsteps 1      # n-step target
     gamma: &gamma 0.99
+
+    double: True
 
     schedule_act_eps: True
     act_eps:
@@ -65,23 +67,23 @@ agent:
     schedule_lr: False
     value_lr: 5e-4
     clip_norm: 10
-    
-    # arguments for PER
-    per_alpha: 0.5
-    per_epsilon: 1e-4
 
 replay:
     replay_type: *replay
     save: False
+    
+    # arguments for temporary buffer
+    local_buffer_type: fixed_eps
+    # memlen:   # set to be the max_episode_steps in train.py
+
     # arguments for PER
     beta0: 0.4
     to_update_top_priority: True
 
     # arguments for general replay
     batch_size: *bs
-    # sample_size: *ss    # set in train.py
+    # sample_size: *ss    # set to be None in train.py
     n_steps: *nsteps
     gamma: *gamma
     min_episodes: 100
     max_episodes: 5000
-    has_next_obs: False

@@ -5,12 +5,12 @@ from utility.tf_utils import reduce_mean, explained_variance
 from utility.rl_loss import n_step_target, huber_loss
 from core.base import Memory
 from core.tf_config import build
+from core.base import override
 from algo.dqn.base import DQNBase, get_data_format
 
 
 def get_data_format(*, env, replay_config, agent_config, **kwargs):
-    is_per = replay_config['replay_type'].endswith('per')
-    sample_size = agent_config['sample_size']
+    sample_size = env.max_episode_steps
     data_format = dict(
         obs=((None, sample_size+1, env.n_agents, *env.obs_shape), tf.float32),
         shared_state=((None, sample_size+1, *env.shared_state_shape), tf.float32),
@@ -20,11 +20,6 @@ def get_data_format(*, env, replay_config, agent_config, **kwargs):
         reward=((None, sample_size), tf.float32), 
         discount=((None, sample_size), tf.float32),
     )
-    if is_per:
-        data_format['idxes'] = ((None, ), tf.int32)
-        if replay_config.get('use_is_ratio', is_per):
-            data_format['IS_ratio'] = ((None, ), tf.float32)
-
     return data_format
 
 def collect(replay, env, env_step, reset, next_obs, **data):
@@ -39,13 +34,13 @@ def collect(replay, env, env_step, reset, next_obs, **data):
         data = env.prev_obs()
         data.pop('episodic_mask')
         replay.add(**data)
-        replay.finish_episodes()
 
 class Agent(Memory, DQNBase):
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
         self._setup_memory_state_record()
 
+        self._sample_size = env.max_episode_steps
         self._n_agents = env.n_agents
 
     def _build_learn(self, env):
@@ -72,7 +67,6 @@ class Agent(Memory, DQNBase):
         kwargs.pop('mask')  # no mask is applied to RNNs
 
         kwargs['epsilon'] = self._get_eps(evaluation)
-        self.store(epsilon=kwargs['epsilon'])
         kwargs['temp'] = self._get_temp(evaluation)
 
         return obs, kwargs
@@ -95,16 +89,13 @@ class Agent(Memory, DQNBase):
         return out
     
     def _add_non_tensors_to_terms(self, obs, kwargs, out, evaluation):
-        if evaluation:
-            out = [out]
-        
         return out
 
     @tf.function
     def _learn(self, obs, shared_state, action_mask, 
             action, reward, discount, episodic_mask):
         loss_fn = dict(
-            huber=huber_loss, mse=lambda x: .5 * x**2)[self._loss_type]
+            huber=huber_loss, mse=lambda x: x**2)[self._loss_type]
         target, terms = self._compute_target(
             obs, shared_state, action_mask, reward, discount)
 
@@ -122,19 +113,16 @@ class Agent(Memory, DQNBase):
             [q, (self._batch_size, self._sample_size)],
         ])
 
-        if self._is_per:
-            priority = self._compute_priority(tf.abs(error))
-            terms['priority'] = priority
-        
         terms['norm'] = self._value_opt(tape, loss)
-        
         terms.update(dict(
             reward=tf.reduce_mean(reward),
+            eps_reward=tf.reduce_sum(reward * episodic_mask, axis=1),
             q=q,
             target=target,
             mask=episodic_mask,
+            discount=discount,
             loss=loss,
-            explained_variance_q=explained_variance(target, q),
+            explained_variance_q=explained_variance(target, q, mask=episodic_mask),
         ))
 
         return terms

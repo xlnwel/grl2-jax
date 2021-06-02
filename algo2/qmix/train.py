@@ -1,12 +1,11 @@
 import functools
-from importlib import import_module
 import numpy as np
 
 from core.tf_config import *
 from utility.utils import Every, TempStore
 from utility.graph import video_summary
 from utility.timer import Timer
-from utility.run import Runner, evaluate
+from utility.run import Runner, evaluate, RunMode
 from utility import pkg
 from env.func import create_env
 from replay.func import create_replay
@@ -22,10 +21,12 @@ def train(agent, env, eval_env, replay):
         from env.smac2 import info_func
 
     env_step = agent.env_step
-    runner = Runner(env, agent, step=env_step, info_func=info_func)
+    runner = Runner(env, agent, step=env_step,
+        run_mode=RunMode.TRAJ, info_func=info_func)
     agent.TRAIN_PERIOD = env.max_episode_steps
     while not replay.good_to_learn():
         env_step = runner.run(step_fn=collect)
+        replay.finish_episodes()
 
     to_eval = Every(agent.EVAL_PERIOD)
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
@@ -39,7 +40,9 @@ def train(agent, env, eval_env, replay):
     while env_step <= int(agent.MAX_STEPS):
         with rt:
             env_step = runner.run(step_fn=collect)
-        assert np.all(runner.env_output.reset)
+        replay.finish_episodes()
+        assert np.all(runner.env_output.reset), \
+            (runner.env_output.reset, env.info().get('score', 0), env.info().get('epslen', 0))
         with tt:
             agent.learn_log(env_step)
 
@@ -101,16 +104,14 @@ def main(env_config, model_config, agent_config, replay_config):
     [eval_env_config.pop(k) for k in reward_key]
     eval_env = create_env(eval_env_config, force_envvec=True)
 
-    agent_config['sample_size'] = env.max_episode_steps
-    agent_config['N_UPDATES'] = env_config['n_workers'] * env_config['n_envs']
+    agent_config['N_UPDATES'] *= env_config['n_workers'] * env_config['n_envs']
     create_model, Agent = pkg.import_agent(config=agent_config)
     models = create_model(model_config, env)
 
     n_workers = env_config.get('n_workers', 1)
     n_envs = env_config.get('n_envs', 1)
     replay_config['n_envs'] = n_workers * n_envs
-    replay_config['sample_size'] = None # stores and retrieves entire episodes
-    replay_config['memlen'] = env.max_episode_steps
+    replay_config['seqlen'] = env.max_episode_steps
     if getattr(models, 'state_keys', ()):
         replay_config['state_keys'] = list(models.state_keys)
     replay = create_replay(replay_config)

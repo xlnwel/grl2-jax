@@ -30,7 +30,8 @@ class Q(QBase):
         self._action_epsilon = epsilon
         if self._stoch_action:
             self._action_temp = temp
-            self._raw_logits = logits = (qs - tf.reduce_max(qs, axis=-1, keepdims=True)) / self._tau
+            self._raw_logits = logits = (
+                qs - tf.reduce_max(qs, axis=-1, keepdims=True)) / self._tau
             if isinstance(epsilon, tf.Tensor) or epsilon:
                 self._logits = logits = epsilon_scaled_logits(logits, epsilon, temp)
             logits = tf.where(action_mask, logits, -1e10)
@@ -41,7 +42,7 @@ class Q(QBase):
             self._action = action = epsilon_greedy(
                 self._raw_action, epsilon,
                 is_action_discrete=True, 
-                action_mask = action_mask,
+                action_mask=action_mask,
                 action_dim=self.action_dim)
         return action
 
@@ -119,11 +120,9 @@ class QMIX(Ensemble):
             return_stats=False,
             return_eval_stats=False,
             **kwargs):
-        x, state = self.encode(obs, state, True)
-        noisy = not evaluation
+        x, state = self.encode(obs, state, online=True)
         action = self.q.action(
-            x, action_mask, noisy=noisy, reset=noisy, 
-            epsilon=epsilon, temp=temp)
+            x, action_mask, epsilon=epsilon, temp=temp)
         
         action = tf.squeeze(action)
         terms = {}
@@ -164,12 +163,12 @@ class QMIX(Ensemble):
         return utils
 
     def compute_joint_q(self, utils, shared_state, online=True, action=None):
-        q_cls = self.q if online else self.target_q
-        qmixer = self.qmixer if online else self.target_qmixer
-        
         if action is None:
+            q_cls = self.q if online else self.target_q
             action = q_cls.compute_greedy_action(utils, one_hot=True)
         util = tf.reduce_sum(action * utils, axis=-1)
+
+        qmixer = self.qmixer if online else self.target_qmixer
         q = qmixer(util, shared_state)
 
         return q
@@ -236,8 +235,8 @@ if __name__ == '__main__':
     x = tf.random.normal((B, env.n_agents, 5))
     action_mask = tf.random.uniform((B, env.n_agents, env.action_dim), 0, 2, dtype=tf.int32)
     action_mask = tf.cast(action_mask, tf.bool)
-    a = model.action(x, action_mask)
+    a = model.compute_utils(x)
     x = tf.keras.Input(shape=(env.n_agents, 5))
     action_mask = tf.keras.Input(shape=(env.n_agents, env.action_dim), dtype=tf.bool)
-    model = tf.keras.Model(inputs=[x, action_mask], outputs=a)
+    model = tf.keras.Model(inputs=x, outputs=a)
     model.summary(200)
