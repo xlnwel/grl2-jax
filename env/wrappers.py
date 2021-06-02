@@ -460,7 +460,7 @@ class EnvStats(EnvStatsBase):
             self._epslen = info['epslen']
         else:
             self._epslen += info.get('frame_skip', 1)
-        self._game_over = info.get('game_over', done)
+        self._game_over = bool(info.get('game_over', done))
         if self._epslen >= self.max_episode_steps:
             self._game_over = True
             done = self.timeout_done

@@ -592,7 +592,7 @@ class SMAC2(gym.Env):
             info.update({
                 'score': self._score,
                 'epslen': self._episode_steps,
-                'game_over': False
+                'game_over': True
             })
             
             return obs_dict, reward, terminated, info
@@ -668,7 +668,7 @@ class SMAC2(gym.Env):
         info.update({
             'score': self._score,
             'epslen': self._episode_steps,
-            'game_over': False
+            'game_over': self._episode_steps == self.max_episode_steps
         })
 
         return obs_dict, reward, terminated, info

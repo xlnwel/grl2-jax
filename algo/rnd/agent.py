@@ -27,16 +27,14 @@ class Agent(PPOAgent):
 
     @override(PPOAgent)
     def _construct_optimizers(self):
-        # ac = [self.encoder, self.actor, self.value]
-        ac = self.ac
-        self._ac_opt = Optimizer(
-            self._optimizer, ac, self._ac_lr, 
-            clip_norm=self._clip_norm)
+        self._ac_opt = self._construct_opt(
+            models=self.ac, lr=self._ac_lr)
 
         # optimizer
-        self._pred_opt = Optimizer(
-            self._optimizer, self.predictor, self._pred_lr
-        )
+        self._pred_opt = self._construct_opt(
+            self.predictor, self._pred_lr)
+
+        return [self.ac, self.predictor]
 
     @override(PPOAgent)
     def _build_learn(self, env):

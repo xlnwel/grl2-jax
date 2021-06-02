@@ -31,7 +31,11 @@ class PPOBase(RMSAgentBase):
         if getattr(self, 'schedule_lr', False):
             assert isinstance(self._lr, list), self._lr
             self._lr = TFPiecewiseSchedule(self._lr)
-        self._ac_opt = self._construct_opt()
+        models = [self.encoder, self.actor, self.value]
+        self._ac_opt = self._construct_opt(models=models)
+        logger.info(f'PPO model: {models}')
+
+        return models
 
     """ Standard PPO methods """
     def before_run(self, env):

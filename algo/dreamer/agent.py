@@ -67,18 +67,14 @@ class Agent(Memory, AgentBase):
         if hasattr(self, 'discount'):
             dynamics_models.append(self.discount)
 
-        DreamerOpt = functools.partial(
-            Optimizer,
-            name=self._optimizer, 
-            weight_decay=self._weight_decay, 
-            clip_norm=self._clip_norm,
-        )
-        self._model_opt = DreamerOpt(models=dynamics_models, lr=self._model_lr)
-        self._actor_opt = DreamerOpt(models=self.actor, lr=self._actor_lr)
-        self._value_opt = DreamerOpt(models=self.value, lr=self._value_lr)
+        self._model_opt = self._construct_opt(
+            models=dynamics_models, lr=self._model_lr)
+        self._actor_opt = self._construct_opt(
+            models=self.actor, lr=self._actor_lr)
+        self._value_opt = self._construct_opt(
+            models=self.value, lr=self._value_lr)
 
-        self._state = None
-        self._prev_action = None
+        return dynamics_models + [self.actor, self.value]
 
     @override(AgentBase)
     def _build_learn(self, env):

@@ -12,9 +12,10 @@ def collect(buffer, env, step, reset, **kwargs):
 class Agent(PPOBase):
     @override(PPOBase)
     def _construct_optimizers(self):
-        super()._construct_optimizers()
-        self._disc_opt = Optimizer(
-            self._optimizer, self.discriminator, self._disc_lr)
+        models = super()._construct_optimizers()
+        self._disc_opt = self._construct_opt(self.discriminator, self._disc_lr)
+        models.append(self.discriminator)
+        return models
     
     @override(PPOBase)
     def _build_learn(self, env):

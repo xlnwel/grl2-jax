@@ -97,6 +97,10 @@ def get_worker_base_class(AgentBase):
                 buffer = self.buffer
             data = buffer.sample()
 
+            if data is None:
+                print(f"Worker {self._id}: no data is retrieved")
+                return
+
             if isinstance(data, dict):
                 # regular dqn families
                 if self._worker_side_prioritization:
@@ -165,6 +169,8 @@ def get_worker_class(AgentBase):
             self.env = create_env(env_config)
 
             buffer_config['n_envs'] = self.env.n_envs
+            if 'seqlen' not in buffer_config:
+                buffer_config['seqlen'] = self.env.max_episode_steps
             self.buffer = buffer_fn(buffer_config)
 
             models = model_fn( 
