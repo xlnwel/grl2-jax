@@ -17,6 +17,17 @@ replay_type = dict(
 def create_local_buffer(config):
     config = config.copy()
 
+    if config.get('local_buffer_type', None) is not None:
+        buffer_type = {
+            'nstep': EnvNStepBuffer,
+            'vec_nstep': EnvVecNStepBuffer,
+            'seq': EnvSequentialBuffer,
+            'vec_seq': EnvVecSequentialBuffer,
+            'fixed_eps': EnvFixedEpisodicBuffer,
+            'vec_fixed_eps': EnvVecFixedEpisodicBuffer,
+        }[config.pop('local_buffer_type')]
+
+        return buffer_type(config)
     n_envs = config.get('n_envs', 1)
     is_sequential = config['replay_type'].startswith('seq')
     is_envvec = config.pop('force_envvec', False) or n_envs > 1

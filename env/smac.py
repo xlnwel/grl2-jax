@@ -637,6 +637,7 @@ class SMAC(gym.Env):
                 local_obs = self.stacked_local_obs.reshape(self.n_agents, -1)
                 global_state = self.stacked_global_state.reshape(self.n_agents, -1)
             
+            self.mask = np.ones_like(self.mask)
             obs_dict = dict(
                 obs=local_obs,
                 shared_state=np.array(global_state, np.float32),

@@ -30,16 +30,20 @@ def standard_normalization(x):
 def reduce_mean(x, mask=None, n=None, axis=None):
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
-    return tf.reduce_mean(x) if mask is None else tf.reduce_sum(x * mask) / n
+    return tf.reduce_mean(x, axis=axis) \
+        if mask is None else tf.reduce_sum(x * mask, axis=axis) / n
 
-def explained_variance(y, pred):
+def explained_variance(y, pred, axis=None, mask=None):
     if None in y.shape:
         assert y.shape.ndims == pred.shape.ndims, (y.shape, pred.shape)
     else:
         assert y.shape == pred.shape, (y.shape, pred.shape)
-    y_var = tf.math.reduce_variance(y, axis=0)
-    diff_var = tf.math.reduce_variance(y - pred, axis=0)
-    return tf.maximum(-1., 1-(diff_var / y_var))
+    y_var = tf.math.reduce_variance(y, axis=axis)
+    diff_var = tf.math.reduce_variance(y - pred, axis=axis)
+    ev = tf.maximum(-1., 1-(diff_var / y_var))
+    ev = reduce_mean(ev, mask=mask)
+
+    return ev
 
 def softmax(x, tau, axis=-1):
     """ sfotmax(x / tau) """

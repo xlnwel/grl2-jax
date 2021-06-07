@@ -45,7 +45,6 @@ class Runner:
         action_selector = action_selector or self.agent
         nsteps = nsteps or self._default_nsteps
         obs = self.env_output.obs
-        reset = self.env_output.reset
 
         for t in range(nsteps):
             action = action_selector(self.env_output, evaluation=False)
@@ -64,7 +63,6 @@ class Runner:
         action_selector = action_selector or self.agent
         nsteps = nsteps or self._default_nsteps
         obs = self.env_output.obs
-        reset = self.env_output.reset
         
         for t in range(nsteps):
             action = action_selector(self.env_output, evaluation=False)
@@ -87,7 +85,6 @@ class Runner:
     def _run_traj_env(self, action_selector=None, step_fn=None):
         action_selector = action_selector or self.agent
         obs = self.env_output.obs
-        reset = self.env_output.reset
         
         for t in range(self._default_nsteps):
             action = action_selector(self.env_output, evaluation=False)
@@ -99,20 +96,20 @@ class Runner:
         info = self.env.info()
         self.store_info(info)
         self.episodes += 1
-                
+
         return self.step
 
     def _run_traj_envvec(self, action_selector=None, step_fn=None):
+        # TODO: make it work
         action_selector = action_selector or self.agent
-        self.env_output = self.env.reset()  # explicitly reset envvect to turn off auto-reset
         obs = self.env_output.obs
         
         for t in range(self._default_nsteps):
             action = action_selector(self.env_output, evaluation=False)
-            obs, _ = self.step_env(obs, action, step_fn, mask=True)
+            obs, reset = self.step_env(obs, action, step_fn, mask=True)
 
             # logging when any env is reset 
-            if np.all(self.env_output.discount == 0):
+            if np.all(reset):
                 break
 
         info = [i for idx, i in enumerate(self.env.info()) if idx in self._record_envs]
