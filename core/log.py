@@ -39,6 +39,7 @@ def scalar_summary(writer, stats, prefix=None, step=None):
                 continue
             if '/' not in k:
                 k = f'{prefix}/{k}'
+            # print(k, np.array(v).dtype)
             tf.summary.scalar(k, tf.reduce_mean(v), step=step)
 
 def histogram_summary(writer, stats, prefix=None, step=None):
@@ -289,6 +290,7 @@ class Logger:
             print("-"*n_slashes)
         for key in self._log_headers:
             val = self._log_current_row.get(key, "")
+            # print(key, np.array(val).dtype)
             valstr = f"{val:8.3g}" if hasattr(val, "__float__") else val
             if print_terminal_info:
                 print(f'| {key:>{max_key_len}s} | {valstr:>15s} |')
