@@ -13,7 +13,7 @@ from utility.run import Runner, evaluate, RunMode
 from utility import pkg
 from env.func import create_env
 from core.dataset import create_dataset
-    
+
 
 def config_actor(name, config):
     cpu_affinity(name)
@@ -91,11 +91,12 @@ def get_learner_class(AgentBase):
 def get_worker_base_class(AgentBase):
     class WorkerBase(AgentBase):
         """ Only implements minimal functionality for workers """
-        def _send_data(self, replay, buffer=None):
+        def _send_data(self, replay, buffer=None, data=None):
             """ Sends data to replay and resets buffer """
             if buffer is None:
                 buffer = self.buffer
-            data = buffer.sample()
+            if data is None:
+                data = buffer.sample()
 
             if data is None:
                 print(f"Worker {self._id}: no data is retrieved")
@@ -185,14 +186,20 @@ def get_worker_class(AgentBase):
                 env=self.env)
             
             # setup runner
+            import importlib
+            em = importlib.import_module(
+                f'env.{env_config["name"].split("_")[0]}')
+            info_func = em.info_func if hasattr(em, 'info_func') else None
             self._run_mode = getattr(self, '_run_mode', RunMode.NSTEPS)
             assert self._run_mode in [RunMode.NSTEPS, RunMode.TRAJ]
             self.runner = Runner(
                 self.env, self, 
                 nsteps=self.SYNC_PERIOD if self._run_mode == RunMode.NSTEPS else None,
                 run_mode=self._run_mode,
-                record_envs=getattr(self, '_record_envs', None))
+                record_envs=getattr(self, '_record_envs', None),
+                info_func=info_func)
 
+            # worker side prioritization
             self._worker_side_prioritization = getattr(
                 self, '_worker_side_prioritization', False)
             self._return_stats = self._worker_side_prioritization \
@@ -221,13 +228,12 @@ def get_worker_class(AgentBase):
                 self._run(replay)
                 self._send_episodic_info(monitor)
 
-        def store(self, score, epslen):
-            if isinstance(score, (int, float)):
-                self._info['score'].append(score)
-                self._info['epslen'].append(epslen)
-            else:
-                self._info['score'] += list(score)
-                self._info['epslen'] += list(epslen)
+        def store(self, **kwargs):
+            for k, v in kwargs.items():    
+                if isinstance(v, (int, float)):
+                    self._info[k].append(v)
+                else:
+                    self._info[k] += list(v)
 
         def _pull_weights(self, learner):
             return ray.get(learner.get_weights.remote(name=self._pull_names))
@@ -241,7 +247,7 @@ def get_worker_class(AgentBase):
             start_step = self.runner.step
             with Timer('run') as rt:
                 end_step = self.runner.run(step_fn=collect)
-            self._info[f'time/run_{self._id}'] = rt.average()
+            self._info['time/run'] = rt.average()
 
             return end_step - start_step
     
