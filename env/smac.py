@@ -363,6 +363,8 @@ class SMAC(gym.Env):
         self._sc2_proc = None
         self._controller = None
 
+        self._reset_for_error = False
+
         # Try to avoid leaking SC2 processes on shutdown
         atexit.register(self.close)
 
@@ -486,8 +488,16 @@ class SMAC(gym.Env):
         """Reset the environment. Required after each full episode.
         Returns initial observations and states.
         """
-        self._episode_steps = 0
-        self._score = 0
+        if self._reset_for_error:
+            # the environment has already reset due to an error
+            self._reset_for_error = False
+            assert self._last_reset_obs is not None, self._last_reset_obs
+            obs = self._last_reset_obs
+            self._last_reset_obs = None
+            return obs
+
+        self._reset_track_stats()
+
         if self._episode_count == 0:
             # Launch StarCraft II
             self._launch()
@@ -598,8 +608,8 @@ class SMAC(gym.Env):
             self._controller.step(self._step_mul)
             # Observe here so that we know if the episode is over.
             self._obs = self._controller.observe()
-        except (protocol.ProtocolError, protocol.ConnectionError):
-            print('Restart due to an exception')
+        except (protocol.ProtocolError, protocol.ConnectionError) as e:
+            print('Restart due to an exception:', e)
             self.full_restart()
             terminated = True
             available_actions = []
@@ -651,6 +661,10 @@ class SMAC(gym.Env):
                 'epslen': self._episode_steps,
                 'game_over': terminated
             })
+
+            self._reset_track_stats()
+            self._reset_for_error = True
+            self._last_reset_obs = obs_dict
             
             return obs_dict, rewards, dones, info
 
@@ -751,7 +765,13 @@ class SMAC(gym.Env):
         })
         assert np.all(dones) == terminated, (dones, terminated)
 
+        self._reset_for_error = False
+
         return obs_dict, rewards, dones, info
+
+    def _reset_track_stats(self):
+        self._score = 0
+        self._episode_steps = 0
 
     def get_agent_action(self, a_id, action):
         """Construct the action for agent a_id."""

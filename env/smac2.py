@@ -322,6 +322,8 @@ class SMAC2(gym.Env):
         self._sc2_proc = None
         self._controller = None
 
+        self._reset_for_error = False
+
         # Try to avoid leaking SC2 processes on shutdown
         atexit.register(self.close)
 
@@ -447,9 +449,15 @@ class SMAC2(gym.Env):
         """Reset the environment. Required after each full episode.
         Returns initial observations and states.
         """
-        self._episode_steps = 0
-        self._fake_episode_steps = 0
-        self._score = 0
+        if self._reset_for_error:
+            # the environment has already reset due to an error
+            self._reset_for_error = False
+            assert self._last_reset_obs is not None, self._last_reset_obs
+            obs = self._last_reset_obs
+            self._last_reset_obs = None
+            return obs
+        
+        self._reset_track_stats()
         self._game_over = False
 
         if self._episode_count == 0:
@@ -543,13 +551,13 @@ class SMAC2(gym.Env):
         if self.debug:
             print("Actions".center(60, "-"))
 
-        for a_id, action in enumerate(actions_int):
+        for a_id, a in enumerate(actions_int):
             if not self.heuristic_ai:
-                sc_action = self.get_agent_action(a_id, action)
+                sc_action = self.get_agent_action(a_id, a)
             else:
                 sc_action, action_num = self.get_agent_action_heuristic(
-                    a_id, action)
-                action[a_id] = action_num
+                    a_id, a)
+                a[a_id] = action_num
             if sc_action:
                 sc_actions.append(sc_action)
 
@@ -561,8 +569,8 @@ class SMAC2(gym.Env):
             self._controller.step(self._step_mul)
             # Observe here so that we know if the episode is over.
             self._obs = self._controller.observe()
-        except (protocol.ProtocolError, protocol.ConnectionError):
-            print('Restart due to an exception')
+        except (protocol.ProtocolError, protocol.ConnectionError) as e:
+            print('Restart due to an exception:', e)
             self.full_restart()
             terminated = True
             available_actions = []
@@ -594,7 +602,11 @@ class SMAC2(gym.Env):
                 'epslen': self._episode_steps,
                 'game_over': True
             })
-            
+
+            self._reset_track_stats()
+            self._reset_for_error = True
+            self._last_reset_obs = obs_dict
+
             return obs_dict, reward, terminated, info
 
         self._total_steps += 1
@@ -671,7 +683,14 @@ class SMAC2(gym.Env):
             'game_over': self._episode_steps == self.max_episode_steps
         })
 
+        self._reset_for_error = False
+
         return obs_dict, reward, terminated, info
+
+    def _reset_track_stats(self):
+        self._score = 0
+        self._episode_steps = 0
+        self._fake_episode_steps = 0
 
     def get_agent_action(self, a_id, action):
         """Construct the action for agent a_id."""

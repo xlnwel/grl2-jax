@@ -228,6 +228,7 @@ class EnvVec(EnvVecBase):
             self.env.close()
             [env.close() for env in self.envs]
 
+
 if __name__ == '__main__':
     config = dict(
         name='smac2_3m',

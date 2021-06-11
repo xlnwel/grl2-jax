@@ -317,6 +317,7 @@ class FrameStack(gym.Wrapper):
 
 
 class DataProcess(gym.Wrapper):
+    """ Convert observation to np.float32 or np.float16 """
     def __init__(self, env, precision=32):
         super().__init__(env)
         self.precision = precision
@@ -354,6 +355,23 @@ class DataProcess(gym.Wrapper):
         return self.observation(obs), reward, done, info
 
 
+""" Subclasses of EnvStatsBase change the gym API:
+Both <reset> and <step> return EnvOutput of form
+(obs, reward, discount, reset), where discount 
+= 1 - done, and reset indicates if the environment 
+has been reset. By default, EnvStats automatically
+reset the environment when the environment is done.
+Explicitly calling EnvStats turns off auto-reset
+
+We distinguish several signals:
+    done: an episode is done, may due to life loss(Atari)
+    game over: a game is over, may due to timeout. Life 
+        loss in Atari is not game over. Do store <game_over> 
+        in <info> for multi-agent environments.
+    reset: a new episode starts after done. In auto-reset mode, 
+        environment resets when the game's over. Life loss should 
+        be automatically handled by the environment/previous wrapper.
+"""
 class EnvStatsBase(gym.Wrapper):
     def __init__(self, env, max_episode_steps=None, timeout_done=False, 
             auto_reset=True):
@@ -375,6 +393,9 @@ class EnvStatsBase(gym.Wrapper):
         if timeout_done:
             logger.info('Timeout is treated as done')
         self._reset()
+    
+    def reset(self):
+        raise NotImplementedError
 
     def _reset(self):
         obs = self.env.reset()
@@ -405,16 +426,6 @@ class EnvStatsBase(gym.Wrapper):
         return self._output
 
 
-""" 
-We distinguish several signals:
-    done: an episode is done, may due to life loss(Atari)
-    game over: a game is over, may due to timeout. Life loss in Atari 
-        is not game over. Do store <game_over> in <info> 
-        for multi-agent environments.
-    reset: an new episode starts after done. In auto-reset mode, environment 
-        resets when game's over. Life loss should be automatically handled by
-        the environment/previous wrapper.
-"""
 class EnvStats(EnvStatsBase):
     manual_reset_warning = True
     def reset(self):
