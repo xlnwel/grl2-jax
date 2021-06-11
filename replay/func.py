@@ -28,17 +28,18 @@ def create_local_buffer(config):
         }[config.pop('local_buffer_type')]
 
         return buffer_type(config)
-    n_envs = config.get('n_envs', 1)
-    is_sequential = config['replay_type'].startswith('seq')
-    is_envvec = config.pop('force_envvec', False) or n_envs > 1
-    buffer_type = {
-        (False, False): EnvNStepBuffer, 
-        (False, True): EnvVecNStepBuffer, 
-        (True, False): EnvSequentialBuffer, 
-        (True, True): EnvVecSequentialBuffer, 
-    }[(is_sequential, is_envvec)]
+    else:
+        n_envs = config.get('n_envs', 1)
+        is_sequential = config['replay_type'].startswith('seq')
+        is_envvec = config.pop('force_envvec', False) or n_envs > 1
+        buffer_type = {
+            (False, False): EnvNStepBuffer, 
+            (False, True): EnvVecNStepBuffer, 
+            (True, False): EnvSequentialBuffer, 
+            (True, True): EnvVecSequentialBuffer, 
+        }[(is_sequential, is_envvec)]
 
-    return buffer_type(config)
+        return buffer_type(config)
 
 def create_replay(config, **kwargs):
     config = config.copy()

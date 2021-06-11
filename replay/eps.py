@@ -4,6 +4,7 @@ from pathlib import Path
 import random
 import uuid
 import numpy as np
+from numpy.lib.arraysetops import isin
 
 from core.decorator import config
 from replay.local import EnvEpisodicBuffer, EnvFixedEpisodicBuffer
@@ -40,13 +41,16 @@ class EpisodicReplay:
     def __len__(self):
         return len(self._memory)
 
-    def add(self, **data):
+    def add(self, idxes=None, **data):
         if self._n_envs > 1:
             if self._n_envs != len(self._tmp_bufs):
                 logger.info(f'Initialize {self._n_envs} temporary buffer')
-                self._tmp_bufs = [self.TempBufferType({'seqlen': self._seqlen}) 
+                self._tmp_bufs = [
+                    self.TempBufferType({'seqlen': self._seqlen}) 
                     for _ in range(self._n_envs)]
-            for i in range(self._n_envs):
+            if idxes is None:
+                idxes = range(self._n_envs)
+            for i in idxes:
                 d = {k: v[i] for k, v in data.items()}
                 self._tmp_bufs[i].add(**d)
         else:
@@ -54,14 +58,45 @@ class EpisodicReplay:
                 self._tmp_bufs = self.TempBufferType({'seqlen': self._seqlen})
             self._tmp_bufs.add(**data)
 
+    def reset_local_buffer(self, i=None):
+        if i is None:
+            if self._n_envs > 1:
+                [buf.reset() for buf in self._tmp_bufs]
+            else:
+                self.merge(self._tmp_bufs.reset())
+        elif isinstance(i, (list, tuple)):
+            [self._tmp_bufs[ii].reset() for ii in range(i)]
+        elif isinstance(i, int):
+            self._tmp_bufs[i].reset()
+        else:
+            raise ValueError(f'{i} of type {type(i)} is not supported')
+        
+    def is_local_buffer_full(self, i=None):
+        if i is None:
+            if self._n_envs > 1:
+                is_full = [buf.is_full() for buf in self._tmp_bufs]
+            else:
+                is_full = self._tmp_bufs.is_full()
+        elif isinstance(i, (list, tuple)):
+            is_full = [self._tmp_bufs[ii].is_full() for ii in i]
+        elif isinstance(i, int):
+            is_full = self._tmp_bufs[i].is_full()
+        else:
+            raise ValueError(f'{i} of type {type(i)} is not supported')
+        return is_full
+
     def finish_episodes(self, i=None):
         if i is None:
             if self._n_envs > 1:
                 [self.merge(buf.sample()) for buf in self._tmp_bufs]
             else:
                 self.merge(self._tmp_bufs.sample())
-        else:
+        elif isinstance(i, (list, tuple)):
+            [self.merge(self._tmp_bufs[ii].sample()) for ii in range(i)]
+        elif isinstance(i, int):
             self.merge(self._tmp_bufs[i].sample())
+        else:
+            raise ValueError(f'{i} of type {type(i)} is not supported')
         
     def merge(self, episodes):
         if episodes is None:

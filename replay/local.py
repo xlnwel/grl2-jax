@@ -248,13 +248,15 @@ class EnvFixedEpisodicBuffer(EnvEpisodicBuffer):
         if self.is_full():
             results = {k: np.array(v) for k, v in self._memory.items()}
             for k, v in results.items():
-                assert v.shape[0] >= 60, (k, v.shape, self._idx, self._memlen, self.is_full())
+                assert v.shape[0] >= 60, [
+                    (kk, vv.shape) for kk, vv in results.items()
+                ]
             self.reset()
             return results
         else:
             self.reset()
     
-    def add(self, **data):
+    def add(self, idxes=None, flush=True, **data):
         self._idx += 1
         super().add(**data)
 
