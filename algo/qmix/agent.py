@@ -3,10 +3,11 @@ import tensorflow as tf
 
 from utility.tf_utils import reduce_mean, explained_variance
 from utility.rl_loss import n_step_target, huber_loss
-from core.base import Memory
+from core.mixin import Memory
 from core.tf_config import build
 from core.base import override
-from algo.dqn.base import DQNBase, get_data_format
+from algo.dqn.base import DQNBase
+from replay.local import LocalBuffer
 
 
 def get_data_format(*, env, replay_config, agent_config, **kwargs):
@@ -22,20 +23,31 @@ def get_data_format(*, env, replay_config, agent_config, **kwargs):
     )
     return data_format
 
-def collect(replay, env, env_step, reset, next_obs, **data):
+def add_last_obs(buffer, env):
+    # retrieve the last obs and add it to the buffer accordingly
+    data = env.prev_obs().copy()
+    data.pop('episodic_mask')
+    buffer.add(**data)
+    # in case that smac throws an error and restarts, 
+    # we drop all data in the temporary buffer
+    if isinstance(buffer, LocalBuffer):
+        if not buffer.is_full():
+            buffer.reset()
+    else:
+        if not buffer.is_local_buffer_full():
+            buffer.reset_local_buffer()
+
+def collect(buffer, env, env_step, reset, next_obs, **data):
     obs = data.pop('obs')
     data.update(obs)
-    replay.add(**data)
+    buffer.add(**data)
     assert np.all(reset) or np.all(reset==0), reset
 
-    if np.all(reset):
-        # retrieve the last obs and add it to the replay accordingly
-        # the rest data does not matter
-        data = env.prev_obs()
-        data.pop('episodic_mask')
-        replay.add(**data)
+    if reset:
+        add_last_obs(buffer, env)
 
 class Agent(Memory, DQNBase):
+    @override(DQNBase)
     def _add_attributes(self, env, dataset):
         super()._add_attributes(env, dataset)
         self._setup_memory_state_record()
@@ -43,6 +55,7 @@ class Agent(Memory, DQNBase):
         self._sample_size = env.max_episode_steps
         self._n_agents = env.n_agents
 
+    @override(DQNBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(

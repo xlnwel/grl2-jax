@@ -2,7 +2,6 @@ import tensorflow as tf
 
 from utility.rl_loss import n_step_target, quantile_regression_loss
 from utility.schedule import TFPiecewiseSchedule
-from core.optimizer import Optimizer
 from algo.dqn.base import DQNBase, get_data_format, collect
 
 
@@ -14,7 +13,9 @@ class Agent(DQNBase):
         self._value_opt = self._construct_opt(models=value_models, lr=self._value_lr, 
             clip_norm=self._clip_norm, opt_kwargs=dict(epsilon=1e-2/self._batch_size))
         fpn_models = [self.fpn]
-        self._fpn_opt = Optimizer(models=fpn_models, lr=self._fpn_lr, opt=self._fpn_opt,
+        self._fpn_opt = self._construct_opt(
+            models=fpn_models, lr=self._fpn_lr, 
+            opt=self._fpn_opt,
             opt_kwargs=dict(rho=.95, epsilon=1e-5, centered=True))
         
         return value_models + fpn_models

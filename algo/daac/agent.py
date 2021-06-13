@@ -6,8 +6,7 @@ from utility.utils import Every
 from utility.tf_utils import explained_variance
 from utility.rl_loss import ppo_loss
 from core.tf_config import build
-from core.optimizer import Optimizer
-from core.decorator import override, step_track
+from core.decorator import override
 from algo.ppo.base import PPOBase, collect
 
 

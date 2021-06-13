@@ -5,7 +5,8 @@ import tensorflow as tf
 from utility.tf_utils import log_softmax
 from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
-from core.base import AgentBase, ActionScheduler, TargetNetOps
+from core.base import AgentBase
+from core.mixin import ActionScheduler, TargetNetOps
 from core.decorator import override, step_track
 
 
@@ -50,7 +51,7 @@ def collect(replay, env, env_step, reset, next_obs, **kwargs):
     replay.add(**kwargs)
 
 
-class DQNBase(TargetNetOps, AgentBase, ActionScheduler):
+class DQNBase(TargetNetOps, ActionScheduler, AgentBase):
     """ Initialization """
     @override(AgentBase)
     def _add_attributes(self, env, dataset):

@@ -82,6 +82,7 @@ def contains_stats(logger, key):
     return key in logger
     
 def save_code(root_dir, model_name):
+    """ Saves the code so that we can check the chagnes latter """
     dest_dir = f'{root_dir}/{model_name}/src'
     if os.path.isdir(dest_dir):
         shutil.rmtree(dest_dir)
@@ -91,6 +92,7 @@ def save_code(root_dir, model_name):
             '*logs*', 'data*', '*data*' '*/data/*', '.*', '*pycache*', '*.md', '*test*'))
 
 def clear_ndarray(config):
+    """ Converts ndarray to list, useful for saving config as a yaml file """
     for k, v in config.items():
         if isinstance(v, dict):
             config[k] = clear_ndarray(v)

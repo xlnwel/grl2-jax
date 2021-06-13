@@ -622,14 +622,8 @@ class SMAC(gym.Env):
                     "restarts": self.force_restarts,
                     "won": self.win_counted
                 }
-                if terminated:
-                    dones[i] = True
-                else:
-                    if self.death_tracker_ally[i]:
-                        dones[i] = True
-                    else:
-                        dones[i] = False
-
+                dones[i] = True
+                
             if self.use_state_agent:
                 global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_agents)]
             else:

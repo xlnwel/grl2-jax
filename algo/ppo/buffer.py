@@ -28,8 +28,11 @@ def compute_nae(reward, discount, value, last_value, traj_ret,
 
 def compute_gae(reward, discount, value, last_value, gamma, 
                 gae_discount, norm_adv=False, mask=None, epsilon=1e-8):
-    last_value = np.expand_dims(last_value, 1)
-    next_value = np.concatenate([value[:, 1:], last_value], axis=1)
+    if last_value is not None:
+        last_value = np.expand_dims(last_value, 1)
+        next_value = np.concatenate([value[:, 1:], last_value], axis=1)
+    else:
+        next_value = value[:, 1:]
     assert value.shape == next_value.shape, (value.shape, next_value.shape)
     advs = delta = (reward + discount * gamma * next_value - value)
     next_adv = 0

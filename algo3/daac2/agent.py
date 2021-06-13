@@ -39,6 +39,8 @@ class Agent(PPOBase):
             value_models.append(self.value_rnn)
         self._value_opt = self._construct_opt(value_models, self._value_lr)
 
+        return actor_models + value_models
+
     @override(PPOBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing

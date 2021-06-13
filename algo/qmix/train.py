@@ -16,9 +16,8 @@ def train(agent, env, eval_env, replay):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, replay)
     
-    info_func = None
-    if env.name.startswith('smac'):
-        from env.smac2 import info_func
+    em = pkg.import_module(env.name.split("_")[0], pkg='env')
+    info_func = em.info_func if hasattr(em, 'info_func') else None
 
     env_step = agent.env_step
     runner = Runner(env, agent, step=env_step,
