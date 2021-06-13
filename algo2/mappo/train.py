@@ -15,9 +15,9 @@ def train(agent, env, eval_env, buffer):
     random_actor = pkg.import_module('agent', algo=agent.name).random_actor
     random_actor = functools.partial(random_actor, env=env)
 
-    info_func = None
-    if env.name.startswith('smac'):
-        from env.smac import info_func
+    em = pkg.import_module(env.name.split("_")[0], pkg='env')
+    info_func = em.info_func if hasattr(em, 'info_func') else None
+
     step = agent.env_step
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS, info_func=info_func)
     

@@ -42,16 +42,17 @@ class Actor(Module):
     def call(self, x, action_mask, evaluation=False):
         x = self._layers(x)
         if self.attention_action:
-            action_mask_exp = tf.expand_dims(action_mask, -1)
-            action_embed = tf.where(action_mask_exp, self.embed, 0)
-            if x.shape.ndims == 2:
-                x = tf.einsum('be,bae->ba', x, action_embed)
-                tf.debugging.assert_shapes(
-                    [[x, (None, self.action_dim)]])
-            else:
-                x = tf.einsum('bse,bsae->bsa', x, action_embed)
-                tf.debugging.assert_shapes(
-                    [[x, (None, None, self.action_dim)]])
+            # action_mask_exp = tf.expand_dims(action_mask, -1)
+            # action_embed = tf.where(action_mask_exp, self.embed, 0)
+            # if x.shape.ndims == 2:
+            #     x = tf.einsum('be,bae->ba', x, action_embed)
+            #     tf.debugging.assert_shapes(
+            #         [[x, (None, self.action_dim)]])
+            # else:
+            #     x = tf.einsum('bse,bsae->bsa', x, action_embed)
+            #     tf.debugging.assert_shapes(
+            #         [[x, (None, None, self.action_dim)]])
+            x = tf.matmul(x, self.embed, transpose_b=True)
 
         logits = x / self.eval_act_temp \
             if evaluation and self.eval_act_temp else x

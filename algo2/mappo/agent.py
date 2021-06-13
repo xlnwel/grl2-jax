@@ -4,7 +4,7 @@ import tensorflow as tf
 from utility.schedule import TFPiecewiseSchedule
 from utility.tf_utils import explained_variance, tensor2numpy
 from utility.rl_loss import ppo_loss
-from core.base import Memory
+from core.mixin import Memory
 from core.tf_config import build
 from core.decorator import override
 from algo.ppo.base import PPOBase
@@ -64,11 +64,14 @@ class Agent(Memory, PPOBase):
         if getattr(self, 'schedule_lr', False):
             assert isinstance(self._lr, list), self._lr
             self._lr = TFPiecewiseSchedule(self._lr)
+
         actor_models = [v for k, v in self.model.items() if 'actor' in k]
         self._actor_opt = self._construct_opt(actor_models, self._lr, 
             weight_decay=self._actor_weight_decay)
         value_models = [v for k, v in self.model.items() if 'value' in k]
         self._value_opt = self._construct_opt(value_models, self._lr)
+
+        return actor_models + value_models
     
     """ PPO methods """
     @override(PPOBase)
