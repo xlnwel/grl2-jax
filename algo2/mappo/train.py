@@ -27,8 +27,8 @@ def train(agent, env, eval_env, buffer):
             runner.run(action_selector=random_actor, step_fn=collect)
             life_mask = np.concatenate(buffer['life_mask'])
             agent.update_obs_rms(np.concatenate(buffer['obs']), mask=life_mask)
-            agent.update_obs_rms(np.concatenate(buffer['shared_state']), 
-                'shared_state', mask=life_mask)
+            agent.update_obs_rms(np.concatenate(buffer['global_state']), 
+                'global_state', mask=life_mask)
             agent.update_reward_rms(buffer['reward'], buffer['discount'])
             buffer.reset()
         # obs_rms, rew_rms = agent.get_running_stats()

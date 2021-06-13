@@ -434,7 +434,7 @@ class SMAC(gym.Env):
 
     def _launch(self):
         """Launch the StarCraft II game."""
-        self.dones = np.zeros((self.n_agents), dtype=bool)
+        self.dones = np.zeros(self.n_agents, dtype=bool)
         self._run_config = run_configs.get(version=self.game_version)
         _map = maps.get(self.name)
         self._seed += 1
@@ -549,7 +549,7 @@ class SMAC(gym.Env):
         self.mask = np.ones(self.n_agents, np.float32)
         obs_dict = dict(
             obs=local_obs,
-            shared_state=np.array(global_state, np.float32),
+            global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, np.bool),
             life_mask=self.mask
         )
@@ -579,7 +579,7 @@ class SMAC(gym.Env):
         terminated = False
         infos = [{} for i in range(self.n_agents)]
         self.mask = (1 - self.dones).astype(np.float32)
-        self.dones = dones = np.zeros((self.n_agents), dtype=bool)
+        self.dones = dones = np.zeros(self.n_agents, dtype=bool)
 
         actions_int = [int(a) for a in action]
 
@@ -590,13 +590,13 @@ class SMAC(gym.Env):
         if self.debug:
             print("Actions".center(60, "-"))
 
-        for a_id, action in enumerate(actions_int):
+        for a_id, a in enumerate(actions_int):
             if not self.heuristic_ai:
-                sc_action = self.get_agent_action(a_id, action)
+                sc_action = self.get_agent_action(a_id, a)
             else:
                 sc_action, action_num = self.get_agent_action_heuristic(
-                    a_id, action)
-                action[a_id] = action_num
+                    a_id, a)
+                a[a_id] = action_num
             if sc_action:
                 sc_actions.append(sc_action)
 
@@ -644,7 +644,7 @@ class SMAC(gym.Env):
             self.mask = np.ones_like(self.mask)
             obs_dict = dict(
                 obs=local_obs,
-                shared_state=np.array(global_state, np.float32),
+                global_state=np.array(global_state, np.float32),
                 action_mask=np.array(available_actions, np.bool),
                 life_mask=self.mask
             )
@@ -747,7 +747,7 @@ class SMAC(gym.Env):
 
         obs_dict = dict(
             obs=local_obs,
-            shared_state=np.array(global_state, np.float32),
+            global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, np.bool),
             life_mask=self.mask
         )

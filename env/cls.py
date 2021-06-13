@@ -28,8 +28,8 @@ def make_env(config):
         env = atari.make_atari_env(config)
     else:
         if env_name.startswith('procgen'):
-            from env import pg
-            env = pg.make_procgen_env(config)
+            from env import procgen
+            env = procgen.make_procgen_env(config)
         elif env_name.startswith('dmc'):
             from env import dmc
             env = dmc.make_dmc_env(config)

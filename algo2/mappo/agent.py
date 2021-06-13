@@ -32,7 +32,7 @@ def random_actor(env_output, env=None, **kwargs):
     a = np.concatenate(env.random_action())
     terms = {
         'obs': np.concatenate(obs['obs']), 
-        'shared_state': np.concatenate(obs['shared_state']),
+        'global_state': np.concatenate(obs['global_state']),
         'life_mask': obs['life_mask'],
     }
     return a, terms
@@ -53,7 +53,7 @@ class Agent(Memory, PPOBase):
         self._actor_state_keys = state_keys[:mid]
         self._value_state_keys = state_keys[mid:]
         self._value_sample_keys = [
-            'shared_state', 'value', 
+            'global_state', 'value', 
             'traj_ret', 'life_mask', 'mask'
         ] + list(self._value_state_keys)
 
@@ -79,7 +79,7 @@ class Agent(Memory, PPOBase):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=((*self._basic_shape, *env.obs_shape), env.obs_dtype, 'obs'),
-            shared_state=((*self._basic_shape, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
+            global_state=((*self._basic_shape, *env.shared_state_shape), env.shared_state_dtype, 'global_state'),
             action_mask=((*self._basic_shape, env.action_dim), tf.bool, 'action_mask'),
             action=((*self._basic_shape, *env.action_shape), env.action_dtype, 'action'),
             value=(self._basic_shape, tf.float32, 'value'),
@@ -103,7 +103,7 @@ class Agent(Memory, PPOBase):
         self.learn = build(self._learn, TensorSpecs)
 
         TensorSpecs = dict(
-            shared_state=((*self._basic_shape, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
+            global_state=((*self._basic_shape, *env.shared_state_shape), env.shared_state_dtype, 'global_state'),
             value=(self._basic_shape, tf.float32, 'value'),
             traj_ret=(self._basic_shape, tf.float32, 'traj_ret'),
             life_mask=(self._basic_shape, tf.float32, 'life_mask'),
@@ -168,7 +168,7 @@ class Agent(Memory, PPOBase):
         else:
             out[1].update({
                 'obs': obs, # ensure obs is placed in terms even when no observation normalization is performed
-                'shared_state': kwargs['shared_state'],
+                'global_state': kwargs['global_state'],
                 'mask': kwargs['mask'],
                 'action_mask': kwargs['action_mask'],
                 'life_mask': kwargs['life_mask'].reshape(-1, self._n_agents),
@@ -184,10 +184,10 @@ class Agent(Memory, PPOBase):
         self._state = self._apply_mask_to_state(self._state, mask)
 
     # @override(PPOBase)
-    def compute_value(self, shared_state=None, state=None, mask=None, prev_reward=None, return_state=False):
+    def compute_value(self, global_state=None, state=None, mask=None, prev_reward=None, return_state=False):
         # be sure obs is normalized if obs normalization is required
-        if shared_state is None:
-            shared_state = self._env_output.obs['shared_state']
+        if global_state is None:
+            global_state = self._env_output.obs['global_state']
         if state is None:
             state = self._state
         mid = len(self._state) // 2
@@ -199,11 +199,11 @@ class Agent(Memory, PPOBase):
             mask=mask,
             return_state=return_state,
         )
-        out = self.model.compute_value(shared_state, **kwargs)
+        out = self.model.compute_value(global_state, **kwargs)
         return tensor2numpy(out)
 
     @tf.function
-    def _learn(self, obs, shared_state, action_mask, action, value, 
+    def _learn(self, obs, global_state, action_mask, action, value, 
             traj_ret, advantage, logpi, state=None, life_mask=None, 
             mask=None, prev_action=None, prev_reward=None):
         actor_state, value_state = self.model.split_state(state)
@@ -211,7 +211,7 @@ class Agent(Memory, PPOBase):
         actor_terms = self._learn_actor(
             obs, action_mask, action, advantage, logpi, 
             actor_state, life_mask, mask, prev_action, prev_reward)
-        value_terms = self._learn_value(shared_state, value, traj_ret, 
+        value_terms = self._learn_value(global_state, value, traj_ret, 
             value_state, life_mask, mask, prev_action, prev_reward)
 
         terms = {**actor_terms, **value_terms}
@@ -251,13 +251,13 @@ class Agent(Memory, PPOBase):
 
         return terms
 
-    def _learn_value(self, shared_state, value, traj_ret, 
+    def _learn_value(self, global_state, value, traj_ret, 
                     value_state=None, life_mask=None, mask=None, 
                     prev_action=None, prev_reward=None):
         old_value = value
         with tf.GradientTape() as tape:
             x_value, _ = self.model.encode(
-                shared_state, value_state, mask, 'value',
+                global_state, value_state, mask, 'value',
                 prev_action=prev_action, prev_reward=prev_reward)
             value = self.value(x_value)
 
@@ -279,7 +279,7 @@ class Agent(Memory, PPOBase):
 
     def _divide_obs(self, obs):
         kwargs = {
-            'shared_state': obs['shared_state'],
+            'global_state': obs['global_state'],
             'action_mask': obs['action_mask'].astype(np.bool),
             'life_mask': obs['life_mask']
         }
@@ -304,7 +304,7 @@ class Agent(Memory, PPOBase):
     def _store_buffer_stats(self):
         self.store(**self.dataset.compute_mean_max_std('reward'))
         # self.store(**self.dataset.compute_mean_max_std('obs'))
-        # self.store(**self.dataset.compute_mean_max_std('shared_state'))
+        # self.store(**self.dataset.compute_mean_max_std('global_state'))
         self.store(**self.dataset.compute_mean_max_std('advantage'))
         self.store(**self.dataset.compute_mean_max_std('value'))
         self.store(**self.dataset.compute_mean_max_std('traj_ret'))

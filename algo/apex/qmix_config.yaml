@@ -36,7 +36,9 @@ agent:
 
     schedule_act_eps: True
     act_eps_type: apex
-    act_eps: .3
+    act_eps:
+        - [0, 1]
+        - [50000, 0.05]
     eval_act_eps: 0
     schedule_act_temp: False
     n_exploit_envs: 8

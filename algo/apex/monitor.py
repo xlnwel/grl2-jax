@@ -54,6 +54,7 @@ class Monitor(AgentImpl):
         self.log(self.env_step)
         self.last_train_step = train_step
         self.last_env_step = self.env_step
+        self.time = time.time()
         learner.save.remote()
     
     def is_over(self):

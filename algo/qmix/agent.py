@@ -14,7 +14,7 @@ def get_data_format(*, env, replay_config, agent_config, **kwargs):
     sample_size = env.max_episode_steps
     data_format = dict(
         obs=((None, sample_size+1, env.n_agents, *env.obs_shape), tf.float32),
-        shared_state=((None, sample_size+1, *env.shared_state_shape), tf.float32),
+        global_state=((None, sample_size+1, *env.shared_state_shape), tf.float32),
         action_mask=((None, sample_size+1, env.n_agents, env.action_dim), tf.bool),
         episodic_mask=((None, sample_size), tf.float32),
         action=((None, sample_size, env.n_agents, *env.action_shape), tf.int32),
@@ -60,7 +60,7 @@ class Agent(Memory, DQNBase):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=((self._sample_size+1, self._n_agents, *env.obs_shape), env.obs_dtype, 'obs'),
-            shared_state=((self._sample_size+1, *env.shared_state_shape), env.shared_state_dtype, 'shared_state'),
+            global_state=((self._sample_size+1, *env.shared_state_shape), env.shared_state_dtype, 'global_state'),
             action_mask=((self._sample_size+1, self._n_agents, env.action_dim), tf.bool, 'action_mask'),
             episodic_mask=((self._sample_size,), tf.float32, 'episodic_mask'),
             action=((self._sample_size, self._n_agents, env.action_dim), tf.float32, 'action'),
@@ -87,7 +87,7 @@ class Agent(Memory, DQNBase):
     def _divide_obs(self, obs):
         # TODO: consider using life mask to block gradients from invalid data
         kwargs = {
-            'shared_state': obs['shared_state'].astype(np.float32),
+            'global_state': obs['global_state'].astype(np.float32),
             'action_mask': obs['action_mask'].astype(np.bool),
             'episodic_mask': np.float32(obs['episodic_mask']),
         }
@@ -105,20 +105,20 @@ class Agent(Memory, DQNBase):
         return out
 
     @tf.function
-    def _learn(self, obs, shared_state, action_mask, 
+    def _learn(self, obs, global_state, action_mask, 
             action, reward, discount, episodic_mask):
         loss_fn = dict(
             huber=huber_loss, mse=lambda x: x**2)[self._loss_type]
         target, terms = self._compute_target(
-            obs, shared_state, action_mask, reward, discount)
+            obs, global_state, action_mask, reward, discount)
 
         obs, _ = tf.split(obs, [self._sample_size, 1], axis=1)
-        shared_state, _ = tf.split(shared_state, [self._sample_size, 1], axis=1)
+        global_state, _ = tf.split(global_state, [self._sample_size, 1], axis=1)
 
         with tf.GradientTape() as tape:
             utils = self.model.compute_utils(obs, online=True)
             q = self.model.compute_joint_q(
-                utils, shared_state, online=True, action=action)
+                utils, global_state, online=True, action=action)
             error = target - q
             loss = reduce_mean(loss_fn(error), mask=episodic_mask)
         tf.debugging.assert_shapes([
@@ -140,7 +140,7 @@ class Agent(Memory, DQNBase):
 
         return terms
 
-    def _compute_target(self, obs, shared_state, action_mask, 
+    def _compute_target(self, obs, global_state, action_mask, 
             reward, discount):
         terms = {}
 
@@ -152,7 +152,7 @@ class Agent(Memory, DQNBase):
             utils = self.model.compute_utils(obs, online=False)
 
         _, next_utils = tf.split(utils, [1, self._sample_size], axis=1)
-        _, next_shared_state = tf.split(shared_state, [1, self._sample_size], axis=1)
+        _, next_shared_state = tf.split(global_state, [1, self._sample_size], axis=1)
         _, next_action = tf.split(action, [1, self._sample_size], axis=1)
         tf.debugging.assert_shapes([
             [next_utils, (self._batch_size, self._sample_size, self._n_agents, self._action_dim)],

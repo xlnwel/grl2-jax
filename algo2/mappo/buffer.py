@@ -14,10 +14,10 @@ class Buffer(BufferBase):
         for start in range(0, self._size, self._mb_size):
             end = start + self._mb_size
             curr_idxes = self._idxes[start:end]
-            shared_state = self._memory['shared_state'][curr_idxes]
+            global_state = self._memory['global_state'][curr_idxes]
             state = tuple([self._memory[k][curr_idxes, 0] for k in self._state_keys])
             mask = self._memory['mask'][curr_idxes]
-            value = fn(shared_state, state=state, mask=mask)
+            value = fn(global_state, state=state, mask=mask)
             self.update('value', value, mb_idxes=curr_idxes)
             # NOTE: you may want to update states as well
         

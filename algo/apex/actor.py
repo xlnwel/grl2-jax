@@ -246,10 +246,10 @@ def get_worker_class(AgentBase):
 
             start_step = self.runner.step
             with Timer('run') as rt:
-                end_step = self.runner.run(step_fn=collect)
+                self.env_step = self.runner.run(step_fn=collect)
             self._info['time/run'] = rt.average()
 
-            return end_step - start_step
+            return self.env_step - start_step
     
     return Worker
 

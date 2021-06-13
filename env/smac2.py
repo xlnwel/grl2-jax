@@ -260,6 +260,7 @@ class SMAC2(gym.Env):
         self.reward_death_value = reward_death_value
         self.reward_win = reward_win
         self.reward_defeat = reward_defeat
+
         self.reward_scale = reward_scale
         self.reward_scale_rate = reward_scale_rate
 
@@ -337,7 +338,7 @@ class SMAC2(gym.Env):
         
         self._empty_obs = dict(
             obs=np.zeros((self.n_agents, *self.obs_shape), np.float32),
-            shared_state=np.zeros(self.shared_state_shape, np.float32),
+            global_state=np.zeros(self.shared_state_shape, np.float32),
             action_mask=np.zeros((self.n_agents, self.n_actions), np.bool),
             episodic_mask=False,
         )
@@ -498,7 +499,7 @@ class SMAC2(gym.Env):
 
         obs_dict = dict(
             obs=local_obs,
-            shared_state=global_state,
+            global_state=global_state,
             action_mask=np.array(available_actions, np.bool),
             episodic_mask=True
         )
@@ -590,7 +591,7 @@ class SMAC2(gym.Env):
 
             obs_dict = dict(
                 obs=local_obs,
-                shared_state=global_state,
+                global_state=global_state,
                 action_mask=np.array(available_actions, np.bool),
                 episodic_mask=True
             )
@@ -671,7 +672,7 @@ class SMAC2(gym.Env):
 
         obs_dict = dict(
             obs=local_obs,
-            shared_state=global_state,
+            global_state=global_state,
             action_mask=np.array(available_actions, np.bool),
             episodic_mask=True
         )

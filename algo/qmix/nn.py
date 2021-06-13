@@ -162,14 +162,14 @@ class QMIX(Ensemble):
 
         return utils
 
-    def compute_joint_q(self, utils, shared_state, online=True, action=None):
+    def compute_joint_q(self, utils, global_state, online=True, action=None):
         if action is None:
             q_cls = self.q if online else self.target_q
             action = q_cls.compute_greedy_action(utils, one_hot=True)
         util = tf.reduce_sum(action * utils, axis=-1)
 
         qmixer = self.qmixer if online else self.target_qmixer
-        q = qmixer(util, shared_state)
+        q = qmixer(util, global_state)
 
         return q
 

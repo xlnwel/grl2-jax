@@ -17,7 +17,7 @@ def random_actor(env_output, env=None, **kwargs):
     a = env.random_action()
     terms = {
         'obs': obs['obs'], 
-        'shared_state': obs['shared_state'],
+        'global_state': obs['global_state'],
     }
     return a, terms
 

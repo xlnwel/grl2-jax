@@ -46,7 +46,6 @@ class Procgen(gym.Env):
         assert self.name in VALID_ENV_NAMES, self.name
 
         env = gym.make(f"procgen:procgen-{self.name}-v0", **self.config)
-        self.max_episode_steps = env.spec.max_episode_steps
         self.env = env
         # Enable video recording features
         self.metadata = self.env.metadata

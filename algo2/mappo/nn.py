@@ -112,7 +112,7 @@ class PPO(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, obs, shared_state, action_mask, state, mask, 
+    def action(self, obs, global_state, action_mask, state, mask, 
             evaluation=False, prev_action=None, prev_reward=None, **kwargs):
         assert obs.shape.ndims % 2 == 0, obs.shape
 
@@ -128,7 +128,7 @@ class PPO(Ensemble):
             return action, self.State(*actor_state, *value_state)
         else:
             x_value, value_state = self.encode(
-                shared_state, value_state, mask, 'value', 
+                global_state, value_state, mask, 'value', 
                 prev_action, prev_reward)
             value = self.value(x_value)
             logpi = act_dist.log_prob(action)
@@ -137,10 +137,10 @@ class PPO(Ensemble):
             return out, self.State(*actor_state, *value_state)
 
     @tf.function(experimental_relax_shapes=True)
-    def compute_value(self, shared_state, state, mask, 
+    def compute_value(self, global_state, state, mask, 
             prev_action=None, prev_reward=None, return_state=False):
         x, state = self.encode(
-            shared_state, state, mask, 'value', prev_action, prev_reward)
+            global_state, state, mask, 'value', prev_action, prev_reward)
         value = self.value(x)
         if return_state:
             return value, state

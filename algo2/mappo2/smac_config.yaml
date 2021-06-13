@@ -68,7 +68,7 @@ agent:
     actor_life_mask: True
     value_life_mask: False
 
-    obs_names: [obs, shared_state]
+    obs_names: [obs, global_state]
     normalize_obs: True
     normalize_reward: True
     store_state: True
