@@ -158,7 +158,8 @@ class Buffer:
 
         sample_keys = sample_keys or self._sample_keys
         self._mb_idx, self._curr_idxes = compute_indices(
-            self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_MBS)
+            self._shuffled_idxes, self._mb_idx, 
+            self._mb_size, self.N_MBS)
         
         sample = {k: self._memory[k][self._curr_idxes, 0]
             if k in self._state_keys 

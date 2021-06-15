@@ -482,6 +482,9 @@ class EnvStats(EnvStatsBase):
         # return reset in info when resetting
         reset = self.float_dtype(info.get('reset', False))
 
+        # store previous env output for later retrieval
+        info['prev_env_output'] = GymOutput(obs, reward, discount)
+
         assert isinstance(self._game_over, bool), self._game_over
         # reset env
         if self._game_over:
@@ -489,7 +492,6 @@ class EnvStats(EnvStatsBase):
             info['score'] = self._score
             info['epslen'] = self._epslen
             if self.auto_reset:
-                info['prev_env_output'] = GymOutput(obs, reward, discount)
                 # when resetting, we override the obs and reset but keep the others
                 obs, _, _, reset = self._reset()
         self._info = info
@@ -544,9 +546,12 @@ class MAEnvStats(EnvStatsBase):
                 done = np.ones_like(done)
             info['timeout'] = True
         discount = 1-np.array(done, self.float_dtype)
+
+        # store previous env output for later retrieval
+        info['prev_env_output'] = GymOutput(obs, reward, discount)
+
         # reset env
         if self._game_over and self.auto_reset:
-            info['prev_env_output'] = GymOutput(obs, reward, discount)
             # when resetting, we override the obs and reset but keep the others
             obs, _, _, reset = self._reset()
         else:

@@ -187,9 +187,12 @@ class EnvVec(EnvVecBase):
             obs = batch_dicts(obs)
         return obs
 
-    def info(self, idxes=None):
+    def info(self, idxes=None, convert_batch=False):
         idxes = self._get_idxes(idxes)
-        return [self.envs[i].info() for i in idxes]
+        info = [self.envs[i].info() for i in idxes]
+        if convert_batch:
+            info = batch_dicts(info)
+        return info
 
     def output(self, idxes=None):
         idxes = self._get_idxes(idxes)
@@ -225,7 +228,6 @@ class EnvVec(EnvVecBase):
 
     def close(self):
         if hasattr(self.env, 'close'):
-            self.env.close()
             [env.close() for env in self.envs]
 
 

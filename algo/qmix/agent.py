@@ -41,9 +41,8 @@ def collect(buffer, env, env_step, reset, next_obs, **data):
     obs = data.pop('obs')
     data.update(obs)
     buffer.add(**data)
-    assert np.all(reset) or np.all(reset==0), reset
 
-    if reset:
+    if np.any(reset):
         add_last_obs(buffer, env)
 
 class Agent(Memory, DQNBase):

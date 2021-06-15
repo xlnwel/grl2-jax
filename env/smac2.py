@@ -71,9 +71,10 @@ class Direction(enum.IntEnum):
 def info_func(agent, info):
     if isinstance(info, list):
         won = [i['won'] for i in info]
+        extra_padding = [i.get('extra_padding', 0) for i in info]
     else:
         won = np.float32(info['won'])
-    extra_padding = info.get('extra_padding', 0)
+        extra_padding = info.get('extra_padding', 0)
     agent.store(win_rate=won, extra_padding=extra_padding)
 
 

@@ -247,14 +247,11 @@ class EnvFixedEpisodicBuffer(EnvEpisodicBuffer):
     def sample(self):
         if self.is_full():
             results = {k: np.array(v) for k, v in self._memory.items()}
-            for k, v in results.items():
-                assert v.shape[0] >= 60, [
-                    (kk, vv.shape) for kk, vv in results.items()
-                ]
-            self.reset()
+            # for k, v in results.items():
+            #     assert v.shape[0] >= self._seqlen, [
+            #         (kk, vv.shape) for kk, vv in results.items()
+            #     ]
             return results
-        else:
-            self.reset()
     
     def add(self, idxes=None, flush=True, **data):
         self._idx += 1
@@ -264,9 +261,8 @@ class EnvFixedEpisodicBuffer(EnvEpisodicBuffer):
 class EnvVecFixedEpisodicBuffer(EnvFixedEpisodicBuffer):
     def sample(self):
         if self.is_full():
-            results = {k: np.array(v) for k, v in self._memory.items()}
-            results = flatten_dict(results)
-            self.reset()
+            results = {k: np.swapaxes(np.array(v), 0, 1) 
+                for k, v in self._memory.items()}
+            results = flatten_dict(**results)
+
             return results
-        else:
-            self.reset()

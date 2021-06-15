@@ -68,7 +68,7 @@ class EpisodicReplay:
             if self._n_envs > 1:
                 [buf.reset() for buf in self._tmp_bufs]
             else:
-                self.merge(self._tmp_bufs.reset())
+                self._tmp_bufs.reset()
         elif isinstance(i, (list, tuple)):
             [self._tmp_bufs[ii].reset() for ii in range(i)]
         elif isinstance(i, int):
@@ -79,11 +79,11 @@ class EpisodicReplay:
     def is_local_buffer_full(self, i=None):
         if i is None:
             if self._n_envs > 1:
-                is_full = [buf.is_full() for buf in self._tmp_bufs]
+                is_full = np.all([buf.is_full() for buf in self._tmp_bufs])
             else:
                 is_full = self._tmp_bufs.is_full()
         elif isinstance(i, (list, tuple)):
-            is_full = [self._tmp_bufs[ii].is_full() for ii in i]
+            is_full = np.all([self._tmp_bufs[ii].is_full() for ii in i])
         elif isinstance(i, int):
             is_full = self._tmp_bufs[i].is_full()
         else:
@@ -93,15 +93,19 @@ class EpisodicReplay:
     def finish_episodes(self, i=None):
         if i is None:
             if self._n_envs > 1:
-                [self.merge(buf.sample()) for buf in self._tmp_bufs]
+                episodes = [buf.sample() for buf in self._tmp_bufs]
+                [buf.reset() for buf in self._tmp_bufs]
             else:
-                self.merge(self._tmp_bufs.sample())
+                episodes = self._tmp_bufs.sample()
         elif isinstance(i, (list, tuple)):
-            [self.merge(self._tmp_bufs[ii].sample()) for ii in range(i)]
+            episodes = [self._tmp_bufs[ii].sample() for ii in i]
+            [self._tmp_bufs[ii].reset() for ii in i]
         elif isinstance(i, int):
-            self.merge(self._tmp_bufs[i].sample())
+            episodes = self._tmp_bufs[i].sample()
+            self._tmp_bufs[i].reset()
         else:
             raise ValueError(f'{i} of type {type(i)} is not supported')
+        self.merge(episodes)
         
     def merge(self, episodes):
         if episodes is None:
@@ -110,7 +114,7 @@ class EpisodicReplay:
             episodes = [episodes]
         timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
         for eps in episodes:
-            if self._sample_size and len(next(iter(eps.values()))) < self._sample_size:
+            if eps is None or (self._sample_size and len(next(iter(eps.values()))) < self._sample_size):
                 continue    # ignore short episodes
             identifier = str(uuid.uuid4().hex)
             length = len(eps['reward'])
@@ -162,7 +166,6 @@ class EpisodicReplay:
                 for k in samples[0].keys()}
         else:
             data = self._sample()
-        
         return data
 
     def _sample(self):

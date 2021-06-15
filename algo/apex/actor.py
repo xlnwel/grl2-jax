@@ -11,6 +11,7 @@ from utility.timer import Timer
 from utility.ray_setup import cpu_affinity, get_num_cpus
 from utility.run import Runner, evaluate, RunMode
 from utility import pkg
+from replay.func import create_replay
 from env.func import create_env
 from core.dataset import create_dataset
 
@@ -63,6 +64,7 @@ def get_learner_class(AgentBase):
                     replay_config):
             config_actor('Learner', config)
 
+            env_config['n_envs'] = 1
             env = create_env(env_config)
 
             model = model_fn(config=model_config, env=env)
@@ -71,11 +73,14 @@ def get_learner_class(AgentBase):
             data_format = am.get_data_format(
                 env=env, replay_config=replay_config, 
                 agent_config=config, model=model)
+            if not getattr(self, 'use_central_buffer', True):
+                assert replay is None, f'Replay({replay}) is not None for non-central buffer'
+                self.replay = replay = create_replay(replay_config)
+                
             dataset = create_dataset(
-                replay, 
-                env, 
+                replay, env, 
                 data_format=data_format, 
-                use_ray=True)
+                use_ray=getattr(self, '_use_central_buffer', True))
             
             super().__init__(
                 name='Learner',
@@ -84,6 +89,16 @@ def get_learner_class(AgentBase):
                 dataset=dataset,
                 env=env,
             )
+
+            env.close()
+
+        def merge(self, data):
+            assert hasattr(self, 'replay'), f'There is no replay in {self.name}.\nDo you use a central replay?'
+            self.replay.merge(data)
+        
+        def good_to_learn(self):
+            assert hasattr(self, 'replay'), f'There is no replay in {self.name}.\nDo you use a central replay?'
+            return self.replay.good_to_learn()
 
     return Learner
 
@@ -94,10 +109,10 @@ def get_worker_base_class(AgentBase):
         def _send_data(self, replay, buffer=None, data=None):
             """ Sends data to replay and resets buffer """
             if buffer is None:
-                buffer = self.buffer
+                buffer = self.dataset
             if data is None:
                 data = buffer.sample()
-
+            
             if data is None:
                 print(f"Worker {self._id}: no data is retrieved")
                 return
@@ -124,7 +139,6 @@ def get_worker_base_class(AgentBase):
                     priority = self._compute_priorities(**kwargs)
                     for d, p in zip(data, priority):
                         d['priority'] = p
-                pass
             else:
                 raise ValueError(f'Unknown data of type: {type(data)}')
             replay.merge.remote(data)
@@ -172,7 +186,7 @@ def get_worker_class(AgentBase):
             buffer_config['n_envs'] = self.env.n_envs
             if 'seqlen' not in buffer_config:
                 buffer_config['seqlen'] = self.env.max_episode_steps
-            self.buffer = buffer_fn(buffer_config)
+            buffer = buffer_fn(buffer_config)
 
             models = model_fn( 
                 config=model_config, 
@@ -182,13 +196,11 @@ def get_worker_class(AgentBase):
                 name=f'Worker_{worker_id}',
                 config=config,
                 models=models,
-                dataset=self.buffer,
+                dataset=buffer,
                 env=self.env)
             
-            # setup runner
-            import importlib
-            em = importlib.import_module(
-                f'env.{env_config["name"].split("_")[0]}')
+            # setups runner
+            em = pkg.import_module(self.env.name.split("_")[0], pkg='env')
             info_func = em.info_func if hasattr(em, 'info_func') else None
             self._run_mode = getattr(self, '_run_mode', RunMode.NSTEPS)
             assert self._run_mode in [RunMode.NSTEPS, RunMode.TRAJ]
@@ -207,7 +219,7 @@ def get_worker_class(AgentBase):
 
             # setups self._collect using <collect> function from the algorithm module
             collect_fn = pkg.import_module('agent', algo=self._algorithm, place=-1).collect
-            self._collect = functools.partial(collect_fn, self.buffer)
+            self._collect = functools.partial(collect_fn, buffer)
 
             # the names of network modules that should be in sync with the learner
             if not hasattr(self, '_pull_names'):
@@ -241,7 +253,7 @@ def get_worker_class(AgentBase):
         def _run(self, replay):
             def collect(*args, **kwargs):
                 self._collect(*args, **kwargs)
-                if self.buffer.is_full():
+                if self.dataset.is_full():
                     self._send_data(replay)
 
             start_step = self.runner.step
