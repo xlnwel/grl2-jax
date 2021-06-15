@@ -497,6 +497,7 @@ class EnvStats(EnvStatsBase):
         self._output = EnvOutput(obs, reward, discount, reset)
         return self._output
 
+
 class MAEnvStats(EnvStatsBase):
     manual_reset_warning = True
     def reset(self):
@@ -568,7 +569,8 @@ def get_wrapper_by_name(env, classname):
         else:
             # don't raise error here, only return None
             return None
-            
+
+
 if __name__ == '__main__':
     from env.func import create_env
     env = create_env(dict(

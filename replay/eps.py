@@ -1,10 +1,10 @@
+import collections
 from datetime import datetime
 import logging
 from pathlib import Path
 import random
 import uuid
 import numpy as np
-from numpy.lib.arraysetops import isin
 
 from core.decorator import config
 from replay.local import EnvEpisodicBuffer, EnvFixedEpisodicBuffer
@@ -20,7 +20,12 @@ class EpisodicReplay:
         self._save = getattr(self, '_save', False)
         if self._save:
             self._dir.mkdir(parents=True, exist_ok=True)
+        
+        self._filenames = collections.deque()
         self._memory = {}
+
+        self._max_episodes = getattr(self, '_max_episodes', 1000)
+
         # Store and retrieve entire episodes if sample_size is None
         self._sample_size = getattr(self, '_sample_size', None)
         self._state_keys = state_keys
@@ -113,8 +118,11 @@ class EpisodicReplay:
             self._memory[filename] = eps
             if self._save:
                 save_data(filename, eps)
+            self._filenames.append(filename)
         if self._save:
-            self._remove_files()
+            self._remove_file()
+        else:
+            self._pop_episode()
 
     def count_episodes(self):
         """ count the total number of episodes and transitions in the directory """
@@ -172,17 +180,18 @@ class EpisodicReplay:
                         for k, v in episode.items()}
         return episode
 
-    def _remove_files(self):
-        if getattr(self, '_max_episodes', 0) > 0 and len(self._memory) > self._max_episodes:
-            # remove some oldest files if the number of files stored exceeds maximum size
-            filenames = sorted(self._memory)
-            start = int(.1 * self._max_episodes)
-            for filename in filenames[:start]:
-                filename.unlink()
-                if filename in self._memory:
-                    del self._memory[filename]
-            filenames = filenames[start:]
-            logger.info(f'{start} files are removed')
+    def _pop_episode(self):
+        if len(self._memory) > self._max_episodes:
+            filename = self._filenames.popleft()
+            assert(filename in self._memory)
+            del self._memory[filename]
 
+    def _remove_file(self):
+        if len(self._memory) > self._max_episodes:
+            filename = self._filenames.popleft()
+            assert(filename in self._memory)
+            del self._memory[filename]
+            filename.unlink()
+            
     def clear_temp_bufs(self):
         self._tmp_bufs = []
