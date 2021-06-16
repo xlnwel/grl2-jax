@@ -259,6 +259,13 @@ def convert_dtype(value, precision=32, dtype=None, **kwargs):
     return value.astype(dtype)
 
 def flatten_dict(**kwargs):
+    """ Flatten a dict of lists into a list of dicts
+    For example
+    flatten_dict(lr=[1, 2], a=[10,3], b=dict(c=[2, 4], d=np.arange(1, 3)))
+    >>>
+    [{'lr': 1, 'a': 10, 'b': {'c': 2, 'd': 1}},
+    {'lr': 2, 'a': 3, 'b': {'c': 4, 'd': 2}}]
+    """
     ks, vs = [], []
     for k, v in kwargs.items():
         ks.append(k)
@@ -278,8 +285,9 @@ def flatten_dict(**kwargs):
 
 def product_flatten_dict(**kwargs):
     """ Flatten a dict of lists into a list of dicts
+    using the Cartesian product
     For example
-    f(lr=[1, 2], a=[10,3], b=dict(c=[2, 4], d=np.arange(3)))
+    product_flatten_dict(lr=[1, 2], a=[10,3], b=dict(c=[2, 4], d=np.arange(3)))
     >>>
     [{'lr': 1, 'a': 10, 'b': {'c': 2, 'd': 0}},
     {'lr': 1, 'a': 10, 'b': {'c': 2, 'd': 1}},
