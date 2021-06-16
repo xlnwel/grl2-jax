@@ -361,16 +361,20 @@ Both <reset> and <step> return EnvOutput of form
 = 1 - done, and reset indicates if the environment 
 has been reset. By default, EnvStats automatically
 reset the environment when the environment is done.
-Explicitly calling EnvStats turns off auto-reset
+Explicitly calling EnvStats turns off auto-reset.
+For some environments truncated by max episode steps,
+we recommand to retrieve the last observation of an 
+episode using method "prev_obs"
 
 We distinguish several signals:
     done: an episode is done, may due to life loss(Atari)
     game over: a game is over, may due to timeout. Life 
         loss in Atari is not game over. Do store <game_over> 
         in <info> for multi-agent environments.
-    reset: a new episode starts after done. In auto-reset mode, 
-        environment resets when the game's over. Life loss should 
-        be automatically handled by the environment/previous wrapper.
+    reset: a new episode starts after done. In auto-reset 
+        mode, environment resets when the game's over. 
+        Life loss should be automatically handled by 
+        the environment/previous wrapper.
 """
 class EnvStatsBase(gym.Wrapper):
     def __init__(self, env, max_episode_steps=None, timeout_done=False, 

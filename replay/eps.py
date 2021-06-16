@@ -77,6 +77,7 @@ class EpisodicReplay:
             raise ValueError(f'{i} of type {type(i)} is not supported')
         
     def is_local_buffer_full(self, i=None):
+        """ Returns if all local buffers are full """
         if i is None:
             if self._n_envs > 1:
                 is_full = np.all([buf.is_full() for buf in self._tmp_bufs])
@@ -91,6 +92,7 @@ class EpisodicReplay:
         return is_full
 
     def finish_episodes(self, i=None):
+        """ Adds episodes in local buffers to memory """
         if i is None:
             if self._n_envs > 1:
                 episodes = [buf.sample() for buf in self._tmp_bufs]
@@ -116,7 +118,7 @@ class EpisodicReplay:
         timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
         for eps in episodes:
             if eps is None or (self._sample_size and len(next(iter(eps.values()))) < self._sample_size):
-                continue    # ignore short episodes
+                continue    # ignore None/short episodes
             identifier = str(uuid.uuid4().hex)
             length = len(eps['reward'])
             filename = self._dir / f'{timestamp}-{identifier}-{length}.npz'
