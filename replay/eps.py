@@ -97,6 +97,7 @@ class EpisodicReplay:
                 [buf.reset() for buf in self._tmp_bufs]
             else:
                 episodes = self._tmp_bufs.sample()
+                self._tmp_bufs.reset()
         elif isinstance(i, (list, tuple)):
             episodes = [self._tmp_bufs[ii].sample() for ii in i]
             [self._tmp_bufs[ii].reset() for ii in i]
