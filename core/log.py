@@ -172,7 +172,9 @@ class Logger:
         for k, v in kwargs.items():
             if isinstance(v, tf.Tensor):
                 v = v.numpy()
-            if isinstance(v, (list, tuple)):
+            if v is None:
+                return
+            elif isinstance(v, (list, tuple)):
                 self._store_dict[k] += list(v)
             else:
                 self._store_dict[k].append(v)

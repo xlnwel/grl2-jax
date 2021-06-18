@@ -6,6 +6,7 @@ from utility.utils import infer_dtype
 
 logger = logging.getLogger(__name__)
 
+
 def init_buffer(buffer, pre_dims, has_steps=False, precision=None, **data):
     buffer.clear()
     if isinstance(pre_dims, int):
@@ -22,6 +23,7 @@ def init_buffer(buffer, pre_dims, has_steps=False, precision=None, **data):
     # we define an additional item, steps, that specifies steps in multi-step learning
     if has_steps:
         buffer['steps'] = np.ones(pre_dims, np.uint8)
+
 
 def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **data):
     for k in buffer.keys():
@@ -42,6 +44,7 @@ def add_buffer(buffer, idx, n_steps, gamma, cycle=False, **data):
         if 'next_obs' in buffer:
             buffer['next_obs'][k] = data['next_obs']
 
+
 def copy_buffer(dest_buffer, dest_start, dest_end, orig_buffer, 
                 orig_start, orig_end, dest_keys=True):
     assert dest_end - dest_start == orig_end - orig_start, (
@@ -52,6 +55,7 @@ def copy_buffer(dest_buffer, dest_start, dest_end, orig_buffer,
     
     for key in (dest_buffer if dest_keys else orig_buffer).keys():
         dest_buffer[key][dest_start: dest_end] = orig_buffer[key][orig_start: orig_end]
+
 
 def infer_info(precision, **data):
     """ infer shape/type from data so that we can use them for buffer initialization """
@@ -68,6 +72,7 @@ def infer_info(precision, **data):
             info[k] = ((), None)
 
     return info
+
 
 def print_buffer(buffer, prefix=''):
     logger.info(f'{prefix} Buffer Info:')
@@ -143,6 +148,7 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
         
     return results
 
+
 def load_data(filename):
     data = None
     try:
@@ -152,6 +158,7 @@ def load_data(filename):
     except Exception as e:
         logger.warning(f'Could not load data: {e}')
     return data
+
 
 def save_data(filename, data):
     with filename.open('wb') as f:

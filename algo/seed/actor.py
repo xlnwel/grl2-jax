@@ -20,7 +20,7 @@ from algo.apex.actor import config_actor, get_learner_class, \
 
 
 def get_actor_class(AgentBase):
-    """ An Actor is responsible for inference """
+    """ An Actor is responsible for inference only """
     class Actor(AgentBase):
         def __init__(self,
                     actor_id,
@@ -49,7 +49,8 @@ def get_actor_class(AgentBase):
             self._wpa = self._n_workers // self._n_actors
 
             self._action_batch = int(
-                self._n_workers * self._n_envvecs * self._action_frac)
+                self._wpa * self._n_envvecs * self._action_frac)
+
             if 'act_eps' in config:
                 act_eps = compute_act_eps(
                     config['act_eps_type'], 
@@ -66,17 +67,20 @@ def get_actor_class(AgentBase):
             # agent's state
             if 'rnn' in self.model:
                 self._state_mapping = collections.defaultdict(lambda:
-                    self.model.get_initial_state(batch_size=env.n_envs, dtype=self._dtype))
+                    self.model.get_initial_state(
+                        batch_size=env.n_envs, dtype=self._dtype))
                 self._prev_action_mapping = collections.defaultdict(lambda:
                     tf.zeros((env.n_envs, *self._action_shape), self._dtype))
             
             if not hasattr(self, '_pull_names'):
                 self._pull_names = [k for k in self.model.keys() if 'target' not in k]
             
-            self._to_sync = Every(self.SYNC_PERIOD) if getattr(self, 'SYNC_PERIOD') else None
+            self._to_sync = Every(self.SYNC_PERIOD) \
+                if hasattr(self, 'SYNC_PERIOD') else None
 
         def pull_weights(self, learner):
-            weights = ray.get(learner.get_weights.remote(self._pull_names))
+            self.train_step, weights = ray.get(
+                learner.get_weights.remote(self._pull_names))
             self.model.set_weights(weights)
 
         def set_weights(self, weights):
@@ -124,10 +128,11 @@ def get_actor_class(AgentBase):
             self.env_step = 0
             while True:
                 # retrieve ready objs
-                with Timer('wait') as wt:
+                with Timer(f'{self.name} wait') as wt:
                     ready_objs, _ = ray.wait(
                         list(objs), num_returns=self._action_batch)
                 n_ready = len(ready_objs)
+                # print(f'{self.name} #ready', n_ready)
                 wids, eids = zip(*[objs.pop(i) for i in ready_objs])
                 env_output = EnvOutput(*[np.concatenate(v, axis=0) 
                     for v in zip(*ray.get(ready_objs))])
@@ -153,9 +158,11 @@ def get_actor_class(AgentBase):
                 
                 self.env_step += n_ready * self._n_envs
                 if self._to_sync(self.env_step):
-                    self.pull_weights(learner)
+                    with Timer(f'{self.name} pull weights') as pw:
+                        self.pull_weights(learner)
                     monitor.record_run_stats.remote(**{
                         'time/wait_env': wt.average(),
+                        'time/pull_weights': pw.average(),
                         'n_ready': n_ready
                     })
 
@@ -171,20 +178,14 @@ def get_worker_class():
             cpu_affinity(f'Worker_{worker_id}')
             self._id = worker_id
 
-            self._n_envvecs = env_config.pop('n_envvecs')
-            env_config.pop('n_workers', None)
-            self._envvecs = [
-                create_env(env_config, force_envvec=True) 
-                for _ in range(self._n_envvecs)]
+            self._n_envvecs, self._envvecs = self._create_envvec(env_config)
             
             collect_fn = pkg.import_module(
                 'agent', config=config, place=-1).collect
             self._collect = functools.partial(
-                collect_fn, env=None, step=None, reset=None)
+                collect_fn, env_step=None)
 
-            buffer_config['force_envvec'] = True
-            self._buffs = {eid: create_local_buffer(buffer_config) 
-                for eid in range(self._n_envvecs)}
+            self._buffs = self._create_buffer(buffer_config, self._n_envvecs)
 
             self._obs = {eid: e.output().obs 
                 for eid, e in enumerate(self._envvecs)}
@@ -208,10 +209,12 @@ def get_worker_class():
             kwargs.update(terms)
             self._obs[eid] = env_output.obs
 
-            self._collect(self._buffs[eid], **kwargs)
+            self._collect(
+                self._buffs[eid], self._envvecs[eid], env_step=None,
+                reset=env_output.reset, **kwargs)
             if self._buffs[eid].is_full():
                 self._send_data(self._replay, self._buffs[eid])
-            
+
             done_env_ids = [i for i, r in enumerate(env_output.reset) if r]
             if np.any(done_env_ids):
                 self._info['score'] += self._envvecs[eid].score(done_env_ids)
@@ -220,5 +223,28 @@ def get_worker_class():
                     self._send_episodic_info(self._monitor)
 
             return env_output
-    
+
+        def _send_data(self, replay, buffer):
+            data = buffer.sample()
+
+            if data is None:
+                print(f"Worker {self._id}: no data is retrieved")
+                return
+
+            replay.merge.remote(data)
+            buffer.reset()
+
+        def _create_envvec(self, env_config):
+            n_envvecs = env_config.pop('n_envvecs')
+            env_config.pop('n_workers', None)
+            envvecs = [
+                create_env(env_config, force_envvec=True) 
+                for _ in range(n_envvecs)]
+            return n_envvecs, envvecs
+
+        def _create_buffer(self, buffer_config, n_envvecs):
+            buffer_config['force_envvec'] = True
+            return {eid: create_local_buffer(buffer_config) 
+                for eid in range(n_envvecs)}
+
     return Worker

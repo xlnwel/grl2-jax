@@ -43,7 +43,7 @@ agent:
     n_actor_gpus: .25
     n_workers: 8
     n_worker_cpus: 1
-    SYNC_PERIOD: 200
+    SYNC_PERIOD: 50
     has_evaluator: False
 
     use_central_buffer: False

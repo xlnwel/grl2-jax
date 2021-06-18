@@ -67,14 +67,15 @@ def main(env_config, model_config, agent_config, replay_config):
     learner.start_learning.remote()
 
     # create the evaluator
-    Evaluator = am.get_evaluator_class(Agent)
-    evaluator = fm.create_evaluator(
-        Evaluator=Evaluator,
-        model_fn=model_fn,
-        config=agent_config,
-        model_config=model_config,
-        env_config=env_config)
-    evaluator.run.remote(learner, monitor)
+    if agent_config.get('has_evaluator', True):
+        Evaluator = am.get_evaluator_class(Agent)
+        evaluator = fm.create_evaluator(
+            Evaluator=Evaluator,
+            model_fn=model_fn,
+            config=agent_config,
+            model_config=model_config,
+            env_config=env_config)
+        evaluator.run.remote(learner, monitor)
     
     Actor = am.get_actor_class(Agent)
     actors = []

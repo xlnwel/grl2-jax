@@ -8,7 +8,7 @@ import numpy as np
 
 from core.decorator import config
 from replay.local import EnvEpisodicBuffer, EnvFixedEpisodicBuffer
-from replay.utils import load_data, save_data
+from replay.utils import load_data, print_buffer, save_data
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,8 @@ class EpisodicReplay:
             'eps': EnvEpisodicBuffer, 
             'fixed_eps': EnvFixedEpisodicBuffer
         }.get(self._local_buffer_type)
+
+        self._info_printed = False
     
     def name(self):
         return self._replay_type
@@ -115,9 +117,13 @@ class EpisodicReplay:
             return
         if isinstance(episodes, dict):
             episodes = [episodes]
+        if not self._info_printed and episodes[0] is not None:
+            print_buffer(episodes[0], 'Episodict')
+            self._info_printed = True
         timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
         for eps in episodes:
-            if eps is None or (self._sample_size and len(next(iter(eps.values()))) < self._sample_size):
+            if eps is None or (self._sample_size 
+                and len(next(iter(eps.values()))) < self._sample_size):
                 continue    # ignore None/short episodes
             identifier = str(uuid.uuid4().hex)
             length = len(eps['reward'])

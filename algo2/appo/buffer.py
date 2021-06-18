@@ -24,7 +24,7 @@ class Buffer(PPOBufffer):
         # to avoid contention caused by multi-thread parallelism
         self._lock = threading.Lock()
 
-        self._sleep_time = 0.01
+        self._sleep_time = 0.025
         self._sample_wait_time = 0
 
     def __getitem__(self, k):
@@ -45,6 +45,7 @@ class Buffer(PPOBufffer):
     def reset(self):
         self._memory = None
         self._mb_idx = 0
+        self._sample_wait_time = 0
 
     def add(self):
         """ No need for method <add> """
@@ -77,17 +78,19 @@ class Buffer(PPOBufffer):
                         epsilon=self._epsilon)
             for k, v in self._memory.items():
                 self._memory[k] = np.concatenate(v, 0)
+            self._trajs_dropped = n * self._n_envs - self._n_trajs
             print('Buffer sample wait:', self._sample_wait_time)
-            print('#trajs dropped:', n * self._n_envs - self._n_trajs)
+            print('#trajs dropped:', self._trajs_dropped)
             # for k, v in self._memory.items():
             #     print(k, v.shape)
             train_step = self._memory["train_step"]
-            print(f'train_steps: max_diff({policy_version - train_step.min()})',
-                f'min_diff({policy_version - train_step.max()})',
-                f'avg_diff({policy_version - train_step.mean()})',
+            self._policy_version_min_diff = policy_version - train_step.max()
+            self._policy_version_max_diff = policy_version - train_step.min()
+            self._policy_version_avg_diff = policy_version - train_step.mean()
+            print(f'train_steps: max_diff({self._policy_version_max_diff})',
+                f'min_diff({self._policy_version_min_diff})',
+                f'avg_diff({self._policy_version_avg_diff})',
                 sep='\n')
-
-            self._sample_wait_time = 0
 
         if self._mb_idx == 0:
             np.random.shuffle(self._shuffled_idxes)
@@ -107,6 +110,15 @@ class Buffer(PPOBufffer):
                 sample['advantage'], epsilon=self._epsilon)
         
         return sample
+
+    def get_async_stats(self):
+        return {
+            'sample_wait_time': self._sample_wait_time,
+            'trajs_dropped': self._trajs_dropped,
+            'policy_version_min_diff': self._policy_version_min_diff,
+            'policy_version_max_diff': self._policy_version_max_diff,
+            'policy_version_avg_diff': self._policy_version_avg_diff,
+        }
 
 
 class LocalBuffer(LocalBufferBase):
