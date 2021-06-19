@@ -33,6 +33,7 @@ def compute_gae(reward, discount, value, last_value, gamma,
         next_value = np.concatenate([value[:, 1:], last_value], axis=1)
     else:
         next_value = value[:, 1:]
+        value = value[:, :-1]
     assert value.shape == next_value.shape, (value.shape, next_value.shape)
     advs = delta = (reward + discount * gamma * next_value - value)
     next_adv = 0
@@ -110,6 +111,13 @@ class Buffer:
     
     def ready(self):
         return self._ready
+
+    def reset(self):
+        self.reshape_to_store()
+        self._is_store_shape = True
+        self._idx = 0
+        self._mb_idx = 0
+        self._ready = False
 
     def add(self, **data):
         if self._memory == {}:
@@ -190,6 +198,7 @@ class Buffer:
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
         self.reshape_to_store()
+
         self._memory['advantage'], self._memory['traj_ret'] = \
             self._compute_advantage_return(
                 self._memory['reward'], self._memory['discount'], 
@@ -198,13 +207,6 @@ class Buffer:
 
         self.reshape_to_sample()
         self._ready = True
-
-    def reset(self):
-        self.reshape_to_store()
-        self._is_store_shape = True
-        self._idx = 0
-        self._mb_idx = 0
-        self._ready = False
 
     def clear(self):
         self._memory = {}

@@ -71,7 +71,7 @@ class Agent(PPOBase):
     def learn_log(self, step):
         n = self._sample_learn()
         self._store_buffer_stats()
-        self._store_run_stats()
+        self._store_rms_stats()
 
         return n
     

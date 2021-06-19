@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 
 from core.tf_config import build
@@ -10,9 +11,12 @@ class Agent(PPOBase):
     @override(PPOBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
+        dtype = tf.float32 if self._precision == 32 else tf.float16
+        obs_dtype = dtype if np.issubdtype(env.obs_dtype, np.floating) else env.obs_dtype
+        action_dtype = dtype if np.issubdtype(env.action_dtype, np.floating) else env.action_dtype
         TensorSpecs = dict(
-            obs=(env.obs_shape, env.obs_dtype, 'obs'),
-            action=(env.action_shape, env.action_dtype, 'action'),
+            obs=(env.obs_shape, obs_dtype, 'obs'),
+            action=(env.action_shape, action_dtype, 'action'),
             value=((), tf.float32, 'value'),
             traj_ret=((), tf.float32, 'traj_ret'),
             advantage=((), tf.float32, 'advantage'),

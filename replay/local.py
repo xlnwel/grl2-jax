@@ -292,9 +292,9 @@ class EnvVecFixedEpisodicBuffer(EnvFixedEpisodicBuffer):
         results = [d for d in self._memory if d]
         if batch_data:
             results = batch_dicts(results)
-        for k, v in results.items():
-            assert v.shape[1] >= self._seqlen, [
-                (kk, vv.shape) for kk, vv in results.items()
-            ]
+            for k, v in results.items():
+                assert v.shape[1] >= self._seqlen, [
+                    (kk, vv.shape) for kk, vv in results.items()
+                ]
 
         return results

@@ -31,7 +31,6 @@ class Actor(Module):
 
     def call(self, x, evaluation=False):
         actor_out = self._layers(x)
-
         if self.is_action_discrete:
             logits = actor_out / self.eval_act_temp \
                 if evaluation and self.eval_act_temp else actor_out

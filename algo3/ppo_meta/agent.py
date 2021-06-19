@@ -83,7 +83,7 @@ class Agent(PPOBase):
             'time/learn_mean': self._learn_timer.average()
         })
 
-        _, rew_rms = self.get_running_stats()
+        _, rew_rms = self.get_rms_stats()
         if rew_rms:
             self.store(**{
                 'train/reward_rms_mean': rew_rms.mean,

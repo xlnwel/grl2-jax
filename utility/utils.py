@@ -395,7 +395,12 @@ class RunningMeanStd:
     def axis(self):
         return self._axis
 
-    def get_stats(self):
+    def set_rms_stats(self, mean, var, count):
+        self._mean = mean
+        self._var = var
+        self._count = count
+
+    def get_rms_stats(self):
         Stats = collections.namedtuple('RMS', 'mean var count')
         return Stats(self._mean, self._var, self._count)
 

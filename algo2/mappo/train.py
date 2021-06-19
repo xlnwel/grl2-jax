@@ -31,7 +31,7 @@ def train(agent, env, eval_env, buffer):
                 'global_state', mask=life_mask)
             agent.update_reward_rms(buffer['reward'], buffer['discount'])
             buffer.reset()
-        # obs_rms, rew_rms = agent.get_running_stats()
+        # obs_rms, rew_rms = agent.get_rms_stats()
         # if rew_rms:
         #     print('reward', rew_rms.mean)
         # if obs_rms:
@@ -42,7 +42,7 @@ def train(agent, env, eval_env, buffer):
         agent.save(print_terminal_info=True)
 
     runner.step = step
-    # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_running_stats() if k])
+    # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
     to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     rt = Timer('run')
