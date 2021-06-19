@@ -528,18 +528,8 @@ class SMAC2(gym.Env):
         """A single environment step. Returns reward, terminated, info."""
         if self.fixed_episode_length and self._game_over \
                 and self._fake_episode_steps < self.max_episode_steps:
-            self._fake_episode_steps += 1
-            obs = self._empty_obs.copy()
-            info = {
-                "won": [self.win_counted for _ in range(self.n_agents)],
-                'score': self._score,
-                'epslen': self._episode_steps,
-                'game_over': self._fake_episode_steps == self.max_episode_steps,
-                'extra_padding': self._fake_episode_steps - self._episode_steps
-            }
+            return self._fake_step(bad_episode=False)
 
-            return obs, 0, True, info
-        self._fake_episode_steps += 1
         terminated = False
         infos = [{} for i in range(self.n_agents)]
 
@@ -573,6 +563,9 @@ class SMAC2(gym.Env):
             self._obs = self._controller.observe()
         except (protocol.ProtocolError, protocol.ConnectionError) as e:
             print('Restart due to an exception:', e)
+            if self._fake_episode_steps < self.max_episode_steps:
+                self._game_over = True
+                return self._fake_step(bad_episode=True)
             self.full_restart()
             terminated = True
             available_actions = []
@@ -613,6 +606,7 @@ class SMAC2(gym.Env):
 
         self._total_steps += 1
         self._episode_steps += 1
+        self._fake_episode_steps += 1
         # Update units
         game_end_code = self.update_units()
 
@@ -693,6 +687,20 @@ class SMAC2(gym.Env):
         self._score = 0
         self._episode_steps = 0
         self._fake_episode_steps = 0
+
+    def _fake_step(self, bad_episode):
+        self._fake_episode_steps += 1
+        obs = self._empty_obs.copy()
+        info = {
+            "won": [self.win_counted for _ in range(self.n_agents)],
+            'score': self._score,
+            'epslen': self._episode_steps,
+            'game_over': self._fake_episode_steps == self.max_episode_steps,
+            'extra_padding': self._fake_episode_steps - self._episode_steps, 
+            'bad_episode': bad_episode
+        }
+
+        return obs, 0, True, info
 
     def get_agent_action(self, a_id, action):
         """Construct the action for agent a_id."""

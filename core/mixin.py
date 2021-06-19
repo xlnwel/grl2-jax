@@ -166,12 +166,13 @@ class Memory:
         return np.float32(1. - reset)
 
     def _apply_mask_to_state(self, state, mask):
-        mask_exp = np.expand_dims(mask, -1)
-        if isinstance(state, (list, tuple)):
-            state_type = type(state)
-            state = state_type(*[v * mask_exp for v in state])
-        else:
-            state = state * mask_exp
+        if state is not None:
+            mask_exp = np.expand_dims(mask, -1)
+            if isinstance(state, (list, tuple)):
+                state_type = type(state)
+                state = state_type(*[v * mask_exp for v in state])
+            else:
+                state = state * mask_exp
         return state
 
     def reset_states(self, state=None):

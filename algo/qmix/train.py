@@ -39,6 +39,7 @@ def train(agent, env, eval_env, replay):
     while env_step <= int(agent.MAX_STEPS):
         with rt:
             env_step = runner.run(step_fn=collect)
+        assert np.all(runner.env_output.reset), runner.env_output.reset
         replay.finish_episodes()
 
         with tt:

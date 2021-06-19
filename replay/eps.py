@@ -7,7 +7,8 @@ import uuid
 import numpy as np
 
 from core.decorator import config
-from replay.local import EnvEpisodicBuffer, EnvFixedEpisodicBuffer
+from replay.local import EnvEpisodicBuffer, EnvFixedEpisodicBuffer, \
+    EnvVecFixedEpisodicBuffer
 from replay.utils import load_data, print_buffer, save_data
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ class EpisodicReplay:
         self._save = getattr(self, '_save', False)
         if self._save:
             self._dir.mkdir(parents=True, exist_ok=True)
-        
+
         self._filenames = collections.deque()
         self._memory = {}
 
@@ -31,14 +32,18 @@ class EpisodicReplay:
         self._state_keys = state_keys
         self._tmp_bufs = []
 
-        self._local_buffer_type = getattr(self, '_local_buffer_type', 'eps')
+        self._local_buffer_type = getattr(
+            self, '_local_buffer_type', 'eps')
+        # if self._n_envs > 1 and self._local_buffer_type.startswith('env_'):
+        #     self._local_buffer_type = 'vec_' + self._local_buffer_type
         self.TempBufferType = {
             'eps': EnvEpisodicBuffer, 
-            'fixed_eps': EnvFixedEpisodicBuffer
+            'fixed_eps': EnvFixedEpisodicBuffer,
+            # 'vec_fixed_eps': EnvVecFixedEpisodicBuffer,
         }.get(self._local_buffer_type)
 
         self._info_printed = False
-    
+
     def name(self):
         return self._replay_type
 
@@ -77,7 +82,7 @@ class EpisodicReplay:
             self._tmp_bufs[i].reset()
         else:
             raise ValueError(f'{i} of type {type(i)} is not supported')
-        
+
     def is_local_buffer_full(self, i=None):
         """ Returns if all local buffers are full """
         if i is None:
@@ -175,9 +180,11 @@ class EpisodicReplay:
                 for k in samples[0].keys()}
         else:
             data = self._sample()
+
         return data
 
     def _sample(self):
+        """ Samples a sequence """
         filename = random.choice(list(self._memory))
         episode = self._memory[filename]
         if self._sample_size:
@@ -185,11 +192,15 @@ class EpisodicReplay:
             available = total - self._sample_size
             assert available > 0, f'Skipped short episode of length {total}.' \
                 f'{[(k, np.array(v).shape) for e in self._memory.values() for k, v in e.items()]}'
-                
+
             i = int(random.randint(0, available))
             episode = {k: v[i] if k in self._state_keys 
                         else v[i: i + self._sample_size] 
                         for k, v in episode.items()}
+        else:
+            episode = {k: v[0] if k in self._state_keys
+                        else v for k, v in episode.items()}
+
         return episode
 
     def _pop_episode(self):

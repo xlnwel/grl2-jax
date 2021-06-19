@@ -66,7 +66,7 @@ class Module(tf.Module):
         return getattr(self, f'_{name}')(x)
 
 
-class Ensemble:
+class Ensemble(tf.Module):
     """ This class groups all models together so that 
     one can easily get and set all variables """
     def __init__(self, 
@@ -80,6 +80,7 @@ class Ensemble:
             self.models = model_fn(config, **kwargs)
         else:
             self.models = models
+        
         [setattr(self, n, m) for n, m in self.models.items()]
         [setattr(self, k, v) for k, v in config.items() 
             if not isinstance(v, dict)]
@@ -109,7 +110,8 @@ class Ensemble:
             for n, w in weights.items():
                 self[n].set_weights(w)
         else:
-            assert len(self.variables) == len(weights)
+            assert len(self.variables) == len(weights), \
+                (len(self.variables), len(weights), weights)
             [v.assign(w) for v, w in zip(self.variables, weights)]
     
     def reset_states(self, **kwargs):
@@ -130,6 +132,7 @@ class Ensemble:
         return self.models[key]
 
     def __setitem__(self, key, value):
+        assert key not in self.models, list(self.models)
         self.models[key] = value
     
     def __contains__(self, item):

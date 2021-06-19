@@ -100,7 +100,6 @@ class Runner:
         return self.step
 
     def _run_traj_envvec(self, action_selector=None, step_fn=None):
-        # TODO: make it work
         action_selector = action_selector or self.agent
         obs = self.env_output.obs
         

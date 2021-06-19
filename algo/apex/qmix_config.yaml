@@ -87,6 +87,7 @@ agent:
 
 replay:
     replay_type: *replay
+    n_envs: *nenvs
     save: False
     
     # arguments for temporary buffer

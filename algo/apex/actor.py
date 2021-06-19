@@ -26,6 +26,7 @@ def config_actor(name, config):
         config['precision'] = 32
     configure_precision(config.get('precision', 32))
 
+
 def get_learner_base_class(AgentBase):
     class LearnerBase(AgentBase):
         """ Only implements minimal functionality for learners """
@@ -44,7 +45,7 @@ def get_learner_base_class(AgentBase):
                 self.learn_log()
                 
         def get_weights(self, name=None):
-            return self.model.get_weights(name=name)
+            return self.train_step, self.model.get_weights(name=name)
 
         def get_stats(self):
             """ retrieve traning stats for the monotor to record """
@@ -69,18 +70,8 @@ def get_learner_class(AgentBase):
 
             model = model_fn(config=model_config, env=env)
 
-            am = pkg.import_module('agent', config=config, place=-1)
-            data_format = am.get_data_format(
-                env=env, replay_config=replay_config, 
-                agent_config=config, model=model)
-            if not getattr(self, 'use_central_buffer', True):
-                assert replay is None, f'Replay({replay}) is not None for non-central buffer'
-                self.replay = replay = create_replay(replay_config)
-                
-            dataset = create_dataset(
-                replay, env, 
-                data_format=data_format, 
-                use_ray=getattr(self, '_use_central_buffer', True))
+            dataset = self._create_dataset(
+                replay, model, env, config, replay_config) 
             
             super().__init__(
                 name='Learner',
@@ -100,11 +91,42 @@ def get_learner_class(AgentBase):
             assert hasattr(self, 'replay'), f'There is no replay in {self.name}.\nDo you use a central replay?'
             return self.replay.good_to_learn()
 
+        def _create_dataset(self, replay, model, env, config, replay_config):
+            am = pkg.import_module('agent', config=config, place=-1)
+            data_format = am.get_data_format(
+                env=env, replay_config=replay_config, 
+                agent_config=config, model=model)
+            if not getattr(self, 'use_central_buffer', True):
+                assert replay is None, f'Replay({replay}) is not None for non-central buffer'
+                self.replay = replay = create_replay(replay_config)
+            dataset = create_dataset(
+                replay, env, 
+                data_format=data_format, 
+                use_ray=getattr(self, '_use_central_buffer', True))
+            
+            return dataset
+
     return Learner
 
 
+def get_actor_base_class(AgentBase):
+    """" Mixin that defines some basic operations for remote actor """
+    class ActorBase(AgentBase):
+        def pull_weights(self, learner):
+            train_step, weights = ray.get(
+                learner.get_weights.remote(self._pull_names))
+            self.train_step = train_step
+            self.model.set_weights(weights)
+        
+        def set_weights(self, train_step, weights):
+            self.model.set_weights(weights)
+            self.train_step = train_step
+    
+    return ActorBase
+
 def get_worker_base_class(AgentBase):
-    class WorkerBase(AgentBase):
+    ActorBase = get_actor_base_class(AgentBase)
+    class WorkerBase(ActorBase):
         """ Only implements minimal functionality for workers """
         def _send_data(self, replay, buffer=None, data=None):
             """ Sends data to replay and resets buffer """
@@ -141,6 +163,7 @@ def get_worker_base_class(AgentBase):
                         d['priority'] = p
             else:
                 raise ValueError(f'Unknown data of type: {type(data)}')
+            
             replay.merge.remote(data)
             buffer.reset()
 
@@ -184,7 +207,7 @@ def get_worker_class(AgentBase):
             self.env = create_env(env_config)
 
             buffer_config['n_envs'] = self.env.n_envs
-            if 'seqlen' not in buffer_config:
+            if buffer_config.get('seqlen', 0) == 0:
                 buffer_config['seqlen'] = self.env.max_episode_steps
             buffer = buffer_fn(buffer_config)
 
@@ -224,7 +247,7 @@ def get_worker_class(AgentBase):
             # the names of network modules that should be in sync with the learner
             if not hasattr(self, '_pull_names'):
                 self._pull_names = [k for k in self.model.keys() if 'target' not in k]
-            
+
             # used for recording worker side info 
             self._info = collections.defaultdict(list)
 
@@ -235,8 +258,7 @@ def get_worker_class(AgentBase):
 
         def run(self, learner, replay, monitor):
             while True:
-                weights = self._pull_weights(learner)
-                self.model.set_weights(weights)
+                self.pull_weights(learner)
                 self._run(replay)
                 self._send_episodic_info(monitor)
 
@@ -246,9 +268,6 @@ def get_worker_class(AgentBase):
                     self._info[k].append(v)
                 else:
                     self._info[k] += list(v)
-
-        def _pull_weights(self, learner):
-            return ray.get(learner.get_weights.remote(name=self._pull_names))
 
         def _run(self, replay):
             def collect(*args, **kwargs):
@@ -267,7 +286,8 @@ def get_worker_class(AgentBase):
 
 
 def get_evaluator_class(AgentBase):
-    class Evaluator(AgentBase):
+    ActorBase = get_actor_base_class(AgentBase)
+    class Evaluator(ActorBase):
         """ Initialization """
         def __init__(self, 
                     *,
@@ -311,13 +331,9 @@ def get_evaluator_class(AgentBase):
 
             while True:
                 step += 1
-                weights = self._pull_weights(learner)
-                self.model.set_weights(weights)
+                self.pull_weights(learner)
                 self._run(record=to_record(step))
                 self._send_episodic_info(monitor)
-
-        def _pull_weights(self, learner):
-            return ray.get(learner.get_weights.remote(name=self._pull_names))
 
         def _run(self, record):
             score, epslen, video = evaluate(self.env, self, 

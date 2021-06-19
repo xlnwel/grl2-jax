@@ -23,19 +23,24 @@ def get_data_format(*, env, replay_config, agent_config, **kwargs):
     )
     return data_format
 
-def add_last_obs(buffer, env):
+
+def _add_last_obs(buffer, env):
     # retrieve the last obs and add it to the buffer accordingly
     data = env.prev_obs().copy()
     data.pop('episodic_mask')
     buffer.add(**data)
-    # in case that smac throws an error and restarts, 
-    # we drop all data in the temporary buffer
+
+
+def _remove_bad_episodes(buffer, idxes):
+    # in case that some environments(e.g., smac) throw an error 
+    # and restart, we drop bad episodes in the temporary buffer
     if isinstance(buffer, LocalBuffer):
-        if not buffer.is_full():
-            buffer.reset()
+        assert buffer.is_full()
+        buffer.reset(idxes)
     else:
-        if not buffer.is_local_buffer_full():
-            buffer.reset_local_buffer()
+        assert buffer.is_local_buffer_full()
+        buffer.reset_local_buffer(idxes)
+
 
 def collect(buffer, env, env_step, reset, next_obs, **data):
     obs = data.pop('obs')
@@ -43,7 +48,21 @@ def collect(buffer, env, env_step, reset, next_obs, **data):
     buffer.add(**data)
 
     if np.any(reset):
-        add_last_obs(buffer, env)
+        assert np.all(reset), reset
+        _add_last_obs(buffer, env)
+
+        # remove bad data from the buffer 
+        infos = env.info()
+        if isinstance(infos, dict):
+            bad_episode_idxes = [0] if infos.get('bad_episode', False) else []
+        else:
+            bad_episode_idxes = [i for i, info in enumerate(infos) 
+                if info.get('bad_episode', False)]
+
+        if bad_episode_idxes:
+            print('bad episodes indexes:', bad_episode_idxes)
+            _remove_bad_episodes(buffer, bad_episode_idxes)
+
 
 class Agent(Memory, DQNBase):
     @override(DQNBase)

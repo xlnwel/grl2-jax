@@ -71,6 +71,8 @@ def create_worker(
 
     n_cpus = config.get('n_worker_cpus', 1)
     n_gpus = config.get('n_worker_gpus', 0)
+    
+    env_config['n_workers'] = 1
     RayWorker = ray.remote(num_cpus=n_cpus, num_gpus=n_gpus)(Worker)
     worker = RayWorker.remote(
         worker_id=worker_id, 
