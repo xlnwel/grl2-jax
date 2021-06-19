@@ -50,6 +50,10 @@ def collect(buffer, env, env_step, reset, next_obs, **data):
     if np.any(reset):
         assert np.all(reset), reset
         _add_last_obs(buffer, env)
+        if isinstance(buffer, LocalBuffer):
+            assert buffer.is_full(), (buffer._idx, buffer._memlen)
+        else:
+            assert buffer.is_local_buffer_full()
 
         # remove bad data from the buffer 
         infos = env.info()
