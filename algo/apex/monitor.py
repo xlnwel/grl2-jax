@@ -19,7 +19,8 @@ class Monitor(AgentImpl):
         self.MAX_STEPS = int(float(config['MAX_STEPS']))
 
     def sync_env_train_steps(self, learner):
-        self.env_step, self.train_step = learner.get_env_train_steps()
+        self.env_step, self.train_step = ray.get(
+            learner.get_env_train_steps.remote())
         self.last_env_step = self.env_step
 
     def record_episodic_info(self, worker_name=None, **stats):
