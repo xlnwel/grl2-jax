@@ -63,7 +63,9 @@ def get_learner_class(AgentBase):
                     model_config,
                     env_config,
                     replay_config):
-            config_actor('Learner', config)
+            name = 'Learner'
+
+            config_actor(name, config)
 
             env_config['n_envs'] = 1
             env = create_env(env_config)
@@ -74,7 +76,7 @@ def get_learner_class(AgentBase):
                 replay, model, env, config, replay_config) 
             
             super().__init__(
-                name='Learner',
+                name=name,
                 config=config, 
                 models=model,
                 dataset=dataset,
@@ -123,6 +125,7 @@ def get_actor_base_class(AgentBase):
             self.train_step = train_step
     
     return ActorBase
+
 
 def get_worker_base_class(AgentBase):
     ActorBase = get_actor_base_class(AgentBase)
@@ -201,9 +204,12 @@ def get_worker_class(AgentBase):
                     buffer_config,
                     model_fn,
                     buffer_fn):
-            config_actor(f'Worker_{worker_id}', config)
             self._id = worker_id
+            name = f'Worker_{self._id}'
 
+            config_actor(name, config)
+            
+            del env_config['n_workers']
             self.env = create_env(env_config)
 
             buffer_config['n_envs'] = self.env.n_envs
@@ -211,12 +217,10 @@ def get_worker_class(AgentBase):
                 buffer_config['seqlen'] = self.env.max_episode_steps
             buffer = buffer_fn(buffer_config)
 
-            models = model_fn( 
-                config=model_config, 
-                env=self.env)
+            models = model_fn(config=model_config, env=self.env)
 
             super().__init__(
-                name=f'Worker_{worker_id}',
+                name=name,
                 config=config,
                 models=models,
                 dataset=buffer,

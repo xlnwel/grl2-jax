@@ -17,10 +17,11 @@ default_agent_config = {
 
     # distributed algo params
     'n_learner_cpus': 1,
-    'n_learner_gpus': 1,
-    'n_workers': 5,
+    'n_learner_gpus': .5,
+    'n_actors': 2,
+    'n_actor_gpus': .25,
+    'n_workers': 8,
     'n_worker_cpus': 1,
-    'n_worker_gpus': 0,
 }
 
 def main(env_config, model_config, agent_config, replay_config):
@@ -51,7 +52,6 @@ def main(env_config, model_config, agent_config, replay_config):
         model_config=model_config, 
         env_config=env_config,
         replay_config=replay_config)
-    learner.start_learning.remote()
 
     # create workers
     Worker = am.get_worker_class()
@@ -63,9 +63,15 @@ def main(env_config, model_config, agent_config, replay_config):
             config=agent_config, 
             env_config=env_config, 
             buffer_config=replay_config)
-        worker.set_handler.remote(replay=learner)
+        worker.set_handler.remote(
+            replay=learner if replay is None else replay)
         worker.set_handler.remote(monitor=monitor)
         workers.append(worker)
+    rms_stats = ray.get([w.random_warmup.remote(1000) for w in workers])
+    print('warmup rms stats', rms_stats)
+    for obs_rms, rew_rms in rms_stats:
+        learner.update_from_rms_stats.remote(obs_rms, rew_rms)
+    print('Learner rms stats', ray.get(learner.get_rms_stats.remote()))
 
     # create the evaluator
     if agent_config.get('has_evaluator', True):
@@ -93,9 +99,12 @@ def main(env_config, model_config, agent_config, replay_config):
             model_config=model_config, 
             env_config=env_config)
         actor.start.remote(workers[aid*wpa:(aid+1)*wpa], learner, monitor)
+        actor.pull_weights.remote(learner)
         actors.append(actor)
     learner.set_handler.remote(actors=actors)
-    
+    learner.set_handler.remote(workers=workers)
+    learner.start_learning.remote()
+
     elapsed_time = 0
     interval = 10
     # put the main thead into sleep 

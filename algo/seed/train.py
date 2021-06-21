@@ -17,10 +17,11 @@ default_agent_config = {
 
     # distributed algo params
     'n_learner_cpus': 1,
-    'n_learner_gpus': 1,
-    'n_workers': 5,
+    'n_learner_gpus': .5,
+    'n_actors': 2,
+    'n_actor_gpus': .25,
+    'n_workers': 8,
     'n_worker_cpus': 1,
-    'n_worker_gpus': 0,
 }
 
 def main(env_config, model_config, agent_config, replay_config):
@@ -31,7 +32,8 @@ def main(env_config, model_config, agent_config, replay_config):
     default_agent_config.update(agent_config)
     agent_config = default_agent_config
 
-    replay = create_replay_center(replay_config)
+    replay = create_replay_center(replay_config) \
+        if agent_config.get('use_central_buffer', True) else None
 
     model_fn, Agent = pkg.import_agent(config=agent_config)
     am = pkg.import_module('actor', config=agent_config)
@@ -39,20 +41,6 @@ def main(env_config, model_config, agent_config, replay_config):
 
     # create the monitor
     monitor = fm.create_monitor(config=agent_config)
-
-    # create workers
-    Worker = am.get_worker_class()
-    workers = []
-    for wid in range(agent_config['n_workers']):
-        worker = fm.create_worker(
-            Worker=Worker, 
-            worker_id=wid, 
-            config=agent_config, 
-            env_config=env_config, 
-            buffer_config=replay_config)
-        worker.set_handler.remote(replay=replay)
-        worker.set_handler.remote(monitor=monitor)
-        workers.append(worker)
 
     # create the learner
     Learner = am.get_learner_class(Agent)
@@ -64,7 +52,21 @@ def main(env_config, model_config, agent_config, replay_config):
         model_config=model_config, 
         env_config=env_config,
         replay_config=replay_config)
-    learner.start_learning.remote()
+
+    # create workers
+    Worker = am.get_worker_class()
+    workers = []
+    for wid in range(agent_config['n_workers']):
+        worker = fm.create_worker(
+            Worker=Worker, 
+            worker_id=wid, 
+            config=agent_config, 
+            env_config=env_config, 
+            buffer_config=replay_config)
+        worker.set_handler.remote(
+            replay=learner if replay is None else replay)
+        worker.set_handler.remote(monitor=monitor)
+        workers.append(worker)
 
     # create the evaluator
     if agent_config.get('has_evaluator', True):
@@ -93,6 +95,7 @@ def main(env_config, model_config, agent_config, replay_config):
             env_config=env_config)
         actor.start.remote(workers[aid*wpa:(aid+1)*wpa], learner, monitor)
         actors.append(actor)
+    learner.start_learning.remote()
     
     elapsed_time = 0
     interval = 10

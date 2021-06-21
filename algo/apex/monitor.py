@@ -19,7 +19,7 @@ class Monitor(AgentImpl):
         self.last_env_step = 0
         self.last_train_step = 0
         self.MAX_STEPS = int(float(config['MAX_STEPS']))
-    
+
     def record_episodic_info(self, worker_name=None, **stats):
         video = stats.pop('video', None)
         if 'epslen' in stats:
@@ -35,7 +35,7 @@ class Monitor(AgentImpl):
         if worker_name is not None:
             stats = {f'{k}_{worker_name}': v for k, v in stats.items()}
         self.store(**stats)
-        
+
     def record_train_stats(self, learner):
         train_step, stats = ray.get(learner.get_stats.remote())
         if train_step == 0:
@@ -56,6 +56,6 @@ class Monitor(AgentImpl):
         self.last_env_step = self.env_step
         self.time = time.time()
         learner.save.remote()
-    
+
     def is_over(self):
         return self.env_step > self.MAX_STEPS
