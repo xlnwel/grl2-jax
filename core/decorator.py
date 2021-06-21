@@ -22,6 +22,7 @@ def record(init_fn):
         tf.summary.experimental.set_step(0)
 
         self._logger = setup_logger(root_dir, model_name)
+        save_code(self._root_dir, self._model_name)
 
         init_fn(self, config=config, **kwargs)
 
