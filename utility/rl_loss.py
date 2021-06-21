@@ -1,3 +1,4 @@
+from numpy.core.fromnumeric import clip
 import tensorflow as tf
 
 from utility.tf_utils import static_scan, reduce_mean, \
@@ -87,8 +88,9 @@ def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
 def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, 
         lambda_=.95, ratio_clip=1, axis=0, tbo=False, regularization=None):
     """
-    discount = gamma * (1-done). 
-    axis specifies the time dimension
+    Params:
+        discount = gamma * (1-done). 
+        axis specifies the time dimension
     """
     if isinstance(discount, (int, float)):
         discount = discount * tf.ones_like(reward)
@@ -132,28 +134,54 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount,
         
     return target
 
-# def ppo_loss(log_ratio, advantages, clip_range, entropy):
-#     ratio, loss1, loss2 = _compute_ppo_policy_losses(
-#         log_ratio, advantages, clip_range)
-
-#     ppo_loss = tf.reduce_mean(tf.maximum(loss1, loss2))
-#     entropy = tf.reduce_mean(entropy)
-#     # debug stats: KL between old and current policy and fraction of data being clipped
-#     approx_kl = .5 * tf.reduce_mean(tf.square(-log_ratio))
-#     clip_frac = tf.reduce_mean(
-#         tf.cast(tf.greater(tf.abs(ratio - 1.), clip_range), tf.float32))
+def v_trace(reward, value, next_value, pi, mu, discount, lambda_=1, 
+        c_clip=1, rho_clip=1, rho_clip_pg=1, axis=0):
+    """
+    Params:
+        discount = gamma * (1-done). 
+        axis specifies the time dimension
+    """
+    assert_rank_and_shape_compatibility(
+        [reward, value, next_value, pi, mu, discount])
     
-#     return ppo_loss, entropy, approx_kl, clip_frac
-
-# def ppo_value_loss(value, traj_ret, old_value, clip_range):
-#     value_diff, loss1, loss2 = _compute_ppo_value_losses(
-#         value, traj_ret, old_value, clip_range)
+    ratio = pi / mu
     
-#     value_loss = .5 * tf.reduce_mean(tf.maximum(loss1, loss2))
-#     clip_frac = tf.reduce_mean(
-#         tf.cast(tf.greater(tf.abs(value_diff), clip_range), value.dtype))
+    # swap 'axis' with the 0-th dimension
+    dims = list(range(reward.shape.ndims))
+    dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
+    if axis != 0:
+        reward = tf.transpose(reward, dims)
+        value = tf.transpose(value, dims)
+        next_value = tf.transpose(next_value, dims)
+        ratio = tf.transpose(ratio, dims)
+        discount = tf.transpose(discount, dims)
+    
+    clipped_c = ratio if c_clip is None else tf.minimum(ratio, c_clip)
+    clipped_rho = ratio if rho_clip is None else tf.minimum(ratio, rho_clip)
+    if lambda_ is not None and lambda_ != 1:
+        clipped_rho = lambda_ * clipped_rho
 
-#     return value_loss, clip_frac
+    delta = clipped_rho * (reward + discount * next_value - value)
+    
+    initial_value = tf.zeros_like(delta[-1])
+
+    v_minus_V = static_scan(
+        lambda acc, x: x[0] + x[1] * x[2] * acc,
+        initial_value, (delta, discount, clipped_c),
+        reverse=True)
+    
+    vs = v_minus_V + value
+
+    next_vs = tf.concat([vs[1:], next_value[-1:]], axis=0)
+    clipped_rho_pg = ratio if rho_clip_pg is None else tf.minimum(ratio, rho_clip_pg)
+    adv = clipped_rho_pg * (reward + discount * next_vs - value)
+
+    if axis != 0:
+        vs = tf.transpose(vs, dims)
+        adv = tf.transpose(adv, dims)
+    
+    return vs, adv
+
 
 def ppo_loss(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
     if mask is not None and n is None:
