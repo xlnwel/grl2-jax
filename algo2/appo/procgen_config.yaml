@@ -35,6 +35,7 @@ agent:
     LOG_PERIOD: 100
     EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
+    n_trajs: &ntrajs 64
 
     # distributed algo params
     # n_learner_cpus: 2
@@ -78,14 +79,12 @@ agent:
     value_coef: .5
 
 buffer:
-    # local buffer
-    n_envs: *nenvs
-    
     # APPO buffer
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
-    n_trajs: 64
+    n_envs: *nenvs
+    n_trajs: *ntrajs
     N_STEPS: *nsteps
     N_MBS: *nmbs        # number of minibatches
     norm_adv: minibatch

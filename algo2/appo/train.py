@@ -11,7 +11,6 @@ default_agent_config = {
     'MAX_STEPS': 1e8,
     'LOG_PERIOD': 60,
     'N_UPDATES': 1000,
-    'SYNC_PERIOD': 1000,
     'RECORD_PERIOD': 100,
     'N_EVALUATION': 10,
 
@@ -52,6 +51,7 @@ def main(env_config, model_config, agent_config, replay_config):
         model_config=model_config, 
         env_config=env_config,
         replay_config=replay_config)
+    monitor.sync_env_train_steps(learner)
 
     # create workers
     Worker = am.get_worker_class()
@@ -68,7 +68,7 @@ def main(env_config, model_config, agent_config, replay_config):
         worker.set_handler.remote(monitor=monitor)
         workers.append(worker)
     rms_stats = ray.get([w.random_warmup.remote(1000) for w in workers])
-    print('warmup rms stats', rms_stats)
+    print('Warmup rms stats', *rms_stats, sep='\n\t')
     for obs_rms, rew_rms in rms_stats:
         learner.update_from_rms_stats.remote(obs_rms, rew_rms)
     print('Learner rms stats', ray.get(learner.get_rms_stats.remote()))

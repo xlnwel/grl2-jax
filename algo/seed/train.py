@@ -11,7 +11,6 @@ default_agent_config = {
     'MAX_STEPS': 1e8,
     'LOG_PERIOD': 60,
     'N_UPDATES': 1000,
-    'SYNC_PERIOD': 1000,
     'RECORD_PERIOD': 100,
     'N_EVALUATION': 10,
 
@@ -52,6 +51,7 @@ def main(env_config, model_config, agent_config, replay_config):
         model_config=model_config, 
         env_config=env_config,
         replay_config=replay_config)
+    monitor.sync_env_train_steps(learner)
 
     # create workers
     Worker = am.get_worker_class()

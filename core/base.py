@@ -17,6 +17,9 @@ from core.mixin import RMS
 logger = logging.getLogger(__name__)
 
 class AgentImpl(ABC):
+    def get_env_train_steps(self):
+        return self.env_step, self.train_step
+
     """ Restore & save """
     def restore(self):
         """ Restore the latest parameter recorded by ckpt_manager """

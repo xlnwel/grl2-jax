@@ -1,7 +1,11 @@
+import time
+import queue
+import threading
 import numpy as np
 import ray
 
 from utility.utils import config_attr
+from utility.display import pwc
 from core.tf_config import *
 from core.mixin import RMS
 from algo.seed.actor import \
@@ -17,6 +21,9 @@ def get_actor_class(AgentBase):
     class Actor(ActorBase):
         def __init__(self, actor_id, model_fn, config, model_config, env_config):
             super().__init__(actor_id, model_fn, config, model_config, env_config)
+            
+            # self._event = threading.Event()
+            # self._event.set()
 
         def _process_output(self, obs, kwargs, out, evaluation):
             out = super()._process_output(obs, kwargs, out, evaluation)
@@ -26,17 +33,18 @@ def get_actor_class(AgentBase):
         def start(self, workers, learner, monitor):
             super().start(workers, learner, monitor)
             self._workers = workers
-            self.resume(self.train_step)
+        #     self.resume(self.train_step)
 
-        def stop(self):
-            self._event.clear()
+        # def stop(self):
+        #     self._event.clear()
 
-        def resume(self, policy_version):
-            assert policy_version == self.train_step, \
-                (policy_version, self.train_step)
-            for w in self._workers:
-                ray.get(w.clear_buffer.remote())
-            self._event.set()
+        # def resume(self, policy_version):
+        #     assert policy_version == self.train_step, \
+        #         (policy_version, self.train_step)
+        #     pwc(f'{self.name} resumes')
+        #     for w in self._workers:
+        #         ray.get(w.clear_buffer.remote())
+        #     self._event.set()
 
     return Actor
 
@@ -66,8 +74,6 @@ def get_learner_class(AgentBase):
         def _learning(self):
             while True:
                 self.dataset.wait_to_sample(self.train_step)
-                for a in self._actors:
-                    ray.get(a.stop.remote())
 
                 self.update_obs_rms(np.concatenate(self.dataset['obs']))
                 self.update_reward_rms(
@@ -81,7 +87,7 @@ def get_learner_class(AgentBase):
                     ray.get(a.set_weights.remote(
                         *self.get_weights(name=self._push_names)))
                     ray.get(a.set_rms_stats.remote(obs_rms))
-                    ray.get(a.resume.remote(self.train_step))
+                    # ray.get(a.resume.remote(self.train_step))
 
         def _store_buffer_stats(self):
             super()._store_buffer_stats()
@@ -100,6 +106,10 @@ def get_worker_class():
             super().__init__(worker_id, config, env_config, buffer_config)
 
             self._setup_rms_stats()
+            self._n_sends = 0
+            pwc(f'Initial #sends: {self._n_sends}')
+            # self._event = threading.Event()
+            # self._event.set()
 
         def env_step(self, eid, action, terms):
             # TODO: consider using a queue here
@@ -141,7 +151,7 @@ def get_worker_class():
                     self._process_obs(o)
                     rewards.append(r)
                     discounts.append(d)
-            
+
             rewards = np.swapaxes(rewards, 0, 1)
             discounts = np.swapaxes(discounts, 0, 1)
             self.update_reward_rms(rewards, discounts)
@@ -153,9 +163,19 @@ def get_worker_class():
             return {eid: LocalBuffer(buffer_config) 
                 for eid in range(n_envvecs)}
 
-        def clear_buffer(self):
-            for b in self._buffs.values():
-                print(self.name, 'before clear:', b._idx)
-                b.reset()
-    
+        def _send_data(self, replay, buffer):
+            super()._send_data(replay, buffer)
+            self._n_sends += 1
+            # pwc(f'{self.name} #sends: {self._n_sends}')
+            # if self._n_sends == self._n_trajs // self._n_workers // buffer._n_envs:
+            #     pwc(f'{self.name} stops at {self._n_sends}')
+
+        # def clear_buffer(self):
+        #     pwc(f'{self.name} clears buffer')
+        #     for b in self._buffs.values():
+        #         if b._idx > 0:
+        #             pwc(f'{self.name} before clear: {b._idx}')
+        #             b.reset()
+        #     self._n_sends = 0
+
     return Worker

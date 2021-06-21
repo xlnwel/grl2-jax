@@ -1,5 +1,4 @@
 import time
-import threading
 import numpy as np
 import ray
 
@@ -12,13 +11,16 @@ class Monitor(AgentImpl):
     @record
     def __init__(self, config):
         self._ready = np.zeros(config['n_workers'])
-        self._locker = threading.Lock()
-
+        
         self.time = time.time()
         self.env_step = 0
         self.last_env_step = 0
         self.last_train_step = 0
         self.MAX_STEPS = int(float(config['MAX_STEPS']))
+
+    def sync_env_train_steps(self, learner):
+        self.env_step, self.train_step = learner.get_env_train_steps()
+        self.last_env_step = self.env_step
 
     def record_episodic_info(self, worker_name=None, **stats):
         video = stats.pop('video', None)
@@ -26,8 +28,7 @@ class Monitor(AgentImpl):
             self.env_step += np.sum(stats['epslen'])
         if worker_name is not None:
             stats = {f'{k}_{worker_name}': v for k, v in stats.items()}
-        with self._locker:
-            self.store(**stats)
+        self.store(**stats)
         if video is not None:
             video_summary(f'{self.name}/sim', video, step=self.env_step)
 

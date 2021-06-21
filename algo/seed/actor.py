@@ -84,10 +84,7 @@ def get_actor_class(AgentBase):
                     k for k in self.model.keys() if 'target' not in k]
 
             self._to_sync = Every(self.SYNC_PERIOD) \
-                if hasattr(self, 'SYNC_PERIOD') else None
-
-            self._event = threading.Event()
-            self._event.set()
+                if hasattr(self, 'SYNC_PERIOD') else lambda _: None
 
             env.close()
 
@@ -133,9 +130,6 @@ def get_actor_class(AgentBase):
 
             self.env_step = 0
             while True:
-                with Timer(f'{self.name} event wait'):
-                    self._event.wait()
-
                 # retrieve ready objs
                 with Timer(f'{self.name} wait') as wt:
                     ready_objs, _ = ray.wait(
@@ -169,6 +163,7 @@ def get_actor_class(AgentBase):
                     for wid, eid, a, t in zip(wids, eids, actions, terms)})
 
                 self.env_step += self._action_batch * self._n_envs
+
                 if self._to_sync(self.env_step):
                     with Timer(f'{self.name} pull weights') as pw:
                         self.pull_weights(learner)
