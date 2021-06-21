@@ -51,7 +51,7 @@ def main(env_config, model_config, agent_config, replay_config):
         model_config=model_config, 
         env_config=env_config,
         replay_config=replay_config)
-    monitor.sync_env_train_steps(learner)
+    ray.get(monitor.sync_env_train_steps.remote(learner))
 
     Worker = am.get_worker_class(Agent)
     workers = []
