@@ -1,9 +1,9 @@
-from algo.dqn.train import train
 import functools
 import itertools
 import collections
 import threading
 import numpy as np
+import psutil
 import tensorflow as tf
 import ray
 
@@ -33,8 +33,9 @@ def get_actor_class(AgentBase):
                     env_config):
             self._id = actor_id
             name = f'Actor_{self._id}'
-
             config_actor(name, config)
+
+            psutil.Process().nice(config.get('default_nice', 10)+2)
 
             # create env to get state&action spaces
             self._n_envvecs = env_config['n_envvecs']
@@ -56,7 +57,7 @@ def get_actor_class(AgentBase):
             # number of env(vec) instances for each inference pass
             self._action_batch = int(
                 self._wpa * self._n_envvecs * self._action_frac)
-
+            print(f'{self.name} action batch: {self._action_batch * self._n_envs}')
             if 'act_eps' in config:
                 act_eps = compute_act_eps(
                     config['act_eps_type'], 
@@ -87,8 +88,6 @@ def get_actor_class(AgentBase):
                 if hasattr(self, 'SYNC_PERIOD') else lambda _: None
 
             env.close()
-            self._n_acts = -1   # -1 because we need an extra step to compute value
-            self._event = threading.Event()
 
         def __call__(self, wids, eids, env_output):
             if 'rnn' in self.model:
@@ -123,11 +122,6 @@ def get_actor_class(AgentBase):
             # run the act loop in a background thread to provide the
             # flexibility to allow the learner to push weights
             self._act_thread.start()
-            self.resume(self.train_step)
-
-        def resume(self, train_step):
-            assert train_step == self.train_step, (train_step, self.train_step)
-            self._event.set()
 
         def _act_loop(self, workers, learner, monitor):
             # retrieve the last env_output
@@ -136,9 +130,19 @@ def get_actor_class(AgentBase):
                 for eid in range(self._n_envvecs)}
 
             self.env_step = 0
+            q_size = []
             while True:
-                with Timer(f'{self.name} event wait', 100):
-                    self._event.wait()
+                obs_rms, train_step_weights = None, None
+
+                q_size.append(self._param_queue.qsize())
+                while not self._param_queue.empty():
+                    obs_rms, train_step_weights = self._param_queue.get(False)
+
+                if train_step_weights is not None:
+                    self.set_rms_stats(ray.get(obs_rms))
+                    self.set_train_step_weights(
+                        *ray.get(train_step_weights))
+
                 # retrieve ready objs
                 with Timer(f'{self.name} wait') as wt:
                     ready_objs, _ = ray.wait(
@@ -172,19 +176,17 @@ def get_actor_class(AgentBase):
                     for wid, eid, a, t in zip(wids, eids, actions, terms)})
 
                 self.env_step += self._action_batch * self._n_envs
-                self._n_acts += 1
-                if self._n_acts * self._action_batch * self._n_envs == self._n_trajs * self.N_STEPS:
-                    assert self._n_acts == self.N_STEPS, (self._n_acts, self.N_STEPS)
-                    self._event.clear()
-                    self._n_acts = 0
 
                 if self._to_sync(self.env_step):
                     with Timer(f'{self.name} pull weights') as pw:
                         self.pull_weights(learner)
-                    monitor.record_run_stats.remote(**{
+                    monitor.record_run_stats.remote(
+                        worker_name=self._id,
+                        **{
                         'time/wait_env': wt.average(),
                         'time/pull_weights': pw.average(),
-                        'n_ready': self._action_batch
+                        'n_ready': self._action_batch,
+                        'q_size': q_size
                     })
 
     return Actor
@@ -197,6 +199,9 @@ def get_worker_class():
         def __init__(self, worker_id, config, env_config, buffer_config):
             config_attr(self, config)
             cpu_affinity(f'Worker_{worker_id}')
+
+            psutil.Process().nice(config.get('default_nice', 10)+10)
+            
             self._id = worker_id
             self.name = f'Worker_{self._id}'
 

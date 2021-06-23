@@ -113,7 +113,8 @@ def step_track(learn_log):
         if step > self.env_step:
             self.env_step = step
             self._env_step.assign(self.env_step)
-        self.train_step += learn_log(self, step, **kwargs)
+        n = learn_log(self, step, **kwargs)
+        self.train_step += n
         self._train_step.assign(self.train_step)
         return self.train_step
 

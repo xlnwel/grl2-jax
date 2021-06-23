@@ -91,9 +91,9 @@ class Buffer(PPOBufffer):
             assert v.shape[0] == self._n_trajs, (v.shape, self._n_trajs)
 
         self._trajs_dropped = n * self._n_envs - self._n_trajs
-        train_step = self._memory['train_step']
-        self._policy_version_min_diff = policy_version - train_step.max()
-        self._policy_version_max_diff = policy_version - train_step.min()
+        train_step = self._memory.pop('train_step')
+        self._policy_version_min_diff = policy_version - train_step[:, -1].max()
+        self._policy_version_max_diff = policy_version - train_step[:, 0].min()
         self._policy_version_avg_diff = policy_version - train_step.mean()
 
     def compute_advantage_return(self):

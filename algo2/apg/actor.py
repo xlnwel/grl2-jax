@@ -1,13 +1,9 @@
-import time
-import queue
-import threading
 import numpy as np
 import ray
 
-from utility.utils import config_attr
-from utility.display import pwc
 from core.tf_config import *
 from core.mixin import RMS
+from core.decorator import step_track
 from algo.seed.actor import \
     get_actor_class as get_actor_base_class, \
     get_learner_class as get_learner_base_class, \
@@ -19,7 +15,8 @@ from .buffer import Buffer, LocalBuffer
 def get_actor_class(AgentBase):
     ActorBase = get_actor_base_class(AgentBase)
     class Actor(ActorBase):
-        def __init__(self, actor_id, model_fn, config, model_config, env_config):
+        def __init__(self, actor_id, model_fn, config, 
+                model_config, env_config):
             super().__init__(actor_id, model_fn, config, model_config, env_config)
 
         def _process_output(self, obs, kwargs, out, evaluation):
@@ -48,17 +45,6 @@ def get_learner_class(AgentBase):
             self.replay = Buffer(replay_config)
             return self.replay
 
-        def push_weights(self):
-            obs_rms, _ = self.get_rms_stats()
-            obs_rms_id = ray.put(obs_rms)
-            train_step, weights = self.get_weights(name=self._push_names)
-            train_step_id = ray.put(train_step)
-            weights_id = ray.put(weights)
-            for a in self._actors:
-                ray.get(a.set_weights.remote(train_step_id, weights_id))
-                ray.get(a.set_rms_stats.remote(obs_rms_id))
-                ray.get(a.resume.remote(train_step_id))
-
         def _learning(self):
             while True:
                 self.dataset.wait_to_sample(self.train_step)
@@ -73,7 +59,23 @@ def get_learner_class(AgentBase):
 
                 self.learn_log()
 
-                self.push_weights()
+        @step_track
+        def learn_log(self, step):
+            self._sample_learn()
+            self._store_buffer_stats()
+            self._store_rms_stats()
+
+            return 0
+        
+        def _after_train_step(self):
+            self.train_step += 1
+            obs_rms, _ = self.get_rms_stats()
+            obs_rms_id = ray.put(obs_rms)
+            train_step_weights = self.get_train_step_weights(
+                name=self._push_names)
+            train_step_weights_id = ray.put(train_step_weights)
+            for q in self._param_queues:
+                q.put((obs_rms_id, train_step_weights_id))
 
         def _store_buffer_stats(self):
             super()._store_buffer_stats()
@@ -92,10 +94,12 @@ def get_worker_class():
             super().__init__(worker_id, config, env_config, buffer_config)
 
             self._setup_rms_stats()
-            self._counters = {f'{i}': 0 for i in range(self._n_envvecs)}
+            self._counters = {f'env_step_{i}': 0 
+                for i in range(self._n_envvecs)}
 
         def env_step(self, eid, action, terms):
-            self._counters[f'{eid}'] += 1
+            self._counters[f'env_step_{eid}'] += 1
+
             # TODO: consider using a queue here
             env_output = self._envvecs[eid].step(action)
             kwargs = dict(

@@ -170,7 +170,7 @@ class PPOBase(RMSAgentBase):
 
         if self._to_summary(self.train_step + n):
             self._summary(data, terms)
-        
+
         return n
     
     def _sample_data(self):

@@ -1,6 +1,7 @@
 import os
 import time
 import ray
+from ray.util.queue import Queue
 
 from utility.ray_setup import sigint_shutdown_ray
 from utility import pkg
@@ -55,12 +56,14 @@ def main(env_config, model_config, agent_config, replay_config):
         learner.update_from_rms_stats.remote(obs_rms, rew_rms)
     print('Learner rms stats', ray.get(learner.get_rms_stats.remote()))
 
+    # create actors
     Actor = am.get_actor_class(Agent)
     actors = []
     na = agent_config['n_actors']
     nw = agent_config['n_workers']
     assert nw % na == 0, f"n_workers({nw}) is not divisible by n_actors({na})"
     wpa = nw // na
+    param_queues = [Queue() for _ in range(na)]
     for aid in range(agent_config['n_actors']):
         actor = fm.create_actor(
             Actor=Actor, 
@@ -69,11 +72,14 @@ def main(env_config, model_config, agent_config, replay_config):
             config=agent_config, 
             model_config=model_config, 
             env_config=env_config)
-        actor.start.remote(workers[aid*wpa:(aid+1)*wpa], learner, monitor)
         actor.pull_weights.remote(learner)
+        actor.set_handler.remote(param_queue=param_queues[aid])
+        actor.start.remote(
+            workers[aid*wpa:(aid+1)*wpa], learner, monitor)
         actors.append(actor)
     learner.set_handler.remote(actors=actors)
     learner.set_handler.remote(workers=workers)
+    learner.set_handler.remote(param_queues=param_queues)
     learner.start_learning.remote()
 
     # create the evaluator

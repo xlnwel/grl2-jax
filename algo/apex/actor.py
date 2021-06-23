@@ -3,6 +3,7 @@ import threading
 import functools
 import collections
 import numpy as np
+import psutil
 import ray
 
 from core.tf_config import *
@@ -32,13 +33,13 @@ def get_actor_base_class(AgentBase):
     class ActorBase(AgentBase):
         def pull_weights(self, learner):
             train_step, weights = ray.get(
-                learner.get_weights.remote(self._pull_names))
+                learner.get_train_step_weights.remote(self._pull_names))
             self.train_step = train_step
             self.model.set_weights(weights)
         
-        def set_weights(self, train_step, weights):
-            self.model.set_weights(weights)
+        def set_train_step_weights(self, train_step, weights):
             self.train_step = train_step
+            self.model.set_weights(weights)
 
         def set_handler(self, **kwargs):
             config_attr(self, kwargs)
@@ -63,8 +64,11 @@ def get_learner_base_class(AgentBase):
 
             while True:
                 self.learn_log()
-                
+
         def get_weights(self, name=None):
+            return self.model.get_weights(name=name)
+
+        def get_train_step_weights(self, name=None):
             return self.train_step, self.model.get_weights(name=name)
 
         def get_stats(self):
@@ -87,6 +91,7 @@ def get_learner_class(AgentBase):
                     env_config,
                     replay_config):
             name = 'Learner'
+            psutil.Process().nice(config.get('default_nice', 10))
 
             config_actor(name, config)
 

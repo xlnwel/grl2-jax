@@ -1,4 +1,3 @@
-from collections import defaultdict
 import ray
 
 from algo.apex.func import disable_info_logging, ray_remote_config, \

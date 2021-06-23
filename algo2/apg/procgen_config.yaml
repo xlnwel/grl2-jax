@@ -2,7 +2,7 @@
 env:
     name: &env_name procgen_coinrun
     n_envvecs: 2
-    n_envs: &nenvs 32
+    n_envs: &nenvs 128
     frame_skip: 1
     frame_stack: 1
     # num_levels: 200
@@ -25,24 +25,25 @@ model:
 
 agent:
     algorithm: &algo appo
-    precision: 32
+    precision: 16
     gamma: &gamma .999
 
     MAX_STEPS: 2.5e7
-    N_STEPS: &nsteps 256
+    N_STEPS: &nsteps 16
     N_EPOCHS: 3
     N_MBS: &nmbs 8
-    LOG_PERIOD: 100
+    LOG_PERIOD: 50
     EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
-    n_trajs: &ntrajs 64
+    n_trajs: &ntrajs 2048
 
     # distributed algo params
-    # n_learner_cpus: 2
+    nice: 0
+    n_learner_cpus: 2
     n_learner_gpus: .5
-    n_actors: 1
+    n_actors: 2
     n_actor_gpus: .25
-    n_workers: 1
+    n_workers: 8
     n_worker_cpus: 1
     # SYNC_PERIOD: 50
     has_evaluator: False
