@@ -6,7 +6,7 @@ import numpy as np
 import ray
 
 from core.tf_config import *
-from utility.utils import Every
+from utility.utils import Every, config_attr
 from utility.timer import Timer
 from utility.ray_setup import cpu_affinity, get_num_cpus
 from utility.run import Runner, evaluate, RunMode
@@ -27,8 +27,28 @@ def config_actor(name, config):
     configure_precision(config.get('precision', 32))
 
 
+def get_actor_base_class(AgentBase):
+    """" Mixin that defines some basic operations for remote actor """
+    class ActorBase(AgentBase):
+        def pull_weights(self, learner):
+            train_step, weights = ray.get(
+                learner.get_weights.remote(self._pull_names))
+            self.train_step = train_step
+            self.model.set_weights(weights)
+        
+        def set_weights(self, train_step, weights):
+            self.model.set_weights(weights)
+            self.train_step = train_step
+
+        def set_handler(self, **kwargs):
+            config_attr(self, kwargs)
+
+    return ActorBase
+
+
 def get_learner_base_class(AgentBase):
-    class LearnerBase(AgentBase):
+    ActorBase = get_actor_base_class(AgentBase)
+    class LearnerBase(ActorBase):
         """ Only implements minimal functionality for learners """
         def start_learning(self):
             self._learning_thread = threading.Thread(
@@ -50,6 +70,9 @@ def get_learner_base_class(AgentBase):
         def get_stats(self):
             """ retrieve traning stats for the monotor to record """
             return self.train_step, super().get_stats()
+
+        def set_handler(self, **kwargs):
+            config_attr(self, kwargs)
 
     return LearnerBase
 
@@ -109,22 +132,6 @@ def get_learner_class(AgentBase):
             return dataset
 
     return Learner
-
-
-def get_actor_base_class(AgentBase):
-    """" Mixin that defines some basic operations for remote actor """
-    class ActorBase(AgentBase):
-        def pull_weights(self, learner):
-            train_step, weights = ray.get(
-                learner.get_weights.remote(self._pull_names))
-            self.train_step = train_step
-            self.model.set_weights(weights)
-        
-        def set_weights(self, train_step, weights):
-            self.model.set_weights(weights)
-            self.train_step = train_step
-    
-    return ActorBase
 
 
 def get_worker_base_class(AgentBase):

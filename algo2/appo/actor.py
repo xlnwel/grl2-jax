@@ -48,9 +48,6 @@ def get_learner_class(AgentBase):
             self.replay = Buffer(replay_config)
             return self.replay
 
-        def set_handler(self, **kwargs):
-            config_attr(self, kwargs)
-
         def push_weights(self):
             obs_rms, _ = self.get_rms_stats()
             obs_rms_id = ray.put(obs_rms)

@@ -4,36 +4,18 @@ import ray
 
 from utility.ray_setup import sigint_shutdown_ray
 from utility import pkg
-from replay.func import create_replay_center
+from replay.func import create_replay, create_replay_center
 
-
-default_agent_config = {    
-    'MAX_STEPS': 1e8,
-    'LOG_PERIOD': 60,
-    'N_UPDATES': 1000,
-    'RECORD_PERIOD': 100,
-    'N_EVALUATION': 10,
-
-    # distributed algo params
-    'n_learner_cpus': 1,
-    'n_learner_gpus': .5,
-    'n_actors': 2,
-    'n_actor_gpus': .25,
-    'n_workers': 8,
-    'n_worker_cpus': 1,
-}
 
 def main(env_config, model_config, agent_config, replay_config):
     ray.init(num_cpus=os.cpu_count(), num_gpus=1)
 
     sigint_shutdown_ray()
 
-    default_agent_config.update(agent_config)
-    agent_config = default_agent_config
-
+    # create the central replay / leave the learner to create one
     replay = create_replay_center(replay_config) \
         if agent_config.get('use_central_buffer', True) else None
-
+    
     model_fn, Agent = pkg.import_agent(config=agent_config)
     am = pkg.import_module('actor', config=agent_config)
     fm = pkg.import_module('func', config=agent_config)
@@ -73,17 +55,6 @@ def main(env_config, model_config, agent_config, replay_config):
         learner.update_from_rms_stats.remote(obs_rms, rew_rms)
     print('Learner rms stats', ray.get(learner.get_rms_stats.remote()))
 
-    # create the evaluator
-    if agent_config.get('has_evaluator', True):
-        Evaluator = am.get_evaluator_class(Agent)
-        evaluator = fm.create_evaluator(
-            Evaluator=Evaluator,
-            model_fn=model_fn,
-            config=agent_config,
-            model_config=model_config,
-            env_config=env_config)
-        evaluator.run.remote(learner, monitor)
-
     Actor = am.get_actor_class(Agent)
     actors = []
     na = agent_config['n_actors']
@@ -104,6 +75,17 @@ def main(env_config, model_config, agent_config, replay_config):
     learner.set_handler.remote(actors=actors)
     learner.set_handler.remote(workers=workers)
     learner.start_learning.remote()
+
+    # create the evaluator
+    if agent_config.get('has_evaluator', True):
+        Evaluator = am.get_evaluator_class(Agent)
+        evaluator = fm.create_evaluator(
+            Evaluator=Evaluator,
+            model_fn=model_fn,
+            config=agent_config,
+            model_config=model_config,
+            env_config=env_config)
+        evaluator.run.remote(learner, monitor)
 
     elapsed_time = 0
     interval = 10

@@ -175,7 +175,6 @@ def get_actor_class(AgentBase):
                 self._n_acts += 1
                 if self._n_acts * self._action_batch * self._n_envs == self._n_trajs * self.N_STEPS:
                     assert self._n_acts == self.N_STEPS, (self._n_acts, self.N_STEPS)
-                    print('event clear:', self._n_acts)
                     self._event.clear()
                     self._n_acts = 0
 
