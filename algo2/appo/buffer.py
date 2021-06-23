@@ -44,6 +44,9 @@ class Buffer(PPOBufffer):
     def good_to_learn(self):
         return self._idx >= self._n
 
+    def empty(self):
+        return self._memory is None
+
     def reset(self):
         self._memory = None
         self._mb_idx = 0
@@ -71,6 +74,9 @@ class Buffer(PPOBufffer):
             self._idx = 0
         # TODO: do not batch this to avoid copy data from shared memory
         self._memory = batch_dicts(self._memory, np.concatenate)
+        # assertion for single envvec
+        # for ts in self._memory['train_step'][1:]:
+        #     assert np.all(self._memory['train_step'][0] == ts), (self._memory['train_step'][0], ts)
 
         self._trajs_dropped = n * self._n_envs - self._n_trajs
         print('Buffer sample wait:', self._sample_wait_time)
@@ -86,8 +92,19 @@ class Buffer(PPOBufffer):
             f'avg_diff({self._policy_version_avg_diff})',
             sep='\n')
 
+    def compute_advantage_return(self):
+        self._memory['advantage'], self._memory['traj_ret'] = \
+            self._compute_advantage_return(
+                self._memory['reward'], self._memory['discount'], 
+                self._memory['value'], self._memory['last_value'],
+                epsilon=self._epsilon)
+        # remove the last value
+        del self._memory['last_value']
+
     def reshape_to_sample(self):
         for k, v in self._memory.items():
+            assert v.shape[:2] == (self._n_trajs, self.N_STEPS), \
+                (v.shape, (self._n_trajs, self.N_STEPS))
             self._memory[k] = np.concatenate(v, 0)
 
     def sample(self, sample_keys=None):
@@ -128,18 +145,18 @@ class LocalBuffer(PPOBufffer):
 
     def reset(self):
         # assert self.is_full(), self._idx
-        self.reshape_to_store()
         self._is_store_shape = True
         self._idx = 0
 
     def sample(self):
         return self._memory
 
-    def reshape_to_sample(self):
-        # do not reshape for sampling. 
-        # we maintain the sequential relation
-        # making it easier for learner to compute the rms of rewards
-        pass
+    def finish(self, last_value):
+        """ Add last value to memory. 
+        Leave advantage and return 
+        computation to the learner """
+        assert self._idx == self.N_STEPS, self._idx
+        self._memory['last_value'] = last_value
 
     # methods not supposed to be implemented for LocalBuffer
     def update(self):

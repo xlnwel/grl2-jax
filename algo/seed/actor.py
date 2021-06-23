@@ -87,6 +87,8 @@ def get_actor_class(AgentBase):
                 if hasattr(self, 'SYNC_PERIOD') else lambda _: None
 
             env.close()
+            self._n_acts = -1   # -1 because we need an extra step to compute value
+            self._event = threading.Event()
 
         def __call__(self, wids, eids, env_output):
             if 'rnn' in self.model:
@@ -121,6 +123,11 @@ def get_actor_class(AgentBase):
             # run the act loop in a background thread to provide the
             # flexibility to allow the learner to push weights
             self._act_thread.start()
+            self.resume(self.train_step)
+
+        def resume(self, train_step):
+            assert train_step == self.train_step, (train_step, self.train_step)
+            self._event.set()
 
         def _act_loop(self, workers, learner, monitor):
             # retrieve the last env_output
@@ -130,6 +137,8 @@ def get_actor_class(AgentBase):
 
             self.env_step = 0
             while True:
+                with Timer(f'{self.name} event wait', 100):
+                    self._event.wait()
                 # retrieve ready objs
                 with Timer(f'{self.name} wait') as wt:
                     ready_objs, _ = ray.wait(
@@ -163,6 +172,12 @@ def get_actor_class(AgentBase):
                     for wid, eid, a, t in zip(wids, eids, actions, terms)})
 
                 self.env_step += self._action_batch * self._n_envs
+                self._n_acts += 1
+                if self._n_acts * self._action_batch * self._n_envs == self._n_trajs * self.N_STEPS:
+                    assert self._n_acts == self.N_STEPS, (self._n_acts, self.N_STEPS)
+                    print('event clear:', self._n_acts)
+                    self._event.clear()
+                    self._n_acts = 0
 
                 if self._to_sync(self.env_step):
                     with Timer(f'{self.name} pull weights') as pw:
