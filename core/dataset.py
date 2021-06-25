@@ -8,6 +8,7 @@ import tensorflow as tf
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 logger = logging.getLogger(__name__)
 
+
 class Dataset:
     def __init__(self, 
                  buffer, 
@@ -52,8 +53,10 @@ class Dataset:
         with tf.name_scope('data'):
             ds = tf.data.Dataset.from_generator(
                 self._sample, self.types, self.shapes)
+            # batch data if the data has not been batched yet
             if batch_size:
                 ds = ds.batch(batch_size, drop_remainder=True)
+            # apply processing function to a batch of data
             if process_fn:
                 ds = ds.map(map_func=process_fn, 
                             num_parallel_calls=tf.data.experimental.AUTOTUNE)
