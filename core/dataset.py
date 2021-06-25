@@ -37,6 +37,11 @@ class Dataset:
         self.shapes = {k: v.shape for k, v in self.data_format.items()}
         self._iterator = self._prepare_dataset(process_fn, batch_size, **kwargs)
 
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError("attempted to get missing private attribute '{}'".format(name))
+        return getattr(self._buffer, name)
+        
     def name(self):
         return self._buffer.name()
 

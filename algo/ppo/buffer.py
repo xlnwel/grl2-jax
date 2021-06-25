@@ -1,3 +1,4 @@
+import time
 import logging
 import numpy as np
 
@@ -80,6 +81,9 @@ class Buffer:
         self._add_attributes()
 
     def _add_attributes(self):
+        self._use_dataset = getattr(self, '_use_dataset')
+        logger.info(f'Dataset is used for data pipline')
+
         self._sample_size = getattr(self, '_sample_size', None)
         self._state_keys = getattr(self, '_state_keys', [])
         if self._sample_size:
@@ -117,6 +121,7 @@ class Buffer:
         self._is_store_shape = True
         self._idx = 0
         self._mb_idx = 0
+        self._epoch_idx = 0
         self._ready = False
 
     def add(self, **data):
@@ -147,7 +152,8 @@ class Buffer:
             curr_idxes = self._idxes[start:end]
             obs = self._memory['obs'][curr_idxes]
             if self._sample_size:
-                state = tuple([self._memory[k][curr_idxes, 0] for k in self._state_keys])
+                state = tuple([self._memory[k][curr_idxes, 0] 
+                    for k in self._state_keys])
                 mask = self._memory['mask'][curr_idxes]
                 value, state = fn(obs, state=state, mask=mask, return_state=True)
                 self.update('value', value, mb_idxes=curr_idxes)
@@ -160,9 +166,20 @@ class Buffer:
         assert mb_idx == 0, mb_idx
 
     def sample(self, sample_keys=None):
+        if self._use_dataset:
+            if self._mb_idx == 0:
+                np.random.shuffle(self._shuffled_idxes)
+                self._epoch_idx += 1
+                if self._epoch_idx > self.N_EPOCHS:
+                    self._ready = False
+                    self._epoch_idx = 0
+
+            while self._ready == False:
+                time.sleep(.025)
+        else:
+            if self._mb_idx == 0:
+                np.random.shuffle(self._shuffled_idxes)
         assert self._ready
-        if self._mb_idx == 0:
-            np.random.shuffle(self._shuffled_idxes)
 
         sample_keys = sample_keys or self._sample_keys
         self._mb_idx, self._curr_idxes = compute_indices(

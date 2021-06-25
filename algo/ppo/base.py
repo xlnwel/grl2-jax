@@ -11,6 +11,7 @@ from env.wrappers import EnvOutput
 
 logger = logging.getLogger(__name__)
 
+
 def collect(buffer, env, env_step, reset, next_obs, **kwargs):
     buffer.add(**kwargs)
 

@@ -4,6 +4,7 @@ import sys
 import numpy as np
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
+from core.dataset import create_dataset
 from utility.utils import Every, TempStore
 from utility.graph import video_summary
 from utility.run import Runner, evaluate
@@ -131,12 +132,21 @@ def main(env_config, model_config, agent_config, buffer_config, train=train):
 
     buffer_config['n_envs'] = env.n_envs
     buffer_config['state_keys'] = models.state_keys
+    buffer_config['use_dataset'] = buffer_config.get('use_dataset', False)
     buffer = Buffer(buffer_config)
     
+    if buffer_config['use_dataset']:
+        am = pkg.import_module('agent', config=agent_config)
+        data_format = am.get_data_format(env=env)
+        dataset = create_dataset(buffer, env, 
+            data_format=data_format, one_hot_action=False)
+    else:
+        dataset = buffer
+
     agent = Agent(
         config=agent_config, 
         models=models, 
-        dataset=buffer,
+        dataset=dataset,
         env=env)
 
     agent.save_config(dict(
