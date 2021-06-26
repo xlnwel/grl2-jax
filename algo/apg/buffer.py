@@ -1,7 +1,9 @@
 import time
+import collections
 from threading import Lock
 import numpy as np
 
+from core.decorator import config
 from utility.utils import batch_dicts, standardize
 from replay.utils import *
 from algo.ppo.buffer import Buffer as PPOBufffer, \
@@ -109,10 +111,8 @@ class Buffer(PPOBufffer):
         self._policy_version_max_diff = self._train_step - train_step[:, 0].min()
         self._policy_version_avg_diff = self._train_step - train_step.mean()
 
-        self._ready = True
-
-    def sample(self, sample_keys=None):
-        while not self._ready:
+    def sample(self):
+        if not self._ready:
             self.wait_to_sample()
             self._agent.update_obs_rms(np.concatenate(self['obs']))
             self._agent.update_reward_rms(
@@ -121,30 +121,30 @@ class Buffer(PPOBufffer):
                 self._agent.normalize_reward(self['reward']), field='all')
             self.compute_advantage_return()
             self.reshape_to_sample()
-        
+            self._ready = True
+
+        assert self._memory is not None, self._memory
         # TODO: is this shuffle necessary if we don't divide batch into minibatches
         if self._mb_idx == 0:
             np.random.shuffle(self._shuffled_idxes)
 
-        sample_keys = sample_keys or self._sample_keys
         self._mb_idx, self._curr_idxes = compute_indices(
             self._shuffled_idxes, self._mb_idx, 
             self._mb_size, self.N_MBS)
-        
+
         sample = {k: self._memory[k][self._curr_idxes, 0]
             if k in self._state_keys 
             else self._memory[k][self._curr_idxes] 
-            for k in sample_keys}
-        
+            for k in self._sample_keys}
+
         if self._norm_adv == 'minibatch':
             sample['advantage'] = standardize(
                 sample['advantage'], epsilon=self._epsilon)
-        
+
         if self._mb_idx == 0:
             self._epoch_idx += 1
             if self._epoch_idx == self.N_EPOCHS:
-                self._ready = False
-                self._epoch_idx = 0
+                self.reset()
 
         return sample
 
@@ -156,16 +156,14 @@ class Buffer(PPOBufffer):
                 epsilon=self._epsilon)
         # remove the last value
         del self._memory['last_value']
-        self._ready = True
 
     def reshape_to_store(self):
         """ No need """
         raise NotImplementedError
 
     def reshape_to_sample(self):
-        if self._is_store_shape:
-            self._memory = reshape_to_sample(
-                self._memory, self._n_trajs, self.N_STEPS, self._sample_size)
+        self._memory = reshape_to_sample(
+            self._memory, self._n_trajs, self.N_STEPS, self._sample_size)
 
     def get_async_stats(self):
         return {
@@ -176,32 +174,38 @@ class Buffer(PPOBufffer):
             'policy_version_avg_diff': self._policy_version_avg_diff,
         }
 
-class LocalBuffer(PPOBufffer):
+
+class LocalBuffer:
+    @config
+    def __init__(self):
+        self.reset()
+
     def is_full(self):
         return self._idx == self.N_STEPS
 
     def reset(self):
         self._idx = 0
+        self._memory = collections.defaultdict(list)
+
+    def add(self, **data):
+        for k, v in data.items():
+            self._memory[k].append(v)
+        self._idx += 1
 
     def sample(self):
-        return self._memory
+        results = {}
 
-    def finish(self, last_value):
+        for k, v in self._memory.items():
+            results[k] = v if k == 'last_value' else np.swapaxes(v, 0, 1)
+
+        return results
+
+    def finish(self, last_value=None, last_obs=None):
         """ Add last value to memory. 
-        Leave advantage and return 
-        computation to the learner """
+        Leave advantage and return computation to the learner 
+        """
         assert self._idx == self.N_STEPS, self._idx
-        self._memory['last_value'] = last_value
-
-    # methods not supposed to be implemented for LocalBuffer
-    def update(self):
-        raise NotImplementedError
-
-    def update_value_with_func(self):
-        raise NotImplementedError
-
-    def compute_mean_max_std(self, name):
-        raise NotImplementedError
-
-    def compute_fraction(self, name):
-        raise NotImplementedError
+        if last_value is not None:
+            self._memory['last_value'] = last_value
+        if last_obs is not None:
+            self._memory['obs'].append(last_obs)

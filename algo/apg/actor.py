@@ -75,8 +75,6 @@ def get_learner_class(AgentBase):
             self._sample_learn()
             self._store_buffer_stats()
             self._store_rms_stats()
-            # reset dataset for the next training iteration
-            self.replay.reset()
 
             return 0
 
@@ -86,7 +84,6 @@ def get_learner_class(AgentBase):
             self.push_weights()
 
         def _store_buffer_stats(self):
-            super()._store_buffer_stats()
             self.store(**self.replay.get_async_stats())
 
     return Learner
@@ -119,7 +116,7 @@ def get_worker_class():
 
             if self._buffs[eid].is_full():
                 # Adds the last value to buffer for gae computation. 
-                self._buffs[eid].finish(terms['value'])
+                self._buffs[eid].finish(last_value=terms['value'])
                 self._send_data(self._replay, self._buffs[eid])
 
             self._collect(
