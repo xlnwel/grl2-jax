@@ -106,7 +106,9 @@ def get_actor_class(AgentBase):
 
             # store states
             if 'rnn' in self.model:
-                for wid, eid, s, a in zip(wids, eids, zip(*self.state), action):
+                state = zip(*tf.nest.map_structure(
+                    lambda s: tf.split(s, self._action_batch), self._state))
+                for wid, eid, s, a in zip(wids, eids, state, action):
                     self._state_mapping[(wid, eid)] = \
                         tf.nest.pack_sequence_as(self.model.state_keys,
                         ([tf.reshape(x, (-1, tf.shape(x)[-1])) for x in s]))
@@ -161,7 +163,7 @@ def get_actor_class(AgentBase):
                         self._act_eps_mapping[wids, eids], 
                         (-1) if self._action_shape == () else (-1, 1))
 
-                # do inference                
+                # do inference
                 actions, terms = self(wids, eids, env_output)
 
                 # distribute action and terms

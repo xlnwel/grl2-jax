@@ -81,8 +81,9 @@ class Buffer:
         self._add_attributes()
 
     def _add_attributes(self):
-        self._use_dataset = getattr(self, '_use_dataset')
-        logger.info(f'Dataset is used for data pipline')
+        self._use_dataset = getattr(self, '_use_dataset', False)
+        if self._use_dataset:
+            logger.info(f'Dataset is used for data pipline')
 
         self._sample_size = getattr(self, '_sample_size', None)
         self._state_keys = getattr(self, '_state_keys', [])
@@ -106,6 +107,10 @@ class Buffer:
         self.reset()
         logger.info(f'Batch size: {size}')
         logger.info(f'Mini-batch size: {self._mb_size}')
+
+    @property
+    def batch_size(self):
+        return self._mb_size
 
     def __getitem__(self, k):
         return self._memory[k]
@@ -166,35 +171,32 @@ class Buffer:
         assert mb_idx == 0, mb_idx
 
     def sample(self, sample_keys=None):
-        if self._use_dataset:
-            if self._mb_idx == 0:
-                np.random.shuffle(self._shuffled_idxes)
-                self._epoch_idx += 1
-                if self._epoch_idx > self.N_EPOCHS:
-                    self._ready = False
-                    self._epoch_idx = 0
+        assert self._ready, self._ready
 
+        if self._mb_idx == 0:
+            np.random.shuffle(self._shuffled_idxes)
+            self._epoch_idx += 1
+
+        if self._use_dataset:
+            if self._epoch_idx > self.N_EPOCHS:
+                self._ready = False
             while self._ready == False:
                 time.sleep(.025)
-        else:
-            if self._mb_idx == 0:
-                np.random.shuffle(self._shuffled_idxes)
-        assert self._ready
 
         sample_keys = sample_keys or self._sample_keys
         self._mb_idx, self._curr_idxes = compute_indices(
             self._shuffled_idxes, self._mb_idx, 
             self._mb_size, self.N_MBS)
-        
+
         sample = {k: self._memory[k][self._curr_idxes, 0]
             if k in self._state_keys 
             else self._memory[k][self._curr_idxes] 
             for k in sample_keys}
-        
+
         if self._norm_adv == 'minibatch':
             sample['advantage'] = standardize(
                 sample['advantage'], epsilon=self._epsilon)
-        
+
         return sample
 
     def compute_mean_max_std(self, name):

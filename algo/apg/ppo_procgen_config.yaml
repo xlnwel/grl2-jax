@@ -30,7 +30,7 @@ agent:
 
     MAX_STEPS: 1e8
     N_STEPS: &nsteps 16
-    N_EPOCHS: 1
+    N_EPOCHS: &nepochs 1
     N_MBS: &nmbs 8
     LOG_PERIOD: 50
     EVAL_PERIOD: 100
@@ -80,6 +80,8 @@ agent:
     value_coef: .5
 
 buffer:
+    use_dataset: True
+
     # APPO buffer
     adv_type: gae     # nae or gae
     gamma: *gamma
@@ -87,6 +89,7 @@ buffer:
     n_envs: *nenvs
     n_trajs: *ntrajs
     N_STEPS: *nsteps
+    N_EPOCHS: *nepochs
     N_MBS: *nmbs        # number of minibatches
     norm_adv: minibatch
     sample_keys: [obs, action, value, traj_ret, advantage, logpi]

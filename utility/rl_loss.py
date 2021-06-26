@@ -134,17 +134,29 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount,
         
     return target
 
-def v_trace(reward, value, next_value, pi, mu, discount, lambda_=1, 
-        c_clip=1, rho_clip=1, rho_clip_pg=1, axis=0):
+def v_trace(reward, value, next_value, 
+        pi, mu, discount, lambda_=1, c_clip=1, 
+        rho_clip=1, rho_clip_pg=1, axis=0):
+    """
+    Params:
+        discount = gamma * (1-done). 
+        axis specifies the time dimension
+    """
+    ratio = pi / mu
+    return v_trace_from_ratio(reward, value, next_value, 
+        ratio, discount, lambda_, c_clip, 
+        rho_clip, rho_clip_pg, axis)
+
+def v_trace_from_ratio(reward, value, next_value, 
+        ratio, discount, lambda_=1, c_clip=1, 
+        rho_clip=1, rho_clip_pg=1, axis=0):
     """
     Params:
         discount = gamma * (1-done). 
         axis specifies the time dimension
     """
     assert_rank_and_shape_compatibility(
-        [reward, value, next_value, pi, mu, discount])
-    
-    ratio = pi / mu
+        [reward, value, next_value, ratio, discount])
     
     # swap 'axis' with the 0-th dimension
     dims = list(range(reward.shape.ndims))

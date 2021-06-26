@@ -41,13 +41,7 @@ class Dataset:
         if name.startswith('_'):
             raise AttributeError("attempted to get missing private attribute '{}'".format(name))
         return getattr(self._buffer, name)
-        
-    def name(self):
-        return self._buffer.name()
 
-    def good_to_learn(self):
-        return self._buffer.good_to_learn()
-        
     def sample(self):
         return next(self._iterator)
 

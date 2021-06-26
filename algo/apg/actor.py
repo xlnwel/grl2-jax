@@ -3,7 +3,9 @@ import ray
 
 from core.tf_config import *
 from core.mixin import RMS
+from core.dataset import create_dataset
 from core.decorator import step_track
+from utility import pkg
 from algo.seed.actor import \
     get_actor_class as get_actor_base_class, \
     get_learner_class as get_learner_base_class, \
@@ -41,47 +43,51 @@ def get_learner_class(AgentBase):
                 self._push_names = [
                     k for k in self.model.keys() if 'target' not in k]
 
+        def push_weights(self):
+            obs_rms, _ = self.get_rms_stats()
+            obs_rms_id = ray.put(obs_rms)
+            weights = self.get_weights(
+                name=self._push_names)
+            train_step_weights_id = ray.put(
+                (self.train_step, weights))
+            for q in self._param_queues:
+                q.put((obs_rms_id, train_step_weights_id))
+
         def _create_dataset(self, replay, model, env, config, replay_config):
+            replay_config['state_keys'] = model.state_keys
             self.replay = Buffer(replay_config)
-            return self.replay
-
-        def _learning(self):
-            while True:
-                self.dataset.wait_to_sample(self.train_step)
-
-                self.update_obs_rms(np.concatenate(self.dataset['obs']))
-                self.update_reward_rms(
-                    self.dataset['reward'], self.dataset['discount'])
-                self.dataset.update('reward', 
-                    self.normalize_reward(self.dataset['reward']), field='all')
-                self.dataset.compute_advantage_return()
-                self.dataset.reshape_to_sample()
-
-                self.learn_log()
+            self.replay.set_agent(self)
+            if replay_config.get('use_dataset', True):
+                am = pkg.import_module('agent', config=config, place=-1)
+                data_format = am.get_data_format(
+                    env=env, batch_size=self.replay.batch_size, 
+                    sample_size=config.get('sample_size', None),
+                    store_state=config.get('store_state', True),
+                    state_size=model.state_size)
+                dataset = create_dataset(self.replay, env, 
+                    data_format=data_format, one_hot_action=False)
+            else:
+                dataset = self.replay
+            return dataset
 
         @step_track
         def learn_log(self, step):
             self._sample_learn()
             self._store_buffer_stats()
             self._store_rms_stats()
+            # reset dataset for the next training iteration
+            self.replay.reset()
 
             return 0
-        
+
         def _after_train_step(self):
             self.train_step += 1
-            obs_rms, _ = self.get_rms_stats()
-            obs_rms_id = ray.put(obs_rms)
-            train_step_weights = self.get_train_step_weights(
-                name=self._push_names)
-            train_step_weights_id = ray.put(train_step_weights)
-            for q in self._param_queues:
-                q.put((obs_rms_id, train_step_weights_id))
+            self.replay.set_train_step(self.train_step)
+            self.push_weights()
 
         def _store_buffer_stats(self):
             super()._store_buffer_stats()
-            self.store(**self.dataset.get_async_stats())
-            # reset dataset for the next training iteration
-            self.dataset.reset()
+            self.store(**self.replay.get_async_stats())
 
     return Learner
 

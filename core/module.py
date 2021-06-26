@@ -118,8 +118,12 @@ class Ensemble(tf.Module):
         return
 
     @property
+    def state_size(self):
+        return self.rnn.state_size if hasattr(self, 'rnn') else None
+
+    @property
     def state_keys(self):
-        return ()
+        return self.rnn.state_keys if hasattr(self, 'rnn') else ()
 
     """ Auxiliary functions that make Ensemble like a dict """
     # def __getattr__(self, key):

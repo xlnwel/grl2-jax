@@ -3,9 +3,32 @@ import tensorflow as tf
 from utility.tf_utils import tensor2numpy
 from core.tf_config import build
 from core.decorator import override
-from core.base import Memory
+from core.mixin import Memory
 from env.wrappers import EnvOutput
 from algo.ppo.base import PPOBase, collect
+
+
+def get_data_format(*, env, batch_size, sample_size=None,
+        store_state=False, state_size=None, **kwargs):
+    obs_dtype = tf.uint8 if len(env.obs_shape) == 3 else tf.float32
+    action_dtype = tf.int32 if env.is_action_discrete else tf.float32
+    data_format = dict(
+        obs=((None, sample_size, *env.obs_shape), obs_dtype),
+        action=((None, sample_size, *env.action_shape), action_dtype),
+        value=((None, sample_size), tf.float32), 
+        traj_ret=((None, sample_size), tf.float32),
+        advantage=((None, sample_size), tf.float32),
+        logpi=((None, sample_size), tf.float32),
+        mask=((None, sample_size), tf.float32),
+    )
+    if store_state:
+        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        data_format.update({
+            k: ((batch_size, v), dtype)
+                for k, v in state_size._asdict().items()
+        })
+    
+    return data_format
 
 
 class Agent(Memory, PPOBase):
