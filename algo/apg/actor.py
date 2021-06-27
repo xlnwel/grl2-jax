@@ -115,8 +115,13 @@ def get_worker_class():
             self._obs[eid] = env_output.obs
 
             if self._buffs[eid].is_full():
-                # Adds the last value to buffer for gae computation. 
-                self._buffs[eid].finish(last_value=terms['value'])
+                # Adds the last value/obs to buffer for gae computation. 
+                if self._buffs[eid]._adv_type == 'vtrace':
+                    self._buffs[eid].finish(
+                        last_obs=env_output.obs, 
+                        last_mask=1-env_output.reset)
+                else:
+                    self._buffs[eid].finish(last_value=terms['value'])
                 self._send_data(self._replay, self._buffs[eid])
 
             self._collect(

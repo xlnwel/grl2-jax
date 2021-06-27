@@ -7,8 +7,7 @@ from core.decorator import config
 from utility.utils import batch_dicts, standardize
 from replay.utils import *
 from algo.ppo.buffer import Buffer as PPOBufffer, \
-    compute_indices, compute_gae, compute_nae, \
-    reshape_to_sample, reshape_to_store
+    compute_indices, reshape_to_sample
 
 
 class Buffer(PPOBufffer):
@@ -30,6 +29,8 @@ class Buffer(PPOBufffer):
             logger.info(f'Sample size: {self._sample_size}')
         else:
             size = self._n_trajs * self.N_STEPS
+        if self._adv_type == 'vtrace':
+            assert self.N_STEPS == self._sample_size, (self.N_STEPS, self._sample_size)
         self._size = size
         self._mb_size = size // self.N_MBS
         self._idxes = np.arange(size)
@@ -119,7 +120,8 @@ class Buffer(PPOBufffer):
                 self['reward'], self['discount'])
             self.update('reward', 
                 self._agent.normalize_reward(self['reward']), field='all')
-            self.compute_advantage_return()
+            if self._adv_type != 'vtrace':
+                self.compute_advantage_return()
             self.reshape_to_sample()
             self._ready = True
 
@@ -137,13 +139,16 @@ class Buffer(PPOBufffer):
             else self._memory[k][self._curr_idxes] 
             for k in self._sample_keys}
 
-        if self._norm_adv == 'minibatch':
+        if self._adv_type != 'vtrace' and self._norm_adv == 'minibatch':
             sample['advantage'] = standardize(
                 sample['advantage'], epsilon=self._epsilon)
 
         if self._mb_idx == 0:
             self._epoch_idx += 1
             if self._epoch_idx == self.N_EPOCHS:
+                # resetting here is especially important 
+                # if we use tf.data as sampling is done 
+                # in a background thread
                 self.reset()
 
         return sample
@@ -162,8 +167,14 @@ class Buffer(PPOBufffer):
         raise NotImplementedError
 
     def reshape_to_sample(self):
-        self._memory = reshape_to_sample(
-            self._memory, self._n_trajs, self.N_STEPS, self._sample_size)
+        if self._adv_type == 'vtrace':
+            # v-trace is special as the length of obs is sample_size+1
+            # and we don't define N_STEP
+            self._memory = {k: v.reshape(self._n_trajs, -1, *v.shape[2:]) 
+                for k, v in self._memory.items()}
+        else:
+            self._memory = reshape_to_sample(
+                self._memory, self._n_trajs, self.N_STEPS, self._sample_size)
 
     def get_async_stats(self):
         return {
@@ -200,7 +211,8 @@ class LocalBuffer:
 
         return results
 
-    def finish(self, last_value=None, last_obs=None):
+    def finish(self, last_value=None,
+            last_obs=None, last_mask=None):
         """ Add last value to memory. 
         Leave advantage and return computation to the learner 
         """
@@ -208,4 +220,6 @@ class LocalBuffer:
         if last_value is not None:
             self._memory['last_value'] = last_value
         if last_obs is not None:
+            assert last_mask is not None, 'last_mask is required'
             self._memory['obs'].append(last_obs)
+            self._memory['mask'].append(last_mask)

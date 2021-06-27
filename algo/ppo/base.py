@@ -129,7 +129,6 @@ class PPOBase(RMSAgentBase):
             for j in range(1, self.N_MBS+1):
                 with self._sample_timer:
                     data = self._sample_data()
-
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
 
                 with self._learn_timer:
