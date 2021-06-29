@@ -109,7 +109,7 @@ class PPOBase(RMSAgentBase):
         if value_loss_type == 'huber':
             value_loss = reduce_mean(
                 huber_loss(value, traj_ret, threshold=self._huber_threshold), mask)
-        if value_loss_type == 'mse':
+        elif value_loss_type == 'mse':
             value_loss = .5 * reduce_mean((value - traj_ret)**2, mask)
         elif value_loss_type == 'clip':
             value_loss, v_clip_frac = ppo_value_loss(

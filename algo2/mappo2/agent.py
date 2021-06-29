@@ -2,7 +2,7 @@ import numpy as np
 
 from core.decorator import override
 from algo.ppo.base import PPOBase
-from algo2.mappo.agent import Agent as AgentBase, infer_life_mask
+from algo.mappo.agent import Agent as AgentBase, infer_life_mask
 
 
 def collect(buffer, env, step, reset, life_mask, discount, next_obs, **kwargs):

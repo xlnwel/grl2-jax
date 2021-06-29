@@ -139,8 +139,8 @@ def main(env_config, model_config, agent_config, buffer_config, train=train):
         am = pkg.import_module('agent', config=agent_config)
         data_format = am.get_data_format(
             env=env, batch_size=buffer.batch_size,
-            sample_size=agent_config['sample_size'],
-            store_state=agent_config['store_state'],
+            sample_size=agent_config.get('sample_size'),
+            store_state=agent_config.get('store_state'),
             state_size=models.state_size)
         dataset = create_dataset(buffer, env, 
             data_format=data_format, one_hot_action=False)

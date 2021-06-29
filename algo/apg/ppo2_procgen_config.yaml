@@ -6,6 +6,7 @@ env:
     frame_skip: 1
     frame_stack: 1
     # num_levels: 200
+    distribution_mode: easy
 
 model:
     encoder: 
@@ -34,25 +35,26 @@ agent:
     gamma: &gamma .999
 
     MAX_STEPS: 1e8
-    N_STEPS: &nsteps 16
+    N_STEPS: &nsteps 64
     N_EPOCHS: &nepochs 1
-    N_MBS: &nmbs 8
+    N_MBS: &nmbs 1
     sample_size: &ss 16       # BPTT length
     LOG_PERIOD: 50
-    EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
-    n_trajs: &ntrajs 2048
+    n_trajs: &ntrajs 64
 
     # distributed algo params
     nice: 0
-    n_learner_cpus: 2
+    n_learner_cpus: 1
     n_learner_gpus: .5
     n_actors: 2
     n_actor_gpus: .25
     n_workers: 8
     n_worker_cpus: 1
     # SYNC_PERIOD: 50
-    has_evaluator: False
+    has_evaluator: True
+    N_EVALUATION: 1
+    RECORD_PERIOD: 10
 
     use_central_buffer: False
     action_frac: .5

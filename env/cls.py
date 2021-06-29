@@ -1,4 +1,3 @@
-from core.dataset import process_with_env
 import itertools
 import numpy as np
 import cv2
@@ -27,39 +26,40 @@ def process_single_agent_env(env, config):
     return env
 
 def make_mpe(config):
-    from env import mpe
-    env = mpe.make_mpe_env(config)
+    from env.mpe import make_mpe_env
+    env = make_mpe_env(config)
+    env = wrappers.DataProcess(env)
     env = wrappers.MAEnvStats(env)
     return env
 
 def make_smac(config):
-    from env import smac
-    env = smac.make_smac_env(config)
+    from env.smac import make_smac_env
+    env = make_smac_env(config)
     env = wrappers.MAEnvStats(env)
     return env
 
 def make_smac2(config):
-    from env import smac2
-    env = smac2.make_smac_env(config)
+    from env.smac2 import make_smac_env
+    env = make_smac_env(config)
     # smac2 resembles single agent environments, in which done and reward are team-based
     env = wrappers.EnvStats(env)
     return env
 
 def make_atari(config):
-    from env import atari
-    env = atari.make_atari_env(config)
+    from env.atari import make_atari_env
+    env = make_atari_env(config)
     env = process_single_agent_env(env, config)
     return env
 
 def make_procgen(config):
-    from env import procgen
-    env = procgen.make_procgen_env(config)
+    from env.procgen import make_procgen_env
+    env = make_procgen_env(config)
     env = process_single_agent_env(env, config)
     return env
 
 def make_dmc(config):
-    from env import dmc
-    env = dmc.make_dmc_env(config)
+    from env.dmc import make_dmc_env
+    env = make_dmc_env(config)
     env = process_single_agent_env(env, config)
     return env
 

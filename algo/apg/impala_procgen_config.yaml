@@ -6,6 +6,7 @@ env:
     frame_skip: 1
     frame_stack: 1
     # num_levels: 200
+    distribution_mode: easy
 
 model:
     encoder: 
@@ -45,14 +46,16 @@ agent:
 
     # distributed algo params
     nice: 0
-    n_learner_cpus: 2
+    n_learner_cpus: 1
     n_learner_gpus: .5
     n_actors: 2
     n_actor_gpus: .25
     n_workers: 8
     n_worker_cpus: 1
     # SYNC_PERIOD: 50
-    has_evaluator: False
+    has_evaluator: True
+    N_EVALUATION: 1
+    RECORD_PERIOD: 10
 
     use_central_buffer: False
     action_frac: .5
@@ -85,9 +88,11 @@ agent:
     clip_norm: .5
     opt_kwargs:
         epsilon: 1.e-5
+
     # arguments for loss
+    policy_loss: ppo  # ppo or reinforce
     value_loss: mse
-    lambda: 1.
+    lambda: &lam 1.
     c_clip: 1.
     rho_clip: 1.
     rho_clip_pg: 1.
@@ -101,6 +106,7 @@ buffer:
     # APPO buffer
     adv_type: vtrace
     gamma: *gamma
+    lam: *lam
     n_envs: *nenvs
     n_trajs: *ntrajs
     N_STEPS: *nsteps

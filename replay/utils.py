@@ -17,7 +17,8 @@ def init_buffer(buffer, pre_dims, has_steps=False, precision=None, **data):
     buffer.update(
         {k: np.zeros([*pre_dims, *v_shape], v_dtype) 
             if v_dtype else 
-                [[None for _ in range(pre_dims[1])] if len(pre_dims) > 1 else None 
+                [[None for _ in range(pre_dims[1])] 
+                if len(pre_dims) > 1 else None 
                 for _ in range(pre_dims[0])]
             for k, (v_shape, v_dtype) in info.items()})
     # we define an additional item, steps, that specifies steps in multi-step learning
@@ -64,7 +65,8 @@ def infer_info(precision, **data):
         else len(data['reward'].shape)
     for k, v in data.items():
         logger.debug(f'{k}, {type(v)}')
-        if isinstance(v, (int, float, np.floating, np.signedinteger, np.ndarray)):
+        if isinstance(v, (int, float, np.ndarray,
+                np.floating, np.signedinteger)):
             np_v = np.array(v, copy=False)
             dtype = infer_dtype(np_v.dtype, precision)
             info[k] = (np_v.shape[pre_dims_len:], dtype)

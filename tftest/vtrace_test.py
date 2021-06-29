@@ -114,9 +114,9 @@ class VRetraceTest(tf.test.TestCase):
                 'discount': np.array([[0.9 / (b + 1)
                             for b in range(batch_size)]
                             for _ in range(seq_len)]),
-                'c_clip': 3.7,
-                'rho_clip': 2.2,
-                'rho_clip_pg': 4.1,
+                'c_clip': 0.7,
+                'rho_clip': 1.2,
+                'rho_clip_pg': 2.1,
             }
 
             output_v = v_trace(**tf.nest.map_structure(

@@ -328,11 +328,11 @@ def get_evaluator_class(AgentBase):
                 dataset=None,
                 env=env,
             )
-        
+
             # the names of network modules that should be in sync with the learner
             if not hasattr(self, '_pull_names'):
                 self._pull_names = [k for k in self.model.keys() if 'target' not in k]
-            
+
             # used for recording evaluator side info 
             self._info = collections.defaultdict(list)
 

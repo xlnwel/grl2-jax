@@ -86,8 +86,7 @@ class Agent(PPOBase):
             ratio = tf.exp(log_ratio)
             entropy = act_dist.entropy()
             value = self.value(x)
-            next_value = value[:, 1:]
-            value = value[:, :-1]
+            value, next_value = value[:, :-1], value[:, 1:]
             discount = self._gamma * discount
             # policy loss
             target, advantage = v_trace_from_ratio(

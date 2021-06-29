@@ -134,6 +134,7 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount,
         
     return target
 
+
 def v_trace(reward, value, next_value, 
         pi, mu, discount, lambda_=1, c_clip=1, 
         rho_clip=1, rho_clip_pg=1, axis=0):
@@ -147,6 +148,7 @@ def v_trace(reward, value, next_value,
         ratio, discount, lambda_, c_clip, 
         rho_clip, rho_clip_pg, axis)
 
+
 def v_trace_from_ratio(reward, value, next_value, 
         ratio, discount, lambda_=1, c_clip=1, 
         rho_clip=1, rho_clip_pg=1, axis=0):
@@ -159,6 +161,7 @@ def v_trace_from_ratio(reward, value, next_value,
         [reward, value, next_value, ratio, discount])
     
     # swap 'axis' with the 0-th dimension
+    # to make all tensors time-major
     dims = list(range(reward.shape.ndims))
     dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
     if axis != 0:
@@ -212,6 +215,7 @@ def ppo_loss(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
 
     return policy_loss, entropy, approx_kl, clip_frac
 
+
 def ppo_value_loss(value, traj_ret, old_value, clip_range, 
                     mask=None, n=None, huber_threshold=None):
     if mask is not None and n is None:
@@ -226,6 +230,7 @@ def ppo_value_loss(value, traj_ret, old_value, clip_range,
         tf.cast(tf.greater(tf.abs(value_diff), clip_range), value.dtype), mask, n)
 
     return value_loss, clip_frac
+
 
 def tppo_loss(log_ratio, kl, advantages, kl_weight, clip_range, entropy):
     ratio = tf.exp(log_ratio)
@@ -243,12 +248,14 @@ def tppo_loss(log_ratio, kl, advantages, kl_weight, clip_range, entropy):
 
     return policy_loss, entropy, clip_frac
 
+
 def _compute_ppo_policy_losses(log_ratio, advantages, clip_range):
     ratio = tf.exp(log_ratio)
     neg_adv = -advantages
     loss1 = neg_adv * ratio
     loss2 = neg_adv * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
     return ratio, loss1, loss2
+
 
 def _compute_ppo_value_losses(value, traj_ret, old_value, clip_range, huber_threshold=None):
     value_diff = value - old_value,

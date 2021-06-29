@@ -207,7 +207,8 @@ class LocalBuffer:
         results = {}
 
         for k, v in self._memory.items():
-            results[k] = v if k == 'last_value' else np.swapaxes(v, 0, 1)
+            v = np.array(v, copy=False)
+            results[k] = np.swapaxes(v, 0, 1) if v.ndim > 1 else v
 
         return results
 
