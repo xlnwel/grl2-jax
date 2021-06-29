@@ -49,7 +49,7 @@ agent:
 
     MAX_STEPS: 3e7
     N_STEPS: &nsteps 400
-    N_EPOCHS: 5
+    N_EPOCHS: &nepochs 5
     N_VALUE_EPOCHS: 0
     N_MBS: &nmbs 1
     sample_size: &ss 10       # BPTT length
@@ -99,6 +99,7 @@ buffer:
     lam: .95
     n_envs: *nenvs
     N_STEPS: *nsteps
+    N_EPOCHS: *nepochs
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: batch

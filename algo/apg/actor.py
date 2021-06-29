@@ -11,7 +11,7 @@ from algo.seed.actor import \
     get_learner_class as get_learner_base_class, \
     get_worker_class as get_worker_base_class, \
     get_evaluator_class
-from .buffer import Buffer, LocalBuffer
+from .buffer import create_buffer, LocalBuffer
 
 
 def get_actor_class(AgentBase):
@@ -44,18 +44,24 @@ def get_learner_class(AgentBase):
                     k for k in self.model.keys() if 'target' not in k]
 
         def push_weights(self):
-            obs_rms, _ = self.get_rms_stats()
-            obs_rms_id = ray.put(obs_rms)
-            weights = self.get_weights(
+            train_step_weights = self.get_train_step_weights(
                 name=self._push_names)
-            train_step_weights_id = ray.put(
-                (self.train_step, weights))
-            for q in self._param_queues:
-                q.put((obs_rms_id, train_step_weights_id))
+            train_step_weights_id = ray.put(train_step_weights)
+            if self._normalize_obs:
+                obs_rms, _ = self.get_rms_stats()
+                obs_rms_id = ray.put(obs_rms)
+                for q in self._param_queues:
+                    q.put((obs_rms_id, train_step_weights_id))
+            else:
+                for q in self._param_queues:
+                    q.put(train_step_weights_id)
 
         def _create_dataset(self, replay, model, env, config, replay_config):
+            from algo.ppo.buffer import Buffer as PPOBuffer
             replay_config['state_keys'] = model.state_keys
-            self.replay = Buffer(replay_config)
+            replay_config['n_agents'] = getattr(env, 'n_agents', 1)
+            BufferBase = PPOBuffer
+            self.replay = create_buffer(BufferBase, replay_config)
             self.replay.set_agent(self)
             if replay_config.get('use_dataset', True):
                 am = pkg.import_module('agent', config=config, place=-1)
@@ -84,6 +90,8 @@ def get_learner_class(AgentBase):
             self.push_weights()
 
         def _store_buffer_stats(self):
+            # we do not store buffer stats because 
+            # it may be empty due to the use of tf.data
             self.store(**self.replay.get_async_stats())
 
     return Learner
@@ -128,7 +136,7 @@ def get_worker_class():
                 self._buffs[eid], self._envvecs[eid], env_step=None,
                 reset=env_output.reset, **kwargs)
 
-            done_env_ids = [i for i, r in enumerate(env_output.reset) if r]
+            done_env_ids = [i for i, r in enumerate(env_output.reset) if np.all(r)]
             if done_env_ids:
                 self._info['score'] += self._envvecs[eid].score(done_env_ids)
                 self._info['epslen'] += self._envvecs[eid].epslen(done_env_ids)
@@ -143,10 +151,15 @@ def get_worker_class():
 
             for e in self._envvecs:
                 for _ in range(steps // e.n_envs):
-                    o, r, d, _ = e.step(e.random_action())
-                    self._process_obs(o)
-                    rewards.append(r)
-                    discounts.append(d)
+                    env_output = e.step(e.random_action())
+                    if e.is_multiagent:
+                        env_output = tf.nest.map_structure(np.concatenate, env_output)
+                        life_mask = env_output.obs.get('life_mask')
+                    else:
+                        life_mask = None
+                    self._process_obs(env_output.obs, mask=life_mask)
+                    rewards.append(env_output.reward)
+                    discounts.append(env_output.discount)
 
             rewards = np.swapaxes(rewards, 0, 1)
             discounts = np.swapaxes(discounts, 0, 1)

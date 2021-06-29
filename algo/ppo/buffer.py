@@ -3,7 +3,7 @@ import logging
 import numpy as np
 
 from core.decorator import config
-from utility.utils import moments, standardize, expand_dims_match
+from utility.utils import moments, standardize
 from replay.utils import init_buffer, print_buffer
 
 
@@ -108,6 +108,10 @@ class Buffer:
         logger.info(f'Batch size: {size}')
         logger.info(f'Mini-batch size: {self._mb_size}')
 
+        self._sleep_time = 0.025
+        self._sample_wait_time = 0
+        self._epoch_idx = 0
+
     @property
     def batch_size(self):
         return self._mb_size
@@ -171,33 +175,55 @@ class Buffer:
         assert mb_idx == 0, mb_idx
 
     def sample(self, sample_keys=None):
-        assert self._ready, self._ready
+        if not self._ready:
+            self._wait_to_sample()
 
-        if self._mb_idx == 0:
+        self._shuffle_indices()
+        sample = self._sample(sample_keys)
+        self._post_process_for_dataset()
+
+        return sample
+
+    def _wait_to_sample(self):
+        while self._ready == False:
+            time.sleep(self._sleep_time)
+            self._sample_wait_time += self._sleep_time
+
+    def _shuffle_indices(self):
+        if self.N_MBS > 1 and self._mb_idx == 0:
             np.random.shuffle(self._shuffled_idxes)
-            self._epoch_idx += 1
-
-        if self._use_dataset:
-            if self._epoch_idx > self.N_EPOCHS:
-                self._ready = False
-            while self._ready == False:
-                time.sleep(.025)
-
+        
+    def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self._sample_keys
         self._mb_idx, self._curr_idxes = compute_indices(
             self._shuffled_idxes, self._mb_idx, 
             self._mb_size, self.N_MBS)
 
-        sample = {k: self._memory[k][self._curr_idxes, 0]
-            if k in self._state_keys 
-            else self._memory[k][self._curr_idxes] 
-            for k in sample_keys}
-
-        if self._norm_adv == 'minibatch':
-            sample['advantage'] = standardize(
-                sample['advantage'], epsilon=self._epsilon)
+        sample = self._get_sample(sample_keys, self._curr_idxes)
+        sample = self._process_sample(sample)
 
         return sample
+
+    def _get_sample(self, sample_keys, idxes):
+        return {k: self._memory[k][idxes, 0]
+            if k in self._state_keys 
+            else self._memory[k][idxes] 
+            for k in sample_keys}
+    
+    def _process_sample(self, sample):
+        if 'advantage' in sample and self._norm_adv == 'minibatch':
+            sample['advantage'] = standardize(
+                sample['advantage'], epsilon=self._epsilon)
+        return sample
+    
+    def _post_process_for_dataset(self):
+        if self._mb_idx == 0:
+            self._epoch_idx += 1
+            if self._epoch_idx == self.N_EPOCHS:
+                # resetting here is especially important 
+                # if we use tf.data as sampling is done 
+                # in a background thread
+                self.reset()
 
     def compute_mean_max_std(self, name):
         stats = self._memory[name]
@@ -218,11 +244,7 @@ class Buffer:
         assert self._idx == self.N_STEPS, self._idx
         self.reshape_to_store()
 
-        self._memory['advantage'], self._memory['traj_ret'] = \
-            self._compute_advantage_return(
-                self._memory['reward'], self._memory['discount'], 
-                self._memory['value'], last_value,
-                epsilon=self._epsilon)
+        self._compute_advantage_return_in_memory(last_value)
 
         self.reshape_to_sample()
         self._ready = True
@@ -252,8 +274,19 @@ class Buffer:
             self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             self._inferred_sample_keys = True
 
-    def _compute_advantage_return(self, reward, discount, value, last_value, 
-                                traj_ret=None, mask=None, epsilon=1e-8):
+    def _compute_advantage_return_in_memory(self, last_value=None):
+        if last_value is None:
+            last_value = self._memory['last_value']
+        self._memory['advantage'], self._memory['traj_ret'] = \
+            self._compute_advantage_return(
+                self._memory['reward'], self._memory['discount'], 
+                self._memory['value'], last_value,
+                mask=self._memory.get('life_mask'),
+                epsilon=self._epsilon)
+
+    def _compute_advantage_return(self, 
+            reward, discount, value, last_value, 
+            traj_ret=None, mask=None, epsilon=1e-8):
         if self._adv_type == 'nae':
             assert traj_ret is not None, traj_ret
             assert self._norm_adv == 'batch', self._norm_adv

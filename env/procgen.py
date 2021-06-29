@@ -85,6 +85,10 @@ class Procgen(gym.Env):
     def spec(self):
         return self.env.spec
 
+    @property
+    def is_multiagent(self):
+        return False
+
     def get_screen(self):
         return self._obs
 

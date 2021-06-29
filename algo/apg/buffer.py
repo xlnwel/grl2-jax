@@ -4,187 +4,168 @@ from threading import Lock
 import numpy as np
 
 from core.decorator import config
-from utility.utils import batch_dicts, standardize
+from utility.utils import batch_dicts, to_array32
 from replay.utils import *
-from algo.ppo.buffer import Buffer as PPOBufffer, \
-    compute_indices, reshape_to_sample
+from algo.ppo.buffer import reshape_to_sample
 
 
-class Buffer(PPOBufffer):
-    def _add_attributes(self):
-        super()._add_attributes()
-        self._cache = []
-        self._batch_idx = 0     # number of batches has been merged into the buffer
-        self._train_step = 0
-
-        assert self._n_trajs // self._n_envs * self._n_envs == self._n_trajs, \
-            (self._n_trajs, self._n_envs)
-        self._n_batch = self._n_trajs // self._n_envs   # #batch expected to received for training
-
-        # rewrite some stats inherited from PPOBuffer
-        if self._sample_size:
-            assert self._n_trajs * self.N_STEPS % self._sample_size == 0, \
-                f'{self._n_trajs} * {self.N_STEPS} % {self._sample_size} != 0'
-            size = self._n_trajs * self.N_STEPS // self._sample_size
-            logger.info(f'Sample size: {self._sample_size}')
-        else:
-            size = self._n_trajs * self.N_STEPS
-        if self._adv_type == 'vtrace':
-            assert self.N_STEPS == self._sample_size, (self.N_STEPS, self._sample_size)
-        self._size = size
-        self._mb_size = size // self.N_MBS
-        self._idxes = np.arange(size)
-        self._shuffled_idxes = np.arange(size)
-        self._memory = None
-
-        print(f'Batch size: {size}')
-        print(f'Mini-batch size: {self._mb_size}')
-
-        # to avoid contention caused by multi-thread parallelism
-        self._lock = Lock()
-
-        self._sleep_time = 0.025
-        self._sample_wait_time = 0
-        self._epoch_idx = 0
-
-    def __getitem__(self, k):
-        if self._memory is None:
-            raise NotImplementedError
-        else:
-            return self._memory[k]
-
-    def __contains__(self, k):
-        if self._memory is None:
-            raise NotImplementedError
-        else:
-            return k in self._memory
-
-    def good_to_learn(self):
-        return True
-
-    def is_full(self):
-        return self._batch_idx >= self._n_batch
-
-    def set_train_step(self, train_step):
-        self._train_step = train_step
-    
-    def set_agent(self, agent):
-        self._agent = agent
-
-    @property
-    def empty(self):
-        return self._memory is None
-
-    def reset(self):
-        self._memory = None
-        self._mb_idx = 0
-        self._epoch_idx = 0
-        self._sample_wait_time = 0
-        self._ready = False
-
-    def add(self):
-        """ No need """
-        raise NotImplementedError
-
-    def merge(self, data):
-        with self._lock:
-            self._cache.append(data)
-            self._batch_idx += 1
-
-    def wait_to_sample(self):
-        while not self.is_full():
-            time.sleep(self._sleep_time)
-            self._sample_wait_time += self._sleep_time
-        
-        # assert self._memory is None, self._memory
-        with self._lock:
-            self._memory = self._cache[-self._n_batch:]
+def create_buffer(BufferBase, config):
+    class Buffer(BufferBase):
+        def _add_attributes(self):
+            super()._add_attributes()
             self._cache = []
-            n = self._batch_idx
-            self._batch_idx = 0
-        self._memory = batch_dicts(self._memory, np.concatenate)
-        for v in self._memory.values():
-            assert v.shape[0] == self._n_trajs, (v.shape, self._n_trajs)
+            self._batch_idx = 0     # number of batches has been merged into the buffer
+            self._train_step = 0
 
-        self._trajs_dropped = n * self._n_envs - self._n_trajs
-        train_step = self._memory.pop('train_step')
-        self._policy_version_min_diff = self._train_step - train_step[:, -1].max()
-        self._policy_version_max_diff = self._train_step - train_step[:, 0].min()
-        self._policy_version_avg_diff = self._train_step - train_step.mean()
+            # as we merge the n_agents dimension into 
+            # the batch dimension, we multiply n_trajs 
+            # by n_agents. This should not change n_batch.
+            self._batch_size = self._n_trajs * getattr(self, '_n_agents', 1)
 
-    def sample(self):
-        if not self._ready:
-            self.wait_to_sample()
+            assert self._batch_size // self._n_envs * self._n_envs == self._batch_size, \
+                (self._batch_size, self._n_envs)
+            self._n_batch = self._batch_size // self._n_envs   # #batch expected to received for training
+
+            # rewrite some stats inherited from PPOBuffer
+            if self._sample_size:
+                assert self._batch_size * self.N_STEPS % self._sample_size == 0, \
+                    f'{self._batch_size} * {self.N_STEPS} % {self._sample_size} != 0'
+                size = self._batch_size * self.N_STEPS // self._sample_size
+                logger.info(f'Sample size: {self._sample_size}')
+            else:
+                size = self._batch_size * self.N_STEPS
+            if self._adv_type == 'vtrace':
+                assert self.N_STEPS == self._sample_size, (self.N_STEPS, self._sample_size)
+            self._size = size
+            self._mb_size = size // self.N_MBS
+            self._idxes = np.arange(size)
+            self._shuffled_idxes = np.arange(size)
+            self._memory = None
+
+            print(f'Batch size: {size}')
+            print(f'Mini-batch size: {self._mb_size}')
+
+            # to avoid contention caused by multi-thread parallelism
+            self._lock = Lock()
+
+        def __getitem__(self, k):
+            if self._memory is None:
+                raise NotImplementedError
+            else:
+                return self._memory[k]
+
+        def __contains__(self, k):
+            if self._memory is None:
+                raise NotImplementedError
+            else:
+                return k in self._memory
+
+        def is_full(self):
+            return self._batch_idx >= self._n_batch
+
+        def set_train_step(self, train_step):
+            self._train_step = train_step
+        
+        def set_agent(self, agent):
+            self._agent = agent
+
+        @property
+        def empty(self):
+            return self._memory is None
+
+        def reset(self):
+            self._memory = None
+            self._mb_idx = 0
+            self._epoch_idx = 0
+            self._sample_wait_time = 0
+            self._ready = False
+
+        def merge(self, data):
+            with self._lock:
+                self._cache.append(data)
+                self._batch_idx += 1
+
+        def _wait_to_sample(self):
+            while not self.is_full():
+                time.sleep(self._sleep_time)
+                self._sample_wait_time += self._sleep_time
+            
+            n = self._fill_memory()
+            self._record_async_stats(n)
+            self._update_agent_rms()
+
+            if self._adv_type != 'vtrace':
+                self._compute_advantage_return_in_memory()
+                # remove the last value
+                del self._memory['last_value']
+            self.reshape_to_sample()
+            self._ready = True
+
+        def _fill_memory(self):
+            # assert self._memory is None, self._memory
+            with self._lock:
+                self._memory = self._cache[-self._n_batch:]
+                self._cache = []
+                n = self._batch_idx
+                self._batch_idx = 0
+            self._memory = batch_dicts(self._memory, np.concatenate)
+            for v in self._memory.values():
+                assert v.shape[0] == self._batch_size, (v.shape, self._batch_size)
+
+            return n
+        
+        def _record_async_stats(self, n):
+            self._trajs_dropped = n * self._n_envs - self._n_trajs
+            train_step = self._memory.pop('train_step')
+            self._policy_version_min_diff = self._train_step - train_step[:, -1].max()
+            self._policy_version_max_diff = self._train_step - train_step[:, 0].min()
+            self._policy_version_avg_diff = self._train_step - train_step.mean()
+
+        def _update_agent_rms(self):
             self._agent.update_obs_rms(np.concatenate(self['obs']))
             self._agent.update_reward_rms(
                 self['reward'], self['discount'])
             self.update('reward', 
                 self._agent.normalize_reward(self['reward']), field='all')
-            if self._adv_type != 'vtrace':
-                self.compute_advantage_return()
-            self.reshape_to_sample()
-            self._ready = True
 
-        assert self._memory is not None, self._memory
-        # TODO: is this shuffle necessary if we don't divide batch into minibatches
-        if self._mb_idx == 0:
-            np.random.shuffle(self._shuffled_idxes)
+        def reshape_to_sample(self):
+            if self._adv_type == 'vtrace':
+                # v-trace is different from PPO 
+                # as the length of obs is sample_size+1
+                # and we don't define N_STEP
+                self._memory = {k: v.reshape(self._batch_size, -1, *v.shape[2:]) 
+                    for k, v in self._memory.items()}
+            else:
+                self._memory = reshape_to_sample(
+                    self._memory, self._batch_size, 
+                    self.N_STEPS, self._sample_size)
 
-        self._mb_idx, self._curr_idxes = compute_indices(
-            self._shuffled_idxes, self._mb_idx, 
-            self._mb_size, self.N_MBS)
+        def get_async_stats(self):
+            return {
+                'sample_wait_time': self._sample_wait_time,
+                'trajs_dropped': self._trajs_dropped,
+                'policy_version_min_diff': self._policy_version_min_diff,
+                'policy_version_max_diff': self._policy_version_max_diff,
+                'policy_version_avg_diff': self._policy_version_avg_diff,
+            }
 
-        sample = {k: self._memory[k][self._curr_idxes, 0]
-            if k in self._state_keys 
-            else self._memory[k][self._curr_idxes] 
-            for k in self._sample_keys}
+        def add(self):
+            """ No need """
+            raise NotImplementedError
 
-        if self._adv_type != 'vtrace' and self._norm_adv == 'minibatch':
-            sample['advantage'] = standardize(
-                sample['advantage'], epsilon=self._epsilon)
+        def reshape_to_store(self):
+            """ No need """
+            raise NotImplementedError
 
-        if self._mb_idx == 0:
-            self._epoch_idx += 1
-            if self._epoch_idx == self.N_EPOCHS:
-                # resetting here is especially important 
-                # if we use tf.data as sampling is done 
-                # in a background thread
-                self.reset()
+        def update_value_with_func(self):
+            """ No need """
+            raise NotImplementedError
+        
+        def _init_buffer(self):
+            """ No need """
+            raise NotImplementedError
 
-        return sample
-
-    def compute_advantage_return(self):
-        self._memory['advantage'], self._memory['traj_ret'] = \
-            self._compute_advantage_return(
-                self._memory['reward'], self._memory['discount'], 
-                self._memory['value'], self._memory['last_value'],
-                epsilon=self._epsilon)
-        # remove the last value
-        del self._memory['last_value']
-
-    def reshape_to_store(self):
-        """ No need """
-        raise NotImplementedError
-
-    def reshape_to_sample(self):
-        if self._adv_type == 'vtrace':
-            # v-trace is special as the length of obs is sample_size+1
-            # and we don't define N_STEP
-            self._memory = {k: v.reshape(self._n_trajs, -1, *v.shape[2:]) 
-                for k, v in self._memory.items()}
-        else:
-            self._memory = reshape_to_sample(
-                self._memory, self._n_trajs, self.N_STEPS, self._sample_size)
-
-    def get_async_stats(self):
-        return {
-            'sample_wait_time': self._sample_wait_time,
-            'trajs_dropped': self._trajs_dropped,
-            'policy_version_min_diff': self._policy_version_min_diff,
-            'policy_version_max_diff': self._policy_version_max_diff,
-            'policy_version_avg_diff': self._policy_version_avg_diff,
-        }
-
+    return Buffer(config)
 
 class LocalBuffer:
     @config
@@ -204,13 +185,14 @@ class LocalBuffer:
         self._idx += 1
 
     def sample(self):
-        results = {}
+        data = {}
 
+        # make data batch-major
         for k, v in self._memory.items():
-            v = np.array(v, copy=False)
-            results[k] = np.swapaxes(v, 0, 1) if v.ndim > 1 else v
+            v = to_array32(v)
+            data[k] = np.swapaxes(v, 0, 1) if v.ndim > 1 else v
 
-        return results
+        return data
 
     def finish(self, last_value=None,
             last_obs=None, last_mask=None):

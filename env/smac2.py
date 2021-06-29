@@ -353,6 +353,10 @@ class SMAC2(gym.Env):
         return np.stack(actions)
 
     @property
+    def is_multiagent(self):
+        return True
+
+    @property
     def action_space(self):
         return self.action_spaces[0]
     

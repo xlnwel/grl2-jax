@@ -126,6 +126,10 @@ class MultiAgentEnv(gym.Env):
         return actions
 
     @property
+    def is_multiagent(self):
+        return True
+
+    @property
     def action_space(self):
         return self.action_spaces[0]
     
@@ -483,8 +487,8 @@ class MultiAgentEnv(gym.Env):
             # render to display or array
             results.append(self.viewers[i].render(
                 return_rgb_array=mode == 'rgb_array'))
-
-        return results
+        
+        return results[0]
 
     # create receptor field locations in local coordinate frame
     def _make_receptor_locations(self, agent):

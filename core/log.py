@@ -11,6 +11,7 @@ from utility import yaml_op
 
 logger = logging.getLogger(__name__)
 
+
 """ Logging """
 def log(logger, writer, model_name, prefix, step, print_terminal_info=True):
     stats = dict(

@@ -39,6 +39,14 @@ def config_attr(obj, config):
 def to_int(s):
     return int(float(s))
     
+def to_array32(x):
+    x = np.array(x, copy=False)
+    if x.dtype == np.float64:
+        x = x.astype(np.float32)
+    elif x.dtype == np.int64:
+        x = x.astype(np.int32)
+    return x
+
 def isscalar(x):
     return isinstance(x, (int, float))
     
@@ -398,6 +406,7 @@ class RunningMeanStd:
     def set_rms_stats(self, mean, var, count):
         self._mean = mean
         self._var = var
+        self._std = np.sqrt(self._var)
         self._count = count
 
     def get_rms_stats(self):

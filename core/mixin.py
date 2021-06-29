@@ -143,15 +143,21 @@ class RMS:
     def set_rms_stats(self, obs_rms={}, rew_rms=None):
         if obs_rms:
             for k, v in obs_rms.items():
-                self._obs_rms[k].set_rms_stats(v)
+                self._obs_rms[k].set_rms_stats(*v)
         if rew_rms:
-            self._reward_rms.set_rms_stats(rew_rms)
+            self._reward_rms.set_rms_stats(*rew_rms)
 
     def get_rms_stats(self):
+        return self.get_obs_rms_stats(), self.get_rew_rms_stats()
+
+    def get_obs_rms_stats(self):
         obs_rms = {k: v.get_rms_stats() for k, v in self._obs_rms.items()} \
             if self._normalize_obs else {}
+        return obs_rms
+
+    def get_rew_rms_stats(self):
         rew_rms = self._reward_rms.get_rms_stats() if self._normalize_reward else ()
-        return obs_rms, rew_rms
+        return rew_rms
 
     @property
     def is_obs_or_reward_normalized(self):

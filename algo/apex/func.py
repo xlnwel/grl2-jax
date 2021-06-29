@@ -115,7 +115,7 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
     if 'seed' in env_config:
         env_config['seed'] += 999
     env_config['n_workers'] = 1
-    env_config['n_envs'] = 4 if 'procgen' in env_config['name'] else 1
+    env_config['n_envs'] = env_config.pop('n_eval_envs', 4)
 
     RayEvaluator = ray.remote(num_cpus=1)(Evaluator)
     evaluator = RayEvaluator.remote(

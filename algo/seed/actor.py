@@ -8,7 +8,7 @@ import tensorflow as tf
 import ray
 
 from utility.ray_setup import cpu_affinity
-from utility.utils import Every, config_attr
+from utility.utils import Every, config_attr, batch_dicts
 from utility.rl_utils import compute_act_eps
 from utility.timer import Timer
 from utility import pkg
@@ -57,7 +57,7 @@ def get_actor_class(AgentBase):
             # number of env(vec) instances for each inference pass
             self._action_batch = int(
                 self._wpa * self._n_envvecs * self._action_frac)
-            print(f'{self.name} action batch: {self._action_batch * self._n_envs}')
+            
             if 'act_eps' in config:
                 act_eps = compute_act_eps(
                     config['act_eps_type'], 
@@ -133,17 +133,14 @@ def get_actor_class(AgentBase):
 
             self.env_step = 0
             q_size = []
+            def process_env_output(x): 
+                if isinstance(x, (int, float, np.floating)):
+                    return x
+                else:
+                    print(np.array(x).shape, np.array(x).dtype)
+                    return np.concatenate(x)
             while True:
-                obs_rms, train_step_weights = None, None
-
-                q_size.append(self._param_queue.qsize())
-                while not self._param_queue.empty():
-                    obs_rms, train_step_weights = self._param_queue.get(False)
-
-                if train_step_weights is not None:
-                    self.set_rms_stats(ray.get(obs_rms))
-                    self.set_train_step_weights(
-                        *ray.get(train_step_weights))
+                q_size, fw = self._fetch_weights(q_size)
 
                 # retrieve ready objs
                 with Timer(f'{self.name} wait') as wt:
@@ -156,8 +153,19 @@ def get_actor_class(AgentBase):
                 wids, eids = zip(*[objs.pop(i) for i in ready_objs])
                 assert len(wids) == len(eids) == self._action_batch, \
                     (len(wids), len(eids), self._action_batch)
-                env_output = EnvOutput(*[np.concatenate(v, axis=0) 
-                    for v in zip(*ray.get(ready_objs))])
+                env_output = list(zip(*ray.get(ready_objs)))
+                assert len(env_output) == 4, env_output
+                if isinstance(env_output[0][0], dict):
+                    # if obs is a dict
+                    env_output[0] = batch_dicts(env_output[0])
+                    env_output = EnvOutput(*[
+                        {k: np.concatenate(v, 0) for k, v in x.items()}
+                        for x in zip(*ray.get(ready_objs))])
+                else:
+                    env_output = EnvOutput(*[
+                        np.concatenate(x, axis=0) 
+                        for x in zip(*ray.get(ready_objs))])
+                
                 if self._act_eps_mapping is not None:
                     self._act_eps = np.reshape(
                         self._act_eps_mapping[wids, eids], 
@@ -180,16 +188,39 @@ def get_actor_class(AgentBase):
                 self.env_step += self._action_batch * self._n_envs
 
                 if self._to_sync(self.env_step):
-                    with Timer(f'{self.name} pull weights') as pw:
-                        self.pull_weights(learner)
                     monitor.record_run_stats.remote(
                         worker_name=self._id,
                         **{
                         'time/wait_env': wt.average(),
-                        'time/pull_weights': pw.average(),
+                        'time/pull_weights': fw.average(),
                         'n_ready': self._action_batch,
-                        'q_size': q_size
+                        'q_size': np.mean(q_size)
                     })
+                    q_size = []
+
+        def _fetch_weights(self, q_size):
+            obs_rms, train_step_weights = None, None
+
+            q_size.append(self._param_queue.qsize())
+
+            with Timer(f'{self.name} fetch weights') as ft:
+                while not self._param_queue.empty():
+                    if self._normalize_obs:
+                        obs_rms, train_step_weights = \
+                            self._param_queue.get(block=False)
+                    else:
+                        train_step_weights = self._param_queue.get(block=False)
+
+                if train_step_weights is not None:
+                    if self._normalize_obs:
+                        self.set_rms_stats(obs_rms=ray.get(obs_rms))
+                        self.set_train_step_weights(
+                            *ray.get(train_step_weights))
+                    else:
+                        self.set_train_step_weights(
+                            *train_step_weights)
+            
+            return q_size, ft
 
     return Actor
 

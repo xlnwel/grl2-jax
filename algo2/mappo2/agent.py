@@ -5,7 +5,7 @@ from algo.ppo.base import PPOBase
 from algo.mappo.agent import Agent as AgentBase, infer_life_mask
 
 
-def collect(buffer, env, step, reset, life_mask, discount, next_obs, **kwargs):
+def collect(buffer, env, env_step, reset, life_mask, discount, next_obs, **kwargs):
     kwargs['life_mask'] = infer_life_mask(life_mask, discount, concat=False)
     # discount is zero only when all agents are done
     discount[np.any(discount, 1)] = 1

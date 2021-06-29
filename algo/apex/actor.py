@@ -32,6 +32,9 @@ def get_actor_base_class(AgentBase):
     """" Mixin that defines some basic operations for remote actor """
     class ActorBase(AgentBase):
         def pull_weights(self, learner):
+            if getattr(self, '_normalize_obs'):
+                obs_rms = ray.get(learner.get_obs_rms_stats.remote())
+                self.set_rms_stats(obs_rms=obs_rms)
             train_step, weights = ray.get(
                 learner.get_train_step_weights.remote(self._pull_names))
             self.train_step = train_step
@@ -58,7 +61,8 @@ def get_learner_base_class(AgentBase):
             
         def _learning(self):
             # waits for enough data to learn
-            while not self.dataset.good_to_learn():
+            while hasattr(self.dataset, 'good_to_learn') \
+                    and not self.dataset.good_to_learn():
                 time.sleep(1)
             print(f'{self.name} starts learning...')
 
@@ -72,11 +76,14 @@ def get_learner_base_class(AgentBase):
             return self.train_step, self.model.get_weights(name=name)
 
         def get_stats(self):
-            """ retrieve traning stats for the monotor to record """
+            """ retrieve training stats for the monitor to record """
             return self.train_step, super().get_stats()
 
         def set_handler(self, **kwargs):
             config_attr(self, kwargs)
+        
+        def save(self, env_step):
+            self.env_step = env_step
 
     return LearnerBase
 
@@ -314,19 +321,22 @@ def get_evaluator_class(AgentBase):
                     model_fn):
             config_actor(name, config)
 
-            env_config.pop('reward_clip', False)
-            self.env = env = create_env(env_config)
+            for k in list(env_config.keys()):
+                # pop reward hacks
+                if 'reward' in k:
+                    env_config.pop(k)
+            self.env = create_env(env_config)
 
             model = model_fn(
                 config=model_config, 
-                env=env)
+                env=self.env)
             
             super().__init__(
                 name=name,
                 config=config, 
                 models=model,
                 dataset=None,
-                env=env,
+                env=self.env,
             )
 
             # the names of network modules that should be in sync with the learner

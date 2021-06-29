@@ -18,7 +18,7 @@ def infer_life_mask(mask, discount, concat=True):
         life_mask = np.concatenate(life_mask)
     return life_mask
 
-def collect(buffer, env, step, reset, reward, 
+def collect(buffer, env, env_step, reset, reward, 
             discount, next_obs, **kwargs):
     if 'life_mask' in kwargs:
         kwargs['life_mask'] = infer_life_mask(discount, discount)
@@ -27,6 +27,35 @@ def collect(buffer, env, step, reset, reward,
     discount[np.any(discount, 1)] = 1
     kwargs['discount'] = np.concatenate(discount)
     buffer.add(**kwargs)
+
+def get_data_format(*, env, batch_size, sample_size=None,
+        store_state=False, state_size=None, **kwargs):
+    obs_dtype = tf.uint8 if len(env.obs_shape) == 3 else tf.float32
+    action_dtype = tf.int32 if env.is_action_discrete else tf.float32
+    data_format = dict(
+        obs=((None, sample_size, *env.obs_shape), obs_dtype),
+        global_state=((None, sample_size, *env.shared_state_shape), env.shared_state_dtype),
+        action=((None, sample_size, *env.action_shape), action_dtype),
+        value=((None, sample_size), tf.float32), 
+        traj_ret=((None, sample_size), tf.float32),
+        advantage=((None, sample_size), tf.float32),
+        logpi=((None, sample_size), tf.float32),
+        mask=((None, sample_size), tf.float32),
+    )
+    if env.use_action_mask:
+        data_format['action_mask'] = (
+            (None, sample_size, env.action_dim), tf.bool, 'action_mask')
+    if env.use_life_mask:
+        data_format['life_mask'] = (None, sample_size, tf.float32, 'life_mask')
+        
+    if store_state:
+        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        data_format.update({
+            k: ((batch_size, v), dtype)
+                for k, v in state_size._asdict().items()
+        })
+    
+    return data_format
 
 def random_actor_with_life_mask(env_output, env=None, **kwargs):
     obs = env_output.obs
@@ -187,9 +216,7 @@ class Agent(Memory, PPOBase):
         return out
     
     def _add_non_tensors_to_terms(self, obs, kwargs, out, evaluation):
-        if evaluation:
-            out = [out]
-        else:
+        if not evaluation:
             out[1].update({
                 'obs': obs, # ensure obs is placed in terms even when no observation normalization is performed
                 'global_state': kwargs['global_state'],

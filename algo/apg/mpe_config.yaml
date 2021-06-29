@@ -1,8 +1,8 @@
 ---
 env:
     name: &env_name mpe_simple_spread
-    n_workers: 1
-    n_envs: &nenvs 128
+    n_envvecs: 2
+    n_envs: &nenvs 64
     max_episode_steps: 25
     num_good_agents: 3
     num_adversaries: 2
@@ -49,19 +49,35 @@ model:
         kernel_initializer: orthogonal
 
 agent:
-    algorithm: &algo mappo
+    algorithm: &algo apg-mappo
     precision: 32
     gamma: &gamma .99
 
     MAX_STEPS: 3e7
-    N_STEPS: &nsteps 25
-    N_EPOCHS: &nepochs 5
+    N_STEPS: &nsteps 32
+    N_EPOCHS: &nepochs 1
     N_VALUE_EPOCHS: 0
     N_MBS: &nmbs 1
-    sample_size: &ss 10       # BPTT length
-    LOG_PERIOD: 20
-    EVAL_PERIOD: 2000
+    sample_size: &ss 16       # BPTT length
+    LOG_PERIOD: 50
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
+    n_trajs: &ntrajs 256
+
+    # distributed algo params
+    nice: 0
+    n_learner_cpus: 1
+    n_learner_gpus: .5
+    n_actors: 2
+    n_actor_gpus: .25
+    n_workers: 8
+    n_worker_cpus: 1
+    SYNC_PERIOD: 10000
+    has_evaluator: True
+    N_EVALUATION: 1
+    RECORD_PERIOD: 10
+
+    use_central_buffer: False
+    action_frac: .5
 
     actor_life_mask: True
     value_life_mask: False
@@ -100,13 +116,17 @@ agent:
     huber_threshold: 10
 
 buffer:
+    use_dataset: True
+
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
     n_envs: *nenvs
+    n_trajs: *ntrajs
     N_STEPS: *nsteps
     N_EPOCHS: *nepochs
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: batch
+    sample_keys: [obs, global_state, action, value, traj_ret, advantage, logpi, mask, actor_h, actor_c, value_h, value_c]
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

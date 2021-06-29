@@ -28,8 +28,10 @@ def post_wrap(env, config):
 
 
 class DummyEnv:
-    """ Useful to break the inheritance of unexpected attributes,
-    For example, control tasks in gym by default use frame_skip=4."""
+    """ Useful to break the inheritance of unexpected attributes.
+    For example, control tasks in gym by default use frame_skip=4,
+    but we usually don't count these frame skips in practice.
+    """
     def __init__(self, env):
         self.env = env
         self.observation_space = env.observation_space
@@ -44,6 +46,9 @@ class DummyEnv:
         self.close = env.close
         self.seed = env.seed
 
+    @property
+    def is_multiagent(self):
+        return getattr(self.env, 'is_multiagent', False)
 
 """ Wrappers from OpenAI's baselines. 
 Some modifications are done to meet specific requirements """
