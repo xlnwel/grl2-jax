@@ -1,10 +1,15 @@
 ---
 env:
-    name: &env_name smac_3s5z_vs_3s6z
-    n_workers: 8
-    n_envs: &nenvs 1
-    fixed_episode_length: False
-    
+    name: &env_name mpe_simple_spread
+    n_workers: 1
+    n_envs: &nenvs 128
+    max_episode_steps: 25
+    num_good_agents: 3
+    num_adversaries: 2
+    n_agents: 3
+    num_landmarks: 3
+    use_global_state: False
+
 model:
     actor_encoder: 
         units_list: [64, 64, 64]
@@ -15,7 +20,7 @@ model:
         norm_kwargs:
             epsilon: 1.e-5
     actor_rnn:
-        rnn_name: mgru
+        rnn_name: mlstm
         units: 64
         kernel_initializer: orthogonal
         use_ln: True
@@ -25,6 +30,7 @@ model:
         eval_act_temp: 1
         attention_action: False
         embed_dim: 32
+        out_gain: .01
     value_encoder:
         units_list: [64, 64, 64]
         kernel_initializer: orthogonal
@@ -34,7 +40,7 @@ model:
         norm_kwargs:
             epsilon: 1.e-5
     value_rnn:
-        rnn_name: mgru
+        rnn_name: mlstm
         units: 64
         kernel_initializer: orthogonal
         use_ln: True
@@ -48,7 +54,7 @@ agent:
     gamma: &gamma .99
 
     MAX_STEPS: 3e7
-    N_STEPS: &nsteps 400
+    N_STEPS: &nsteps 25
     N_EPOCHS: 5
     N_VALUE_EPOCHS: 0
     N_MBS: &nmbs 1
@@ -80,8 +86,8 @@ agent:
     # arguments for optimizer
     optimizer: adam
     schedule_lr: False
-    actor_lr: 5e-4
-    value_lr: 5e-4
+    actor_lr: 7e-4
+    value_lr: 7e-4
     clip_norm: 10
     opt_kwargs:
         epsilon: 1.e-5

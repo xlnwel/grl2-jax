@@ -12,7 +12,10 @@ from algo.ppo.train import main
 def train(agent, env, eval_env, buffer):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
-    random_actor = pkg.import_module('agent', algo=agent.name).random_actor
+    random_actor = pkg.import_module('agent', algo=agent.name)
+    random_actor = getattr(random_actor,
+        'random_actor_with_life_mask' if env.use_life_mask 
+        else 'random_actor')
     random_actor = functools.partial(random_actor, env=env)
 
     em = pkg.import_module(env.name.split("_")[0], pkg='env')
@@ -23,9 +26,10 @@ def train(agent, env, eval_env, buffer):
     
     if step == 0 and agent.is_obs_normalized:
         print('Start to initialize running stats...')
-        for _ in range(10):
+        for i in range(10):
             runner.run(action_selector=random_actor, step_fn=collect)
-            life_mask = np.concatenate(buffer['life_mask'])
+            life_mask = np.concatenate(buffer['life_mask']) \
+                if env.use_life_mask else None
             agent.update_obs_rms(np.concatenate(buffer['obs']), mask=life_mask)
             agent.update_obs_rms(np.concatenate(buffer['global_state']), 
                 'global_state', mask=life_mask)

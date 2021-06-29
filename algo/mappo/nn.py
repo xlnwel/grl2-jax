@@ -39,7 +39,7 @@ class Actor(Module):
                         out_dtype='float32',
                         name=name)
 
-    def call(self, x, action_mask, evaluation=False):
+    def call(self, x, action_mask=None, evaluation=False):
         x = self._layers(x)
         if self.attention_action:
             # action_mask_exp = tf.expand_dims(action_mask, -1)
@@ -56,8 +56,9 @@ class Actor(Module):
 
         logits = x / self.eval_act_temp \
             if evaluation and self.eval_act_temp else x
-        assert logits.shape[1:] == action_mask.shape[1:], (logits.shape, action_mask.shape)
-        logits = tf.where(action_mask, logits, -1e10)
+        if action_mask is not None:
+            assert logits.shape[1:] == action_mask.shape[1:], (logits.shape, action_mask.shape)
+            logits = tf.where(action_mask, logits, -1e10)
         act_dist = tfd.Categorical(logits)
 
         return act_dist
@@ -112,8 +113,10 @@ class PPO(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, obs, global_state, action_mask, state, mask, 
-            evaluation=False, prev_action=None, prev_reward=None, **kwargs):
+    def action(self, obs, global_state, 
+            state, mask, action_mask=None,
+            evaluation=False, prev_action=None, 
+            prev_reward=None, **kwargs):
         assert obs.shape.ndims % 2 == 0, obs.shape
 
         actor_state, value_state = self.split_state(state)

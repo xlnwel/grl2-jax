@@ -51,7 +51,7 @@ class Buffer(BufferBase):
             self._compute_advantage_return(
                 self._memory['reward'], self._memory['discount'], 
                 self._memory['value'], last_value, 
-                mask=self._memory['life_mask'],
+                mask=self._memory.get('life_mask'),
                 epsilon=self._epsilon
             )
 
