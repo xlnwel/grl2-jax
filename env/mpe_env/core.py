@@ -1,5 +1,5 @@
 import numpy as np
-import seaborn as sns
+
 
 # physical/external base state of all entites
 class EntityState(object):
@@ -136,7 +136,7 @@ class World(object):
         # zoe 20200420
         self.world_length = 25
         self.world_step = 0
-        self.num_agents = 0
+        self.n_agents = 0
         self.num_landmarks = 0
 
     # return all entities in the world

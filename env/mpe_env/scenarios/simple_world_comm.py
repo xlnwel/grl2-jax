@@ -1,21 +1,23 @@
 import numpy as np
-from onpolicy.envs.mpe.core import World, Agent, Landmark
-from onpolicy.envs.mpe.scenario import BaseScenario
+
+from env.mpe_env.core import World, Agent, Landmark
+from env.mpe_env.scenario import BaseScenario
+
 
 class Scenario(BaseScenario):
-    def make_world(self,args):
+    def make_world(self, config):
         world = World()
         # set any world properties first
         world.dim_c = 4
         #world.damping = 1
-        num_good_agents = args.num_good_agents#2
-        num_adversaries = args.num_adversaries#4
-        num_agents = num_adversaries + num_good_agents
-        num_landmarks = args.num_landmarks#1
+        num_good_agents = config['num_good_agents']#2
+        num_adversaries = config['num_adversaries']#4
+        n_agents = num_adversaries + num_good_agents
+        num_landmarks = config['num_landmarks']#1
         num_food = 2
         num_forests = 2
         # add agents
-        world.agents = [Agent() for i in range(num_agents)]
+        world.agents = [Agent() for i in range(n_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True

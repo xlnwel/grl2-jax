@@ -38,7 +38,9 @@ class MultiDiscrete(gym.Space):
     @property
     def shape(self):
         return self.num_discrete_space
+
     def __repr__(self):
         return "MultiDiscrete" + str(self.num_discrete_space)
+
     def __eq__(self, other):
         return np.array_equal(self.low, other.low) and np.array_equal(self.high, other.high)

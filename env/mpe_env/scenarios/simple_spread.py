@@ -1,19 +1,19 @@
 import numpy as np
-from onpolicy.envs.mpe.core import World, Agent, Landmark
-from onpolicy.envs.mpe.scenario import BaseScenario
+from env.mpe_env.core import World, Agent, Landmark
+from env.mpe_env.scenario import BaseScenario
 
 
 class Scenario(BaseScenario):
-    def make_world(self, args):
+    def make_world(self, config):
         world = World()
-        world.world_length = args.episode_length
+        world.world_length = config['max_episode_steps']
         # set any world properties first
         world.dim_c = 2
-        world.num_agents = args.num_agents
-        world.num_landmarks = args.num_landmarks  # 3
+        world.n_agents = config['n_agents']
+        world.num_landmarks = config['num_landmarks']  # 3
         world.collaborative = True
         # add agents
-        world.agents = [Agent() for i in range(world.num_agents)]
+        world.agents = [Agent() for i in range(world.n_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True

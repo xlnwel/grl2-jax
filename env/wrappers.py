@@ -339,6 +339,9 @@ class DataProcess(gym.Wrapper):
     def observation(self, observation):
         if isinstance(observation, np.ndarray):
             return convert_dtype(observation, self.precision)
+        elif isinstance(observation, dict):
+            for k, v in observation.items():
+                observation[k] = convert_dtype(v, self.precision)
         return observation
     
     # def action(self, action):
@@ -382,7 +385,9 @@ class EnvStatsBase(gym.Wrapper):
         """ Records environment statistics """
         super().__init__(env)
         self.max_episode_steps = max_episode_steps \
-            or getattr(self.env, 'max_episode_steps', int(1e9))
+            or getattr(self.env, 'max_episode_steps', 
+            getattr(self.env.spec, 'max_episode_steps', int(1e9)) 
+            if hasattr(self.env, 'spec') else int(1e9))
         # if we take timeout as done
         self.timeout_done = timeout_done
         self.auto_reset = auto_reset
@@ -538,7 +543,7 @@ class MAEnvStats(EnvStatsBase):
             self._info['mask'] = np.zeros(self.n_agents, np.bool)
             return self._output
 
-        assert not np.any(np.isnan(action)), action
+        # assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
         # define score, epslen, and game_over in info as multi-agent environments may vary in metrics 
         self._score = info['score']

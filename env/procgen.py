@@ -17,6 +17,8 @@ def make_procgen_env(config):
         else:
             env = wrappers.FrameSkip(env, frame_skip=frame_skip)
     config.setdefault('max_episode_steps', env.spec.max_episode_steps)
+    if config['max_episode_steps'] is None:
+        config['max_episode_steps'] = int(1e9)
     # env = HeistActionWrapper(env)
     return env
 

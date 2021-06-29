@@ -1,3 +1,4 @@
+from core.dataset import process_with_env
 import itertools
 import numpy as np
 import cv2
@@ -9,34 +10,7 @@ from env import wrappers
 EnvOutput = wrappers.EnvOutput
 
 
-def make_env(config):
-    config = config.copy()
-    env_name = config['name'].lower()
-    if env_name.startswith('smac2'):
-        from env import smac2
-        env = smac2.make_smac_env(config)
-        # smac2 resembles single agent environments, in which done and reward are team-based
-        env = wrappers.EnvStats(env)
-        return env
-    elif env_name.startswith('smac'):
-        from env import smac
-        env = smac.make_smac_env(config)
-        env = wrappers.MAEnvStats(env)
-        return env
-    elif env_name.startswith('atari'):
-        from env import atari
-        env = atari.make_atari_env(config)
-    else:
-        if env_name.startswith('procgen'):
-            from env import procgen
-            env = procgen.make_procgen_env(config)
-        elif env_name.startswith('dmc'):
-            from env import dmc
-            env = dmc.make_dmc_env(config)
-        else:
-            env = gym.make(config['name']).env
-            env = wrappers.DummyEnv(env)    # useful for hidding unexpected frame_skip
-            config.setdefault('max_episode_steps', env.spec.max_episode_steps)
+def process_single_agent_env(env, config):
     if config.get('reward_scale') or config.get('reward_clip'):
         env = wrappers.RewardHack(env, **config)
     frame_stack = config.setdefault('frame_stack', 1)
@@ -50,6 +24,65 @@ def make_env(config):
         distance = config.setdefault('distance', 1)
         env = wrappers.FrameDiff(env, gray_scale_residual, distance)
     env = wrappers.post_wrap(env, config)
+    return env
+
+def make_mpe(config):
+    from env import mpe
+    env = mpe.make_mpe_env(config)
+    env = wrappers.MAEnvStats(env)
+    return env
+
+def make_smac(config):
+    from env import smac
+    env = smac.make_smac_env(config)
+    env = wrappers.MAEnvStats(env)
+    return env
+
+def make_smac2(config):
+    from env import smac2
+    env = smac2.make_smac_env(config)
+    # smac2 resembles single agent environments, in which done and reward are team-based
+    env = wrappers.EnvStats(env)
+    return env
+
+def make_atari(config):
+    from env import atari
+    env = atari.make_atari_env(config)
+    env = process_single_agent_env(env, config)
+    return env
+
+def make_procgen(config):
+    from env import procgen
+    env = procgen.make_procgen_env(config)
+    env = process_single_agent_env(env, config)
+    return env
+
+def make_dmc(config):
+    from env import dmc
+    env = dmc.make_dmc_env(config)
+    env = process_single_agent_env(env, config)
+    return env
+
+def make_built_int_gym(config):
+    env = gym.make(config['name']).env
+    env = wrappers.DummyEnv(env)    # useful for hidding unexpected frame_skip
+    config.setdefault('max_episode_steps', 
+        env.spec.max_episode_steps)
+    env = process_single_agent_env(env, config)
+    return env
+
+def make_env(config):
+    config = config.copy()
+    env_name = config['name'].lower()
+    env_func = dict(
+        mpe=make_mpe,
+        smac=make_smac,
+        smac2=make_smac2,
+        atari=make_atari,
+        procgen=make_procgen,
+        dmc=make_dmc,
+    ).get(env_name.split('_', 1)[0], make_built_int_gym)
+    env = env_func(config)
     
     return env
 

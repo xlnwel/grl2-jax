@@ -2,7 +2,7 @@ from .environment import MultiAgentEnv
 from .scenarios import load
 
 
-def MPEEnv(args):
+def MPEEnv(config):
     '''
     Creates a MultiAgentEnv object as env. This can be used similar to a gym
     environment by calling env.reset() and env.step().
@@ -21,11 +21,18 @@ def MPEEnv(args):
     '''
 
     # load scenario from script
-    scenario = load(args.scenario_name + ".py").Scenario()
+    assert 'mpe' in config['name'], config['name']
+    name = config['name'].split('_', 1)[1]
+    scenario = load(name + ".py").Scenario()
     # create world
-    world = scenario.make_world(args)
+    world = scenario.make_world(config)
     # create multiagent environment
-    env = MultiAgentEnv(world, scenario.reset_world,
-                        scenario.reward, scenario.observation, scenario.info)
+    env = MultiAgentEnv(
+        world, 
+        scenario.reset_world,
+        scenario.reward, 
+        scenario.observation, 
+        scenario.info,
+        **config)
 
     return env
