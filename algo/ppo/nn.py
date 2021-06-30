@@ -84,7 +84,7 @@ class PPO(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, **kwargs):
+    def action(self, x, evaluation=False, return_value=True, **kwargs):
         x = self.encode(x)
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)
@@ -92,9 +92,12 @@ class PPO(Ensemble):
         if evaluation:
             return action
         else:
-            value = self.value(x)
             logpi = act_dist.log_prob(action)
-            terms = {'logpi': logpi, 'value': value}
+            if return_value:
+                value = self.value(x)
+                terms = {'logpi': logpi, 'value': value}
+            else:
+                terms = {'logpi': logpi}
             return action, terms    # keep the batch dimension for later use
 
     @tf.function

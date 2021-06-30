@@ -39,7 +39,7 @@ agent:
     n_trajs: &ntrajs 256
 
     # distributed algo params
-    nice: 0
+    default_nice: 0
     n_learner_cpus: 1
     n_learner_gpus: .5
     n_actors: 2

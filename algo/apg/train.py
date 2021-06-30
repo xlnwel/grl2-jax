@@ -39,6 +39,7 @@ def main(env_config, model_config, agent_config, replay_config):
     # create workers
     Worker = am.get_worker_class()
     workers = []
+    
     for wid in range(agent_config['n_workers']):
         worker = fm.create_worker(
             Worker=Worker, 

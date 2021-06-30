@@ -2,9 +2,10 @@ import tensorflow as tf
 
 from core.tf_config import build
 from core.decorator import override
+from core.base import RMSAgentBase
+from core.mixin import Memory
 from utility.tf_utils import explained_variance
 from utility.rl_loss import v_trace_from_ratio, ppo_loss
-from algo.ppo2.agent import Agent as PPOBase
 
 
 def collect(buffer, env, env_step, reset, next_obs, **kwargs):
@@ -19,7 +20,6 @@ def get_data_format(*, env, batch_size, sample_size=None,
         obs=((None, sample_size+1, *env.obs_shape), obs_dtype),
         action=((None, sample_size, *env.action_shape), action_dtype),
         reward=((None, sample_size), tf.float32),
-        value=((None, sample_size), tf.float32), 
         discount=((None, sample_size), tf.float32),
         logpi=((None, sample_size), tf.float32),
         mask=((None, sample_size+1), tf.float32),
@@ -34,16 +34,20 @@ def get_data_format(*, env, batch_size, sample_size=None,
     return data_format
 
 
-class Agent(PPOBase):
+class Agent(Memory, RMSAgentBase):
     """ Initialization """
-    @override(PPOBase)
+    @override(RMSAgentBase)
+    def _add_attributes(self, env, dataset):
+        super()._add_attributes(env, dataset)
+        self._setup_memory_state_record()
+
+    @override(RMSAgentBase)
     def _build_learn(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=((self._sample_size+1, *env.obs_shape), env.obs_dtype, 'obs'),
             action=((self._sample_size, *env.action_shape), env.action_dtype, 'action'),
             reward=((self._sample_size,), tf.float32, 'reward'),
-            value=((self._sample_size,), tf.float32, 'value'),
             discount=((self._sample_size,), tf.float32, 'discount'),
             logpi=((self._sample_size,), tf.float32, 'logpi'),
             mask=((self._sample_size+1,), tf.float32, 'mask'),
@@ -62,16 +66,31 @@ class Agent(PPOBase):
                     (self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
         self.learn = build(self._learn, TensorSpecs)
 
+    """ Call """
+    # @override(PPOBase)
+    def _process_input(self, env_output, evaluation):
+        obs, kwargs = super()._process_input(env_output, evaluation)
+        mask = 1. - env_output.reset
+        kwargs = self._add_memory_state_to_kwargs(obs, mask, kwargs=kwargs)
+        kwargs['return_value'] = False
+        return obs, kwargs
+
+    # @override(PPOBase)
+    def _process_output(self, obs, kwargs, out, evaluation):
+        out = self._add_tensors_to_terms(obs, kwargs, out, evaluation)
+        out = super()._process_output(obs, kwargs, out, evaluation)
+        out = self._add_non_tensors_to_terms(out, kwargs, evaluation)
+        return out
+
     # @override(PPOBase)
     # def _summary(self, data, terms):
     #     tf.summary.histogram('sum/value', data['value'], step=self._env_step)
     #     tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
 
     @tf.function
-    def _learn(self, obs, action, reward, value, 
+    def _learn(self, obs, action, reward, 
                 discount, logpi, mask=None, state=None, 
                 prev_action=None, prev_reward=None):
-        old_value = value
         terms = {}
         with tf.GradientTape() as tape:
             if hasattr(self.model, 'rnn'):
@@ -106,17 +125,19 @@ class Agent(PPOBase):
             else:
                 raise NotImplementedError
             # value loss
-            value_loss, v_clip_frac = self._compute_value_loss(
-                value, target, old_value)
+            value_loss = .5 * tf.reduce_mean((value - target)**2)
 
             actor_loss = (policy_loss - self._entropy_coef * entropy)
             value_loss = self._value_coef * value_loss
             ac_loss = actor_loss + value_loss
 
-        terms['ac_norm'] = self._ac_opt(tape, ac_loss)
+        terms['ac_norm'] = self._optimizer(tape, ac_loss)
         terms.update(dict(
             value=value,
-            ratio=ratio, 
+            target=target,
+            ratio_max=tf.reduce_max(ratio),
+            ratio_min=tf.reduce_min(ratio),
+            rho=tf.minimum(ratio, self._rho_clip),
             entropy=entropy, 
             kl=kl, 
             p_clip_frac=p_clip_frac,
@@ -124,7 +145,36 @@ class Agent(PPOBase):
             actor_loss=actor_loss,
             v_loss=value_loss,
             explained_variance=explained_variance(target, value),
-            v_clip_frac=v_clip_frac
         ))
 
         return terms
+
+    def _sample_learn(self):
+        for i in range(self.N_EPOCHS):
+            for j in range(1, self.N_MBS+1):
+                with self._sample_timer:
+                    data = self.dataset.sample()
+                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+                with self._learn_timer:
+                    terms = self.learn(**data)
+                terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
+                self.store(**terms)
+
+                self._after_train_step()
+
+        self.store(**{
+            'time/sample_mean': self._sample_timer.average(),
+            'time/learn_mean': self._learn_timer.average(),
+        })
+
+        if self._to_summary(self.train_step):
+            self._summary(data, terms)
+
+        return 1
+
+    def _after_train_step(self):
+        pass
+
+    def _store_buffer_stats(self):
+        self.store(**self.dataset.compute_mean_max_std('reward'))
+        self.store(**self.dataset.compute_mean_max_std('value'))

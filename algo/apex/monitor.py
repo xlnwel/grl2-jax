@@ -22,7 +22,6 @@ class Monitor(AgentImpl):
         self.env_step, self.train_step = ray.get(
             learner.get_env_train_steps.remote())
         self.last_env_step = self.env_step
-        print('Monitor', self.env_step, self.train_step)
 
     def record_episodic_info(self, worker_name=None, **stats):
         video = stats.pop('video', None)

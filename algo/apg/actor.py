@@ -6,12 +6,13 @@ from core.mixin import RMS
 from core.dataset import create_dataset
 from core.decorator import step_track
 from utility import pkg
+from algo.ppo.buffer import Buffer
 from algo.seed.actor import \
     get_actor_class as get_actor_base_class, \
     get_learner_class as get_learner_base_class, \
     get_worker_class as get_worker_base_class, \
     get_evaluator_class
-from .buffer import create_buffer, LocalBuffer
+from .buffer import APGBuffer, LocalBuffer
 
 
 def get_actor_class(AgentBase):
@@ -57,12 +58,12 @@ def get_learner_class(AgentBase):
                     q.put(train_step_weights_id)
 
         def _create_dataset(self, replay, model, env, config, replay_config):
-            from algo.ppo.buffer import Buffer as PPOBuffer
-            replay_config['state_keys'] = model.state_keys
-            replay_config['n_agents'] = getattr(env, 'n_agents', 1)
-            BufferBase = PPOBuffer
-            self.replay = create_buffer(BufferBase, replay_config)
-            self.replay.set_agent(self)
+            buff_config = replay_config.copy()
+            buff_config['state_keys'] = model.state_keys
+            buff_config['n_agents'] = getattr(env, 'n_agents', 1)
+            buff_config['n_envs'] = config['n_trajs'] * buff_config['n_agents']
+            buffer = Buffer(buff_config)
+            self.replay = APGBuffer(replay_config, buffer, self)
             if replay_config.get('use_dataset', True):
                 am = pkg.import_module('agent', config=config, place=-1)
                 data_format = am.get_data_format(

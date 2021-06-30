@@ -98,7 +98,7 @@ def get_learner_class(AgentBase):
                     env_config,
                     replay_config):
             name = 'Learner'
-            psutil.Process().nice(config.get('default_nice', 10))
+            psutil.Process().nice(config.get('default_nice', 0))
 
             config_actor(name, config)
 

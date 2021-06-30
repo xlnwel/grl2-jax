@@ -3,15 +3,16 @@ import logging
 import numpy as np
 
 from core.decorator import config
-from utility.utils import moments, standardize
+from utility.utils import batch_dicts, moments, standardize
 from replay.utils import init_buffer, print_buffer
 
 
 logger = logging.getLogger(__name__)
 
-def compute_nae(reward, discount, value, last_value, traj_ret, 
+def compute_nae(reward, discount, value, last_value, 
                 gamma, mask=None, epsilon=1e-8):
     next_return = last_value
+    traj_ret = np.zeros_like(reward)
     for i in reversed(range(reward.shape[1])):
         traj_ret[:, i] = next_return = (reward[:, i]
             + discount[:, i] * gamma * next_return)
@@ -62,15 +63,14 @@ def reshape_to_store(memory, n_envs, n_steps, sample_size=None):
 
 
 def reshape_to_sample(memory, n_envs, n_steps, sample_size=None):
-    leading_dims = (-1, sample_size) if sample_size else (-1,)
+    batch_size = n_envs * n_steps
+    if sample_size is not None:
+        batch_size //= sample_size
+        leading_dims = (batch_size, -1)
+    else:
+        leading_dims = (batch_size,)
     memory = {k: v.reshape(*leading_dims, *v.shape[2:])
             for k, v in memory.items()}
-    if sample_size:
-        for v in memory.values():
-            assert v.shape[:2] == (n_envs * n_steps / sample_size, sample_size), v.shape
-    else:
-        for v in memory.values():
-            assert v.shape[0] == (n_envs * n_steps), (v.shape, n_envs, n_steps)
 
     return memory
 
@@ -243,11 +243,8 @@ class Buffer:
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
         self.reshape_to_store()
-
-        self._compute_advantage_return_in_memory(last_value)
-
+        self.compute_advantage_return_in_memory(last_value)
         self.reshape_to_sample()
-        self._ready = True
 
     def clear(self):
         self._memory = {}
@@ -256,61 +253,65 @@ class Buffer:
     def reshape_to_store(self):
         if not self._is_store_shape:
             self._memory = reshape_to_store(
-                self._memory, self._n_envs, self.N_STEPS, self._sample_size)
+                self._memory, self._n_envs, 
+                self.N_STEPS, self._sample_size)
             self._is_store_shape = True
 
     def reshape_to_sample(self):
         if self._is_store_shape:
             self._memory = reshape_to_sample(
-                self._memory, self._n_envs, self.N_STEPS, self._sample_size)
+                self._memory, self._n_envs, 
+                self.N_STEPS, self._sample_size)
             self._is_store_shape = False
+        self._ready = True
 
     def _init_buffer(self, data):
         init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
-        self._memory['traj_ret'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
-        self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
+        self._memory['traj_ret'] = np.zeros(
+            (self._n_envs, self.N_STEPS), dtype=np.float32)
+        self._memory['advantage'] = np.zeros(
+            (self._n_envs, self.N_STEPS), dtype=np.float32)
         print_buffer(self._memory)
         if self._inferred_sample_keys or getattr(self, '_sample_keys', None) is None:
             self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
             self._inferred_sample_keys = True
 
-    def _compute_advantage_return_in_memory(self, last_value=None):
-        if last_value is None:
-            last_value = self._memory['last_value']
-        self._memory['advantage'], self._memory['traj_ret'] = \
-            self._compute_advantage_return(
-                self._memory['reward'], self._memory['discount'], 
-                self._memory['value'], last_value,
+    def compute_advantage_return_in_memory(self, last_value=None):
+        if self._adv_type != 'vtrace' and last_value is None:
+            last_value = self._memory.pop('last_value')
+        if self._adv_type == 'nae':
+            assert self._norm_adv == 'batch', self._norm_adv
+            self._memory['advantage'], self._memory['traj_ret'] = \
+                compute_nae(
+                reward=self._memory['reward'], 
+                discount=self._memory['discount'],
+                value=self._memory['value'],
+                last_value=last_value,
+                gamma=self._gamma,
                 mask=self._memory.get('life_mask'),
                 epsilon=self._epsilon)
-
-    def _compute_advantage_return(self, 
-            reward, discount, value, last_value, 
-            traj_ret=None, mask=None, epsilon=1e-8):
-        if self._adv_type == 'nae':
-            assert traj_ret is not None, traj_ret
-            assert self._norm_adv == 'batch', self._norm_adv
-            advantage, traj_ret = compute_nae(
-                reward=reward, 
-                discount=discount,
-                value=value,
-                last_value=last_value,
-                traj_ret=traj_ret,
-                gamma=self._gamma,
-                mask=mask,
-                epsilon=epsilon)
         elif self._adv_type == 'gae':
-            advantage, traj_ret = compute_gae(
-                reward=reward, 
-                discount=discount,
-                value=value,
+            self._memory['advantage'], self._memory['traj_ret'] = \
+                compute_gae(
+                reward=self._memory['reward'], 
+                discount=self._memory['discount'],
+                value=self._memory['value'],
                 last_value=last_value,
                 gamma=self._gamma,
                 gae_discount=self._gae_discount,
                 norm_adv=self._norm_adv == 'batch',
-                mask=mask,
-                epsilon=epsilon)
+                mask=self._memory.get('life_mask'),
+                epsilon=self._epsilon)
+        elif self._adv_type == 'vtrace':
+            pass
         else:
             raise NotImplementedError
-        
-        return advantage, traj_ret
+
+    def replace_memory(self, data):
+        self._memory = data
+        self._is_store_shape = True
+        for v in self._memory.values():
+            assert v.shape[0] == self._n_envs, (v.shape, self._n_envs)
+
+    def clear_memory(self):
+        self._memory = None

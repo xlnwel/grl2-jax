@@ -12,6 +12,8 @@ algos=(
     # apex-mrdqn
     # sacdiqn5
     apg-ppo
+    apg-ppo2
+    # apg-impala
 )
 suite=procgen
 envs=(
@@ -23,17 +25,16 @@ envs=(
     # coinrun
     # heist
     # starpilot
-    # miner
-    # climber
+    miner
+    climber
     dodgeball
-    bigfish
-    # caveflyer 
-    # jumper
-    # fruitbot
-    # bossfight
+    caveflyer 
+    jumper
+    fruitbot
+    bossfight
     maze
 )
-args1=(8 4)
+args1=(8)
 args2=(True)
 args3=(1)
 
@@ -55,10 +56,10 @@ for e in "${envs[@]}"; do
                     # fi
                     # sed -e "s/KI/${a2}/g" \
                     #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
-                    dir="logs/${suite}_${e}/${a}"
+                    dir="logs-apg/${suite}_${e}/${a}"
                     mkdir -p $dir
                     # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -kw N_MBS=${a1} -ld logs-apg >& ${dir}/outputs.txt"
+                    py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard -ld logs-apg >& ${dir}/outputs.txt"
                     echo $py_script
                     eval $py_script
                     last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)

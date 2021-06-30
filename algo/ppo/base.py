@@ -3,9 +3,8 @@ import tensorflow as tf
 
 from utility.tf_utils import explained_variance
 from utility.rl_loss import huber_loss, reduce_mean, ppo_loss, ppo_value_loss
-from utility.schedule import TFPiecewiseSchedule
 from core.base import RMSAgentBase
-from core.decorator import override, step_track
+from core.decorator import override
 from env.wrappers import EnvOutput
 
 
@@ -28,17 +27,6 @@ class PPOBase(RMSAgentBase):
         self._value_update = getattr(self, '_value_update', None)
         self._batch_size = env.n_envs * self.N_STEPS // self.N_MBS
 
-    @override(RMSAgentBase)
-    def _construct_optimizers(self):
-        if getattr(self, 'schedule_lr', False):
-            assert isinstance(self._lr, list), self._lr
-            self._lr = TFPiecewiseSchedule(self._lr)
-        models = [v for k, v in self.model.items() if 'target' not in k]
-        self._ac_opt = self._construct_opt(models=models)
-        logger.info(f'PPO model: {models}')
-
-        return models
-
     """ Standard PPO methods """
     def before_run(self, env):
         pass
@@ -51,14 +39,6 @@ class PPOBase(RMSAgentBase):
         # be sure you normalize obs first if obs normalization is required
         obs = self._env_output.obs if obs is None else obs
         return self.model.compute_value(obs).numpy()
-
-    @step_track
-    def learn_log(self, step):
-        n = self._sample_learn()
-        self._store_buffer_stats()
-        self._store_rms_stats()
-
-        return n
 
     @tf.function
     def _learn(self, obs, action, value, traj_ret, advantage, logpi, 
@@ -87,10 +67,13 @@ class PPOBase(RMSAgentBase):
             value_loss = self._value_coef * value_loss
             ac_loss = actor_loss + value_loss
 
-        terms['ac_norm'] = self._ac_opt(tape, ac_loss)
+        terms['ac_norm'] = self._optimizer(tape, ac_loss)
+        ratio = tf.exp(log_ratio)
         terms.update(dict(
             value=value,
-            ratio=tf.exp(log_ratio), 
+            ratio=ratio, 
+            ratio_max=tf.reduce_max(ratio),
+            ratio_min=tf.reduce_min(ratio),
             entropy=entropy, 
             kl=kl, 
             p_clip_frac=p_clip_frac,
@@ -190,17 +173,3 @@ class PPOBase(RMSAgentBase):
         self.store(**self.dataset.compute_mean_max_std('advantage'))
         self.store(**self.dataset.compute_mean_max_std('value'))
         self.store(**self.dataset.compute_mean_max_std('traj_ret'))
-
-    def _store_rms_stats(self):
-        obs_rms, rew_rms = self.get_rms_stats()
-        if rew_rms:
-            self.store(**{
-                'train/reward_rms_mean': rew_rms.mean,
-                'train/reward_rms_var': rew_rms.var
-            })
-        if obs_rms:
-            for k, v in obs_rms.items():
-                self.store(**{
-                    f'train/{k}_rms_mean': v.mean,
-                    f'train/{k}_rms_var': v.var,
-                })

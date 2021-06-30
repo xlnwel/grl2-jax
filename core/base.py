@@ -11,7 +11,7 @@ from utility.schedule import TFPiecewiseSchedule
 from core.log import *
 from core.optimizer import Optimizer
 from core.checkpoint import *
-from core.decorator import override, agent_config
+from core.decorator import override, agent_config, step_track
 from core.mixin import RMS
 
 logger = logging.getLogger(__name__)
@@ -108,6 +108,8 @@ class AgentBase(AgentImpl):
 
         self._add_attributes(env, dataset)
         models = self._construct_optimizers()
+        # we assume all models not starting with 'target'
+        # are trainable.
         all_models = set([v for k, v in self.model.items() 
             if not k.startswith('target')])
         assert set(models) == all_models, f'{models}\n{all_models}'
@@ -132,22 +134,28 @@ class AgentBase(AgentImpl):
         Returns models to check if any model components is missing
         """
         self._optimizer = self._construct_opt()
-        return [v for k, v in self.model.items() 
+        models = [v for k, v in self.model.items() 
             if not k.startswith('target')]
+        logger.info(f'{self.name} model: {models}')
+        return models
 
     def _construct_opt(self, models=None, lr=None, opt=None, l2_reg=None,
             weight_decay=None, clip_norm=None, opt_kwargs={}):
         """ Constructs an optimizer """
-        lr = lr or self._lr
+        if lr is None:
+            if getattr(self, '_schedule_lr', False):
+                assert isinstance(self._lr, (list, tuple)), self._lr
+                lr = TFPiecewiseSchedule(self._lr)
+            else:
+                lr = self._lr
         opt = opt or getattr(self, '_optimizer', 'adam')
         l2_reg = l2_reg or getattr(self, '_l2_reg', None)
         weight_decay = weight_decay or getattr(self, '_weight_decay', None)
         clip_norm = clip_norm or getattr(self, '_clip_norm', None)
         if opt_kwargs == {}:
             opt_kwargs = getattr(self, '_opt_kwargs', {})
-        if isinstance(lr, (tuple, list)):
-            lr = TFPiecewiseSchedule(lr)
-        models = models or [v for k, v in self.model.items() if 'target' not in k]
+        models = models or [v for k, v in self.model.items() 
+            if not k.startswith('target')]
         opt = Optimizer(
             opt, models, lr, 
             l2_reg=l2_reg,
@@ -228,6 +236,20 @@ class AgentBase(AgentImpl):
         """
         return tensor2numpy(out)
 
+    """ Train """
+    @step_track
+    def learn_log(self, step):
+        n = self._sample_learn()
+        self._store_buffer_stats()
+
+        return n
+
+    def _sample_learn(self):
+        raise NotImplementedError
+    
+    def _store_buffer_stats(self):
+        pass
+
     @abstractmethod
     def _learn(self):
         raise NotImplementedError
@@ -252,6 +274,28 @@ class RMSAgentBase(RMS, AgentBase):
             terms = out[1]
             terms['obs'] = obs
         return out
+
+    @step_track
+    def learn_log(self, step):
+        n = self._sample_learn()
+        self._store_buffer_stats()
+        self._store_rms_stats()
+
+        return n
+    
+    def _store_rms_stats(self):
+        obs_rms, rew_rms = self.get_rms_stats()
+        if rew_rms:
+            self.store(**{
+                'train/reward_rms_mean': rew_rms.mean,
+                'train/reward_rms_var': rew_rms.var
+            })
+        if obs_rms:
+            for k, v in obs_rms.items():
+                self.store(**{
+                    f'train/{k}_rms_mean': v.mean,
+                    f'train/{k}_rms_var': v.var,
+                })
 
     @override(AgentBase)
     def restore(self):

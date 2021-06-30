@@ -35,7 +35,7 @@ def get_actor_class(AgentBase):
             name = f'Actor_{self._id}'
             config_actor(name, config)
 
-            psutil.Process().nice(config.get('default_nice', 10)+2)
+            psutil.Process().nice(config.get('default_nice', 0)+2)
 
             # create env to get state&action spaces
             self._n_envvecs = env_config['n_envvecs']
@@ -133,12 +133,6 @@ def get_actor_class(AgentBase):
 
             self.env_step = 0
             q_size = []
-            def process_env_output(x): 
-                if isinstance(x, (int, float, np.floating)):
-                    return x
-                else:
-                    print(np.array(x).shape, np.array(x).dtype)
-                    return np.concatenate(x)
             while True:
                 q_size, fw = self._fetch_weights(q_size)
 
@@ -172,7 +166,8 @@ def get_actor_class(AgentBase):
                         (-1) if self._action_shape == () else (-1, 1))
 
                 # do inference
-                actions, terms = self(wids, eids, env_output)
+                with Timer(f'{self.name} call') as ct:
+                    actions, terms = self(wids, eids, env_output)
 
                 # distribute action and terms
                 actions = np.split(actions, self._action_batch)
@@ -192,9 +187,10 @@ def get_actor_class(AgentBase):
                         worker_name=self._id,
                         **{
                         'time/wait_env': wt.average(),
-                        'time/pull_weights': fw.average(),
+                        'time/agent_call': ct.average(),
+                        'time/fetch_weights': fw.average(),
                         'n_ready': self._action_batch,
-                        'q_size': np.mean(q_size)
+                        'param_queue_size': np.mean(q_size)
                     })
                     q_size = []
 
@@ -233,7 +229,7 @@ def get_worker_class():
             config_attr(self, config)
             cpu_affinity(f'Worker_{worker_id}')
 
-            psutil.Process().nice(config.get('default_nice', 10)+10)
+            psutil.Process().nice(config.get('default_nice', 0)+10)
             
             self._id = worker_id
             self.name = f'Worker_{self._id}'

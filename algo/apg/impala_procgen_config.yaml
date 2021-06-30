@@ -35,24 +35,23 @@ agent:
     gamma: &gamma .999
 
     MAX_STEPS: 1e8
-    N_STEPS: &nsteps 16
+    N_STEPS: &nsteps 32
     N_EPOCHS: &nepochs 1
     N_MBS: &nmbs 1
-    sample_size: &ss 16       # BPTT length
+    sample_size: &ss 32       # BPTT length
     LOG_PERIOD: 50
-    EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
-    n_trajs: &ntrajs 256
+    n_trajs: &ntrajs 128
 
     # distributed algo params
-    nice: 0
+    default_nice: 0
     n_learner_cpus: 1
     n_learner_gpus: .5
     n_actors: 2
     n_actor_gpus: .25
     n_workers: 8
     n_worker_cpus: 1
-    # SYNC_PERIOD: 50
+    SYNC_PERIOD: 10000
     has_evaluator: True
     N_EVALUATION: 1
     RECORD_PERIOD: 10
@@ -68,12 +67,6 @@ agent:
     #     prev_reward: float32
     #     prev_action: int32
 
-    # (once, reuse, null)
-    # "once" updates values at the end of each epoch
-    # "reuse" updates values using value from learn, which is staler than once
-    # null doesn't update values.
-    value_update: null
-
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
@@ -85,7 +78,7 @@ agent:
     optimizer: adam
     schedule_lr: False
     lr: 5e-4
-    clip_norm: .5
+    clip_norm: 10
     opt_kwargs:
         epsilon: 1.e-5
 
@@ -113,7 +106,7 @@ buffer:
     N_EPOCHS: *nepochs
     N_MBS: *nmbs        # number of minibatches
     norm_adv: batch
-    sample_keys: [obs, action, reward, value, discount, logpi, mask, h, c]
+    sample_keys: [obs, action, reward, discount, logpi, mask, h, c]
     # sample_keys: [obs, action, value, traj_ret, advantage, logpi, mask, h, c, prev_action, prev_reward]
     sample_size: *ss
     # mini-batch size = n_workers * n_envs * epslen / n_mbs
