@@ -6,6 +6,7 @@ env:
     frame_skip: 1
     frame_stack: 1
     # num_levels: 200
+    distribution_mode: easy
 
 model:
     encoder: 
@@ -28,7 +29,7 @@ agent:
     precision: 16
     gamma: &gamma .999
 
-    MAX_STEPS: 2.5e7
+    MAX_STEPS: 2e8
     N_STEPS: &nsteps 256
     N_EPOCHS: &nepochs 3
     N_MBS: &nmbs 8

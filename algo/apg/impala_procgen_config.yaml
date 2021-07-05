@@ -2,7 +2,7 @@
 env:
     name: &env_name procgen_climber
     n_envvecs: 2
-    n_envs: &nenvs 64
+    n_envs: &nenvs 16
     frame_skip: 1
     frame_stack: 1
     # num_levels: 200
@@ -34,14 +34,14 @@ agent:
     precision: 16
     gamma: &gamma .999
 
-    MAX_STEPS: 1e8
+    MAX_STEPS: 2e8
     N_STEPS: &nsteps 32
     N_EPOCHS: &nepochs 1
     N_MBS: &nmbs 1
     sample_size: &ss 32       # BPTT length
     LOG_PERIOD: 50
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
-    n_trajs: &ntrajs 128
+    n_trajs: &ntrajs 256
 
     # distributed algo params
     default_nice: 0

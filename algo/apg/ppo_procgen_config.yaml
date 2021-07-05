@@ -2,7 +2,7 @@
 env:
     name: &env_name procgen_coinrun
     n_envvecs: 2
-    n_envs: &nenvs 64
+    n_envs: &nenvs 16
     frame_skip: 1
     frame_stack: 1
     # num_levels: 200
@@ -29,8 +29,8 @@ agent:
     precision: 16
     gamma: &gamma .999
 
-    MAX_STEPS: 1e8
-    N_STEPS: &nsteps 16
+    MAX_STEPS: 2e8
+    N_STEPS: &nsteps 32
     N_EPOCHS: &nepochs 1
     N_MBS: &nmbs 1
     LOG_PERIOD: 50
@@ -46,7 +46,7 @@ agent:
     n_actor_gpus: .25
     n_workers: 8
     n_worker_cpus: 1
-    # SYNC_PERIOD: 50
+    SYNC_PERIOD: 10000
     has_evaluator: True
     N_EVALUATION: 1
     RECORD_PERIOD: 10

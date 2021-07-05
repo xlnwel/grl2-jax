@@ -9,7 +9,7 @@ import ray
 from core.tf_config import *
 from utility.utils import Every, config_attr
 from utility.timer import Timer
-from utility.ray_setup import cpu_affinity, get_num_cpus
+from utility.ray_setup import cpu_affinity, get_num_cpus, gpu_affinity
 from utility.run import Runner, evaluate, RunMode
 from utility import pkg
 from replay.func import create_replay
@@ -17,12 +17,13 @@ from env.func import create_env
 from core.dataset import create_dataset
 
 
-def config_actor(name, config):
+def config_actor(name, config, gpu_idx=0):
     cpu_affinity(name)
+    gpu_affinity(name)
     silence_tf_logs()
     num_cpus = get_num_cpus()
     configure_threads(num_cpus, num_cpus)
-    use_gpu = configure_gpu()
+    use_gpu = configure_gpu(gpu_idx)
     if not use_gpu and 'precision' in config:
         config['precision'] = 32
     configure_precision(config.get('precision', 32))
@@ -84,6 +85,7 @@ def get_learner_base_class(AgentBase):
         
         def save(self, env_step):
             self.env_step = env_step
+            super().save()
 
     return LearnerBase
 
@@ -102,6 +104,8 @@ def get_learner_class(AgentBase):
 
             config_actor(name, config)
 
+            # avoids additional workers created by RayEnvVec
+            env_config['n_workers'] = 1
             env_config['n_envs'] = 1
             env = create_env(env_config)
 
@@ -228,7 +232,8 @@ def get_worker_class(AgentBase):
 
             config_actor(name, config)
             
-            del env_config['n_workers']
+            # avoids additional workers created by RayEnvVec
+            env_config['n_workers'] = 1
             self.env = create_env(env_config)
 
             buffer_config['n_envs'] = self.env.n_envs

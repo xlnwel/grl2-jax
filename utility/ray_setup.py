@@ -1,5 +1,4 @@
-import signal
-import sys
+import os, sys, signal
 import psutil
 import ray
 
@@ -24,6 +23,13 @@ def cpu_affinity(name=None):
         # raise ValueError(f'No cpu is available')
     if name:
         pwc(f'CPUs corresponding to {name}: {cpus}', color='cyan')
+
+def gpu_affinity(name=None):
+    gpus = ray.get_gpu_ids()
+    if gpus:
+        os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, gpus))
+    if name:
+        pwc(f'GPUs corresponding to {name}: {gpus}', color='cyan')
 
 def get_num_cpus():
     return len(ray.get_resource_ids()['CPU'])

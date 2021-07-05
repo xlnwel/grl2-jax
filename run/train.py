@@ -23,6 +23,8 @@ def get_algo_name(algo):
     algo_mapping = {
         'r2d2': 'apex-mrdqn',
         'impala': 'apg-impala',
+        'appo': 'apg-ppo',
+        'appo2': 'apg-ppo2',
     }
     if algo in algo_mapping:
         return algo_mapping[algo]

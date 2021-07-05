@@ -37,6 +37,8 @@ def get_actor_class(AgentBase):
 
             psutil.Process().nice(config.get('default_nice', 0)+2)
 
+            # avoids additional workers created by RayEnvVec
+            env_config['n_workers'] = 1
             # create env to get state&action spaces
             self._n_envvecs = env_config['n_envvecs']
             self._n_envs = env_config['n_envs']
@@ -57,20 +59,6 @@ def get_actor_class(AgentBase):
             # number of env(vec) instances for each inference pass
             self._action_batch = int(
                 self._wpa * self._n_envvecs * self._action_frac)
-            
-            if 'act_eps' in config:
-                act_eps = compute_act_eps(
-                    config['act_eps_type'], 
-                    config['act_eps'], 
-                    None, 
-                    config['n_workers'], 
-                    self._n_envvecs * self._n_envs)
-                self._act_eps_mapping = act_eps.reshape(
-                    config['n_workers'], self._n_envvecs, 
-                    self._n_envs).astype(np.float32)
-                print(self.name, self._act_eps_mapping)
-            else:
-                self._act_eps_mapping = None
 
             # agent's state
             if 'rnn' in self.model:
@@ -97,10 +85,10 @@ def get_actor_class(AgentBase):
                         for wid, eid in zip(wids, eids)])]
                 self._state = tf.nest.pack_sequence_as(
                     self.model.state_keys, raw_state)
-                self._prev_action = tf.concat(
-                    [self._prev_action_mapping[(wid, eid)] 
-                    for wid, eid in zip(wids, eids)], 0)
-                self._prev_reward = env_output.reward
+                # self._prev_action = tf.concat(
+                #     [self._prev_action_mapping[(wid, eid)] 
+                #     for wid, eid in zip(wids, eids)], 0)
+                # print(self._prev_action)
 
             action, terms = super().__call__(env_output, evaluation=False)
 
@@ -108,11 +96,13 @@ def get_actor_class(AgentBase):
             if 'rnn' in self.model:
                 state = zip(*tf.nest.map_structure(
                     lambda s: tf.split(s, self._action_batch), self._state))
+                # action = zip(*tf.nest.map_structure(
+                #     lambda a: tf.split(a, self._action_batch), action))
                 for wid, eid, s, a in zip(wids, eids, state, action):
                     self._state_mapping[(wid, eid)] = \
                         tf.nest.pack_sequence_as(self.model.state_keys,
                         ([tf.reshape(x, (-1, tf.shape(x)[-1])) for x in s]))
-                    self._prev_action_mapping[(wid, eid)] = a
+                    # self._prev_action_mapping[(wid, eid)] = a
 
             return action, terms
 
@@ -159,11 +149,6 @@ def get_actor_class(AgentBase):
                     env_output = EnvOutput(*[
                         np.concatenate(x, axis=0) 
                         for x in zip(*ray.get(ready_objs))])
-                
-                if self._act_eps_mapping is not None:
-                    self._act_eps = np.reshape(
-                        self._act_eps_mapping[wids, eids], 
-                        (-1) if self._action_shape == () else (-1, 1))
 
                 # do inference
                 with Timer(f'{self.name} call') as ct:
@@ -233,7 +218,9 @@ def get_worker_class():
             
             self._id = worker_id
             self.name = f'Worker_{self._id}'
-
+            
+            # avoids additional workers created by RayEnvVec
+            env_config['n_workers'] = 1
             self._n_envvecs, self._envvecs = self._create_envvec(env_config)
             
             collect_fn = pkg.import_module(

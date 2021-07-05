@@ -253,7 +253,8 @@ class Memory:
         self._state = None
         # do specify additional_rnn_inputs in *config.yaml. Otherwise, 
         # no additional rnn input is expected.
-        # additional_rnn_inputs is expected to be a dict of name-dtypes
+        # additional_rnn_inputs is expected to be a dict of (name, dtypes)
+        # NOTE: additional rnn inputs are not tested yet.
         self._additional_rnn_inputs = getattr(self, '_additional_rnn_inputs', {})
         self._default_additional_rnn_inputs = self._additional_rnn_inputs.copy()
         self._squeeze_batch = False

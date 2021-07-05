@@ -1,5 +1,6 @@
 import os
 import time
+import tensorflow as tf
 import ray
 from ray.util.queue import Queue
 
@@ -9,7 +10,9 @@ from replay.func import create_replay, create_replay_center
 
 
 def main(env_config, model_config, agent_config, replay_config):
-    ray.init(num_cpus=os.cpu_count(), num_gpus=1)
+    gpus = tf.config.list_physical_devices('GPU')
+    ray.init(num_cpus=os.cpu_count(), num_gpus=len(gpus))
+    print('Ray available resources:', ray.available_resources())
 
     sigint_shutdown_ray()
 
@@ -103,7 +106,6 @@ def main(env_config, model_config, agent_config, replay_config):
         elapsed_time += interval
         if elapsed_time % agent_config['LOG_PERIOD'] == 0:
             monitor.record_train_stats.remote(learner)
-
-    ray.get(learner.save.remote())
+    monitor.record_train_stats.remote(learner)
 
     ray.shutdown()
