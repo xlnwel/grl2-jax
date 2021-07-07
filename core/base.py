@@ -39,10 +39,10 @@ class AgentImpl(ABC):
         """ Save config.yaml """
         save_config(self._root_dir, self._model_name, config)
 
-    def log(self, step, prefix=None, print_terminal_info=True):
+    def log(self, step, prefix=None, print_terminal_info=True, **kwargs):
         """ Log stored data to disk and tensorboard """
         log(self._logger, self._writer, self._model_name, prefix=prefix, 
-            step=step, print_terminal_info=print_terminal_info)
+            step=step, print_terminal_info=print_terminal_info, **kwargs)
 
     def log_stats(self, stats, print_terminal_info=True):
         """ Save stats to disk """

@@ -13,12 +13,12 @@ logger = logging.getLogger(__name__)
 
 
 """ Logging """
-def log(logger, writer, model_name, prefix, step, print_terminal_info=True):
+def log(logger, writer, model_name, prefix, step, print_terminal_info=True, **kwargs):
     stats = dict(
         model_name=f'{model_name}',
         steps=step
     )
-    stats.update(logger.get_stats())
+    stats.update(logger.get_stats(**kwargs))
     scalar_summary(writer, stats, prefix=prefix, step=step)
     logger.log_stats(stats, print_terminal_info=print_terminal_info)
     writer.flush()

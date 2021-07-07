@@ -84,8 +84,8 @@ class PPO(Ensemble):
             **kwargs)
 
     @tf.function
-    def action(self, x, evaluation=False, return_value=True, **kwargs):
-        x = self.encode(x)
+    def action(self, obs, evaluation=False, return_value=True, **kwargs):
+        x = self.encode(obs)
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)
 
@@ -94,6 +94,8 @@ class PPO(Ensemble):
         else:
             logpi = act_dist.log_prob(action)
             if return_value:
+                if hasattr(self, 'value_encoder'):
+                    x = self.value_encoder(obs)
                 value = self.value(x)
                 terms = {'logpi': logpi, 'value': value}
             else:
@@ -102,7 +104,10 @@ class PPO(Ensemble):
 
     @tf.function
     def compute_value(self, x):
-        x = self.encoder(x)
+        if hasattr(self, 'value_encoder'):
+            x = self.value_encoder(x)
+        else:
+            x = self.encoder(x)
         value = self.value(x)
         return value
 

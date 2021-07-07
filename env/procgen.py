@@ -35,7 +35,8 @@ class Procgen(gym.Env):
             "use_generated_assets" : False,  # Use randomly generated assets in place of human designed assets
             "center_agent" : True,  # Determines whether observations are centered on the agent or display the full level. Override at your own risk.
             "use_sequential_levels" : False,  # When you reach the end of a level, the episode is ended and a new level is selected. If use_sequential_levels is set to True, reaching the end of a level does not end the episode, and the seed for the new level is derived from the current level seed. If you combine this with start_level=<some seed> and num_levels=1, you can have a single linear series of levels similar to a gym-retro or ALE game.
-            "distribution_mode" : "easy"  # What variant of the levels to use, the options are "easy", "hard", "extreme", "memory", "exploration". All games support "easy" and "hard", while other options are game-specific. The default is "hard". Switching to "easy" will reduce the number of timesteps required to solve each game and is useful for testing or when working with limited compute resources. NOTE : During the evaluation phase (rollout), this will always be overriden to "easy"
+            "distribution_mode" : "easy",  # What variant of the levels to use, the options are "easy", "hard", "extreme", "memory", "exploration". All games support "easy" and "hard", while other options are game-specific. The default is "hard". Switching to "easy" will reduce the number of timesteps required to solve each game and is useful for testing or when working with limited compute resources. NOTE : During the evaluation phase (rollout), this will always be overriden to "easy"
+            "render_mode": None,
         }
         self.config = self._default_config
         self.config.update({
@@ -69,8 +70,11 @@ class Procgen(gym.Env):
         self._obs = obs
         return obs, rew, done, info
 
-    def render(self, mode="human"):
-        return self.env.render(mode=mode)
+    def render(self, mode="rgb_array"):
+        if self.config['render_mode'] == 'rgb_array':
+            return self.env.render(mode=mode)
+        else:
+            return self._obs
 
     def close(self):
         return self.env.close()
@@ -88,9 +92,6 @@ class Procgen(gym.Env):
     @property
     def is_multiagent(self):
         return False
-
-    def get_screen(self):
-        return self._obs
 
     def game_over(self):
         return self._game_over

@@ -33,7 +33,7 @@ def get_actor_base_class(AgentBase):
     """" Mixin that defines some basic operations for remote actor """
     class ActorBase(AgentBase):
         def pull_weights(self, learner):
-            if getattr(self, '_normalize_obs'):
+            if getattr(self, '_normalize_obs', False):
                 obs_rms = ray.get(learner.get_obs_rms_stats.remote())
                 self.set_rms_stats(obs_rms=obs_rms)
             train_step, weights = ray.get(
