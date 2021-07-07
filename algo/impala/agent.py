@@ -112,6 +112,11 @@ class Agent(Memory, RMSAgentBase):
                 reward, value, next_value, ratio, discount, 
                 lambda_=self._lambda, c_clip=self._c_clip, 
                 rho_clip=self._rho_clip, rho_clip_pg=self._rho_clip_pg, axis=1)
+            adv_mean = tf.reduce_mean(advantage)
+            adv_var = tf.math.reduce_variance(advantage)
+            if self._normalize_advantage:
+                adv_std = tf.sqrt(adv_var + 1e-5)
+                advantage = (advantage - adv_mean) / adv_std
             target = tf.stop_gradient(target)
             advantage = tf.stop_gradient(advantage)
             if self._policy_loss == 'ppo':
@@ -134,7 +139,9 @@ class Agent(Memory, RMSAgentBase):
         terms['ac_norm'] = self._optimizer(tape, ac_loss)
         terms.update(dict(
             value=value,
-            target=target,
+            target=tf.reduce_mean(target),
+            adv=adv_mean,
+            adv_var=adv_var,
             ratio_max=tf.reduce_max(ratio),
             ratio_min=tf.reduce_min(ratio),
             rho=tf.minimum(ratio, self._rho_clip),

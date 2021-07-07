@@ -83,6 +83,7 @@ agent:
         epsilon: 1.e-5
 
     # arguments for loss
+    normalize_advantage: True
     policy_loss: ppo  # ppo or reinforce
     value_loss: mse
     lambda: &lam 1.
