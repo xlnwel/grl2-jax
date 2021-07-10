@@ -92,11 +92,13 @@ def save_code(root_dir, model_name):
         ignore=shutil.ignore_patterns(
             '*logs*', 'data*', '*data*' '*/data/*', '.*', '*pycache*', '*.md', '*test*'))
 
-def clear_ndarray(config):
+def simplify_datatype(config):
     """ Converts ndarray to list, useful for saving config as a yaml file """
     for k, v in config.items():
         if isinstance(v, dict):
-            config[k] = clear_ndarray(v)
+            config[k] = simplify_datatype(v)
+        elif isinstance(v, tuple):
+            config[k] = list(v)
         elif isinstance(v, np.ndarray):
             config[k] = v.tolist()
         else:
@@ -104,7 +106,7 @@ def clear_ndarray(config):
     return config
 
 def save_config(root_dir, model_name, config):
-    config = clear_ndarray(config)
+    config = simplify_datatype(config)
     yaml_op.save_config(config, filename=f'{root_dir}/{model_name}/config.yaml')
 
 """ Functions for setup logging """                

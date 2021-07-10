@@ -1276,14 +1276,14 @@ class SMAC(gym.Env):
         if self.obs_timestep_number:
             agent_obs = np.append(agent_obs, self._episode_steps / self.max_episode_steps)
 
-        # if self.debug:
-        #     print("Obs Agent: {}".format(agent_id).center(60, "-"))
-        #     print("Avail. actions {}".format(
-        #         self.get_avail_agent_actions(agent_id)))
-        #     print("Move feats {}".format(move_feats))
-        #     print("Enemy feats {}".format(enemy_feats))
-        #     print("Ally feats {}".format(ally_feats))
-        #     print("Own feats {}".format(own_feats))
+        if self.debug:
+            print("Obs Agent: {}".format(agent_id).center(60, "-"))
+            print("Avail. actions {}".format(
+                self.get_avail_agent_actions(agent_id)))
+            print("Move feats {}".format(move_feats))
+            print("Enemy feats {}".format(enemy_feats))
+            print("Ally feats {}".format(ally_feats))
+            print("Own feats {}".format(own_feats))
 
         return agent_obs
 

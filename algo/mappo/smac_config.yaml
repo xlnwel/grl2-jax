@@ -52,7 +52,7 @@ agent:
     precision: 32
     gamma: &gamma .99
 
-    MAX_STEPS: 3e7
+    MAX_STEPS: 1e8
     N_STEPS: &nsteps 400
     N_EPOCHS: &nepochs 5
     N_VALUE_EPOCHS: 0

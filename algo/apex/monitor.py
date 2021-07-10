@@ -53,7 +53,8 @@ class Monitor(AgentImpl):
             fpt=env_steps / train_steps,
             tpf=train_steps / env_steps,
             **stats)
-        self.log(self.env_step)
+        self.log(self.env_step, std=True, max=True, 
+            print_terminal_info=False)
         self.last_train_step = train_step
         self.last_env_step = self.env_step
         self.time = time.time()

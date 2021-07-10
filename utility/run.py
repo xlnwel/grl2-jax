@@ -169,8 +169,7 @@ def evaluate(env,
     scores = []
     epslens = []
     max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
-    maxlen = min(video_len, max_steps)
-    frames = [collections.deque(maxlen=maxlen) 
+    frames = [collections.deque(maxlen=video_len) 
         for _ in range(min(n_windows, env.n_envs))]
     if hasattr(agent, 'reset_states'):
         agent.reset_states()

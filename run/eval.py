@@ -53,7 +53,9 @@ def main(env_config, model_config, agent_config, replay_config,
     scores, epslens, video = evaluate(
         env, agent, n, record=record, size=size, video_len=video_len)
     pwc(f'After running {n} episodes',
-        f'Score: {np.mean(scores):.3g}\tEpslen: {np.mean(epslens):.3g}', color='cyan')
+        f'Score: {np.mean(scores):.3g}',
+        f'Epslen: {np.mean(epslens):.3g}', 
+        color='cyan')
 
     if record:
         save_video(f'{algo_name}-{env_name}', video, fps=fps)
