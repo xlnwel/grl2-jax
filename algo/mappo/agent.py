@@ -298,6 +298,7 @@ class Agent(Memory, PPOBase):
             n_actions = tf.reduce_sum(tf.cast(action_mask, tf.float32), -1)
 
         terms = dict(
+            ratio=tf.exp(log_ratio),
             actor_norm=actor_norm,
             n_avail_actions=n_actions,
             entropy=entropy,

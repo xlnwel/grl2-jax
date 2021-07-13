@@ -240,8 +240,13 @@ def evaluate(env,
                         n_run_eps += len(reset_env_ids)
                         eo = env.reset(reset_env_ids)
                         for t, s in zip(env_output, eo):
-                            for i, ri in enumerate(reset_env_ids):
-                                t[ri] = s[i]
+                            if isinstance(t, dict):
+                                for k in t.keys():
+                                    for i, ri in enumerate(reset_env_ids):
+                                        t[k][ri] = s[k][i]
+                            else:
+                                for i, ri in enumerate(reset_env_ids):
+                                    t[ri] = s[i]
                     elif n_done_eps == n:
                         break
                 prev_done = done

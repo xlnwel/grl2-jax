@@ -90,7 +90,9 @@ def save_code(root_dir, model_name):
     
     shutil.copytree('.', dest_dir, 
         ignore=shutil.ignore_patterns(
-            '*logs*', 'data*', '*data*' '*/data/*', '.*', '*pycache*', '*.md', '*test*'))
+            '*logs*', 'data*', '*data*' '*/data/*', 
+            '.*', '*pycache*', '*.md', '*test*',
+            '*results*'))
 
 def simplify_datatype(config):
     """ Converts ndarray to list, useful for saving config as a yaml file """

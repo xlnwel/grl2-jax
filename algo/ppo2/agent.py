@@ -4,7 +4,6 @@ from utility.tf_utils import tensor2numpy
 from core.tf_config import build
 from core.decorator import override
 from core.mixin import Memory
-from env.wrappers import EnvOutput
 from algo.ppo.base import PPOBase, collect
 
 
@@ -80,12 +79,7 @@ class Agent(Memory, PPOBase):
         return out
 
     """ PPO methods """
-    @override(PPOBase)
-    def record_last_env_output(self, env_output):
-        self._env_output = EnvOutput(
-            self.normalize_obs(env_output.obs), *env_output[1:])
-
-    @override(PPOBase)
+    # @override(PPOBase)
     def compute_value(self, obs=None, state=None, mask=None, prev_reward=None, return_state=False):
         # be sure obs is normalized if obs normalization is required
         if obs is None:

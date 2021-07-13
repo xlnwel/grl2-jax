@@ -72,8 +72,6 @@ class PPOBase(RMSAgentBase):
         terms.update(dict(
             value=value,
             ratio=ratio, 
-            ratio_max=tf.reduce_max(ratio),
-            ratio_min=tf.reduce_min(ratio),
             entropy=entropy, 
             kl=kl, 
             p_clip_frac=p_clip_frac,
