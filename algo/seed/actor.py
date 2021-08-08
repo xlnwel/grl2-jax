@@ -141,15 +141,14 @@ def get_actor_class(AgentBase):
                 assert len(env_output) == 4, env_output
                 if isinstance(env_output[0][0], dict):
                     # if obs is a dict
-                    env_output[0] = batch_dicts(env_output[0])
                     env_output = EnvOutput(*[
-                        {k: np.concatenate(v, 0) for k, v in x.items()}
-                        for x in zip(*ray.get(ready_objs))])
+                        batch_dicts(x, np.concatenate)
+                        if isinstance(x[0], dict) else np.concatenate(x, 0)
+                        for x in env_output])
                 else:
                     env_output = EnvOutput(*[
                         np.concatenate(x, axis=0) 
-                        for x in zip(*ray.get(ready_objs))])
-
+                        for x in env_output])
                 # do inference
                 with Timer(f'{self.name} call') as ct:
                     actions, terms = self(wids, eids, env_output)

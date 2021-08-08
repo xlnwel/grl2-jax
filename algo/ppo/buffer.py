@@ -104,6 +104,8 @@ class Buffer:
         self._inferred_sample_keys = False
         self._norm_adv = getattr(self, '_norm_adv', 'minibatch')
         self._epsilon = 1e-5
+        if hasattr(self, 'N_VALUE_EPOCHS'):
+            self.N_EPOCHS += self.N_VALUE_EPOCHS
         self.reset()
         logger.info(f'Batch size: {size}')
         logger.info(f'Mini-batch size: {self._mb_size}')
@@ -185,7 +187,7 @@ class Buffer:
         return sample
 
     def _wait_to_sample(self):
-        while self._ready == False:
+        while not self._ready:
             time.sleep(self._sleep_time)
             self._sample_wait_time += self._sleep_time
 
@@ -213,7 +215,7 @@ class Buffer:
     def _process_sample(self, sample):
         if 'advantage' in sample and self._norm_adv == 'minibatch':
             sample['advantage'] = standardize(
-                sample['advantage'], epsilon=self._epsilon)
+                sample['advantage'], mask=sample['life_mask'], epsilon=self._epsilon)
         return sample
     
     def _post_process_for_dataset(self):

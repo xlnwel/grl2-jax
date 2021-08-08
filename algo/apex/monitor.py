@@ -17,6 +17,7 @@ class Monitor(AgentImpl):
         self.last_env_step = 0
         self.last_train_step = 0
         self.MAX_STEPS = int(float(config['MAX_STEPS']))
+        self._print_logs = getattr(self, '_print_logs', False)
 
     def sync_env_train_steps(self, learner):
         self.env_step, self.train_step = ray.get(
@@ -54,7 +55,7 @@ class Monitor(AgentImpl):
             tpf=train_steps / env_steps,
             **stats)
         self.log(self.env_step, std=True, max=True, 
-            print_terminal_info=False)
+            print_terminal_info=self._print_logs)
         self.last_train_step = train_step
         self.last_env_step = self.env_step
         self.time = time.time()

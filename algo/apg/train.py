@@ -55,10 +55,10 @@ def main(env_config, model_config, agent_config, replay_config):
         worker.set_handler.remote(monitor=monitor)
         workers.append(worker)
     rms_stats = ray.get([w.random_warmup.remote(1000) for w in workers])
-    print('Warmup rms stats', *rms_stats, sep='\n\t')
+    # print('Warmup rms stats', *rms_stats, sep='\n\t')
     for obs_rms, rew_rms in rms_stats:
         learner.update_from_rms_stats.remote(obs_rms, rew_rms)
-    print('Learner rms stats', ray.get(learner.get_rms_stats.remote()))
+    # print('Learner rms stats', ray.get(learner.get_rms_stats.remote()))
 
     # create actors
     Actor = am.get_actor_class(Agent)

@@ -138,7 +138,8 @@ class RMS:
         else:
             self.update_obs_rms(obs, mask=mask)
             obs = self.normalize_obs(obs, mask=mask)
-    
+        return obs
+
     """ Functions for running mean and std """
     def set_rms_stats(self, obs_rms={}, rew_rms=None):
         if obs_rms:

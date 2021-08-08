@@ -2,7 +2,7 @@
 env:
     name: &env_name smac_3s5z_vs_3s6z
     n_workers: 8
-    n_envs: &nenvs 1
+    n_envs: &nenvs 2
     use_state_agent: True
     use_mustalive: True
     add_center_xy: True
@@ -55,7 +55,7 @@ agent:
     MAX_STEPS: 1e8
     N_STEPS: &nsteps 400
     N_EPOCHS: &nepochs 5
-    N_VALUE_EPOCHS: 0
+    N_VALUE_EPOCHS: &nval_epochs 0
     N_MBS: &nmbs 1
     sample_size: &ss 10       # BPTT length
     LOG_PERIOD: 20
@@ -105,6 +105,7 @@ buffer:
     n_envs: *nenvs
     N_STEPS: *nsteps
     N_EPOCHS: *nepochs
+    N_VALUE_EPOCHS: *nval_epochs
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: batch

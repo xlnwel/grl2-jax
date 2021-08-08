@@ -10,9 +10,9 @@ from core.decorator import override
 from algo.ppo.base import PPOBase
 
 
-def infer_life_mask(mask, discount, concat=True):
+def infer_life_mask(discount, concat=True):
     life_mask = np.logical_or(
-        mask, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
+        discount, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
     # np.testing.assert_equal(life_mask, mask)
     if concat:
         life_mask = np.concatenate(life_mask)
@@ -20,8 +20,8 @@ def infer_life_mask(mask, discount, concat=True):
 
 def collect(buffer, env, env_step, reset, reward, 
             discount, next_obs, **kwargs):
-    if 'life_mask' in kwargs:
-        kwargs['life_mask'] = infer_life_mask(discount, discount)
+    if env.use_life_mask:
+        kwargs['life_mask'] = infer_life_mask(discount)
     kwargs['reward'] = np.concatenate(reward)
     # discount is zero only when all agents are done
     discount[np.any(discount, 1)] = 1
@@ -44,9 +44,9 @@ def get_data_format(*, env, batch_size, sample_size=None,
     )
     if env.use_action_mask:
         data_format['action_mask'] = (
-            (None, sample_size, env.action_dim), tf.bool, 'action_mask')
+            (None, sample_size, env.action_dim), tf.bool)
     if env.use_life_mask:
-        data_format['life_mask'] = (None, sample_size, tf.float32, 'life_mask')
+        data_format['life_mask'] = ((None, sample_size), tf.float32)
         
     if store_state:
         dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
@@ -54,18 +54,8 @@ def get_data_format(*, env, batch_size, sample_size=None,
             k: ((batch_size, v), dtype)
                 for k, v in state_size._asdict().items()
         })
-    
-    return data_format
 
-def random_actor_with_life_mask(env_output, env=None, **kwargs):
-    obs = env_output.obs
-    a = np.concatenate(env.random_action())
-    terms = {
-        'obs': np.concatenate(obs['obs']), 
-        'global_state': np.concatenate(obs['global_state']),
-        'life_mask': obs['life_mask'],
-    }
-    return a, terms
+    return data_format
 
 def random_actor(env_output, env=None, **kwargs):
     obs = env_output.obs
@@ -224,9 +214,7 @@ class Agent(Memory, PPOBase):
             })
             if self._use_action_mask:
                 out[1]['action_mask'] = kwargs['action_mask']
-            if self._use_life_mask:
-                out[1]['life_mask'] = kwargs['life_mask'].reshape(-1, self._n_agents)
-        
+
         return out
 
     """ PPO methods """
@@ -349,13 +337,13 @@ class Agent(Memory, PPOBase):
 
     def _sample_learn(self):
         n = super()._sample_learn()
-
         for _ in range(self.N_VALUE_EPOCHS):
             for _ in range(self.N_MBS):
                 data = self.dataset.sample(self._value_sample_keys)
 
-                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-                
+                data = {k: tf.convert_to_tensor(data[k]) 
+                    for k in self._value_sample_keys}
+
                 terms = self.learn_value(**data)
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
                 self.store(**terms)
@@ -363,11 +351,12 @@ class Agent(Memory, PPOBase):
         return n
 
     def _store_buffer_stats(self):
-        self.store(**self.dataset.compute_mean_max_std('reward'))
+        pass
+        # self.store(**self.dataset.compute_mean_max_std('reward'))
         # self.store(**self.dataset.compute_mean_max_std('obs'))
         # self.store(**self.dataset.compute_mean_max_std('global_state'))
-        self.store(**self.dataset.compute_mean_max_std('advantage'))
-        self.store(**self.dataset.compute_mean_max_std('value'))
-        self.store(**self.dataset.compute_mean_max_std('traj_ret'))
-        self.store(**self.dataset.compute_fraction('mask'))
-        self.store(**self.dataset.compute_fraction('discount'))
+        # self.store(**self.dataset.compute_mean_max_std('advantage'))
+        # self.store(**self.dataset.compute_mean_max_std('value'))
+        # self.store(**self.dataset.compute_mean_max_std('traj_ret'))
+        # self.store(**self.dataset.compute_fraction('mask'))
+        # self.store(**self.dataset.compute_fraction('discount'))

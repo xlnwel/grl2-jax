@@ -12,10 +12,7 @@ from algo.ppo.train import main
 def train(agent, env, eval_env, buffer):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
-    random_actor = pkg.import_module('agent', algo=agent.name)
-    random_actor = getattr(random_actor,
-        'random_actor_with_life_mask' if env.use_life_mask 
-        else 'random_actor')
+    random_actor = pkg.import_module('agent', algo=agent.name).random_actor
     random_actor = functools.partial(random_actor, env=env)
 
     em = pkg.import_module(env.name.split("_")[0], pkg='env')
@@ -105,7 +102,7 @@ def train(agent, env, eval_env, buffer):
                     # 'time/eval_mean': et.average(),
                     'time/log_mean': lt.average(),
                 })
-                agent.log(step)
+                agent.log(step, std=True, max=True, min=True)
                 agent.save()
 
 main = functools.partial(main, train=train)

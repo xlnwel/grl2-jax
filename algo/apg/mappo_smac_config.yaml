@@ -1,7 +1,7 @@
 ---
 env:
     name: &env_name smac_3s5z_vs_3s6z
-    n_workers: 8
+    n_envvecs: 2
     n_envs: &nenvs 2
     use_state_agent: True
     use_mustalive: True
@@ -46,23 +46,37 @@ model:
     value:
         units_list: []
         kernel_initializer: orthogonal
-    pool_communication: False
-    pool_frac: .25
 
 agent:
-    algorithm: &algo mappo2
+    algorithm: &algo mappo
     precision: 32
     gamma: &gamma .99
 
     MAX_STEPS: 1e8
     N_STEPS: &nsteps 400
     N_EPOCHS: &nepochs 5
-    N_VALUE_EPOCHS: &nval_epochs 0
+    N_VALUE_EPOCHS: 0
     N_MBS: &nmbs 1
     sample_size: &ss 10       # BPTT length
-    LOG_PERIOD: 20
-    EVAL_PERIOD: 2000
+    LOG_PERIOD: 50
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
+    n_trajs: &ntrajs 16
+
+    # distributed algo params
+    default_nice: 0
+    n_learner_cpus: 1
+    n_learner_gpus: .5
+    n_actors: 2
+    n_actor_gpus: .25
+    n_workers: 8
+    n_worker_cpus: 1
+    SYNC_PERIOD: 10000
+    has_evaluator: False
+    N_EVALUATION: 1
+    RECORD_PERIOD: 10
+
+    use_central_buffer: False
+    action_frac: .5
 
     actor_life_mask: True
     value_life_mask: False
@@ -70,8 +84,6 @@ agent:
     obs_names: [obs, global_state]
     normalize_obs: True
     normalize_reward: True
-    reward_normalized_axis: [0, 1, 2]
-    obs_normalized_axis: [0, 1]
     store_state: True
     # (once, reuse, null)
     # "once" updates values at the end of each epoch
@@ -103,14 +115,17 @@ agent:
     huber_threshold: 10
 
 buffer:
+    use_dataset: True
+
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
     n_envs: *nenvs
+    n_trajs: *ntrajs
     N_STEPS: *nsteps
     N_EPOCHS: *nepochs
-    N_VALUE_EPOCHS: *nval_epochs
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: batch
+    sample_keys: [obs, global_state, action, value, traj_ret, advantage, logpi, mask, action_mask, life_mask, actor_h, actor_c, value_h, value_c]
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

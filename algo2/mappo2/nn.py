@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from utility.tf_utils import assert_rank
-from algo2.mappo.nn import PPO as PPOBase, create_components
+from algo.mappo.nn import PPO as PPOBase, create_components
 
 
 class PPO(PPOBase):
@@ -78,37 +78,6 @@ class PPO(PPOBase):
             x = tf.squeeze(x, 1)
         
         return x, state
-
-    def reset_states(self, states=None):
-        actor_state, value_state = states
-        self.actor_rnn.reset_states(actor_state)
-        self.value_rnn.reset_states(value_state)
-
-    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
-        actor_state = self.actor_rnn.get_initial_state(
-            inputs, batch_size=batch_size, dtype=dtype) \
-                if hasattr(self, 'actor_rnn') else None
-        value_state = self.value_rnn.get_initial_state(
-            inputs, batch_size=batch_size, dtype=dtype) \
-                if hasattr(self, 'value_rnn') else None
-        return self.State(*actor_state, *value_state)
-
-    @property
-    def state_size(self):
-        return self.State(*self.actor_rnn.state_size, *self.value_rnn.state_size)
-
-    @property
-    def actor_state_size(self):
-        return self.actor_rnn.state_size
-
-    @property
-    def value_state_size(self):
-        return self.value_rnn.state_size
-
-    @property
-    def state_keys(self):
-        return self.State(*self.State._fields)
-
 
 def create_model(config, env, **kwargs):
     return PPO(config, env, create_components, **kwargs)

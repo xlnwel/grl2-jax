@@ -304,6 +304,9 @@ class RMSAgentBase(RMS, AgentBase):
             with open(self._rms_path, 'rb') as f:
                 self._obs_rms, self._reward_rms, self._reverse_return = cloudpickle.load(f)
                 logger.info(f'rms stats are restored from {self._rms_path}')
+        assert self._reward_rms.axis == self._reward_normalized_axis, (self._reward_rms.axis, self._reward_normalized_axis)
+        for v in self._obs_rms.values():
+            assert v.axis == self._obs_normalized_axis, (v.axis, self._obs_normalized_axis)
         super().restore()
 
     @override(AgentBase)

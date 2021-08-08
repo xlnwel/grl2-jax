@@ -328,7 +328,8 @@ class DataProcess(gym.Wrapper):
         self.precision = precision
         self.float_dtype = np.float32 if precision == 32 else np.float16
 
-        self.is_action_discrete = isinstance(self.action_space, gym.spaces.Discrete)
+        self.is_action_discrete = getattr(self.env, 'is_action_discrete',
+            isinstance(self.action_space, gym.spaces.Discrete))
         if not self.is_action_discrete and precision == 16:
             self.action_space = gym.spaces.Box(
                 self.action_space.low, self.action_space.high, 

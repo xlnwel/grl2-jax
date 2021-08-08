@@ -1,1 +1,1 @@
-from algo2.mappo.train import *
+from algo.mappo.train import *
