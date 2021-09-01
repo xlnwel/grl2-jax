@@ -25,12 +25,14 @@ import gym
 
 from utility.utils import batch_dicts
 from env.smac_maps import get_map_params
+from env import wrappers
 
 
-def make_smac_env(config):
+def make_smac4(config):
     config = config.copy()
-    config['name'] = config['name'][6:]
-    env = SMAC2(**config)
+    config['name'] = config['name'].split('_', maxsplit=1)[1]
+    env = SMAC(**config)
+    env = wrappers.MAEnvStats(env)
     return env
 
 races = {
@@ -77,7 +79,7 @@ def info_func(agent, info):
     agent.store(win_rate=won, extra_padding=extra_padding)
 
 
-class SMAC2(gym.Env):
+class SMAC(gym.Env):
     """The StarCraft II environment for decentralised multi-agent
     micromanagement scenarios.
     """
