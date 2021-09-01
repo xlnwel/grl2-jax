@@ -214,7 +214,8 @@ class Agent(Memory, PPOBase):
             })
             if self._use_action_mask:
                 out[1]['action_mask'] = kwargs['action_mask']
-
+            if self._use_life_mask:
+                out[1]['life_mask'] = kwargs['life_mask']
         return out
 
     """ PPO methods """
@@ -241,8 +242,10 @@ class Agent(Memory, PPOBase):
             mask=mask,
             return_state=return_state,
         )
-        out = self.model.compute_value(global_state, **kwargs)
-        return tensor2numpy(out)
+        value = self.model.compute_value(global_state, **kwargs)
+        value = tensor2numpy(value)
+        value = value.reshape(-1, self._n_agents)
+        return value
 
     @tf.function
     def _learn(self, obs, global_state, action, value, 

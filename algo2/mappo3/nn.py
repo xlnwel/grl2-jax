@@ -1,0 +1,83 @@
+import tensorflow as tf
+
+from utility.tf_utils import assert_rank
+from algo.mappo.nn import PPO as PPOBase, create_components
+
+
+class PPO(PPOBase):
+    @tf.function
+    def action(self, obs, global_state, action_mask, state, mask, 
+            evaluation=False, prev_action=None, prev_reward=None, **kwargs):
+        assert obs.shape.ndims % 2 != 0, obs.shape
+
+        actor_state, value_state = self.split_state(state)
+        x_actor, actor_state = self.encode(
+            obs, actor_state, mask, 'actor', 
+            prev_action, prev_reward)
+        act_dist = self.actor(x_actor, action_mask, evaluation=evaluation)
+        action = self.actor.action(act_dist, evaluation)
+
+        if evaluation:
+            # we do not compute the value state at evaluation 
+            return action, self.State(*actor_state, *value_state)
+        else:
+            x_value, value_state = self.encode(
+                global_state, value_state, mask, 'value', 
+                prev_action, prev_reward)
+            value = self.value(x_value)
+            logpi = act_dist.log_prob(action)
+            terms = {'logpi': logpi, 'value': value}
+            out = (action, terms)
+            return out, self.State(*actor_state, *value_state)
+
+    @tf.function(experimental_relax_shapes=True)
+    def compute_value(self, global_state, state, mask, 
+            prev_action=None, prev_reward=None, return_state=False):
+        x, state = self.encode(
+            global_state, state, mask, 'value', prev_action, prev_reward)
+        value = self.value(x)
+        if return_state:
+            return value, state
+        else:
+            return value
+
+    def encode(self, x, state, mask, stream, prev_action=None, prev_reward=None):
+        assert stream in ('actor', 'value'), stream
+        if stream == 'actor':
+            encoder = self.actor_encoder
+            rnn = self.actor_rnn
+        else:
+            encoder = self.value_encoder
+            rnn = self.value_rnn
+        if x.shape.ndims % 2 != 0:
+            x = tf.expand_dims(x, 1)
+        if mask.shape.ndims < 3:
+            mask = tf.reshape(mask, (-1, 1, mask.shape[-1]))
+        assert_rank(mask, 3)
+        assert_rank(x, 4)
+
+        x = encoder(x)                          # [B, S, A, F]
+        seqlen, n_agents = x.shape[1:3]
+        if self.pool_communication:
+            pool = tf.reduce_max(x, axis=2, keepdims=True)
+            n = x.shape[-1]
+            i = tf.reshape(tf.range(n, dtype=tf.int32), (1, 1, 1, -1))
+            x = tf.where(i < tf.cast(n * self.pool_frac, tf.int32), pool, x)
+        x = tf.transpose(x, [0, 2, 1, 3])       # [B, A, S, F]
+        x = tf.reshape(x, [-1, *x.shape[2:]])   # [B * A, S, F]
+        mask = tf.transpose(mask, [0, 2, 1])    # [B, A, S]
+        mask = tf.reshape(mask, [-1, mask.shape[-1]])   # [B * A, S]
+        additional_rnn_input = self._process_additional_input(
+            x, prev_action, prev_reward)
+        x, state = rnn(x, state, mask, 
+            additional_input=additional_rnn_input)
+        x = tf.reshape(x, (-1, n_agents, seqlen, x.shape[-1]))  # [B, A, S, F]
+        x = tf.transpose(x, [0, 2, 1, 3])       # [B, S, A, F]
+
+        if seqlen == 1:
+            x = tf.squeeze(x, 1)
+        
+        return x, state
+
+def create_model(config, env, **kwargs):
+    return PPO(config, env, create_components, **kwargs)

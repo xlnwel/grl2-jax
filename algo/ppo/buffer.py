@@ -9,6 +9,7 @@ from replay.utils import init_buffer, print_buffer
 
 logger = logging.getLogger(__name__)
 
+
 def compute_nae(reward, discount, value, last_value, 
                 gamma, mask=None, epsilon=1e-8):
     next_return = last_value
@@ -60,7 +61,6 @@ def reshape_to_store(memory, n_envs, n_steps, sample_size=None):
         for k, v in memory.items()}
 
     return memory
-
 
 def reshape_to_sample(memory, n_envs, n_steps, sample_size=None):
     batch_size = n_envs * n_steps
