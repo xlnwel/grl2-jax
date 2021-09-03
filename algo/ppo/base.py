@@ -146,7 +146,7 @@ class PPOBase(RMSAgentBase):
         n = i * self.N_MBS + j
         self.store(**{
             'train/kl': kl,
-            'train/policy_updates': n,
+            'stats/policy_updates': n,
             'train/value': value,
             'time/sample_mean': self._sample_timer.average(),
             'time/learn_mean': self._learn_timer.average(),

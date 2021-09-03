@@ -8,63 +8,7 @@ from core.mixin import Memory
 from core.tf_config import build
 from core.decorator import override
 from algo.ppo.base import PPOBase
-
-
-def infer_life_mask(discount, concat=True):
-    life_mask = np.logical_or(
-        discount, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
-    # np.testing.assert_equal(life_mask, mask)
-    if concat:
-        life_mask = np.concatenate(life_mask)
-    return life_mask
-
-def collect(buffer, env, env_step, reset, reward, 
-            discount, next_obs, **kwargs):
-    if env.use_life_mask:
-        kwargs['life_mask'] = infer_life_mask(discount)
-    kwargs['reward'] = np.concatenate(reward)
-    # discount is zero only when all agents are done
-    discount[np.any(discount, 1)] = 1
-    kwargs['discount'] = np.concatenate(discount)
-    buffer.add(**kwargs)
-
-def get_data_format(*, env, batch_size, sample_size=None,
-        store_state=False, state_size=None, **kwargs):
-    obs_dtype = tf.uint8 if len(env.obs_shape) == 3 else tf.float32
-    action_dtype = tf.int32 if env.is_action_discrete else tf.float32
-    data_format = dict(
-        obs=((None, sample_size, *env.obs_shape), obs_dtype),
-        global_state=((None, sample_size, *env.shared_state_shape), env.shared_state_dtype),
-        action=((None, sample_size, *env.action_shape), action_dtype),
-        value=((None, sample_size), tf.float32), 
-        traj_ret=((None, sample_size), tf.float32),
-        advantage=((None, sample_size), tf.float32),
-        logpi=((None, sample_size), tf.float32),
-        mask=((None, sample_size), tf.float32),
-    )
-    if env.use_action_mask:
-        data_format['action_mask'] = (
-            (None, sample_size, env.action_dim), tf.bool)
-    if env.use_life_mask:
-        data_format['life_mask'] = ((None, sample_size), tf.float32)
-        
-    if store_state:
-        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
-        data_format.update({
-            k: ((batch_size, v), dtype)
-                for k, v in state_size._asdict().items()
-        })
-
-    return data_format
-
-def random_actor(env_output, env=None, **kwargs):
-    obs = env_output.obs
-    a = np.concatenate(env.random_action())
-    terms = {
-        'obs': np.concatenate(obs['obs']), 
-        'global_state': np.concatenate(obs['global_state']),
-    }
-    return a, terms
+from algo.mappo.agent import infer_life_mask, collect, get_data_format, random_actor
 
 
 class Agent(Memory, PPOBase):

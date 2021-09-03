@@ -174,10 +174,7 @@ if __name__ == '__main__':
                     delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
-                    if 'sac' in algo:
-                        processes += gs()
-                    else:
-                        processes += gs()
+                    processes += gs()
                 else:
                     processes += gs()
             else:

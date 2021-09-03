@@ -102,7 +102,7 @@ def train(agent, env, eval_env, buffer):
                     # 'time/eval_mean': et.average(),
                     'time/log_mean': lt.average(),
                 })
-                agent.log(step, std=True, max=True, min=True)
+                agent.log(step)
                 agent.save()
 
 main = functools.partial(main, train=train)
