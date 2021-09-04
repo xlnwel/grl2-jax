@@ -62,7 +62,7 @@ agent:
     RECORD: True
     
     # arguments for optimizer
-    optimizer: adam
+    opt_name: adam
     schedule_lr: False
     ac_lr: 5e-4
     meta_lr: 1e-3
