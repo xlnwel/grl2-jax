@@ -6,7 +6,7 @@ from utility.utils import AttrDict, Every
 from utility.rl_loss import lambda_return
 from utility.tf_utils import static_scan
 from core.tf_config import build
-from core.base import AgentBase
+from core.agent import AgentBase
 from core.mixin import Memory
 from core.decorator import override, step_track
 from algo.dreamer.nn import RSSMState

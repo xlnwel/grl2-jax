@@ -1,98 +1,9 @@
 import collections
-import numpy as np
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
 
 from utility.tf_utils import assert_rank
-from core.module import Module, Ensemble
-from nn.func import Encoder, rnn, mlp
-from algo.ppo.nn import Value
-
-
-class Actor(Module):
-    def __init__(self, config, action_dim, is_action_discrete, name='actor'):
-        super().__init__(name=name)
-        config = config.copy()
-
-        self.action_dim = action_dim
-        self.is_action_discrete = is_action_discrete
-        self.eval_act_temp = config.pop('eval_act_temp', 1)
-        assert self.eval_act_temp >= 0, self.eval_act_temp
-
-        self.attention_action = config.pop('attention_action', False)
-        self.embed_dim = config.pop('embed_dim', 10)
-        if self.attention_action:
-            self.embed = tf.Variable(
-                tf.random.uniform((action_dim, self.embed_dim), -0.01, 0.01), 
-                dtype='float32',
-                trainable=True)
-        self._init_std = config.pop('init_std', 1)
-        if not self.is_action_discrete:
-            self.logstd = tf.Variable(
-                initial_value=np.log(self._init_std)*np.ones(action_dim), 
-                dtype='float32', 
-                trainable=True, 
-                name=f'actor/logstd')
-        config.setdefault('out_gain', .01)
-        self._layers = mlp(**config, 
-                        out_size=self.embed_dim if self.attention_action else action_dim, 
-                        out_dtype='float32',
-                        name=name)
-
-    def call(self, x, action_mask=None, evaluation=False):
-        x = self._layers(x)
-        if self.attention_action:
-            # action_mask_exp = tf.expand_dims(action_mask, -1)
-            # action_embed = tf.where(action_mask_exp, self.embed, 0)
-            # if x.shape.ndims == 2:
-            #     x = tf.einsum('be,bae->ba', x, action_embed)
-            #     tf.debugging.assert_shapes(
-            #         [[x, (None, self.action_dim)]])
-            # else:
-            #     x = tf.einsum('bse,bsae->bsa', x, action_embed)
-            #     tf.debugging.assert_shapes(
-            #         [[x, (None, None, self.action_dim)]])
-            x = tf.matmul(x, self.embed, transpose_b=True)
-
-        logits = x / self.eval_act_temp \
-            if evaluation and self.eval_act_temp else x
-        if action_mask is not None:
-            assert logits.shape[1:] == action_mask.shape[1:], (logits.shape, action_mask.shape)
-            logits = tf.where(action_mask, logits, -1e10)
-        act_dist = tfd.Categorical(logits)
-
-        return act_dist
-
-    def action(self, dist, evaluation):
-        if evaluation:
-            action = dist.mode()
-        else:
-            action = dist.sample()
-            # ensures all actions are valid. This is time-consuming, 
-            # it turns out that tfd.Categorical ignore events with 
-            # extremely low logits
-            # def cond(a, x):
-            #     i = tf.stack([tf.range(3), a], 1)
-            #     return tf.reduce_all(tf.gather_nd(action_mask, i))
-            # def body(a, x):
-            #     d = tfd.Categorical(x)
-            #     a = d.sample()
-            #     return (a, x)
-            # action = tf.while_loop(cond, body, [action, logits])[0]
-        return action
-
-def create_components(config, env):
-    action_dim = env.action_dim
-    is_action_discrete = env.is_action_discrete
-
-    return dict(
-        actor_encoder=Encoder(config['actor_encoder'], name='actor_encoder'), 
-        actor_rnn=rnn(config['actor_rnn'], name='actor_rnn'), 
-        actor=Actor(config['actor'], action_dim, is_action_discrete),
-        value_encoder=Encoder(config['value_encoder'], name='value_encoder'),
-        value_rnn=rnn(config['value_rnn'], name='value_rnn'),
-        value=Value(config['value'])
-    )
+from core.module import Ensemble
+from algo.ppo.elements.nn import *
 
 
 class PPO(Ensemble):
@@ -104,7 +15,7 @@ class PPO(Ensemble):
             'mgru': 'actor_h value_h',
         }
         self.State = collections.namedtuple(
-            'State', state[config['actor_rnn']['rnn_name']])
+            'State', state[config['actor_rnn']['nn_id'].split('_')[1]])
         
         super().__init__(
             model_fn=model_fn, 

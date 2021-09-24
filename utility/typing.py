@@ -2,12 +2,12 @@ import sys
 import collections
 
 
-RESERVED_NAMES = ("get", "items")
+Configs = collections.namedtuple('configs', 'env model loss trainer agent replay')
 
-def tuple_itemgetter(i):
-    def _tuple_itemgetter(obj):
-        return tuple.__getitem__(obj, i)
-    return _tuple_itemgetter
+class AttrDict(dict):
+    __getattr__ = dict.__getitem__
+    __setattr__ = dict.__setitem__
+
 
 def namedarraytuple(typename, field_names, return_namedtuple_cls=False,
         classname_suffix=False):
@@ -103,6 +103,11 @@ def namedarraytuple(typename, field_names, return_namedtuple_cls=False,
         for k, v in zip(self._fields, self):
             yield k, v
 
+    def tuple_itemgetter(i):
+        def _tuple_itemgetter(obj):
+            return tuple.__getitem__(obj, i)
+        return _tuple_itemgetter
+
     for method in (__getitem__, __setitem__, get, items):
         method.__qualname__ = f'{typename}.{method.__name__}'
 
@@ -117,6 +122,7 @@ def namedarraytuple(typename, field_names, return_namedtuple_cls=False,
         'items': items,
     }
 
+    RESERVED_NAMES = ("get", "items")
     for index, name in enumerate(NtCls._fields):
         if name in RESERVED_NAMES:
             raise ValueError(f"Disallowed field name: {name}.")
@@ -130,6 +136,7 @@ def namedarraytuple(typename, field_names, return_namedtuple_cls=False,
     if return_namedtuple_cls:
         return result, NtCls
     return result
+
 
 # for multi-processing efficiency, we do not return info at every step
 EnvOutput = namedarraytuple('EnvOutput', 'obs reward discount reset')

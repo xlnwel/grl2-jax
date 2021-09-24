@@ -2,13 +2,14 @@ import logging
 import tensorflow as tf
 
 from core.module import Module
-from nn.registry import layer_registry
+from nn.registry import layer_registry, nn_registry
 from nn.utils import get_initializer
 
 
 logger = logging.getLogger(__name__)
 
 
+@nn_registry.register('mlp')
 class MLP(Module):
     def __init__(self, units_list, out_size=None, layer_type='dense', 
                 norm=None, activation=None, kernel_initializer='glorot_uniform', 
@@ -47,6 +48,7 @@ class MLP(Module):
                 and self._out_dtype != 'float32':
             x = tf.cast(x, self._out_dtype)
         return x
+
 
 if __name__ == '__main__':
     config = {

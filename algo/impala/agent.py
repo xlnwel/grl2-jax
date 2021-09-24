@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from core.tf_config import build
 from core.decorator import override
-from core.base import RMSAgentBase
+from core.agent import RMSAgentBase
 from core.mixin import Memory
 from utility.tf_utils import explained_variance
 from utility.rl_loss import v_trace_from_ratio, ppo_loss

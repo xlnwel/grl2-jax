@@ -6,7 +6,7 @@ from ray.util.queue import Queue
 
 from utility.ray_setup import sigint_shutdown_ray
 from utility import pkg
-from replay.func import create_replay, create_replay_center
+from replay.func import create_replay_center
 
 
 def main(env_config, model_config, agent_config, replay_config):

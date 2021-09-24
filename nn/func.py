@@ -5,6 +5,7 @@ from nn.mlp import *
 from nn.rnns.lstm import MLSTM
 from nn.rnns.gru import MGRU
 from nn.dnc.dnc import DNC
+from nn.registry import nn_registry
 
 
 def create_encoder(config, name='encoder'):
@@ -62,3 +63,26 @@ def dnc_rnn(output_size,
                 clip_value, 
                 name)
     return layers.RNN(dnc_cell, **rnn_config)
+
+def create_network(config, name):
+    """ Create a network according to config
+    
+    Args: 
+        config[Dict]: must contain <nn_id>, which specifies the 
+            class of network to create. The rest arguments are 
+            passed to the network for initialization
+        name[str]: the name of the network
+    """
+    config = config.copy()
+    if 'nn_id' not in config:
+        raise ValueError(f'No nn_id is specified in config: {config}')
+    nn_id = config.pop('nn_id')
+    if '_' in nn_id:
+        nn_type, nn_id = nn_id.split('_')
+        registry = nn_registry.get(nn_type)
+    else:
+        registry = nn_registry
+    network = registry.get(nn_id)
+    if not issubclass(network, tf.Module):
+        raise TypeError(f'create_network returns invalid network: {network}')
+    return network(**config, name=name)

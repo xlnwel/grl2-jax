@@ -5,7 +5,7 @@ import tensorflow as tf
 from utility.tf_utils import log_softmax
 from utility.schedule import TFPiecewiseSchedule
 from core.tf_config import build
-from core.base import AgentBase
+from core.agent import AgentBase
 from core.mixin import ActionScheduler, TargetNetOps
 from core.decorator import override, step_track
 

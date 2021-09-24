@@ -1,15 +1,18 @@
+import os
 import collections
-import numpy as np
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
 
 from utility.tf_utils import assert_rank
-from core.module import Ensemble
-from algo.ppo.nn import create_components
+from core.module import Model
+from core.mixin import RMS, Actor
+from utility.file import source_file
+
+source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
-class PPO(Ensemble):
-    def __init__(self, config, env, model_fn=create_components, **kwargs):
+class PPO(Model, RMS, Actor):
+    def _post_init(self, config):
+        self._setup_rms_stats()
         state = {
             'lstm': 'actor_h actor_c value_h value_c',
             'mlstm': 'actor_h actor_c value_h value_c',
@@ -17,13 +20,7 @@ class PPO(Ensemble):
             'mgru': 'actor_h value_h',
         }
         self.State = collections.namedtuple(
-            'State', state[config['actor_rnn']['rnn_name']])
-        
-        super().__init__(
-            model_fn=model_fn, 
-            config=config,
-            env=env,
-            **kwargs)
+            'State', state[config['actor_rnn']['nn_id'].split('_')[1]])
 
     @tf.function
     def action(self, obs, global_state, 

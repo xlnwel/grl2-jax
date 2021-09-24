@@ -1,7 +1,19 @@
-import functools
 import inspect
+import functools
+from typing import Union
+from utility.display import display_model_var_info
 import tensorflow as tf
 from tensorflow.keras import layers
+
+from core.checkpoint import *
+from core.optimizer import create_optimizer
+from utility.utils import config_attr, eval_config
+
+
+def construct_components(config):
+    from nn.func import create_network
+    return {k: create_network(v, name=k) 
+        for k, v in config.items() if isinstance(v, dict)}
 
 
 class Module(tf.Module):
@@ -9,8 +21,8 @@ class Module(tf.Module):
     encapsulating multiple layers. It provides more fine-grained 
     output for keras.Model.summary and automatically handles 
     training signal for batch normalization and dropout. 
-    Moreover, you can now, without worries about name conflicts, 
-    define `self._layers`, which is by default used in `call`.
+    Moreover, you can now, without worry about name conflicts, 
+    define `self._layers`, which is by default used in <call>.
     """
     def __init__(self, name):
         self.scope_name = name
@@ -66,30 +78,45 @@ class Module(tf.Module):
         return getattr(self, f'_{name}')(x)
 
 
-class Ensemble(tf.Module):
-    """ This class groups all models together so that 
-    one can easily get and set all variables """
+class Model(tf.Module):
+    """ A model, consisting of multiple modules, is a 
+    self-contained unit for inference. Its subclass is 
+    expected to implement some methods of practical 
+    meaning, such as <action> and <compute_value> """
     def __init__(self, 
                  *,
-                 models=None, 
-                 config={},
-                 model_fn=None, 
-                 **kwargs):
-        self.models = {}
-        if models is None:
-            self.models = model_fn(config, **kwargs)
-        else:
-            self.models = models
-        
-        [setattr(self, n, m) for n, m in self.models.items()]
-        [setattr(self, k, v) for k, v in config.items() 
-            if not isinstance(v, dict)]
+                 config,
+                 model_fn=construct_components,
+                 name):
+        super().__init__(f'{name}_model')
+        config = config.copy()
+        config_attr(self, config, filter_dict=True)
 
-    def get_weights(self, name=None):
+        self.modules = model_fn(config)
+        self.ckpt, self.ckpt_path, self.ckpt_manager = \
+            setup_checkpoint(self.modules, self._root_dir, 
+                self._model_name, name=self.name)
+
+        # add modules as public attributes
+        [setattr(self, n, m) for n, m in self.modules.items()]
+        self._post_init(config)
+
+    def _post_init(self):
+        """ Add some additional attributes and do some post processing here """
+        pass
+
+    def sync_nets(self):
+        """ Sync target network """
+        if hasattr(self, '_sync_nets'):
+            # defined in TargetNetOps
+            self._sync_nets()
+
+    def get_weights(self, name: str=None):
         """ Returns a list/dict of weights
+
         Returns:
-            If name is provided, it returns a dict of weights for models specified by keys.
-            Otherwise it returns a list of all weights
+            If name is provided, it returns a dict of weights for models 
+            specified by keys. Otherwise it returns a list of all weights
         """
         if name is None:
             return [v.numpy() for v in self.variables]
@@ -97,10 +124,11 @@ class Ensemble(tf.Module):
             name = [name]
         assert isinstance(name, (tuple, list))
 
-        return {n: self.models[n].get_weights() for n in name}
+        return {n: self.modules[n].get_weights() for n in name}
 
-    def set_weights(self, weights):
-        """Sets weights 
+    def set_weights(self, weights: Union[list, dict]):
+        """ Sets weights
+
         Args:
             weights: a dict or list of weights. If it's a dict, 
             it sets weights for models specified by the keys.
@@ -114,8 +142,11 @@ class Ensemble(tf.Module):
                 (len(self.variables), len(weights), weights)
             [v.assign(w) for v, w in zip(self.variables, weights)]
     
-    def reset_states(self, **kwargs):
-        return
+    def reset_states(self, states=None):
+        pass
+
+    def get_states(self):
+        pass
 
     @property
     def state_size(self):
@@ -125,34 +156,111 @@ class Ensemble(tf.Module):
     def state_keys(self):
         return self.rnn.state_keys if hasattr(self, 'rnn') else ()
 
-    """ Auxiliary functions that make Ensemble like a dict """
-    # def __getattr__(self, key):
-    #     if key in self.models:
-    #         return self.models[key]
-    #     else:
-    #         raise ValueError(f'{key} not in models({list(self.models)})')
-
+    """ Auxiliary functions that make Model like a dict """
     def __getitem__(self, key):
-        return self.models[key]
+        return self.modules[key]
 
     def __setitem__(self, key, value):
-        assert key not in self.models, list(self.models)
-        self.models[key] = value
+        assert key not in self.modules, list(self.modules)
+        self.modules[key] = value
     
     def __contains__(self, item):
-        return item in self.models
+        return item in self.modules
 
     def __len__(self):
-        return len(self.models)
+        return len(self.modules)
     
     def __iter__(self):
-        return self.models.__iter__()
+        return self.modules.__iter__()
 
     def keys(self):
-        return self.models.keys()
+        return self.modules.keys()
 
     def values(self):
-        return self.models.values()
+        return self.modules.values()
     
     def items(self):
-        return self.models.items()
+        return self.modules.items()
+
+    """ Save & Restore Model """
+    def save(self, print_terminal_info=True):
+        save(self.ckpt_manager, print_terminal_info)
+    
+    def restore(self):
+        restore(self.ckpt_manager, self.ckpt, self.ckpt_path, self.name)
+
+
+class Loss:
+    """ We do not need this class for now. However, 
+    in case one day we need multiple GPUs for training, 
+    this class will come in handy.
+    """
+    def __init__(self,
+                 *,
+                 config: dict,
+                 model: Model,
+                 use_tf: bool=False):
+        config = config.copy()
+        config_attr(self, config, filter_dict=True)
+
+        self.model = model
+        [setattr(self, k, v) for k, v in self.model.items()]
+        if use_tf:
+            self.loss = tf.function(self._loss)
+
+    def _loss(self):
+        raise NotImplementedError
+
+
+class Trainer:
+    def __init__(self, 
+                 *,
+                 config: dict,
+                 model: Model, 
+                 loss: Loss,
+                 env_stats,
+                 name):
+        self.name = f'{name}_opt'
+        config = config.copy()
+        config_attr(self, config, filter_dict=True)
+        
+        self.model = model
+        self.loss = loss
+        modules = [v for k, v in self.model.items() 
+            if not k.startswith('target')]
+        opt_config = eval_config(config.pop('optimizer'))
+        self.optimizer = create_optimizer(modules, opt_config)
+
+        self.ckpt, self.ckpt_path, self.ckpt_manager = setup_checkpoint(
+            {'optimizer': self.optimizer}, self._root_dir, 
+            self._model_name, name=self.name)
+        
+        self._build_learn(env_stats)
+        if config.get('display_var', True):
+            display_model_var_info(self.model)
+        self._post_init()
+        self.model.sync_nets()
+
+    # def __getattr__(self, name):
+    #     if name.startswith('_'):
+    #         raise AttributeError(f"attempted to get missing private attribute '{name}'")
+    #     return getattr(self.model, name)
+
+    def _build_learn(self, env):
+        raise NotImplementedError
+
+    def _learn(self):
+        raise NotImplementedError
+    
+    def _post_init(self):
+        """ Add some additional attributes and do some post processing here """
+        pass
+
+    """ Save & Restore Model """
+    def save(self, print_terminal_info=True):
+        self.model.save(print_terminal_info)
+        save(self.ckpt_manager, print_terminal_info)
+    
+    def restore(self):
+        self.model.restore()
+        restore(self.ckpt_manager, self.ckpt, self.ckpt_path, self.name)

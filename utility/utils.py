@@ -1,4 +1,4 @@
-import os, sys
+import os
 import random
 import itertools
 import collections
@@ -9,11 +9,7 @@ import multiprocessing
 import numpy as np
 
 
-class AttrDict(dict):
-    __getattr__ = dict.__getitem__
-    __setattr__ = dict.__setitem__
-
-def deep_update(source, target):
+def deep_update(source: dict, target:dict):
     for k, v in target.items():
         if isinstance(v, collections.abc.Mapping):
             assert k in source, f'{k} does not exist in {source}'
@@ -24,8 +20,32 @@ def deep_update(source, target):
             source[k] = v
     return source
 
-def config_attr(obj, config):
+def eval_config(config):
     for k, v in config.items():
+        if isinstance(v, str):
+            try:
+                v = float(v)
+            except:
+                pass
+        if isinstance(v, float) and v == int(v):
+            v = int(v)
+        config[k] = v
+    return config
+
+def config_attr(obj, config: dict, filter_dict: bool=False):
+    """ Add values in config as attributes of obj
+
+    Args:
+        obj: the target object to which we add attributes
+        config: values associated to uppercase keys
+            are added as public attributes, while those
+            associated to lowercase keys are added as
+            private attributes
+        filter_dict: whether to omit dictionaries
+    """
+    for k, v in config.items():
+        if filter_dict and isinstance(v, dict):
+            continue
         if k.islower():
             k = f'_{k}'
         if isinstance(v, str):

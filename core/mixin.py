@@ -1,14 +1,63 @@
+import os
+import cloudpickle
 import logging
 import itertools
 import numpy as np
 import tensorflow as tf
 
-from utility.utils import Every, RunningMeanStd
 from utility.schedule import PiecewiseSchedule
+from utility.tf_utils import tensor2numpy
+from utility.typing import EnvOutput
+from utility.utils import Every, RunningMeanStd
 from utility.rl_utils import compute_act_temp, compute_act_eps
 
 
 logger = logging.getLogger(__name__)
+
+
+class Actor:
+    def __call__(self, env_output: EnvOutput, evaluation=False, return_eval_stats=False):
+        """ The interface to interact with the environment
+        Args:
+            env_output namedtuple: (obs, reward, discount, reset)
+            evaluation bool: evaluation mode or not
+            return_eval_stats bool: if return evaluation stats
+        Return:
+            action and terms.
+        """
+        obs, kwargs = self._process_input(env_output, evaluation)
+        kwargs['evaluation'] = kwargs.get('evaluation', evaluation)
+        out = self.action(
+            obs, **kwargs, 
+            return_eval_stats=return_eval_stats)
+        out = self._process_output(obs, kwargs, out, evaluation)
+
+        return out
+
+    def _process_input(env_output: EnvOutput, evaluation):
+        """ Does necessary pre-process and produces inputs to model
+        Args:
+            env_output tuple: (obs, reward, discount, reset)
+            evaluation bool: evaluation mode or not
+        Returns: 
+            obs: Pre-processed observations
+            kwargs, dict: kwargs necessary for model to compute actions 
+        """
+        return env_output.obs, {}
+
+    def action(self, obs, **kwargs):
+        raise NotImplementedError
+
+    def _process_output(self, obs, input_kwargs, out, evaluation):
+        """ Post-processes output
+        Args:
+            obs: Pre-processed observations
+            kwargs, dict: kwargs necessary to model  
+            out (action, terms): Model output
+        Returns:
+            out: results returned to the environment
+        """
+        return tensor2numpy(out)
 
 
 class ActionScheduler:
@@ -95,16 +144,14 @@ class RMS:
         assert self._normalize_reward_with_return in ('reversed', 'forward', None)
         
         self._obs_names = getattr(self, '_obs_names', ['obs'])
+        self._obs_rms = {}
         if self._normalize_obs:
             # we use dict to track a set of observation features
-            self._obs_rms = {}
             for k in self._obs_names:
                 self._obs_rms[k] = RunningMeanStd(
                     self._obs_normalized_axis, 
                     clip=getattr(self, '_obs_clip', 5), 
                     name=f'{k}_rms', ndim=1)
-        else:
-            self._obs_rms = None
         self._reward_rms = self._normalize_reward \
             and RunningMeanStd(self._reward_normalized_axis, 
                 clip=getattr(self, '_rew_clip', 10), 
@@ -262,6 +309,22 @@ class RMS:
                 batch_var=rew_rms.var,
                 batch_count=rew_rms.count)
 
+    def restore_rms(self):
+        if os.path.exists(self._rms_path):
+            with open(self._rms_path, 'rb') as f:
+                self._obs_rms, self._reward_rms, self._return = cloudpickle.load(f)
+                logger.info(f'rms stats are restored from {self._rms_path}')
+            assert self._reward_rms.axis == self._reward_normalized_axis, \
+                (self._reward_rms.axis, self._reward_normalized_axis)
+            if self._obs_rms is None:
+                self._obs_rms = {}
+            for v in self._obs_rms.values():
+                assert v.axis == self._obs_normalized_axis, (v.axis, self._obs_normalized_axis)
+    
+    def save_rms(self):
+        with open(self._rms_path, 'wb') as f:
+            cloudpickle.dump((self._obs_rms, self._reward_rms, self._return), f)
+
 
 """ According to Python's MRO, the following classes should be positioned 
 before AgentBase to override the corresponding functions. """
@@ -417,3 +480,19 @@ class TargetNetOps:
         """ Gets the target networks """
         return [getattr(self, f'target_{k}') for k in self.model 
             if f'target_{k}' in self.model]
+
+
+class StepCounter:
+    def _initialize_counter(self):
+        self.env_step = 0
+        self.train_step = 0
+        self._counter_path = f'{self._root_dir}/{self._model_name}/counter.pkl'
+
+    def save_step(self):
+        with open(self._counter_path, 'wb') as f:
+            cloudpickle.dump((self.env_step, self.train_step), f)
+
+    def restore_step(self):
+        if os.path.exists(self._counter_path):
+            with open(self._counter_path, 'rb') as f:
+                self.env_step, self.train_step = cloudpickle.load(f)

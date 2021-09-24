@@ -3,8 +3,12 @@ from tensorflow.keras import layers, activations, initializers, regularizers, co
 from tensorflow.keras.mixed_precision import global_policy
 
 from core.module import Module
+from nn.registry import rnn_registry
 from utility.tf_utils import assert_rank
 from utility.typing import GRUState
+
+
+rnn_registry.register('gru')(layers.GRU)
 
 
 class MGRUCell(layers.Layer):
@@ -120,8 +124,9 @@ class MGRUCell(layers.Layer):
         return GRUState(h=tf.zeros([batch_size, state_size[0]], dtype))
 
 
+@rnn_registry.register('mgru')
 class MGRU(Module):
-    def __init__(self, config, name='rnn'):
+    def __init__(self, name='mgru', **config):
         super().__init__(name=name)
         config = config.copy()
         self._state_mask = config.pop('state_mask', True)

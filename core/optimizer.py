@@ -4,6 +4,9 @@ import tensorflow as tf
 from tensorflow.keras import mixed_precision as prec
 
 
+from utility.schedule import TFPiecewiseSchedule
+
+
 logger = logging.getLogger(__name__)
 
 def select_optimizer(name):
@@ -17,19 +20,29 @@ def select_optimizer(name):
     return name
 
 
+def create_optimizer(modules, config):
+    if config.pop('schedule_lr', False):
+        assert isinstance(config['lr'], (list, tuple)), config['lr']
+        config['lr'] = TFPiecewiseSchedule(config['lr'])
+    opt = Optimizer(modules, **config)
+    return opt
+
+
 class Optimizer(tf.Module):
-    def __init__(self, name, models, lr, clip_norm=None, weight_decay=None, l2_reg=None,
-                wdpattern=r'.*', scales=None, return_grads=False, **kwargs):
-        self._models = models if isinstance(models, (list, tuple)) else [models]
+    def __init__(self, modules, *, opt_name='adam', lr, 
+                clip_norm=None, weight_decay=None, l2_reg=None,
+                wdpattern=r'.*', scales=None, return_grads=False, 
+                **kwargs):
+        self._modules = modules if isinstance(modules, (list, tuple)) else [modules]
         self._clip_norm = clip_norm
         self._weight_decay = weight_decay
         self._l2_reg = l2_reg
         self._wdpattern = wdpattern
         if scales is not None:
             assert isinstance(scales, (list, tuple)), scales
-            assert len(scales) == len(self._models), (len(scales), len(self._models))
+            assert len(scales) == len(self._modules), (len(scales), len(self._modules))
         self._scales = scales
-        self._opt = select_optimizer(name)(lr, **kwargs)
+        self._opt = select_optimizer(opt_name)(lr, **kwargs)
         self._return_grads = return_grads
         # useful for mixed precision training on GPUs to
         # avoid numerical underflow caused by using float16 gradients
@@ -38,7 +51,7 @@ class Optimizer(tf.Module):
         if self._mpt:
             logger.info('Mixed precision training will be performed')
             self._opt = prec.LossScaleOptimizer(self._opt)
-        # we do not initialize variables here, as models may not be initialized at this point
+        # we do not initialize variables here as modules may not be initialized at this point
         self._variables = None
 
     @property
@@ -49,27 +62,35 @@ class Optimizer(tf.Module):
         assert hasattr(self._opt, 'get_transformed_grads'), f'{self._opt} does not support "get_transformed_grads"'
         return self._opt.get_transformed_grads(var_list or self._variables)
 
-    def __call__(self, tape, loss, output_gradients=None):
+    def __call__(self, tape=None, loss=None, grads=None, output_gradients=None):
+        if loss is None and grads is None:
+            raise ValueError('Neither loss nor grads is provided')
+        if loss is not None and grads is not None:
+            raise ValueError('Both loss and grads are provvided')
+        if isinstance(loss, tf.Tensor) and loss.shape != ():
+            raise ValueError(f'loss is expected to be a scalar Tensor, but get {loss}')
+
         if self._variables is None:
-            variables = [m.trainable_variables for m in self._models]
-            for v, m in zip(variables, self._models):
+            variables = [m.trainable_variables for m in self._modules]
+            for v, m in zip(variables, self._modules):
                 logger.info(f'Found {len(v)} parameters for {m}')
             self._variables = tf.nest.flatten(variables)
             if self._scales is not None:
                 scales = [[self._scales[i] for _ in m.trainable_variables] 
-                    for i, m in enumerate(self._models)]
+                    for i, m in enumerate(self._modules)]
                 self._scales = tf.nest.flatten(scales)
-        if isinstance(loss, tf.Tensor):
-            assert loss.shape == (), loss.shape
-        if self._l2_reg:
-            assert isinstance(loss, tf.Tensor) and loss.shape == (), \
-                f"L2 regularization is incompatible with loss: {loss}\nConsider using weight decay"
-            loss = self._add_l2_regularization(loss)
-        if self._mpt:
-            with tape:
-                loss = self._opt.get_scaled_loss(loss)
-        grads = tape.gradient(loss, self._variables, output_gradients=output_gradients)
-        assert None not in grads, f'No grads for {self._variables[grads.index(None)].name}'
+
+        if grads is None:
+            if tape is None:
+                raise ValueError('tf.GradientTape is ')
+            if self._l2_reg:
+                loss = self._add_l2_regularization(loss)
+            if self._mpt:
+                with tape:
+                    loss = self._opt.get_scaled_loss(loss)
+            grads = tape.gradient(loss, self._variables, output_gradients=output_gradients)
+        if None in grads:
+            raise ValueError(f'No grads for {self._variables[grads.index(None)].name}')
         if self._mpt:
             grads = self._opt.get_unscaled_gradients(grads)
         if self._scales is not None:

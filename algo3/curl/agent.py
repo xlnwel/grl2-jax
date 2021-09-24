@@ -6,7 +6,7 @@ from utility.display import pwc
 from utility.rl_utils import n_step_target
 from utility.timer import TBTimer
 from core.tf_config import build
-from core.base import AgentBase
+from core.agent import AgentBase
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.dqn.base import get_data_format, collect

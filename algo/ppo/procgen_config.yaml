@@ -8,26 +8,9 @@ env:
     # num_levels: 200
     distribution_mode: easy
 
-model:
-    encoder: 
-        cnn_name: impala
-        out_size: 256
-    actor:
-        units_list: []
-        norm: null
-        kernel_initializer: orthogonal
-        activation: relu
-        eval_act_temp: 1
-    value:
-        units_list: []
-        norm: null
-        kernel_initializer: orthogonal
-        activation: relu
-
 agent:
     algorithm: &algo ppo
     precision: 16
-    gamma: &gamma .999
 
     MAX_STEPS: 2e8
     N_STEPS: &nsteps 256
@@ -37,33 +20,61 @@ agent:
     EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
-    normalize_obs: False
-    normalize_reward: True
     # (once, reuse, null)
     # "once" updates values at the end of each epoch
     # "reuse" updates values using value from learn, which is staler than once
     # null doesn't update values.
     value_update: null
 
-    # model path: root_dir/model_name/models
+    # model path: root_dir/model_name/name
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
-    root_dir: *algo                         # root path for tensorboard logs
+    root_dir: *algo
     model_name: *algo
     RECORD: True
 
-    # arguments for optimizer
-    opt_name: adam
-    schedule_lr: False
-    lr: 5e-4
-    clip_norm: .5
-    opt_kwargs:
-        epsilon: 1.e-5
+model:
+    encoder: 
+        nn_id: cnn_impala
+        out_size: 256
+    actor:
+        nn_id: actor
+        units_list: []
+        norm: null
+        kernel_initializer: orthogonal
+        activation: relu
+        eval_act_temp: 1
+    value:
+        nn_id: value
+        units_list: []
+        norm: null
+        kernel_initializer: orthogonal
+        activation: relu
+
+    normalize_obs: False
+    normalize_reward: True
+    gamma: &gamma .999
+
+    root_dir: *algo
+    model_name: *algo
+
+loss:
     # arguments for loss
     value_loss: clip
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
     value_coef: .5
+
+trainer:
+    optimizer:
+        opt_name: adam
+        schedule_lr: False
+        lr: 5e-4
+        clip_norm: .5
+        epsilon: 1.e-5
+
+    root_dir: *algo
+    model_name: *algo
 
 buffer:
     use_dataset: True

@@ -18,6 +18,7 @@ from .buffer import APGBuffer, LocalBuffer
 def get_actor_class(AgentBase):
     ActorBase = get_actor_base_class(AgentBase)
     class Actor(ActorBase):
+        # TODO: push rms to learner
         def __init__(self, actor_id, model_fn, config, 
                 model_config, env_config):
             super().__init__(actor_id, model_fn, config, model_config, env_config)

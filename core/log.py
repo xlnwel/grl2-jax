@@ -145,18 +145,18 @@ class Logger:
         self._log_dir = log_dir
         if self._log_dir:
             path = os.path.join(self._log_dir, log_file)
-            if os.path.exists(path) and os.stat(path).st_size != 0:
-                i = 1
-                name, suffix = path.rsplit('.', 1)
-                while os.path.exists(name + f'{i}.' + suffix):
-                    i += 1
-                pwc(f'Warning: Log file "{path}" already exists!', 
-                    f'Data will be logged to "{name + f"{i}." + suffix}" instead.',
-                    color='magenta')
-                path = name + f"{i}." + suffix
+            # if os.path.exists(path) and os.stat(path).st_size != 0:
+            #     i = 1
+            #     name, suffix = path.rsplit('.', 1)
+            #     while os.path.exists(name + f'{i}.' + suffix):
+            #         i += 1
+            #     pwc(f'Warning: Log file "{path}" already exists!', 
+            #         f'Data will be logged to "{name + f"{i}." + suffix}" instead.',
+            #         color='magenta')
+            #     path = name + f"{i}." + suffix
             if not os.path.isdir(self._log_dir):
                 os.makedirs(self._log_dir)
-            self._out_file = open(path, 'w')
+            self._out_file = open(path, 'a')
             atexit.register(self._out_file.close)
             pwc(f'Logging data to "{self._out_file.name}"', color='green')
         else:
@@ -171,7 +171,10 @@ class Logger:
         self._store_dict = defaultdict(list)
 
     def __contains__(self, item):
-        return self._store_dict[item] != []
+        return item in self._store_dict and self._store_dict[item] != []
+    
+    def contains_stats(self, item):
+        return item in self._store_dict and self._store_dict[item] != []
         
     def store(self, **kwargs):
         for k, v in kwargs.items():

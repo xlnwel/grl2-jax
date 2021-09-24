@@ -11,6 +11,7 @@ env:
 
 model:
     actor_encoder: 
+        nn_id: mlp
         units_list: [64, 64, 64]
         kernel_initializer: orthogonal
         activation: relu
@@ -19,11 +20,12 @@ model:
         norm_kwargs:
             epsilon: 1.e-5
     actor_rnn:
-        rnn_name: mlstm
+        nn_id: rnn_mlstm
         units: 64
         kernel_initializer: orthogonal
         use_ln: True
     actor:
+        nn_id: actor
         units_list: []
         kernel_initializer: orthogonal
         eval_act_temp: 1
@@ -31,6 +33,7 @@ model:
         embed_dim: 32
         out_gain: .01
     value_encoder:
+        nn_id: mlp
         units_list: [64, 64, 64]
         kernel_initializer: orthogonal
         activation: relu
@@ -39,18 +42,32 @@ model:
         norm_kwargs:
             epsilon: 1.e-5
     value_rnn:
-        rnn_name: mlstm
+        nn_id: rnn_mlstm
         units: 64
         kernel_initializer: orthogonal
         use_ln: True
     value:
+        nn_id: value
         units_list: []
         kernel_initializer: orthogonal
+
+    gamma: &gamma .99
+
+
+trainer:
+    optimizer:
+        name: adam
+        schedule_lr: False
+        actor_lr: 5e-4
+        value_lr: 5e-4
+        clip_norm: 10
+        opt_kwargs:
+            epsilon: 1.e-5
+        actor_weight_decay: 0
 
 agent:
     algorithm: &algo mappo1
     precision: 32
-    gamma: &gamma .99
 
     MAX_STEPS: 1e8
     N_EPOCHS: &nepochs 5
@@ -83,15 +100,6 @@ agent:
     model_name: *algo
     RECORD: False
     
-    # arguments for optimizer
-    opt_name: adam
-    schedule_lr: False
-    actor_lr: 5e-4
-    value_lr: 5e-4
-    clip_norm: 10
-    opt_kwargs:
-        epsilon: 1.e-5
-    actor_weight_decay: 0
     # arguments for loss
     value_loss: clip
     clip_range: .2          # clip range for ppo

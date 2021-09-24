@@ -8,7 +8,9 @@ from replay.func import create_replay_center
 
 
 def main(env_config, model_config, agent_config, replay_config):
-    ray.init(num_cpus=os.cpu_count(), num_gpus=1)
+    gpus = tf.config.list_physical_devices('GPU')
+    ray.init(num_cpus=os.cpu_count(), num_gpus=len(gpus))
+    print('Ray available resources:', ray.available_resources())
 
     sigint_shutdown_ray()
 

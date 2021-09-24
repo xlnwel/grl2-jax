@@ -3,20 +3,20 @@ import numpy as np
 import ray
 
 from core.decorator import record
-from core.base import AgentImpl
+from core.agent import AgentImpl
 from utility.graph import video_summary
 
 
 class Monitor(AgentImpl):
     @record
-    def __init__(self, config):
-        self._ready = np.zeros(config['n_workers'])
+    def __init__(self):
+        self._ready = np.zeros(self._n_workers)
         
         self.time = time.time()
         self.env_step = 0
         self.last_env_step = 0
         self.last_train_step = 0
-        self.MAX_STEPS = int(float(config['MAX_STEPS']))
+        self.MAX_STEPS = self.MAX_STEPS
         self._print_logs = getattr(self, '_print_logs', False)
 
     def sync_env_train_steps(self, learner):
@@ -62,7 +62,3 @@ class Monitor(AgentImpl):
 
     def is_over(self):
         return self.env_step > self.MAX_STEPS
-
-    @classmethod
-    def as_remote(cls, **kwargs):
-        return ray.remote(**kwargs)(cls)

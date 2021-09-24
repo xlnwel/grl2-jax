@@ -9,7 +9,7 @@ from utility.rl_utils import retrace
 from utility.tf_utils import static_scan, huber_loss
 from utility.schedule import PiecewiseSchedule, TFPiecewiseSchedule
 from core.tf_config import build
-from core.base import AgentBase
+from core.agent import AgentBase
 from core.decorator import agent_config, step_track
 from core.optimizer import Optimizer
 from algo.dreamer3.nn import RSSMState

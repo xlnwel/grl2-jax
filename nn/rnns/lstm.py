@@ -3,8 +3,12 @@ from tensorflow.keras import layers, activations, initializers, regularizers, co
 from tensorflow.keras.mixed_precision import global_policy
 
 from core.module import Module
+from nn.registry import rnn_registry
 from utility.tf_utils import assert_rank
 from utility.typing import LSTMState
+
+
+rnn_registry.register('lstm')(layers.LSTM)
 
 
 class MLSTMCell(layers.Layer):
@@ -126,8 +130,9 @@ class MLSTMCell(layers.Layer):
             c=tf.zeros([batch_size, state_size[1]], dtype))
 
 
+@rnn_registry.register('mlstm')
 class MLSTM(Module):
-    def __init__(self, config, name='rnn'):
+    def __init__(self, name='mlstm', **config):
         super().__init__(name=name)
         config = config.copy()
         self._state_mask = config.pop('state_mask', True)

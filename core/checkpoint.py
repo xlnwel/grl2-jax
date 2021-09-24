@@ -17,8 +17,7 @@ def restore(ckpt_manager, ckpt, ckpt_path, name='model'):
         ckpt.restore(path)#.assert_consumed()
         pwc(f'Params for {name} are restored from "{path}".', color='cyan')
     else:
-        pwc(f'No model for {name} is found at "{ckpt_path}"!', 
-            f'Start training from scratch.', color='cyan')
+        pwc(f'No model for {name} is found at "{ckpt_path}"!', color='cyan')
     return bool(path)
 
 def save(ckpt_manager, print_terminal_info=True):
@@ -32,18 +31,18 @@ def save(ckpt_manager, print_terminal_info=True):
     if print_terminal_info:
         pwc(f'Model saved at {path}', color='cyan')
 
-def setup_checkpoint(ckpt_models, root_dir, model_name, 
-        env_step, train_step):
+def setup_checkpoint(ckpt_models, root_dir, model_name, name='model', **kwargs):
     """ Setups checkpoint
 
     Args:
         ckpt_models: A dict of models to save, including optimizers
         root_dir: The root directory for checkpoint
     """
+    if not model_name:
+        model_name = 'baseline'
     # checkpoint & manager
-    ckpt = tf.train.Checkpoint(
-        env_step=env_step, train_step=train_step, **ckpt_models)
-    ckpt_path = f'{root_dir}/{model_name}/models'
+    ckpt = tf.train.Checkpoint(**ckpt_models, **kwargs)
+    ckpt_path = f'{root_dir}/{model_name}/{name}'
     ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, 5)
     
     return ckpt, ckpt_path, ckpt_manager

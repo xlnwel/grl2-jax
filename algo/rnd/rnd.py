@@ -3,7 +3,7 @@ import cloudpickle
 import numpy as np
 import tensorflow as tf
 
-from core.base import backward_discounted_sum
+from core.agent import backward_discounted_sum
 from utility.utils import RunningMeanStd
 
 

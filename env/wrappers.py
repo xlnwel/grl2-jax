@@ -5,7 +5,7 @@ import gym
 import cv2
 
 from utility.utils import infer_dtype, convert_dtype
-from utility.typing import EnvOutput, GymOutput
+from utility.typing import AttrDict, EnvOutput, GymOutput
 
 # stop using GPU
 cv2.ocl.setUseOpenCL(False)
@@ -379,10 +379,21 @@ class EnvStatsBase(gym.Wrapper):
         self._info = {}
         self._output = None
         self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
+        self._stats = AttrDict(
+            obs_shape=env.obs_shape,
+            obs_dtype=env.obs_dtype,
+            action_shape=env.action_shape,
+            action_dtype=env.action_dtype,
+            action_dim=env.action_dim,
+            is_action_discrete=env.is_action_discrete,
+        )
         if timeout_done:
             logger.info('Timeout is treated as done')
         self._reset()
     
+    def stats(self):
+        return self._stats
+
     def reset(self):
         raise NotImplementedError
 

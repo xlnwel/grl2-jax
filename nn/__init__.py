@@ -1,5 +1,6 @@
 import os
 
+from nn.registry import *
 from utility.file import load_files
 
 

@@ -5,7 +5,7 @@ from utility.tf_utils import reduce_mean, explained_variance
 from utility.rl_loss import n_step_target, huber_loss
 from core.mixin import Memory
 from core.tf_config import build
-from core.base import override
+from core.agent import override
 from algo.dqn.base import DQNBase
 from replay.local import LocalBuffer
 
