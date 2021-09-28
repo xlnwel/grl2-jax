@@ -1,4 +1,5 @@
 ---
+# NOTE: root_dir and model_name will be specified to all configs in run.train.py
 env:
     name: &env_name procgen_coinrun
     n_workers: 1
@@ -51,10 +52,6 @@ model:
         kernel_initializer: orthogonal
         activation: relu
 
-    normalize_obs: False
-    normalize_reward: True
-    gamma: &gamma .999
-
     root_dir: *algo
     model_name: *algo
 
@@ -75,6 +72,12 @@ trainer:
 
     root_dir: *algo
     model_name: *algo
+
+actor:
+    rms:
+        normalize_obs: False
+        normalize_reward: True
+        gamma: &gamma .999
 
 buffer:
     use_dataset: True

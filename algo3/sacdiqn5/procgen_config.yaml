@@ -94,7 +94,7 @@ agent:
     per_epsilon: 1.e-4
     use_is_ratio: &is False
 
-replay:
+buffer:
     replay_type: *replay
     seqlen: 10
     n_envs: *ne

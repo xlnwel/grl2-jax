@@ -47,6 +47,14 @@ def load_configs(algo, env):
     return configs
 
 
+def set_path(configs, root_dir, model_name):
+    for k, v in configs.items():
+        assert isinstance(v, dict), (k, v)
+        v['root_dir'] = root_dir
+        v['model_name'] = model_name
+    return configs
+
+
 if __name__ == '__main__':
     cmd_args = parse_train_args()
 
@@ -70,8 +78,6 @@ if __name__ == '__main__':
             model_name = change_config(cmd_args.kwargs, configs, model_name)
             if model_name == '':
                 model_name = 'baseline'
-            kw = [f'model_name={model_name}']
-            change_config(kw, configs)
 
             main = pkg.import_main('train', algo)
             if cmd_args.grid_search or cmd_args.trials > 1:
@@ -87,14 +93,14 @@ if __name__ == '__main__':
                     processes += gs()
             else:
                 dir_prefix = prefix + '-' if prefix else prefix
-                kw = [f'root_dir={logdir}/{dir_prefix}{configs.env["name"]}/{configs.agent["algorithm"]}']
-                change_config(kw, configs)
-                configs.replay['dir'] = configs.agent['root_dir'].replace('logs', 'data')
+                root_dir=f'{logdir}/{dir_prefix}{configs.env["name"]}/{configs.agent["algorithm"]}'
+                configs = set_path(configs, root_dir, model_name)
+                configs.buffer['dir'] = configs.agent['root_dir'].replace('logs', 'data')
                 if len(algo_env) > 1:
                     p = Process(target=main, args=configs)
                     p.start()
                     time.sleep(1)
                     processes.append(p)
                 else:
-                    main(*configs)
+                    main(configs)
     [p.join() for p in processes]

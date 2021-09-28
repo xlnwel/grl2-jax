@@ -4,7 +4,7 @@ import cv2
 import gym
 
 from utility.utils import batch_dicts
-from utility.typing import EnvOutput
+from env.typing import EnvOutput
 from env import make_env
 
 

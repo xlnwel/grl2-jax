@@ -6,7 +6,7 @@ from utility.tf_utils import explained_variance
 
 
 class PPOLoss(Loss):
-    def _loss(self, obs, action, value, traj_ret, advantage, logpi, 
+    def loss(self, obs, action, value, traj_ret, advantage, logpi, 
                 state=None, mask=None, prev_action=None, prev_reward=None):
         old_value = value
         terms = {}
@@ -69,5 +69,5 @@ class PPOLoss(Loss):
         
         return value_loss, v_clip_frac
 
-def create_loss(config, model):
-    return PPOLoss(config=config, model=model)
+def create_loss(config, model, name='ppo'):
+    return PPOLoss(config=config, model=model, name=name)

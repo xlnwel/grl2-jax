@@ -75,7 +75,7 @@ agent:
     per_alpha: .5
     per_epsilon: 1.e-4
 
-replay:
+buffer:
     replay_type: *replay
     # arguments for PER
     beta0: .4

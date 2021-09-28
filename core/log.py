@@ -4,15 +4,16 @@ from collections import defaultdict
 import numpy as np
 import tensorflow as tf
 
+from utility import yaml_op
 from utility.utils import isscalar
 from utility.display import pwc
 from utility.graph import image_summary, video_summary
-from utility import yaml_op
+from utility.typing import AttrDict
 
 logger = logging.getLogger(__name__)
 
 
-""" Logging """
+""" Logging operations """
 def log(logger, writer, model_name, prefix, step, print_terminal_info=True, **kwargs):
     stats = dict(
         model_name=f'{model_name}',
@@ -96,6 +97,8 @@ def save_code(root_dir, model_name):
 
 def simplify_datatype(config):
     """ Converts ndarray to list, useful for saving config as a yaml file """
+    if isinstance(config, AttrDict):
+        config = config.asdict()
     for k, v in config.items():
         if isinstance(v, dict):
             config[k] = simplify_datatype(v)

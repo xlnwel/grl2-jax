@@ -5,9 +5,9 @@ import numpy as np
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from core.dataset import create_dataset
-from utility.utils import Every, TempStore
+from utility.utils import TempStore
 from utility.run import Runner, evaluate
-from utility.timer import Timer
+from utility.timer import Every, Timer
 from utility import pkg
 from env.func import create_env
 
@@ -23,15 +23,14 @@ def train(agent, env, eval_env, buffer):
         print('Start to initialize running stats...')
         for _ in range(10):
             runner.run(action_selector=env.random_action, step_fn=collect)
-            agent.model.update_obs_rms(np.concatenate(buffer['obs']))
-            agent.model.update_reward_rms(buffer['reward'], buffer['discount'])
+            agent.actor.update_obs_rms(np.concatenate(buffer['obs']))
+            agent.actor.update_reward_rms(buffer['reward'], buffer['discount'])
             buffer.reset()
         buffer.clear()
         agent.env_step = runner.step
         agent.save(print_terminal_info=True)
 
-    
-    if step == 0 and agent.model.is_obs_normalized:
+    if step == 0 and agent.actor.is_obs_normalized:
         initialize_rms()
 
     runner.step = step
@@ -84,8 +83,8 @@ def train(agent, env, eval_env, buffer):
         # The latter is adopted in our implementation. 
         # However, the following line currently doesn't store
         # a copy of unnormalized rewards
-        agent.model.update_reward_rms(buffer['reward'], buffer['discount'])
-        buffer.update('reward', agent.model.normalize_reward(buffer['reward']), field='all')
+        agent.actor.update_reward_rms(buffer['reward'], buffer['discount'])
+        buffer.update('reward', agent.actor.normalize_reward(buffer['reward']), field='all')
         agent.record_last_env_output(runner.env_output)
         value = agent.compute_value()
         buffer.finish(value)
@@ -104,19 +103,12 @@ def train(agent, env, eval_env, buffer):
         if to_log(agent.train_step) and agent.contains_stats('score'):
             log()
 
-def main(
-        env_config, 
-        model_config, 
-        loss_config, 
-        trainer_config, 
-        agent_config, 
-        buffer_config, 
-        train=train):
+def main(config, train=train):
     silence_tf_logs()
     configure_gpu()
-    configure_precision(agent_config['precision'])
+    configure_precision(config.agent['precision'])
 
-    use_ray = env_config.get('n_workers', 1) > 1
+    use_ray = config.env.get('n_workers', 1) > 1
     if use_ray:
         import ray
         from utility.ray_setup import sigint_shutdown_ray
@@ -124,8 +116,8 @@ def main(
         sigint_shutdown_ray()
 
     def create_envs():
-        env = create_env(env_config, force_envvec=True)
-        eval_env_config = env_config.copy()
+        env = create_env(config.env, force_envvec=True)
+        eval_env_config = config.env.copy()
         if 'num_levels' in eval_env_config:
             eval_env_config['num_levels'] = 0
         if 'seed' in eval_env_config:
@@ -147,19 +139,19 @@ def main(
         sys.exit(0)
     signal.signal(signal.SIGINT, sigint_handler)
 
-    def create_buffer_dataset(model):
-        buffer_config['n_envs'] = env.n_envs
-        buffer_config['state_keys'] = model.state_keys
-        buffer_config['use_dataset'] = buffer_config.get('use_dataset', False)
-        Buffer = pkg.import_module('buffer', config=agent_config).Buffer
-        buffer = Buffer(buffer_config)
+    def create_buffer_dataset(model, env_stats):
+        config.buffer['n_envs'] = env.n_envs
+        config.buffer['state_keys'] = model.state_keys
+        config.buffer['use_dataset'] = config.buffer.get('use_dataset', False)
+        Buffer = pkg.import_module('buffer', config=config.agent).Buffer
+        buffer = Buffer(config.buffer)
         
-        if buffer_config['use_dataset']:
-            am = pkg.import_module('agent', config=agent_config)
+        if config.buffer['use_dataset']:
+            am = pkg.import_module('agent', config=config.agent)
             data_format = am.get_data_format(
-                env=env, batch_size=buffer.batch_size,
-                sample_size=agent_config.get('sample_size'),
-                store_state=agent_config.get('store_state'),
+                env_stats=env_stats, batch_size=buffer.batch_size,
+                sample_size=config.agent.get('sample_size'),
+                store_state=config.agent.get('store_state'),
                 state_size=model.state_size)
             dataset = create_dataset(buffer, env, 
                 data_format=data_format, one_hot_action=False)
@@ -167,38 +159,35 @@ def main(
             dataset = buffer
         return buffer, dataset
     
+    def create_elements(env_stats):
+        create_model, create_loss, create_trainer, create_actor = \
+            pkg.import_elements(config=config.agent)
+
+        model = create_model(config.model, env_stats)
+        loss = create_loss(config.loss, model)
+        trainer = create_trainer(config.trainer, model, loss, env_stats)
+        actor = create_actor(config.actor, model)
+        return model, trainer, actor
+
     env_stats = env.stats()
-    def create_model_trainer():
-        create_model, create_loss, create_trainer = \
-            pkg.import_elements(config=agent_config)
+    model, trainer, actor = create_elements(env_stats)
+    buffer, dataset = create_buffer_dataset(model, env_stats)
 
-        model = create_model(model_config, env_stats)
-        loss = create_loss(loss_config, model)
-        trainer = create_trainer(trainer_config, model, loss, env_stats)
-        return model, trainer
-
-    model, trainer = create_model_trainer()
-    buffer, dataset = create_buffer_dataset(model)
-
-    def create_agent():
-        Agent = pkg.import_module('agent', config=agent_config).Agent
+    def create_agent(env_stats):
+        Agent = pkg.import_module('agent', config=config.agent).Agent
         agent = Agent(
-            config=agent_config, 
-            env_stats=env.stats(),
+            config=config.agent, 
+            env_stats=env_stats,
             model=model, 
             trainer=trainer,
+            actor=actor,
             dataset=dataset,
-            name='ppo')
+            name=config.agent['algorithm'])
 
-        agent.save_config(dict(
-            env=env_config,
-            model=model_config,
-            agent=agent_config,
-            buffer=buffer_config
-        ))
+        agent.save_config(config)
 
         return agent
-    agent = create_agent()
+    agent = create_agent(env_stats)
 
     train(agent, env, eval_env, buffer)
 

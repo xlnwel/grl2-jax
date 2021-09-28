@@ -58,12 +58,16 @@ def copy_buffer(dest_buffer, dest_start, dest_end, orig_buffer,
         dest_buffer[key][dest_start: dest_end] = orig_buffer[key][orig_start: orig_end]
 
 
-def infer_info(precision, **data):
+def infer_info(precision, pre_dims_len=None, **data):
     """ infer shape/type from data so that we can use them for buffer initialization """
     info = {}
-    pre_dims_len = 0 if isinstance(data['reward'], (int, float)) \
-        else len(data['reward'].shape)
+    if pre_dims_len is None:
+        pre_dims_len = 0 if isinstance(data['reward'], (int, float)) \
+            else len(data['reward'].shape)
     for k, v in data.items():
+        if isinstance(v, dict):
+            info.update(infer_info(precision, pre_dims_len, **v))
+            continue
         logger.debug(f'{k}, {type(v)}')
         if isinstance(v, (int, float, np.ndarray,
                 np.floating, np.signedinteger)):

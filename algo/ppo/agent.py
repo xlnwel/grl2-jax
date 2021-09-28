@@ -1,9 +1,9 @@
 import logging
 import tensorflow as tf
 
-from utility.typing import EnvOutput
 from core.agent import AgentBase
 from core.decorator import override
+from env.typing import EnvOutput
 
 
 logger = logging.getLogger(__name__)
@@ -13,12 +13,12 @@ def collect(buffer, env, env_step, reset, next_obs, **kwargs):
     buffer.add(**kwargs)
 
 
-def get_data_format(*, env, **kwargs):
-    obs_dtype = tf.uint8 if len(env.obs_shape) == 3 else tf.float32
-    action_dtype = tf.int32 if env.is_action_discrete else tf.float32
+def get_data_format(*, env_stats, **kwargs):
+    obs_dtype = tf.uint8 if len(env_stats.obs_shape) == 3 else tf.float32
+    action_dtype = tf.int32 if env_stats.is_action_discrete else tf.float32
     data_format = dict(
-        obs=((None, *env.obs_shape), obs_dtype),
-        action=((None, *env.action_shape), action_dtype),
+        obs=((None, *env_stats.obs_shape), obs_dtype),
+        action=((None, *env_stats.action_shape), action_dtype),
         value=((None, ), tf.float32), 
         traj_ret=((None, ), tf.float32),
         advantage=((None, ), tf.float32),
@@ -31,13 +31,10 @@ def get_data_format(*, env, **kwargs):
 class Agent(AgentBase):
     """ Initialization """
     @override(AgentBase)
-    def _post_init(self, env, dataset):
-        super()._post_init(env, dataset)
+    def _post_init(self, env_stats, dataset):
+        super()._post_init(env_stats, dataset)
 
-        self._huber_threshold = getattr(self, '_huber_threshold', None)
-
-        self._last_obs = None   # we record last obs before training to compute the last value
-        self._value_update = getattr(self, '_value_update', None)
+        self._env_output = None   # we record last obs before training to compute the last value
 
     """ Standard PPO methods """
     def before_run(self, env):
@@ -45,16 +42,17 @@ class Agent(AgentBase):
 
     def record_last_env_output(self, env_output):
         self._env_output = EnvOutput(
-            self.model.normalize_obs(env_output.obs), env_output.reward,
+            self.actor.normalize_obs(env_output.obs), env_output.reward,
             env_output.discount, env_output.reset)
 
     def compute_value(self, obs=None):
         # be sure you normalize obs first if obs normalization is required
         obs = self._env_output.obs if obs is None else obs
+        obs = obs.get('global_state', obs['obs'])
         return self.model.compute_value(obs).numpy()
 
     def _store_additional_stats(self):
-        self.store(**self.model.get_rms_stats())
+        self.store(**self.actor.get_rms_stats())
         self.store(**self.dataset.compute_mean_max_std('reward'))
         # self.store(**self.dataset.compute_mean_max_std('obs'))
         self.store(**self.dataset.compute_mean_max_std('advantage'))
@@ -122,10 +120,3 @@ class Agent(AgentBase):
     def _after_train_epoch(self):
         """ Does something after each training epoch """
         pass
-
-    def _store_buffer_stats(self):
-        self.store(**self.dataset.compute_mean_max_std('reward'))
-        # self.store(**self.dataset.compute_mean_max_std('obs'))
-        self.store(**self.dataset.compute_mean_max_std('advantage'))
-        self.store(**self.dataset.compute_mean_max_std('value'))
-        self.store(**self.dataset.compute_mean_max_std('traj_ret'))

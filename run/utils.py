@@ -2,7 +2,7 @@ import os, sys
 
 from utility import pkg
 from utility.display import pwc
-from utility.typing import Configs
+from utility.typing import AttrDict
 from utility.utils import eval_str
 from utility.yaml_op import load_config
 
@@ -38,17 +38,11 @@ def get_config(algo, env):
     return config
 
 
-def decompose_config(config):
-    env_config = config['env']
-    model_config = config['model']
-    loss_config = config['loss']
-    trainer_config = config['trainer']
-    agent_config = config['agent']
-    replay_config = config.get('buffer') or config.get('replay')
-    configs = Configs(
-        env_config, model_config, 
-        loss_config, trainer_config,
-        agent_config, replay_config)
+def decompose_config(config: dict):
+    configs = AttrDict(**config)
+    for k, v in configs.items():
+        if isinstance(v, dict):
+            configs[k] = decompose_config(v)
 
     return configs
 
@@ -69,7 +63,7 @@ def change_config(kw, configs, model_name=''):
                 values += vs
         return keys, values
     
-    config_keys, config_values = extract_dicts(configs._asdict())
+    config_keys, config_values = extract_dicts(configs)
     if kw:
         for s in kw:
             key, value = s.split('=')
@@ -113,4 +107,4 @@ def load_and_run(directory):
     
     main = pkg.import_main('train', config=configs.agent)
 
-    main(*configs)
+    main(configs)

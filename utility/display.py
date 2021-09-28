@@ -71,4 +71,3 @@ def display_model_var_info(models):
         nparams += display_var_info(
             model.trainable_variables, name=name, prefix='   ')
     pwc(f'Total learnable model parameters: {nparams*1e-6:0.4g} million', color='yellow')
-    

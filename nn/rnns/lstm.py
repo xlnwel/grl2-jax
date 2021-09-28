@@ -4,8 +4,8 @@ from tensorflow.keras.mixed_precision import global_policy
 
 from core.module import Module
 from nn.registry import rnn_registry
+from nn.typing import LSTMState
 from utility.tf_utils import assert_rank
-from utility.typing import LSTMState
 
 
 rnn_registry.register('lstm')(layers.LSTM)
@@ -138,6 +138,7 @@ class MLSTM(Module):
         self._state_mask = config.pop('state_mask', True)
         cell = MLSTMCell(**config)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
+        self.state_type = LSTMState
     
     def call(self, x, state, mask, additional_input=[]):
         xs = [x] + additional_input

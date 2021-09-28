@@ -370,7 +370,7 @@ class SMAC(gym.Env):
 
         self._empty_obs = dict(
             obs=np.zeros((self.n_agents, *self.obs_shape), dtype=np.float32),
-            global_state=np.zeros((self.n_agents, *self.shared_state_shape), dtype=np.float32),
+            global_state=np.zeros((self.n_agents, *self.global_state_shape), dtype=np.float32),
             action_mask=np.zeros((self.n_agents, self.n_actions), np.bool),
             life_mask=np.zeros(self.n_agents, dtype=np.float32)
         )
@@ -427,11 +427,11 @@ class SMAC(gym.Env):
         return self.shared_state_spaces[0]
 
     @property
-    def shared_state_shape(self):
+    def global_state_shape(self):
         return (self.shared_state_space[0],)
     
     @property
-    def shared_state_dtype(self):
+    def global_state_dtype(self):
         return np.float32
 
     def _launch(self):

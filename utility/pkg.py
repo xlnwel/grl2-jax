@@ -43,7 +43,8 @@ def import_elements(algo=None, *, config=None):
     model = import_module(name='elements.model', algo=algo, config=config, place=-1)
     loss = import_module(name='elements.loss', algo=algo, config=config, place=-1)
     trainer = import_module(name='elements.trainer', algo=algo, config=config, place=-1)
-    return model.create_model, loss.create_loss, trainer.create_trainer
+    actor = import_module(name='elements.actor', algo=algo, config=config, place=-1)
+    return model.create_model, loss.create_loss, trainer.create_trainer, actor.create_actor
 
 
 def import_agent(algo=None, *, config=None):

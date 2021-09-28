@@ -2,11 +2,12 @@ import sys
 import collections
 
 
-Configs = collections.namedtuple('configs', 'env model loss trainer agent replay')
-
 class AttrDict(dict):
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
+
+    def asdict(self):
+        return dict(self)
 
 
 def namedarraytuple(typename, field_names, return_namedtuple_cls=False,
@@ -136,13 +137,3 @@ def namedarraytuple(typename, field_names, return_namedtuple_cls=False,
     if return_namedtuple_cls:
         return result, NtCls
     return result
-
-
-# for multi-processing efficiency, we do not return info at every step
-EnvOutput = namedarraytuple('EnvOutput', 'obs reward discount reset')
-# Output format of gym
-GymOutput = namedarraytuple('GymOutput', 'obs reward discount')
-# LSTM states
-LSTMState = collections.namedtuple('LSTMState', ['h', 'c'])
-# GRU states
-GRUState = collections.namedtuple('GRUState', ['h'])

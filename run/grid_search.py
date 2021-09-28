@@ -32,6 +32,7 @@ class GridSearch:
         if kwargs == {} and self.n_trials == 1 and not self.separate_process:
             # if no argument is passed in, run the default setting
             p = Process(target=self.train_func, args=self.configs)
+            self.processes.append(p)
         else:
             # do grid search
             model_name = ''

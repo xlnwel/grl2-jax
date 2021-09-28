@@ -136,11 +136,17 @@ class Buffer:
         self._ready = False
 
     def add(self, **data):
+        def add_data(data):
+            for k, v in data.items():
+                if isinstance(v, dict):
+                    add_data(v)
+                else:
+                    self._memory[k][:, self._idx] = v
+
         if self._memory == {}:
             self._init_buffer(data)
-            
-        for k, v in data.items():
-            self._memory[k][:, self._idx] = v
+
+        add_data(data)
 
         self._idx += 1
 

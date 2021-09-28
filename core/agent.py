@@ -1,81 +1,40 @@
-from abc import ABC
+from env.typing import EnvOutput
+from typing import Union
 import logging
 
 from core.checkpoint import *
-from core.decorator import record, step_track
-from core.mixin import StepCounter
+from core.decorator import config, record, step_track
+from core.mixin.agent import StepCounter, TensorboardOps
+from core.module import Model, ModelEnsemble, Trainer, TrainerEnsemble, Actor
 from core.log import *
-from utility.display import pwc
-from utility.utils import Every
-from utility.timer import Timer
+from utility.timer import Every, Timer
 
 logger = logging.getLogger(__name__)
 
 
-class AgentImpl(ABC):
-    @classmethod
-    def as_remote(cls, **kwargs):
-        import ray
-        return ray.remote(**kwargs)(cls)
-
-    """ Checkpoint Ops """
-    def restore(self):
-        """ Restore model """
-        if getattr(self, 'trainer', None) is not None:
-            self.trainer.restore()
-        elif getattr(self, 'model', None) is not None:
-            self.model.restore()
-
-    def save(self, print_terminal_info=False):
-        """ Save model """
-        if getattr(self, 'trainer', None) is not None:
-            self.trainer.save(print_terminal_info)
-        elif getattr(self, 'model', None) is not None:
-            self.model.save(print_terminal_info)
-
-    """ Tensorboard Ops """
-    def set_summary_step(self, step):
-        """ Sets tensorboard step """
-        set_summary_step(step)
-
-    def scalar_summary(self, stats, prefix=None, step=None):
-        """ Adds scalar summary to tensorboard """
-        scalar_summary(self._writer, stats, prefix=prefix, step=step)
-
-    def histogram_summary(self, stats, prefix=None, step=None):
-        """ Adds histogram summary to tensorboard """
-        histogram_summary(self._writer, stats, prefix=prefix, step=step)
-
-    def graph_summary(self, sum_type, *args, step=None):
-        """ Adds graph summary to tensorboard
-        Args:
-            sum_type str: either "video" or "image"
-            args: Args passed to summary function defined in utility.graph,
-                of which the first must be a str to specify the tag in Tensorboard
-        """
-        assert isinstance(args[0], str), f'args[0] is expected to be a name string, but got "{args[0]}"'
-        args = list(args)
-        args[0] = f'{self.name}/{args[0]}'
-        graph_summary(self._writer, sum_type, args, step=step)
-
-    def video_summary(self, video, step=None):
-        video_summary(f'{self.name}/sim', video, step=step)
-
-    def save_config(self, config):
-        """ Save config.yaml """
-        save_config(self._root_dir, self._model_name, config)
-
-    def print_construction_complete(self):
-        pwc(f'{self.name.upper()} is constructed...', color='cyan')
+def set_attr(obj, name, attr):
+    setattr(obj, name, attr)
+    if isinstance(attr, dict):
+        for k, v in attr.items():
+            if not k.endswith(name):
+                raise ValueError(f'Inconsistent error: {k} does not ends with {name}')
+            setattr(obj, k, v)
 
 
-class AgentBase(AgentImpl, StepCounter):
+class AgentBase(StepCounter, TensorboardOps):
     """ Initialization """
+    @config
     @record
-    def __init__(self, *, env_stats, 
-            model=None, trainer=None, dataset=None):        
-        self.model = model
-        self.trainer = trainer
+    def __init__(self, 
+                 *, 
+                 env_stats, 
+                 model: Union[Model, ModelEnsemble], 
+                 trainer: Union[Trainer, TrainerEnsemble], 
+                 actor: Actor,
+                 dataset=None):
+        set_attr(self, 'model', model)
+        set_attr(self, 'trainer', trainer)
+        self.actor = actor
         self.dataset = dataset
 
         self._post_init(env_stats, dataset)
@@ -107,8 +66,19 @@ class AgentBase(AgentImpl, StepCounter):
         pass 
 
     """ Call """
-    def __call__(self, env_output, **kwargs):
-        return self.model(env_output, **kwargs)
+    def __call__(self, 
+                 env_output: EnvOutput, 
+                 evaluation: bool=False,
+                 return_eval_stats: bool=False, 
+                 **kwargs):
+        inp = self._prepare_input_to_model(env_output, **kwargs)
+        return self.actor(inp, evaluation=evaluation, 
+            return_eval_stats=return_eval_stats)
+
+    def _prepare_input_to_model(self, env_output, **kwargs):
+        """ Prepare input to the model for inference """
+        inp = env_output.obs
+        return inp
 
     """ Train """
     @step_track
@@ -127,10 +97,16 @@ class AgentBase(AgentImpl, StepCounter):
     """ Checkpoint Ops """
     def restore(self):
         """ Restore model """
-        super().restore()
+        if getattr(self, 'trainer', None) is not None:
+            self.trainer.restore()
+        elif getattr(self, 'model', None) is not None:
+            self.model.restore()
         self.restore_step()
 
     def save(self, print_terminal_info=False):
         """ Save model """
-        super().save(print_terminal_info)
+        if getattr(self, 'trainer', None) is not None:
+            self.trainer.save(print_terminal_info)
+        elif getattr(self, 'model', None) is not None:
+            self.model.save(print_terminal_info)
         self.save_step()

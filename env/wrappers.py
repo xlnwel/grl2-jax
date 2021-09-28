@@ -5,7 +5,8 @@ import gym
 import cv2
 
 from utility.utils import infer_dtype, convert_dtype
-from utility.typing import AttrDict, EnvOutput, GymOutput
+from utility.typing import AttrDict
+from env.typing import EnvOutput, GymOutput
 
 # stop using GPU
 cv2.ocl.setUseOpenCL(False)
@@ -340,11 +341,16 @@ class DataProcess(gym.Wrapper):
 
 """ Subclasses of EnvStatsBase change the gym API:
 Both <reset> and <step> return EnvOutput of form
-(obs, reward, discount, reset), where discount 
-= 1 - done, and reset indicates if the environment 
-has been reset. By default, EnvStats automatically
+(obs, reward, discount, reset), where 
+    - obs is a dict regardless of the original form of obs
+    - reward is the reward from the original env 
+    - discount=1-done is the discount factor
+    - reset indicates if the environment has been reset. 
+
+By default, EnvStats automatically
 reset the environment when the environment is done.
-Explicitly calling EnvStats turns off auto-reset.
+Explicitly calling EnvStats.reset turns off auto-reset.
+
 For some environments truncated by max episode steps,
 we recommand to retrieve the last observation of an 
 episode using method "prev_obs"
@@ -391,6 +397,13 @@ class EnvStatsBase(gym.Wrapper):
             logger.info('Timeout is treated as done')
         self._reset()
     
+    def observation(self, obs):
+        if not isinstance(obs, dict):
+            obs = AttrDict(obs=obs)
+        else:
+            obs = AttrDict(obs)
+        return obs
+
     def stats(self):
         return self._stats
 
@@ -402,7 +415,7 @@ class EnvStatsBase(gym.Wrapper):
         self._score = 0
         self._epslen = 0
         self._game_over = False
-        return obs
+        return self.observation(obs)
 
     def score(self, **kwargs):
         return self._info.get('score', self._score)
@@ -494,6 +507,7 @@ class EnvStats(EnvStatsBase):
             if self.auto_reset:
                 # when resetting, we override the obs and reset but keep the others
                 obs, _, _, reset = self._reset()
+        obs = self.observation(obs)
         self._info = info
 
         self._output = EnvOutput(obs, reward, discount, reset)
@@ -501,7 +515,19 @@ class EnvStats(EnvStatsBase):
 
 
 class MAEnvStats(EnvStatsBase):
+    """ <MAEnvStats> expects agent-wise reward and done signal per step.
+    Otherwise, go for <EnvStats>
+    """
     manual_reset_warning = True
+    def __init__(self, env, max_episode_steps=None, timeout_done=False, auto_reset=True):
+        super().__init__(env, max_episode_steps=max_episode_steps, timeout_done=timeout_done, auto_reset=auto_reset)
+        self._stats.update({
+            'global_state_shape': self.global_state_shape,
+            'global_state_dtype': self.global_state_dtype,
+            'use_life_mask': self.use_life_mask,
+            'use_action_mask': self.use_action_mask,
+        })
+
     def reset(self):
         if self.auto_reset:
             self.auto_reset = False
@@ -556,6 +582,7 @@ class MAEnvStats(EnvStatsBase):
             obs, _, _, reset = self._reset()
         else:
             reset = np.zeros(self.n_agents, self.float_dtype)
+        obs = self.observation(obs)
         self._info = info
 
         self._output = EnvOutput(obs, reward, discount, reset)

@@ -6,6 +6,22 @@ from utility.aggregator import Aggregator
 from utility.display import pwc
 
 
+class Every:
+    def __init__(self, period, start=0):
+        self._period = period
+        self._next = start
+    
+    def __call__(self, step):
+        if step >= self._next:
+            while step >= self._next:
+                self._next += self._period
+            return True
+        return False
+
+    def step(self):
+        return self._next - self._period
+
+
 def timeit(func, *args, name=None, to_print=False, **kwargs):
 	start_time = gmtime()
 	start = time()

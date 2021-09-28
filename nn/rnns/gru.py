@@ -4,8 +4,8 @@ from tensorflow.keras.mixed_precision import global_policy
 
 from core.module import Module
 from nn.registry import rnn_registry
+from nn.typing import GRUState
 from utility.tf_utils import assert_rank
-from utility.typing import GRUState
 
 
 rnn_registry.register('gru')(layers.GRU)
@@ -132,7 +132,8 @@ class MGRU(Module):
         self._state_mask = config.pop('state_mask', True)
         cell = MGRUCell(**config)
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
-    
+        self.state_type = GRUState
+
     def call(self, x, state, mask, additional_input=[]):
         xs = [x] + additional_input
         mask = tf.expand_dims(mask, axis=-1)

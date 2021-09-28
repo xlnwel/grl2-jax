@@ -4,8 +4,7 @@ import functools
 import numpy as np
 import tensorflow as tf
 
-from utility.utils import Every
-from utility.timer import Timer
+from utility.timer import Every, Timer
 from algo.ppo.train import main
 
 
@@ -84,15 +83,15 @@ def run(agent, env, buffer, step):
 def train(agent, env, eval_env, buffer):
     del eval_env    # multi-agent environments are too costly to evaluate
     def initialize_rms(step):
-        if step == 0 and agent.is_obs_normalized:
+        if step == 0 and agent.model.is_obs_normalized:
             print('Start to initialize running stats...')
             for i in range(10):
                 step, data = random_run(env, step)
                 life_mask = data.get('life_mask')
-                agent.update_obs_rms(data['obs'], mask=life_mask)
-                agent.update_obs_rms(data['global_state'], 
+                agent.model.update_obs_rms(data['obs'], mask=life_mask)
+                agent.model.update_obs_rms(data['global_state'], 
                     'global_state', mask=life_mask)
-                agent.update_reward_rms(data['reward'], data['discount'])
+                agent.model.update_reward_rms(data['reward'], data['discount'])
             agent.env_step = step
             agent.save(print_terminal_info=True)
         return step
@@ -106,8 +105,8 @@ def train(agent, env, eval_env, buffer):
                 continue
             reward = buffer.get(i, 'reward')
             discount = buffer.get(i, 'discount')
-            agent.update_reward_rms(reward, discount)
-            buffer.update_buffer(i, 'reward', agent.normalize_reward(reward))
+            agent.model.update_reward_rms(reward, discount)
+            buffer.update_buffer(i, 'reward', agent.model.normalize_reward(reward))
         agent.record_last_env_output(last_env_output)
         value = agent.compute_value()
         buffer.finish(value)

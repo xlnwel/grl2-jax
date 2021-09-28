@@ -162,11 +162,11 @@ class MultiAgentEnv(gym.Env):
         return self.shared_state_spaces[0]
 
     @property
-    def shared_state_shape(self):
+    def global_state_shape(self):
         return self.shared_state_space.shape
     
     @property
-    def shared_state_dtype(self):
+    def global_state_dtype(self):
         return np.float32
 
     def seed(self, seed=None):

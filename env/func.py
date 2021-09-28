@@ -3,7 +3,7 @@ import numpy as np
 from env.cls import Env, EnvVec, make_env
 
 
-def create_env(config, env_fn=None, force_envvec=False):
+def create_env(config, env_fn=None, force_envvec=True):
     """ Creates an Env/EnvVec from config """
     config = config.copy()
     env_fn = env_fn or make_env

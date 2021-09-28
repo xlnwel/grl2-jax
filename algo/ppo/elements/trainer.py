@@ -21,12 +21,11 @@ class PPOTrainer(Trainer):
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
-        self.learn = build(self._learn, TensorSpecs)
+        self.learn = build(self.learn, TensorSpecs)
 
-    @tf.function
-    def _learn(self, obs, action, value, traj_ret, advantage, logpi, 
+    def raw_learn(self, obs, action, value, traj_ret, advantage, logpi, 
                 state=None, mask=None, prev_action=None, prev_reward=None):
-        tape, loss, terms = self.loss._loss(
+        tape, loss, terms = self.loss.loss(
             obs, action, value, traj_ret, advantage, logpi, 
             state, mask, prev_action, prev_reward)
         terms['ppo_norm'] = self.optimizer(tape, loss)
