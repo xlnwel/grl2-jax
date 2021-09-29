@@ -43,7 +43,7 @@ class Agent(AgentBase):
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
         if 'steps'  in self.dataset.data_format:
             TensorSpecs['steps'] = ((), tf.float32, 'steps')
-        self.learn = build(self._learn, TensorSpecs, 
+        self.train = build(self._learn, TensorSpecs, 
                             batch_size=self._batch_size, 
                             print_terminal_info=True)
 
@@ -62,12 +62,12 @@ class Agent(AgentBase):
         return action
 
     @step_track
-    def learn_log(self, step):
+    def train_log(self, step):
         data = self.dataset.sample()
         if self._is_per:
             idxes = data.pop('idxes').numpy()
 
-        terms = self.learn(**data)
+        terms = self.train(**data)
         if self.train_step % 2 == 0:
             self._update_target_qs()
             self._update_target_encoder()

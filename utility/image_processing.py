@@ -8,8 +8,9 @@ from skimage.io import imsave
 import tensorflow as tf
 
 from utility.display import pwc
-from utility import utils
+from utility.file import check_make_dir
 from utility.graph import grid_placed
+from utility.utils import squarest_grid_size
 
 
 def read_image(image_path, image_shape=None, preserve_range=True):
@@ -33,9 +34,9 @@ def save_image(images, path, size=None):
     assert images.shape.ndims == 4, f'images should be 4D, but get shape {images.shape}'
     num_images = images.shape[0]
     if size is None:
-        size = utils.squarest_grid_size(num_images)
+        size = squarest_grid_size(num_images)
     images = grid_placed(images, size)
-    utils.check_make_dir(path)
+    check_make_dir(path)
     imsave(path, images)
 
 def image_dataset(ds_dir, batch_size, image_size=None, norm_range=None, shuffle=True):

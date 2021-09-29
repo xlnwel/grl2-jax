@@ -3,10 +3,10 @@ import random
 import itertools
 import collections
 import ast
-import os.path as osp
 import math
 import multiprocessing
 import numpy as np
+import tensorflow as tf
 
 
 def deep_update(source: dict, target:dict):
@@ -81,7 +81,7 @@ def step_str(step):
 
 def expand_dims_match(x, target):
     """ Expands dimensions of x to match target,
-    an efficient way of the following process 
+    an efficient implementation of the following process 
         while len(x.shape) < len(target.shape):
             x = np.expand_dims(x, -1)
     """
@@ -215,14 +215,6 @@ def squarest_grid_size(n, more_on_width=True):
         h, w = w, h
 
     return h, w
-
-def check_make_dir(path):
-    _, ext = osp.splitext(path)
-    if ext: # if path is a file path, extract its directory path
-        path, _ = osp.split(path)
-
-    if not os.path.isdir(path):
-        os.mkdir(path)
 
 def zip_pad(*args):
     list_len = None
@@ -368,6 +360,9 @@ def batch_dicts(x, func=np.stack):
     vals = [func(v) for v in zip(*vals)]
     x = {k: v for k, v in zip(keys, vals)}
     return x
+
+def concat_map(x):
+    return tf.nest.map_structure(lambda x: np.concatenate(x), x)
 
 
 class TempStore:

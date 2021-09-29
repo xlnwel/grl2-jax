@@ -51,13 +51,13 @@ def record(init_fn):
 
     return wrapper
 
-def step_track(learn_log):
+def step_track(train_log):
     """ Tracks the training and environment steps """
-    @functools.wraps(learn_log)
+    @functools.wraps(train_log)
     def wrapper(self, step=0, **kwargs):
         if step > self.env_step:
             self.env_step = step
-        n = learn_log(self, step, **kwargs)
+        n = train_log(self, step, **kwargs)
         self.train_step += n
         return self.train_step
 

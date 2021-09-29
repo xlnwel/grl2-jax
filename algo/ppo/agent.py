@@ -51,62 +51,73 @@ class Agent(AgentBase):
         obs = obs.get('global_state', obs['obs'])
         return self.model.compute_value(obs).numpy()
 
-    def _store_additional_stats(self):
-        self.store(**self.actor.get_rms_stats())
-        self.store(**self.dataset.compute_mean_max_std('reward'))
-        # self.store(**self.dataset.compute_mean_max_std('obs'))
-        self.store(**self.dataset.compute_mean_max_std('advantage'))
-        self.store(**self.dataset.compute_mean_max_std('value'))
-        self.store(**self.dataset.compute_mean_max_std('traj_ret'))
+    def _sample_train(self):
+        def ppo_training():
+            for i in range(self.N_EPOCHS):
+                for j in range(1, self.N_MBS+1):
+                    with self._sample_timer:
+                        data = self._sample_data()
 
-    def _sample_learn(self):
-        for i in range(self.N_EPOCHS):
-            for j in range(1, self.N_MBS+1):
-                with self._sample_timer:
-                    data = self._sample_data()
+                    data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
 
-                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+                    with self._learn_timer:
+                        terms = self.trainer.train(**data)
 
-                with self._learn_timer:
-                    terms = self.trainer.learn(**data)
+                    kl = terms.pop('kl').numpy()
+                    value = terms.pop('value').numpy()
+                    terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
 
-                kl = terms.pop('kl').numpy()
-                value = terms.pop('value').numpy()
-                terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
+                    self.store(**terms)
+                    if getattr(self, '_max_kl', None) and kl > self._max_kl:
+                        break
+                    if self._value_update == 'reuse':
+                        self.dataset.update('value', value)
 
-                self.store(**terms)
+                    self._after_train_step()
+
                 if getattr(self, '_max_kl', None) and kl > self._max_kl:
+                    logger.info(f'{self._model_name}: Eearly stopping after '
+                        f'{i*self.N_MBS+j} update(s) due to reaching max kl.'
+                        f'Current kl={kl:.3g}')
                     break
-                if self._value_update == 'reuse':
-                    self.dataset.update('value', value)
+                
+                if self._value_update == 'once':
+                    self.dataset.update_value_with_func(self.compute_value)
+                if self._value_update is not None:
+                    last_value = self.compute_value()
+                    self.dataset.finish(last_value)
+                
+                self._after_train_epoch()
+            n = i * self.N_MBS + j
 
-                self._after_train_step()
+            self.store(**{
+                'stats/policy_updates': n,
+                'train/kl': kl,
+                'train/value': value,
+                'time/sample_mean': self._sample_timer.average(),
+                'time/learn_mean': self._learn_timer.average(),
+            })
 
-            if getattr(self, '_max_kl', None) and kl > self._max_kl:
-                logger.info(f'{self._model_name}: Eearly stopping after '
-                    f'{i*self.N_MBS+j} update(s) due to reaching max kl.'
-                    f'Current kl={kl:.3g}')
-                break
+            if self._to_summary(self.train_step + n):
+                self._summary(data, terms)
             
-            if self._value_update == 'once':
-                self.dataset.update_value_with_func(self.compute_value)
-            if self._value_update is not None:
-                last_value = self.compute_value()
-                self.dataset.finish(last_value)
-            
-            self._after_train_epoch()
+            return n
 
-        n = i * self.N_MBS + j
-        self.store(**{
-            'stats/policy_updates': n,
-            'train/kl': kl,
-            'train/value': value,
-            'time/sample_mean': self._sample_timer.average(),
-            'time/learn_mean': self._learn_timer.average(),
-        })
+        def extra_value_training():
+            for _ in range(self.N_VALUE_EPOCHS):
+                for _ in range(self.N_MBS):
+                    data = self.dataset.sample(self._value_sample_keys)
 
-        if self._to_summary(self.train_step + n):
-            self._summary(data, terms)
+                    data = {k: tf.convert_to_tensor(data[k]) 
+                        for k in self._value_sample_keys}
+
+                    terms = self.trainer.learn_value(**data)
+                    terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
+                    self.store(**terms)
+
+        n = ppo_training()
+        extra_value_training()
+        self._after_learn()
 
         return n
     
@@ -120,3 +131,9 @@ class Agent(AgentBase):
     def _after_train_epoch(self):
         """ Does something after each training epoch """
         pass
+    
+    def _after_learn(self):
+        self._store_additional_stats()
+
+    def _store_additional_stats(self):
+        self.store(**self.actor.get_rms_stats())

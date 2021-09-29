@@ -28,8 +28,8 @@ class Agent(DQNBase):
 
     # @tf.function
     # def _summary(self, data, terms):
-    #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
-    #     tf.summary.histogram('learn/reward', data['reward'], step=self._env_step)
+    #     tf.summary.histogram('train/entropy', terms['entropy'], step=self._env_step)
+    #     tf.summary.histogram('train/reward', data['reward'], step=self._env_step)
 
     @tf.function
     def _learn(self, obs, action, reward, next_obs, discount, steps=1, IS_ratio=1):

@@ -79,8 +79,8 @@ def get_learner_class(AgentBase):
             return dataset
 
         @step_track
-        def learn_log(self, step):
-            self._sample_learn()
+        def train_log(self, step):
+            self._sample_train()
             self._store_buffer_stats()
             self._store_rms_stats()
 

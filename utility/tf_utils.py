@@ -3,7 +3,12 @@ import tensorflow as tf
 
 
 def tensor2numpy(x):
-    return tf.nest.map_structure(lambda x: x.numpy(), x)
+    return tf.nest.map_structure(
+        lambda x: x.numpy() if isinstance(x, tf.Tensor) else x, x)
+
+def numpy2tensor(x):
+    return tf.nest.map_structure(
+        lambda x: tf.convert_to_tensor(x), x)
 
 def upsample(x):
     h, w = x.get_shape().as_list()[1:-1]

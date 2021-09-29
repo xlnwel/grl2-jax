@@ -8,7 +8,7 @@ from tensorflow.keras import layers
 from core.checkpoint import *
 from core.optimizer import create_optimizer
 from utility.utils import config_attr, eval_config
-from utility.tf_utils import tensor2numpy
+from utility.tf_utils import numpy2tensor, tensor2numpy
 
 
 def construct_components(config):
@@ -302,8 +302,8 @@ class Trainer(tf.Module):
         opt_config = eval_config(config.pop('optimizer'))
         self.optimizer = create_optimizer(modules, opt_config)
         
-        self.learn = tf.function(self.raw_learn)
-        self._build_learn(env_stats)
+        self.train = tf.function(self.raw_train)
+        self._build_train(env_stats)
         self._has_ckpt = 'root_dir' in config and 'model_name' in config
         if self._has_ckpt:
             self.ckpt, self.ckpt_path, self.ckpt_manager = setup_checkpoint(
@@ -321,10 +321,10 @@ class Trainer(tf.Module):
             f'{name}_model': self.model
         }
 
-    def _build_learn(self, env_stats):
+    def _build_train(self, env_stats):
         pass
 
-    def raw_learn(self):
+    def raw_train(self):
         raise NotImplementedError
     
     def _post_init(self, config, env_stats):
@@ -405,15 +405,15 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
         self.model = model
         self.loss = loss
 
-        self.learn = tf.function(self.raw_learn)
-        self._build_learn(env_stats)
+        self.train = tf.function(self.raw_train)
+        self._build_train(env_stats)
         if config.get('display_var', True):
             display_model_var_info(self.components)
 
-    def _build_learn(self, env_stats):
+    def _build_train(self, env_stats):
         raise NotImplementedError
     
-    def raw_learn(self):
+    def raw_train(self):
         raise NotImplementedError
 
 
@@ -445,11 +445,11 @@ class Actor:
             evaluation: evaluation mode or not
             return_eval_stats: if return evaluation stats
         Return:
-            action and terms.
+            (action, terms, rnn_state)
         """
-        inp = self._process_input(inp, evaluation)
+        inp, tf_inp = self._process_input(inp, evaluation)
         out = self.model.action(
-            **inp, 
+            **tf_inp, 
             evaluation=evaluation,
             return_eval_stats=return_eval_stats)
         out = self._process_output(inp, out, evaluation)
@@ -457,8 +457,8 @@ class Actor:
         return out
 
     """ Overwrite the following methods if necessary """
-    def _process_input(inp: dict, evaluation: bool):
-        """ Pre-processes inputs to the model
+    def _process_input(self, inp: dict, evaluation: bool):
+        """ Processes input to Model at the algorithmic level 
         
         Args:
             inp: input to the model
@@ -466,13 +466,14 @@ class Actor:
         Returns: 
             processed input to <model.action>
         """
-        return inp
+        return inp, numpy2tensor(inp)
 
     def _process_output(self, 
                         inp: dict, 
                         out: Tuple[tf.Tensor, Dict[str, tf.Tensor]], 
                         evaluation: bool):
-        """ Post-processes output
+        """ Post-processes output. By default, 
+        we convert tf.Tensor to np.ndarray
         
         Args:
             inp: Pre-processed inputs
@@ -480,7 +481,8 @@ class Actor:
         Returns:
             out: results returned to the environment
         """
-        return tensor2numpy(out)
+        out = (*tensor2numpy(out[:2]), out[-1])
+        return out
 
     def save_auxiliary_stats(self):
         pass

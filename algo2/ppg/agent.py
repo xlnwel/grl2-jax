@@ -52,7 +52,7 @@ class Agent(PPOBase):
         return actor_models + value_models + [self.aux_value]
 
     @override(PPOBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
@@ -62,7 +62,7 @@ class Agent(PPOBase):
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
-        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
+        self.train = build(self._learn, TensorSpecs, batch_size=self._batch_size)
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
             logits=((env.action_dim,), tf.float32, 'logits'),
@@ -77,7 +77,7 @@ class Agent(PPOBase):
         out = tensor2numpy(out)
         return out
 
-    def aux_learn_log(self, step):
+    def aux_train_log(self, step):
         for i in range(self.N_AUX_EPOCHS):
             for j in range(1, self.N_AUX_MBS+1):
                 data = self.dataset.sample_aux_data()

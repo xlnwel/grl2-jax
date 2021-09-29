@@ -77,7 +77,7 @@ class Agent(DQNBase):
 
         return action, ar, {'ar': ar}
 
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to initialize variables
         obs_dtype = env.obs_dtype if len(env.obs_shape) == 3 else tf.float32
         TensorSpecs = dict(
@@ -93,7 +93,7 @@ class Agent(DQNBase):
         if self._n_steps > 1:
             TensorSpecs['steps'] = ((), tf.float32, 'steps')
         from core.tf_config import build
-        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
+        self.train = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     @tf.function
     def summary(self, data, terms):

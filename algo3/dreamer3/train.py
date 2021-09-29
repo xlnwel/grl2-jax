@@ -56,7 +56,7 @@ def train(agent, env, eval_env, replay):
     while step < int(agent.MAX_STEPS):
         start_step = step
         start_t = time.time()
-        agent.learn_log(step)
+        agent.train_log(step)
         obs, already_done, step = run(
             env, agent, replay, step, obs, already_done, agent.N_UPDATES)
         duration = time.time() - start_t

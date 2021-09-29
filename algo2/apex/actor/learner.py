@@ -22,14 +22,14 @@ def get_learner_base_class(AgentBase):
             self._learning_thread.start()
             
         def _learning(self):
-            # waits for enough data to learn
+            # waits for enough data to train
             while hasattr(self.dataset, 'good_to_learn') \
                     and not self.dataset.good_to_learn():
                 time.sleep(1)
             print(f'{self.name} starts learning...')
 
             while True:
-                self.learn_log()
+                self.train_log()
 
         def get_weights(self, name=None):
             return self.model.get_weights(name=name)

@@ -10,7 +10,7 @@ from algo.ppo.base import PPOBase
 class Agent(PPOBase):
     """ Initialization """
     @override(PPOBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
@@ -20,7 +20,7 @@ class Agent(PPOBase):
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
-        self.learn = build(self._learn, TensorSpecs)
+        self.train = build(self._learn, TensorSpecs)
 
     # @override(PPOBase)
     # def _summary(self, data, terms):

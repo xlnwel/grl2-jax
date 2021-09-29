@@ -13,9 +13,7 @@ def random_run(env, step):
     trajs = [collections.defaultdict(list) for _ in range(env.n_envs)]
     obs, _, _, _ = env.output()
 
-    ii = 0
     while not np.all(reset):
-        ii += 1
         next_obs, reward, discount, reset = env.step(env.random_action())
         assert np.all(reset[0] == reset), reset
         kwargs = dict(
@@ -81,22 +79,28 @@ def run(agent, env, buffer, step):
     return step, last_env_output
 
 def train(agent, env, eval_env, buffer):
-    del eval_env    # multi-agent environments are too costly to evaluate
     def initialize_rms(step):
-        if step == 0 and agent.model.is_obs_normalized:
+        if step == 0 and agent.actor.is_obs_normalized:
             print('Start to initialize running stats...')
             for i in range(10):
                 step, data = random_run(env, step)
                 life_mask = data.get('life_mask')
-                agent.model.update_obs_rms(data['obs'], mask=life_mask)
-                agent.model.update_obs_rms(data['global_state'], 
+                agent.actor.update_obs_rms(data['obs'], mask=life_mask)
+                agent.actor.update_obs_rms(data['global_state'], 
                     'global_state', mask=life_mask)
-                agent.model.update_reward_rms(data['reward'], data['discount'])
+                agent.actor.update_reward_rms(data['reward'], data['discount'])
             agent.env_step = step
             agent.save(print_terminal_info=True)
         return step
-    
-    def collect_data(step, rt, agent, env, buffer):
+    step = initialize_rms(agent.env_step)
+
+    # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
+    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
+    rt = Timer('run')
+    tt = Timer('train')
+    lt = Timer('log')
+
+    def collect_data(step, agent, env, buffer):
         with rt:
             step, last_env_output = run(agent, env, buffer, step)
         
@@ -105,48 +109,44 @@ def train(agent, env, eval_env, buffer):
                 continue
             reward = buffer.get(i, 'reward')
             discount = buffer.get(i, 'discount')
-            agent.model.update_reward_rms(reward, discount)
-            buffer.update_buffer(i, 'reward', agent.model.normalize_reward(reward))
+            agent.actor.update_reward_rms(reward, discount)
+            buffer.update_buffer(i, 'reward', agent.actor.normalize_reward(reward))
         agent.record_last_env_output(last_env_output)
         value = agent.compute_value()
         buffer.finish(value)
         return step
-    
-    step = initialize_rms(agent.env_step)
 
-    # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
-    rt = Timer('run')
-    tt = Timer('train')
-    lt = Timer('log')
+    def log():
+        with lt:
+            agent.store(**{
+                'stats/fps': (step - start_env_step) / rt.last(),
+                'stats/tps': (agent.train_step-start_train_step)/tt.last(),
+                'stats/train_step': agent.train_step,
+                'time/run': rt.total(), 
+                'time/train': tt.total(),
+                'time/log': lt.total(),
+                'time/run_mean': rt.average(), 
+                'time/train_mean': tt.average(),
+                'time/log_mean': lt.average(),
+            })
+            agent.log(step)
+            agent.save()
+
     print('Training starts...')
     while step < agent.MAX_STEPS:
         buffer.reset()
         start_env_step = agent.env_step
         while not buffer.ready():
-            step = collect_data(step, rt, agent, env, buffer)
+            step = collect_data(step, agent, env, buffer)
         start_train_step = agent.train_step
         with tt:
-            agent.learn_log(step)
+            agent.train_log(step)
         agent.store(
             fps=(step - start_env_step) / rt.last(),
             tps=(agent.train_step-start_train_step)/tt.last()
         )
 
         if to_log(agent.train_step) and agent.contains_stats('score'):
-            with lt:
-                agent.store(**{
-                    'stats/fps': (step - start_env_step) / rt.last(),
-                    'stats/tps': (agent.train_step-start_train_step)/tt.last(),
-                    'stats/train_step': agent.train_step,
-                    'time/run': rt.total(), 
-                    'time/train': tt.total(),
-                    'time/log': lt.total(),
-                    'time/run_mean': rt.average(), 
-                    'time/train_mean': tt.average(),
-                    'time/log_mean': lt.average(),
-                })
-                agent.log(step)
-                agent.save()
+            log()
 
 main = functools.partial(main, train=train)

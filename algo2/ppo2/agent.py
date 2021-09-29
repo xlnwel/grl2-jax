@@ -38,7 +38,7 @@ class Agent(Memory, PPOBase):
         self._setup_memory_state_record()
 
     @override(PPOBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=((self._sample_size, *env.obs_shape), env.obs_dtype, 'obs'),
@@ -61,7 +61,7 @@ class Agent(Memory, PPOBase):
             if 'prev_reward' in self._additional_rnn_inputs:
                 TensorSpecs['prev_reward'] = (
                     (self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
-        self.learn = build(self._learn, TensorSpecs)
+        self.train = build(self._learn, TensorSpecs)
 
     """ Call """
     # @override(PPOBase)

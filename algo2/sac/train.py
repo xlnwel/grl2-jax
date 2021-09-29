@@ -16,7 +16,7 @@ from algo.dqn.train import *
 #         if reset:
 #             kwargs['next_obs'] = env.prev_obs()
 #         replay.add(**kwargs)
-#         agent.learn_log(step)
+#         agent.train_log(step)
 
 #     step = agent.env_step
 #     collect = lambda *args, **kwargs: replay.add(**kwargs)
@@ -106,7 +106,7 @@ from algo.dqn.train import *
 #             epslen = 0
 
 #         if replay.good_to_learn() and t % agent.TRAIN_PERIOD == 0:
-#             agent.learn_log(t)
+#             agent.train_log(t)
 #         if to_log(t):
 #             eval_score, eval_epslen, _ = evaluate(eval_env, agent)
 

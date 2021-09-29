@@ -91,7 +91,7 @@ def train(agent, env, eval_env, buffer):
 
         start_train_step = agent.train_step
         with tt:
-            agent.learn_log(step)
+            agent.train_log(step)
         agent.store(
             fps=(step-start_env_step)/rt.last(),
             tps=(agent.train_step-start_train_step)/tt.last())
@@ -118,16 +118,21 @@ def main(config, train=train):
     def create_envs():
         env = create_env(config.env, force_envvec=True)
         eval_env_config = config.env.copy()
-        if 'num_levels' in eval_env_config:
-            eval_env_config['num_levels'] = 0
-        if 'seed' in eval_env_config:
-            eval_env_config['seed'] += 1000
-        eval_env_config['n_workers'] = 1
-        for k in list(eval_env_config.keys()):
-            # pop reward hacks
-            if 'reward' in k:
-                eval_env_config.pop(k)
-        eval_env = create_env(eval_env_config, force_envvec=True)
+        if config.env.pop('do_evaluation', True):
+            if 'num_levels' in eval_env_config:
+                eval_env_config['num_levels'] = 0
+            if 'seed' in eval_env_config:
+                eval_env_config['seed'] += 1000
+            eval_env_config['n_workers'] = 1
+            for k in list(eval_env_config.keys()):
+                # pop reward hacks
+                if 'reward' in k:
+                    eval_env_config.pop(k)
+            
+            eval_env = create_env(eval_env_config, force_envvec=True)
+        else: 
+            eval_env = None
+        
         return env, eval_env
     
     env, eval_env = create_envs()
@@ -139,7 +144,19 @@ def main(config, train=train):
         sys.exit(0)
     signal.signal(signal.SIGINT, sigint_handler)
 
-    def create_buffer_dataset(model, env_stats):
+    env_stats = env.stats()
+    def create_elements():
+        create_model, create_loss, create_trainer, create_actor = \
+            pkg.import_elements(config=config.agent)
+
+        model = create_model(config.model, env_stats)
+        loss = create_loss(config.loss, model)
+        trainer = create_trainer(config.trainer, model, loss, env_stats)
+        actor = create_actor(config.actor, model)
+        return model, trainer, actor
+    model, trainer, actor = create_elements()
+
+    def create_buffer_dataset():
         config.buffer['n_envs'] = env.n_envs
         config.buffer['state_keys'] = model.state_keys
         config.buffer['use_dataset'] = config.buffer.get('use_dataset', False)
@@ -158,22 +175,9 @@ def main(config, train=train):
         else:
             dataset = buffer
         return buffer, dataset
-    
-    def create_elements(env_stats):
-        create_model, create_loss, create_trainer, create_actor = \
-            pkg.import_elements(config=config.agent)
+    buffer, dataset = create_buffer_dataset()
 
-        model = create_model(config.model, env_stats)
-        loss = create_loss(config.loss, model)
-        trainer = create_trainer(config.trainer, model, loss, env_stats)
-        actor = create_actor(config.actor, model)
-        return model, trainer, actor
-
-    env_stats = env.stats()
-    model, trainer, actor = create_elements(env_stats)
-    buffer, dataset = create_buffer_dataset(model, env_stats)
-
-    def create_agent(env_stats):
+    def create_agent():
         Agent = pkg.import_module('agent', config=config.agent).Agent
         agent = Agent(
             config=config.agent, 
@@ -185,13 +189,13 @@ def main(config, train=train):
             name=config.agent['algorithm'])
 
         agent.save_config(config)
-
         return agent
-    agent = create_agent(env_stats)
+    agent = create_agent()
 
     train(agent, env, eval_env, buffer)
 
     if use_ray:
         env.close()
-        eval_env.close()
+        if eval_env is not None:
+            eval_env.close()
         ray.shutdown()

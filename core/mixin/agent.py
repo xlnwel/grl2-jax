@@ -130,20 +130,21 @@ class ActionScheduler:
         """ Gets action temperature """
         return self._eval_act_temp if evaluation else self._act_temp
 
+
 class Memory:
     def _setup_memory_state_record(self):
         """ Setups attributes for RNNs """
         self._state = None
-        # do specify additional_rnn_inputs in *config.yaml. Otherwise, 
-        # no additional rnn input is expected.
-        # additional_rnn_inputs is expected to be a dict of (name, dtypes)
-        # NOTE: additional rnn inputs are not tested yet.
-        # self._additional_rnn_inputs = getattr(self, '_additional_rnn_inputs', {})
-        # self._default_additional_rnn_inputs = self._additional_rnn_inputs.copy()
-        # logger.info(f'Additional rnn inputs: {self._additional_rnn_inputs}')
-    
+
     def _get_state_with_batch_size(self, batch_size):
-        return self.get_initial_state(batch_size=batch_size)
+        return self.model.get_initial_state(batch_size=batch_size)
+
+    def _prepare_input_to_actor(self, env_output):
+        inp = env_output.obs
+        mask = self._get_mask(env_output.reset)
+        inp = self._add_memory_state_to_input(inp, mask)
+
+        return inp
 
     def _add_memory_state_to_input(self, 
             inp: dict, mask: np.ndarray, state=None, prev_reward=None, batch_size=None):
@@ -151,66 +152,22 @@ class Memory:
         when introducing sequential memory.
         """
         if state is None and self._state is None:
-            batch_size = mask.shape[0]
-            self._state = self.get_initial_state(batch_size=batch_size)
-            # for k, v in self._additional_rnn_inputs.items():
-            #     assert v in ('float32', 'int32', 'float16'), v
-            #     if k == 'prev_action':
-            #         self._additional_rnn_inputs[k] = tf.zeros(
-            #             (batch_size, *self._action_shape), dtype=v)
-            #     else:
-            #         self._additional_rnn_inputs[k] = tf.zeros(batch_size, dtype=v)
-
-        # if 'prev_reward' in self._additional_rnn_inputs:
-        #     # by default, we do not process rewards. However, if you want to use
-        #     # rewards as additional rnn inputs, you need to make sure it has 
-        #     # the batch dimension
-        #     assert self._additional_rnn_inputs['prev_reward'].ndims == prev_reward.ndim, prev_reward
-        #     self._additional_rnn_inputs['prev_reward'] = tf.convert_to_tensor(
-        #         prev_reward, self._additional_rnn_inputs['prev_reward'].dtype)
+            batch_size = batch_size or mask.shape[0]
+            self._state = self.model.get_initial_state(batch_size=batch_size)
 
         if state is None:
             state = self._state
 
-        state = self.apply_mask_to_state(state, mask)
+        state = self._apply_mask_to_state(state, mask)
         inp.update({
             'state': state,
             'mask': mask,   # mask is applied in RNN
         })
-        # inp.update({
-        #     'state': state,
-        #     'mask': mask,   # mask is applied in RNN
-        #      **self._additional_rnn_inputs
-        # })
-        
+
         return inp
-    
-    def _add_tensors_to_terms(self, 
-            inp: dict, out: tuple, evaluation):
-        """ Adds tensors to terms, which will be subsequently stored in the replay,
-        call this before converting tensors to np.ndarray """
-        out, self._state = out
 
-        if not evaluation:
-            # out is (action, terms), we add necessary stats to terms
-            if self._store_state:
-                out[1].update(self._state._asdict())
-        #     if 'prev_action' in self._additional_rnn_inputs:
-        #         out[1]['prev_action'] = self._additional_rnn_inputs['prev_action']
-        #     if 'prev_reward' in self._additional_rnn_inputs:
-        #         out[1]['prev_reward'] = self._additional_rnn_inputs['prev_reward']
-
-        # if 'prev_action' in self._additional_rnn_inputs:
-        #     self._additional_rnn_inputs['prev_action'] = \
-        #         out[0] if isinstance(out, tuple) else out
-
-        return out
-    
-    def _add_non_tensors_to_terms(self, inp, out, evaluation):
-        """ Adds additional input terms, which are of non-Tensor type """
-        if not evaluation:
-            out[1]['mask'] = inp['mask']
-        return out
+    def _record_output(self, out):
+        _, _, self._state = out
 
     def _get_mask(self, reset):
         return np.float32(1. - reset)
@@ -226,15 +183,7 @@ class Memory:
         return state
 
     def reset_states(self, state=None):
-        if state is None:
-            self._state = None
-        else:
-            self._state = state
-        # if state is None:
-        #     self._state, self._additional_rnn_inputs = None, self._default_additional_rnn_inputs.copy()
-        # else:
-        #     self._state, self._additional_rnn_inputs = state
+        self._state = state
 
     def get_states(self):
         return self._state
-        # return self._state, self._additional_rnn_inputs

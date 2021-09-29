@@ -12,8 +12,8 @@ class Agent(DQNBase, IQNOps, TempLearner):
     """ Initialization """
     # @tf.function
     # def summary(self, data, terms):
-    #     tf.summary.histogram('learn/regularization', terms['regularization'], step=self._env_step)
-    #     tf.summary.histogram('learn/reward', data['reward'], step=self._env_step)
+    #     tf.summary.histogram('train/regularization', terms['regularization'], step=self._env_step)
+    #     tf.summary.histogram('train/reward', data['reward'], step=self._env_step)
     
     """ SACIQN Methods"""
     @override(DQNBase)

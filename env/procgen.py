@@ -1,6 +1,5 @@
 import gym
 
-from procgen.env import ENV_NAMES as VALID_ENV_NAMES
 from env import wrappers
 from env.utils import process_single_agent_env
 
@@ -48,6 +47,7 @@ class Procgen(gym.Env):
         name = self.config.pop("name")
         self.name = name.split('_', 1)[-1]
 
+        from procgen.env import ENV_NAMES as VALID_ENV_NAMES
         assert self.name in VALID_ENV_NAMES, self.name
 
         env = gym.make(f"procgen:procgen-{self.name}-v0", **self.config)

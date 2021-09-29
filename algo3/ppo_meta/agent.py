@@ -30,7 +30,7 @@ class Agent(PPOBase):
             clip_norm=self._clip_norm, epsilon=self._opt_eps)
 
     @override(PPOBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
@@ -40,11 +40,11 @@ class Agent(PPOBase):
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
-        self.learn = build(self._learn, TensorSpecs)
+        self.train = build(self._learn, TensorSpecs)
         self.meta_learn = build(self._meta_learn, TensorSpecs)
 
     @step_track
-    def learn_log(self, step):
+    def train_log(self, step):
         for i in range(self.N_EPOCHS):
             for j in range(1, self.N_MBS+1):
                 with self._sample_timer:
@@ -52,7 +52,7 @@ class Agent(PPOBase):
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 
                 with self._learn_timer:
-                    terms = self.meta_learn(**data) if i == 0 else self.learn(**data)
+                    terms = self.meta_learn(**data) if i == 0 else self.train(**data)
 
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
                 kl = terms.pop('train/kl')

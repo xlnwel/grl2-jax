@@ -1,5 +1,8 @@
+import numpy as np
+
 from core.mixin.actor import RMS
 from core.module import Actor
+from utility.utils import concat_map
 
 
 class PPOActor(Actor):
@@ -14,13 +17,43 @@ class PPOActor(Actor):
         return getattr(self.rms, name)
 
     def _process_input(self, inp: dict, evaluation: bool):
-        inp = self.rms.process_obs_with_rms(inp, update_rms=not evaluation)
-        return inp
+        def split_input(inp):
+            actor_state, value_state = self.model.split_state(inp['state'])
+            actor_inp = dict(
+                obs=inp['obs'],
+                state=actor_state,
+                mask=inp['mask'],
+                action_mask=inp['action_mask']
+            )
+            value_inp = dict(
+                global_state=inp['global_state'],
+                state=value_state,
+                mask=inp['mask']
+            )
+            return {'actor_inp': actor_inp, 'value_inp': value_inp}
+        if evaluation:
+            inp = self.rms.process_obs_with_rms(inp, update_rms=False)
+        else:
+            life_mask = inp.get('life_mask')
+            inp = self.rms.process_obs_with_rms(inp, mask=life_mask)
+        inp, tf_inp = super()._process_input(inp, evaluation)
+        tf_inp = split_input(tf_inp)
+        return inp, tf_inp
 
     def _process_output(self, inp, out, evaluation):
         out = super()._process_output(inp, out, evaluation)
-        if not evaluation and self.rms.is_obs_normalized:
-            out[1]['obs'] = inp['obs']
+
+        if not evaluation:
+            out[1].update({
+                'obs': inp['obs'],
+                'global_state': inp['global_state'],
+                'mask': inp['mask'], 
+            })
+            if 'action_mask' in inp:
+                out[1]['action_mask'] = inp['action_mask']
+            if 'life_mask' in inp:
+                out[1]['life_mask'] = inp['life_mask']
+
         return out
 
     def get_rms_stats(self):

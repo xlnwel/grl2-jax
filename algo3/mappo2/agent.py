@@ -56,7 +56,7 @@ class Agent(Memory, PPOBase):
     
     """ PPO methods """
     @override(PPOBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=((*self._basic_shape, *env.obs_shape), env.obs_dtype, 'obs'),
@@ -84,7 +84,7 @@ class Agent(Memory, PPOBase):
             if 'prev_reward' in self._additional_rnn_inputs:
                 TensorSpecs['prev_reward'] = (
                     self._basic_shape, self._dtype, 'prev_reward')    # this reward should be unnormlaized
-        self.learn = build(self._learn, TensorSpecs)
+        self.train = build(self._learn, TensorSpecs)
 
         TensorSpecs = dict(
             global_state=((*self._basic_shape, *env.global_state_shape), env.global_state_dtype, 'global_state'),
@@ -279,8 +279,8 @@ class Agent(Memory, PPOBase):
         obs = obs['obs']
         return obs, kwargs
 
-    def _sample_learn(self):
-        n = super()._sample_learn()
+    def _sample_train(self):
+        n = super()._sample_train()
         for _ in range(self.N_VALUE_EPOCHS):
             for _ in range(self.N_MBS):
                 data = self.dataset.sample(self._value_sample_keys)

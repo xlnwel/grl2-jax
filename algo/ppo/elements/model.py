@@ -18,7 +18,7 @@ class PPOModel(Model):
         action = self.actor.action(act_dist, evaluation)
 
         if evaluation:
-            return action
+            return action, {}, None
         else:
             logpi = act_dist.log_prob(action)
             if hasattr(self, 'value_encoder'):
@@ -26,7 +26,7 @@ class PPOModel(Model):
             value = self.value(x)
             terms = {'logpi': logpi, 'value': value}
 
-            return action, terms    # keep the batch dimension for later use
+            return action, terms, None    # keep the batch dimension for later use
 
     @tf.function
     def compute_value(self, x):

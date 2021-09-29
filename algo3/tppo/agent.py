@@ -16,7 +16,7 @@ class Agent(PPOBase):
         self._is_action_discrete = env.is_action_discrete
 
     @override(PPOBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
@@ -36,7 +36,7 @@ class Agent(PPOBase):
                 (env.action_shape, tf.float32, 'mean'),
                 (env.action_shape, tf.float32, 'std', ()),
             ]
-        self.learn = build(self._learn, TensorSpecs)
+        self.train = build(self._learn, TensorSpecs)
 
     @tf.function
     def _learn(self, obs, action, traj_ret, value, advantage, logpi, prob_params):

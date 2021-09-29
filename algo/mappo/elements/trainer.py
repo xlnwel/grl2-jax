@@ -3,12 +3,11 @@ import tensorflow as tf
 from core.decorator import override
 from core.module import Trainer, TrainerEnsemble
 from core.tf_config import build
-from nn.typing import LSTMState, GRUState
 
 
 class MAPPOActorTrainer(Trainer):
     # @override(Trainer)
-    # def _build_learn(self, env_stats):
+    # def _build_train(self, env_stats):
     #     # Explicitly instantiate tf.function to avoid unintended retracing
     #     basic_shape = (self._sample_size,)
     #     TensorSpecs = dict(
@@ -28,11 +27,11 @@ class MAPPOActorTrainer(Trainer):
     #         state_type = type(self.model.state_size)
     #         TensorSpecs['state'] = state_type(*[((sz, ), dtype, name) 
     #             for name, sz in self.model.state_size._asdict().items()])
-    #     self.learn = build(self.learn, TensorSpecs)
+    #     self.train = build(self.train, TensorSpecs)
 
-    def raw_learn(self, obs, action, advantage, logpi, state=None, 
+    def raw_train(self, obs, action, advantage, logpi, state=None, 
             action_mask=None, life_mask=None, mask=None):
-        print('retracing learn actor')
+        print('retracing train actor')
         tape, loss, terms = self.loss.loss(
             obs, action, advantage, logpi, state, 
             action_mask, life_mask, mask)
@@ -44,7 +43,7 @@ class MAPPOActorTrainer(Trainer):
 
 class MAPPOValueTrainer(Trainer):
     # @override(Trainer)
-    # def _build_learn(self, env_stats):
+    # def _build_train(self, env_stats):
     #     basic_shape = (self._sample_size,)
     #     # Explicitly instantiate tf.function to avoid unintended retracing
     #     TensorSpecs = dict(
@@ -61,11 +60,11 @@ class MAPPOValueTrainer(Trainer):
     #         state_type = type(self.model.value_trainer.state_size)
     #         TensorSpecs['state'] = state_type(*[((sz, ), dtype, f'value_{name}') 
     #             for name, sz in self.model.value_trainer.state_size._asdict().items()])
-    #     self.learn = build(self.learn, TensorSpecs)
+    #     self.train = build(self.train, TensorSpecs)
 
-    def raw_learn(self, global_state, value, traj_ret, state=None, 
+    def raw_train(self, global_state, value, traj_ret, state=None, 
             life_mask=None, mask=None):
-        print('retracing learn value function')
+        print('retracing train value function')
         tape, loss, terms = self.loss.loss(
             global_state, value, traj_ret, state, life_mask, mask)
 
@@ -76,7 +75,7 @@ class MAPPOValueTrainer(Trainer):
 
 class MAPPOTrainerEnsemble(TrainerEnsemble):
     @override(Trainer)
-    def _build_learn(self, env_stats):
+    def _build_train(self, env_stats):
         # Explicitly instantiate tf.function to avoid unintended retracing
         basic_shape = (self._sample_size,)
         TensorSpecs = dict(
@@ -99,19 +98,19 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
             state_type = type(self.model.state_size)
             TensorSpecs['state'] = state_type(*[((sz, ), dtype, name) 
                 for name, sz in self.model.state_size._asdict().items()])
-        self.learn = build(self.learn, TensorSpecs)
+        self.train = build(self.train, TensorSpecs)
 
-    def raw_learn(self, obs, global_state, action, value, 
+    def raw_train(self, obs, global_state, action, value, 
             traj_ret, advantage, logpi, mask,
             action_mask=None, life_mask=None, 
             state=None):
-        print('retracing PPOTrainerEnsemble learn')
+        print('retracing PPOTrainerEnsemble train')
         actor_state, value_state = self.model.split_state(state)
-        actor_terms = self.actor.raw_learn(
+        actor_terms = self.actor.raw_train(
             obs, action, advantage, logpi, actor_state, 
             action_mask, life_mask, mask
         )
-        value_terms = self.value.raw_learn(
+        value_terms = self.value.raw_train(
             global_state, value, traj_ret, value_state,
             life_mask, mask
         )
@@ -119,9 +118,9 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         return {**actor_terms, **value_terms}
 
     @tf.function
-    def learn_value(self, global_state, value, 
+    def train_value(self, global_state, value, 
             traj_ret, value_state, life_mask, mask):
-        terms = self.value.raw_learn(
+        terms = self.value.raw_train(
             global_state, value, traj_ret, value_state,
             life_mask, mask
         )

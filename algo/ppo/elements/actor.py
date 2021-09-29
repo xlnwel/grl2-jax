@@ -15,7 +15,7 @@ class PPOActor(Actor):
 
     def _process_input(self, inp: dict, evaluation: bool):
         inp = self.rms.process_obs_with_rms(inp, update_rms=not evaluation)
-        return inp
+        return super()._process_input(inp, evaluation)
 
     def _process_output(self, inp, out, evaluation):
         out = super()._process_output(inp, out, evaluation)

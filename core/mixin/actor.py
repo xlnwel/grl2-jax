@@ -2,6 +2,7 @@ import os
 import cloudpickle
 import logging
 import numpy as np
+from typing import Tuple, Union
 
 from utility.rms import RunningMeanStd
 
@@ -52,7 +53,7 @@ class RMS:
             logger.info(f"Reward normalization axis: {'1st' if self._normalize_reward_with_return == 'forward' else '2nd'}")
 
     def process_obs_with_rms(self, 
-                             inp: dict, 
+                             inp: Union[dict, Tuple[str, np.ndarray]], 
                              update_rms: bool=True, 
                              mask=None):
         """ Do obs normalization if required
@@ -63,17 +64,19 @@ class RMS:
                 useful for multi-agent environments, where 
                 some agents might be dead before others.
         """
-        for k in self._obs_names:
-            v = inp[k]
-            if update_rms:
-                self.update_obs_rms(v, k, mask=mask)
-            # mask is important here as the value function still matters
-            # even after the agent is dead
-            inp[k] = self.normalize_obs(v, k, mask=mask)
-
+        if isinstance(inp, dict):
+            for k in self._obs_names:
+                v = inp[k]
+                if update_rms:
+                    self.update_obs_rms(v, k, mask=mask)
+                # mask is important here as the value function still matters
+                # even after the agent is dead
+                inp[k] = self.normalize_obs(v, k, mask=mask)
+        else:
+            k, inp = inp
+            inp = self.normalize_obs(inp, k, mask)
         return inp
 
-    """ Functions for running mean and std """
     def set_rms_stats(self, obs_rms={}, rew_rms=None):
         if obs_rms:
             for k, v in obs_rms.items():

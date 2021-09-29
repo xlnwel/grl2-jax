@@ -392,6 +392,11 @@ class EnvStatsBase(gym.Wrapper):
             action_dtype=env.action_dtype,
             action_dim=env.action_dim,
             is_action_discrete=env.is_action_discrete,
+            n_agents=getattr(env, 'n_agents', 1),
+            global_state_shape=getattr(env, 'global_state_shape', ()),
+            global_state_dtype=getattr(env, 'global_state_dtype', None),
+            use_life_mask=getattr(env, 'use_life_mask', False),
+            use_action_mask=getattr(env, 'use_action_mask', False),
         )
         if timeout_done:
             logger.info('Timeout is treated as done')

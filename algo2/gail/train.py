@@ -61,7 +61,7 @@ def train(agent, env, eval_env, buffer):
             step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/rt.last())
         buffer.reshape_to_sample()
-        agent.disc_learn_log(exp_buffer)
+        agent.disc_train_log(exp_buffer)
         buffer.compute_reward_with_func(agent.compute_reward)
         buffer.reshape_to_store()
 
@@ -80,7 +80,7 @@ def train(agent, env, eval_env, buffer):
 
         start_train_step = agent.train_step
         with tt:
-            agent.learn_log(step)
+            agent.train_log(step)
         agent.store(tps=(agent.train_step-start_train_step)/tt.last())
         buffer.reset()
 

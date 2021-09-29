@@ -72,7 +72,7 @@ agent:
     store_state: True
     # (once, reuse, null)
     # "once" updates values at the end of each epoch
-    # "reuse" updates values using value from learn, which is staler than once
+    # "reuse" updates values using value from train, which is staler than once
     # null doesn't update values.
     value_update: null
 

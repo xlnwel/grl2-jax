@@ -63,32 +63,38 @@ class AgentBase(StepCounter, TensorboardOps):
 
     def _summary(self, data, terms):
         """ Adds non-scalar summaries here """
-        pass 
+        pass
 
     """ Call """
     def __call__(self, 
                  env_output: EnvOutput, 
                  evaluation: bool=False,
-                 return_eval_stats: bool=False, 
-                 **kwargs):
-        inp = self._prepare_input_to_model(env_output, **kwargs)
-        return self.actor(inp, evaluation=evaluation, 
+                 return_eval_stats: bool=False):
+        inp = self._prepare_input_to_actor(env_output)
+        out = self.actor(inp, evaluation=evaluation, 
             return_eval_stats=return_eval_stats)
+        self._record_output(out)
+        return out[:2]
 
-    def _prepare_input_to_model(self, env_output, **kwargs):
-        """ Prepare input to the model for inference """
+    def _prepare_input_to_actor(self, env_output):
+        """ Extract data from env_output as the input 
+        to Actor for inference """
         inp = env_output.obs
         return inp
 
+    def _record_output(self, out):
+        """ Record some data in out """
+        pass
+
     """ Train """
     @step_track
-    def learn_log(self, step):
-        n = self._sample_learn()
+    def train_log(self, step):
+        n = self._sample_train()
         self._store_additional_stats()
 
         return n
 
-    def _sample_learn(self):
+    def _sample_train(self):
         raise NotImplementedError
     
     def _store_additional_stats(self):
@@ -101,6 +107,7 @@ class AgentBase(StepCounter, TensorboardOps):
             self.trainer.restore()
         elif getattr(self, 'model', None) is not None:
             self.model.restore()
+        self.actor.restore_auxiliary_stats()
         self.restore_step()
 
     def save(self, print_terminal_info=False):
@@ -109,4 +116,5 @@ class AgentBase(StepCounter, TensorboardOps):
             self.trainer.save(print_terminal_info)
         elif getattr(self, 'model', None) is not None:
             self.model.save(print_terminal_info)
+        self.actor.save_auxiliary_stats()
         self.save_step()

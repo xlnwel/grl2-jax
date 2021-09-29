@@ -227,7 +227,7 @@ class Logger:
         for k in sorted(self._store_dict):
             v = self._store_dict[k]
             k_std, k_min, k_max = std, min, max
-            if k.startswith('train/'):
+            if k.startswith('train/') or k.startswith('stats/'):
                 k_std = k_min = k_max = True
             if isscalar(v):
                 stats[k] = v

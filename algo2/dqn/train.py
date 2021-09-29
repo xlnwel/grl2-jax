@@ -37,7 +37,7 @@ def train(agent, env, eval_env, replay):
         with rt:
             env_step = runner.run(step_fn=collect)
         with tt:
-            agent.learn_log(env_step)
+            agent.train_log(env_step)
 
         if to_eval(env_step):
             with TempStore(agent.get_states, agent.reset_states):

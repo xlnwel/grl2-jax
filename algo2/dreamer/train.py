@@ -38,7 +38,7 @@ def train(agent, env, eval_env, replay):
     while step < int(agent.MAX_STEPS):
         start_step = step
         start_t = time.time()
-        agent.learn_log(step)
+        agent.train_log(step)
         step = runner.run(step_fn=collect, nsteps=agent.TRAIN_PERIOD)
         duration = time.time() - start_t
         agent.store(

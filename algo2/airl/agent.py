@@ -17,7 +17,7 @@ class Agent(PPOBase):
         return models
     
     @override(PPOBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
@@ -27,7 +27,7 @@ class Agent(PPOBase):
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
-        self.learn = build(self._learn, TensorSpecs)
+        self.train = build(self._learn, TensorSpecs)
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
             action=(env.action_shape, env.action_dtype, 'action'),
@@ -45,7 +45,7 @@ class Agent(PPOBase):
     def compute_reward(self, obs, action, discount, logpi, next_obs):
         return self.discriminator.compute_reward(obs, action, discount, logpi, next_obs)
     
-    def disc_learn_log(self, exp_buffer):
+    def disc_train_log(self, exp_buffer):
         for i in range(self.N_DISC_EPOCHS):
             data = self.dataset.sample_for_disc(self._disc_batch_size)
             data_exp = exp_buffer.sample(self._disc_batch_size)

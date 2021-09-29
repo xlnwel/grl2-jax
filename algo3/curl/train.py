@@ -18,7 +18,7 @@ def train(agent, env, eval_env, replay):
         if reset:
             kwargs['next_obs'] = env.prev_obs()
         replay.add(**kwargs)
-        agent.learn_log(step)
+        agent.train_log(step)
 
     start_step = agent.env_step
     step = start_step

@@ -24,7 +24,7 @@ def train(agent, env, eval_env, replay):
                 agent.reset_noisy()
         replay.add(**kwargs)
         if step % agent.TRAIN_PERIOD == 0:
-            agent.learn_log(step)
+            agent.train_log(step)
     
     step = agent.env_step
     collect = lambda *args, **kwargs: replay.add(**kwargs)

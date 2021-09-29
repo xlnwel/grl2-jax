@@ -32,3 +32,12 @@ def load_files(path='.', recursively_load=True):
 def retrieve_pyfiles(path='.'):
     return [f for f in glob.glob(f'{path}/*') 
         if f.endswith('.py') and not f.endswith('__init__.py')]
+
+
+def check_make_dir(path):
+    _, ext = os.path.splitext(path)
+    if ext: # if path is a file path, extract its directory path
+        path, _ = os.path.split(path)
+
+    if not os.path.isdir(path):
+        os.mkdir(path)

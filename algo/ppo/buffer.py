@@ -234,21 +234,6 @@ class Buffer:
                 # in a background thread
                 self.reset()
 
-    def compute_mean_max_std(self, name):
-        stats = self._memory[name]
-        return {
-            f'stats/{name}': np.mean(stats),
-            f'stats/{name}_max': np.max(stats),
-            f'stats/{name}_min': np.min(stats),
-            f'stats/{name}_std': np.std(stats),
-        }
-
-    def compute_fraction(self, name):
-        stats = self._memory[name]
-        return {
-            f'{name}_frac': np.sum(stats) / np.prod(stats.shape)
-        }
-
     def finish(self, last_value):
         assert self._idx == self.N_STEPS, self._idx
         self.reshape_to_store()

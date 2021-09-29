@@ -57,7 +57,7 @@ def train(agent, env, eval_env, buffer):
 
         start_train_step = agent.train_step
         with Timer('train') as tt:
-            agent.learn_log(step)
+            agent.train_log(step)
         agent.store(tps=(agent.train_step-start_train_step)/tt.last())
         buffer.reset()
 

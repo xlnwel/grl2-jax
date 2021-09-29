@@ -6,36 +6,24 @@ from utility.aggregator import Aggregator
 from utility.display import pwc
 
 
-class Every:
-    def __init__(self, period, start=0):
-        self._period = period
-        self._next = start
-    
-    def __call__(self, step):
-        if step >= self._next:
-            while step >= self._next:
-                self._next += self._period
-            return True
-        return False
+def timeit(func, *args, name=None, to_print=True, 
+        return_duration=False, **kwargs):
+    start_time = gmtime()
+    start = time()
+    result = func(*args, **kwargs)
+    end = time()
+    end_time = gmtime()
 
-    def step(self):
-        return self._next - self._period
-
-
-def timeit(func, *args, name=None, to_print=False, **kwargs):
-	start_time = gmtime()
-	start = time()
-	result = func(*args, **kwargs)
-	end = time()
-	end_time = gmtime()
-
-	if to_print:
-		pwc(f'{name if name else func.__name__}: '
+    if to_print:
+        pwc(f'{name if name else func.__name__}: '
             f'Start "{strftime("%d %b %H:%M:%S", start_time)}"', 
             f'End "{strftime("%d %b %H:%M:%S", end_time)}" ' 
             f'Duration "{end - start:.3g}s"', color='blue')
-
-	return end - start, result
+    
+    if return_duration:
+	    return end - start, result
+    else:
+        return result
 
 class Timer:
     aggregators = defaultdict(Aggregator)
@@ -127,3 +115,18 @@ class LoggerTimer:
         if self._to_log:
             duration = time() - self._start
             self._logger.store(**{self._summary_name: duration})
+
+class Every:
+    def __init__(self, period, start=0):
+        self._period = period
+        self._next = start
+    
+    def __call__(self, step):
+        if step >= self._next:
+            while step >= self._next:
+                self._next += self._period
+            return True
+        return False
+
+    def step(self):
+        return self._next - self._period

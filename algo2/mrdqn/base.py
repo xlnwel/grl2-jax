@@ -48,7 +48,7 @@ class RDQNBase(Memory, DQNBase):
         self._setup_memory_state_record()
 
     @override(DQNBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         seqlen = self._sample_size + self._burn_in_size
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
@@ -72,7 +72,7 @@ class RDQNBase(Memory, DQNBase):
             if 'prev_reward' in self._additional_rnn_inputs:
                 TensorSpecs['prev_reward'] = (
                     (seqlen,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
-        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
+        self.train = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     """ Call """
     # @override(DQNBase)

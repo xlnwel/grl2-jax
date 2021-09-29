@@ -48,6 +48,7 @@ class MAPPOValueLoss(Loss):
             loss = self._value_coef * loss
         
         terms = dict(
+            value=value,
             v_loss=loss,
             explained_variance=explained_variance(traj_ret, value),
             v_clip_frac=clip_frac,

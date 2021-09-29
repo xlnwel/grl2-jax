@@ -76,7 +76,7 @@ class Agent(Memory, AgentBase):
         return dynamics_models + [self.actor, self.value]
 
     @override(AgentBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # time dimension must be explicitly specified here
         # otherwise, InaccessibleTensorError arises when expanding rssm
         TensorSpecs = dict(
@@ -93,7 +93,7 @@ class Agent(Memory, AgentBase):
                for name, sz in zip(RSSMState._fields, state_size)]
             ))
 
-        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
+        self.train = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     def _process_input(self, env_output, evaluation):
         obs, kwargs = super()._process_input(env_output, evaluation)
@@ -110,13 +110,13 @@ class Agent(Memory, AgentBase):
         return out
 
     @step_track
-    def learn_log(self, step):
+    def train_log(self, step):
         for i in range(self.N_UPDATES):
             data = self.dataset.sample()
             log_images = tf.convert_to_tensor(
                 self._log_images and i == 0 and self._to_log_images(step), 
                 tf.bool)
-            terms = self.learn(**data, log_images=log_images)
+            terms = self.train(**data, log_images=log_images)
             terms = {k: v.numpy() for k, v in terms.items()}
             self.store(**terms)
         return self.N_UPDATES

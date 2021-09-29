@@ -9,8 +9,8 @@ from algo.sacd.base import TempLearner
 class Agent(DQNBase, TempLearner):
     # @tf.function
     # def summary(self, data, terms):
-    #     tf.summary.histogram('learn/entropy', terms['entropy'], step=self._env_step)
-    #     tf.summary.histogram('learn/reward', data['reward'], step=self._env_step)
+    #     tf.summary.histogram('train/entropy', terms['entropy'], step=self._env_step)
+    #     tf.summary.histogram('train/reward', data['reward'], step=self._env_step)
 
     @override(DQNBase)
     @tf.function

@@ -78,7 +78,7 @@ class Agent(Memory, DQNBase):
         self._n_agents = env.n_agents
 
     @override(DQNBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=((self._sample_size+1, self._n_agents, *env.obs_shape), env.obs_dtype, 'obs'),
@@ -90,7 +90,7 @@ class Agent(Memory, DQNBase):
             discount=((self._sample_size,), tf.float32, 'discount'),
         )
         
-        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
+        self.train = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     def _process_input(self, env_output, evaluation):
         mask = self._get_mask(env_output.reset)

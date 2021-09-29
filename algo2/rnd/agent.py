@@ -37,7 +37,7 @@ class Agent(PPOAgent):
         return [self.ac, self.predictor]
 
     @override(PPOAgent)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         norm_obs_shape = env.obs_shape[:-1] + (1,)
         TensorSpecs = dict(
@@ -51,7 +51,7 @@ class Agent(PPOAgent):
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
-        self.learn = build(self._learn, TensorSpecs)
+        self.train = build(self._learn, TensorSpecs)
 
     # @tf.function
     # def _summary(self, data, terms):
@@ -91,12 +91,12 @@ class Agent(PPOAgent):
         return tensor2numpy(out)
 
     @step_track
-    def learn_log(self, step):
+    def train_log(self, step):
         for i in range(self.N_UPDATES):
             for j in range(1, self.N_MBS+1):
                 data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
-                terms = self.learn(**data)
+                terms = self.train(**data)
 
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
                 kl = terms.pop('train/kl')

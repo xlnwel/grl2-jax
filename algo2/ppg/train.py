@@ -58,7 +58,7 @@ def train(agent, env, eval_env, buffer):
 
             start_train_step = agent.train_step
             with tt:
-                agent.learn_log(step)
+                agent.train_log(step)
             agent.store(tps=(agent.train_step-start_train_step)/tt.last())
             buffer.reset()
             if step > agent.MAX_STEPS or (to_log(agent.train_step) and 'score' in agent._logger):
@@ -102,7 +102,7 @@ def train(agent, env, eval_env, buffer):
             buffer.set_ready()
 
         with at:
-            agent.aux_learn_log(step)
+            agent.aux_train_log(step)
         agent.store(atps=(agent.N_AUX_EPOCHS * agent.N_AUX_MBS)/at.last())
         buffer.aux_reset()
 

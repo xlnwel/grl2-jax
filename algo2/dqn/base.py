@@ -102,7 +102,7 @@ class DQNBase(TargetNetOps, ActionScheduler, AgentBase):
         return actor_models + value_models + temp_models
 
     @override(AgentBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to initialize variables
         TensorSpecs = dict(
             obs=(env.obs_shape, env.obs_dtype, 'obs'),
@@ -115,7 +115,7 @@ class DQNBase(TargetNetOps, ActionScheduler, AgentBase):
             TensorSpecs['IS_ratio'] = ((), tf.float32, 'IS_ratio')
         if self._n_steps > 1:
             TensorSpecs['steps'] = ((), tf.float32, 'steps')
-        self.learn = build(self._learn, TensorSpecs, batch_size=self._batch_size)
+        self.train = build(self._learn, TensorSpecs, batch_size=self._batch_size)
 
     """ Call """
     def _process_input(self, env_output, evaluation):
@@ -125,7 +125,7 @@ class DQNBase(TargetNetOps, ActionScheduler, AgentBase):
         return obs, kwargs
 
     @step_track
-    def learn_log(self, step):
+    def train_log(self, step):
         for _ in range(self.N_UPDATES):
             with self._sample_timer:
                 data = self.dataset.sample()
@@ -134,7 +134,7 @@ class DQNBase(TargetNetOps, ActionScheduler, AgentBase):
                 idxes = data.pop('idxes').numpy()
 
             with self._learn_timer:
-                terms = self.learn(**data)
+                terms = self.train(**data)
 
             if self._to_sync is not None:
                 if self._to_sync(self.train_step):

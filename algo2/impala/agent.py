@@ -42,7 +42,7 @@ class Agent(Memory, RMSAgentBase):
         self._setup_memory_state_record()
 
     @override(RMSAgentBase)
-    def _build_learn(self, env):
+    def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
             obs=((self._sample_size+1, *env.obs_shape), env.obs_dtype, 'obs'),
@@ -64,7 +64,7 @@ class Agent(Memory, RMSAgentBase):
             if 'prev_reward' in self._additional_rnn_inputs:
                 TensorSpecs['prev_reward'] = (
                     (self._sample_size,), self._dtype, 'prev_reward')    # this reward should be unnormlaized
-        self.learn = build(self._learn, TensorSpecs)
+        self.train = build(self._learn, TensorSpecs)
 
     """ Call """
     # @override(PPOBase)
@@ -156,14 +156,14 @@ class Agent(Memory, RMSAgentBase):
 
         return terms
 
-    def _sample_learn(self):
+    def _sample_train(self):
         for i in range(self.N_EPOCHS):
             for j in range(1, self.N_MBS+1):
                 with self._sample_timer:
                     data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 with self._learn_timer:
-                    terms = self.learn(**data)
+                    terms = self.train(**data)
                 terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
                 self.store(**terms)
 

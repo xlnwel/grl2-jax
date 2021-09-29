@@ -8,7 +8,7 @@ from core.tf_config import build
 
 class PPOTrainer(Trainer):
     @override(Trainer)
-    def _build_learn(self, env_stats):
+    def _build_train(self, env_stats):
         # Explicitly instantiate tf.function to avoid unintended retracing
         dtype = tf.float32
         obs_dtype = dtype if np.issubdtype(env_stats.obs_dtype, np.floating) else env_stats.obs_dtype
@@ -21,9 +21,9 @@ class PPOTrainer(Trainer):
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
-        self.learn = build(self.learn, TensorSpecs)
+        self.train = build(self.train, TensorSpecs)
 
-    def raw_learn(self, obs, action, value, traj_ret, advantage, logpi, 
+    def raw_train(self, obs, action, value, traj_ret, advantage, logpi, 
                 state=None, mask=None, prev_action=None, prev_reward=None):
         tape, loss, terms = self.loss.loss(
             obs, action, value, traj_ret, advantage, logpi, 

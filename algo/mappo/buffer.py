@@ -223,22 +223,7 @@ class Buffer:
         sample = process_sample(sample)
 
         return sample
-    
-    def compute_mean_max_std(self, name):
-        stats = self._memory[name]
-        return {
-            name: np.mean(stats),
-            f'{name}_max': np.max(stats),
-            f'{name}_min': np.min(stats),
-            f'{name}_std': np.std(stats),
-        }
-    
-    def compute_fraction(self, name):
-        stats = self._memory[name]
-        return {
-            f'{name}_frac': np.sum(stats) / np.prod(stats.shape)
-        }
-    
+        
     def get(self, i, k):
         return np.array(self._buffer[i][k])
     
