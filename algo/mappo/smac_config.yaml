@@ -11,7 +11,7 @@ env:
     do_evaluation: False
 
 agent:
-    algorithm: &algo mappo1
+    algorithm: &algo mappo
     precision: 32
 
     MAX_STEPS: 1e8
@@ -19,8 +19,7 @@ agent:
     N_VALUE_EPOCHS: &nval_epochs 0
     N_MBS: &nmbs 1
     batch_size: &bs 3092
-    LOG_PERIOD: 20
-    EVAL_PERIOD: 2000
+    LOG_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     # (once, reuse, null)
@@ -31,7 +30,7 @@ agent:
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
-    # the following names are just examples; they will be reset in our training process
+    # the following names are just examples; they will be reset in run/train.py
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
     RECORD: False

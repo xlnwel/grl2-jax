@@ -404,9 +404,7 @@ class EnvStatsBase(gym.Wrapper):
     
     def observation(self, obs):
         if not isinstance(obs, dict):
-            obs = AttrDict(obs=obs)
-        else:
-            obs = AttrDict(obs)
+            obs = dict(obs=obs)
         return obs
 
     def stats(self):

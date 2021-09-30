@@ -1,5 +1,6 @@
 import cloudpickle
 import logging
+from typing import Tuple, Dict
 import numpy as np
 import tensorflow as tf
 
@@ -147,12 +148,13 @@ class Memory:
         return inp
 
     def _add_memory_state_to_input(self, 
-            inp: dict, mask: np.ndarray, state=None, prev_reward=None, batch_size=None):
+            inp: dict, mask: np.ndarray, state: tuple=None, 
+            prev_reward: np.ndarray=None, batch_size: int=None):
         """ Adds memory state to the input. Call this in self._process_input 
         when introducing sequential memory.
         """
         if state is None and self._state is None:
-            batch_size = batch_size or mask.shape[0]
+            batch_size = batch_size or mask.size
             self._state = self.model.get_initial_state(batch_size=batch_size)
 
         if state is None:
@@ -166,23 +168,23 @@ class Memory:
 
         return inp
 
-    def _record_output(self, out):
+    def _record_output(self, out: Tuple[tf.Tensor, Dict[str, tf.Tensor], tuple]):
         _, _, self._state = out
 
     def _get_mask(self, reset):
         return np.float32(1. - reset)
 
-    def _apply_mask_to_state(self, state, mask):
+    def _apply_mask_to_state(self, state: tuple, mask: np.ndarray):
         if state is not None:
-            mask_exp = np.expand_dims(mask, -1)
+            mask_reshaped = mask.reshape(state[0].shape[0], -1)
             if isinstance(state, (list, tuple)):
                 state_type = type(state)
-                state = state_type(*[v * mask_exp for v in state])
+                state = state_type(*[v * mask_reshaped for v in state])
             else:
-                state = state * mask_exp
+                state = state * mask_reshaped
         return state
 
-    def reset_states(self, state=None):
+    def reset_states(self, state: tuple=None):
         self._state = state
 
     def get_states(self):

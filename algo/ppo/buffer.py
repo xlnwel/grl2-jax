@@ -3,7 +3,7 @@ import logging
 import numpy as np
 
 from core.decorator import config
-from utility.utils import batch_dicts, moments, standardize
+from utility.utils import moments, standardize
 from replay.utils import init_buffer, print_buffer
 
 

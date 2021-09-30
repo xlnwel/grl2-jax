@@ -187,7 +187,7 @@ class EnvVec(EnvVecBase):
 
 if __name__ == '__main__':
     config = dict(
-        name='smac2_3m',
+        name='smac_6h_vs_8z',
         n_workers=8,
         n_envs=1,
         use_state_agent=True,

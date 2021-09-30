@@ -2,7 +2,6 @@ import numpy as np
 
 from core.mixin.actor import RMS
 from core.module import Actor
-from utility.utils import concat_map
 
 
 class PPOActor(Actor):
@@ -17,6 +16,11 @@ class PPOActor(Actor):
         return getattr(self.rms, name)
 
     def _process_input(self, inp: dict, evaluation: bool):
+        def concat_map_except_state(inp):
+            for k, v in inp.items():
+                if k != 'state':
+                    inp[k] = np.concatenate(v)
+
         def split_input(inp):
             actor_state, value_state = self.model.split_state(inp['state'])
             actor_inp = dict(
@@ -31,6 +35,8 @@ class PPOActor(Actor):
                 mask=inp['mask']
             )
             return {'actor_inp': actor_inp, 'value_inp': value_inp}
+        
+        concat_map_except_state(inp)
         if evaluation:
             inp = self.rms.process_obs_with_rms(inp, update_rms=False)
         else:

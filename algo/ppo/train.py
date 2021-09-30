@@ -57,7 +57,7 @@ def train(agent, env, eval_env, buffer):
     def log():
         with lt:
             agent.store(**{
-                'stats/train_step': agent.train_step,
+                'misc/train_step': agent.train_step,
                 'time/run': rt.total(), 
                 'time/train': tt.total(),
                 'time/eval': et.total(),
@@ -140,7 +140,8 @@ def main(config, train=train):
     def sigint_handler(sig, frame):
         signal.signal(sig, signal.SIG_IGN)
         env.close()
-        eval_env.close()
+        if eval_env is not None:
+            eval_env.close()
         sys.exit(0)
     signal.signal(signal.SIGINT, sigint_handler)
 

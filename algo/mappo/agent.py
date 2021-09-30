@@ -90,12 +90,12 @@ class Agent(Memory, PPOAgent):
     #     tf.summary.histogram('sum/value', data['value'], step=self._env_step)
     #     tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
 
-    def _prepare_input_to_actor(self, env_output):
-        inp = concat_map(env_output.obs)
-        mask = self._get_mask(concat_map(env_output.reset))
-        inp = self._add_memory_state_to_input(inp, mask)
+    # def _prepare_input_to_actor(self, env_output):
+    #     inp = concat_map(env_output.obs)
+    #     mask = self._get_mask(concat_map(env_output.reset))
+    #     inp = self._add_memory_state_to_input(inp, mask)
 
-        return inp
+    #     return inp
 
     """ PPO methods """
     # @override(PPOBase)
@@ -108,7 +108,7 @@ class Agent(Memory, PPOAgent):
         self._state = self._apply_mask_to_state(self._state, self._mask)
 
     def compute_value(self, global_state=None, state=None, mask=None):
-        # be sure obs is normalized if obs normalization is required
+        # be sure global_state is normalized if obs normalization is required
         if global_state is None:
             global_state = self._global_state
         if state is None:
