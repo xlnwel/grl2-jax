@@ -36,7 +36,7 @@ def train(agent, env, eval_env, buffer):
             step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/rt.last())
 
-        agent.record_last_env_output(runner.env_output)
+        agent.record_inputs_to_vf(runner.env_output)
         value_int, value_ext = agent.compute_value()
         obs = buffer.get_obs(runner.env_output.obs)
         assert obs.shape[:2] == (env.n_envs, agent.N_STEPS+1)

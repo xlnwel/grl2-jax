@@ -18,7 +18,10 @@ class ModelImpl(Model):
         assert_rank(mask, 2)
 
         x = self.encoder(x)
-        x, state = self.rnn(x, state, mask)
+        if hasattr(self, 'rnn'):
+            x, state = self.rnn(x, state, mask)
+        else:
+            state = None
         if x.shape[1] == 1:
             x = tf.squeeze(x, 1)
         return x, state
@@ -97,6 +100,14 @@ class MAPPOModelEnsemble(ModelEnsemble):
     @property
     def state_keys(self):
         return self.state_type(*self.state_type._fields)
+
+    @property
+    def actor_state_type(self):
+        return self.actor.state_type
+    
+    @property
+    def value_state_type(self):
+        return self.value.state_type
 
     def reset_states(self, state=None):
         actor_state, value_state = self.split_state(state)

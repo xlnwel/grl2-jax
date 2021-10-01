@@ -28,14 +28,14 @@ class PPOActor(Actor):
         stats = {}
         if rew_rms:
             stats.update({
-                'train/reward_rms_mean': rew_rms.mean,
-                'train/reward_rms_var': rew_rms.var
+                'misc/reward_rms_mean': rew_rms.mean,
+                'misc/reward_rms_var': rew_rms.var
             })
         if obs_rms:
             for k, v in obs_rms.items():
                 stats.update({
-                    f'train/{k}_rms_mean': v.mean,
-                    f'train/{k}_rms_var': v.var,
+                    f'misc/{k}_rms_mean': v.mean,
+                    f'misc/{k}_rms_var': v.var,
                 })
         return stats
 

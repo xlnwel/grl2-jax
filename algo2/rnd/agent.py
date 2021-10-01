@@ -81,7 +81,7 @@ class Agent(PPOAgent):
 
     """ PPO Methods """
     @override(PPOAgent)
-    def record_last_env_output(self, env_output):
+    def record_inputs_to_vf(self, env_output):
         self._last_obs = env_output.obs
 
     @override(PPOAgent)

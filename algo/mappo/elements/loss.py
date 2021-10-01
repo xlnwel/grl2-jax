@@ -1,8 +1,9 @@
 import tensorflow as tf
 
 from core.module import Loss, LossEnsemble
-from utility.rl_loss import huber_loss, reduce_mean, ppo_loss, ppo_value_loss
+from utility.rl_loss import ppo_loss
 from utility.tf_utils import explained_variance
+from algo.ppo.elements.loss import PPOLossImpl
 
 
 class MAPPOActorLoss(Loss):
@@ -34,7 +35,7 @@ class MAPPOActorLoss(Loss):
         return tape, loss, terms
 
 
-class MAPPOValueLoss(Loss):
+class MAPPOValueLoss(PPOLossImpl):
     def loss(self, global_state, value, traj_ret, 
             state=None, life_mask=None, mask=None):
         old_value = value
@@ -55,27 +56,6 @@ class MAPPOValueLoss(Loss):
         )
 
         return tape, loss, terms
-
-    def _compute_value_loss(self, value, traj_ret, old_value, mask=None):
-        value_loss_type = getattr(self, '_value_loss', 'mse')
-        v_clip_frac = 0
-        if value_loss_type == 'huber':
-            value_loss = reduce_mean(
-                huber_loss(value, traj_ret, threshold=self._huber_threshold), mask)
-        elif value_loss_type == 'mse':
-            value_loss = .5 * reduce_mean((value - traj_ret)**2, mask)
-        elif value_loss_type == 'clip':
-            value_loss, v_clip_frac = ppo_value_loss(
-                value, traj_ret, old_value, self._clip_range, 
-                mask=mask)
-        elif value_loss_type == 'clip_huber':
-            value_loss, v_clip_frac = ppo_value_loss(
-                value, traj_ret, old_value, self._clip_range, 
-                mask=mask, threshold=self._huber_threshold)
-        else:
-            raise ValueError(f'Unknown value loss type: {value_loss_type}')
-        
-        return value_loss, v_clip_frac
 
 
 def create_loss(config, model, name='mappo'):

@@ -111,7 +111,7 @@ def train(agent, env, eval_env, buffer):
             discount = buffer.get(i, 'discount')
             agent.actor.update_reward_rms(reward, discount)
             buffer.update_buffer(i, 'reward', agent.actor.normalize_reward(reward))
-        agent.record_last_env_output(last_env_output)
+        agent.record_inputs_to_vf(last_env_output)
         value = agent.compute_value()
         buffer.finish(value)
         return step

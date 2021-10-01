@@ -8,7 +8,35 @@ from core.mixin import Memory
 from core.tf_config import build
 from core.decorator import override
 from algo.ppo.base import PPOBase
-from algo.mappo.agent import infer_life_mask, collect, get_data_format, random_actor
+from algo.mappo.agent import get_data_format
+
+
+def infer_life_mask(discount, concat=True):
+    life_mask = np.logical_or(
+        discount, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
+    # np.testing.assert_equal(life_mask, mask)
+    if concat:
+        life_mask = np.concatenate(life_mask)
+    return life_mask
+
+def collect(buffer, env, env_step, reset, reward, 
+            discount, next_obs, **kwargs):
+    if env.use_life_mask:
+        kwargs['life_mask'] = infer_life_mask(discount)
+    kwargs['reward'] = np.concatenate(reward)
+    # discount is zero only when all agents are done
+    discount[np.any(discount, 1)] = 1
+    kwargs['discount'] = np.concatenate(discount)
+    buffer.add(**kwargs)
+
+def random_actor(env_output, env=None, **kwargs):
+    obs = env_output.obs
+    a = np.concatenate(env.random_action())
+    terms = {
+        'obs': np.concatenate(obs['obs']), 
+        'global_state': np.concatenate(obs['global_state']),
+    }
+    return a, terms
 
 
 class Agent(Memory, PPOBase):
@@ -163,7 +191,7 @@ class Agent(Memory, PPOBase):
 
     """ PPO methods """
     # @override(PPOBase)
-    def record_last_env_output(self, env_output):
+    def record_inputs_to_vf(self, env_output):
         self._env_output = self._reshape_env_output(env_output)
         self.process_obs_with_rms(self._env_output.obs, update_rms=False)
         mask = self._get_mask(self._env_output.reset)

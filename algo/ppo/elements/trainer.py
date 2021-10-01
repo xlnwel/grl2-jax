@@ -21,13 +21,18 @@ class PPOTrainer(Trainer):
             advantage=((), tf.float32, 'advantage'),
             logpi=((), tf.float32, 'logpi'),
         )
+        if hasattr(self.model, 'rnn'):
+            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+            state_type = type(self.model.state_size)
+            TensorSpecs['state'] = state_type(*[((sz, ), dtype, name) 
+                for name, sz in self.model.state_size._asdict().items()])
         self.train = build(self.train, TensorSpecs)
 
-    def raw_train(self, obs, action, value, traj_ret, advantage, logpi, 
-                state=None, mask=None, prev_action=None, prev_reward=None):
+    def raw_train(self, obs, action, value, traj_ret, 
+            advantage, logpi, state=None, mask=None):
         tape, loss, terms = self.loss.loss(
-            obs, action, value, traj_ret, advantage, logpi, 
-            state, mask, prev_action, prev_reward)
+            obs, action, value, traj_ret, 
+            advantage, logpi, state, mask)
         terms['ppo_norm'] = self.optimizer(tape, loss)
 
         return terms

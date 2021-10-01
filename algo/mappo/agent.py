@@ -1,4 +1,5 @@
 import logging
+from typing import Dict
 import numpy as np
 import tensorflow as tf
 
@@ -9,24 +10,6 @@ from algo.ppo.agent import Agent as PPOAgent
 
 logger = logging.getLogger(__name__)
 
-
-def infer_life_mask(discount, concat=True):
-    life_mask = np.logical_or(
-        discount, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
-    # np.testing.assert_equal(life_mask, mask)
-    if concat:
-        life_mask = np.concatenate(life_mask)
-    return life_mask
-
-def collect(buffer, env, env_step, reset, reward, 
-            discount, next_obs, **kwargs):
-    if env.use_life_mask:
-        kwargs['life_mask'] = infer_life_mask(discount)
-    kwargs['reward'] = np.concatenate(reward)
-    # discount is zero only when all agents are done
-    discount[np.any(discount, 1)] = 1
-    kwargs['discount'] = np.concatenate(discount)
-    buffer.add(**kwargs)
 
 def get_data_format(*, env_stats, batch_size, sample_size=None,
         store_state=False, state_size=None, **kwargs):
@@ -57,22 +40,13 @@ def get_data_format(*, env_stats, batch_size, sample_size=None,
 
     return data_format
 
-def random_actor(env_output, env=None, **kwargs):
-    obs = env_output.obs
-    a = np.concatenate(env.random_action())
-    terms = {
-        'obs': np.concatenate(obs['obs']), 
-        'global_state': np.concatenate(obs['global_state']),
-    }
-    return a, terms
 
-
-class Agent(Memory, PPOAgent):
+class Agent(PPOAgent):
     """ Initialization """
     @override(PPOAgent)
     def _post_init(self, env_stats, dataset):
         super()._post_init(env_stats, dataset)
-        self._setup_memory_state_record()
+        self._memory = Memory(self.model)
 
         state_keys = self.model.state_keys
         mid = len(state_keys) // 2
@@ -90,37 +64,35 @@ class Agent(Memory, PPOAgent):
     #     tf.summary.histogram('sum/value', data['value'], step=self._env_step)
     #     tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
 
-    # def _prepare_input_to_actor(self, env_output):
-    #     inp = concat_map(env_output.obs)
-    #     mask = self._get_mask(concat_map(env_output.reset))
-    #     inp = self._add_memory_state_to_input(inp, mask)
+    """ Calling methods """
+    def _prepare_input_to_actor(self, env_output):
+        inp = env_output.obs
+        inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
 
-    #     return inp
+        return inp
+
+    def _record_output(self, out):
+        state = out[-1]
+        self._memory.reset_states(state)
 
     """ PPO methods """
-    # @override(PPOBase)
-    def record_last_env_output(self, env_output):
+    def record_inputs_to_vf(self, env_output):
         global_state = concat_map(env_output.obs['global_state'])
-        self._global_state = self.actor.process_obs_with_rms(
+        global_state = self.actor.process_obs_with_rms(
             ('global_state', global_state), update_rms=False)
+        value_input = {'global_state': global_state}
         reset = concat_map(env_output.reset)
-        self._mask = self._get_mask(reset)
-        self._state = self._apply_mask_to_state(self._state, self._mask)
+        state = self._memory.get_states()
+        if state is not None:
+            mid = len(state) // 2
+            state = self.model.value_state_type(*state[mid:])
+        value_input = self._memory.add_memory_state_to_input(value_input, reset, state=state)
+        self._value_input = value_input
 
-    def compute_value(self, global_state=None, state=None, mask=None):
+    def compute_value(self, value_inp: Dict[str, np.ndarray]=None):
         # be sure global_state is normalized if obs normalization is required
-        if global_state is None:
-            global_state = self._global_state
-        if state is None:
-            state = self._state
-        if mask is None:
-            mask = self._mask
-        mid = len(self._state) // 2
-        state = state[mid:]
-        value, _ = self.model.compute_value(
-            global_state=global_state, 
-            state=state,
-            mask=mask,
-        )
+        if value_inp is None:
+            value_inp = self._value_input
+        value, _ = self.model.compute_value(**value_inp)
         value = value.numpy().reshape(-1, self._n_agents)
         return value

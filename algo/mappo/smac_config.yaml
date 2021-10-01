@@ -1,8 +1,8 @@
 ---
 env:
     name: &env_name smac_3s5z_vs_3s6z
-    n_workers: 20
-    n_envs: &nenvs 1
+    n_workers: 8
+    n_envs: &nenvs 2
     use_state_agent: True
     use_mustalive: True
     add_center_xy: True

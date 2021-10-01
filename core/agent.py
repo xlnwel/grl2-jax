@@ -12,7 +12,7 @@ from utility.timer import Every, Timer
 logger = logging.getLogger(__name__)
 
 
-def set_attr(obj, name, attr):
+def _set_attr(obj, name, attr):
     setattr(obj, name, attr)
     if isinstance(attr, dict):
         for k, v in attr.items():
@@ -30,10 +30,10 @@ class AgentBase(StepCounter, TensorboardOps):
                  env_stats, 
                  model: Union[Model, ModelEnsemble], 
                  trainer: Union[Trainer, TrainerEnsemble], 
-                 actor: Actor,
+                 actor: Actor=None,
                  dataset=None):
-        set_attr(self, 'model', model)
-        set_attr(self, 'trainer', trainer)
+        _set_attr(self, 'model', model)
+        _set_attr(self, 'trainer', trainer)
         self.actor = actor
         self.dataset = dataset
 

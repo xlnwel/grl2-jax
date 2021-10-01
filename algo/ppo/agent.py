@@ -34,22 +34,21 @@ class Agent(AgentBase):
     def _post_init(self, env_stats, dataset):
         super()._post_init(env_stats, dataset)
 
-        self._env_output = None   # we record last obs before training to compute the last value
+        self._value_input = None   # we record last obs before training to compute the last value
 
     """ Standard PPO methods """
     def before_run(self, env):
         pass
 
-    def record_last_env_output(self, env_output):
-        self._env_output = EnvOutput(
-            self.actor.normalize_obs(env_output.obs), env_output.reward,
-            env_output.discount, env_output.reset)
+    def record_inputs_to_vf(self, env_output):
+        self._value_input = self.actor.normalize_obs(env_output.obs)
 
     def compute_value(self, obs=None):
         # be sure you normalize obs first if obs normalization is required
-        obs = self._env_output.obs if obs is None else obs
+        obs = self._value_input if obs is None else obs
         obs = obs.get('global_state', obs['obs'])
-        return self.model.compute_value(obs).numpy()
+        value, _ = self.model.compute_value(obs).numpy()
+        return value.numpy()
 
     def _sample_train(self):
         def ppo_training():
@@ -91,7 +90,7 @@ class Agent(AgentBase):
             n = i * self.N_MBS + j
 
             self.store(**{
-                'stats/policy_updates': n,
+                'misc/policy_updates': n,
                 'train/kl': kl,
                 'train/value': value,
                 'time/sample_mean': self._sample_timer.average(),

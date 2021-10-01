@@ -65,7 +65,7 @@ class Agent(AgentBase):
         return obs, kwargs
 
     """ PPO methods """
-    def record_last_env_output(self, env_output):
+    def record_inputs_to_vf(self, env_output):
         self._env_output = self._reshape_env_output(env_output)
         self.process_obs_with_rms(self._env_output.obs, update_rms=False)
         mask = self._get_mask(self._env_output.reset)

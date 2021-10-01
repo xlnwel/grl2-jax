@@ -13,32 +13,32 @@ class PPOModel(Model):
         print(f'instantiate action with obs({obs}),',
               f'evaluation({evaluation})',
               f'kwargs({kwargs})')
-        x = self.encode(obs)
+        x, state = self.encode(obs)
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)
 
         if evaluation:
-            return action, {}, None
+            return action, {}, state
         else:
             logpi = act_dist.log_prob(action)
-            if hasattr(self, 'value_encoder'):
-                x = self.value_encoder(obs)
             value = self.value(x)
             terms = {'logpi': logpi, 'value': value}
 
-            return action, terms, None    # keep the batch dimension for later use
+            return action, terms, state    # keep the batch dimension for later use
 
     @tf.function
-    def compute_value(self, x):
-        if hasattr(self, 'value_encoder'):
-            x = self.value_encoder(x)
-        else:
-            x = self.encoder(x)
+    def compute_value(self, x, state=None, mask=None):
+        x, state = self.encode(x, state, mask)
         value = self.value(x)
-        return value
+        return value, state
 
-    def encode(self, x):
-        return self.encoder(x)
+    def encode(self, x, state=None, mask=None):
+        x = self.encoder(x)
+        if hasattr(self, 'rnn'):
+            x, state = self.rnn(x, state, mask)
+            return x, state
+        else:
+            return x, None
 
 
 def create_model(config, env_stats, name='ppo'):

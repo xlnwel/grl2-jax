@@ -133,34 +133,25 @@ class ActionScheduler:
 
 
 class Memory:
-    def _setup_memory_state_record(self):
+    def __init__(self, model):
         """ Setups attributes for RNNs """
+        self.model = model
         self._state = None
 
-    def _get_state_with_batch_size(self, batch_size):
-        return self.model.get_initial_state(batch_size=batch_size)
-
-    def _prepare_input_to_actor(self, env_output):
-        inp = env_output.obs
-        mask = self._get_mask(env_output.reset)
-        inp = self._add_memory_state_to_input(inp, mask)
-
-        return inp
-
-    def _add_memory_state_to_input(self, 
-            inp: dict, mask: np.ndarray, state: tuple=None, 
-            prev_reward: np.ndarray=None, batch_size: int=None):
+    def add_memory_state_to_input(self, 
+            inp: dict, reset: np.ndarray, state: tuple=None, batch_size: int=None):
         """ Adds memory state to the input. Call this in self._process_input 
         when introducing sequential memory.
         """
         if state is None and self._state is None:
-            batch_size = batch_size or mask.size
+            batch_size = batch_size or reset.size
             self._state = self.model.get_initial_state(batch_size=batch_size)
 
         if state is None:
             state = self._state
 
-        state = self._apply_mask_to_state(state, mask)
+        mask = self.get_mask(reset)
+        state = self.apply_mask_to_state(state, mask)
         inp.update({
             'state': state,
             'mask': mask,   # mask is applied in RNN
@@ -168,13 +159,10 @@ class Memory:
 
         return inp
 
-    def _record_output(self, out: Tuple[tf.Tensor, Dict[str, tf.Tensor], tuple]):
-        _, _, self._state = out
-
-    def _get_mask(self, reset):
+    def get_mask(self, reset):
         return np.float32(1. - reset)
 
-    def _apply_mask_to_state(self, state: tuple, mask: np.ndarray):
+    def apply_mask_to_state(self, state: tuple, mask: np.ndarray):
         if state is not None:
             mask_reshaped = mask.reshape(state[0].shape[0], -1)
             if isinstance(state, (list, tuple)):

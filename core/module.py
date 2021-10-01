@@ -419,7 +419,7 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
 
 class Actor:
     def __init__(self, *, config, model, name):
-        self._name = name
+        self._name = f'{name}_actor'
         config = config.copy()
         config_attr(self, config, filter_dict=True)
         
@@ -479,7 +479,7 @@ class Actor:
             inp: Pre-processed inputs
             out: Model output
         Returns:
-            out: results returned to the environment
+            (action, terms, rnn_state)
         """
         out = (*tensor2numpy(out[:2]), out[-1])
         return out

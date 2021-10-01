@@ -74,7 +74,7 @@ def train(agent, env, eval_env, buffer):
         # a copy of unnormalized rewards
         agent.update_reward_rms(buffer['reward'], buffer['discount'])
         buffer.update('reward', agent.normalize_reward(buffer['reward']), field='all')
-        agent.record_last_env_output(runner.env_output)
+        agent.record_inputs_to_vf(runner.env_output)
         value = agent.compute_value()
         buffer.finish(value)
 
