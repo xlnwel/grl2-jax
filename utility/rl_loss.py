@@ -216,7 +216,7 @@ def ppo_loss(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
     return policy_loss, entropy, approx_kl, clip_frac
 
 
-def ppo_value_loss(value, traj_ret, old_value, clip_range, 
+def clipped_value_loss(value, traj_ret, old_value, clip_range, 
                     mask=None, n=None, huber_threshold=None):
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
@@ -274,7 +274,7 @@ def _compute_ppo_value_losses(value, traj_ret, old_value, clip_range, huber_thre
 #     traj_ret = tf.random.normal((2, 3))
 #     old_value = tf.random.normal((2, 3))
 #     clip_range = .2
-#     value_loss1, clip_frac1 = ppo_value_loss(value, traj_ret, old_value, clip_range)
+#     value_loss1, clip_frac1 = clipped_value_loss(value, traj_ret, old_value, clip_range)
 #     value_loss2, clip_frac2 = ppo_value_loss_with_mask(value, traj_ret, old_value, clip_range)
 #     tf.debugging.assert_near(value_loss1, value_loss2)
 #     tf.debugging.assert_near(clip_frac1, clip_frac2)

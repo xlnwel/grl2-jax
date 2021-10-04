@@ -161,8 +161,8 @@ def main(config, train=train):
         config.buffer['n_envs'] = env.n_envs
         config.buffer['state_keys'] = model.state_keys
         config.buffer['use_dataset'] = config.buffer.get('use_dataset', False)
-        Buffer = pkg.import_module('buffer', config=config.agent).Buffer
-        buffer = Buffer(config.buffer)
+        create_buffer = pkg.import_module('buffer', config=config.agent).create_buffer
+        buffer = create_buffer(config.buffer)
         
         if config.buffer['use_dataset']:
             am = pkg.import_module('agent', config=config.agent)
@@ -179,8 +179,8 @@ def main(config, train=train):
     buffer, dataset = create_buffer_dataset()
 
     def create_agent():
-        Agent = pkg.import_module('agent', config=config.agent).Agent
-        agent = Agent(
+        create_agent = pkg.import_module('agent', config=config.agent).create_agent
+        agent = create_agent(
             config=config.agent, 
             env_stats=env_stats,
             model=model, 

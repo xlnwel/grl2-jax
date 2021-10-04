@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from core.module import Loss
-from utility.rl_loss import huber_loss, reduce_mean, ppo_loss, ppo_value_loss
+from utility.rl_loss import huber_loss, reduce_mean, ppo_loss, clipped_value_loss
 from utility.tf_utils import explained_variance
 
 
@@ -15,11 +15,11 @@ class PPOLossImpl(Loss):
         elif value_loss_type == 'mse':
             value_loss = .5 * reduce_mean((value - traj_ret)**2, mask)
         elif value_loss_type == 'clip':
-            value_loss, v_clip_frac = ppo_value_loss(
+            value_loss, v_clip_frac = clipped_value_loss(
                 value, traj_ret, old_value, self._clip_range, 
                 mask=mask)
         elif value_loss_type == 'clip_huber':
-            value_loss, v_clip_frac = ppo_value_loss(
+            value_loss, v_clip_frac = clipped_value_loss(
                 value, traj_ret, old_value, self._clip_range, 
                 mask=mask, threshold=self._huber_threshold)
         else:

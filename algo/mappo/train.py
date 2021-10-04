@@ -22,6 +22,8 @@ def random_run(env, step):
             reward=reward,
             discount=discount
         )
+        if env.use_life_mask:
+            kwargs['life_mask'] = obs['life_mask']
         trans = [{k: v[i] for k, v in kwargs.items()} for i in range(env.n_envs)]
         info_list = env.info()
         for i, (info, traj) in enumerate(zip(info_list, trans)):
@@ -57,7 +59,6 @@ def run(agent, env, buffer, step):
         kwargs = dict(
             action=action.reshape(env.n_envs, env.n_agents),
             reward=reward,
-            discount=discount,
             **tf.nest.map_structure(
                 lambda x: x.reshape(env.n_envs, env.n_agents, *x.shape[1:]), terms)
         )

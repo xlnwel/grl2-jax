@@ -8,11 +8,7 @@ class PPOActor(Actor):
         config['rms']['model_name'] = config['model_name']
         self.rms = RMS(config['rms'])
 
-    def __getattr__(self, name):
-        if name.startswith('_'):
-            raise AttributeError("attempted to get missing private attribute '{}'".format(name))
-        return getattr(self.rms, name)
-
+    """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
         inp = self.rms.process_obs_with_rms(inp, update_rms=not evaluation)
         return super()._process_input(inp, evaluation)
@@ -22,6 +18,17 @@ class PPOActor(Actor):
         if not evaluation and self.rms.is_obs_normalized:
             out[1]['obs'] = inp['obs']
         return out
+
+    """ RMS Methods """
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError(f"attempted to get missing private attribute '{name}'")
+        if hasattr(self.model, name):
+            return getattr(self.model, name)
+        elif hasattr(self.rms, name):
+            return getattr(self.rms, name)
+        else:
+            raise AttributeError(f"no attribute '{name}' is found")
 
     def get_rms_stats(self):
         obs_rms, rew_rms = self.rms.get_rms_stats()

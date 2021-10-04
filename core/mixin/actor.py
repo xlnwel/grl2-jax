@@ -66,6 +66,8 @@ class RMS:
         """
         if isinstance(inp, dict):
             for k in self._obs_names:
+                if k not in inp:
+                    continue
                 v = inp[k]
                 if update_rms:
                     self.update_obs_rms(v, k, mask=mask)

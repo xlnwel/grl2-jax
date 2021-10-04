@@ -6,7 +6,7 @@ import tensorflow as tf
 from core.decorator import override
 from core.mixin.agent import Memory
 from utility.utils import concat_map
-from algo.ppo.agent import Agent as PPOAgent
+from algo.ppo.agent import PPOAgent
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def get_data_format(*, env_stats, batch_size, sample_size=None,
     return data_format
 
 
-class Agent(PPOAgent):
+class MAPPOAgent(PPOAgent):
     """ Initialization """
     @override(PPOAgent)
     def _post_init(self, env_stats, dataset):
@@ -52,8 +52,7 @@ class Agent(PPOAgent):
         mid = len(state_keys) // 2
         value_state_keys = state_keys[mid:]
         self._value_sample_keys = [
-            'global_state', 'value', 
-            'traj_ret', 'mask'
+            'global_state', 'value', 'traj_ret', 'mask'
         ] + list(value_state_keys)
         if env_stats.use_life_mask:
             self._value_sample_keys.append('life_mask')
@@ -63,10 +62,23 @@ class Agent(PPOAgent):
     # def _summary(self, data, terms):
     #     tf.summary.histogram('sum/value', data['value'], step=self._env_step)
     #     tf.summary.histogram('sum/logpi', data['logpi'], step=self._env_step)
+    """ Training Methods """
+    def _train_extra_vf(self):
+        for _ in range(self.N_VALUE_EPOCHS):
+            for _ in range(self.N_MBS):
+                data = self.dataset.sample(self._value_sample_keys)
 
-    """ Calling methods """
+                data = {k: tf.convert_to_tensor(data[k]) 
+                    for k in self._value_sample_keys}
+
+                terms = self.trainer.learn_value(**data)
+                terms = {f'train/{k}': v.numpy() for k, v in terms.items()}
+                self.store(**terms)
+
+    """ Calling Methods """
     def _prepare_input_to_actor(self, env_output):
         inp = env_output.obs
+        inp['discount'] = env_output.discount
         inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
 
         return inp
@@ -75,19 +87,18 @@ class Agent(PPOAgent):
         state = out[-1]
         self._memory.reset_states(state)
 
-    """ PPO methods """
+    """ PPO Methods """
     def record_inputs_to_vf(self, env_output):
-        global_state = concat_map(env_output.obs['global_state'])
-        global_state = self.actor.process_obs_with_rms(
-            ('global_state', global_state), update_rms=False)
-        value_input = {'global_state': global_state}
+        value_input = concat_map({'global_state': env_output.obs['global_state']})
+        value_input = self.actor.process_obs_with_rms(
+            value_input, update_rms=False)
         reset = concat_map(env_output.reset)
         state = self._memory.get_states()
         if state is not None:
             mid = len(state) // 2
             state = self.model.value_state_type(*state[mid:])
-        value_input = self._memory.add_memory_state_to_input(value_input, reset, state=state)
-        self._value_input = value_input
+        self._value_input = self._memory.add_memory_state_to_input(
+            value_input, reset, state=state)
 
     def compute_value(self, value_inp: Dict[str, np.ndarray]=None):
         # be sure global_state is normalized if obs normalization is required
@@ -96,3 +107,6 @@ class Agent(PPOAgent):
         value, _ = self.model.compute_value(**value_inp)
         value = value.numpy().reshape(-1, self._n_agents)
         return value
+
+def create_agent(**kwargs):
+    return MAPPOAgent(**kwargs)

@@ -434,6 +434,11 @@ class Actor:
     def _post_init(self):
         pass
 
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError("attempted to get missing private attribute '{}'".format(name))
+        return getattr(self.model, name)
+
     def __call__(self, 
                  inp: dict,  
                  evaluation: bool=False, 

@@ -309,3 +309,6 @@ class Buffer:
 
     def clear_memory(self):
         self._memory = None
+
+def create_buffer(config):
+    return Buffer(config)

@@ -1,10 +1,20 @@
 import numpy as np
 
-from core.module import Actor
+from utility.tf_utils import tensor2numpy, numpy2tensor
 from algo.ppo.elements.actor import PPOActor
 
 
+def infer_life_mask(discount, concat=False):
+    life_mask = np.logical_or(
+        discount, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
+    # np.testing.assert_equal(life_mask, mask)
+    if concat:
+        life_mask = np.concatenate(life_mask)
+    return life_mask
+
+
 class MAPPOActor(PPOActor):
+    """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
         def concat_map_except_state(inp):
             for k, v in inp.items():
@@ -27,31 +37,38 @@ class MAPPOActor(PPOActor):
             )
             return {'actor_inp': actor_inp, 'value_inp': value_inp}
         
+        if 'life_mask' in inp:
+            life_mask = inp['life_mask']
+            inp['life_mask'] = infer_life_mask(inp['discount'])
+            inp['discount'][np.any(inp['discount'], 1)] = 1
+        else:
+            life_mask = None
         inp = concat_map_except_state(inp)
         if evaluation:
             inp = self.rms.process_obs_with_rms(inp, update_rms=False)
         else:
-            life_mask = inp.get('life_mask')
             inp = self.rms.process_obs_with_rms(inp, mask=life_mask)
-        inp, tf_inp = Actor._process_input(self, inp, evaluation)
+        tf_inp = numpy2tensor(inp)
         tf_inp = split_input(tf_inp)
         return inp, tf_inp
 
     def _process_output(self, inp, out, evaluation):
-        out = Actor._process_output(self, inp, out, evaluation)
+        action, terms, state = out
+        action, terms = tensor2numpy((action, terms))
 
         if not evaluation:
-            out[1].update({
+            terms.update({
                 'obs': inp['obs'],
                 'global_state': inp['global_state'],
                 'mask': inp['mask'], 
             })
             if 'action_mask' in inp:
-                out[1]['action_mask'] = inp['action_mask']
+                terms['action_mask'] = inp['action_mask']
             if 'life_mask' in inp:
-                out[1]['life_mask'] = inp['life_mask']
+                terms['discount'] = inp['discount']
+                terms['life_mask'] = inp['life_mask']
 
-        return out
+        return action, terms, state
 
 
 def create_actor(config, model, name='mappo'):

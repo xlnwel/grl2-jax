@@ -232,3 +232,6 @@ class Buffer:
     
     def is_valid_traj(self, i):
         return bool(self._buffer[i])
+
+def create_buffer(config):
+    return Buffer(config)

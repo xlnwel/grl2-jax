@@ -32,6 +32,7 @@ class AgentBase(StepCounter, TensorboardOps):
                  trainer: Union[Trainer, TrainerEnsemble], 
                  actor: Actor=None,
                  dataset=None):
+        self.env_stats = env_stats
         _set_attr(self, 'model', model)
         _set_attr(self, 'trainer', trainer)
         self.actor = actor

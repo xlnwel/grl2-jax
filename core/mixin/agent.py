@@ -140,9 +140,7 @@ class Memory:
 
     def add_memory_state_to_input(self, 
             inp: dict, reset: np.ndarray, state: tuple=None, batch_size: int=None):
-        """ Adds memory state to the input. Call this in self._process_input 
-        when introducing sequential memory.
-        """
+        """ Adds memory state and mask to the input. """
         if state is None and self._state is None:
             batch_size = batch_size or reset.size
             self._state = self.model.get_initial_state(batch_size=batch_size)
