@@ -75,7 +75,7 @@ def reshape_to_sample(memory, n_envs, n_steps, sample_size=None):
     return memory
 
 
-class Buffer:
+class PPOBuffer:
     @config
     def __init__(self):
         self._add_attributes()
@@ -311,4 +311,4 @@ class Buffer:
         self._memory = None
 
 def create_buffer(config):
-    return Buffer(config)
+    return PPOBuffer(config)

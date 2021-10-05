@@ -67,7 +67,6 @@ class MAPPOModelEnsemble(ModelEnsemble):
     @tf.function
     def action(self, actor_inp, value_inp, 
             evaluation=False, return_eval_stats=False):
-        print('retracing MAPPOModelEnsemble action')
         action, terms, actor_state = self.actor.action(**actor_inp, 
             evaluation=evaluation, return_eval_stats=return_eval_stats)
         value, value_state = self.value.compute_value(**value_inp)

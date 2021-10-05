@@ -162,7 +162,7 @@ class Memory:
 
     def apply_mask_to_state(self, state: tuple, mask: np.ndarray):
         if state is not None:
-            mask_reshaped = mask.reshape(state[0].shape[0], -1)
+            mask_reshaped = mask.reshape(state[0].shape[0], 1)
             if isinstance(state, (list, tuple)):
                 state_type = type(state)
                 state = state_type(*[v * mask_reshaped for v in state])

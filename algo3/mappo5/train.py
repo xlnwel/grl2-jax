@@ -12,6 +12,7 @@ from algo.ppo.train import main
 def train(agent, env, eval_env, buffer):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
+    
     random_actor = pkg.import_module('agent', algo=agent.name).random_actor
     random_actor = functools.partial(random_actor, env=env)
 
@@ -50,6 +51,36 @@ def train(agent, env, eval_env, buffer):
     tt = Timer('train')
     et = Timer('eval')
     lt = Timer('log')
+
+    def evaluate_agent(step, eval_env, agent):
+        if eval_env is not None:
+            with TempStore(agent.model.get_states, agent.model.reset_states):
+                with et:
+                    eval_score, eval_epslen, video = evaluate(
+                        eval_env, agent, n=agent.N_EVAL_EPISODES, 
+                        record=agent.RECORD, size=(64, 64))
+                if agent.RECORD:
+                    agent.video_summary(video, step=step)
+                agent.store(
+                    eval_score=eval_score, 
+                    eval_epslen=eval_epslen)
+
+    def log(step):
+        with lt:
+            agent.store(**{
+                'misc/train_step': agent.train_step,
+                'time/run': rt.total(), 
+                'time/train': tt.total(),
+                'time/eval': et.total(),
+                'time/log': lt.total(),
+                'time/run_mean': rt.average(), 
+                'time/train_mean': tt.average(),
+                'time/eval_mean': et.average(),
+                'time/log_mean': lt.average(),
+            })
+            agent.log(step)
+            agent.save()
+
     print('Training starts...')
     while step < agent.MAX_STEPS:
         start_env_step = agent.env_step

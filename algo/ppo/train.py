@@ -16,8 +16,11 @@ def train(agent, env, eval_env, buffer):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
     
+    em = pkg.import_module(env.name.split("_")[0], pkg='env')
+    info_func = em.info_func if hasattr(em, 'info_func') else None
+
     step = agent.env_step
-    runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
+    runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS, info_func=info_func)
 
     def initialize_rms():
         print('Start to initialize running stats...')
@@ -42,19 +45,20 @@ def train(agent, env, eval_env, buffer):
     et = Timer('eval')
     lt = Timer('log')
 
-    def evaluate_agent():
-        with TempStore(agent.model.get_states, agent.model.reset_states):
-            with et:
-                eval_score, eval_epslen, video = evaluate(
-                    eval_env, agent, n=agent.N_EVAL_EPISODES, 
-                    record=agent.RECORD, size=(64, 64))
-            if agent.RECORD:
-                agent.video_summary(video, step=step)
-            agent.store(
-                eval_score=eval_score, 
-                eval_epslen=eval_epslen)
+    def evaluate_agent(step, eval_env, agent):
+        if eval_env is not None:
+            with TempStore(agent.model.get_states, agent.model.reset_states):
+                with et:
+                    eval_score, eval_epslen, video = evaluate(
+                        eval_env, agent, n=agent.N_EVAL_EPISODES, 
+                        record=agent.RECORD, size=(64, 64))
+                if agent.RECORD:
+                    agent.video_summary(video, step=step)
+                agent.store(
+                    eval_score=eval_score, 
+                    eval_epslen=eval_epslen)
 
-    def log():
+    def log(step):
         with lt:
             agent.store(**{
                 'misc/train_step': agent.train_step,
@@ -98,10 +102,10 @@ def train(agent, env, eval_env, buffer):
         buffer.reset()
 
         if to_eval(agent.train_step) or step > agent.MAX_STEPS:
-            evaluate_agent()
+            evaluate_agent(step, eval_env, agent)
 
         if to_log(agent.train_step) and agent.contains_stats('score'):
-            log()
+            log(step)
 
 def main(config, train=train):
     silence_tf_logs()

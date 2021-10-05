@@ -4,12 +4,9 @@ from utility.tf_utils import tensor2numpy, numpy2tensor
 from algo.ppo.elements.actor import PPOActor
 
 
-def infer_life_mask(discount, concat=False):
+def infer_life_mask(discount):
     life_mask = np.logical_or(
         discount, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
-    # np.testing.assert_equal(life_mask, mask)
-    if concat:
-        life_mask = np.concatenate(life_mask)
     return life_mask
 
 
@@ -38,7 +35,7 @@ class MAPPOActor(PPOActor):
             return {'actor_inp': actor_inp, 'value_inp': value_inp}
         
         if 'life_mask' in inp:
-            life_mask = inp['life_mask']
+            life_mask = np.concatenate(inp['life_mask'])
             inp['life_mask'] = infer_life_mask(inp['discount'])
             inp['discount'][np.any(inp['discount'], 1)] = 1
         else:

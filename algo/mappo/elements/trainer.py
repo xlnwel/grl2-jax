@@ -8,7 +8,6 @@ from core.tf_config import build
 class MAPPOActorTrainer(Trainer):
     def raw_train(self, obs, action, advantage, logpi, state=None, 
             action_mask=None, life_mask=None, mask=None):
-        print('retracing train actor')
         tape, loss, terms = self.loss.loss(
             obs, action, advantage, logpi, state, 
             action_mask, life_mask, mask)
@@ -21,7 +20,6 @@ class MAPPOActorTrainer(Trainer):
 class MAPPOValueTrainer(Trainer):
     def raw_train(self, global_state, value, traj_ret, state=None, 
             life_mask=None, mask=None):
-        print('retracing train value function')
         tape, loss, terms = self.loss.loss(
             global_state, value, traj_ret, state, life_mask, mask)
 
@@ -60,7 +58,6 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
     def raw_train(self, obs, global_state, action, 
             value, traj_ret, advantage, logpi, mask,
             action_mask=None, life_mask=None, state=None):
-        print('retracing PPOTrainerEnsemble train')
         actor_state, value_state = self.model.split_state(state)
         actor_terms = self.actor.raw_train(
             obs, action, advantage, logpi, actor_state, 
