@@ -735,8 +735,7 @@ class SMAC(gym.Env):
         if self.reward_scale:
             reward /= self.max_reward / self.reward_scale_rate
 
-        self._score += reward
-        rewards = reward*np.ones(self.n_agents, np.float32)
+        self._score += np.max(reward)
 
         if self.use_state_agent:
             global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_agents)]
@@ -773,7 +772,7 @@ class SMAC(gym.Env):
 
         self._reset_for_error = False
 
-        return obs_dict, rewards, dones, info
+        return obs_dict, reward, dones, info
 
     def _reset_track_stats(self):
         self._game_over = False
@@ -999,32 +998,11 @@ class SMAC(gym.Env):
         if self.reward_sparse:
             return 0
 
-        reward = 0
+        reward = np.zeros(self.n_agents, np.float32)
         delta_deaths = 0
-        delta_ally = 0
         delta_enemy = 0
 
         neg_scale = self.reward_negative_scale
-
-        # update deaths
-        for al_id, al_unit in self.agents.items():
-            if not self.death_tracker_ally[al_id]:
-                # did not die so far
-                prev_health = (
-                    self.previous_ally_units[al_id].health
-                    + self.previous_ally_units[al_id].shield
-                )
-                if al_unit.health == 0:
-                    # just died
-                    self.death_tracker_ally[al_id] = 1
-                    if not self.reward_only_positive:
-                        delta_deaths -= self.reward_death_value * neg_scale
-                    delta_ally += prev_health * neg_scale
-                else:
-                    # still alive
-                    delta_ally += neg_scale * (
-                        prev_health - al_unit.health - al_unit.shield
-                    )
 
         for e_id, e_unit in self.enemies.items():
             if not self.death_tracker_enemy[e_id]:
@@ -1040,9 +1018,29 @@ class SMAC(gym.Env):
                     delta_enemy += prev_health - e_unit.health - e_unit.shield
 
         if self.reward_only_positive:
-            reward = abs(delta_enemy + delta_deaths)  # shield regeneration
+            reward += abs(delta_enemy + delta_deaths)  # shield regeneration
         else:
-            reward = delta_enemy + delta_deaths - delta_ally
+            reward += delta_enemy + delta_deaths
+
+        for aid, unit in self.agents.items():
+            if not self.death_tracker_ally[aid]:
+                # did not die so far
+                prev_health = (
+                    self.previous_ally_units[aid].health
+                    + self.previous_ally_units[aid].shield
+                )
+                if unit.health == 0:
+                    # just died
+                    self.death_tracker_ally[aid] = 1
+                    reward[aid] -= self.reward_death_value * neg_scale
+                    reward[aid] -= prev_health * neg_scale
+                else:
+                    # still alive
+                    reward[aid] -= neg_scale * (
+                        prev_health - unit.health - unit.shield
+                    )
+            else:
+                reward[aid] = 0
 
         return reward
 
@@ -2261,6 +2259,7 @@ if __name__ == '__main__':
     o = env.reset()
     for _ in range(100000):
         a = env.random_action()
-        _, _, d, _ = env.step(a)
+        _, r, d, _ = env.step(a)
+        print(r)
         if np.all(d):
             env.reset()
