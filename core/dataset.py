@@ -4,6 +4,7 @@ import collections
 import numpy as np
 import tensorflow as tf
 
+from core.log import do_logging
 
 DataFormat = collections.namedtuple('DataFormat', ('shape', 'dtype'))
 logger = logging.getLogger(__name__)
@@ -30,9 +31,8 @@ class Dataset:
         data_format = {k: DataFormat(*v) for k, v in data_format.items()}
         self.data_format = data_format
         if print_data_format:
-            logger.info('Dataset info:')
-            for k, v in data_format.items():
-                logger.info(f'\t{k} {v}')
+            do_logging('Dataset info:', logger=logger)
+            do_logging(data_format, prefix='\t', logger=logger)
         self.types = {k: v.dtype for k, v in self.data_format.items()}
         self.shapes = {k: v.shape for k, v in self.data_format.items()}
         self._iterator = self._prepare_dataset(process_fn, batch_size, **kwargs)

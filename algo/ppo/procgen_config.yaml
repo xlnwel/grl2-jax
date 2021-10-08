@@ -16,6 +16,7 @@ agent:
     MAX_STEPS: 2e8
     N_STEPS: &nsteps 256
     N_EPOCHS: &nepochs 3
+    N_VALUE_EPOCHS: &nval_epochs 0
     N_MBS: &nmbs 8
     LOG_PERIOD: 100
     EVAL_PERIOD: 100
@@ -88,6 +89,7 @@ buffer:
     n_envs: *nenvs
     N_STEPS: *nsteps
     N_EPOCHS: *nepochs
+    N_VALUE_EPOCHS: *nval_epochs
     N_MBS: *nmbs        # number of minibatches
     norm_adv: minibatch
     sample_keys: [obs, action, value, traj_ret, advantage, logpi]

@@ -56,7 +56,7 @@ class EpisodicReplay:
     def add(self, idxes=None, **data):
         if self._n_envs > 1:
             if self._n_envs != len(self._tmp_bufs):
-                logger.info(f'Initialize {self._n_envs} temporary buffer')
+                do_logging(f'Initialize {self._n_envs} temporary buffer', logger=logger)
                 self._tmp_bufs = [
                     self.TempBufferType({'seqlen': self._seqlen}) 
                     for _ in range(self._n_envs)]
@@ -168,7 +168,7 @@ class EpisodicReplay:
                     data = load_data(filename)
                     if data is not None:
                         self._memory[filename] = data
-            logger.info(f'{len(self)} episodes are loaded')
+            do_logging(f'{len(self)} episodes are loaded', logger=logger)
         else:
             logger.warning(f'There are already {len(self)} episodes in the memory. No further loading is performed')
 

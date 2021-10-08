@@ -30,7 +30,7 @@ def compute_gae(reward, discount, value, last_value, gamma,
     return advs, traj_ret
 
 
-class Buffer:
+class MAPPOBuffer:
     @config
     def __init__(self):
         self._add_attributes()
@@ -99,11 +99,9 @@ class Buffer:
         
     def add(self, i, **data):
         assert i < len(self._buffer), i
-        assert i not in self._invalid_episodes, (i, self._invalid_episodes)
 
         if i in self._invalid_episodes:
-            logger.warning('Adding data to invalid episodes...')
-            return
+            raise ValueError(f'Adding data to invalid episodes({i}). Current invalid episodes: {self._invalid_episodes}')
         n_agents = next(iter(data.values())).shape[0]
         self._buffer_size[i] += n_agents
         self._n_transitions += n_agents
@@ -223,7 +221,22 @@ class Buffer:
         sample = process_sample(sample)
 
         return sample
-        
+    
+    def compute_mean_max_std(self, name):
+        stats = self._memory[name]
+        return {
+            name: np.mean(stats),
+            f'{name}_max': np.max(stats),
+            f'{name}_min': np.min(stats),
+            f'{name}_std': np.std(stats),
+        }
+    
+    def compute_fraction(self, name):
+        stats = self._memory[name]
+        return {
+            f'{name}_frac': np.sum(stats) / np.prod(stats.shape)
+        }
+    
     def get(self, i, k):
         return np.array(self._buffer[i][k])
     
@@ -234,4 +247,4 @@ class Buffer:
         return bool(self._buffer[i])
 
 def create_buffer(config):
-    return Buffer(config)
+    return MAPPOBuffer(config)

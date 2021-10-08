@@ -28,7 +28,7 @@ class PPOLossImpl(Loss):
         return value_loss, v_clip_frac
 
 
-class PPOLoss(Loss):
+class PPOLoss(PPOLossImpl):
     def loss(self, obs, action, value, traj_ret, advantage, logpi, 
                 state=None, mask=None):
         old_value = value

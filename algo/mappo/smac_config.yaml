@@ -18,7 +18,6 @@ agent:
     N_EPOCHS: &nepochs 5
     N_VALUE_EPOCHS: &nval_epochs 0
     N_MBS: &nmbs 1
-    batch_size: &bs 3092
     LOG_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
@@ -131,7 +130,7 @@ buffer:
     gamma: *gamma
     lam: .95
     n_envs: *nenvs
-    batch_size: *bs
+    batch_size: 3092
     N_EPOCHS: *nepochs
     N_VALUE_EPOCHS: *nval_epochs
     N_MBS: *nmbs        # number of minibatches

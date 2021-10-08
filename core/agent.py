@@ -119,3 +119,19 @@ class AgentBase(StepCounter, TensorboardOps):
             self.model.save(print_terminal_info)
         self.actor.save_auxiliary_stats()
         self.save_step()
+
+
+class PopulationAgentInterface:
+    def __init__(self, name) -> None:
+        self._name = name
+        self.trainers = {}
+        self.aux_stats = {}
+
+    @property
+    def name(self):
+        return self._name
+
+    def add_policy(self, policy_id, ):
+        pass
+
+    

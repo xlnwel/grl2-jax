@@ -20,8 +20,8 @@ class TargetNetOps:
         """ Synchronizes the target net with the online net """
         ons = self.get_online_nets()
         tns = self.get_target_nets()
-        logger.info(f"Sync Networks | Online networks: {[n.name for n in ons]}")
-        logger.info(f"Sync Networks | Target networks: {[n.name for n in tns]}")
+        do_logging(f"Sync Networks | Online networks: {[n.name for n in ons]}", logger=logger)
+        do_logging(f"Sync Networks | Target networks: {[n.name for n in tns]}", logger=logger)
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
         logger.info(f"Sync Networks | Online network parameters:\n\t" 
@@ -36,8 +36,8 @@ class TargetNetOps:
         """ Updates the target net towards online net using exponentially moving average """
         ons = self.get_online_nets()
         tns = self.get_target_nets()
-        logger.info(f"Update Networks | Online networks: {[n.name for n in ons]}")
-        logger.info(f"Update Networks | Target networks: {[n.name for n in tns]}")
+        do_logging(f"Update Networks | Online networks: {[n.name for n in ons]}", logger=logger)
+        do_logging(f"Update Networks | Target networks: {[n.name for n in tns]}", logger=logger)
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
         logger.info(f"Update Networks | Online network parameters:\n" 

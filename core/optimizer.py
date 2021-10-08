@@ -3,7 +3,7 @@ import logging
 import tensorflow as tf
 from tensorflow.keras import mixed_precision as prec
 
-
+from core.log import get_sys_logger, do_logging
 from utility.schedule import TFPiecewiseSchedule
 
 
@@ -22,8 +22,12 @@ def select_optimizer(name):
 
 def create_optimizer(modules, config):
     if config.pop('schedule_lr', False):
-        assert isinstance(config['lr'], (list, tuple)), config['lr']
+        if not isinstance(config['lr'], (list, tuple)) \
+                or not isinstance(config['lr'][0], (list, tuple)):
+            raise ValueError(f"Require a list of tuples to schedule learning rate, but get lr={config['lr']}")
         config['lr'] = TFPiecewiseSchedule(config['lr'])
+    do_logging(f'The optimizer for modules{tuple(m.name for m in modules)} is constructed with arguments:', logger=logger)
+    do_logging(config, prefix='\t', logger=logger)
     opt = Optimizer(modules, **config)
     return opt
 
@@ -49,10 +53,18 @@ class Optimizer(tf.Module):
         prec_policy = prec.global_policy()
         self._mpt = prec_policy.compute_dtype != prec_policy.variable_dtype
         if self._mpt:
-            logger.info('Mixed precision training will be performed')
+            do_logging(
+                'Mixed precision training will be performed', 
+                logger=logger)
             self._opt = prec.LossScaleOptimizer(self._opt)
         # we do not initialize variables here as modules may not be initialized at this point
         self._variables = None
+
+    def get_weights(self):
+        return self._opt.get_weights()
+    
+    def set_weights(self, weights):
+        self._opt.set_weights(weights)
 
     @property
     def variables(self):
@@ -73,7 +85,7 @@ class Optimizer(tf.Module):
         if self._variables is None:
             variables = [m.trainable_variables for m in self._modules]
             for v, m in zip(variables, self._modules):
-                logger.info(f'Found {len(v)} parameters for {m}')
+                do_logging(f'Found {len(v)} parameters for {m.name}', logger=logger)
             self._variables = tf.nest.flatten(variables)
             if self._scales is not None:
                 scales = [[self._scales[i] for _ in m.trainable_variables] 
@@ -110,14 +122,16 @@ class Optimizer(tf.Module):
             return norm
     
     def _add_l2_regularization(self, loss):
-        logger.info(f'Apply L2 regularization with coefficient: {self._l2_reg}\n" \
-            "Wait, are you sure you want to apply l2 regularization instead of weight decay?')
+        do_logging(f'Apply L2 regularization with coefficient: {self._l2_reg}\n" \
+            "Wait, are you sure you want to apply l2 regularization instead of weight decay?',
+            logger=logger)
         for var in self._variables:
             loss += self._l2_reg * tf.nn.l2_loss(var)
         return loss
 
     def _apply_weight_decay(self):
-        logger.info(f'Apply weight decay with coefficient: {self._weight_decay}')
+        do_logging(f'Apply weight decay with coefficient: {self._weight_decay}',
+            logger=logger)
         for var in self._variables:
             if re.search(self._wdpattern, var.name):
                 print(var.name, self._weight_decay)

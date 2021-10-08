@@ -297,8 +297,8 @@ class Trainer(tf.Module):
         
         self.model = model
         self.loss = loss
-        modules = [v for k, v in self.model.items() 
-            if not k.startswith('target')]
+        modules = tuple(v for k, v in self.model.items() 
+            if not k.startswith('target'))
         opt_config = eval_config(config.pop('optimizer'))
         self.optimizer = create_optimizer(modules, opt_config)
         
@@ -314,8 +314,23 @@ class Trainer(tf.Module):
         self._post_init(config, env_stats)
         self.model.sync_nets()
 
+    def _get_raw_name(self):
+        return self.name.split('_')[0]
+
+    def get_weights(self):
+        name = self._get_raw_name()
+        return {
+            f'{name}_model': self.model.get_weights(),
+            f'{name}_opt': self.optimizer.get_weights(),
+        }
+
+    def set_weights(self):
+        name = self._get_raw_name()
+        self.model.set_weights(f'{name}_model')
+        self.optimizer.set_weights(f'{name}_opt')
+
     def ckpt_model(self):
-        name = self.name.split('_')[0]
+        name = self._get_raw_name()
         return {
             f'{name}_opt': self.optimizer, 
             f'{name}_model': self.model

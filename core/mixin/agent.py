@@ -79,7 +79,7 @@ class ActionScheduler:
         """ Schedules action epsilon """
         if self._schedule_act_eps:
             if isinstance(self._act_eps, (list, tuple)):
-                logger.info(f'Schedule action epsilon: {self._act_eps}')
+                do_logging(f'Schedule action epsilon: {self._act_eps}', logger=logger)
                 self._act_eps = PiecewiseSchedule(self._act_eps)
             else:
                 from utility.rl_utils import compute_act_eps

@@ -10,9 +10,6 @@ source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 class PPOModel(Model):
     @tf.function
     def action(self, obs, evaluation=False, **kwargs):
-        print(f'instantiate action with obs({obs}),',
-              f'evaluation({evaluation})',
-              f'kwargs({kwargs})')
         x, state = self.encode(obs)
         act_dist = self.actor(x, evaluation=evaluation)
         action = self.actor.action(act_dist, evaluation)
@@ -27,8 +24,8 @@ class PPOModel(Model):
             return action, terms, state    # keep the batch dimension for later use
 
     @tf.function
-    def compute_value(self, x, state=None, mask=None):
-        x, state = self.encode(x, state, mask)
+    def compute_value(self, obs, state=None, mask=None):
+        x, state = self.encode(obs, state, mask)
         value = self.value(x)
         return value, state
 

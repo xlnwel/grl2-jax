@@ -4,6 +4,7 @@ import numpy as np
 import gym
 import cv2
 
+from core.log import do_logging
 from utility.utils import infer_dtype, convert_dtype
 from utility.typing import AttrDict
 from env.typing import EnvOutput, GymOutput
@@ -399,7 +400,7 @@ class EnvStatsBase(gym.Wrapper):
             use_action_mask=getattr(env, 'use_action_mask', False),
         )
         if timeout_done:
-            logger.info('Timeout is treated as done')
+            do_logging('Timeout is treated as done', logger=logger)
         self._reset()
     
     def observation(self, obs):
@@ -448,7 +449,7 @@ class EnvStats(EnvStatsBase):
         if self.auto_reset:
             self.auto_reset = False
             if EnvStats.manual_reset_warning:
-                logger.info('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation')
+                do_logging('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation', logger=logger)
                 EnvStats.manual_reset_warning = False
         if not self._output.reset:
             return self._reset()
@@ -535,7 +536,7 @@ class MAEnvStats(EnvStatsBase):
         if self.auto_reset:
             self.auto_reset = False
             if EnvStats.manual_reset_warning:
-                logger.info('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation')
+                do_logging('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation', logger=logger)
                 EnvStats.manual_reset_warning = False
         if not np.any(self._output.reset):
             return self._reset()

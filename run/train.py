@@ -6,16 +6,14 @@ from multiprocessing import Process
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from utility import pkg
-from utility.utils import deep_update
+from core.log import do_logging
 from run.args import parse_train_args
 from run.grid_search import GridSearch
 from run.utils import *
+from utility import pkg
 
-logger = logging.getLogger(__name__)
 
-
-def get_algo_name(algo):
+def _get_algo_name(algo):
     algo_mapping = {
         'r2d2': 'apex-mrdqn',
         'impala': 'apg-impala',
@@ -27,27 +25,7 @@ def get_algo_name(algo):
     return algo
 
 
-def load_configs(algo, env):
-    algo = get_algo_name(algo)
-    if '-' in algo:
-        config = get_config(algo.split('-')[-1], env)
-        dist_config = get_config(algo, env)
-        assert config or dist_config, (config, dist_config)
-        assert dist_config, dist_config
-        if config == {}:
-            config = dist_config
-        config = deep_update(config, dist_config)
-    else:
-        config = get_config(algo, env)
-    configs = decompose_config(config)
-    configs.agent['algorithm'] = algo
-    if env:
-        configs.env['name'] = env
-
-    return configs
-
-
-def set_path(configs, root_dir, model_name):
+def _set_path(configs, root_dir, model_name):
     for k, v in configs.items():
         assert isinstance(v, dict), (k, v)
         v['root_dir'] = root_dir
@@ -59,8 +37,11 @@ if __name__ == '__main__':
     cmd_args = parse_train_args()
 
     verbose = getattr(logging, cmd_args.verbose.upper())
-    logging.basicConfig(level=verbose)
-    
+    logging.basicConfig(
+        level=verbose, 
+        format=f'%(asctime)s: %(levelname)s: %(name)s: %(message)s',
+        datefmt='%Y-%m-%d:%H:%M:%S',
+    )
     processes = []
     if cmd_args.directory != '':
         load_and_run(cmd_args.directory)
@@ -74,7 +55,8 @@ if __name__ == '__main__':
         model_name = cmd_args.model_name
 
         for algo, env in algo_env:
-            configs = load_configs(algo, env)
+            algo = _get_algo_name(algo)
+            configs = load_configs_with_algo_env(algo, env)
             model_name = change_config(cmd_args.kwargs, configs, model_name)
             if model_name == '':
                 model_name = 'baseline'
@@ -94,8 +76,9 @@ if __name__ == '__main__':
             else:
                 dir_prefix = prefix + '-' if prefix else prefix
                 root_dir=f'{logdir}/{dir_prefix}{configs.env["name"]}/{configs.agent["algorithm"]}'
-                configs = set_path(configs, root_dir, model_name)
+                configs = _set_path(configs, root_dir, model_name)
                 configs.buffer['dir'] = configs.agent['root_dir'].replace('logs', 'data')
+                do_logging(configs)
                 if len(algo_env) > 1:
                     p = Process(target=main, args=configs)
                     p.start()

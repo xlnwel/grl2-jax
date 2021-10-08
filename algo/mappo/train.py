@@ -144,7 +144,7 @@ def train(agent, env, eval_env, buffer):
             agent.train_log(step)
         agent.store(
             fps=(step - start_env_step) / rt.last(),
-            tps=(agent.train_step-start_train_step)/tt.last()
+            tps=(agent.train_step-start_train_step) / tt.last()
         )
 
         if to_log(agent.train_step) and agent.contains_stats('score'):

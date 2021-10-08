@@ -1,10 +1,11 @@
-import os
-import random
-import itertools
-import collections
 import ast
+import collections
+import inspect
+import itertools
 import math
 import multiprocessing
+import os
+import random
 import numpy as np
 import tensorflow as tf
 
@@ -364,6 +365,12 @@ def batch_dicts(x, func=np.stack):
 def concat_map(x):
     return tf.nest.map_structure(lambda x: np.concatenate(x), x)
 
+
+def get_frame(backtrack):
+    frame = inspect.currentframe()
+    for _ in range(backtrack):
+        frame = frame.f_back
+    return frame
 
 class TempStore:
     def __init__(self, get_fn, set_fn):

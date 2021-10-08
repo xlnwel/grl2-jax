@@ -4,6 +4,7 @@ import logging
 import numpy as np
 from typing import Tuple, Union
 
+from core.log import do_logging
 from utility.rms import RunningMeanStd
 
 logger = logging.getLogger(__name__)
@@ -44,13 +45,13 @@ class RMS:
             self._return = -np.inf
         self._rms_path = f'{config["root_dir"]}/{config["model_name"]}/rms.pkl'
 
-        logger.info(f'Observation normalization: {self._normalize_obs}')
-        logger.info(f'Normalized observation names: {self._obs_names}')
-        logger.info(f'Reward normalization: {self._normalize_reward}')
+        do_logging(f'Observation normalization: {self._normalize_obs}', logger=logger)
+        do_logging(f'Normalized observation names: {self._obs_names}', logger=logger)
+        do_logging(f'Reward normalization: {self._normalize_reward}', logger=logger)
         logger.info(f'Reward normalization with return: '
                     f'{self._normalize_reward_with_return}')
         if self._normalize_reward_with_return:
-            logger.info(f"Reward normalization axis: {'1st' if self._normalize_reward_with_return == 'forward' else '2nd'}")
+            do_logging(f"Reward normalization axis: {'1st' if self._normalize_reward_with_return == 'forward' else '2nd'}", logger=logger)
 
     def process_obs_with_rms(self, 
                              inp: Union[dict, Tuple[str, np.ndarray]], 
@@ -201,7 +202,7 @@ class RMS:
         if os.path.exists(self._rms_path):
             with open(self._rms_path, 'rb') as f:
                 self._obs_rms, self._reward_rms, self._return = cloudpickle.load(f)
-                logger.info(f'rms stats are restored from {self._rms_path}')
+                do_logging(f'rms stats are restored from {self._rms_path}', logger=logger)
             assert self._reward_rms.axis == self._reward_normalized_axis, \
                 (self._reward_rms.axis, self._reward_normalized_axis)
             if self._obs_rms is None:

@@ -94,9 +94,8 @@ class MAPPOAgent(PPOAgent):
             value_input, update_rms=False)
         reset = concat_map(env_output.reset)
         state = self._memory.get_states()
-        if state is not None:
-            mid = len(state) // 2
-            state = self.model.value_state_type(*state[mid:])
+        mid = len(state) // 2
+        state = self.model.value_state_type(*state[mid:])
         self._value_input = self._memory.add_memory_state_to_input(
             value_input, reset, state=state)
 

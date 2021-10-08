@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from core.decorator import config
+from core.log import do_logging
 from utility.utils import moments, standardize
 from replay.utils import init_buffer, print_buffer
 
@@ -83,7 +84,7 @@ class PPOBuffer:
     def _add_attributes(self):
         self._use_dataset = getattr(self, '_use_dataset', False)
         if self._use_dataset:
-            logger.info(f'Dataset is used for data pipline')
+            do_logging(f'Dataset is used for data pipline', logger=logger)
 
         self._sample_size = getattr(self, '_sample_size', None)
         self._state_keys = getattr(self, '_state_keys', [])
@@ -91,7 +92,7 @@ class PPOBuffer:
             assert self._n_envs * self.N_STEPS % self._sample_size == 0, \
                 f'{self._n_envs} * {self.N_STEPS} % {self._sample_size} != 0'
             size = self._n_envs * self.N_STEPS // self._sample_size
-            logger.info(f'Sample size: {self._sample_size}')
+            do_logging(f'Sample size: {self._sample_size}', logger=logger)
         else:
             size = self._n_envs * self.N_STEPS
         self._size = size
@@ -107,8 +108,8 @@ class PPOBuffer:
         if hasattr(self, 'N_VALUE_EPOCHS'):
             self.N_EPOCHS += self.N_VALUE_EPOCHS
         self.reset()
-        logger.info(f'Batch size: {size}')
-        logger.info(f'Mini-batch size: {self._mb_size}')
+        do_logging(f'Batch size: {size}', logger=logger)
+        do_logging(f'Mini-batch size: {self._mb_size}', logger=logger)
 
         self._sleep_time = 0.025
         self._sample_wait_time = 0

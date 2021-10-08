@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers
 
+from core.log import do_logging
 from nn.norm import EvoNorm
 
 logger = logging.getLogger(__name__)
@@ -116,10 +117,15 @@ def ortho_init(scale=1.0):
 
 def convert_obs(x, obs_range, dtype=tf.float32):
     if x.dtype != np.uint8:
-        logger.info(f'Observations({x.shape}, {x.dtype}) are already converted to {x.dtype}, no further process is performed')
+        do_logging(
+            f'Observations({x.shape}, {x.dtype}) are already converted to {x.dtype}, no further process is performed', 
+            backtrack=12)
         return x
     dtype = dtype or tf.float32 # dtype is None when global policy is not unspecified, override it
-    logger.info(f'Observations({x.shape}, {x.dtype}) are converted to range {obs_range} of dtype {dtype}')
+    do_logging(
+        f'1Observations({x.shape}, {x.dtype}) are converted to range {obs_range} of dtype {dtype}')
+    do_logging(
+        f'2Observations({x.shape}, {x.dtype}) are converted to range {obs_range} of dtype {dtype}')
     if obs_range == [0, 1]:
         return tf.cast(x, dtype) / 255.
     elif obs_range == [-.5, .5]:

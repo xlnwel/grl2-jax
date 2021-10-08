@@ -34,7 +34,7 @@ class Agent(PPOBase):
         actor_models = [self.encoder, self.actor]
         if hasattr(self, 'actor_rnn'):
             actor_models.append(self.actor_rnn)
-        logger.info(f'Actor model: {actor_models}')
+        do_logging(f'Actor model: {actor_models}', logger=logger)
         self._actor_opt = self._construct_opt(actor_models, self._actor_lr)
 
         value_models = [self.value]
@@ -42,12 +42,12 @@ class Agent(PPOBase):
             value_models.append(self.value_encoder)
         if hasattr(self, 'value_rnn'):
             value_models.append(self.value_rnn)
-        logger.info(f'Value model: {value_models}')
+        do_logging(f'Value model: {value_models}', logger=logger)
         self._value_opt = self._construct_opt(value_models, self._value_lr)
         
         aux_models = list(self.model.values())
         self._aux_opt = self._construct_opt(aux_models, self._aux_lr)
-        logger.info(f'Auxiliary model: {aux_models}')
+        do_logging(f'Auxiliary model: {aux_models}', logger=logger)
 
         return actor_models + value_models + [self.aux_value]
 

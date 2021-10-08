@@ -8,15 +8,28 @@ from nn.dnc.dnc import DNC
 from nn.registry import nn_registry
 
 
-def create_encoder(config, name='encoder'):
+def create_network(config, name):
+    """ Create a network according to config
+    
+    Args: 
+        config[Dict]: must contain <nn_id>, which specifies the 
+            class of network to create. The rest arguments are 
+            passed to the network for initialization
+        name[str]: the name of the network
+    """
     config = config.copy()
-    if 'cnn_name' in config:
-        return cnn(**config, name=name)
+    if 'nn_id' not in config:
+        raise ValueError(f'No nn_id is specified in config: {config}')
+    nn_id = config.pop('nn_id')
+    if '_' in nn_id:
+        nn_type, nn_id = nn_id.split('_')
+        registry = nn_registry.get(nn_type)
     else:
-        assert 'units_list' in config
-        return mlp(**config, name=name)
-
-Encoder = create_encoder
+        registry = nn_registry
+    network = registry.get(nn_id)
+    if not issubclass(network, tf.Module):
+        raise TypeError(f'create_network returns invalid network: {network}')
+    return network(**config, name=name)
 
 def mlp(units_list=[], out_size=None, **kwargs):
     return MLP(units_list, out_size=out_size, **kwargs)
@@ -27,11 +40,11 @@ def rnn(config, name='rnn'):
     if rnn_name == 'gru':
         return layers.GRU(**config, name=name)
     elif rnn_name == 'mgru':
-        return MGRU(config, name=name)
+        return MGRU(**config, name=name)
     elif rnn_name == 'lstm':
         return layers.LSTM(**config, name=name)
     elif rnn_name == 'mlstm':
-        return MLSTM(config, name=name)
+        return MLSTM(**config, name=name)
     else:
         raise ValueError(f'Unkown rnn: {rnn_name}')
 
@@ -63,26 +76,3 @@ def dnc_rnn(output_size,
                 clip_value, 
                 name)
     return layers.RNN(dnc_cell, **rnn_config)
-
-def create_network(config, name):
-    """ Create a network according to config
-    
-    Args: 
-        config[Dict]: must contain <nn_id>, which specifies the 
-            class of network to create. The rest arguments are 
-            passed to the network for initialization
-        name[str]: the name of the network
-    """
-    config = config.copy()
-    if 'nn_id' not in config:
-        raise ValueError(f'No nn_id is specified in config: {config}')
-    nn_id = config.pop('nn_id')
-    if '_' in nn_id:
-        nn_type, nn_id = nn_id.split('_')
-        registry = nn_registry.get(nn_type)
-    else:
-        registry = nn_registry
-    network = registry.get(nn_id)
-    if not issubclass(network, tf.Module):
-        raise TypeError(f'create_network returns invalid network: {network}')
-    return network(**config, name=name)

@@ -549,12 +549,11 @@ class SMAC(gym.Env):
             local_obs = self.stacked_local_obs.reshape(self.n_agents, -1)
             global_state = self.stacked_global_state.reshape(self.n_agents, -1)
 
-        self.mask = np.ones(self.n_agents, np.float32)
         obs_dict = dict(
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, np.bool),
-            life_mask=self.mask
+            life_mask=np.ones(self.n_agents, np.float32)
         )
 
         return obs_dict
@@ -586,7 +585,6 @@ class SMAC(gym.Env):
 
         terminated = False
         infos = [{} for i in range(self.n_agents)]
-        self.mask = (1 - self.dones).astype(np.float32)
         self.dones = dones = np.zeros(self.n_agents, dtype=bool)
 
         actions_int = [int(a) for a in action]
@@ -652,12 +650,11 @@ class SMAC(gym.Env):
                 local_obs = self.stacked_local_obs.reshape(self.n_agents, -1)
                 global_state = self.stacked_global_state.reshape(self.n_agents, -1)
             
-            self.mask = np.ones_like(self.mask)
             obs_dict = dict(
                 obs=local_obs,
                 global_state=np.array(global_state, np.float32),
                 action_mask=np.array(available_actions, np.bool),
-                life_mask=self.mask
+                life_mask=np.ones(self.n_agents, np.float32)
             )
             rewards = np.zeros(self.n_agents, np.float32)
             info = batch_dicts(infos)
@@ -719,7 +716,6 @@ class SMAC(gym.Env):
                 "battles_draw": self.timeouts,
                 "restarts": self.force_restarts,
                 "won": self.win_counted,
-                "mask": self.mask[i],
             }
 
             if terminated:
@@ -763,7 +759,7 @@ class SMAC(gym.Env):
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, np.bool),
-            life_mask=self.mask
+            life_mask=(1-dones).astype(np.float32)
         )
         info = batch_dicts(infos)
         info.update({
@@ -2247,17 +2243,17 @@ class SMAC(gym.Env):
 
 if __name__ == '__main__':
     config = dict(
-        name='3m',
+        name='corridor',
         add_local_obs=False,
         add_move_state=False,
         add_visible_state=False,
         add_distance_state=False,
         add_xy_state=False,
         add_enemy_action_state=False,
-        add_agent_id=False,
-        use_state_agent=False,
-        use_mustalive=False,
-        add_center_xy=False,
+        add_agent_id=True,
+        use_state_agent=True,
+        use_mustalive=True,
+        add_center_xy=True,
         use_stacked_frames=False,
         stacked_frames=False,
     )

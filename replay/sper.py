@@ -49,9 +49,9 @@ logger = logging.getLogger(__name__)
 #             self._memory.append(local_buffer)
 #             self._mem_idx = self._mem_idx + 1
 #         if self._first:
-#             logger.info('First sample')
+#             do_logging('First sample', logger=logger)
 #             for k, v in self._memory[0].items():
-#                 logger.info(f'\t{k}, {v.shape}, {v.dtype}')
+#                 do_logging(f'\t{k}, {v.shape}, {v.dtype}', logger=logger)
 #             self._first = False
         
 #         if not self._is_full and self._mem_idx >= self._capacity:

@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 
+from core.log import do_logging
 from utility.utils import infer_dtype
 
 
@@ -81,11 +82,11 @@ def infer_info(precision, pre_dims_len=None, **data):
 
 
 def print_buffer(buffer, prefix=''):
-    logger.info(f'{prefix} Buffer Info:')
+    do_logging(f'{prefix} Buffer Info:', logger=logger)
     for k, v in buffer.items():
         shape = v.shape if isinstance(v, np.ndarray) else (len(v), np.array(v[0]).shape)
         dtype = v.dtype if isinstance(v, np.ndarray) else list
-        logger.info(f'\t{k}: shape({shape}), type({dtype})')
+        do_logging(f'\t{k}: shape({shape}), type({dtype})', logger=logger)
 
 
 def adjust_n_steps(data, seqlen, n_steps, max_steps, gamma):

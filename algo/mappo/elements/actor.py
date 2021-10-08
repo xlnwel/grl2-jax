@@ -34,16 +34,18 @@ class MAPPOActor(PPOActor):
             )
             return {'actor_inp': actor_inp, 'value_inp': value_inp}
         
-        if 'life_mask' in inp:
-            life_mask = np.concatenate(inp['life_mask'])
-            inp['life_mask'] = infer_life_mask(inp['discount'])
-            inp['discount'][np.any(inp['discount'], 1)] = 1
-        else:
-            life_mask = None
+        # if 'life_mask' in inp:
+        #     life_mask = np.concatenate(inp['life_mask'])
+        #     inp['life_mask'] = infer_life_mask(inp['discount'])
+        #     inp['discount'][np.any(inp['discount'], 1)] = 1
+        # else:
+        #     life_mask = None
+        inp['discount'][np.any(inp['discount'], 1)] = 1
         inp = concat_map_except_state(inp)
         if evaluation:
             inp = self.rms.process_obs_with_rms(inp, update_rms=False)
         else:
+            life_mask = inp.get('life_mask')
             inp = self.rms.process_obs_with_rms(inp, mask=life_mask)
         tf_inp = numpy2tensor(inp)
         tf_inp = split_input(tf_inp)

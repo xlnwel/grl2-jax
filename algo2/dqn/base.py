@@ -63,8 +63,8 @@ class DQNBase(TargetNetOps, ActionScheduler, AgentBase):
 
         self._is_per = False if dataset is None else dataset.name().endswith('per')
         self._double = getattr(self, '_double', False)
-        logger.info(f'Prioritized buffer: {self._is_per}')
-        logger.info(f'Double Q-learning: {self._double}')
+        do_logging(f'Prioritized buffer: {self._is_per}', logger=logger)
+        do_logging(f'Double Q-learning: {self._double}', logger=logger)
 
         self._return_stats = getattr(self, '_return_stats', False)
 
@@ -77,21 +77,21 @@ class DQNBase(TargetNetOps, ActionScheduler, AgentBase):
         if [k for k in self.model.keys() if 'actor' in k]:
             actor_models = [v for k, v in self.model.items() 
                 if 'actor' in k and 'target' not in k]
-            logger.info(f'Actor model: {actor_models}')
+            do_logging(f'Actor model: {actor_models}', logger=logger)
             self._actor_opt = super()._construct_opt(
                 actor_models, lr=self._actor_lr)
 
         value_models = [v for k, v in self.model.items() \
             if k != 'temperature' and 'actor' not in k
             and 'target' not in k]
-        logger.info(f'Value model: {value_models}')
+        do_logging(f'Value model: {value_models}', logger=logger)
         self._value_opt = super()._construct_opt(
             value_models, lr=self._value_lr)
 
         temp_models = []
         if hasattr(self, 'temperature'):
             temp_models = [self.temperature]
-            logger.info(f'Temperature model: {temp_models}')
+            do_logging(f'Temperature model: {temp_models}', logger=logger)
             if self.temperature.is_trainable():
                 self._temp_opt = super()._construct_opt(
                     temp_models, lr=self._temp_lr)

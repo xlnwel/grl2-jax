@@ -66,7 +66,7 @@ class RND:
             with open(self._rms_path, 'rb') as f:
                 self._obs_rms, self._int_return_rms, self._prev_int_return = \
                     cloudpickle.load(f)
-            logger.info('RMSs are restored')
+            do_logging('RMSs are restored', logger=logger)
             self._rms_restored = True
 
     def save(self):

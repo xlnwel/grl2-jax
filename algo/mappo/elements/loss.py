@@ -31,6 +31,8 @@ class MAPPOActorLoss(Loss):
         )
         if action_mask is not None:
             terms['n_avail_actions'] = tf.reduce_sum(tf.cast(action_mask, tf.float32), -1)
+        if life_mask is not None:
+            terms['life_mask'] = life_mask
 
         return tape, loss, terms
 

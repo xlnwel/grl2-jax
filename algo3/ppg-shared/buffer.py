@@ -25,8 +25,8 @@ class Replay:
         self._gae_discount = self._gamma * self._lam
         self._memory = {}
         self._is_store_shape = True
-        logger.info(f'Memory size: {self._size}')
-        logger.info(f'Aux mini-batch size: {self._mb_size}')
+        do_logging(f'Memory size: {self._size}', logger=logger)
+        do_logging(f'Aux mini-batch size: {self._mb_size}', logger=logger)
 
     def __getitem__(self, k):
         return self._buff[k]

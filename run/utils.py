@@ -1,9 +1,10 @@
 import os, sys
+import logging
 
 from utility import pkg
 from utility.display import pwc
 from utility.typing import AttrDict
-from utility.utils import eval_str
+from utility.utils import eval_str, deep_update
 from utility.yaml_op import load_config
 
 
@@ -86,6 +87,25 @@ def change_config(kw, configs, model_name=''):
                 c[key]  = value
 
     return model_name
+
+
+def load_configs_with_algo_env(algo, env):
+    if '-' in algo:
+        config = get_config(algo.split('-')[-1], env)
+        dist_config = get_config(algo, env)
+        assert config or dist_config, (config, dist_config)
+        assert dist_config, dist_config
+        if config == {}:
+            config = dist_config
+        config = deep_update(config, dist_config)
+    else:
+        config = get_config(algo, env)
+    configs = decompose_config(config)
+    configs.agent['algorithm'] = algo
+    if env:
+        configs.env['name'] = env
+
+    return configs
 
 
 def load_and_run(directory):
