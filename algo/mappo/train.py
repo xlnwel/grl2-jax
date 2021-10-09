@@ -96,7 +96,7 @@ def train(agent, env, eval_env, buffer):
     step = initialize_rms(agent.env_step)
 
     # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
+    to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     rt = Timer('run')
     tt = Timer('train')
     lt = Timer('log')
@@ -117,7 +117,7 @@ def train(agent, env, eval_env, buffer):
         buffer.finish(value)
         return step
 
-    def log():
+    def record_stats():
         with lt:
             agent.store(**{
                 'time/fps': (step - start_env_step) / rt.last(),
@@ -130,7 +130,7 @@ def train(agent, env, eval_env, buffer):
                 'time/train_mean': tt.average(),
                 'time/log_mean': lt.average(),
             })
-            agent.log(step)
+            agent.record(step=step)
             agent.save()
 
     print('Training starts...')
@@ -141,13 +141,13 @@ def train(agent, env, eval_env, buffer):
             step = collect_data(step, agent, env, buffer)
         start_train_step = agent.train_step
         with tt:
-            agent.train_log(step)
+            agent.train_record(step)
         agent.store(
             fps=(step - start_env_step) / rt.last(),
             tps=(agent.train_step-start_train_step) / tt.last()
         )
 
-        if to_log(agent.train_step) and agent.contains_stats('score'):
-            log()
+        if to_record(agent.train_step) and agent.contains_stats('score'):
+            record_stats()
 
 main = functools.partial(main, train=train)

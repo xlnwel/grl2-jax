@@ -24,7 +24,7 @@ def train(agent, env, eval_env, replay):
                 agent.reset_noisy()
         replay.add(**kwargs)
         if step % agent.TRAIN_PERIOD == 0:
-            agent.train_log(step)
+            agent.train_record(step)
     
     step = agent.env_step
     collect = lambda *args, **kwargs: replay.add(**kwargs)
@@ -57,7 +57,7 @@ def train(agent, env, eval_env, replay):
             if agent.RECORD:
                 video_summary(f'{agent.name}/sim', video, step=step)
             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-        agent.log(step)
+        agent.record(step=step)
         agent.save()
 
 def main(env_config, model_config, agent_config, replay_config):

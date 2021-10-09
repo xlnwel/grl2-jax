@@ -27,7 +27,7 @@ def train(agent, env, eval_env, buffer):
         agent.save()
         runner.step = step
 
-    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
+    to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
     while step < agent.MAX_STEPS:
@@ -57,7 +57,7 @@ def train(agent, env, eval_env, buffer):
 
         start_train_step = agent.train_step
         with Timer('train') as tt:
-            agent.train_log(step)
+            agent.train_record(step)
         agent.store(tps=(agent.train_step-start_train_step)/tt.last())
         buffer.reset()
 
@@ -95,14 +95,14 @@ def train(agent, env, eval_env, buffer):
                         {'eval/action': agent.retrieve_eval_actions()}, step=step)   
                 agent.store(eval_score=scores, eval_epslen=epslens)
 
-        if to_log(agent.train_step) and agent.contains_stats('score'):
+        if to_record(agent.train_step) and agent.contains_stats('score'):
             agent.store(**{
                 'episodes': runner.episodes,
                 'train_step': agent.train_step,
                 'time/run': rt.total(), 
                 'time/train': tt.total()
             })
-            agent.log(step)
+            agent.record(step=step)
             agent.save()
 
 def main(env_config, model_config, agent_config, buffer_config):

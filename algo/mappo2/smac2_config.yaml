@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name smac_3s5z_vs_3s6z
+    name: &env_name smac2_3s5z_vs_3s6z
     n_workers: 8
     n_envs: &nenvs 2
     use_state_agent: True
@@ -11,7 +11,7 @@ env:
     do_evaluation: False
 
 agent:
-    algorithm: &algo mappo
+    algorithm: &algo mappo2
     precision: 32
 
     MAX_STEPS: 1e8
@@ -20,7 +20,8 @@ agent:
     N_STEPS: &nsteps 400
     N_MBS: &nmbs 1
     batch_size: &bs 3092
-    LOG_PERIOD: 100
+    LOG_PERIOD: 20
+    EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     # (once, reuse, null)
@@ -34,7 +35,7 @@ agent:
     # the following names are just examples; they will be reset in run/train.py
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
-    RECORD: False
+    RECORD_VIDEO: False
 
 model:
     rnn_type: &rnn rnn_mlstm

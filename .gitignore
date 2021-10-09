@@ -9,3 +9,4 @@ conventions.md
 .pytest_cache*
 tmp**
 .ipynb_checkpoints
+src

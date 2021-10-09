@@ -32,13 +32,13 @@ def train(agent, env, eval_env, replay):
     while not replay.good_to_learn():
         step = runner.run(action_selector=random_actor, step_fn=collect)
 
-    to_log = Every(agent.LOG_PERIOD)
+    to_record = Every(agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
     while step < int(agent.MAX_STEPS):
         start_step = step
         start_t = time.time()
-        agent.train_log(step)
+        agent.train_record(step)
         step = runner.run(step_fn=collect, nsteps=agent.TRAIN_PERIOD)
         duration = time.time() - start_t
         agent.store(
@@ -53,8 +53,8 @@ def train(agent, env, eval_env, replay):
                     video_summary(f'{agent.name}/sim', video, step=step)
                 agent.store(eval_score=score, eval_epslen=epslen)
             
-        if to_log(step):
-            agent.log(step)
+        if to_record(step):
+            agent.record(step=step)
             agent.save()
 
 def main(env_config, model_config, agent_config, replay_config):

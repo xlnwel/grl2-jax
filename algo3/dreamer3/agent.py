@@ -169,7 +169,7 @@ class Agent(AgentBase):
             return action, {'prev_logpi': logpi}, state
 
     @step_track
-    def train_log(self, step):
+    def train_record(self, step):
         for i in range(self.N_UPDATES):
             data = self.dataset.sample()
             log_images = tf.convert_to_tensor(

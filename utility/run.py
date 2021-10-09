@@ -160,7 +160,7 @@ class Runner:
 def evaluate(env, 
              agent, 
              n=1, 
-             record=False, 
+             record_video=False, 
              size=None, 
              video_len=1000, 
              step_fn=None, 
@@ -182,7 +182,7 @@ def evaluate(env,
     prev_done = np.zeros(env.n_envs)
     while n_done_eps < n:
         for k in range(max_steps):
-            if record:
+            if record_video:
                 img = env.get_screen(size=size)
                 if env.env_type == 'Env':
                     frames[0].append(img)
@@ -251,7 +251,7 @@ def evaluate(env,
                         break
                 prev_done = done
 
-    if record:
+    if record_video:
         max_len = np.max([len(f) for f in frames])
         # padding to make all sequences of the same length
         for i, f in enumerate(frames):

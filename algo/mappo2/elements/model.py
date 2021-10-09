@@ -1,1 +1,1 @@
-from algo.mappo.elements.model import *
+from algo.mappo.elements.model import create_model

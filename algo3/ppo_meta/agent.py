@@ -44,7 +44,7 @@ class Agent(PPOBase):
         self.meta_learn = build(self._meta_learn, TensorSpecs)
 
     @step_track
-    def train_log(self, step):
+    def train_record(self, step):
         for i in range(self.N_EPOCHS):
             for j in range(1, self.N_MBS+1):
                 with self._sample_timer:

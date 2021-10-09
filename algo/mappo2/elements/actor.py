@@ -1,1 +1,1 @@
-from algo.mappo.elements.actor import MAPPOActor
+from algo.mappo.elements.actor import create_actor

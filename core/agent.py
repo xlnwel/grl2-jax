@@ -1,15 +1,11 @@
-from env.typing import EnvOutput
 from typing import Union
-import logging
 
 from core.checkpoint import *
-from core.decorator import config, record, step_track
+from core.decorator import *
 from core.mixin.agent import StepCounter, TensorboardOps
 from core.module import Model, ModelEnsemble, Trainer, TrainerEnsemble, Actor
-from core.log import *
+from env.typing import EnvOutput
 from utility.timer import Every, Timer
-
-logger = logging.getLogger(__name__)
 
 
 def _set_attr(obj, name, attr):
@@ -24,7 +20,8 @@ def _set_attr(obj, name, attr):
 class AgentBase(StepCounter, TensorboardOps):
     """ Initialization """
     @config
-    @record
+    @setup_tensorboard
+    @setup_recorder
     def __init__(self, 
                  *, 
                  env_stats, 
@@ -89,7 +86,7 @@ class AgentBase(StepCounter, TensorboardOps):
 
     """ Train """
     @step_track
-    def train_log(self, step):
+    def train_record(self, step):
         n = self._sample_train()
         self._store_additional_stats()
 

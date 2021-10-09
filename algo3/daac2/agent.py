@@ -68,7 +68,7 @@ class Agent(PPOBase):
 
     """ DAAC methods """
     @step_track
-    def train_log(self, step):
+    def train_record(self, step):
         n = self._sample_train()
         self._store_buffer_stats()
         self._store_rms_stats()

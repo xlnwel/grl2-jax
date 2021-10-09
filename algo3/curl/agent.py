@@ -62,7 +62,7 @@ class Agent(AgentBase):
         return action
 
     @step_track
-    def train_log(self, step):
+    def train_record(self, step):
         data = self.dataset.sample()
         if self._is_per:
             idxes = data.pop('idxes').numpy()

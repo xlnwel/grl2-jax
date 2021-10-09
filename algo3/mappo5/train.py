@@ -45,7 +45,7 @@ def train(agent, env, eval_env, buffer):
 
     runner.step = step
     # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
+    to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     rt = Timer('run')
     tt = Timer('train')
@@ -78,7 +78,7 @@ def train(agent, env, eval_env, buffer):
                 'time/eval_mean': et.average(),
                 'time/log_mean': lt.average(),
             })
-            agent.log(step)
+            agent.record(step=step)
             agent.save()
 
     print('Training starts...')
@@ -103,7 +103,7 @@ def train(agent, env, eval_env, buffer):
 
         start_train_step = agent.train_step
         with tt:
-            agent.train_log(step)
+            agent.train_record(step)
         agent.store(tps=(agent.train_step-start_train_step)/tt.last())
         buffer.reset()
 
@@ -120,7 +120,7 @@ def train(agent, env, eval_env, buffer):
         #             eval_epslen=eval_epslen)
         #         eval_env.close()
 
-        if to_log(agent.train_step) and agent.contains_stats('score'):
+        if to_record(agent.train_step) and agent.contains_stats('score'):
             with lt:
                 agent.store(**{
                     'train_step': agent.train_step,
@@ -133,7 +133,7 @@ def train(agent, env, eval_env, buffer):
                     # 'time/eval_mean': et.average(),
                     'time/log_mean': lt.average(),
                 })
-                agent.log(step)
+                agent.record(step=step)
                 agent.save()
 
 main = functools.partial(main, train=train)

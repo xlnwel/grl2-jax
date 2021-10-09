@@ -16,7 +16,7 @@ from algo.dqn.train import *
 #         if reset:
 #             kwargs['next_obs'] = env.prev_obs()
 #         replay.add(**kwargs)
-#         agent.train_log(step)
+#         agent.train_record(step)
 
 #     step = agent.env_step
 #     collect = lambda *args, **kwargs: replay.add(**kwargs)
@@ -42,7 +42,7 @@ from algo.dqn.train import *
 #         if agent.RECORD:
 #             video_summary(f'{agent.name}/sim', video, step=step)
 #         agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-#         agent.log(step)
+#         agent.record(step=step)
 #         agent.save()
 
 # def main(env_config, model_config, agent_config, replay_config):
@@ -86,7 +86,7 @@ from algo.dqn.train import *
 #     obs, _, _, _ = out
 #     epslen = 0
 #     from utility.utils import Every
-#     to_log = Every(agent.LOG_PERIOD)
+#     to_record = Every(agent.LOG_PERIOD)
 #     for t in range(int(agent.MAX_STEPS)):
 #         if t > 1e4:
 #             action = agent(out)
@@ -106,10 +106,10 @@ from algo.dqn.train import *
 #             epslen = 0
 
 #         if replay.good_to_learn() and t % agent.TRAIN_PERIOD == 0:
-#             agent.train_log(t)
-#         if to_log(t):
+#             agent.train_record(t)
+#         if to_record(t):
 #             eval_score, eval_epslen, _ = evaluate(eval_env, agent)
 
 #             agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-#             agent.log(step=t)
+#             agent.record(step=t)
 #             agent.save()

@@ -1,27 +1,18 @@
-import time
-import asyncio
-
+import logging
+from core.log import do_logging, get_sys_logger
 from utility.timer import timeit
 
+logging.basicConfig(level=logging.INFO, 
+    format=f'%(asctime)s: %(levelname)s: %(name)s: %(message)s',
+)
 
-async def sleep(t):
-    await time.sleep(t)
+d = {
+    'a': {
+        1: 2,
+        2: 3,
+    },
+    'b': 'abc'
+}
 
-class A:
-    async def f(self, i):
-        print(i)
-        start = time.time()
-        await sleep(1)
-        print('f', time.time() - start)
-        print(i)
-        await sleep(1)
-        print(i)
-        return i
-
-aa = [A() for _ in range(10)]
-start = time.time()
-async def main():
-    return await asyncio.gather(*[a.f(i) for i, a in enumerate(aa)])
-    
-print(timeit(asyncio.run, main()))
-print(time.time() - start)
+timeit(do_logging, d)
+do_logging(d)

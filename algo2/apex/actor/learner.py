@@ -29,7 +29,7 @@ def get_learner_base_class(AgentBase):
             print(f'{self.name} starts learning...')
 
             while True:
-                self.train_log()
+                self.train_record()
 
         def get_weights(self, name=None):
             return self.model.get_weights(name=name)

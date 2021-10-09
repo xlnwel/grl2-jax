@@ -18,7 +18,7 @@ def train(agent, env, eval_env, replay):
         if reset:
             kwargs['next_obs'] = env.prev_obs()
         replay.add(**kwargs)
-        agent.train_log(step)
+        agent.train_record(step)
 
     start_step = agent.env_step
     step = start_step
@@ -44,7 +44,7 @@ def train(agent, env, eval_env, replay):
         if agent.RECORD:
             video_summary(f'{agent.name}/sim', video, fps=20, step=step)
         agent.store(eval_score=eval_score, eval_epslen=eval_epslen)
-        agent.log(step)
+        agent.record(step=step)
         agent.save()
 
 def random_crop(imgs, output_shape):

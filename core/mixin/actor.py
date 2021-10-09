@@ -51,7 +51,9 @@ class RMS:
         logger.info(f'Reward normalization with return: '
                     f'{self._normalize_reward_with_return}')
         if self._normalize_reward_with_return:
-            do_logging(f"Reward normalization axis: {'1st' if self._normalize_reward_with_return == 'forward' else '2nd'}", logger=logger)
+            do_logging(
+                f"Reward normalization axis: {'1st' if self._normalize_reward_with_return == 'forward' else '2nd'}", 
+                logger=logger)
 
     def process_obs_with_rms(self, 
                              inp: Union[dict, Tuple[str, np.ndarray]], 

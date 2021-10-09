@@ -28,7 +28,7 @@ def train(agent, env, eval_env, buffer):
 
     runner.step = step
     # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
+    to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     rt = Timer('run')
     tt = Timer('train')
@@ -58,10 +58,10 @@ def train(agent, env, eval_env, buffer):
 
             start_train_step = agent.train_step
             with tt:
-                agent.train_log(step)
+                agent.train_record(step)
             agent.store(tps=(agent.train_step-start_train_step)/tt.last())
             buffer.reset()
-            if step > agent.MAX_STEPS or (to_log(agent.train_step) and 'score' in agent._logger):
+            if step > agent.MAX_STEPS or (to_record(agent.train_step) and 'score' in agent._logger):
                 with lt:
                     agent.store(**{
                         'train_step': agent.train_step,
@@ -76,7 +76,7 @@ def train(agent, env, eval_env, buffer):
                         'time/log_mean': lt.average(),
                         'time/aux_mean': at.average(),
                     })
-                    agent.log(step)
+                    agent.record(step=step)
                     agent.save()
             if to_eval(agent.train_step) or step > agent.MAX_STEPS:
                 with TempStore(agent.get_states, agent.reset_states):

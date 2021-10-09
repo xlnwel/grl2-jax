@@ -3,7 +3,7 @@ import logging
 import tensorflow as tf
 from tensorflow.keras import mixed_precision as prec
 
-from core.log import get_sys_logger, do_logging
+from core.log import do_logging
 from utility.schedule import TFPiecewiseSchedule
 
 

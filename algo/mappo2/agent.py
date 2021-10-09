@@ -1,12 +1,11 @@
+from typing import Dict
 import numpy as np
-from algo.mappo.agent import create_agent, get_data_format
+from algo.mappo.agent import get_data_format, MAPPOAgent
+
 
 def collect(buffer, env, env_step, reset, reward, 
-            discount, next_obs, **kwargs):
+            next_obs, **kwargs):
     kwargs['reward'] = np.concatenate(reward)
-    # discount is zero only when all agents are done
-    discount[np.any(discount, 1)] = 1
-    kwargs['discount'] = np.concatenate(discount)
     buffer.add(**kwargs)
 
 def random_actor(env_output, env=None, **kwargs):
@@ -15,5 +14,18 @@ def random_actor(env_output, env=None, **kwargs):
     terms = {
         'obs': np.concatenate(obs['obs']), 
         'global_state': np.concatenate(obs['global_state']),
+        'life_mask': np.concatenate(obs['life_mask'])
     }
     return a, terms
+
+class MAPPO2Agent(MAPPOAgent):
+    def compute_value(self, value_inp: Dict[str, np.ndarray]=None):
+        # be sure global_state is normalized if obs normalization is required
+        if value_inp is None:
+            value_inp = self._value_input
+        value, _ = self.model.compute_value(**value_inp)
+        value = value.numpy()
+        return value
+
+def create_agent(**kwargs):
+    return MAPPO2Agent(**kwargs)

@@ -423,12 +423,12 @@ class SMAC(gym.Env):
         return np.float32
     
     @property
-    def shared_state_space(self):
+    def global_state_space(self):
         return self.shared_state_spaces[0]
 
     @property
     def global_state_shape(self):
-        return (self.shared_state_space[0],)
+        return (self.global_state_space[0],)
     
     @property
     def global_state_dtype(self):
@@ -577,7 +577,7 @@ class SMAC(gym.Env):
         self.force_restarts += 1
 
     def step(self, action):
-        """A single environment step. Returns reward, terminated, info."""
+        """ A single environment step. Returns reward, terminated, info."""
         assert self._fake_episode_steps < self.max_episode_steps, \
             (self._fake_episode_steps, self.max_episode_steps)
         if self._game_over:
@@ -1022,25 +1022,26 @@ class SMAC(gym.Env):
         else:
             reward += delta_enemy + delta_deaths
 
-        for aid, unit in self.agents.items():
-            if not self.death_tracker_ally[aid]:
-                # did not die so far
-                prev_health = (
-                    self.previous_ally_units[aid].health
-                    + self.previous_ally_units[aid].shield
-                )
-                if unit.health == 0:
-                    # just died
-                    self.death_tracker_ally[aid] = 1
-                    reward[aid] -= self.reward_death_value * neg_scale
-                    reward[aid] -= prev_health * neg_scale
-                else:
-                    # still alive
-                    reward[aid] -= neg_scale * (
-                        prev_health - unit.health - unit.shield
+            for aid, unit in self.agents.items():
+                if not self.death_tracker_ally[aid]:
+                    # did not die so far
+                    prev_health = (
+                        self.previous_ally_units[aid].health
+                        + self.previous_ally_units[aid].shield
                     )
-            else:
-                reward[aid] = 0
+                    if unit.health == 0:
+                        # just died
+                        self.death_tracker_ally[aid] = 1
+                        if not self.reward_only_positive:
+                            reward[aid] -= self.reward_death_value * neg_scale
+                        reward[aid] -= prev_health * neg_scale
+                    else:
+                        # still alive
+                        reward[aid] -= neg_scale * (
+                            prev_health - unit.health - unit.shield
+                        )
+                else:
+                    reward[aid] = 0
 
         return reward
 
@@ -2259,7 +2260,8 @@ if __name__ == '__main__':
     o = env.reset()
     for _ in range(100000):
         a = env.random_action()
-        _, r, d, _ = env.step(a)
-        print(r)
+        o, r, d, _ = env.step(a)
+        print(r[0], o['obs'][0].shape, o['global_state'][0].shape)
         if np.all(d):
+            break
             env.reset()

@@ -1,9 +1,9 @@
 import functools
 import numpy as np
 
-from utility.utils import Every, TempStore
+from utility.utils import TempStore
 from utility.run import Runner, evaluate
-from utility.timer import Timer
+from utility.timer import Timer, Every
 from utility import pkg
 from algo.ppo.train import main
 
@@ -21,25 +21,27 @@ def train(agent, env, eval_env, buffer):
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS, info_func=info_func)
     
     def initialize_rms(step):
-        if step == 0 and agent.is_obs_normalized:
+        if step == 0 and agent.actor.is_obs_normalized:
             print('Start to initialize running stats...')
             for i in range(10):
                 runner.run(action_selector=random_actor, step_fn=collect)
                 life_mask = np.concatenate(buffer['life_mask']) \
                     if env.use_life_mask else None
-                agent.update_obs_rms(np.concatenate(buffer['obs']), mask=life_mask)
-                agent.update_obs_rms(np.concatenate(buffer['global_state']), 
+                agent.actor.update_obs_rms(np.concatenate(buffer['obs']), mask=life_mask)
+                agent.actor.update_obs_rms(np.concatenate(buffer['global_state']), 
                     'global_state', mask=life_mask)
-                agent.update_reward_rms(buffer['reward'], buffer['discount'])
+                agent.actor.update_reward_rms(buffer['reward'], buffer['discount'])
                 buffer.reset()
             buffer.clear()
             agent.env_step = runner.step
             agent.save(print_terminal_info=True)
+        return step
+
     step = initialize_rms(step)
 
     runner.step = step
     # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
+    to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     rt = Timer('run')
     tt = Timer('train')
@@ -52,14 +54,14 @@ def train(agent, env, eval_env, buffer):
                 with et:
                     eval_score, eval_epslen, video = evaluate(
                         eval_env, agent, n=agent.N_EVAL_EPISODES, 
-                        record=agent.RECORD, size=(64, 64))
-                if agent.RECORD:
+                        record_video=agent.RECORD_VIDEO, size=(64, 64))
+                if agent.RECORD_VIDEO:
                     agent.video_summary(video, step=step)
                 agent.store(
                     eval_score=eval_score, 
                     eval_epslen=eval_epslen)
 
-    def log(step):
+    def record_stats(step):
         with lt:
             agent.store(**{
                 'misc/train_step': agent.train_step,
@@ -72,7 +74,7 @@ def train(agent, env, eval_env, buffer):
                 'time/eval_mean': et.average(),
                 'time/log_mean': lt.average(),
             })
-            agent.log(step)
+            agent.record(step=step)
             agent.save()
 
     print('Training starts...')
@@ -96,7 +98,7 @@ def train(agent, env, eval_env, buffer):
 
         start_train_step = agent.train_step
         with tt:
-            agent.train_log(step)
+            agent.train_record(step)
         agent.store(
             fps=(step-start_env_step)/rt.last(),
             tps=(agent.train_step-start_train_step)/tt.last())
@@ -105,7 +107,7 @@ def train(agent, env, eval_env, buffer):
         if to_eval(agent.train_step) or step > agent.MAX_STEPS:
             evaluate_agent(step, eval_env, agent)
 
-        if to_log(agent.train_step) and agent.contains_stats('score'):
-            log(step)
+        if to_record(agent.train_step) and agent.contains_stats('score'):
+            record_stats(step)
 
 main = functools.partial(main, train=train)

@@ -1,7 +1,10 @@
+import logging
 import ray
 
 from core.dataset import *
+from core.log import do_logging
 
+logger = logging.getLogger(__name__)
 
 class RayDataset(Dataset):
     def name(self):
@@ -33,7 +36,7 @@ def get_dataformat(replay):
             print(f'Dataset Construction: replay size = {size}')
     data = ray.get(replay.sample.remote())
     data_format = {k: (v.shape, v.dtype) for k, v in data.items()}
-    print('Data format:')
-    for k, v in data_format.items():
-        print('\t', k, v)
+    do_logging('Data format:', logger=logger)
+    do_logging(data_format, prefix='\t', logger=logger)
+
     return data_format

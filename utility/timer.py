@@ -28,8 +28,8 @@ def timeit(func, *args, name=None, to_print=True,
 class Timer:
     aggregators = defaultdict(Aggregator)
 
-    def __init__(self, summary_name, period=None, mode='average', to_log=True):
-        self._to_log = to_log
+    def __init__(self, summary_name, period=None, mode='average', to_record=True):
+        self._to_log = to_record
         if self._to_log:
             self._summary_name = summary_name
             self._period = period
@@ -73,8 +73,8 @@ class Timer:
 class TBTimer:
     aggregators = defaultdict(Aggregator)
 
-    def __init__(self, summary_name, period=1, to_log=True, print_terminal_info=False):
-        self._to_log = to_log
+    def __init__(self, summary_name, period=1, to_record=True, print_terminal_info=False):
+        self._to_log = to_record
         if self._to_log:
             self._summary_name = summary_name
             self._period = period
@@ -100,8 +100,8 @@ class TBTimer:
 
 
 class LoggerTimer:
-    def __init__(self, logger, summary_name, to_log=True):
-        self._to_log = to_log
+    def __init__(self, logger, summary_name, to_record=True):
+        self._to_log = to_record
         if self._to_log:
             self._logger = logger
             self._summary_name = summary_name

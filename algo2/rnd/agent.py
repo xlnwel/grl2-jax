@@ -91,7 +91,7 @@ class Agent(PPOAgent):
         return tensor2numpy(out)
 
     @step_track
-    def train_log(self, step):
+    def train_record(self, step):
         for i in range(self.N_UPDATES):
             for j in range(1, self.N_MBS+1):
                 data = self.dataset.sample()

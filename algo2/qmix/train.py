@@ -28,7 +28,7 @@ def train(agent, env, eval_env, replay):
         replay.finish_episodes()
 
     to_eval = Every(agent.EVAL_PERIOD)
-    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
+    to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     to_record = Every(agent.EVAL_PERIOD*10)
     rt = Timer('run')
@@ -43,7 +43,7 @@ def train(agent, env, eval_env, replay):
         replay.finish_episodes()
 
         with tt:
-            agent.train_log(env_step)
+            agent.train_record(env_step)
 
         # if to_eval(env_step):
         #     with TempStore(agent.get_states, agent.reset_states):
@@ -58,7 +58,7 @@ def train(agent, env, eval_env, replay):
         #                 eval_score=eval_score, 
         #                 eval_epslen=eval_epslen)
 
-        if to_log(env_step):
+        if to_record(env_step):
             with lt:
                 fps = rt.average() * agent.TRAIN_PERIOD
                 tps = tt.average() * agent.N_UPDATES
@@ -80,7 +80,7 @@ def train(agent, env, eval_env, replay):
                     # 'time/eval_mean': et.average(),
                     'time/log_mean': lt.average(),
                 })
-                agent.log(env_step)
+                agent.record(env_step)
                 agent.save()
 
 def main(env_config, model_config, agent_config, replay_config):

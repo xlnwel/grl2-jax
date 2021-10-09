@@ -1,10 +1,10 @@
 import cloudpickle
 import logging
-from typing import Tuple, Dict
 import numpy as np
 import tensorflow as tf
 
-from core.log import *
+from core.log import do_logging
+from core.record import *
 from utility.schedule import PiecewiseSchedule
 
 logger = logging.getLogger(__name__)

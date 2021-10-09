@@ -416,6 +416,8 @@ class EnvStatsBase(gym.Wrapper):
 
     def _reset(self):
         obs = self.env.reset()
+        if len(obs) == 1:
+            assert False, obs
         self._score = 0
         self._epslen = 0
         self._game_over = False
@@ -546,6 +548,8 @@ class MAEnvStats(EnvStatsBase):
 
     def _reset(self):
         obs = super()._reset()
+        if len(obs) == 1:
+            assert False, obs
         reward = np.zeros(self.n_agents, self.float_dtype)
         discount = np.ones(self.n_agents, self.float_dtype)
         reset = np.ones(self.n_agents, self.float_dtype)

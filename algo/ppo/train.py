@@ -38,7 +38,7 @@ def train(agent, env, eval_env, buffer):
 
     runner.step = step
     # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_log = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
+    to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
     to_eval = Every(agent.EVAL_PERIOD)
     rt = Timer('run')
     tt = Timer('train')
@@ -51,14 +51,14 @@ def train(agent, env, eval_env, buffer):
                 with et:
                     eval_score, eval_epslen, video = evaluate(
                         eval_env, agent, n=agent.N_EVAL_EPISODES, 
-                        record=agent.RECORD, size=(64, 64))
-                if agent.RECORD:
+                        record_video=agent.RECORD_VIDEO, size=(64, 64))
+                if agent.RECORD_VIDEO:
                     agent.video_summary(video, step=step)
                 agent.store(
                     eval_score=eval_score, 
                     eval_epslen=eval_epslen)
 
-    def log(step):
+    def record_stats(step):
         with lt:
             agent.store(**{
                 'misc/train_step': agent.train_step,
@@ -71,7 +71,7 @@ def train(agent, env, eval_env, buffer):
                 'time/eval_mean': et.average(),
                 'time/log_mean': lt.average(),
             })
-            agent.log(step)
+            agent.record(step=step)
             agent.save()
 
     print('Training starts...')
@@ -95,7 +95,7 @@ def train(agent, env, eval_env, buffer):
 
         start_train_step = agent.train_step
         with tt:
-            agent.train_log(step)
+            agent.train_record(step)
         agent.store(
             fps=(step-start_env_step)/rt.last(),
             tps=(agent.train_step-start_train_step)/tt.last())
@@ -104,8 +104,8 @@ def train(agent, env, eval_env, buffer):
         if to_eval(agent.train_step) or step > agent.MAX_STEPS:
             evaluate_agent(step, eval_env, agent)
 
-        if to_log(agent.train_step) and agent.contains_stats('score'):
-            log(step)
+        if to_record(agent.train_step) and agent.contains_stats('score'):
+            record_stats(step)
 
 def main(config, train=train):
     silence_tf_logs()

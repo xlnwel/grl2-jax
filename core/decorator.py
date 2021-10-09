@@ -3,7 +3,7 @@ import logging
 import tensorflow as tf
 
 from utility.utils import config_attr
-from core.log import setup_logger, setup_tensorboard, save_code, log
+from core.record import *
 
 
 logger = logging.getLogger(__name__)
@@ -24,40 +24,58 @@ def config(init_fn):
 
     return wrapper
 
-def record(init_fn):
-    def setup_logger_tensorboard(obj):
-        """ Setups Logger and Tensorboard for recording training stats """
+def setup_tensorboard(init_fn):
+    def _setup(obj):
         if getattr(obj, '_writer', True):
-            obj._writer = setup_tensorboard(obj._root_dir, obj._model_name)
+            obj._writer = creater_tensorboard_writer(obj._root_dir, obj._model_name)
             tf.summary.experimental.set_step(0)
+        
+        if hasattr(obj, 'record'):
+            obj.record = functools.partial(obj.record, recorder=obj._recorder)
+        else:
+            obj.record = functools.partial(record, 
+                writer=obj._writer, model_name=obj._model_name)
+    
+    @functools.wraps(init_fn)
+    def wrapper(self, **kwargs):
+        _setup(self)
+        init_fn(self, **kwargs)
+    
+    return wrapper
 
-        obj._logger = setup_logger(
-            getattr(obj, '_logger', True) and obj._root_dir, obj._model_name)
-        for method in dir(obj._logger):
+def setup_recorder(init_fn):
+    def _setup(obj):
+        """ Setups Logger and Tensorboard for recording training stats """
+        obj._recorder = create_recorder(
+            getattr(obj, '_recorder', True) and obj._root_dir, obj._model_name)
+        for method in dir(obj._recorder):
             if not method.startswith('_'):
-                setattr(obj, method, getattr(obj._logger, method))
+                setattr(obj, method, getattr(obj._recorder, method))
         
         if getattr(obj, '_save_code', True):
             save_code(obj._root_dir, obj._model_name)
         
-        obj.log = functools.partial(log, 
-            obj._logger, obj._writer, obj._model_name, None)
+        if hasattr(obj, 'record'):
+            obj.record = functools.partial(obj.record, recorder=obj._recorder)
+        else:
+            obj.record = functools.partial(record, 
+                recorder=obj._recorder, model_name=obj._model_name)
 
     @functools.wraps(init_fn)
     def wrapper(self, **kwargs):        
-        setup_logger_tensorboard(self)
+        _setup(self)
 
         init_fn(self, **kwargs)
 
     return wrapper
 
-def step_track(train_log):
+def step_track(train_record):
     """ Tracks the training and environment steps """
-    @functools.wraps(train_log)
+    @functools.wraps(train_record)
     def wrapper(self, step=0, **kwargs):
         if step > self.env_step:
             self.env_step = step
-        n = train_log(self, step, **kwargs)
+        n = train_record(self, step, **kwargs)
         self.train_step += n
         return self.train_step
 

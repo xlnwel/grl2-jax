@@ -30,7 +30,7 @@ def get_data_format(*, env_stats, batch_size, sample_size=None,
             (None, sample_size, env_stats.action_dim), tf.bool)
     if env_stats.use_life_mask:
         data_format['life_mask'] = ((None, sample_size), tf.float32)
-        
+
     if store_state:
         dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         data_format.update({

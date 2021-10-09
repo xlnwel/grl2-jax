@@ -125,7 +125,7 @@ class DQNBase(TargetNetOps, ActionScheduler, AgentBase):
         return obs, kwargs
 
     @step_track
-    def train_log(self, step):
+    def train_record(self, step):
         for _ in range(self.N_UPDATES):
             with self._sample_timer:
                 data = self.dataset.sample()
