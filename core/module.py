@@ -291,6 +291,7 @@ class Trainer(tf.Module):
                  loss: Loss,
                  env_stats,
                  name):
+        self._raw_name = name
         super().__init__(name=f'{name}_trainer')
         config = config.copy()
         config_attr(self, config, filter_dict=True)
@@ -314,26 +315,20 @@ class Trainer(tf.Module):
         self._post_init(config, env_stats)
         self.model.sync_nets()
 
-    def _get_raw_name(self):
-        return self.name.split('_')[0]
-
     def get_weights(self):
-        name = self._get_raw_name()
         return {
-            f'{name}_model': self.model.get_weights(),
-            f'{name}_opt': self.optimizer.get_weights(),
+            f'{self._raw_name}_model': self.model.get_weights(),
+            f'{self._raw_name}_opt': self.optimizer.get_weights(),
         }
 
-    def set_weights(self):
-        name = self._get_raw_name()
-        self.model.set_weights(f'{name}_model')
-        self.optimizer.set_weights(f'{name}_opt')
+    def set_weights(self, weights):
+        self.model.set_weights(weights[f'{self._raw_name}_model'])
+        self.optimizer.set_weights(weights[f'{self._raw_name}_opt'])
 
     def ckpt_model(self):
-        name = self._get_raw_name()
         return {
-            f'{name}_opt': self.optimizer, 
-            f'{name}_model': self.model
+            f'{self._raw_name}_model': self.model,
+            f'{self._raw_name}_opt': self.optimizer, 
         }
 
     def _build_train(self, env_stats):
@@ -434,6 +429,7 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
 
 class Actor:
     def __init__(self, *, config, model, name):
+        self._raw_name = name
         self._name = f'{name}_actor'
         config = config.copy()
         config_attr(self, config, filter_dict=True)
@@ -441,6 +437,10 @@ class Actor:
         self.model = model
         
         self._post_init(config)
+
+    @property
+    def raw_name(self):
+        return self._raw_name
 
     @property
     def name(self):
@@ -503,6 +503,12 @@ class Actor:
         """
         out = (*tensor2numpy(out[:2]), out[-1])
         return out
+
+    def get_auxiliary_stats(self):
+        pass
+    
+    def set_auxiliary_stats(self):
+        pass
 
     def save_auxiliary_stats(self):
         pass

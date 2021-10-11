@@ -15,8 +15,10 @@ from env.func import create_env
 def train(agent, env, eval_env, buffer):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
-    
-    em = pkg.import_module(env.name.split("_")[0], pkg='env')
+
+    suite_name = env.name.split("_")[0] \
+        if '_' in env.name else 'builtin'
+    em = pkg.import_module(suite_name, pkg='env')
     info_func = em.info_func if hasattr(em, 'info_func') else None
 
     step = agent.env_step

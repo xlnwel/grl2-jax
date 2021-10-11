@@ -4,6 +4,9 @@ import numpy as np
 from utility.utils import expand_dims_match, moments
 
 
+Stats = collections.namedtuple('RMS', 'mean var count')
+
+
 class RunningMeanStd:
     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
     def __init__(self, axis, epsilon=1e-8, clip=None, name=None, ndim=None):
@@ -52,7 +55,6 @@ class RunningMeanStd:
         self._count = count
 
     def get_rms_stats(self):
-        Stats = collections.namedtuple('RMS', 'mean var count')
         return Stats(self._mean, self._var, self._count)
 
     def update(self, x, mask=None):

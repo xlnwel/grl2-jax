@@ -268,7 +268,7 @@ class RewardHack(gym.Wrapper):
         info['reward'] = reward
         reward = reward * self.reward_scale
         if self.reward_min is not None or self.reward_max is not None:
-            reward = np.clip(reward, -self.reward_min, self.reward_max)
+            reward = np.clip(reward, self.reward_min, self.reward_max)
         return obs, reward, done, info
 
 

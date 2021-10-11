@@ -128,7 +128,11 @@ class PopulationAgentInterface:
     def name(self):
         return self._name
 
-    def add_policy(self, policy_id, ):
+    def add_strategy(self, sid, strategy):
         pass
 
+    def save(self):
+        pass
     
+    def restore(self):
+        pass

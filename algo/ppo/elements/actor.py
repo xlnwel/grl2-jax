@@ -30,21 +30,11 @@ class PPOActor(Actor):
         else:
             raise AttributeError(f"no attribute '{name}' is found")
 
-    def get_rms_stats(self):
-        obs_rms, rew_rms = self.rms.get_rms_stats()
-        stats = {}
-        if rew_rms:
-            stats.update({
-                'misc/reward_rms_mean': rew_rms.mean,
-                'misc/reward_rms_var': rew_rms.var
-            })
-        if obs_rms:
-            for k, v in obs_rms.items():
-                stats.update({
-                    f'misc/{k}_rms_mean': v.mean,
-                    f'misc/{k}_rms_var': v.var,
-                })
-        return stats
+    def get_auxiliary_stats(self):
+        return self.rms.get_rms_stats()
+    
+    def set_auxiliary_stats(self, stats):
+        self.rms.set_rms_stats(*stats)
 
     def save_auxiliary_stats(self):
         """ Save the RMS and the model """
