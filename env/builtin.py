@@ -27,7 +27,8 @@ class DummyEnv:
         return getattr(self.env, 'is_multiagent', False)
 
 
-def make_built_in_gym(config):
+def make_builtin_gym(config):
+    config['name'] = config['name'].split('_')[-1]
     env = gym.make(config['name']).env
     env = DummyEnv(env)    # useful for hidding unexpected frame_skip
     config.setdefault('max_episode_steps', 

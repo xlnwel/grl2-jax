@@ -257,17 +257,18 @@ class CumulativeRewardObs(gym.Wrapper):
 
 
 class RewardHack(gym.Wrapper):
-    def __init__(self, env, reward_scale=1, reward_clip=None, **kwargs):
+    def __init__(self, env, reward_scale=1, reward_min=None, reward_max=None, **kwargs):
         super().__init__(env)
         self.reward_scale = reward_scale
-        self.reward_clip = reward_clip
+        self.reward_min = reward_min
+        self.reward_max = reward_max
 
     def step(self, action, **kwargs):
         obs, reward, done, info = self.env.step(action, **kwargs)
         info['reward'] = reward
         reward = reward * self.reward_scale
-        if self.reward_clip:
-            reward = np.clip(reward, -self.reward_clip, self.reward_clip)
+        if self.reward_min is not None or self.reward_max is not None:
+            reward = np.clip(reward, -self.reward_min, self.reward_max)
         return obs, reward, done, info
 
 

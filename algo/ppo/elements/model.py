@@ -40,6 +40,6 @@ class PPOModel(Model):
 
 def create_model(config, env_stats, name='ppo'):
     config['actor']['action_dim'] = env_stats.action_dim
-    config['actor']['is_action_discrete'] = env_stats.action_dim
+    config['actor']['is_action_discrete'] = env_stats.is_action_discrete
 
     return PPOModel(config=config, name=name)

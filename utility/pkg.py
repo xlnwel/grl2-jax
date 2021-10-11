@@ -9,18 +9,24 @@ def pkg_str(root_dir, separator, base_name=None):
 
 def get_package_from_algo(algo, place=0, separator='.'):
     algo = algo.split('-', 1)[place]
-    return get_package('algo', algo, separator)
+    
+    pkg = get_package('algo', algo, separator)
+    if pkg is None:
+        pkg = get_package('distribution', algo, separator)
+    return pkg
 
 
 def get_package(root_dir, base_name=None, separator='.'):
     for i in range(1, 10):
         indexed_root_dir = root_dir if i == 1 else f'{root_dir}{i}'
         pkg = pkg_str(indexed_root_dir, '.', base_name)
-        if importlib.util.find_spec(pkg) is not None:
-            pkg = pkg_str(indexed_root_dir, separator, base_name)
-            break
-
-    return pkg
+        try:
+            if importlib.util.find_spec(pkg) is not None:
+                pkg = pkg_str(indexed_root_dir, separator, base_name)
+                return pkg
+        except:
+            return None
+    return None
 
 
 def import_module(name=None, pkg=None, algo=None, *, config=None, place=0):

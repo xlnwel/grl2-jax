@@ -2,7 +2,9 @@ from env import wrappers
 
 
 def process_single_agent_env(env, config):
-    if config.get('reward_scale') or config.get('reward_clip'):
+    if config.get('reward_scale') \
+            or config.get('reward_min') \
+            or config.get('reward_max'):
         env = wrappers.RewardHack(env, **config)
     frame_stack = config.setdefault('frame_stack', 1)
     if frame_stack > 1:

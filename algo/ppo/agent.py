@@ -128,8 +128,9 @@ class PPOAgent(AgentBase):
         pass
 
     def record_inputs_to_vf(self, env_output):
-        self._value_input = self.actor.normalize_obs(env_output.obs)
-
+        self._value_input = {
+            'obs': self.actor.normalize_obs(env_output.obs['obs'])
+        }
     def compute_value(self, value_inp: Dict[str, np.ndarray]=None):
         # be sure you normalize obs first if obs normalization is required
         if value_inp is None:

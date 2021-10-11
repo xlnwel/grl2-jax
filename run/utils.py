@@ -1,5 +1,4 @@
 import os, sys
-import logging
 
 from utility import pkg
 from utility.display import pwc
@@ -15,9 +14,6 @@ def get_config(algo, env):
             filename = f'{word}_{filename}'
         return filename
     algo_dir = pkg.get_package_from_algo(algo, 0, '/')
-    if env == '' and '-' in algo:
-        pwc('Config Warning: set Procgen as the default env, otherwise specify env explicitly', color='green')
-        env = 'procgen_'
     files = [f for f in os.listdir(algo_dir) if 'config.yaml' in f]
     filename = 'config.yaml'
     if '_' in env:
@@ -33,6 +29,8 @@ def get_config(algo, env):
     path = f'{algo_dir}/{filename}'
     
     config = load_config(path)
+    config['agent']['algorithm'] = algo
+    config['env']['name'] = env
     if config:
         pwc(f'Config path: {path}', color='green')
     
@@ -101,9 +99,6 @@ def load_configs_with_algo_env(algo, env):
     else:
         config = get_config(algo, env)
     configs = decompose_config(config)
-    configs.agent['algorithm'] = algo
-    if env:
-        configs.env['name'] = env
 
     return configs
 
