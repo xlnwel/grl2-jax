@@ -38,8 +38,8 @@ if __name__ == '__main__':
     import ray
     # performance test
     config = dict(
-        name='smac_6h_vs_8z',
-        n_workers=8,
+        name='BipedalWalker-v3',
+        n_workers=1,
         n_envs=1,
         use_state_agent=True,
         use_mustalive=True,
@@ -48,17 +48,4 @@ if __name__ == '__main__':
         add_agent_id=False,
         obs_agent_id=False,
     )
-    import time
-    ray.init()
-    config['n_envs'] = 2
-    config['n_workers'] = 8
-    duration1 = run(config)
-    ray.shutdown()
-    ray.init()
-    config['n_envs'] = 1
-    config['n_workers'] = 16
-    duration2 = run(config)
-    print(f'RayEnvVec({config["n_workers"]}, {config["n_envs"]})', duration1)
-    print(f'EnvVec({config["n_workers"]}, {config["n_envs"]})', duration2)
-    ray.shutdown()
     

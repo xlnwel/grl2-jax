@@ -90,10 +90,10 @@ def train(agent, env, eval_env, buffer):
                 agent.actor.update_obs_rms(data['global_state'], 
                     'global_state', mask=life_mask)
                 agent.actor.update_reward_rms(data['reward'], data['discount'])
-            agent.env_step = step
+            agent.set_env_step(step)
             agent.save(print_terminal_info=True)
         return step
-    step = initialize_rms(agent.env_step)
+    step = initialize_rms(agent.get_env_step())
 
     # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
     to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
@@ -121,8 +121,8 @@ def train(agent, env, eval_env, buffer):
         with lt:
             agent.store(**{
                 'time/fps': (step - start_env_step) / rt.last(),
-                'time/tps': (agent.train_step-start_train_step)/tt.last(),
-                'misc/train_step': agent.train_step,
+                'time/tps': (agent.get_train_step()-start_train_step)/tt.last(),
+                'misc/train_step': agent.get_train_step(),
                 'time/run': rt.total(), 
                 'time/train': tt.total(),
                 'time/log': lt.total(),
@@ -136,18 +136,18 @@ def train(agent, env, eval_env, buffer):
     print('Training starts...')
     while step < agent.MAX_STEPS:
         buffer.reset()
-        start_env_step = agent.env_step
+        start_env_step = agent.get_env_step()
         while not buffer.ready():
             step = collect_data(step, agent, env, buffer)
-        start_train_step = agent.train_step
+        start_train_step = agent.get_train_step()
         with tt:
             agent.train_record(step)
         agent.store(
             fps=(step - start_env_step) / rt.last(),
-            tps=(agent.train_step-start_train_step) / tt.last()
+            tps=(agent.get_train_step()-start_train_step) / tt.last()
         )
 
-        if to_record(agent.train_step) and agent.contains_stats('score'):
+        if to_record(agent.get_train_step()) and agent.contains_stats('score'):
             record_stats()
 
 main = functools.partial(main, train=train)

@@ -1,9 +1,7 @@
 import functools
 import logging
-import tensorflow as tf
 
 from utility.utils import config_attr
-from core.record import *
 
 
 logger = logging.getLogger(__name__)
@@ -24,60 +22,15 @@ def config(init_fn):
 
     return wrapper
 
-def setup_tensorboard(init_fn):
-    def _setup(obj):
-        if getattr(obj, '_writer', True):
-            obj._writer = creater_tensorboard_writer(obj._root_dir, obj._model_name)
-            tf.summary.experimental.set_step(0)
-        
-        if hasattr(obj, 'record'):
-            obj.record = functools.partial(obj.record, recorder=obj._recorder)
-        else:
-            obj.record = functools.partial(record, 
-                writer=obj._writer, model_name=obj._model_name)
-    
-    @functools.wraps(init_fn)
-    def wrapper(self, **kwargs):
-        _setup(self)
-        init_fn(self, **kwargs)
-    
-    return wrapper
-
-def setup_recorder(init_fn):
-    def _setup(obj):
-        """ Setups Logger and Tensorboard for recording training stats """
-        obj._recorder = create_recorder(
-            getattr(obj, '_recorder', True) and obj._root_dir, obj._model_name)
-        for method in dir(obj._recorder):
-            if not method.startswith('_'):
-                setattr(obj, method, getattr(obj._recorder, method))
-        
-        if getattr(obj, '_save_code', True):
-            save_code(obj._root_dir, obj._model_name)
-        
-        if hasattr(obj, 'record'):
-            obj.record = functools.partial(obj.record, recorder=obj._recorder)
-        else:
-            obj.record = functools.partial(record, 
-                recorder=obj._recorder, model_name=obj._model_name)
-
-    @functools.wraps(init_fn)
-    def wrapper(self, **kwargs):        
-        _setup(self)
-
-        init_fn(self, **kwargs)
-
-    return wrapper
-
 def step_track(train_record):
     """ Tracks the training and environment steps """
     @functools.wraps(train_record)
     def wrapper(self, step=0, **kwargs):
-        if step > self.env_step:
-            self.env_step = step
-        n = train_record(self, step, **kwargs)
-        self.train_step += n
-        return self.train_step
+        if step > self.get_env_step():
+            self.set_env_step(step)
+        train_step = train_record(self, step, **kwargs)
+        self.set_train_step(train_step)
+        return train_step
 
     return wrapper
 

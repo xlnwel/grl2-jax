@@ -135,7 +135,7 @@ class Runner:
             self.step += self._frames_per_step
             terms = {}
         next_obs, reward, discount, reset = self.env_output
-        
+
         if step_fn:
             kwargs = dict(obs=obs, action=action, reward=reward,
                 discount=discount, next_obs=next_obs)

@@ -43,7 +43,7 @@ def run(env, agent, replay, step, obs=None, already_done=None, nsteps=0):
 
 def train(agent, env, eval_env, replay):
     _, step = replay.count_episodes()
-    step = max(agent.env_step, step)
+    step = max(agent.get_env_step(), step)
 
     nsteps = agent.TRAIN_PERIOD
     obs, already_done = None, None

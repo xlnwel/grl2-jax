@@ -17,7 +17,7 @@ def train(agent, env, eval_env, buffer):
     em = pkg.import_module(env.name.split("_")[0], pkg='env')
     info_func = em.info_func if hasattr(em, 'info_func') else None
 
-    step = agent.env_step
+    step = agent.get_env_step()
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS, info_func=info_func)
     
     def initialize_rms(step):
@@ -33,7 +33,7 @@ def train(agent, env, eval_env, buffer):
                 agent.actor.update_reward_rms(buffer['reward'], buffer['discount'])
                 buffer.reset()
             buffer.clear()
-            agent.env_step = runner.step
+            agent.set_env_step(runner.step)
             agent.save(print_terminal_info=True)
         return step
 
@@ -64,7 +64,7 @@ def train(agent, env, eval_env, buffer):
     def record_stats(step):
         with lt:
             agent.store(**{
-                'misc/train_step': agent.train_step,
+                'misc/train_step': agent.get_train_step(),
                 'time/run': rt.total(), 
                 'time/train': tt.total(),
                 'time/eval': et.total(),
@@ -79,7 +79,7 @@ def train(agent, env, eval_env, buffer):
 
     print('Training starts...')
     while step < agent.MAX_STEPS:
-        start_env_step = agent.env_step
+        start_env_step = agent.get_env_step()
         agent.before_run(env)
         with rt:
             step = runner.run(step_fn=collect)
@@ -96,18 +96,18 @@ def train(agent, env, eval_env, buffer):
         value = agent.compute_value()
         buffer.finish(value)
 
-        start_train_step = agent.train_step
+        start_train_step = agent.get_train_step()
         with tt:
             agent.train_record(step)
         agent.store(
             fps=(step-start_env_step)/rt.last(),
-            tps=(agent.train_step-start_train_step)/tt.last())
+            tps=(agent.get_train_step()-start_train_step)/tt.last())
         buffer.reset()
 
-        if to_eval(agent.train_step) or step > agent.MAX_STEPS:
+        if to_eval(agent.get_train_step()) or step > agent.MAX_STEPS:
             evaluate_agent(step, eval_env, agent)
 
-        if to_record(agent.train_step) and agent.contains_stats('score'):
+        if to_record(agent.get_train_step()) and agent.contains_stats('score'):
             record_stats(step)
 
 main = functools.partial(main, train=train)

@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def collect(buffer, env, env_step, reset, next_obs, **kwargs):
+    kwargs['reset'] = reset
     buffer.add(**kwargs)
 
 
@@ -39,11 +40,11 @@ class PPOAgent(AgentBase):
 
     """ Training Methods """
     def _sample_train(self):
-        n = self._train_ppo()
+        train_step = self._train_ppo()
         self._train_extra_vf()
         self._after_train()
 
-        return n
+        return train_step
 
     def _train_ppo(self):
         for i in range(self.N_EPOCHS):
@@ -91,10 +92,11 @@ class PPOAgent(AgentBase):
             'time/learn_mean': self._learn_timer.average(),
         })
 
-        if self._to_summary(self.train_step + n):
+        train_step = self.step_counter.get_train_step() + n
+        if self._to_summary(train_step):
             self._summary(data, terms)
         
-        return n
+        return train_step
     
     def _train_extra_vf(self):
         for _ in range(self.N_VALUE_EPOCHS):

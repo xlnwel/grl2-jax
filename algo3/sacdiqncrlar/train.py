@@ -26,7 +26,7 @@ def train(agent, env, eval_env, replay):
         if step % agent.TRAIN_PERIOD == 0:
             agent.train_record(step)
     
-    step = agent.env_step
+    step = agent.get_env_step()
     collect = lambda *args, **kwargs: replay.add(**kwargs)
     runner = Runner(env, agent, step=step, nsteps=agent.LOG_PERIOD)
     def random_actor(*args, **kwargs):
@@ -45,8 +45,8 @@ def train(agent, env, eval_env, replay):
         step = runner.run(step_fn=collect_and_learn)
         fps = (step - start_step) / (time.time() - start)
         agent.store(
-            env_step=agent.env_step,
-            train_step=agent.train_step,
+            env_step=agent.get_env_step(),
+            train_step=agent.get_train_step(),
             fps=fps, 
             tps=fps/agent.TRAIN_PERIOD)
 

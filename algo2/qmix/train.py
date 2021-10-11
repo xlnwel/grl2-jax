@@ -19,7 +19,7 @@ def train(agent, env, eval_env, replay):
     em = pkg.import_module(env.name.split("_")[0], pkg='env')
     info_func = em.info_func if hasattr(em, 'info_func') else None
 
-    env_step = agent.env_step
+    env_step = agent.get_env_step()
     runner = Runner(env, agent, step=env_step,
         run_mode=RunMode.TRAJ, info_func=info_func)
     agent.TRAIN_PERIOD = env.max_episode_steps
@@ -64,13 +64,13 @@ def train(agent, env, eval_env, replay):
                 tps = tt.average() * agent.N_UPDATES
                 
                 agent.store(
-                    env_step=agent.env_step,
-                    train_step=agent.train_step,
+                    env_step=agent.get_env_step(),
+                    train_step=agent.get_train_step(),
                     fps=fps, 
                     tps=tps,
                 )
                 agent.store(**{
-                    'train_step': agent.train_step,
+                    'train_step': agent.get_train_step(),
                     'time/run': rt.total(), 
                     'time/train': tt.total(),
                     # 'time/eval': et.total(),

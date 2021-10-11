@@ -20,7 +20,7 @@ def train(agent, env, eval_env, replay):
         replay.add(**kwargs)
         agent.train_record(step)
 
-    start_step = agent.env_step
+    start_step = agent.get_env_step()
     step = start_step
     collect = lambda *args, **kwargs: replay.add(**kwargs)
     runner = Runner(env, agent, step=step, nsteps=agent.LOG_PERIOD)

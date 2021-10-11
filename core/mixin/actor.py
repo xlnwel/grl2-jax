@@ -174,8 +174,10 @@ class RMS:
                 self._return, ret = forward_discounted_sum(
                     self._return, reward, discount, self._gamma)
                 self._reward_rms.update(ret, mask=mask)
-            else:
+            elif self._normalize_reward_with_return == False:
                 self._reward_rms.update(reward, mask=mask)
+            else:
+                raise ValueError(f"Invalid option: {self._normalize_reward_with_return}")
 
     def normalize_obs(self, obs, name='obs', mask=None):
         """ Normalize obs using obs RMS """

@@ -1,138 +1,19 @@
-import os, atexit, shutil
+import os, atexit
 import logging
 from collections import defaultdict
 import numpy as np
 import tensorflow as tf
 
 from core.log import do_logging
-from utility import yaml_op
-from utility.utils import isscalar
 from utility.display import pwc
 from utility.graph import image_summary, video_summary
-from utility.typing import AttrDict
+from utility.utils import isscalar
 
 
 logger = logging.getLogger(__name__)
 
-def record(*, recorder, writer, model_name, 
-           prefix=None, step, print_terminal_info=True, 
-           **kwargs):
-    stats = dict(
-        model_name=f'{model_name}',
-        steps=step,
-        **recorder.get_stats(**kwargs),
-    )
-    if writer is not None:
-        scalar_summary(writer, stats, prefix=prefix, step=step)
-        writer.flush()
-    if recorder is not None:
-        recorder.record_stats(stats, print_terminal_info=print_terminal_info)
 
-def record_stats(recorder, stats, print_terminal_info=True):
-    [recorder.record_tabular(k, v) for k, v in stats.items()]
-    recorder.dump_tabular(print_terminal_info=print_terminal_info)
-
-def set_summary_step(step):
-    tf.summary.experimental.set_step(step)
-
-def scalar_summary(writer, stats, prefix=None, step=None):
-    if step is not None:
-        tf.summary.experimental.set_step(step)
-    prefix = prefix or 'stats'
-    with writer.as_default():
-        for k, v in stats.items():
-            if isinstance(v, str):
-                continue
-            if '/' not in k:
-                k = f'{prefix}/{k}'
-            # print(k, np.array(v).dtype)
-            tf.summary.scalar(k, tf.reduce_mean(v), step=step)
-
-def histogram_summary(writer, stats, prefix=None, step=None):
-    if step is not None:
-        tf.summary.experimental.set_step(step)
-    prefix = prefix or 'stats'
-    with writer.as_default():
-        for k, v in stats.items():
-            if isinstance(v, (str, int, float)):
-                continue
-            tf.summary.histogram(f'{prefix}/{k}', v, step=step)
-
-def graph_summary(writer, sum_type, args, step=None):
-    """ This function should only be called inside a tf.function """
-    fn = {'image': image_summary, 'video': video_summary}[sum_type]
-    if step is None:
-        step = tf.summary.experimental.get_step()
-    def inner(*args):
-        tf.summary.experimental.set_step(step)
-        with writer.as_default():
-            fn(*args)
-    return tf.numpy_function(inner, args, [])
-
-def store(recorder, **kwargs):
-    recorder.store(**kwargs)
-
-def get_raw_item(recorder, key):
-    return recorder.get_raw_item(key)
-
-def get_item(recorder, key, mean=True, std=False, min=False, max=False):
-    return recorder.get_item(key, mean=mean, std=std, min=min, max=max)
-
-def get_raw_stats(recorder):
-    return recorder.get_raw_stats()
-
-def get_stats(recorder, mean=True, std=False, min=False, max=False):
-    return recorder.get_stats(mean=mean, std=std, min=min, max=max)
-
-def contains_stats(recorder, key):
-    return key in recorder
-    
-def save_code(root_dir, model_name):
-    """ Saves the code so that we can check the chagnes latter """
-    dest_dir = f'{root_dir}/{model_name}/src'
-    if os.path.isdir(dest_dir):
-        shutil.rmtree(dest_dir)
-    
-    shutil.copytree('.', dest_dir, 
-        ignore=shutil.ignore_patterns(
-            '*logs*', 'data/*', '.*', '*.md',
-            '*pycache*', '*.pyc', '*test*',
-            '*results*'))
-
-def simplify_datatype(config):
-    """ Converts ndarray to list, useful for saving config as a yaml file """
-    if isinstance(config, AttrDict):
-        config = config.asdict()
-    for k, v in config.items():
-        if isinstance(v, dict):
-            config[k] = simplify_datatype(v)
-        elif isinstance(v, tuple):
-            config[k] = list(v)
-        elif isinstance(v, np.ndarray):
-            config[k] = v.tolist()
-        else:
-            config[k] = v
-    return config
-
-def save_config(root_dir, model_name, config):
-    config = simplify_datatype(config)
-    yaml_op.save_config(config, filename=f'{root_dir}/{model_name}/config.yaml')
-
-""" Functions for setup recorder """                
-def create_recorder(root_dir, model_name):
-    recorder_dir = root_dir and f'{root_dir}/{model_name}'
-    # recorder save stats in f'{root_dir}/{model_name}/logs/record.txt'
-    recorder = Recorder(recorder_dir)
-    return recorder
-
-def creater_tensorboard_writer(root_dir, model_name):
-    # writer for tensorboard summary
-    # stats are saved in directory f'{root_dir}/{model_name}'
-    writer = tf.summary.create_file_writer(
-        f'{root_dir}/{model_name}', max_queue=1000, flush_millis=20000)
-    writer.set_as_default()
-    return writer
-
+""" Recorder """
 class Recorder:
     def __init__(self, recorder_dir=None, record_file='record.txt'):
         """
@@ -328,3 +209,120 @@ class Recorder:
         self._current_row.clear()
         self._store_dict.clear()
         self._first_row=False
+
+
+""" Tensorboard Writer """
+class TensorboardWriter:
+    def __init__(self, root_dir, model_name, name):
+        self._writer = create_tb_writer(root_dir, model_name)
+        self.name = name
+        tf.summary.experimental.set_step(0)
+    
+    def set_summary_step(self, step):
+        """ Sets tensorboard step """
+        set_summary_step(step)
+
+    def scalar_summary(self, stats, prefix=None, step=None):
+        """ Adds scalar summary to tensorboard """
+        scalar_summary(self._writer, stats, prefix=prefix, step=step)
+
+    def histogram_summary(self, stats, prefix=None, step=None):
+        """ Adds histogram summary to tensorboard """
+        histogram_summary(self._writer, stats, prefix=prefix, step=step)
+
+    def graph_summary(self, sum_type, *args, step=None):
+        """ Adds graph summary to tensorboard
+        Args:
+            sum_type str: either "video" or "image"
+            args: Args passed to summary function defined in utility.graph,
+                of which the first must be a str to specify the tag in Tensorboard
+        """
+        assert isinstance(args[0], str), f'args[0] is expected to be a name string, but got "{args[0]}"'
+        args = list(args)
+        args[0] = f'{self.name}/{args[0]}'
+        graph_summary(self._writer, sum_type, args, step=step)
+
+    def video_summary(self, video, step=None):
+        video_summary(f'{self.name}/sim', video, step=step)
+
+    def flush(self):
+        self._writer.flush()
+
+""" Recorder Ops """
+def record_stats(recorder, stats, print_terminal_info=True):
+    [recorder.record_tabular(k, v) for k, v in stats.items()]
+    recorder.dump_tabular(print_terminal_info=print_terminal_info)
+
+def store(recorder, **kwargs):
+    recorder.store(**kwargs)
+
+def get_raw_item(recorder, key):
+    return recorder.get_raw_item(key)
+
+def get_item(recorder, key, mean=True, std=False, min=False, max=False):
+    return recorder.get_item(key, mean=mean, std=std, min=min, max=max)
+
+def get_raw_stats(recorder):
+    return recorder.get_raw_stats()
+
+def get_stats(recorder, mean=True, std=False, min=False, max=False):
+    return recorder.get_stats(mean=mean, std=std, min=min, max=max)
+
+def contains_stats(recorder, key):
+    return key in recorder
+
+def create_recorder(root_dir, model_name):
+    recorder_dir = root_dir and f'{root_dir}/{model_name}'
+    # recorder save stats in f'{root_dir}/{model_name}/logs/record.txt'
+    recorder = Recorder(recorder_dir)
+    return recorder
+
+
+""" Tensorboard Ops """
+def set_summary_step(step):
+    tf.summary.experimental.set_step(step)
+
+def scalar_summary(writer, stats, prefix=None, step=None):
+    if step is not None:
+        tf.summary.experimental.set_step(step)
+    prefix = prefix or 'stats'
+    with writer.as_default():
+        for k, v in stats.items():
+            if isinstance(v, str):
+                continue
+            if '/' not in k:
+                k = f'{prefix}/{k}'
+            # print(k, np.array(v).dtype)
+            tf.summary.scalar(k, tf.reduce_mean(v), step=step)
+
+def histogram_summary(writer, stats, prefix=None, step=None):
+    if step is not None:
+        tf.summary.experimental.set_step(step)
+    prefix = prefix or 'stats'
+    with writer.as_default():
+        for k, v in stats.items():
+            if isinstance(v, (str, int, float)):
+                continue
+            tf.summary.histogram(f'{prefix}/{k}', v, step=step)
+
+def graph_summary(writer, sum_type, args, step=None):
+    """ This function should only be called inside a tf.function """
+    fn = {'image': image_summary, 'video': video_summary}[sum_type]
+    if step is None:
+        step = tf.summary.experimental.get_step()
+    def inner(*args):
+        tf.summary.experimental.set_step(step)
+        with writer.as_default():
+            fn(*args)
+    return tf.numpy_function(inner, args, [])
+
+def create_tb_writer(root_dir, model_name):
+    # writer for tensorboard summary
+    # stats are saved in directory f'{root_dir}/{model_name}'
+    writer = tf.summary.create_file_writer(
+        f'{root_dir}/{model_name}', max_queue=1000, flush_millis=20000)
+    writer.set_as_default()
+    return writer
+
+def create_tensorboard_writer(root_dir, model_name, name):
+    return TensorboardWriter(root_dir, model_name, name)

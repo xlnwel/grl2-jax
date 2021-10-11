@@ -14,7 +14,7 @@ def train(agent, env, eval_env, buffer):
     def collect(env, step, reset, next_obs, **kwargs):
         buffer.add(**kwargs)
 
-    step = agent.env_step
+    step = agent.get_env_step()
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     actsel = lambda *args, **kwargs: np.random.randint(0, env.action_dim, size=env.n_envs)
     if not agent.rnd_rms_restored():
@@ -31,7 +31,7 @@ def train(agent, env, eval_env, buffer):
     to_eval = Every(agent.EVAL_PERIOD)
     print('Training starts...')
     while step < agent.MAX_STEPS:
-        start_env_step = agent.env_step
+        start_env_step = agent.get_env_step()
         with Timer('env') as rt:
             step = runner.run(step_fn=collect)
         agent.store(fps=(step-start_env_step)/rt.last())
@@ -55,13 +55,13 @@ def train(agent, env, eval_env, buffer):
             reward_int_std=np.std(reward_int),
             )
 
-        start_train_step = agent.train_step
+        start_train_step = agent.get_train_step()
         with Timer('train') as tt:
             agent.train_record(step)
-        agent.store(tps=(agent.train_step-start_train_step)/tt.last())
+        agent.store(tps=(agent.get_train_step()-start_train_step)/tt.last())
         buffer.reset()
 
-        if to_eval(agent.train_step):
+        if to_eval(agent.get_train_step()):
             with TempStore(agent.get_states, agent.reset_states):
                 scores, epslens, video = evaluate(
                     eval_env, agent, 
@@ -95,10 +95,10 @@ def train(agent, env, eval_env, buffer):
                         {'eval/action': agent.retrieve_eval_actions()}, step=step)   
                 agent.store(eval_score=scores, eval_epslen=epslens)
 
-        if to_record(agent.train_step) and agent.contains_stats('score'):
+        if to_record(agent.get_train_step()) and agent.contains_stats('score'):
             agent.store(**{
                 'episodes': runner.episodes,
-                'train_step': agent.train_step,
+                'train_step': agent.get_train_step(),
                 'time/run': rt.total(), 
                 'time/train': tt.total()
             })

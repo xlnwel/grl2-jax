@@ -18,7 +18,7 @@ from algo.dqn.train import *
 #         replay.add(**kwargs)
 #         agent.train_record(step)
 
-#     step = agent.env_step
+#     step = agent.get_env_step()
 #     collect = lambda *args, **kwargs: replay.add(**kwargs)
 #     runner = Runner(env, agent, step=step, nsteps=agent.LOG_PERIOD)
 #     while not replay.good_to_learn():
@@ -33,8 +33,8 @@ from algo.dqn.train import *
 #         start = time.time()
 #         step = runner.run(step_fn=collect_and_learn)
 #         agent.store(
-#             env_step=agent.env_step,
-#             train_step=agent.train_step,
+#             env_step=agent.get_env_step(),
+#             train_step=agent.get_train_step(),
 #             fps=(step - start_step) / (time.time() - start))
 
 #         eval_score, eval_epslen, video = evaluate(

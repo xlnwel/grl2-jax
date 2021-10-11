@@ -20,7 +20,7 @@ def train(agent, env, eval_env, replay):
     collect = functools.partial(collect_fn, replay)
 
     _, step = replay.count_episodes()
-    step = max(agent.env_step, step)
+    step = max(agent.get_env_step(), step)
 
     runner = Runner(env, agent, step=step)
     def random_actor(*args, **kwargs):

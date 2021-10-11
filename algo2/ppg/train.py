@@ -13,7 +13,7 @@ def train(agent, env, eval_env, buffer):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
 
-    step = agent.env_step
+    step = agent.get_env_step()
     runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
     if step == 0 and agent.is_obs_normalized:
         print('Start to initialize running stats...')
@@ -23,7 +23,7 @@ def train(agent, env, eval_env, buffer):
             agent.update_reward_rms(buffer['reward'], buffer['discount'])
             buffer.reset()
         buffer.clear()
-        agent.env_step = runner.step
+        agent.set_env_step(runner.step)
         agent.save(print_terminal_info=True)
 
     runner.step = step
@@ -39,7 +39,7 @@ def train(agent, env, eval_env, buffer):
     while step < agent.MAX_STEPS:
         agent.before_run(env)
         for _ in range(agent.N_PI):
-            start_env_step = agent.env_step
+            start_env_step = agent.get_env_step()
             with rt:
                 step = runner.run(step_fn=collect)
             agent.store(fps=(step-start_env_step)/rt.last())
@@ -56,15 +56,15 @@ def train(agent, env, eval_env, buffer):
             value = agent.compute_value()
             buffer.finish(value)
 
-            start_train_step = agent.train_step
+            start_train_step = agent.get_train_step()
             with tt:
                 agent.train_record(step)
-            agent.store(tps=(agent.train_step-start_train_step)/tt.last())
+            agent.store(tps=(agent.get_train_step()-start_train_step)/tt.last())
             buffer.reset()
-            if step > agent.MAX_STEPS or (to_record(agent.train_step) and 'score' in agent._logger):
+            if step > agent.MAX_STEPS or (to_record(agent.get_train_step()) and 'score' in agent._logger):
                 with lt:
                     agent.store(**{
-                        'train_step': agent.train_step,
+                        'train_step': agent.get_train_step(),
                         'time/run': rt.total(), 
                         'time/train': tt.total(),
                         'time/eval': et.total(),
@@ -78,7 +78,7 @@ def train(agent, env, eval_env, buffer):
                     })
                     agent.record(step=step)
                     agent.save()
-            if to_eval(agent.train_step) or step > agent.MAX_STEPS:
+            if to_eval(agent.get_train_step()) or step > agent.MAX_STEPS:
                 with TempStore(agent.get_states, agent.reset_states):
                     with et:
                         scores, epslens, video = evaluate(

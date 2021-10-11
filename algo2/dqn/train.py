@@ -15,7 +15,7 @@ def train(agent, env, eval_env, replay):
     collect_fn = pkg.import_module('agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, replay)
     
-    env_step = agent.env_step
+    env_step = agent.get_env_step()
     runner = Runner(env, agent, step=env_step, nsteps=agent.TRAIN_PERIOD)
     while not replay.good_to_learn():
         env_step = runner.run(
@@ -58,13 +58,13 @@ def train(agent, env, eval_env, replay):
                 tps = tt.average() * agent.N_UPDATES
                 
                 agent.store(
-                    env_step=agent.env_step,
-                    train_step=agent.train_step,
+                    env_step=agent.get_env_step(),
+                    train_step=agent.get_train_step(),
                     fps=fps, 
                     tps=tps,
                 )
                 agent.store(**{
-                    'train_step': agent.train_step,
+                    'train_step': agent.get_train_step(),
                     'time/run': rt.total(), 
                     'time/train': tt.total(),
                     'time/eval': et.total(),

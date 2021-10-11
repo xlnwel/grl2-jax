@@ -33,6 +33,7 @@ def make_builtin_gym(config):
     env = DummyEnv(env)    # useful for hidding unexpected frame_skip
     config.setdefault('max_episode_steps', 
         env.spec.max_episode_steps)
+
     env = process_single_agent_env(env, config)
     
     return env

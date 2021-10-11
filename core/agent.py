@@ -1,42 +1,42 @@
-from typing import Union
-
-from core.checkpoint import *
 from core.decorator import *
-from core.mixin.agent import StepCounter, TensorboardOps
-from core.module import Model, ModelEnsemble, Trainer, TrainerEnsemble, Actor
+from core.mixin.agent import StepCounter
+from core.strategy import Strategy
+from core.monitor import Monitor
+from core.utils import save_code
 from env.typing import EnvOutput
 from utility.timer import Every, Timer
 
 
-def _set_attr(obj, name, attr):
-    setattr(obj, name, attr)
-    if isinstance(attr, dict):
-        for k, v in attr.items():
-            if not k.endswith(name):
-                raise ValueError(f'Inconsistent error: {k} does not ends with {name}')
-            setattr(obj, k, v)
-
-
-class AgentBase(StepCounter, TensorboardOps):
+class AgentBase:
     """ Initialization """
     @config
-    @setup_tensorboard
-    @setup_recorder
     def __init__(self, 
                  *, 
                  env_stats, 
-                 model: Union[Model, ModelEnsemble], 
-                 trainer: Union[Trainer, TrainerEnsemble], 
-                 actor: Actor=None,
+                 strategy: Strategy,
+                 step_counter: StepCounter=None,
+                 monitor: Monitor=None,
                  dataset=None):
         self.env_stats = env_stats
-        _set_attr(self, 'model', model)
-        _set_attr(self, 'trainer', trainer)
-        self.actor = actor
+        self.strategy = strategy
         self.dataset = dataset
+        self.step_counter = step_counter
+        self.monitor = monitor
 
         self._post_init(env_stats, dataset)
         self.restore()
+        save_code(self._root_dir, self._model_name)
+
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError(f"Attempted to get missing private attribute '{name}'")
+        if hasattr(self.strategy, name):
+            return getattr(self.strategy, name)
+        elif hasattr(self.monitor, name):
+            return getattr(self.monitor, name)
+        elif hasattr(self.step_counter, name):
+            return getattr(self.step_counter, name)
+        raise AttributeError(f"Attempted to get missing attribute '{name}'")
 
     def _post_init(self, env_stats, dataset):
         """ Adds attributes to Agent """
@@ -50,8 +50,6 @@ class AgentBase(StepCounter, TensorboardOps):
 
         # intervals between calling self._summary
         self._to_summary = Every(self.LOG_PERIOD, self.LOG_PERIOD)
-        
-        self._initialize_counter()
 
     def reset_states(self, states=None):
         pass
@@ -87,10 +85,10 @@ class AgentBase(StepCounter, TensorboardOps):
     """ Train """
     @step_track
     def train_record(self, step):
-        n = self._sample_train()
+        train_step = self._sample_train()
         self._store_additional_stats()
 
-        return n
+        return train_step
 
     def _sample_train(self):
         raise NotImplementedError
@@ -100,29 +98,18 @@ class AgentBase(StepCounter, TensorboardOps):
 
     """ Checkpoint Ops """
     def restore(self):
-        """ Restore model """
-        if getattr(self, 'trainer', None) is not None:
-            self.trainer.restore()
-        elif getattr(self, 'model', None) is not None:
-            self.model.restore()
-        self.actor.restore_auxiliary_stats()
-        self.restore_step()
+        self.strategy.restore()
+        self.step_counter.restore_step()
 
     def save(self, print_terminal_info=False):
-        """ Save model """
-        if getattr(self, 'trainer', None) is not None:
-            self.trainer.save(print_terminal_info)
-        elif getattr(self, 'model', None) is not None:
-            self.model.save(print_terminal_info)
-        self.actor.save_auxiliary_stats()
-        self.save_step()
+        self.strategy.save(print_terminal_info)
+        self.step_counter.save_step()
 
 
 class PopulationAgentInterface:
     def __init__(self, name) -> None:
         self._name = name
-        self.trainers = {}
-        self.aux_stats = {}
+        self.strategies = {}
 
     @property
     def name(self):

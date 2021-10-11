@@ -1,10 +1,10 @@
+import os
 import cloudpickle
 import logging
 import numpy as np
 import tensorflow as tf
 
 from core.log import do_logging
-from core.record import *
 from utility.schedule import PiecewiseSchedule
 
 logger = logging.getLogger(__name__)
@@ -12,53 +12,31 @@ logger = logging.getLogger(__name__)
 
 """ Agent Mixins """
 class StepCounter:
-    def _initialize_counter(self):
-        self.env_step = 0
-        self.train_step = 0
-        self._counter_path = f'{self._root_dir}/{self._model_name}/counter.pkl'
+    def __init__(self, root_dir, model_name):
+        self._env_step = 0
+        self._train_step = 0
+        self._counter_path = f'{root_dir}/{model_name}/step_counter.pkl'
+
+    def get_env_step(self):
+        return self._env_step
+
+    def set_env_step(self, step):
+        self._env_step = step
+
+    def get_train_step(self):
+        return self._train_step
+
+    def set_train_step(self, step):
+        self._train_step = step
 
     def save_step(self):
         with open(self._counter_path, 'wb') as f:
-            cloudpickle.dump((self.env_step, self.train_step), f)
+            cloudpickle.dump((self._env_step, self._train_step), f)
 
     def restore_step(self):
         if os.path.exists(self._counter_path):
             with open(self._counter_path, 'rb') as f:
-                self.env_step, self.train_step = cloudpickle.load(f)
-
-
-class TensorboardOps:
-    """ Tensorboard Ops """
-    def set_summary_step(self, step):
-        """ Sets tensorboard step """
-        set_summary_step(step)
-
-    def scalar_summary(self, stats, prefix=None, step=None):
-        """ Adds scalar summary to tensorboard """
-        scalar_summary(self._writer, stats, prefix=prefix, step=step)
-
-    def histogram_summary(self, stats, prefix=None, step=None):
-        """ Adds histogram summary to tensorboard """
-        histogram_summary(self._writer, stats, prefix=prefix, step=step)
-
-    def graph_summary(self, sum_type, *args, step=None):
-        """ Adds graph summary to tensorboard
-        Args:
-            sum_type str: either "video" or "image"
-            args: Args passed to summary function defined in utility.graph,
-                of which the first must be a str to specify the tag in Tensorboard
-        """
-        assert isinstance(args[0], str), f'args[0] is expected to be a name string, but got "{args[0]}"'
-        args = list(args)
-        args[0] = f'{self.name}/{args[0]}'
-        graph_summary(self._writer, sum_type, args, step=step)
-
-    def video_summary(self, video, step=None):
-        video_summary(f'{self.name}/sim', video, step=step)
-
-    def save_config(self, config):
-        """ Save config.yaml """
-        save_config(self._root_dir, self._model_name, config)
+                self._env_step, self._train_step = cloudpickle.load(f)
 
 
 class ActionScheduler:
