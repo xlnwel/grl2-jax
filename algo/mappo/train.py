@@ -20,7 +20,8 @@ def random_run(env, step):
             obs=obs['obs'],
             global_state=obs['global_state'],
             reward=reward,
-            discount=discount
+            discount=discount,
+            reset=reset,
         )
         if env.use_life_mask:
             kwargs['life_mask'] = obs['life_mask']
@@ -59,6 +60,7 @@ def run(agent, env, buffer, step):
         kwargs = dict(
             action=action.reshape(env.n_envs, env.n_agents),
             reward=reward,
+            reset=reset,
             **tf.nest.map_structure(
                 lambda x: x.reshape(env.n_envs, env.n_agents, *x.shape[1:]), terms)
         )
@@ -89,7 +91,8 @@ def train(agent, env, eval_env, buffer):
                 agent.actor.update_obs_rms(data['obs'], mask=life_mask)
                 agent.actor.update_obs_rms(data['global_state'], 
                     'global_state', mask=life_mask)
-                agent.actor.update_reward_rms(data['reward'], data['discount'])
+                discount = np.logical_and(buffer['discount'], 1 - buffer['reset'])
+                agent.actor.update_reward_rms(data['reward'], discount)
             agent.set_env_step(step)
             agent.save(print_terminal_info=True)
         return step
@@ -110,6 +113,8 @@ def train(agent, env, eval_env, buffer):
                 continue
             reward = buffer.get(i, 'reward')
             discount = buffer.get(i, 'discount')
+            reset = buffer.get(i, 'reset')
+            discount = np.logical_and(discount, 1 - reset)
             agent.actor.update_reward_rms(reward, discount)
             buffer.update_buffer(i, 'reward', agent.actor.normalize_reward(reward))
         agent.record_inputs_to_vf(last_env_output)

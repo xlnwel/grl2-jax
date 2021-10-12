@@ -20,6 +20,7 @@ def create_env(config, env_fn=None, force_envvec=True):
 
 
 if __name__ == '__main__':
+    import time
     def run(config):
         env = create_env(config)
         start = time.time()

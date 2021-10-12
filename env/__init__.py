@@ -28,7 +28,7 @@ def make_env(config):
     env_name = config['name'].lower()
 
     env_dict = retrieve_all_make_env()
-    suite = env_name.rsplit('_', 1)[0]
+    suite = env_name.split('_', 1)[0]
     builtin_env = env_dict.pop('builtin_gym')
     env_func = env_dict.get(suite, builtin_env)
     env = env_func(config)

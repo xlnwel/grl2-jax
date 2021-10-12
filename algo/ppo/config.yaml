@@ -5,6 +5,7 @@ env:
     n_envs: &nenvs 64
     seed: 0
     reward_min: null
+    reward_max: null
 
 agent:
     algorithm: &algo ppo

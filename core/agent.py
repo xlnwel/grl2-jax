@@ -106,8 +106,8 @@ class AgentBase:
         self.step_counter.save_step()
 
 
-class PopulationAgentInterface:
-    def __init__(self, name) -> None:
+class AgentInterface:
+    def __init__(self, name):
         self._name = name
         self.strategies = {}
 
@@ -116,7 +116,7 @@ class PopulationAgentInterface:
         return self._name
 
     def add_strategy(self, sid, strategy):
-        pass
+        self.strategies[sid] = strategy
 
     def save(self):
         pass
