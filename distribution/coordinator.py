@@ -1,8 +1,13 @@
+from distribution.trainer_manager import TrainerManager
+from distribution.actor_manager import ActorManager
+
 class Coordinator:
-    def __init__(self) -> None:
-        self.learner_manager = None
+    def __init__(self, config) -> None:
+        self.trainer_manager = None
         self.worker_manager = None
         self.actor_manager = None
+
+    def start(self):
 
     def allocate_worker(self, aid2eid: dict=None):
         """ We do not specify the number of workers to allocate

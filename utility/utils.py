@@ -9,6 +9,16 @@ import random
 import numpy as np
 import tensorflow as tf
 
+from utility.typing import AttrDict
+
+
+def dict2AttrDict(config: dict):
+    attr_config = AttrDict(**config)
+    for k, v in attr_config.items():
+        if isinstance(v, dict):
+            attr_config[k] = dict2AttrDict(v)
+
+    return attr_config
 
 def deep_update(source: dict, target:dict):
     for k, v in target.items():
@@ -44,6 +54,8 @@ def config_attr(obj, config: dict, filter_dict: bool=False):
             private attributes
         filter_dict: whether to omit dictionaries
     """
+    config = dict2AttrDict(config)
+    setattr(obj, 'config', config)
     for k, v in config.items():
         if filter_dict and isinstance(v, dict):
             continue

@@ -8,9 +8,9 @@ from nn.func import mlp, nn_registry
 """ Source this file to register Networks """
 
 
-@nn_registry.register('actor')
-class Actor(Module):
-    def __init__(self, name='actor', **config):
+@nn_registry.register('policy')
+class Policy(Module):
+    def __init__(self, name='policy', **config):
         super().__init__(name=name)
         config = config.copy()
 
@@ -34,7 +34,7 @@ class Actor(Module):
                 initial_value=np.log(self._init_std)*np.ones(self.action_dim), 
                 dtype='float32', 
                 trainable=True, 
-                name=f'actor/logstd')
+                name=f'policy/logstd')
         config.setdefault('out_gain', .01)
         self._layers = mlp(**config, 
                         out_size=embed_dim if self.attention_action else self.action_dim, 

@@ -22,18 +22,6 @@ def config(init_fn):
 
     return wrapper
 
-def step_track(train_record):
-    """ Tracks the training and environment steps """
-    @functools.wraps(train_record)
-    def wrapper(self, step=0, **kwargs):
-        if step > self.get_env_step():
-            self.set_env_step(step)
-        train_step = train_record(self, step, **kwargs)
-        self.set_train_step(train_step)
-        return train_step
-
-    return wrapper
-
 def override(cls):
     @functools.wraps(cls)
     def check_override(method):

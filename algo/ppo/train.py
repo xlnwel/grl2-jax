@@ -4,9 +4,7 @@ import sys
 import numpy as np
 
 from core.dataset import create_dataset
-from core.mixin.agent import StepCounter
 from core.monitor import create_monitor
-from core.strategy import Strategy
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from core.utils import save_config
 from utility.utils import TempStore
@@ -84,7 +82,6 @@ def train(agent, env, eval_env, buffer):
     print('Training starts...')
     while step < agent.MAX_STEPS:
         start_env_step = agent.get_env_step()
-        agent.before_run(env)
         with rt:
             step = runner.run(step_fn=collect)
         # NOTE: normalizing rewards here may introduce some inconsistency 
@@ -127,7 +124,11 @@ def main(config, train=train):
         ray.init()
         sigint_shutdown_ray()
 
-    def create_envs():
+    root_dir = config.agent.root_dir
+    model_name = config.agent.model_name
+    name = config.agent.algorithm
+
+    def build_envs():
         env = create_env(config.env, force_envvec=True)
         eval_env_config = config.env.copy()
         if config.env.pop('do_evaluation', True):
@@ -147,7 +148,7 @@ def main(config, train=train):
         
         return env, eval_env
     
-    env, eval_env = create_envs()
+    env, eval_env = build_envs()
 
     def sigint_handler(sig, frame):
         signal.signal(sig, signal.SIG_IGN)
@@ -158,63 +159,58 @@ def main(config, train=train):
     signal.signal(signal.SIGINT, sigint_handler)
 
     env_stats = env.stats()
-    def create_strategy():
-        create_model, create_loss, create_trainer, create_actor = \
+    def build_elements():
+        create_model, create_loss, \
+            create_trainer, create_actor = \
             pkg.import_elements(config=config.agent)
 
         model = create_model(config.model, env_stats)
         loss = create_loss(config.loss, model)
         trainer = create_trainer(config.trainer, model, loss, env_stats)
         actor = create_actor(config.actor, model)
-        strategy = Strategy(
-            model=model,
-            trainer=trainer,
-            actor=actor,
-        )
-        return strategy
-    strategy = create_strategy()
+        
+        return model, trainer, actor
+    model, trainer, actor = build_elements()
 
-    def create_buffer_dataset():
+    def build_buffer_dataset():
         config.buffer['n_envs'] = env.n_envs
-        config.buffer['state_keys'] = strategy.model.state_keys
+        config.buffer['state_keys'] = model.state_keys
         config.buffer['use_dataset'] = config.buffer.get('use_dataset', False)
-        create_buffer = pkg.import_module('buffer', config=config.agent).create_buffer
+        create_buffer = pkg.import_module('elements.buffer', config=config.agent).create_buffer
         buffer = create_buffer(config.buffer)
         
         if config.buffer['use_dataset']:
-            am = pkg.import_module('agent', config=config.agent)
+            am = pkg.import_module('elements.trainer', config=config.agent)
             data_format = am.get_data_format(
-                env_stats=env_stats, batch_size=buffer.batch_size,
-                sample_size=config.agent.get('sample_size'),
-                store_state=config.agent.get('store_state'),
-                state_size=strategy.model.state_size)
+                config.trainer, env_stats, model)
             dataset = create_dataset(buffer, env, 
                 data_format=data_format, one_hot_action=False)
         else:
             dataset = buffer
-        return buffer, dataset
-    buffer, dataset = create_buffer_dataset()
 
-    root_dir = config.agent.root_dir
-    model_name = config.agent.model_name
-    name = config.agent.algorithm
-    def create_agent():
+        return buffer, dataset
+    buffer, dataset = build_buffer_dataset()
+
+    def build_strategy():
+        create_strategy = pkg.import_module('elements.strategy', config=config.agent).create_strategy
+        strategy = create_strategy(name, config.strategy, model, trainer, actor, dataset)
+        
+        return strategy
+    strategy = build_strategy()
+
+    def build_agent():
         create_agent = pkg.import_module('agent', config=config.agent).create_agent
-        step_counter = StepCounter(root_dir, model_name)
         monitor = create_monitor(root_dir, model_name, name)
 
         agent = create_agent(
             config=config.agent, 
-            env_stats=env_stats,
             strategy=strategy, 
-            dataset=dataset,
-            step_counter=step_counter,
             monitor=monitor,
             name=name
         )
 
         return agent
-    agent = create_agent()
+    agent = build_agent()
     save_config(root_dir, model_name, config)
 
     train(agent, env, eval_env, buffer)

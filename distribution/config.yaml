@@ -1,23 +1,25 @@
 ---
+# NOTE: root_dir and model_name will be specified to all configs in run.train.py
 env:
-    name: &env_name BipedalWalker-v3
+    name: &env_name procgen_coinrun
     n_workers: 1
     n_envs: &nenvs 64
-    seed: 0
-    reward_min: null
-    reward_max: null
+    frame_skip: 1
+    frame_stack: 1
+    # num_levels: 200
+    distribution_mode: easy
 
 agent:
     algorithm: &algo ppo
-    precision: 32
+    precision: 16
 
-    MAX_STEPS: 1e10
+    MAX_STEPS: 2e8
     N_STEPS: &nsteps 256
-    N_EPOCHS: &nepochs 4
+    N_EPOCHS: &nepochs 3
     N_VALUE_EPOCHS: &nval_epochs 0
-    N_MBS: &nmbs 4
-    LOG_PERIOD: 200
-    EVAL_PERIOD: 200
+    N_MBS: &nmbs 8
+    LOG_PERIOD: 100
+    EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
     # (once, reuse, null)
@@ -26,57 +28,60 @@ agent:
     # null doesn't update values.
     value_update: null
 
-    # model path: root_dir/model_name/models
+    # model path: root_dir/model_name/name
     # tensorboard path: root_dir/model_name/logs
     # the following names are just examples; they will be reset in our training process
-    root_dir: *algo                         # root path for tensorboard logs
+    root_dir: *algo
     model_name: *algo
-    RECORD_VIDEO: False
+    RECORD_VIDEO: True
 
 model:
     encoder: 
-        nn_id: mlp
-        units_list: []
-        activation: relu
+        nn_id: cnn_impala
+        out_size: 256
     actor:
         nn_id: actor
-        units_list: [64, 64]
-        init_std: 1
+        units_list: []
         norm: null
         kernel_initializer: orthogonal
-        activation: tanh
+        activation: relu
+        eval_act_temp: 1
     value:
         nn_id: value
-        units_list: [64, 64]
+        units_list: []
         norm: null
         kernel_initializer: orthogonal
-        activation: tanh
+        activation: relu
+
+    root_dir: *algo
+    model_name: *algo
 
 loss:
     # arguments for loss
     value_loss: clip
     clip_range: .2          # clip range for ppo
-    entropy_coef: 1e-3
-    value_coef: 1
+    entropy_coef: .01
+    value_coef: .5
 
 trainer:
     optimizer:
         opt_name: adam
         schedule_lr: False
-        lr: 2e-4
+        lr: 5e-4
         clip_norm: .5
         epsilon: 1.e-5
 
     root_dir: *algo
     model_name: *algo
 
-
 actor:
     rms:
-        normalize_obs: True
+        normalize_obs: False
         normalize_reward: True
         gamma: &gamma .999
 
+parameter:
+    n_agents
 buffer:
     use_dataset: True
 

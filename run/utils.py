@@ -2,8 +2,7 @@ import os, sys
 
 from utility import pkg
 from utility.display import pwc
-from utility.typing import AttrDict
-from utility.utils import eval_str, deep_update
+from utility.utils import eval_str, deep_update, dict2AttrDict
 from utility.yaml_op import load_config
 
 
@@ -14,11 +13,10 @@ def get_config(algo, env):
             filename = f'{word}_{filename}'
         return filename
     algo_dir = pkg.get_package_from_algo(algo, 0, '/')
-    files = [f for f in os.listdir(algo_dir) if 'config.yaml' in f]
-    filename = 'config.yaml'
-    if '_' in env:
-        prefix = env.split('_')[0]
-        filename = search_add(prefix, files, filename)
+    configs_dir = f'{algo_dir}/configs'
+    files = [f for f in os.listdir(configs_dir) if 'config.yaml' in f]
+    env_split = env.split('_')
+    filename = 'builtin.yaml' if len(env_split) == 1 else f'{env_split[0]}.yaml'
     if '-' in algo:
         suffix = algo.split('-')[-1]
         if [f for f in files if suffix in f]:
@@ -26,8 +24,8 @@ def get_config(algo, env):
         elif suffix[-1].isdigit():
             suffix = suffix[:-1]
             filename = search_add(suffix, files, filename)
-    path = f'{algo_dir}/{filename}'
-    
+    path = f'{configs_dir}/{filename}'
+
     config = load_config(path)
     config['agent']['algorithm'] = algo
     config['env']['name'] = env
@@ -35,15 +33,6 @@ def get_config(algo, env):
         pwc(f'Config path: {path}', color='green')
     
     return config
-
-
-def decompose_config(config: dict):
-    configs = AttrDict(**config)
-    for k, v in configs.items():
-        if isinstance(v, dict):
-            configs[k] = decompose_config(v)
-
-    return configs
 
 
 def change_config(kw, configs, model_name=''):
@@ -98,7 +87,7 @@ def load_configs_with_algo_env(algo, env):
         config = deep_update(config, dist_config)
     else:
         config = get_config(algo, env)
-    configs = decompose_config(config)
+    configs = dict2AttrDict(config)
 
     return configs
 
@@ -118,7 +107,7 @@ def load_and_run(directory):
                 sys.exit()
 
     config = load_config(config_file)
-    configs = decompose_config(config)
+    configs = dict2AttrDict(config)
     
     main = pkg.import_main('train', config=configs.agent)
 

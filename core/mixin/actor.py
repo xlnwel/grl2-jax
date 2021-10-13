@@ -217,4 +217,3 @@ class RMS:
     def save_rms(self):
         with open(self._rms_path, 'wb') as f:
             cloudpickle.dump((self._obs_rms, self._reward_rms, self._return), f)
-

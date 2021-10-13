@@ -149,9 +149,10 @@ class Ensemble(tf.Module):
 
 class Model(Ensemble):
     """ A model, consisting of multiple modules, is a 
-    self-contained unit for inference. Its subclass is 
-    expected to implement some methods of practical 
-    meaning, such as <action> and <compute_value> """
+    self-contained unit for network inference. Its 
+    subclass is expected to implement some methods 
+    of practical meaning, such as <action> and 
+    <compute_value> """
     def __init__(self, 
                  *,
                  config,
@@ -168,7 +169,8 @@ class Model(Ensemble):
         return self.components
 
     def _post_init(self, config):
-        """ Add some additional attributes and do some post processing here """
+        """ Add some additional attributes and 
+        do some post processing here """
         pass
 
     def sync_nets(self):
@@ -181,8 +183,9 @@ class Model(Ensemble):
         """ Returns a list/dict of weights
 
         Returns:
-            If name is provided, it returns a dict of weights for models 
-            specified by keys. Otherwise it returns a list of all weights
+            If name is provided, it returns a dict of weights 
+            for models specified by keys. Otherwise, it 
+            returns a list of all weights
         """
         if name is None:
             return [v.numpy() for v in self.variables]
@@ -287,7 +290,6 @@ class Trainer(tf.Module):
     def __init__(self, 
                  *,
                  config: dict,
-                 model: Model, 
                  loss: Loss,
                  env_stats,
                  name):
@@ -296,9 +298,10 @@ class Trainer(tf.Module):
         config = config.copy()
         config_attr(self, config, filter_dict=True)
         
-        self.model = model
         self.loss = loss
-        modules = tuple(v for k, v in self.model.items() 
+        self.env_stats = env_stats
+
+        modules = tuple(v for k, v in self.loss.model.items() 
             if not k.startswith('target'))
         opt_config = eval_config(config.pop('optimizer'))
         self.optimizer = create_optimizer(modules, opt_config)
@@ -311,23 +314,18 @@ class Trainer(tf.Module):
                 {'optimizer': self.optimizer}, self._root_dir, 
                 self._model_name, name=self.name)
             if config.get('display_var', True):
-                display_model_var_info(self.model)
+                display_model_var_info(self.loss.model)
         self._post_init(config, env_stats)
-        self.model.sync_nets()
+        self.loss.model.sync_nets()
 
     def get_weights(self):
-        return {
-            f'{self._raw_name}_model': self.model.get_weights(),
-            f'{self._raw_name}_opt': self.optimizer.get_weights(),
-        }
+        return self.optimizer.get_weights()
 
     def set_weights(self, weights):
-        self.model.set_weights(weights[f'{self._raw_name}_model'])
         self.optimizer.set_weights(weights[f'{self._raw_name}_opt'])
 
     def ckpt_model(self):
         return {
-            f'{self._raw_name}_model': self.model,
             f'{self._raw_name}_opt': self.optimizer, 
         }
 
@@ -336,14 +334,13 @@ class Trainer(tf.Module):
 
     def raw_train(self):
         raise NotImplementedError
-    
+
     def _post_init(self, config, env_stats):
         """ Add some additional attributes and do some post processing here """
         pass
 
-    """ Save & Restore Model """
+    """ Save & Restore Optimizer """
     def save(self, print_terminal_info=True):
-        self.model.save(print_terminal_info)
         if self._has_ckpt:
             save(self.ckpt_manager, print_terminal_info)
         else:
@@ -351,7 +348,6 @@ class Trainer(tf.Module):
                 'Cannot perform <save> as root_dir or model_name was not specified at initialization')
 
     def restore(self):
-        self.model.restore()
         if self._has_ckpt:
             restore(self.ckpt_manager, self.ckpt, self.ckpt_path, self.name)
         else:
@@ -369,12 +365,15 @@ class EnsembleWithCheckpoint(Ensemble):
         )
 
     """ Save & Restore Model """
+    def ckpt_model(self):
+        ckpt_models = {f'{k}_{kk}': vv
+            for k, v in self.components.items() 
+            for kk, vv in v.ckpt_model().items()}
+        return ckpt_models
+
     def setup_checkpoint(self):
         if not hasattr(self, 'ckpt'):
-            ckpt_models = {}
-            for v in self.components.values():
-                ckpt_models.update(v.ckpt_model())
-            print(self.name, 'checkpoint:', ckpt_models)
+            ckpt_models = self.ckpt_model()
             self.ckpt, self.ckpt_path, self.ckpt_manager = setup_checkpoint(
                 ckpt_models, self._root_dir, self._model_name, name=self.name)
     
@@ -414,6 +413,7 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
 
         self.model = model
         self.loss = loss
+        self.env_stats = env_stats
 
         self.train = tf.function(self.raw_train)
         self._build_train(env_stats)

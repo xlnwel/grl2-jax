@@ -6,13 +6,13 @@ from utility.tf_utils import explained_variance
 from algo.ppo.elements.loss import PPOLossImpl
 
 
-class MAPPOActorLoss(Loss):
+class MAPPOPolicyLoss(Loss):
     def loss(self, obs, action, advantage, logpi, 
             state=None, action_mask=None, 
             life_mask=None, mask=None):
         with tf.GradientTape() as tape:
             x_actor, _ = self.model.encode(obs, state, mask)
-            act_dist = self.actor(x_actor, action_mask)
+            act_dist = self.policy(x_actor, action_mask)
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             log_ratio = new_logpi - logpi
@@ -68,6 +68,6 @@ def create_loss(config, model, name='mappo'):
         config=config,
         constructor=constructor,
         name=name,
-        actor=MAPPOActorLoss,
+        policy=MAPPOPolicyLoss,
         value=MAPPOValueLoss,
     )

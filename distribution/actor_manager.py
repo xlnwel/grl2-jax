@@ -1,7 +1,9 @@
 class ActorManager:
     def __init__(self) -> None:
-        self.parameter_manager = None
+        self.actors = None
 
-    def pull_weights(self, aid2eid):
-        self.parameter_manager.get_weights(aid2eid)
+    def set_actor(self, aid, actor):
+        self.actors[aid].remote(actor)
     
+    def set_actor_weights(self, aid, weights):
+        self.actors[aid].set_weights.remote(weights)

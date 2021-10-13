@@ -1,5 +1,6 @@
 import os
 import logging
+from typing import Union
 import tensorflow as tf
 from tensorflow.keras import mixed_precision
 
@@ -46,14 +47,20 @@ def silence_tf_logs():
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     tf.get_logger().setLevel('ERROR')
 
-def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
+def get_TensorSpecs(
+        TensorSpecs: Union[dict, list, tuple], 
+        sequential: bool=False, 
+        batch_size: int=None, 
+        add_batch_dim: bool=False):
     """ Construcs a dict/list of TensorSpecs
     
     Args:
-        TensorSpecs: A dict/list/tuple of arguments for tf.TensorSpec
-        sequential: A boolean, if True, batch_size must be specified, and 
+        TensorSpecs: Arguments for tf.TensorSpec
+        sequential: If True, batch_size must be specified, and 
             the result TensorSpec will have fixed batch_size and a time dimension
         batch_size: Specifies the batch size
+        add_batch_dim: Whether implicitly add the batch dimension 
+            at the leading dim
     Returns: 
         If TensorSpecs is a dict, return a dict of TensorSpecs with names 
         as they are in TensorSpecs. Otherwise, return a list of TensorSpecs
@@ -71,7 +78,9 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
         elif isinstance(x, (list, tuple)):
             if hasattr(x, '_fields') or (len(x) > 1 and isinstance(x[1], tuple)):
                 # x is a list/tuple of TensorSpecs, recursively construct them
-                return get_TensorSpecs(x, sequential=sequential, batch_size=batch_size)
+                return get_TensorSpecs(x, 
+                    sequential=sequential, batch_size=batch_size,
+                    add_batch_dim=add_batch_dim)
             if len(x) == 1:
                 s = x
                 d = mixed_precision.global_policy().compute_dtype
@@ -94,12 +103,11 @@ def get_TensorSpecs(TensorSpecs, sequential=False, batch_size=None):
         else:
             raise ValueError(f'Unknown form x: {x}')
 
+    default_shape = [batch_size] if add_batch_dim else []
     if sequential:
         assert batch_size, (
             f'For sequential data, please specify batch size')
-        default_shape = [batch_size, None]
-    else:
-        default_shape = [batch_size]
+        default_shape += [None]
     if isinstance(TensorSpecs, dict):
         name = TensorSpecs.keys()
         tensorspecs = tuple(TensorSpecs.values())
@@ -130,12 +138,12 @@ def build(func, TensorSpecs, sequential=False, batch_size=None, print_terminal_i
         A concrete function of func
     """
     TensorSpecs = get_TensorSpecs(TensorSpecs, sequential, batch_size)
-    fn = print if print_terminal_info else logger.info
+    level = 'print' if print_terminal_info else 'info'
     do_logging(
         f'{func.__name__} is built with TensorSpecs:',
         logger=logger,
-        level='print' if print_terminal_info else 'info')
-    do_logging(TensorSpecs, prefix='\t', logger=logger)
+        level=level)
+    do_logging(TensorSpecs, prefix='\t', logger=logger, level=level)
     if isinstance(TensorSpecs, dict):
         return func.get_concrete_function(**TensorSpecs)
     else: 

@@ -34,8 +34,8 @@ class MAPPOActorModel(ModelImpl):
         assert obs.shape.ndims % 2 == 0, obs.shape
 
         x, state = self.encode(obs, state, mask)
-        act_dist = self.actor(x, action_mask, evaluation=evaluation)
-        action = self.actor.action(act_dist, evaluation)
+        act_dist = self.policy(x, action_mask, evaluation=evaluation)
+        action = self.policy.action(act_dist, evaluation)
 
         if evaluation:
             # we do not compute the value state at evaluation 
@@ -67,7 +67,7 @@ class MAPPOModelEnsemble(ModelEnsemble):
     @tf.function
     def action(self, actor_inp, value_inp, 
             evaluation=False, return_eval_stats=False):
-        action, terms, actor_state = self.actor.action(**actor_inp, 
+        action, terms, actor_state = self.policy.action(**actor_inp, 
             evaluation=evaluation, return_eval_stats=return_eval_stats)
         value, value_state = self.value.compute_value(**value_inp)
         state = self.state_type(*actor_state, *value_state)
@@ -81,16 +81,16 @@ class MAPPOModelEnsemble(ModelEnsemble):
     def split_state(self, state):
         mid = len(state) // 2
         actor_state, value_state = state[:mid], state[mid:]
-        return self.actor.state_type(*actor_state), \
+        return self.policy.state_type(*actor_state), \
             self.value.state_type(*value_state)
 
     @property
     def state_size(self):
-        return self.state_type(*self.actor.rnn.state_size, *self.value.rnn.state_size)
+        return self.state_type(*self.policy.rnn.state_size, *self.value.rnn.state_size)
 
     @property
     def actor_state_size(self):
-        return self.actor.rnn.state_size
+        return self.policy.rnn.state_size
 
     @property
     def value_state_size(self):
@@ -102,7 +102,7 @@ class MAPPOModelEnsemble(ModelEnsemble):
 
     @property
     def actor_state_type(self):
-        return self.actor.state_type
+        return self.policy.state_type
     
     @property
     def value_state_type(self):
@@ -110,11 +110,11 @@ class MAPPOModelEnsemble(ModelEnsemble):
 
     def reset_states(self, state=None):
         actor_state, value_state = self.split_state(state)
-        self.actor.rnn.reset_states(actor_state)
+        self.policy.rnn.reset_states(actor_state)
         self.value.rnn.reset_states(value_state)
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
-        actor_state = self.actor.rnn.get_initial_state(
+        actor_state = self.policy.rnn.get_initial_state(
             inputs, batch_size=batch_size, dtype=dtype)
         value_state = self.value.rnn.get_initial_state(
             inputs, batch_size=batch_size, dtype=dtype)
@@ -122,12 +122,12 @@ class MAPPOModelEnsemble(ModelEnsemble):
 
 
 def create_model(config, env_stats, name='mappo'):
-    config['actor']['actor']['action_dim'] = env_stats.action_dim
-    config['actor']['actor']['is_action_discrete'] = env_stats.action_dim
+    config['policy']['policy']['action_dim'] = env_stats.action_dim
+    config['policy']['policy']['is_action_discrete'] = env_stats.action_dim
 
     return MAPPOModelEnsemble(
         config=config, 
         name=name,
-        actor=MAPPOActorModel,
+        policy=MAPPOActorModel,
         value=MAPPOValueModel
     )

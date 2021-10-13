@@ -35,7 +35,7 @@ class PPOLoss(PPOLossImpl):
         terms = {}
         with tf.GradientTape() as tape:
             x, state = self.model.encode(obs, state, mask)
-            act_dist = self.actor(x)
+            act_dist = self.policy(x)
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             # policy loss

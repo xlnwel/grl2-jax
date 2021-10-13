@@ -11,8 +11,8 @@ class PPOModel(Model):
     @tf.function
     def action(self, obs, evaluation=False, **kwargs):
         x, state = self.encode(obs)
-        act_dist = self.actor(x, evaluation=evaluation)
-        action = self.actor.action(act_dist, evaluation)
+        act_dist = self.policy(x, evaluation=evaluation)
+        action = self.policy.action(act_dist, evaluation)
 
         if evaluation:
             return action, {}, state
@@ -39,7 +39,7 @@ class PPOModel(Model):
 
 
 def create_model(config, env_stats, name='ppo'):
-    config['actor']['action_dim'] = env_stats.action_dim
-    config['actor']['is_action_discrete'] = env_stats.is_action_discrete
+    config['policy']['action_dim'] = env_stats.action_dim
+    config['policy']['is_action_discrete'] = env_stats.is_action_discrete
 
     return PPOModel(config=config, name=name)

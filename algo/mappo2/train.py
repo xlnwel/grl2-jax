@@ -80,7 +80,6 @@ def train(agent, env, eval_env, buffer):
     print('Training starts...')
     while step < agent.MAX_STEPS:
         start_env_step = agent.get_env_step()
-        agent.before_run(env)
         with rt:
             step = runner.run(step_fn=collect)
         # NOTE: normalizing rewards here may introduce some inconsistency 

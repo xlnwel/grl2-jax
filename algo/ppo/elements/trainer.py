@@ -1,4 +1,3 @@
-import numpy as np
 import tensorflow as tf
 
 from core.decorator import override
@@ -6,26 +5,38 @@ from core.module import Trainer
 from core.tf_config import build
 
 
+def get_data_format(config, env_stats, model, use_for_dataset=True):
+    basic_shape = (None, config['sample_size']) \
+        if hasattr(model, 'rnn') else (None,)
+    data_format = dict(
+        obs=((*basic_shape, *env_stats.obs_shape), env_stats.obs_dtype, 'obs'),
+        action=((*basic_shape, *env_stats.action_shape), env_stats.action_dtype, 'action'),
+        value=(basic_shape, tf.float32, 'value'),
+        traj_ret=(basic_shape, tf.float32, 'traj_ret'),
+        advantage=(basic_shape, tf.float32, 'advantage'),
+        logpi=(basic_shape, tf.float32, 'logpi'),
+    )
+
+    if config.get('store_state'):
+        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        if use_for_dataset:
+            data_format.update({
+                name: ((None, sz), dtype)
+                    for name, sz in model.state_size._asdict().items()
+            })
+        else:
+            state_type = type(model.state_size)
+            data_format['state'] = state_type(*[((None, sz), dtype, name) 
+                for name, sz in model.state_size._asdict().items()])
+    
+    return data_format
+
+
 class PPOTrainer(Trainer):
     @override(Trainer)
     def _build_train(self, env_stats):
         # Explicitly instantiate tf.function to avoid unintended retracing
-        dtype = tf.float32
-        obs_dtype = dtype if np.issubdtype(env_stats.obs_dtype, np.floating) else env_stats.obs_dtype
-        action_dtype = dtype if np.issubdtype(env_stats.action_dtype, np.floating) else env_stats.action_dtype
-        TensorSpecs = dict(
-            obs=(env_stats.obs_shape, obs_dtype, 'obs'),
-            action=(env_stats.action_shape, action_dtype, 'action'),
-            value=((), tf.float32, 'value'),
-            traj_ret=((), tf.float32, 'traj_ret'),
-            advantage=((), tf.float32, 'advantage'),
-            logpi=((), tf.float32, 'logpi'),
-        )
-        if hasattr(self.model, 'rnn'):
-            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
-            state_type = type(self.model.state_size)
-            TensorSpecs['state'] = state_type(*[((sz, ), dtype, name) 
-                for name, sz in self.model.state_size._asdict().items()])
+        TensorSpecs = get_data_format(self.config, env_stats, self.loss.model, False)
         self.train = build(self.train, TensorSpecs)
 
     def raw_train(self, obs, action, value, traj_ret, 
