@@ -43,7 +43,7 @@ class MAPPOStrategy(Strategy):
     """ PPO Methods """
     def record_inputs_to_vf(self, env_output):
         value_input = concat_map({'global_state': env_output.obs['global_state']})
-        value_input = self.policy.process_obs_with_rms(
+        value_input = self.actor.process_obs_with_rms(
             value_input, update_rms=False)
         reset = concat_map(env_output.reset)
         state = self._memory.get_states()
