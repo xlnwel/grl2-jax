@@ -3,8 +3,8 @@ from typing import Dict
 import numpy as np
 import tensorflow as tf
 
+from core.elements.strategy import Strategy
 from core.mixin.strategy import Memory
-from core.strategy import Strategy
 from utility.utils import concat_map
 from algo.ppo.elements.strategy import create_strategy
 

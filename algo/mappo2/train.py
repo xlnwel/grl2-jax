@@ -9,9 +9,9 @@ from algo.ppo.train import main
 
 
 def train(agent, env, eval_env, buffer):
-    collect_fn = pkg.import_module('agent', algo=agent.name).collect
+    collect_fn = pkg.import_module('elements.agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
-    random_actor = pkg.import_module('agent', algo=agent.name).random_actor
+    random_actor = pkg.import_module('elements.agent', algo=agent.name).random_actor
     random_actor = functools.partial(random_actor, env=env)
 
     em = pkg.import_module(env.name.split("_")[0], pkg='env')

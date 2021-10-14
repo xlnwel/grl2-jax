@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from core.module import Loss
+from core.elements.loss import Loss
 from utility.rl_loss import huber_loss, reduce_mean, ppo_loss, clipped_value_loss
 from utility.tf_utils import explained_variance
 

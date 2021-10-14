@@ -1,7 +1,7 @@
 import os
 import tensorflow as tf
 
-from core.module import Model
+from core.elements.model import Model
 from utility.file import source_file
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))

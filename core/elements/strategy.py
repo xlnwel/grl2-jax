@@ -1,6 +1,8 @@
 from typing import Union
 
-from core.module import Model, ModelEnsemble, Trainer, TrainerEnsemble, Actor
+from core.elements.actor import Actor
+from core.elements.model import Model, ModelEnsemble
+from core.elements.trainer import Trainer, TrainerEnsemble
 from core.mixin.strategy import StepCounter, TrainingLoopBase
 from env.typing import EnvOutput
 from utility.utils import config_attr

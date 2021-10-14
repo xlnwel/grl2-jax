@@ -19,17 +19,18 @@ agent:
     LOG_PERIOD: 200
     EVAL_PERIOD: 200
 
+strategy:
     train_loop:
         N_EPOCHS: &nepochs 4
         N_VALUE_EPOCHS: &nval_epochs 0
         N_MBS: &nmbs 4
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
-    # (once, reuse, null)
-    # "once" updates values at the end of each epoch
-    # "reuse" updates values using value from train, which is staler than once
-    # null doesn't update values.
-    value_update: null
+        # (once, reuse, null)
+        # "once" updates values at the end of each epoch
+        # "reuse" updates values using value from train, which is staler than once
+        # null doesn't update values.
+        value_update: null
 
     # model path: root_dir/model_name/name
     # tensorboard path: root_dir/model_name/logs

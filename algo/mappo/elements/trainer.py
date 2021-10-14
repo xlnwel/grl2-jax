@@ -1,7 +1,7 @@
 import tensorflow as tf
 
+from core.elements.trainer import Trainer, TrainerEnsemble
 from core.decorator import override
-from core.module import Trainer, TrainerEnsemble
 from core.tf_config import build
 
 

@@ -79,7 +79,7 @@ actor:
     rms:
         normalize_obs: True
         normalize_reward: True
-        gamma: &gamma .999
+        gamma: &gamma .99
 
 buffer:
     use_dataset: True

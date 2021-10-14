@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from core.module import Loss, LossEnsemble
+from core.elements.loss import Loss, LossEnsemble
 from utility.rl_loss import ppo_loss
 from utility.tf_utils import explained_variance
 from algo.ppo.elements.loss import PPOLossImpl

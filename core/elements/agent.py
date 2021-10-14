@@ -1,5 +1,5 @@
+from core.elements.strategy import Strategy
 from core.decorator import *
-from core.strategy import Strategy
 from core.monitor import Monitor
 from core.utils import save_code
 from utility.utils import config_attr
@@ -56,3 +56,6 @@ class AgentInterface:
     
     def restore(self):
         pass
+
+def create_agent(**kwargs):
+    return Agent(**kwargs)

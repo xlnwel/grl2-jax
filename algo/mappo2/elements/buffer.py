@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 
-from algo.ppo.buffer import PPOBuffer
+from algo.ppo.elements.buffer import PPOBuffer
 
 
 logger = logging.getLogger(__name__)

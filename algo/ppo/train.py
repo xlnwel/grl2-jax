@@ -15,7 +15,7 @@ from env.func import create_env
 
 
 def train(agent, env, eval_env, buffer):
-    collect_fn = pkg.import_module('agent', algo=agent.name).collect
+    collect_fn = pkg.import_module('elements.agent', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
 
     suite_name = env.name.split("_")[0] \
@@ -199,7 +199,7 @@ def main(config, train=train):
     strategy = build_strategy()
 
     def build_agent():
-        create_agent = pkg.import_module('agent', config=config.agent).create_agent
+        create_agent = pkg.import_module('elements.agent', config=config.agent).create_agent
         monitor = create_monitor(root_dir, model_name, name)
 
         agent = create_agent(

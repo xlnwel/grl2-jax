@@ -2,7 +2,7 @@ import os
 import collections
 import tensorflow as tf
 
-from core.module import Model, ModelEnsemble
+from core.elements.model import Model, ModelEnsemble
 from utility.file import source_file
 from utility.tf_utils import assert_rank
 

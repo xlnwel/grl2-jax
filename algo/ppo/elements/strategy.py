@@ -4,9 +4,9 @@ from typing import Dict
 import numpy as np
 import tensorflow as tf
 
+from core.elements.strategy import Strategy
 from core.mixin.strategy import TrainingLoopBase
 from core.log import do_logging
-from core.strategy import Strategy
 
 
 logger = logging.getLogger(__name__)
@@ -66,9 +66,6 @@ class PPOTrainingLoop(TrainingLoopBase):
             self._after_train_epoch()
         n = i * self.N_MBS + j
 
-        if self._train_timer.total() > 1000:
-            self._train_timer.reset()
-
         stats['misc/policy_updates'] = n
         stats['train/kl'] = kl
         stats['train/value'] = value,
@@ -76,6 +73,9 @@ class PPOTrainingLoop(TrainingLoopBase):
         stats['time/train_mean'] = self._train_timer.average()
         stats['time/fps'] = 1 / self._train_timer.average()
         
+        if self._train_timer.total() > 1000:
+            self._train_timer.reset()
+
         return n, stats
 
     def _train_extra_vf(self):

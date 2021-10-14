@@ -1,5 +1,5 @@
+from core.elements.actor import Actor
 from core.mixin.actor import RMS
-from core.module import Actor
 
 
 class PPOActor(Actor):

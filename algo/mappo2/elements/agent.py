@@ -1,6 +1,6 @@
 import numpy as np
 
-from core.agent import Agent
+from core.elements.agent import create_agent
 
 
 def collect(buffer, env, env_step, reset, reward, 
@@ -20,7 +20,3 @@ def random_actor(env_output, env=None, **kwargs):
         'discount': np.concatenate(discount)
     }
     return a, terms
-
-
-def create_agent(**kwargs):
-    return Agent(**kwargs)
