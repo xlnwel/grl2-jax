@@ -9,9 +9,9 @@ from nn.norm import EvoNorm
 logger = logging.getLogger(__name__)
 
 
-class Dummy:
+class Dummy(tf.Module):
     def __init__(self, **kwargs):
-        pass
+        super().__init__(name='dummy')
 
     def __call__(self, x, **kwargs):
         return x

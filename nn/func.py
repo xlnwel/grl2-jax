@@ -1,6 +1,5 @@
 from tensorflow.keras import layers
 
-from nn.cnn import cnn
 from nn.mlp import *
 from nn.rnns.lstm import MLSTM
 from nn.rnns.gru import MGRU
@@ -21,7 +20,9 @@ def create_network(config, name):
     if 'nn_id' not in config:
         raise ValueError(f'No nn_id is specified in config: {config}')
     nn_id = config.pop('nn_id')
-    if '_' in nn_id:
+    if nn_id is None:
+        registry = nn_registry
+    elif '_' in nn_id:
         nn_type, nn_id = nn_id.split('_')
         registry = nn_registry.get(nn_type)
     else:

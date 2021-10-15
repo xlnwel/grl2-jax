@@ -40,19 +40,19 @@ strategy:
 
 model:
     encoder: 
-        nn_id: mlp
+        nn_id: null
         units_list: []
         activation: relu
     policy:
         nn_id: policy
-        units_list: [64, 64]
+        units_list: [128, 128]
         init_std: 1
         norm: null
         kernel_initializer: orthogonal
         activation: tanh
     value:
         nn_id: value
-        units_list: [64, 64]
+        units_list: [128, 128]
         norm: null
         kernel_initializer: orthogonal
         activation: tanh

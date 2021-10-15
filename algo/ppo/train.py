@@ -15,7 +15,7 @@ from env.func import create_env
 
 
 def train(agent, env, eval_env, buffer):
-    collect_fn = pkg.import_module('elements.agent', algo=agent.name).collect
+    collect_fn = pkg.import_module('elements.utils', algo=agent.name).collect
     collect = functools.partial(collect_fn, buffer)
 
     suite_name = env.name.split("_")[0] \
@@ -180,7 +180,7 @@ def main(config, train=train):
         buffer = create_buffer(config.buffer)
         
         if config.buffer['use_dataset']:
-            am = pkg.import_module('elements.trainer', config=config.agent)
+            am = pkg.import_module('elements.utils', config=config.agent)
             data_format = am.get_data_format(
                 config.trainer, env_stats, model)
             dataset = create_dataset(buffer, env, 

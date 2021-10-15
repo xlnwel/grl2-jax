@@ -1,10 +1,6 @@
-import logging
 import numpy as np
 
 from algo.ppo.elements.buffer import PPOBuffer
-
-
-logger = logging.getLogger(__name__)
 
 
 class MAPPOBuffer(PPOBuffer):

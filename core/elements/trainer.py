@@ -2,6 +2,7 @@ import tensorflow as tf
 
 from core.checkpoint import *
 from core.elements.loss import Loss
+from core.elements.model import Model
 from core.module import EnsembleWithCheckpoint, constructor
 from core.optimizer import create_optimizer
 from utility.display import display_model_var_info
@@ -12,6 +13,7 @@ class Trainer(tf.Module):
     def __init__(self, 
                  *,
                  config: dict,
+                 model: Model,
                  loss: Loss,
                  env_stats,
                  name):
@@ -20,10 +22,11 @@ class Trainer(tf.Module):
         config = config.copy()
         config_attr(self, config, filter_dict=True)
         
+        self.model = model
         self.loss = loss
         self.env_stats = env_stats
 
-        modules = tuple(v for k, v in self.loss.model.items() 
+        modules = tuple(v for k, v in self.model.items() 
             if not k.startswith('target'))
         opt_config = eval_config(config.pop('optimizer'))
         self.optimizer = create_optimizer(modules, opt_config)
@@ -36,9 +39,9 @@ class Trainer(tf.Module):
                 {'optimizer': self.optimizer}, self._root_dir, 
                 self._model_name, name=self.name)
             if config.get('display_var', True):
-                display_model_var_info(self.loss.model)
+                display_model_var_info(self.model)
         self._post_init(config, env_stats)
-        self.loss.model.sync_nets()
+        self.model.sync_nets()
 
     def get_weights(self):
         return self.optimizer.get_weights()
