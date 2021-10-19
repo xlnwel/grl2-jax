@@ -60,6 +60,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         )
         return terms
 
+
 def create_trainer(config, model, loss, env_stats, name='mappo'):
     def constructor(config, cls, name):
         return cls(

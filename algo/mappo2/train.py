@@ -97,10 +97,11 @@ def train(agent, env, eval_env, buffer):
 
         start_train_step = agent.get_train_step()
         with tt:
-            agent.train_record(step)
+            agent.train_record()
         agent.store(
             fps=(step-start_env_step)/rt.last(),
             tps=(agent.get_train_step()-start_train_step)/tt.last())
+        agent.set_env_step(step)
         buffer.reset()
 
         if to_eval(agent.get_train_step()) or step > agent.MAX_STEPS:

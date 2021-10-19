@@ -1,11 +1,13 @@
-from distribution.trainer_manager import TrainerManager
-from distribution.actor_manager import ActorManager
+from distributed.trainer_manager import TrainerManager
+from distributed.actor_manager import ActorManager
+
 
 class Coordinator:
-    def __init__(self, config) -> None:
-        self.trainer_manager = None
-        self.worker_manager = None
-        self.actor_manager = None
+    def __init__(self, config):
+        config.trainer_manager.model = config.model
+        config.actor_manager.model = config.model
+        self.trainer_manager = TrainerManager(config.trainer_manager)
+        self.actor_manager = ActorManager(config.actor_manager)
 
     def start(self):
 
@@ -17,4 +19,3 @@ class Coordinator:
 
     def allocate_actor(self, aid2eid: dict=None):
         return self.actor_manager.allocate_worker.remote(aid2eid)
-    

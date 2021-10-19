@@ -7,6 +7,23 @@ from utility.utils import expand_dims_match, moments
 Stats = collections.namedtuple('RMS', 'mean var count')
 
 
+def merge_rms(rms1, rms2):
+    mean1, var1, count1 = rms1
+    mean2, var2, count2 = rms2
+    delta = mean2 - mean1
+    total_count = count1 + count2
+
+    new_mean = mean1 + delta * count2 / total_count
+    # no minus one here to be consistent with np.std
+    m_a = var1 * count1
+    m_b = var2 * count2
+    M2 = m_a + m_b + delta**2 * count1 * count2 / total_count
+    assert np.all(np.isfinite(M2)), f'M2: {M2}'
+    new_var = M2 / total_count
+
+    return new_mean, new_var, total_count
+
+
 class RunningMeanStd:
     # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
     def __init__(self, axis, epsilon=1e-8, clip=None, name=None, ndim=None):
@@ -78,17 +95,9 @@ class RunningMeanStd:
         assert self._mean.shape == batch_mean.shape
         assert self._var.shape == batch_var.shape
 
-        delta = batch_mean - self._mean
-        total_count = self._count + batch_count
-
-        new_mean = self._mean + delta * batch_count / total_count
-        # no minus one here to be consistent with np.std
-        m_a = self._var * self._count
-        m_b = batch_var * batch_count
-        M2 = m_a + m_b + delta**2 * self._count * batch_count / total_count
-        assert np.all(np.isfinite(M2)), f'M2: {M2}'
-        new_var = M2 / total_count
-
+        new_mean, new_var, total_count = merge_rms(
+            (self._mean, self._var, self._count), 
+            (batch_mean, batch_var, batch_count))
         self._mean = new_mean
         self._var = new_var
         self._std = np.sqrt(self._var)

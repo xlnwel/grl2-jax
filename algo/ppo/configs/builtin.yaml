@@ -4,7 +4,7 @@ env:
     n_workers: 1
     n_envs: &nenvs 64
     seed: 0
-    reward_min: null
+    reward_min: -1
     reward_max: null
 
 agent:
@@ -45,14 +45,14 @@ model:
         activation: relu
     policy:
         nn_id: policy
-        units_list: [128, 128]
+        units_list: [256, 256]
         init_std: 1
         norm: null
         kernel_initializer: orthogonal
         activation: tanh
     value:
         nn_id: value
-        units_list: [128, 128]
+        units_list: [256, 256]
         norm: null
         kernel_initializer: orthogonal
         activation: tanh

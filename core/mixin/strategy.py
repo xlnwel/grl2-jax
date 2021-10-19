@@ -7,10 +7,10 @@ from utility.utils import config_attr
 
 
 class StepCounter:
-    def __init__(self, root_dir, model_name):
+    def __init__(self, root_dir, model_name, name='step_counter'):
         self._env_step = 0
         self._train_step = 0
-        self._counter_path = f'{root_dir}/{model_name}/step_counter.pkl'
+        self._counter_path = f'{root_dir}/{model_name}/{name}.pkl'
 
     def get_env_step(self):
         return self._env_step

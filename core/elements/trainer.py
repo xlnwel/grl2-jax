@@ -47,7 +47,7 @@ class Trainer(tf.Module):
         return self.optimizer.get_weights()
 
     def set_weights(self, weights):
-        self.optimizer.set_weights(weights[f'{self._raw_name}_opt'])
+        self.optimizer.set_weights(weights)
 
     def ckpt_model(self):
         return {
@@ -111,3 +111,10 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
     
     def raw_train(self):
         raise NotImplementedError
+
+def create_trainer(config, model, loss, env_stats, *, name, trainer_cls, **kwargs):
+    trainer = trainer_cls(
+        config=config, model=model, loss=loss, 
+        env_stats=env_stats, name=name, **kwargs)
+
+    return trainer

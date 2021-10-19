@@ -151,7 +151,7 @@ def train(agent, env, eval_env, buffer):
             fps=(step - start_env_step) / rt.last(),
             tps=(agent.get_train_step()-start_train_step) / tt.last()
         )
-
+        agent.set_env_step(step)
         if to_record(agent.get_train_step()) and agent.contains_stats('score'):
             record_stats()
 

@@ -26,8 +26,8 @@ def _get_algo_name(algo):
 
 
 def _set_path(configs, root_dir, model_name):
-    for k, v in configs.items():
-        assert isinstance(v, dict), (k, v)
+    for v in configs.values():
+        assert isinstance(v, dict), v
         v['root_dir'] = root_dir
         v['model_name'] = model_name
     return configs
@@ -77,8 +77,8 @@ if __name__ == '__main__':
                 dir_prefix = prefix + '-' if prefix else prefix
                 root_dir=f'{logdir}/{dir_prefix}{configs.env["name"]}/{configs.agent["algorithm"]}'
                 configs = _set_path(configs, root_dir, model_name)
-                configs.buffer['dir'] = configs.agent['root_dir'].replace('logs', 'data')
-                do_logging(configs)
+                configs.buffer['root_dir'] = configs.buffer['root_dir'].replace('logs', 'data')
+                do_logging(configs, level='DEBUG')
                 if len(algo_env) > 1:
                     p = Process(target=main, args=configs)
                     p.start()

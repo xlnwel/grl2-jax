@@ -34,8 +34,8 @@ class Agent:
         return self.strategy(*args, **kwargs)
 
     """ Train """
-    def train_record(self, step):
-        stats = self.strategy.train_record(step)
+    def train_record(self):
+        stats = self.strategy.train_record()
         self.store(**stats)
 
 
@@ -52,10 +52,12 @@ class AgentInterface:
         self.strategies[sid] = strategy
 
     def save(self):
-        pass
+        for s in self.strategies.values():
+            s.save()
     
     def restore(self):
-        pass
+        for s in self.strategies.values():
+            s.restore()
 
 def create_agent(**kwargs):
     return Agent(**kwargs)

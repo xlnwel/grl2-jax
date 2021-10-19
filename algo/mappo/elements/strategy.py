@@ -1,12 +1,11 @@
 import functools
 from typing import Dict
 import numpy as np
-import tensorflow as tf
 
-from core.elements.strategy import Strategy
+from core.elements.strategy import Strategy, create_strategy
 from core.mixin.strategy import Memory
 from utility.utils import concat_map
-from algo.ppo.elements.strategy import create_strategy
+from algo.ppo.elements.strategy import PPOTrainingLoop
 
 
 class MAPPOStrategy(Strategy):
@@ -60,4 +59,9 @@ class MAPPOStrategy(Strategy):
         value = value.numpy().reshape(-1, self._n_agents)
         return value
 
-create_strategy = functools.partial(create_strategy, cls=MAPPOStrategy)
+
+create_strategy = functools.partial(
+    create_strategy, 
+    strategy_cls=MAPPOStrategy,
+    training_loop_cls=PPOTrainingLoop,
+)

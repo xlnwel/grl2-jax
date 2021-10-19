@@ -45,21 +45,6 @@ def import_module(name=None, pkg=None, algo=None, *, config=None, place=0):
     return m
 
 
-def import_elements(algo=None, *, config=None):
-    model = import_module(name='elements.model', algo=algo, config=config, place=-1)
-    loss = import_module(name='elements.loss', algo=algo, config=config, place=-1)
-    trainer = import_module(name='elements.trainer', algo=algo, config=config, place=-1)
-    actor = import_module(name='elements.actor', algo=algo, config=config, place=-1)
-
-    return model.create_model, loss.create_loss, \
-        trainer.create_trainer, actor.create_actor
-
-
-def import_agent(algo=None, *, config=None):
-    agent = import_module(name='agent', algo=algo, config=config, place=-1)
-    return agent.Agent
-
-
 def import_main(module, algo=None, *, config=None):
     algo = algo or config['algorithm']
     assert isinstance(algo, str), algo

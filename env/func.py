@@ -1,5 +1,3 @@
-import numpy as np
-
 from env.cls import Env, EnvVec
 from env import make_env
 

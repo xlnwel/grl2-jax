@@ -1,4 +1,6 @@
-from core.elements.trainer import Trainer
+import functools
+
+from core.elements.trainer import Trainer, create_trainer
 from core.decorator import override
 from core.tf_config import build
 from algo.ppo.elements.utils import get_data_format
@@ -21,9 +23,6 @@ class PPOTrainer(Trainer):
         return terms
 
 
-def create_trainer(config, model, loss, env_stats, name='ppo'):
-    trainer = PPOTrainer(
-        config=config, model=model, loss=loss, 
-        env_stats=env_stats, name=name)
-
-    return trainer
+create_trainer = functools.partial(create_trainer,
+    name='ppo', trainer_cls=PPOTrainer
+)

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class RMS:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, name='rms'):
         # by default, we update reward stats once every N steps 
         # so we normalize along the first two axis
         self._gamma = config['gamma']
@@ -43,13 +43,17 @@ class RMS:
             self._return = 0
         else:
             self._return = -np.inf
-        self._rms_path = f'{config["root_dir"]}/{config["model_name"]}/rms.pkl'
+        self._rms_path = f'{config["root_dir"]}/{config["model_name"]}/{name}.pkl'
 
-        do_logging(f'Observation normalization: {self._normalize_obs}', logger=logger)
-        do_logging(f'Normalized observation names: {self._obs_names}', logger=logger)
-        do_logging(f'Reward normalization: {self._normalize_reward}', logger=logger)
-        logger.info(f'Reward normalization with return: '
-                    f'{self._normalize_reward_with_return}')
+        do_logging(
+            f'Observation normalization: {self._normalize_obs}', logger=logger)
+        do_logging(
+            f'Normalized observation names: {self._obs_names}', logger=logger)
+        do_logging(
+            f'Reward normalization: {self._normalize_reward}', logger=logger)
+        do_logging(
+            f'Reward normalization with return: {self._normalize_reward_with_return}', 
+            logger=logger)
         if self._normalize_reward_with_return:
             do_logging(
                 f"Reward normalization axis: {'1st' if self._normalize_reward_with_return == 'forward' else '2nd'}", 

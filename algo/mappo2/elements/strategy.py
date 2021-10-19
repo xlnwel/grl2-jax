@@ -2,7 +2,8 @@ import functools
 from typing import Dict
 import numpy as np
 
-from algo.ppo.elements.strategy import create_strategy
+from core.elements.strategy import create_strategy
+from algo.ppo.elements.strategy import PPOTrainingLoop
 from algo.mappo.elements.strategy import MAPPOStrategy
 
 
@@ -15,4 +16,9 @@ class MAPPO2Strategy(MAPPOStrategy):
         value = value.numpy()
         return value
 
-create_strategy = functools.partial(create_strategy, cls=MAPPO2Strategy)
+
+create_strategy = functools.partial(
+    create_strategy, 
+    strategy_cls=MAPPO2Strategy,
+    training_loop_cls=PPOTrainingLoop
+)

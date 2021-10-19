@@ -2,7 +2,7 @@ import ray
 
 
 class ActorManager:
-    def __init__(self) -> None:
+    def __init__(self, config):
         self.actors = {}
 
     def set_actor(self, aid, actor):

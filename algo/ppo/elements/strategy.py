@@ -1,10 +1,11 @@
 import collections
+import functools
 import logging
 from typing import Dict
 import numpy as np
 import tensorflow as tf
 
-from core.elements.strategy import Strategy
+from core.elements.strategy import Strategy, create_strategy
 from core.mixin.strategy import TrainingLoopBase
 from core.log import do_logging
 
@@ -131,31 +132,8 @@ class PPOStrategy(Strategy):
         return value.numpy()
 
 
-def create_strategy(
-        name, 
-        config, 
-        model, 
-        trainer, 
-        actor, 
-        dataset=None,
-        cls=PPOStrategy
-    ):
-    if dataset:
-        train_loop = PPOTrainingLoop(
-            config=config.train_loop, 
-            dataset=dataset, 
-            trainer=trainer
-        )
-    else:
-        train_loop = None
-
-    strategy = cls(
-        name=name,
-        config=config,
-        model=model,
-        trainer=trainer,
-        actor=actor,
-        train_loop=train_loop
-    )
-
-    return strategy
+create_strategy = functools.partial(
+    create_strategy, 
+    strategy_cls=PPOStrategy,
+    training_loop_cls=PPOTrainingLoop
+)

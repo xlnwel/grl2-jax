@@ -24,8 +24,9 @@ class Strategy:
         self.model = model
         self.trainer = trainer
         self.actor = actor
-        self.step_counter = StepCounter(config.root_dir, config.model_name)
         self.train_loop = train_loop
+        self.step_counter = StepCounter(
+            config.root_dir, config.model_name, f'{name}_step_counter')
         self._post_init()
 
     def _post_init():
@@ -55,9 +56,8 @@ class Strategy:
         self.trainer.set_weights(weights[f'{self._name}_opt'])
         self.actor.set_auxiliary_stats(weights[f'{self._name}_aux'])
 
-    def train_record(self, step):
+    def train_record(self):
         n, stats = self.train_loop.train()
-        self.step_counter.set_env_step(step)
         self.step_counter.set_train_step(self.step_counter.get_env_step() + n)
 
         return stats
@@ -101,3 +101,37 @@ class Strategy:
         self.model.save(print_terminal_info)
         self.actor.save_auxiliary_stats()
         self.step_counter.save_step()
+
+def create_strategy(
+        name, 
+        config, 
+        model, 
+        trainer, 
+        actor, 
+        dataset=None,
+        *,
+        strategy_cls,
+        training_loop_cls=None
+    ):
+    if training_loop_cls is not None:
+        if dataset is None:
+            raise ValueError('Missing dataset')
+    
+        train_loop = training_loop_cls(
+            config=config.train_loop, 
+            dataset=dataset, 
+            trainer=trainer
+        )
+    else:
+        train_loop = None
+
+    strategy = strategy_cls(
+        name=name,
+        config=config,
+        model=model,
+        trainer=trainer,
+        actor=actor,
+        train_loop=train_loop
+    )
+
+    return strategy
