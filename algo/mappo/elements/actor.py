@@ -40,14 +40,14 @@ class MAPPOActor(PPOActor):
 
     def _process_output(self, inp, out, evaluation):
         action, terms, state = out
-        action, terms, state = tensor2numpy((action, terms, inp['state']))
+        action, terms, prev_state = tensor2numpy((action, terms, inp['state']))
 
         if not evaluation:
             terms.update({
                 'obs': inp['obs'],
                 'global_state': inp['global_state'],
                 'mask': inp['mask'], 
-                **state._asdict(),
+                **prev_state._asdict(),
             })
             if 'action_mask' in inp:
                 terms['action_mask'] = inp['action_mask']
