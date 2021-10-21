@@ -44,5 +44,6 @@ class PPOActor(Actor):
         """ Restore the RMS and the model """
         self.rms.restore_rms()
 
+
 def create_actor(config, model, name='ppo'):
     return PPOActor(config=config, model=model, name=name)

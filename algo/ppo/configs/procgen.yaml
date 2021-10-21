@@ -15,9 +15,11 @@ agent:
 
     MAX_STEPS: 1e10
     N_STEPS: &nsteps 256
-    N_MBS: &nmbs 8
     LOG_PERIOD: 200
     EVAL_PERIOD: 200
+
+    RECORD_VIDEO: True
+    N_EVAL_EPISODES: 1
 
 strategy:
     train_loop:

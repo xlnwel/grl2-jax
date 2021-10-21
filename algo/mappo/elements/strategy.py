@@ -30,7 +30,6 @@ class MAPPOStrategy(Strategy):
     """ Calling Methods """
     def _prepare_input_to_actor(self, env_output):
         inp = env_output.obs
-        inp['discount'] = env_output.discount
         inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
 
         return inp

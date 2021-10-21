@@ -9,10 +9,9 @@ from algo.ppo.train import main
 
 
 def train(agent, env, eval_env, buffer):
-    collect_fn = pkg.import_module('elements.utils', algo=agent.name).collect
-    collect = functools.partial(collect_fn, buffer)
-    random_actor = pkg.import_module('elements.utils', algo=agent.name).random_actor
-    random_actor = functools.partial(random_actor, env=env)
+    eu = pkg.import_module('elements.utils', algo=agent.name)
+    collect = functools.partial(eu.collect, buffer)
+    random_actor = functools.partial(eu.random_actor, env=env)
 
     em = pkg.import_module(env.name.split("_")[0], pkg='env')
     info_func = em.info_func if hasattr(em, 'info_func') else None
@@ -30,7 +29,8 @@ def train(agent, env, eval_env, buffer):
                 agent.actor.update_obs_rms(np.concatenate(buffer['obs']), mask=life_mask)
                 agent.actor.update_obs_rms(np.concatenate(buffer['global_state']), 
                     'global_state', mask=life_mask)
-                agent.actor.update_reward_rms(buffer['reward'], buffer['discount'])
+                discount = np.logical_and(buffer['discount'], 1 - buffer['reset'])
+                agent.actor.update_reward_rms(buffer['reward'], discount)
                 buffer.reset()
             buffer.clear()
             agent.set_env_step(runner.step)
@@ -89,7 +89,8 @@ def train(agent, env, eval_env, buffer):
         # The latter is adopted in our implementation. 
         # However, the following line currently doesn't store
         # a copy of unnormalized rewards
-        agent.actor.update_reward_rms(buffer['reward'], buffer['discount'])
+        discount = np.logical_and(buffer['discount'], 1 - buffer['reset'])
+        agent.actor.update_reward_rms(buffer['reward'], discount)
         buffer.update('reward', agent.actor.normalize_reward(buffer['reward']), field='all')
         agent.record_inputs_to_vf(runner.env_output)
         value = agent.compute_value()

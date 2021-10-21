@@ -134,6 +134,7 @@ class Runner:
             self.env_output = self.env.step(action)
             self.step += self._frames_per_step
             terms = {}
+
         next_obs, reward, discount, reset = self.env_output
 
         if step_fn:

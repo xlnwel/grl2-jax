@@ -69,7 +69,7 @@ def infer_info(precision, pre_dims_len=None, **data):
         if isinstance(v, dict):
             info.update(infer_info(precision, pre_dims_len, **v))
             continue
-        logger.debug(f'{k}, {type(v)}')
+        do_logging(f'{k}, {type(v)}', logger=logger)
         if isinstance(v, (int, float, np.ndarray,
                 np.floating, np.signedinteger)):
             np_v = np.array(v, copy=False)

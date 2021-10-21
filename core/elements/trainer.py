@@ -43,10 +43,31 @@ class Trainer(tf.Module):
         self._post_init(config, env_stats)
         self.model.sync_nets()
 
-    def get_weights(self):
+    def get_weights(self, identifier=None):
+        if identifier is None:
+            identifier = self._name
+        weights = {
+            f'{identifier}_model': self.model.get_weights(),
+            f'{identifier}_opt': self.get_optimizer_weights(),
+        }
+        return weights
+
+    def set_weights(self, weights, identifier=None):
+        if identifier is None:
+            identifier = self._name
+        self.model.set_weights(weights[f'{identifier}_model'])
+        self.set_optimizer_weights(weights[f'{identifier}_opt'])
+        
+    def get_model_weights(self, name: str=None):
+        return self.model.get_weights(name)
+
+    def set_model_weights(self, weights):
+        self.model.set_weights(weights)
+
+    def get_optimizer_weights(self):
         return self.optimizer.get_weights()
 
-    def set_weights(self, weights):
+    def set_optimizer_weights(self, weights):
         self.optimizer.set_weights(weights)
 
     def ckpt_model(self):

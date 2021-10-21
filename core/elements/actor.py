@@ -7,7 +7,6 @@ from utility.tf_utils import numpy2tensor, tensor2numpy
 
 class Actor:
     def __init__(self, *, config, model, name):
-        self._raw_name = name
         self._name = f'{name}_actor'
         config = config.copy()
         config_attr(self, config, filter_dict=True)
@@ -15,10 +14,6 @@ class Actor:
         self.model = model
         
         self._post_init(config)
-
-    @property
-    def raw_name(self):
-        return self._raw_name
 
     @property
     def name(self):
@@ -81,6 +76,27 @@ class Actor:
         """
         out = (*tensor2numpy(out[:2]), out[-1])
         return out
+
+    def get_weights(self, identifier=None):
+        if identifier is None:
+            identifier = self._name
+        weights = {
+            f'{identifier}_model': self.model.get_weights(),
+            f'{identifier}_aux': self.get_auxiliary_stats()
+        }
+        return weights
+
+    def set_weights(self, weights, identifier=None):
+        if identifier is None:
+            identifier = self._name
+        self.model.set_weights(weights[f'{identifier}_model'])
+        self.set_auxiliary_stats(weights[f'{identifier}_aux'])
+
+    def get_model_weights(self, name: str=None):
+        return self.model.get_weights(name)
+
+    def set_model_weights(self, weights):
+        self.model.set_weights(weights)
 
     def get_auxiliary_stats(self):
         pass

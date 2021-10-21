@@ -16,6 +16,15 @@ def create_env(config, env_fn=None, force_envvec=True):
 
     return env
 
+def get_env_stats(config):
+    # TODO (cxw): store env_stats in a standalone file for costly environments
+    tmp_env_config = config.env.copy()
+    tmp_env_config['n_workers'] = 1
+    tmp_env_config['n_envs'] = 1
+    env = create_env(tmp_env_config)
+    env_stats = env.stats()
+    env.close()
+    return env_stats
 
 if __name__ == '__main__':
     import time

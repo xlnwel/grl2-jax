@@ -74,7 +74,6 @@ class MAPPOModelEnsemble(ModelEnsemble):
         if not evaluation:
             terms.update({
                 'value': value,
-                **state._asdict()
             })
         return action, terms, state
 

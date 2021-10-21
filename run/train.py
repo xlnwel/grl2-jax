@@ -7,10 +7,10 @@ from multiprocessing import Process
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import do_logging
+from utility import pkg
 from run.args import parse_train_args
 from run.grid_search import GridSearch
 from run.utils import *
-from utility import pkg
 
 
 def _get_algo_name(algo):

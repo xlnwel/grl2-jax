@@ -4,12 +4,6 @@ from utility.tf_utils import tensor2numpy, numpy2tensor
 from algo.ppo.elements.actor import PPOActor
 
 
-def infer_life_mask(discount):
-    life_mask = np.logical_or(
-        discount, 1-np.any(discount, 1, keepdims=True)).astype(np.float32)
-    return life_mask
-
-
 class MAPPOActor(PPOActor):
     """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
@@ -34,13 +28,6 @@ class MAPPOActor(PPOActor):
             )
             return {'actor_inp': actor_inp, 'value_inp': value_inp}
         
-        # if 'life_mask' in inp:
-        #     life_mask = np.concatenate(inp['life_mask'])
-        #     inp['life_mask'] = infer_life_mask(inp['discount'])
-        #     inp['discount'][np.any(inp['discount'], 1)] = 1
-        # else:
-        #     life_mask = None
-        inp['discount'][np.any(inp['discount'], 1)] = 1
         inp = concat_map_except_state(inp)
         if evaluation:
             inp = self.rms.process_obs_with_rms(inp, update_rms=False)
@@ -53,18 +40,18 @@ class MAPPOActor(PPOActor):
 
     def _process_output(self, inp, out, evaluation):
         action, terms, state = out
-        action, terms = tensor2numpy((action, terms))
+        action, terms, state = tensor2numpy((action, terms, inp['state']))
 
         if not evaluation:
             terms.update({
                 'obs': inp['obs'],
                 'global_state': inp['global_state'],
                 'mask': inp['mask'], 
+                **state._asdict(),
             })
             if 'action_mask' in inp:
                 terms['action_mask'] = inp['action_mask']
             if 'life_mask' in inp:
-                terms['discount'] = inp['discount']
                 terms['life_mask'] = inp['life_mask']
 
         return action, terms, state
