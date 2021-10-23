@@ -4,7 +4,7 @@ import collections
 import numpy as np
 
 from core.decorator import config
-from algo.ppo.buffer import compute_indices
+from algo.ppo.elements.buffer import compute_indices
 from utility.utils import standardize
 
 logger = logging.getLogger(__name__)

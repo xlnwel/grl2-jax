@@ -93,7 +93,7 @@ def train(agent, env, eval_env, buffer):
                 agent.actor.update_obs_rms(data['obs'], mask=life_mask)
                 agent.actor.update_obs_rms(data['global_state'], 
                     'global_state', mask=life_mask)
-                discount = np.logical_and(buffer['discount'], 1 - buffer['reset'])
+                discount = np.logical_and(data['discount'], 1 - data['reset'])
                 agent.actor.update_reward_rms(data['reward'], discount)
             agent.set_env_step(step)
             agent.save(print_terminal_info=True)
@@ -148,7 +148,7 @@ def train(agent, env, eval_env, buffer):
             step = collect_data(step, agent, env, buffer)
         start_train_step = agent.get_train_step()
         with tt:
-            agent.train_record(step)
+            agent.train_record()
         agent.store(
             fps=(step - start_env_step) / rt.last(),
             tps=(agent.get_train_step()-start_train_step) / tt.last()

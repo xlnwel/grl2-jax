@@ -15,17 +15,20 @@ agent:
     precision: 32
 
     MAX_STEPS: 1e8
-    N_EPOCHS: &nepochs 5
-    N_VALUE_EPOCHS: &nval_epochs 0
-    N_MBS: &nmbs 1
-    LOG_PERIOD: 20
-    max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
+    LOG_PERIOD: 200
 
-    # (once, reuse, null)
-    # "once" updates values at the end of each epoch
-    # "reuse" updates values using value from train, which is staler than once
-    # null doesn't update values.
-    value_update: null
+strategy:
+    train_loop:
+        N_EPOCHS: &nepochs 5
+        N_VALUE_EPOCHS: &nval_epochs 0
+        N_MBS: &nmbs 1
+        max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
+
+        # (once, reuse, null)
+        # "once" updates values at the end of each epoch
+        # "reuse" updates values using value from train, which is staler than once
+        # null doesn't update values.
+        value_update: null
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
@@ -81,9 +84,6 @@ model:
             units_list: []
             kernel_initializer: orthogonal
 
-    root_dir: *algo
-    model_name: *algo
-
 loss:
     policy:
         clip_range: .2
@@ -113,9 +113,6 @@ trainer:
             lr: 5e-4
             clip_norm: 10
             epsilon: 1.e-5
-
-    root_dir: *algo
-    model_name: *algo
 
 actor:
     rms:

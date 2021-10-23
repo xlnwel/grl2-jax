@@ -27,11 +27,12 @@ def get_config(algo, env):
     path = f'{configs_dir}/{filename}'
 
     config = load_config(path)
+    if config is None:
+        raise RuntimeError('No configure is loaded')
+
     config['agent']['algorithm'] = algo
     config['env']['name'] = env
-    if config:
-        pwc(f'Config path: {path}', color='green')
-    
+
     return config
 
 

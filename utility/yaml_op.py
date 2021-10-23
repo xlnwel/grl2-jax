@@ -11,7 +11,7 @@ def default_path(filename):
 # load arguments from config.yaml
 def load_config(filename='config.yaml'):
     if not Path(default_path(filename)).exists():
-        return {}
+        raise RuntimeError(f'No configuration is found at: {filename}')
     with open(default_path(filename), 'r') as f:
         try:
             yaml_f = yaml.load(f, Loader=yaml.FullLoader)
