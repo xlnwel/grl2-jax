@@ -372,10 +372,14 @@ class EnvStatsBase(gym.Wrapper):
             auto_reset=True):
         """ Records environment statistics """
         super().__init__(env)
-        self.max_episode_steps = max_episode_steps \
-            or getattr(self.env, 'max_episode_steps', 
-            getattr(self.env.spec, 'max_episode_steps', int(1e9)) 
-            if hasattr(self.env, 'spec') else int(1e9))
+        if max_episode_steps is None:
+            if hasattr(self.env, 'max_episode_steps'):
+                max_episode_steps = self.env.max_episode_steps
+            elif hasattr(self.env, 'spec'):
+                max_episode_steps = self.env.spec.max_episode_steps
+            else:
+                max_episode_steps = int(1e9)
+        self.max_episode_steps = max_episode_steps
         # if we take timeout as done
         self.timeout_done = timeout_done
         self.auto_reset = auto_reset

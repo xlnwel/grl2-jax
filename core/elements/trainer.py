@@ -86,19 +86,27 @@ class Trainer(tf.Module):
         pass
 
     """ Save & Restore Optimizer """
-    def save(self, print_terminal_info=True):
+    def save_optimizer(self, print_terminal_info=False):
         if self._has_ckpt:
             save(self.ckpt_manager, print_terminal_info)
         else:
             raise RuntimeError(
                 'Cannot perform <save> as root_dir or model_name was not specified at initialization')
 
-    def restore(self):
+    def restore_optimizer(self):
         if self._has_ckpt:
             restore(self.ckpt_manager, self.ckpt, self.ckpt_path, self.name)
         else:
             raise RuntimeError(
                 'Cannot perform <restore> as root_dir or model_name was not specified at initialization')
+
+    def save(self, print_terminal_info=False):
+        self.save_optimizer(print_terminal_info)
+        self.model.save(print_terminal_info)
+    
+    def restore(self):
+        self.restore_optimizer()
+        self.model.restore()
 
 
 class TrainerEnsemble(EnsembleWithCheckpoint):

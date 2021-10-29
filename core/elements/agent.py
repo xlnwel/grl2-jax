@@ -10,16 +10,27 @@ class Agent:
     def __init__(self, 
                  *, 
                  config: dict,
-                 strategy: Strategy,
+                 strategy: Strategy=None,
                  monitor: Monitor=None,
                  name=None):
         config_attr(self, config)
-        self.name = name
+        self._name = name
+        self.strategies = {}
         self.strategy = strategy
         self.monitor = monitor
 
         self.restore()
         save_code(self._root_dir, self._model_name)
+
+    @property
+    def name(self):
+        return self._name
+
+    def add_strategy(self, sid, strategy):
+        self.strategies[sid] = strategy
+
+    def set_strategy(self, sid):
+        self.strategy = self.strategies[sid]
 
     def __getattr__(self, name):
         if name.startswith('_'):
@@ -38,19 +49,6 @@ class Agent:
         stats = self.strategy.train_record()
         self.store(**stats)
 
-
-class AgentInterface:
-    def __init__(self, name):
-        self._name = name
-        self.strategies = {}
-
-    @property
-    def name(self):
-        return self._name
-
-    def add_strategy(self, sid, strategy):
-        self.strategies[sid] = strategy
-
     def save(self):
         for s in self.strategies.values():
             s.save()
@@ -58,6 +56,7 @@ class AgentInterface:
     def restore(self):
         for s in self.strategies.values():
             s.restore()
+
 
 def create_agent(**kwargs):
     return Agent(**kwargs)

@@ -46,19 +46,25 @@ class Strategy:
     def get_weights(self, identifier=None):
         if identifier is None:
             identifier = self._name
-        weights = {
-            f'{identifier}_model': self.model.get_weights(),
-            f'{identifier}_opt': self.trainer.get_optimizer_weights(),
-            f'{identifier}_aux': self.actor.get_auxiliary_stats()
-        }
+        weights = {}
+        if self.model is not None:
+            weights[f'{identifier}_model'] = self.model.get_weights()
+        if self.trainer is not None:
+            weights[f'{identifier}_opt'] = self.trainer.get_optimizer_weights()
+        if self.actor is not None:
+            weights[f'{identifier}_aux'] = self.actor.get_auxiliary_stats()
+
         return weights
 
     def set_weights(self, weights, identifier=None):
         if identifier is None:
             identifier = self._name
-        self.model.set_weights(weights[f'{identifier}_model'])
-        self.trainer.set_optimizer_weights(weights[f'{identifier}_opt'])
-        self.actor.set_auxiliary_stats(weights[f'{identifier}_aux'])
+        if f'{identifier}_model' in weights:
+            self.model.set_weights(weights[f'{identifier}_model'])
+        if f'{identifier}_opt' in weights:
+            self.trainer.set_optimizer_weights(weights[f'{identifier}_opt'])
+        if f'{identifier}_aux' in weights:
+            self.actor.set_auxiliary_stats(weights[f'{identifier}_aux'])
 
     def train_record(self):
         n, stats = self.train_loop.train()
@@ -95,16 +101,17 @@ class Strategy:
 
     """ Checkpoint Ops """
     def restore(self):
-        self.trainer.restore()
+        self.trainer.restore_optimizer()
         self.model.restore()
         self.actor.restore_auxiliary_stats()
         self.step_counter.restore_step()
 
     def save(self, print_terminal_info=False):
-        self.trainer.save(print_terminal_info)
+        self.trainer.save_optimizer(print_terminal_info)
         self.model.save(print_terminal_info)
         self.actor.save_auxiliary_stats()
         self.step_counter.save_step()
+
 
 def create_strategy(
         name, 

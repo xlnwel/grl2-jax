@@ -109,3 +109,11 @@ class Actor:
     
     def restore_auxiliary_stats(self):
         pass
+
+    def save(self, print_terminal_info=False):
+        self.model.save(print_terminal_info)
+        self.save_auxiliary_stats()
+    
+    def restore(self):
+        self.model.restore()
+        self.restore_auxiliary_stats()
