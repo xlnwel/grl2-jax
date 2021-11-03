@@ -1,4 +1,12 @@
 ---
+algorithm: &algo mappo
+
+# model path: root_dir/model_name/name
+# tensorboard path: root_dir/model_name/logs
+# the following names are just examples; they will be reset in our training process
+root_dir: *algo
+model_name: *algo
+
 env:
     name: &env_name smac_3s5z_vs_3s6z
     n_workers: 8
@@ -11,7 +19,7 @@ env:
     do_evaluation: False
 
 agent:
-    algorithm: &algo mappo
+    algorithm: *algo
     precision: 32
 
     MAX_STEPS: 1e8
@@ -30,11 +38,6 @@ strategy:
         # null doesn't update values.
         value_update: null
 
-    # model path: root_dir/model_name/models
-    # tensorboard path: root_dir/model_name/logs
-    # the following names are just examples; they will be reset in run/train.py
-    root_dir: *algo                         # root path for tensorboard logs
-    model_name: *algo
     RECORD: False
 
 model:

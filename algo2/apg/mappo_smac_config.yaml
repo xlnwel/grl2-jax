@@ -1,7 +1,7 @@
 ---
 env:
     name: &env_name smac_3s5z_vs_3s6z
-    n_envvecs: 2
+    n_vecenvs: 2
     n_envs: &nenvs 2
     use_state_agent: True
     use_mustalive: True

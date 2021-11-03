@@ -15,7 +15,7 @@ class Agent:
                  name=None):
         config_attr(self, config)
         self._name = name
-        self.strategies = {}
+        self.strategies = {'default': strategy}
         self.strategy = strategy
         self.monitor = monitor
 
@@ -49,9 +49,9 @@ class Agent:
         stats = self.strategy.train_record()
         self.store(**stats)
 
-    def save(self):
+    def save(self, print_terminal_info=False):
         for s in self.strategies.values():
-            s.save()
+            s.save(print_terminal_info=print_terminal_info)
     
     def restore(self):
         for s in self.strategies.values():

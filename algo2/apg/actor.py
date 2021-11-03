@@ -6,8 +6,8 @@ from core.mixin import RMS
 from core.dataset import create_dataset
 from core.decorator import step_track
 from utility import pkg
-from algo.ppo.buffer import Buffer
-from algo.seed.actor import \
+from algo2.ppo.buffer import Buffer
+from algo2.seed.actor import \
     get_actor_class as get_actor_base_class, \
     get_learner_class as get_learner_base_class, \
     get_worker_class as get_worker_base_class, \
@@ -108,7 +108,7 @@ def get_worker_class():
 
             self._setup_rms_stats()
             self._counters = {f'env_step_{i}': 0 
-                for i in range(self._n_envvecs)}
+                for i in range(self._n_vecenvs)}
 
         def env_step(self, eid, action, terms):
             self._counters[f'env_step_{eid}'] += 1
@@ -169,10 +169,10 @@ def get_worker_class():
 
             return self.get_rms_stats()
 
-        def _create_buffer(self, buffer_config, n_envvecs):
+        def _create_buffer(self, buffer_config, n_vecenvs):
             buffer_config['force_envvec'] = True
             return {eid: LocalBuffer(buffer_config) 
-                for eid in range(n_envvecs)}
+                for eid in range(n_vecenvs)}
 
         def _send_episodic_info(self, monitor):
             """ Sends episodic info to monitor for bookkeeping """

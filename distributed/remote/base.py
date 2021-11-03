@@ -2,7 +2,7 @@ import ray
 
 
 class RayBase:
-    def set_handler(self, **kwargs):
+    def register_handler(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
     

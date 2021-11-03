@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from core.elements.model import Model, Ensemble
+from core.elements.model import Model, Ensemble, ModelEnsemble
 from utility.utils import config_attr
 
 
@@ -29,4 +29,18 @@ class Loss(tf.Module):
 
 
 class LossEnsemble(Ensemble):
-    pass
+    def __init__(self, 
+                 *, 
+                 config, 
+                 model: ModelEnsemble,
+                 constructor, 
+                 name, 
+                 **classes):
+        super().__init__(
+            config=config,
+            constructor=constructor,
+            name=name,
+            **classes
+        )
+
+        self.model = model

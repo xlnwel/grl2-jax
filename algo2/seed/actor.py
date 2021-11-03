@@ -15,7 +15,7 @@ from utility import pkg
 from core.tf_config import *
 from env.func import create_env
 from replay.func import create_local_buffer
-from algo.apex.actor import config_actor, get_learner_class, \
+from algo2.apex.actor import config_actor, get_learner_class, \
     get_worker_base_class, get_evaluator_class, \
     get_actor_base_class
 
@@ -39,7 +39,7 @@ def get_actor_class(AgentBase):
             # avoids additional workers created by RayEnvVec
             env_config['n_workers'] = 1
             # create env to get state&action spaces
-            self._n_envvecs = env_config['n_envvecs']
+            self._n_vecenvs = env_config['n_vecenvs']
             self._n_envs = env_config['n_envs']
             env = create_env(env_config)
 
@@ -57,7 +57,7 @@ def get_actor_class(AgentBase):
 
             # number of env(vec) instances for each inference pass
             self._action_batch = int(
-                self._wpa * self._n_envvecs * self._action_frac)
+                self._wpa * self._n_vecenvs * self._action_frac)
 
             # agent's state
             if 'rnn' in self.model:
@@ -118,7 +118,7 @@ def get_actor_class(AgentBase):
             # retrieve the last env_output
             objs = {workers[wid].env_output.remote(eid): (wid, eid)
                 for wid in range(self._wpa) 
-                for eid in range(self._n_envvecs)}
+                for eid in range(self._n_vecenvs)}
 
             self.env_step = 0
             q_size = []
@@ -219,7 +219,7 @@ def get_worker_class():
             
             # avoids additional workers created by RayEnvVec
             env_config['n_workers'] = 1
-            self._n_envvecs, self._envvecs = self._create_envvec(env_config)
+            self._n_vecenvs, self._envvecs = self._create_envvec(env_config)
             
             collect_fn = pkg.import_module(
                 'agent', config=config, place=-1).collect
@@ -227,7 +227,7 @@ def get_worker_class():
                 collect_fn, env_step=None)
 
             self._buffs = self._create_buffer(
-                buffer_config, self._n_envvecs)
+                buffer_config, self._n_vecenvs)
 
             self._obs = {eid: e.output().obs 
                 for eid, e in enumerate(self._envvecs)}
@@ -276,16 +276,16 @@ def get_worker_class():
             buffer.reset()
 
         def _create_envvec(self, env_config):
-            n_envvecs = env_config.pop('n_envvecs')
+            n_vecenvs = env_config.pop('n_vecenvs')
             env_config.pop('n_workers', None)
             envvecs = [
                 create_env(env_config, force_envvec=True) 
-                for _ in range(n_envvecs)]
-            return n_envvecs, envvecs
+                for _ in range(n_vecenvs)]
+            return n_vecenvs, envvecs
 
-        def _create_buffer(self, buffer_config, n_envvecs):
+        def _create_buffer(self, buffer_config, n_vecenvs):
             buffer_config['force_envvec'] = True
             return {eid: create_local_buffer(buffer_config) 
-                for eid in range(n_envvecs)}
+                for eid in range(n_vecenvs)}
 
     return Worker

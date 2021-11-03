@@ -12,7 +12,7 @@ def get_package_from_algo(algo, place=0, separator='.'):
     
     pkg = get_package('algo', algo, separator)
     if pkg is None:
-        pkg = get_package('distribution', algo, separator)
+        pkg = get_package('distributed', algo, separator)
     return pkg
 
 

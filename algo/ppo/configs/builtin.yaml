@@ -1,4 +1,12 @@
 ---
+algorithm: &algo ppo
+
+# model path: root_dir/model_name/name
+# tensorboard path: root_dir/model_name/logs
+# the following names are just examples; they will be reset in our training process
+root_dir: *algo
+model_name: *algo
+
 env:
     name: &env_name BipedalWalker-v3
     n_workers: 1
@@ -8,7 +16,7 @@ env:
     reward_max: null
 
 agent:
-    algorithm: &algo ppo
+    algorithm: *algo
     precision: 32
 
     MAX_STEPS: 1e10
@@ -31,12 +39,6 @@ strategy:
         # "reuse" updates values using value from train, which is staler than once
         # null doesn't update values.
         value_update: null
-
-    # model path: root_dir/model_name/models
-    # tensorboard path: root_dir/model_name/logs
-    # the following names are just examples; they will be reset in our training process
-    root_dir: *algo                         # root path for tensorboard logs
-    model_name: *algo
 
 model:
     encoder: 
@@ -71,9 +73,6 @@ trainer:
         lr: 2e-4
         clip_norm: .5
         epsilon: 1.e-5
-
-    root_dir: *algo
-    model_name: *algo
 
 actor:
     rms:

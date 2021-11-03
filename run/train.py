@@ -26,8 +26,11 @@ def _get_algo_name(algo):
 
 
 def _set_path(configs, root_dir, model_name):
+    configs['root_dir'] = root_dir
+    configs['model_name'] = model_name
     for v in configs.values():
-        assert isinstance(v, dict), v
+        if not isinstance(v, dict):
+            continue
         v['root_dir'] = root_dir
         v['model_name'] = model_name
     return configs

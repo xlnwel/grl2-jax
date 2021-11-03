@@ -1,7 +1,7 @@
 ---
 env:
     name: &env_name mpe_simple_spread
-    n_envvecs: 2
+    n_vecenvs: 2
     n_envs: &nenvs 64
     max_episode_steps: 25
     num_good_agents: 3

@@ -32,6 +32,7 @@ def simplify_datatype(config):
             config[k] = v
     return config
 
-def save_config(root_dir, model_name, config):
+def save_config(root_dir, model_name, config, confgi_name='config.yaml'):
     config = simplify_datatype(config)
-    yaml_op.save_config(config, filename=f'{root_dir}/{model_name}/config.yaml')
+    yaml_op.save_config(config, 
+        filename=f'{root_dir}/{model_name}/{confgi_name}')

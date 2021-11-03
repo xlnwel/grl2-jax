@@ -61,15 +61,14 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         return terms
 
 
-def create_trainer(config, model, loss, env_stats, name='mappo'):
+def create_trainer(config, loss, env_stats, name='mappo'):
     def constructor(config, cls, name):
         return cls(
-            config=config, model=model[name], loss=loss[name], 
+            config=config, loss=loss[name], 
             env_stats=env_stats, name=name)
 
     return MAPPOTrainerEnsemble(
         config=config,
-        model=model,
         loss=loss,
         env_stats=env_stats,
         constructor=constructor,

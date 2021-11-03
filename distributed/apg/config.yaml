@@ -1,6 +1,6 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo ppo
+algorithm: &algo apg-ppo
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -21,13 +21,13 @@ agent:
     algorithm: *algo
     precision: 16
 
-    MAX_STEPS: 1e10
+    MAX_STEPS: 2e8
     N_STEPS: &nsteps 256
-    LOG_PERIOD: 200
-    EVAL_PERIOD: 200
+    LOG_PERIOD: 100
+    EVAL_PERIOD: 100
 
-    RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
+    RECORD_VIDEO: True
 
 strategy:
     train_loop:
@@ -70,6 +70,7 @@ loss:
     value_coef: .5
 
 trainer:
+    algorithm: *algo
     optimizer:
         opt_name: adam
         schedule_lr: False
@@ -78,17 +79,30 @@ trainer:
         epsilon: 1.e-5
 
 actor:
-    rms:
+    rms: &rms
         normalize_obs: False
         normalize_reward: True
         gamma: &gamma .999
 
+actor_manager:
+    remote_actor:
+        buffer:
+            
+trainer_manager:
+    ray:
+        num_cpus: 1
+        num_gpus: .1
+    algorithm: *algo
+
 buffer:
+    algorithm: *algo
+    rms: *rms
     use_dataset: True
 
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
+    n_trajs: 256
     n_envs: *nenvs
     N_STEPS: *nsteps
     N_EPOCHS: *nepochs

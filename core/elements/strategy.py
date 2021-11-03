@@ -1,7 +1,6 @@
 from typing import Union
 
 from core.elements.actor import Actor
-from core.elements.model import Model, ModelEnsemble
 from core.elements.trainer import Trainer, TrainerEnsemble
 from core.mixin.strategy import StepCounter, TrainingLoopBase
 from env.typing import EnvOutput
@@ -14,14 +13,16 @@ class Strategy:
                  *, 
                  name,
                  config: dict,
-                 model: Union[Model, ModelEnsemble], 
-                 trainer: Union[Trainer, TrainerEnsemble], 
+                 trainer: Union[Trainer, TrainerEnsemble]=None, 
                  actor: Actor=None,
                  train_loop: TrainingLoopBase=None,
                  ):
         self._name = name
         config_attr(self, config)
-        self.model = model
+        if trainer is None and actor is None:
+            raise RuntimeError('Neither trainer nor actor is provided')
+
+        self.model = actor.model if trainer is None else trainer.model
         self.trainer = trainer
         self.actor = actor
         self.train_loop = train_loop
@@ -83,8 +84,7 @@ class Strategy:
                  env_output: EnvOutput, 
                  evaluation: bool=False,
                  return_eval_stats: bool=False):
-        inp = self._prepare_input_to_actor(env_output)
-        out = self.actor(inp, evaluation=evaluation, 
+        out = self.actor(env_output, evaluation=evaluation, 
             return_eval_stats=return_eval_stats)
         self._record_output(out)
         return out[:2]
@@ -115,10 +115,9 @@ class Strategy:
 
 def create_strategy(
         name, 
-        config, 
-        model, 
-        trainer, 
-        actor, 
+        config: dict,
+        trainer: Union[Trainer, TrainerEnsemble]=None, 
+        actor: Actor=None,
         dataset=None,
         *,
         strategy_cls,
@@ -139,7 +138,6 @@ def create_strategy(
     strategy = strategy_cls(
         name=name,
         config=config,
-        model=model,
         trainer=trainer,
         actor=actor,
         train_loop=train_loop

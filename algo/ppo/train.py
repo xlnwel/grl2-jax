@@ -172,7 +172,7 @@ def main(config, train=train):
 
         model = create_model(config.model, env_stats)
         loss = create_loss(config.loss, model)
-        trainer = create_trainer(config.trainer, model, loss, env_stats)
+        trainer = create_trainer(config.trainer, loss, env_stats)
         actor = create_actor(config.actor, model)
         
         return model, trainer, actor
@@ -202,7 +202,7 @@ def main(config, train=train):
         create_strategy = pkg.import_module(
             'elements.strategy', config=config.agent).create_strategy
         strategy = create_strategy(
-            name, config.strategy, model, trainer, actor, dataset)
+            name, config.strategy, trainer, actor, dataset)
         
         return strategy
     strategy = build_strategy()

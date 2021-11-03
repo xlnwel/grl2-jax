@@ -4,7 +4,7 @@ A modulated and versatile library for deep reinforcement learning, implemented i
 
 ## Instructions
 
-If you want to know how an algorithm works, simply study `agent.py` and `nn.py` in each folder of [algo](https://github.com/xlnwel/d2rl/tree/master/algo).
+If you want to know how an algorithm works, simply study each folder in [algo](https://github.com/xlnwel/g2rl/tree/master/algo).
 
 If you want to run some algorithm, refer to [Get Start](#start).
 
@@ -83,7 +83,7 @@ All implementation details from OpenAI's baselines are implemented for PPO famil
 python run/train.py algo -e env
 ```
 
-For available `algo`, please refer to the folder names in `/algo`. To run distributed off-policy algorithms, `algo` should be of form `{distributed_architecture}-{algorithm}`. For example, if you want to run Ape-X with DQN, replace `algo` with `apex-dqn`.
+For available algorithms, please refer to the folders in `/algo*`. To run distributed off-policy algorithms, `algo` should be of form `{distributed_architecture}-{algorithm}`. For example, if you want to run Ape-X with DQN, replace `algo` with `apex-dqn`.
 
 `env` follows convention `{suite}_{name}`, where `{suite}_` may be omitted when there is no corresponding suite name. Current available `suite` includes `[atari, procgen, dmc]`.
 
@@ -106,6 +106,8 @@ You can also make some simple changes to `*config.yaml` from the command line
 # change learning rate to 0.0001, `lr` must appear in `*config.yaml`
 python run/train.py ppo -e procgen_coinrun -kw lr=0.0001
 ```
+
+This change will automatically be visible in Tensorboard, so it's a recommanded way to do a simple hyperparameter modification. 
 
 ### Evaluation
 

@@ -19,7 +19,7 @@ config = dict(
 
 class TestClass:
     def test_gae0(self):
-        from algo.ppo.buffer import Buffer
+        from algo.ppo.elements.buffer import Buffer
         buffer = Buffer(config)
         n_envs = config['n_envs']
         n_steps = config['N_STEPS']
@@ -49,7 +49,7 @@ class TestClass:
         np.testing.assert_allclose(mb_advs, memory['advantage'], atol=1e-5)
         
     def test_gae2(self):
-        from algo.ppo.buffer import Buffer
+        from algo.ppo.elements.buffer import Buffer
         config['state_keys'] = ['h', 'c']
         for prec in [16, 32]:
             config['precision'] = prec

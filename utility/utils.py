@@ -17,8 +17,20 @@ def dict2AttrDict(config: dict):
     for k, v in attr_config.items():
         if isinstance(v, dict):
             attr_config[k] = dict2AttrDict(v)
+        else:
+            attr_config[k] = v
 
     return attr_config
+
+def AttrDict2dict(attr_config: AttrDict):
+    config = attr_config.asdict()
+    for k, v in config.items():
+        if isinstance(v, AttrDict):
+            config[k] = AttrDict2dict(v)
+        else:
+            config[k] = v
+
+    return config
 
 def deep_update(source: dict, target:dict):
     for k, v in target.items():
@@ -69,6 +81,7 @@ def config_attr(obj, config: dict, filter_dict: bool=False):
         if isinstance(v, float) and v == int(v):
             v = int(v)
         setattr(obj, k, v)
+    return config
 
 def to_int(s):
     return int(float(s))

@@ -1,7 +1,7 @@
 ---
 env:
     name: &env_name procgen_coinrun
-    n_envvecs: 2
+    n_vecenvs: 2
     n_envs: &nenvs 16
     frame_skip: 1
     frame_stack: 1

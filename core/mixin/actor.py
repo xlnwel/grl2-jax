@@ -1,5 +1,6 @@
 import os
 import cloudpickle
+import collections
 import logging
 import numpy as np
 from typing import Tuple, Union
@@ -8,6 +9,9 @@ from core.log import do_logging
 from utility.rms import RunningMeanStd
 
 logger = logging.getLogger(__name__)
+
+
+RMSStats = collections.namedtuple('RMSStats', 'obs reward')
 
 
 class RMS:
@@ -43,7 +47,10 @@ class RMS:
             self._return = 0
         else:
             self._return = -np.inf
-        self._rms_path = f'{config["root_dir"]}/{config["model_name"]}/{name}.pkl'
+        if 'root_dir' in config:
+            self._rms_path = f'{config["root_dir"]}/{config["model_name"]}/{name}.pkl'
+        else:
+            self._rms_path = None
 
         do_logging(
             f'Observation normalization: {self._normalize_obs}', logger=logger)
@@ -94,7 +101,7 @@ class RMS:
             self._reward_rms.set_rms_stats(*rew_rms)
 
     def get_rms_stats(self):
-        return self.get_obs_rms_stats(), self.get_rew_rms_stats()
+        return RMSStats(self.get_obs_rms_stats(), self.get_rew_rms_stats())
 
     def get_obs_rms_stats(self):
         obs_rms = {k: v.get_rms_stats() for k, v in self._obs_rms.items()} \
@@ -207,6 +214,8 @@ class RMS:
                 batch_count=rew_rms.count)
 
     def restore_rms(self):
+        if self._rms_path is None:
+            raise RuntimeError('rms path is not configured.')
         if os.path.exists(self._rms_path):
             with open(self._rms_path, 'rb') as f:
                 self._obs_rms, self._reward_rms, self._return = cloudpickle.load(f)
@@ -219,5 +228,7 @@ class RMS:
                 assert v.axis == self._obs_normalized_axis, (v.axis, self._obs_normalized_axis)
     
     def save_rms(self):
+        if self._rms_path is None:
+            raise RuntimeError('rms path is not configured.')
         with open(self._rms_path, 'wb') as f:
             cloudpickle.dump((self._obs_rms, self._reward_rms, self._return), f)

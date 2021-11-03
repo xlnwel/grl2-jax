@@ -104,16 +104,6 @@ class PPOTrainingLoop(TrainingLoopBase):
         """ Does something after each training epoch """
         pass
 
-    def _store_additional_stats(self):
-        stats = self.actor.get_auxiliary_stats()
-        obs_rms, rew_rms = stats
-        rms = {**obs_rms, 'reward': rew_rms}
-        rms = {
-            f'{k}_{kk}': vv for k, v in rms.items() \
-                for kk, vv in v._asdict().items()
-        }
-        self.store(**rms)
-
 
 class PPOStrategy(Strategy):
     def _post_init(self):

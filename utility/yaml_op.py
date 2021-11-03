@@ -1,6 +1,8 @@
 import yaml
 from pathlib import Path
 
+from utility.utils import dict2AttrDict
+
 
 def default_path(filename):
     if filename.startswith('/'):
@@ -15,7 +17,7 @@ def load_config(filename='config.yaml'):
     with open(default_path(filename), 'r') as f:
         try:
             yaml_f = yaml.load(f, Loader=yaml.FullLoader)
-            return yaml_f
+            return dict2AttrDict(yaml_f)
         except yaml.YAMLError as exc:
             print(exc)
 

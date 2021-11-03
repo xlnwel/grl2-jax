@@ -90,7 +90,7 @@ def process_with_env(data, env_stats, obs_range=None,
     return data
 
 
-def create_dataset(replay, env_stats, data_format=None, 
+def create_dataset(buffer, env_stats, data_format=None, 
         use_ray=False, one_hot_action=True):
     process = functools.partial(process_with_env, 
         env_stats=env_stats, one_hot_action=one_hot_action)
@@ -99,5 +99,5 @@ def create_dataset(replay, env_stats, data_format=None,
         DatasetClass = RayDataset
     else:
         DatasetClass = Dataset
-    dataset = DatasetClass(replay, data_format, process)
+    dataset = DatasetClass(buffer, data_format, process)
     return dataset

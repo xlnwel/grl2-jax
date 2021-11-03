@@ -1,8 +1,7 @@
 import tensorflow as tf
 
 from core.checkpoint import *
-from core.elements.loss import Loss
-from core.elements.model import Model
+from core.elements.loss import Loss, LossEnsemble
 from core.module import EnsembleWithCheckpoint, constructor
 from core.optimizer import create_optimizer
 from utility.display import display_model_var_info
@@ -13,16 +12,15 @@ class Trainer(tf.Module):
     def __init__(self, 
                  *,
                  config: dict,
-                 model: Model,
                  loss: Loss,
-                 env_stats,
-                 name):
+                 env_stats: dict,
+                 name: str):
         self._raw_name = name
         super().__init__(name=f'{name}_trainer')
         config = config.copy()
         config_attr(self, config, filter_dict=True)
         
-        self.model = model
+        self.model = loss.model
         self.loss = loss
         self.env_stats = env_stats
 
@@ -45,7 +43,7 @@ class Trainer(tf.Module):
 
     def get_weights(self, identifier=None):
         if identifier is None:
-            identifier = self._name
+            identifier = self._raw_name
         weights = {
             f'{identifier}_model': self.model.get_weights(),
             f'{identifier}_opt': self.get_optimizer_weights(),
@@ -54,7 +52,7 @@ class Trainer(tf.Module):
 
     def set_weights(self, weights, identifier=None):
         if identifier is None:
-            identifier = self._name
+            identifier = self._raw_name
         self.model.set_weights(weights[f'{identifier}_model'])
         self.set_optimizer_weights(weights[f'{identifier}_opt'])
         
@@ -113,11 +111,10 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
     def __init__(self, 
                  *, 
                  config, 
-                 model,
-                 loss,
-                 env_stats,
+                 loss: LossEnsemble,
+                 env_stats: dict,
                  constructor=constructor, 
-                 name, 
+                 name: str, 
                  **classes):
         super().__init__(
             config=config, 
@@ -126,7 +123,7 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
             **classes
         )
 
-        self.model = model
+        self.model = loss.model
         self.loss = loss
         self.env_stats = env_stats
 
@@ -141,9 +138,10 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
     def raw_train(self):
         raise NotImplementedError
 
-def create_trainer(config, model, loss, env_stats, *, name, trainer_cls, **kwargs):
+
+def create_trainer(config, loss, env_stats, *, name, trainer_cls, **kwargs):
     trainer = trainer_cls(
-        config=config, model=model, loss=loss, 
+        config=config, loss=loss, 
         env_stats=env_stats, name=name, **kwargs)
 
     return trainer

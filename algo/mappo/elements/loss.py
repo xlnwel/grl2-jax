@@ -66,6 +66,7 @@ def create_loss(config, model, name='mappo'):
 
     return LossEnsemble(
         config=config,
+        model=model,
         constructor=constructor,
         name=name,
         policy=MAPPOPolicyLoss,

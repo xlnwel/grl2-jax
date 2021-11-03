@@ -1,12 +1,14 @@
 from typing import Tuple, Dict
 import tensorflow as tf
 
+from env.typing import EnvOutput
 from utility.utils import config_attr
 from utility.tf_utils import numpy2tensor, tensor2numpy
 
 
 class Actor:
     def __init__(self, *, config, model, name):
+        self._raw_name = name
         self._name = f'{name}_actor'
         config = config.copy()
         config_attr(self, config, filter_dict=True)
@@ -28,7 +30,7 @@ class Actor:
         return getattr(self.model, name)
 
     def __call__(self, 
-                 inp: dict,  
+                 env_output: EnvOutput,
                  evaluation: bool=False, 
                  return_eval_stats: bool=False):
         """ The interface to interact with the environment
@@ -40,6 +42,7 @@ class Actor:
         Return:
             (action, terms, rnn_state)
         """
+        inp = self._prepare_input_to_actor(env_output)
         inp, tf_inp = self._process_input(inp, evaluation)
         out = self.model.action(
             **tf_inp, 
@@ -79,7 +82,7 @@ class Actor:
 
     def get_weights(self, identifier=None):
         if identifier is None:
-            identifier = self._name
+            identifier = self._raw_name
         weights = {
             f'{identifier}_model': self.model.get_weights(),
             f'{identifier}_aux': self.get_auxiliary_stats()
@@ -88,9 +91,10 @@ class Actor:
 
     def set_weights(self, weights, identifier=None):
         if identifier is None:
-            identifier = self._name
+            identifier = self._raw_name
         self.model.set_weights(weights[f'{identifier}_model'])
-        self.set_auxiliary_stats(weights[f'{identifier}_aux'])
+        if f'{identifier}_aux' in weights:
+            self.set_auxiliary_stats(weights[f'{identifier}_aux'])
 
     def get_model_weights(self, name: str=None):
         return self.model.get_weights(name)

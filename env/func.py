@@ -18,7 +18,7 @@ def create_env(config, env_fn=None, force_envvec=True):
 
 def get_env_stats(config):
     # TODO (cxw): store env_stats in a standalone file for costly environments
-    tmp_env_config = config.env.copy()
+    tmp_env_config = config.copy()
     tmp_env_config['n_workers'] = 1
     tmp_env_config['n_envs'] = 1
     env = create_env(tmp_env_config)
