@@ -159,11 +159,11 @@ class EnsembleWithCheckpoint(Ensemble):
             ckpt_models = self.ckpt_model()
             self.ckpt, self.ckpt_path, self.ckpt_manager = setup_checkpoint(
                 ckpt_models, self._root_dir, self._model_name, name=self.name)
-    
+
     def save(self, print_terminal_info=True):
         self.setup_checkpoint()
         save(self.ckpt_manager, print_terminal_info)
-    
+
     def restore(self):
         self.setup_checkpoint()
         restore(self.ckpt_manager, self.ckpt, self.ckpt_path, self.name)

@@ -21,7 +21,6 @@ def random_run(env, step):
             global_state=obs['global_state'],
             reward=reward,
             discount=discount,
-            reset=reset,
         )
         if env.use_life_mask:
             kwargs['life_mask'] = obs['life_mask']
@@ -46,14 +45,14 @@ def random_run(env, step):
     return step, data
 
 def run(agent, env, buffer, step):
-    reset = [False for _ in range(env.n_envs)]
+    prev_reset = [False for _ in range(env.n_envs)]
     agent.reset_states()
     buffer.clear_buffer()
 
     env_output = env.output()
     last_env_output = deepcopy(env_output)
 
-    while not np.all(reset):
+    while not np.all(prev_reset):
         action, terms = agent(env_output, evaluation=False)
         env_output = env.step(action)
         _, reward, discount, reset = env_output
@@ -62,7 +61,6 @@ def run(agent, env, buffer, step):
             action=action.reshape(env.n_envs, env.n_agents),
             reward=reward,
             discount=discount,
-            reset=reset,
             **tf.nest.map_structure(
                 lambda x: x.reshape(env.n_envs, env.n_agents, *x.shape[1:]), terms)
         )
@@ -74,6 +72,7 @@ def run(agent, env, buffer, step):
             elif info['valid_step']:
                 buffer.add(i, **data)
                 last_env_output[i] = env_output[i]
+        prev_reset = reset
 
     score = env.score()
     epslen = env.epslen()
@@ -93,8 +92,7 @@ def train(agent, env, eval_env, buffer):
                 agent.actor.update_obs_rms(data['obs'], mask=life_mask)
                 agent.actor.update_obs_rms(data['global_state'], 
                     'global_state', mask=life_mask)
-                discount = np.logical_and(data['discount'], 1 - data['reset'])
-                agent.actor.update_reward_rms(data['reward'], discount)
+                agent.actor.update_reward_rms(data['reward'], data['discount'])
             agent.set_env_step(step)
             agent.save(print_terminal_info=True)
         return step
@@ -115,8 +113,6 @@ def train(agent, env, eval_env, buffer):
                 continue
             reward = buffer.get(i, 'reward')
             discount = buffer.get(i, 'discount')
-            reset = buffer.get(i, 'reset')
-            discount = np.logical_and(discount, 1 - reset)
             agent.actor.update_reward_rms(reward, discount)
             buffer.update_buffer(i, 'reward', agent.actor.normalize_reward(reward))
         agent.record_inputs_to_vf(last_env_output)

@@ -28,6 +28,12 @@ class MAPPOStrategy(Strategy):
         self._n_agents = env_stats.n_agents
 
     """ Calling Methods """
+    def _prepare_input_to_actor(self, env_output):
+        inp = env_output.obs
+        inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
+
+        return inp
+
     def _record_output(self, out):
         state = out[-1]
         self._memory.reset_states(state)

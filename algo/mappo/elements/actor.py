@@ -6,12 +6,6 @@ from algo.ppo.elements.actor import PPOActor
 
 class MAPPOActor(PPOActor):
     """ Calling Methods """
-    def _prepare_input_to_actor(self, env_output):
-        inp = env_output.obs
-        inp = self._memory.add_memory_state_to_input(inp, env_output.reset)
-
-        return inp
-
     def _process_input(self, inp: dict, evaluation: bool):
         def concat_map_except_state(inp):
             for k, v in inp.items():

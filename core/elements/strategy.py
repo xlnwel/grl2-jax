@@ -84,7 +84,8 @@ class Strategy:
                  env_output: EnvOutput, 
                  evaluation: bool=False,
                  return_eval_stats: bool=False):
-        out = self.actor(env_output, evaluation=evaluation, 
+        inp = self._prepare_input_to_actor(env_output)
+        out = self.actor(inp, evaluation=evaluation, 
             return_eval_stats=return_eval_stats)
         self._record_output(out)
         return out[:2]

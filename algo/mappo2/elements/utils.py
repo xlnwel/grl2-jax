@@ -8,7 +8,6 @@ def collect(buffer, env, env_step, reset, reward, discount,
     kwargs['reward'] = np.concatenate(reward)
     discount[np.any(discount, 1)] = 1
     kwargs['discount'] = np.concatenate(discount)
-    kwargs['reset'] = np.concatenate(reset)
 
     buffer.add(**kwargs)
 

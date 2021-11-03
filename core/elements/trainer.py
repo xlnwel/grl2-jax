@@ -138,6 +138,20 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
     def raw_train(self):
         raise NotImplementedError
 
+    def restore(self):
+        super().restore()
+        self.model.restore()
+
+    def save(self, print_terminal_info=False):
+        super().save(print_terminal_info)
+        self.model.save(print_terminal_info)
+
+    def restore_optimizer(self):
+        super().restore()
+
+    def save_optimizer(self, print_terminal_info=False):
+        super().save(print_terminal_info)
+
 
 def create_trainer(config, loss, env_stats, *, name, trainer_cls, **kwargs):
     trainer = trainer_cls(

@@ -26,11 +26,13 @@ def train(agent, env, eval_env, buffer):
                 runner.run(action_selector=random_actor, step_fn=collect)
                 life_mask = np.concatenate(buffer['life_mask']) \
                     if env.use_life_mask else None
-                agent.actor.update_obs_rms(np.concatenate(buffer['obs']), mask=life_mask)
-                agent.actor.update_obs_rms(np.concatenate(buffer['global_state']), 
+                agent.actor.update_obs_rms(
+                    np.concatenate(buffer['obs']), mask=life_mask)
+                agent.actor.update_obs_rms(
+                    np.concatenate(buffer['global_state']), 
                     'global_state', mask=life_mask)
-                discount = np.logical_and(buffer['discount'], 1 - buffer['reset'])
-                agent.actor.update_reward_rms(buffer['reward'], discount)
+                agent.actor.update_reward_rms(
+                    buffer['reward'], buffer['discount'])
                 buffer.reset()
             buffer.clear()
             agent.set_env_step(runner.step)
@@ -89,9 +91,10 @@ def train(agent, env, eval_env, buffer):
         # The latter is adopted in our implementation. 
         # However, the following line currently doesn't store
         # a copy of unnormalized rewards
-        discount = np.logical_and(buffer['discount'], 1 - buffer['reset'])
-        agent.actor.update_reward_rms(buffer['reward'], discount)
-        buffer.update('reward', agent.actor.normalize_reward(buffer['reward']), field='all')
+        agent.actor.update_reward_rms(
+            buffer['reward'], buffer['discount'])
+        buffer.update(
+            'reward', agent.actor.normalize_reward(buffer['reward']), field='all')
         agent.record_inputs_to_vf(runner.env_output)
         value = agent.compute_value()
         buffer.finish(value)

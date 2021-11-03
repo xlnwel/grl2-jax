@@ -28,5 +28,4 @@ def get_data_format(config, env_stats, model, use_for_dataset=True):
     return data_format
 
 def collect(buffer, env, env_step, reset, next_obs, **kwargs):
-    kwargs['reset'] = reset
     buffer.add(**kwargs)
