@@ -2,20 +2,27 @@ from core.mixin.monitor import create_recorder, create_tensorboard_writer
 
 
 class Monitor:
-    def __init__(self, root_dir, model_name, name):
+    def __init__(self, root_dir, model_name, name, 
+                use_recorder=True, use_tensorboard=True):
         self._root_dir = root_dir
         self._model_name = model_name
-        self._recorder = create_recorder(
-            root_dir=root_dir, model_name=model_name)
-        self._tb_writer = create_tensorboard_writer(
-            root_dir=root_dir, model_name=model_name, name=name)
+        if use_recorder and root_dir is not None:
+            self._recorder = create_recorder(
+                root_dir=root_dir, model_name=model_name)
+        else:
+            self._recorder = None
+        if use_tensorboard and root_dir is not None:
+            self._tb_writer = create_tensorboard_writer(
+                root_dir=root_dir, model_name=model_name, name=name)
+        else:
+            self._tb_writer = None
 
     def __getattr__(self, name):
         if name.startswith('_'):
             raise AttributeError(f"Attempted to get missing private attribute '{name}'")
-        if hasattr(self._recorder, name):
+        if self._recorder is not None and hasattr(self._recorder, name):
             return getattr(self._recorder, name)
-        elif hasattr(self._tb_writer, name):
+        elif self._tb_writer is not None and hasattr(self._tb_writer, name):
             return getattr(self._tb_writer, name)
         raise AttributeError(f"Attempted to get missing attribute '{name}'")
 
@@ -43,5 +50,6 @@ def record(*, recorder, tb_writer, model_name,
         recorder.record_stats(stats, print_terminal_info=print_terminal_info)
 
 
-def create_monitor(root_dir, model_name, name):
-    return Monitor(root_dir, model_name, name)
+def create_monitor(
+        root_dir, model_name, name, use_recorder=True, use_tensorboard=True):
+    return Monitor(root_dir, model_name, name, use_recorder, use_tensorboard)

@@ -54,8 +54,8 @@ class RunningMeanStd:
         self._axis = axis
         if self._axis is not None:
             self._shape_slice = np.s_[: max(self._axis)+1]
-        self._mean = None
-        self._var = None
+        self._mean = 0
+        self._var = 0
         self._epsilon = epsilon
         self._count = epsilon
         self._clip = clip

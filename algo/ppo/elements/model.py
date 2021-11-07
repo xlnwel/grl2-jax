@@ -2,6 +2,7 @@ import os
 import tensorflow as tf
 
 from core.elements.model import Model
+from core.tf_config import build
 from utility.file import source_file
 
 # register ppo-related networks 
@@ -9,8 +10,16 @@ source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
 class PPOModel(Model):
+    def _build(self, env_stats):
+        TensorSpecs = dict(
+            obs=((None, *env_stats['obs_shape']), env_stats['obs_dtype'], 'obs'),
+            evaluation=False,
+            return_eval_stats=False,
+        )
+        self.action = build(self.action, TensorSpecs)
+
     @tf.function
-    def action(self, obs, evaluation=False, **kwargs):
+    def action(self, obs, evaluation=False, return_eval_stats=False):
         x, state = self.encode(obs)
         act_dist = self.policy(x, evaluation=evaluation)
         action = self.policy.action(act_dist, evaluation)
@@ -39,8 +48,12 @@ class PPOModel(Model):
             return x, None
 
 
-def create_model(config, env_stats, name='ppo'):
-    config['policy']['action_dim'] = env_stats.action_dim
-    config['policy']['is_action_discrete'] = env_stats.is_action_discrete
+def create_model(config, env_stats, name='ppo', to_build=False):
+    config['policy']['action_dim'] = env_stats['action_dim']
+    config['policy']['is_action_discrete'] = env_stats['is_action_discrete']
 
-    return PPOModel(config=config, name=name)
+    return PPOModel(
+        config=config, 
+        env_stats=env_stats, 
+        name=name, 
+        to_build=to_build)

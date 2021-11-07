@@ -47,6 +47,7 @@ class Strategy:
     def get_weights(self, identifier=None):
         if identifier is None:
             identifier = self._name
+
         weights = {}
         if self.model is not None:
             weights[f'{identifier}_model'] = self.model.get_weights()

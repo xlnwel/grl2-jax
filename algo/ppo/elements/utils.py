@@ -5,8 +5,8 @@ def get_data_format(config, env_stats, model, use_for_dataset=True):
     basic_shape = (None, config['sample_size']) \
         if hasattr(model, 'rnn') else (None,)
     data_format = dict(
-        obs=((*basic_shape, *env_stats.obs_shape), env_stats.obs_dtype, 'obs'),
-        action=((*basic_shape, *env_stats.action_shape), env_stats.action_dtype, 'action'),
+        obs=((*basic_shape, *env_stats['obs_shape']), env_stats['obs_dtype'], 'obs'),
+        action=((*basic_shape, *env_stats['action_shape']), env_stats['action_dtype'], 'action'),
         value=(basic_shape, tf.float32, 'value'),
         traj_ret=(basic_shape, tf.float32, 'traj_ret'),
         advantage=(basic_shape, tf.float32, 'advantage'),

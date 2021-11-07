@@ -72,7 +72,7 @@ class Dataset:
 def process_with_env(data, env_stats, obs_range=None, 
         one_hot_action=True, dtype=tf.float32):
     with tf.device('cpu:0'):
-        if env_stats.obs_dtype == np.uint8 and obs_range is not None:
+        if env_stats['obs_dtype'] == np.uint8 and obs_range is not None:
             if obs_range == [0, 1]:
                 for k in data:
                     if 'obs' in k:
@@ -83,10 +83,10 @@ def process_with_env(data, env_stats, obs_range=None,
                         data[k] = tf.cast(data[k], dtype) / 255. - .5
             else:
                 raise ValueError(obs_range)
-        if env_stats.is_action_discrete and one_hot_action:
+        if env_stats['is_action_discrete'] and one_hot_action:
             for k in data:
                 if k.endswith('action'):
-                    data[k] = tf.one_hot(data[k], env_stats.action_dim, dtype=dtype)
+                    data[k] = tf.one_hot(data[k], env_stats['action_dim'], dtype=dtype)
     return data
 
 

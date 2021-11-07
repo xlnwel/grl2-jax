@@ -47,7 +47,7 @@ class Policy(Module):
             if self.attention_action:
                 x = tf.matmul(x, self.embed, transpose_b=True)
             logits = x / self.eval_act_temp \
-                if evaluation and self.eval_act_temp else x
+                if evaluation and self.eval_act_temp > 0 else x
             if action_mask is not None:
                 assert logits.shape[1:] == action_mask.shape[1:], (logits.shape, action_mask.shape)
                 logits = tf.where(action_mask, logits, -1e10)

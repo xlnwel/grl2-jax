@@ -78,16 +78,7 @@ def change_config(kw, configs, model_name=''):
 
 
 def load_configs_with_algo_env(algo, env):
-    if '-' in algo:
-        config = get_config(algo.split('-')[-1], env)
-        dist_config = get_config(algo, env)
-        assert config or dist_config, (config, dist_config)
-        assert dist_config, dist_config
-        if config == {}:
-            config = dist_config
-        config = deep_update(config, dist_config)
-    else:
-        config = get_config(algo, env)
+    config = get_config(algo.split('-')[0], env)
     configs = dict2AttrDict(config)
 
     return configs

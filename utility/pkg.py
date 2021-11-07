@@ -9,15 +9,16 @@ def pkg_str(root_dir, separator, base_name=None):
 
 def get_package_from_algo(algo, place=0, separator='.'):
     algo = algo.split('-', 1)[place]
-    
+
     pkg = get_package('algo', algo, separator)
     if pkg is None:
         pkg = get_package('distributed', algo, separator)
+
     return pkg
 
 
 def get_package(root_dir, base_name=None, separator='.'):
-    for i in range(1, 10):
+    for i in range(1, 3):
         indexed_root_dir = root_dir if i == 1 else f'{root_dir}{i}'
         pkg = pkg_str(indexed_root_dir, '.', base_name)
         try:
@@ -48,7 +49,10 @@ def import_module(name=None, pkg=None, algo=None, *, config=None, place=0):
 def import_main(module, algo=None, *, config=None):
     algo = algo or config['algorithm']
     assert isinstance(algo, str), algo
-    pkg = get_package_from_algo(algo, place={'train': 0, 'eval': -1}[module])
-    m = importlib.import_module(f'{pkg}.{module}')
+    if '-' in algo:
+        m = importlib.import_module(f'distributed.{module}')
+    else:
+        pkg = get_package_from_algo(algo, place={'train': 0, 'eval': -1}[module])
+        m = importlib.import_module(f'{pkg}.{module}')
 
     return m.main

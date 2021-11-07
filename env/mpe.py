@@ -6,6 +6,6 @@ def make_mpe(config):
     assert 'mpe' in config['name'], config['name']
     env = MPEEnv(config)
     env = wrappers.DataProcess(env)
-    env = wrappers.MAEnvStats(env)
+    env = wrappers.MASimEnvStats(env)
 
     return env

@@ -398,6 +398,8 @@ class EnvStatsBase(gym.Wrapper):
             action_dtype=env.action_dtype,
             action_dim=env.action_dim,
             is_action_discrete=env.is_action_discrete,
+            n_trainable_agents=getattr(env, 'n_trainable_agents', 1),
+            n_controllable_agents=getattr(env, 'n_trainable_agents', 1),
             n_agents=getattr(env, 'n_agents', 1),
             global_state_shape=getattr(env, 'global_state_shape', ()),
             global_state_dtype=getattr(env, 'global_state_dtype', None),
@@ -525,13 +527,23 @@ class EnvStats(EnvStatsBase):
         return self._output
 
 
-class MAEnvStats(EnvStatsBase):
-    """ <MAEnvStats> expects agent-wise reward and done signal per step.
+class MASimEnvStats(EnvStatsBase):
+    """ Wrapper for multi-agent simutaneous environments
+    <MASimEnvStats> expects agent-wise reward and done signal per step.
     Otherwise, go for <EnvStats>
     """
     manual_reset_warning = True
-    def __init__(self, env, max_episode_steps=None, timeout_done=False, auto_reset=True):
-        super().__init__(env, max_episode_steps=max_episode_steps, timeout_done=timeout_done, auto_reset=auto_reset)
+    def __init__(self, 
+                 env, 
+                 max_episode_steps=None, 
+                 timeout_done=False, 
+                 auto_reset=True):
+        super().__init__(
+            env, 
+            max_episode_steps=max_episode_steps, 
+            timeout_done=timeout_done, 
+            auto_reset=auto_reset
+        )
         self._stats.update({
             'global_state_shape': self.global_state_shape,
             'global_state_dtype': self.global_state_dtype,

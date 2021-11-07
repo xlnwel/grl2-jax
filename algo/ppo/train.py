@@ -31,8 +31,7 @@ def train(agent, env, eval_env, buffer):
         for _ in range(10):
             runner.run(action_selector=env.random_action, step_fn=collect)
             agent.actor.update_obs_rms(np.concatenate(buffer['obs']))
-            discount = np.logical_and(buffer['discount'], 1 - buffer['reset'])
-            agent.actor.update_reward_rms(buffer['reward'], discount)
+            agent.actor.update_reward_rms(buffer['reward'], buffer['discount'])
             buffer.reset()
         buffer.clear()
         agent.set_env_step(runner.step)
@@ -91,8 +90,7 @@ def train(agent, env, eval_env, buffer):
         # The latter is adopted in our implementation. 
         # However, the following line currently doesn't store
         # a copy of unnormalized rewards
-        discount = np.logical_and(buffer['discount'], 1 - buffer['reset'])
-        agent.actor.update_reward_rms(buffer['reward'], discount)
+        agent.actor.update_reward_rms(buffer['reward'], buffer['discount'])
         buffer.update('reward', agent.actor.normalize_reward(buffer['reward']), field='all')
         agent.record_inputs_to_vf(runner.env_output)
         value = agent.compute_value()

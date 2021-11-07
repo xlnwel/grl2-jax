@@ -1,7 +1,6 @@
 from typing import Tuple, Dict
 import tensorflow as tf
 
-from env.typing import EnvOutput
 from utility.utils import config_attr
 from utility.tf_utils import numpy2tensor, tensor2numpy
 

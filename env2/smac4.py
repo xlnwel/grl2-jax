@@ -32,7 +32,7 @@ def make_smac4(config):
     config = config.copy()
     config['name'] = config['name'].split('_', maxsplit=1)[1]
     env = SMAC(**config)
-    env = wrappers.MAEnvStats(env)
+    env = wrappers.MASimEnvStats(env)
     return env
 
 races = {

@@ -73,7 +73,9 @@ def get_TensorSpecs(
             2. to pass an additional argument to x to override default_shape.
                Note that if s = None, this default_shape will be omitted anyway
         """
-        if isinstance(x, tf.TensorSpec):
+        if isinstance(x, tf.TensorSpec) \
+                or isinstance(x, tf.Tensor) \
+                    or isinstance(x, bool):
             return x
         elif isinstance(x, (list, tuple)):
             if hasattr(x, '_fields') or (len(x) > 1 and isinstance(x[1], tuple)):
@@ -90,8 +92,6 @@ def get_TensorSpecs(
                 n = None
             elif len(x) == 3:
                 s, d, n = x
-            elif len(x) == 4:
-                s, d, n, default_shape = x
             else:
                 raise ValueError(f'Unknown form x: {x}')
             s = () if s is None else default_shape+list(s)

@@ -16,6 +16,7 @@ def random_run(env, step):
     while not np.all(reset):
         next_obs, reward, discount, reset = env.step(env.random_action())
         assert np.all(reset[0] == reset), reset
+        discount[np.any(discount, 1)] = 1
         kwargs = dict(
             obs=obs['obs'],
             global_state=obs['global_state'],

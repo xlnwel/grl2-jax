@@ -19,17 +19,23 @@ class Model(Ensemble):
     def __init__(self, 
                  *,
                  config,
+                 env_stats=None,
                  model_fn=construct_components,
-                 name):
+                 name,
+                 to_build=False):
         super().__init__(config=config, 
             constructor=model_fn, name=name)
 
         self._has_ckpt = 'root_dir' in config and 'model_name' in config
-
+        if to_build:
+            self._build(env_stats)
         self._post_init(config)
 
     def ckpt_model(self):
         return self.components
+
+    def _build(self):
+        pass
 
     def _post_init(self, config):
         """ Add some additional attributes and 
