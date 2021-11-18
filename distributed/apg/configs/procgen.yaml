@@ -11,29 +11,22 @@ model_name: *algo
 env:
     name: &env_name procgen_coinrun
     n_workers: 1
-    n_envs: &nenvs 64
+    n_envs: &nenvs 16
     frame_skip: 1
     frame_stack: 1
     # num_levels: 200
     distribution_mode: easy
 
-agent:
-    algorithm: *algo
-    precision: 16
-
+monitor:
     MAX_STEPS: 2e8
-    N_STEPS: &nsteps 256
-    LOG_PERIOD: 100
-    EVAL_PERIOD: 100
-
-    N_EVAL_EPISODES: 1
-    RECORD_VIDEO: True
+    N_STEPS: &nsteps 32
+    LOG_PERIOD: 20
 
 strategy:
     train_loop:
-        N_EPOCHS: &nepochs 4
+        N_EPOCHS: &nepochs 1
         N_VALUE_EPOCHS: &nval_epochs 0
-        N_MBS: &nmbs 4
+        N_MBS: &nmbs 1
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
         # (once, reuse, null)
@@ -84,15 +77,16 @@ actor:
         normalize_reward: True
         gamma: &gamma .999
 
-actor_manager:
-    remote_actor:
-        buffer:
-            
-trainer_manager:
-    ray:
+coordinator:
+    actor_ray:
         num_cpus: 1
         num_gpus: .1
-    algorithm: *algo
+    trainer_ray:
+        num_cpus: 1
+        num_gpus: .1
+    actor_config:
+        precision: 16
+    actor_per_trainer: 6
 
 buffer:
     algorithm: *algo

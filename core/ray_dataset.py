@@ -1,4 +1,5 @@
 import logging
+import time
 import ray
 
 from core.dataset import *
@@ -6,7 +7,24 @@ from core.log import do_logging
 
 logger = logging.getLogger(__name__)
 
-class RayDataset(Dataset):
+
+class  RayDataset(Dataset):
+    def __init__(self, 
+                 buffer, 
+                 data_format, 
+                 process_fn=None, 
+                 batch_size=False, 
+                 print_data_format=True, 
+                 **kwargs):
+        super().__init__(
+            buffer, 
+            data_format, 
+            process_fn=process_fn, 
+            batch_size=batch_size, 
+            print_data_format=print_data_format, 
+            **kwargs)
+        self._sleep_time = 0.025
+    
     def name(self):
         return ray.get(self._buffer.name.remote())
 
@@ -15,7 +33,11 @@ class RayDataset(Dataset):
 
     def _sample(self):
         while True:
-            yield ray.get(self._buffer.sample.remote())
+            data = ray.get(self._buffer.sample.remote())
+            if data is None:
+                time.sleep(self._sleep_time)
+            else:
+                yield data
 
     def update_priorities(self, priorities, indices):
         self._buffer.update_priorities.remote(priorities, indices)

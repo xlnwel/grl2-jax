@@ -1,64 +1,42 @@
-import time
-import numpy as np
-import ray
-
-from core.decorator import record
-from core.agent import AgentImpl
-from utility.graph import video_summary
+from core.mixin.strategy import StepCounter
+from core.monitor import Monitor
+from distributed.remote.base import RayBase
+from utility.utils import AttrDict2dict, config_attr
 
 
-class Monitor(AgentImpl):
-    @record
-    def __init__(self):
-        self._ready = np.zeros(self._n_workers)
-        
-        self.time = time.time()
-        self.env_step = 0
-        self.last_env_step = 0
-        self.last_train_step = 0
-        self.MAX_STEPS = self.MAX_STEPS
-        self._print_logs = getattr(self, '_print_logs', False)
+class RemoteMonitor(RayBase):
+    def __init__(self, config, name):
+        self.config = config_attr(self, config)
+        self.monitor = Monitor(
+            self.config.root_dir, 
+            self.config.model_name, 
+            name,
+        )
+        self.step_counter = StepCounter(
+            self.config.root_dir, self.config.model_name, f'{name}_step_counter'
+        )
+        self.step_counter.restore_step()
 
-    def sync_env_train_steps(self, learner):
-        self.env_step, self.train_step = ray.get(
-            learner.get_env_train_steps.remote())
-        self.last_env_step = self.env_step
+    def store_stats(self, **stats):
+        if 'env_steps' in stats:
+            self.step_counter.add_env_step(stats['env_steps'])
+        if 'train_steps' in stats:
+            self.step_counter.add_train_step(stats['train_steps'])
 
-    def record_episodic_info(self, worker_name=None, **stats):
-        video = stats.pop('video', None)
-        if 'epslen' in stats:
-            self.env_step += np.sum(stats['epslen'])
-        if worker_name is not None:
-            stats = {f'{k}_{worker_name}': v for k, v in stats.items()}
-        self.store(**stats)
-        if video is not None:
-            video_summary(f'{self.name}/sim', video, step=self.env_step)
+        self.monitor.store(**stats)
 
-    def record_run_stats(self, worker_name=None, **stats):
-        if worker_name is not None:
-            stats = {f'{k}_{worker_name}': v for k, v in stats.items()}
-        self.store(**stats)
-
-    def record_train_stats(self, learner):
-        train_step, stats = ray.get(learner.get_stats.remote())
-        if train_step == 0:
-            return
-        duration = time.time() - self.time
-        env_steps = self.env_step - self.last_env_step
-        train_steps = train_step - self.last_train_step
-        self.store(
-            train_step=train_step, 
-            env_step=self.env_step, 
-            fps=env_steps / duration,
-            tps=train_steps / duration,
-            fpt=env_steps / train_steps,
-            tpf=train_steps / env_steps,
-            **stats)
-        self.log(self.env_step, print_terminal_info=self._print_logs)
-        self.last_train_step = train_step
-        self.last_env_step = self.env_step
-        self.time = time.time()
-        learner.save.remote(self.env_step)
+    def record(self):
+        self.monitor.record(self.step_counter.get_env_step(), adaptive=False)
+        self.step_counter.save_step()
 
     def is_over(self):
-        return self.env_step > self.MAX_STEPS
+        return self.step_counter.get_env_step() > self.config.monitor.MAX_STEPS
+
+
+def create_central_monitor(config):
+    config = AttrDict2dict(config)
+    buffer = RemoteMonitor.as_remote().remote(
+        config,
+        name='monitor'
+    )
+    return buffer

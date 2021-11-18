@@ -107,12 +107,12 @@ class Recorder:
         self._store_dict.clear()
         return stats
 
-    def get_stats(self, mean=True, std=False, min=False, max=False):
+    def get_stats(self, mean=True, std=False, min=False, max=False, adaptive=True):
         stats = {}
         for k in sorted(self._store_dict):
             v = self._store_dict[k]
             k_std, k_min, k_max = std, min, max
-            if k.startswith('train/') or k.startswith('stats/'):
+            if adaptive and k.startswith('train/') or k.startswith('stats/'):
                 k_std = k_min = k_max = True
             if isscalar(v):
                 stats[k] = v
@@ -247,6 +247,7 @@ class TensorboardWriter:
 
     def flush(self):
         self._writer.flush()
+
 
 """ Recorder Ops """
 def record_stats(recorder, stats, print_terminal_info=True):

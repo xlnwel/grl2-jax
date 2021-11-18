@@ -1,35 +1,39 @@
 import time
 import threading
+import ray
 
 from core.mixin import IdentifierConstructor
-from core.monitor import create_monitor
+from core.mixin.monitor import create_recorder
 from utility import pkg
-from utility.utils import config_attr, dict2AttrDict
+from utility.ray_setup import config_actor
+from utility.utils import dict2AttrDict
 from distributed.remote.base import RayBase
 from distributed.typing import ActorPair
 
 
 class RemoteActorBase(RayBase):
     def __init__(self, config, env_stats, name=None):
-        self._env_stats = env_stats
-        self.config = config_attr(self, config, filter_dict=False)
+        self.config = dict2AttrDict(config)
+        self.env_stats = env_stats
+        config_actor(name, self.config.coordinator.actor_config)
         self._name = name
         self._idc = IdentifierConstructor()
 
         self.model_constructors = {}
         self.actor_constructors = {}
 
-        self.buffers = {}
+        self.local_buffers = {}
         self.central_buffers = {}
         self.actors = {}
         self.configs = {}
         # we defer all constructions to the run time
 
+        self.param_queues = {}
         self.workers = {}
-        self.monitor = create_monitor(
-            self.config.root_dir, self.config.model_name, name)
+        self.recorder = create_recorder(None, None)
 
-        self._env_steps = 0
+        self._env_step = 0
+        self._train_step = 0
         self._stop_act_loop = True
 
     def register_actor(self, actor, aid=None, sid=None):
@@ -46,21 +50,24 @@ class RemoteActorBase(RayBase):
 
     def get_weights(self, aid=None, sid=None):
         identifier = self._idc.get_identifier(aid=aid, sid=sid)
-        self.actors[aid].actor.get_weights(identifier=identifier)
+        weights = self.actors[aid].actor.get_weights(identifier=identifier)
+        return weights
 
     def get_auxiliary_weights(self, aid=None, sid=None):
         identifier = self._idc.get_identifier(aid=aid, sid=sid)
-        self.actors[aid].actor.get_auxiliary_weights(identifier=identifier)
+        weights = self.actors[aid].actor.get_auxiliary_weights(identifier=identifier)
+        return weights
 
     def construct_actor_from_config(self, config, aid=None, sid=None, weights=None):
         """ Construct an actor from config """
+        config = dict2AttrDict(config)
         algo = config.algorithm
         self._setup_constructors(algo)
-        actor = self._construct_actor(algo, config, self._env_stats)
+        actor = self._construct_actor(algo, config, self.env_stats)
 
         identifier = self._idc.get_identifier(aid=aid, sid=sid)
         self.actors[aid] = ActorPair(identifier, actor)
-        self.configs[identifier] = dict2AttrDict(config)
+        self.configs[identifier] = config
         if weights is not None:
             self.actors[aid].actor.set_weights(weights, identifier=identifier)
 
@@ -73,7 +80,7 @@ class RemoteActorBase(RayBase):
             name='elements.actor', algo=algo, place=-1).create_actor
 
     def _construct_actor(self, algo, config, env_stats):
-        model = self.model_constructors[algo](config.model, env_stats)
+        model = self.model_constructors[algo](config.model, env_stats, to_build=True)
         actor = self.actor_constructors[algo](config.actor, model)
 
         return actor
@@ -87,6 +94,16 @@ class RemoteActorBase(RayBase):
         self._act_thread.start()
 
     def _act_loop(self):
+        def wait_to_start():
+            n_trainable_agents = self.env_stats['n_trainable_agents']
+            n_controllable_agents = self.env_stats['n_controllable_agents']
+            while len(self.local_buffers) < n_trainable_agents \
+                    or len(self.param_queues) < n_trainable_agents \
+                    or len(self.actors) < n_controllable_agents:
+                time.sleep(1)
+
+        wait_to_start()
+
         while True:
             if self._stop_act_loop:
                 time.sleep(1)
@@ -101,27 +118,45 @@ class RemoteActorBase(RayBase):
     def restart_act_loop(self):
         self._stop_act_loop = False
 
-    def fetch_weights(self, q_size):
-        aid, weights = None, None
+    def fetch_weights(self, aid, q_sizes=None):
+        weights = None
 
-        q_size.append(self.param_queue.qsize())
+        if q_sizes:
+            q_size = self.param_queues[aid].qsize()
+            if q_size > 0:
+                q_sizes.append(q_size)
 
-        while not self._param_queue.empty():
-            aid, self.train_step, weights = self._param_queue.get(block=False)
+        while not self.param_queues[aid].empty():
+            self._train_step, (aid2, sid, weights) = self.param_queues[aid].get(block=False)
+            if aid != aid2:
+                raise ValueError(f'Inconsistent Agent ID: {aid} != {aid2}')
 
         if weights is not None:
-            self.actors[aid].set_weights(weights)
-        
-        return q_size
+            identifier = self._idc.get_identifier(aid=aid, sid=sid)
+            self.actors[aid].actor.set_weights(weights, identifier=identifier)
+
+        return q_sizes
+
+    def register_param_queue(self, aid, pq):
+        self.param_queues[aid] = pq
 
     def register_buffer(self, aid, central_buffer):
-        raise NotImplementedError
+        algo = self.config.algorithm.split('-')[0]
+        buffer_constructor = pkg.import_module(
+            'buffer', pkg=f'distributed.{algo}').create_local_buffer
+        self.local_buffers[aid] = buffer_constructor(self.config.buffer)
+        self.central_buffers[aid] = central_buffer
 
     def _sync_sim_loop(self):
         raise NotImplementedError
 
     def _async_sim_loop(self):
         raise NotImplementedError
+
+    def _send_data(self, aid):
+        data = self.local_buffers[aid].sample()
+        self.central_buffers[aid].merge.remote(data)
+        self.local_buffers[aid].reset()
 
 
 if __name__ == '__main__':
@@ -140,12 +175,12 @@ if __name__ == '__main__':
 
     env_stats = get_env_stats(config.env)
 
-    trainer1 = RemoteActorBase(config, env_stats, aid=1, sid=1)
-    trainer2 = RemoteActorBase(config, env_stats, aid=1, sid=2)
+    actor1 = RemoteActorBase(config, env_stats, aid=1, sid=1)
+    actor2 = RemoteActorBase(config, env_stats, aid=1, sid=2)
 
-    aid1, sid1, weights1 = trainer1.get_weights()
-    trainer2.set_weights(weights1, aid1, sid1)
-    aid2, sid2, weights2 = trainer2.get_weights()
+    aid1, sid1, weights1 = actor1.get_weights()
+    actor2.set_weights(weights1, aid1, sid1)
+    aid2, sid2, weights2 = actor2.get_weights()
 
     for k in weights1.keys():
         # if k.endswith('model'):

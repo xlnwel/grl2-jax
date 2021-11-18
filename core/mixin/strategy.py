@@ -18,11 +18,17 @@ class StepCounter:
     def set_env_step(self, step):
         self._env_step = step
 
+    def add_env_step(self, steps):
+        self._env_step += steps
+
     def get_train_step(self):
         return self._train_step
 
     def set_train_step(self, step):
         self._train_step = step
+
+    def add_train_step(self, steps):
+        self._train_step += steps
 
     def get_steps(self):
         return self._train_step, self._env_step

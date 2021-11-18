@@ -1,36 +1,33 @@
 import time
 import collections
-from threading import Lock
 import numpy as np
+import ray
 
 from core.decorator import config
 from core.mixin.actor import RMS
 from distributed.remote.base import RayBase
-from utility.utils import batch_dicts, config_attr, to_array32
+from utility.utils import AttrDict2dict, batch_dicts, config_attr, to_array32
 from utility import pkg
 from replay.utils import *
 
 
 class APGBuffer(RayBase):
     def __init__(self, config):
-        config_attr(self, config)
+        rms_config = config.pop('rms')
+        self.config = config_attr(self, config)
         create_buffer = pkg.import_module(
             'elements.buffer', algo=config['algorithm'], place=-1).create_buffer
+        config['n_envs'] = config['n_trajs']
         self._buff = create_buffer(config)
         self._buff.reshape_to_store = lambda: None  # data is shaped in advance; no need of this function
-        self.rms = RMS(config['rms'])
+        self.rms = RMS(rms_config)
 
         self._cache = []
         self._batch_idx = 0
-        self._train_step = 0
 
-        self._n_batch = self._n_trajs // self._n_envs   # #batch expected to received for training
-        self._sample_wait_time = 0
-        self._sleep_time = 0.025
+        self._n_batch = self.config.n_trajs // self.config.n_envs   # #batch expected to received for training
         self._diag_stats = collections.defaultdict(list)
-
-        # to avoid contention caused by multi-thread parallelism
-        self._lock = Lock()
+        self._n = 0
 
     @property
     def batch_size(self):
@@ -39,28 +36,20 @@ class APGBuffer(RayBase):
     def is_full(self):
         return self._batch_idx >= self._n_batch
 
-    def set_train_step(self, train_step):
-        self._train_step = train_step
-
     def merge(self, data):
-        with self._lock:
-            self._cache.append(data)
-            self._batch_idx += 1
+        self._cache.append(data)
+        self._batch_idx += 1
 
     def sample(self):
-        if not self._buff.ready():
-            self._diag_stats['sample_wait_time'].append(
-                self._sample_wait_time)
-            self._sample_wait_time = 0
-            self._wait_to_sample()
+        if not self.is_full():
+            return None
+
+        self._prepare_for_sampling()
         sample = self._buff.sample()
+
         return sample
 
-    def _wait_to_sample(self):
-        while not self.is_full():
-            time.sleep(self._sleep_time)
-            self._sample_wait_time += self._sleep_time
-        
+    def _prepare_for_sampling(self):        
         n, train_step = self._fill_buffer()
         self._record_async_stats(n, train_step)
         self._update_agent_rms()
@@ -69,11 +58,10 @@ class APGBuffer(RayBase):
         self._buff.reshape_to_sample()
 
     def _fill_buffer(self):
-        with self._lock:
-            data = self._cache[-self._n_batch:]
-            self._cache = []
-            n = self._batch_idx
-            self._batch_idx = 0
+        data = self._cache[-self._n_batch:]
+        self._cache = []
+        n = self._batch_idx
+        self._batch_idx = 0
         data = batch_dicts(data, np.concatenate)
         train_step = data.pop('train_step')
         self._buff.replace_memory(data)
@@ -83,12 +71,16 @@ class APGBuffer(RayBase):
     def _record_async_stats(self, n, train_step):
         self._diag_stats['trajs_dropped'].append(
             n * self._n_envs - self._n_trajs)
-        self._diag_stats['policy_version_min_diff'].append(
-            self._train_step - train_step[:, -1].max())
+        train_step_max = train_step.max()
         self._diag_stats['policy_version_max_diff'].append(
-            self._train_step - train_step[:, 0].min())
+            train_step_max - train_step.min())
         self._diag_stats['policy_version_avg_diff'].append(
-            self._train_step - train_step.mean())
+            train_step_max - train_step.mean())
+        self._n += 1
+        if self._n % 10 == 0:
+            self.monitor.store_stats.remote(**self._diag_stats)
+            self._n = 0
+            self._diag_stats.clear()
 
     def _update_agent_rms(self):
         self.rms.update_obs_rms(np.concatenate(self._buff['obs']))
@@ -113,6 +105,9 @@ class LocalBuffer:
     @config
     def __init__(self):
         self.reset()
+
+    def size(self):
+        return self._n_envs * self.N_STEPS
 
     def is_full(self):
         return self._idx == self.N_STEPS
@@ -150,9 +145,15 @@ class LocalBuffer:
             self._memory['mask'].append(last_mask)
 
 
-def create_buffer(config):
-    buffer = APGBuffer.as_remote(num_cpus=1).remote(config=config)
+def create_central_buffer(config):
+    config = AttrDict2dict(config)
+    buffer = APGBuffer.as_remote().remote(config=config)
     return buffer
+
+def create_local_buffer(config):
+    buffer = LocalBuffer(config=config)
+    return buffer
+
 
 if __name__ == '__main__':
     config = dict(
@@ -168,7 +169,7 @@ if __name__ == '__main__':
         adv_type='gae',
         gamma=.99,
         lam=95,
-        n_trajs=100,
+        n_trajs=19,
         n_envs=10,
         N_STEPS=256,
         N_EPOCHS=3,
@@ -178,9 +179,14 @@ if __name__ == '__main__':
         sample_keys=[
             'obs', 'action', 'value', 'traj_ret', 'advantage', 'logpi'],
     )
-
     import ray
-    ray.init()
-    buffer = create_buffer(config)
+    ray.init(num_cpus=1)
+    buffer = create_central_buffer(config)
+    for _ in range(10):
+        ray.get(buffer.merge.remote(dict(
+            a=10,
+            b=20
+        )))
     print(ray.get(buffer.is_full.remote()))
+    time.sleep(10)
     ray.shutdown()

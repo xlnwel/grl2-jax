@@ -70,7 +70,7 @@ class Strategy:
 
     def train_record(self):
         n, stats = self.train_loop.train()
-        self.step_counter.set_train_step(self.step_counter.get_env_step() + n)
+        self.step_counter.add_train_step(n)
 
         return stats
 

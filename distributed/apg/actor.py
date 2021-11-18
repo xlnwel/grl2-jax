@@ -1,59 +1,66 @@
-import functools
+import time
 import numpy as np
 import ray
 
+from distributed.remote.actor import RemoteActorBase
 from env.func import create_env
 from utility import pkg
 from utility.display import pwc
-from distributed.remote.actor import RemoteActorBase
-from distributed.apg.buffer import LocalBuffer
+from utility.timer import Timer
+from utility.utils import AttrDict2dict
 
 
 class RemoteActor(RemoteActorBase):
-    def register_buffer(self, aid, central_buffer):
-        if not hasattr(self, 'buffers'):
-            self.buffers = {}
-        self.buffers[aid] = LocalBuffer(self.config.buffer)
-        self.central_buffers[aid] = central_buffer
-
     def _sync_sim_loop(self):
         pwc(f'{self._name} synchronous loop', color='green')
 
-        buffer_collect = []
-        for aid in sorted(self.actors):
-            identifier, actor = self.actors[aid]
-            if aid in self.buffers:
-                algo = self.configs[identifier].algorithm
-                collect_fn = pkg.import_module('elements.utils', algo=algo).collect
-                collect = functools.partial(collect_fn, self.buffers[aid])
-                buffer_collect.append(self.buffers[aid], collect)
+        collect_funcs = {}
+        for aid in sorted(self.local_buffers):
+            identifier, _ = self.actors[aid]
+            algo = self.configs[identifier].algorithm
+            collect = pkg.import_module(
+                'elements.utils', algo=algo, place=-1).collect
+            collect_funcs[aid] = collect
 
-        env = create_env(self.config.env)
-        env_output = env.output()
+        def single_agent_loop():
+            env = create_env(self.config.env)
+            env_output = env.output()
 
-        if len(self.actors) == 1:
-            buffer, collect = buffer_collect[0]
-            
+            aid = list(self.local_buffers.keys())[0]
+            buffer, collect = self.local_buffers[aid], collect_funcs[aid]
+            actor = self.actors[aid].actor
+
             q_sizes = []
+            start_env_time = time.time()
+            env_steps = buffer.size()
+            scores = []
+            epslens = []
             while True:
                 if self._stop_act_loop:
                     break
-                q_sizes = self.fetch_weights(q_sizes)
-                action, terms = self.actor(env_output)
+                q_sizes = self.fetch_weights(aid, q_sizes)
+                inp = env_output.obs
+                action, terms, state = actor(inp, evaluation=False)
                 next_env_output = env.step(action)
 
-                next_obs, reward, discount, reset = next_env_output
+                _, reward, discount, reset = next_env_output
 
                 kwargs = dict(
-                    obs=env_output.obs, 
+                    **env_output.obs, 
                     action=action, 
                     reward=reward, 
                     discount=discount, 
-                    next_obs=next_obs)
+                    reset=env_output.reset, 
+                    next_obs=None,
+                    train_step=self._train_step)
                 kwargs.update(terms)
+                collect(buffer, env, self._env_step, **kwargs)
 
-                buffer.add(**kwargs)
-
+                if np.any(reset):
+                    done_env_ids = [i for i, r in enumerate(reset)
+                        if (np.all(r) if isinstance(r, np.ndarray) else r)]
+                    scores += env.score(done_env_ids)
+                    epslens += env.epslen(done_env_ids)
                 if buffer.is_full():
                     # Adds the last value/obs to buffer for gae computation. 
                     if buffer._adv_type == 'vtrace':
@@ -62,9 +69,21 @@ class RemoteActor(RemoteActorBase):
                             last_mask=1-env_output.reset)
                     else:
                         buffer.finish(last_value=terms['value'])
+                    self._send_data(aid)
+                    buffer.reset()
+                    env_time = time.time()
+                    self.monitor.store_stats.remote(
+                        env_steps=env_steps,
+                        fps=env_steps / (env_time - start_env_time),
+                        score=scores,
+                        epslen=epslens
+                    )
 
                 env_output = next_env_output
-                self._env_steps += env.n_envs
+                self._env_step += env.n_envs
+
+        if len(self.actors) == 1:
+            single_agent_loop()
         else:
             raise NotImplementedError
 
@@ -94,16 +113,11 @@ class RemoteActor(RemoteActorBase):
                 (len(wids), len(eids), self._action_batch)
             env_output = list(zip(*ray.get(ready_objs)))
             assert len(env_output) == 4, env_output
-            if isinstance(env_output[0][0], dict):
-                # if obs is a dict
-                env_output = EnvOutput(*[
-                    batch_dicts(x, np.concatenate)
-                    if isinstance(x[0], dict) else np.concatenate(x, 0)
-                    for x in env_output])
-            else:
-                env_output = EnvOutput(*[
-                    np.concatenate(x, axis=0) 
-                    for x in env_output])
+            env_output = EnvOutput(*[
+                batch_dicts(x, np.concatenate)
+                if isinstance(x[0], dict) else np.concatenate(x, 0)
+                for x in env_output])
+            
             # do inference
             with Timer(f'{self.name} call') as ct:
                 actions, terms = self(wids, eids, env_output)
@@ -135,5 +149,8 @@ class RemoteActor(RemoteActorBase):
 
 
 def create_remote_actor(config, env_stats, name):
-    return RemoteActor.as_remote(**config.trainer_manager.ray)(
-        config, env_stats, name=name)
+    ray_config = config.coordinator.actor_ray
+    config = AttrDict2dict(config)
+    env_stats = AttrDict2dict(env_stats)
+    return RemoteActor.as_remote(**ray_config
+        ).remote(config, env_stats, name=name)

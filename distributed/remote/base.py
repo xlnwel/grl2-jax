@@ -8,4 +8,6 @@ class RayBase:
     
     @classmethod
     def as_remote(cls, **kwargs):
-        return ray.remote(**kwargs)(cls)
+        if kwargs:
+            return ray.remote(**kwargs)(cls)
+        return ray.remote(cls)

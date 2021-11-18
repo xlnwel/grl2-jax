@@ -6,7 +6,7 @@ class Monitor:
                 use_recorder=True, use_tensorboard=True):
         self._root_dir = root_dir
         self._model_name = model_name
-        if use_recorder and root_dir is not None:
+        if use_recorder:
             self._recorder = create_recorder(
                 root_dir=root_dir, model_name=model_name)
         else:
@@ -26,12 +26,13 @@ class Monitor:
             return getattr(self._tb_writer, name)
         raise AttributeError(f"Attempted to get missing attribute '{name}'")
 
-    def record(self, step):
+    def record(self, step, adaptive=True):
         record(
             recorder=self._recorder, 
             tb_writer=self._tb_writer, 
             model_name=self._model_name, 
-            step=step
+            step=step,
+            adaptive=adaptive
         )
 
 
