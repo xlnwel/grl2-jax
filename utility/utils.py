@@ -1,5 +1,6 @@
 import ast
 import collections
+import copy
 import inspect
 import itertools
 import math
@@ -13,22 +14,22 @@ from utility.typing import AttrDict
 
 
 def dict2AttrDict(config: dict):
-    attr_config = AttrDict(**config)
-    for k, v in attr_config.items():
+    attr_config = AttrDict()
+    for k, v in config.items():
         if isinstance(v, dict):
             attr_config[k] = dict2AttrDict(v)
         else:
-            attr_config[k] = v
+            attr_config[k] = copy.deepcopy(v)
 
     return attr_config
 
 def AttrDict2dict(attr_config: AttrDict):
-    config = attr_config.asdict()
-    for k, v in config.items():
+    config = {}
+    for k, v in attr_config.items():
         if isinstance(v, AttrDict):
             config[k] = AttrDict2dict(v)
         else:
-            config[k] = v
+            config[k] = copy.deepcopy(v)
 
     return config
 
@@ -45,14 +46,17 @@ def deep_update(source: dict, target:dict):
 
 def eval_config(config):
     for k, v in config.items():
-        if isinstance(v, str):
-            try:
-                v = float(v)
-            except:
-                pass
-        if isinstance(v, float) and v == int(v):
-            v = int(v)
-        config[k] = v
+        if isinstance(v, dict):
+            config[k] = eval_config(v)
+        else:
+            if isinstance(v, str):
+                try:
+                    v = float(v)
+                except:
+                    pass
+            if isinstance(v, float) and v == int(v):
+                v = int(v)
+            config[k] = v
     return config
 
 def config_attr(obj, config: dict, filter_dict: bool=False):
@@ -66,6 +70,7 @@ def config_attr(obj, config: dict, filter_dict: bool=False):
             private attributes
         filter_dict: whether to omit dictionaries
     """
+    config = eval_config(config)
     config = dict2AttrDict(config)
     setattr(obj, 'config', config)
     for k, v in config.items():

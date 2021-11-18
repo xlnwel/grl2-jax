@@ -25,15 +25,15 @@ def _get_algo_name(algo):
     return algo
 
 
-def _set_path(configs, root_dir, model_name):
-    configs['root_dir'] = root_dir
-    configs['model_name'] = model_name
-    for v in configs.values():
+def _set_path(config, root_dir, model_name):
+    config['root_dir'] = root_dir
+    config['model_name'] = model_name
+    for v in config.values():
         if not isinstance(v, dict):
             continue
         v['root_dir'] = root_dir
         v['model_name'] = model_name
-    return configs
+    return config
 
 
 if __name__ == '__main__':
@@ -59,15 +59,15 @@ if __name__ == '__main__':
 
         for algo, env in algo_env:
             algo = _get_algo_name(algo)
-            configs = load_configs_with_algo_env(algo, env)
-            model_name = change_config(cmd_args.kwargs, configs, model_name)
+            config = load_configs_with_algo_env(algo, env)
+            model_name = change_config(cmd_args.kwargs, config, model_name)
             if model_name == '':
                 model_name = 'baseline'
 
             main = pkg.import_main('train', algo)
             if cmd_args.grid_search or cmd_args.trials > 1:
                 gs = GridSearch(
-                    configs, main, n_trials=cmd_args.trials, 
+                    config, main, n_trials=cmd_args.trials, 
                     logdir=logdir, dir_prefix=prefix,
                     separate_process=len(algo_env) > 1, 
                     delay=cmd_args.delay)
@@ -78,15 +78,15 @@ if __name__ == '__main__':
                     processes += gs()
             else:
                 dir_prefix = prefix + '-' if prefix else prefix
-                root_dir=f'{logdir}/{dir_prefix}{configs.env["name"]}/{configs.agent["algorithm"]}'
-                configs = _set_path(configs, root_dir, model_name)
-                configs.buffer['root_dir'] = configs.buffer['root_dir'].replace('logs', 'data')
-                do_logging(configs, level='DEBUG')
+                root_dir=f'{logdir}/{dir_prefix}{config.env.name}/{config.algorithm}'
+                config = _set_path(config, root_dir, model_name)
+                config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
+                do_logging(config, level='DEBUG')
                 if len(algo_env) > 1:
-                    p = Process(target=main, args=configs)
+                    p = Process(target=main, args=config)
                     p.start()
                     time.sleep(1)
                     processes.append(p)
                 else:
-                    main(configs)
+                    main(config)
     [p.join() for p in processes]

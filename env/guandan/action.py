@@ -1,0 +1,59 @@
+# uncompyle6 version 3.7.4
+# Python bytecode 3.6 (3379)
+# Decompiled from: Python 3.8.10 (default, May 19 2021, 13:12:57) [MSC v.1916 64 bit (AMD64)]
+# Embedded file name: action.py
+
+
+class Action(object):
+
+    def __init__(self, _type=None, _rank=None, _cards=None):
+        self._type = _type
+        self._rank = _rank
+        self._cards = _cards
+
+    def update(self, _type, _rank, _cards):
+        self._type = _type
+        self._rank = _rank
+        self._cards = _cards
+
+    @property
+    def type(self):
+        return self._type
+
+    @property
+    def rank(self):
+        return self._rank
+
+    @property
+    def cards(self):
+        return self._cards
+
+    def reset(self):
+        self.update(None, None, None)
+
+    def __str__(self):
+        return str([self._type, self._rank, self._cards])
+
+
+class ActionList(object):
+
+    def __init__(self):
+        self.action_list = None
+
+    def update(self, action_list):
+        self.action_list = action_list
+
+    def __getitem__(self, item):
+        return Action(*self.action_list[item])
+
+    def __str__(self):
+        return str(self.action_list)
+
+    @property
+    def valid_range(self):
+        if len(self.action_list) == 1:
+            return range(0, 1)
+        else:
+            return range(len(self.action_list))
+# okay decompiling action.pyc
+

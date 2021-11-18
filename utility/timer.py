@@ -25,6 +25,7 @@ def timeit(func, *args, name=None, to_print=True,
     else:
         return result
 
+
 class Timer:
     aggregators = defaultdict(Aggregator)
 
@@ -69,6 +70,7 @@ class Timer:
     
     def total(self):
         return self.aggregators[self._summary_name].total
+
 
 class TBTimer:
     aggregators = defaultdict(Aggregator)
@@ -115,6 +117,7 @@ class LoggerTimer:
         if self._to_log:
             duration = time() - self._start
             self._logger.store(**{self._summary_name: duration})
+
 
 class Every:
     def __init__(self, period, start=0):

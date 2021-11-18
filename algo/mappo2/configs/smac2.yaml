@@ -25,7 +25,6 @@ agent:
     MAX_STEPS: 1e8
     N_STEPS: &nsteps 400
     LOG_PERIOD: 200
-    EVAL_PERIOD: 200
 
 strategy:
     train_loop:

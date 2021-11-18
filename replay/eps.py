@@ -7,8 +7,8 @@ import uuid
 import numpy as np
 
 from core.decorator import config
-from replay.local import EnvEpisodicBuffer, EnvFixedEpisodicBuffer, \
-    EnvVecFixedEpisodicBuffer
+from core.log import do_logging
+from replay.local import EnvEpisodicBuffer, EnvFixedEpisodicBuffer
 from replay.utils import load_data, print_buffer, save_data
 
 logger = logging.getLogger(__name__)

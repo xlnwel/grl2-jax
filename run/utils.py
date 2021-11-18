@@ -30,7 +30,7 @@ def get_config(algo, env):
     if config is None:
         raise RuntimeError('No configure is loaded')
 
-    config['agent']['algorithm'] = algo
+    config['algorithm'] = algo
     config['env']['name'] = env
 
     return config
@@ -78,10 +78,10 @@ def change_config(kw, configs, model_name=''):
 
 
 def load_configs_with_algo_env(algo, env):
-    config = get_config(algo.split('-')[0], env)
-    configs = dict2AttrDict(config)
+    config = get_config(algo, env)
+    config = dict2AttrDict(config)
 
-    return configs
+    return config
 
 
 def load_and_run(directory):

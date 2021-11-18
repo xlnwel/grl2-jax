@@ -38,8 +38,6 @@ strategy:
         # null doesn't update values.
         value_update: null
 
-    RECORD: False
-
 model:
     rnn_type: &rnn rnn_mlstm
 
