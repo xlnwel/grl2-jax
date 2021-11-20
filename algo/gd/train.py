@@ -228,3 +228,4 @@ def main(config, train=train):
         if eval_env is not None:
             eval_env.close()
         ray.shutdown()
+

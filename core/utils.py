@@ -13,7 +13,7 @@ def save_code(root_dir, model_name):
     
     shutil.copytree('.', dest_dir, 
         ignore=shutil.ignore_patterns(
-            '*logs*', 'data/*', '.*', '*.md',
+            '*logs*', '*data*', '.*', '*.md',
             '*pycache*', '*.pyc', '*test*',
             '*results*'))
 

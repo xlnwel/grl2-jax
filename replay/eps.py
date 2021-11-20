@@ -32,8 +32,7 @@ class EpisodicReplay:
         self._state_keys = state_keys
         self._tmp_bufs = []
 
-        self._local_buffer_type = getattr(
-            self, '_local_buffer_type', 'eps')
+        self._local_buffer_type = getattr(self, '_local_buffer_type', 'eps')
         # if self._n_envs > 1 and self._local_buffer_type.startswith('env_'):
         #     self._local_buffer_type = 'vec_' + self._local_buffer_type
         self.TempBufferType = {
