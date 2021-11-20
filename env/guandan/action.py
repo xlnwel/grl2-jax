@@ -2,6 +2,31 @@
 # Python bytecode 3.6 (3379)
 # Decompiled from: Python 3.8.10 (default, May 19 2021, 13:12:57) [MSC v.1916 64 bit (AMD64)]
 # Embedded file name: action.py
+import numpy as np
+
+from env.guandan.utils import PASS, BOMB, STRAIGHT_FLUSH, Action2Num
+
+
+def get_action_type(action, action_type=None):
+    if action_type is None:
+        action_type = np.zeros(3, dtype=np.float32)
+
+    if action.type == PASS:
+        action_type[0] = 1
+    elif action.type == BOMB or action.type == STRAIGHT_FLUSH:
+        action_type[2] = 1
+    else:
+        action_type[1] = 1
+    
+    return action_type
+
+
+def get_action_card(action, action_card=None):
+    if action_card is None:
+        action_card = np.zeros(15, dtype=np.float32)
+    if action.type != PASS:
+        action_card[Action2Num[action.cards[0][-1]]] = 1
+    return action_card
 
 
 class Action(object):
@@ -34,6 +59,8 @@ class Action(object):
     def __str__(self):
         return str([self._type, self._rank, self._cards])
 
+    def copy(self):
+        return Action(self.type, self.rank, self.cards)
 
 class ActionList(object):
 

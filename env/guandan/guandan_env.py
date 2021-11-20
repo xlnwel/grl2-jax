@@ -1,22 +1,9 @@
-from collections import Counter
 import numpy as np
 from env.guandan.player import Player
-from guandan.small_game import SmallGame
-from guandan.action import Action
+from env.guandan.small_game import InfoSet, SmallGame, get_down_pid, get_teammate_pid, get_up_pid
+from env.guandan.action import Action
+from env.guandan.utils import Card2Num, Suit2Num, Action2Num, STRAIGHT_FLUSH, BOMB, PASS
 
-Card2Column = {'2':0, '3':1, '4':2, '5':3, '6':4, '7':5, '8':6,
-               '9':7, 'T':8, 'J':9, 'Q':10, 'K':11, 'A':12}
-Suit2Row = {'S':0, 'H':1, 'C':2, 'D':3}
-SINGLE = 'Single'
-PAIR = 'Pair'
-TRIPS = 'Trips'
-THREE_PAIR = 'ThreePair'
-THREE_WITH_TWO = 'ThreeWithTwo'
-TWO_TRIPS = 'TwoTrips'
-STRAIGHT = 'Straight'
-STRAIGHT_FLUSH = 'StraightFlush'
-BOMB = 'Bomb'
-PASS = 'PASS'
 
 class Env:
     def __init__(self):
@@ -29,18 +16,15 @@ class Env:
         players = [Player('0'), Player('1'), Player('2'), Player('3')]
         self._env = SmallGame()
         self._env.players = players
-        self.infoset = None
 
     def random_action(self):
         return self._env.random_action()
 
     def reset(self):
         self._env.reset()
-        self._env.info_init()
         self._env.start()
-        self.infoset = self._game_infoset
 
-        return get_obs(self.infoset)
+        return get_obs(self._get_infoset())
 
     def step(self, action):
         #self._env.players[self._acting_player_position].set_action(action)
@@ -51,31 +35,14 @@ class Env:
 
         if self._game_over:
             done = True
-            reward = self._get_reward()
+            reward = self._env.compute_reward()
             obs = None
         else:
-            self.infoset = self._game_infoset
-            obs = get_obs(self.infoset)
+            obs = get_obs(self._get_infoset)
+
         return obs, reward, done, info
 
-    def _get_reward(self):
-        order = self._env.over_order.order
-        reward = {0: 0, 1: 0, 2: 0, 3: 0}
-        if (order[0] + 2) % 4 == order[1]:
-            reward[order[0]] = 3
-        elif (order[0] + 2) % 4 == order[2]:
-            reward[order[0]] = 2
-        else:
-            reward[order[0]] = 1
-        # first, first_mate, inc = self._env.over_order.settlement()
-        # if first == 0 or first_mate == 0:
-        #     reward = inc
-        # else:
-        #     reward = 0
-        return reward
-
-    @property
-    def _game_infoset(self):
+    def _get_infoset(self):
         """
         Here, infoset is defined as all the information
         in the current situation, including the hand cards
@@ -123,74 +90,93 @@ def get_obs(infoset):
     return _get_obs(infoset)
 
 
-def _get_one_hot_array(num_left_cards, max_num_cards):
+def _get_one_hot_array(i,n):
     """
-    A utility function to obtain one-hot endoding
+    A utility function to obtain one-hot encoding
     """
-    one_hot = np.zeros(max_num_cards)
-    one_hot[num_left_cards - 1] = 1
+    one_hot = np.zeros(n, dtype=np.float32)
+    one_hot[i - 1] = 1
 
     return one_hot
 
 
-def _cards2array(list_cards):
-    if len(list_cards) == 0:
-        return np.zeros(108, dtype=np.int8)
+def _cards2matrix(cards):
+    matrix = np.zeros([15, 4], dtype=np.float32)
+    if len(cards) == 0:
+        return matrix
 
-    matrix = np.zeros([8, 13], dtype=np.int8)
-    jokers = np.zeros(4, dtype=np.int8)
-
-    # TODO: use a 4 x 15 matrix instead of 8 x 15
-    for card in list_cards:
-        if card.rank != 'R' and card.rank != 'B':
-            column = Card2Column[card.rank]
-            row = Suit2Row[card.suit]
-            if matrix[row, column] == 1:
-                matrix[row + 4, column] = 1
-            else:
-                matrix[row, column] = 1
-        elif card.rank == 'B':
-            if jokers[0] == 1:
-                jokers[1] = 1
-            else:
-                jokers[0] = 1
+    b_jokers = 0
+    r_jokers = 0
+    for card in cards:
+        if card.rank == 'B':
+            b_jokers += 1
         elif card.rank == 'R':
-            if jokers[2] == 1:
-                jokers[3] = 1
-            else:
-                jokers[2] = 1
+            r_jokers += 1
+        else:
+            row = Card2Num[card.rank]
+            column = Suit2Num[card.suit]
+            matrix[row, column] += 1
+    matrix /= 2
+    if b_jokers:
+        matrix[13, b_jokers-1] = 1
+    if r_jokers:
+        matrix[14, r_jokers-1] = 1
 
-    matrix = np.concatenate((matrix.flatten('F'), jokers))
     return matrix
 
-def _action2array(action):
-    if action.type == PASS or action.type is None :
-        return np.zeros(108, dtype=np.int8)
+def _cards_repr(cards):
+    numbers = np.zeros([13, 4], dtype=np.float32)
+    jokers = np.zeros(4, dtype=np.float32)
+    result = dict(numbers=numbers, jokers=jokers)
+    if len(cards) == 0:
+        return result
 
-    matrix = np.zeros([8, 13], dtype=np.int8)
-    jokers = np.zeros(4, dtype=np.int8)
+    b_jokers = 0
+    r_jokers = 0
+    for card in cards:
+        if card.rank == 'B':
+            b_jokers += 1
+        elif card.rank == 'R':
+            r_jokers += 1
+        else:
+            row = Card2Num[card.rank]
+            column = Suit2Num[card.suit]
+            numbers[row, column] += 1
+    numbers /= 2
+    if b_jokers:
+        jokers[b_jokers-1] = 1
+    if r_jokers:
+        jokers[r_jokers+1] = 1
+
+    return result
+
+def _action_repr(action):
+    numbers = np.zeros([13, 4], dtype=np.float32)
+    jokers = np.zeros(4, dtype=np.float32)
+    result = dict(numbers=numbers, jokers=jokers)
+    if action.type == PASS or action.type is None :
+        return result
 
     for card in action.cards:
-        if card[1] != 'R' and card[1] != 'B':
-            column = Card2Column[card[1]]
-            row = Suit2Row[card[0]]
-            if matrix[row, column] == 1:
-                matrix[row + 4, column] = 1
-            else:
-                matrix[row, column] = 1
-        elif card[1] == 'B':
+        if card[1] == 'B':
             if jokers[0] == 1:
+                jokers[0] = 0
                 jokers[1] = 1
             else:
                 jokers[0] = 1
         elif card[1] == 'R':
             if jokers[2] == 1:
+                jokers[2] = 0
                 jokers[3] = 1
             else:
                 jokers[2] = 1
+        else:
+            row = Card2Num[card[1]]
+            column = Suit2Num[card[0]]
+            numbers[row, column] += 1
+    numbers /= 2
 
-    matrix = np.concatenate((matrix.flatten('F'), jokers))
-    return matrix
+    return result
 
 def _action_seq_list2array(action_seq_list):
     """
@@ -199,8 +185,8 @@ def _action_seq_list2array(action_seq_list):
     no 12 actions, we pad the features with 0.
     """
     action_seq_array = np.zeros((len(action_seq_list), 108))
-    for row, list_cards in enumerate(action_seq_list):
-        action_seq_array[row, :] = _action2array(list_cards)
+    for row, cards in enumerate(action_seq_list):
+        action_seq_array[row, :] = _action_repr(cards)
     action_seq_array = action_seq_array.reshape(3, 432)
     return action_seq_array
 
@@ -218,124 +204,168 @@ def _process_action_seq(sequence, length=12):
         sequence = empty_sequence
     return sequence
 
-def _get_obs(infoset):
-    """
-    """
-    num_legal_actions = len(infoset.legal_actions.action_list)
-    my_handcards = _cards2array(infoset.player_hand_cards)
-    my_handcards_batch = np.repeat(my_handcards[np.newaxis, :],
-                                   num_legal_actions, axis=0)
+def _get_last_action_rel_pos(pid, down_id, teammate_id, up_id, last_pid):
+    if last_pid == pid:
+        return 0
+    elif last_pid == up_id:
+        return 1
+    elif last_pid == teammate_id:
+        return 2
+    elif last_pid == down_id:
+        return 3
+    else:
+        return -1
 
-    other_handcards = _cards2array(infoset.other_hand_cards)
-    other_handcards_batch = np.repeat(other_handcards[np.newaxis, :],
-                                      num_legal_actions, axis=0)
+def _get_obs(infoset: InfoSet, separate_jokers=True):
+    pid = infoset.pid
+    pid_repr = _get_one_hot_array(pid, 4)
+    down_id = get_down_pid(infoset.pid)
+    teammate_id = get_teammate_pid(infoset.pid)
+    up_id = get_up_pid(infoset.pid)
+    others_hand_cards = [
+        infoset.all_hand_cards[i] for i in [down_id, teammate_id, up_id]
+    ]
+    
+    # obs
+    my_handcards_repr = _cards_repr(infoset.player_hand_cards)
+    others_handcards_repr = _cards_repr(sum(others_hand_cards, []))
+    played_cards_repr = _cards_repr(infoset.played_cards[pid])
+    down_played_cards_repr = _cards_repr(infoset.played_cards[down_id])
+    teammate_played_cards_repr = _cards_repr(infoset.played_cards[teammate_id])
+    up_played_cards_repr = _cards_repr(infoset.played_cards[up_id])
+    # NOTE: concatenate or stack? stack is cheaper while concatenate is expensive but more common-seen in literature
+    rank = infoset.rank
+    rank_repr = _get_one_hot_array(Card2Num[rank], 13)
+    rank_exp_repr = np.expand_dims(rank_repr, -1)
+    numbers = np.concatenate([
+        my_handcards_repr['numbers'],
+        others_handcards_repr['numbers'],
+        # TODO: should we add played_cards_repr here?
+        down_played_cards_repr['numbers'],
+        teammate_played_cards_repr['numbers'],
+        up_played_cards_repr['numbers'],
+        rank_exp_repr,
+    ], axis=-1)
+    np.testing.assert_equal(
+        my_handcards_repr['numbers'] \
+        + others_handcards_repr['numbers'] \
+        + down_played_cards_repr['numbers'] \
+        + teammate_played_cards_repr['numbers'] \
+        + up_played_cards_repr['numbers'] \
+        + played_cards_repr['numbers'], 1
+    )
+    jokers = np.concatenate([
+        my_handcards_repr['jokers'],
+        others_handcards_repr['jokers'],
+        down_played_cards_repr['jokers'],
+        teammate_played_cards_repr['jokers'],
+        up_played_cards_repr['jokers'],
+    ], axis=-1)
+    down_num_cards_left = infoset.num_cards_left_dict[down_id]
+    down_num_cards_left_repr = _get_one_hot_array(down_num_cards_left, 27)
+    teammate_num_cards_left = infoset.num_cards_left_dict[teammate_id]
+    teammate_num_cards_left_repr = _get_one_hot_array(teammate_num_cards_left, 27)
+    up_num_cards_left = infoset.num_cards_left_dict[up_id]
+    up_num_cards_left_repr = _get_one_hot_array(up_num_cards_left, 27)
+    # left_cards = np.concatenate([
+    #     down_num_cards_left,
+    #     teammate_num_cards_left,
+    #     up_num_cards_left
+    # ], axis=-1)
+    left_cards = np.array([
+        down_num_cards_left,
+        teammate_num_cards_left,
+        up_num_cards_left
+    ])
+    is_last_teammate_move = infoset.last_valid_pid == teammate_id
+    is_last_teammate_move_repr = is_last_teammate_move * np.ones(1, dtype=np.float32)
+    is_first_move = infoset.last_pid == -1
+    is_first_move_repr = is_first_move * np.ones(1, dtype=np.float32)
 
-    last_action = _action2array(infoset.last_move)
-    last_action_batch = np.repeat(last_action[np.newaxis, :],
-                                  num_legal_actions, axis=0)
+    # history actions
+    last_down_action = infoset.all_players_last_move[down_id]
+    last_down_action_repr = _action_repr(last_down_action)
+    last_teammate_action = infoset.all_players_last_move[teammate_id]
+    last_teammate_action_repr = _action_repr(last_teammate_action)
+    last_up_action = infoset.all_players_last_move[up_id]
+    last_up_action_repr = _action_repr(last_up_action)
+    last_action_numbers = np.concatenate([
+        last_down_action_repr['numbers'],
+        last_teammate_action_repr['numbers'],
+        last_up_action_repr['numbers'],
+        rank_exp_repr,
+    ], axis=-1)
+    last_action_jokers = np.concatenate([
+        last_down_action_repr['jokers'],
+        last_teammate_action_repr['jokers'],
+        last_up_action_repr['jokers']
+    ], axis=-1)
+    last_action_rel_pos = _get_last_action_rel_pos(
+        pid, down_id, teammate_id, up_id, infoset.last_pid)
+    last_action_rel_pos_repr = np.zeros(4, dtype=np.float32)
+    if last_action_rel_pos != -1:
+        last_action_rel_pos_repr[last_action_rel_pos] = 1
+    last_action_first_move = infoset.last_action_first_move
 
-    my_action_batch = np.zeros(my_handcards_batch.shape)
-    for j, action in enumerate(infoset.legal_actions):
-        my_action_batch[j, :] = _action2array(action)
-
-    last_teammate_action = _action2array(
-        infoset.last_move_dict[(infoset.player_position+2)% 4])
-    last_teammate_action_batch = np.repeat(
-        last_teammate_action[np.newaxis, :],
-        num_legal_actions, axis=0)
-
-    teammate_num_cards_left = _get_one_hot_array(
-        infoset.num_cards_left_dict[(infoset.player_position+2)% 4], 27)
-    teammate_num_cards_left_batch = np.repeat(
-        teammate_num_cards_left[np.newaxis, :],
-        num_legal_actions, axis=0)
-
-    teammate_played_cards = _cards2array(
-        infoset.played_cards[(infoset.player_position+2)% 4])
-    teammate_played_cards_batch = np.repeat(
-        teammate_played_cards[np.newaxis, :],
-        num_legal_actions, axis=0)
-
-    last_down_action = _action2array(
-        infoset.last_move_dict[(infoset.player_position+1)% 4])
-    last_down_action_batch = np.repeat(
-        last_down_action[np.newaxis, :],
-        num_legal_actions, axis=0)
-
-    down_num_cards_left = _get_one_hot_array(
-        infoset.num_cards_left_dict[(infoset.player_position+1)% 4], 27)
-    down_num_cards_left_batch = np.repeat(
-        down_num_cards_left[np.newaxis, :],
-        num_legal_actions, axis=0)
-
-    down_played_cards = _cards2array(
-        infoset.played_cards[(infoset.player_position+1)% 4])
-    down_played_cards_batch = np.repeat(
-        down_played_cards[np.newaxis, :],
-        num_legal_actions, axis=0)
-
-    last_up_action = _action2array(
-        infoset.last_move_dict[(infoset.player_position+3)% 4])
-    last_up_action_batch = np.repeat(
-        last_up_action[np.newaxis, :],
-        num_legal_actions, axis=0)
-
-    up_num_cards_left = _get_one_hot_array(
-        infoset.num_cards_left_dict[(infoset.player_position+3)% 4], 27)
-    up_num_cards_left_batch = np.repeat(
-        up_num_cards_left[np.newaxis, :],
-        num_legal_actions, axis=0)
-
-    up_played_cards = _cards2array(
-        infoset.played_cards[(infoset.player_position+3)% 4])
-    up_played_cards_batch = np.repeat(
-        up_played_cards[np.newaxis, :],
-        num_legal_actions, axis=0)
-
-    rank = _get_one_hot_array(
-        Card2Column[infoset.rank], 13)
-    rank_batch = np.repeat(rank[np.newaxis, :], num_legal_actions, axis=0)
-
-    x_batch = np.hstack((my_handcards_batch,
-                         other_handcards_batch,
-                         teammate_played_cards_batch,
-                         down_played_cards_batch,
-                         up_played_cards_batch,
-                         last_action_batch,
-                         last_teammate_action_batch,
-                         last_down_action_batch,
-                         last_up_action_batch,
-                         teammate_num_cards_left_batch,
-                         down_num_cards_left_batch,
-                         up_num_cards_left_batch,
-                         my_action_batch,
-                         rank_batch))
-    x_no_action = np.hstack((my_handcards,
-                             other_handcards,
-                             teammate_played_cards,
-                             down_played_cards,
-                             up_played_cards,
-                             last_action,
-                             last_teammate_action,
-                             last_down_action,
-                             last_up_action,
-                             teammate_num_cards_left,
-                             down_num_cards_left,
-                             up_num_cards_left,
-                             rank))
-    z = _action_seq_list2array(_process_action_seq(
-        infoset.card_play_action_seq))
-    z_batch = np.repeat(
-        z[np.newaxis, :, :],
-        num_legal_actions, axis=0)
-
+    # unobservable state: others' cards
+    down_handcards = _cards_repr(others_hand_cards[0])
+    teammate_handcards = _cards_repr(others_hand_cards[1])
+    up_handcards = _cards_repr(others_hand_cards[2])
+    other_numbers = np.concatenate([
+        down_handcards['numbers'],
+        teammate_handcards['numbers'],
+        up_handcards['numbers'],
+        rank_exp_repr,
+    ], axis=-1)
+    other_jokers = np.concatenate([
+        down_handcards['jokers'],
+        teammate_handcards['jokers'],
+        up_handcards['jokers']
+    ], axis=-1)
+    
+    # TODO: Try more action type
+    action_type_mask = np.zeros(3, dtype=np.bool)    # pass, follow, bomb
+    follow_mask = np.zeros(15, dtype=np.bool)
+    bomb_mask = np.zeros(15, dtype=np.bool)
+    for a in infoset.legal_actions:
+        if a.type == PASS:
+            action_type_mask[0] = 1
+        else:
+            i = Action2Num[a.rank]
+            if a.type == BOMB or a.type == STRAIGHT_FLUSH:
+                action_type_mask[2] = 1
+                bomb_mask[i] = 1
+            else:
+                action_type_mask[1] = 1
+                follow_mask[i] = 1
+    assert action_type_mask[0] != is_first_move, (action_type_mask, is_first_move, [a.cards for a in infoset.legal_actions])
+    if action_type_mask[1] == False:
+        assert np.all(follow_mask == False), follow_mask
+    if action_type_mask[2] == False:
+        assert np.all(bomb_mask == False), bomb_mask
+    #     print(a.type, a.rank, a.cards, rank)
+    # print(action_type)
+    # print(follow_mask)
+    # print(bomb_mask)
+    # assert False
     obs = {
-        'position': infoset.player_position,
-        'x_batch': x_batch.astype(np.float32),
-        'z_batch': z_batch.astype(np.float32),
-        'legal_actions': infoset.legal_actions,
-        'x_no_action': x_no_action.astype(np.int8),
-        'z': z.astype(np.float32),
+        'pid': pid,
+        'numbers': numbers,
+        'jokers': jokers,
+        'left_cards': left_cards,
+        'is_last_teammate_move': is_last_teammate_move,
+        'is_first_move': is_first_move,
+        'rank': rank,
+        'bombs_dealt': infoset.bombs_dealt,
+        'last_action_numbers': last_action_numbers,
+        'last_action_jokers': last_action_jokers,
+        'last_action_rel_pos': last_action_rel_pos,
+        'last_action_first_move': last_action_first_move,
+        'action_type_mask': action_type_mask,
+        'follow_mask': follow_mask,
+        'bomb_mask': bomb_mask,
+        'other_numbers': other_numbers,
+        'other_jokers': other_jokers,
     }
     return obs
 

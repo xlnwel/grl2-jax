@@ -2,14 +2,24 @@
 # Python bytecode 3.6 (3379)
 # Decompiled from: Python 3.8.10 (default, May 19 2021, 13:12:57) [MSC v.1916 64 bit (AMD64)]
 # Embedded file name: player.py
-import json
-from guandan.state import State
 import random
-
+from env.guandan.action import Action
 class Player(object):
 
     def __init__(self, name, action=None):
         self.name = name
+        if action is None or action == 'random':
+            from env.guandan.random_agent import RandomAgent
+            self.agent = RandomAgent()
+        if action == 'deep':
+            from dmc.deep_agent import DeepAgent
+            self.agent = DeepAgent()
+        if action == 'reyn':
+            from algo.gd.ruleAI.reyn_ai import ReynAIAgent
+            self.agent = ReynAIAgent()
+        self.reset()
+
+    def reset(self):
         self.index = None
         self.victory = 0
         self.draws = 0
@@ -21,23 +31,13 @@ class Player(object):
         self.reward = 0
         self.public_info = None
         self.oppo_rank = 2
-        self.greater_pos = -1
-        self.greater_action = None
+        self.last_pid = -1
+        self.last_action = Action()
+        self.last_valid_pid = -1
+        self.last_valid_action = Action()
         self.action_index = -1
         self.action_list = None
         self.history = []
-        if action is None:
-            from guandan.random_agent import RandomAgent
-            self.agent = RandomAgent()
-        if action =='random':
-            from guandan.random_agent import RandomAgent
-            self.agent = RandomAgent()
-        if action =='deep':
-            from dmc.deep_agent import DeepAgent
-            self.agent = DeepAgent()
-        if action == 'rule':
-            from rule_agent import RuleAgent
-            self.agent = RuleAgent()
 
     def play(self, cards, rank):
         try:
@@ -63,7 +63,7 @@ class Player(object):
         self.play_area = None
 
     def play_choice(self, infoset):
-        self.action_index = self.agent.act(infoset)
+        self.action_index = self.agent(infoset)
         return self.action_index
 
     def tribute_choice(self):

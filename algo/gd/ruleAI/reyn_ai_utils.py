@@ -4,6 +4,9 @@
 # University: NUAA
 
 # point-val对应列表
+from env.guandan.small_game import InfoSet
+
+
 point_val = [28, 1, 2, 3, 4, 5, 7, 9, 12, 15, 18, 22, 25, 100]  # 目前最强版本
 
 
@@ -1649,17 +1652,17 @@ def get_VAL_OPP(handCards_S, handCards_H, handCards_C, handCards_D, handCards_A,
                 handCards_R[2] -= 1
         val += get_remain_VAL(handCards_S, handCards_H, handCards_C, handCards_D, handCards_A, handCards_R, handCards_K,
                               curRank)
-        print('Reyn_AI Tip 已计算出该操作权重为', val)
+        # print('Reyn_AI Tip 已计算出该操作权重为', val)
         return val
     if card[0] == 'ThreePair':
-        print('Reyn_AI Tip 确认该Action为ThreePair形式')
+        # print('Reyn_AI Tip 确认该Action为ThreePair形式')
         val = -get_point_val(card[2][0], curRank)
         val -= get_point_val(card[2][1], curRank)
         val -= get_point_val(card[2][2], curRank)
         val -= get_point_val(card[2][3], curRank)
         val -= get_point_val(card[2][4], curRank)
         val -= get_point_val(card[2][5], curRank)
-        print('Reyn_AI Tip 由于该出牌行动,权值目前为', val)
+        # print('Reyn_AI Tip 由于该出牌行动,权值目前为', val)
         # 开始删除刚刚打出的牌
         if card[2][0] == 'SB':
             handCards_K[0] -= 1
@@ -1771,17 +1774,17 @@ def get_VAL_OPP(handCards_S, handCards_H, handCards_C, handCards_D, handCards_A,
                 handCards_R[2] -= 1
         val += get_remain_VAL(handCards_S, handCards_H, handCards_C, handCards_D, handCards_A, handCards_R, handCards_K,
                               curRank)
-        print('Reyn_AI Tip 已计算出该操作权重为', val)
+        # print('Reyn_AI Tip 已计算出该操作权重为', val)
         return val
     if card[0] == 'TwoTrips':
-        print('Reyn_AI Tip 确认该Action为TwoTrips形式')
+        # print('Reyn_AI Tip 确认该Action为TwoTrips形式')
         val = -get_point_val(card[2][0], curRank)
         val -= get_point_val(card[2][1], curRank)
         val -= get_point_val(card[2][2], curRank)
         val -= get_point_val(card[2][3], curRank)
         val -= get_point_val(card[2][4], curRank)
         val -= get_point_val(card[2][5], curRank)
-        print('Reyn_AI Tip 由于该出牌行动,权值目前为', val)
+        # print('Reyn_AI Tip 由于该出牌行动,权值目前为', val)
         # 开始删除刚刚打出的牌
         if card[2][0] == 'SB':
             handCards_K[0] -= 1
@@ -1893,17 +1896,17 @@ def get_VAL_OPP(handCards_S, handCards_H, handCards_C, handCards_D, handCards_A,
                 handCards_R[2] -= 1
         val += get_remain_VAL(handCards_S, handCards_H, handCards_C, handCards_D, handCards_A, handCards_R, handCards_K,
                               curRank)
-        print('Reyn_AI Tip 已计算出该操作权重为', val)
+        # print('Reyn_AI Tip 已计算出该操作权重为', val)
         return val
     if card[0] == 'StraightFlush':
-        print('Reyn_AI Tip 确认该Action为StraightFlush形式')
+        # print('Reyn_AI Tip 确认该Action为StraightFlush形式')
         val = -get_point_val(card[2][0], curRank)
         val -= get_point_val(card[2][1], curRank)
         val -= get_point_val(card[2][2], curRank)
         val -= get_point_val(card[2][3], curRank)
         val -= get_point_val(card[2][4], curRank)
         val -= 180 * point_val[get_num(card[1])]
-        print('Reyn_AI Tip 由于该出牌行动,权值目前为', val)
+        # print('Reyn_AI Tip 由于该出牌行动,权值目前为', val)
         # 开始删除刚刚打出的牌
         if card[2][0] == 'SB':
             handCards_K[0] -= 1
@@ -1997,7 +2000,7 @@ def get_VAL_OPP(handCards_S, handCards_H, handCards_C, handCards_D, handCards_A,
                 handCards_R[2] -= 1
         val += get_remain_VAL(handCards_S, handCards_H, handCards_C, handCards_D, handCards_A, handCards_R, handCards_K,
                               curRank)
-        print('Reyn_AI Tip 已计算出该操作权重为', val)
+        # print('Reyn_AI Tip 已计算出该操作权重为', val)
         return val
     return -1500
 
@@ -2023,7 +2026,7 @@ def get_num(point):
 
 # 判断自己的手牌中是否有接牌的牌型
 # 'greaterAction': ['Single', '4', ['S4']]
-def check_patterns_fri(infoset, action):
+def check_patterns_fri(infoset: InfoSet, action):
     point_dic = {
         '2': 0,
         '3': 1,
@@ -2048,7 +2051,7 @@ def check_patterns_fri(infoset, action):
     if infoset.rank == action[1]:
         action_point = 13
 
-    for hcard in infoset.hand_cards:
+    for hcard in infoset.player_hand_cards:
         hcard = hcard.suit + hcard.rank
         if hcard[1] == infoset.rank:
             handcard_list[13] += 1
@@ -2116,19 +2119,19 @@ def check_patterns(infoset):
         'B': 14,
         'R': 15
     }
-    action_patterns = infoset.greater_action.type
+    action_patterns = infoset.last_valid_action.type
     # 记录手牌
     handcard_list = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    if infoset.rank == infoset.greater_action.rank:
+    if infoset.rank == infoset.last_valid_action.rank:
         action_point = 13
-    elif infoset.greater_action.rank == 'JOKER':
+    elif infoset.last_valid_action.rank == 'JOKER':
         return 1
     else:
-        action_point = point_dic[infoset.greater_action[1]]
+        action_point = point_dic[infoset.last_valid_action[1]]
 
-    for hcard in infoset.hand_cards:
+    for hcard in infoset.player_hand_cards:
         hcard = hcard.suit + hcard.rank
-        if hcard[1] == infoset.greater_action.rank:
+        if hcard[1] == infoset.last_valid_action.rank:
             handcard_list[13] += 1
         else:
             handcard_list[point_dic[hcard[1]]] += 1
@@ -2188,7 +2191,7 @@ def check_patterns(infoset):
             return 0
 
 
-def check_message(infoset, pos):
+def check_message(infoset: InfoSet, pos):
     # 读取当前牌局的等级
     curRank = infoset.rank
     #print('Reyn_AI Tip 已读取到当前等级为:', curRank)
@@ -2196,7 +2199,7 @@ def check_message(infoset, pos):
     # 还贡判断
 
     # 我方先手 AI选择部分开始
-    if infoset.greater_pos == pos or infoset.last_pid == -1:
+    if infoset.last_pid == pos or infoset.last_pid == -1:
         #print('Reyn_AI Tip 轮到我方先手出牌')
         # 开始遍历Actionlist
         index = -1
@@ -2221,7 +2224,7 @@ def check_message(infoset, pos):
             # 特殊牌列表[数量] 序号-点数 分别为:[0-B,1-R]
             handCards_K = [0, 0]
             # 遍历服务器所给的'handCards'，为上述数据赋值
-            for card in infoset.hand_cards:
+            for card in infoset.player_hand_cards:
                 card = card.suit + card.rank
                 if card[1] == curRank:
                     handCards_R[1] += 1
@@ -2265,7 +2268,7 @@ def check_message(infoset, pos):
             if value[i] > max:
                 AI_choice = i
                 max = value[i]
-        print(value)
+        # print(value)
         return AI_choice
 
     # 接队友牌
@@ -2288,8 +2291,8 @@ def check_message(infoset, pos):
         'R': 15
     }
     if infoset.last_pid == (pos + 2) % 4:
-        own_side_action = infoset.greater_action.type
-        own_side_point = infoset.greater_action.rank
+        own_side_action = infoset.last_valid_action.type
+        own_side_point = infoset.last_valid_action.rank
         if own_side_action == 'Bomb':
             return 0
         elif own_side_action == 'Single' or own_side_action == 'Pair' or own_side_action == 'Trips' or own_side_action == 'ThreeWithTwo':
@@ -2328,7 +2331,7 @@ def check_message(infoset, pos):
             #print('Reyn_AI Log 进入到读取手牌部分')
 
             # 遍历服务器所给的'handCards'，为上述数据赋值
-            for card in infoset.hand_cards:
+            for card in infoset.player_hand_cards:
                 card = card.suit + card.rank
                 if card[1] == curRank:
                     handCards_R[1] += 1
@@ -2419,7 +2422,7 @@ def check_message(infoset, pos):
             # 特殊牌列表[数量] 序号-点数 分别为:[0-B,1-R]
             handCards_K = [0, 0]
             # 遍历服务器所给的'handCards'，为上述数据赋值
-            for card in infoset.hand_cards:
+            for card in infoset.player_hand_cards:
                 card = card.suit + card.rank
                 if card[1] == curRank:
                     handCards_R[1] += 1
@@ -2455,7 +2458,7 @@ def check_message(infoset, pos):
             # print('handCards_K:',handCards_K)
             # 读取手牌部分结束
             # 开始计算地方卡牌权值
-            card_opp = infoset.greater_action
+            card_opp = infoset.last_valid_action
             value.append(
                 get_VAL_OPP(handCards_S, handCards_H, handCards_C, handCards_D, handCards_A, handCards_R, handCards_K,
                             check_card, curRank))

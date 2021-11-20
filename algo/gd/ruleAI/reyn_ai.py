@@ -10,7 +10,7 @@ class ReynAIAgent():
     def __call__(self, infoset):
         #print(action_list)
         #print("可选动作范围为：0至{}".format(len(action_list)-1))
-        self.AI_choice = check_message(infoset, infoset.my_pos)
+        self.AI_choice = check_message(infoset, infoset.pid)
         # 由于没有考虑进贡，故而随机，否则bug
         if self.AI_choice == None:
             return random.randint(0, len(infoset.legal_actions.action_list) - 1)

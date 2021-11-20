@@ -2,6 +2,7 @@
 # Python bytecode 3.6 (3379)
 # Decompiled from: Python 3.8.10 (default, May 19 2021, 13:12:57) [MSC v.1916 64 bit (AMD64)]
 # Embedded file name: utils.py
+from env.guandan.card import Card
 CARD_DIGITAL_TABLE = {'SA':270,
  'S2':258,
  'S3':259,
@@ -145,3 +146,29 @@ class OverOrder(object):
     def fourth(self):
         return self.order[3]
 # okay decompiling utils.pyc
+
+Card2Num = {'2':0, '3':1, '4':2, '5':3, '6':4, '7':5, '8':6,
+               '9':7, 'T':8, 'J':9, 'Q':10, 'K':11, 'A':12}
+Suit2Num = {'S':0, 'H':1, 'C':2, 'D':3}
+Action2Num = {
+    '2': 0, '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6,
+    '9': 7, 'T': 8, 'J': 9, 'Q': 10, 'K': 11, 'A': 12, 
+    'JOKER': 13, 'B': 13, 'R': 14
+}
+def get_cards(action):
+    if action.type == 'PASS' or action.type is None:
+        return []
+    else:
+        return [Card(c[0], c[1]) for c in action.cards]
+
+SINGLE = 'Single'
+PAIR = 'Pair'
+TRIPS = 'Trips'
+THREE_PAIR = 'ThreePair'
+THREE_WITH_TWO = 'ThreeWithTwo'
+TWO_TRIPS = 'TwoTrips'
+STRAIGHT = 'Straight'
+STRAIGHT_FLUSH = 'StraightFlush'
+BOMB = 'Bomb'
+PASS = 'PASS'
+

@@ -1,12 +1,10 @@
 import random
-from copy import deepcopy
-from guandan.player import Player
-from guandan.utils import OverOrder
-from guandan.action import Action, ActionList
-from guandan.card import Card
+from env.guandan.player import Player
+from env.guandan.utils import Action2Num, OverOrder, get_cards
+from env.guandan.action import Action, ActionList
+from env.guandan.card import Card
 from random import shuffle
-from collections import Counter, defaultdict
-from json import dumps
+from collections import Counter, defaultdict, deque
 import numpy as np
 
 CARD_DIGITAL_TABLE = {'SA':270,
@@ -137,15 +135,9 @@ def com_cards(same_cards, cards, n, name):
 
 
 class SmallGame(object):
-    def __init__(self, max_card=13):
+    def __init__(self, players=[], max_card=13):
         self.over_order = OverOrder() #出完牌的顺序和进贡关系
-        self.players = []
-        self.deck = []
-        self.current_action = Action()
-        self.current_pos = -1
-        self.greater_action = Action()
-        self.greater_pos = -1
-        self.action_list = ActionList()
+        self.players = players
         self.max_card = max_card
 
         self.r_order_default = {'2':2,
@@ -159,17 +151,11 @@ class SmallGame(object):
          '2':2,  '3':3,  '4':4,  '5':5,  '6':6,  '7':7,  '8':8,  '9':9,  'T':10,  'J':11,  'Q':12,  'K':13,  'B':16,
          'R':17}
         self.end = False
-        self.card_play_action_seq = []
-        self.last_move_dict = {0:Action(),1:Action(),2:Action(),3:Action()}
-        self.played_cards = {0:[],1:[],2:[],3:[]}
-        self.last_move = Action()
-        self.last_two_moves = [Action(),Action()]
-        self.info_sets = {
-            0: InfoSet(0), 1: InfoSet(1), 2: InfoSet(2), 3: InfoSet(3)
-        }
-        self.players = [Player('0', 'random'), Player('1', 'random'), Player('2', 'random'), Player('3', 'random')]
-        self.rank = random.choice(['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'][:max_card])
-        self.current_pos = random.choice([0, 1, 2, 3])
+        if players == []:
+            self.players = [Player('0', 'random'), Player('1', 'random'), Player('2', 'random'), Player('3', 'random')]
+
+    def game_over(self):
+        return self.end
 
     def __cmp2cards(self, card, other, flag):
         """
@@ -208,8 +194,8 @@ class SmallGame(object):
         获得下一位有牌的玩家的座位号
         """
         for i in range(1, 4):
-            if len(self.players[((self.current_pos + i) % 4)].hand_cards) > 0:
-                return (self.current_pos + i) % 4
+            if len(self.players[((self.current_pid + i) % 4)].hand_cards) > 0:
+                return (self.current_pid + i) % 4
 
     def update_player_message(self, pos, action_list):
         """
@@ -219,18 +205,39 @@ class SmallGame(object):
         :return:
         """
         self.players[pos].public_info = [player.get_public_info() for player in self.players]
-        self.players[pos].greater_pos = self.greater_pos
-        self.players[pos].greater_action = self.greater_action
+        self.players[pos].last_pid = self.last_pid
+        self.players[pos].last_action = self.last_action
+        self.players[pos].last_valid_pid = self.last_valid_pid
+        self.players[pos].last_valid_action = self.last_valid_action
         self.players[pos].action_list = action_list
         self.action_list.update(action_list)
 
-    def reset(self):
-        self.rank = random.choice(['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'][:self.max_card])
-        self.current_pos = random.choice([0, 1, 2, 3])
+    def reset(self, deal=True, rank=None):
+        self.over_order = OverOrder() #出完牌的顺序和进贡关系
+        self.deck = []
+        self.current_action = Action()
+        self.last_action = Action()
+        self.last_action_first_move = False
+        self.last_valid_action = Action()
+        self.current_pid = -1
+        self.last_pid = -1
+        self.last_valid_pid = -1
+        self.action_list = ActionList()
+        self.end = False
+        self.card_play_action_seq = []
+        if rank is None:
+            self.rank = random.choice(['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'][:self.max_card])
+        else:
+            self.rank = rank
+        self.infosets = [InfoSet(i) for i in range(4)]
+        self.current_pid = random.choice([0, 1, 2, 3])
         self.r_order = self.r_order_default.copy()
         self.r_order[self.rank] = 15
+        self.bombs_dealt = np.zeros(14, dtype=np.float32)
+        [p.reset() for p in self.players]
         self.initialize()
-        self.deal()
+        if deal:
+            self.deal()
 
     def initialize(self):
         """
@@ -273,21 +280,15 @@ class SmallGame(object):
                 count -= 1
                 self.deck.pop()
 
-    def info_init(self):
-        self.info_sets[0].player_hand_cards = self.players[0].hand_cards
-        self.info_sets[1].player_hand_cards = self.players[1].hand_cards
-        self.info_sets[2].player_hand_cards = self.players[2].hand_cards
-        self.info_sets[3].player_hand_cards = self.players[3].hand_cards
-
     def start(self):
-        action = self.first_action(self.current_pos)   #可选动作集合
-        self.update_player_message(pos=self.current_pos, action_list=action)
+        action = self.first_action(self.current_pid)   #可选动作集合
+        self.update_player_message(pos=self.current_pid, action_list=action)
         self.game_infoset = self.get_infoset()
-        # print("游戏开始，本小局打{}, {}号位先手".format(self.rank, self.current_pos))
+        # print("游戏开始，本小局打{}, {}号位先手".format(self.rank, self.current_pid))
 
     def random_action(self):
         self.game_infoset = self.get_infoset()
-        action_index = self.players[self.current_pos].play_choice(self.game_infoset)
+        action_index = self.players[self.current_pid].play_choice(self.game_infoset)
         action = self.action_list[action_index]
         return action
 
@@ -296,37 +297,46 @@ class SmallGame(object):
         self.play(action)
 
     def play(self, action):
-        action = self.action_list[action]
-        self.current_action = action
-        # print("{}号位玩家手牌为{}，打出{}，最大动作为{}号位打出的{}".format(self.current_pos, self.players[self.current_pos].hand_cards, action, self.greater_pos, self.greater_action))
-        self.players[self.current_pos].play_area = str(action)
-        self.players[self.current_pos].history.append(action)
+        assert len(self.players[self.current_pid].hand_cards) > 0, len(self.players[self.current_pid].hand_cards)
+        if not isinstance(action, Action):
+            action = self.action_list[action]
+        if action.type == BOMB or action.type == STRAIGHT_FLUSH:
+            self.bombs_dealt[Action2Num[action.rank]] += 1
+        print("{}号位玩家手牌为{}，打出{}，最大动作为{}号位打出的{}".format(self.current_pid, self.players[self.current_pid].hand_cards, action, self.last_valid_pid, self.last_valid_action))
+        self.last_pid = self.current_pid
+        self.last_action = self.current_action
+        self.players[self.current_pid].play_area = str(action)
+        self.players[self.current_pid].history.append(action.copy())
         self.card_play_action_seq.append(action)
-        self.last_move_dict[self.current_pos] = action
+        teammate_id = (self.current_pid + 2) % 4
+        down_id = (self.current_pid + 1) % 4
+        self.last_action_first_move = (self.last_valid_pid == -1)
         if action.type == PASS:
-            if ((self.current_pos + 1) % 4 == self.greater_pos or (self.current_pos + 2) % 4 == self.greater_pos) and len(self.players[self.greater_pos].hand_cards) == 0:
-                current_pos = (self.greater_pos + 2) % 4
+            if (teammate_id == self.last_valid_pid and len(self.players[teammate_id].hand_cards) == 0 and len(self.players[down_id].hand_cards) == 0) \
+                or (down_id == self.last_valid_pid and len(self.players[down_id].hand_cards) == 0):
+                current_pid = (self.last_valid_pid + 2) % 4
                 self.reset_all_action()
                 act_func = self.first_action
             else:
-                current_pos = self.next_pos()
-                if current_pos == self.greater_pos:
+                current_pid = self.next_pos()
+                if current_pid == self.last_valid_pid:
                     self.reset_all_action()
                     act_func = self.first_action
-                    #self.players[current_pos].reward += len(self.greater_action.cards)
+                    #self.players[current_pid].reward += len(self.last_valid_action.cards)
                 else:
                     act_func = self.second_action
-            self.update_player_message(pos=current_pos, action_list=(act_func(current_pos)))
-            self.current_pos = current_pos
+                
+            self.update_player_message(pos=current_pid, action_list=(act_func(current_pid)))
+            self.current_pid = current_pid
 
         else:
-            self.players[self.current_pos].play(action.cards, self.rank)
-            self.greater_action = action
-            self.greater_pos = self.current_pos
+            self.players[self.current_pid].play(action.cards, self.rank)
+            self.last_valid_action = action
+            self.last_valid_pid = self.current_pid
 
-            if len(self.players[self.current_pos].hand_cards) == 0:
-                self.over_order.add(self.current_pos)
-                if self.over_order.episode_over(self.current_pos):
+            if len(self.players[self.current_pid].hand_cards) == 0:
+                self.over_order.add(self.current_pid)
+                if self.over_order.episode_over(self.current_pid):
                     rest_cards = []
                     if len(self.over_order.order) != 4:
                         for i in range(4):
@@ -335,17 +345,15 @@ class SmallGame(object):
                                 self.over_order.add(i)
                     self.end = True
                     # print("本小局结束，排名顺序为{}".format(self.over_order.order))
-                    return
-                else:
-                    current_pos = self.next_pos()
-                    self.update_player_message(pos=current_pos, action_list=(self.second_action(current_pos)))
-                    self.current_pos = current_pos
-                    return
+                current_pid = self.next_pos()
+                self.update_player_message(pos=current_pid, action_list=(self.second_action(current_pid)))
+                self.current_pid = current_pid
+                return
             else:
-                current_pos = self.next_pos()
-                self.update_player_message(pos=current_pos, action_list=(self.second_action(current_pos)))
-                self.current_pos = current_pos
-
+                current_pid = self.next_pos()
+                self.update_player_message(pos=current_pid, action_list=(self.second_action(current_pid)))
+                self.current_pid = current_pid
+        self.current_action = action
 
     def add_card(self, pos, card):
         """
@@ -367,10 +375,12 @@ class SmallGame(object):
             self.players[pos].hand_cards.append(card)
 
     def reset_all_action(self):
-        self.current_pos = -1
+        self.current_pid = -1
         self.current_action.reset()
-        self.greater_pos = -1
-        self.greater_action.reset()
+        self.last_pid = -1
+        self.last_action.reset()
+        self.last_valid_pid = -1
+        self.last_valid_action.reset()
 
     def separate_cards(self, index, repeat_flag):
         """
@@ -698,35 +708,35 @@ class SmallGame(object):
         action = [
          [
           PASS, PASS, PASS]]
-        assert self.greater_action is not None
+        assert self.last_valid_action is not None
         add_boom = True
         add_flush = True
-        rank = self.greater_action.rank
-        if self.greater_action.type == SINGLE:
+        rank = self.last_valid_action.rank
+        if self.last_valid_action.type == SINGLE:
             action.extend(self.extract_single(player_index, _rank=rank))
 
-        if self.greater_action.type == PAIR:
+        if self.last_valid_action.type == PAIR:
             action.extend(self.extract_same_cards(player_index, 2, _rank=rank))
 
-        if self.greater_action.type == TRIPS:
+        if self.last_valid_action.type == TRIPS:
             action.extend(self.extract_same_cards(player_index, 3, _rank=rank))
 
-        if self.greater_action.type == THREE_PAIR:
+        if self.last_valid_action.type == THREE_PAIR:
             action.extend(self.extract_three_pair(player_index, _rank=rank))
 
-        if self.greater_action.type == THREE_WITH_TWO:
+        if self.last_valid_action.type == THREE_WITH_TWO:
             action.extend(self.extract_three_two(player_index, _rank=rank))
 
-        if self.greater_action.type == TWO_TRIPS:
+        if self.last_valid_action.type == TWO_TRIPS:
             action.extend(self.extract_two_trips(player_index, _rank=rank))
 
-        if self.greater_action.type == STRAIGHT:
+        if self.last_valid_action.type == STRAIGHT:
             if rank == 'T':
                 pass
             else:
                 action.extend(self.extract_straight(player_index, _rank=rank))
 
-        if self.greater_action.type == STRAIGHT_FLUSH:
+        if self.last_valid_action.type == STRAIGHT_FLUSH:
             if rank == 'T':
                 pass
             else:
@@ -736,12 +746,12 @@ class SmallGame(object):
 
             add_boom, add_flush = (False, False)
 
-        if self.greater_action.type == BOMB:
+        if self.last_valid_action.type == BOMB:
             add_boom, add_flush = (False, False)
             if rank == 'JOKER':
                 pass
             else:
-                bomb_len = len(self.greater_action.cards)
+                bomb_len = len(self.last_valid_action.cards)
                 action.extend(self.extract_same_cards(player_index, bomb_len, _rank=rank))
                 for i in range(bomb_len + 1, 11):
                     action.extend(self.extract_same_cards(player_index, i))
@@ -757,37 +767,91 @@ class SmallGame(object):
             action.extend(self.extract_straight(player_index, flush=True))
         return action
 
-    def get_last_move(self):
-        last_move = Action()
-        if len(self.card_play_action_seq) != 0:
-            last_move = self.card_play_action_seq[-1]
-
-        return last_move
-
-    def get_last_two_moves(self):
-        last_two_moves = [Action(), Action()]
-        for card in self.card_play_action_seq[-2:]:
-            last_two_moves.insert(0, card)
-            last_two_moves = last_two_moves[:2]
-        return last_two_moves
-
     def get_infoset(self):
-        i = self.current_pos
-        self.info_sets[i].last_pid = self.greater_pos
-        self.info_sets[i].legal_actions = self.action_list
-        self.info_sets[i].last_move = self.get_last_move()
-        self.info_sets[i].last_two_moves = self.get_last_two_moves()
-        self.info_sets[i].last_move_dict = self.last_move_dict
-        self.info_sets[i].num_cards_left_dict = {pos : len(self.players[pos].hand_cards) for pos in range(4)}
-        self.info_sets[i].other_hand_cards = []
-        for pos in range(4):
-            self.info_sets[i].other_hand_cards += self.players[i].hand_cards
+        i = self.current_pid
+        infoset = InfoSet(i)
+        infoset.last_pid = self.last_pid
+        infoset.last_action = self.last_action
+        infoset.last_action_first_move = self.last_action_first_move
+        infoset.last_valid_pid = self.last_valid_pid
+        infoset.last_valid_action = self.last_valid_action
+        infoset.legal_actions = self.action_list
+        infoset.all_players_last_move = [
+            self.players[pos].history[-1] if len(self.players[pos].history) > 0 else Action() 
+            for pos in range(4)]
+        infoset.num_cards_left_dict = [len(self.players[pos].hand_cards) for pos in range(4)]
+        infoset.player_hand_cards = self.players[i].hand_cards
+        infoset.all_hand_cards = [self.players[pos].hand_cards for pos in range(4)]
+        played_actions = [self.players[pos].history for pos in range(4)]
+        infoset.played_cards = [sum([get_cards(a) for a in actions], []) 
+            for actions in played_actions]
+        infoset.card_play_action_seq = self.card_play_action_seq
+        infoset.rank = self.rank
+        infoset.bombs_dealt = self.bombs_dealt
 
-        self.info_sets[i].played_cards = self.played_cards
-        self.info_sets[i].card_play_action_seq = self.card_play_action_seq
-        self.info_sets[i].all_handcards = {pos : self.players[pos].hand_cards for pos in range(4)}
-        self.info_sets[i].rank = self.rank
-        return deepcopy(self.info_sets[i])
+        return infoset
+
+    def compute_reward(self):
+        order = self.over_order.order
+        first_id = order[0]
+        first_teammate_id = (first_id + 2) % 4
+        team_ids = [first_id, first_teammate_id]
+        reward = np.zeros(4)
+        if first_teammate_id == order[1]:
+            reward[team_ids] = 3
+        elif first_teammate_id == order[2]:
+            reward[team_ids] = 2
+        else:
+            reward[team_ids] = 1
+        return reward
+
+    """ Reset to any point """
+    def reset_to_any(self, current_rank, first_pos, n0, n1, n2, n3, list0=None, list1=None, list2=None, list3=None):
+        self.reset(deal=False, rank=current_rank)
+        self.current_pid = first_pos
+        self.deal_to_any(n0, n1, n2, n3, list0, list1, list2, list3)
+
+    def deal_to_any(self, n0, n1, n2, n3, list0=None, list1=None, list2=None, list3=None):
+        """
+        分发卡牌给四位玩家
+        :return: None
+        """
+        count = 107
+        self.deal_to_pos(count, 0, n0, list0)
+        count = count - n0
+        self.deal_to_pos(count, 1, n1, list1)
+        count = count - n1
+        self.deal_to_pos(count, 2, n2, list2)
+        count = count - n2
+        self.deal_to_pos(count, 3, n3, list3)
+        count = count - n3
+
+    def deal_to_pos(self, count, pos, n, card_list):
+        if len(self.players[pos].hand_cards) != 0:
+            self.players[pos].hand_cards = []
+        self.players[pos].uni_count = 0
+        if card_list is None:
+            for j in range(n):
+                if self.deck[count].rank == self.rank:
+                    if self.deck[count].suit == 'H':
+                        self.players[pos].uni_count += 1
+                self.add_card(pos, self.deck[count])
+
+                count -= 1
+                self.deck.pop()
+        else:
+            card_list = card_list.split(',')
+
+            for card in card_list:
+                card = card.strip()
+                card = Card(card[0], card[1], CARD_DIGITAL_TABLE[card])
+
+                if card.rank == self.rank and card.suit == 'H':
+                    self.players[pos].uni_count += 1
+                self.add_card(pos, card)
+
+                count -= 1
+                self.deck.remove(card)
 
 
 class InfoSet(object):
@@ -796,40 +860,65 @@ class InfoSet(object):
     includes all the information in the current situation,
     such as the hand cards, the historical moves, etc.
     """
-    def __init__(self, player_position):
-        self.player_position = player_position
-        # The hand cards of the current player. A list.
-        self.player_hand_cards = None
-        # The number of cards left for each player. It is a dict with str-->int
-        self.num_cards_left_dict = None
-        # The historical moves. It is a list of list
-        self.card_play_action_seq = None
-        # The union of the hand cards of the other players for the current player
-        self.other_hand_cards = None
+    def __init__(self, pid):
+        self.pid = pid
+        # Last player id
+        self.last_pid = None
+        # The cards played by self.last_pid
+        self.last_action = None
+        # Is the last action the first move
+        self.last_action_first_move = None
+        # Last player id that plays a valid move, i.e., not PASS
+        self.last_valid_pid = None
+        # The cards played by self.last_valid_pid
+        self.last_valid_action = None
         # The legal actions for the current move. It is a list of list
         self.legal_actions = None
-        # The most recent valid move
-        self.last_move = None
-        # The most recent two moves
-        self.last_two_moves = None
         # The last moves for all the postions
-        self.last_move_dict = None
+        self.all_players_last_move = None
+        # The number of cards left for each player. It is a dict with str-->int
+        self.num_cards_left_dict = None
+        # The hand cards of the current player. A list.
+        self.player_hand_cards = None
+        # list of the hand cards of all the players
+        self.all_hand_cards = None
         # The played cands so far. It is a list.
         self.played_cards = None
-        # The hand cards of all the players. It is a dict.
-        self.all_handcards = None
-        # Last player position that plays a valid move, i.e., not `pass`
-        self.last_pid = None
+        # The historical moves. It is a list of list
+        self.card_play_action_seq = None
+        # The largest number
+        self.rank = None
+        # bombs dealt so far
+        self.bombs_dealt = None
+
+
+def get_down_pid(pid):
+    return (pid+1) % 4
+
+def get_up_pid(pid):
+    return (pid+3) % 4
+
+def get_teammate_pid(pid):
+    return (pid+2) % 4
+
 
 if __name__ == '__main__':
-    # from player import Player
     import datetime
+    env = SmallGame([Player('0', 'reyn'), Player('1', 'random'), Player('2', 'reyn'), Player('3', 'random')])
+    n = 100
+    rewards = []
     start_time = datetime.datetime.now()
-    g = SmallGame(max_card=7)
-    g.reset()
-    g.start()
-    while g.end is False:
-        g.random_step()
-
+    for _ in range(n):
+        # env.reset_to_any('2', 0, 1, 1, 1, 1, 'HA', 'D7', 'S4', 'S2')
+        env.reset()
+        env.start()
+        # step = 0
+        while env.game_over() is False:
+            env.random_step()
+            # step += 1
+            # print(step)
+        rewards.append(env.compute_reward())
     end_time = datetime.datetime.now()
-    print("平均每轮对局时间{}".format((end_time-start_time)/10))
+    rewards = np.stack(rewards)
+    print(f'rewards: {rewards}')
+    print(f'Average time {(end_time-start_time)/n}')
