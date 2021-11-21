@@ -138,6 +138,11 @@ class MGRU(Module):
         self.state_type = GRUState
 
     def call(self, x, state, mask=None, filter=None, additional_input=[]):
+        """
+        Args:
+            mask(float32): reset the hidden states if mask is zero
+            filter(bool): ignore the lstm operations if filter is zero
+        """
         xs = [x] + additional_input
         mask = tf.ones((*x.shape[:2], 1), dtype=tf.float32) \
             if mask is None else tf.expand_dims(mask, axis=-1)
