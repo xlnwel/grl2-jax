@@ -35,8 +35,9 @@ class Player(object):
         self.last_action = Action()
         self.last_valid_pid = -1
         self.last_valid_action = Action()
+        self.is_last_action_first_move = False
         self.action_index = -1
-        self.action_list = None
+        self.legal_actions = None
         self.history = []
 
     def play(self, cards, rank):
@@ -67,11 +68,11 @@ class Player(object):
         return self.action_index
 
     def tribute_choice(self):
-        self.action_index = random.randint(0, len(self.action_list)-1)
+        self.action_index = random.randint(0, len(self.legal_actions)-1)
         return self.action_index
 
     def back_choice(self):
-        self.action_index = random.randint(0, len(self.action_list)-1)
+        self.action_index = random.randint(0, len(self.legal_actions)-1)
         return self.action_index
 
     @property

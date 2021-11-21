@@ -2,6 +2,7 @@
 # Python bytecode 3.6 (3379)
 # Decompiled from: Python 3.8.10 (default, May 19 2021, 13:12:57) [MSC v.1916 64 bit (AMD64)]
 # Embedded file name: action.py
+import copy
 import numpy as np
 
 from env.guandan.utils import PASS, BOMB, STRAIGHT_FLUSH, Action2Num
@@ -59,8 +60,14 @@ class Action(object):
     def __str__(self):
         return str([self._type, self._rank, self._cards])
 
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __eq__(self, other) -> bool:
+        return self._type == other.type and self._rank == other.rank and self._cards == other.cards
+
     def copy(self):
-        return Action(self.type, self.rank, self.cards)
+        return Action(self.type, self.rank, copy.copy(self.cards))
 
 class ActionList(object):
 

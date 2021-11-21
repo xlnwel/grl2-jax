@@ -16,7 +16,7 @@ from replay.utils import save_data, load_data
 logger = logging.getLogger(__name__)
 
 
-def generate_expert_data(n_trajs, log_dir, start_idx=0):
+def generate_expert_data(n_trajs, log_dir, start_idx=0, test=False):
     agent = ReynAIAgent()
     env = SmallGame()
     
@@ -32,8 +32,8 @@ def generate_expert_data(n_trajs, log_dir, start_idx=0):
         obs = get_obs(infoset)
         step = 0
         start = time.time()
-        for k, v in obs.items():
-            print('\t', k, v)
+        # for k, v in obs.items():
+        #     print('\t', k, v)
         while env.game_over() is False:
             # for k, v in obs.items():
             #     if isinstance(v, np.ndarray):
@@ -53,9 +53,10 @@ def generate_expert_data(n_trajs, log_dir, start_idx=0):
             obs = get_obs(infoset)
             step += 1
         # print('end')
+        # print(list(obs))
         # for k, v in obs.items():
         #     print('\t', k, v)
-        assert False
+        # assert False
         steps.append(step)
         reward = env.compute_reward()
         episode = local_buffer.sample()
@@ -68,7 +69,8 @@ def generate_expert_data(n_trajs, log_dir, start_idx=0):
         # assert False
         filename = log_dir / f'{start_idx+i}-{step}-{int(reward[0])}-{int(reward[1])}-{int(reward[2])}-{int(reward[3])}.npz'
         print(filename, step, time.time()-start)
-        save_data(filename, episode)
+        if not test:
+            save_data(filename, episode)
     
     return steps
 
@@ -103,6 +105,7 @@ def load_all_data(directory):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--store', '-s', action='store_true')
+    parser.add_argument('--test', '-t', action='store_true')
     parser.add_argument('--directory', '-d', default='gd')
     args = parser.parse_args()
 
@@ -112,9 +115,10 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     directory = f'data/{args.directory}'
-    if args.store:
-        steps = generate_expert_data(100000, directory)
-        # steps = distributedly_generate_expert_data(1000000, directory)
+    if args.test:
+        steps = generate_expert_data(1, directory, test=True)
+    elif args.store:
+        steps = distributedly_generate_expert_data(1000000, directory)
         print(np.max(steps))
     else:
         directory = Path(directory)
