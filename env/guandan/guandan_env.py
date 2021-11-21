@@ -289,17 +289,21 @@ def _get_obs(infoset: InfoSet, separate_jokers=True):
     jokers = np.concatenate([c['jokers'] for c in cards_reprs], axis=-1)
     # np.testing.assert_equal(numbers, numbers2)
     # np.testing.assert_equal(jokers, jokers2)
-    down_num_cards_left = infoset.all_num_cards_left[down_pid]
-    down_num_cards_left_repr = _get_one_hot_array(down_num_cards_left, 27)
-    teammate_num_cards_left = infoset.all_num_cards_left[teammate_pid]
-    teammate_num_cards_left_repr = _get_one_hot_array(teammate_num_cards_left, 27)
-    up_num_cards_left = infoset.all_num_cards_left[up_pid]
-    up_num_cards_left_repr = _get_one_hot_array(up_num_cards_left, 27)
-    left_cards = np.concatenate([
-        down_num_cards_left_repr,
-        teammate_num_cards_left_repr,
-        up_num_cards_left_repr
-    ], axis=-1)
+    # down_num_cards_left = infoset.all_num_cards_left[down_pid]
+    # down_num_cards_left_repr = _get_one_hot_array(down_num_cards_left, 27)
+    # teammate_num_cards_left = infoset.all_num_cards_left[teammate_pid]
+    # teammate_num_cards_left_repr = _get_one_hot_array(teammate_num_cards_left, 27)
+    # up_num_cards_left = infoset.all_num_cards_left[up_pid]
+    # up_num_cards_left_repr = _get_one_hot_array(up_num_cards_left, 27)
+    # left_cards2 = np.concatenate([
+    #     down_num_cards_left_repr,
+    #     teammate_num_cards_left_repr,
+    #     up_num_cards_left_repr
+    # ], axis=-1)
+    others_num_cards_left = [infoset.all_num_cards_left[i] for i in others_pids]
+    others_num_cards_left_repr = [_get_one_hot_array(n, 27) for n in others_num_cards_left]
+    left_cards = np.concatenate(others_num_cards_left_repr, axis=-1)
+    # np.testing.assert_equal(left_cards, left_cards2)
     # left_cards = np.array([
     #     down_num_cards_left,
     #     teammate_num_cards_left,
