@@ -96,23 +96,26 @@ class MGRUCell(layers.Layer):
             # self.h_ln = lambda x: x
 
     def call(self, x, states):
-        x, mask = tf.nest.flatten(x)
-        h = states[0]
-        assert_rank([x, h, mask], 2)
+        x, mask, filter = tf.nest.flatten(x)
+        h_0 = states[0]
+        assert_rank([x, mask, filter, h_0], 2)
         if mask is not None:
-            h = h * mask
+            h_0 = h_0 * mask
         
         # it sigfinicantly increases the running time when separate normalizations are applied to x and h
-        x = self.x_ln(tf.matmul(tf.concat([x, h], -1), self.kernel))
+        x = self.x_ln(tf.matmul(tf.concat([x, h_0], -1), self.kernel))
         # x = self.x_ln(tf.matmul(x, self.kernel)) + self.h_ln(tf.matmul(h, self.recurrent_kernel))
         if self.use_bias:
             x = tf.nn.bias_add(x, self.bias)
         r, c, z = tf.split(x, 3, 1)
         r, z = self.recurrent_activation(r), self.recurrent_activation(z)
         c = self.activation(c)
-        h = z * c + (1-z) * h
+        h = z * c + (1-z) * h_0
+        x = h
 
-        return h, GRUState(h)
+        h = tf.where(filter, h, h_0)
+
+        return x, GRUState(h)
     
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         state_size = self.state_size
@@ -134,9 +137,12 @@ class MGRU(Module):
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
         self.state_type = GRUState
 
-    def call(self, x, state, mask, additional_input=[]):
+    def call(self, x, state, mask=None, filter=None, additional_input=[]):
         xs = [x] + additional_input
-        mask = tf.expand_dims(mask, axis=-1)
+        mask = tf.ones((*x.shape[:2], 1), dtype=tf.float32) \
+            if mask is None else tf.expand_dims(mask, axis=-1)
+        filter = tf.ones_like(mask, dtype=tf.bool) \
+            if filter is None else tf.expand_dims(filter, axis=-1)
         assert_rank(xs + [mask], 3)
         if not self._state_mask:
             # mask out inputs

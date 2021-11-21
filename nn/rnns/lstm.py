@@ -99,24 +99,28 @@ class MLSTMCell(layers.Layer):
             self.c_ln = lambda x: x
 
     def call(self, x, states):
-        x, mask = tf.nest.flatten(x)
-        assert_rank([x, mask], 2)
-        h, c = states
+        x, mask, filter = tf.nest.flatten(x)
+        h_0, c_0 = states
+        assert_rank([x, mask, filter, h_0, c_0], 2)
         if mask is not None:
-            h = h * mask
-            c = c * mask
+            h_0 = h_0 * mask
+            c_0 = c_0 * mask
         
-        x = self.x_ln(tf.matmul(x, self.kernel)) + self.h_ln(tf.matmul(h, self.recurrent_kernel))
+        x = self.x_ln(tf.matmul(x, self.kernel)) + self.h_ln(tf.matmul(h_0, self.recurrent_kernel))
         if self.use_bias:
             x = tf.nn.bias_add(x, self.bias)
         i, f, c_, o = tf.split(x, 4, 1)
         i, f, o = self.recurrent_activation(i), self.recurrent_activation(f), self.recurrent_activation(o)
         c_ = self.activation(c_)
-        c = f * c + i * c_
+        c = f * c_0 + i * c_
         # following OpenAI's baselines, we perform layer normalization on c
         h = o * self.activation(self.c_ln(c))
-            
-        return h, LSTMState(h, c)
+        x = h
+
+        h = tf.where(filter, h, h_0)
+        c = tf.where(filter, c, c_0)
+
+        return x, LSTMState(h, c)
     
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         state_size = self.state_size
@@ -140,9 +144,17 @@ class MLSTM(Module):
         self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
         self.state_type = LSTMState
     
-    def call(self, x, state, mask, additional_input=[]):
+    def call(self, x, state, mask=None, filter=None, additional_input=[]):
+        """
+        Args:
+            mask(float32): reset the hidden states if mask is zero
+            filter(bool): ignore the lstm operations if filter is zero
+        """
         xs = [x] + additional_input
-        mask = tf.expand_dims(mask, axis=-1)
+        mask = tf.ones((*x.shape[:2], 1), dtype=tf.float32) \
+            if mask is None else tf.expand_dims(mask, axis=-1)
+        filter = tf.ones_like(mask, dtype=tf.bool) \
+            if filter is None else tf.expand_dims(filter, axis=-1)
         assert_rank(xs + [mask], 3)
         if not self._state_mask:
             # mask out inputs
@@ -151,7 +163,57 @@ class MLSTM(Module):
         x = tf.concat(xs, axis=-1) if len(xs) > 1 else xs[0]
         if not mask.dtype.is_compatible_with(global_policy().compute_dtype):
             mask = tf.cast(mask, global_policy().compute_dtype)
-        x = self._rnn((x, mask), initial_state=state)
+        x = self._rnn((x, mask, filter), initial_state=state)
+        x, state = x[0], LSTMState(*x[1:])
+        return x, state
+
+    def reset_states(self, states=None):
+        self._rnn.reset_states(states)
+
+    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
+        if inputs is None:
+            assert batch_size is not None
+            inputs = tf.zeros([batch_size, 1, 1])
+        return LSTMState(*self._rnn.cell.get_initial_state(inputs, dtype=dtype))
+
+    @property
+    def state_size(self):
+        return self._rnn.cell.state_size
+
+    @property
+    def state_keys(self):
+        return LSTMState(*LSTMState._fields)
+
+
+@rnn_registry.register('mlstm')
+class MLSTM(Module):
+    def __init__(self, name='mlstm', **config):
+        super().__init__(name=name)
+        config = config.copy()
+        self._state_mask = config.pop('state_mask', True)
+        cell = MLSTMCell(**config)
+        self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
+        self.state_type = LSTMState
+    
+    def call(self, x, state, mask=None, filter=None, additional_input=[]):
+        xs = [x] + additional_input
+        if mask is None:
+            mask = tf.ones((*x.shape[:2], 1), dtype=tf.float32)
+        else:
+            mask = tf.expand_dims(mask, axis=-1)
+        if filter is None:
+            filter = tf.ones_like(mask, dtype=tf.bool)
+        else:
+            filter = tf.expand_dims(filter, axis=-1)
+        assert_rank(xs + [mask], 3)
+        if not self._state_mask:
+            # mask out inputs
+            for i, v in enumerate(xs):
+                xs[i] *= tf.cast(mask, v.dtype)
+        x = tf.concat(xs, axis=-1) if len(xs) > 1 else xs[0]
+        if not mask.dtype.is_compatible_with(global_policy().compute_dtype):
+            mask = tf.cast(mask, global_policy().compute_dtype)
+        x = self._rnn((x, mask, filter), initial_state=state)
         x, state = x[0], LSTMState(*x[1:])
         return x, state
 
@@ -217,7 +279,7 @@ if __name__ == '__main__':
     
     timeit(custom_lstm_cell_call, to_print=True)
 
-    l = MLSTM({'units': 512})
+    l = MLSTM(units=512)
     opt = tf.keras.optimizers.Adam(5e-5)
 
     def custom_lstm_call():
