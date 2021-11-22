@@ -32,9 +32,10 @@ def generate_expert_data(n_trajs, log_dir, start_idx=0, test=False):
         obs = get_obs(infoset)
         step = 0
         start = time.time()
-        # for k, v in obs.items():
-        #     print('\t', k, v)
-        while env.game_over() is False:
+        if test:
+            for k, v in obs.items():
+                print('\t', k, v)
+        while not env.game_over():
             # for k, v in obs.items():
             #     if isinstance(v, np.ndarray):
             #         print(k, v.shape, v.dtype, v.max(), v.min())
@@ -52,14 +53,16 @@ def generate_expert_data(n_trajs, log_dir, start_idx=0, test=False):
             infoset = env.get_infoset()
             obs = get_obs(infoset)
             step += 1
-        # print('end')
-        # print(list(obs))
-        # for k, v in obs.items():
-        #     print('\t', k, v)
+        if test:
+            print('end\n\n\n')
+            print(list(obs))
+            for k, v in obs.items():
+                print('\t', k, v)
         # assert False
         steps.append(step)
         reward = env.compute_reward()
         episode = local_buffer.sample()
+        episode['reward'] = reward[episode['pid']]
         # for k, v in episode.items():
         #     if isinstance(v, dict):
         #         for kk, vv in v.items():
@@ -74,14 +77,14 @@ def generate_expert_data(n_trajs, log_dir, start_idx=0, test=False):
     
     return steps
 
-def distributedly_generate_expert_data(n_trajs, directory):
+def distributedly_generate_expert_data(n_trajs, workers, directory):
     import ray
 
     ray.init()
     rged = ray.remote(generate_expert_data)
     obj_ids = []
-    for i in range(10):
-        obj_ids.append(rged.remote(n_trajs // 10, directory, start_idx=i))
+    for i in range(workers):
+        obj_ids.append(rged.remote(n_trajs // workers, directory, start_idx=i))
     steps = ray.get(obj_ids)
     steps = sum(steps, [])
     
@@ -106,6 +109,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--store', '-s', action='store_true')
     parser.add_argument('--test', '-t', action='store_true')
+    parser.add_argument('--n_trajs', '-n', type=int, default=1000000)
+    parser.add_argument('--workers', '-w', type=int, default=10)
     parser.add_argument('--directory', '-d', default='gd')
     args = parser.parse_args()
 
@@ -118,7 +123,7 @@ if __name__ == '__main__':
     if args.test:
         steps = generate_expert_data(1, directory, test=True)
     elif args.store:
-        steps = distributedly_generate_expert_data(1000000, directory)
+        steps = distributedly_generate_expert_data(args.n_trajs, args.workers, directory)
         print(np.max(steps))
     else:
         directory = Path(directory)
