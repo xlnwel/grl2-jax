@@ -1,66 +1,13 @@
 import random
-from env.guandan.player import Player
-from env.guandan.utils import Action2Num, OverOrder, get_cards
-from env.guandan.action import Action, ActionList
-from env.guandan.card import Card
-from random import shuffle
-from collections import Counter, defaultdict, deque
+from collections import Counter, defaultdict
 import numpy as np
 
-CARD_DIGITAL_TABLE = {'SA':270,
- 'S2':258,
- 'S3':259,
- 'S4':260,
- 'S5':261,
- 'S6':262,
- 'S7':263,
- 'S8':264,
- 'S9':265,
- 'ST':266,
- 'SJ':267,
- 'SQ':268,
- 'SK':269,
- 'HA':526,
- 'H2':514,
- 'H3':515,
- 'H4':516,
- 'H5':517,
- 'H6':518,
- 'H7':519,
- 'H8':520,
- 'H9':521,
- 'HT':522,
- 'HJ':523,
- 'HQ':524,
- 'HK':525,
- 'CA':782,
- 'C2':770,
- 'C3':771,
- 'C4':772,
- 'C5':773,
- 'C6':774,
- 'C7':775,
- 'C8':776,
- 'C9':777,
- 'CT':778,
- 'CJ':779,
- 'CQ':780,
- 'CK':781,
- 'DA':1038,
- 'D2':1026,
- 'D3':1027,
- 'D4':1028,
- 'D5':1029,
- 'D6':1030,
- 'D7':1031,
- 'D8':1032,
- 'D9':1033,
- 'DT':1034,
- 'DJ':1035,
- 'DQ':1036,
- 'DK':1037,
- 'SB':272,
- 'HR':529}
+from env.guandan.player import Player
+from env.guandan.utils import Action2Num, OverOrder, get_cards, get_down_pid, get_teammate_pid, CARD_DIGITAL_TABLE
+from env.guandan.action import Action, ActionList
+from env.guandan.card import Card
+from env.guandan.infoset import InfoSet
+
 
 RANK = ('', '', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A')
 SINGLE = 'Single'
@@ -198,8 +145,7 @@ class SmallGame(object):
             if len(self.players[pid].hand_cards) > 0:
                 return pid
             else:
-                self.players[pid].history.append(Action())
-                self.played_action_seq.append(Action())
+                self._skip_player(pid)
 
     def update_player_message(self, pos, legal_actions):
         """
@@ -262,7 +208,7 @@ class SmallGame(object):
             self.deck.append(Card('S', 'B', 272))
             self.deck.append(Card('H', 'R', 529))
 
-        shuffle(self.deck)
+        random.shuffle(self.deck)
 
     def deal(self):
         """
@@ -327,16 +273,15 @@ class SmallGame(object):
         self.players[self.current_pid].history.append(action.copy())
         self.players[self.current_pid].is_last_action_first_move = self.is_last_action_first_move
         self.played_action_seq.append(action.copy())
-        teammate_id = (self.current_pid + 2) % 4
-        down_id = (self.current_pid + 1) % 4
+        teammate_id = get_teammate_pid(self.current_pid)
+        down_id = get_down_pid(self.current_pid)
         if action.type == PASS:
             if (teammate_id == self.last_valid_pid and len(self.players[teammate_id].hand_cards) == 0 and len(self.players[down_id].hand_cards) == 0) \
                 or (down_id == self.last_valid_pid and len(self.players[down_id].hand_cards) == 0):
                 current_pid = (self.last_valid_pid + 2) % 4
                 pid = down_id
                 while pid != current_pid:
-                    self.players[pid].history.append(Action())
-                    self.played_action_seq.append(Action())
+                    self._skip_player(pid)
                     pid = (pid + 1) % 4
                 self.reset_all_action()
                 act_func = self.first_action
@@ -371,7 +316,6 @@ class SmallGame(object):
                 current_pid = self.next_pos()
                 self.update_player_message(pos=current_pid, legal_actions=(self.second_action(current_pid)))
                 self.current_pid = current_pid
-                return
             else:
                 current_pid = self.next_pos()
                 self.update_player_message(pos=current_pid, legal_actions=(self.second_action(current_pid)))
@@ -874,53 +818,10 @@ class SmallGame(object):
                 count -= 1
                 self.deck.remove(card)
 
-
-class InfoSet(object):
-    """
-    The game state is described as infoset, which
-    includes all the information in the current situation,
-    such as the hand cards, the historical moves, etc.
-    """
-    def __init__(self, pid):
-        self.pid = pid
-        # Last player id
-        self.last_pid = None
-        # The cards played by self.last_pid
-        self.last_action = None
-        # Is the last action of each player the first move
-        self.all_last_action_first_move = None
-        # Last player id that plays a valid move, i.e., not PASS
-        self.last_valid_pid = None
-        # The cards played by self.last_valid_pid
-        self.last_valid_action = None
-        # The legal actions for the current move. It is a list of list
-        self.legal_actions = None
-        # The last actions for all the postions
-        self.all_last_actions = None
-        # The number of cards left for each player. It is a dict with str-->int
-        self.all_num_cards_left = None
-        # The hand cards of the current player. A list.
-        self.player_hand_cards = None
-        # list of the hand cards of all the players
-        self.all_hand_cards = None
-        # The played cands so far. It is a list.
-        self.played_cards = None
-        # The historical moves. It is a list of list
-        self.played_action_seq = None
-        # The largest number
-        self.rank = None
-        # bombs dealt so far
-        self.bombs_dealt = None
-
-
-def get_down_pid(pid):
-    return (pid+1) % 4
-
-def get_up_pid(pid):
-    return (pid+3) % 4
-
-def get_teammate_pid(pid):
-    return (pid+2) % 4
+    def _skip_player(self, pid):
+        self.players[pid].history.append(Action())
+        self.players[pid].is_last_action_first_move = False
+        self.played_action_seq.append(Action())
 
 
 if __name__ == '__main__':

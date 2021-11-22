@@ -59,6 +59,37 @@ CARD_DIGITAL_TABLE = {'SA':270,
  'HR':529}
 
 
+Card2Num = {'2':0, '3':1, '4':2, '5':3, '6':4, '7':5, '8':6,
+               '9':7, 'T':8, 'J':9, 'Q':10, 'K':11, 'A':12}
+Suit2Num = {'S':0, 'H':1, 'C':2, 'D':3}
+Action2Num = {
+    '2': 0, '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6,
+    '9': 7, 'T': 8, 'J': 9, 'Q': 10, 'K': 11, 'A': 12, 
+    'JOKER': 13, 'B': 13, 'R': 14
+}
+
+SINGLE = 'Single'
+PAIR = 'Pair'
+TRIPS = 'Trips'
+THREE_PAIR = 'ThreePair'
+THREE_WITH_TWO = 'ThreeWithTwo'
+TWO_TRIPS = 'TwoTrips'
+STRAIGHT = 'Straight'
+STRAIGHT_FLUSH = 'StraightFlush'
+BOMB = 'Bomb'
+PASS = 'PASS'
+
+Type2Num = {
+    SINGLE: 0,
+    PAIR: 1,
+    TRIPS: 2,
+    THREE_PAIR: 3,
+    THREE_WITH_TWO: 4,
+    TWO_TRIPS: 5,
+    STRAIGHT: 6,
+    STRAIGHT_FLUSH: 7,
+    BOMB: 8
+}
 class OverOrder(object):
     __doc__ = '\n    管理完牌次序, 并根据完牌次序, 给出进贡和还贡的关系\n    '
 
@@ -147,28 +178,18 @@ class OverOrder(object):
         return self.order[3]
 # okay decompiling utils.pyc
 
-Card2Num = {'2':0, '3':1, '4':2, '5':3, '6':4, '7':5, '8':6,
-               '9':7, 'T':8, 'J':9, 'Q':10, 'K':11, 'A':12}
-Suit2Num = {'S':0, 'H':1, 'C':2, 'D':3}
-Action2Num = {
-    '2': 0, '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6,
-    '9': 7, 'T': 8, 'J': 9, 'Q': 10, 'K': 11, 'A': 12, 
-    'JOKER': 13, 'B': 13, 'R': 14
-}
 def get_cards(action):
     if action.type == 'PASS' or action.type is None:
         return []
     else:
         return [Card(c[0], c[1]) for c in action.cards]
 
-SINGLE = 'Single'
-PAIR = 'Pair'
-TRIPS = 'Trips'
-THREE_PAIR = 'ThreePair'
-THREE_WITH_TWO = 'ThreeWithTwo'
-TWO_TRIPS = 'TwoTrips'
-STRAIGHT = 'Straight'
-STRAIGHT_FLUSH = 'StraightFlush'
-BOMB = 'Bomb'
-PASS = 'PASS'
 
+def get_down_pid(pid):
+    return (pid+1) % 4
+
+def get_up_pid(pid):
+    return (pid+3) % 4
+
+def get_teammate_pid(pid):
+    return (pid+2) % 4

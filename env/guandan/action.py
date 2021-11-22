@@ -5,13 +5,13 @@
 import copy
 import numpy as np
 
-from env.guandan.utils import PASS, BOMB, STRAIGHT_FLUSH, Action2Num
+from env.guandan.utils import PASS, BOMB, STRAIGHT_FLUSH, Action2Num, Type2Num
 
 
 def get_action_type(action, action_type=None):
     if action_type is None:
         action_type = np.zeros(3, dtype=np.float32)
-
+    assert action_type.size == 3, action_type
     if action.type == PASS:
         action_type[0] = 1
     elif action.type == BOMB or action.type == STRAIGHT_FLUSH:
@@ -28,6 +28,13 @@ def get_action_card(action, action_card=None):
     if action.type != PASS:
         action_card[Action2Num[action.cards[0][-1]]] = 1
     return action_card
+
+
+def get_card_type(action):
+    card_type = np.zeros(9, dtype=np.float32)
+    if action.type is not None and action.type != PASS:
+        card_type[Type2Num[action.type]] = 1
+    return card_type
 
 
 class Action(object):
