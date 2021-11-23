@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 import numpy as np
 
 from core.log import do_logging
@@ -157,10 +158,12 @@ def adjust_n_steps_envvec(data, seqlen, n_steps, max_steps, gamma):
 
 
 def load_data(filename):
+    if isinstance(filename, str):
+        filename = Path(filename)
     data = None
     try:
         with filename.open('rb') as f:
-            data = np.load(f)
+            data = np.load(f, allow_pickle=True)
             data = {k: data[k] for k in data.keys()}
     except Exception as e:
         logger.warning(f'Could not load data: {e}')
@@ -168,5 +171,7 @@ def load_data(filename):
 
 
 def save_data(filename, data):
+    if isinstance(filename, str):
+        filename = Path(filename)
     with filename.open('wb') as f:
         np.savez_compressed(f, **data)

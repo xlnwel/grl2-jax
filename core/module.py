@@ -86,7 +86,7 @@ class Ensemble(tf.Module):
         """
         super().__init__(name=name)
         config = config.copy()
-        config_attr(self, config, filter_dict=True)
+        self.config = config_attr(self, config, filter_dict=True)
 
         if classes:
             component_configs = [k for k, v in config.items() 
@@ -105,9 +105,9 @@ class Ensemble(tf.Module):
             self.components = constructor(config)
             [setattr(self, n, m) for n, m in self.components.items()]
 
-        self._post_init(config)
+        self._post_init()
     
-    def _post_init(self, config):
+    def _post_init(self):
         pass
 
     """ Auxiliary functions that make Ensemble like a dict """

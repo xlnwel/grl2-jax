@@ -1,6 +1,7 @@
 import logging
 import tensorflow as tf
 
+from core.log import do_logging
 from core.module import Module
 from nn.registry import layer_registry, nn_registry
 from nn.utils import get_initializer
@@ -18,10 +19,12 @@ class MLP(Module):
         super().__init__(name=name)
         layer_cls = layer_registry.get(layer_type)
         Layer = layer_registry.get('layer')
-        logger.debug(f'{self.name} gain: {kwargs.get("gain", None)}')
+        do_logging(f'{self.name} gain: {kwargs.get("gain", None)}', 
+            logger=logger, level='DEBUG')
         self._out_dtype = out_dtype
         if activation is None and (len(units_list) > 1 or (units_list and out_size)):
-            logger.warning(f'MLP({name}) with units_list({units_list}) and out_size({out_size}) has no activation.')
+            do_logging(f'MLP({name}) with units_list({units_list}) and out_size({out_size}) has no activation.', 
+                logger=logger, level='WARNING')
 
         self._layers = [
             Layer(u, layer_type=layer_cls, norm=norm, 
@@ -31,7 +34,7 @@ class MLP(Module):
             for i, u in enumerate(units_list)]
         if out_size:
             kwargs.pop('gain', None)
-            logger.debug(f'{self.name} out gain: {out_gain}')
+            do_logging(f'{self.name} out gain: {out_gain}', logger=logger, level='DEBUG')
             kernel_initializer = get_initializer(kernel_initializer, gain=out_gain)
             self._layers.append(layer_cls(
                 out_size, kernel_initializer=kernel_initializer, 

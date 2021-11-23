@@ -1,4 +1,3 @@
-from numpy.core.fromnumeric import clip
 import tensorflow as tf
 
 from utility.tf_utils import static_scan, reduce_mean, \

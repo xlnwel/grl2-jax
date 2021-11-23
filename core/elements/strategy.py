@@ -18,7 +18,7 @@ class Strategy:
                  train_loop: TrainingLoopBase=None,
                  ):
         self._name = name
-        config_attr(self, config)
+        self.config = config_attr(self, config)
         if trainer is None and actor is None:
             raise RuntimeError('Neither trainer nor actor is provided')
 

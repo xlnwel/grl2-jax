@@ -1,6 +1,15 @@
 import numpy as np
 
 
+def print_dict(d, prefix=''):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            print(f'{prefix} {k}')
+            print_dict(v, prefix+'\t')
+        else:
+            print(f'{prefix} {k}={v}')
+
+
 color2num = dict(
     gray=30,
     red=31,

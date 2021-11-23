@@ -136,67 +136,22 @@ class MLSTMCell(layers.Layer):
 
 @rnn_registry.register('mlstm')
 class MLSTM(Module):
-    def __init__(self, name='mlstm', **config):
+    def __init__(self, 
+                 name='mlstm', 
+                 return_sequences=True, 
+                 return_state=True, 
+                 **config):
         super().__init__(name=name)
         config = config.copy()
         self._state_mask = config.pop('state_mask', True)
         cell = MLSTMCell(**config)
-        self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
+        self._rnn = layers.RNN(cell, return_sequences=return_sequences, return_state=return_state)
         self.state_type = LSTMState
     
-    def call(self, x, state, mask=None, filter=None, additional_input=[]):
-        """
-        Args:
-            mask(float32): reset the hidden states if mask is zero
-            filter(bool): ignore the lstm operations if filter is zero
-        """
+    def call(self, x, state=None, mask=None, filter=None, additional_input=[]):
         xs = [x] + additional_input
-        mask = tf.ones((*x.shape[:2], 1), dtype=tf.float32) \
-            if mask is None else tf.expand_dims(mask, axis=-1)
-        filter = tf.ones_like(mask, dtype=tf.bool) \
-            if filter is None else tf.expand_dims(filter, axis=-1)
-        assert_rank(xs + [mask], 3)
-        if not self._state_mask:
-            # mask out inputs
-            for i, v in enumerate(xs):
-                xs[i] *= tf.cast(mask, v.dtype)
-        x = tf.concat(xs, axis=-1) if len(xs) > 1 else xs[0]
-        if not mask.dtype.is_compatible_with(global_policy().compute_dtype):
-            mask = tf.cast(mask, global_policy().compute_dtype)
-        x = self._rnn((x, mask, filter), initial_state=state)
-        x, state = x[0], LSTMState(*x[1:])
-        return x, state
-
-    def reset_states(self, states=None):
-        self._rnn.reset_states(states)
-
-    def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
-        if inputs is None:
-            assert batch_size is not None
-            inputs = tf.zeros([batch_size, 1, 1])
-        return LSTMState(*self._rnn.cell.get_initial_state(inputs, dtype=dtype))
-
-    @property
-    def state_size(self):
-        return self._rnn.cell.state_size
-
-    @property
-    def state_keys(self):
-        return LSTMState(*LSTMState._fields)
-
-
-@rnn_registry.register('mlstm')
-class MLSTM(Module):
-    def __init__(self, name='mlstm', **config):
-        super().__init__(name=name)
-        config = config.copy()
-        self._state_mask = config.pop('state_mask', True)
-        cell = MLSTMCell(**config)
-        self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
-        self.state_type = LSTMState
-    
-    def call(self, x, state, mask=None, filter=None, additional_input=[]):
-        xs = [x] + additional_input
+        if state is None:
+            state = self.get_initial_state(x)
         if mask is None:
             mask = tf.ones((*x.shape[:2], 1), dtype=tf.float32)
         else:

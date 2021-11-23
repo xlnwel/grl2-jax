@@ -129,12 +129,16 @@ class MGRUCell(layers.Layer):
 
 @rnn_registry.register('mgru')
 class MGRU(Module):
-    def __init__(self, name='mgru', **config):
+    def __init__(self, 
+                 name='mlstm', 
+                 return_sequences=True, 
+                 return_state=True, 
+                 **config):
         super().__init__(name=name)
         config = config.copy()
         self._state_mask = config.pop('state_mask', True)
         cell = MGRUCell(**config)
-        self._rnn = layers.RNN(cell, return_sequences=True, return_state=True)
+        self._rnn = layers.RNN(cell, return_sequences=return_sequences, return_state=return_state)
         self.state_type = GRUState
 
     def call(self, x, state, mask=None, filter=None, additional_input=[]):

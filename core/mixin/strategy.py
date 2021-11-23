@@ -52,7 +52,7 @@ class TrainingLoopBase:
                  dataset, 
                  trainer, 
                  **kwargs):
-        config_attr(self, config)
+        self.config = config_attr(self, config)
         self.dataset = dataset
         self.trainer = trainer
 

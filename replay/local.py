@@ -20,7 +20,7 @@ class LocalBuffer(ABC):
         self._add_attributes()
     
     def _add_attributes(self):
-        self._memlen = self._seqlen
+        pass
 
     def name(self):
         return self._replay_type
@@ -225,30 +225,25 @@ class EnvEpisodicBuffer(LocalBuffer):
     
     def reset(self):
         self._memory.clear()
+        self._idx = 0
 
     def sample(self):
-        results = {k: np.array(v) for k, v in self._memory.items()}
+        results = {k: batch_dicts(v) if isinstance(v[0], dict) else np.array(v) 
+            for k, v in self._memory.items()}
         self.reset()
         return results
 
     def add(self, **data):
         for k, v in data.items():
             self._memory[k].append(v)
+        self._idx += 1
 
 
 class EnvFixedEpisodicBuffer(EnvEpisodicBuffer):
+    """ Fix the length of episodes """
     def _add_attributes(self):
         super()._add_attributes()
         self._memlen = self._seqlen + 1 # one for the last observation
-
-    def reset(self):
-        super().reset()
-        self._idx = 0
-        assert len(self._memory) == 0, self._memory
-
-    def add(self, **data):
-        super().add(**data)
-        self._idx += 1
 
     def sample(self):
         assert self.is_full(), self._idx

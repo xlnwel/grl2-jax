@@ -55,7 +55,7 @@ class MAPPOValueModel(ModelImpl):
 
 
 class MAPPOModelEnsemble(ModelEnsemble):
-    def _post_init(self, config):
+    def _post_init(self):
         state = {
             'mlstm': 'actor_h actor_c value_h value_c',
             'mgru': 'actor_h value_h',

@@ -2,6 +2,7 @@ from typing import Union
 
 from core.checkpoint import *
 from core.module import Ensemble, EnsembleWithCheckpoint
+from utility.utils import dict2AttrDict
 
 
 def construct_components(config):
@@ -25,11 +26,12 @@ class Model(Ensemble):
                  to_build=False):
         super().__init__(config=config, 
             constructor=model_fn, name=name)
+        self.env_stats = dict2AttrDict(env_stats)
 
         self._has_ckpt = 'root_dir' in config and 'model_name' in config
         if to_build:
             self._build(env_stats)
-        self._post_init(config)
+        self._post_init()
 
     def ckpt_model(self):
         return self.components
