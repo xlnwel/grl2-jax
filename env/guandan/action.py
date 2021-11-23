@@ -8,25 +8,38 @@ import numpy as np
 from env.guandan.utils import PASS, BOMB, STRAIGHT_FLUSH, Action2Num, Type2Num
 
 
-def get_action_type(action, action_type=None):
-    if action_type is None:
-        action_type = np.zeros(3, dtype=np.float32)
-    assert action_type.size == 3, action_type
-    if action.type == PASS:
-        action_type[0] = 1
-    elif action.type == BOMB or action.type == STRAIGHT_FLUSH:
-        action_type[2] = 1
+def get_action_type(action, action_type=None, one_hot=True):
+    if one_hot:
+        if action_type is None:
+            action_type = np.zeros(3, dtype=np.float32)
+        assert action_type.size == 3, action_type
+        if action.type == PASS:
+            action_type[0] = 1
+        elif action.type == BOMB or action.type == STRAIGHT_FLUSH:
+            action_type[2] = 1
+        else:
+            action_type[1] = 1
     else:
-        action_type[1] = 1
-    
+        if action.type == PASS:
+            action_type = 0
+        elif action.type == BOMB or action.type == STRAIGHT_FLUSH:
+            action_type = 2
+        else:
+            action_type = 1
     return action_type
 
 
-def get_action_card(action, action_card=None):
-    if action_card is None:
-        action_card = np.zeros(15, dtype=np.float32)
-    if action.type != PASS:
-        action_card[Action2Num[action.cards[0][-1]]] = 1
+def get_action_card(action, action_card=None, one_hot=True):
+    if one_hot:
+        if action_card is None:
+            action_card = np.zeros(15, dtype=np.float32)
+        if action.type != PASS:
+            action_card[Action2Num[action.cards[0][-1]]] = 1
+    else:
+        if action.type == PASS:
+            action_card = -1
+        else:
+            action_card = Action2Num[action.cards[0][-1]]
     return action_card
 
 

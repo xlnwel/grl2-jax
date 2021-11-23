@@ -23,6 +23,7 @@ def make_procgen(config):
     
     return env
 
+
 class Procgen(gym.Env):
     """
     Procgen Wrapper file

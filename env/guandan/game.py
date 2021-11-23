@@ -81,7 +81,7 @@ def com_cards(same_cards, cards, n, name):
                         break
 
 
-class SmallGame(object):
+class Game(object):
     def __init__(self, players=[], max_card=13):
         self.over_order = OverOrder() #出完牌的顺序和进贡关系
         self.players = players
@@ -100,6 +100,85 @@ class SmallGame(object):
         self.end = False
         if players == []:
             self.players = [Player('0', 'random'), Player('1', 'random'), Player('2', 'random'), Player('3', 'random')]
+        
+        # obs info
+        self.numbers_shape = (13, 6 * 4 + 1)
+        self.jokers_shape = (6 * 4,)
+        self.left_cards_shape = (3 * 27,)
+        self.is_last_teammate_move_shape = (1,)
+        self.is_first_move_shape = ()
+        self.last_valid_action_type_shape = (9,)
+        self.rank_shape = (13,)
+        self.bombs_dealt_shape = (14,)
+        self.last_action_numbers_shape = (4, 13, 5)
+        self.last_action_jokers_shape = (4, 4)
+        self.last_action_types_shape = (4, *self.last_valid_action_type_shape)
+        self.last_action_rel_pids_shape = (4, 4)
+        self.last_action_filters_shape = (4,)
+        self.last_action_first_move_shape = (4,)
+        self.action_type_mask_shape = (3,)
+        self.follow_mask_shape = (15,)
+        self.bomb_mask_shape = (15,)
+        self.others_numbers_shape = (13, 13)
+        self.others_jokers_shape = (12,)
+        self.obs_shape = dict(
+            numbers=self.numbers_shape,
+            jokers=self.jokers_shape,
+            left_cards=self.left_cards_shape,
+            is_last_teammate_move=self.is_last_teammate_move_shape,
+            is_first_move=self.is_first_move_shape,
+            last_valid_action_type=self.last_valid_action_type_shape,
+            rank=self.rank_shape,
+            bombs_dealt=self.bombs_dealt_shape,
+            last_action_numbers=self.last_action_numbers_shape,
+            last_action_jokers=self.last_action_jokers_shape,
+            last_action_types=self.last_action_types_shape,
+            last_action_rel_pids=self.last_action_rel_pids_shape,
+            last_action_filters=self.last_action_filters_shape,
+            last_action_first_move=self.last_action_first_move_shape,
+            action_type_mask=self.action_type_mask_shape,
+            follow_mask=self.follow_mask_shape,
+            bomb_mask=self.bomb_mask_shape,
+            others_numbers=self.others_numbers_shape,
+            others_jokers=self.others_jokers_shape,
+        )
+        self.obs_dtype = dict(
+            numbers=np.float32,
+            jokers=np.float32,
+            left_cards=np.float32,
+            is_last_teammate_move=np.float32,
+            is_first_move=np.bool,
+            last_valid_action_type=np.float32,
+            rank=np.float32,
+            bombs_dealt=np.float32,
+            last_action_numbers=np.float32,
+            last_action_jokers=np.float32,
+            last_action_types=np.float32,
+            last_action_rel_pids=np.float32,
+            last_action_filters=np.bool,
+            last_action_first_move=np.float32,
+            action_type_mask=np.bool,
+            follow_mask=np.bool,
+            bomb_mask=np.bool,
+            others_numbers=np.float32,
+            others_jokers=np.float32,
+        )
+
+        # action info
+        self.action_type_shape = ()
+        self.card_rank_shape = ()
+        self.action_shape = dict(
+            action_type=self.action_type_shape,
+            card_rank=self.card_rank_shape,
+        )
+        self.action_dim = dict(
+            action_type=3,
+            card_rank=15,
+        )
+        self.action_dtype = dict(
+            action_type=np.int32,
+            card_rank=np.int32,
+        )
 
     def game_over(self):
         return self.end
@@ -182,7 +261,7 @@ class SmallGame(object):
         self.first_pid = self.current_pid
         self.r_order = self.r_order_default.copy()
         self.r_order[self.rank] = 15
-        self.bombs_dealt = np.zeros(14, dtype=np.float32)
+        self.bombs_dealt = np.zeros(self.bombs_dealt_shape, dtype=np.float32)
         [p.reset() for p in self.players]
         self.initialize()
         if deal:
@@ -332,7 +411,7 @@ class SmallGame(object):
 
         #temp_card = Card((card[0]), (card[1]), digital=(CARD_DIGITAL_TABLE[card]))
         while index != len(self.players[pos].hand_cards):
-            if self._SmallGame__cmp2cards(card, self.players[pos].hand_cards[index], False):
+            if self._Game__cmp2cards(card, self.players[pos].hand_cards[index], False):
                 self.players[pos].hand_cards.insert(index, card)
                 break
             index += 1
@@ -823,10 +902,13 @@ class SmallGame(object):
         self.players[pid].is_last_action_first_move = False
         self.played_action_seq.append(Action())
 
+    def close(self):
+        pass
+
 
 if __name__ == '__main__':
     import datetime
-    env = SmallGame([Player('0', 'reyn'), Player('1', 'random'), Player('2', 'reyn'), Player('3', 'random')])
+    env = Game([Player('0', 'reyn'), Player('1', 'random'), Player('2', 'reyn'), Player('3', 'random')])
     n = 100
     rewards = []
     start_time = datetime.datetime.now()

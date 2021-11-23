@@ -81,14 +81,17 @@ def distributedly_generate_expert_data(n_trajs, workers, directory):
     import ray
 
     ray.init()
+
     rged = ray.remote(generate_expert_data)
-    obj_ids = []
-    for i in range(workers):
-        obj_ids.append(rged.remote(n_trajs // workers, directory, start_idx=i))
+    start = time.time()
+    obj_ids = [rged.remote(n_trajs // workers, directory, start_idx=i)
+        for i in range(workers)]
     steps = ray.get(obj_ids)
     steps = sum(steps, [])
-    
+    print(time.time() - start)
+
     ray.shutdown()
+
     return steps
 
 
@@ -103,6 +106,19 @@ def load_all_data(directory):
     do_logging(f'{len(memory)} episodes are loaded', logger=logger)
 
     return memory
+
+def read_an_episode(directory):
+    directory = Path(directory)
+    filename = random.choice(list(directory.glob('*.npz')))
+    print(f'filename: {filename}')
+    data = load_data(filename)
+    if data is not None:
+        i = np.random.randint(len(next(iter(data.values()))))
+        for k, v in data.items():
+            print(k, v.shape, v.max(), v.min(), v.mean())
+            # print(len(v), i, v[i])
+    else:
+        print('No data is loaded')
 
 
 def parse_args():
@@ -126,14 +142,4 @@ if __name__ == '__main__':
         steps = distributedly_generate_expert_data(args.n_trajs, args.workers, directory)
         print(np.max(steps))
     else:
-        directory = Path(directory)
-        filename = random.choice(list(directory.glob('*.npz')))
-        print(f'filename: {filename}')
-        data = load_data(filename)
-        if data is not None:
-            for k, v in data.items():
-                print(k, v.shape, v.max(), v.min(), v.mean())
-                i = np.random.randint(len(v))
-                print(len(v), i, v[i])
-        else:
-            print('No data is loaded')
+        read_an_episode(directory)

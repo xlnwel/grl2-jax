@@ -305,19 +305,24 @@ class DataProcess(gym.Wrapper):
         self.precision = precision
         self.float_dtype = np.float32 if precision == 32 else np.float16
 
-        self.is_action_discrete = getattr(self.env, 'is_action_discrete',
-            isinstance(self.action_space, gym.spaces.Discrete))
+        if not hasattr(self.env, 'is_action_discrete'):
+            self.is_action_discrete = isinstance(self.action_space, gym.spaces.Discrete)
         if not self.is_action_discrete and precision == 16:
             self.action_space = gym.spaces.Box(
                 self.action_space.low, self.action_space.high, 
                 self.action_space.shape, self.float_dtype)
-        self.obs_shape = self.observation_space.shape
-        self.action_shape = self.action_space.shape
-        self.action_dim = self.action_space.n if self.is_action_discrete else self.action_shape[0]
+        if not hasattr(self.env, 'obs_shape'):
+            self.obs_shape = self.observation_space.shape
+        if not hasattr(self.env, 'action_shape'):
+            self.action_shape = self.action_space.shape
+        if not hasattr(self.env, 'action_dim'):
+            self.action_dim = self.action_space.n if self.is_action_discrete else self.action_shape[0]
 
-        self.obs_dtype = infer_dtype(self.observation_space.dtype, precision)
-        self.action_dtype = np.int32 if self.is_action_discrete \
-            else infer_dtype(self.action_space.dtype, self.precision)
+        if not hasattr(self.env, 'obs_dtype'):
+            self.obs_dtype = infer_dtype(self.observation_space.dtype, precision)
+        if not hasattr(self.env, 'action_dtype'):
+            self.action_dtype = np.int32 if self.is_action_discrete \
+                else infer_dtype(self.action_space.dtype, self.precision)
 
     def observation(self, observation):
         if isinstance(observation, np.ndarray):

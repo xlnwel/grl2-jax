@@ -111,7 +111,7 @@ def _action_repr(action, rank):
 
 def _get_policy_mask(infoset: InfoSet, is_first_move):
     # TODO: Try more action types
-    card_type_mask = np.zeros(4, dtype=np.bool)    # pass, follow, bomb
+    card_type_mask = np.zeros(3, dtype=np.bool)    # pass, follow, bomb
     follow_mask = np.zeros(15, dtype=np.bool)
     bomb_mask = np.zeros(15, dtype=np.bool)
     for a in infoset.legal_actions:
@@ -140,7 +140,7 @@ def _get_rel_pids():
     #     pid[i] = 1
     
     # return np.stack(pids)
-    return np.eye(4)
+    return np.eye(4, dtype=np.float32)
 
 def get_obs(infoset: InfoSet, separate_jokers=True):
     pid = infoset.pid
@@ -189,8 +189,8 @@ def get_obs(infoset: InfoSet, separate_jokers=True):
     last_action_jokers = np.stack([a['jokers'] for a in last_action_reprs])
     last_action_types = np.stack([a['action_type'] for a in last_action_reprs])
     last_action_rel_pids = _get_rel_pids()
-    last_action_filter = np.array([a.type is not None for a in last_actions], dtype=np.bool)
-    last_action_first_move = np.array([infoset.all_last_action_first_move[i] for i in pids], dtype=np.bool)
+    last_action_filters = np.array([a.type is not None for a in last_actions], dtype=np.bool)
+    last_action_first_move = np.array([infoset.all_last_action_first_move[i] for i in pids], dtype=np.float32)
     assert np.sum(last_action_first_move) < 2, (last_actions, last_action_first_move)
 
     """ Unobservable Info: Others' Cards """
@@ -209,7 +209,7 @@ def get_obs(infoset: InfoSet, separate_jokers=True):
         'numbers': numbers,
         'jokers': jokers,
         'left_cards': left_cards,
-        'is_last_teammate_move': is_last_teammate_move,
+        'is_last_teammate_move': is_last_teammate_move_repr,
         'is_first_move': is_first_move,
         'last_valid_action_type': last_valid_action_type,
         'rank': rank_repr,
@@ -218,9 +218,9 @@ def get_obs(infoset: InfoSet, separate_jokers=True):
         'last_action_jokers': last_action_jokers,
         'last_action_types': last_action_types,
         'last_action_rel_pids': last_action_rel_pids,
-        'last_action_filter': last_action_filter,
+        'last_action_filters': last_action_filters,
         'last_action_first_move': last_action_first_move,
-        'card_type_mask': card_type_mask,
+        'action_type_mask': card_type_mask,
         'follow_mask': follow_mask,
         'bomb_mask': bomb_mask,
         'others_numbers': others_numbers,
