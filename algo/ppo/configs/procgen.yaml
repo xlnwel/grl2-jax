@@ -1,6 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
 algorithm: &algo ppo
+precision: 16
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -19,7 +20,6 @@ env:
 
 agent:
     algorithm: *algo
-    precision: 16
 
     MAX_STEPS: 1e10
     N_STEPS: &nsteps 256

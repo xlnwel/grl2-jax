@@ -1,11 +1,14 @@
+import copy
 import time
 import logging
 import numpy as np
+from pathlib import Path
 
-from core.decorator import config
+
 from core.log import do_logging
-from utility.utils import moments, standardize
-from replay.utils import init_buffer, print_buffer
+from utility.utils import config_attr, dict2AttrDict, moments, standardize
+from utility.timer import timeit
+from replay.utils import init_buffer, load_data, print_buffer
 
 
 logger = logging.getLogger(__name__)
@@ -77,8 +80,8 @@ def reshape_to_sample(memory, n_envs, n_steps, sample_size=None):
 
 
 class PPOBuffer:
-    @config
-    def __init__(self):
+    def __init__(self, config):
+        self.config = config_attr(self, config)
         self._add_attributes()
 
     def _add_attributes(self):
@@ -311,5 +314,72 @@ class PPOBuffer:
     def clear_memory(self):
         self._memory = None
 
+
+class BCBuffer:
+    def __init__(self, config):
+        self.config = config_attr(self, config)
+        self._dir = Path(config.dir)
+        self._memory = {}
+        self._filenames = []
+        self._idx = 0
+        self._random_indices = None
+        self._memlen = None
+        self._batch_trajs = self.config.batch_size // 4
+        self._data_keys = {}
+
+    def load_data(self):
+        start = time.time()
+        for filename in self._dir.glob('*.npz'):
+            self._filenames.append(filename)
+
+        self._memlen = len(self._filenames)
+        while self._memlen % self._batch_trajs != 0:
+            self._filenames.pop()
+            self._memlen -= 1
+        do_logging(f'{len(self._filenames)} filenames are loaded. Total loading time: {time.time() - start}', logger=logger)
+        self._random_indices = np.arange(self._memlen)
+        self.construct_data_template()
+
+    def construct_data_template(self):
+        filename = self._filenames[0]
+        traj = load_data(filename)
+        self._data_keys = [
+            k for k in traj.keys() 
+            if k != 'pid' and k != 'discount' and k != 'reward'
+        ]
+
+    def sample(self):
+        if self._idx == 0:
+            np.random.shuffle(self._random_indices)
+        indices = self._random_indices[self._idx: self._idx + self._batch_trajs]
+        filenames = [self._filenames[i] for i in indices]
+    
+        data = {k: [] for k in self._data_keys}
+
+        for filename in filenames:
+            # if filename in self._memory:
+            #     traj = self._memory[filename]
+            # else:
+            #     traj = load_data(filename)
+            #     self._memory[filename] = traj
+            # To save some memory we do not store trajectories in memory
+            traj = load_data(filename)
+            for k, v in traj.items():
+                if k in self._data_keys:
+                    data[k].append(v)
+
+        data = {k: np.concatenate(v, 0) for k, v in data.items()}
+
+        self._idx = (self._idx + self._batch_trajs) % self._memlen
+        
+        return data
+
+
 def create_buffer(config):
-    return PPOBuffer(config)
+    config = dict2AttrDict(config)
+    if config['training'] == 'ppo':
+        return PPOBuffer(config)
+    elif config['training'] == 'bc':
+        return BCBuffer(config)
+    else:
+        raise ValueError(config['training'])

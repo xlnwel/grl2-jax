@@ -4,7 +4,7 @@
 # University: NUAA
 
 # point-val对应列表
-from env.guandan.small_game import InfoSet
+from env.guandan.infoset import InfoSet
 
 
 point_val = [28, 1, 2, 3, 4, 5, 7, 9, 12, 15, 18, 22, 25, 100]  # 目前最强版本

@@ -1,11 +1,58 @@
+import logging
 import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
+from core.log import do_logging
 from core.module import Module
-from nn.func import mlp, nn_registry
+from nn.func import mlp, nn_registry, layer_registry
+from utility.tf_utils import assert_rank
+from utility.utils import dict2AttrDict
+
+
+logger = logging.getLogger(__name__)
 
 """ Source this file to register Networks """
+
+
+class ConvFeedForward(Module):
+    def __init__(self, name, **config):
+        super().__init__(name)
+        config = dict2AttrDict(config)
+
+        self._layers = []
+        units_list = config.pop('units_list')
+        layer_type = layer_registry.get(config.pop('layer_type'))
+        for u in units_list:
+            self._layers += [
+                layer_type(u, **config)]
+
+@nn_registry.register('encoder')
+class Encoder(Module):
+    def __init__(self, name='encoder', **config):
+        super().__init__(name)
+        config = dict2AttrDict(config)
+
+        self._numbers_layers = mlp(**config['numbers'], name=f'{name}/numbers')
+        self._jokers_layers = mlp(**config['jokers'], name=f'{name}/jokers')
+        self._others_layers = mlp(**config['others'], name=f'{name}/others') \
+            if 'others' in config else None
+    
+    def call(self, numbers, jokers, others=None):
+        # TODO: try dealing with stack
+        t = numbers.shape[1]
+        numbers = tf.reshape(numbers, [-1, *numbers.shape[2:]])
+        x_n = self._numbers_layers(numbers)
+        x_n = tf.reshape(x_n, [-1, t, np.prod(x_n.shape[1:])])
+        x_j = self._jokers_layers(jokers)
+        if others is not None:
+            x_o = self._others_layers(others)
+            x = tf.concat([x_n, x_j, x_o], axis=-1)
+            do_logging(f'{self.name}, {x_n}, {x_j}, {x_o}, {x}', logger=logger)
+        else:
+            x = tf.concat([x_n, x_j], axis=-1)
+            do_logging(f'{self.name}, {x_n}, {x_j}, {x}', logger=logger)
+        return x
 
 
 @nn_registry.register('policy')
@@ -14,49 +61,29 @@ class Policy(Module):
         super().__init__(name=name)
         config = config.copy()
 
-        self.action_dim = config.pop('action_dim')
-        self.is_action_discrete = config.pop('is_action_discrete')
         self.eval_act_temp = config.pop('eval_act_temp', 1)
-        self.attention_action = config.pop('attention_action', False)
-        embed_dim = config.pop('embed_dim', 10)
-        self._init_std = config.pop('init_std', 1)
         assert self.eval_act_temp >= 0, self.eval_act_temp
 
-        if self.attention_action:
-            self.embed = tf.Variable(
-                tf.random.uniform((self.action_dim, embed_dim), -0.01, 0.01), 
-                dtype='float32',
-                trainable=True,
-                name='embed')
-
-        if not self.is_action_discrete:
-            self.logstd = tf.Variable(
-                initial_value=np.log(self._init_std)*np.ones(self.action_dim), 
-                dtype='float32', 
-                trainable=True, 
-                name=f'policy/logstd')
         config.setdefault('out_gain', .01)
-        self._layers = mlp(**config, 
-                        out_size=embed_dim if self.attention_action else self.action_dim, 
+        self._layers = mlp(**config['head'], 
                         out_dtype='float32',
                         name=name)
+        self._aux_layers = mlp(**config['aux'], name=f'{name}/aux') \
+            if 'aux' in config else None
 
-    def call(self, x, action_mask=None, evaluation=False):
+    def call(self, x, aux=None, action_mask=None, evaluation=False):
+        if aux is not None:
+            if self._aux_layers is not None:
+                aux = self._aux_layers(aux)
+            x = tf.concat([x, aux], axis=-1)
         x = self._layers(x)
-        if self.is_action_discrete:
-            if self.attention_action:
-                x = tf.matmul(x, self.embed, transpose_b=True)
-            logits = x / self.eval_act_temp \
-                if evaluation and self.eval_act_temp > 0 else x
-            if action_mask is not None:
-                assert logits.shape[1:] == action_mask.shape[1:], (logits.shape, action_mask.shape)
-                logits = tf.where(action_mask, logits, -1e10)
-            act_dist = tfd.Categorical(logits)
-        else:
-            std = tf.exp(self.logstd)
-            if evaluation and self.eval_act_temp:
-                std = std * self.eval_act_temp
-            act_dist = tfd.MultivariateNormalDiag(x, std)
+        logits = x / self.eval_act_temp \
+            if evaluation and self.eval_act_temp > 0 else x
+        if action_mask is not None:
+            assert logits.shape[1:] == action_mask.shape[1:], (logits.shape, action_mask.shape)
+            logits = tf.where(action_mask, logits, -1e10)
+        self.logits = logits
+        act_dist = tfd.Categorical(logits)
         return act_dist
 
     def action(self, dist, evaluation):
@@ -80,3 +107,23 @@ class Value(Module):
         value = self._layers(x)
         value = tf.squeeze(value, -1)
         return value
+
+
+if __name__ == '__main__':
+    from tensorflow.keras import layers
+    from env.func import create_env
+    from utility.yaml_op import load_config
+    config = load_config('algo/gd/configs/guandan.yaml')
+    env = create_env(config['env'])
+    env_stats = env.stats()
+    net = Encoder(**config['model']['action_encoder'])
+    obs_shape = env_stats['obs_shape']
+    s = 3
+    x = {
+        'numbers': layers.Input((s, *obs_shape['numbers'])),
+        'jokers': layers.Input((s, *obs_shape['jokers'])),
+        'others': layers.Input((s, 20)),
+    }
+    y = net(**x)
+    model = tf.keras.Model(x, y)
+    model.summary(200)

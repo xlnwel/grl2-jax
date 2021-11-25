@@ -11,7 +11,7 @@ from utility.utils import TempStore
 from utility.run import Runner, evaluate
 from utility.timer import Every, Timer
 from utility import pkg
-from env.func import create_env
+from env.func import create_env, get_env_stats
 
 
 def train(agent, env, eval_env, buffer):
@@ -111,11 +111,7 @@ def train(agent, env, eval_env, buffer):
         if to_record(agent.get_train_step()) and agent.contains_stats('score'):
             record_stats(step)
 
-def main(config, train=train):
-    silence_tf_logs()
-    configure_gpu()
-    configure_precision(config.agent['precision'])
-
+def ppo_train(config):
     use_ray = config.env.get('n_workers', 1) > 1
     if use_ray:
         import ray
@@ -229,3 +225,114 @@ def main(config, train=train):
             eval_env.close()
         ray.shutdown()
 
+
+def bc_train(config):
+    root_dir = config.agent.root_dir
+    model_name = config.agent.model_name
+    name = config.agent.algorithm
+
+    env_stats = get_env_stats(config.env)
+
+    def build_elements():
+        create_model = pkg.import_module(
+            name='elements.model', algo=name, place=-1).create_model
+        create_loss = pkg.import_module(
+            name='elements.loss', algo=name, place=-1).create_loss
+        create_trainer = pkg.import_module(
+            name='elements.trainer', algo=name, place=-1).create_trainer
+        create_actor = pkg.import_module(
+            name='elements.actor', algo=name, place=-1).create_actor
+
+        model = create_model(config.model, env_stats)
+        loss = create_loss(config.loss, model)
+        trainer = create_trainer(config.trainer, loss, env_stats)
+        actor = create_actor(config.actor, model)
+        
+        return model, trainer, actor
+    model, trainer, actor = build_elements()
+
+    def build_buffer_dataset():
+        create_buffer = pkg.import_module(
+            'elements.buffer', config=config.agent).create_buffer
+        buffer = create_buffer({
+            'dir': config.buffer.dir,
+            'training': 'bc',
+            'batch_size': config.buffer.batch_size,
+            'sample_size': 40,
+        })
+        buffer.load_data()
+        
+        am = pkg.import_module('elements.utils', config=config.agent)
+        data_format = am.get_bc_data_format(
+            config.trainer, env_stats, model)
+        dataset = create_dataset(buffer, env_stats, 
+            data_format=data_format, one_hot_action=False)
+        
+        return buffer, dataset
+    buffer, dataset = build_buffer_dataset()
+
+    def build_strategy():
+        create_strategy = pkg.import_module(
+            'elements.strategy', config=config.agent).create_strategy
+        strategy = create_strategy(
+            name, config.strategy, trainer, actor, dataset)
+        
+        return strategy
+    strategy = build_strategy()
+
+    def build_agent():
+        create_agent = pkg.import_module(
+            'elements.agent', config=config.agent).create_agent
+        monitor = create_monitor(root_dir, model_name, name)
+
+        agent = create_agent(
+            config=config.agent, 
+            strategy=strategy, 
+            monitor=monitor,
+            name=name
+        )
+
+        return agent
+
+    agent = build_agent()
+    save_config(root_dir, model_name, config)
+
+    tt = Timer('train')
+    lt = Timer('log')
+    to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
+    def record_stats(step):
+        with lt:
+            agent.store(**{
+                'misc/train_step': agent.get_train_step(),
+                'time/train': tt.total(),
+                'time/log': lt.total(),
+                'time/train_mean': tt.average(),
+                'time/log_mean': lt.average(),
+            })
+            agent.record(step=step)
+            agent.save()
+
+    step = 0
+    while True:
+        start_train_step = step
+        with tt:
+            agent.train_record()
+        step = agent.get_train_step()
+        agent.store(
+            tps=(step-start_train_step)/tt.last())
+        agent.set_env_step(step)
+
+        if to_record(step):
+            record_stats(step)
+
+def main(config):
+    silence_tf_logs()
+    configure_gpu()
+    configure_precision(config.precision)
+
+    if config['training'] == 'ppo':
+        ppo_train(config)
+    elif config['training'] == 'bc':
+        bc_train(config)
+    else:
+        raise ValueError(config['training'])

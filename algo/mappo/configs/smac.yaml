@@ -1,5 +1,6 @@
 ---
 algorithm: &algo mappo
+precision: 32
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -20,7 +21,6 @@ env:
 
 agent:
     algorithm: *algo
-    precision: 32
 
     MAX_STEPS: 1e8
     LOG_PERIOD: 200

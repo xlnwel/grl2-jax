@@ -114,7 +114,7 @@ def train(agent, env, eval_env, buffer):
 def main(config, train=train):
     silence_tf_logs()
     configure_gpu()
-    configure_precision(config.agent['precision'])
+    configure_precision(config.precision)
 
     use_ray = config.env.get('n_workers', 1) > 1
     if use_ray:
