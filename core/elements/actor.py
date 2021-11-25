@@ -1,4 +1,6 @@
 from typing import Tuple, Dict
+from numpy import ndarray
+from numpy.lib.arraysetops import isin
 import tensorflow as tf
 
 from utility.utils import config_attr
@@ -42,10 +44,12 @@ class Actor:
             (action, terms, rnn_state)
         """
         inp, tf_inp = self._process_input(inp, evaluation)
-        out = self.model.action(
-            **tf_inp, 
-            evaluation=evaluation,
+        tf_inp = self._add_eval(
+            tf_inp, 
+            evaluation=evaluation, 
             return_eval_stats=return_eval_stats)
+        
+        out = self.model.action(**tf_inp)
         out = self._process_output(inp, out, evaluation)
 
         return out
@@ -61,6 +65,14 @@ class Actor:
             processed input to <model.action>
         """
         return inp, numpy2tensor(inp)
+
+    def _add_eval(self, tf_inp, evaluation, return_eval_stats):
+        if not self.model.to_build:
+            tf_inp.update({
+                'evaluation': evaluation,
+                'return_eval_stats': return_eval_stats
+            })
+        return tf_inp
 
     def _process_output(self, 
                         inp: dict, 

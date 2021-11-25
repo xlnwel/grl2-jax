@@ -23,7 +23,8 @@ class Model(Ensemble):
                  env_stats=None,
                  model_fn=construct_components,
                  name,
-                 to_build=False):
+                 to_build=False,
+                 to_build_for_eval=False):
         super().__init__(config=config, 
             constructor=model_fn, name=name)
         self.env_stats = dict2AttrDict(env_stats)
@@ -31,6 +32,12 @@ class Model(Ensemble):
         self._has_ckpt = 'root_dir' in config and 'model_name' in config
         if to_build:
             self._build(env_stats)
+            self.to_build = True
+        elif to_build_for_eval:
+            self._build(env_stats, evaluation=True)
+            self.to_build = True
+        else:
+            self.to_build = False
         self._post_init()
 
     def ckpt_model(self):

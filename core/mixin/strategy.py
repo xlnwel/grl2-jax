@@ -86,11 +86,10 @@ class Memory:
         self._state = None
 
     def add_memory_state_to_input(self, 
-            inp: dict, reset: np.ndarray, state: tuple=None, batch_size: int=None):
+            inp: dict, reset: np.ndarray, state: tuple=None):
         """ Adds memory state and mask to the input. """
         if state is None and self._state is None:
-            batch_size = batch_size or reset.size
-            self._state = self.model.get_initial_state(batch_size=batch_size)
+            self._state = self.model.get_initial_state(inp)
 
         if state is None:
             state = self._state
@@ -121,4 +120,9 @@ class Memory:
         self._state = state
 
     def get_states(self):
+        return self._state
+
+    def get_states_for_inputs(self, **kwargs):
+        if self._state is None:
+            self._state = self.model.get_initial_state(**kwargs)
         return self._state

@@ -176,7 +176,7 @@ def str2bool(v):
 def eval_str(val):
     try:
         val = ast.literal_eval(val)
-    except ValueError:
+    except:
         pass
     return val
 
@@ -391,6 +391,16 @@ def batch_dicts(x, func=np.stack):
     vals = [func(v) for v in zip(*vals)]
     x = {k: v for k, v in zip(keys, vals)}
     return x
+
+def convert_batch_with_func(data, func=np.stack):
+    if data != []:
+        if isinstance(data[0], (np.ndarray, int, float, np.floating, np.integer)):
+            data = func(data)
+        elif isinstance(data[0], dict):
+            data = batch_dicts(data, func)
+        else:
+            data = list(data)
+    return data
 
 def concat_map(x):
     return tf.nest.map_structure(lambda x: np.concatenate(x), x)

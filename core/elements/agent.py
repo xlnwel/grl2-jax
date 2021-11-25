@@ -12,7 +12,8 @@ class Agent:
                  config: dict,
                  strategy: Strategy=None,
                  monitor: Monitor=None,
-                 name=None):
+                 name=None,
+                 to_save_code=True):
         config_attr(self, config)
         self._name = name
         self.strategies = {'default': strategy}
@@ -20,7 +21,8 @@ class Agent:
         self.monitor = monitor
 
         self.restore()
-        save_code(self._root_dir, self._model_name)
+        if to_save_code:
+            save_code(self._root_dir, self._model_name)
 
     @property
     def name(self):

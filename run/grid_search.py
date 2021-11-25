@@ -1,23 +1,34 @@
 import time
 import logging
-from copy import deepcopy
+import copy
 from multiprocessing import Process
 
-from run.utils import change_config
-from utility.utils import product_flatten_dict
+from run.utils import change_config, set_path
+from utility.display import print_dict
+from utility.utils import AttrDict2dict, dict2AttrDict, product_flatten_dict
 logger = logging.getLogger(__name__)
+
+
+def find_key(key, config, results):
+    if isinstance(config, dict):
+        if key in config:
+            results.append(config)
+        else:
+            for v in config.values():
+                find_key(key, v, results)
+    return results
 
 
 class GridSearch:
     def __init__(self, 
-                 configs, 
+                 config, 
                  train_func, 
                  n_trials=1, 
                  logdir='logs', 
                  dir_prefix='', 
                  separate_process=False, 
                  delay=1):
-        self.configs = configs
+        self.config = dict2AttrDict(config)
         self.train_func = train_func
         self.n_trials = n_trials
         self.root_dir = logdir
@@ -31,7 +42,7 @@ class GridSearch:
         self._setup_root_dir()
         if kwargs == {} and self.n_trials == 1 and not self.separate_process:
             # if no argument is passed in, run the default setting
-            p = Process(target=self.train_func, args=self.configs)
+            p = Process(target=self.train_func, args=(self.config,))
             self.processes.append(p)
         else:
             # do grid search
@@ -44,51 +55,51 @@ class GridSearch:
         if self.dir_prefix:
             self.dir_prefix += '-'
         self.root_dir = (f'{self.root_dir}/'
-                        f'{self.configs.env["name"]}/'
-                        f'{self.configs.agent["algorithm"]}')
+                        f'{self.config.env["name"]}/'
+                        f'{self.config.agent["algorithm"]}')
 
     def _change_config(self, model_name, **kwargs):
         kw_list = product_flatten_dict(**kwargs)
-        for d in kw_list:
+        
+        for kw in kw_list:
             # deepcopy to avoid unintended conflicts
-            configs = deepcopy(self.configs._asdict())
-
-            for k, v in d.items():
-                # search k in configs
-                key_configs = {}
-                for name, config in configs._asdict():
-                    if k in config:
-                        key_configs[name] = config
-                assert key_configs != [], f'{k} does not appear in any of configs'
-                logger.info(f'{k} appears in the following configs: '
-                            f'{list([n for n, _ in key_configs.items()])}.\n')
+            config = copy.deepcopy(AttrDict2dict(self.config))
+            mn = copy.copy(model_name)
+            for k, v in kw.items():
+                # search k in config
+                results = find_key(k, config, [])
+                assert results != [], f'{k} does not appear in any of config'
+                logger.info(f'{k} appears in the following config: '
+                            f'{list(results)}.\n')
                 # change value in config
-                for config in key_configs.values():
-                    if isinstance(config[k], dict):
-                        config[k].update(v)
+                for d in results:
+                    if isinstance(d[k], dict):
+                        d[k].update(v)
                     else:
-                        config[k] = v
+                        d[k] = v
                 
-                if model_name:
-                    model_name += '-'
+                if mn:
+                    mn += '-'
                 # add "key=value" to model name
-                model_name += f'{k}={v}'
+                mn += f'{k}={v}'
             
-            mn = model_name
             for i in range(1, self.n_trials+1):
-                configs = deepcopy(self.configs)
+                config2 = dict2AttrDict(copy.deepcopy(config))
+                mn2 = copy.copy(mn)
 
                 if self.n_trials > 1:
-                    mn += f'-trial{i}' if model_name else f'trial{i}'
-                if 'seed' in configs.env:
-                    configs.env['seed'] = 1000 * i
-                if 'video_path' in configs.env:
-                    configs.env['video_path'] = \
-                        f'{self.root_dir}/{mn}/{configs.env["video_path"]}'
+                    mn2 += f'-trial{i}' if model_name else f'trial{i}'
+                if 'seed' in config2['env']:
+                    config2['env']['seed'] = 1000 * i
+                if 'video_path' in config2['env']:
+                    config2['env']['video_path'] = \
+                        f'{self.root_dir}/{mn2}/{config2["env"]["video_path"]}'
                 
-                kw = [f'root_dir={self.root_dir}', f'model_name={mn}']
-                change_config(kw, configs)
-                p = Process(target=self.train_func, args=configs)
+                kw = [f'root_dir={self.root_dir}', f'model_name={mn2}']
+                change_config(kw, config2)
+                set_path(config2, self.root_dir, mn2)
+                print_dict(config2)
+                p = Process(target=self.train_func, args=(config2,))
                 p.start()
                 self.processes.append(p)
                 time.sleep(self.delay)   # ensure sub-processs starts in order

@@ -2,7 +2,7 @@ import os, sys
 
 from utility import pkg
 from utility.display import pwc
-from utility.utils import eval_str, deep_update, dict2AttrDict
+from utility.utils import eval_str, dict2AttrDict
 from utility.yaml_op import load_config
 
 
@@ -55,14 +55,14 @@ def change_config(kw, configs, model_name=''):
     config_keys, config_values = extract_dicts(configs)
     if kw:
         for s in kw:
-            key, value = s.split('=')
+            key, value = s.split('=', 1)
             value = eval_str(value)
             if model_name != '':
                 model_name += '-'
             model_name += s
 
             # change kwargs in config
-            key_configs = []
+            key_configs = [('config', configs)] if key in configs else []
             for name, config in zip(config_keys, config_values):
                 if key in config:
                     key_configs.append((name, config))
@@ -104,3 +104,31 @@ def load_and_run(directory):
     main = pkg.import_main('train', config=configs.agent)
 
     main(configs)
+
+def set_path(config, root_dir, model_name):
+    config['root_dir'] = root_dir
+    config['model_name'] = model_name
+    for v in config.values():
+        if not isinstance(v, dict):
+            continue
+        v['root_dir'] = root_dir
+        v['model_name'] = model_name
+    return config
+
+def search_for_config(directory):
+    directory = directory
+    config_file = None
+    for root, _, files in os.walk(directory):
+        for f in files:
+            if 'src' in root:
+                break
+            elif f.endswith('config.yaml') and config_file is None:
+                config_file = os.path.join(root, f)
+                break
+            elif f.endswith('config.yaml') and config_file is not None:
+                pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
+                sys.exit()
+    
+    config = load_config(config_file)
+    
+    return config

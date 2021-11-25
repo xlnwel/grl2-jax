@@ -88,6 +88,7 @@ class Strategy:
         inp = self._prepare_input_to_actor(env_output)
         out = self.actor(inp, evaluation=evaluation, 
             return_eval_stats=return_eval_stats)
+        
         self._record_output(out)
         return out[:2]
 
@@ -103,15 +104,21 @@ class Strategy:
 
     """ Checkpoint Ops """
     def restore(self):
-        self.trainer.restore_optimizer()
-        self.model.restore()
-        self.actor.restore_auxiliary_stats()
+        if self.trainer is not None:
+            self.trainer.restore_optimizer()
+        if self.model is not None:
+            self.model.restore()
+        if self.actor is not None:
+            self.actor.restore_auxiliary_stats()
         self.step_counter.restore_step()
 
     def save(self, print_terminal_info=False):
-        self.trainer.save_optimizer(print_terminal_info)
-        self.model.save(print_terminal_info)
-        self.actor.save_auxiliary_stats()
+        if self.trainer is not None:
+            self.trainer.save_optimizer(print_terminal_info)
+        if self.model is not None:
+            self.model.save(print_terminal_info)
+        if self.actor is not None:
+            self.actor.save_auxiliary_stats()
         self.step_counter.save_step()
 
 
@@ -125,10 +132,11 @@ def create_strategy(
         strategy_cls,
         training_loop_cls=None
     ):
-    if training_loop_cls is not None:
+    if trainer is not None:
         if dataset is None:
             raise ValueError('Missing dataset')
-    
+        if training_loop_cls is None:
+            raise ValueError('Missing TrainingLoop Class')
         train_loop = training_loop_cls(
             config=config.train_loop, 
             dataset=dataset, 

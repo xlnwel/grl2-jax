@@ -1,6 +1,7 @@
 import os
 import logging
 from typing import Union
+from numpy import concatenate
 import tensorflow as tf
 from tensorflow.keras import mixed_precision
 
@@ -145,7 +146,8 @@ def build(func, TensorSpecs, sequential=False, batch_size=None, print_terminal_i
         level=level)
     do_logging(TensorSpecs, prefix='\t', logger=logger, level=level)
     if isinstance(TensorSpecs, dict):
-        return func.get_concrete_function(**TensorSpecs)
+        concrete_func = func.get_concrete_function(**TensorSpecs)
     else: 
-        return func.get_concrete_function(*TensorSpecs)
-    
+        concrete_func = func.get_concrete_function(*TensorSpecs)
+    do_logging(str(concrete_func), logger=logger, level=level)
+    return concrete_func

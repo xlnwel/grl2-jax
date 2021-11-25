@@ -1,4 +1,5 @@
 import os, sys
+import numpy as np
 import logging
 import time
 import itertools
@@ -25,7 +26,7 @@ def _get_algo_name(algo):
     return algo
 
 
-def _set_path(config, root_dir, model_name):
+def set_path(config, root_dir, model_name):
     config['root_dir'] = root_dir
     config['model_name'] = model_name
     for v in config.values():
@@ -73,17 +74,18 @@ if __name__ == '__main__':
                     delay=cmd_args.delay)
 
                 if cmd_args.grid_search:
-                    processes += gs()
+                    processes += gs(batch_size=[32, 64, 128, 256], lr=[1e-4, 5e-4, 1e-3, 5e-3, 1e-2])
+                    # processes += gs(batch_size=[32, 64])
                 else:
                     processes += gs()
             else:
                 dir_prefix = prefix + '-' if prefix else prefix
                 root_dir=f'{logdir}/{dir_prefix}{config.env.name}/{config.algorithm}'
-                config = _set_path(config, root_dir, model_name)
+                config = set_path(config, root_dir, model_name)
                 config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
                 do_logging(config, level='DEBUG')
                 if len(algo_env) > 1:
-                    p = Process(target=main, args=config)
+                    p = Process(target=main, args=(config,))
                     p.start()
                     time.sleep(1)
                     processes.append(p)
