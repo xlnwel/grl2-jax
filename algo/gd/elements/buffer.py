@@ -1,4 +1,4 @@
-import copy
+import random
 import time
 import logging
 import numpy as np
@@ -364,6 +364,9 @@ class BCBuffer:
             #     self._memory[filename] = traj
             # To save some memory we do not store trajectories in memory
             traj = load_data(filename)
+            while traj is None:
+                filename = random.choice(self._filenames)
+                traj = load_data(filename)
             for k, v in traj.items():
                 if k in self._data_keys:
                     data[k].append(v)

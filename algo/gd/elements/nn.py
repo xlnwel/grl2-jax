@@ -48,10 +48,10 @@ class Encoder(Module):
         if others is not None:
             x_o = self._others_layers(others)
             x = tf.concat([x_n, x_j, x_o], axis=-1)
-            do_logging(f'{self.name}, {x_n}, {x_j}, {x_o}, {x}', logger=logger)
+            do_logging(f'{self.name}, {x_n}, {x_j}, {x_o}, {x}', logger=logger, level='DEBUG')
         else:
             x = tf.concat([x_n, x_j], axis=-1)
-            do_logging(f'{self.name}, {x_n}, {x_j}, {x}', logger=logger)
+            do_logging(f'{self.name}, {x_n}, {x_j}, {x}', logger=logger, level='DEBUG')
         return x
 
 

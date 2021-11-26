@@ -16,11 +16,7 @@ env:
     name: &env_name gd
     eid: 0
     n_workers: 1
-    n_envs: &nenvs 64
-    frame_skip: 1
-    frame_stack: 1
-    # num_levels: 200
-    distribution_mode: easy
+    n_envs: &nenvs 1
 
 agent:
     algorithm: *algo
@@ -46,8 +42,6 @@ strategy:
         # "reuse" updates values using value from train, which is staler than once
         # null doesn't update values.
         value_update: null
-
-    RECORD_VIDEO: True
 
 model:
     rnn_type: &rnn rnn_mlstm
@@ -170,13 +164,13 @@ loss:
 trainer:
     training: *training
     # BC configs
-    batch_size: &bs 100
+    batch_size: &bs 256
     sample_size: &ss 40
 
     optimizer:
         opt_name: adam
         schedule_lr: False
-        lr: 5e-4
+        lr: 1e-3
         # clip_norm: .5
         epsilon: 1.e-5
 
@@ -190,8 +184,6 @@ buffer:
     training: *training
     dir: data/gd-100000
     # PPO configs
-    use_dataset: True
-
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95

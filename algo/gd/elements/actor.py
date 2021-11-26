@@ -1,3 +1,6 @@
+import numpy as np
+import tensorflow as tf
+
 from core.elements.actor import Actor
 from core.mixin.actor import RMS
 
@@ -14,10 +17,10 @@ class PPOActor(Actor):
         return super()._process_input(inp, evaluation)
 
     def _process_output(self, inp, out, evaluation):
-        out = super()._process_output(inp, out, evaluation)
+        action, terms, state = super()._process_output(inp, out, evaluation)
         # if not evaluation and self.rms.is_obs_normalized:
         #     out[1]['obs'] = inp['obs']
-        return out
+        return action, terms, state
 
     """ RMS Methods """
     def __getattr__(self, name):

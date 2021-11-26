@@ -29,24 +29,66 @@ class PPOLossImpl(Loss):
 
 
 class PPOLoss(PPOLossImpl):
-    def loss(self, numbers, jokers, others, 
-            last_action_numbers, last_action_jokers, last_action_others,
-            action_filter, action_state, action_mask, state, mask,
-            others_numbers, others_jokers, 
-            action_type_mask, follow_mask, bomb_mask,
-            action_type, card_rank, value, traj_ret, advantage, logpi):
+    def loss(self, 
+            numbers, 
+            jokers, 
+            left_cards, 
+            is_last_teammate_move,
+            is_first_move,
+            last_valid_action_type,
+            rank,
+            bombs_dealt,
+            last_action_numbers, 
+            last_action_jokers, 
+            last_action_types,
+            last_action_rel_pids,
+            last_action_filters, 
+            last_action_first_move, 
+            action_type_mask, 
+            follow_mask, 
+            bomb_mask, 
+            others_numbers, 
+            others_jokers, 
+            action_type,
+            card_rank,
+            state, 
+            mask, 
+            value,
+            traj_ret, 
+            advantage, 
+            logpi):
         old_value = value
         terms = {}
         with tf.GradientTape() as tape:
-            x, state = self.model.encode(numbers, jokers, others, 
-                last_action_numbers, last_action_jokers, last_action_others,
-                action_filter, action_state, action_mask, state, mask)
-            action_type_dist = self.action_type(x, action_type_mask)
-            inp_card_rank = tf.concat([x, action_type], -1)
-            # TODO: fix this
-            card_rank_mask = tf.where(action_type == 1, follow_mask, bomb_mask)
-            card_rank_dist = self.card_rank(inp_card_rank, card_rank_mask)
-            action_type_entropy = action_type_dist.entropy()
+            x, _ = self.model.encode(
+                numbers=numbers, 
+                jokers=jokers, 
+                left_cards=left_cards,
+                bombs_dealt=bombs_dealt,
+                last_action_numbers=last_action_numbers,
+                last_action_jokers=last_action_jokers,
+                last_action_types=last_action_types,
+                last_action_rel_pids=last_action_rel_pids,
+                last_action_filters=last_action_filters,
+                last_action_first_move=last_action_first_move,
+                state=state,
+                mask=mask)
+            _, card_rank_mask, action_type_dist, card_rank_dist = \
+                self.compute_policy_stream(
+                    x=x, 
+                    is_last_teammate_move=is_last_teammate_move,
+                    last_valid_action_type=last_valid_action_type, 
+                    rank=rank,
+                    action_type_mask=action_type_mask,
+                    follow_mask=follow_mask,
+                    bomb_mask=bomb_mask,
+                    action_type=action_type,
+                    evaluation=False)
+            value = self.compute_value_stream(
+                x,
+                others_numbers=others_numbers,
+                others_jokers=others_jokers
+            )
 
             action_type_logits = action_type_dist.logits
             card_rank_logits = card_rank_dist.logits

@@ -4,14 +4,33 @@ import numpy as np
 import tensorflow as tf
 
 from core.elements.model import Model
+from core.tf_config import build
 from utility.file import source_file
 from utility.tf_utils import assert_rank
+from utility.utils import batch_dicts
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
 class PPOModel(Model):
+    def _build(self, env_stats, evaluation=False):
+        basic_shape = (None,)
+        shapes = env_stats['obs_shape']
+        dtypes = env_stats['obs_dtype']
+        TensorSpecs = {k: ((*basic_shape, *v), dtypes[k], k) 
+            for k, v in shapes.items()}
+        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        TensorSpecs.update(dict(
+            mask=(basic_shape, tf.float32, 'mask'),
+            state=self.state_type(*[((None, sz), dtype, name) 
+                for name, sz in self.state_size._asdict().items()]),
+            evaluation=evaluation,
+            return_eval_stats=evaluation,
+        ))
+
+        self.action = build(self.action, TensorSpecs)
+
     def _post_init(self):
         state = {
             'mlstm': 'action_h action_c h c',
@@ -19,7 +38,7 @@ class PPOModel(Model):
         }
         self._state_type = collections.namedtuple(
             'State', state[self._rnn_type.split('_')[-1]])
-
+    
     @tf.function
     def action(self, 
                numbers, 
@@ -43,45 +62,61 @@ class PPOModel(Model):
                others_jokers=None, 
                state=None, 
                mask=None,
-               evaluation=False):
-        x, state = self.encode(
+               evaluation=False,
+               return_eval_stats=False):
+        encoder_inp = self._add_seqential_dimension(
             numbers=numbers, 
             jokers=jokers, 
-            left_cards=left_cards, 
+            left_cards=left_cards,
             bombs_dealt=bombs_dealt,
-            last_action_numbers=last_action_numbers, 
-            last_action_jokers=last_action_jokers, 
+            last_action_numbers=last_action_numbers,
+            last_action_jokers=last_action_jokers,
             last_action_types=last_action_types,
             last_action_rel_pids=last_action_rel_pids,
-            last_action_filters=last_action_filters, 
-            last_action_first_move=last_action_first_move, 
-            state=state, 
-            mask=mask)
+            last_action_filters=last_action_filters,
+            last_action_first_move=last_action_first_move,
+            mask=mask
+        )
+        x, state = self.encode(
+            **encoder_inp,
+            state=state)
+        policy_inp = self._add_seqential_dimension(
+            is_last_teammate_move=is_last_teammate_move,
+            last_valid_action_type=last_valid_action_type, 
+            rank=rank,
+            action_type_mask=action_type_mask,
+            follow_mask=follow_mask,
+            bomb_mask=bomb_mask,
+        )
         action_type, card_rank_mask, action_type_dist, card_rank_dist = \
             self.compute_policy_stream(
                 x=x, 
-                is_last_teammate_move=is_last_teammate_move,
-                last_valid_action_type=last_valid_action_type, 
-                rank=rank,
-                action_type_mask=action_type_mask,
-                follow_mask=follow_mask,
-                bomb_mask=bomb_mask,
+                **policy_inp,
                 evaluation=evaluation)
         card_rank = self.card_rank.action(card_rank_dist, evaluation)
 
         if evaluation:
+            action_type, card_rank = tf.nest.map_structure(
+                lambda x: tf.squeeze(x, 1), (action_type, card_rank)
+            )
             return (action_type, card_rank), {}, state
         else:
             action_type_logpi = action_type_dist.log_prob(action_type)
             card_rank_logpi = card_rank_dist.log_prob(card_rank)
-            value = self.compute_value_stream(x, others_numbers, others_jokers)
+            value_inp = self._add_seqential_dimension(
+                others_numbers=others_numbers,
+                others_jokers=others_jokers
+            )
+            value = self.compute_value_stream(x, **value_inp)
             terms = {
                 'card_rank_mask': card_rank_mask,
                 'action_type_logpi': action_type_logpi, 
                 'card_rank_logpi': card_rank_logpi, 
                 'value': value
             }
-
+            (action_type, card_rank), terms = tf.nest.map_structure(
+                lambda x: tf.squeeze(x, 1), (action_type, card_rank), terms
+            )
             return (action_type, card_rank), terms, state    # keep the batch dimension for later use
 
     @tf.function
@@ -100,21 +135,28 @@ class PPOModel(Model):
                       others_jokers=None, 
                       state=None, 
                       mask=None):
-        x, state = self.encode(
+        encoder_inp = self._add_seqential_dimension(
             numbers=numbers, 
             jokers=jokers, 
-            left_cards=left_cards, 
+            left_cards=left_cards,
             bombs_dealt=bombs_dealt,
-            last_action_numbers=last_action_numbers, 
-            last_action_jokers=last_action_jokers, 
+            last_action_numbers=last_action_numbers,
+            last_action_jokers=last_action_jokers,
             last_action_types=last_action_types,
             last_action_rel_pids=last_action_rel_pids,
-            last_action_filters=last_action_filters, 
-            last_action_first_move=last_action_first_move, 
-            state=state, 
-            mask=mask)
-        value = self.compute_value_stream(x, others_numbers, others_jokers)
-        
+            last_action_filters=last_action_filters,
+            last_action_first_move=last_action_first_move,
+            mask=mask
+        )
+        x, state = self.encode(
+            **encoder_inp,
+            state=state)
+        value_inp = self._add_seqential_dimension(
+            others_numbers=others_numbers,
+            others_jokers=others_jokers
+        )
+        value = self.compute_value_stream(x, **value_inp)
+
         return value, state
 
     def encode(self, 
@@ -158,7 +200,7 @@ class PPOModel(Model):
 
         others = tf.concat([left_cards, bombs_dealt], axis=-1)
         x_o = self.obs_encoder(numbers, jokers, others)
-        assert_rank([x_o, x_a])
+        assert_rank([x_o, x_a], 3)
         x = tf.concat([x_o, x_a], axis=-1)
         x, state = self.rnn(x, state, mask)
         
@@ -203,36 +245,35 @@ class PPOModel(Model):
 
     def get_initial_state(self, inputs=None, batch_size=None, sequential_dim=None, dtype=None):
         if inputs is not None:
-            action_batch_size = np.prod(inputs['last_action_numbers'].shape[:2])
-        else:
-            action_batch_size = batch_size * sequential_dim
+            batch_size = inputs['last_action_numbers'].shape[0]
+            sequential_dim = inputs['last_action_numbers'].shape[1]
+        action_batch_size = batch_size * sequential_dim
         action_state = self.action_rnn.get_initial_state(
-            None, batch_size=action_batch_size, dtype=dtype)
+            batch_size=action_batch_size, dtype=dtype)
         state = self.rnn.get_initial_state(
-            inputs, batch_size=batch_size, dtype=dtype)
+            batch_size=batch_size, dtype=dtype)
         state = self.state_type(*action_state, *state)
         return state
 
     @property
     def state_size(self):
-        action_state = self.action_rnn.state_size
-        state = self.rnn.state_size
-        state = self.state_type(*action_state, *state)
-        return state
+        action_state_size = self.action_rnn.state_size
+        state_size = self.rnn.state_size
+        state_size = self.state_type(*action_state_size, *state_size)
+        return state_size
 
     @property
     def state_keys(self):
-        action_state = self.action_rnn.state_keys
-        state = self.rnn.state_keys
-        state = self.state_type(*action_state, *state)
-        return state
+        return self.state_type(*self._state_type._fields)
 
     @property
     def state_type(self):
         return self._state_type
 
+    def _add_seqential_dimension(self, **kwargs):
+        return tf.nest.map_structure(lambda x: tf.expand_dims(x, 1), kwargs)
 
-def create_model(config, env_stats, name='ppo', to_build=False):
+def create_model(config, env_stats, name='ppo', to_build=False, to_build_for_eval=False):
     config.action_type.head.out_size = env_stats['action_dim']['action_type']
     config.card_rank.head.out_size = env_stats['action_dim']['card_rank']
 
@@ -240,7 +281,8 @@ def create_model(config, env_stats, name='ppo', to_build=False):
         config=config, 
         env_stats=env_stats, 
         name=name, 
-        to_build=to_build)
+        to_build=to_build,
+        to_build_for_eval=to_build_for_eval)
 
 
 if __name__ == '__main__':

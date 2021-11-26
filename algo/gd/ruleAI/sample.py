@@ -4,13 +4,16 @@ import logging
 import random
 import time
 from pathlib import Path
+from typing import Union
 import numpy as np
 
 from algo.gd.ruleAI.reyn_ai import ReynAIAgent
 from core.log import do_logging
+from core.elements.agent import Agent
 from env.guandan.action import get_action_card, get_action_type
 from env.guandan.game import Game
 from env.guandan.infoset import get_obs
+from env.typing import EnvOutput
 from replay.utils import save_data, load_data
 from utility.utils import batch_dicts
 
@@ -30,7 +33,7 @@ class Buffer:
         self._memory.clear()
         self._idx = 0
 
-    def check(self):
+    def check_traj_len(self):
         return self._idx <= 40
 
     def sample(self):
@@ -50,63 +53,71 @@ class Buffer:
         self._idx += 1
 
 
-def generate_expert_data(n_trajs, log_dir, start_idx=0, test=False):
-    agent = ReynAIAgent()
-    env = Game()
-    
-    buffers = [Buffer(pid=i) for i in range(4)]
-    log_dir = Path(log_dir)
-    log_dir.mkdir(parents=True, exist_ok=True)
-    steps = []
-    start_idx *= n_trajs
-    i = 0
-    max_player_traj_len = 0
-    while i < n_trajs:
-        env.reset()
-        env.start()
-        infoset = env.get_infoset()
-        obs = get_obs(infoset)
-        step = 0
-        start = time.time()
-        if test:
-            for k, v in obs.items():
-                print('\t', k, v)
-        while not env.game_over():
-            # for k, v in obs.items():
-            #     if isinstance(v, np.ndarray):
-            #         print(k, v.shape, v.dtype, v.max(), v.min())
-            action_id = agent(infoset)
+def run_episode(
+        env: Game, 
+        agent02: Union[Agent, ReynAIAgent], 
+        agent13: ReynAIAgent=ReynAIAgent(), 
+        buffers=None,
+        test=False):
+    env.reset()
+    env.start()
+    infoset = env.get_infoset()
+    obs = get_obs(infoset)
+    step = 0
+    start = time.time()
+    players_traj_lens = [0 for _ in range(4)]
+    if test:
+        for k, v in obs.items():
+            print('\t', k, v)
+    while not env.game_over():
+        pid = obs['pid']
+        if isinstance(agent02, Agent) and (pid == 0 or pid == 2) and not obs['is_first_move']:
+            batch_obs = obs.copy()
+            batch_obs['eid'] = 0
+            for k, v in batch_obs.items():
+                batch_obs[k] = np.expand_dims(v, 0)
+            reward = np.expand_dims(0, 0)
+            discount = np.expand_dims(1, 0)
+            reset = np.expand_dims(players_traj_lens[pid] == 0, 0)
+            env_output = EnvOutput(batch_obs, reward, discount, reset)
+            (action_type, card_rank), _ = agent02(env_output)
+            action_type = action_type[0]
+            card_rank = card_rank[0]
+            if action_type == 0:
+                card_rank = 0
+            action_id = infoset.action2id(action_type, card_rank)
+        else:
+            action_id = agent13(infoset)
             action = infoset.legal_actions[action_id]
             action_type = np.int32(get_action_type(action, one_hot=False))
             assert obs['action_type_mask'][action_type] == 1, obs['action_type_mask'][action_type]
             card_rank = np.int32(get_action_card(action, one_hot=False))
-            if action_type != 0:
-                card_rank_mask = obs['follow_mask'] if action_type == 1 else obs['bomb_mask']
-                assert card_rank_mask[card_rank] == 1, (action, action_type, card_rank, card_rank_mask)
-            env.play(action_id)
-            buffers[obs['pid']].add(
+        if action_type != 0:
+            card_rank_mask = obs['follow_mask'] if action_type == 1 else obs['bomb_mask']
+            assert card_rank_mask[card_rank] == 1, (action, action_type, card_rank, card_rank_mask)
+        env.play(action_id)
+        if buffers is not None:
+            buffers[pid].add(
                 **obs, 
                 action_type=action_type, 
                 card_rank=card_rank, 
                 discount=env.game_over() == False
             )
-            infoset = env.get_infoset()
-            obs = get_obs(infoset)
-            step += 1
-        if test:
-            print('end\n\n\n')
-            print(list(obs))
-            for k, v in obs.items():
-                print('\t', k, v)
-
-        max_player_traj_len = max([max_player_traj_len, *[b.traj_len() for b in buffers]])
-        if not np.all([b.check() for b in buffers]):
-            continue
-        steps.append(step)
-        rewards = env.compute_reward()
+        infoset = env.get_infoset()
+        obs = get_obs(infoset)
+        step += 1
+        players_traj_lens[pid] += 1
+    if test:
+        print('end\n\n\n')
+        print(list(obs))
+        for k, v in obs.items():
+            print('\t', k, v)
+    max_player_traj_len = max(players_traj_lens)
+    scores = env.compute_reward()
+    if buffers is not None:
         episodes = [b.sample() for b in buffers]
         episodes = batch_dicts(episodes)
-        episodes['reward'] = np.expand_dims(rewards, -1) * np.ones_like(episodes['pid'], dtype=np.float32)
+        episodes['reward'] = np.expand_dims(scores, -1) * np.ones_like(episodes['pid'], dtype=np.float32)
         if test:
             print('Episodic stats\n\n\n')
             for k, v in episodes.items():
@@ -116,17 +127,34 @@ def generate_expert_data(n_trajs, log_dir, start_idx=0, test=False):
                 elif k == 'rank':
                     v = np.argmax(v, -1)
                     print('\t', k, '\n', v[:, :2], v[:, -2:])
-        # for k, v in episode.items():
-        #     if isinstance(v, dict):
-        #         for kk, vv in v.items():
-        #             print(k, kk, vv.shape, vv.dtype, vv.max(), vv.min(), vv.mean())
-        #     else:
-        #         print(k, v.shape, v.dtype, v.max(), v.min(), v.mean())
-        # assert False
-        filename = log_dir / f'{start_idx+i}-{step}-{int(rewards[0])}-{int(rewards[1])}-{int(rewards[2])}-{int(rewards[3])}.npz'
-        print(f'{filename}, steps({step}), duration({time.time()-start})')
+    
+        return max_player_traj_len, step, time.time() - start, scores, episodes
+    else:
+        return max_player_traj_len, step, time.time() - start, scores
+
+
+def generate_expert_data(n_trajs, log_dir, start_idx=0, test=False):
+    agent = ReynAIAgent()
+    env = Game(skip_players02=False, skip_players13=False)
+    
+    buffers = [Buffer(pid=i) for i in range(4)]
+    log_dir = Path(log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    steps = []
+    start_idx *= n_trajs
+    i = 0
+    max_player_traj_len = 0
+    while i < n_trajs:
+        mptl, step, run_time, scores, episodes = run_episode(env, agent, agent, buffers, test)
+        if not np.all([b.check_traj_len() for b in buffers]):
+            continue
+        filename = log_dir / f'{start_idx+i}-{step}-{int(scores[0])}-{int(scores[1])}-{int(scores[2])}-{int(scores[3])}.npz'
+        print(f'{filename}, steps({step}), max player trajectory length({mptl}), duration({run_time})')
         if not test:
             save_data(filename, episodes)
+        
+        max_player_traj_len = max(max_player_traj_len, mptl)
+        steps.append(step)
         i += 1
     
     return max_player_traj_len, steps

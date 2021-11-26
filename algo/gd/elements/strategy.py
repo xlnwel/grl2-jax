@@ -161,7 +161,7 @@ class PPOStrategy(Strategy):
     def _record_output(self, out):
         states = out[-1]
         for i, memory in enumerate(self._last_memories):
-            state = self.model.state_type(*[s[i] for s in states])
+            state = self.model.state_type(*[s[i:i+1] for s in states])
             memory.reset_states(state)
 
     """ PPO Methods """
@@ -181,22 +181,22 @@ class PPOStrategy(Strategy):
         pids = inp.pop('pid')
         states = []
         self._last_memories = []
-        for eid, pid, lan in zip(eids, pids, inp['last_action_numbers']):
+        for eid, pid in zip(eids, pids):
             if eid not in self._memories:
                 self._memories[eid] = [Memory(self.model) for _ in range(4)]
             self._last_memories.append(self._memories[eid][pid])
             states.append(self._memories[eid][pid].get_states_for_inputs(
-                {'last_action_numbers': lan}))
+                batch_size=1, sequential_dim=1
+            ))
         state = self.model.state_type(*[np.concatenate(s) for s in zip(*states)])
         
+        inp['mask'] = self._memories[0][0].get_mask(env_output.reset)
         # TODO: remove the following as we're gonna reset states in LSTM anyway
-        mask = self._memories[0].get_mask(env_output.reset)
-        state = self._memories[0].apply_mask_to_state(state, mask)
-
+        # state = self._memories[0][0].apply_mask_to_state(state, mask)
         inp.update({
-            'state': state,
-            'mask': mask
+            k: v for k, v in zip(self.model.state_keys, state)
         })
+        
         return inp
 
 

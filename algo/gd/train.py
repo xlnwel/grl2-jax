@@ -3,8 +3,7 @@ import signal
 import sys
 import numpy as np
 
-from core.dataset import create_dataset
-from core.monitor import create_monitor
+from core.elements.builder import ElementsBuilder
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from core.utils import save_config
 from utility.utils import TempStore
@@ -121,14 +120,11 @@ def ppo_train(config):
 
     root_dir = config.agent.root_dir
     model_name = config.agent.model_name
-    name = config.agent.algorithm
 
     def build_envs():
-        env = create_env(config.env, force_envvec=True)
+        env = create_env(config.env)
         eval_env_config = config.env.copy()
         if config.env.pop('do_evaluation', True):
-            if 'num_levels' in eval_env_config:
-                eval_env_config['num_levels'] = 0
             if 'seed' in eval_env_config:
                 eval_env_config['seed'] += 1000
             eval_env_config['n_workers'] = 1
@@ -137,7 +133,7 @@ def ppo_train(config):
                 if 'reward' in k:
                     eval_env_config.pop(k)
             
-            eval_env = create_env(eval_env_config, force_envvec=True)
+            eval_env = create_env(eval_env_config)
         else: 
             eval_env = None
         
@@ -154,68 +150,17 @@ def ppo_train(config):
     signal.signal(signal.SIGINT, sigint_handler)
 
     env_stats = env.stats()
-    def build_elements():
-        create_model = pkg.import_module(
-            name='elements.model', algo=name, place=-1).create_model
-        create_loss = pkg.import_module(
-            name='elements.loss', algo=name, place=-1).create_loss
-        create_trainer = pkg.import_module(
-            name='elements.trainer', algo=name, place=-1).create_trainer
-        create_actor = pkg.import_module(
-            name='elements.actor', algo=name, place=-1).create_actor
-
-        model = create_model(config.model, env_stats)
-        loss = create_loss(config.loss, model)
-        trainer = create_trainer(config.trainer, loss, env_stats)
-        actor = create_actor(config.actor, model)
-        
-        return model, trainer, actor
-    model, trainer, actor = build_elements()
-
-    def build_buffer_dataset():
-        config.buffer['n_envs'] = env.n_envs
-        config.buffer['state_keys'] = model.state_keys
-        config.buffer['use_dataset'] = config.buffer.get('use_dataset', False)
-        create_buffer = pkg.import_module(
-            'elements.buffer', config=config.agent).create_buffer
-        buffer = create_buffer(config.buffer)
-        
-        if config.buffer['use_dataset']:
-            am = pkg.import_module('elements.utils', config=config.agent)
-            data_format = am.get_data_format(
-                config.trainer, env_stats, model)
-            dataset = create_dataset(buffer, env_stats, 
-                data_format=data_format, one_hot_action=False)
-        else:
-            dataset = buffer
-
-        return buffer, dataset
-    buffer, dataset = build_buffer_dataset()
-
-    def build_strategy():
-        create_strategy = pkg.import_module(
-            'elements.strategy', config=config.agent).create_strategy
-        strategy = create_strategy(
-            name, config.strategy, trainer, actor, dataset)
-        
-        return strategy
-    strategy = build_strategy()
-
-    def build_agent():
-        create_agent = pkg.import_module(
-            'elements.agent', config=config.agent).create_agent
-        monitor = create_monitor(root_dir, model_name, name)
-
-        agent = create_agent(
-            config=config.agent, 
-            strategy=strategy, 
-            monitor=monitor,
-            name=name
-        )
-
-        return agent
-    agent = build_agent()
-    save_config(root_dir, model_name, config)
+    builder = ElementsBuilder(config, env_stats, name='zero')
+    model = builder.build_model()
+    actor = builder.build_actor(model)
+    trainer = builder.build_trainer(model)
+    buffer = builder.build_buffer(model)
+    dataset = builder.build_dataset(buffer, model)
+    strategy = builder.build_strategy(actor=actor, trainer=trainer, dataset=dataset)
+    monitor = builder.build_monitor()
+    agent = builder.build_agent(strategy=strategy, monitor=monitor)
+ 
+    save_config(root_dir, model_name, builder.get_config())
 
     train(agent, env, eval_env, buffer)
 
@@ -229,73 +174,25 @@ def ppo_train(config):
 def bc_train(config):
     root_dir = config.agent.root_dir
     model_name = config.agent.model_name
-    name = config.agent.algorithm
 
+    buffer_config = {
+        'dir': config.buffer.dir,
+        'training': 'bc',
+        'batch_size': config.buffer.batch_size,
+        'sample_size': 40,
+    }
     env_stats = get_env_stats(config.env)
-
-    def build_elements():
-        create_model = pkg.import_module(
-            name='elements.model', algo=name, place=-1).create_model
-        create_loss = pkg.import_module(
-            name='elements.loss', algo=name, place=-1).create_loss
-        create_trainer = pkg.import_module(
-            name='elements.trainer', algo=name, place=-1).create_trainer
-        create_actor = pkg.import_module(
-            name='elements.actor', algo=name, place=-1).create_actor
-
-        model = create_model(config.model, env_stats)
-        loss = create_loss(config.loss, model)
-        trainer = create_trainer(config.trainer, loss, env_stats)
-        actor = create_actor(config.actor, model)
-        
-        return model, trainer, actor
-    model, trainer, actor = build_elements()
-
-    def build_buffer_dataset():
-        create_buffer = pkg.import_module(
-            'elements.buffer', config=config.agent).create_buffer
-        buffer = create_buffer({
-            'dir': config.buffer.dir,
-            'training': 'bc',
-            'batch_size': config.buffer.batch_size,
-            'sample_size': 40,
-        })
-        buffer.load_data()
-        
-        am = pkg.import_module('elements.utils', config=config.agent)
-        data_format = am.get_bc_data_format(
-            config.trainer, env_stats, model)
-        dataset = create_dataset(buffer, env_stats, 
-            data_format=data_format, one_hot_action=False)
-        
-        return buffer, dataset
-    buffer, dataset = build_buffer_dataset()
-
-    def build_strategy():
-        create_strategy = pkg.import_module(
-            'elements.strategy', config=config.agent).create_strategy
-        strategy = create_strategy(
-            name, config.strategy, trainer, actor, dataset)
-        
-        return strategy
-    strategy = build_strategy()
-
-    def build_agent():
-        create_agent = pkg.import_module(
-            'elements.agent', config=config.agent).create_agent
-        monitor = create_monitor(root_dir, model_name, name)
-
-        agent = create_agent(
-            config=config.agent, 
-            strategy=strategy, 
-            monitor=monitor,
-            name=name
-        )
-
-        return agent
-
-    agent = build_agent()
-    save_config(root_dir, model_name, config)
+    builder = ElementsBuilder(config, env_stats, name='zero')
+    model = builder.build_model()
+    actor = builder.build_actor(model)
+    trainer = builder.build_trainer(model)
+    buffer = builder.build_buffer(model, buffer_config=buffer_config)
+    dataset = builder.build_dataset(buffer, model)
+    strategy = builder.build_strategy(actor=actor, trainer=trainer, dataset=dataset)
+    monitor = builder.build_monitor()
+    agent = builder.build_agent(strategy=strategy, monitor=monitor)
+    
+    save_config(root_dir, model_name, builder.get_config())
 
     tt = Timer('train')
     lt = Timer('log')
