@@ -1,0 +1,11 @@
+tensorflow-gpu
+tensorboard
+ray
+scipy
+pandas
+Pillow
+plotly
+opencv-python
+gym[all]
+atari_py
+pysc2

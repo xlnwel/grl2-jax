@@ -4,6 +4,8 @@ import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from core.elements.builder import ElementsBuilder
+from core.log import setup_logging
 from core.tf_config import *
 from utility.display import pwc
 from utility.ray_setup import sigint_shutdown_ray
@@ -42,7 +44,8 @@ def build_agent(config, name, strategy):
     agent = create_agent(
         config=config.agent, 
         strategy=strategy, 
-        name=name
+        name=name,
+        to_save_code=False
     )
 
     return agent
@@ -50,10 +53,6 @@ def build_agent(config, name, strategy):
 
 def main(config, n, record=False, size=(128, 128), video_len=1000, 
         fps=30, save=False):
-    silence_tf_logs()
-    configure_gpu()
-    configure_precision(config.get('precision', 32))
-
     use_ray = config.env.get('n_workers', 0) > 1
     if use_ray:
         import ray
@@ -75,15 +74,18 @@ def main(config, n, record=False, size=(128, 128), video_len=1000,
 
     env_stats = env.stats()
 
-    _, actor = build_elements(config, 'gd', env_stats)
-    strategy = build_strategy(config, 'gd', actor)
-    agent = build_agent(config, 'gd', strategy)
+    builder = ElementsBuilder(config, env_stats, config.algorithm)
+    model = builder.build_model(to_build_for_eval=True)
+    actor = builder.build_actor(model)
+    strategy = builder.build_strategy(actor=actor)
+    agent = builder.build_agent(strategy, to_save_code=False)
 
     if n < env.n_envs:
         n = env.n_envs
     start = time.time()
     scores, epslens, video = evaluate(
         env, agent, n, record_video=record, size=size, video_len=video_len)
+
     pwc(f'After running {n} episodes',
         f'Score: {np.mean(scores):.3g}',
         f'Epslen: {np.mean(epslens):.3g}', 
@@ -98,6 +100,8 @@ def main(config, n, record=False, size=(128, 128), video_len=1000,
 
 if __name__ == '__main__':
     args = parse_eval_args()
+
+    setup_logging(args.verbose)
 
     # load respective config
     config = search_for_config(args.directory)

@@ -5,6 +5,14 @@ from utility.utils import get_frame
 
 
 """ Logging operations """
+def setup_logging(verbose):
+    verbose = getattr(logging, verbose.upper())
+    logging.basicConfig(
+        level=verbose, 
+        format=f'%(asctime)s: %(levelname)s: %(name)s: %(message)s',
+        datefmt='%Y-%m-%d:%H:%M:%S',
+    )
+
 def get_sys_logger(backtrack=1):
     frame = get_frame(backtrack)
     filename = frame.f_code.co_filename

@@ -50,13 +50,14 @@ def parse_eval_args():
                         type=str,
                         help='directory where checkpoints and "config.yaml" exist')
     parser.add_argument('--record', '-r', action='store_true')
-    parser.add_argument('--video_len', '-v', type=int, default=None)
+    parser.add_argument('--video_len', '-vl', type=int, default=None)
     parser.add_argument('--n_episodes', '-n', type=int, default=1)
     parser.add_argument('--n_envs', '-ne', type=int, default=0)
     parser.add_argument('--n_workers', '-nw', type=int, default=0)
     parser.add_argument('--size', '-s', nargs='+', type=int, default=None)
     parser.add_argument('--save', action='store_true')
     parser.add_argument('--fps', type=int, default=30)
+    parser.add_argument('--verbose', '-v', type=str, default='warning')
     args = parser.parse_args()
 
     return args

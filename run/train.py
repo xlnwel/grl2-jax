@@ -7,7 +7,7 @@ from multiprocessing import Process
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.log import do_logging
+from core.log import setup_logging, do_logging
 from utility import pkg
 from run.args import parse_train_args
 from run.grid_search import GridSearch
@@ -40,12 +40,8 @@ def set_path(config, root_dir, model_name):
 if __name__ == '__main__':
     cmd_args = parse_train_args()
 
-    verbose = getattr(logging, cmd_args.verbose.upper())
-    logging.basicConfig(
-        level=verbose, 
-        format=f'%(asctime)s: %(levelname)s: %(name)s: %(message)s',
-        datefmt='%Y-%m-%d:%H:%M:%S',
-    )
+    setup_logging(cmd_args.verbose)
+
     processes = []
     if cmd_args.directory != '':
         load_and_run(cmd_args.directory)

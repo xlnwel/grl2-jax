@@ -125,8 +125,8 @@ class Strategy:
 def create_strategy(
         name, 
         config: dict,
-        trainer: Union[Trainer, TrainerEnsemble]=None, 
         actor: Actor=None,
+        trainer: Union[Trainer, TrainerEnsemble]=None, 
         dataset=None,
         *,
         strategy_cls,

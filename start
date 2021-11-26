@@ -1,5 +1,6 @@
 #!/bin/zsh
 
+source activate grl
 
 algos=(
     # ppo
@@ -11,9 +12,7 @@ algos=(
     # daac
     # apex-mrdqn
     # sacdiqn5
-    apg-ppo
-    apg-ppo2
-    apg-impala
+    gd
 )
 suite=procgen
 envs=(
@@ -25,18 +24,20 @@ envs=(
     # heist
     # starpilot
     # miner
-    climber
-    dodgeball
-    caveflyer 
-    jumper
-    fruitbot
-    bossfight
-    maze
-    coinrun
+    # climber
+    # dodgeball
+    # caveflyer 
+    # jumper
+    # fruitbot
+    # bossfight
+    # maze
+    # coinrun
+    gd
 )
-args1=(8)
-args2=(True)
-args3=(1)
+args1=(256)
+args2=(None layer)
+args3=(True False)
+args4=(True False)
 
 # algos=(
 #     apg-ppo
@@ -46,26 +47,37 @@ args3=(1)
     
 # )
 
+i=0
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
         for a1 in "${args1[@]}"; do
             for a2 in "${args2[@]}"; do
                 for a3 in "${args3[@]}"; do
-                    # if [[ $a2 == $a3 ]]
-                    # then continue
-                    # fi
-                    # sed -e "s/KI/${a2}/g" \
-                    #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
-                    dir="logs/${suite}_${e}/${a}"
-                    mkdir -p $dir
-                    # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                    py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard >& ${dir}/outputs.txt"
-                    echo $py_script
-                    eval $py_script
-                    last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)
-                    mv_script="mv ${dir}/outputs.txt ${last_dir}/outputs.txt"
-                    echo $mv_script
-                    eval $mv_script
+                    for a4 in "${args3[@]}"; do
+                        # if [[ $a2 == $a3 ]]
+                        # then continue
+                        # fi
+                        # sed -e "s/KI/${a2}/g" \
+                        #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
+                        # dir="logs/${suite}_${e}/${a}"
+                        kw1="batch_size=$a1"
+                        kw2="norm=$a2"
+                        kw3="use_ln=$a3"
+                        kw4="norm_after_activation=$a4"
+                        dir="logs/gd/gd/$kw1-$kw2-$kw3-$kw4"
+                        mkdir -p $dir
+                        # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
+                        # py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard >& ${dir}/outputs.txt"
+                        py_script="CUDA_VISIBLE_DEVICES=$i python run/train.py ${a} -e gd -kw $kw1 $kw2 $kw3 $kw4 >& ${dir}/outputs.txt &"
+                        echo $py_script
+                        eval $py_script
+                        ((i=(i+1) % 8))
+                        sleep 3
+                        # last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)
+                        # mv_script="mv ${dir}/outputs.txt ${last_dir}/outputs.txt"
+                        # echo $mv_script
+                        # eval $mv_script
+                    done
                 done
             done
         done
