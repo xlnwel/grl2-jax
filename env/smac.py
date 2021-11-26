@@ -28,13 +28,6 @@ from env.smac_maps import get_map_params
 from env import wrappers
 
 
-def make_smac(config):
-    config = config.copy()
-    config['name'] = config['name'].split('_', maxsplit=1)[1]
-    env = SMAC(**config)
-    env = wrappers.MASimEnvStats(env)
-    return env
-
 races = {
     "R": sc_common.Random,
     "P": sc_common.Protoss,

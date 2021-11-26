@@ -82,9 +82,11 @@ def com_cards(same_cards, cards, n, name):
 
 
 class Game(object):
-    def __init__(self, players=[], max_card=13):
+    def __init__(self, skip_players02=False, skip_players13=True, agent02='random', agent13='reyn', max_card=13, **kwargs):
         self.over_order = OverOrder() #出完牌的顺序和进贡关系
-        self.players = players
+        self.skip_players02 = skip_players02
+        self.skip_players13 = skip_players13
+        self.players = [Player('0', agent02), Player('1', agent13), Player('2', agent02), Player('3', agent13)]
         self.max_card = max_card
 
         self.r_order_default = {'2':2,
@@ -98,11 +100,9 @@ class Game(object):
          '2':2,  '3':3,  '4':4,  '5':5,  '6':6,  '7':7,  '8':8,  '9':9,  'T':10,  'J':11,  'Q':12,  'K':13,  'B':16,
          'R':17}
         self.end = False
-        if players == []:
-            self.players = [Player('0', 'random'), Player('1', 'random'), Player('2', 'random'), Player('3', 'random')]
         
         # obs info
-        self.numbers_shape = (13, 6 * 4 + 1)
+        self.numbers_shape = (13, 6 * 4 + 1)    # (6, 13, 5)
         self.jokers_shape = (6 * 4,)
         self.left_cards_shape = (3 * 27,)
         self.is_last_teammate_move_shape = (1,)
@@ -311,12 +311,12 @@ class Game(object):
     def start(self):
         legal_actions = self.first_action(self.current_pid)   #可选动作集合
         self.update_player_message(pos=self.current_pid, legal_actions=legal_actions)
-        self.game_infoset = self.get_infoset()
+        self.check_skip_player()
         # print("游戏开始，本小局打{}, {}号位先手".format(self.rank, self.current_pid))
 
     def random_action(self):
-        self.game_infoset = self.get_infoset()
-        action_index = self.players[self.current_pid].play_choice(self.game_infoset)
+        infoset = self.get_infoset()
+        action_index = self.players[self.current_pid].play_choice(infoset)
         action = self.legal_actions[action_index]
         return action
 
@@ -372,8 +372,7 @@ class Game(object):
                     #self.players[current_pid].reward += len(self.last_valid_action.cards)
                 else:
                     act_func = self.second_action
-                
-            self.update_player_message(pos=current_pid, legal_actions=(act_func(current_pid)))
+            self.update_player_message(pos=current_pid, legal_actions=act_func(current_pid))
             self.current_pid = current_pid
 
         else:
@@ -399,7 +398,20 @@ class Game(object):
                 current_pid = self.next_pos()
                 self.update_player_message(pos=current_pid, legal_actions=(self.second_action(current_pid)))
                 self.current_pid = current_pid
+        if self.end:
+            return
+        self.check_skip_player()
 
+    def check_skip_player(self):
+        if self.skip_players02 and (self.current_pid == 0 or self.current_pid == 2):
+            infoset = self.get_infoset()
+            aid = self.players[self.current_pid].play_choice(infoset)
+            self.play(aid)
+        elif self.skip_players13 and (self.current_pid == 1 or self.current_pid == 3):
+            infoset = self.get_infoset()
+            aid = self.players[self.current_pid].play_choice(infoset)
+            self.play(aid)
+        
     def add_card(self, pos, card):
         """
         将卡牌添加到玩家手中，并保持牌序有序

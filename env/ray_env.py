@@ -3,6 +3,7 @@ import numpy as np
 import ray
 
 from env.cls import *
+from utility.utils import convert_batch_with_func
 
 
 class RayEnvVec(EnvVecBase):
@@ -13,21 +14,20 @@ class RayEnvVec(EnvVecBase):
         self.n_envs = self.envsperworker * self.n_workers
         RayEnvType = ray.remote(EnvType)
         # leave the name "envs" for consistency, albeit workers seems more appropriate
-        if 'seed' in config:
-            self.envs = [config.update({'seed': 100*i}) or RayEnvType.remote(config, env_fn) 
-                    for i in range(self.n_workers)]
-        else:
-            self.envs = [RayEnvType.remote(config, env_fn) 
-                    for i in range(self.n_workers)]
+        self.envs = []
+        for i in range(self.n_workers):
+            if 'seed' in config:
+                config['seed'] = i * self.envsperworker
+            if 'eid' in config:
+                config['eid'] = i * self.envsperworker
+            self.envs.append(RayEnvType.remote(config, env_fn))
 
         self.env = EnvType(config, env_fn)
+        self.stats = self.env.stats
         self.max_episode_steps = self.env.max_episode_steps
         self._combine_func = np.stack if isinstance(self.env, Env) else np.concatenate
-        self.env.close()
 
         super().__init__()
-
-        atexit.register(self.close)
 
     def reset(self, idxes=None):
         out = self._remote_call('reset', idxes, single_output=False)
@@ -37,7 +37,10 @@ class RayEnvVec(EnvVecBase):
         return self._combine_func(ray.get([env.random_action.remote() for env in self.envs]))
 
     def step(self, actions, **kwargs):
-        actions = [np.squeeze(a) for a in np.split(actions, self.n_workers)]
+        if isinstance(actions, (tuple, list)):
+            actions = list(zip(*[np.split(a, self.n_workers) for a in actions]))
+        else:
+            actions = [np.squeeze(a) for a in np.split(actions, self.n_workers)]
         if kwargs:
             kwargs = {k: [np.squeeze(x) for x in np.split(v, self.n_workers)] 
                 for k, v in kwargs.items()}
@@ -55,14 +58,14 @@ class RayEnvVec(EnvVecBase):
         #             print(list(o))
         #         else:
         #             print(o.shape, o.dtype)
-        out = [self._convert_batch(o, self._combine_func) for o in zip(*out)]
+        out = [convert_batch_with_func(o, self._combine_func) for o in zip(*out)]
         return EnvOutput(*out)
 
     def score(self, idxes=None):
-        return self._remote_call('score', idxes)
+        return self._remote_call('score', idxes, convert_batch=False)
 
     def epslen(self, idxes=None):
-        return self._remote_call('epslen', idxes)
+        return self._remote_call('epslen', idxes, convert_batch=False)
 
     def mask(self, idxes=None):
         return self._remote_call('mask', idxes)
@@ -101,18 +104,18 @@ class RayEnvVec(EnvVecBase):
 
         if single_output:
             if isinstance(self.env, Env):
-                return self._convert_batch(out) if convert_batch else out
+                return convert_batch_with_func(out) if convert_batch else out
             # for these outputs, we expect them to be of form [[out*], [out*]]
             # and we chain them into [out*]
             out = list(itertools.chain(*out))
             if convert_batch:
                 # always stack as chain has flattened the data
-                out = self._convert_batch(out)
+                out = convert_batch_with_func(out)
             return out
         else:
             out = list(zip(*out))
             if convert_batch:
-                out = [self._convert_batch(o, self._combine_func) for o in out]
+                out = [convert_batch_with_func(o, self._combine_func) for o in out]
             return out
 
     def close(self):

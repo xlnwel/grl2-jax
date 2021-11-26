@@ -40,6 +40,40 @@ class InfoSet(object):
         self.rank = None
         # bombs dealt so far
         self.bombs_dealt = None
+        self._action2id = {}
+
+    def get_policy_mask(self, is_first_move):
+        # TODO: Try more action types
+        card_type_mask = np.zeros(3, dtype=np.bool)    # pass, follow, bomb
+        follow_mask = np.zeros(15, dtype=np.bool)
+        bomb_mask = np.zeros(15, dtype=np.bool)
+        for aid, a in enumerate(self.legal_actions):
+            assert a.type is not None, a.type
+            if a.type == PASS:
+                card_type_mask[0] = 1
+                self._action2id[(0, 0)] = aid
+            else:
+                i = Action2Num[a.rank]
+                k = 0
+                if a.type == BOMB or a.type == STRAIGHT_FLUSH:
+                    k = 2
+                    card_type_mask[2] = 1
+                    bomb_mask[i] = 1
+                else:
+                    k = 1
+                    card_type_mask[1] = 1
+                    follow_mask[i] = 1
+                self._action2id[(k, i)] = aid
+        assert np.any(card_type_mask), card_type_mask
+        assert card_type_mask[0] != is_first_move, (card_type_mask, is_first_move, [a.cards for a in self.legal_actions])
+        if card_type_mask[1] == False:
+            assert np.all(follow_mask == False), follow_mask
+        if card_type_mask[2] == False:
+            assert np.all(bomb_mask == False), bomb_mask
+        return card_type_mask, follow_mask, bomb_mask
+
+    def action2id(self, action_type, card_rank):
+        return self._action2id[(action_type, card_rank)]
 
 def _get_one_hot_array(i,n):
     """
@@ -109,7 +143,7 @@ def _action_repr(action, rank):
 
     return result
 
-def _get_policy_mask(infoset: InfoSet, is_first_move):
+def get_policy_mask(infoset: InfoSet, is_first_move):
     # TODO: Try more action types
     card_type_mask = np.zeros(3, dtype=np.bool)    # pass, follow, bomb
     follow_mask = np.zeros(15, dtype=np.bool)
@@ -142,7 +176,7 @@ def _get_rel_pids():
     # return np.stack(pids)
     return np.eye(4, dtype=np.float32)
 
-def get_obs(infoset: InfoSet, separate_jokers=True):
+def get_obs(infoset: InfoSet):
     pid = infoset.pid
     down_pid = get_down_pid(infoset.pid)
     teammate_pid = get_teammate_pid(infoset.pid)
@@ -197,8 +231,9 @@ def get_obs(infoset: InfoSet, separate_jokers=True):
     others_handcards = [_cards_repr(c) for c in others_hand_cards]
     others_numbers = np.concatenate([c['numbers'] for c in others_handcards]+[rank_exp_repr], axis=-1)
     others_jokers = np.concatenate([c['jokers'] for c in others_handcards], axis=-1)
+    
     """ Policy Mask """
-    card_type_mask, follow_mask, bomb_mask = _get_policy_mask(infoset, is_first_move)
+    card_type_mask, follow_mask, bomb_mask = infoset.get_policy_mask(is_first_move)
     if is_first_move:
         assert card_type_mask[0] == False, card_type_mask
     else:

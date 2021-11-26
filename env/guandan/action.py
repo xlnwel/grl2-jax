@@ -34,12 +34,12 @@ def get_action_card(action, action_card=None, one_hot=True):
         if action_card is None:
             action_card = np.zeros(15, dtype=np.float32)
         if action.type != PASS:
-            action_card[Action2Num[action.cards[0][-1]]] = 1
+            action_card[Action2Num[action.rank]] = 1
     else:
         if action.type == PASS:
             action_card = -1
         else:
-            action_card = Action2Num[action.cards[0][-1]]
+            action_card = Action2Num[action.rank]
     return action_card
 
 

@@ -2,7 +2,32 @@ import numpy as np
 import gym
 
 
-class DummyEnv():
+class DummyEnv:
+    """ Useful to break the inheritance of unexpected attributes.
+    For example, control tasks in gym by default use frame_skip=4,
+    but we usually don't count these frame skips in practice.
+    """
+    def __init__(self, env):
+        self.env = env
+        self.observation_space = env.observation_space
+        self.action_space = env.action_space
+        self.spec = env.spec
+        self.reward_range = env.reward_range
+        self.metadata = env.metadata
+
+        self.reset = env.reset
+        self.step = env.step
+        self.render = env.render
+        self.close = env.close
+        self.seed = env.seed
+
+    @property
+    def is_multiagent(self):
+        return getattr(self.env, 'is_multiagent', False)
+
+
+
+class RandomEnv():
     """ Wrapper for built-in gym environments to 
     hide unexpected attributes. 
     Single agent is assumed.

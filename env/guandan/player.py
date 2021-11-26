@@ -6,15 +6,15 @@ import random
 from env.guandan.action import Action
 class Player(object):
 
-    def __init__(self, name, action=None):
+    def __init__(self, name, agent=None):
         self.name = name
-        if action is None or action == 'random':
+        if agent is None or agent == 'random':
             from env.guandan.random_agent import RandomAgent
             self.agent = RandomAgent()
-        if action == 'deep':
+        if agent == 'deep':
             from dmc.deep_agent import DeepAgent
             self.agent = DeepAgent()
-        if action == 'reyn':
+        if agent == 'reyn':
             from algo.gd.ruleAI.reyn_ai import ReynAIAgent
             self.agent = ReynAIAgent()
         self.reset()

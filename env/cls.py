@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 import gym
 
-from utility.utils import batch_dicts
+from utility.utils import batch_dicts, convert_batch_with_func
 from env.typing import EnvOutput
 from env import make_env
 
@@ -75,16 +75,6 @@ class EnvVecBase(gym.Wrapper):
         self.env_type = 'EnvVec'
         super().__init__(self.env)
 
-    def _convert_batch(self, data, func=np.stack):
-        if data != []:
-            if isinstance(data[0], (np.ndarray, int, float, np.floating, np.integer)):
-                data = func(data)
-            elif isinstance(data[0], dict):
-                data = batch_dicts(data, func)
-            else:
-                data = list(data)
-        return data
-
     def _get_idxes(self, idxes):
         if idxes is None:
             idxes = list(range(self.n_envs))
@@ -97,7 +87,9 @@ class EnvVec(EnvVecBase):
     def __init__(self, config, env_fn=make_env):
         self.n_envs = n_envs = config.pop('n_envs', 1)
         self.name = config['name']
-        self.envs = [env_fn(config) for i in range(n_envs)]
+        self.envs = [env_fn(
+            config, config['eid'] + eid if 'eid' in config else None)
+            for eid in range(n_envs)]
         self.env = self.envs[0]
         if 'seed' in config:
             [env.seed(config['seed'] + i) 
@@ -110,14 +102,18 @@ class EnvVec(EnvVecBase):
         return np.stack([env.random_action() if hasattr(env, 'random_action') \
             else env.action_space.sample() for env in self.envs])
 
-    def reset(self, idxes=None, **kwargs):
+    def reset(self, idxes=None, convert_batch=True, **kwargs):
         idxes = self._get_idxes(idxes)
         out = zip(*[self.envs[i].reset() for i in idxes])
 
-        return EnvOutput(*[self._convert_batch(o) for o in out])
+        if convert_batch:
+            return EnvOutput(*[convert_batch_with_func(o) for o in out])
+        else:
+            return out
 
-    def step(self, actions, **kwargs):
-        return self._envvec_op('step', action=actions, **kwargs)
+    def step(self, actions, convert_batch=True, **kwargs):
+        return self._envvec_op('step', action=actions, 
+            convert_batch=convert_batch, **kwargs)
 
     def score(self, idxes=None):
         idxes = self._get_idxes(idxes)
@@ -148,11 +144,14 @@ class EnvVec(EnvVecBase):
             info = batch_dicts(info)
         return info
 
-    def output(self, idxes=None):
+    def output(self, idxes=None, convert_batch=True):
         idxes = self._get_idxes(idxes)
         out = zip(*[self.envs[i].output() for i in idxes])
 
-        return EnvOutput(*[self._convert_batch(o) for o in out])
+        if convert_batch:
+            return EnvOutput(*[convert_batch_with_func(o) for o in out])
+        else:
+            return out
 
     def get_screen(self, size=None):
         if hasattr(self.env, 'get_screen'):
@@ -167,10 +166,11 @@ class EnvVec(EnvVecBase):
         
         return imgs
 
-    def _envvec_op(self, name, **kwargs):
+    def _envvec_op(self, name, convert_batch=True, **kwargs):
         method = lambda e: getattr(e, name)
         if kwargs:
-            kwargs = {k: [np.squeeze(x) for x in np.split(v, self.n_envs)] 
+            kwargs = {k: [np.squeeze(x) for x in np.split(v, self.n_envs)]
+                if isinstance(v, np.ndarray) else list(zip(*v)) 
                 for k, v in kwargs.items()}
             kwargs = [dict(x) for x in zip(*[itertools.product([k], v) 
                 for k, v in kwargs.items()])]
@@ -178,7 +178,10 @@ class EnvVec(EnvVecBase):
         else:
             out = zip(*[method(env)() for env in self.envs])
 
-        return EnvOutput(*[self._convert_batch(o) for o in out])
+        if convert_batch:
+            return EnvOutput(*[convert_batch_with_func(o) for o in out])
+        else:
+            return out
 
     def close(self):
         if hasattr(self.env, 'close'):

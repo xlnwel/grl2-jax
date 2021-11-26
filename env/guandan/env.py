@@ -1,17 +1,17 @@
-import numpy as np
-
 from env.guandan.player import Player
 from env.guandan.game import Game
 from env.guandan.infoset import get_obs
 
 
 class Env:
-    def __init__(self):
+    def __init__(self, eid, **kwargs):
         # Initialize players
         # We use for dummy player for the target position
         # Initialize the internal environment
-        players = [Player('0'), Player('1'), Player('2'), Player('3')]
-        self._env = Game(players)
+        if kwargs.get('skip_players02', False):
+            raise ValueError('Do not expect to skip players02')
+        self.eid = eid
+        self._env = Game(**kwargs)
         self.max_episode_steps = int(1e9)
         self.is_action_discrete = True
         self.obs_shape = self._env.obs_shape
@@ -27,21 +27,23 @@ class Env:
         self._env.reset()
         self._env.start()
 
-        return get_obs(self._get_infoset())
+        obs = get_obs(self._get_infoset())
+        obs['eid'] = self.eid
+
+        return obs
 
     def step(self, action):
-        #self._env.players[self._acting_player_position].set_action(action)
-        self._env.play(action)
+        aid = self._get_action_id(action)
+        self._env.play(aid)
         done = False
         reward = 0.0
         info = {}
 
         if self.game_over():
             done = True
-            reward = self._env.compute_reward()
-            obs = None
-        else:
-            obs = get_obs(self._get_infoset)
+            reward = self._env.compute_reward()[0]
+        obs = get_obs(self._get_infoset())
+        obs['eid'] = self.eid
 
         return obs, reward, done, info
 
@@ -52,7 +54,8 @@ class Env:
         of all the players, all the historical moves, etc.
         That is, it contains perfect information.
         """
-        return self._env.get_infoset()
+        self.infoset = self._env.get_infoset()
+        return self.infoset
 
     @property
     def _acting_player_position(self):
@@ -68,3 +71,12 @@ class Env:
 
     def close(self):
         self._env.close()
+    
+    def _get_action_id(self, action):
+        action_type, card_rank = action
+        return self.get_action_id(action_type, card_rank)
+
+    def get_action_id(self, action_type, card_rank):
+        if action_type == 0:
+            card_rank = 0
+        return self.infoset.action2id(action_type, card_rank)

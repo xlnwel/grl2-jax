@@ -21,7 +21,7 @@ def get_env_stats(config):
     tmp_env_config = config.copy()
     tmp_env_config['n_workers'] = 1
     tmp_env_config['n_envs'] = 1
-    env = create_env(tmp_env_config)
+    env = create_env(tmp_env_config, force_envvec=False)
     env_stats = env.stats()
     env.close()
     return env_stats

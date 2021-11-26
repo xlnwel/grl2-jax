@@ -11,11 +11,9 @@ def retrieve_all_make_env():
     for i in range(1, 10):
         pkg = 'env' if i == 1 else f'env{i}'
         if importlib.util.find_spec(pkg) is not None:
-            env_dir = os.path.join(root_dir, pkg)
-            files = retrieve_pyfiles(env_dir)
-            filenames = [f.rsplit('/', maxsplit=1)[-1][:-3] for f in files]
-            for f in filenames:
-                m = importlib.import_module(f'{pkg}.{f}')
+            if os.path.exists(os.path.join(root_dir, pkg, 'make.py')):
+                make_pkg = f'{pkg}.make'
+                m = importlib.import_module(make_pkg)
                 for attr in dir(m):
                     if attr.startswith('make'):
                         env_dict[attr.split('_', maxsplit=1)[1]] = getattr(m, attr)
@@ -23,7 +21,7 @@ def retrieve_all_make_env():
     return env_dict
 
 
-def make_env(config):
+def make_env(config, eid=None):
     config = config.copy()
     env_name = config['name'].lower()
 
@@ -31,6 +29,8 @@ def make_env(config):
     suite = env_name.split('_', 1)[0]
     builtin_env = env_dict.pop('builtin_gym')
     env_func = env_dict.get(suite, builtin_env)
+    if eid is not None:
+        config['eid'] = eid
     env = env_func(config)
     
     return env
