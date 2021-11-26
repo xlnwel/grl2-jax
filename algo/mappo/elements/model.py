@@ -120,7 +120,7 @@ class MAPPOModelEnsemble(ModelEnsemble):
         return self.state_type(*actor_state, *value_state)
 
 
-def create_model(config, env_stats, name='mappo'):
+def create_model(config, env_stats, name='mappo', **kwargs):
     config['policy']['policy']['action_dim'] = env_stats.action_dim
     config['policy']['policy']['is_action_discrete'] = env_stats.action_dim
 
@@ -128,5 +128,6 @@ def create_model(config, env_stats, name='mappo'):
         config=config, 
         name=name,
         policy=MAPPOActorModel,
-        value=MAPPOValueModel
+        value=MAPPOValueModel,
+        **kwargs
     )

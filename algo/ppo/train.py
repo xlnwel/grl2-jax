@@ -3,8 +3,7 @@ import signal
 import sys
 import numpy as np
 
-from core.dataset import create_dataset
-from core.monitor import create_monitor
+from core.elements.builder import ElementsBuilder
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
 from core.utils import save_config
 from utility.utils import TempStore
@@ -15,7 +14,7 @@ from env.func import create_env
 
 
 def train(agent, env, eval_env, buffer):
-    collect_fn = pkg.import_module('elements.utils', algo=agent.name).collect
+    collect_fn = pkg.import_module('elements.utils', algo=agent.algorithm).collect
     collect = functools.partial(collect_fn, buffer)
 
     suite_name = env.name.split("_")[0] \
@@ -158,68 +157,19 @@ def main(config, train=train):
     signal.signal(signal.SIGINT, sigint_handler)
 
     env_stats = env.stats()
-    def build_elements():
-        create_model = pkg.import_module(
-            name='elements.model', algo=name, place=-1).create_model
-        create_loss = pkg.import_module(
-            name='elements.loss', algo=name, place=-1).create_loss
-        create_trainer = pkg.import_module(
-            name='elements.trainer', algo=name, place=-1).create_trainer
-        create_actor = pkg.import_module(
-            name='elements.actor', algo=name, place=-1).create_actor
 
-        model = create_model(config.model, env_stats)
-        loss = create_loss(config.loss, model)
-        trainer = create_trainer(config.trainer, loss, env_stats)
-        actor = create_actor(config.actor, model)
-        
-        return model, trainer, actor
-    model, trainer, actor = build_elements()
+    env_stats = env.stats()
+    builder = ElementsBuilder(config, env_stats, name='zero')
+    model = builder.build_model()
+    actor = builder.build_actor(model)
+    trainer = builder.build_trainer(model)
+    buffer = builder.build_buffer(model)
+    dataset = builder.build_dataset(buffer, model)
+    strategy = builder.build_strategy(actor=actor, trainer=trainer, dataset=dataset)
+    monitor = builder.build_monitor()
+    agent = builder.build_agent(strategy=strategy, monitor=monitor)
 
-    def build_buffer_dataset():
-        config.buffer['n_envs'] = env.n_envs
-        config.buffer['state_keys'] = model.state_keys
-        config.buffer['use_dataset'] = config.buffer.get('use_dataset', False)
-        create_buffer = pkg.import_module(
-            'elements.buffer', config=config.agent).create_buffer
-        buffer = create_buffer(config.buffer)
-        
-        if config.buffer['use_dataset']:
-            am = pkg.import_module('elements.utils', config=config.agent)
-            data_format = am.get_data_format(
-                config.trainer, env_stats, model)
-            dataset = create_dataset(buffer, env_stats, 
-                data_format=data_format, one_hot_action=False)
-        else:
-            dataset = buffer
-
-        return buffer, dataset
-    buffer, dataset = build_buffer_dataset()
-
-    def build_strategy():
-        create_strategy = pkg.import_module(
-            'elements.strategy', config=config.agent).create_strategy
-        strategy = create_strategy(
-            name, config.strategy, trainer, actor, dataset)
-        
-        return strategy
-    strategy = build_strategy()
-
-    def build_agent():
-        create_agent = pkg.import_module(
-            'elements.agent', config=config.agent).create_agent
-        monitor = create_monitor(root_dir, model_name, name)
-
-        agent = create_agent(
-            config=config.agent, 
-            strategy=strategy, 
-            monitor=monitor,
-            name=name
-        )
-
-        return agent
-    agent = build_agent()
-    save_config(root_dir, model_name, config)
+    save_config(root_dir, model_name, builder.get_config())
 
     train(agent, env, eval_env, buffer)
 

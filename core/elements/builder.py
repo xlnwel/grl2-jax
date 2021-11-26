@@ -49,7 +49,7 @@ class ElementsBuilder:
         return trainer
     
     def build_buffer(self, model, buffer_config=None):
-        if buffer_config is None:
+        if buffer_config is not None:
             self.config.buffer = buffer_config
         else:
             self.config.buffer['n_envs'] = self.env_stats.n_envs

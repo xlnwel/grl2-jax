@@ -9,7 +9,7 @@ from algo.ppo.train import main
 
 
 def train(agent, env, eval_env, buffer):
-    eu = pkg.import_module('elements.utils', algo=agent.name)
+    eu = pkg.import_module('elements.utils', algo=agent.algorithm)
     collect = functools.partial(eu.collect, buffer)
     random_actor = functools.partial(eu.random_actor, env=env)
 

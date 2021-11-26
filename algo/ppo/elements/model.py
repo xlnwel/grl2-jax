@@ -48,7 +48,7 @@ class PPOModel(Model):
             return x, None
 
 
-def create_model(config, env_stats, name='ppo', to_build=False):
+def create_model(config, env_stats, name='ppo', **kwargs):
     config['policy']['action_dim'] = env_stats['action_dim']
     config['policy']['is_action_discrete'] = env_stats['is_action_discrete']
 
@@ -56,4 +56,4 @@ def create_model(config, env_stats, name='ppo', to_build=False):
         config=config, 
         env_stats=env_stats, 
         name=name, 
-        to_build=to_build)
+        **kwargs)

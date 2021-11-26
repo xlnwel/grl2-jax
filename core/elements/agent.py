@@ -14,7 +14,8 @@ class Agent:
                  monitor: Monitor=None,
                  name=None,
                  to_save_code=True):
-        config_attr(self, config)
+        self.config = config_attr(self, config)
+        self.algorithm = self.config.algorithm
         self._name = name
         self.strategies = {'default': strategy}
         self.strategy = strategy

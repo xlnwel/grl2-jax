@@ -28,6 +28,10 @@ class RayEnvVec(EnvVecBase):
         self._combine_func = np.stack if isinstance(self.env, Env) else np.concatenate
 
         super().__init__()
+        
+        self._stats = self.env.stats()
+        self._stats['n_workers'] = self.n_workers
+        self._stats['n_envs'] = self.n_envs
 
     def reset(self, idxes=None):
         out = self._remote_call('reset', idxes, single_output=False)

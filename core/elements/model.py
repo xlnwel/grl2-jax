@@ -46,7 +46,7 @@ class Model(Ensemble):
     def _build(self):
         pass
 
-    def _post_init(self, config):
+    def _post_init(self):
         """ Add some additional attributes and 
         do some post processing here """
         pass

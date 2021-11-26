@@ -17,6 +17,9 @@ class Env(gym.Wrapper):
         self.max_episode_steps = self.env.max_episode_steps
         self.n_envs = 1
         self.env_type = 'Env'
+        self._stats = self.env.stats()
+        self._stats['n_workers'] = 1
+        self._stats['n_envs'] = 1
         super().__init__(self.env)
 
     def reset(self, idxes=None):
@@ -97,6 +100,9 @@ class EnvVec(EnvVecBase):
                 if hasattr(env, 'seed')]
         self.max_episode_steps = self.env.max_episode_steps
         super().__init__()
+        self._stats = self.env.stats()
+        self._stats['n_workers'] = 1
+        self._stats['n_envs'] = self.n_envs
 
     def random_action(self, *args, **kwargs):
         return np.stack([env.random_action() if hasattr(env, 'random_action') \
