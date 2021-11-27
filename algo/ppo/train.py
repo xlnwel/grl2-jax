@@ -153,6 +153,7 @@ def main(config, train=train):
         env.close()
         if eval_env is not None:
             eval_env.close()
+        ray.shutdown()
         sys.exit(0)
     signal.signal(signal.SIGINT, sigint_handler)
 

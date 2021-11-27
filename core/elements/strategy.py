@@ -44,16 +44,16 @@ class Strategy:
             return getattr(self.step_counter, name)
         raise AttributeError(f"Attempted to get missing attribute '{name}'")
 
-    def get_weights(self, identifier=None):
+    def get_weights(self, identifier=None, opt_weights=True, actor_weights=True):
         if identifier is None:
             identifier = self._name
 
         weights = {}
         if self.model is not None:
             weights[f'{identifier}_model'] = self.model.get_weights()
-        if self.trainer is not None:
+        if self.trainer is not None and opt_weights:
             weights[f'{identifier}_opt'] = self.trainer.get_optimizer_weights()
-        if self.actor is not None:
+        if self.actor is not None and actor_weights:
             weights[f'{identifier}_aux'] = self.actor.get_auxiliary_stats()
 
         return weights

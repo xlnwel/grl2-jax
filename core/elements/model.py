@@ -85,6 +85,8 @@ class Model(Ensemble):
             for n, w in weights.items():
                 self[n].set_weights(w)
         else:
+            if len(weights) == 0:
+                return
             assert len(self.variables) == len(weights), \
                 (len(self.variables), len(weights), weights)
             [v.assign(w) for v, w in zip(self.variables, weights)]

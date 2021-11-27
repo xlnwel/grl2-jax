@@ -1,3 +1,4 @@
+from logging import error
 import os, sys
 import time
 import numpy as np

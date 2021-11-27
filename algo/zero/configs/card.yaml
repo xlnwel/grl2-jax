@@ -1,10 +1,10 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo gd
+algorithm: &algo zero
 
 precision: 32
 
-training: &training bc
+training: &training ppo
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -13,10 +13,10 @@ root_dir: *algo
 model_name: *algo
 
 env:
-    name: &env_name gd
+    name: &env_name card_gd2
     eid: 0
-    n_workers: 1
-    n_envs: &nenvs 1
+    n_workers: 32
+    n_envs: &nenvs 4
 
 agent:
     algorithm: *algo
@@ -37,9 +37,9 @@ strategy:
         N_MBS: &nmbs 4
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
-        # (once, reuse, null)
+        # (once reuse null)
         # "once" updates values at the end of each epoch
-        # "reuse" updates values using value from train, which is staler than once
+        # "reuse" updates values using value from train which is staler than once
         # null doesn't update values.
         value_update: null
 
@@ -164,35 +164,69 @@ loss:
 trainer:
     training: *training
     # BC configs
-    batch_size: &bs 256
-    sample_size: &ss 40
+    batch_size: &bs 4096
+    sample_size: &ss 16
 
     optimizer:
         opt_name: adam
         schedule_lr: False
-        lr: 1e-3
-        # clip_norm: .5
+        lr: 5e-4
+        clip_norm: .5
         epsilon: 1.e-5
 
 actor:
     rms:
+        obs_names: []
         normalize_obs: False
         normalize_reward: True
-        gamma: &gamma .999
+        gamma: &gamma .99
 
 buffer:
     training: *training
     dir: data/gd-100000
+    use_dataset: True
+
     # PPO configs
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
     n_envs: *nenvs
     batch_size: *bs
+    N_STEPS: *nsteps
     N_EPOCHS: *nepochs
     N_VALUE_EPOCHS: *nval_epochs
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: batch
     # mini-batch size = n_workers * n_envs * epslen / n_mbs
-    sample_keys: [obs, global_state, action, value, traj_ret, advantage, logpi, mask, action_mask, life_mask, actor_h, actor_c, value_h, value_c]
+    sample_keys:
+        - numbers
+        - jokers
+        - left_cards
+        - is_last_teammate_move
+        - is_first_move
+        - last_valid_action_type
+        - rank
+        - bombs_dealt
+        - last_action_numbers
+        - last_action_jokers
+        - last_action_types
+        - last_action_rel_pids
+        - last_action_filters
+        - last_action_first_move
+        - action_type_mask
+        - card_rank_mask
+        - others_numbers
+        - others_jokers
+        - mask
+        - action_type
+        - card_rank
+        - value 
+        - traj_ret 
+        - advantage 
+        - action_type_logpi 
+        - card_rank_logpi
+        - action_h 
+        - action_c
+        - h
+        - c

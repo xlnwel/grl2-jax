@@ -32,7 +32,7 @@ def configure_gpu(idx=0):
             do_logging(e, logger=logger, level='warning')
         return True
     else:
-        do_logging('No gpu is used', logger=logger, level='warning')
+        # do_logging('No gpu is used', logger=logger, level='warning')
         return False
 
 def configure_threads(intra_num_threads, inter_num_threads):

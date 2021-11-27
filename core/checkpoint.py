@@ -15,7 +15,7 @@ def restore(ckpt_manager, ckpt, ckpt_path, name='model'):
     path = ckpt_manager.latest_checkpoint
     if path:
         ckpt.restore(path)#.assert_consumed()
-        pwc(f'Params for {name} are restored from "{path}".', color='cyan')
+        # pwc(f'Params for {name} are restored from "{path}".', color='cyan')
     else:
         pwc(f'No model for {name} is found at "{ckpt_path}"!', color='cyan')
     return bool(path)

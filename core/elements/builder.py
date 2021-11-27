@@ -48,24 +48,25 @@ class ElementsBuilder:
         
         return trainer
     
-    def build_buffer(self, model, buffer_config=None):
+    def build_buffer(self, model, buffer_config=None, central_buffer=False):
         if buffer_config is not None:
             self.config.buffer = buffer_config
         else:
             self.config.buffer['n_envs'] = self.env_stats.n_envs
             self.config.buffer['state_keys'] = model.state_keys
             self.config.buffer['use_dataset'] = self.config.buffer.get('use_dataset', False)
-        buffer = self.create_buffer(self.config.buffer)
+        buffer = self.create_buffer(self.config.buffer, central_buffer=central_buffer)
         
         return buffer
 
-    def build_dataset(self, buffer, model):        
+    def build_dataset(self, buffer, model, central_buffer=False):        
         if self.config.buffer['use_dataset']:
             am = pkg.import_module('elements.utils', algo=self.config.algorithm)
             data_format = am.get_data_format(
                 self.config.trainer, self.env_stats, model)
             dataset = create_dataset(buffer, self.env_stats, 
-                data_format=data_format, one_hot_action=False)
+                data_format=data_format, central_buffer=central_buffer, 
+                one_hot_action=False)
         else:
             dataset = buffer
 

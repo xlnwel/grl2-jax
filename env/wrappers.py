@@ -5,7 +5,7 @@ import gym
 import cv2
 
 from core.log import do_logging
-from utility.utils import infer_dtype, convert_dtype
+from utility.utils import dict2AttrDict, infer_dtype, convert_dtype
 from utility.typing import AttrDict
 from env.typing import EnvOutput, GymOutput
 
@@ -421,7 +421,7 @@ class EnvStatsBase(gym.Wrapper):
         return obs
 
     def stats(self):
-        return self._stats
+        return dict2AttrDict(self._stats)
 
     def reset(self):
         raise NotImplementedError

@@ -8,8 +8,7 @@ from pathlib import Path
 
 from core.log import do_logging
 from utility.utils import config_attr, dict2AttrDict, moments, standardize
-from utility.timer import timeit
-from replay.utils import init_buffer, load_data, print_buffer
+from replay.utils import load_data
 
 
 logger = logging.getLogger(__name__)
@@ -60,14 +59,7 @@ def compute_indices(idxes, mb_idx, mb_size, N_MBS):
     curr_idxes = idxes[start: end]
     return mb_idx, curr_idxes
 
-def reshape_to_store(memory, n_envs, n_steps, sample_size=None):
-    start_dim = 2 if sample_size else 1
-    memory = {k: v.reshape(n_envs, n_steps, *v.shape[start_dim:])
-        for k, v in memory.items()}
-
-    return memory
-
-def reshape_to_sample(memory, n_envs, n_steps, sample_size=None):
+def reshape_to_sample(memory, n_envs, n_steps, sample_size):
     batch_size = n_envs * n_steps
     if sample_size is not None:
         batch_size //= sample_size
@@ -75,7 +67,7 @@ def reshape_to_sample(memory, n_envs, n_steps, sample_size=None):
     else:
         leading_dims = (batch_size,)
     memory = {k: v.reshape(*leading_dims, *v.shape[2:])
-            for k, v in memory.items()}
+        for k, v in memory.items()}
 
     return memory
 
@@ -91,7 +83,7 @@ class PPOBuffer:
             do_logging(f'Dataset is used for data pipline', logger=logger)
 
         self._sample_size = getattr(self, '_sample_size', None)
-        self._state_keys = getattr(self, '_state_keys', [])
+        self._state_keys = ['h', 'c']
         if self._sample_size:
             assert self._n_envs * self.N_STEPS % self._sample_size == 0, \
                 f'{self._n_envs} * {self.N_STEPS} % {self._sample_size} != 0'
@@ -133,7 +125,7 @@ class PPOBuffer:
         return self._ready
 
     def reset(self):
-        self.reshape_to_store()
+        self._memory = collections.defaultdict(list)
         self._is_store_shape = True
         self._idx = 0
         self._mb_idx = 0
@@ -146,10 +138,7 @@ class PPOBuffer:
                 if isinstance(v, dict):
                     add_data(v)
                 else:
-                    self._memory[k][:, self._idx] = v
-
-        if self._memory == {}:
-            self._init_buffer(data)
+                    self._memory[k].append(v)
 
         add_data(data)
 
@@ -199,20 +188,33 @@ class PPOBuffer:
 
     """ For distributed training """
     def retrieve_all_data(self):
-        data = self._memory
+        assert self._idx == self.N_STEPS, (self._idx, self.N_STEPS)
+        data = self._memory.copy()
         self.reset()
         return data
 
-    def add_data(self, data):
+    def append_data(self, data):
         for k, v in data.items():
             self._memory[k].append(v)
 
-    def reshape_memory(self):
+    def stack_sequantial_memory(self):
+        for k, v in self._memory.items():
+            if len(v) == 1:
+                self._memory[k] = v[0]
+            else:
+                self._memory[k] = np.stack(v, 1)
+            if k == 'last_value':
+                assert self._memory[k].shape[:2] == (self.config.n_envs,), (k, self._memory[k].shape)
+            else:
+                assert self._memory[k].shape[:2] == (self.config.n_envs, self.N_STEPS), (k, (self.config.n_envs, self.N_STEPS), self._memory[k].shape)
+
+    def concat_batch_memory(self):
         for k, v in self._memory.items():
             self._memory[k] = np.concatenate(v)
-            if k == 'value':
-                assert self._memory[k].shape[:2] == (self.config.n_workers * self.config.n_envs, self.)
-            assert self._memory[k].shape[:2] == (self.config.n_workers * self.config.n_envs)
+            if k == 'last_value':
+                assert self._memory[k].shape[:2] == (self.config.n_envs,), (k, self._memory[k].shape)
+            else:
+                assert self._memory[k].shape[:2] == (self.config.n_envs, self.N_STEPS), (k, self._memory[k].shape)
 
     """ Implementations """
     def _wait_to_sample(self):
@@ -236,11 +238,14 @@ class PPOBuffer:
         return sample
 
     def _get_sample(self, sample_keys, idxes):
-        return {k: self._memory[k][idxes, 0]
-            if k in self._state_keys 
-            else self._memory[k][idxes] 
+        sample = {k: self._memory[k][idxes, 0]
+            if k in self._state_keys else self._memory[k][idxes] 
             for k in sample_keys}
-    
+        action_rnn_dim = sample['action_h'].shape[-1]
+        sample['action_h'] = sample['action_h'].reshape(-1, action_rnn_dim)
+        sample['action_c'] = sample['action_c'].reshape(-1, action_rnn_dim)
+        return sample
+
     def _process_sample(self, sample):
         if 'advantage' in sample and self._norm_adv == 'minibatch':
             sample['advantage'] = standardize(
@@ -257,9 +262,7 @@ class PPOBuffer:
                 # in a background thread
                 self.reset()
 
-    def finish(self, last_value):
-        assert self._idx == self.N_STEPS, self._idx
-        self.reshape_to_store()
+    def finish(self, last_value=None):
         self.compute_advantage_return_in_memory(last_value)
         self.reshape_to_sample()
 
@@ -267,31 +270,10 @@ class PPOBuffer:
         self._memory = collections.defaultdict(list)
         self.reset()
 
-    def reshape_to_store(self):
-        if not self._is_store_shape:
-            self._memory = reshape_to_store(
-                self._memory, self._n_envs, 
-                self.N_STEPS, self._sample_size)
-            self._is_store_shape = True
-
     def reshape_to_sample(self):
-        if self._is_store_shape:
-            self._memory = reshape_to_sample(
-                self._memory, self._n_envs, 
-                self.N_STEPS, self._sample_size)
-            self._is_store_shape = False
+        self._memory = reshape_to_sample(
+            self._memory, self._n_envs, self.N_STEPS, self._sample_size)
         self._ready = True
-
-    def _init_buffer(self, data):
-        init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
-        self._memory['traj_ret'] = np.zeros(
-            (self._n_envs, self.N_STEPS), dtype=np.float32)
-        self._memory['advantage'] = np.zeros(
-            (self._n_envs, self.N_STEPS), dtype=np.float32)
-        print_buffer(self._memory)
-        if self._inferred_sample_keys or getattr(self, '_sample_keys', None) is None:
-            self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))
-            self._inferred_sample_keys = True
 
     def compute_advantage_return_in_memory(self, last_value=None):
         if self._adv_type != 'vtrace' and last_value is None:
@@ -323,15 +305,6 @@ class PPOBuffer:
             pass
         else:
             raise NotImplementedError
-
-    def replace_memory(self, data):
-        self._memory = data
-        self._is_store_shape = True
-        for v in self._memory.values():
-            assert v.shape[0] == self._n_envs, (v.shape, self._n_envs)
-
-    def clear_memory(self):
-        self._memory = None
 
 
 class BCBuffer:
@@ -397,9 +370,14 @@ class BCBuffer:
         return data
 
 
-def create_buffer(config):
+def create_buffer(config, central_buffer=False):
     config = dict2AttrDict(config)
-    if config['training'] == 'ppo':
+    if central_buffer:
+        assert config.training == 'ppo', config.training
+        import ray
+        RemoteBuffer = ray.remote(PPOBuffer)
+        return RemoteBuffer.remote(config)
+    elif config['training'] == 'ppo':
         return PPOBuffer(config)
     elif config['training'] == 'bc':
         return BCBuffer(config)

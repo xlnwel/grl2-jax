@@ -91,10 +91,10 @@ def process_with_env(data, env_stats, obs_range=None,
 
 
 def create_dataset(buffer, env_stats, data_format=None, 
-        use_ray=False, one_hot_action=False):
+        central_buffer=False, one_hot_action=False):
     process = functools.partial(process_with_env, 
         env_stats=env_stats, one_hot_action=one_hot_action)
-    if use_ray:
+    if central_buffer:
         from core.ray_dataset import RayDataset
         DatasetClass = RayDataset
     else:

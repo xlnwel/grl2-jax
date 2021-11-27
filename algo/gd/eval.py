@@ -12,41 +12,6 @@ from utility.utils import AttrDict2dict, dict2AttrDict, convert_batch_with_func
 from algo.gd.ruleAI.sample import run_episode
 
 
-def build_elements(config, name, env_stats):
-    create_model = pkg.import_module(
-        name='elements.model', algo=name, place=-1).create_model
-    create_actor = pkg.import_module(
-        name='elements.actor', algo=name, place=-1).create_actor
-
-    model = create_model(config.model, env_stats, to_build_for_eval=True)
-    actor = create_actor(config.actor, model)
-    
-    return model, actor
-
-
-def build_strategy(config, name, actor):
-    create_strategy = pkg.import_module(
-        'elements.strategy', config=config.agent).create_strategy
-    strategy = create_strategy(
-        name, config.strategy, actor=actor)
-    
-    return strategy
-
-
-def build_agent(config, name, strategy):
-    create_agent = pkg.import_module(
-        'elements.agent', config=config.agent).create_agent
-
-    agent = create_agent(
-        config=config.agent, 
-        strategy=strategy, 
-        name=name,
-        to_save_code=False
-    )
-
-    return agent
-
-
 def evaluate(env, agent02, agent13, n):
     env_outputs = env.reset(convert_batch=False)
 
@@ -83,6 +48,7 @@ def evaluate(env, agent02, agent13, n):
     assert len(scores) == len(epslens) == n, (n, scores, epslens)
     return scores, epslens
 
+
 def evaluate_against_reyn(agent, n):
     env = Game(skip_players13=True, agent13='reyn')
 
@@ -103,23 +69,6 @@ def evaluate_against_reyn(agent, n):
 
     return scores, scores2, epslens, wins, run_time
 
-# def evaluate_against_reyn(env, agent, n):
-#     scores = []
-#     scores2 = []
-#     epslens = []
-#     wins = []
-#     run_time = []
-#     i = 0
-#     while i < n:
-
-#         mptl, step, rt, eps_scores = evaluate
-#         score = eps_scores[0]
-#         score2 = eps_scores[1]
-#         scores.append(score)
-#         scores2.append(score2)
-#         epslens.append(step)
-#         wins.append(score > 0)
-#         run_time.append(rt)
 
 @ray.remote
 def evaluate_config(config, n):

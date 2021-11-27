@@ -72,8 +72,23 @@ def make_mpe(config):
     return env
 
 
-def make_gd(config):
-    from env.guandan.env import Env
+def make_card(config):
+    from env.guandan.env import Env as Env1
+    from env.guandan2.env import Env as Env2
+    name = config['name'].split('_', 1)[1]
+    if name == 'gd':
+        env = Env1(config['eid'])
+    elif name == 'gd2':
+        env = Env2(config['eid'])
+    else:
+        raise ValueError(f'No env with name({name}) is found in card suite')
+    env = wrappers.post_wrap(env, config)
+    
+    return env
+
+
+def make_gd2(config):
+    from env.guandan2.env import Env
     env = Env(config['eid'])
     env = wrappers.post_wrap(env, config)
     

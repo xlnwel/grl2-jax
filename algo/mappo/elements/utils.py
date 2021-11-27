@@ -14,7 +14,7 @@ def get_data_format(config, env_stats, model, use_for_dataset=True):
         mask=(basic_shape, tf.float32, 'mask'),
     )
     if env_stats.use_action_mask:
-        data_format['action_mask'] = ((*basic_shape, env_stats.action_dim), tf.bool, 'action_mask')
+        data_format['action_mask'] = ((*basic_shape, env_stats.action_dim), tf.float32, 'action_mask')
     if env_stats.use_life_mask:
         data_format['life_mask'] = (basic_shape, tf.float32, 'life_mask')
     

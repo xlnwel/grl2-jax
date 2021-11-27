@@ -11,12 +11,11 @@ class Actor:
     def __init__(self, *, config, model, name):
         self._raw_name = name
         self._name = f'{name}_actor'
-        config = config.copy()
-        config_attr(self, config, filter_dict=True)
+        self.config = config_attr(self, config, filter_dict=True)
         
         self.model = model
         
-        self._post_init(config)
+        self._post_init()
 
     @property
     def name(self):
@@ -87,8 +86,17 @@ class Actor:
         Returns:
             (action, terms, rnn_state)
         """
-        out = (*tensor2numpy(out[:2]), out[-1])
-        return out
+        action, terms, state = out
+        if state is not None:
+            action, terms, prev_state = tensor2numpy((action, terms, inp['state']))
+        else:
+            action, terms = tensor2numpy((action, terms))
+        if not evaluation and state is not None:
+            terms.update({
+                'mask': inp['mask'], 
+                **prev_state._asdict(),
+            })
+        return action, terms, state
 
     def get_weights(self, identifier=None):
         if identifier is None:

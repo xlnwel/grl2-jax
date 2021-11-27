@@ -10,3 +10,4 @@ conventions.md
 tmp**
 .ipynb_checkpoints
 src
+data

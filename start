@@ -12,9 +12,9 @@ algos=(
     # daac
     # apex-mrdqn
     # sacdiqn5
-    gd
+    zero
 )
-suite=procgen
+suite=card
 envs=(
     # leaper
     # ninja
@@ -32,12 +32,12 @@ envs=(
     # bossfight
     # maze
     # coinrun
-    gd
+    gd2
 )
-args1=(256)
-args2=(None layer)
-args3=(True False)
-args4=(True False)
+args1=(1 2)
+args2=(128 256)
+args3=(True)
+args4=(True)
 
 # algos=(
 #     apg-ppo
@@ -47,7 +47,7 @@ args4=(True False)
     
 # )
 
-i=0
+i=4
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
         for a1 in "${args1[@]}"; do
@@ -60,15 +60,16 @@ for e in "${envs[@]}"; do
                         # sed -e "s/KI/${a2}/g" \
                         #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
                         # dir="logs/${suite}_${e}/${a}"
-                        kw1="batch_size=$a1"
-                        kw2="norm=$a2"
+                        kw1="N_MBS=$a1"
+                        kw2="N_STEPS=$a2"
                         kw3="use_ln=$a3"
                         kw4="norm_after_activation=$a4"
-                        dir="logs/gd/gd/$kw1-$kw2-$kw3-$kw4"
+                        env="${suite}_${e}"
+                        dir="logs/$a/$env/$kw1-$kw2"
                         mkdir -p $dir
                         # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
                         # py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard >& ${dir}/outputs.txt"
-                        py_script="CUDA_VISIBLE_DEVICES=$i python run/train.py ${a} -e gd -kw $kw1 $kw2 $kw3 $kw4 >& ${dir}/outputs.txt &"
+                        py_script="CUDA_VISIBLE_DEVICES=$i python run/train.py ${a} -e $env -kw $kw1 $kw2 >& ${dir}/outputs.txt &"
                         echo $py_script
                         eval $py_script
                         ((i=(i+1) % 8))

@@ -66,6 +66,10 @@ class RMS:
                 f"Reward normalization axis: {'1st' if self._normalize_reward_with_return == 'forward' else '2nd'}", 
                 logger=logger)
 
+    @property
+    def obs_names(self):
+        return self._obs_names
+
     def process_obs_with_rms(self, 
                              inp: Union[dict, Tuple[str, np.ndarray]], 
                              update_rms: bool=True, 
@@ -200,18 +204,34 @@ class RMS:
         return self._reward_rms.normalize(reward, zero_center=False, mask=mask) \
             if self._normalize_reward else reward
 
-    def update_from_rms_stats(self, obs_rms, rew_rms):
+    def update_rms_from_stats_list(self, obs_rms_list, rew_rms_list):
+        if obs_rms_list is not None:
+            assert isinstance(obs_rms_list, list), obs_rms_list
+            for rms in obs_rms_list:
+                self.update_obs_rms_from_stats(rms)
+        if rew_rms_list is not None:
+            assert isinstance(rew_rms_list, list), rew_rms_list
+            for rms in rew_rms_list:
+                self.update_rew_rms_from_stats(rms)
+    
+    def update_rms_from_stats(self, obs_rms, rew_rms):
+        if obs_rms is not None:
+            self.update_obs_rms_from_stats(obs_rms)
+        if rew_rms is not None:
+            self.update_rew_rms_from_stats(rew_rms)
+
+    def update_obs_rms_from_stats(self, obs_rms):
         for k, v in obs_rms.items():
-            if v:
-                self._obs_rms[k].update_from_moments(
-                    batch_mean=v.mean,
-                    batch_var=v.var,
-                    batch_count=v.count)
-        if rew_rms:
-            self._reward_rms.update_from_moments(
-                batch_mean=rew_rms.mean,
-                batch_var=rew_rms.var,
-                batch_count=rew_rms.count)
+            self._obs_rms[k].update_from_moments(
+                batch_mean=v.mean,
+                batch_var=v.var,
+                batch_count=v.count)
+
+    def update_rew_rms_from_stats(self, rew_rms):
+        self._reward_rms.update_from_moments(
+            batch_mean=rew_rms.mean,
+            batch_var=rew_rms.var,
+            batch_count=rew_rms.count)
 
     def restore_rms(self):
         if self._rms_path is None:

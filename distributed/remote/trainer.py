@@ -98,7 +98,7 @@ class RemoteTrainer(RayBase):
             self.buffer, 
             env_stats=self._env_stats, 
             data_format=data_format, 
-            use_ray=True)
+            central_buffer=True)
 
     def _construct_strategy(self, config):
         self.strategy = self.strategy_constructor(

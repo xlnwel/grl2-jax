@@ -1,5 +1,6 @@
-from env.guandan.game import Game
-from env.guandan.infoset import get_obs
+from .game import Game
+from .infoset import get_obs
+from .utils import PASS, ActionType2Num
 
 
 class Env:
@@ -41,6 +42,7 @@ class Env:
         if self.game_over():
             done = True
             reward = self._env.compute_reward()[0]
+            info['won'] = reward > 0
         obs = get_obs(self._get_infoset())
         obs['eid'] = self.eid
 
@@ -76,6 +78,6 @@ class Env:
         return self.get_action_id(action_type, card_rank)
 
     def get_action_id(self, action_type, card_rank):
-        if action_type == 0:
+        if action_type == ActionType2Num[PASS]:
             card_rank = 0
         return self.infoset.action2id(action_type, card_rank)

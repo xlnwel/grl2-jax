@@ -1,4 +1,5 @@
 import sys
+import copy
 import collections
 
 
@@ -7,7 +8,14 @@ class AttrDict(dict):
     __setattr__ = dict.__setitem__
 
     def asdict(self):
-        return dict(self)
+        config = {}
+        for k, v in self.items():
+            if isinstance(v, AttrDict):
+                config[k] = v.asdict()
+            else:
+                config[k] = copy.deepcopy(v)
+
+        return config
 
 
 def namedarraytuple(typename, field_names, return_namedtuple_cls=False,

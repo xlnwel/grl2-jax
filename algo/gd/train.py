@@ -175,18 +175,12 @@ def bc_train(config):
     root_dir = config.agent.root_dir
     model_name = config.agent.model_name
 
-    buffer_config = {
-        'dir': config.buffer.dir,
-        'training': 'bc',
-        'batch_size': config.buffer.batch_size,
-        'sample_size': 40,
-    }
     env_stats = get_env_stats(config.env)
     builder = ElementsBuilder(config, env_stats, name='zero')
     model = builder.build_model()
     actor = builder.build_actor(model)
     trainer = builder.build_trainer(model)
-    buffer = builder.build_buffer(model, buffer_config=buffer_config)
+    buffer = builder.build_buffer(model)
     dataset = builder.build_dataset(buffer, model)
     strategy = builder.build_strategy(actor=actor, trainer=trainer, dataset=dataset)
     monitor = builder.build_monitor()

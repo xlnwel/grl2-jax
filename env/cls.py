@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 import gym
 
-from utility.utils import batch_dicts, convert_batch_with_func
+from utility.utils import batch_dicts, convert_batch_with_func, dict2AttrDict
 from env.typing import EnvOutput
 from env import make_env
 
@@ -33,6 +33,9 @@ class Env(gym.Wrapper):
     def step(self, action, **kwargs):
         output = self.env.step(action, **kwargs)
         return output
+
+    def stats(self):
+        return dict2AttrDict(self._stats)
 
     """ the following code is needed for ray """
     def score(self, *args):
@@ -77,6 +80,9 @@ class EnvVecBase(gym.Wrapper):
     def __init__(self):
         self.env_type = 'EnvVec'
         super().__init__(self.env)
+
+    def stats(self):
+        return dict2AttrDict(self._stats)
 
     def _get_idxes(self, idxes):
         if idxes is None:

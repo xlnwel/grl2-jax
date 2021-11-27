@@ -23,6 +23,8 @@ def get_env_stats(config):
     tmp_env_config['n_envs'] = 1
     env = create_env(tmp_env_config, force_envvec=False)
     env_stats = env.stats()
+    env_stats['n_workers'] = config['n_workers']
+    env_stats['n_envs'] = config['n_workers'] * config['n_envs']
     env.close()
     return env_stats
 
