@@ -3,17 +3,12 @@ import ray
 from core.elements.builder import ElementsBuilder
 from core.utils import save_config
 from env.func import get_env_stats
-from run.utils import search_for_config
 from .runner import RunnerManager
 from utility.ray_setup import sigint_shutdown_ray
 from utility.timer import Every, Timer
 
 
 def train(agent, buffer, runner_manager):
-    other_config = search_for_config(
-        'logs/card_gd2/zero/action_mask=mask', to_attrdict=False)
-    runner_manager.set_other_player(other_config)
-
     if agent.get_env_step() == 0 and agent.actor.is_obs_normalized:
         obs_rms_list, rew_rms_list = runner_manager.initialize_rms()
         agent.update_rms_from_stats_list(obs_rms_list, rew_rms_list)
@@ -94,7 +89,10 @@ def ppo_train(config):
     elements = builder.build_agent_from_scratch()
     agent = elements.agent
     runner_manager = RunnerManager(config, name=agent.name)
- 
+    # other_config = search_for_config(
+    #     'logs/card_gd2/zero/action_mask=mask', to_attrdict=False)
+    # runner_manager.set_other_player(other_config)
+
     save_config(root_dir, model_name, builder.get_config())
 
     train(elements.agent, elements.buffer, runner_manager)

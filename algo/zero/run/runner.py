@@ -44,9 +44,9 @@ class TwoPlayerRunner(RayBase):
             self.buffer = None
             self.collect = None
         
-        # TODO: debug code
-        self._reset_eid2pid = collections.defaultdict(list)
-        self._prev_reset = self.env_output.reset
+        # # TODO: debug code
+        # self._reset_eid2pid = collections.defaultdict(list)
+        # self._prev_reset = self.env_output.reset
 
     def initialize_rms(self):
         for _ in range(10):
@@ -70,7 +70,11 @@ class TwoPlayerRunner(RayBase):
             self.agent.set_weights(weights)
         step = self._run_impl()
         if self.store_data:
+            self.agent.record_inputs_to_vf(self.env_output)
+            value = self.agent.compute_value()
+            self.buffer.stack_sequential_memory()
             data = self.buffer.retrieve_data()
+            data['last_value'] = value
             return step, data, self.agent.get_raw_stats()
         else:
             return step, None, self.agent.get_raw_stats()
@@ -84,15 +88,15 @@ class TwoPlayerRunner(RayBase):
             action, terms = self.agent(self.env_output, evaluation=False)
             obs = self._step_env(obs, action, terms)
             self._log_for_done(self.env_output.reset)
-            #TODO: remove
-            for m, eid, pid, r in zip(obs['mask'], obs['eid'], obs['pid'], self._prev_reset):
-                if m == 0:
-                    if eid not in self._reset_eid2pid:
-                        assert r, (m, eid, pid, r)
-                    self._reset_eid2pid[eid].append(pid)
-                    if len(self._reset_eid2pid[eid]) == 4:
-                        del self._reset_eid2pid[eid]
-            self._prev_reset = self.env_output.reset
+            # #TODO: remove
+            # for m, eid, pid, r in zip(obs['mask'], obs['eid'], obs['pid'], self._prev_reset):
+            #     if m == 0:
+            #         if eid not in self._reset_eid2pid:
+            #             assert r, (m, eid, pid, r)
+            #         self._reset_eid2pid[eid].append(pid)
+            #         if len(self._reset_eid2pid[eid]) == len(self.control_pids):
+            #             del self._reset_eid2pid[eid]
+            # self._prev_reset = self.env_output.reset
 
         return self.step
 
@@ -125,6 +129,7 @@ class TwoPlayerRunner(RayBase):
                 score.append(i['score'])
                 epslen.append(i['epslen'])
                 won.append(i['won'])
+            self.agent.store(score=score, epslen=epslen, win_rate=won)
             self.n_episodes += len(info)
             
 

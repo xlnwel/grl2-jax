@@ -14,17 +14,36 @@ from replay.utils import load_data
 logger = logging.getLogger(__name__)
 
 
-def compute_gae(reward, discount, value, gamma, gae_discount):
-    next_value = np.concatenate([value[1:], [0]], axis=0)
+# def compute_gae(reward, discount, value, gamma, gae_discount):
+#     next_value = np.concatenate([value[1:], [0]], axis=0)
+#     assert value.shape == next_value.shape, (value.shape, next_value.shape)
+#     assert discount[-1] == 0, discount
+#     advs = delta = (reward + discount * gamma * next_value - value)
+#     next_adv = 0
+#     for i in reversed(range(advs.shape[0])):
+#         advs[i] = next_adv = (delta[i] 
+#             + discount[i] * gae_discount * next_adv)
+#     traj_ret = advs + value
+
+#     return advs, traj_ret
+
+def compute_gae(reward, discount, value, last_value, gamma, 
+                gae_discount, norm_adv=False, mask=None, epsilon=1e-8):
+    if last_value is not None:
+        last_value = np.expand_dims(last_value, 1)
+        next_value = np.concatenate([value[:, 1:], last_value], axis=1)
+    else:
+        next_value = value[:, 1:]
+        value = value[:, :-1]
     assert value.shape == next_value.shape, (value.shape, next_value.shape)
-    assert discount[-1] == 0, discount
     advs = delta = (reward + discount * gamma * next_value - value)
     next_adv = 0
-    for i in reversed(range(advs.shape[0])):
-        advs[i] = next_adv = (delta[i] 
-            + discount[i] * gae_discount * next_adv)
+    for i in reversed(range(advs.shape[1])):
+        advs[:, i] = next_adv = (delta[:, i] 
+            + discount[:, i] * gae_discount * next_adv)
     traj_ret = advs + value
-
+    if norm_adv:
+        advs = standardize(advs, mask=mask, epsilon=epsilon)
     return advs, traj_ret
 
 
@@ -37,6 +56,55 @@ def compute_indices(idxes, mb_idx, mb_size, N_MBS):
 
 
 
+# class LocalBuffer:
+#     def __init__(self, config):
+#         self.config = dict2AttrDict(config)
+#         self._gae_discount = self.config.gamma * self.config.lam
+#         self._maxlen = self.config.n_envs * self.config.N_STEPS
+#         self.reset()
+
+#     def reset(self):
+#         self._memory = []
+#         self._buffer = collections.defaultdict(lambda: collections.defaultdict(list))
+#         self._memlen = 0
+#         self._buff_lens = collections.defaultdict(int)
+
+#     def add(self, data):
+#         eids = data.pop('eid')
+#         pids = data.pop('pid')
+#         for i, (eid, pid) in enumerate(zip(eids, pids)):
+#             if not data['mask'][i] and self._buff_lens[(eid, pid)]:
+#                 self.merge_episode(self._buffer[(eid, pid)], self._buff_lens[(eid, pid)])
+#                 self._buffer[(eid, pid)] = collections.defaultdict(list)
+#                 self._buff_lens[(eid, pid)] = 0
+#             for k, vs in data.items():
+#                 self._buffer[(eid, pid)][k].append(vs[i])
+#             self._buff_lens[(eid, pid)] += 1
+
+#     def merge_episode(self, episode, epslen):
+#         for k, v in episode.items():
+#             episode[k] = np.stack(v)
+#             assert episode[k].shape[0] == epslen, (k, epslen[k].shape, epslen)
+#         episode['discount'][-1] = 0
+#         episode['advantage'], episode['traj_ret'] = compute_gae(
+#             episode['reward'], episode['discount'], episode['value'], 
+#             self.config.gamma, self._gae_discount
+#         )
+#         self._memory.append(episode)
+#         self._memlen += epslen
+#         data = batch_dicts(self._memory, np.concatenate)
+#         for k, v in data.items():
+#             assert v.shape[0] == self._memlen, (k, v.shape, self._memlen)
+
+#     def ready_to_retrieve(self):
+#         return self._memlen > self._maxlen
+
+#     def retrieve_data(self):
+#         data = batch_dicts(self._memory, np.concatenate)
+#         self.reset()
+#         return data
+
+
 class LocalBuffer:
     def __init__(self, config):
         self.config = dict2AttrDict(config)
@@ -45,43 +113,31 @@ class LocalBuffer:
         self.reset()
 
     def reset(self):
-        self._memory = []
-        self._buffer = collections.defaultdict(lambda: collections.defaultdict(list))
+        self._memory = collections.defaultdict(list)
         self._memlen = 0
+        self._idx = 0
         self._buff_lens = collections.defaultdict(int)
 
     def add(self, data):
-        eids = data.pop('eid')
-        pids = data.pop('pid')
-        for i, (eid, pid) in enumerate(zip(eids, pids)):
-            if not data['mask'][i] and self._buff_lens[(eid, pid)]:
-                self.merge_episode(self._buffer[(eid, pid)], self._buff_lens[(eid, pid)])
-                self._buffer[(eid, pid)] = collections.defaultdict(list)
-                self._buff_lens[(eid, pid)] = 0
-            for k, vs in data.items():
-                self._buffer[(eid, pid)][k].append(vs[i])
-            self._buff_lens[(eid, pid)] += 1
+        def add_data(data):
+            for k, v in data.items():
+                if isinstance(v, dict):
+                    add_data(v)
+                else:
+                    self._memory[k].append(v)
 
-    def merge_episode(self, episode, epslen):
-        for k, v in episode.items():
-            episode[k] = np.stack(v)
-            assert episode[k].shape[0] == epslen, (k, epslen[k].shape, epslen)
-        episode['discount'][-1] = 0
-        episode['advantage'], episode['traj_ret'] = compute_gae(
-            episode['reward'], episode['discount'], episode['value'], 
-            self.config.gamma, self._gae_discount
-        )
-        self._memory.append(episode)
-        self._memlen += epslen
-        data = batch_dicts(self._memory, np.concatenate)
-        for k, v in data.items():
-            assert v.shape[0] == self._memlen, (k, v.shape, self._memlen)
+        add_data(data)
+        self._idx += 1
+
+    def stack_sequential_memory(self):
+        for k, v in self._memory.items():
+            self._memory[k] = np.stack(v, 1)
 
     def ready_to_retrieve(self):
-        return self._memlen > self._maxlen
+        return self._idx >= self.config.N_STEPS
 
     def retrieve_data(self):
-        data = batch_dicts(self._memory, np.concatenate)
+        data = self._memory.copy()
         self.reset()
         return data
 
@@ -149,6 +205,9 @@ class PPOBuffer:
 
     def finish(self):
         for k, v in self._memory.items():
+            self._memory[k] = np.concatenate(v)
+        self._compute_advantage_return_in_memory()
+        for k, v in self._memory.items():
             v = np.concatenate(v)[:self._size * self._sample_size]
             self._memory[k] = v.reshape(self._size, self._sample_size, *v.shape[1:])
         self._ready = True
@@ -184,8 +243,9 @@ class PPOBuffer:
         return sample
 
     def _process_sample(self, sample):
-        sample['advantage'] = standardize(
-            sample['advantage'], epsilon=self._epsilon)
+        if self._norm_adv == 'minibatch':
+            sample['advantage'] = standardize(
+                sample['advantage'], epsilon=self._epsilon)
         return sample
     
     def _post_process_for_dataset(self):
@@ -196,6 +256,26 @@ class PPOBuffer:
                 # if we use tf.data as sampling is done 
                 # in a background thread
                 self.reset()
+
+    def _compute_advantage_return_in_memory(self, last_value=None):
+        if self._adv_type != 'vtrace' and last_value is None:
+            last_value = self._memory.pop('last_value')
+        if self._adv_type == 'gae':
+            self._memory['advantage'], self._memory['traj_ret'] = \
+                compute_gae(
+                reward=self._memory['reward'], 
+                discount=self._memory['discount'],
+                value=self._memory['value'],
+                last_value=last_value,
+                gamma=self._gamma,
+                gae_discount=self._gae_discount,
+                norm_adv=self._norm_adv == 'batch',
+                mask=self._memory.get('life_mask'),
+                epsilon=self._epsilon)
+        elif self._adv_type == 'vtrace':
+            pass
+        else:
+            raise NotImplementedError
 
 
 def create_buffer(config, central_buffer=False):
@@ -209,7 +289,5 @@ def create_buffer(config, central_buffer=False):
         return PPOBuffer(config)
     elif config.type == 'local':
         return LocalBuffer(config)
-    elif config.type == 'bc':
-        return BCBuffer(config)
     else:
         raise ValueError(config['training'])

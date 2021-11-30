@@ -24,14 +24,14 @@ runner:
 
     MAX_STEPS: 1e10
     N_STEPS: &nsteps 256
-    control_pids: [0]
+    control_pids: [0, 2]
 
 env:
     name: &env_name card_gd
     eid: 0
     n_workers: &nworkers 40
     n_envs: &nenvs 4
-    skip_players: [1, 2, 3]
+    skip_players: [1, 3]
 
 agent:
     algorithm: *algo
@@ -209,6 +209,7 @@ buffer:
     N_VALUE_EPOCHS: *nval_epochs
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
+    norm_adv: batch
     # mini-batch size = n_workers * n_envs * epslen / n_mbs
     sample_keys:
         - numbers
