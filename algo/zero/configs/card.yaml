@@ -1,6 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
 algorithm: &algo zero
+id: 0
 
 precision: 32
 
@@ -12,6 +13,14 @@ training: &training ppo
 root_dir: *algo
 model_name: *algo
 
+runner:
+    ray:
+        num_cpus: 1
+        # num_gpus: .03
+
+    MAX_STEPS: 1e10
+    N_STEPS: &nsteps 256
+
 env:
     name: &env_name card_gd2
     eid: 0
@@ -21,20 +30,15 @@ env:
 agent:
     algorithm: *algo
 
-    MAX_STEPS: 1e10
-    N_STEPS: &nsteps 256
     LOG_PERIOD: 200
     EVAL_PERIOD: 200
-
-    RECORD_VIDEO: True
-    N_EVAL_EPISODES: 1
 
 strategy:
     train_loop:
         training: *training
         N_EPOCHS: &nepochs 4
         N_VALUE_EPOCHS: &nval_epochs 0
-        N_MBS: &nmbs 4
+        N_MBS: &nmbs 2
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
         # (once reuse null)
@@ -45,6 +49,7 @@ strategy:
 
 model:
     rnn_type: &rnn rnn_mlstm
+    action_rnn_resets_every_round: False
 
     action_encoder:
         nn_id: encoder

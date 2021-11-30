@@ -52,7 +52,7 @@ class RemoteRunner:
         info_func = em.info_func if hasattr(em, 'info_func') else None
 
         runner = Runner(self.env, self.agent, step=self.agent.get_env_step(), 
-            nsteps=self.config.agent.N_STEPS, info_func=info_func)
+            nsteps=self.config.runner.N_STEPS, info_func=info_func)
         
         return runner
     
@@ -160,7 +160,7 @@ def train(agent, buffer, config):
 
     step = agent.get_env_step()
     print('Training starts...')
-    while step < agent.MAX_STEPS:
+    while step < config.runner.MAX_STEPS:
         start_env_step = agent.get_env_step()
         with rt:
             weights = agent.get_weights(opt_weights=False)

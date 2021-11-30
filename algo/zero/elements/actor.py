@@ -1,6 +1,5 @@
 from core.elements.actor import Actor
 from core.mixin.actor import RMS
-from utility.tf_utils import tensor2numpy
 
 
 class PPOActor(Actor):

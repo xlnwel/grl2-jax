@@ -460,11 +460,11 @@ class EnvStatsBase(gym.Wrapper):
 class EnvStats(EnvStatsBase):
     manual_reset_warning = True
     def reset(self):
-        if self.auto_reset:
-            self.auto_reset = False
-            if EnvStats.manual_reset_warning:
-                do_logging('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation', logger=logger)
-                EnvStats.manual_reset_warning = False
+        # if self.auto_reset:
+        #     self.auto_reset = False
+        #     if EnvStats.manual_reset_warning:
+        #         do_logging('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation', logger=logger)
+        #         EnvStats.manual_reset_warning = False
         if not self._output.reset:
             return self._reset()
         else:
@@ -557,11 +557,11 @@ class MASimEnvStats(EnvStatsBase):
         })
 
     def reset(self):
-        if self.auto_reset:
-            self.auto_reset = False
-            if EnvStats.manual_reset_warning:
-                do_logging('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation', logger=logger)
-                EnvStats.manual_reset_warning = False
+        # if self.auto_reset:
+        #     self.auto_reset = False
+        #     if EnvStats.manual_reset_warning:
+        #         do_logging('Explicitly resetting turns off auto-reset. Maker sure this is done intentionally at evaluation', logger=logger)
+        #         EnvStats.manual_reset_warning = False
         if not np.any(self._output.reset):
             return self._reset()
         else:

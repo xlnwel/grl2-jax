@@ -106,6 +106,13 @@ ActionType2Num = {
     PASS: 9
 }
 
+def get_action_id(action, infoset):
+    action_type, card_rank = action
+    if action_type == ActionType2Num[PASS]:
+        card_rank = 0
+    
+    return infoset.action2id(action_type, card_rank)
+
 NUM_ACTION_TYPES = len(ActionType2Num)
 NUM_CARD_RANKS = 15
 

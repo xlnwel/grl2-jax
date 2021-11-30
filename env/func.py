@@ -2,13 +2,13 @@ from env.cls import Env, EnvVec
 from env import make_env
 
 
-def create_env(config, env_fn=None, force_envvec=True):
+def create_env(config, env_fn=None, agents={}, force_envvec=True):
     """ Creates an Env/EnvVec from config """
     config = config.copy()
     env_fn = env_fn or make_env
     if config.get('n_workers', 1) <= 1:
         EnvType = EnvVec if force_envvec or config.get('n_envs', 1) > 1 else Env
-        env = EnvType(config, env_fn)
+        env = EnvType(config, env_fn, agents=agents)
     else:
         from env.ray_env import RayEnvVec
         EnvType = EnvVec if config.get('n_envs', 1) > 1 else Env
@@ -27,6 +27,7 @@ def get_env_stats(config):
     env_stats['n_envs'] = config['n_workers'] * config['n_envs']
     env.close()
     return env_stats
+
 
 if __name__ == '__main__':
     import time

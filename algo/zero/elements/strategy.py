@@ -36,9 +36,9 @@ class PPOTrainingLoop(TrainingLoopBase):
                 with self._sample_timer:
                     data = self._sample_data()
                 
-                for k, v in data.items():
-                    if k != 'card_rank_mask':
-                        stats[f'train/{k}'].append(v.numpy())
+                # for k, v in data.items():
+                #     if k != 'card_rank_mask':
+                #         stats[f'train/{k}'].append(v.numpy())
 
                 with self._train_timer:
                     terms = self.trainer.train(**data)

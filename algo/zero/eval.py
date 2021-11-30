@@ -7,6 +7,8 @@ from .train import RunnerManager
 
 def main(config, n, **kwargs):
     ray.init()
+    if 'runner' not in config:
+        config.runner = {}
 
     runner_manager = RunnerManager(config, name='zero', store_data=False)
     start = time.time()

@@ -27,6 +27,7 @@ class ConvFeedForward(Module):
             self._layers += [
                 layer_type(u, **config)]
 
+
 @nn_registry.register('encoder')
 class Encoder(Module):
     def __init__(self, name='encoder', **config):

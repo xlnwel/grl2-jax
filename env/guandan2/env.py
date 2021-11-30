@@ -1,6 +1,6 @@
 from .game import Game
 from .infoset import get_obs
-from .utils import PASS, ActionType2Num
+from .utils import PASS, ActionType2Num, get_action_id
 
 
 class Env:
@@ -74,8 +74,7 @@ class Env:
         self._env.close()
     
     def _get_action_id(self, action):
-        action_type, card_rank = action
-        return self.get_action_id(action_type, card_rank)
+        return get_action_id(action, self.infoset)
 
     def get_action_id(self, action_type, card_rank):
         if action_type == ActionType2Num[PASS]:

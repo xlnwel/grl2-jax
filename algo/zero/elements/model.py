@@ -35,6 +35,7 @@ class PPOModel(Model):
         }
         self._state_type = collections.namedtuple(
             'State', state[self._rnn_type.split('_')[-1]])
+        self._action_rnn_resets_every_round = self.config.get('action_rnn_resets_every_round', False)
     
     @tf.function
     def action(self, 
@@ -183,18 +184,27 @@ class PPOModel(Model):
         assert_rank([last_action_jokers, last_action_types, last_action_rel_pids], 4)
         last_action_others = tf.concat(
             [last_action_types, last_action_rel_pids], axis=-1)
-        last_action_numbers, last_action_jokers, \
-            last_action_others, last_action_first_move, \
-                last_action_filters = \
-            [tf.reshape(x, (-1, *x.shape[2:])) for x in 
-            [last_action_numbers, last_action_jokers, 
-            last_action_others, last_action_first_move, last_action_filters]]
+        if self._action_rnn_resets_every_round:
+            last_action_numbers, last_action_jokers, \
+                last_action_others, last_action_first_move, \
+                    last_action_filters = \
+                [tf.reshape(x, (-1, *x.shape[2:])) for x in 
+                [last_action_numbers, last_action_jokers, 
+                last_action_others, last_action_first_move, last_action_filters]]
+            action_mask = 1 - last_action_first_move
+        else:
+            last_action_numbers, last_action_jokers, \
+                last_action_others, action_mask, \
+                    last_action_filters = \
+                [tf.reshape(x, (-1, *x.shape[2:])) for x in 
+                [last_action_numbers, last_action_jokers, 
+                last_action_others, mask, last_action_filters]]
+            action_mask = tf.tile(tf.expand_dims(action_mask, -1), [1, last_action_filters.shape[-1]])
         assert_rank(last_action_numbers, 4)
         assert_rank([last_action_jokers, last_action_others], 3)
         
         x_a = self.action_encoder(
             last_action_numbers, last_action_jokers, last_action_others)
-        action_mask = 1-last_action_first_move  # TODO: shall we do masking here?
         if state is None:
             action_state = None
         else:

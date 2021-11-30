@@ -1,5 +1,6 @@
 from core.dataset import create_dataset
 from core.monitor import create_monitor
+from utility.typing import AttrDict
 from utility.utils import dict2AttrDict
 from utility import pkg
 
@@ -13,7 +14,7 @@ class ElementsBuilder:
         self.env_stats = dict2AttrDict(env_stats)
         self.name = name
 
-        algo = config.algorithm
+        algo = self.config.algorithm
         self.create_model = pkg.import_module(
             name='elements.model', algo=algo, place=-1).create_model
         self.create_loss = pkg.import_module(
@@ -23,12 +24,13 @@ class ElementsBuilder:
         self.create_actor = pkg.import_module(
             name='elements.actor', algo=algo, place=-1).create_actor
         self.create_buffer = pkg.import_module(
-            'elements.buffer', algo=self.config.algorithm).create_buffer
+            'elements.buffer', algo=algo).create_buffer
         self.create_strategy = pkg.import_module(
-            'elements.strategy', algo=self.config.algorithm).create_strategy
+            'elements.strategy', algo=algo).create_strategy
         self.create_agent = pkg.import_module(
-            'elements.agent', algo=self.config.algorithm).create_agent
+            'elements.agent', algo=algo).create_agent
 
+    """ Build Elements """
     def build_model(self, to_build=False, to_build_for_eval=False):
         model = self.create_model(
             self.config.model, self.env_stats, 
@@ -79,8 +81,11 @@ class ElementsBuilder:
         
         return strategy
 
-    def build_monitor(self):
-        return create_monitor(self.config.root_dir, self.config.model_name, self.name)
+    def build_monitor(self, save_to_disk=True):
+        if save_to_disk:
+            return create_monitor(self.config.root_dir, self.config.model_name, self.name)
+        else:
+            return create_monitor(None, None, self.name, use_tensorboard=False)
     
     def build_agent(self, strategy, monitor=None, to_save_code=True):
         agent = self.create_agent(
@@ -93,5 +98,38 @@ class ElementsBuilder:
 
         return agent
 
+    """ Get configurations """
     def get_config(self):
         return self.config
+
+    """ Build an Agent from Scratch """
+    def build_actor_agent_from_scratch(self):
+        elements = AttrDict()
+        elements.model = self.build_model(to_build=True)
+        elements.actor = self.build_actor(elements.model)
+        elements.strategy = self.build_strategy(actor=elements.actor)
+        elements.monitor = self.build_monitor()
+        elements.agent = self.build_agent(
+            strategy=elements.strategy, 
+            monitor=elements.monitor, 
+            to_save_code=False)
+
+        return elements
+    
+    def build_agent_from_scratch(self):
+        elements = AttrDict()
+        elements.model = self.build_model()
+        elements.actor = self.build_actor(elements.model)
+        elements.trainer = self.build_trainer(elements.model)
+        elements.buffer = self.build_buffer(elements.model)
+        elements.dataset = self.build_dataset(elements.buffer, elements.model)
+        elements.strategy = self.build_strategy(
+            actor=elements.actor, 
+            trainer=elements.trainer, 
+            dataset=elements.dataset)
+        elements.monitor = self.build_monitor()
+        elements.agent = self.build_agent(
+            strategy=elements.strategy, 
+            monitor=elements.monitor)
+
+        return elements

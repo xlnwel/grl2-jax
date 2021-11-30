@@ -9,8 +9,8 @@ from env import make_env
 
 
 class Env(gym.Wrapper):
-    def __init__(self, config, env_fn=make_env):
-        self.env = env_fn(config)
+    def __init__(self, config, env_fn=make_env, agents={}):
+        self.env = env_fn(config, eid=None, agents=agents)
         if 'seed' in config and hasattr(self.env, 'seed'):
             self.env.seed(config['seed'])
         self.name = config['name']
@@ -93,11 +93,11 @@ class EnvVecBase(gym.Wrapper):
 
 
 class EnvVec(EnvVecBase):
-    def __init__(self, config, env_fn=make_env):
+    def __init__(self, config, env_fn=make_env, agents={}):
         self.n_envs = n_envs = config.pop('n_envs', 1)
         self.name = config['name']
         self.envs = [env_fn(
-            config, config['eid'] + eid if 'eid' in config else None)
+            config, config['eid'] + eid if 'eid' in config else None, agents)
             for eid in range(n_envs)]
         self.env = self.envs[0]
         if 'seed' in config:
@@ -116,10 +116,10 @@ class EnvVec(EnvVecBase):
 
     def reset(self, idxes=None, convert_batch=True, **kwargs):
         idxes = self._get_idxes(idxes)
-        out = zip(*[self.envs[i].reset() for i in idxes])
+        out = [self.envs[i].reset() for i in idxes]
 
         if convert_batch:
-            return EnvOutput(*[convert_batch_with_func(o) for o in out])
+            return EnvOutput(*[convert_batch_with_func(o) for o in zip(*out)])
         else:
             return out
 
@@ -158,10 +158,10 @@ class EnvVec(EnvVecBase):
 
     def output(self, idxes=None, convert_batch=True):
         idxes = self._get_idxes(idxes)
-        out = zip(*[self.envs[i].output() for i in idxes])
+        out = [self.envs[i].output() for i in idxes]
 
         if convert_batch:
-            return EnvOutput(*[convert_batch_with_func(o) for o in out])
+            return EnvOutput(*[convert_batch_with_func(o) for o in zip(*out)])
         else:
             return out
 
@@ -186,12 +186,12 @@ class EnvVec(EnvVecBase):
                 for k, v in kwargs.items()}
             kwargs = [dict(x) for x in zip(*[itertools.product([k], v) 
                 for k, v in kwargs.items()])]
-            out = zip(*[method(env)(**kw) for env, kw in zip(self.envs, kwargs)])
+            out = [method(env)(**kw) for env, kw in zip(self.envs, kwargs)]
         else:
-            out = zip(*[method(env)() for env in self.envs])
+            out = [method(env)() for env in self.envs]
 
         if convert_batch:
-            return EnvOutput(*[convert_batch_with_func(o) for o in out])
+            return EnvOutput(*[convert_batch_with_func(o) for o in zip(*out)])
         else:
             return out
 

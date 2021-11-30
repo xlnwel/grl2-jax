@@ -69,7 +69,13 @@ def com_cards(same_cards, cards, n, name):
 
 
 class Game(object):
-    def __init__(self, skip_players02=False, skip_players13=True, agent02='random', agent13='reyn', max_card=13, **kwargs):
+    def __init__(self, 
+                 skip_players02=False, 
+                 skip_players13=True, 
+                 agent02='random', 
+                 agent13='reyn', 
+                 max_card=13, 
+                 **kwargs):
         self.over_order = OverOrder() #出完牌的顺序和进贡关系
         self.skip_players02 = skip_players02
         self.skip_players13 = skip_players13

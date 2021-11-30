@@ -41,6 +41,9 @@ class Runner:
 
         self._info_func = info_func
 
+    def reset(self):
+        self.env_output = self.env.reset()
+
     def _run_env(self, *, action_selector=None, step_fn=None, nsteps=None):
         action_selector = action_selector or self.agent
         nsteps = nsteps or self._default_nsteps

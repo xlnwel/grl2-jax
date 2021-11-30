@@ -19,7 +19,7 @@ def retrieve_all_make_env():
     return env_dict
 
 
-def make_env(config, eid=None):
+def make_env(config, eid=None, agents={}):
     config = config.copy()
     env_name = config['name'].lower()
 
@@ -29,6 +29,8 @@ def make_env(config, eid=None):
     env_func = env_dict.get(suite, builtin_env)
     if eid is not None:
         config['eid'] = eid
+    if agents != {}:
+        config.update(agents)
     env = env_func(config)
     
     return env

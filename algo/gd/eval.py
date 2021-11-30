@@ -12,43 +12,6 @@ from utility.utils import AttrDict2dict, dict2AttrDict, convert_batch_with_func
 from algo.gd.ruleAI.sample import run_episode
 
 
-def evaluate(env, agent02, agent13, n):
-    env_outputs = env.reset(convert_batch=False)
-
-    scores = []
-    epslens = []
-    n_done_eps = 0
-    while n_done_eps < n:
-        out2eid = {}
-        out02 = []
-        out13 = []
-        for i, o in enumerate(env_outputs): 
-            if o.obs['pid'] == 0 or o.obs['pid'] == 2:
-                out02.append(o)
-                out2eid[(0, len(out02))] = i
-            else:
-                out13.append(o)
-                out2eid[(1, len(out13))] = i
-        out02 = EnvOutput(*[convert_batch_with_func(o) for o in out02])
-
-        action02, _ = agent02(out02, evaluation=True)
-        env_output = env.step(action, convert_batch=False)
-        if env.env_type == 'Env':
-            if env.game_over():
-                scores.append(env.score())
-                epslens.append(env.epslen())
-                n_done_eps += 1
-        else:
-            done_env_ids = [i for i, d in enumerate(env.game_over()) if d]
-            n_done_eps += len(done_env_ids)
-            if done_env_ids:
-                scores += env.score(done_env_ids)
-                epslens += env.epslen(done_env_ids)
-    
-    assert len(scores) == len(epslens) == n, (n, scores, epslens)
-    return scores, epslens
-
-
 def evaluate_against_reyn(agent, n):
     env = Game(skip_players13=True, agent13='reyn')
 

@@ -17,6 +17,7 @@ from env.func import create_env
 from run.args import parse_eval_args
 from run.utils import search_for_config
 
+
 def build_elements(config, name, env_stats):
     create_model = pkg.import_module(
         name='elements.model', algo=name, place=-1).create_model

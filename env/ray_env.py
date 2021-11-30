@@ -1,4 +1,3 @@
-import atexit
 import numpy as np
 import ray
 

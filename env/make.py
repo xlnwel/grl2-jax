@@ -77,9 +77,9 @@ def make_card(config):
     from env.guandan2.env import Env as Env2
     name = config['name'].split('_', 1)[1]
     if name == 'gd':
-        env = Env1(config['eid'])
+        env = Env1(**config)
     elif name == 'gd2':
-        env = Env2(config['eid'])
+        env = Env2(**config)
     else:
         raise ValueError(f'No env with name({name}) is found in card suite')
     env = wrappers.post_wrap(env, config)

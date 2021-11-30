@@ -77,9 +77,11 @@ def change_config(kw, configs, model_name=''):
     return model_name
 
 
-def load_configs_with_algo_env(algo, env):
+def load_configs_with_algo_env(algo, env, to_attrdict=True):
     config = get_config(algo, env)
-    config = dict2AttrDict(config)
+    
+    if to_attrdict:
+        config = dict2AttrDict(config)
 
     return config
 
@@ -115,7 +117,7 @@ def set_path(config, root_dir, model_name):
         v['model_name'] = model_name
     return config
 
-def search_for_config(directory):
+def search_for_config(directory, to_attrdict=True):
     directory = directory
     config_file = None
     for root, _, files in os.walk(directory):
@@ -129,6 +131,6 @@ def search_for_config(directory):
                 pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
                 sys.exit()
     
-    config = load_config(config_file)
+    config = load_config(config_file, to_attrdict=to_attrdict)
     
     return config

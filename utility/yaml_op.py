@@ -1,7 +1,7 @@
 import yaml
 from pathlib import Path
 
-from utility.utils import dict2AttrDict
+from utility.utils import dict2AttrDict, eval_config
 
 
 def default_path(filename):
@@ -11,13 +11,17 @@ def default_path(filename):
         return Path('.') / filename
 
 # load arguments from config.yaml
-def load_config(filename='config.yaml'):
+def load_config(filename='config.yaml', to_attrdict=True):
     if not Path(default_path(filename)).exists():
         raise RuntimeError(f'No configuration is found at: {filename}')
     with open(default_path(filename), 'r') as f:
         try:
-            yaml_f = yaml.load(f, Loader=yaml.FullLoader)
-            return dict2AttrDict(yaml_f)
+            config = yaml.load(f, Loader=yaml.FullLoader)
+            config = eval_config(config)
+            if to_attrdict:
+                return dict2AttrDict(config)
+            else:
+                return config
         except yaml.YAMLError as exc:
             print(exc)
 

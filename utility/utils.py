@@ -14,6 +14,9 @@ from utility.typing import AttrDict
 
 
 def dict2AttrDict(config: dict):
+    if isinstance(config, AttrDict):
+        return config
+
     attr_config = AttrDict()
     for k, v in config.items():
         if isinstance(v, dict):
@@ -394,6 +397,10 @@ def convert_batch_with_func(data, func=np.stack):
         else:
             data = list(data)
     return data
+
+def convert_batch_tuples_with_func(data, func=np.stack):
+    return [convert_batch_with_func(x, func=func) 
+        for x in zip(*data)]
 
 def concat_map(x):
     return tf.nest.map_structure(lambda x: np.concatenate(x), x)
