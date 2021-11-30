@@ -36,7 +36,7 @@ def get_actor_class(AgentBase):
 
             psutil.Process().nice(config.get('default_nice', 0)+2)
 
-            # avoids additional workers created by RayEnvVec
+            # avoids additional workers created by RayVecEnv
             env_config['n_workers'] = 1
             # create env to get state&action spaces
             self._n_vecenvs = env_config['n_vecenvs']
@@ -217,7 +217,7 @@ def get_worker_class():
             self._id = worker_id
             self.name = f'Worker_{self._id}'
             
-            # avoids additional workers created by RayEnvVec
+            # avoids additional workers created by RayVecEnv
             env_config['n_workers'] = 1
             self._n_vecenvs, self._envvecs = self._create_envvec(env_config)
             

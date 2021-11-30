@@ -60,7 +60,7 @@ class TestClass:
                                 cr[k] = 0
                                 n[k] = 0
 
-    def test_RayEnvVec(self):
+    def test_RayVecEnv(self):
         for name in ['atari_pong', 'atari_breakout', 'BipedalWalkerHardcore-v3']:
             for _ in range(3):
                 config = default_config.copy()

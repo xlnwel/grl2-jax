@@ -6,9 +6,7 @@ from core.elements.builder import ElementsBuilder
 from core.tf_config import *
 from env.func import create_env
 from env.guandan.game import Game
-from env.typing import EnvOutput
-from utility import pkg
-from utility.utils import AttrDict2dict, dict2AttrDict, convert_batch_with_func
+from utility.utils import AttrDict2dict, dict2AttrDict
 from algo.gd.ruleAI.sample import run_episode
 
 
@@ -44,10 +42,8 @@ def evaluate_config(config, n):
     env_stats = env.stats()
 
     builder = ElementsBuilder(config, env_stats, config.algorithm)
-    model = builder.build_model(to_build_for_eval=True)
-    actor = builder.build_actor(model)
-    strategy = builder.build_strategy(actor=actor)
-    agent = builder.build_agent(strategy, to_save_code=False)
+    elements = builder.build_actor_agent_from_scratch()
+    agent = elements.agent
 
     return evaluate_against_reyn(agent, n)
 

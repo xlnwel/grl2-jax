@@ -35,7 +35,7 @@ class PPOModel(Model):
         }
         self._state_type = collections.namedtuple(
             'State', state[self._rnn_type.split('_')[-1]])
-        self._action_rnn_resets_every_round = self.config.get('action_rnn_resets_every_round', False)
+        self._action_rnn_resets_every_round = self.config.get('action_rnn_resets_every_round', True)
     
     @tf.function
     def action(self, 

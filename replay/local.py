@@ -91,7 +91,7 @@ class EnvNStepBuffer(NStepBuffer):
         return results
 
 
-class EnvVecNStepBuffer(NStepBuffer):
+class VecEnvNStepBuffer(NStepBuffer):
     """ Local memory only stores one episode of transitions from n environments """
     def reset(self):
         assert self.is_full(), self._idx
@@ -192,7 +192,7 @@ class EnvSequentialBuffer(SequentialBuffer):
         return results
 
 
-class EnvVecSequentialBuffer(SequentialBuffer):
+class VecEnvSequentialBuffer(SequentialBuffer):
     def sample(self):
         assert self.is_full(), self._idx
         results = {}
@@ -255,7 +255,7 @@ class EnvFixedEpisodicBuffer(EnvEpisodicBuffer):
         return results
 
 
-class EnvVecFixedEpisodicBuffer(EnvFixedEpisodicBuffer):
+class VecEnvFixedEpisodicBuffer(EnvFixedEpisodicBuffer):
     def _add_attributes(self):
         super()._add_attributes()
         self.reset()

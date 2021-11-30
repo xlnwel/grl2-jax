@@ -95,7 +95,7 @@ class Strategy:
     def _prepare_input_to_actor(self, env_output):
         """ Extract data from env_output as the input 
         to Actor for inference """
-        inp = env_output.obs
+        inp = env_output.obs.copy()
         return inp
 
     def _record_output(self, out):

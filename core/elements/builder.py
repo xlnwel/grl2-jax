@@ -33,7 +33,7 @@ class ElementsBuilder:
     """ Build Elements """
     def build_model(self, to_build=False, to_build_for_eval=False):
         model = self.create_model(
-            self.config.model, self.env_stats, 
+            self.config.model, self.env_stats, name=self.name,
             to_build=to_build, to_build_for_eval=to_build_for_eval)
         
         return model

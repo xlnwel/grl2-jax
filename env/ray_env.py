@@ -5,7 +5,7 @@ from env.cls import *
 from utility.utils import convert_batch_with_func
 
 
-class RayEnvVec(EnvVecBase):
+class RayVecEnv(VecEnvBase):
     def __init__(self, EnvType, config, env_fn=make_env):
         self.name = config['name']
         self.n_workers= config.get('n_workers', 1)

@@ -1,7 +1,6 @@
 import numpy as np
-from env.guandan.action import get_card_type
-
-from env.guandan.utils import *
+from .action import get_card_type
+from .utils import *
 
 
 class InfoSet(object):
@@ -12,6 +11,7 @@ class InfoSet(object):
     """
     def __init__(self, pid):
         self.pid = pid
+        self.first_round = None
         # Last player id
         self.last_pid = None
         # The cards played by self.last_pid
@@ -44,35 +44,31 @@ class InfoSet(object):
 
     def get_policy_mask(self, is_first_move):
         # TODO: Try more action types
-        card_type_mask = np.zeros(3, dtype=np.bool)    # pass, follow, bomb
-        follow_mask = np.zeros(15, dtype=np.bool)
-        bomb_mask = np.zeros(15, dtype=np.bool)
+        action_type_mask = np.zeros(NUM_ACTION_TYPES, dtype=np.bool)
+        card_rank_mask = np.zeros((NUM_ACTION_TYPES, NUM_CARD_RANKS), dtype=np.bool)
+        card_rank_mask[-1] = 1
         for aid, a in enumerate(self.legal_actions):
             assert a.type is not None, a.type
+            action_type_id = ActionType2Num[a.type]
+            action_type_mask[action_type_id] = 1
             if a.type == PASS:
-                card_type_mask[0] = 1
-                self._action2id[(0, 0)] = aid
+                self._action2id[(action_type_id, 0)] = aid
             else:
-                i = Action2Num[a.rank]
-                k = 0
-                if a.type == BOMB or a.type == STRAIGHT_FLUSH:
-                    k = 2
-                    card_type_mask[2] = 1
-                    bomb_mask[i] = 1
-                else:
-                    k = 1
-                    card_type_mask[1] = 1
-                    follow_mask[i] = 1
-                self._action2id[(k, i)] = aid
-        assert np.any(card_type_mask), card_type_mask
-        assert card_type_mask[0] != is_first_move, (card_type_mask, is_first_move, [a.cards for a in self.legal_actions])
-        if card_type_mask[1] == False:
-            assert np.all(follow_mask == False), follow_mask
-        if card_type_mask[2] == False:
-            assert np.all(bomb_mask == False), bomb_mask
-        return card_type_mask, follow_mask, bomb_mask
+                rank_id = Rank2Num[a.rank]
+                card_rank_mask[action_type_id, rank_id] = 1
+                self._action2id[(action_type_id, rank_id)] = aid
+        assert np.any(action_type_mask), action_type_mask
+        assert action_type_mask[ActionType2Num[PASS]] != is_first_move, (action_type_mask, is_first_move, [a.cards for a in self.legal_actions])
+        for i in range(NUM_ACTION_TYPES-1):
+            if action_type_mask[i] == False:
+                assert np.all(card_rank_mask[i] == False), card_rank_mask[i]
+            else:
+                assert np.any(card_rank_mask[i]), card_rank_mask[i]
+        return action_type_mask, card_rank_mask
 
     def action2id(self, action_type, card_rank):
+        if action_type == ActionType2Num[PASS]:
+            card_rank = 0
         return self._action2id[(action_type, card_rank)]
 
 def _get_one_hot_array(i,n):
@@ -143,31 +139,6 @@ def _action_repr(action, rank):
 
     return result
 
-def get_policy_mask(infoset: InfoSet, is_first_move):
-    # TODO: Try more action types
-    card_type_mask = np.zeros(3, dtype=np.bool)    # pass, follow, bomb
-    follow_mask = np.zeros(15, dtype=np.bool)
-    bomb_mask = np.zeros(15, dtype=np.bool)
-    for a in infoset.legal_actions:
-        assert a.type is not None, a.type
-        if a.type == PASS:
-            card_type_mask[0] = 1
-        else:
-            i = Action2Num[a.rank]
-            if a.type == BOMB or a.type == STRAIGHT_FLUSH:
-                card_type_mask[2] = 1
-                bomb_mask[i] = 1
-            else:
-                card_type_mask[1] = 1
-                follow_mask[i] = 1
-    assert np.any(card_type_mask), card_type_mask
-    assert card_type_mask[0] != is_first_move, (card_type_mask, is_first_move, [a.cards for a in infoset.legal_actions])
-    if card_type_mask[1] == False:
-        assert np.all(follow_mask == False), follow_mask
-    if card_type_mask[2] == False:
-        assert np.all(bomb_mask == False), bomb_mask
-    return card_type_mask, follow_mask, bomb_mask
-
 def _get_rel_pids():
     # pids = [np.zeros(4, dtype=np.float32) for _ in range(4)]
     # for i, pid in enumerate(pids):
@@ -233,12 +204,13 @@ def get_obs(infoset: InfoSet):
     others_jokers = np.concatenate([c['jokers'] for c in others_handcards], axis=-1)
     
     """ Policy Mask """
-    card_type_mask, follow_mask, bomb_mask = infoset.get_policy_mask(is_first_move)
+    action_type_mask, card_rank_mask = infoset.get_policy_mask(is_first_move)
     if is_first_move:
-        assert card_type_mask[0] == False, card_type_mask
+        assert action_type_mask[ActionType2Num[PASS]] == False, action_type_mask
     else:
-        assert card_type_mask[0] == True, card_type_mask
+        assert action_type_mask[ActionType2Num[PASS]] == True, action_type_mask
 
+    mask = np.float32(1 - infoset.first_round)  # rnn mask
     obs = {
         'pid': pid,
         'numbers': numbers,
@@ -255,10 +227,10 @@ def get_obs(infoset: InfoSet):
         'last_action_rel_pids': last_action_rel_pids,
         'last_action_filters': last_action_filters,
         'last_action_first_move': last_action_first_move,
-        'action_type_mask': card_type_mask,
-        'follow_mask': follow_mask,
-        'bomb_mask': bomb_mask,
+        'action_type_mask': action_type_mask,
+        'card_rank_mask': card_rank_mask,
         'others_numbers': others_numbers,
         'others_jokers': others_jokers,
+        'mask': mask
     }
     return obs

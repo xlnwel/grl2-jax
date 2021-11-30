@@ -3,9 +3,9 @@ import numpy as np
 import cv2
 import gym
 
-from utility.utils import batch_dicts, convert_batch_with_func, dict2AttrDict
-from env.typing import EnvOutput
+from utility.utils import batch_dicts, dict2AttrDict
 from env import make_env
+from env.utils import batch_env_output
 
 
 class Env(gym.Wrapper):
@@ -76,9 +76,9 @@ class Env(gym.Wrapper):
         return img
 
 
-class EnvVecBase(gym.Wrapper):
+class VecEnvBase(gym.Wrapper):
     def __init__(self):
-        self.env_type = 'EnvVec'
+        self.env_type = 'VecEnv'
         super().__init__(self.env)
 
     def stats(self):
@@ -90,9 +90,9 @@ class EnvVecBase(gym.Wrapper):
         elif isinstance(idxes, int):
             idxes = [idxes]
         return idxes
+    
 
-
-class EnvVec(EnvVecBase):
+class VecEnv(VecEnvBase):
     def __init__(self, config, env_fn=make_env, agents={}):
         self.n_envs = n_envs = config.pop('n_envs', 1)
         self.name = config['name']
@@ -119,7 +119,7 @@ class EnvVec(EnvVecBase):
         out = [self.envs[i].reset() for i in idxes]
 
         if convert_batch:
-            return EnvOutput(*[convert_batch_with_func(o) for o in zip(*out)])
+            return batch_env_output(out)
         else:
             return out
 
@@ -161,7 +161,7 @@ class EnvVec(EnvVecBase):
         out = [self.envs[i].output() for i in idxes]
 
         if convert_batch:
-            return EnvOutput(*[convert_batch_with_func(o) for o in zip(*out)])
+            return batch_env_output(out)
         else:
             return out
 
@@ -191,9 +191,137 @@ class EnvVec(EnvVecBase):
             out = [method(env)() for env in self.envs]
 
         if convert_batch:
-            return EnvOutput(*[convert_batch_with_func(o) for o in zip(*out)])
+            return batch_env_output(out)
         else:
             return out
+
+    def close(self):
+        if hasattr(self.env, 'close'):
+            [env.close() for env in self.envs]
+
+
+class TwoPlayerSequentialVecEnv(VecEnvBase):
+    def __init__(self, config, other_ids, other_player, env_fn=make_env):
+        self.n_envs = n_envs = config.pop('n_envs', 1)
+        self.name = config['name']
+        self.envs = [env_fn(
+            config, config['eid'] + eid if 'eid' in config else None)
+            for eid in range(n_envs)]
+        self.env = self.envs[0]
+        if 'seed' in config:
+            [env.seed(config['seed'] + i) 
+                for i, env in enumerate(self.envs)
+                if hasattr(env, 'seed')]
+        self.other_ids = other_ids
+        self.other_player = other_player
+
+        self.max_episode_steps = self.env.max_episode_steps
+        super().__init__()
+        self._stats = self.env.stats()
+        self._stats['n_workers'] = 1
+        self._stats['n_envs'] = self.n_envs
+
+    def set_other_player(self, other_player):
+        self.other_player = other_player
+
+    def random_action(self, *args, **kwargs):
+        return np.stack([env.random_action() if hasattr(env, 'random_action') \
+            else env.action_space.sample() for env in self.envs])
+
+    def reset(self, idxes=None, convert_batch=True, **kwargs):
+        idxes = self._get_idxes(idxes)
+        out = [self.envs[i].reset() for i in idxes]
+
+        if convert_batch:
+            return batch_env_output(out)
+        else:
+            return out
+
+    def set_other_player(self, other_player):
+        self.other_player = other_player
+
+    def step(self, actions, convert_batch=True):
+        def extract_other_player_eids_outs(out):
+            other_eids = []
+            other_outs = []
+            for i, o in enumerate(out):
+                if o.obs['pid'] in self.other_ids:
+                    other_eids.append(i)
+                    other_outs.append(o)
+            return other_eids, other_outs
+
+        if isinstance(actions, (tuple, list)):
+            actions = zip(*actions)
+        outs = [e.step(a) for e, a in zip(self.envs, actions)]
+
+        other_eids, other_outs = extract_other_player_eids_outs(outs)
+        while other_eids:
+            assert False, 'Oooooops. Should not be the for now'
+            other_outs = batch_env_output(other_outs)
+            actions, terms = self.other_player(other_outs)
+            if isinstance(actions, (tuple, list)):
+                actions = zip(*actions)
+            next_outs = [self.envs[i].step(a) for i, a in zip(other_eids, actions)]
+            for i, o in zip(other_eids, next_outs):
+                if o.obs['pid'] not in self.other_ids:
+                    outs[i] = o
+            other_eids, other_outs = extract_other_player_eids_outs(other_outs)
+        assert np.all([o.obs['pid'] not in self.other_ids for o in outs]), [o.obs['pid'] not in self.other_ids for o in outs]
+        if convert_batch:
+            return batch_env_output(outs)
+        else:
+            return outs
+
+    def score(self, idxes=None):
+        idxes = self._get_idxes(idxes)
+        return [self.envs[i].score() for i in idxes]
+
+    def epslen(self, idxes=None):
+        idxes = self._get_idxes(idxes)
+        return [self.envs[i].epslen() for i in idxes]
+
+    def mask(self, idxes=None):
+        idxes = self._get_idxes(idxes)
+        return np.stack([self.envs[i].mask() for i in idxes])
+
+    def game_over(self):
+        return np.stack([env.game_over() for env in self.envs])
+
+    def prev_obs(self, idxes=None):
+        idxes = self._get_idxes(idxes)
+        obs = [self.envs[i].prev_obs() for i in idxes]
+        if isinstance(obs[0], dict):
+            obs = batch_dicts(obs)
+        return obs
+
+    def info(self, idxes=None, convert_batch=False):
+        idxes = self._get_idxes(idxes)
+        info = [self.envs[i].info() for i in idxes]
+        if convert_batch:
+            info = batch_dicts(info)
+        return info
+
+    def output(self, idxes=None, convert_batch=True):
+        idxes = self._get_idxes(idxes)
+        out = [self.envs[i].output() for i in idxes]
+
+        if convert_batch:
+            return batch_env_output(out)
+        else:
+            return out
+
+    def get_screen(self, size=None):
+        if hasattr(self.env, 'get_screen'):
+            imgs = np.stack([env.get_screen() for env in self.envs])
+        else:
+            imgs = np.stack([env.render(mode='rgb_array') for env in self.envs])
+
+        if size is not None:
+            # cv2 receive size of form (width, height)
+            imgs = np.stack([cv2.resize(i, size[::-1], interpolation=cv2.INTER_AREA) 
+                            for i in imgs])
+        
+        return imgs
 
     def close(self):
         if hasattr(self.env, 'close'):

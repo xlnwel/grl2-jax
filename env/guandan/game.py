@@ -2,24 +2,11 @@ import random
 from collections import Counter, defaultdict
 import numpy as np
 
-from env.guandan.player import Player
-from env.guandan.utils import Action2Num, OverOrder, get_cards, get_down_pid, get_teammate_pid, CARD_DIGITAL_TABLE
-from env.guandan.action import Action, ActionList
-from env.guandan.card import Card
-from env.guandan.infoset import InfoSet
-
-
-RANK = ('', '', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A')
-SINGLE = 'Single'
-PAIR = 'Pair'
-TRIPS = 'Trips'
-THREE_PAIR = 'ThreePair'
-THREE_WITH_TWO = 'ThreeWithTwo'
-TWO_TRIPS = 'TwoTrips'
-STRAIGHT = 'Straight'
-STRAIGHT_FLUSH = 'StraightFlush'
-BOMB = 'Bomb'
-PASS = 'PASS'
+from .player import Player
+from .utils import *
+from .action import Action, ActionList
+from .card import Card
+from .infoset import InfoSet
 
 
 def com_cards(same_cards, cards, n, name):
@@ -82,12 +69,19 @@ def com_cards(same_cards, cards, n, name):
 
 
 class Game(object):
-    def __init__(self, skip_players02=False, skip_players13=True, agent02='random', agent13='reyn', max_card=13, **kwargs):
+    def __init__(self,  
+                 skip_players=(1, 3), 
+                 agent='random', 
+                 other='reyn', 
+                 max_card=13, 
+                 test=False,
+                 **kwargs):
         self.over_order = OverOrder() #出完牌的顺序和进贡关系
-        self.skip_players02 = skip_players02
-        self.skip_players13 = skip_players13
-        self.players = [Player('0', agent02), Player('1', agent13), Player('2', agent02), Player('3', agent13)]
+        self.skip_players = skip_players
+        self.players = [Player(f'{i}', other) if i in skip_players else Player(f'{i}', agent) 
+            for i in range(4)]
         self.max_card = max_card
+        self.test = test
 
         self.r_order_default = {'2':2,
          '3':3,  '4':4,  '5':5,  '6':6,  '7':7,  '8':8,  '9':9,  'T':10,  'J':11,  'Q':12,  'K':13,  'A':14,
@@ -116,9 +110,8 @@ class Game(object):
         self.last_action_rel_pids_shape = (4, 4)
         self.last_action_filters_shape = (4,)
         self.last_action_first_move_shape = (4,)
-        self.action_type_mask_shape = (3,)
-        self.follow_mask_shape = (15,)
-        self.bomb_mask_shape = (15,)
+        self.action_type_mask_shape = (NUM_ACTION_TYPES,)
+        self.card_rank_mask_shape = (NUM_ACTION_TYPES, NUM_CARD_RANKS)
         self.others_numbers_shape = (13, 13)
         self.others_jokers_shape = (12,)
         self.obs_shape = dict(
@@ -137,10 +130,10 @@ class Game(object):
             last_action_filters=self.last_action_filters_shape,
             last_action_first_move=self.last_action_first_move_shape,
             action_type_mask=self.action_type_mask_shape,
-            follow_mask=self.follow_mask_shape,
-            bomb_mask=self.bomb_mask_shape,
+            card_rank_mask=self.card_rank_mask_shape,
             others_numbers=self.others_numbers_shape,
             others_jokers=self.others_jokers_shape,
+            mask=()
         )
         self.obs_dtype = dict(
             numbers=np.float32,
@@ -158,10 +151,10 @@ class Game(object):
             last_action_filters=np.bool,
             last_action_first_move=np.float32,
             action_type_mask=np.bool,
-            follow_mask=np.bool,
-            bomb_mask=np.bool,
+            card_rank_mask=np.bool,
             others_numbers=np.float32,
             others_jokers=np.float32,
+            mask=np.float32
         )
 
         # action info
@@ -172,8 +165,8 @@ class Game(object):
             card_rank=self.card_rank_shape,
         )
         self.action_dim = dict(
-            action_type=3,
-            card_rank=15,
+            action_type=NUM_ACTION_TYPES,
+            card_rank=NUM_CARD_RANKS,
         )
         self.action_dtype = dict(
             action_type=np.int32,
@@ -334,19 +327,23 @@ class Game(object):
             assert len(self.players[2].history) == len(self.players[3].history), (self.players[2].history, self.players[3].history)
         assert action.type is not None, action
         if action.type == BOMB or action.type == STRAIGHT_FLUSH:
-            self.bombs_dealt[Action2Num[action.rank]] += 1
+            self.bombs_dealt[Rank2Num[action.rank]] += 1
+        if self.players[self.current_pid].first_round:
+            assert self.players[self.current_pid].history == [], 0
+        self.players[self.current_pid].first_round = False
         self.last_pid = self.current_pid
         self.last_action = action
         self.is_last_action_first_move = self.last_valid_pid == -1
         if self.is_last_action_first_move:
             assert action.type != PASS, action
-        # print("{}号位玩家手牌为{}，打出{}，最大动作为{}号位打出的{}. first action={}".format(
-        #     self.current_pid, 
-        #     self.players[self.current_pid].hand_cards, 
-        #     action, 
-        #     self.last_valid_pid, 
-        #     self.last_valid_action,
-        #     self.is_last_action_first_move))
+        if self.test:
+            print("{}号位玩家手牌为{}，打出{}，最大动作为{}号位打出的{}. first action={}".format(
+                self.current_pid, 
+                self.players[self.current_pid].hand_cards, 
+                action, 
+                self.last_valid_pid, 
+                self.last_valid_action,
+                self.is_last_action_first_move))
 
         self.players[self.current_pid].play_area = str(action)
         self.players[self.current_pid].history.append(action.copy())
@@ -403,11 +400,7 @@ class Game(object):
         self.check_skip_player()
 
     def check_skip_player(self):
-        if self.skip_players02 and (self.current_pid == 0 or self.current_pid == 2):
-            infoset = self.get_infoset()
-            aid = self.players[self.current_pid].play_choice(infoset)
-            self.play(aid)
-        elif self.skip_players13 and (self.current_pid == 1 or self.current_pid == 3):
+        if self.current_pid in self.skip_players:
             infoset = self.get_infoset()
             aid = self.players[self.current_pid].play_choice(infoset)
             self.play(aid)
@@ -826,6 +819,7 @@ class Game(object):
     def get_infoset(self):
         i = self.current_pid
         infoset = InfoSet(i)
+        infoset.first_round = self.players[i].first_round
         infoset.last_pid = self.last_pid
         infoset.last_action = self.last_action
         infoset.last_valid_pid = self.last_valid_pid

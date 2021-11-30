@@ -51,7 +51,7 @@ def create_learner(
     replay_config = replay_config.copy()
     
     config = disable_info_logging(config, display_var=True)
-    # avoids additional workers created by RayEnvVec
+    # avoids additional workers created by RayVecEnv
     env_config['n_workers'] = 1
 
     ray_config = ray_remote_config(config, 'learner')
@@ -88,7 +88,7 @@ def create_worker(
 
     if 'seed' in env_config:
         env_config['seed'] += worker_id * 100
-    # avoids additional workers created by RayEnvVec
+    # avoids additional workers created by RayVecEnv
     env_config['n_workers'] = 1
 
     ray_config = ray_remote_config(config, 'worker')

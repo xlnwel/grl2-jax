@@ -1,5 +1,6 @@
 from env import wrappers
-
+from env.typing import EnvOutput
+from utility.utils import convert_batch_with_func
 
 def process_single_agent_env(env, config):
     if config.get('reward_scale') \
@@ -19,3 +20,7 @@ def process_single_agent_env(env, config):
     env = wrappers.post_wrap(env, config)
 
     return env
+
+
+def batch_env_output(out):
+    return EnvOutput(*[convert_batch_with_func(o) for o in zip(*out)])

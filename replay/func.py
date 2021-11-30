@@ -25,11 +25,11 @@ def create_local_buffer(config):
 
         buffer_type = {
             'nstep': EnvNStepBuffer,
-            'vec_nstep': EnvVecNStepBuffer,
+            'vec_nstep': VecEnvNStepBuffer,
             'seq': EnvSequentialBuffer,
-            'vec_seq': EnvVecSequentialBuffer,
+            'vec_seq': VecEnvSequentialBuffer,
             'fixed_eps': EnvFixedEpisodicBuffer,
-            'vec_fixed_eps': EnvVecFixedEpisodicBuffer,
+            'vec_fixed_eps': VecEnvFixedEpisodicBuffer,
         }[buffer_name]
 
         return buffer_type(config)
@@ -39,9 +39,9 @@ def create_local_buffer(config):
         is_envvec = config.pop('force_envvec', False) or n_envs > 1
         buffer_type = {
             (False, False): EnvNStepBuffer, 
-            (False, True): EnvVecNStepBuffer, 
+            (False, True): VecEnvNStepBuffer, 
             (True, False): EnvSequentialBuffer, 
-            (True, True): EnvVecSequentialBuffer, 
+            (True, True): VecEnvSequentialBuffer, 
         }[(is_sequential, is_envvec)]
 
         return buffer_type(config)

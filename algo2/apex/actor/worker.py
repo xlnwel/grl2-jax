@@ -93,7 +93,7 @@ def get_worker_class(AgentBase):
 
             config_actor(name, config)
             
-            # avoids additional workers created by RayEnvVec
+            # avoids additional workers created by RayVecEnv
             env_config['n_workers'] = 1
             self.env = create_env(env_config)
 

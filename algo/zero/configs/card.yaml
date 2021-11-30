@@ -13,6 +13,10 @@ training: &training ppo
 root_dir: *algo
 model_name: *algo
 
+parameter_server:
+    root_dir: *algo
+    model_name: *algo
+
 runner:
     ray:
         num_cpus: 1
@@ -20,12 +24,14 @@ runner:
 
     MAX_STEPS: 1e10
     N_STEPS: &nsteps 256
+    control_pids: [0]
 
 env:
-    name: &env_name card_gd2
+    name: &env_name card_gd
     eid: 0
-    n_workers: 32
+    n_workers: &nworkers 40
     n_envs: &nenvs 4
+    skip_players: [1, 2, 3]
 
 agent:
     algorithm: *algo
@@ -168,8 +174,8 @@ loss:
 
 trainer:
     training: *training
-    # BC configs
-    batch_size: &bs 4096
+    # # BC configs
+    # batch_size: &bs 4096
     sample_size: &ss 16
 
     optimizer:
@@ -182,27 +188,27 @@ trainer:
 actor:
     rms:
         obs_names: []
-        normalize_obs: False
-        normalize_reward: True
+        normalize_obs: False    # not implemented
+        normalize_reward: False # not implemented
         gamma: &gamma .99
 
 buffer:
-    training: *training
-    dir: data/gd-100000
+    type: *training
+    # dir: data/gd-100000
     use_dataset: True
 
     # PPO configs
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
+    n_workers: *nworkers
     n_envs: *nenvs
-    batch_size: *bs
+    # batch_size: *bs
     N_STEPS: *nsteps
     N_EPOCHS: *nepochs
     N_VALUE_EPOCHS: *nval_epochs
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
-    norm_adv: batch
     # mini-batch size = n_workers * n_envs * epslen / n_mbs
     sample_keys:
         - numbers

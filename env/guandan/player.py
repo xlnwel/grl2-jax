@@ -3,23 +3,32 @@
 # Decompiled from: Python 3.8.10 (default, May 19 2021, 13:12:57) [MSC v.1916 64 bit (AMD64)]
 # Embedded file name: player.py
 import random
-from env.guandan.action import Action
+import numpy as np
+from .action import Action
+from core.elements.agent import Agent
+from .utils import get_action_id
+from .infoset import get_obs
+from env.typing import EnvOutput
+
+
 class Player(object):
 
     def __init__(self, name, agent=None):
         self.name = name
-        if agent is None or agent == 'random':
+        if isinstance(agent, Agent):
+            self.agent = agent
+        elif agent is None or agent == 'random':
             from env.guandan.random_agent import RandomAgent
             self.agent = RandomAgent()
-        if agent == 'deep':
-            from dmc.deep_agent import DeepAgent
-            self.agent = DeepAgent()
-        if agent == 'reyn':
+        elif agent == 'reyn':
             from algo.gd.ruleAI.reyn_ai import ReynAIAgent
             self.agent = ReynAIAgent()
+        else:
+            raise ValueError(f'Agent({agent}) is not valid')
         self.reset()
 
     def reset(self):
+        self.first_round = True
         self.index = None
         self.victory = 0
         self.draws = 0
@@ -64,7 +73,21 @@ class Player(object):
         self.play_area = None
 
     def play_choice(self, infoset):
-        self.action_index = self.agent(infoset)
+        if isinstance(self.agent, Agent):
+            obs = get_obs(infoset)
+            batch_obs = obs.copy()
+            batch_obs['eid'] = 0
+            for k, v in batch_obs.items():
+                batch_obs[k] = np.expand_dims(v, 0)
+            reward = np.expand_dims(0, 0)
+            discount = np.expand_dims(1, 0)
+            reset = np.expand_dims(self.first_round, 0)
+            env_output = EnvOutput(batch_obs, reward, discount, reset)
+            action = Agent(env_output)
+            action = [np.squeeze(a) for a in action]
+            self.action_index = get_action_id(action, infoset)
+        else:
+            self.action_index = self.agent(infoset)
         return self.action_index
 
     def tribute_choice(self):

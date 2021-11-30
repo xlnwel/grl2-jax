@@ -18,7 +18,6 @@ def make_builtin_gym(config):
 
 def make_atari(config):
     from env.atari import Atari
-    
     assert 'atari' in config['name'], config['name']
     env = Atari(**config)
     config.setdefault('max_episode_steps', 108000)    # 30min
@@ -73,23 +72,12 @@ def make_mpe(config):
 
 
 def make_card(config):
-    from env.guandan.env import Env as Env1
-    from env.guandan2.env import Env as Env2
+    from env.guandan.env import Env
     name = config['name'].split('_', 1)[1]
     if name == 'gd':
-        env = Env1(**config)
-    elif name == 'gd2':
-        env = Env2(**config)
+        env = Env(**config)
     else:
         raise ValueError(f'No env with name({name}) is found in card suite')
-    env = wrappers.post_wrap(env, config)
-    
-    return env
-
-
-def make_gd2(config):
-    from env.guandan2.env import Env
-    env = Env(config['eid'])
     env = wrappers.post_wrap(env, config)
     
     return env

@@ -56,5 +56,4 @@ def get_bc_data_format(config, env_stats, model, use_for_dataset=True):
 def collect(buffer, env, env_step, reset, obs, action, next_obs, **kwargs):
     # obs['card_rank_mask'] = card_rank_mask
     kwargs['action_type'], kwargs['card_rank'] = action
-    obs.pop('mask') # only store mask in kwargs
     buffer.add(**obs, **kwargs)

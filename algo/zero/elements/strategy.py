@@ -140,7 +140,7 @@ class PPOStrategy(Strategy):
         return value.numpy()
 
     def _add_memory_state_to_input(self, env_output):
-        inp = env_output.obs
+        inp = env_output.obs.copy()
         eids = inp.pop('eid')
         pids = inp.pop('pid')
 
@@ -154,9 +154,7 @@ class PPOStrategy(Strategy):
                 batch_size=1, sequential_dim=1
             ))
         state = self.model.state_type(*[np.concatenate(s) for s in zip(*states)])
-        
-        # TODO: remove the following as we're gonna reset states in LSTM anyway
-        # state = self._memories[0][0].apply_mask_to_state(state, mask)
+
         inp['state'] = state
         
         return inp

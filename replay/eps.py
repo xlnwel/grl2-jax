@@ -38,7 +38,7 @@ class EpisodicReplay:
         self.TempBufferType = {
             'eps': EnvEpisodicBuffer, 
             'fixed_eps': EnvFixedEpisodicBuffer,
-            # 'vec_fixed_eps': EnvVecFixedEpisodicBuffer,
+            # 'vec_fixed_eps': VecEnvFixedEpisodicBuffer,
         }.get(self._local_buffer_type)
 
         self._info_printed = False

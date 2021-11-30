@@ -19,17 +19,17 @@ class Runner:
             # assert nsteps is not None
         self.agent = agent
         self.step = step
-        if run_mode == RunMode.TRAJ and env.env_type == 'EnvVec':
+        if run_mode == RunMode.TRAJ and env.env_type == 'VecEnv':
             logger.warning('Runner.step is not the actual environment steps '
-                f'as run_mode == {RunMode.TRAJ} and env_type == EnvVec')
+                f'as run_mode == {RunMode.TRAJ} and env_type == VecEnv')
         self.env_output = self.env.output()
         self.episodes = np.zeros(env.n_envs)
         assert getattr(self.env, 'auto_reset', None), getattr(self.env, 'auto_reset', None)
         self.run = {
             f'{RunMode.NSTEPS}-Env': self._run_env,
-            f'{RunMode.NSTEPS}-EnvVec': self._run_envvec,
+            f'{RunMode.NSTEPS}-VecEnv': self._run_envvec,
             f'{RunMode.TRAJ}-Env': self._run_traj_env,
-            f'{RunMode.TRAJ}-EnvVec': self._run_traj_envvec,
+            f'{RunMode.TRAJ}-VecEnv': self._run_traj_envvec,
         }[f'{run_mode}-{self.env.env_type}']
 
         self._frame_skip = getattr(env, 'frame_skip', 1)
