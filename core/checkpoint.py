@@ -3,7 +3,7 @@ import tensorflow as tf
 from utility.display import pwc
 
 
-def restore(ckpt_manager, ckpt, ckpt_path, name='model'):
+def restore(ckpt_manager, ckpt, ckpt_path, name='model', version='latest'):
     """ Restores the latest parameter recorded by ckpt_manager
 
     Args:
@@ -12,7 +12,15 @@ def restore(ckpt_manager, ckpt, ckpt_path, name='model'):
         ckpt_path: The directory in which to write checkpoints
         name: optional name for print
     """
-    path = ckpt_manager.latest_checkpoint
+    if version == 'latest':
+        path = ckpt_manager.latest_checkpoint
+    elif version == 'oldest':
+        path = ckpt_manager.checkpoints[0]
+    else:
+        if isinstance(version, int):
+            path = ckpt_manager.checkpoints[-version]
+        else:
+            raise ValueError(f'Invalid version({version})')
     if path:
         ckpt.restore(path)#.assert_consumed()
         pwc(f'Params for {name} are restored from "{path}".', color='cyan')
@@ -31,7 +39,7 @@ def save(ckpt_manager, print_terminal_info=True):
     if print_terminal_info:
         pwc(f'Model saved at {path}', color='cyan')
 
-def setup_checkpoint(ckpt_models, root_dir, model_name, name='model', **kwargs):
+def setup_checkpoint(ckpt_models, root_dir, model_name, name='model', ckpt_kwargs={}, ckptm_kwargs={}):
     """ Setups checkpoint
 
     Args:
@@ -40,9 +48,11 @@ def setup_checkpoint(ckpt_models, root_dir, model_name, name='model', **kwargs):
     """
     if not model_name:
         model_name = 'baseline'
+    if 'max_to_keep' not in ckptm_kwargs:
+        ckptm_kwargs['max_to_keep'] = 5
     # checkpoint & manager
-    ckpt = tf.train.Checkpoint(**ckpt_models, **kwargs)
+    ckpt = tf.train.Checkpoint(**ckpt_models, **ckpt_kwargs)
     ckpt_path = f'{root_dir}/{model_name}/{name}'
-    ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, 5)
+    ckpt_manager = tf.train.CheckpointManager(ckpt, ckpt_path, **ckptm_kwargs)
     
     return ckpt, ckpt_path, ckpt_manager

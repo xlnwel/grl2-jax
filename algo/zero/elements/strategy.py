@@ -143,16 +143,19 @@ class PPOStrategy(Strategy):
         inp = env_output.obs.copy()
         eids = inp.pop('eid')
         pids = inp.pop('pid')
+        masks = inp['mask']
 
         states = []
         self._last_memories = []
-        for eid, pid in zip(eids, pids):
+        for eid, pid, m in zip(eids, pids, masks):
             if eid not in self._memories:
                 self._memories[eid] = [Memory(self.model) for _ in range(4)]
             self._last_memories.append(self._memories[eid][pid])
-            states.append(self._memories[eid][pid].get_states_for_inputs(
+            state = self._memories[eid][pid].get_states_for_inputs(
                 batch_size=1, sequential_dim=1
-            ))
+            )
+            state = self._memories[eid][pid].apply_mask_to_state(state, m)
+            states.append(state)
         state = self.model.state_type(*[np.concatenate(s) for s in zip(*states)])
 
         inp['state'] = state

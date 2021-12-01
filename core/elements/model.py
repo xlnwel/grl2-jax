@@ -123,7 +123,10 @@ class Model(Ensemble):
         if not hasattr(self, 'ckpt'):
             self.ckpt, self.ckpt_path, self.ckpt_manager = \
                 setup_checkpoint(self.components, self._root_dir, 
-                    self._model_name, name=self.name)
+                    self._model_name, name=self.name, 
+                    ckpt_kwargs=self.config.get('ckpt_kwargs', {}),
+                    ckptm_kwargs=self.config.get('ckptm_kwargs', {}),
+                )
 
     def save(self, print_terminal_info=True):
         if self._has_ckpt:
@@ -131,7 +134,7 @@ class Model(Ensemble):
             save(self.ckpt_manager, print_terminal_info)
         else:
             raise RuntimeError(
-                'Cannot perform <save> as root_dir or model_name was not specified at initialization')
+                'Cannot perform <save> as either root_dir or model_name was not specified at initialization')
 
     def restore(self):
         if self._has_ckpt:
@@ -139,7 +142,7 @@ class Model(Ensemble):
             restore(self.ckpt_manager, self.ckpt, self.ckpt_path, self.name)
         else:
             raise RuntimeError(
-                'Cannot perform <restore> as root_dir or model_name was not specified at initialization')
+                'Cannot perform <restore> as either root_dir or model_name was not specified at initialization')
 
 
 class ModelEnsemble(EnsembleWithCheckpoint):

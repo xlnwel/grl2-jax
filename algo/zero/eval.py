@@ -2,7 +2,7 @@ import time
 import numpy as np
 import ray
 
-from .runner import RunnerManager
+from .run.runner import RunnerManager
 
 
 def main(config, n, **kwargs):

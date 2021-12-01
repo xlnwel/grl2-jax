@@ -1,4 +1,3 @@
-import collections
 import functools
 import numpy as np
 import ray
@@ -7,7 +6,7 @@ from core.elements.builder import ElementsBuilder
 from core.tf_config import configure_gpu, silence_tf_logs
 from distributed.remote.base import RayBase
 from env.cls import TwoPlayerSequentialVecEnv
-from utility.run import Runner
+from run.utils import search_for_config
 from utility import pkg
 from utility.utils import batch_dicts, config_attr, dict2AttrDict
 from utility.typing import AttrDict
@@ -17,8 +16,13 @@ class TwoPlayerRunner(RayBase):
     def __init__(self, config, name='zero', store_data=True):
         silence_tf_logs()
         configure_gpu()
-        self.config = dict2AttrDict(config)
+        self.name = name
         self.store_data = store_data
+
+        self.build_from_config(config)
+
+    def build_from_config(self, config):
+        self.config = dict2AttrDict(config)
         self.config.buffer.type = 'local'
         self.config.env.n_workers = 1
 
@@ -27,10 +31,9 @@ class TwoPlayerRunner(RayBase):
             assert pid not in self.config.env.skip_players, (self.control_pids, self.config.env.skip_players)
         other_pids = [i for i in range(4) if i not in self.control_pids]
         self.env = TwoPlayerSequentialVecEnv(self.config.env, other_pids, None)
-        self.env_output = self.env.output()
         self.env_stats = self.env.stats()
 
-        builder = ElementsBuilder(self.config, self.env_stats, name=name)
+        builder = ElementsBuilder(self.config, self.env_stats, name=self.name)
         elements = builder.build_actor_agent_from_scratch()
         self.agent = elements.agent
         self.step = self.agent.get_env_step()
@@ -43,10 +46,6 @@ class TwoPlayerRunner(RayBase):
         else:
             self.buffer = None
             self.collect = None
-        
-        # # TODO: debug code
-        # self._reset_eid2pid = collections.defaultdict(list)
-        # self._prev_reset = self.env_output.reset
 
     def initialize_rms(self):
         for _ in range(10):
@@ -62,6 +61,12 @@ class TwoPlayerRunner(RayBase):
         elements = builder.build_actor_agent_from_scratch()
         self.env.set_other_player(elements.agent)
 
+    def set_other_player_from_path(self, path):
+        config = search_for_config(path)
+        builder = ElementsBuilder(config, self.env_stats, name=config['algorithm'])
+        elements = builder.build_actor_agent_from_scratch()
+        self.env.set_other_player(elements.agent)
+
     def reset(self):
         self.env.reset(convert_batch=False)
 
@@ -70,37 +75,26 @@ class TwoPlayerRunner(RayBase):
             self.agent.set_weights(weights)
         step = self._run_impl()
         if self.store_data:
-            self.agent.record_inputs_to_vf(self.env_output)
-            value = self.agent.compute_value()
-            self.buffer.stack_sequential_memory()
             data = self.buffer.retrieve_data()
-            data['last_value'] = value
             return step, data, self.agent.get_raw_stats()
         else:
             return step, None, self.agent.get_raw_stats()
 
     def _run_impl(self):
+        # reset as we store full trajectories each time
+        self.env_output = self.env.reset()
         obs = self.env_output.obs
-        for pid in obs['pid']:
-            assert pid in self.control_pids, obs['pid']
         
         while not self.buffer.ready_to_retrieve():
             action, terms = self.agent(self.env_output, evaluation=False)
             obs = self._step_env(obs, action, terms)
             self._log_for_done(self.env_output.reset)
-            # #TODO: remove
-            # for m, eid, pid, r in zip(obs['mask'], obs['eid'], obs['pid'], self._prev_reset):
-            #     if m == 0:
-            #         if eid not in self._reset_eid2pid:
-            #             assert r, (m, eid, pid, r)
-            #         self._reset_eid2pid[eid].append(pid)
-            #         if len(self._reset_eid2pid[eid]) == len(self.control_pids):
-            #             del self._reset_eid2pid[eid]
-            # self._prev_reset = self.env_output.reset
 
         return self.step
 
     def _step_env(self, obs, action, terms):
+        for pid in obs['pid']:
+            assert pid in self.control_pids, obs['pid']
         self.env_output = self.env.step(action)
         self.step += self.env.n_envs
         

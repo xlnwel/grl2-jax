@@ -1,17 +1,35 @@
 import ray
 
-from .runner import RunnerManager
+
 from .parameter_server import ParameterServer
+from .ppo import train as ppo_train
+from .runner import RunnerManager
 from core.elements.builder import ElementsBuilder
 from core.utils import save_config
 from env.func import get_env_stats
+from run.utils import search_for_config
 from utility.ray_setup import sigint_shutdown_ray
 
 
-def train(agent, buffer, runner_manager, parameter_server):
-    pass
+def train(
+        builder: ElementsBuilder, 
+        runner_manager: RunnerManager, 
+        parameter_server: ParameterServer):
+    while True:
+        builder.save_config()
+        elements = builder.build_agent_from_scratch()
 
-def pbt_train(config):
+        other_path = parameter_server.sample()
+        other_config = search_for_config(other_path)
+        runner_manager.set_other_player(other_config)
+
+        ppo_train(elements.agent, elements.buffer, runner_manager)
+
+        parameter_server.add_strategy(builder.get_model_path())
+        builder.increase_version()
+
+
+def main(config):
     ray.init()
     sigint_shutdown_ray()
 
@@ -21,18 +39,17 @@ def pbt_train(config):
     env_stats = get_env_stats(config.env)
     config.buffer.n_envs = env_stats.n_workers * env_stats.n_envs
 
-    name = f'{config.algorithm}_{config.id}' if 'id' in config else config.algorithm
+    name = config.algorithm
     builder = ElementsBuilder(
         config, 
         env_stats, 
-        name=name)
-    elements = builder.build_agent_from_scratch()
-    agent = elements.agent
-    runner_manager = RunnerManager(config, name=agent.name)
+        name=name,
+        incremental_version=True)
+    runner_manager = RunnerManager(config, name=name)
     parameter_server = ParameterServer(config.parameter_server)
 
     save_config(root_dir, model_name, builder.get_config())
 
-    train(agent, elements.buffer, runner_manager, parameter_server)
+    train(builder, runner_manager, parameter_server)
 
     ray.shutdown()

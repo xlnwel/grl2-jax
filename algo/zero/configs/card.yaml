@@ -1,7 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
 algorithm: &algo zero
-id: 0
+version: 0
 
 precision: 32
 
@@ -24,14 +24,14 @@ runner:
 
     MAX_STEPS: 1e10
     N_STEPS: &nsteps 256
-    control_pids: [0, 2]
+    control_pids: &cpids [0, 1, 2]
 
 env:
     name: &env_name card_gd
     eid: 0
     n_workers: &nworkers 40
     n_envs: &nenvs 4
-    skip_players: [1, 3]
+    skip_players: [3]
 
 agent:
     algorithm: *algo
@@ -194,8 +194,11 @@ actor:
 
 buffer:
     type: *training
+    control_pids: *cpids
     # dir: data/gd-100000
     use_dataset: True
+    
+    mixed_data: False
 
     # PPO configs
     adv_type: gae     # nae or gae
@@ -209,7 +212,7 @@ buffer:
     N_VALUE_EPOCHS: *nval_epochs
     N_MBS: *nmbs        # number of minibatches
     sample_size: *ss
-    norm_adv: batch
+    norm_adv: minibatch
     # mini-batch size = n_workers * n_envs * epslen / n_mbs
     sample_keys:
         - numbers

@@ -4,7 +4,7 @@ from env.func import get_env_stats
 from utility.timer import Every, Timer
 
 
-def bc_train(config):
+def main(config):
     root_dir = config.agent.root_dir
     model_name = config.agent.model_name
 

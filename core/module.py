@@ -85,11 +85,10 @@ class Ensemble(tf.Module):
         <core.elements.construct_components>
         """
         super().__init__(name=name)
-        config = config.copy()
         self.config = config_attr(self, config, filter_dict=True)
 
         if classes:
-            component_configs = [k for k, v in config.items() 
+            component_configs = [k for k, v in self.config.items() 
                 if isinstance(v, dict)]
             if set(component_configs) != set(classes):
                 raise ValueError(
@@ -98,11 +97,11 @@ class Ensemble(tf.Module):
                 )
             self.components = {}
             for k, cls in classes.items():
-                obj = constructor(config[k], cls, k)
+                obj = constructor(self.config[k], cls, k)
                 self.components[k] = obj
                 setattr(self, k, obj)
         else:
-            self.components = constructor(config)
+            self.components = constructor(self.config)
             [setattr(self, n, m) for n, m in self.components.items()]
 
         self._post_init()

@@ -256,7 +256,7 @@ class TwoPlayerSequentialVecEnv(VecEnvBase):
 
         other_eids, other_outs = extract_other_player_eids_outs(outs)
         while other_eids:
-            assert False, 'Oooooops. Should not be the for now'
+            assert False, 'Oops. Should not be there for now'
             other_outs = batch_env_output(other_outs)
             actions, terms = self.other_player(other_outs)
             if isinstance(actions, (tuple, list)):

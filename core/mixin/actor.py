@@ -240,8 +240,9 @@ class RMS:
             with open(self._rms_path, 'rb') as f:
                 self._obs_rms, self._reward_rms, self._return = cloudpickle.load(f)
                 do_logging(f'rms stats are restored from {self._rms_path}', logger=logger)
-            assert self._reward_rms.axis == self._reward_normalized_axis, \
-                (self._reward_rms.axis, self._reward_normalized_axis)
+            if isinstance(self._reward_rms, RunningMeanStd):
+                assert self._reward_rms.axis == self._reward_normalized_axis, \
+                    (self._reward_rms.axis, self._reward_normalized_axis)
             if self._obs_rms is None:
                 self._obs_rms = {}
             for v in self._obs_rms.values():

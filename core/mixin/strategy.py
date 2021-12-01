@@ -1,6 +1,7 @@
 import os
 import cloudpickle
 import numpy as np
+import tensorflow as tf
 
 from utility.timer import Timer
 from utility.utils import config_attr
@@ -109,11 +110,7 @@ class Memory:
     def apply_mask_to_state(self, state: tuple, mask: np.ndarray):
         if state is not None:
             mask_reshaped = mask.reshape(state[0].shape[0], 1)
-            if isinstance(state, (list, tuple)):
-                state_type = type(state)
-                state = state_type(*[v * mask_reshaped for v in state])
-            else:
-                state = state * mask_reshaped
+            state = tf.nest.map_structure(lambda x: x*mask_reshaped, state)
         return state
 
     def reset_states(self, state: tuple=None):

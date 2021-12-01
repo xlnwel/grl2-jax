@@ -1,5 +1,9 @@
+import copy
+
 from core.dataset import create_dataset
 from core.monitor import create_monitor
+from core.utils import save_config
+from run.utils import set_path
 from utility.typing import AttrDict
 from utility.utils import dict2AttrDict
 from utility import pkg
@@ -9,10 +13,17 @@ class ElementsBuilder:
     def __init__(self, 
                  config, 
                  env_stats, 
-                 name):
+                 name,
+                 incremental_version=False):
+        self.default_config = dict2AttrDict(config)
         self.config = dict2AttrDict(config)
         self.env_stats = dict2AttrDict(env_stats)
-        self.name = name
+        self._name = name
+        self.incremental_version = incremental_version
+        self._version = 0
+        if self.incremental_version:
+            self.config = set_path(
+                self.config, self.config.root_dir, f'{self.config.model_name}/v{self._version}')
 
         algo = self.config.algorithm
         self.create_model = pkg.import_module(
@@ -29,6 +40,13 @@ class ElementsBuilder:
             'elements.strategy', algo=algo).create_strategy
         self.create_agent = pkg.import_module(
             'elements.agent', algo=algo).create_agent
+
+    @property
+    def name(self):
+        return f'{self._name}_{self._version}' if self.incremental_version else self._name
+
+    def increase_version(self):
+        self._version += 1
 
     """ Build Elements """
     def build_model(self, to_build=False, to_build_for_eval=False):
@@ -98,10 +116,6 @@ class ElementsBuilder:
 
         return agent
 
-    """ Get configurations """
-    def get_config(self):
-        return self.config
-
     """ Build an Agent from Scratch """
     def build_actor_agent_from_scratch(self):
         elements = AttrDict()
@@ -133,3 +147,13 @@ class ElementsBuilder:
             monitor=elements.monitor)
 
         return elements
+
+    """ Configuration Operations """
+    def get_config(self):
+        return self.config
+
+    def save_config(self):
+        save_config(self.config.root_dir, self.config.model_name, self.config)
+
+    def get_model_path(self):
+        return f'{self.config.root_dir}/{self.config.model_name}'
