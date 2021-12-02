@@ -91,6 +91,12 @@ class VecEnvBase(gym.Wrapper):
             idxes = [idxes]
         return idxes
     
+    def process_output(self, out, convert_batch=True):
+        if convert_batch:
+            return batch_env_output(out)
+        else:
+            return out
+
 
 class VecEnv(VecEnvBase):
     def __init__(self, config, env_fn=make_env, agents={}):
@@ -118,10 +124,7 @@ class VecEnv(VecEnvBase):
         idxes = self._get_idxes(idxes)
         out = [self.envs[i].reset() for i in idxes]
 
-        if convert_batch:
-            return batch_env_output(out)
-        else:
-            return out
+        return self.process_output(out, convert_batch=convert_batch)
 
     def step(self, actions, convert_batch=True, **kwargs):
         return self._envvec_op('step', action=actions, 
@@ -160,10 +163,7 @@ class VecEnv(VecEnvBase):
         idxes = self._get_idxes(idxes)
         out = [self.envs[i].output() for i in idxes]
 
-        if convert_batch:
-            return batch_env_output(out)
-        else:
-            return out
+        return self.process_output(out, convert_batch=convert_batch)
 
     def get_screen(self, size=None):
         if hasattr(self.env, 'get_screen'):
@@ -190,10 +190,7 @@ class VecEnv(VecEnvBase):
         else:
             out = [method(env)() for env in self.envs]
 
-        if convert_batch:
-            return batch_env_output(out)
-        else:
-            return out
+        return self.process_output(out, convert_batch=convert_batch)
 
     def close(self):
         if hasattr(self.env, 'close'):
@@ -201,7 +198,7 @@ class VecEnv(VecEnvBase):
 
 
 class TwoPlayerSequentialVecEnv(VecEnvBase):
-    def __init__(self, config, other_ids, other_player, env_fn=make_env):
+    def __init__(self, config, other_ids, other_agent, env_fn=make_env):
         self.n_envs = n_envs = config.pop('n_envs', 1)
         self.name = config['name']
         self.envs = [env_fn(
@@ -213,7 +210,7 @@ class TwoPlayerSequentialVecEnv(VecEnvBase):
                 for i, env in enumerate(self.envs)
                 if hasattr(env, 'seed')]
         self.other_ids = other_ids
-        self.other_player = other_player
+        self.other_agent = other_agent
 
         self.max_episode_steps = self.env.max_episode_steps
         super().__init__()
@@ -221,8 +218,12 @@ class TwoPlayerSequentialVecEnv(VecEnvBase):
         self._stats['n_workers'] = 1
         self._stats['n_envs'] = self.n_envs
 
-    def set_other_player(self, other_player):
-        self.other_player = other_player
+    def set_agent(self, agent):
+        """ link to agent for bookkeeping """
+        self.agent = agent
+
+    def set_other_agent(self, other_agent):
+        self.other_agent = other_agent
 
     def random_action(self, *args, **kwargs):
         return np.stack([env.random_action() if hasattr(env, 'random_action') \
@@ -230,47 +231,19 @@ class TwoPlayerSequentialVecEnv(VecEnvBase):
 
     def reset(self, idxes=None, convert_batch=True, **kwargs):
         idxes = self._get_idxes(idxes)
-        out = [self.envs[i].reset() for i in idxes]
+        outs = [self.envs[i].reset() for i in idxes]
+        outs = self.step_other_players(outs)
 
-        if convert_batch:
-            return batch_env_output(out)
-        else:
-            return out
-
-    def set_other_player(self, other_player):
-        self.other_player = other_player
+        return self.process_output(outs, convert_batch=convert_batch)
 
     def step(self, actions, convert_batch=True):
-        def extract_other_player_eids_outs(out):
-            other_eids = []
-            other_outs = []
-            for i, o in enumerate(out):
-                if o.obs['pid'] in self.other_ids:
-                    other_eids.append(i)
-                    other_outs.append(o)
-            return other_eids, other_outs
-
         if isinstance(actions, (tuple, list)):
             actions = zip(*actions)
         outs = [e.step(a) for e, a in zip(self.envs, actions)]
+        outs = self.step_other_players(outs)
 
-        other_eids, other_outs = extract_other_player_eids_outs(outs)
-        while other_eids:
-            assert False, 'Oops. Should not be there for now'
-            other_outs = batch_env_output(other_outs)
-            actions, terms = self.other_player(other_outs)
-            if isinstance(actions, (tuple, list)):
-                actions = zip(*actions)
-            next_outs = [self.envs[i].step(a) for i, a in zip(other_eids, actions)]
-            for i, o in zip(other_eids, next_outs):
-                if o.obs['pid'] not in self.other_ids:
-                    outs[i] = o
-            other_eids, other_outs = extract_other_player_eids_outs(other_outs)
         assert np.all([o.obs['pid'] not in self.other_ids for o in outs]), [o.obs['pid'] not in self.other_ids for o in outs]
-        if convert_batch:
-            return batch_env_output(outs)
-        else:
-            return outs
+        return self.process_output(outs, convert_batch=convert_batch)
 
     def score(self, idxes=None):
         idxes = self._get_idxes(idxes)
@@ -305,10 +278,46 @@ class TwoPlayerSequentialVecEnv(VecEnvBase):
         idxes = self._get_idxes(idxes)
         out = [self.envs[i].output() for i in idxes]
 
-        if convert_batch:
-            return batch_env_output(out)
-        else:
-            return out
+        return self.process_output(out, convert_batch=convert_batch)
+
+    def step_other_players(self, outs):
+        def extract_other_player_eids_outs(eids, outs):
+            assert len(eids) == len(outs), (len(eids), len(outs))
+            other_eids = []
+            other_outs = []
+            for i, o in zip(eids, outs):
+                if o.obs['pid'] in self.other_ids:
+                    other_eids.append(i)
+                    other_outs.append(o)
+            return other_eids, other_outs
+
+        other_eids, other_outs = extract_other_player_eids_outs(list(range(self.n_envs)), outs)
+        while other_eids:
+            assert self.other_agent is not None, self.other_agent
+            assert len(other_eids) == len(other_outs), (len(other_eids), len(other_outs))
+            # assert False, f'Oops. Should not be there for now {other_eids}'
+            batch_other_outs = batch_env_output(other_outs)
+            for i, o in zip(other_eids, other_outs):
+                if o.discount == 0:
+                    info = self.envs[i].info()
+                    self.agent.store(
+                        score=info['score'], 
+                        epslen=info['epslen'], 
+                        win_rate=info['won'])
+            actions, terms = self.other_agent(batch_other_outs)
+            if isinstance(actions, (tuple, list)):
+                actions = list(zip(*actions))
+            assert len(other_eids) == len(actions), (other_eids, actions)
+            next_outs = [
+                self.envs[i].step(a) for i, a in zip(other_eids, actions)]
+            assert len(other_eids) == len(next_outs), (len(other_eids), len(next_outs))
+            for i, o in zip(other_eids, next_outs):
+                if o.obs['pid'] not in self.other_ids:
+                    outs[i] = o
+            other_eids, other_outs = extract_other_player_eids_outs(other_eids, next_outs)
+        for i, o in enumerate(outs):
+            assert o.obs['pid'] not in self.other_ids, (i, o.obs['pid'])
+        return outs
 
     def get_screen(self, size=None):
         if hasattr(self.env, 'get_screen'):

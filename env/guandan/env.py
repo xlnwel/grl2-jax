@@ -1,6 +1,8 @@
+import numpy as np
+
 from .game import Game
 from .infoset import get_obs
-from .utils import PASS, ActionType2Num, get_action_id
+from .utils import get_action_id
 
 
 class Env:
@@ -12,11 +14,13 @@ class Env:
             raise ValueError('Do not expect to skip players02')
         self.eid = eid
         self._env = Game(**kwargs)
+        self.n_agents = 4
         self.max_episode_steps = int(1e9)
         self.is_action_discrete = True
         self.obs_shape = self._env.obs_shape
         self.action_shape = self._env.action_shape
         self.action_dim = self._env.action_dim
+        self.reward_shape = self._env.reward_shape
         self.obs_dtype = self._env.obs_dtype
         self.action_dtype = self._env.action_dtype
 
@@ -36,13 +40,15 @@ class Env:
         aid = self._get_action_id(action)
         self._env.play(aid)
         done = False
-        reward = 0.0
+        reward = np.zeros(4, dtype=np.float32)
         info = {}
 
         if self.game_over():
             done = True
-            reward = self._env.compute_reward()[0]
-            info['won'] = reward > 0
+            reward = self._env.compute_reward()
+            info['won'] = reward[0] > 0
+            info['score'] = reward[0]
+            info['game_over'] = True
         obs = get_obs(self._get_infoset())
         obs['eid'] = self.eid
 

@@ -8,17 +8,14 @@ from utility.timer import Every, Timer
 
 
 def train(agent, buffer, runner_manager, parameter_server=None):
-    assert agent.get_env_step() == 0, (agent.get_env_step(), 'Comment out this line when you want to restore from a trained model')
+    # assert agent.get_env_step() == 0, (agent.get_env_step(), 'Comment out this line when you want to restore from a trained model')
     if agent.get_env_step() == 0 and agent.actor.is_obs_normalized:
         obs_rms_list, rew_rms_list = runner_manager.initialize_rms()
         agent.update_rms_from_stats_list(obs_rms_list, rew_rms_list)
 
-    # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
     to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
-    # to_eval = Every(agent.EVAL_PERIOD)
     rt = Timer('run')
     tt = Timer('train')
-    # et = Timer('eval')
     lt = Timer('log')
 
     def record_stats(step):
@@ -27,11 +24,9 @@ def train(agent, buffer, runner_manager, parameter_server=None):
                 'misc/train_step': agent.get_train_step(),
                 'time/run': rt.total(), 
                 'time/train': tt.total(),
-                # 'time/eval': et.total(),
                 'time/log': lt.total(),
                 'time/run_mean': rt.average(), 
                 'time/train_mean': tt.average(),
-                # 'time/eval_mean': et.average(),
                 'time/log_mean': lt.average(),
             })
             agent.record(step=step)
@@ -65,9 +60,6 @@ def train(agent, buffer, runner_manager, parameter_server=None):
             tps=(train_step-start_train_step)/tt.last())
         agent.set_env_step(step)
         buffer.reset()
-
-        # if to_eval(train_step) or step > agent.MAX_STEPS:
-        #     evaluate_agent(step, eval_env, agent)
 
         if to_record(train_step) and agent.contains_stats('score'):
             record_stats(step)

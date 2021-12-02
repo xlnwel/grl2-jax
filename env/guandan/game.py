@@ -173,6 +173,8 @@ class Game(object):
             card_rank=np.int32,
         )
 
+        self.reward_shape = (4,)
+
     def game_over(self):
         return self.end
 
@@ -846,7 +848,7 @@ class Game(object):
         first_id = order[0]
         first_teammate_id = (first_id + 2) % 4
         team_ids = [first_id, first_teammate_id]
-        reward = np.zeros(4)
+        reward = np.zeros(4, dtype=np.float32)
         if first_teammate_id == order[1]:
             reward[team_ids] = 3
         elif first_teammate_id == order[2]:

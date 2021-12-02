@@ -17,8 +17,8 @@ class ParameterServer(RayBase):
             self._agents.append(path)
         self.save()
 
-    def sample_strategy(self):
-        return random.choice(self._agents)
+    def sample_strategy(self, k):
+        return random.choices(self._agents, k=k)
 
     def save(self):
          with open(self.path, 'wb') as f:

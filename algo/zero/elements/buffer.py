@@ -54,20 +54,22 @@ class LocalBuffer:
         reward = data['reward']
         discount = data['discount']
         for i, (eid, pid, r, d) in enumerate(zip(eids, pids, reward, discount)):
+            assert r.shape == (4,), r.shape
             for k, vs in data.items():
-                self._buffer[(eid, pid)][k].append(vs[i])
+                if k == 'reward':
+                    self._buffer[(eid, pid)][k].append(vs[i][pid])
+                else:
+                    self._buffer[(eid, pid)][k].append(vs[i])
             self._buff_lens[(eid, pid)] += 1
             if d == 0:
-                if pid in (1, 3):
-                    self._buffer[(eid, pid)]['reward'][-1] = 3 - r
                 for p in self.config.control_pids:
                     assert self._buff_lens[(eid, p)] > 0, self._buff_lens[(eid, p)]
                     if p != pid:
                         assert self._buffer[(eid, p)]['reward'][-1] == 0, self._buffer[(eid, p)]['reward'][-1]
                         assert self._buffer[(eid, p)]['discount'][-1] == 1, self._buffer[(eid, p)]['discount'][-1]
-                        self._buffer[(eid, p)]['reward'][-1] = r if p in (0, 2) else 3 - r
+                        self._buffer[(eid, p)]['reward'][-1] = r[p]
                         self._buffer[(eid, p)]['discount'][-1] = 0
-                    assert self._buffer[(eid, p)]['reward'][-1] == (r if p in (0, 2) else 3 - r), self._buffer[(eid, p)]['reward'][-1]
+                    assert self._buffer[(eid, p)]['reward'][-1] == r[p], self._buffer[(eid, p)]['reward'][-1]
                     assert self._buffer[(eid, p)]['discount'][-1] == 0, self._buffer[(eid, p)]['discount'][-1]
                     self.merge_episode(self._buffer[(eid, p)], self._buff_lens[(eid, p)])
                     self._buffer[(eid, p)] = collections.defaultdict(list)

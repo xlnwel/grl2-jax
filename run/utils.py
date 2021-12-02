@@ -107,6 +107,7 @@ def load_and_run(directory):
 
     main(configs)
 
+
 def set_path(config, root_dir, model_name):
     config['root_dir'] = root_dir
     config['model_name'] = model_name
@@ -116,6 +117,7 @@ def set_path(config, root_dir, model_name):
         v['root_dir'] = root_dir
         v['model_name'] = model_name
     return config
+
 
 def search_for_config(directory, to_attrdict=True):
     directory = directory
@@ -130,7 +132,7 @@ def search_for_config(directory, to_attrdict=True):
             elif f.endswith('config.yaml') and config_file is not None:
                 pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
                 sys.exit()
-    
+
     config = load_config(config_file, to_attrdict=to_attrdict)
     
     return config

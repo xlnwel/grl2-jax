@@ -18,7 +18,7 @@ class TwoPlayerRunner(RayBase):
         configure_gpu()
         self.name = name
         self.store_data = store_data
-
+        self.n_agents = 4
         self.build_from_config(config)
 
     def build_from_config(self, config):
@@ -29,7 +29,7 @@ class TwoPlayerRunner(RayBase):
         self.control_pids = self.config.runner.control_pids
         for pid in self.control_pids:
             assert pid not in self.config.env.skip_players, (self.control_pids, self.config.env.skip_players)
-        other_pids = [i for i in range(4) if i not in self.control_pids]
+        other_pids = [i for i in range(self.n_agents) if i not in self.control_pids]
         self.env = TwoPlayerSequentialVecEnv(self.config.env, other_pids, None)
         self.env_stats = self.env.stats()
 
@@ -37,6 +37,7 @@ class TwoPlayerRunner(RayBase):
         elements = builder.build_actor_agent_from_scratch()
         self.agent = elements.agent
         self.step = self.agent.get_env_step()
+        self.env.set_agent(self.agent)
         self.n_episodes = 0
 
         if self.store_data:
@@ -56,16 +57,15 @@ class TwoPlayerRunner(RayBase):
         self.buffer.clear()
         return self.agent.actor.get_rms_stats()
 
-    def set_other_player(self, config):
-        builder = ElementsBuilder(config, self.env_stats, name=config['algorithm'])
+    def set_other_agent(self, config, name=None):
+        name = name or config.algorithm
+        builder = ElementsBuilder(config, self.env_stats, name=name)
         elements = builder.build_actor_agent_from_scratch()
-        self.env.set_other_player(elements.agent)
+        self.env.set_other_agent(elements.agent)
 
-    def set_other_player_from_path(self, path):
+    def set_other_agent_from_path(self, path, name=None):
         config = search_for_config(path)
-        builder = ElementsBuilder(config, self.env_stats, name=config['algorithm'])
-        elements = builder.build_actor_agent_from_scratch()
-        self.env.set_other_player(elements.agent)
+        self.set_other_agent(config, name=name)
 
     def reset(self):
         self.env.reset(convert_batch=False)
@@ -81,14 +81,21 @@ class TwoPlayerRunner(RayBase):
             return step, None, self.agent.get_raw_stats()
 
     def _run_impl(self):
+        def check_end(i):
+            if self.store_data:
+                return self.buffer.ready_to_retrieve()
+            else:
+                return i >= self.config.runner.N_STEPS
         # reset as we store full trajectories each time
         self.env_output = self.env.reset()
         obs = self.env_output.obs
         
-        while not self.buffer.ready_to_retrieve():
+        i = 0
+        while not check_end(i):
             action, terms = self.agent(self.env_output, evaluation=False)
             obs = self._step_env(obs, action, terms)
             self._log_for_done(self.env_output.reset)
+            i += 1
 
         return self.step
 
@@ -125,24 +132,34 @@ class TwoPlayerRunner(RayBase):
                 won.append(i['won'])
             self.agent.store(score=score, epslen=epslen, win_rate=won)
             self.n_episodes += len(info)
-            
 
-class RunnerManager:
-    def __init__(self, config, name='zero', store_data=True):
+
+class RunnerManager(RayBase):
+    def __init__(self, config, name='zero', store_data=True, parameter_server=None):
         self.config = config_attr(self, config['runner'])
         if isinstance(config, AttrDict):
             config = config.asdict()
         RemoteRunner = TwoPlayerRunner.as_remote(**config['runner']['ray'])
         self.runners = [RemoteRunner.remote(config, name, store_data=store_data) 
             for _ in range(config['env']['n_workers'])]
+        self.parameter_server = parameter_server
 
     def initialize_rms(self):
         obs_rms_list, rew_rms_list = list(
             zip(*ray.get([r.initialize_rms.remote() for r in self.runners])))
         return obs_rms_list, rew_rms_list
 
-    def set_other_player(self, config, wait=False):
-        oids = [r.set_other_player.remote(config) for r in self.runners]
+    def set_other_agent_from_server(self, parameter_server, name=None, wait=False):
+        paths = parameter_server.sample_strategy.remote(len(self.runners))
+        oids = [r.set_other_agent_from_path.remote(p, name=name) 
+            for r, p in zip(self.runners, paths)]
+        if wait:
+            ray.get(oids)
+        else:
+            return oids
+
+    def set_other_agent(self, path, name=None, wait=False):
+        oids = [r.set_other_agent_from_path.remote(path, name=name) for r in self.runners]
         if wait:
             ray.get(oids)
         else:
@@ -156,12 +173,17 @@ class RunnerManager:
             return oids
 
     def run(self, weights):
+        if self.parameter_server is not None:
+            self.set_other_agent_from_server(self.parameter_server)
         wid = ray.put(weights)
         steps, data, stats = list(zip(*ray.get([r.run.remote(wid) for r in self.runners])))
         stats = batch_dicts(stats, lambda x: sum(x, []))
         return steps, data, stats
     
-    def evaluate(self, total_episodes, weights=None):
+    def evaluate(self, total_episodes, weights=None, other_path=None, other_name=None):
+        """ Evaluation is problematic if self.runner.run does not end in a pass """
+        if other_path is not None:
+            self.set_other_agent(other_path, name=other_name)
         n_eps = 0
         stats_list = []
         while n_eps < total_episodes:

@@ -2,6 +2,7 @@ import numpy as np
 import ray
 
 from env.cls import *
+from env.typing import EnvOutput
 from utility.utils import convert_batch_with_func
 
 

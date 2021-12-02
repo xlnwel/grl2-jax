@@ -402,6 +402,7 @@ class EnvStatsBase(gym.Wrapper):
             action_shape=env.action_shape,
             action_dtype=env.action_dtype,
             action_dim=env.action_dim,
+            reward_shape=getattr(env, 'reward_shape', ()),
             is_action_discrete=env.is_action_discrete,
             n_trainable_agents=getattr(env, 'n_trainable_agents', 1),
             n_controllable_agents=getattr(env, 'n_trainable_agents', 1),
@@ -474,7 +475,7 @@ class EnvStats(EnvStatsBase):
 
     def _reset(self):
         obs = super()._reset()
-        reward = self.float_dtype(0)
+        reward = self._get_zero_reward()
         discount = self.float_dtype(1)
         reset = self.float_dtype(True)
         self._output = EnvOutput(obs, reward, discount, reset)
@@ -485,7 +486,7 @@ class EnvStats(EnvStatsBase):
         if self.game_over():
             assert self.auto_reset == False
             # step after the game is over
-            reward = self.float_dtype(0)
+            reward = self._get_zero_reward()
             discount = self.float_dtype(0)
             reset = self.float_dtype(0)
             self._output = EnvOutput(self._output.obs, reward, discount, reset)
@@ -509,7 +510,8 @@ class EnvStats(EnvStatsBase):
             info['timeout'] = True
         reward = self.float_dtype(reward)
         discount = self.float_dtype(1-done)
-        # we expect auto-reset environments, which artificially reset due to life loss,
+        # we expect auto-reset environments, 
+        # which artificially reset due to life loss,
         # return reset in info when resetting
         reset = self.float_dtype(info.get('reset', False))
 
@@ -527,9 +529,13 @@ class EnvStats(EnvStatsBase):
                 obs, _, _, reset = self._reset()
         obs = self.observation(obs)
         self._info = info
-
+        
         self._output = EnvOutput(obs, reward, discount, reset)
         return self._output
+
+    def _get_zero_reward(self):
+        return self.float_dtype(0) if self._stats.reward_shape == () \
+            else np.zeros(self._stats.reward_shape, dtype=self.float_dtype)
 
 
 class MASimEnvStats(EnvStatsBase):

@@ -18,41 +18,6 @@ from run.args import parse_eval_args
 from run.utils import search_for_config
 
 
-def build_elements(config, name, env_stats):
-    create_model = pkg.import_module(
-        name='elements.model', algo=name, place=-1).create_model
-    create_actor = pkg.import_module(
-        name='elements.actor', algo=name, place=-1).create_actor
-
-    model = create_model(config.model, env_stats, to_build_for_eval=True)
-    actor = create_actor(config.actor, model)
-    
-    return model, actor
-
-
-def build_strategy(config, name, actor):
-    create_strategy = pkg.import_module(
-        'elements.strategy', config=config.agent).create_strategy
-    strategy = create_strategy(
-        name, config.strategy, actor=actor)
-    
-    return strategy
-
-
-def build_agent(config, name, strategy):
-    create_agent = pkg.import_module(
-        'elements.agent', config=config.agent).create_agent
-
-    agent = create_agent(
-        config=config.agent, 
-        strategy=strategy, 
-        name=name,
-        to_save_code=False
-    )
-
-    return agent
-
-
 def main(config, n, record=False, size=(128, 128), video_len=1000, 
         fps=30, save=False):
     use_ray = config.env.get('n_workers', 0) > 1
@@ -77,10 +42,8 @@ def main(config, n, record=False, size=(128, 128), video_len=1000,
     env_stats = env.stats()
 
     builder = ElementsBuilder(config, env_stats, config.algorithm)
-    model = builder.build_model(to_build_for_eval=True)
-    actor = builder.build_actor(model)
-    strategy = builder.build_strategy(actor=actor)
-    agent = builder.build_agent(strategy, to_save_code=False)
+    elements = builder.build_actor_agent_from_scratch()
+    agent = elements.agent
 
     if n < env.n_envs:
         n = env.n_envs

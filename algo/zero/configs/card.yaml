@@ -24,14 +24,14 @@ runner:
 
     MAX_STEPS: 1e10
     N_STEPS: &nsteps 256
-    control_pids: &cpids [0, 1, 2]
+    control_pids: &cpids [0, 1, 2, 3]
 
 env:
     name: &env_name card_gd
     eid: 0
     n_workers: &nworkers 40
     n_envs: &nenvs 4
-    skip_players: [3]
+    skip_players: []
 
 agent:
     algorithm: *algo
