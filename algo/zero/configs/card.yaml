@@ -24,7 +24,7 @@ runner:
 
     MAX_STEPS: 1e10
     N_STEPS: &nsteps 256
-    control_pids: &cpids [0, 1, 2, 3]
+    agent_pids: &pids [0, 1, 2, 3]
 
 env:
     name: &env_name card_gd
@@ -194,7 +194,7 @@ actor:
 
 buffer:
     type: *training
-    control_pids: *cpids
+    agent_pids: *pids
     # dir: data/gd-100000
     use_dataset: True
     

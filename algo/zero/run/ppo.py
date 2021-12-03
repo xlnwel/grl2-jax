@@ -65,6 +65,8 @@ def train(agent, buffer, runner_manager, parameter_server=None):
             record_stats(step)
 
 def main(config):
+    # from core.utils import save_config
+    # save_config(config.root_dir, config.model_name, config)
     ray.init()
     sigint_shutdown_ray()
 
@@ -77,9 +79,7 @@ def main(config):
     elements = builder.build_agent_from_scratch()
     agent = elements.agent
     runner_manager = RunnerManager(config, name=agent.name)
-    # other_config = search_for_config(
-    #     'logs/card_gd2/zero/action_mask=mask', to_attrdict=False)
-    # runner_manager.set_other_player(other_config)
+    runner_manager.set_other_player('logs/card_gd/zero/baseline', 'zero_0')
 
     builder.save_config()
 

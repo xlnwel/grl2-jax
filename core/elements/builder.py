@@ -2,7 +2,6 @@ import copy
 
 from core.dataset import create_dataset
 from core.monitor import create_monitor
-from core.tf_config import build
 from core.utils import save_config
 from run.utils import set_path
 from utility.typing import AttrDict

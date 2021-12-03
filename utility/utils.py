@@ -308,7 +308,7 @@ def convert_dtype(value, precision=32, dtype=None, **kwargs):
         dtype = infer_dtype(value.dtype, precision)
     return value.astype(dtype)
 
-def flatten_dict(**kwargs):
+def flatten_dict(kwargs):
     """ Flatten a dict of lists into a list of dicts
     For example
     flatten_dict(lr=[1, 2], a=[10,3], b=dict(c=[2, 4], d=np.arange(1, 3)))
@@ -320,7 +320,7 @@ def flatten_dict(**kwargs):
     for k, v in kwargs.items():
         ks.append(k)
         if isinstance(v, dict):
-            vs.append(flatten_dict(**v))
+            vs.append(flatten_dict(v))
         elif isinstance(v, (int, float)):
             vs.append([v])
         else:

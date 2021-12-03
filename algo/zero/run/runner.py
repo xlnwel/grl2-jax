@@ -5,7 +5,8 @@ import ray
 from core.elements.builder import ElementsBuilder
 from core.tf_config import configure_gpu, silence_tf_logs
 from distributed.remote.base import RayBase
-from env.cls import TwoPlayerSequentialVecEnv
+from env.func import create_env
+from env.utils import batch_env_output
 from run.utils import search_for_config
 from utility import pkg
 from utility.utils import batch_dicts, config_attr, dict2AttrDict
@@ -19,6 +20,7 @@ class TwoPlayerRunner(RayBase):
         self.name = name
         self.store_data = store_data
         self.n_agents = 4
+        self.other_agent = None
         self.build_from_config(config)
 
     def build_from_config(self, config):
@@ -26,18 +28,17 @@ class TwoPlayerRunner(RayBase):
         self.config.buffer.type = 'local'
         self.config.env.n_workers = 1
 
-        self.control_pids = self.config.runner.control_pids
-        for pid in self.control_pids:
-            assert pid not in self.config.env.skip_players, (self.control_pids, self.config.env.skip_players)
-        other_pids = [i for i in range(self.n_agents) if i not in self.control_pids]
-        self.env = TwoPlayerSequentialVecEnv(self.config.env, other_pids, None)
+        self.agent_pids = self.config.runner.agent_pids
+        for pid in self.agent_pids:
+            assert pid not in self.config.env.skip_players, (self.agent_pids, self.config.env.skip_players)
+        self.other_pids = [i for i in range(self.n_agents) if i not in self.agent_pids]
+        self.env = create_env(self.config.env)
         self.env_stats = self.env.stats()
 
         builder = ElementsBuilder(self.config, self.env_stats, name=self.name)
         elements = builder.build_actor_agent_from_scratch()
         self.agent = elements.agent
         self.step = self.agent.get_env_step()
-        self.env.set_agent(self.agent)
         self.n_episodes = 0
 
         if self.store_data:
@@ -61,7 +62,7 @@ class TwoPlayerRunner(RayBase):
         name = name or config.algorithm
         builder = ElementsBuilder(config, self.env_stats, name=name)
         elements = builder.build_actor_agent_from_scratch()
-        self.env.set_other_agent(elements.agent)
+        self.other_agent = elements.agent
 
     def set_other_agent_from_path(self, path, name=None):
         config = search_for_config(path)
@@ -81,48 +82,99 @@ class TwoPlayerRunner(RayBase):
             return step, None, self.agent.get_raw_stats()
 
     def _run_impl(self):
+        def divide_outs(outs):
+            agent_eids = []
+            agent_outs = []
+            other_eids = []
+            other_outs = []
+            for i, o in enumerate(outs):
+                if o.obs['pid'] in self.agent_pids:
+                    agent_eids.append(i)
+                    agent_outs.append(o)
+                else:
+                    assert o.obs['pid'] in self.other_pids, (o.obs['pid'], self.other_pids)
+                    other_eids.append(i)
+                    other_outs.append(o)
+            if agent_outs:
+                agent_outs = batch_env_output(agent_outs)
+            if other_outs:
+                other_outs = batch_env_output(other_outs)
+            assert len(agent_eids) + len(other_eids) == self.n_agents, (agent_eids, other_eids)
+            return agent_eids, agent_outs, other_eids, other_outs
+        
+        def merge(agent_eids, agent_action, other_eids, other_action):
+            agent_action = list(zip(*agent_action))
+            other_action = list(zip(*other_action))
+            assert len(agent_eids) == len(agent_action), (agent_eids, agent_action)
+            assert len(other_eids) == len(other_action), (other_eids, other_action)
+            i = 0
+            j = 0
+            action = []
+            while i != len(agent_eids) and j != len(other_eids):
+                if agent_eids[i] < other_eids[j]:
+                    action.append(agent_action[i])
+                    i += 1
+                else:
+                    action.append(other_action[j])
+                    j += 1
+            while i != len(agent_eids):
+                action.append(agent_action[i])
+                i += 1
+            while j != len(other_eids):
+                action.append(other_action[j])
+                j += 1
+            return tuple(map(np.stack, zip(*action)))
+
         def check_end(i):
             if self.store_data:
                 return self.buffer.ready_to_retrieve()
             else:
                 return i >= self.config.runner.N_STEPS
+
         # reset as we store full trajectories each time
-        self.env_output = self.env.reset()
-        obs = self.env_output.obs
+        self.env_output = self.env.reset(convert_batch=False)
         
         i = 0
         while not check_end(i):
-            action, terms = self.agent(self.env_output, evaluation=False)
-            obs = self._step_env(obs, action, terms)
-            self._log_for_done(self.env_output.reset)
+            agent_eids, agent_outs, other_eids, other_outs = \
+                divide_outs(self.env_output)
+            agent_action, agent_terms = self.agent(agent_outs, evaluation=False) \
+                if agent_outs else ([], [])
+            other_action, other_terms = self.other_agent(other_outs, evaluation=False) \
+                if other_outs else ([], [])
+            action = merge(
+                agent_eids, agent_action, other_eids, other_action)
+            self._step_env(action, agent_eids, agent_outs, agent_action, agent_terms)
+            self._log_for_done(self.env_output)
             i += 1
 
         return self.step
 
-    def _step_env(self, obs, action, terms):
-        for pid in obs['pid']:
-            assert pid in self.control_pids, obs['pid']
-        self.env_output = self.env.step(action)
+    def _step_env(self, action, agent_eids, agent_outs, agent_action, agent_terms):
+        if agent_outs:
+            for pid in agent_outs.obs['pid']:
+                assert pid in self.agent_pids, agent_outs.obs['pid']
+        else:
+            assert agent_action == [], agent_action
+            assert agent_terms == [], agent_terms
+        self.env_output = self.env.step(action, convert_batch=False)
         self.step += self.env.n_envs
         
-        next_obs, reward, discount, _ = self.env_output
-
-        if self.store_data:
+        if self.store_data and agent_outs:
+            print('discount', [o.discount for o in self.env_output])
             data = {
-                **obs,
-                'action_type': action[0],
-                'card_rank': action[1],
-                'reward': reward,
-                'discount': discount,
-                **terms
+                **agent_outs.obs,
+                'action_type': agent_action[0],
+                'card_rank': agent_action[1],
+                'reward': [self.env_output[i].reward for i in agent_eids],
+                'discount': [self.env_output[i].discount for i in agent_eids],
+                **agent_terms
             }
             self.buffer.add(data)
 
-        return next_obs
-
-    def _log_for_done(self, reset):
+    def _log_for_done(self, outs):
         # logging when any env is reset 
-        done_env_ids = [i for i, r in enumerate(reset) if r]
+        done_env_ids = [i for i, o in enumerate(outs) if o.reset]
         if done_env_ids:
             info = self.env.info(done_env_ids)
             score, epslen, won = [], [], []

@@ -54,7 +54,7 @@ class LocalBuffer:
         reward = data['reward']
         discount = data['discount']
         for i, (eid, pid, r, d) in enumerate(zip(eids, pids, reward, discount)):
-            assert r.shape == (4,), r.shape
+            assert len(r) == 4, r
             for k, vs in data.items():
                 if k == 'reward':
                     self._buffer[(eid, pid)][k].append(vs[i][pid])
@@ -62,8 +62,8 @@ class LocalBuffer:
                     self._buffer[(eid, pid)][k].append(vs[i])
             self._buff_lens[(eid, pid)] += 1
             if d == 0:
-                for p in self.config.control_pids:
-                    assert self._buff_lens[(eid, p)] > 0, self._buff_lens[(eid, p)]
+                for p in self.config.agent_pids:
+                    assert self._buff_lens[(eid, p)] > 0, (eid, p, self._buff_lens[(eid, p)])
                     if p != pid:
                         assert self._buffer[(eid, p)]['reward'][-1] == 0, self._buffer[(eid, p)]['reward'][-1]
                         assert self._buffer[(eid, p)]['discount'][-1] == 1, self._buffer[(eid, p)]['discount'][-1]
