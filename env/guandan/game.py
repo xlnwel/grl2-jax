@@ -917,7 +917,7 @@ class Game(object):
 if __name__ == '__main__':
     import datetime
     env = Game([Player('0', 'reyn'), Player('1', 'random'), Player('2', 'reyn'), Player('3', 'random')])
-    n = 100
+    n = 1
     rewards = []
     start_time = datetime.datetime.now()
     for _ in range(n):
@@ -927,6 +927,7 @@ if __name__ == '__main__':
         # step = 0
         while env.game_over() is False:
             env.random_step()
+            print(env.game_over())
             # step += 1
             # print(step)
         rewards.append(env.compute_reward())

@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 
 from core.elements.strategy import Strategy, create_strategy
-from core.mixin.strategy import TrainingLoopBase
+from core.elements.trainer import TrainingLoopBase
 from core.log import do_logging
 
 

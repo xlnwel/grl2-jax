@@ -84,3 +84,22 @@ for e in "${envs[@]}"; do
         done
     done
 done
+# a=${algos[1]}
+# e=gd2
+# kw1="N_MBS=2"
+# kw2="N_STEPS=1024"
+# kw3="n_envs=1"
+# env="${suite}_${e}"
+# dir="logs/$a/$env/action_mask=mask-$kw1-$kw2-$kw3"
+# mkdir -p $dir
+# py_script="CUDA_VISIBLE_DEVICES=6 python run/train.py $a -e $env -n action_mask=mask -kw $kw1 $kw2 $kw3 >& ${dir}/outputs.txt &"
+# echo $py_script
+# eval $py_script
+# kw1="N_MBS=1"
+# kw2="N_STEPS=128"
+# env="${suite}_${e}"
+# dir="logs/$a/$env/action_mask=mask-$kw1-$kw2"
+# mkdir -p $dir
+# py_script="CUDA_VISIBLE_DEVICES=1 python run/train.py $a -e $env -n action_mask=mask -kw $kw1 $kw2 >& ${dir}/outputs.txt &"
+# echo $py_script
+# eval $py_script

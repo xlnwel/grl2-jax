@@ -1,13 +1,35 @@
 import ray
 
+from algo.zero.elements.runner import RunnerManager
 from core.elements.builder import ElementsBuilder
 from env.func import get_env_stats
-from .runner import RunnerManager
 from utility.ray_setup import sigint_shutdown_ray
 from utility.timer import Every, Timer
 
 
-def train(agent, buffer, runner_manager, parameter_server=None):
+def main(config):
+    # from core.utils import save_config
+    # save_config(config.root_dir, config.model_name, config)
+    ray.init()
+    sigint_shutdown_ray()
+
+    env_stats = get_env_stats(config.env)
+    name = config.name
+    builder = ElementsBuilder(
+        config, 
+        env_stats, 
+        name=name)
+    elements = builder.build_agent_from_scratch()
+    agent = elements.agent
+    runner_manager = RunnerManager(config, name=agent.name)
+    runner_manager.set_other_agent('logs/card_gd/zero/self-play', 'zero')
+
+    train(elements.agent, elements.buffer, runner_manager)
+
+    ray.shutdown()
+
+
+def train(agent, buffer, runner_manager):
     # assert agent.get_env_step() == 0, (agent.get_env_step(), 'Comment out this line when you want to restore from a trained model')
     if agent.get_env_step() == 0 and agent.actor.is_obs_normalized:
         obs_rms_list, rew_rms_list = runner_manager.initialize_rms()
@@ -38,9 +60,8 @@ def train(agent, buffer, runner_manager, parameter_server=None):
         start_env_step = agent.get_env_step()
         with rt:
             weights = agent.get_weights(opt_weights=False)
-            steps, data, stats = runner_manager.run(weights)
-        step = sum(steps)
-
+            step, data, stats = runner_manager.run(weights)
+        
         for d in data:
             buffer.append_data(d)
         buffer.finish()
@@ -60,29 +81,7 @@ def train(agent, buffer, runner_manager, parameter_server=None):
             tps=(train_step-start_train_step)/tt.last())
         agent.set_env_step(step)
         buffer.reset()
+        runner_manager.reset()
 
         if to_record(train_step) and agent.contains_stats('score'):
             record_stats(step)
-
-def main(config):
-    # from core.utils import save_config
-    # save_config(config.root_dir, config.model_name, config)
-    ray.init()
-    sigint_shutdown_ray()
-
-    env_stats = get_env_stats(config.env)
-    name = config.algorithm
-    builder = ElementsBuilder(
-        config, 
-        env_stats, 
-        name=name)
-    elements = builder.build_agent_from_scratch()
-    agent = elements.agent
-    runner_manager = RunnerManager(config, name=agent.name)
-    runner_manager.set_other_player('logs/card_gd/zero/baseline', 'zero_0')
-
-    builder.save_config()
-
-    train(elements.agent, elements.buffer, runner_manager)
-
-    ray.shutdown()

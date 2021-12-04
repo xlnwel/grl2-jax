@@ -1,5 +1,4 @@
 import collections
-import random
 import time
 import logging
 import numpy as np
@@ -42,10 +41,13 @@ class LocalBuffer:
         self._maxlen = self.config.n_envs * self.config.N_STEPS
         self.reset()
 
+    def size(self):
+        return self._memlen
+
     def reset(self):
         self._memory = []
-        self._buffer = collections.defaultdict(lambda: collections.defaultdict(list))
         self._memlen = 0
+        self._buffer = collections.defaultdict(lambda: collections.defaultdict(list))
         self._buff_lens = collections.defaultdict(int)
 
     def add(self, data):
@@ -53,7 +55,11 @@ class LocalBuffer:
         pids = data.pop('pid')
         reward = data['reward']
         discount = data['discount']
-        for i, (eid, pid, r, d) in enumerate(zip(eids, pids, reward, discount)):
+        mask = data['mask']
+        for i, (eid, pid, r, d, m) in enumerate(zip(eids, pids, reward, discount, mask)):
+            if m == 0:
+                assert self._buff_lens[(eid, pid)] == 0, (eid, pid, self._buff_lens[(eid, pid)])
+                assert len(self._buffer[(eid, pid)]) == 0, (eid, pid, len(self._buffer[(eid, pid)])) 
             assert len(r) == 4, r
             for k, vs in data.items():
                 if k == 'reward':
@@ -61,24 +67,29 @@ class LocalBuffer:
                 else:
                     self._buffer[(eid, pid)][k].append(vs[i])
             self._buff_lens[(eid, pid)] += 1
-            if d == 0:
-                for p in self.config.agent_pids:
-                    assert self._buff_lens[(eid, p)] > 0, (eid, p, self._buff_lens[(eid, p)])
-                    if p != pid:
-                        assert self._buffer[(eid, p)]['reward'][-1] == 0, self._buffer[(eid, p)]['reward'][-1]
-                        assert self._buffer[(eid, p)]['discount'][-1] == 1, self._buffer[(eid, p)]['discount'][-1]
-                        self._buffer[(eid, p)]['reward'][-1] = r[p]
-                        self._buffer[(eid, p)]['discount'][-1] = 0
-                    assert self._buffer[(eid, p)]['reward'][-1] == r[p], self._buffer[(eid, p)]['reward'][-1]
-                    assert self._buffer[(eid, p)]['discount'][-1] == 0, self._buffer[(eid, p)]['discount'][-1]
-                    self.merge_episode(self._buffer[(eid, p)], self._buff_lens[(eid, p)])
-                    self._buffer[(eid, p)] = collections.defaultdict(list)
-                    self._buff_lens[(eid, p)] = 0
+            assert np.all(r == 0) or d == 0, (r, d)
 
-    def merge_episode(self, episode, epslen):
-        episode = {k: np.stack(v) for k, v in episode.items()}
-        for v in episode.values():
+    def finish(self, eids, rewards):
+        assert len(eids) == len(rewards), (eids, rewards)
+        for eid, reward in zip(eids, rewards):
+            for pid in self.config.agent_pids:
+                self._buffer[(eid, pid)]['reward'][-1] = reward[pid]
+                self._buffer[(eid, pid)]['discount'][-1] = 0
+                assert self._buffer[(eid, pid)]['reward'][-1] == reward[pid], self._buffer[(eid, pid)]['reward'][-1]
+                assert self._buffer[(eid, pid)]['discount'][-1] == 0, self._buffer[(eid, pid)]['discount'][-1]
+                self.merge_episode(eid, pid)
+
+    def merge_episode(self, eid, pid):
+        episode = {k: np.stack(v) for k, v in self._buffer[(eid, pid)].items()}
+        epslen = self._buff_lens[(eid, pid)]
+        for k, v in episode.items():
             assert v.shape[0] == epslen, (v.shape, epslen)
+            if k == 'discount':
+                assert np.all(v[:-1] == 1), v
+                assert np.all(v[-1] == 0), v
+            elif k == 'mask':
+                assert np.all(v[1:] == 1), v
+                assert np.all(v[0] == 0), v
         episode['advantage'], episode['traj_ret'] = compute_gae(
             episode['reward'], episode['discount'], episode['value'], 
             self.config.gamma, self._gae_discount
@@ -86,6 +97,8 @@ class LocalBuffer:
         episode = {k: episode[k] for k in self.config.sample_keys}
         self._memory.append(episode)
         self._memlen += epslen
+        self._buffer[(eid, pid)] = collections.defaultdict(list)
+        self._buff_lens[(eid, pid)] = 0
 
     def ready_to_retrieve(self):
         return self._memlen > self._maxlen
@@ -218,9 +231,9 @@ def create_buffer(config, central_buffer=False):
         import ray
         RemoteBuffer = ray.remote(PPOBuffer)
         return RemoteBuffer.remote(config)
-    elif config.type == 'ppo':
+    elif config.type == 'ppo' or config.type == 'pbt':
         return PPOBuffer(config)
     elif config.type == 'local':
         return LocalBuffer(config)
     else:
-        raise ValueError(config['training'])
+        raise ValueError(config.type)

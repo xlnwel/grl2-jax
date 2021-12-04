@@ -2,10 +2,12 @@ import tensorflow as tf
 
 
 def get_data_format(config, env_stats, model, use_for_dataset=True):
-    if config['training'] == 'ppo':
+    if config['training'] == 'ppo' or config['training'] == 'pbt':
         return get_ppo_data_format(config, env_stats, model, use_for_dataset)
-    else:
+    elif config['training'] == 'bc':
         return get_bc_data_format(config, env_stats, model, use_for_dataset)
+    else:
+        raise ValueError(config['training'])
 
 
 def get_ppo_data_format(config, env_stats, model, use_for_dataset=True):

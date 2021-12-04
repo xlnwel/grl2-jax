@@ -5,6 +5,7 @@ from core.elements.loss import Loss, LossEnsemble
 from core.module import EnsembleWithCheckpoint, constructor
 from core.optimizer import create_optimizer
 from utility.display import display_model_var_info
+from utility.timer import Timer
 from utility.utils import config_attr, eval_config
 
 
@@ -151,6 +152,39 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
 
     def save_optimizer(self, print_terminal_info=False):
         super().save(print_terminal_info)
+
+
+class TrainingLoopBase:
+    def __init__(self, 
+                 config, 
+                 dataset, 
+                 trainer, 
+                 **kwargs):
+        self.config = config_attr(self, config)
+        self.dataset = dataset
+        self.trainer = trainer
+
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+        self._sample_timer = Timer('sample')
+        self._train_timer = Timer('train')
+        self._post_init()
+
+    def _post_init(self):
+        pass
+
+    def train(self):
+        train_step, stats = self._train()
+        self._after_train()
+
+        return train_step, stats
+
+    def _train(self):
+        raise NotImplementedError
+
+    def _after_train(self):
+        pass
 
 
 def create_trainer(config, loss, env_stats, *, name, trainer_cls, **kwargs):

@@ -2,14 +2,14 @@ import time
 import numpy as np
 import ray
 
-from .run.runner import RunnerManager
+from algo.zero.elements.runner import RunnerManager
 
 
 def main(config, n, **kwargs):
     ray.init()
 
     config.buffer.agent_pids = config.runner.agent_pids = [0, 2]
-    config.env.skip_players = [1, 3]
+    config.env.skip_players = []
     name = 'zero'
     runner_manager = RunnerManager(config, name=name, store_data=False)
     start = time.time()

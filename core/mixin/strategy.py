@@ -3,9 +3,6 @@ import cloudpickle
 import numpy as np
 import tensorflow as tf
 
-from utility.timer import Timer
-from utility.utils import config_attr
-
 
 class StepCounter:
     def __init__(self, root_dir, model_name, name='step_counter'):
@@ -45,39 +42,7 @@ class StepCounter:
         if os.path.exists(self._counter_path):
             with open(self._counter_path, 'rb') as f:
                 self._env_step, self._train_step = cloudpickle.load(f)
-
-
-class TrainingLoopBase:
-    def __init__(self, 
-                 config, 
-                 dataset, 
-                 trainer, 
-                 **kwargs):
-        self.config = config_attr(self, config)
-        self.dataset = dataset
-        self.trainer = trainer
-
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-
-        self._sample_timer = Timer('sample')
-        self._train_timer = Timer('train')
-        self._post_init()
-
-    def _post_init(self):
-        pass
-
-    def train(self):
-        train_step, stats = self._train()
-        self._after_train()
-
-        return train_step, stats
-
-    def _train(self):
-        raise NotImplementedError
-
-    def _after_train(self):
-        pass
+                print('step counter', self._counter_path, self._env_step, self._train_step)
 
 
 class Memory:

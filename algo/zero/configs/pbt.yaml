@@ -6,7 +6,7 @@ version: 0
 
 precision: 32
 
-training: &training ppo
+training: &training pbt
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -26,11 +26,12 @@ runner:
     MAX_STEPS: 4e8
     N_STEPS: &nsteps 128
     agent_pids: &pids [0, 2]
+    self_play_frac: .5
 
 env:
     name: &env_name card_gd
     eid: 0
-    n_workers: &nworkers 80
+    n_workers: &nworkers 1
     n_envs: &nenvs 4
     skip_players: []
 

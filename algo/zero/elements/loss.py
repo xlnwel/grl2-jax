@@ -246,7 +246,7 @@ class BCLoss(Loss):
 
 
 def create_loss(config, model, name='ppo'):
-    if config['training'] == 'ppo':
+    if config['training'] == 'ppo' or config['training'] == 'pbt':
         return PPOLoss(config=config, model=model, name=name)
     elif config['training'] == 'bc':
         return BCLoss(config=config, model=model, name=name)

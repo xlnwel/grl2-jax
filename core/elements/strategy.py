@@ -1,8 +1,8 @@
 from typing import Union
 
 from core.elements.actor import Actor
-from core.elements.trainer import Trainer, TrainerEnsemble
-from core.mixin.strategy import StepCounter, TrainingLoopBase
+from core.elements.trainer import Trainer, TrainerEnsemble, TrainingLoopBase
+from core.mixin.strategy import StepCounter
 from env.typing import EnvOutput
 from utility.utils import config_attr
 
@@ -104,21 +104,21 @@ class Strategy:
 
     """ Checkpoint Ops """
     def restore(self):
-        if self.trainer is not None:
-            self.trainer.restore_optimizer()
         if self.model is not None:
             self.model.restore()
         if self.actor is not None:
             self.actor.restore_auxiliary_stats()
+        if self.trainer is not None:
+            self.trainer.restore_optimizer()
         self.step_counter.restore_step()
 
     def save(self, print_terminal_info=False):
-        if self.trainer is not None:
-            self.trainer.save_optimizer(print_terminal_info)
         if self.model is not None:
             self.model.save(print_terminal_info)
         if self.actor is not None:
             self.actor.save_auxiliary_stats()
+        if self.trainer is not None:
+            self.trainer.save_optimizer(print_terminal_info)
         self.step_counter.save_step()
 
 

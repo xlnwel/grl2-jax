@@ -7,7 +7,8 @@ from core.tf_config import build
 from utility.file import source_file
 from utility.tf_utils import assert_rank
 
-# register ppo-related networks 
+
+# register networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
@@ -286,7 +287,7 @@ class PPOModel(Model):
     def _add_seqential_dimension(self, **kwargs):
         return tf.nest.map_structure(lambda x: tf.expand_dims(x, 1), kwargs)
 
-def create_model(config, env_stats, name='ppo', to_build=False, to_build_for_eval=False):
+def create_model(config, env_stats, name='zero', to_build=False, to_build_for_eval=False):
     config.action_type.head.out_size = env_stats['action_dim']['action_type']
     config.card_rank.head.out_size = env_stats['action_dim']['card_rank']
 
@@ -306,7 +307,7 @@ if __name__ == '__main__':
     config = load_config('algo/gd/configs/builtin.yaml')
     env = create_env(config['env'])
     env_stats = env.stats()
-    model = create_model(config['model'], env_stats, name='ppo')
+    model = create_model(config['model'], env_stats, name='zero')
     b = 2
     s = 3
     shapes = {

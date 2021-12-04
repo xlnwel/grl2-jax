@@ -7,7 +7,8 @@ import tensorflow as tf
 
 from core.elements.strategy import Strategy, create_strategy
 from core.log import do_logging
-from core.mixin.strategy import TrainingLoopBase, Memory
+from core.elements.trainer import TrainingLoopBase
+from core.mixin.strategy import Memory
 
 
 logger = logging.getLogger(__name__)

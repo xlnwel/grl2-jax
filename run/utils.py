@@ -16,7 +16,12 @@ def get_config(algo, env):
     configs_dir = f'{algo_dir}/configs'
     files = [f for f in os.listdir(configs_dir) if 'config.yaml' in f]
     env_split = env.split('_')
-    filename = 'builtin.yaml' if len(env_split) == 1 else f'{env_split[0]}.yaml'
+    if len(env_split) == 1:
+        filename = 'builtin.yaml'
+    elif len(env_split) == 2:
+        filename = f'{env_split[0]}.yaml'
+    else:
+        filename = '_'.join(env_split[1:-1]) + '.yaml'
     if '-' in algo:
         suffix = algo.split('-')[-1]
         if [f for f in files if suffix in f]:
@@ -31,7 +36,7 @@ def get_config(algo, env):
         raise RuntimeError('No configure is loaded')
 
     config['algorithm'] = algo
-    config['env']['name'] = env
+    config['env']['name'] = f'{env_split[0]}_{env_split[-1]}'   # we may have version number in between
 
     return config
 

@@ -2,6 +2,7 @@ from env import wrappers
 from env.typing import EnvOutput
 from utility.utils import convert_batch_with_func
 
+
 def process_single_agent_env(env, config):
     if config.get('reward_scale') \
             or config.get('reward_min') \

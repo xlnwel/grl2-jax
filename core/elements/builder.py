@@ -1,5 +1,3 @@
-import copy
-
 from core.dataset import create_dataset
 from core.monitor import create_monitor
 from core.utils import save_config
@@ -129,7 +127,37 @@ class ElementsBuilder:
 
         return agent
 
-    """ Build an Agent from Scratch """
+    """ Build an Strategy/Agent from Scratch """
+    def build_actor_strategy_from_scratch(self, config=None, build_monitor=True):
+        elements = AttrDict()
+        elements.model = self.build_model(config=config, to_build=True)
+        elements.actor = self.build_actor(model=elements.model, config=config)
+        elements.strategy = self.build_strategy(actor=elements.actor, config=config)
+        if build_monitor:
+            elements.monitor = self.build_monitor(config=config)
+
+        return elements
+    
+    def build_strategy_from_scratch(self, config=None, build_monitor=True):
+        elements = AttrDict()
+        elements.model = self.build_model(config=config)
+        elements.actor = self.build_actor(model=elements.model, config=config)
+        elements.trainer = self.build_trainer(model=elements.model, config=config)
+        elements.buffer = self.build_buffer(model=elements.model, config=config)
+        elements.dataset = self.build_dataset(
+            buffer=elements.buffer, 
+            model=elements.model, 
+            config=config)
+        elements.strategy = self.build_strategy(
+            actor=elements.actor, 
+            trainer=elements.trainer, 
+            dataset=elements.dataset,
+            config=config)
+        if build_monitor:
+            elements.monitor = self.build_monitor(config=config)
+
+        return elements
+
     def build_actor_agent_from_scratch(self, config=None):
         elements = AttrDict()
         elements.model = self.build_model(config=config, to_build=True)
