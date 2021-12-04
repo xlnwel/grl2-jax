@@ -1,4 +1,5 @@
 from core.dataset import create_dataset
+from core.elements.agent import RemoteAgent
 from core.monitor import create_monitor
 from core.utils import save_config
 from run.utils import set_path
@@ -11,17 +12,18 @@ class ElementsBuilder:
     def __init__(self, 
                  config, 
                  env_stats, 
-                 name,
-                 incremental_version=False):
-        self.default_config = dict2AttrDict(config)
+                 name=None,
+                 incremental_version=False,
+                 start_version=0):
+        # self.default_config = dict2AttrDict(config)
         self.config = dict2AttrDict(config)
         self.env_stats = dict2AttrDict(env_stats)
-        self._name = name
+        self._name = name or self.config.name
         self._model_name = self.config.model_name
         self._incremental_version = incremental_version
-        self._version = 0
+        self._version = start_version
         if self._incremental_version:
-            self.setup_config_version(self._version)
+            self.set_config_version(self._version)
 
         algo = self.config.algorithm
         self.create_model = pkg.import_module(
@@ -45,10 +47,10 @@ class ElementsBuilder:
 
     def increase_version(self):
         self._version += 1
-        self.setup_config_version(self._version)
+        self.set_config_version(self._version)
         self.save_config()
 
-    def setup_config_version(self, version):
+    def set_config_version(self, version):
         self.config = set_path(
             self.config, self.config.root_dir, f'{self._model_name}/v{version}')
         self.config['version'] = self._version = version
@@ -194,8 +196,15 @@ class ElementsBuilder:
             config=config)
         
         self.save_config()
+        if self._incremental_version:
+            self.increase_version()
 
         return elements
+
+    def build_remote_agent(self, config):
+        agent = RemoteAgent.remote()
+        agent.build(self, config)
+        return agent
 
     """ Configuration Operations """
     def get_config(self):
@@ -205,7 +214,7 @@ class ElementsBuilder:
         save_config(self.config.root_dir, self.config.model_name, self.config)
 
     def get_model_path(self):
-        return f'{self.config.root_dir}/{self.config.model_name}'
+        return self.config.root_dir, self.config.model_name
 
 
 if __name__ == '__main__':

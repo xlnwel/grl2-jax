@@ -4,6 +4,7 @@ from core.elements.actor import Actor
 from core.elements.trainer import Trainer, TrainerEnsemble, TrainingLoopBase
 from core.mixin.strategy import StepCounter
 from env.typing import EnvOutput
+from run.utils import set_path
 from utility.utils import config_attr
 
 
@@ -32,6 +33,17 @@ class Strategy:
 
     def _post_init():
         pass
+
+    def reset(self, root_dir, model_name):
+        self._root_dir = root_dir
+        self._model_name = model_name
+        self.config = set_path(self.config, root_dir, model_name)
+        if self.model is not None:
+            self.model.reset(root_dir, model_name)
+        if self.actor is not None:
+            self.actor.reset(root_dir, model_name)
+        if self.trainer is not None:
+            self.trainer.reset(root_dir, model_name)
 
     @property
     def name(self):
@@ -103,12 +115,12 @@ class Strategy:
         pass
 
     """ Checkpoint Ops """
-    def restore(self):
+    def restore(self, skip_actor=False, skip_trainer=False):
         if self.model is not None:
             self.model.restore()
-        if self.actor is not None:
+        if not skip_actor and self.actor is not None:
             self.actor.restore_auxiliary_stats()
-        if self.trainer is not None:
+        if not skip_trainer and self.trainer is not None:
             self.trainer.restore_optimizer()
         self.step_counter.restore_step()
 
@@ -120,6 +132,9 @@ class Strategy:
         if self.trainer is not None:
             self.trainer.save_optimizer(print_terminal_info)
         self.step_counter.save_step()
+
+    def get_model_path(self):
+        return self._root_dir, self._model_name
 
 
 def create_strategy(

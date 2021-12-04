@@ -3,21 +3,26 @@ import numpy as np
 import ray
 
 from algo.zero.elements.runner import RunnerManager
+from utility.ray_setup import sigint_shutdown_ray
 
 
 def main(config, n, **kwargs):
+    # from core.utils import save_config
+    # config.name = 'zero_0'
+    # save_config(config.root_dir, config.model_name, config)
     ray.init()
+    sigint_shutdown_ray()
 
     config.buffer.agent_pids = config.runner.agent_pids = [0, 2]
-    config.env.skip_players = []
-    name = 'zero'
+    config.env.skip_players = [1, 3]
+    name = config.name
     runner_manager = RunnerManager(config, name=name, store_data=False)
     start = time.time()
     
     stats, n = runner_manager.evaluate(
         n, 
-        other_path='logs/card_gd/zero/baseline/',
-        other_name='zero_0'
+        # other_path='logs/card_gd/zero/baseline/',
+        # other_name='zero_0'
     )
     n_workers = config.env.n_workers
 

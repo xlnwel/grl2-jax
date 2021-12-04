@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.elements.builder import ElementsBuilder
 from core.log import setup_logging
 from core.tf_config import *
-from utility.display import pwc
+from utility.display import print_dict, pwc
 from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
 from utility.graph import save_video
@@ -76,10 +76,10 @@ if __name__ == '__main__':
     configure_precision(config.precision)
     
     # get the main function
-    try:
-        main = pkg.import_main('eval', config=config)
-    except:
-        print('Default main is used for evaluation')
+    # try:
+    main = pkg.import_main('eval', config=config)
+    # except:
+    #     print('Default main is used for evaluation')
 
     # set up env_config
     n = args.n_episodes

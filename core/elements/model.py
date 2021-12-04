@@ -2,6 +2,7 @@ from typing import Union
 
 from core.checkpoint import *
 from core.module import Ensemble, EnsembleWithCheckpoint
+from run.utils import set_path
 from utility.utils import dict2AttrDict
 
 
@@ -56,6 +57,12 @@ class Model(Ensemble):
         if hasattr(self, '_sync_nets'):
             # defined in TargetNetOps
             self._sync_nets()
+
+    def reset(self, root_dir, model_name):
+        self._root_dir = root_dir
+        self._model_name = model_name
+        self.config = set_path(self.config, root_dir, model_name)
+        self.setup_checkpoint()
 
     def get_weights(self, name: str=None):
         """ Returns a list/dict of weights

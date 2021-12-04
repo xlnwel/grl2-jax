@@ -104,7 +104,7 @@ class Recorder:
 
     def get_raw_stats(self):
         stats = self._store_dict.copy()
-        self._store_dict.clear()
+        self._store_dict = {k: [] for k in stats.keys()}    # avoid returning an empty dict if no data is stored before the next call
         return stats
 
     def get_stats(self, mean=True, std=False, min=False, max=False, adaptive=True):

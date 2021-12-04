@@ -1,32 +1,47 @@
+import collections
 import os
 import random
 import cloudpickle
 
 from core.elements.builder import ElementsBuilder
 from distributed.remote.base import RayBase
+from env.func import get_env_stats
 from run.utils import search_for_config
 from utility.utils import config_attr, dict2AttrDict
 
 
 class ParameterServer(RayBase):
-    def __init__(self, config, env_stats, first_strategy_path='logs/card_gd/zero/self-play'):
+    def __init__(self, config, env_stats):
         super().__init__()
         self.config = config_attr(self, config)
         self.env_stats = dict2AttrDict(env_stats)
         self.path = f'{self.config.root_dir}/{self.config.model_name}/parameter_server.pkl'
-        if not os.path.exists(self.path) and not os.path.exists(first_strategy_path):
-            raise ValueError('No strategy exists in the parameter server')
         # path to agent
         self._strategies = {}
-        self.restore(first_strategy_path)
+        self._payoffs = collections.defaultdict(lambda: collections.defaultdict(float))
+        self.restore()
+
+    def is_empty(self):
+        return len(self._strategies) == 0
+
+    def add_strategy(self, path, weights):
+        if path not in self._strategies:
+            config = search_for_config(path)
+            env_stats = get_env_stats(config.env)
+            builder = ElementsBuilder(config, env_stats)
+            elements = builder.build_strategy_from_scratch(build_monitor=False)
+            self._strategies[path] = elements.strategy
+            self.save()
+        self._strategies[path].set_weights(weights)
 
     def add_strategy_from_path(self, path, to_save=True):
         if path not in self._strategies:
             config = search_for_config(path)
-            name = config.name
-            builder = ElementsBuilder(config, self.env_stats, name=name)
+            env_stats = get_env_stats(config.env)
+            builder = ElementsBuilder(config, env_stats)
             elements = builder.build_strategy_from_scratch(build_monitor=False)
-            self._strategies[path] = elements.agent
+            elements.strategy.restore(skip_trainer=True)
+            self._strategies[path] = elements.strategy
         if to_save:
             self.save()
 
@@ -54,11 +69,10 @@ class ParameterServer(RayBase):
          with open(self.path, 'wb') as f:
             cloudpickle.dump(list(self._strategies), f)
 
-    def restore(self, first_strategy_path):
+    def restore(self):
         if os.path.exists(self.path):
             with open(self.path, 'rb') as f:
                 paths = cloudpickle.load(f)
                 for p in paths:
                     self.add_strategy_from_path(p, to_save=False)
-        else:
-            self.add_strategy_from_path(first_strategy_path)
+

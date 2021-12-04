@@ -1,5 +1,5 @@
 import functools
-from time import time
+import random
 import numpy as np
 import ray
 
@@ -10,34 +10,28 @@ from env.utils import batch_env_output
 from run.utils import search_for_config
 from utility import pkg
 from utility.timer import Timer
-from utility.utils import batch_dicts, config_attr, dict2AttrDict
-from utility.typing import AttrDict
+from utility.utils import batch_dicts, dict2AttrDict
 
 
 class RunnerManager(RayBase):
-    def __init__(self, config, name='zero', store_data=True, parameter_server=None):
-        self.config = config_attr(self, config['runner'])
-        self.self_play_frac = self.config.get('self_play_frac', 0)
-        if isinstance(config, AttrDict):
-            config = config.asdict()
+    def __init__(self, config, store_data=True, to_initialize_other=False, parameter_server=None):
+        self.config = dict2AttrDict(config)
+        config = self.config.asdict()
         RemoteRunner = TwoAgentRunner.as_remote(**config['runner']['ray'])
         self.runners = [RemoteRunner.remote(
-            config, name, 
+            config, 
             store_data=store_data, 
+            to_initialize_other=to_initialize_other,
             parameter_server=parameter_server) 
-                for _ in range(config['env']['n_workers'])]
+                for _ in range(self.config.env.n_workers)]
+
+    def max_steps(self):
+        return self.config.runner.MAX_STEPS
 
     def initialize_rms(self):
         obs_rms_list, rew_rms_list = list(
             zip(*ray.get([r.initialize_rms.remote() for r in self.runners])))
         return obs_rms_list, rew_rms_list
-
-    def set_other_agent(self, path, name=None, wait=False):
-        oids = [r.set_other_agent_from_path.remote(path, name=name) for r in self.runners]
-        if wait:
-            ray.get(oids)
-        else:
-            return oids
 
     def reset(self, wait=False):
         oids = [r.reset.remote() for r in self.runners]
@@ -48,14 +42,15 @@ class RunnerManager(RayBase):
 
     def run(self, weights):
         wid = ray.put(weights)
-        steps, data, stats = list(zip(*ray.get([r.run.remote(wid) for r in self.runners])))
+        with Timer('manager_run', 100):
+            steps, data, stats = list(zip(*ray.get([r.run.remote(wid) for r in self.runners])))
         stats = batch_dicts(stats, lambda x: sum(x, []))
         return sum(steps), data, stats
     
     def evaluate(self, total_episodes, weights=None, other_path=None, other_name=None):
         """ Evaluation is problematic if self.runner.run does not end in a pass """
         if other_path is not None:
-            self.set_other_agent(other_path, name=other_name)
+            self.set_other_agent_from_path(other_path, name=other_name)
         n_eps = 0
         stats_list = []
         i = 0
@@ -68,19 +63,28 @@ class RunnerManager(RayBase):
         stats = batch_dicts(stats_list, lambda x: sum(x, []))
         return stats, n_eps
 
+    """ Other Agent's Operations """
+    def set_other_agent_from_path(self, path, wait=False):
+        oids = [r.set_other_agent_from_path.remote(path) for r in self.runners]
+        if wait:
+            ray.get(oids)
+        else:
+            return oids
+
 
 class TwoAgentRunner(RayBase):
-    def __init__(self, config, name='zero', store_data=True, parameter_server=None):
+    def __init__(self, config, store_data=True, to_initialize_other=False, parameter_server=None):
         super().__init__()
-        self.name = name
         self.store_data = store_data
         self.n_agents = 4
         self.other_agent = None
         self.parameter_server = parameter_server
-        self.build_from_config(config)
+        self.build_from_config(config, to_initialize_other)
 
-    def build_from_config(self, config):
+    def build_from_config(self, config, to_initialize_other):
         self.config = dict2AttrDict(config)
+        self.name = self.config.name
+        self._self_play_frac = self.config.runner.get('self_play_frac', 0)
         self.config.buffer.type = 'local'
         self.config.env.n_workers = 1
 
@@ -92,9 +96,13 @@ class TwoAgentRunner(RayBase):
         self.env_stats = self.env.stats()
         self.env_output = self.env.output(convert_batch=False)
 
-        builder = ElementsBuilder(self.config, self.env_stats, name=self.name)
+        builder = ElementsBuilder(self.config, self.env_stats)
         elements = builder.build_actor_agent_from_scratch()
         self.agent = elements.agent
+        if to_initialize_other:
+            # Initialize a homogeneous agent, otherwise, call <set_other_agent_from_path>
+            elements = builder.build_actor_agent_from_scratch()
+            self.other_agent = elements.agent
         self.step = self.agent.get_env_step()
         self.n_episodes = 0
 
@@ -115,24 +123,6 @@ class TwoAgentRunner(RayBase):
         self.buffer.clear()
         return self.agent.actor.get_rms_stats()
 
-    def compute_other_pids(self):
-        return [i for i in range(self.n_agents) if i not in self.agent_pids]
-
-    def set_other_agent(self, config, self_play=False, name=None):
-        if self_play:
-            self.agent_pids = list(range(self.n_agents))
-        else:
-            self.agent_pids = self.config.runner.agent_pids
-            name = name or config.algorithm
-            builder = ElementsBuilder(config, self.env_stats, name=name)
-            elements = builder.build_actor_agent_from_scratch()
-            self.other_agent = elements.agent
-        self.other_pids = self.compute_other_pids()
-
-    def set_other_agent_from_path(self, path, self_play=False, name=None):
-        config = search_for_config(path)
-        self.set_other_agent(config, self_play=self_play, name=name)
-
     def reset(self):
         self.env_output = self.env.reset(convert_batch=False)
         self.buffer.reset()
@@ -141,9 +131,13 @@ class TwoAgentRunner(RayBase):
         if weights is not None:
             self.agent.set_weights(weights)
         if self.parameter_server is not None:
-            weights = ray.get(self.parameter_server.sample_strategy.remote(actor_weights=True))
-            self.agent.set_weights(weights)
-        step = self._run_impl()
+            if random.random() < self._self_play_frac:
+                self.self_play()
+            else:
+                weights = ray.get(self.parameter_server.sample_strategy.remote(actor_weights=True))
+                self.other_agent.set_weights(weights)
+        with Timer('runner_run', 100):
+            step = self._run_impl()
         if self.store_data:
             data = self.buffer.retrieve_data()
             return step, data, self.agent.get_raw_stats()
@@ -174,7 +168,7 @@ class TwoAgentRunner(RayBase):
                 agent_outs = batch_env_output(agent_outs)
             if other_outs:
                 other_outs = batch_env_output(other_outs)
-            assert len(agent_eids) + len(other_eids) == self.n_agents, (agent_eids, other_eids)
+            assert len(agent_eids) + len(other_eids) == len(outs), (agent_eids, other_eids)
             return agent_eids, agent_outs, other_eids, other_outs
         
         def merge(agent_eids, agent_action, other_eids, other_action):
@@ -208,25 +202,25 @@ class TwoAgentRunner(RayBase):
                 assert agent_action == [], agent_action
                 assert agent_terms == [], agent_terms
             self.env_output = self.env.step(action, convert_batch=False)
-            done_eids, done_rewards = [], []
-            assert len(self.env_output) == self.env.n_envs, (len(self.env_output), self.env.n_envs)
-            for i, o in enumerate(self.env_output):
-                if o.discount == 0:
-                    done_eids.append(i)
-                    done_rewards.append(o.reward)
             self.step += self.env.n_envs
 
-            if self.store_data and agent_outs:
-                data = {
-                    **agent_outs.obs,
-                    'action_type': agent_action[0],
-                    'card_rank': agent_action[1],
-                    'reward': [self.env_output[i].reward for i in agent_eids],
-                    'discount': [self.env_output[i].discount for i in agent_eids],
-                    **agent_terms
-                }
-                self.buffer.add(data)
-            self.buffer.finish(done_eids, done_rewards)
+            if self.store_data:
+                if agent_outs:
+                    self.buffer.add({
+                        **agent_outs.obs,
+                        'action_type': agent_action[0],
+                        'card_rank': agent_action[1],
+                        'reward': [self.env_output[i].reward for i in agent_eids],
+                        'discount': [self.env_output[i].discount for i in agent_eids],
+                        **agent_terms
+                    })
+                done_eids, done_rewards = [], []
+                assert len(self.env_output) == self.env.n_envs, (len(self.env_output), self.env.n_envs)
+                for i, o in enumerate(self.env_output):
+                    if o.discount == 0:
+                        done_eids.append(i)
+                        done_rewards.append(o.reward)
+                self.buffer.finish(done_eids, done_rewards)
 
         def log_for_done(outs):
             # logging when any env is reset 
@@ -254,4 +248,29 @@ class TwoAgentRunner(RayBase):
             step_env(action, agent_eids, agent_outs, agent_action, agent_terms)
             log_for_done(self.env_output)
             i += 1
+
         return self.step
+
+    """ Other Agent's Operations """
+    def self_play(self):
+        self.agent_pids = list(range(self.n_agents))
+        self.other_pids = self.compute_other_pids()
+        self._self_play = True
+        assert self.other_pids == [], self.other_agent
+
+    def set_other_agent_from_path(self, path):
+        config = search_for_config(path)
+        name = config.get('name', self.name)
+        builder = ElementsBuilder(config, self.env_stats, name=name)
+        elements = builder.build_actor_agent_from_scratch()
+        self.other_agent = elements.agent
+        self.agent_pids = self.config.runner.agent_pids
+        self.other_pids = self.compute_other_pids()
+        self._self_play = False
+
+    def set_other_agent_weights(self, weights):
+        self.other_agent.set_weights(weights)
+        self._self_play = False
+
+    def compute_other_pids(self):
+        return [i for i in range(self.n_agents) if i not in self.agent_pids]

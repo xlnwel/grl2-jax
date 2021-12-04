@@ -10,8 +10,6 @@ class Env:
         # Initialize players
         # We use for dummy player for the target position
         # Initialize the internal environment
-        if kwargs.get('skip_players02', False):
-            raise ValueError('Do not expect to skip players02')
         self.eid = eid
         self._env = Game(**kwargs)
         self.n_agents = 4

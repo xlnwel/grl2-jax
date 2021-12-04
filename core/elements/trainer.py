@@ -4,6 +4,7 @@ from core.checkpoint import *
 from core.elements.loss import Loss, LossEnsemble
 from core.module import EnsembleWithCheckpoint, constructor
 from core.optimizer import create_optimizer
+from run.utils import set_path
 from utility.display import display_model_var_info
 from utility.timer import Timer
 from utility.utils import config_attr, eval_config
@@ -25,8 +26,11 @@ class Trainer(tf.Module):
         self.loss = loss
         self.env_stats = env_stats
 
-        modules = tuple(v for k, v in self.model.items() 
-            if not k.startswith('target'))
+        # keep the order fixed, otherwise you may incounter the permutation misalignment problem when restoring from a checkpoint
+        keys = sorted([k for k in self.model.keys() if not k.startswith('target')])
+        modules = tuple(self.model[k] for k in keys)
+        # modules = tuple(v for k, v in self.model.items() 
+        #     if not k.startswith('target'))
         opt_config = eval_config(config.pop('optimizer'))
         self.optimizer = create_optimizer(modules, opt_config)
         
@@ -34,13 +38,18 @@ class Trainer(tf.Module):
         self._build_train(env_stats)
         self._has_ckpt = 'root_dir' in config and 'model_name' in config
         if self._has_ckpt:
-            self.ckpt, self.ckpt_path, self.ckpt_manager = setup_checkpoint(
-                {'optimizer': self.optimizer}, self._root_dir, 
-                self._model_name, name=self.name)
+            self.setup_checkpoint()
             if config.get('display_var', True):
                 display_model_var_info(self.model)
         self._post_init(config, env_stats)
         self.model.sync_nets()
+
+    def reset(self, root_dir, model_name):
+        self._root_dir = root_dir
+        self._model_name = model_name
+        self.config = set_path(self.config, root_dir, model_name)
+        self.setup_checkpoint()
+        self._has_ckpt = True
 
     def get_weights(self, identifier=None):
         if identifier is None:
@@ -56,7 +65,7 @@ class Trainer(tf.Module):
             identifier = self._raw_name
         self.model.set_weights(weights[f'{identifier}_model'])
         self.set_optimizer_weights(weights[f'{identifier}_opt'])
-        
+
     def get_model_weights(self, name: str=None):
         return self.model.get_weights(name)
 
@@ -85,6 +94,14 @@ class Trainer(tf.Module):
         pass
 
     """ Save & Restore Optimizer """
+    def setup_checkpoint(self):
+        self.ckpt, self.ckpt_path, self.ckpt_manager = \
+            setup_checkpoint({'optimizer': self.optimizer}, 
+                self._root_dir, self._model_name, name=self.name, 
+                ckpt_kwargs=self.config.get('ckpt_kwargs', {}),
+                ckptm_kwargs=self.config.get('ckptm_kwargs', {}),
+            )
+
     def save_optimizer(self, print_terminal_info=False):
         if self._has_ckpt:
             save(self.ckpt_manager, print_terminal_info)

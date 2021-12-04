@@ -8,6 +8,11 @@ class PPOActor(Actor):
         self.config.rms.model_name = self.config.model_name
         self.rms = RMS(self.config.rms)
 
+    def reset(self, root_dir, model_name):
+        self.config.rms.root_dir = root_dir
+        self.config.rms.model_name = model_name
+        self.rms = RMS(self.config.rms)
+
     """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
         inp = self.rms.process_obs_with_rms(inp, update_rms=False)

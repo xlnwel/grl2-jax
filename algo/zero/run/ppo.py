@@ -8,21 +8,14 @@ from utility.timer import Every, Timer
 
 
 def main(config):
-    # from core.utils import save_config
-    # save_config(config.root_dir, config.model_name, config)
     ray.init()
     sigint_shutdown_ray()
 
     env_stats = get_env_stats(config.env)
-    name = config.name
-    builder = ElementsBuilder(
-        config, 
-        env_stats, 
-        name=name)
+    builder = ElementsBuilder(config, env_stats)
     elements = builder.build_agent_from_scratch()
-    agent = elements.agent
-    runner_manager = RunnerManager(config, name=agent.name)
-    runner_manager.set_other_agent('logs/card_gd/zero/self-play', 'zero')
+    runner_manager = RunnerManager(config)
+    # runner_manager.set_other_agent_from_path('logs/card_gd/zero/self-play')
 
     train(elements.agent, elements.buffer, runner_manager)
 
@@ -35,7 +28,8 @@ def train(agent, buffer, runner_manager):
         obs_rms_list, rew_rms_list = runner_manager.initialize_rms()
         agent.update_rms_from_stats_list(obs_rms_list, rew_rms_list)
 
-    to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
+    step = agent.get_env_step()
+    to_record = Every(agent.LOG_PERIOD, step + agent.LOG_PERIOD)
     rt = Timer('run')
     tt = Timer('train')
     lt = Timer('log')
@@ -54,9 +48,9 @@ def train(agent, buffer, runner_manager):
             agent.record(step=step)
             agent.save()
 
-    step = agent.get_env_step()
+    MAX_STEPS = runner_manager.max_steps()
     print('Training starts...')
-    while step < runner_manager.MAX_STEPS:
+    while step < MAX_STEPS:
         start_env_step = agent.get_env_step()
         with rt:
             weights = agent.get_weights(opt_weights=False)
