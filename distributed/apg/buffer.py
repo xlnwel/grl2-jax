@@ -5,7 +5,7 @@ import ray
 
 from core.decorator import config
 from core.mixin.actor import RMS
-from distributed.remote.base import RayBase
+from core.remote.base import RayBase
 from utility.utils import AttrDict2dict, batch_dicts, config_attr, to_array32
 from utility import pkg
 from replay.utils import *

@@ -42,7 +42,6 @@ class StepCounter:
         if os.path.exists(self._counter_path):
             with open(self._counter_path, 'rb') as f:
                 self._env_step, self._train_step = cloudpickle.load(f)
-                print('step counter', self._counter_path, self._env_step, self._train_step)
 
 
 class Memory:

@@ -3,6 +3,7 @@ from typing import Union
 from core.elements.actor import Actor
 from core.elements.trainer import Trainer, TrainerEnsemble, TrainingLoopBase
 from core.mixin.strategy import StepCounter
+from core.typing import Path
 from env.typing import EnvOutput
 from run.utils import set_path
 from utility.utils import config_attr
@@ -34,16 +35,16 @@ class Strategy:
     def _post_init():
         pass
 
-    def reset(self, root_dir, model_name):
+    def reset_model_path(self, root_dir, model_name):
         self._root_dir = root_dir
         self._model_name = model_name
         self.config = set_path(self.config, root_dir, model_name)
         if self.model is not None:
-            self.model.reset(root_dir, model_name)
+            self.model.reset_model_path(root_dir, model_name)
         if self.actor is not None:
-            self.actor.reset(root_dir, model_name)
+            self.actor.reset_model_path(root_dir, model_name)
         if self.trainer is not None:
-            self.trainer.reset(root_dir, model_name)
+            self.trainer.reset_model_path(root_dir, model_name)
 
     @property
     def name(self):
@@ -134,7 +135,7 @@ class Strategy:
         self.step_counter.save_step()
 
     def get_model_path(self):
-        return self._root_dir, self._model_name
+        return Path(self._root_dir, self._model_name)
 
 
 def create_strategy(

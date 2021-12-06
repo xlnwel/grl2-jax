@@ -8,7 +8,7 @@ class PPOActor(Actor):
         self.config.rms.model_name = self.config.model_name
         self.rms = RMS(self.config.rms)
 
-    def reset(self, root_dir, model_name):
+    def reset_model_path(self, root_dir, model_name):
         self.config.rms.root_dir = root_dir
         self.config.rms.model_name = model_name
         self.rms = RMS(self.config.rms)

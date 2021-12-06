@@ -1,6 +1,6 @@
 from core.mixin.strategy import StepCounter
 from core.monitor import Monitor
-from distributed.remote.base import RayBase
+from core.remote.base import RayBase
 from utility.utils import AttrDict2dict, config_attr
 
 

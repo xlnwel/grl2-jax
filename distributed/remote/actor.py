@@ -7,7 +7,7 @@ from core.mixin.monitor import create_recorder
 from utility import pkg
 from utility.ray_setup import config_actor
 from utility.utils import dict2AttrDict
-from distributed.remote.base import RayBase
+from core.remote.base import RayBase
 from distributed.typing import ActorPair
 
 

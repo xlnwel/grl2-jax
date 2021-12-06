@@ -13,7 +13,7 @@ def main(config):
     if config['training'] == 'pbt':
         from .run.pbt import main
         main(config)
-    if config['training'] == 'ppo':
+    elif config['training'] == 'ppo':
         from .run.ppo import main
         main(config)
     elif config['training'] == 'bc':

@@ -3,7 +3,6 @@ import time
 import logging
 import numpy as np
 
-
 from core.log import do_logging
 from utility.utils import batch_dicts, config_attr, dict2AttrDict, standardize
 
@@ -16,10 +15,12 @@ def compute_gae(reward, discount, value, gamma, gae_discount):
     assert value.shape == next_value.shape, (value.shape, next_value.shape)
     assert discount[-1] == 0, discount
     advs = delta = (reward + discount * gamma * next_value - value)
+    # advs2 = (reward + discount * next_value - value)
     next_adv = 0
     for i in reversed(range(advs.shape[0])):
         advs[i] = next_adv = (delta[i] 
             + discount[i] * gae_discount * next_adv)
+        # advs2[i] = next_adv2 = reward[i] + discount[i] * 
     traj_ret = advs + value
 
     return advs, traj_ret
@@ -31,7 +32,6 @@ def compute_indices(idxes, mb_idx, mb_size, N_MBS):
     mb_idx = (mb_idx + 1) % N_MBS
     curr_idxes = idxes[start: end]
     return mb_idx, curr_idxes
-
 
 
 class LocalBuffer:
@@ -72,7 +72,7 @@ class LocalBuffer:
     def finish(self, eids, rewards):
         assert len(eids) == len(rewards), (eids, rewards)
         for eid, reward in zip(eids, rewards):
-            for pid in self.config.agent_pids:
+            for pid in self.agent_pids:
                 self._buffer[(eid, pid)]['reward'][-1] = reward[pid]
                 self._buffer[(eid, pid)]['discount'][-1] = 0
                 assert self._buffer[(eid, pid)]['reward'][-1] == reward[pid], self._buffer[(eid, pid)]['reward'][-1]
@@ -109,6 +109,10 @@ class LocalBuffer:
             assert v.shape[0] == self._memlen, (v.shape, self._memlen)
         self.reset()
         return data
+
+    def set_pids(self, agent_pids, other_pids):
+        self.agent_pids = agent_pids
+        self.other_pids = other_pids
 
 
 class PPOBuffer:

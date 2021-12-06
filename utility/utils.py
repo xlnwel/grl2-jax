@@ -27,7 +27,10 @@ def dict2AttrDict(config: dict):
     return attr_config
 
 def AttrDict2dict(attr_config: AttrDict):
-    return attr_config.asdict()
+    if isinstance(attr_config, AttrDict):
+        return attr_config.asdict()
+    else:
+        return attr_config
 
 def deep_update(source: dict, target:dict):
     for k, v in target.items():

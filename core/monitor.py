@@ -6,11 +6,9 @@ class Monitor:
                 use_recorder=True, use_tensorboard=True):
         self._root_dir = root_dir
         self._model_name = model_name
-        if use_recorder:
-            self._recorder = create_recorder(
-                root_dir=root_dir, model_name=model_name)
-        else:
-            self._recorder = None
+        # we create a recorder anyway, but we do not store any data to the disk if use_recorder=False
+        self._recorder = create_recorder(
+            root_dir=root_dir if use_recorder else None, model_name=model_name)
         if use_tensorboard and root_dir is not None:
             self._tb_writer = create_tensorboard_writer(
                 root_dir=root_dir, model_name=model_name, name=name)

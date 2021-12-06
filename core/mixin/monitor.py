@@ -49,7 +49,7 @@ class Recorder:
             pwc(f'Record data to "{self._out_file.name}"', color='green')
         else:
             self._out_file = None
-            pwc(f'Record directory is not specified, '
+            pwc(f'Record directory is not specified; '
                 'no data will be recorded to the disk',
                 color='magenta')
 

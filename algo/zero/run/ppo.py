@@ -15,7 +15,9 @@ def main(config):
     builder = ElementsBuilder(config, env_stats)
     elements = builder.build_agent_from_scratch()
     runner_manager = RunnerManager(config)
-    # runner_manager.set_other_agent_from_path('logs/card_gd/zero/self-play')
+    root_dir = 'logs/card_gd/zero'
+    model_name = 'sp'
+    runner_manager.set_other_agent_from_path(root_dir, model_name)
 
     train(elements.agent, elements.buffer, runner_manager)
 
@@ -28,8 +30,7 @@ def train(agent, buffer, runner_manager):
         obs_rms_list, rew_rms_list = runner_manager.initialize_rms()
         agent.update_rms_from_stats_list(obs_rms_list, rew_rms_list)
 
-    step = agent.get_env_step()
-    to_record = Every(agent.LOG_PERIOD, step + agent.LOG_PERIOD)
+    to_record = Every(agent.LOG_PERIOD, agent.get_train_step() + agent.LOG_PERIOD)
     rt = Timer('run')
     tt = Timer('train')
     lt = Timer('log')
@@ -48,10 +49,11 @@ def train(agent, buffer, runner_manager):
             agent.record(step=step)
             agent.save()
 
+    step = agent.get_env_step()
     MAX_STEPS = runner_manager.max_steps()
     print('Training starts...')
     while step < MAX_STEPS:
-        start_env_step = agent.get_env_step()
+        start_env_step = step
         with rt:
             weights = agent.get_weights(opt_weights=False)
             step, data, stats = runner_manager.run(weights)
@@ -71,8 +73,9 @@ def train(agent, buffer, runner_manager):
 
         agent.store(
             **stats,
-            fps=(step-start_env_step)/rt.last(),
-            tps=(train_step-start_train_step)/tt.last())
+            **{
+                'time/fps': (step-start_env_step)/rt.last(),
+                'time/trps': (train_step-start_train_step)/tt.last()})
         agent.set_env_step(step)
         buffer.reset()
         runner_manager.reset()

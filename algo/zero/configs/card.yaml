@@ -23,9 +23,11 @@ runner:
         num_cpus: 1
         # num_gpus: .03
 
-    MAX_STEPS: 4e8
+    MAX_STEPS: 1e9
     N_STEPS: &nsteps 128
     agent_pids: &pids [0, 2]
+    initialize_other: False
+    self_play_frac: 0
 
 env:
     name: &env_name card_gd

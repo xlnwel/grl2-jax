@@ -3,7 +3,7 @@ from core.decorator import *
 from core.dataset import create_dataset
 from core.monitor import Monitor, create_monitor
 from core.utils import save_code
-from distributed.remote.base import RayBase
+from core.remote.base import RayBase
 from utility.utils import config_attr, dict2AttrDict
 from utility import pkg
 

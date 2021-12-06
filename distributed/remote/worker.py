@@ -5,7 +5,7 @@ import numpy as np
 from core.mixin import IdentifierConstructor
 from core.mixin.actor import RMS
 from core.tf_config import *
-from distributed.remote.base import RayBase
+from core.remote.base import RayBase
 from env.func import create_env
 from utility import pkg
 from utility.utils import AttrDict2dict, dict2AttrDict

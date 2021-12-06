@@ -44,7 +44,7 @@ class Trainer(tf.Module):
         self._post_init(config, env_stats)
         self.model.sync_nets()
 
-    def reset(self, root_dir, model_name):
+    def reset_model_path(self, root_dir, model_name):
         self._root_dir = root_dir
         self._model_name = model_name
         self.config = set_path(self.config, root_dir, model_name)

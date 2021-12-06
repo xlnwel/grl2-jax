@@ -46,14 +46,13 @@ class ElementsBuilder:
         return self._name
 
     def increase_version(self):
-        self._version += 1
-        self.set_config_version(self._version)
-        self.save_config()
+        self.set_config_version(self._version+1)
 
     def set_config_version(self, version):
-        self.config = set_path(
-            self.config, self.config.root_dir, f'{self._model_name}/v{version}')
-        self.config['version'] = self._version = version
+        if self._incremental_version:
+            self.config = set_path(
+                self.config, self.config.root_dir, f'{self._model_name}/v{version}')
+            self.config['version'] = self._version = version
 
     """ Build Elements """
     def build_model(self, config=None, to_build=False, to_build_for_eval=False):
@@ -136,7 +135,7 @@ class ElementsBuilder:
         elements.actor = self.build_actor(model=elements.model, config=config)
         elements.strategy = self.build_strategy(actor=elements.actor, config=config)
         if build_monitor:
-            elements.monitor = self.build_monitor(config=config)
+            elements.monitor = self.build_monitor(config=config, save_to_disk=False)
 
         return elements
     
@@ -165,7 +164,7 @@ class ElementsBuilder:
         elements.model = self.build_model(config=config, to_build=True)
         elements.actor = self.build_actor(model=elements.model, config=config)
         elements.strategy = self.build_strategy(actor=elements.actor, config=config)
-        elements.monitor = self.build_monitor(config=config)
+        elements.monitor = self.build_monitor(config=config, save_to_disk=False)
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
             monitor=elements.monitor, 
@@ -196,8 +195,6 @@ class ElementsBuilder:
             config=config)
         
         self.save_config()
-        if self._incremental_version:
-            self.increase_version()
 
         return elements
 

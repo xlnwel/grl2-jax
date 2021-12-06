@@ -8,7 +8,7 @@ from core.mixin import IdentifierConstructor
 from core.mixin.monitor import create_recorder
 from core.tf_config import *
 from core.utils import save_config
-from distributed.remote.base import RayBase
+from core.remote.base import RayBase
 from distributed.typing import WeightsTuple
 from utility import pkg
 from utility.display import pwc

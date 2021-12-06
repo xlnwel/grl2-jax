@@ -189,7 +189,7 @@ class PPOTrainingLoop(TrainingLoopBase):
         # stats['train/value'] = value,
         stats['time/sample_mean'] = self._sample_timer.average()
         stats['time/train_mean'] = self._train_timer.average()
-        stats['time/fps'] = 1 / self._train_timer.average()
+        stats['time/tps'] = 1 / self._train_timer.average()
         
         if self._train_timer.total() > 1000:
             self._train_timer.reset()

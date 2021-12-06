@@ -124,7 +124,7 @@ def train(agent, env, eval_env, buffer):
     def record_stats():
         with lt:
             agent.store(**{
-                'time/fps': (step - start_env_step) / rt.last(),
+                'time/tps': (step - start_env_step) / rt.last(),
                 'time/tps': (agent.get_train_step()-start_train_step)/tt.last(),
                 'misc/train_step': agent.get_train_step(),
                 'time/run': rt.total(), 
