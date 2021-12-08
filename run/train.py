@@ -1,6 +1,4 @@
 import os, sys
-import numpy as np
-import logging
 import time
 import itertools
 from multiprocessing import Process
@@ -8,6 +6,7 @@ from multiprocessing import Process
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import setup_logging, do_logging
+from core.typing import ModelPath
 from utility import pkg
 from run.args import parse_train_args
 from run.grid_search import GridSearch
@@ -24,17 +23,6 @@ def _get_algo_name(algo):
     if algo in algo_mapping:
         return algo_mapping[algo]
     return algo
-
-
-def set_path(config, root_dir, model_name):
-    config['root_dir'] = root_dir
-    config['model_name'] = model_name
-    for v in config.values():
-        if not isinstance(v, dict):
-            continue
-        v['root_dir'] = root_dir
-        v['model_name'] = model_name
-    return config
 
 
 if __name__ == '__main__':
@@ -77,7 +65,7 @@ if __name__ == '__main__':
             else:
                 dir_prefix = prefix + '-' if prefix else prefix
                 root_dir=f'{logdir}/{dir_prefix}{config.env.name}/{config.algorithm}'
-                config = set_path(config, root_dir, model_name)
+                config = set_path(config, ModelPath(root_dir, model_name))
                 config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
                 do_logging(config, level='DEBUG')
                 if len(algo_env) > 1:

@@ -1,5 +1,6 @@
 import os, sys
 
+from core.typing import ModelPath
 from utility import pkg
 from utility.display import pwc
 from utility.utils import eval_str, dict2AttrDict
@@ -113,14 +114,14 @@ def load_and_run(directory):
     main(configs)
 
 
-def set_path(config, root_dir, model_name):
-    config['root_dir'] = root_dir
-    config['model_name'] = model_name
+def set_path(config, model_path: ModelPath):
+    config['root_dir'] = model_path.root_dir
+    config['model_name'] = model_path.model_name
     for v in config.values():
         if not isinstance(v, dict):
             continue
-        v['root_dir'] = root_dir
-        v['model_name'] = model_name
+        v['root_dir'] = model_path.root_dir
+        v['model_name'] = model_path.model_name
     return config
 
 

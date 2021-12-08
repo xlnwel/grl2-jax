@@ -1,6 +1,7 @@
 from typing import Tuple, Dict
 import tensorflow as tf
 
+from core.typing import ModelPath
 from run.utils import set_path
 from utility.utils import config_attr
 from utility.tf_utils import numpy2tensor, tensor2numpy
@@ -23,10 +24,9 @@ class Actor:
     def _post_init(self):
         pass
 
-    def reset_model_path(self, root_dir, model_name):
-        self._root_dir = root_dir
-        self._model_name = model_name
-        self.config = set_path(self.config, root_dir, model_name)
+    def reset_model_path(self, model_path: ModelPath):
+        self._model_path = model_path
+        self.config = set_path(self.config, model_path)
         self.setup_checkpoint()
 
     def __getattr__(self, name):

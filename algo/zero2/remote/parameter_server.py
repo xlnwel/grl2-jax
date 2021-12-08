@@ -13,7 +13,7 @@ from utility.utils import dict2AttrDict
 
 
 class ParameterServer(RayBase):
-    def __init__(self, config, env_stats, name='parameter_server'):
+    def __init__(self, config, env_stats):
         super().__init__()
         self.config = dict2AttrDict(config['parameter_server'])
         self.p = self.config.p
@@ -24,7 +24,7 @@ class ParameterServer(RayBase):
         path = f'{self.config.root_dir}/{self.config.model_name}'
         if not os.path.exists(path):
             os.makedirs(path)
-        self._stats_path = f'{path}/{name}.pkl'
+        self.path = f'{path}/parameter_server.pkl'
         # {main path: strategies}
         self._strategies = {}
         # {main path: {other path: [payoff]}}
@@ -39,35 +39,41 @@ class ParameterServer(RayBase):
         return len(self._strategies) == 0
 
     """ Strategy Operations """
-    def add_strategy(self, model_path, weights):
-        path = os.path.join(*model_path)
-        if model_path not in self._strategies:
+    def add_strategy(self, root_dir, model_name, weights):
+        if isinstance(weights, tuple):
+            # weights[0] is train_step
+            weights = weights[1]
+        path_tuple = ModelPath(root_dir, model_name)
+        path = '/'.join(path_tuple)
+        if path_tuple not in self._strategies:
             config = search_for_config(path)
             elements = self.builder.build_actor_strategy_from_scratch(
                 config, build_monitor=False)
-            self._strategies[model_path] = elements.strategy
-            self.save()
-        self._strategies[model_path].set_weights(weights)
-        self._latest_strategy_path = model_path
+            self._strategies[path_tuple] = elements.strategy
+        self.save()
+        self._strategies[path_tuple].set_weights(weights)
+        self._latest_strategy_path = path_tuple
 
-    def add_strategy_from_path(self, model_path):
-        path = os.path.join(*model_path)
-        if model_path not in self._strategies:
+    def add_strategy_from_path(self, root_dir, model_name):
+        path_tuple = ModelPath(root_dir, model_name)
+        path = '/'.join(path_tuple)
+        if path_tuple not in self._strategies:
             config = search_for_config(path)
             elements = self.builder.build_actor_strategy_from_scratch(
                 config, build_monitor=False)
             elements.strategy.restore(skip_trainer=True)
-            self._strategies[model_path] = elements.strategy
+            self._strategies[path_tuple] = elements.strategy
             self.save()
-        self._latest_strategy_path = model_path
+        self._latest_strategy_path = path_tuple
 
-    def sample_strategy_path(self, main_path):
-        scores = self.get_scores(main_path)
+    def sample_strategy_path(self, main_root_dir, main_model_name):
+        scores = self.get_scores(main_root_dir, main_model_name)
         weights = self.get_weights_vector(scores)
-        return random.choices([k for k in self._strategies if k != main_path], weights=weights)[0]
+        assert len(self._strategies) == len(weights), (len(self._strategies), len(weights))
+        return random.choices(list(self._strategies), weights=weights)[0]
 
-    def sample_strategy(self, main_path):
-        path = self.sample_strategy_path(main_path)
+    def sample_strategy(self, main_root_dir, main_model_name):
+        path = self.sample_strategy_path(main_root_dir, main_model_name)
         strategy = self._strategies[path]
         strategy_weights = strategy.get_weights()
 
@@ -80,26 +86,26 @@ class ParameterServer(RayBase):
         return self._strategies[self._latest_strategy_path].get_weights()
 
     """ Payoffs/Weights Operations """
-    def add_payoff(self, main_path, other_path, payoff):
+    def add_payoff(self, main_root_dir, main_model_name, other_root_dir, other_model_name, payoff):
+        main_path = ModelPath(main_root_dir, main_model_name)
+        other_path = ModelPath(other_root_dir, other_model_name)
         assert main_path in self._strategies, (main_path, list(self._strategies))
         assert other_path in self._strategies, (other_path, list(self._strategies))
         self._payoffs[main_path][other_path] += payoff
 
-    def compute_scores(self, main_path, to_save=True):
-        scores = self._scores[main_path] if to_save else {}
+    def compute_scores(self, main_path):
         for other_path in self._strategies.keys():
             if other_path != main_path:
-                scores[other_path] = np.mean(self._payoffs[main_path][other_path]) \
+                self._scores[main_path][other_path] = np.mean(self._payoffs[main_path][other_path]) \
                     if other_path in self._payoffs[main_path] else self.default_score
-        return scores
 
     def compute_weights(self, scores):
         weights = (1 - scores)**self.p
         return weights
 
-    def get_scores(self, main_path):
-        scores = {k: self._scores[main_path][k] 
-            for k in self._strategies.keys() if k != main_path}
+    def get_scores(self, main_root_dir, main_model_name):
+        main_path = ModelPath(main_root_dir, main_model_name)
+        scores = {k: self._scores[main_path][k] for k in self._strategies.keys()}
         return scores
 
     def get_weights_vector(self, scores):
@@ -107,8 +113,9 @@ class ParameterServer(RayBase):
         weights = self.compute_weights(scores)
         return weights
 
-    def get_scores_and_weights(self, main_path):
-        scores = self.compute_scores(main_path, to_save=False)
+    def get_scores_and_weights(self, main_root_dir, main_model_name):
+
+        scores = self.get_scores(main_root_dir, main_model_name)
         weights = self.get_weights_vector(scores)
         weights = weights / np.sum(weights)
         weights = {f'{k.model_name}_weights': w for k, w in zip(scores.keys(), weights)}
@@ -117,15 +124,15 @@ class ParameterServer(RayBase):
 
     """ Checkpoints """
     def save(self):
-         with open(self._stats_path, 'wb') as f:
+         with open(self.path, 'wb') as f:
             cloudpickle.dump((list(self._strategies), self._payoffs, self._scores), f)
 
     def restore(self):
-        if os.path.exists(self._stats_path):
-            with open(self._stats_path, 'rb') as f:
+        if os.path.exists(self.path):
+            with open(self.path, 'rb') as f:
                 paths, self._payoffs, self._scores = cloudpickle.load(f)
                 for p in paths:
-                    self.add_strategy_from_path(p)
+                    self.add_strategy_from_path(*p)
 
 
 if __name__ == '__main__':

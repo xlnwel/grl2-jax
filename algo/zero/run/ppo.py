@@ -59,7 +59,7 @@ def train(agent, buffer, runner_manager):
             step, data, stats = runner_manager.run(weights)
         
         for d in data:
-            buffer.append_data(d)
+            buffer.merge(d)
         buffer.finish()
 
         # for o in agent.actor.obs_names:
@@ -77,8 +77,6 @@ def train(agent, buffer, runner_manager):
                 'time/fps': (step-start_env_step)/rt.last(),
                 'time/trps': (train_step-start_train_step)/tt.last()})
         agent.set_env_step(step)
-        buffer.reset()
-        runner_manager.reset()
 
         if to_record(train_step) and agent.contains_stats('score'):
             record_stats(step)

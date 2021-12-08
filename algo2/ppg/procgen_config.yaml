@@ -79,7 +79,7 @@ agent:
 
 buffer:
     N_PI: *npi
-    N_SEGS: *npi
+    N_SEGS: *nsegs
     N_AUX_MBS_PER_SEG: *nambs
 
     adv_type: gae     # nae or gae

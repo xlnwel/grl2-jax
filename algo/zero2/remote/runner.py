@@ -1,15 +1,13 @@
-import os
 import functools
 import random
 import numpy as np
 import ray
 from ray._raylet import ObjectRef
 
-from algo.zero.elements.parameter_server import ParameterServer
+from .parameter_server import ParameterServer
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.remote.base import RayBase
-from core.typing import ModelPath
 from env.func import create_env
 from env.utils import batch_env_output
 from run.utils import search_for_config
@@ -19,15 +17,16 @@ from utility.utils import AttrDict2dict, batch_dicts, dict2AttrDict
 
 
 class RunnerManager(RayBase):
-    def __init__(self, config, store_data=True, parameter_server=None):
+    def __init__(self, config, store_data=True, remote_agent=None, parameter_server=None):
         self.config = dict2AttrDict(config['runner'])
         self.n_envs = config['env']['n_workers'] * config['env']['n_envs']
         self.n_eval_envs = max(self.n_envs * (1 - self.config.self_play_frac) * .5, 100)
         config = AttrDict2dict(config)
-        RemoteRunner = TwoAgentRunner.as_remote(**config['runner']['ray'])
+        RemoteRunner = TwoAgentRunner.as_remote()
         self.runners = [RemoteRunner.remote(
             config, 
             store_data=store_data, 
+            remote_agent=remote_agent,
             parameter_server=parameter_server) 
                 for _ in range(config['env']['n_workers'])]
 
@@ -49,10 +48,13 @@ class RunnerManager(RayBase):
     def run(self, weights):
         if not isinstance(weights, ObjectRef):
             weights = ray.put(weights)
-        with Timer('manager_run', 100):
-            steps, data, stats = list(zip(*ray.get([r.run.remote(weights) for r in self.runners])))
+        import time
+        start = time.time()
+        with Timer('manager_run', 10):
+            steps, stats = list(zip(*ray.get([r.run.remote(weights) for r in self.runners])))
+        print('runner manager run', time.time() - start)
         stats = batch_dicts(stats, lambda x: sum(x, []))
-        return sum(steps), data, stats
+        return sum(steps), stats
     
     def evaluate(self, total_episodes, weights=None, 
                 other_root_dir=None, other_model_name=None):
@@ -71,9 +73,10 @@ class RunnerManager(RayBase):
         stats = batch_dicts(stats_list, lambda x: sum(x, []))
         return stats, n_eps
 
-    def set_model_path(self, model_path: ModelPath):
-        pid = ray.put(model_path)
-        [r.set_model_path.remote(pid) for r in self.runners]
+    def set_model_path(self, root_dir, model_name):
+        rid = ray.put(root_dir)
+        mid = ray.put(model_name)
+        [r.set_model_path.remote(rid, mid) for r in self.runners]
 
     """ Other Agent's Operations """
     def set_other_agent_from_path(self, root_dir, model_name, wait=False):
@@ -85,24 +88,25 @@ class RunnerManager(RayBase):
 
 
 class TwoAgentRunner(RayBase):
-    def __init__(self, config, store_data=True, parameter_server: ParameterServer=None):
+    def __init__(self, config, store_data=True, remote_agent=None, parameter_server: ParameterServer=None):
         super().__init__()
         self.store_data = store_data
         self.n_agents = 4
         self.other_agent = None
+        self.remote_agent = remote_agent
         self.parameter_server = parameter_server
         self._other_root_dir = None
         self._other_model_name = None
-        self._other_path = None
         self.build_from_config(config)
+        self.ready_ids = []
 
     def build_from_config(self, config):
         config = dict2AttrDict(config)
         self.config = config.runner
         self.name = config.name
-        self._main_path = ModelPath(config.root_dir, config.model_name)
+        self._root_dir = config.root_dir
+        self._model_name = config.model_name
         self._self_play_frac = self.config.get('self_play_frac', 0)
-        self._record_self_play_stats = self.config.get('record_self_play_stats', True)
         config.buffer.type = 'local'
         n_workers = config.env.n_workers
         config.env.n_workers = 1
@@ -122,7 +126,8 @@ class TwoAgentRunner(RayBase):
         self.n_episodes = 0
 
         if self.store_data:
-            self.buffer = self.builder.build_buffer(elements.model)
+            self.buffer = self.builder.build_buffer(
+                elements.model, remote_agent=self.remote_agent)
             collect_fn = pkg.import_module('elements.utils', algo=config.algorithm).collect
             self.collect = functools.partial(collect_fn, self.buffer)
         else:
@@ -145,30 +150,24 @@ class TwoAgentRunner(RayBase):
     def reset(self):
         self.env_output = self.env.reset(convert_batch=False)
         self.buffer.reset()
+        self.ready_ids = []
 
     def run(self, weights):
-        if weights is not None:
-            self.agent.set_weights(weights)
+        train_step, weights = weights
+        self.agent.set_weights(weights)
         self.retrieve_other_agent_from_parameter_server()
         self.reset()
-        with Timer('runner_run', 100):
-            step = self._run_impl()
+        import time
+        start = time.time()
+        with Timer('runner_run', 10):
+            step = self._run_impl(train_step)
+        print('runner run', time.time() - start)
         stats = self.agent.get_raw_stats()
-        if not stats:
-            stats = {
-                'score': [],
-                'epslen': [],
-                'win_rate': [],
-            }
         if self.parameter_server is not None and not self._self_play:
             self.push_payoff(stats['win_rate'])
-        if self.store_data:
-            data = self.buffer.retrieve_data()
-            return step, data, stats
-        else:
-            return step, None, stats
+        return step, stats
 
-    def _run_impl(self):
+    def _run_impl(self, train_step):
         def check_end(i):
             if self.store_data:
                 return self.buffer.ready_to_retrieve()
@@ -244,7 +243,13 @@ class TwoAgentRunner(RayBase):
                     if o.discount == 0:
                         done_eids.append(i)
                         done_rewards.append(o.reward)
-                self.buffer.finish(done_eids, done_rewards)
+                if done_eids:
+                    self.ready_ids += self.buffer.finish(train_step, done_eids, done_rewards)
+            
+            # return if the agent is ready to train
+            ready, self.ready_ids = ray.wait(self.ready_ids)
+
+            return True if np.any(ray.get(ready)) else False
 
         def log_for_done(outs):
             # logging when any env is reset 
@@ -260,6 +265,8 @@ class TwoAgentRunner(RayBase):
                 self.n_episodes += len(info)
 
         i = 0
+        import time
+        start = time.time()
         while not check_end(i):
             agent_eids, agent_outs, other_eids, other_outs = \
                 divide_outs(self.env_output)
@@ -269,11 +276,13 @@ class TwoAgentRunner(RayBase):
                 if other_outs else ([], [])
             action = merge(
                 agent_eids, agent_action, other_eids, other_action)
-            step_env(action, agent_eids, agent_outs, agent_action, agent_terms)
-            if not self._self_play or self._record_self_play_stats:
+            ready = step_env(action, agent_eids, agent_outs, agent_action, agent_terms)
+            if not self._self_play:
                 log_for_done(self.env_output)
+            if ready:
+                break
             i += 1
-
+        print('run finished:', time.time() - start, i)
         return self.step
 
     """ Player Setups """
@@ -281,11 +290,13 @@ class TwoAgentRunner(RayBase):
         self._set_pids(list(range(self.n_agents)))
         assert self.other_pids == [], self.other_agent
 
-    def set_other_agent_from_path(self, other_path):
+    def set_other_agent_from_path(self, root_dir, model_name):
         if self.other_agent is not None:
             do_logging(f'Make sure your network is defined on CPUs. TF does not release GPU memory automatically and constructing multiple networks incurs large GPU memory overhead.', level='WARNING')
-        self._other_path = other_path
-        path = os.path.join(self._other_path)
+        self._other_root_dir = root_dir
+        self._other_model_name = model_name
+        path_tuple = (root_dir, model_name)
+        path = '/'.join(path_tuple)
         config = search_for_config(path)
         name = config.get('name', self.name)
         builder = ElementsBuilder(config, self.env_stats, name=name)
@@ -293,8 +304,9 @@ class TwoAgentRunner(RayBase):
         self.other_agent = elements.agent
         self._set_pids(self.config.agent_pids)
 
-    def set_other_agent_weights(self, other_path, weights):
-        self._other_path = other_path
+    def set_other_agent_weights(self, root_dir, model_name, weights):
+        self._other_root_dir = root_dir
+        self._other_model_name = model_name
         self.other_agent.set_weights(weights)
         self._set_pids(self.config.agent_pids)
 
@@ -310,13 +322,14 @@ class TwoAgentRunner(RayBase):
             if random.random() < self._self_play_frac:
                 self.self_play()
             else:
-                path, weights = ray.get(
-                    self.parameter_server.sample_strategy.remote(self._main_path))
-                self.set_other_agent_weights(path, weights)
+                path, weights = ray.get(self.parameter_server.sample_strategy.remote(
+                    self._root_dir, self._model_name))
+                self.set_other_agent_weights(*path, weights)
 
     def push_payoff(self, payoff):
         self.parameter_server.add_payoff.remote(
-            self._main_path, self._other_path, payoff)
+            self._root_dir, self._model_name, 
+            self._other_root_dir, self._other_model_name, payoff)
 
     def _set_pids(self, agent_pids):
         self.agent_pids = agent_pids
@@ -325,5 +338,6 @@ class TwoAgentRunner(RayBase):
         if self.buffer is not None:
             self.buffer.set_pids(self.agent_pids, self.other_pids)
 
-    def set_model_path(self, model_path):
-        self._main_path = model_path
+    def set_model_path(self, root_dir, model_name):
+        self._root_dir = root_dir
+        self._model_name = model_name

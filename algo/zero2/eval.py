@@ -2,7 +2,7 @@ import time
 import numpy as np
 import ray
 
-from algo.zero.elements.runner import RunnerManager
+from .remote.runner import RunnerManager
 from utility.ray_setup import sigint_shutdown_ray
 
 

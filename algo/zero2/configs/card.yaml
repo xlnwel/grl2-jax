@@ -28,6 +28,7 @@ runner:
     agent_pids: &pids [0, 2]
     initialize_other: False
     self_play_frac: 0
+    record_self_play_stats: True
 
 env:
     name: &env_name card_gd
@@ -39,8 +40,8 @@ env:
 agent:
     algorithm: *algo
 
-    LOG_PERIOD: 200
-    EVAL_PERIOD: 200
+    LOG_PERIOD: 20
+    EVAL_PERIOD: 20
 
 strategy:
     train_loop:

@@ -20,6 +20,8 @@ parameter_server:
     root_dir: *algo
     model_name: *algo
 
+    SCORE_UPDATE_PERIOD: 10000
+
 runner:
     ray:
         num_cpus: 1
@@ -29,7 +31,8 @@ runner:
     N_STEPS: &nsteps 128
     agent_pids: &pids [0, 2]
     initialize_other: False
-    self_play_frac: .5
+    self_play_frac: 0
+    record_self_play_stats: False
 
 env:
     name: &env_name card_gd

@@ -104,7 +104,7 @@ class Recorder:
 
     def get_raw_stats(self):
         stats = self._store_dict.copy()
-        self._store_dict = {k: [] for k in stats.keys()}    # avoid returning an empty dict if no data is stored before the next call
+        self._store_dict.clear()
         return stats
 
     def get_stats(self, mean=True, std=False, min=False, max=False, adaptive=True):
@@ -304,7 +304,9 @@ def histogram_summary(writer, stats, prefix=None, step=None):
         for k, v in stats.items():
             if isinstance(v, (str, int, float)):
                 continue
-            tf.summary.histogram(f'{prefix}/{k}', v, step=step)
+            if '/' not in k:
+                k = f'{prefix}/{k}'
+            tf.summary.histogram(k, v, step=step)
 
 def graph_summary(writer, sum_type, args, step=None):
     """ This function should only be called inside a tf.function """

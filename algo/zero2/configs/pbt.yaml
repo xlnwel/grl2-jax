@@ -6,7 +6,7 @@ version: 0
 
 precision: 32
 
-training: &training ppo
+training: &training pbt
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -15,19 +15,22 @@ root_dir: *algo
 model_name: *algo
 
 parameter_server:
+    p: 3    # the exponent applied to convert scores to weights
+    default_score: 0
     root_dir: *algo
     model_name: *algo
 
 runner:
-    ray:
-        num_cpus: 1
-        # num_gpus: .03
+    # ray:
+    #     num_cpus: 1
+    #     num_gpus: .03
 
-    MAX_STEPS: 2e9
+    MAX_STEPS: 5e8
     N_STEPS: &nsteps 128
     agent_pids: &pids [0, 2]
     initialize_other: False
-    self_play_frac: 0
+    self_play_frac: .5
+    record_self_play_stats: False
 
 env:
     name: &env_name card_gd

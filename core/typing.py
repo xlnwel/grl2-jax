@@ -1,4 +1,4 @@
 import collections
 
 
-Path = collections.namedtuple('Path', 'root_dir model_name')
+ModelPath = collections.namedtuple('ModelPath', 'root_dir model_name')

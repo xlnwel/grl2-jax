@@ -1,6 +1,5 @@
 from core.elements.actor import Actor
 from core.mixin.actor import RMS
-from core.typing import ModelPath
 
 
 class PPOActor(Actor):
@@ -9,9 +8,9 @@ class PPOActor(Actor):
         self.config.rms.model_name = self.config.model_name
         self.rms = RMS(self.config.rms)
 
-    def reset_model_path(self, model_path: ModelPath):
-        self.config.rms.root_dir = model_path.root_dir
-        self.config.rms.model_name = model_path.model_name
+    def reset_model_path(self, root_dir, model_name):
+        self.config.rms.root_dir = root_dir
+        self.config.rms.model_name = model_name
         self.rms = RMS(self.config.rms)
 
     """ Calling Methods """

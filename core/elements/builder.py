@@ -1,6 +1,10 @@
+from genericpath import exists
+import os
+import cloudpickle
+
 from core.dataset import create_dataset
-from core.elements.agent import RemoteAgent
 from core.monitor import create_monitor
+from core.typing import ModelPath
 from core.utils import save_config
 from run.utils import set_path
 from utility.typing import AttrDict
@@ -20,9 +24,11 @@ class ElementsBuilder:
         self.env_stats = dict2AttrDict(env_stats)
         self._name = name or self.config.name
         self._model_name = self.config.model_name
+        self._builder_path = f'{self.config.root_dir}/{self._model_name}/{self._name}.pkl'
         self._incremental_version = incremental_version
         self._version = start_version
         if self._incremental_version:
+            self.restore()
             self.set_config_version(self._version)
 
         algo = self.config.algorithm
@@ -45,14 +51,26 @@ class ElementsBuilder:
     def name(self):
         return self._name
 
+    def get_version(self):
+        return self._version
+
     def increase_version(self):
         self.set_config_version(self._version+1)
+        self.save()
 
     def set_config_version(self, version):
         if self._incremental_version:
-            self.config = set_path(
-                self.config, self.config.root_dir, f'{self._model_name}/v{version}')
+            root_dir = self.config.root_dir
+            model_name = f'{self._model_name}/v{version}'
+            model_path = ModelPath(root_dir, model_name)
+            model_dir = f'{root_dir}/{model_name}'
+            self.config = set_path(self.config, model_path)
+            if not os.path.isdir(model_dir):
+                os.makedirs(model_dir, exist_ok=True)
             self.config['version'] = self._version = version
+
+    def get_model_path(self):
+        return ModelPath(self.config.root_dir, self.config.model_name)
 
     """ Build Elements """
     def build_model(self, config=None, to_build=False, to_build_for_eval=False):
@@ -77,13 +95,13 @@ class ElementsBuilder:
         
         return trainer
     
-    def build_buffer(self, model, config=None, central_buffer=False):
+    def build_buffer(self, model, config=None, **kwargs):
         if config is None:
             self.config.buffer['n_envs'] = self.env_stats.n_envs
             self.config.buffer['state_keys'] = model.state_keys
             self.config.buffer['use_dataset'] = self.config.buffer.get('use_dataset', False)
         config = dict2AttrDict(config or self.config)
-        buffer = self.create_buffer(config.buffer, central_buffer=central_buffer)
+        buffer = self.create_buffer(config.buffer, **kwargs)
         
         return buffer
 
@@ -198,11 +216,6 @@ class ElementsBuilder:
 
         return elements
 
-    def build_remote_agent(self, config):
-        agent = RemoteAgent.remote()
-        agent.build(self, config)
-        return agent
-
     """ Configuration Operations """
     def get_config(self):
         return self.config
@@ -210,8 +223,15 @@ class ElementsBuilder:
     def save_config(self):
         save_config(self.config.root_dir, self.config.model_name, self.config)
 
-    def get_model_path(self):
-        return self.config.root_dir, self.config.model_name
+    def restore(self):
+        if os.path.exists(self._builder_path) and self._incremental_version:
+            with open(self._builder_path, 'rb') as f:
+                self._version = cloudpickle.load(f)
+
+    def save(self):
+        if self._incremental_version:
+            with open(self._builder_path, 'wb') as f:
+                cloudpickle.dump(self._version, f)
 
 
 if __name__ == '__main__':

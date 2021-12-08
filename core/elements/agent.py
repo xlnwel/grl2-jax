@@ -1,11 +1,8 @@
-from core.elements.strategy import Strategy
 from core.decorator import *
-from core.dataset import create_dataset
-from core.monitor import Monitor, create_monitor
+from core.elements.strategy import Strategy
+from core.monitor import Monitor
 from core.utils import save_code
-from core.remote.base import RayBase
-from utility.utils import config_attr, dict2AttrDict
-from utility import pkg
+from utility.utils import config_attr
 
 
 class Agent:
@@ -139,12 +136,6 @@ class Agent:
 #         elif hasattr(self.monitor, name):
 #             return getattr(self.monitor, name)
 #         raise AttributeError(f"Attempted to get missing attribute '{name}'")
-
-class RemoteAgent(RayBase):
-    def build(self, builder, config):
-        self.config = dict2AttrDict(config)
-        elements = builder.build_agent_from_scratch(config)
-        [setattr(self, k, v) for k, v in elements.items()]
 
 
 def create_agent(**kwargs):

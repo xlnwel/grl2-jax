@@ -91,11 +91,6 @@ class Policy(Module):
         return dist.mode() if evaluation and self.eval_act_temp == 0 \
             else dist.sample()
 
-    def randomize_last_layer(self):
-        kernel, bias = self._layers._layers[-1].variables
-        kernel.assign(tf.keras.initializers.orthogonal(.01)(kernel.shape))
-        bias.assign(tf.zeros_like(bias))
-
 
 @nn_registry.register('value')
 class Value(Module):

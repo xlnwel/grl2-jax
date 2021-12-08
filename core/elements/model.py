@@ -2,6 +2,7 @@ from typing import Union
 
 from core.checkpoint import *
 from core.module import Ensemble, EnsembleWithCheckpoint
+from core.typing import ModelPath
 from run.utils import set_path
 from utility.utils import dict2AttrDict
 
@@ -58,10 +59,11 @@ class Model(Ensemble):
             # defined in TargetNetOps
             self._sync_nets()
 
-    def reset_model_path(self, root_dir, model_name):
-        self._root_dir = root_dir
-        self._model_name = model_name
-        self.config = set_path(self.config, root_dir, model_name)
+    def reset_model_path(self, model_path: ModelPath):
+        self._root_dir = model_path.root_dir
+        self._model_name = model_path.model_name
+        self._model_path = model_path
+        self.config = set_path(self.config, model_path)
         self.setup_checkpoint()
 
     def get_weights(self, name: str=None):

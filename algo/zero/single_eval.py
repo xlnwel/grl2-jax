@@ -1,23 +1,35 @@
 import time
 import numpy as np
-import ray
 
 from algo.zero.elements.runner import RunnerManager
-from utility.ray_setup import sigint_shutdown_ray
+from algo.zero.elements.model import create_model
+from algo.zero.elements.actor import create_actor
+from core.elements.strategy import create_strategy
+from core.tf_config import *
+from env.func import get_env_stats
+from run.args import parse_eval_args
+from run.utils import search_for_config
 
 
 def main(config, n, **kwargs):
-    # from core.utils import save_config
-    # config.name = 'zero'
-    # config.runner.initialize_other = False
-    # config.runner.self_play_frac = 0
-    # save_config(config.root_dir, config.model_name, config)
-    # exit()
-    ray.init()
-    sigint_shutdown_ray()
+    args = parse_eval_args()
+    config = search_for_config(args.directory)
+
+    silence_tf_logs()
+    configure_gpu()
+    configure_precision(config.precision)
+
 
     config.buffer.agent_pids = config.runner.agent_pids = [0, 2]
     config.env.skip_players = []
+    
+    env_stats = get_env_stats(config.env)
+    model = create_model(
+        config.model, env_stats, name=config.name,
+        to_build_for_eval=True)
+    actor = create_actor(config.actor, model, name=config.name)
+    strategy = create_strategy()
+
     runner_manager = RunnerManager(config, store_data=False)
     start = time.time()
     
@@ -36,5 +48,3 @@ def main(config, n, **kwargs):
     
     duration = time.time() - start
     print(f'Evaluation time: total({duration:3g}), average({duration / n:3g})')
-
-    ray.shutdown()

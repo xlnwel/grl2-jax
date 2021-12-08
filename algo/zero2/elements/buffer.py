@@ -35,8 +35,9 @@ def compute_indices(idxes, mb_idx, mb_size, N_MBS):
 
 
 class LocalBuffer:
-    def __init__(self, config):
+    def __init__(self, config, remote_agent):
         self.config = dict2AttrDict(config)
+        self.remote_agent = remote_agent
         self._gae_discount = self.config.gamma * self.config.lam
         self._maxlen = self.config.n_envs * self.config.N_STEPS
         self.reset()
@@ -69,17 +70,19 @@ class LocalBuffer:
             self._buff_lens[(eid, pid)] += 1
             assert np.all(r == 0) or d == 0, (r, d)
 
-    def finish(self, eids, rewards):
+    def finish(self, train_step, eids, rewards):
         assert len(eids) == len(rewards), (eids, rewards)
+        ready_ids = []
         for eid, reward in zip(eids, rewards):
             for pid in self.agent_pids:
                 self._buffer[(eid, pid)]['reward'][-1] = reward[pid]
                 self._buffer[(eid, pid)]['discount'][-1] = 0
                 assert self._buffer[(eid, pid)]['reward'][-1] == reward[pid], self._buffer[(eid, pid)]['reward'][-1]
                 assert self._buffer[(eid, pid)]['discount'][-1] == 0, self._buffer[(eid, pid)]['discount'][-1]
-                self.merge_episode(eid, pid)
+                ready_ids.append(self.merge_episode(train_step, eid, pid))
+        return ready_ids
 
-    def merge_episode(self, eid, pid):
+    def merge_episode(self, train_step, eid, pid):
         episode = {k: np.stack(v) for k, v in self._buffer[(eid, pid)].items()}
         epslen = self._buff_lens[(eid, pid)]
         for k, v in episode.items():
@@ -95,10 +98,11 @@ class LocalBuffer:
             self.config.gamma, self._gae_discount
         )
         episode = {k: episode[k] for k in self.config.sample_keys}
-        self._memory.append(episode)
-        self._memlen += epslen
+        ready_id = self.remote_agent.merge.remote(train_step, episode, epslen)
         self._buffer[(eid, pid)] = collections.defaultdict(list)
         self._buff_lens[(eid, pid)] = 0
+        self._memlen += epslen
+        return ready_id
 
     def ready_to_retrieve(self):
         return self._memlen > self._maxlen
@@ -129,6 +133,8 @@ class PPOBuffer:
         size = self._n_envs * self.N_STEPS // self._sample_size
         do_logging(f'Sample size: {self._sample_size}', logger=logger)
 
+        self._max_size = self._n_envs * self.N_STEPS
+        self._current_size = 0
         self._size = size
         self._mb_size = size // self.N_MBS
         self._idxes = np.arange(size)
@@ -157,37 +163,55 @@ class PPOBuffer:
     
     def ready(self):
         return self._ready
+    
+    def size(self):
+        return self._current_size
+    
+    def max_size(self):
+        return self._max_size
 
     def reset(self):
         self._memory = collections.defaultdict(list)
         self._mb_idx = 0
         self._epoch_idx = 0
+        self._current_size = 0
         self._ready = False
+        print('PPO reset')
 
-    def merge(self, data):
+    def merge(self, data, n):
         for k, v in data.items():
             self._memory[k].append(v)
+        self._current_size += n
+        print('merge', self._current_size, self._max_size)
+        if self._current_size > self._max_size:
+            self.finish()
+            return True
+        else:
+            return False
+
+    def finish(self):
+        for k, v in self._memory.items():
+            v = np.concatenate(v)
+            assert v.shape[0] > self._max_size, v.shape
+            v = v[:self._max_size]
+            self._memory[k] = v.reshape(self._size, self._sample_size, *v.shape[1:])
+        self._ready = True
+        print('PPO buffer is ready', self._ready)
 
     def sample(self, sample_keys=None):
         self._wait_to_sample()
-
         self._shuffle_indices()
         sample = self._sample(sample_keys)
         self._post_process_for_dataset()
 
         return sample
 
-    def finish(self):
-        for k, v in self._memory.items():
-            v = np.concatenate(v)[:self._size * self._sample_size]
-            self._memory[k] = v.reshape(self._size, self._sample_size, *v.shape[1:])
-        self._ready = True
-
     """ Implementations """
     def _wait_to_sample(self):
         while not self._ready:
             time.sleep(self._sleep_time)
             self._sample_wait_time += self._sleep_time
+        print('PPOBuffer starts sampling')
 
     def _shuffle_indices(self):
         if self.N_MBS > 1 and self._mb_idx == 0:
@@ -227,18 +251,110 @@ class PPOBuffer:
                 # if we use tf.data as sampling is done 
                 # in a background thread
                 self.reset()
+        print('PPOBuffer post processes', self._epoch_idx, self._mb_idx, self._ready)
 
 
-def create_buffer(config, central_buffer=False):
+class PPGBuffer:
+    def __init__(self, config):
+        self.config = config_attr(self, config)
+        self._buff = PPOBuffer(config)
+        self._add_attributes()
+
+    def _add_attributes(self):
+        assert self.N_PI >= self.N_SEGS, (self.N_PI, self.N_SEGS)
+        self.TOTAL_STEPS = self.N_STEPS * self.N_PI
+        buff_size = self._buff.max_size()
+        self._size = buff_size * self.N_SEGS
+        self._aux_mb_size = buff_size // self.N_AUX_MBS_PER_SEG
+        self._n_aux_mbs = self._size // self._mb_size
+        self._shuffled_idxes = np.arange(self._size)
+        self._idx = 0
+        self._mb_idx = 0
+        self._ready = False
+
+        self._gae_discount = self._gamma * self._lam
+        self._memory = collections.defaultdict(list)
+        self._is_store_shape = True
+        do_logging(f'Memory size: {self._size}', logger=logger)
+        do_logging(f'Aux mini-batch size: {self._aux_mb_size}', logger=logger)
+
+    def __getitem__(self, k):
+        return self._buff[k]
+
+    def ready(self):
+        return self._ready
+    
+    def set_ready(self):
+        self._ready = True
+
+    def merge(self, data):
+        self._buff.merge(data)
+
+    def transfer_data(self):
+        assert self._buff.ready()
+        if self._idx >= self.N_PI - self.N_SEGS:
+            for k in self._transfer_keys:
+                v = self._buff[k]
+                if k in self._memory:
+                    # NOTE: we concatenate segments along the sequential dimension,
+                    # which increases the horizon when computing targets and advantages
+                    # The effect is unclear and may correlate with the value of 𝝀
+                    self._memory[k].append(v)
+                else:
+                    self._memory[k] = v.copy()
+        self._idx = (self._idx + 1) % self.N_PI
+
+    def sample(self):
+        return self._buff.sample()
+    
+    def sample_aux_data(self):
+        assert self._ready, self._idx
+        if self._mb_idx == 0:
+            np.random.shuffle(self._shuffled_idxes)
+        self._mb_idx, self._curr_idxes = compute_indices(
+            self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_SEGS)
+        return {k: self._memory[k][self._curr_idxes] for k in self._aux_sample_keys}
+
+    def compute_mean_max_std(self, stats='reward'):
+        return self._buff.compute_mean_max_std(stats)
+    
+    def finish(self):
+        self._buff.finish()
+    
+    def aux_finish(self):
+        assert self._idx == 0, self._idx
+        for k, v in self._memory.items():
+            self._memory[k] = np.concatenate(v)
+            assert self._memory[k].shape[:2] == (self._size, self._sample_size), (k, self._memory[k].shape)
+        
+        self.reshape_to_sample()
+        self._ready = True
+
+    def reset(self):
+        if self._buff.ready():
+            self.transfer_data()
+        self._buff.reset()
+    
+    def aux_reset(self):
+        assert self._ready, self._idx
+        self._memory.clear()
+        self._is_store_shape = True
+        self._idx = 0
+        self._mb_idx = 0
+        self._ready = False
+
+    def clear(self):
+        self._idx = 0
+        self._ready = False
+        self._buff.clear()
+        self._memory.clear()
+
+
+def create_buffer(config, **kwargs):
     config = dict2AttrDict(config)
-    if central_buffer:
-        assert config.type == 'ppo', config.type
-        import ray
-        RemoteBuffer = ray.remote(PPOBuffer)
-        return RemoteBuffer.remote(config)
-    elif config.type == 'ppo' or config.type == 'pbt':
-        return PPOBuffer(config)
+    if config.type == 'ppo' or config.type == 'pbt':
+        return PPOBuffer(config, **kwargs)
     elif config.type == 'local':
-        return LocalBuffer(config)
+        return LocalBuffer(config, **kwargs)
     else:
         raise ValueError(config.type)

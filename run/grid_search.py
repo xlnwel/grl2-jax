@@ -3,6 +3,7 @@ import logging
 import copy
 from multiprocessing import Process
 
+from core.typing import ModelPath
 from run.utils import change_config, set_path
 from utility.display import print_dict
 from utility.utils import AttrDict2dict, dict2AttrDict, product_flatten_dict
@@ -97,7 +98,7 @@ class GridSearch:
                 
                 kw = [f'root_dir={self.root_dir}', f'model_name={mn2}']
                 change_config(kw, config2)
-                set_path(config2, self.root_dir, mn2)
+                set_path(config2, ModelPath(self.root_dir, mn2))
                 print_dict(config2)
                 p = Process(target=self.train_func, args=(config2,))
                 p.start()
