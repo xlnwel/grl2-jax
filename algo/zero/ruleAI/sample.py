@@ -13,6 +13,7 @@ from core.elements.agent import Agent
 from env.guandan.action import get_action_card, get_action_type
 from env.guandan.game import Game
 from env.guandan.infoset import get_obs
+from env.guandan.utils import PASS, ActionType2Num
 from env.typing import EnvOutput
 from replay.utils import save_data, load_data
 from utility.utils import batch_dicts
@@ -83,7 +84,8 @@ def run_episode(
             (action_type, card_rank), _ = agent02(env_output)
             action_type = action_type[0]
             card_rank = card_rank[0]
-            if action_type == 0:
+            assert obs['card_rank_mask'][action_type][card_rank], f"{obs['card_rank_mask']}\n{action_type}\n{card_rank}"
+            if action_type == ActionType2Num[PASS]:
                 card_rank = 0
             action_id = infoset.action2id(action_type, card_rank)
         else:

@@ -5,6 +5,7 @@ import numpy as np
 
 from core.elements.builder import ElementsBuilder
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
+from core.typing import ModelPath
 from core.utils import save_config
 from utility.utils import TempStore
 from utility.run import Runner, evaluate
@@ -160,7 +161,7 @@ def ppo_train(config):
     monitor = builder.build_monitor()
     agent = builder.build_agent(strategy=strategy, monitor=monitor)
  
-    save_config(root_dir, model_name, builder.get_config())
+    save_config(ModelPath(root_dir, model_name), builder.get_config())
 
     train(agent, env, eval_env, buffer)
 

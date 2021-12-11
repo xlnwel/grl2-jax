@@ -11,10 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 def compute_gae(reward, discount, value, gamma, gae_discount):
-    next_value = np.concatenate([value[1:], [0]], axis=0)
+    next_value = np.concatenate([value[1:], [0]], axis=0).astype(np.float32)
     assert value.shape == next_value.shape, (value.shape, next_value.shape)
-    assert discount[-1] == 0, discount
-    advs = delta = (reward + discount * gamma * next_value - value)
+    advs = delta = (reward + discount * gamma * next_value - value).astype(np.float32)
     # advs2 = (reward + discount * next_value - value)
     next_adv = 0
     for i in reversed(range(advs.shape[0])):
@@ -32,6 +31,16 @@ def compute_indices(idxes, mb_idx, mb_size, N_MBS):
     mb_idx = (mb_idx + 1) % N_MBS
     curr_idxes = idxes[start: end]
     return mb_idx, curr_idxes
+
+
+def get_sample(memory, sample_keys, state_keys, idxes):
+    sample = {k: memory[k][idxes, 0]
+        if k in state_keys else memory[k][idxes] 
+        for k in sample_keys}
+    action_rnn_dim = sample['action_h'].shape[-1]
+    sample['action_h'] = sample['action_h'].reshape(-1, action_rnn_dim)
+    sample['action_c'] = sample['action_c'].reshape(-1, action_rnn_dim)
+    return sample
 
 
 class LocalBuffer:
@@ -94,7 +103,7 @@ class LocalBuffer:
             episode['reward'], episode['discount'], episode['value'], 
             self.config.gamma, self._gae_discount
         )
-        episode = {k: episode[k] for k in self.config.sample_keys}
+        episode = {k: v for k, v in episode.items()}
         self._memory.append(episode)
         self._memlen += epslen
         self._buffer[(eid, pid)] = collections.defaultdict(list)
@@ -126,19 +135,19 @@ class PPOBuffer:
         self._state_keys = ['h', 'c']
         assert self._n_envs * self.N_STEPS % self._sample_size == 0, \
             f'{self._n_envs} * {self.N_STEPS} % {self._sample_size} != 0'
-        size = self._n_envs * self.N_STEPS // self._sample_size
         do_logging(f'Sample size: {self._sample_size}', logger=logger)
 
-        self._size = size
-        self._mb_size = size // self.N_MBS
-        self._idxes = np.arange(size)
-        self._shuffled_idxes = np.arange(size)
+        self._max_size = self._n_envs * self.N_STEPS
+        self._batch_size = self._max_size // self._sample_size
+        self._mb_size = self._batch_size // self.N_MBS
+        self._idxes = np.arange(self._batch_size)
+        self._shuffled_idxes = np.arange(self._batch_size)
         self._gae_discount = self._gamma * self._lam
         self._epsilon = 1e-5
         if hasattr(self, 'N_VALUE_EPOCHS'):
             self.N_EPOCHS += self.N_VALUE_EPOCHS
         self.reset()
-        do_logging(f'Batch size: {size}', logger=logger)
+        do_logging(f'Batch size: {self._batch_size}', logger=logger)
         do_logging(f'Mini-batch size: {self._mb_size}', logger=logger)
 
         self._sleep_time = 0.025
@@ -155,8 +164,14 @@ class PPOBuffer:
     def __contains__(self, k):
         return k in self._memory
     
+    def type(self):
+        return 'ppo'
+
     def ready(self):
         return self._ready
+
+    def max_size(self):
+        return self._max_size
 
     def reset(self):
         self._memory = collections.defaultdict(list)
@@ -179,9 +194,12 @@ class PPOBuffer:
 
     def finish(self):
         for k, v in self._memory.items():
-            v = np.concatenate(v)[:self._size * self._sample_size]
-            self._memory[k] = v.reshape(self._size, self._sample_size, *v.shape[1:])
+            v = np.concatenate(v)
+            v = v[:self._batch_size * self._sample_size]
+            self._memory[k] = v.reshape(self._batch_size, self._sample_size, *v.shape[1:])
+
         self._ready = True
+        return self._memory
 
     """ Implementations """
     def _wait_to_sample(self):
@@ -199,18 +217,9 @@ class PPOBuffer:
             self._shuffled_idxes, self._mb_idx, 
             self._mb_size, self.N_MBS)
 
-        sample = self._get_sample(sample_keys, self._curr_idxes)
+        sample = get_sample(self._memory, sample_keys, self._state_keys, self._curr_idxes)
         sample = self._process_sample(sample)
 
-        return sample
-
-    def _get_sample(self, sample_keys, idxes):
-        sample = {k: self._memory[k][idxes, 0]
-            if k in self._state_keys else self._memory[k][idxes] 
-            for k in sample_keys}
-        action_rnn_dim = sample['action_h'].shape[-1]
-        sample['action_h'] = sample['action_h'].reshape(-1, action_rnn_dim)
-        sample['action_c'] = sample['action_c'].reshape(-1, action_rnn_dim)
         return sample
 
     def _process_sample(self, sample):
@@ -229,6 +238,162 @@ class PPOBuffer:
                 self.reset()
 
 
+class PPGBuffer:
+    def __init__(self, config):
+        self.config = config_attr(self, config)
+        config['use_dataset'] = False
+        self._buff = PPOBuffer(config)
+
+        self._sample_size = self.config.sample_size
+        self._sample_keys = self.config.sample_keys
+        self._aux_compute_keys = self.config.aux_compute_keys
+        self._state_keys = ['h', 'c']
+
+        assert self.N_PI >= self.N_SEGS, (self.N_PI, self.N_SEGS)
+        buff_size = self._buff.max_size()
+        self._size = buff_size * self.N_SEGS
+        self._batch_size = self._size // self._sample_size
+        assert self._size == self._batch_size * self._sample_size, \
+            (self._size, self._batch_size, self._sample_size)
+        self._aux_mb_size = self._batch_size // self.N_SEGS // self.N_AUX_MBS_PER_SEG
+        assert self._batch_size == self.N_AUX_MBS_PER_SEG * self.N_SEGS * self._aux_mb_size, \
+            (self._batch_size, self._aux_mb_size, self.N_AUX_MBS_PER_SEG, self.N_SEGS)
+        self.N_AUX_MBS = self.N_SEGS * self.N_AUX_MBS_PER_SEG
+        self._shuffled_idxes = np.arange(self._batch_size)
+        self._idx = 0
+        self._mb_idx = 0
+        self._epoch_idx = 0
+        self._ready = False
+        self._ready_for_aux_training = False
+
+        self._gae_discount = self._gamma * self._lam
+        self._memory = collections.defaultdict(list)
+        do_logging(f'Memory size: {self._size}', logger=logger)
+        do_logging(f'Batch size: {self._size}', logger=logger)
+        do_logging(f'Aux mini-batch size: {self._aux_mb_size}', logger=logger)
+
+        self._sleep_time = 0.025
+        self._sample_wait_time = 0
+
+    def __getitem__(self, k):
+        return self._buff[k]
+
+    def ready(self):
+        return self._ready
+    
+    def ready_for_aux_training(self):
+        return self._ready_for_aux_training
+
+    def type(self):
+        return 'ppg'
+
+    def reset(self):
+        self._buff.reset()
+        assert self._ready, self._idx
+        self._memory.clear()
+        self._idx = 0
+        self._mb_idx = 0
+        self._epoch_idx = 0
+        self._ready = False
+        self._ready_for_aux_training = False
+
+    def merge(self, data):
+        self._buff.merge(data)
+
+    def sample(self):
+        def wait_to_sample():
+            while not (self._ready or self._buff.ready()):
+                time.sleep(self._sleep_time)
+                self._sample_wait_time += self._sleep_time
+
+        def shuffle_indices():
+            if self._mb_idx == 0:
+                np.random.shuffle(self._shuffled_idxes)
+
+        def sample_minibatch(keys):
+            self._mb_idx, idxes = compute_indices(
+                self._shuffled_idxes, self._mb_idx, 
+                self._aux_mb_size, self.N_AUX_MBS)
+            
+            sample = get_sample(self._memory, keys, self._state_keys, idxes)
+
+            return sample
+
+        def post_process_for_dataset():
+            if self._mb_idx == 0:
+                self._epoch_idx += 1
+                if self._epoch_idx == self.N_AUX_EPOCHS:
+                    # resetting here is especially important 
+                    # if we use tf.data as sampling is done 
+                    # in a background thread
+                    self.reset()
+
+        wait_to_sample()
+        if self._buff.ready():
+            sample = self._buff.sample()
+        else:
+            assert self._ready and self._idx == 0, (self._ready, self._idx)
+            shuffle_indices()
+            sample = sample_minibatch(self._aux_sample_keys)
+            post_process_for_dataset()
+
+        return sample
+
+    def compute_mean_max_std(self, stats='reward'):
+        return self._buff.compute_mean_max_std(stats)
+    
+    def finish(self):
+        def transfer_data(data):
+            assert self._buff.ready(), (self._buff.size(), self._buff.max_size())
+            if self._idx >= self.N_PI - self.N_SEGS:
+                for k, v in data.items():
+                    self._memory[k].append(v)
+            self._idx = (self._idx + 1) % self.N_PI
+
+        def aux_finish():
+            for k, v in self._memory.items():
+                assert len(v) == self.N_SEGS, (len(v), self.N_SEGS)
+                v = np.concatenate(v)
+                assert v.shape[0] == self._batch_size, (v.shape, self._batch_size)
+                self._memory[k] = v[-self._batch_size:]
+
+        data = self._buff.finish()
+        transfer_data(data)
+        if self._idx == 0:
+            self._ready_for_aux_training = True
+            aux_finish()
+
+    def compute_aux_data_with_func(self, func):
+        assert self._idx == 0, self._idx
+        action_type_logits_list = []
+        card_rank_logits_list = []
+        value_list = []
+        start = 0
+
+        for _ in range(self.N_SEGS * self.N_AUX_MBS_PER_SEG):
+            end = start + self._aux_mb_size
+            sample = get_sample(
+                self._memory, self._aux_compute_keys, self._state_keys, np.arange(start, end))
+            action_type_logits, card_rank_logits, value = func(sample)
+            action_type_logits_list.append(action_type_logits)
+            card_rank_logits_list.append(card_rank_logits)
+            value_list.append(value)
+            start = end
+        assert start == self._batch_size, (start, self._batch_size)
+
+        self._memory['value'] = np.concatenate(value_list)
+        self._memory['action_type_logits'] = np.concatenate(action_type_logits_list)
+        self._memory['card_rank_logits'] = np.concatenate(card_rank_logits_list)
+
+        reward = self._memory['reward'].reshape(-1)
+        discount = self._memory['discount'].reshape(-1)
+        value = self._memory['value'].reshape(-1)
+        _, traj_ret = compute_gae(reward, discount, value, self._gamma, self._gae_discount)
+        self._memory['traj_ret'] = traj_ret.reshape(self._batch_size, self._sample_size)
+        self._ready = True
+        self._ready_for_aux_training = False
+
+
 def create_buffer(config, central_buffer=False):
     config = dict2AttrDict(config)
     if central_buffer:
@@ -236,9 +401,50 @@ def create_buffer(config, central_buffer=False):
         import ray
         RemoteBuffer = ray.remote(PPOBuffer)
         return RemoteBuffer.remote(config)
-    elif config.type == 'ppo' or config.type == 'pbt':
+    elif config.type =='ppg' or config.type == 'pbt':
+        return PPGBuffer(config)
+    elif config.type == 'ppo':
         return PPOBuffer(config)
     elif config.type == 'local':
         return LocalBuffer(config)
     else:
         raise ValueError(config.type)
+
+
+if __name__ == '__main__':
+    n_steps = 3
+    n_epochs = 2
+    n_mbs = 2
+    config = dict(
+        type='ppg',
+        gamma=1,
+        lam=1,
+        n_workers=2,
+        n_envs=2,
+        sample_size=2,
+        N_STEPS=n_steps,
+        N_EPOCHS=n_epochs,
+        N_VALUE_EPOCHS=0,
+        N_MBS=n_mbs,
+        N_AUX_MBS=n_mbs,
+        N_PI=2,
+        N_SEGS=2,
+        sample_keys=['reward', 'value', 'action_h', 'action_c'],
+        norm_adv='batch',
+    )
+
+    buffer = create_buffer(config)
+    
+    for _ in range(2):
+        for k in range(n_steps):
+            buffer.merge({
+                'reward': np.array([k+i // 10 for i in range(3)]),
+                'value': np.array([k+i // 10 for i in range(3)]),
+                'action_h': np.zeros((3, 2)),
+                'action_c': np.zeros((3, 2)),
+            })
+        buffer.finish()
+        for _ in range(n_epochs * n_mbs):
+            buffer.sample()
+    
+    print(buffer._ready_for_aux_training)

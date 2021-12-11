@@ -1,3 +1,4 @@
+from collections import deque
 import numpy as np
 
 from .game import Game
@@ -35,6 +36,7 @@ class Env:
         return obs
 
     def step(self, action):
+        action = action[:2]
         aid = self._get_action_id(action)
         self._env.play(aid)
         done = False

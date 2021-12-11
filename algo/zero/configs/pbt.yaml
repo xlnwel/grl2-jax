@@ -20,8 +20,6 @@ parameter_server:
     root_dir: *algo
     model_name: *algo
 
-    SCORE_UPDATE_PERIOD: 10000
-
 runner:
     ray:
         num_cpus: 1
@@ -30,29 +28,33 @@ runner:
     MAX_STEPS: 5e8
     N_STEPS: &nsteps 128
     agent_pids: &pids [0, 2]
-    initialize_other: False
-    self_play_frac: 0
+    initialize_other: True
+    self_play_frac: .2
     record_self_play_stats: False
 
 env:
     name: &env_name card_gd
     eid: 0
     n_workers: &nworkers 80
-    n_envs: &nenvs 4
+    n_envs: &nenvs 2
     skip_players: []
 
 agent:
     algorithm: *algo
 
-    LOG_PERIOD: 200
-    EVAL_PERIOD: 200
+    LOG_PERIOD: 100
+    EVAL_PERIOD: 100
 
 strategy:
     train_loop:
         training: *training
-        N_EPOCHS: &nepochs 4
+        N_EPOCHS: &nepochs 1
         N_VALUE_EPOCHS: &nval_epochs 0
         N_MBS: &nmbs 2
+        N_AUX_EPOCHS: &naepochs 9
+        N_PI: &npi 16
+        N_SEGS: &nsegs 16
+        N_AUX_MBS_PER_SEG: &nambs 2
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
         # (once reuse null)
@@ -62,8 +64,10 @@ strategy:
         value_update: null
 
 model:
+    training: *training
     rnn_type: &rnn rnn_mlstm
     action_rnn_resets_every_round: False
+    sample_size: &ss 16
 
     action_encoder:
         nn_id: encoder
@@ -179,12 +183,13 @@ loss:
     action_type_coef: 1
     card_rank_coef: 1
     value_coef: .5
+    bc_coef: 1
 
 trainer:
     training: *training
     # # BC configs
     # batch_size: &bs 4096
-    sample_size: &ss 16
+    sample_size: *ss
 
     optimizer:
         opt_name: adam
@@ -204,9 +209,14 @@ buffer:
     type: *training
     agent_pids: *pids
     # dir: data/gd-100000
-    use_dataset: True
+    use_dataset: False
     
     mixed_data: False
+
+    N_PI: *npi
+    N_SEGS: *nsegs
+    N_AUX_MBS_PER_SEG: *nambs
+    N_AUX_EPOCHS: *naepochs
 
     # PPO configs
     adv_type: gae     # nae or gae
@@ -239,9 +249,9 @@ buffer:
         - last_action_first_move
         - action_type_mask
         - card_rank_mask
+        - mask
         - others_numbers
         - others_jokers
-        - mask
         - action_type
         - card_rank
         - value 
@@ -253,3 +263,58 @@ buffer:
         - action_c
         - h
         - c
+    aux_compute_keys:
+        - numbers
+        - jokers
+        - left_cards
+        - is_last_teammate_move
+        - is_first_move
+        - last_valid_action_type
+        - rank
+        - bombs_dealt
+        - last_action_numbers
+        - last_action_jokers
+        - last_action_types
+        - last_action_rel_pids
+        - last_action_filters
+        - last_action_first_move
+        - action_type_mask
+        - card_rank_mask
+        - mask
+        - others_numbers
+        - others_jokers
+        - action_type
+        - action_h 
+        - action_c
+        - h
+        - c
+    aux_sample_keys:
+        - numbers
+        - jokers
+        - left_cards
+        - is_last_teammate_move
+        - is_first_move
+        - last_valid_action_type
+        - rank
+        - bombs_dealt
+        - last_action_numbers
+        - last_action_jokers
+        - last_action_types
+        - last_action_rel_pids
+        - last_action_filters
+        - last_action_first_move
+        - action_type_mask
+        - card_rank_mask
+        - mask
+        - others_numbers
+        - others_jokers
+        - action_type
+        - value
+        - traj_ret 
+        - action_type_logits
+        - card_rank_logits
+        - action_h
+        - action_c
+        - h
+        - c
+

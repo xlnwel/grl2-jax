@@ -1,5 +1,6 @@
 import random
 from collections import Counter, defaultdict
+from itertools import product
 import numpy as np
 
 from .player import Player
@@ -75,6 +76,7 @@ class Game(object):
                  other='reyn', 
                  max_card=13, 
                  test=False,
+                 evaluation=False,
                  **kwargs):
         self.over_order = OverOrder() #出完牌的顺序和进贡关系
         self.skip_players = skip_players
@@ -82,6 +84,7 @@ class Game(object):
             for i in range(4)]
         self.max_card = max_card
         self.test = test
+        self.evaluation = evaluation
 
         self.r_order_default = {'2':2,
          '3':3,  '4':4,  '5':5,  '6':6,  '7':7,  '8':8,  '9':9,  'T':10,  'J':11,  'Q':12,  'K':13,  'A':14,
@@ -131,8 +134,6 @@ class Game(object):
             last_action_first_move=self.last_action_first_move_shape,
             action_type_mask=self.action_type_mask_shape,
             card_rank_mask=self.card_rank_mask_shape,
-            others_numbers=self.others_numbers_shape,
-            others_jokers=self.others_jokers_shape,
             mask=()
         )
         self.obs_dtype = dict(
@@ -152,10 +153,18 @@ class Game(object):
             last_action_first_move=np.float32,
             action_type_mask=np.bool,
             card_rank_mask=np.bool,
-            others_numbers=np.float32,
-            others_jokers=np.float32,
             mask=np.float32
         )
+
+        if not self.evaluation:
+            self.obs_shape.update(dict(
+                others_numbers=self.others_numbers_shape,
+                others_jokers=self.others_jokers_shape,
+            ))
+            self.obs_dtype.update(dict(
+                others_numbers=np.float32,
+                others_jokers=np.float32,
+            ))
 
         # action info
         self.action_type_shape = ()
@@ -252,6 +261,8 @@ class Game(object):
             self.rank = random.choice(['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'][:self.max_card])
         else:
             self.rank = rank
+        if self.test:
+            print('rank:', self.rank)
         self.current_pid = random.choice([0, 1, 2, 3])
         self.first_pid = self.current_pid
         self.r_order = self.r_order_default.copy()
@@ -522,14 +533,11 @@ class Game(object):
                     uni_cnt = 1
                 elif self.players[pos].uni_count > 1:
                     uni_cnt = 1 if same_cnt == 2 else 2
-                elif card_list[(-1)].rank != 'B' and card_list[(-1)].rank != self.rank:
+
+                if card_list[(-1)].rank != 'B' and card_list[(-1)].rank != 'R' and card_list[(-1)].rank != self.rank:
                     for _ in range(uni_cnt):
                         card_list.append(Card('H', self.rank))
 
-                elif card_list[(-1)].rank != 'R':
-                    if card_list[(-1)].rank != self.rank:
-                        for _ in range(uni_cnt):
-                            card_list.append(Card('H', self.rank))
 
             if len(card_list) >= same_cnt:
                 com_cards(same_cards, card_list, same_cnt, name=name)
@@ -691,16 +699,15 @@ class Game(object):
             if _rank:
                 if self.p_order[rank[0]] <= self.p_order[_rank]:
                     continue
-                if rank[0] in temp_dict and rank[1] in temp_dict and rank[2] in temp_dict:
-                    for pair_a, pair_b, pair_c in np.product(temp_dict[rank[0]], temp_dict[rank[1]], temp_dict[rank[2]]):
-                        uni_rank = 'H' + self.rank
-                        result = pair_a + pair_b + pair_c
-                        temp_counter = Counter(result)
-                        if uni_rank in temp_counter and temp_counter[uni_rank] > self.players[pos].uni_count:
-                            continue
-                        else:
-                            three_pair.append([THREE_PAIR, rank[0], result])
-
+            if rank[0] in temp_dict and rank[1] in temp_dict and rank[2] in temp_dict:
+                for pair_a, pair_b, pair_c in product(temp_dict[rank[0]], temp_dict[rank[1]], temp_dict[rank[2]]):
+                    uni_rank = 'H' + self.rank
+                    result = pair_a + pair_b + pair_c
+                    temp_counter = Counter(result)
+                    if uni_rank in temp_counter and temp_counter[uni_rank] > self.players[pos].uni_count:
+                        continue
+                    else:
+                        three_pair.append([THREE_PAIR, rank[0], result])
         return three_pair
 
     def extract_two_trips(self, pos, _rank=None):
@@ -723,15 +730,15 @@ class Game(object):
             if _rank:
                 if self.p_order[rank[0]] <= self.p_order[_rank]:
                     continue
-                if rank[0] in trips and rank[1] in trips:
-                    for trip_a, trip_b in np.product(temp_dict[rank[0]], temp_dict[rank[1]]):
-                        uni_rank = 'H' + self.rank
-                        result = trip_a + trip_b
-                        temp_counter = Counter(result)
-                        if uni_rank in temp_counter and temp_counter[uni_rank] > self.players[pos].uni_count:
-                            continue
-                        else:
-                            two_trips.append([TWO_TRIPS, rank[0], result])
+            if rank[0] in temp_dict and rank[1] in temp_dict:
+                for trip_a, trip_b in product(temp_dict[rank[0]], temp_dict[rank[1]]):
+                    uni_rank = 'H' + self.rank
+                    result = trip_a + trip_b
+                    temp_counter = Counter(result)
+                    if uni_rank in temp_counter and temp_counter[uni_rank] > self.players[pos].uni_count:
+                        continue
+                    else:
+                        two_trips.append([TWO_TRIPS, rank[0], result])
 
         return two_trips
 
@@ -820,7 +827,7 @@ class Game(object):
 
     def get_infoset(self):
         i = self.current_pid
-        infoset = InfoSet(i)
+        infoset = InfoSet(i, evaluation=self.evaluation)
         infoset.first_round = self.players[i].first_round
         infoset.last_pid = self.last_pid
         infoset.last_action = self.last_action
@@ -916,22 +923,58 @@ class Game(object):
 
 if __name__ == '__main__':
     import datetime
-    env = Game([Player('0', 'reyn'), Player('1', 'random'), Player('2', 'reyn'), Player('3', 'random')])
+    import pickle
+    import time
+    env = Game([Player('0', 'random'), Player('1', 'random'), Player('2', 'random'), Player('3', 'random')])
     n = 1
-    rewards = []
-    start_time = datetime.datetime.now()
-    for _ in range(n):
-        # env.reset_to_any('2', 0, 1, 1, 1, 1, 'HA', 'D7', 'S4', 'S2')
-        env.reset()
-        env.start()
-        # step = 0
-        while env.game_over() is False:
-            env.random_step()
-            print(env.game_over())
-            # step += 1
-            # print(step)
-        rewards.append(env.compute_reward())
+    # rewards = []
+    # start_time = datetime.datetime.now()
+    # infoset_file_name = 'small' + str(int(time.time())) + '.pkl'
+    # file = open(infoset_file_name, 'wb')
+    # for _ in range(n):
+    #     hand_cards_0 = 'S3, H3, H3, S4, H4, H4, C4, D4, D4, H5, S6, S8, ST, HT, DT, SQ, DQ, SK, SA, HA, HA, S2, H2, H2, D2, D2, HR'
+    #     hand_cards_1 = 'S3, C3, D3, D3, S4, S5, C5, C5, D5, S6, S7, C7, D7, H8, C8, D8, ST, HT, CT, DT, HQ, DQ, SA, S2, C2, SB, SB'
+    #     hand_cards_2 = 'C4, S5, H6, D6, S7, H7, D7, H8, D8, H9, C9, C9, CT, SJ, HJ, CJ, HQ, HK, CK, CK, DK, CA, CA, DA, DA, C2, HR'
+    #     hand_cards_3 = 'S3, C3, D4, D4, D5, H6, C6, C6, D6, H7, D7, H8, D8, S9, H9, C9, D9, DT, HJ, SQ, HQ, SK, DK, CA, CA, C2, HR'
+    #     env.reset_to_any('2', 2, 27, 27, 27, 27, hand_cards_0, hand_cards_1, hand_cards_2, hand_cards_3)
+    #     #env.reset()
+    #     env.start()
+    #     # step = 0
+    #     from cxw_agent import CXWAgent
+    #     agent0 = CXWAgent()
+    #     agent1 = CXWAgent()
+    #     agent2 = CXWAgent()
+    #     agent3 = CXWAgent()
+    #     agent = [agent0, agent1, agent2, agent3]
+    #     while env.game_over() is False:
+    #
+    #         infoset = env.get_infoset()
+    #         pickle.dumps(infoset)
+    #         if len(infoset.legal_actions.action_list) == 1:
+    #             action_id = 0
+    #         else:
+    #             from infoset import get_obs
+    #             obs = get_obs(infoset)
+    #
+    #             batch_obs = obs.copy()
+    #             batch_obs['eid'] = 0
+    #             for k, v in batch_obs.items():
+    #                 batch_obs[k] = np.expand_dims(v, 0)
+    #             reward = np.expand_dims(0, 0)
+    #             discount = np.expand_dims(1, 0)
+    #             reset = np.expand_dims(infoset.first_round, 0)
+    #             env_output = EnvOutput(batch_obs, reward, discount, reset)
+    #
+    #             (action_type, card_rank), _ = agent[env.current_pid].agent(env_output, True, False)
+    #             action_type = action_type[0]
+    #             card_rank = card_rank[0]
+    #             if action_type == 0:
+    #                 card_rank = 0
+    #             action_id = infoset.action2id(action_type, card_rank)
+    #             print(infoset.legal_actions[action_id])
+    #         env.play(action_id)
+    #
+    #         #print(env.game_over())
+    #         # step += 1
+    #         # print(step)
     end_time = datetime.datetime.now()
-    rewards = np.stack(rewards)
-    print(f'rewards: {rewards}')
-    print(f'Average time {(end_time-start_time)/n}')

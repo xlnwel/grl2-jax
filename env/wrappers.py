@@ -493,7 +493,7 @@ class EnvStats(EnvStatsBase):
             self._info['mask'] = False
             return self._output
 
-        assert not np.any(np.isnan(action)), action
+        # assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
         if 'score' in info:
             self._score = info['score']

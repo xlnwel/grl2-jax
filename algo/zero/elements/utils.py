@@ -1,16 +1,17 @@
 import tensorflow as tf
 
 
-def get_data_format(config, env_stats, model, use_for_dataset=True):
-    if config['training'] == 'ppo' or config['training'] == 'pbt':
-        return get_ppo_data_format(config, env_stats, model, use_for_dataset)
+def get_data_format(config, env_stats, model, expand_state=True):
+    if config['training'] == 'ppo' or config['training'] == 'ppg' \
+        or config['training'] == 'pbt':
+        return get_ppo_data_format(config, env_stats, model, expand_state)
     elif config['training'] == 'bc':
-        return get_bc_data_format(config, env_stats, model, use_for_dataset)
+        return get_bc_data_format(config, env_stats, model, expand_state)
     else:
         raise ValueError(config['training'])
 
 
-def get_ppo_data_format(config, env_stats, model, use_for_dataset=True):
+def get_ppo_data_format(config, env_stats, model, expand_state=True):
     basic_shape = (None, config['sample_size'])
     shapes = {**env_stats['obs_shape'], **env_stats['action_shape']}
     dtypes = {**env_stats['obs_dtype'], **env_stats['action_dtype']}
@@ -27,7 +28,7 @@ def get_ppo_data_format(config, env_stats, model, use_for_dataset=True):
     ))
 
     dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
-    if use_for_dataset:
+    if expand_state:
         data_format.update({
             name: ((None, sz), dtype)
                 for name, sz in model.state_size._asdict().items()
@@ -40,7 +41,7 @@ def get_ppo_data_format(config, env_stats, model, use_for_dataset=True):
     return data_format
 
 
-def get_bc_data_format(config, env_stats, model, use_for_dataset=True):
+def get_bc_data_format(config, env_stats, model, expand_state=True):
     basic_shape = (None, config['sample_size'])
     shapes = {**env_stats['obs_shape'], **env_stats['action_shape']}
     dtypes = {**env_stats['obs_dtype'], **env_stats['action_dtype']}

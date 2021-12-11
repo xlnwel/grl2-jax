@@ -63,7 +63,7 @@ class Model(Ensemble):
         self._root_dir = model_path.root_dir
         self._model_name = model_path.model_name
         self._model_path = model_path
-        self.config = set_path(self.config, model_path)
+        self.config = set_path(self.config, model_path, recursive=False)
         self.setup_checkpoint()
 
     def get_weights(self, name: str=None):

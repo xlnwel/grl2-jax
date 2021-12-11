@@ -1,8 +1,8 @@
 import numpy as np
 import ray
 
-from algo.zero.elements.parameter_server import ParameterServer
-from algo.zero.elements.runner import RunnerManager
+from algo.zero.remote.parameter_server import ParameterServer
+from algo.zero.remote.runner import RunnerManager
 from core.elements.builder import ElementsBuilder
 from core.tf_config import configure_gpu, silence_tf_logs
 from core.typing import ModelPath
@@ -18,20 +18,12 @@ def main(config):
     env_stats = get_env_stats(config.env)
     config.buffer.n_envs = env_stats.n_workers * env_stats.n_envs
 
-    config = config.asdict()
-    env_stats = env_stats.asdict()
     parameter_server = ParameterServer.as_remote().remote(
-        config=config,
-        env_stats=env_stats)
-    parameter_server.add_strategy_from_path.remote(
-        ModelPath(config['root_dir'], 'sp'))
-    parameter_server.add_strategy_from_path.remote(
-        ModelPath(config['root_dir'], 'self-play'))
-    parameter_server.add_strategy_from_path.remote(
-        ModelPath(config['root_dir'], 'sp_exploiter_ws'))
-    parameter_server.add_strategy_from_path.remote(
-        ModelPath(config['root_dir'], 'sp_exploiter_ws_ft'))
-    
+        config=config.asdict(),
+        env_stats=env_stats.asdict())
+
+    ray.get(parameter_server.search_for_strategies.remote(config['root_dir']))
+
     pbt_train(
         config=config, 
         env_stats=env_stats,
@@ -57,26 +49,33 @@ def pbt_train(
 
     i = 0
     path = f'{config["root_dir"]}/{config["model_name"]}/verbose.txt'
+    model_path = builder.get_model_path()
+    is_ps_empty = ray.get(parameter_server.is_empty.remote(model_path))
     while True:
-        if not ray.get(parameter_server.is_empty.remote()):
+        if i == 0 and not is_ps_empty:
             wid = parameter_server.retrieve_latest_strategy_weights.remote()
             weights = ray.get(wid)
             agent.set_weights(weights)
+        if is_ps_empty:
+            runner_manager.force_self_play()
+            is_ps_empty = False
+        else:
+            runner_manager.play_with_pool()
+
         # agent.strategy.model.action_type.randomize_last_layer()
         # agent.strategy.model.card_rank.randomize_last_layer()
         model_path = builder.get_model_path()
         agent.reset_model_path(model_path)
+        parameter_server.add_strategy_from_path.remote(model_path)
         runner_manager.set_model_path(model_path)
         end_with_cond = train(
             elements.agent, 
             elements.buffer, 
             runner_manager, 
             parameter_server, 
-            version=builder.get_version(),
-            SCORE_UPDATE_PERIOD=config['parameter_server']['SCORE_UPDATE_PERIOD'])
+            version=builder.get_version())
         with open(path, 'a') as f:
             f.write(f'{end_with_cond}\n')
-        parameter_server.add_strategy_from_path.remote(model_path)
         builder.increase_version()
         i += 1
 
@@ -86,8 +85,7 @@ def train(
         buffer, 
         runner_manager: RunnerManager, 
         parameter_server: ParameterServer,
-        version: int,
-        SCORE_UPDATE_PERIOD: int):
+        version: int):
     # assert agent.get_env_step() == 0, (agent.get_env_step(), 'Comment out this line when you want to restore from a trained model')
     if agent.get_env_step() == 0 and agent.actor.is_obs_normalized:
         obs_rms_list, rew_rms_list = runner_manager.initialize_rms()
@@ -95,6 +93,7 @@ def train(
 
     rt = Timer('run')
     tt = Timer('train')
+    at = Timer('aux')
     lt = Timer('log')
 
     def record_stats(step):
@@ -113,23 +112,22 @@ def train(
 
     train_step = agent.get_train_step()
     to_record = Every(agent.LOG_PERIOD, train_step + agent.LOG_PERIOD)
-    to_update_score = Every(SCORE_UPDATE_PERIOD, SCORE_UPDATE_PERIOD)
+    to_push_weights = Every(int(1e8), int(1e8))
     step = agent.get_env_step()
     MAX_STEPS = runner_manager.max_steps()
     WIN_RATE_THRESHOLD = .65
     count = 0
+    model_path = agent.get_model_path()
     print('Training starts...')
     while step < MAX_STEPS:
         start_env_step = step
-        model_path = agent.get_model_path()
-        with rt:
-            weights = agent.get_weights(opt_weights=False)
-            wid = ray.put(weights)
-            parameter_server.add_strategy.remote(
-                model_path, wid)
-            step, data, stats = runner_manager.run(wid)
-        
         swid = parameter_server.get_scores_and_weights.remote(model_path)
+
+        weights = agent.get_weights(opt_weights=False)
+        wid = ray.put(weights)
+        with rt:
+            step, data, run_stats = runner_manager.run(wid)
+        
         for d in data:
             buffer.merge(d)
         buffer.finish()
@@ -138,30 +136,40 @@ def train(
         with tt:
             agent.train_record()
         train_step = agent.get_train_step()
+
+        if buffer.type() == 'ppg' and buffer.ready_for_aux_training():
+            buffer.compute_aux_data_with_func(agent.compute_logits_values)
+            with at:
+                stats = agent.aux_train_record()
+            agent.store(**stats)
+
+        agent.set_env_step(step)
+        runner_manager.reset()
+
         scores, weights = ray.get(swid)
         agent.store(
-            **stats,
+            **run_stats,
             **scores,
             **weights,
             **{
                 'time/fps': (step-start_env_step)/rt.last(),
                 'time/outer_tps': (train_step-start_train_step)/tt.last()})
 
-        agent.set_env_step(step)
-        buffer.reset()
-        runner_manager.reset()
-
-        if to_update_score(train_step):
-            parameter_server.compute_scores.remote(model_path)
-
         if to_record(train_step) and agent.contains_stats('score'):
             record_stats(step)
 
-        if len(stats['win_rate']) > runner_manager.n_eval_envs \
-            and np.mean(stats['win_rate']) > WIN_RATE_THRESHOLD:
-            count += 1
-            if count >= 5:
-                return f'Version{version} ends because win rate exceeds the threshold({WIN_RATE_THRESHOLD})'
-        else:
-            count = max(0, count - 1)
+        if to_push_weights(step):
+            parameter_server.update_strategy.remote(model_path, wid)
+            parameter_server.search_for_strategies.remote(model_path.root_dir)
+
+        if len(run_stats['win_rate']) > runner_manager.n_eval_envs:
+            if np.mean(run_stats['win_rate']) > WIN_RATE_THRESHOLD:
+                count += 1
+                if count >= 5:
+                    return f'Version{version} ends because win rate exceeds the threshold({WIN_RATE_THRESHOLD})'
+            else:
+                count = max(0, count - 1)
+    record_stats(step)
+    # push weights after finishing training
+    parameter_server.update_strategy.remote(model_path, wid)
     return f'Version{version} ends because the maximum number of steps are met'

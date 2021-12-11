@@ -67,6 +67,7 @@ if __name__ == '__main__':
                 root_dir=f'{logdir}/{dir_prefix}{config.env.name}/{config.algorithm}'
                 config = set_path(config, ModelPath(root_dir, model_name))
                 config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
+                config.other_path = get_other_path(cmd_args.other_directory)
                 do_logging(config, level='DEBUG')
                 if len(algo_env) > 1:
                     p = Process(target=main, args=(config,))

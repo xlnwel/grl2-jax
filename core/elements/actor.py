@@ -26,7 +26,7 @@ class Actor:
 
     def reset_model_path(self, model_path: ModelPath):
         self._model_path = model_path
-        self.config = set_path(self.config, model_path)
+        self.config = set_path(self.config, model_path, recursive=False)
         self.setup_checkpoint()
 
     def __getattr__(self, name):

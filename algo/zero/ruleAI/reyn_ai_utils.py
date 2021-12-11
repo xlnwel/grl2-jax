@@ -765,7 +765,7 @@ def get_VAL(handCards_S, handCards_H, handCards_C, handCards_D, handCards_A, han
         val -= get_point_val(card[2][4], curRank)
         val -= get_point_val(card[2][5], curRank)
         val += 200
-        print('Reyn_AI Tip 由于该出牌行动,权值目前为', val)
+        # print('Reyn_AI Tip 由于该出牌行动,权值目前为', val)
         # 开始删除刚刚打出的牌
         if card[2][0] == 'SB':
             handCards_K[0] -= 1

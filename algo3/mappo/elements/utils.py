@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-def get_data_format(config, env_stats, model, use_for_dataset=True):
+def get_data_format(config, env_stats, model, expand_state=True):
     basic_shape = (None, config['sample_size'])
     data_format = dict(
         obs=((*basic_shape, *env_stats.obs_shape), env_stats.obs_dtype, 'obs'),
@@ -20,7 +20,7 @@ def get_data_format(config, env_stats, model, use_for_dataset=True):
     
     if config['store_state']:
         dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
-        if use_for_dataset:
+        if expand_state:
             data_format.update({
                 name: ((None, sz), dtype)
                     for name, sz in model.state_size._asdict().items()

@@ -4,8 +4,8 @@ import logging
 from typing import Dict
 import numpy as np
 
-from .trainer import PPOTrainingLoop
-from core.elements.strategy import Strategy, create_strategy
+from .trainloop import PPOTrainingLoop, PPGTrainingLoop
+from core.elements.strategy import Strategy, create_strategy as raw_create_strategy
 from core.mixin.strategy import Memory
 
 
@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 
 class PPOStrategy(Strategy):
     def _post_init(self):
-        self._value_input = None
-
         self._memories = {}
 
     """ Calling Methods """
@@ -36,12 +34,15 @@ class PPOStrategy(Strategy):
         env_output = copy.deepcopy(env_output)
         self._value_input = self._add_memory_state_to_input(env_output)
 
-    def compute_value(self, value_inp: Dict[str, np.ndarray]=None):
+    def compute_logits_values(self, value_inp: Dict[str, np.ndarray]=None):
         # be sure you normalize obs first if obs normalization is required
-        if value_inp is None:
-            value_inp = self._value_input
-        value, _ = self.model.compute_value(**value_inp)
-        return value.numpy()
+        action_type_logits, card_rank_logits, value = \
+            self.model.compute_logits_values(**value_inp)
+        return action_type_logits.numpy(), card_rank_logits.numpy(), value.numpy()
+
+    def aux_train_record(self):
+        stats = self.train_loop.aux_train_record()
+        return stats
 
     def _add_memory_state_to_input(self, env_output):
         inp = env_output.obs.copy()
@@ -67,8 +68,27 @@ class PPOStrategy(Strategy):
         return inp
 
 
-create_strategy = functools.partial(
-    create_strategy, 
-    strategy_cls=PPOStrategy,
-    training_loop_cls=PPOTrainingLoop
-)
+def create_strategy(name, config, actor=None, trainer=None, dataset=None):
+    training = config['train_loop'].get('training', 'ppo')
+    if training == 'pbt': 
+        creator = functools.partial(
+            raw_create_strategy, 
+            strategy_cls=PPOStrategy,
+            training_loop_cls=PPGTrainingLoop
+        )
+    elif training == 'ppo': 
+        creator = functools.partial(
+            raw_create_strategy, 
+            strategy_cls=PPOStrategy,
+            training_loop_cls=PPOTrainingLoop
+        )
+    elif training == 'ppg':
+        creator = functools.partial(
+            raw_create_strategy, 
+            strategy_cls=PPOStrategy,
+            training_loop_cls=PPGTrainingLoop
+        )
+    else:
+        raise ValueError(training)
+    
+    return creator(name, config, actor, trainer, dataset)

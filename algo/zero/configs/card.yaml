@@ -33,19 +33,19 @@ env:
     name: &env_name card_gd
     eid: 0
     n_workers: &nworkers 80
-    n_envs: &nenvs 4
-    skip_players: []
+    n_envs: &nenvs 2
+    skip_players: [1, 3]
 
 agent:
     algorithm: *algo
 
-    LOG_PERIOD: 200
-    EVAL_PERIOD: 200
+    LOG_PERIOD: 100
+    EVAL_PERIOD: 100
 
 strategy:
     train_loop:
         training: *training
-        N_EPOCHS: &nepochs 4
+        N_EPOCHS: &nepochs 2
         N_VALUE_EPOCHS: &nval_epochs 0
         N_MBS: &nmbs 2
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound

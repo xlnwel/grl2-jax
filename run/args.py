@@ -39,6 +39,10 @@ def parse_train_args():
     parser.add_argument('--verbose', '-v',
                         type=str,
                         default='warning')
+    parser.add_argument('--other_directory', '-od',
+                        type=str,
+                        default=None,
+                        help="other players' directory where checkpoints and 'config.yaml' exist")
     args = parser.parse_args()
 
     return args
@@ -58,6 +62,10 @@ def parse_eval_args():
     parser.add_argument('--save', action='store_true')
     parser.add_argument('--fps', type=int, default=30)
     parser.add_argument('--verbose', '-v', type=str, default='warning')
+    parser.add_argument('--other_directory', '-od',
+                        type=str,
+                        default=None,
+                        help="other players' directory where checkpoints and 'config.yaml' exist")
     args = parser.parse_args()
 
     return args

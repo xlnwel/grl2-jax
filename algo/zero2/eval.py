@@ -2,6 +2,8 @@ import time
 import numpy as np
 import ray
 
+from core.typing import ModelPath
+
 from .remote.runner import RunnerManager
 from utility.ray_setup import sigint_shutdown_ray
 
@@ -11,7 +13,7 @@ def main(config, n, **kwargs):
     # config.name = 'zero'
     # config.runner.initialize_other = False
     # config.runner.self_play_frac = 0
-    # save_config(config.root_dir, config.model_name, config)
+    # save_config(ModelPath(config.root_dir, config.model_name), config)
     # exit()
     ray.init()
     sigint_shutdown_ray()

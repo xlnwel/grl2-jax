@@ -72,9 +72,12 @@ def make_mpe(config):
 
 
 def make_card(config):
-    from env.guandan.env import Env
     name = config['name'].split('_', 1)[1]
     if name == 'gd':
+        from env.guandan.env import Env
+        env = Env(**config)
+    elif name == 'gd2':
+        from env.guandan2.env import Env
         env = Env(**config)
     else:
         raise ValueError(f'No env with name({name}) is found in card suite')

@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow_probability import distributions as tfd
 
 from core.elements.loss import Loss
 from utility.rl_loss import huber_loss, ppo_loss, clipped_value_loss
@@ -29,6 +30,81 @@ class PPOLossImpl(Loss):
 
 
 class PPOLoss(PPOLossImpl):
+    def aux_loss(self,
+                numbers, 
+                jokers, 
+                left_cards, 
+                is_last_teammate_move,
+                is_first_move,
+                last_valid_action_type,
+                rank,
+                bombs_dealt,
+                last_action_numbers, 
+                last_action_jokers, 
+                last_action_types,
+                last_action_rel_pids,
+                last_action_filters, 
+                last_action_first_move, 
+                action_type_mask, 
+                card_rank_mask, 
+                others_numbers, 
+                others_jokers, 
+                action_type,
+                state, 
+                mask, 
+                value,
+                traj_ret, 
+                action_type_logits,
+                card_rank_logits):
+        old_value = value
+        terms = {}
+        with tf.GradientTape() as tape:
+            x, _ = self.model.encode(
+                numbers=numbers, 
+                jokers=jokers, 
+                left_cards=left_cards,
+                bombs_dealt=bombs_dealt,
+                last_action_numbers=last_action_numbers,
+                last_action_jokers=last_action_jokers,
+                last_action_types=last_action_types,
+                last_action_rel_pids=last_action_rel_pids,
+                last_action_filters=last_action_filters,
+                last_action_first_move=last_action_first_move,
+                state=state,
+                mask=mask)
+            _, card_rank_mask, action_type_dist, card_rank_dist = \
+                self.model.compute_policy_stream(
+                    x=x, 
+                    is_last_teammate_move=is_last_teammate_move,
+                    last_valid_action_type=last_valid_action_type, 
+                    rank=rank,
+                    action_type_mask=action_type_mask,
+                    card_rank_mask=card_rank_mask,
+                    action_type=action_type,
+                    evaluation=False)
+            old_action_type_dist = tfd.Categorical(action_type_logits)
+            old_card_rank_dist = tfd.Categorical(card_rank_logits)
+            action_type_kl = tf.reduce_mean(old_action_type_dist.kl_divergence(action_type_dist))
+            card_rank_kl = tf.reduce_mean(old_card_rank_dist.kl_divergence(card_rank_dist))
+            bc_loss = self._bc_coef * (action_type_kl + card_rank_kl)
+
+            value = self.model.compute_value_stream(x, others_numbers, others_jokers)
+            value_loss, v_clip_frac = self._compute_value_loss(
+                value, traj_ret, old_value)
+            loss = bc_loss + value_loss
+        
+        terms = dict(
+            value=value,
+            action_type_kl=action_type_kl, 
+            card_rank_kl=card_rank_kl,
+            bc_loss=bc_loss,
+            v_loss=value_loss,
+            explained_variance=explained_variance(traj_ret, value),
+            v_clip_frac=v_clip_frac
+        )
+
+        return tape, loss, terms
+
     def loss(self, 
             numbers, 
             jokers, 
@@ -89,23 +165,9 @@ class PPOLoss(PPOLossImpl):
             action_type_log_ratio = new_action_type_logpi - action_type_logpi
             card_rank_log_ratio = new_card_rank_logpi - card_rank_logpi
 
-            # action_type_logits = action_type_dist.logits
-            # card_rank_logits = card_rank_dist.logits
-            # action_type_probs = tf.nn.softmax(action_type_logits)
-            # card_rank_probs = tf.nn.softmax(card_rank_logits)
-            # action_type_logps = tf.nn.log_softmax(action_type_logits)
-            # card_rank_logps = tf.nn.log_softmax(card_rank_logits)
-            # action_type_logpi = tf.gather(action_type_logps, action_type, axis=2, batch_dims=2)
-            # card_rank_logpi = tf.gather(card_rank_logps, card_rank, axis=2, batch_dims=2)
-            # tf.debugging.assert_near(new_action_type_logpi, action_type_logpi)
-            # tf.debugging.assert_near(new_card_rank_logpi, card_rank_logpi)
-
-            # action_type_entropy = -tf.reduce_sum(action_type_probs * action_type_logps, -1)
-            # card_rank_entropy = -tf.reduce_sum(card_rank_probs * card_rank_logps, -1)
             action_type_entropy = action_type_dist.entropy()
             card_rank_entropy = card_rank_dist.entropy()
-            # action_type_entropy3 = action_type_entropy
-            # card_rank_entropy3 = card_rank_entropy
+            
             action_type_loss, action_type_entropy, action_type_kl, action_type_clip_frac = ppo_loss(
                 action_type_log_ratio, advantage, self._clip_range, action_type_entropy)
             card_rank_loss, card_rank_entropy, card_rank_kl, card_rank_clip_frac = ppo_loss(
@@ -136,9 +198,9 @@ class PPOLoss(PPOLossImpl):
             card_rank_entropy=card_rank_entropy, 
             entropy=entropy, 
             action_type_kl=action_type_kl, 
-            card_rank__kl=card_rank_kl, 
+            card_rank_kl=card_rank_kl, 
             action_type_clip_frac=action_type_clip_frac,
-            card_rank__clip_frac=card_rank_clip_frac,
+            card_rank_clip_frac=card_rank_clip_frac,
             action_type_loss=action_type_loss,
             card_rank_loss=card_rank_loss,
             policy_loss=policy_loss,
@@ -147,6 +209,192 @@ class PPOLoss(PPOLossImpl):
             v_loss=value_loss,
             explained_variance=explained_variance(traj_ret, value),
         ))
+
+        return tape, loss, terms
+
+
+class PPGLoss(PPOLossImpl):
+    def loss(self, 
+            numbers, 
+            jokers, 
+            left_cards, 
+            is_last_teammate_move,
+            is_first_move,
+            last_valid_action_type,
+            rank,
+            bombs_dealt,
+            last_action_numbers, 
+            last_action_jokers, 
+            last_action_types,
+            last_action_rel_pids,
+            last_action_filters, 
+            last_action_first_move, 
+            action_type_mask, 
+            card_rank_mask, 
+            others_numbers, 
+            others_jokers, 
+            action_type,
+            card_rank,
+            state, 
+            mask, 
+            value,
+            traj_ret, 
+            advantage, 
+            action_type_logpi,
+            card_rank_logpi):
+        old_value = value
+        terms = {}
+        with tf.GradientTape() as tape:
+            x, _ = self.model.encode(
+                numbers=numbers, 
+                jokers=jokers, 
+                left_cards=left_cards,
+                bombs_dealt=bombs_dealt,
+                last_action_numbers=last_action_numbers,
+                last_action_jokers=last_action_jokers,
+                last_action_types=last_action_types,
+                last_action_rel_pids=last_action_rel_pids,
+                last_action_filters=last_action_filters,
+                last_action_first_move=last_action_first_move,
+                state=state,
+                mask=mask)
+            _, card_rank_mask, action_type_dist, card_rank_dist = \
+                self.model.compute_policy_stream(
+                    x=x, 
+                    is_last_teammate_move=is_last_teammate_move,
+                    last_valid_action_type=last_valid_action_type, 
+                    rank=rank,
+                    action_type_mask=action_type_mask,
+                    card_rank_mask=card_rank_mask,
+                    action_type=action_type,
+                    evaluation=False)
+
+            new_action_type_logpi = action_type_dist.log_prob(action_type)
+            new_card_rank_logpi = card_rank_dist.log_prob(card_rank)
+            action_type_log_ratio = new_action_type_logpi - action_type_logpi
+            card_rank_log_ratio = new_card_rank_logpi - card_rank_logpi
+
+            action_type_entropy = action_type_dist.entropy()
+            card_rank_entropy = card_rank_dist.entropy()
+            
+            action_type_loss, action_type_entropy, action_type_kl, action_type_clip_frac = ppo_loss(
+                action_type_log_ratio, advantage, self._clip_range, action_type_entropy)
+            card_rank_loss, card_rank_entropy, card_rank_kl, card_rank_clip_frac = ppo_loss(
+                card_rank_log_ratio, advantage, self._clip_range, card_rank_entropy)
+            policy_loss = self._action_type_coef * action_type_loss \
+                + self._card_rank_coef * card_rank_loss
+            entropy = self._action_type_coef * action_type_entropy \
+                + self._card_rank_coef * card_rank_entropy
+            actor_loss = (policy_loss - self._entropy_coef * entropy)
+            
+            # value loss
+            x = tf.stop_gradient(x)
+            value = self.model.compute_value_stream(
+                x,
+                others_numbers=others_numbers,
+                others_jokers=others_jokers
+            )
+
+            value_loss, v_clip_frac = self._compute_value_loss(
+                value, traj_ret, old_value)
+            value_loss = self._value_coef * value_loss
+            loss = actor_loss + value_loss
+
+        terms.update(dict(
+            card_rank_mask=card_rank_mask,
+            value=value,
+            action_type_ratio=tf.exp(action_type_log_ratio), 
+            card_rank_ratio=tf.exp(card_rank_log_ratio), 
+            action_type_entropy=action_type_entropy, 
+            card_rank_entropy=card_rank_entropy, 
+            entropy=entropy, 
+            action_type_kl=action_type_kl, 
+            card_rank_kl=card_rank_kl, 
+            action_type_clip_frac=action_type_clip_frac,
+            card_rank_clip_frac=card_rank_clip_frac,
+            action_type_loss=action_type_loss,
+            card_rank_loss=card_rank_loss,
+            policy_loss=policy_loss,
+            actor_loss=actor_loss,
+            v_clip_frac=v_clip_frac,
+            v_loss=value_loss,
+            explained_variance=explained_variance(traj_ret, value),
+        ))
+
+        return tape, loss, terms
+
+    def aux_loss(self,
+                numbers, 
+                jokers, 
+                left_cards, 
+                is_last_teammate_move,
+                is_first_move,
+                last_valid_action_type,
+                rank,
+                bombs_dealt,
+                last_action_numbers, 
+                last_action_jokers, 
+                last_action_types,
+                last_action_rel_pids,
+                last_action_filters, 
+                last_action_first_move, 
+                action_type_mask, 
+                card_rank_mask, 
+                others_numbers, 
+                others_jokers, 
+                action_type,
+                state, 
+                mask, 
+                value,
+                traj_ret, 
+                action_type_logits,
+                card_rank_logits):
+        old_value = value
+        terms = {}
+        with tf.GradientTape() as tape:
+            x, _ = self.model.encode(
+                numbers=numbers, 
+                jokers=jokers, 
+                left_cards=left_cards,
+                bombs_dealt=bombs_dealt,
+                last_action_numbers=last_action_numbers,
+                last_action_jokers=last_action_jokers,
+                last_action_types=last_action_types,
+                last_action_rel_pids=last_action_rel_pids,
+                last_action_filters=last_action_filters,
+                last_action_first_move=last_action_first_move,
+                state=state,
+                mask=mask)
+            _, card_rank_mask, action_type_dist, card_rank_dist = \
+                self.model.compute_policy_stream(
+                    x=x, 
+                    is_last_teammate_move=is_last_teammate_move,
+                    last_valid_action_type=last_valid_action_type, 
+                    rank=rank,
+                    action_type_mask=action_type_mask,
+                    card_rank_mask=card_rank_mask,
+                    action_type=action_type,
+                    evaluation=False)
+            old_action_type_dist = tfd.Categorical(action_type_logits)
+            old_card_rank_dist = tfd.Categorical(card_rank_logits)
+            action_type_kl = tf.reduce_mean(old_action_type_dist.kl_divergence(action_type_dist))
+            card_rank_kl = tf.reduce_mean(old_card_rank_dist.kl_divergence(card_rank_dist))
+            bc_loss = self._bc_coef * (action_type_kl + card_rank_kl)
+
+            value = self.model.compute_value_stream(x, others_numbers, others_jokers)
+            value_loss, v_clip_frac = self._compute_value_loss(
+                value, traj_ret, old_value)
+            loss = bc_loss + value_loss
+        
+        terms = dict(
+            value=value,
+            action_type_kl=action_type_kl, 
+            card_rank_kl=card_rank_kl,
+            bc_loss=bc_loss,
+            v_loss=value_loss,
+            explained_variance=explained_variance(traj_ret, value),
+            v_clip_frac=v_clip_frac
+        )
 
         return tape, loss, terms
 
@@ -236,8 +484,6 @@ class BCLoss(Loss):
             'action_type_loss2': action_type_loss,
             'card_rank_mask': card_rank_mask,
             'card_rank_loss': card_rank_loss,
-            # 'card_rank_loss2': card_rank_loss2,
-            # 'value_loss': value_loss,
             'policy_loss': policy_loss,
             'loss': loss,
         }
@@ -246,7 +492,9 @@ class BCLoss(Loss):
 
 
 def create_loss(config, model, name='ppo'):
-    if config['training'] == 'ppo' or config['training'] == 'pbt':
+    if config['training'] == 'ppg' or config['training'] == 'pbt':
+        return PPGLoss(config=config, model=model, name=name)
+    if config['training'] == 'ppo':
         return PPOLoss(config=config, model=model, name=name)
     elif config['training'] == 'bc':
         return BCLoss(config=config, model=model, name=name)

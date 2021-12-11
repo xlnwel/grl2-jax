@@ -1,7 +1,8 @@
 from typing import Union
 
 from core.elements.actor import Actor
-from core.elements.trainer import Trainer, TrainerEnsemble, TrainingLoopBase
+from core.elements.trainer import Trainer, TrainerEnsemble
+from core.elements.trainloop import TrainingLoopBase
 from core.mixin.strategy import StepCounter
 from core.typing import ModelPath
 from env.typing import EnvOutput
@@ -39,7 +40,10 @@ class Strategy:
         self._root_dir = model_path.root_dir
         self._model_name = model_path.model_name
         self._model_path = model_path
-        self.config = set_path(self.config, model_path)
+        self.step_counter = StepCounter(
+            *model_path, f'{self._name}_step_counter'
+        )
+        self.config = set_path(self.config, model_path, recursive=False)
         if self.model is not None:
             self.model.reset_model_path(model_path)
         if self.actor is not None:
@@ -54,8 +58,10 @@ class Strategy:
     def __getattr__(self, name):
         if name.startswith('_'):
             raise AttributeError(f"Attempted to get missing private attribute '{name}'")
-        if hasattr(self.step_counter, name):
+        elif hasattr(self.step_counter, name):
             return getattr(self.step_counter, name)
+        elif self.train_loop is not None:
+            return getattr(self.train_loop, name)
         raise AttributeError(f"Attempted to get missing attribute '{name}'")
 
     def get_weights(self, identifier=None, opt_weights=True, actor_weights=True):

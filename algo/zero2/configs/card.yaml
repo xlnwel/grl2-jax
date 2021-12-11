@@ -34,7 +34,7 @@ env:
     name: &env_name card_gd
     eid: 0
     n_workers: &nworkers 80
-    n_envs: &nenvs 4
+    n_envs: &nenvs 2
     skip_players: []
 
 agent:

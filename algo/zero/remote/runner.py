@@ -1,11 +1,10 @@
-import os
 import functools
 import random
 import numpy as np
 import ray
 from ray._raylet import ObjectRef
 
-from algo.zero.elements.parameter_server import ParameterServer
+from algo.zero.remote.parameter_server import ParameterServer
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.remote.base import RayBase
@@ -19,7 +18,7 @@ from utility.utils import AttrDict2dict, batch_dicts, dict2AttrDict
 
 
 class RunnerManager(RayBase):
-    def __init__(self, config, store_data=True, parameter_server=None):
+    def __init__(self, config, store_data=True, evaluation=False, parameter_server=None):
         self.config = dict2AttrDict(config['runner'])
         self.n_envs = config['env']['n_workers'] * config['env']['n_envs']
         self.n_eval_envs = max(self.n_envs * (1 - self.config.self_play_frac) * .5, 100)
@@ -28,6 +27,7 @@ class RunnerManager(RayBase):
         self.runners = [RemoteRunner.remote(
             config, 
             store_data=store_data, 
+            evaluation=evaluation,
             parameter_server=parameter_server) 
                 for _ in range(config['env']['n_workers'])]
 
@@ -54,11 +54,10 @@ class RunnerManager(RayBase):
         stats = batch_dicts(stats, lambda x: sum(x, []))
         return sum(steps), data, stats
     
-    def evaluate(self, total_episodes, weights=None, 
-                other_root_dir=None, other_model_name=None):
+    def evaluate(self, total_episodes, weights=None, other_path=None):
         """ Evaluation is problematic if self.runner.run does not end in a pass """
-        if other_root_dir is not None and other_model_name is not None:
-            self.set_other_agent_from_path(other_root_dir, other_model_name)
+        if other_path is not None:
+            self.set_other_agent_from_path(other_path)
         n_eps = 0
         stats_list = []
         i = 0
@@ -76,24 +75,40 @@ class RunnerManager(RayBase):
         [r.set_model_path.remote(pid) for r in self.runners]
 
     """ Other Agent's Operations """
-    def set_other_agent_from_path(self, root_dir, model_name, wait=False):
-        oids = [r.set_other_agent_from_path.remote(root_dir, model_name) for r in self.runners]
+    def set_other_agent_from_path(self, other_path, wait=False):
+        opid = ray.put(other_path)
+        oids = [r.set_other_agent_from_path.remote(opid) for r in self.runners]
         if wait:
             ray.get(oids)
         else:
             return oids
 
+    def force_self_play(self, wait=False):
+        oids = [r.force_self_play.remote() for r in self.runners]
+        if wait:
+            ray.get(oids)
+        else:
+            return oids
+
+    def play_with_pool(self, wait=False):
+        oids = [r.play_with_pool.remote() for r in self.runners]
+        if wait:
+            ray.get(oids)
+        else:
+            return oids
 
 class TwoAgentRunner(RayBase):
-    def __init__(self, config, store_data=True, parameter_server: ParameterServer=None):
+    def __init__(self, config, store_data=True, evaluation=False, parameter_server: ParameterServer=None):
         super().__init__()
         self.store_data = store_data
+        self.evaluation = evaluation
         self.n_agents = 4
         self.other_agent = None
         self.parameter_server = parameter_server
         self._other_root_dir = None
         self._other_model_name = None
         self._other_path = None
+        self._force_self_play = False
         self.build_from_config(config)
 
     def build_from_config(self, config):
@@ -112,11 +127,11 @@ class TwoAgentRunner(RayBase):
         self.env_output = self.env.output(convert_batch=False)
 
         self.builder = ElementsBuilder(config, self.env_stats)
-        elements = self.builder.build_actor_agent_from_scratch()
+        elements = self.builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
         self.agent = elements.agent
         if self.config.initialize_other:
             # Initialize a homogeneous agent, otherwise, call <set_other_agent_from_path>
-            elements = self.builder.build_actor_agent_from_scratch()
+            elements = self.builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
             self.other_agent = elements.agent
         self.step = self.agent.get_env_step() // n_workers
         self.n_episodes = 0
@@ -144,7 +159,8 @@ class TwoAgentRunner(RayBase):
 
     def reset(self):
         self.env_output = self.env.reset(convert_batch=False)
-        self.buffer.reset()
+        if self.buffer is not None:
+            self.buffer.reset()
 
     def run(self, weights):
         if weights is not None:
@@ -277,6 +293,13 @@ class TwoAgentRunner(RayBase):
         return self.step
 
     """ Player Setups """
+    def force_self_play(self):
+        self.self_play()
+        self._force_self_play = True
+    
+    def play_with_pool(self):
+        self._force_self_play = False
+
     def self_play(self):
         self._set_pids(list(range(self.n_agents)))
         assert self.other_pids == [], self.other_agent
@@ -285,11 +308,11 @@ class TwoAgentRunner(RayBase):
         if self.other_agent is not None:
             do_logging(f'Make sure your network is defined on CPUs. TF does not release GPU memory automatically and constructing multiple networks incurs large GPU memory overhead.', level='WARNING')
         self._other_path = other_path
-        path = os.path.join(self._other_path)
+        path = '/'.join(self._other_path)
         config = search_for_config(path)
         name = config.get('name', self.name)
         builder = ElementsBuilder(config, self.env_stats, name=name)
-        elements = builder.build_actor_agent_from_scratch()
+        elements = builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
         self.other_agent = elements.agent
         self._set_pids(self.config.agent_pids)
 
@@ -303,10 +326,12 @@ class TwoAgentRunner(RayBase):
 
     """ Interactions with other process """
     def retrieve_other_agent_from_parameter_server(self):
-        if self.other_agent is None:
-            elements = self.builder.build_actor_agent_from_scratch()
-            self.other_agent = elements.agent
-        if self.parameter_server is not None:
+        if self._force_self_play:
+            assert self.other_pids == [], self.other_pids
+        elif self.parameter_server is not None:
+            if self.other_agent is None:
+                elements = self.builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
+                self.other_agent = elements.agent
             if random.random() < self._self_play_frac:
                 self.self_play()
             else:

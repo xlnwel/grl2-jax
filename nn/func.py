@@ -23,7 +23,7 @@ def create_network(config, name):
     if nn_id is None:
         registry = nn_registry
     elif '_' in nn_id:
-        nn_type, nn_id = nn_id.split('_')
+        nn_type, nn_id = nn_id.split('_', 1)
         registry = nn_registry.get(nn_type)
     else:
         registry = nn_registry

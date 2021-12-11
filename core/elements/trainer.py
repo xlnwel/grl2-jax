@@ -7,7 +7,6 @@ from core.optimizer import create_optimizer
 from core.typing import ModelPath
 from run.utils import set_path
 from utility.display import display_model_var_info
-from utility.timer import Timer
 from utility.utils import config_attr, eval_config
 
 
@@ -21,17 +20,21 @@ class Trainer(tf.Module):
         self._raw_name = name
         super().__init__(name=f'{name}_trainer')
         config = config.copy()
-        config_attr(self, config, filter_dict=True)
+        self.config = config_attr(self, config, filter_dict=True)
         
         self.model = loss.model
         self.loss = loss
         self.env_stats = env_stats
 
-        # keep the order fixed, otherwise you may incounter the permutation misalignment problem when restoring from a checkpoint
-        keys = sorted([k for k in self.model.keys() if not k.startswith('target')])
-        modules = tuple(self.model[k] for k in keys)
-        # modules = tuple(v for k, v in self.model.items() 
-        #     if not k.startswith('target'))
+        if config.get('ordered_module', True):
+            # keep the order fixed, otherwise you may encounter 
+            # the permutation misalignment problem when restoring from a checkpoint
+            keys = sorted([k for k in self.model.keys() if not k.startswith('target')])
+            modules = tuple(self.model[k] for k in keys)
+        else:
+            # for backward compatibility
+            modules = tuple(v for k, v in self.model.items() 
+                if not k.startswith('target'))
         opt_config = eval_config(config.pop('optimizer'))
         self.optimizer = create_optimizer(modules, opt_config)
         
@@ -49,7 +52,7 @@ class Trainer(tf.Module):
         self._root_dir = model_path.root_dir
         self._model_name = model_path.model_name
         self._model_path = model_path
-        self.config = set_path(self.config, model_path)
+        self.config = set_path(self.config, model_path, recursive=False)
         self.setup_checkpoint()
         self._has_ckpt = True
 
@@ -171,39 +174,6 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
 
     def save_optimizer(self, print_terminal_info=False):
         super().save(print_terminal_info)
-
-
-class TrainingLoopBase:
-    def __init__(self, 
-                 config, 
-                 dataset, 
-                 trainer, 
-                 **kwargs):
-        self.config = config_attr(self, config)
-        self.dataset = dataset
-        self.trainer = trainer
-
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-
-        self._sample_timer = Timer('sample')
-        self._train_timer = Timer('train')
-        self._post_init()
-
-    def _post_init(self):
-        pass
-
-    def train(self):
-        train_step, stats = self._train()
-        self._after_train()
-
-        return train_step, stats
-
-    def _train(self):
-        raise NotImplementedError
-
-    def _after_train(self):
-        pass
 
 
 def create_trainer(config, loss, env_stats, *, name, trainer_cls, **kwargs):

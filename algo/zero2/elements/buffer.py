@@ -257,10 +257,12 @@ class PPOBuffer:
 class PPGBuffer:
     def __init__(self, config):
         self.config = config_attr(self, config)
+        config['use_dataset'] = False
         self._buff = PPOBuffer(config)
-        self._add_attributes()
 
-    def _add_attributes(self):
+        self._sample_keys = self.config.aux_sample_size
+        self._state_keys = ['h', 'c']
+
         assert self.N_PI >= self.N_SEGS, (self.N_PI, self.N_SEGS)
         self.TOTAL_STEPS = self.N_STEPS * self.N_PI
         buff_size = self._buff.max_size()
@@ -274,9 +276,12 @@ class PPGBuffer:
 
         self._gae_discount = self._gamma * self._lam
         self._memory = collections.defaultdict(list)
-        self._is_store_shape = True
         do_logging(f'Memory size: {self._size}', logger=logger)
         do_logging(f'Aux mini-batch size: {self._aux_mb_size}', logger=logger)
+
+        self._sleep_time = 0.025
+        self._sample_wait_time = 0
+        self._epoch_idx = 0
 
     def __getitem__(self, k):
         return self._buff[k]
@@ -287,25 +292,67 @@ class PPGBuffer:
     def set_ready(self):
         self._ready = True
 
+    def reset(self):
+        self._buff.reset()
+        assert self._ready, self._idx
+        self._memory.clear()
+        self._idx = 0
+        self._mb_idx = 0
+        self._epoch_idx = 0
+        self._ready = False
+
     def merge(self, data):
         self._buff.merge(data)
 
     def transfer_data(self):
-        assert self._buff.ready()
+        assert self._buff.ready(), (self._buff.size(), self._buff.max_size())
         if self._idx >= self.N_PI - self.N_SEGS:
-            for k in self._transfer_keys:
-                v = self._buff[k]
-                if k in self._memory:
-                    # NOTE: we concatenate segments along the sequential dimension,
-                    # which increases the horizon when computing targets and advantages
-                    # The effect is unclear and may correlate with the value of 𝝀
-                    self._memory[k].append(v)
-                else:
-                    self._memory[k] = v.copy()
+            for k in self._sample_keys:
+                self._memory[k].append(self._buff[k])
         self._idx = (self._idx + 1) % self.N_PI
 
     def sample(self):
-        return self._buff.sample()
+        def wait_to_sample():
+            while not (self._ready or self._buff.ready()):
+                time.sleep(self._sleep_time)
+                self._sample_wait_time += self._sleep_time
+
+        def shuffle_indices():
+            if self._mb_idx == 0:
+                np.random.shuffle(self._shuffled_idxes)
+
+        def sample_minibatch():
+            self._mb_idx, self._curr_idxes = compute_indices(
+                self._shuffled_idxes, self._mb_idx, 
+                self._aux_mb_size, self.N_MBS)
+            
+            sample = {k: self._memory[k][self._curr_idxes, 0]
+                if k in self._state_keys else self._memory[k][self._curr_idxes] 
+                for k in self._sample_keys}
+            action_rnn_dim = sample['action_h'].shape[-1]
+            sample['action_h'] = sample['action_h'].reshape(-1, action_rnn_dim)
+            sample['action_c'] = sample['action_c'].reshape(-1, action_rnn_dim)
+
+            return sample
+
+        def post_process_for_dataset():
+            if self._mb_idx == 0:
+                self._epoch_idx += 1
+                if self._epoch_idx == self.N_AUX_EPOCHS:
+                    # resetting here is especially important 
+                    # if we use tf.data as sampling is done 
+                    # in a background thread
+                    self.reset()
+
+        wait_to_sample()
+        if self._buff.ready():
+            sample = self._buff.sample()
+        else:
+            shuffle_indices()
+            sample = sample_minibatch()
+            post_process_for_dataset()
+
+        return sample
     
     def sample_aux_data(self):
         assert self._ready, self._idx
@@ -313,35 +360,24 @@ class PPGBuffer:
             np.random.shuffle(self._shuffled_idxes)
         self._mb_idx, self._curr_idxes = compute_indices(
             self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_SEGS)
-        return {k: self._memory[k][self._curr_idxes] for k in self._aux_sample_keys}
+        return {k: self._memory[k][self._curr_idxes] for k in self._sample_keys}
 
     def compute_mean_max_std(self, stats='reward'):
         return self._buff.compute_mean_max_std(stats)
     
     def finish(self):
-        self._buff.finish()
-    
-    def aux_finish(self):
-        assert self._idx == 0, self._idx
-        for k, v in self._memory.items():
-            self._memory[k] = np.concatenate(v)
-            assert self._memory[k].shape[:2] == (self._size, self._sample_size), (k, self._memory[k].shape)
-        
-        self.reshape_to_sample()
-        self._ready = True
-
-    def reset(self):
-        if self._buff.ready():
-            self.transfer_data()
-        self._buff.reset()
-    
-    def aux_reset(self):
-        assert self._ready, self._idx
-        self._memory.clear()
-        self._is_store_shape = True
-        self._idx = 0
-        self._mb_idx = 0
-        self._ready = False
+        def aux_finish():
+            assert self._idx == 0, self._idx
+            for k, v in self._memory.items():
+                assert len(v) == self.N_SEGS, (len(v), self.N_SEGS)
+                self._memory[k] = np.concatenate(v)
+                assert self._memory[k].shape[:2] == (self._size, self._sample_size), (k, self._memory[k].shape)
+            
+            self._ready = True
+        data = self._buff.finish()
+        self.transfer_data()
+        if self._idx == 0:
+            aux_finish()
 
     def clear(self):
         self._idx = 0

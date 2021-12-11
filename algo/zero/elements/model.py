@@ -6,6 +6,7 @@ from core.elements.model import Model
 from core.tf_config import build
 from utility.file import source_file
 from utility.tf_utils import assert_rank
+from utility.utils import TempStore
 
 
 # register networks 
@@ -26,7 +27,6 @@ class PPOModel(Model):
             evaluation=evaluation,
             return_eval_stats=evaluation,
         ))
-
         self.action = build(self.action, TensorSpecs)
 
     def _post_init(self):
@@ -118,53 +118,6 @@ class PPOModel(Model):
                 lambda x: tf.squeeze(x, 1), terms
             )
             return (action_type, card_rank), terms, state    # keep the batch dimension for later use
-
-    @tf.function
-    def compute_value(self, 
-                    numbers, 
-                    jokers, 
-                    left_cards, 
-                    is_last_teammate_move,
-                    is_first_move,
-                    last_valid_action_type,
-                    rank,
-                    bombs_dealt,
-                    last_action_numbers, 
-                    last_action_jokers, 
-                    last_action_types,
-                    last_action_rel_pids,
-                    last_action_filters, 
-                    last_action_first_move, 
-                    action_type_mask, 
-                    card_rank_mask, 
-                    others_numbers=None, 
-                    others_jokers=None, 
-                    state=None, 
-                    mask=None):
-        encoder_inp = self._add_seqential_dimension(
-            numbers=numbers, 
-            jokers=jokers, 
-            left_cards=left_cards,
-            bombs_dealt=bombs_dealt,
-            last_action_numbers=last_action_numbers,
-            last_action_jokers=last_action_jokers,
-            last_action_types=last_action_types,
-            last_action_rel_pids=last_action_rel_pids,
-            last_action_filters=last_action_filters,
-            last_action_first_move=last_action_first_move,
-            mask=mask
-        )
-        x, state = self.encode(
-            **encoder_inp,
-            state=state)
-        value_inp = self._add_seqential_dimension(
-            others_numbers=others_numbers,
-            others_jokers=others_jokers
-        )
-        value = self.compute_value_stream(x, **value_inp)
-        value = tf.squeeze(value)
-
-        return value, state
 
     def encode(self, 
                numbers, 
@@ -284,14 +237,109 @@ class PPOModel(Model):
     def state_type(self):
         return self._state_type
 
-    def _add_seqential_dimension(self, **kwargs):
-        return tf.nest.map_structure(lambda x: tf.expand_dims(x, 1), kwargs)
+    def _add_seqential_dimension(self, add_sequential_dim=True, **kwargs):
+        if add_sequential_dim:
+            return tf.nest.map_structure(lambda x: tf.expand_dims(x, 1), kwargs)
+        else:
+            return kwargs
+
+
+class PPGModel(PPOModel):
+    def _build(self, env_stats, evaluation=False):
+        basic_shape = (None,)
+        shapes = env_stats['obs_shape']
+        dtypes = env_stats['obs_dtype']
+        TensorSpecs = {k: ((*basic_shape, *v), dtypes[k], k) 
+            for k, v in shapes.items()}
+        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        TensorSpecs.update(dict(
+            state=self.state_type(*[((None, sz), dtype, name) 
+                for name, sz in self.state_size._asdict().items()]),
+            evaluation=evaluation,
+            return_eval_stats=evaluation,
+        ))
+        self.action = build(self.action, TensorSpecs)
+
+        basic_shape = (None, self.config.sample_size)
+        TensorSpecs = {k: ((*basic_shape, *v), dtypes[k], k) 
+            for k, v in shapes.items()}
+        TensorSpecs['action_type'] = (basic_shape, tf.int32, 'action_type')
+        TensorSpecs.update({
+            name: ((None, sz), tf.float32, name)
+                for name, sz in self.state_size._asdict().items()
+        })
+        self.compute_logits_values = build(self.compute_logits_values, TensorSpecs)
+
+    @tf.function
+    def compute_logits_values(self,
+                            numbers, 
+                            jokers, 
+                            left_cards, 
+                            is_last_teammate_move,
+                            is_first_move,
+                            last_valid_action_type,
+                            rank,
+                            bombs_dealt,
+                            last_action_numbers, 
+                            last_action_jokers, 
+                            last_action_types,
+                            last_action_rel_pids,
+                            last_action_filters, 
+                            last_action_first_move, 
+                            action_type_mask, 
+                            card_rank_mask, 
+                            others_numbers, 
+                            others_jokers, 
+                            mask,
+                            action_type,
+                            action_h,
+                            action_c,
+                            h,
+                            c):
+        state = (action_h, action_c, h, c)
+        x, _ = self.encode(
+            numbers=numbers, 
+            jokers=jokers, 
+            left_cards=left_cards,
+            bombs_dealt=bombs_dealt,
+            last_action_numbers=last_action_numbers,
+            last_action_jokers=last_action_jokers,
+            last_action_types=last_action_types,
+            last_action_rel_pids=last_action_rel_pids,
+            last_action_filters=last_action_filters,
+            last_action_first_move=last_action_first_move,
+            state=state,
+            mask=mask)
+        _, card_rank_mask, action_type_dist, card_rank_dist = \
+            self.compute_policy_stream(
+                x=x, 
+                is_last_teammate_move=is_last_teammate_move,
+                last_valid_action_type=last_valid_action_type, 
+                rank=rank,
+                action_type_mask=action_type_mask,
+                card_rank_mask=card_rank_mask,
+                action_type=action_type,
+                evaluation=False)
+        value = self.compute_value_stream(
+            x,
+            others_numbers=others_numbers,
+            others_jokers=others_jokers
+        )
+        return action_type_dist.logits, card_rank_dist.logits, value
+
 
 def create_model(config, env_stats, name='zero', to_build=False, to_build_for_eval=False):
     config.action_type.head.out_size = env_stats['action_dim']['action_type']
     config.card_rank.head.out_size = env_stats['action_dim']['card_rank']
 
-    return PPOModel(
+    training = config.get('training', 'ppo')
+    if training == 'ppo':
+        model = PPOModel
+    elif training == 'ppg' or training == 'pbt':
+        model = PPGModel
+    else:
+        raise ValueError(training)
+    return model(
         config=config, 
         env_stats=env_stats, 
         name=name, 

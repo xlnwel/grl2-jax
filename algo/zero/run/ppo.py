@@ -1,7 +1,8 @@
 import ray
 
-from algo.zero.elements.runner import RunnerManager
+from algo.zero.remote.runner import RunnerManager
 from core.elements.builder import ElementsBuilder
+from core.typing import ModelPath
 from env.func import get_env_stats
 from utility.ray_setup import sigint_shutdown_ray
 from utility.timer import Every, Timer
@@ -15,9 +16,8 @@ def main(config):
     builder = ElementsBuilder(config, env_stats)
     elements = builder.build_agent_from_scratch()
     runner_manager = RunnerManager(config)
-    root_dir = 'logs/card_gd/zero'
-    model_name = 'sp'
-    runner_manager.set_other_agent_from_path(root_dir, model_name)
+    if config.other_path:
+        runner_manager.set_other_agent_from_path(config.other_path)
 
     train(elements.agent, elements.buffer, runner_manager)
 
@@ -75,7 +75,7 @@ def train(agent, buffer, runner_manager):
             **stats,
             **{
                 'time/fps': (step-start_env_step)/rt.last(),
-                'time/trps': (train_step-start_train_step)/tt.last()})
+                'time/outer_fps': (train_step-start_train_step)/tt.last()})
         agent.set_env_step(step)
 
         if to_record(train_step) and agent.contains_stats('score'):

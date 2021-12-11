@@ -7,6 +7,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.elements.builder import ElementsBuilder
 from core.log import setup_logging
 from core.tf_config import *
+from core.typing import ModelPath
+from core.utils import save_config
 from utility.display import pwc
 from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
@@ -14,7 +16,7 @@ from utility.graph import save_video
 from utility import pkg
 from env.func import create_env
 from run.args import parse_eval_args
-from run.utils import search_for_config
+from run.utils import get_other_path, search_for_config, set_path
 
 
 def main(config, n, record=False, size=(128, 128), video_len=1000, 
@@ -41,7 +43,7 @@ def main(config, n, record=False, size=(128, 128), video_len=1000,
     env_stats = env.stats()
 
     builder = ElementsBuilder(config, env_stats, config.algorithm)
-    elements = builder.build_actor_agent_from_scratch()
+    elements = builder.build_actor_agent_from_scratch(to_build_for_eval=True)
     agent = elements.agent
 
     if n < env.n_envs:
@@ -69,6 +71,10 @@ if __name__ == '__main__':
 
     # load respective config
     config = search_for_config(args.directory)
+    model_name = args.directory.replace(config.root_dir, '')
+    model_path = ModelPath(config.root_dir, model_name)
+    config = set_path(config, model_path)
+    save_config(model_path, config)
 
     silence_tf_logs()
     configure_gpu()
@@ -88,5 +94,8 @@ if __name__ == '__main__':
         config.env['n_envs'] = args.n_envs
     n = max(args.n_workers * args.n_envs, n)
 
+    other_path = get_other_path(args.other_directory)
+
     main(config, n=n, record=args.record, size=args.size, 
-        video_len=args.video_len, fps=args.fps, save=args.save)
+        video_len=args.video_len, fps=args.fps, save=args.save,
+        other_path=other_path)

@@ -9,8 +9,9 @@ class InfoSet(object):
     includes all the information in the current situation,
     such as the hand cards, the historical moves, etc.
     """
-    def __init__(self, pid):
+    def __init__(self, pid, evaluation=False):
         self.pid = pid
+        self.evaluation = evaluation
         self.first_round = None
         # Last player id
         self.last_pid = None
@@ -43,7 +44,6 @@ class InfoSet(object):
         self._action2id = {}
 
     def get_policy_mask(self, is_first_move):
-        # TODO: Try more action types
         action_type_mask = np.zeros(NUM_ACTION_TYPES, dtype=np.bool)
         card_rank_mask = np.zeros((NUM_ACTION_TYPES, NUM_CARD_RANKS), dtype=np.bool)
         card_rank_mask[-1] = 1
@@ -198,11 +198,6 @@ def get_obs(infoset: InfoSet):
     last_action_first_move = np.array([infoset.all_last_action_first_move[i] for i in pids], dtype=np.float32)
     assert np.sum(last_action_first_move) < 2, (last_actions, last_action_first_move)
 
-    """ Unobservable Info: Others' Cards """
-    others_handcards = [_cards_repr(c) for c in others_hand_cards]
-    others_numbers = np.concatenate([c['numbers'] for c in others_handcards]+[rank_exp_repr], axis=-1)
-    others_jokers = np.concatenate([c['jokers'] for c in others_handcards], axis=-1)
-    
     """ Policy Mask """
     action_type_mask, card_rank_mask = infoset.get_policy_mask(is_first_move)
     if is_first_move:
@@ -229,8 +224,17 @@ def get_obs(infoset: InfoSet):
         'last_action_first_move': last_action_first_move,
         'action_type_mask': action_type_mask,
         'card_rank_mask': card_rank_mask,
-        'others_numbers': others_numbers,
-        'others_jokers': others_jokers,
         'mask': mask
     }
+    if not infoset.evaluation:
+        """ Unobservable Info: Others' Cards """
+        others_handcards = [_cards_repr(c) for c in others_hand_cards]
+        others_numbers = np.concatenate([c['numbers'] for c in others_handcards]+[rank_exp_repr], axis=-1)
+        others_jokers = np.concatenate([c['jokers'] for c in others_handcards], axis=-1)
+        
+        obs.update({
+            'others_numbers': others_numbers,
+            'others_jokers': others_jokers,
+        })
+
     return obs
