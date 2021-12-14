@@ -15,10 +15,15 @@ root_dir: *algo
 model_name: *algo
 
 parameter_server:
+    fsp: False
     p: 3    # the exponent applied to convert scores to weights
     default_score: 0
     root_dir: *algo
     model_name: *algo
+    UPDATE_PERIOD: 5e4
+    start_checkpoint: null
+    # - 
+    # - logs2
 
 runner:
     ray:
@@ -28,12 +33,12 @@ runner:
     MAX_STEPS: 5e8
     N_STEPS: &nsteps 128
     agent_pids: &pids [0, 2]
-    initialize_other: True
+    initialize_other: False
     self_play_frac: .2
     record_self_play_stats: False
 
 env:
-    name: &env_name card_gd
+    name: &env_name card_gd2
     eid: 0
     n_workers: &nworkers 80
     n_envs: &nenvs 2
@@ -43,7 +48,6 @@ agent:
     algorithm: *algo
 
     LOG_PERIOD: 100
-    EVAL_PERIOD: 100
 
 strategy:
     train_loop:

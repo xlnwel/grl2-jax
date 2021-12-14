@@ -205,7 +205,6 @@ class PPOModel(Model):
                             others_h):
         x_o = self.others_encoder(others_numbers, others_jokers)
         x_h = self.others_memory_encoder(others_h)
-        # x_c = self.others_memory_encoder(others_c)
         x_v = tf.concat([x, x_o, x_h], axis=-1)
         value = self.value(x_v)
         return value

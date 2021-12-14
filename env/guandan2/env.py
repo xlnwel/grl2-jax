@@ -75,6 +75,7 @@ class Env:
     def _get_others_state(self):
         h = np.stack(self.players_states)
         return h
+
     @property
     def _acting_player_position(self):
         """

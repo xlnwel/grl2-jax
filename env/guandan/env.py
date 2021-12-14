@@ -13,6 +13,7 @@ class Env:
         # Initialize the internal environment
         self.eid = eid
         self._env = Game(**kwargs)
+        self.evaluation = kwargs.get('evaluation', False)
         self.n_agents = 4
         self.max_episode_steps = int(1e9)
         self.is_action_discrete = True
@@ -22,6 +23,7 @@ class Env:
         self.reward_shape = self._env.reward_shape
         self.obs_dtype = self._env.obs_dtype
         self.action_dtype = self._env.action_dtype
+        self.players_states = deque([np.zeros(128, dtype=np.float32) for _ in range(3)], 3)
 
     def random_action(self):
         return self._env.random_action()
@@ -32,11 +34,15 @@ class Env:
 
         obs = get_obs(self._get_infoset())
         obs['eid'] = self.eid
+        if not self.evaluation:
+            obs['others_h'] = self._get_others_state()
 
         return obs
 
     def step(self, action):
-        action = action[:2]
+        if not self.evaluation:
+            action, state = action[:2], action[2]
+            self.players_states.append(state)
         aid = self._get_action_id(action)
         self._env.play(aid)
         done = False
@@ -51,6 +57,8 @@ class Env:
             info['game_over'] = True
         obs = get_obs(self._get_infoset())
         obs['eid'] = self.eid
+        if not self.evaluation:
+            obs['others_h'] = self._get_others_state()
 
         return obs, reward, done, info
 
@@ -63,6 +71,10 @@ class Env:
         """
         self.infoset = self._env.get_infoset()
         return self.infoset
+
+    def _get_others_state(self):
+        h = np.stack(self.players_states)
+        return h
 
     @property
     def _acting_player_position(self):

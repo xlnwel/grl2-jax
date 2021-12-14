@@ -5,7 +5,6 @@ from algo.zero.remote.parameter_server import ParameterServer
 from algo.zero.remote.runner import RunnerManager
 from core.elements.builder import ElementsBuilder
 from core.tf_config import configure_gpu, silence_tf_logs
-from core.typing import ModelPath
 from env.func import get_env_stats
 from utility.ray_setup import sigint_shutdown_ray
 from utility.timer import Every, Timer
@@ -22,7 +21,7 @@ def main(config):
         config=config.asdict(),
         env_stats=env_stats.asdict())
 
-    ray.get(parameter_server.search_for_strategies.remote(config['root_dir']))
+    ray.get(parameter_server.search_for_strategies.remote(config.root_dir.split('/')[0]))
 
     pbt_train(
         config=config, 
@@ -47,15 +46,16 @@ def pbt_train(
     elements = builder.build_agent_from_scratch()
     agent = elements.agent
 
-    i = 0
-    path = f'{config["root_dir"]}/{config["model_name"]}/verbose.txt'
+    i = builder.get_version()
+    verbose_path = f'{config["root_dir"]}/{config["model_name"]}/verbose.txt'
     model_path = builder.get_model_path()
     is_ps_empty = ray.get(parameter_server.is_empty.remote(model_path))
     while True:
         if i == 0 and not is_ps_empty:
-            wid = parameter_server.retrieve_latest_strategy_weights.remote()
+            wid = parameter_server.retrieve_strategy_weights_from_checkpoint.remote()
             weights = ray.get(wid)
-            agent.set_weights(weights)
+            if weights:
+                agent.set_weights(weights)
         if is_ps_empty:
             runner_manager.force_self_play()
             is_ps_empty = False
@@ -74,7 +74,7 @@ def pbt_train(
             runner_manager, 
             parameter_server, 
             version=builder.get_version())
-        with open(path, 'a') as f:
+        with open(verbose_path, 'a') as f:
             f.write(f'{end_with_cond}\n')
         builder.increase_version()
         i += 1
@@ -114,6 +114,8 @@ def train(
     to_record = Every(agent.LOG_PERIOD, train_step + agent.LOG_PERIOD)
     to_push_weights = Every(int(1e8), int(1e8))
     step = agent.get_env_step()
+    assert step == 0, step
+    assert train_step == 0, train_step
     MAX_STEPS = runner_manager.max_steps()
     WIN_RATE_THRESHOLD = .65
     count = 0
@@ -125,9 +127,10 @@ def train(
 
         weights = agent.get_weights(opt_weights=False)
         wid = ray.put(weights)
+
         with rt:
             step, data, run_stats = runner_manager.run(wid)
-        
+
         for d in data:
             buffer.merge(d)
         buffer.finish()
@@ -146,16 +149,18 @@ def train(
         agent.set_env_step(step)
         runner_manager.reset()
 
-        scores, weights = ray.get(swid)
+        scores, weights, real_time_scores, real_time_weights = ray.get(swid)
         agent.store(
             **run_stats,
             **scores,
             **weights,
+            **real_time_scores, 
+            **real_time_weights,
             **{
                 'time/fps': (step-start_env_step)/rt.last(),
                 'time/outer_tps': (train_step-start_train_step)/tt.last()})
 
-        if to_record(train_step) and agent.contains_stats('score'):
+        if to_record(train_step):
             record_stats(step)
 
         if to_push_weights(step):

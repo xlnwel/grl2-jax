@@ -9,7 +9,7 @@ from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.remote.base import RayBase
 from core.typing import ModelPath
-from env.func import create_env
+from env.func import create_env, get_env_stats
 from env.utils import batch_env_output
 from run.utils import search_for_config
 from utility import pkg
@@ -49,7 +49,7 @@ class RunnerManager(RayBase):
     def run(self, weights):
         if not isinstance(weights, ObjectRef):
             weights = ray.put(weights)
-        with Timer('manager_run', 100):
+        with Timer('manager_run', 1000):
             steps, data, stats = list(zip(*ray.get([r.run.remote(weights) for r in self.runners])))
         stats = batch_dicts(stats, lambda x: sum(x, []))
         return sum(steps), data, stats
@@ -104,6 +104,7 @@ class TwoAgentRunner(RayBase):
         self.evaluation = evaluation
         self.n_agents = 4
         self.other_agent = None
+        self.algo2agent = {}  # record agents that use different algorithms
         self.parameter_server = parameter_server
         self._other_root_dir = None
         self._other_model_name = None
@@ -126,18 +127,19 @@ class TwoAgentRunner(RayBase):
         self.env_stats = self.env.stats()
         self.env_output = self.env.output(convert_batch=False)
 
-        self.builder = ElementsBuilder(config, self.env_stats)
-        elements = self.builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
+        builder = ElementsBuilder(config, self.env_stats)
+        elements = builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
         self.agent = elements.agent
         if self.config.initialize_other:
             # Initialize a homogeneous agent, otherwise, call <set_other_agent_from_path>
-            elements = self.builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
+            elements = builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
             self.other_agent = elements.agent
+            self.algo2agent[config.algorithm] = self.other_agent
         self.step = self.agent.get_env_step() // n_workers
         self.n_episodes = 0
 
         if self.store_data:
-            self.buffer = self.builder.build_buffer(elements.model)
+            self.buffer = builder.build_buffer(elements.model)
             collect_fn = pkg.import_module('elements.utils', algo=config.algorithm).collect
             self.collect = functools.partial(collect_fn, self.buffer)
         else:
@@ -167,7 +169,7 @@ class TwoAgentRunner(RayBase):
             self.agent.set_weights(weights)
         self.retrieve_other_agent_from_parameter_server()
         self.reset()
-        with Timer('runner_run', 100):
+        with Timer('runner_run', 1000):
             step = self._run_impl()
         stats = self.agent.get_raw_stats()
         if not stats:
@@ -310,15 +312,23 @@ class TwoAgentRunner(RayBase):
         self._other_path = other_path
         path = '/'.join(self._other_path)
         config = search_for_config(path)
+        env_stats = get_env_stats(config.env) \
+            if config.algorithm not in self.algo2agent else self.env_stats
         name = config.get('name', self.name)
-        builder = ElementsBuilder(config, self.env_stats, name=name)
+        builder = ElementsBuilder(config, env_stats, name=name)
         elements = builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
         self.other_agent = elements.agent
+        self.algo2agent[config.algorithm] = self.other_agent
         self._set_pids(self.config.agent_pids)
 
     def set_other_agent_weights(self, other_path, weights):
         self._other_path = other_path
-        self.other_agent.set_weights(weights)
+        if weights.algo in self.algo2agent:
+            self.other_agent = self.algo2agent[weights.algo]
+            self.other_agent.set_weights(weights.weights)
+        else:
+            self.set_other_agent_from_path(other_path)
+            self.other_agent.set_weights(weights.weights)
         self._set_pids(self.config.agent_pids)
 
     def compute_other_pids(self):
@@ -329,9 +339,6 @@ class TwoAgentRunner(RayBase):
         if self._force_self_play:
             assert self.other_pids == [], self.other_pids
         elif self.parameter_server is not None:
-            if self.other_agent is None:
-                elements = self.builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
-                self.other_agent = elements.agent
             if random.random() < self._self_play_frac:
                 self.self_play()
             else:

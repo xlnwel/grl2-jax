@@ -44,6 +44,7 @@ class InfoSet(object):
         self._action2id = {}
 
     def get_policy_mask(self, is_first_move):
+        # TODO: avoid breaking Straight FLush when assigning self._action2id
         action_type_mask = np.zeros(NUM_ACTION_TYPES, dtype=np.bool)
         card_rank_mask = np.zeros((NUM_ACTION_TYPES, NUM_CARD_RANKS), dtype=np.bool)
         card_rank_mask[-1] = 1

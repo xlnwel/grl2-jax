@@ -24,7 +24,7 @@ class ElementsBuilder:
         self.env_stats = dict2AttrDict(env_stats)
         self._name = name or self.config.name
         self._model_name = self.config.model_name
-        self._builder_path = f'{self.config.root_dir}/{self._model_name}/{self._name}.pkl'
+        self._builder_path = f'{self.config.root_dir}/{self._model_name}/{self._name}_builder.pkl'
         self._incremental_version = incremental_version
         self._version = start_version
         if self._incremental_version:
@@ -32,20 +32,26 @@ class ElementsBuilder:
             self.set_config_version(self._version)
 
         algo = self.config.algorithm
-        self.create_model = pkg.import_module(
+        self.constructors = self.retrieve_constructor(algo)
+    
+    def retrieve_constructor(self, algo):
+        constructors = AttrDict()
+        constructors.model = pkg.import_module(
             name='elements.model', algo=algo, place=-1).create_model
-        self.create_loss = pkg.import_module(
+        constructors.loss = pkg.import_module(
                 name='elements.loss', algo=algo, place=-1).create_loss
-        self.create_trainer = pkg.import_module(
+        constructors.trainer = pkg.import_module(
             name='elements.trainer', algo=algo, place=-1).create_trainer
-        self.create_actor = pkg.import_module(
+        constructors.actor = pkg.import_module(
             name='elements.actor', algo=algo, place=-1).create_actor
-        self.create_buffer = pkg.import_module(
+        constructors.buffer = pkg.import_module(
             'elements.buffer', algo=algo).create_buffer
-        self.create_strategy = pkg.import_module(
+        constructors.strategy = pkg.import_module(
             'elements.strategy', algo=algo).create_strategy
-        self.create_agent = pkg.import_module(
+        constructors.agent = pkg.import_module(
             'elements.agent', algo=algo).create_agent
+
+        return constructors
 
     @property
     def name(self):
@@ -74,38 +80,42 @@ class ElementsBuilder:
         return ModelPath(self.config.root_dir, self.config.model_name)
 
     """ Build Elements """
-    def build_model(self, config=None, env_stats=None, to_build=False, to_build_for_eval=False):
+    def build_model(self, config=None, env_stats=None, to_build=False, to_build_for_eval=False, constructors=None):
+        constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
-        model = self.create_model(
-            config.model, env_stats, name=self.name,
+        model = constructors.model(
+            config.model, env_stats, name=config.name,
             to_build=to_build, to_build_for_eval=to_build_for_eval)
         
         return model
 
-    def build_actor(self, model, config=None):
+    def build_actor(self, model, config=None, constructors=None):
+        constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
-        actor = self.create_actor(config.actor, model, name=self.name)
+        actor = constructors.actor(config.actor, model, name=self.name)
         
         return actor
     
-    def build_trainer(self, model, config=None, env_stats=None):
+    def build_trainer(self, model, config=None, env_stats=None, constructors=None):
+        constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
-        loss = self.create_loss(config.loss, model, name=self.name)
-        trainer = self.create_trainer(
+        loss = constructors.loss(config.loss, model, name=self.name)
+        trainer = constructors.trainer(
                 config.trainer, loss, env_stats, name=self.name)
         
         return trainer
     
-    def build_buffer(self, model, config=None, env_stats=None, **kwargs):
+    def build_buffer(self, model, config=None, env_stats=None, constructors=None, **kwargs):
+        constructors = constructors or self.constructors
         env_stats = dict2AttrDict(env_stats or self.env_stats)
         if config is None:
             self.config.buffer['n_envs'] = env_stats.n_envs
             self.config.buffer['state_keys'] = model.state_keys
             self.config.buffer['use_dataset'] = self.config.buffer.get('use_dataset', False)
         config = dict2AttrDict(config or self.config)
-        buffer = self.create_buffer(config.buffer, **kwargs)
+        buffer = constructors.buffer(config.buffer, **kwargs)
         
         return buffer
 
@@ -124,9 +134,10 @@ class ElementsBuilder:
 
         return dataset
     
-    def build_strategy(self, actor=None, trainer=None, dataset=None, config=None):
+    def build_strategy(self, actor=None, trainer=None, dataset=None, config=None, constructors=None):
+        constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
-        strategy = self.create_strategy(
+        strategy = constructors.strategy(
             self.name, config.strategy, actor=actor, 
             trainer=trainer, dataset=dataset)
         
@@ -139,9 +150,10 @@ class ElementsBuilder:
         else:
             return create_monitor(None, None, self.name, use_tensorboard=False)
     
-    def build_agent(self, strategy, monitor=None, config=None, to_save_code=True):
+    def build_agent(self, strategy, monitor=None, config=None, to_save_code=True, constructors=None):
+        constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
-        agent = self.create_agent(
+        agent = constructors.agent(
             config=config.agent, 
             strategy=strategy, 
             monitor=monitor, 
@@ -154,11 +166,18 @@ class ElementsBuilder:
     """ Build an Strategy/Agent from Scratch """
     def build_actor_strategy_from_scratch(self, config=None, build_monitor=True, to_build_for_eval=False):
         elements = AttrDict()
+        if config is not None and config.algorithm != self.config.algorithm:
+            constructors = self.retrieve_constructor(config.algorithm)
+        else:
+            constructors = None
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
         elements.model = self.build_model(config=config, env_stats=env_stats, 
-            to_build=not to_build_for_eval, to_build_for_eval=to_build_for_eval)
-        elements.actor = self.build_actor(model=elements.model, config=config)
-        elements.strategy = self.build_strategy(actor=elements.actor, config=config)
+            to_build=not to_build_for_eval, to_build_for_eval=to_build_for_eval,
+            constructors=constructors)
+        elements.actor = self.build_actor(model=elements.model, config=config,
+            constructors=constructors)
+        elements.strategy = self.build_strategy(actor=elements.actor, config=config,
+            constructors=constructors)
         if build_monitor:
             elements.monitor = self.build_monitor(config=config, save_to_disk=False)
 
@@ -166,13 +185,21 @@ class ElementsBuilder:
     
     def build_strategy_from_scratch(self, config=None, build_monitor=True):
         elements = AttrDict()
+        if config is not None and config.algorithm != self.config.algorithm:
+            constructors = self.retrieve_constructor(config.algorithm)
+        else:
+            constructors = None
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
-        elements.model = self.build_model(config=config, env_stats=env_stats)
-        elements.actor = self.build_actor(model=elements.model, config=config)
+        elements.model = self.build_model(config=config, env_stats=env_stats,
+            constructors=constructors)
+        elements.actor = self.build_actor(model=elements.model, config=config,
+            constructors=constructors)
         elements.trainer = self.build_trainer(
-            model=elements.model, config=config, env_stats=env_stats)
+            model=elements.model, config=config, env_stats=env_stats,
+            constructors=constructors)
         elements.buffer = self.build_buffer(
-            model=elements.model, config=config, env_stats=env_stats)
+            model=elements.model, config=config, env_stats=env_stats,
+            constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
             model=elements.model, 
@@ -182,7 +209,8 @@ class ElementsBuilder:
             actor=elements.actor, 
             trainer=elements.trainer, 
             dataset=elements.dataset,
-            config=config)
+            config=config,
+            constructors=constructors)
         if build_monitor:
             elements.monitor = self.build_monitor(config=config)
 
@@ -190,29 +218,45 @@ class ElementsBuilder:
 
     def build_actor_agent_from_scratch(self, config=None, to_build_for_eval=False):
         elements = AttrDict()
+        if config is not None and config.algorithm != self.config.algorithm:
+            constructors = self.retrieve_constructor(config.algorithm)
+        else:
+            constructors = None
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
         elements.model = self.build_model(config=config, env_stats=env_stats,
-            to_build=not to_build_for_eval, to_build_for_eval=to_build_for_eval)
-        elements.actor = self.build_actor(model=elements.model, config=config)
-        elements.strategy = self.build_strategy(actor=elements.actor, config=config)
+            to_build=not to_build_for_eval, to_build_for_eval=to_build_for_eval,
+            constructors=constructors)
+        elements.actor = self.build_actor(model=elements.model, config=config,
+            constructors=constructors)
+        elements.strategy = self.build_strategy(actor=elements.actor, config=config,
+            constructors=constructors)
         elements.monitor = self.build_monitor(config=config, save_to_disk=False)
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
             monitor=elements.monitor, 
             config=config,
-            to_save_code=False)
+            to_save_code=False,
+            constructors=constructors)
 
         return elements
     
     def build_agent_from_scratch(self, config=None):
         elements = AttrDict()
+        if config is not None and config.algorithm != self.config.algorithm:
+            constructors = self.retrieve_constructor(config.algorithm)
+        else:
+            constructors = None
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
-        elements.model = self.build_model(config=config, env_stats=env_stats)
-        elements.actor = self.build_actor(model=elements.model, config=config)
+        elements.model = self.build_model(config=config, env_stats=env_stats,
+            constructors=constructors)
+        elements.actor = self.build_actor(model=elements.model, config=config,
+            constructors=constructors)
         elements.trainer = self.build_trainer(
-            model=elements.model, config=config, env_stats=env_stats)
+            model=elements.model, config=config, env_stats=env_stats,
+            constructors=constructors)
         elements.buffer = self.build_buffer(
-            model=elements.model, config=config, env_stats=env_stats)
+            model=elements.model, config=config, env_stats=env_stats,
+            constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
             model=elements.model, 
@@ -222,12 +266,14 @@ class ElementsBuilder:
             actor=elements.actor, 
             trainer=elements.trainer, 
             dataset=elements.dataset,
-            config=config)
+            config=config,
+            constructors=constructors)
         elements.monitor = self.build_monitor()
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
             monitor=elements.monitor,
-            config=config)
+            config=config,
+            constructors=constructors)
         
         self.save_config()
 

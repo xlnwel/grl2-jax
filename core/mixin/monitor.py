@@ -118,7 +118,11 @@ class Recorder:
                 stats[k] = v
                 continue
             if mean:
-                stats[f'{k}'] = np.mean(v).astype(np.float32)
+                try:
+                    stats[f'{k}'] = np.mean(v).astype(np.float32)
+                except:
+                    print(k, v)
+                    exit()
             if k_std:
                 stats[f'{k}_std'] = np.std(v).astype(np.float32)
             if k_min:

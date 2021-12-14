@@ -14,7 +14,7 @@ def save_code(root_dir, model_name):
     shutil.copytree('.', dest_dir, 
         ignore=shutil.ignore_patterns(
             '*logs*', '*data*', '.*', '*.md',
-            '*pycache*', '*.pyc', '*test*',
+            '*pycache*', '*.pyc', '*test*', '*outs*',
             '*results*'))
 
 def simplify_datatype(config):

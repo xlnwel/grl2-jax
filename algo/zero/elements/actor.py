@@ -7,6 +7,7 @@ class PPOActor(Actor):
     def _post_init(self):
         self.config.rms.root_dir = self.config.root_dir
         self.config.rms.model_name = self.config.model_name
+        self.config.algorithm = 'zero'
         self.rms = RMS(self.config.rms)
 
     def reset_model_path(self, model_path: ModelPath):
@@ -16,6 +17,8 @@ class PPOActor(Actor):
 
     """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
+        if self.config.algorithm == 'zero':
+            inp.pop('others_h', None)
         inp = self.rms.process_obs_with_rms(inp, update_rms=False)
         inp, tf_inp = super()._process_input(inp, evaluation)
         state = tf_inp.pop('state')
@@ -27,6 +30,7 @@ class PPOActor(Actor):
     def _process_output(self, inp, out, evaluation):
         action, terms, state = super()._process_output(inp, out, evaluation)
         if not evaluation:
+            action = (*action, state[2])
             terms.update({
                 **{k: inp[k] for k in self.rms.obs_names},
             })

@@ -142,7 +142,7 @@ class Strategy:
         self.step_counter.save_step()
 
     def get_model_path(self):
-        return ModelPath(self._root_dir, self._model_name)
+        return self._model_path
 
 
 def create_strategy(

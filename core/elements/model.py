@@ -9,8 +9,9 @@ from utility.utils import dict2AttrDict
 
 def construct_components(config):
     from nn.func import create_network
-    return {k: create_network(v, name=k) 
+    networks = {k: create_network(v, name=k) 
         for k, v in config.items() if isinstance(v, dict)}
+    return networks
 
 
 class Model(Ensemble):
@@ -64,7 +65,7 @@ class Model(Ensemble):
         self._model_name = model_path.model_name
         self._model_path = model_path
         self.config = set_path(self.config, model_path, recursive=False)
-        self.setup_checkpoint()
+        self.setup_checkpoint(force=True)
 
     def get_weights(self, name: str=None):
         """ Returns a list/dict of weights
@@ -97,7 +98,7 @@ class Model(Ensemble):
             if len(weights) == 0:
                 return
             assert len(self.variables) == len(weights), \
-                (len(self.variables), len(weights), weights)
+                (len(self.variables), len(weights))
             [v.assign(w) for v, w in zip(self.variables, weights)]
 
     def get_states(self):
@@ -128,8 +129,8 @@ class Model(Ensemble):
         return self.rnn.state_type if hasattr(self, 'rnn') else None
 
     """ Save & Restore Model """
-    def setup_checkpoint(self):
-        if not hasattr(self, 'ckpt'):
+    def setup_checkpoint(self, force=False):
+        if force or not hasattr(self, 'ckpt'):
             self.ckpt, self.ckpt_path, self.ckpt_manager = \
                 setup_checkpoint(self.components, self._root_dir, 
                     self._model_name, name=self.name, 

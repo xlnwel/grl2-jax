@@ -53,7 +53,7 @@ class Trainer(tf.Module):
         self._model_name = model_path.model_name
         self._model_path = model_path
         self.config = set_path(self.config, model_path, recursive=False)
-        self.setup_checkpoint()
+        self.setup_checkpoint(force=True)
         self._has_ckpt = True
 
     def get_weights(self, identifier=None):
@@ -99,13 +99,14 @@ class Trainer(tf.Module):
         pass
 
     """ Save & Restore Optimizer """
-    def setup_checkpoint(self):
-        self.ckpt, self.ckpt_path, self.ckpt_manager = \
-            setup_checkpoint({'optimizer': self.optimizer}, 
-                self._root_dir, self._model_name, name=self.name, 
-                ckpt_kwargs=self.config.get('ckpt_kwargs', {}),
-                ckptm_kwargs=self.config.get('ckptm_kwargs', {}),
-            )
+    def setup_checkpoint(self, force=False):
+        if force or not hasattr(self, 'ckpt'):
+            self.ckpt, self.ckpt_path, self.ckpt_manager = \
+                setup_checkpoint({'optimizer': self.optimizer}, 
+                    self._root_dir, self._model_name, name=self.name, 
+                    ckpt_kwargs=self.config.get('ckpt_kwargs', {}),
+                    ckptm_kwargs=self.config.get('ckptm_kwargs', {}),
+                )
 
     def save_optimizer(self, print_terminal_info=False):
         if self._has_ckpt:
