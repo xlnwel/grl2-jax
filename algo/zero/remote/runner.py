@@ -1,361 +1,319 @@
+import collections
 import functools
-import random
+from typing import List, Set
 import numpy as np
-import ray
-from ray._raylet import ObjectRef
+from ray.util.queue import Queue
 
-from algo.zero.remote.parameter_server import ParameterServer
+from .agent import Agent
+from .parameter_server import ParameterServer
+from .typing import ModelStats, ModelWeights
+from ..elements.utils import collect
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
+from core.mixin.actor import RMS
+from core.monitor import Monitor
 from core.remote.base import RayBase
 from core.typing import ModelPath
-from env.func import create_env, get_env_stats
-from env.utils import batch_env_output
-from run.utils import search_for_config
+from env.func import create_env
+from env.typing import EnvOutput
 from utility import pkg
 from utility.timer import Timer
-from utility.utils import AttrDict2dict, batch_dicts, dict2AttrDict
+from utility.typing import AttrDict
+from utility.utils import dict2AttrDict
 
 
-class RunnerManager(RayBase):
-    def __init__(self, config, store_data=True, evaluation=False, parameter_server=None):
-        self.config = dict2AttrDict(config['runner'])
-        self.n_envs = config['env']['n_workers'] * config['env']['n_envs']
-        self.n_eval_envs = max(self.n_envs * (1 - self.config.self_play_frac) * .5, 100)
-        config = AttrDict2dict(config)
-        RemoteRunner = TwoAgentRunner.as_remote(**config['runner']['ray'])
-        self.runners = [RemoteRunner.remote(
-            config, 
-            store_data=store_data, 
-            evaluation=evaluation,
-            parameter_server=parameter_server) 
-                for _ in range(config['env']['n_workers'])]
-
-    def max_steps(self):
-        return self.config.MAX_STEPS
-
-    def initialize_rms(self):
-        obs_rms_list, rew_rms_list = list(
-            zip(*ray.get([r.initialize_rms.remote() for r in self.runners])))
-        return obs_rms_list, rew_rms_list
-
-    def reset(self, wait=False):
-        oids = [r.reset.remote() for r in self.runners]
-        if wait:
-            ray.get(oids)
-        else:
-            return oids
-
-    def run(self, weights):
-        if not isinstance(weights, ObjectRef):
-            weights = ray.put(weights)
-        with Timer('manager_run', 1000):
-            steps, data, stats = list(zip(*ray.get([r.run.remote(weights) for r in self.runners])))
-        stats = batch_dicts(stats, lambda x: sum(x, []))
-        return sum(steps), data, stats
-    
-    def evaluate(self, total_episodes, weights=None, other_path=None):
-        """ Evaluation is problematic if self.runner.run does not end in a pass """
-        if other_path is not None:
-            self.set_other_agent_from_path(other_path)
-        n_eps = 0
-        stats_list = []
-        i = 0
-        while n_eps < total_episodes:
-            _, _, stats = self.run(weights)
-            n_eps += len(next(iter(stats.values())))
-            stats_list.append(stats)
-            i += 1
-        print('Total number of runs:', i)
-        stats = batch_dicts(stats_list, lambda x: sum(x, []))
-        return stats, n_eps
-
-    def set_model_path(self, model_path: ModelPath):
-        pid = ray.put(model_path)
-        [r.set_model_path.remote(pid) for r in self.runners]
-
-    """ Other Agent's Operations """
-    def set_other_agent_from_path(self, other_path, wait=False):
-        opid = ray.put(other_path)
-        oids = [r.set_other_agent_from_path.remote(opid) for r in self.runners]
-        if wait:
-            ray.get(oids)
-        else:
-            return oids
-
-    def force_self_play(self, wait=False):
-        oids = [r.force_self_play.remote() for r in self.runners]
-        if wait:
-            ray.get(oids)
-        else:
-            return oids
-
-    def play_with_pool(self, wait=False):
-        oids = [r.play_with_pool.remote() for r in self.runners]
-        if wait:
-            ray.get(oids)
-        else:
-            return oids
-
-class TwoAgentRunner(RayBase):
-    def __init__(self, config, store_data=True, evaluation=False, parameter_server: ParameterServer=None):
+class MultiAgentSimRunner(RayBase):
+    def __init__(self, 
+                 configs: List[dict], 
+                 store_data: bool, 
+                 evaluation: bool, 
+                 remote_agents: List[Agent]=None, 
+                 param_queues: List[Queue]=None, 
+                 parameter_server: ParameterServer=None,
+                 monitor: Monitor=None
+                 ):
         super().__init__()
+
+        assert len(param_queues) == len(remote_agents), (len(param_queues), len(remote_agents))
+
         self.store_data = store_data
         self.evaluation = evaluation
-        self.n_agents = 4
-        self.other_agent = None
-        self.algo2agent = {}  # record agents that use different algorithms
+        self.remote_agents = remote_agents
+        self.param_queues = param_queues
+        self.n_agents = len(remote_agents)
         self.parameter_server = parameter_server
-        self._other_root_dir = None
-        self._other_model_name = None
-        self._other_path = None
-        self._force_self_play = False
-        self.build_from_config(config)
-
-    def build_from_config(self, config):
-        config = dict2AttrDict(config)
-        self.config = config.runner
-        self.name = config.name
-        self._main_path = ModelPath(config.root_dir, config.model_name)
-        self._self_play_frac = self.config.get('self_play_frac', 0)
-        self._record_self_play_stats = self.config.get('record_self_play_stats', True)
-        config.buffer.type = 'local'
-        n_workers = config.env.n_workers
-        config.env.n_workers = 1
-
-        self.env = create_env(config.env)
+        self.monitor = monitor
+        
+        self.env = create_env(configs[0]['env'], no_remote=True)
         self.env_stats = self.env.stats()
-        self.env_output = self.env.output(convert_batch=False)
+        self.n_envs = self.env_stats.n_envs
+        self.n_players = self.env_stats.n_players
+        self.pid2aid = self.env_stats['pid2aid']
+        self.env_output = self.env.output()
 
-        builder = ElementsBuilder(config, self.env_stats)
-        elements = builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
-        self.agent = elements.agent
-        if self.config.initialize_other:
-            # Initialize a homogeneous agent, otherwise, call <set_other_agent_from_path>
-            elements = builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
-            self.other_agent = elements.agent
-            self.algo2agent[config.algorithm] = self.other_agent
-        self.step = self.agent.get_env_step() // n_workers
-        self.n_episodes = 0
+        self.n_players_per_agent = [0 for _ in range(self.n_agents)]
+        for aid in self.pid2aid:
+            self.n_players_per_agent[aid] += 1
+        for i in range(1, len(self.pid2aid)):
+            assert self.pid2aid[i] == self.pid2aid[i-1] \
+                or self.pid2aid[i] == self.pid2aid[i-1] + 1, \
+                    (self.pid2aid[i], self.pid2aid[i-1])
 
+        self.builder = ElementsBuilder(configs[0], self.env_stats)
+
+        self._push_every_episode = configs[0]['runner']['push_every_episode']
+        
+        self.build_from_configs(configs)
+
+    def build_from_configs(self, configs):
+        assert len(configs) == self.n_agents, (len(configs), self.n_agents)
+        configs = [dict2AttrDict(config) for config in configs]
+        config = configs[0]
+        self.config = config.runner
+
+        self.agents = []
+        self.is_agent_active = [True for _ in configs]
+        self.active_models: Set[ModelPath] = set()
+        self.current_models: List[ModelPath] = []
+        self.buffers = []
+        self.collect_funcs = []
+        self.rms: List[RMS] = []
+
+        for aid, config in enumerate(configs):
+            config.buffer.type = 'local'
+            elements = self.builder.build_acting_agent_from_scratch(
+                config, build_monitor=True, to_build_for_eval=self.evaluation)
+            self.agents.append(elements.agent)
+            
+            model_path = ModelPath(config.root_dir, config.model_name)
+            self.active_models.add(model_path)
+            self.current_models.append(model_path)
+
+            rms = AttrDict(config.actor.rms)
+            rms.obs_normalized_axis = (0, 1)
+            rms.reward_normalized_axis = (0, 1)
+            self.rms.append(RMS(rms))
+
+            if self.store_data:
+                buffer = self.builder.build_buffer(
+                    elements.model, 
+                    config=config, 
+                    n_players=self.n_players_per_agent[aid])
+                self.buffers.append(buffer)
+                self.collect_funcs.append(functools.partial(collect, buffer))
+        assert len(self.agents) == len(self.active_models) \
+            == len(self.rms) == len(self.buffers) == self.n_agents, \
+            (len(self.agents), len(self.active_models), 
+            len(self.rms), len(self.buffers), self.n_agents)
+
+    """ Running Routines """
+    def random_run(self):
+        """ Random run the environment to collect running stats """
+        step = 0
+        agent_env_outs = self._divide_outs(self.env_output)
+        self._update_rms(agent_env_outs)
+        while step < self.config.N_STEPS:
+            self.env_output = self.env.step(self.env.random_action())
+            agent_env_outs = self._divide_outs(self.env_output)
+            self._update_rms(agent_env_outs)
+            self._log_for_done(self.env_output)
+            step += 1
+
+        for aid in range(self.n_agents):
+            self.agents[aid].actor.update_rms_from_stats(
+                self.rms[aid].get_rms_stats())
+            self._send_aux_stats(aid)
+
+        # stats = [a.get_stats() for a in self.agents]
+        # print(f'Random running stats:')
+        # for i, s in enumerate(stats):
+        #     print(f'Random Agent {i}')
+        #     print_dict(s)
+
+    def run(self):
+        def set_weights():
+            for aid, pq in enumerate(self.param_queues):
+                w = pq.get()
+                self.is_agent_active[aid] = w.model in self.active_models
+                self.current_models[aid] = w.model
+                self.agents[aid].set_weights(w.weights)
+
+        set_weights()
+        self._reset_local_buffers()
+        with Timer('runner_run') as rt:
+            step, n_episodes = self._run_impl()
+
+        for aid, is_active in enumerate(self.is_agent_active):
+            if is_active:
+                self.agents[aid].store(**{
+                    'time/run': rt.total(),
+                    'time/run_mean': rt.average(),
+                    'time/fps': step / rt.last()
+                })
+                self._send_aux_stats(aid)
+                self._send_run_stats(
+                    aid, self.agents[aid].get_train_step(), step, n_episodes)
+
+        return step
+
+    """ Running Setups """
+    def set_active_model_paths(self, model_paths):
+        self.active_models = set(model_paths)
+
+    """ Implementations """
+    def _reset_local_buffers(self):
         if self.store_data:
-            self.buffer = builder.build_buffer(elements.model)
-            collect_fn = pkg.import_module('elements.utils', algo=config.algorithm).collect
-            self.collect = functools.partial(collect_fn, self.buffer)
-        else:
-            self.buffer = None
-            self.collect = None
-        self._set_pids(self.config.agent_pids)
-        for pid in self.agent_pids:
-            assert pid not in config.env.skip_players, (self.agent_pids, config.env.skip_players)
+            [b.reset() for b in self.buffers]
 
-    """ Environment Interactions """
-    def initialize_rms(self):
-        for _ in range(10):
-            self.runner.run(action_selector=self.env.random_action, step_fn=self.collect)
-            self.agent.actor.update_obs_rms(np.concatenate(self.buffer['obs']))
-            self.agent.actor.update_reward_rms(self.buffer['reward'], self.buffer['discount'])
-            self.buffer.reset()
-        self.buffer.clear()
-        return self.agent.actor.get_rms_stats()
-
-    def reset(self):
-        self.env_output = self.env.reset(convert_batch=False)
-        if self.buffer is not None:
-            self.buffer.reset()
-
-    def run(self, weights):
-        if weights is not None:
-            self.agent.set_weights(weights)
-        self.retrieve_other_agent_from_parameter_server()
-        self.reset()
-        with Timer('runner_run', 1000):
-            step = self._run_impl()
-        stats = self.agent.get_raw_stats()
-        if not stats:
-            stats = {
-                'score': [],
-                'epslen': [],
-                'win_rate': [],
-            }
-        if self.parameter_server is not None and not self._self_play:
-            self.push_payoff(stats['win_rate'])
-        if self.store_data:
-            data = self.buffer.retrieve_data()
-            return step, data, stats
-        else:
-            return step, None, stats
+    def _reset(self):
+        self.env_output = self.env.reset()
+        self._reset_local_buffers()
+        return self.env_output
 
     def _run_impl(self):
-        def check_end(i):
-            if self.store_data:
-                return self.buffer.ready_to_retrieve()
-            else:
-                return i >= self.config.N_STEPS
+        def check_end(step):
+            return step >= self.config.N_STEPS
 
-        def divide_outs(outs):
-            agent_eids = []
-            agent_outs = []
-            other_eids = []
-            other_outs = []
-            for i, o in enumerate(outs):
-                if o.obs['pid'] in self.agent_pids:
-                    agent_eids.append(i)
-                    agent_outs.append(o)
-                else:
-                    assert o.obs['pid'] in self.other_pids, (o.obs['pid'], self.other_pids)
-                    other_eids.append(i)
-                    other_outs.append(o)
-            if agent_outs:
-                agent_outs = batch_env_output(agent_outs)
-            if other_outs:
-                other_outs = batch_env_output(other_outs)
-            assert len(agent_eids) + len(other_eids) == len(outs), (agent_eids, other_eids)
-            return agent_eids, agent_outs, other_eids, other_outs
+        def agents_infer(env_outputs, agents):
+            assert len(env_outputs)  == len(agents), (len(env_outputs), len(agents))
+            action, terms = zip(*[
+                a(o, evaluation=self.evaluation) 
+                for a, o in zip(agents, env_outputs)])
+            return action, terms
+
+        def step_env(agent_actions):
+            action = np.concatenate(agent_actions, 1)
+            assert action.shape == (self.n_envs, self.n_agents), (action.shape, (self.n_envs, self.n_agents))
+            self.env_output = self.env.step(action)
+            agent_env_outs = self._divide_outs(self.env_output)
+            return agent_env_outs
         
-        def merge(agent_eids, agent_action, other_eids, other_action):
-            agent_action = list(zip(*agent_action))
-            other_action = list(zip(*other_action))
-            assert len(agent_eids) == len(agent_action), (agent_eids, agent_action)
-            assert len(other_eids) == len(other_action), (other_eids, other_action)
-            i = 0
-            j = 0
-            action = []
-            while i != len(agent_eids) and j != len(other_eids):
-                if agent_eids[i] < other_eids[j]:
-                    action.append(agent_action[i])
-                    i += 1
-                else:
-                    action.append(other_action[j])
-                    j += 1
-            while i != len(agent_eids):
-                action.append(agent_action[i])
-                i += 1
-            while j != len(other_eids):
-                action.append(other_action[j])
-                j += 1
-            return tuple(map(np.stack, zip(*action)))
-
-        def step_env(action, agent_eids, agent_outs, agent_action, agent_terms):
-            if agent_outs:
-                for pid in agent_outs.obs['pid']:
-                    assert pid in self.agent_pids, agent_outs.obs['pid']
-            else:
-                assert agent_action == [], agent_action
-                assert agent_terms == [], agent_terms
-            self.env_output = self.env.step(action, convert_batch=False)
-            self.step += self.env.n_envs
-
+        def store_data(agent_env_outs, agent_actions, agent_terms, next_agent_env_outs):
+            assert len(agent_env_outs) == len(agent_actions) \
+                == len(agent_terms) == len(next_agent_env_outs) \
+                == len(self.buffers), (
+                    len(agent_env_outs), len(agent_actions), 
+                    len(agent_terms), len(next_agent_env_outs),
+                    len(self.buffers)
+                )
             if self.store_data:
-                if agent_outs:
-                    self.buffer.add({
-                        **agent_outs.obs,
-                        'action_type': agent_action[0],
-                        'card_rank': agent_action[1],
-                        'reward': [self.env_output[i].reward for i in agent_eids],
-                        'discount': [self.env_output[i].discount for i in agent_eids],
-                        **agent_terms
+                for aid, (buffer, collect_fn) in enumerate(
+                        zip(self.buffers, self.collect_funcs)):
+                    if self.is_agent_active[aid]:
+                        if self._push_every_episode:
+                            for eid, reset in enumerate(agent_env_outs[aid].reset):
+                                if reset:
+                                    eps, epslen = buffer.retrieve_episode(eid)
+                                    self.remote_agents[aid].merge_episode.remote(eps, epslen)
+                        stats = {
+                            **agent_env_outs[aid].obs,
+                            'action': agent_actions[aid],
+                            'reward': next_agent_env_outs[aid].reward,
+                            'discount': next_agent_env_outs[aid].discount,
+                        }
+                        stats.update(agent_terms[aid])
+                        collect_fn(stats)
+
+        step = 0
+        n_episodes = 0
+        if self._push_every_episode:
+            self._reset()
+        agent_env_outs = self._divide_outs(self.env_output)
+        self._update_rms(agent_env_outs)
+        while not check_end(step):
+            action, terms = agents_infer(agent_env_outs, self.agents)
+            next_agent_env_outs = step_env(action)
+            self._update_rms(next_agent_env_outs)
+            store_data(agent_env_outs, action, terms, next_agent_env_outs)
+            agent_env_outs = next_agent_env_outs
+            n_episodes += self._log_for_done(self.env_output)
+            step += 1
+        _, terms = agents_infer(agent_env_outs, self.agents)
+
+        if not self._push_every_episode:
+            for aid, (term, buffer) in enumerate(zip(terms, self.buffers)):
+                data, n = buffer.retrieve_all_data(term['value'])
+                self.remote_agents[aid].merge_data.remote(data, n)
+
+        return step * self.n_envs, n_episodes
+
+    def _divide_outs(self, out):
+        agent_obs = [collections.defaultdict(list) for _ in range(self.n_agents)]
+        agent_reward = [[] for _ in range(self.n_agents)]
+        agent_discount = [[] for _ in range(self.n_agents)]
+        agent_reset = [[] for _ in range(self.n_agents)]
+        for pid, aid in enumerate(self.pid2aid):
+            for k, v in out.obs.items():
+                agent_obs[aid][k].append(v[:, pid])
+            agent_reward[aid].append(out.reward[:, pid])
+            agent_discount[aid].append(out.discount[:, pid])
+            agent_reset[aid].append(out.reset[:, pid])
+        assert len(agent_obs) == len(agent_reward) == len(agent_discount) == len(agent_reset), \
+            (len(agent_obs), len(agent_reward), len(agent_discount), len(agent_reset))
+        outs = []
+        for o, r, d, re in zip(agent_obs, agent_reward, agent_discount, agent_reset):
+            for k, v in o.items():
+                o[k] = np.stack(v, 1)
+            r = np.stack(r, 1)
+            d = np.stack(d, 1)
+            re = np.stack(re, 1)
+            outs.append(EnvOutput(o, r, d, re))
+        # assert len(outs) == self.n_agents, (len(outs), self.n_agents)
+        # # TODO: remove this test code
+        # for i in range(self.n_agents):
+        #     for k, v in outs[i].obs.items():
+        #         assert v.shape[:2] == (self.n_envs, self.n_players_per_agent[i]), \
+        #             (v.shape, (self.n_envs, self.n_players_per_agent))
+        #     assert outs[i].reward.shape == (self.n_envs, self.n_players_per_agent[i]), (outs[i].reward.shape, (self.n_envs, self.n_players_per_agent[i]))
+        #     assert outs[i].discount.shape == (self.n_envs, self.n_players_per_agent[i])
+        #     assert outs[i].reset.shape == (self.n_envs, self.n_players_per_agent[i])
+
+        # outs = tf.nest.map_structure(lambda x: np.reshape(x, (-1, *x.shape[2:])), outs)
+
+        return outs
+
+    def _update_rms(self, agent_env_outs):
+        for rms, out in zip(self.rms, agent_env_outs):
+            rms.update_obs_rms(out.obs)
+            rms.update_reward_rms(out.reward, out.discount)
+
+    def _log_for_done(self, output: EnvOutput):
+        # logging when any env is reset 
+        done_env_ids = [i for i, r in enumerate(output.reset) if np.all(r)]
+        if done_env_ids:
+            info = self.env.info(done_env_ids)
+            score, epslen, dense_score = [], [], []
+            for i in info:
+                score.append(i['score'])
+                dense_score.append(i['dense_score'])
+                epslen.append(i['epslen'])
+            score = np.stack(score, 1)
+            dense_score = np.stack(dense_score, 1)
+            epslen = np.array(epslen)
+            if np.any(score):
+                print(score, dense_score)
+            for pid, aid in enumerate(self.pid2aid):
+                if self.is_agent_active[aid]:
+                    self.agents[aid].store(**{
+                        f'score': score[pid], 
+                        f'dense_score': dense_score[pid], 
+                        f'epslen': epslen
                     })
-                done_eids, done_rewards = [], []
-                assert len(self.env_output) == self.env.n_envs, (len(self.env_output), self.env.n_envs)
-                for i, o in enumerate(self.env_output):
-                    if o.discount == 0:
-                        done_eids.append(i)
-                        done_rewards.append(o.reward)
-                self.buffer.finish(done_eids, done_rewards)
+                    
+        return len(done_env_ids)
 
-        def log_for_done(outs):
-            # logging when any env is reset 
-            done_env_ids = [i for i, o in enumerate(outs) if o.reset]
-            if done_env_ids:
-                info = self.env.info(done_env_ids)
-                score, epslen, won = [], [], []
-                for i in info:
-                    score.append(i['score'])
-                    epslen.append(i['epslen'])
-                    won.append(i['won'])
-                self.agent.store(score=score, epslen=epslen, win_rate=won)
-                self.n_episodes += len(info)
+    def _send_aux_stats(self, aid):
+        aux_stats = self.rms[aid].get_rms_stats()
+        self.rms[aid].reset_rms_stats()
+        model_weights = ModelWeights(
+            self.current_models[aid], {'aux': aux_stats})
+        self.parameter_server.update_strategy_aux_stats.remote(aid, model_weights)
 
-        i = 0
-        while not check_end(i):
-            agent_eids, agent_outs, other_eids, other_outs = \
-                divide_outs(self.env_output)
-            agent_action, agent_terms = self.agent(agent_outs, evaluation=False) \
-                if agent_outs else ([], [])
-            other_action, other_terms = self.other_agent(other_outs, evaluation=False) \
-                if other_outs else ([], [])
-            action = merge(
-                agent_eids, agent_action, other_eids, other_action)
-            step_env(action, agent_eids, agent_outs, agent_action, agent_terms)
-            if not self._self_play or self._record_self_play_stats:
-                log_for_done(self.env_output)
-            i += 1
-
-        return self.step
-
-    """ Player Setups """
-    def force_self_play(self):
-        self.self_play()
-        self._force_self_play = True
-    
-    def play_with_pool(self):
-        self._force_self_play = False
-
-    def self_play(self):
-        self._set_pids(list(range(self.n_agents)))
-        assert self.other_pids == [], self.other_agent
-
-    def set_other_agent_from_path(self, other_path):
-        if self.other_agent is not None:
-            do_logging(f'Make sure your network is defined on CPUs. TF does not release GPU memory automatically and constructing multiple networks incurs large GPU memory overhead.', level='WARNING')
-        self._other_path = other_path
-        path = '/'.join(self._other_path)
-        config = search_for_config(path)
-        env_stats = get_env_stats(config.env) \
-            if config.algorithm not in self.algo2agent else self.env_stats
-        name = config.get('name', self.name)
-        builder = ElementsBuilder(config, env_stats, name=name)
-        elements = builder.build_actor_agent_from_scratch(to_build_for_eval=self.evaluation)
-        self.other_agent = elements.agent
-        self.algo2agent[config.algorithm] = self.other_agent
-        self._set_pids(self.config.agent_pids)
-
-    def set_other_agent_weights(self, other_path, weights):
-        self._other_path = other_path
-        if weights.algo in self.algo2agent:
-            self.other_agent = self.algo2agent[weights.algo]
-            self.other_agent.set_weights(weights.weights)
-        else:
-            self.set_other_agent_from_path(other_path)
-            self.other_agent.set_weights(weights.weights)
-        self._set_pids(self.config.agent_pids)
-
-    def compute_other_pids(self):
-        return [i for i in range(self.n_agents) if i not in self.agent_pids]
-
-    """ Interactions with other process """
-    def retrieve_other_agent_from_parameter_server(self):
-        if self._force_self_play:
-            assert self.other_pids == [], self.other_pids
-        elif self.parameter_server is not None:
-            if random.random() < self._self_play_frac:
-                self.self_play()
-            else:
-                path, weights = ray.get(
-                    self.parameter_server.sample_strategy.remote(self._main_path))
-                self.set_other_agent_weights(path, weights)
-
-    def push_payoff(self, payoff):
-        self.parameter_server.add_payoff.remote(
-            self._main_path, self._other_path, payoff)
-
-    def _set_pids(self, agent_pids):
-        self.agent_pids = agent_pids
-        self.other_pids = self.compute_other_pids()
-        self._self_play = len(self.agent_pids) == self.n_agents
-        if self.buffer is not None:
-            self.buffer.set_pids(self.agent_pids, self.other_pids)
-
-    def set_model_path(self, model_path):
-        self._main_path = model_path
+    def _send_run_stats(self, aid, train_step, env_step, n_episodes):
+        stats = self.agents[aid].get_raw_stats()
+        stats['train_step'] = train_step
+        stats['env_step'] = env_step
+        stats['n_episodes'] = n_episodes
+        model_stats = ModelStats(
+            self.current_models[aid], stats)
+        self.monitor.store_run_stats.remote(model_stats)

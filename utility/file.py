@@ -23,9 +23,11 @@ def load_files(path='.', recursively_load=True):
     # for _file_path in glob.glob(os.path.join(local_dir, "*.py")):
     #     source_file(_file_path)
     for f in glob.glob(f'{path}/*'):
-        if recursively_load and os.path.isdir(f):
+        if os.path.isdir(f) and recursively_load:
             load_files(f)
-        elif f.endswith('.py') and not f.endswith('__init__.py'):
+        elif f.endswith('.py') and not f.endswith('__init__.py') \
+                and not f.endswith('utils.py') and not f.endswith('test.py') \
+                    and not f.endswith('typing.py'):
             source_file(f)
 
 

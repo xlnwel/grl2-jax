@@ -1,60 +1,61 @@
 import collections
 import os
 import random
+import time
+from typing import Deque, Dict, List, Tuple
 import cloudpickle
-import numpy as np
+import ray
+from ray.util.queue import Queue
 
+from .typing import ModelWeights
+from .utils import get_aid_vid
 from core.elements.builder import ElementsBuilder
+from core.elements.strategy import Strategy
 from core.remote.base import RayBase
 from core.typing import ModelPath
 from env.func import get_env_stats
 from run.utils import search_for_all_configs, search_for_config
-from utility.timer import Every
-from utility.utils import config_attr, dict2AttrDict
+from utility.display import pwc
+from utility.utils import dict2AttrDict
 
 
-AlgoStrategy = collections.namedtuple('algo_strategy', 'algo strategy')
-AlgoWeights = collections.namedtuple('algo_strategy', 'algo weights')
-payoff = collections.defaultdict(
-    lambda: collections.defaultdict(lambda: collections.deque(maxlen=1000)))
-score = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
+payoff = collections.defaultdict(lambda: collections.deque(maxlen=1000))
+score = collections.defaultdict(lambda: 0)
 
 
 class ParameterServer(RayBase):
-    def __init__(self, config, env_stats, name='parameter_server'):
+    def __init__(self, 
+                 configs: dict, 
+                 param_queues: List[List[Queue]],
+                 name='parameter_server'):
         super().__init__()
-        self.config = config_attr(self, config['parameter_server'])
-        self.p = self.config.p
-        self.default_score = .5
-        self.env_stats = dict2AttrDict(env_stats)
-        self.builder = ElementsBuilder(config, env_stats)
+        self.param_queues = param_queues
+        self.builder = ElementsBuilder(configs[0])
 
-        path = f'{self.config.root_dir}/{self.config.model_name}'
-        if not os.path.exists(path):
-            os.makedirs(path)
+        configs = [dict2AttrDict(config['parameter_server']) for config in configs]
+        self.config = configs[0]
+        self.n_agents = len(configs)
+
+        for config in configs:
+            path = f'{config.root_dir}/{config.model_name}'
+            if not os.path.exists(path):
+                os.makedirs(path)
         self._stats_path = f'{path}/{name}.pkl'
-        # {main path: strategies}
-        self._strategies = {}
-        # {main path: {other path: [payoff]}}
-        self._payoffs = payoff
-        # {main path: {other path: weights}}
-        self._scores = score
-        self._fsp = self.config.get('fsp', False)
+        
+        self._strategies: List[Dict[ModelPath, Strategy]] = [{} for _ in configs]
+        self._payoffs: Dict[Tuple[ModelPath], Deque[float]] = payoff
+        self._scores: Dict[Tuple[ModelPath], float] = collections.defaultdict(lambda: 0)
 
-        self._latest_strategy_path = None
-        self._start_checkpoint = ModelPath(*self.config.start_checkpoint) \
-            if self.config.start_checkpoint else None
-        self._n_payoffs = 0
-        self._to_update_weights = Every(self.UPDATE_PERIOD)
+        self._active_strategies_path = [None for _ in configs]
+        self._start_checkpoints = [
+            config.start_checkpoint and ModelPath(*config.start_checkpoint) 
+            for config in configs]
 
         self.restore()
-
-    def is_empty(self, excluded_path):
-        paths = [p for p in self._strategies.keys() if p != excluded_path]
-        return len(paths) == 0
+        self._prev_save_time = time.time()
 
     def search_for_strategies(self, strategy_dir):
-        print(f'Parameter server: searching for strategies in directory({strategy_dir})')
+        pwc(f'Parameter server: searching for strategies in directory({strategy_dir})', color='cyan')
         configs = search_for_all_configs(strategy_dir)
         for c in configs:
             self.add_strategy_from_config(c)
@@ -62,138 +63,142 @@ class ParameterServer(RayBase):
     def set_fsp(self):
         self._fsp = True
 
-    """ Strategy Operations """
-    def add_strategy_from_config(self, config):
+    """ Add Strategies """
+    def add_strategy_from_config(self, config, set_active=False):
+        assert not config.model_name.startswith('/'), config.model_name
+            # config.model_name = config.model_name[1:]
+            # save_config(config)
+        aid, _ = get_aid_vid(config.model_name)
         model_path = ModelPath(config.root_dir, config.model_name)
-        if model_path not in self._strategies:
-            elements = self.builder.build_actor_strategy_from_scratch(
+        if set_active:
+            self._active_strategies_path[aid] = model_path
+        if model_path not in self._strategies[aid]:
+            config.trainer.display_var = False
+            elements = self.builder.build_strategy_from_scratch(
                 config, build_monitor=False)
             elements.strategy.restore()
-            self._strategies[model_path] = AlgoStrategy(config.algorithm, elements.strategy)
+            self._strategies[aid][model_path] = elements.strategy
             self.save()
-        self._latest_strategy_path = model_path
-        print('Strategies in the pool:', list(self._strategies))
+        print(f'Strategies for Agent({aid}) in the pool:', list(self._strategies[aid]))
 
-    def add_strategy_from_path(self, model_path):
-        path = '/'.join(model_path)
-        if model_path not in self._strategies:
+    def add_strategy_from_path(self, aid, model_path, set_active=False):
+        if model_path not in self._strategies[aid]:
+            path = '/'.join(model_path)
             config = search_for_config(path)
-            elements = self.builder.build_actor_strategy_from_scratch(
-                config, build_monitor=False)
-            elements.strategy.restore()
-            self._strategies[model_path] = AlgoStrategy(config.algorithm, elements.strategy)
-            self.save()
-        self._latest_strategy_path = model_path
-        print('Strategies in the pool:', list(self._strategies))
+            self.add_strategy_from_config(config, set_active=set_active)
+        if set_active:
+            self._active_strategies_path[aid] = model_path
 
-    def update_strategy(self, model_path, weights):
-        self._strategies[model_path].strategy.set_weights(weights)
-        self._latest_strategy_path = model_path
+    """ Update Strategies """
+    def update_strategy_weights(self, aid, model_weights: ModelWeights):
+        assert self._active_strategies_path[aid] == model_weights.model, \
+            (self._active_strategies_path, model_weights.model)
+        assert len(model_weights.weights) == 3, list(model_weights.weights)
+        if model_weights.model not in self._strategies[aid]:
+            self.add_strategy_from_path(aid, model_weights.model)
+        self._strategies[aid][model_weights.model].set_weights(model_weights.weights)
 
-    def set_latest_strategy(self, model_path):
-        self._latest_strategy_path = model_path
+        # put the latest parameters in the queue for runners to retrieve
+        model_weights.weights.pop('opt')
+        mid = ray.put(model_weights)
+        for q in self.param_queues[aid]:
+            q.put(mid)
+    
+    def update_strategy_aux_stats(self, aid, model_weights: ModelWeights):
+        assert len(model_weights.weights) == 1, list(model_weights.weights)
+        assert 'aux' in model_weights.weights, list(model_weights.weights)
+        self._strategies[aid][model_weights.model].actor.update_rms_from_stats(model_weights.weights['aux'])
 
-    def sample_strategy_path(self, main_path):
+    """ Sample Strategies"""
+    def sample_strategy_path(self, aid, main_path):
+        aid2, _ = get_aid_vid(main_path)
+        assert aid == aid2, (aid, aid2)
         scores = self.get_scores(main_path)
         weights = self.get_weights_vector(scores)
-        return random.choices([k for k in self._strategies if k != main_path], weights=weights)[0]
+        return random.choices([k for k in self._strategies[aid] if k != main_path], weights=weights)[0]
 
-    def sample_strategy(self, main_path):
-        path = self.sample_strategy_path(main_path)
-        algo, strategy = self._strategies[path]
+    def sample_strategy(self, aid, main_path):
+        path = self.sample_strategy_path(aid, main_path)
+        strategy = self._strategies[aid][path]
         weights = strategy.get_weights()
 
-        return path, AlgoWeights(algo, weights)
+        return path, ModelWeights(path, weights)
 
-    def retrieve_latest_strategy_path(self):
-        return self._start_checkpoint
-
-    def retrieve_latest_strategy_path(self):
-        return self._latest_strategy_path
-
-    def retrieve_strategy_weights_from_checkpoint(self):
-        if self._start_checkpoint:
-            algo, strategy = self._strategies[self._start_checkpoint]
-            weights = strategy.get_weights()
-            return AlgoWeights(algo, weights)
+    def retrieve_start_strategies_weights(self):
+        if self._start_checkpoints:
+            model_weights = []
+            for aid, path in enumerate(self._strategies):
+                strategy = self._strategies[aid][path]
+                weights = strategy.get_weights()
+                model_weights.append(ModelWeights(path, weights))
+            return model_weights
         else:
             return None
 
-    def retrieve_latest_strategy_weights(self):
-        if self._latest_strategy_path:
-            algo, strategy = self._strategies[self._latest_strategy_path]
-            weights = strategy.get_weights()
-            return AlgoWeights(algo, weights)
+    def retrieve_active_strategies_weights(self):
+        if self._active_strategies_path:
+            model_weights = []
+            for aid, path in self._active_strategies_path:
+                strategy = self._strategies[aid][path]
+                weights = strategy.get_weights()
+                model_weights.append(ModelWeights(path, weights))
+            return model_weights
         else:
             return None
 
-    """ Payoffs/Weights Operations """
-    def add_payoff(self, main_path, other_path, payoff):
-        assert main_path in self._strategies, (main_path, list(self._strategies))
-        assert other_path in self._strategies, (other_path, list(self._strategies))
-        self._payoffs[main_path][other_path] += payoff
-        self._n_payoffs += len(payoff)
-        if self._n_payoffs < self.UPDATE_PERIOD or self._to_update_weights(self._n_payoffs):
-            self.compute_scores(main_path)
+    def retrieve_start_strategies_paths(self):
+        return self._start_checkpoints
 
-    def compute_scores(self, main_path, to_save=True):
-        if self._fsp and to_save:
-            for other_path in self._strategies.keys():
-                self._scores[main_path][other_path] = 0
-            return self._scores
-        scores = self._scores[main_path] if to_save else {}
-        for other_path in self._strategies.keys():
-            if other_path != main_path:
-                score = np.mean(self._payoffs[main_path][other_path]) \
-                    if other_path in self._payoffs[main_path] else self.default_score
-                scores[other_path] = score
-                if score < self.default_score:
-                    self.default_score = score
-        return scores
-
-    def compute_weights(self, scores):
-        weights = (1 - scores)**self.p
-        return weights
-
-    def get_scores(self, main_path):
-        scores = {k: self._scores[main_path][k] 
-            for k in self._strategies.keys() if k != main_path}
-        return scores
-
-    def get_weights_vector(self, scores):
-        scores = np.array(list(scores.values()))
-        weights = self.compute_weights(scores)
-        return weights
-
-    def get_scores_and_weights(self, main_path):
-        scores = self.get_scores(main_path)
-        weights = self.get_weights_vector(scores)
-        weights = weights / np.sum(weights)
-        weights = {f'{k.model_name}_weights': v 
-            for k, v in zip(scores.keys(), weights)}
-        scores = {f'{k.model_name}_scores': v 
-            for k, v in scores.items()}
-        
-        real_time_scores = self.compute_scores(main_path, to_save=False)
-        real_time_weights = self.get_weights_vector(real_time_scores)
-        real_time_weights = {f'{k.model_name}_real_time_weights': v
-            for k, v in zip(real_time_scores.keys(), real_time_weights)}
-        real_time_scores = {f'{k.model_name}_real_time_scores': v
-            for k, v in real_time_scores.items()}
-
-        return scores, weights, real_time_scores, real_time_weights
+    def retrieve_latest_strategies_paths(self):
+        return self._active_strategies_path
 
     """ Checkpoints """
+    def save_active_models(self, train_step, env_step):
+        for aid, model_path in enumerate(self._active_strategies_path):
+            self._strategies[aid][model_path].set_train_step(train_step)
+            self._strategies[aid][model_path].set_env_step(env_step)
+            self._strategies[aid][model_path].save()
+            self.save()
+
     def save(self):
         with open(self._stats_path, 'wb') as f:
-            cloudpickle.dump((list(self._strategies), self._payoffs, self._scores), f)
+            cloudpickle.dump(
+                ([list(s) for s in self._strategies], 
+                self._payoffs, self._scores), f)
 
     def restore(self):
         if os.path.exists(self._stats_path):
-            with open(self._stats_path, 'rb') as f:
-                paths, self._payoffs, self._scores = cloudpickle.load(f)
-            for p in paths:
-                self.add_strategy_from_path(p)
+            try:
+                with open(self._stats_path, 'rb') as f:
+                    paths, self._payoffs, self._scores = cloudpickle.load(f)
+            except Exception as e:
+                print(f'Error happened when restoring from {self._stats_path}: {e}')
+                return
+            for aid, paths in enumerate(paths):
+                for p in paths:
+                    try:
+                        self.add_strategy_from_path(aid, p)
+                    except Exception as e:
+                        print(f'Skip {p} as it is no longer a valid path: {e}')
+
+    """ Data Retrieval """
+    def get_aux_stats(self, model_path: ModelPath):
+        def rms2dict(rms):
+            d = {}
+            for k, v in rms.obs.items():
+                d[f'{k}/mean'] = v.mean
+                d[f'{k}/var'] = v.var
+                d[f'{k}/count'] = v.count
+            d['reward/mean'] = rms.reward.mean
+            d['reward/var'] = rms.reward.var
+            d['reward/count'] = rms.reward.count
+            return d
+
+        aid, _ = get_aid_vid(model_path.model_name)
+        rms = self._strategies[aid][model_path].actor.get_auxiliary_stats()
+        stats = rms2dict(rms)
+
+        return stats
 
 
 if __name__ == '__main__':

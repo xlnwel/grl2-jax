@@ -17,7 +17,7 @@ def get_evaluator_class(AgentBase):
                     name='Evaluator',
                     model_config,
                     env_config,
-                    model_fn):
+                    constructor):
             config_actor(name, config)
 
             for k in list(env_config.keys()):
@@ -26,7 +26,7 @@ def get_evaluator_class(AgentBase):
                     env_config.pop(k)
             self.env = create_env(env_config)
 
-            model = model_fn(
+            model = constructor(
                 config=model_config, 
                 env=self.env)
             
@@ -87,7 +87,7 @@ def get_evaluator_class(AgentBase):
                     name='Evaluator',
                     model_config,
                     env_config,
-                    model_fn):
+                    constructor):
             config_actor(name, config)
 
             for k in list(env_config.keys()):
@@ -96,7 +96,7 @@ def get_evaluator_class(AgentBase):
                     env_config.pop(k)
             self.env = create_env(env_config)
 
-            model = model_fn(
+            model = constructor(
                 config=model_config, 
                 env=self.env)
             

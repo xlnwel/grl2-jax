@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 """ Agent Mixins """
 class ActionScheduler:
-    # NOTE: need some extra fix
+    # TODO: legacy code, need some extra fix
     def _setup_action_schedule(self, env):
         # eval action epsilon and temperature
         self._eval_act_eps = tf.convert_to_tensor(

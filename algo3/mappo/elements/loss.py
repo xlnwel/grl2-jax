@@ -17,9 +17,9 @@ class MAPPOPolicyLoss(Loss):
             entropy = act_dist.entropy()
             log_ratio = new_logpi - logpi
             policy_loss, entropy, kl, clip_frac = ppo_loss(
-                log_ratio, advantage, self._clip_range, entropy, 
-                life_mask if self._life_mask else None)
-            loss = policy_loss - self._entropy_coef * entropy
+                log_ratio, advantage, self.config.clip_range, entropy, 
+                life_mask if self.config.life_mask else None)
+            loss = policy_loss - self.config.entropy_coef * entropy
 
         terms = dict(
             ratio=tf.exp(log_ratio),
@@ -47,8 +47,8 @@ class MAPPOValueLoss(PPOLossImpl):
 
             loss, clip_frac = self._compute_value_loss(
                 value, traj_ret, old_value,
-                life_mask if self._life_mask else None)
-            loss = self._value_coef * loss
+                life_mask if self.config.life_mask else None)
+            loss = self.config.value_coef * loss
         
         terms = dict(
             value=value,
@@ -62,7 +62,10 @@ class MAPPOValueLoss(PPOLossImpl):
 
 def create_loss(config, model, name='mappo'):
     def constructor(config, cls, name):
-        return cls(config=config, model=model[name], name=name)
+        return cls(
+            config=config, 
+            model=model[name], 
+            name=name)
 
     return LossEnsemble(
         config=config,

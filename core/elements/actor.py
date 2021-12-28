@@ -1,18 +1,28 @@
 from typing import Tuple, Dict
 import tensorflow as tf
 
+from core.elements.model import Model
+from core.mixin.actor import RMS
 from core.typing import ModelPath
-from run.utils import set_path
-from utility.utils import config_attr
+from utility.utils import set_path
 from utility.tf_utils import numpy2tensor, tensor2numpy
+from utility.typing import AttrDict
 
 
 class Actor:
-    def __init__(self, *, config, model, name):
+    def __init__(self, 
+                 *, 
+                 config: AttrDict, 
+                 model: Model, 
+                 name: str):
         self._raw_name = name
         self._name = f'{name}_actor'
-        self.config = config_attr(self, config, filter_dict=True)
-        
+        self._model_path = ModelPath(config.root_dir, config.model_name)
+        self.config = config
+
+        self.rms = getattr(self.config, 'rms', None)
+        self.setup_checkpoint()
+
         self.model = model
         
         self._post_init()
@@ -30,9 +40,14 @@ class Actor:
         self.setup_checkpoint()
 
     def __getattr__(self, name):
+        # Do not expose the interface of independent elements here. 
+        # Invoke them directly instead
         if name.startswith('_'):
             raise AttributeError("attempted to get missing private attribute '{}'".format(name))
-        return getattr(self.model, name)
+        elif hasattr(self.rms, name):
+            return getattr(self.rms, name)
+        else:
+            raise AttributeError(f"no attribute '{name}' is found")
 
     def __call__(self, 
                  inp: dict,
@@ -126,19 +141,27 @@ class Actor:
         self.model.set_weights(weights)
 
     def get_auxiliary_stats(self):
-        pass
-    
-    def set_auxiliary_stats(self):
-        pass
+        if self.rms:
+            return self.rms.get_rms_stats()
+
+    def set_auxiliary_stats(self, rms_stats):
+        if self.rms:
+            self.rms.set_rms_stats(rms_stats)
 
     def save_auxiliary_stats(self):
-        pass
-    
+        """ Save the RMS and the model """
+        if self.rms:
+            self.rms.save_rms()
+
     def restore_auxiliary_stats(self):
-        pass
+        """ Restore the RMS and the model """
+        if self.rms:
+            self.rms.restore_rms()
 
     def setup_checkpoint(self):
-        pass
+        if self.rms:
+            self.config.rms.model_path = self._model_path
+            self.rms = RMS(self.config.rms)
 
     def save(self, print_terminal_info=False):
         self.model.save(print_terminal_info)

@@ -7,8 +7,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.elements.builder import ElementsBuilder
 from core.log import setup_logging
 from core.tf_config import *
-from core.typing import ModelPath
-from core.utils import save_config
 from utility.display import pwc
 from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
@@ -16,7 +14,7 @@ from utility.graph import save_video
 from utility import pkg
 from env.func import create_env
 from run.args import parse_eval_args
-from run.utils import get_other_path, search_for_config, set_path
+from run.utils import get_other_path, search_for_config
 
 
 def main(config, n, record=False, size=(128, 128), video_len=1000, 
@@ -34,7 +32,7 @@ def main(config, n, record=False, size=(128, 128), video_len=1000,
         make_env = pkg.import_module('env', algo_name, place=-1).make_env
     except:
         make_env = None
-    config.env.pop('reward_clip', False)
+    
     if env_name.startswith('procgen') and record:
         config.env['render_mode'] = 'rgb_array'
 
@@ -43,7 +41,7 @@ def main(config, n, record=False, size=(128, 128), video_len=1000,
     env_stats = env.stats()
 
     builder = ElementsBuilder(config, env_stats, config.algorithm)
-    elements = builder.build_actor_agent_from_scratch(to_build_for_eval=True)
+    elements = builder.build_acting_agent_from_scratch(to_build_for_eval=True)
     agent = elements.agent
 
     if n < env.n_envs:
@@ -71,10 +69,6 @@ if __name__ == '__main__':
 
     # load respective config
     config = search_for_config(args.directory)
-    model_name = args.directory.replace(config.root_dir, '')
-    model_path = ModelPath(config.root_dir, model_name)
-    config = set_path(config, model_path)
-    save_config(model_path, config)
 
     silence_tf_logs()
     configure_gpu()

@@ -26,7 +26,7 @@ def create_worker(
 
     return worker
 
-def create_actor(Actor, actor_id, model_fn, config, model_config, env_config):
+def create_actor(Actor, actor_id, constructor, config, model_config, env_config):
     config = config.copy()
     model_config = model_config.copy()
     env_config = env_config.copy()
@@ -37,7 +37,7 @@ def create_actor(Actor, actor_id, model_fn, config, model_config, env_config):
     RayActor = Actor.as_remote(**ray_config)
     actor = RayActor.remote(
         actor_id=actor_id,
-        model_fn=model_fn, 
+        constructor=constructor, 
         config=config, 
         model_config=model_config, 
         env_config=env_config)

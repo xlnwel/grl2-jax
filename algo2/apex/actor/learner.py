@@ -54,7 +54,7 @@ def get_learner_class(AgentBase):
     LearnerBase = get_learner_base_class(AgentBase)
     class Learner(LearnerBase):
         def __init__(self,
-                    model_fn,
+                    constructor,
                     replay,
                     config, 
                     model_config,
@@ -70,7 +70,7 @@ def get_learner_class(AgentBase):
             env_config['n_envs'] = 1
             env = create_env(env_config)
 
-            model = model_fn(config=model_config, env=env)
+            model = constructor(config=model_config, env=env)
 
             dataset = self._create_dataset(
                 replay, model, env, config, replay_config) 

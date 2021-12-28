@@ -1,0 +1,315 @@
+---
+# NOTE: root_dir and model_name will be specified to all configs in run.train.py
+algorithm: &algo gd_zero
+name: gd_zero
+version: 0
+
+precision: 32
+
+training: &training ppg
+
+# model path: root_dir/model_name/name
+# tensorboard path: root_dir/model_name/logs
+# the following names are just examples; they will be re-specified in the entry point
+root_dir: *algo
+model_name: *algo
+
+parameter_server:
+    root_dir: *algo
+    model_name: *algo
+
+runner:
+    ray:
+        num_cpus: 1
+        # num_gpus: .03
+
+    MAX_STEPS: 2e9
+    N_STEPS: &nsteps 128
+    agent_pids: &pids [0, 2]
+    initialize_other: False
+    self_play_frac: 0
+
+env:
+    env_name: &env_name card_gd
+    eid: 0
+    n_workers: &nworkers 80
+    n_envs: &nenvs 2
+    skip_players: [1, 3]
+
+agent:
+    algorithm: *algo
+
+    LOG_PERIOD: 50
+    EVAL_PERIOD: 50
+
+strategy:
+    train_loop:
+        training: *training
+        N_EPOCHS: &nepochs 1
+        N_VALUE_EPOCHS: &nval_epochs 0
+        N_MBS: &nmbs 2
+        N_AUX_EPOCHS: &naepochs 9
+        N_PI: &npi 32
+        N_SEGS: &nsegs 16
+        N_AUX_MBS_PER_SEG: &nambs 2
+        max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
+
+        # (once reuse null)
+        # "once" updates values at the end of each epoch
+        # "reuse" updates values using value from train which is staler than once
+        # null doesn't update values.
+        value_update: null
+
+model:
+    rnn_type: &rnn rnn_mlstm
+    action_rnn_resets_every_round: False
+    sample_size: &ss 16
+    training: *training
+
+    action_encoder:
+        nn_id: encoder
+        numbers: &numbers
+            layer_type: glu
+            units_list: [16, 32, 32]
+            kernel_size: 3
+            strides: 2
+            padding: same
+            activation: relu
+            # norm: null
+            # norm_after_activation: True
+            # norm_kwargs:
+            #     epsilon: 1.e-5
+        jokers: &jokers
+            layer_type: dense
+            units_list: [32, 32]
+            activation: relu
+            norm: null
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+        others: 
+            layer_type: dense
+            units_list: [32, 32]
+            activation: relu
+            norm: null
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+    action_rnn:
+        nn_id: *rnn
+        units: 128
+        return_sequences: False
+        kernel_initializer: orthogonal
+        use_ln: False
+
+    obs_encoder:
+        nn_id: encoder
+        numbers: *numbers
+        jokers: *jokers
+        others:
+            layer_type: dense
+            units_list: [128, 128]
+            activation: relu
+            norm: null
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+    rnn:
+        nn_id: *rnn
+        units: 128
+        kernel_initializer: orthogonal
+        use_ln: False
+
+    action_type:
+        nn_id: policy
+        eval_act_temp: 1
+        head:
+            units_list: [128]
+            kernel_initializer: orthogonal
+            activation: relu
+            norm: null
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+        aux: 
+            units_list: [64]
+            kernel_initializer: orthogonal
+            activation: relu
+            norm: null
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+    card_rank:
+        nn_id: policy
+        eval_act_temp: 1
+        head:
+            units_list: [128]
+            kernel_initializer: orthogonal
+            activation: relu
+            norm: null
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+        aux: 
+            units_list: [64]
+            kernel_initializer: orthogonal
+            activation: relu
+            norm: null
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+
+    others_encoder:
+        nn_id: encoder
+        numbers: *numbers
+        jokers: *jokers
+
+    value:
+        nn_id: value
+        units_list: []
+        norm: null
+        kernel_initializer: orthogonal
+        activation: relu
+
+loss:
+    training: *training
+    # arguments for loss
+    value_loss: clip
+    clip_range: .2          # clip range for ppo
+    entropy_coef: .01
+    action_type_coef: 1
+    card_rank_coef: 1
+    value_coef: .5
+    bc_coef: 1
+
+trainer:
+    training: *training
+    # # BC configs
+    # batch_size: &bs 4096
+    sample_size: *ss
+    ordered_module: True
+
+    optimizer:
+        opt_name: adam
+        schedule_lr: False
+        lr: 5e-4
+        clip_norm: .5
+        epsilon: 1.e-5
+
+actor:
+    rms:
+        obs_names: []
+        normalize_obs: False    # not implemented
+        normalize_reward: False # not implemented
+        gamma: &gamma .99
+
+buffer:
+    type: *training
+    agent_pids: *pids
+    use_dataset: True
+    
+    mixed_data: False
+
+    N_PI: *npi
+    N_SEGS: *nsegs
+    N_AUX_MBS_PER_SEG: *nambs
+
+    # PPO configs
+    gamma: *gamma
+    lam: .95
+    n_workers: *nworkers
+    n_envs: *nenvs
+    # batch_size: *bs
+    N_STEPS: *nsteps
+    N_EPOCHS: *nepochs
+    N_AUX_EPOCHS: *naepochs
+    N_VALUE_EPOCHS: *nval_epochs
+    N_MBS: *nmbs        # number of minibatches
+    sample_size: *ss
+    norm_adv: minibatch
+    # mini-batch size = n_workers * n_envs * epslen / n_mbs
+    sample_keys:
+        - numbers
+        - jokers
+        - left_cards
+        - is_last_teammate_move
+        - is_first_move
+        - last_valid_action_type
+        - rank
+        - bombs_dealt
+        - last_action_numbers
+        - last_action_jokers
+        - last_action_types
+        - last_action_rel_pids
+        - last_action_filters
+        - last_action_first_move
+        - action_type_mask
+        - card_rank_mask
+        - others_numbers
+        - others_jokers
+        - mask
+        - action_type
+        - card_rank
+        - value 
+        - traj_ret 
+        - advantage 
+        - action_type_logpi 
+        - card_rank_logpi
+        - action_h 
+        - action_c
+        - h
+        - c
+    aux_compute_keys:
+        - numbers
+        - jokers
+        - left_cards
+        - is_last_teammate_move
+        - is_first_move
+        - last_valid_action_type
+        - rank
+        - bombs_dealt
+        - last_action_numbers
+        - last_action_jokers
+        - last_action_types
+        - last_action_rel_pids
+        - last_action_filters
+        - last_action_first_move
+        - action_type_mask
+        - card_rank_mask
+        - others_numbers
+        - others_jokers
+        - mask
+        - action_type
+        - action_h 
+        - action_c
+        - h
+        - c
+    aux_sample_keys:
+        - numbers
+        - jokers
+        - left_cards
+        - is_last_teammate_move
+        - is_first_move
+        - last_valid_action_type
+        - rank
+        - bombs_dealt
+        - last_action_numbers
+        - last_action_jokers
+        - last_action_types
+        - last_action_rel_pids
+        - last_action_filters
+        - last_action_first_move
+        - action_type_mask
+        - card_rank_mask
+        - others_numbers
+        - others_jokers
+        - mask
+        - action_type
+        - value 
+        - traj_ret 
+        - action_type_logits
+        - card_rank_logits
+        - action_h 
+        - action_c
+        - h
+        - c

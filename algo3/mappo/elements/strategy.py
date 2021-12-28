@@ -1,31 +1,36 @@
 import functools
+import logging
 from typing import Dict
 import numpy as np
 
+from .trainloop import PPOTrainingLoop
 from core.elements.strategy import Strategy, create_strategy
 from core.mixin.strategy import Memory
 from utility.utils import concat_map
-from algo.ppo.elements.strategy import PPOTrainingLoop
+
+
+logger = logging.getLogger(__name__)
 
 
 class MAPPOStrategy(Strategy):
     """ Initialization """
     def _post_init(self):
-        self._value_input = None
+        self._value_inp = None
 
-        model = self.trainer.model
-        env_stats = self.trainer.env_stats
-        self._memory = Memory(model)
+        if self.actor is not None:
+            self._memory = Memory(self.model)
+        if self.trainer is not None:
+            env_stats = self.trainer.env_stats
 
-        state_keys = model.state_keys
-        mid = len(state_keys) // 2
-        value_state_keys = state_keys[mid:]
-        self._value_sample_keys = [
-            'global_state', 'value', 'traj_ret', 'mask'
-        ] + list(value_state_keys)
-        if env_stats.use_life_mask:
-            self._value_sample_keys.append('life_mask')
-        self._n_agents = env_stats.n_agents
+            state_keys = self.model.state_keys
+            mid = len(state_keys) // 2
+            value_state_keys = state_keys[mid:]
+            self._value_sample_keys = [
+                'global_state', 'value', 'traj_ret', 'mask'
+            ] + list(value_state_keys)
+            if env_stats.use_life_mask:
+                self._value_sample_keys.append('life_mask')
+            self._n_players = env_stats.n_players
 
     """ Calling Methods """
     def _prepare_input_to_actor(self, env_output):
@@ -36,7 +41,7 @@ class MAPPOStrategy(Strategy):
 
     def _record_output(self, out):
         state = out[-1]
-        self._memory.reset_states(state)
+        self._memory.set_states(state)
 
     """ PPO Methods """
     def record_inputs_to_vf(self, env_output):
@@ -47,15 +52,15 @@ class MAPPOStrategy(Strategy):
         state = self._memory.get_states()
         mid = len(state) // 2
         state = self.model.value_state_type(*state[mid:])
-        self._value_input = self._memory.add_memory_state_to_input(
+        self._value_inp = self._memory.add_memory_state_to_input(
             value_input, reset, state=state)
 
     def compute_value(self, value_inp: Dict[str, np.ndarray]=None):
         # be sure global_state is normalized if obs normalization is required
         if value_inp is None:
-            value_inp = self._value_input
+            value_inp = self._value_inp
         value, _ = self.model.compute_value(**value_inp)
-        value = value.numpy().reshape(-1, self._n_agents)
+        value = value.numpy().reshape(-1, self._n_players)
         return value
 
 

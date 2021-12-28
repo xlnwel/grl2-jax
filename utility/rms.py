@@ -7,7 +7,7 @@ from utility.utils import expand_dims_match, moments
 Stats = collections.namedtuple('RMS', 'mean var count')
 
 
-def merge_rms(rms1, rms2):
+def combine_rms(rms1, rms2):
     mean1, var1, count1 = rms1
     mean2, var2, count2 = rms2
     delta = mean2 - mean1
@@ -54,16 +54,20 @@ class RunningMeanStd:
         self._axis = axis
         if self._axis is not None:
             self._shape_slice = np.s_[: max(self._axis)+1]
-        self._mean = 0
-        self._var = 0
         self._epsilon = epsilon
-        self._count = epsilon
+        self.reset_rms_stats()
         self._clip = clip
         self._ndim = ndim # expected number of dimensions o
 
     @property
     def axis(self):
         return self._axis
+
+    def reset_rms_stats(self):
+        self._mean = 0
+        self._var = 0
+        self._std = 0
+        self._count = self._epsilon # avoid var being zero
 
     def set_rms_stats(self, mean, var, count):
         self._mean = mean
@@ -95,7 +99,7 @@ class RunningMeanStd:
         assert self._mean.shape == batch_mean.shape
         assert self._var.shape == batch_var.shape
 
-        new_mean, new_var, total_count = merge_rms(
+        new_mean, new_var, total_count = combine_rms(
             (self._mean, self._var, self._count), 
             (batch_mean, batch_var, batch_count))
         self._mean = new_mean

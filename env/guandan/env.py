@@ -14,7 +14,7 @@ class Env:
         self.eid = eid
         self._env = Game(**kwargs)
         self.evaluation = kwargs.get('evaluation', False)
-        self.n_agents = 4
+        self.n_players = 4
         self.max_episode_steps = int(1e9)
         self.is_action_discrete = True
         self.obs_shape = self._env.obs_shape

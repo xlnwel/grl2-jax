@@ -1,15 +1,6 @@
 import numpy as np
 
 
-def print_dict(d, prefix=''):
-    for k, v in d.items():
-        if isinstance(v, dict):
-            print(f'{prefix} {k}')
-            print_dict(v, prefix+'\t')
-        else:
-            print(f'{prefix} {k}={v}')
-
-
 color2num = dict(
     gray=30,
     red=31,
@@ -80,3 +71,27 @@ def display_model_var_info(models):
         nparams += display_var_info(
             model.trainable_variables, name=name, prefix='   ')
     pwc(f'Total learnable model parameters: {nparams*1e-6:0.4g} million', color='yellow')
+
+def print_dict(d, prefix=''):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            print(f'{prefix} {k}')
+            print_dict(v, prefix+'\t')
+        elif isinstance(v, tuple):
+            # namedtuple is assumed
+            print(f'{prefix} {k}')
+            print_dict(v._asdict(), prefix+'\t')
+        else:
+            print(f'{prefix} {k}: {v}')
+
+def print_dict_tensors(d, prefix=''):
+    for k, v in d.items():
+        if isinstance(v, dict):
+            print(f'{prefix} {k}')
+            print_dict_tensors(v, prefix+'\t')
+        elif isinstance(v, tuple):
+            # namedtuple is assumed
+            print(f'{prefix} {k}')
+            print_dict_tensors(v._asdict(), prefix+'\t')
+        else:
+            print(f'{prefix} {k}: {v.shape} {v.dtype}')

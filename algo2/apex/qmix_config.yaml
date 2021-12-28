@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name smac2_3m
+    env_name: &env_name smac2_3m
     n_envs: &nenvs 1
     obs_agent_id: True
     obs_own_last_action: True
@@ -69,7 +69,7 @@ agent:
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
-    # the following names are just examples; they will be reset in our training process
+    # the following names are just examples; they will be re-specified in the entry point
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 

@@ -28,7 +28,7 @@ class MultiAgentEnv(gym.Env):
         self.current_step = 0
         self.agents = self.world.policy_agents
         # set required vectorized gym env property
-        self.n_agents = len(world.policy_agents)
+        self.n_players = len(world.policy_agents)
         # scenario callbacks
         self.reset_callback = reset_callback
         self.reward_callback = reward_callback
@@ -106,7 +106,7 @@ class MultiAgentEnv(gym.Env):
         
         if self.use_global_state:
             self.shared_state_spaces = [spaces.Box(
-                low=-np.inf, high=+np.inf, shape=(share_obs_dim,), dtype=np.float32) for _ in range(self.n_agents)]
+                low=-np.inf, high=+np.inf, shape=(share_obs_dim,), dtype=np.float32) for _ in range(self.n_players)]
         else:
             self.shared_state_spaces = self.observation_spaces
         # rendering
@@ -114,7 +114,7 @@ class MultiAgentEnv(gym.Env):
         if self.shared_viewer:
             self.viewers = [None]
         else:
-            self.viewers = [None] * self.n_agents
+            self.viewers = [None] * self.n_players
         self._reset_render()
 
         # some properties for multi-agent environments
@@ -202,7 +202,7 @@ class MultiAgentEnv(gym.Env):
         # all agents get total reward in cooperative case, if shared reward, all agents have the same reward, and reward is sum
         reward = np.sum(reward_n)
         if self.shared_reward:
-            reward_n = reward * np.ones(self.n_agents)
+            reward_n = reward * np.ones(self.n_players)
 
         if self.post_step_callback is not None:
             self.post_step_callback(self.world)
@@ -248,7 +248,7 @@ class MultiAgentEnv(gym.Env):
     def _get_global_state(self, obs_n):
         if self.use_global_state:
             global_state = np.concatenate(obs_n, 0)
-            global_state = [global_state for _ in range(self.n_agents)]
+            global_state = [global_state for _ in range(self.n_players)]
         else:
             global_state = obs_n
         return global_state

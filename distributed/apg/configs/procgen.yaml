@@ -4,12 +4,12 @@ algorithm: &algo apg-ppo
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
-# the following names are just examples; they will be reset in our training process
+# the following names are just examples; they will be re-specified in the entry point
 root_dir: *algo
 model_name: *algo
 
 env:
-    name: &env_name procgen_coinrun
+    env_name: &env_name procgen_coinrun
     n_workers: 1
     n_envs: &nenvs 16
     frame_skip: 1

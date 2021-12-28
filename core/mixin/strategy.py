@@ -3,12 +3,14 @@ import cloudpickle
 import numpy as np
 import tensorflow as tf
 
+from core.typing import ModelPath
+
 
 class StepCounter:
-    def __init__(self, root_dir, model_name, name='step_counter'):
+    def __init__(self, model_path: ModelPath, name='step_counter'):
         self._env_step = 0
         self._train_step = 0
-        self._counter_path = f'{root_dir}/{model_name}/{name}.pkl'
+        self._counter_path = '/'.join([*model_path, f'{name}.pkl'])
 
     def get_env_step(self):
         return self._env_step
@@ -58,6 +60,7 @@ class Memory:
 
         if state is None:
             state = self._state
+        assert state == self._state, f'Inconsistent states: {state} != {self._state}'
 
         mask = self.get_mask(reset)
         state = self.apply_mask_to_state(state, mask)
@@ -77,7 +80,10 @@ class Memory:
             state = tf.nest.map_structure(lambda x: x*mask_reshaped, state)
         return state
 
-    def reset_states(self, state: tuple=None):
+    def reset_states(self):
+        self._state = None
+
+    def set_states(self, state: tuple=None):
         self._state = state
 
     def get_states(self):

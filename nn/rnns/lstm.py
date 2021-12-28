@@ -160,7 +160,7 @@ class MLSTM(Module):
             filter = tf.ones_like(mask, dtype=tf.bool)
         else:
             filter = tf.expand_dims(filter, axis=-1)
-        assert_rank(xs + [mask], 3)
+        assert_rank(xs + [mask, filter], 3)
         if not self._state_mask:
             # mask out inputs
             for i, v in enumerate(xs):

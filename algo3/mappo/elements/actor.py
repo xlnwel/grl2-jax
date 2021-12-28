@@ -7,7 +7,7 @@ from algo.ppo.elements.actor import PPOActor
 class MAPPOActor(PPOActor):
     """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
-        def concat_map_except_state(inp):
+        def concat_except_state(inp):
             for k, v in inp.items():
                 if k != 'state':
                     inp[k] = np.concatenate(v)
@@ -28,7 +28,7 @@ class MAPPOActor(PPOActor):
             )
             return {'actor_inp': actor_inp, 'value_inp': value_inp}
         
-        inp = concat_map_except_state(inp)
+        inp = concat_except_state(inp)
         if evaluation:
             inp = self.rms.process_obs_with_rms(inp, update_rms=False)
         else:

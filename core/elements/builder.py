@@ -4,9 +4,9 @@ import cloudpickle
 from core.dataset import create_dataset
 from core.monitor import create_monitor
 from core.typing import ModelPath
-from core.utils import save_config
+from core.utils import save_code, save_config
 from env.func import get_env_stats
-from run.utils import set_path
+from utility.utils import set_path
 from utility.typing import AttrDict
 from utility.utils import dict2AttrDict
 from utility import pkg
@@ -15,24 +15,35 @@ from utility import pkg
 class ElementsBuilder:
     def __init__(self, 
                  config, 
-                 env_stats, 
-                 name=None,
+                 env_stats=None, 
                  incremental_version=False,
-                 start_version=0):
-        # self.default_config = dict2AttrDict(config)
-        self.config = dict2AttrDict(config)
-        self.env_stats = dict2AttrDict(env_stats)
-        self._name = name or self.config.name
-        self._model_name = self.config.model_name
-        self._builder_path = f'{self.config.root_dir}/{self._model_name}/{self._name}_builder.pkl'
+                 start_version=0,
+                 to_save_code=False):
+        self.config = dict2AttrDict(config, to_copy=True)
+        self.env_stats = dict2AttrDict(
+            get_env_stats(self.config.env) if env_stats is None else env_stats)
+        self._name = self.config.name
+
+        self._model_path = ModelPath(self.config.root_dir, self.config.model_name)
+        self._default_model_path = self._model_path
+        self._builder_path = '/'.join([*self._model_path, f'{self._name}_builder.pkl'])
+
         self._incremental_version = incremental_version
         self._version = start_version
+        self._max_version = start_version
         if self._incremental_version:
             self.restore()
             self.set_config_version(self._version)
 
         algo = self.config.algorithm
         self.constructors = self.retrieve_constructor(algo)
+
+        if to_save_code:
+            save_code(self._default_model_path)
+
+    @property
+    def name(self):
+        return self._name
     
     def retrieve_constructor(self, algo):
         constructors = AttrDict()
@@ -48,39 +59,41 @@ class ElementsBuilder:
             'elements.buffer', algo=algo).create_buffer
         constructors.strategy = pkg.import_module(
             'elements.strategy', algo=algo).create_strategy
-        constructors.agent = pkg.import_module(
-            'elements.agent', algo=algo).create_agent
+        try:
+            constructors.agent = pkg.import_module(
+                'elements.agent', algo=algo).create_agent
+        except:
+            constructors.agent = pkg.import_module(
+                'elements.agent', pkg='core').create_agent
 
         return constructors
-
-    @property
-    def name(self):
-        return self._name
 
     def get_version(self):
         return self._version
 
     def increase_version(self):
-        self.set_config_version(self._version+1)
+        self._max_version += 1
+        self.set_config_version(self._max_version)
         self.save_config()
         self.save()
 
     def set_config_version(self, version):
         if self._incremental_version:
             root_dir = self.config.root_dir
-            model_name = f'{self._model_name}/v{version}'
-            model_path = ModelPath(root_dir, model_name)
-            model_dir = f'{root_dir}/{model_name}'
-            self.config = set_path(self.config, model_path)
-            self.config['version'] = self._version = version
+            model_name = f'{self._default_model_path.model_name}/v{version}'
+            self._model_path = ModelPath(root_dir, model_name)
+            model_dir = '/'.join(self._model_path)
+            self.config = set_path(self.config, self._model_path)
+            self.config.version = self._version = version
             if not os.path.isdir(model_dir):
                 os.makedirs(model_dir, exist_ok=True)
 
     def get_model_path(self):
-        return ModelPath(self.config.root_dir, self.config.model_name)
+        return self._model_path
 
     """ Build Elements """
-    def build_model(self, config=None, env_stats=None, to_build=False, to_build_for_eval=False, constructors=None):
+    def build_model(self, config=None, env_stats=None, to_build=False, 
+            to_build_for_eval=False, constructors=None):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
@@ -93,7 +106,7 @@ class ElementsBuilder:
     def build_actor(self, model, config=None, constructors=None):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
-        actor = constructors.actor(config.actor, model, name=self.name)
+        actor = constructors.actor(config.actor, model, name=config.name)
         
         return actor
     
@@ -101,21 +114,20 @@ class ElementsBuilder:
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
-        loss = constructors.loss(config.loss, model, name=self.name)
+        loss = constructors.loss(config.loss, model, name=config.name)
         trainer = constructors.trainer(
-                config.trainer, loss, env_stats, name=self.name)
+            config.trainer, env_stats, loss, name=config.name)
         
         return trainer
     
     def build_buffer(self, model, config=None, env_stats=None, constructors=None, **kwargs):
         constructors = constructors or self.constructors
-        env_stats = dict2AttrDict(env_stats or self.env_stats)
         if config is None:
+            env_stats = dict2AttrDict(env_stats or self.env_stats)
             self.config.buffer['n_envs'] = env_stats.n_envs
-            self.config.buffer['state_keys'] = model.state_keys
             self.config.buffer['use_dataset'] = self.config.buffer.get('use_dataset', False)
         config = dict2AttrDict(config or self.config)
-        buffer = constructors.buffer(config.buffer, **kwargs)
+        buffer = constructors.buffer(config.buffer, model, **kwargs)
         
         return buffer
 
@@ -134,71 +146,145 @@ class ElementsBuilder:
 
         return dataset
     
-    def build_strategy(self, actor=None, trainer=None, dataset=None, config=None, constructors=None):
+    def build_strategy(self, actor=None, trainer=None, dataset=None, config=None, env_stats=None, constructors=None):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
+        env_stats = dict2AttrDict(env_stats or self.env_stats)
         strategy = constructors.strategy(
-            self.name, config.strategy, actor=actor, 
-            trainer=trainer, dataset=dataset)
+            config.name, 
+            config.strategy, 
+            env_stats=env_stats,
+            actor=actor, 
+            trainer=trainer, 
+            dataset=dataset)
         
         return strategy
 
     def build_monitor(self, config=None, save_to_disk=True):
-        config = dict2AttrDict(config or self.config)
         if save_to_disk:
-            return create_monitor(config.root_dir, config.model_name, self.name)
+            config = dict2AttrDict(config or self.config)
+            return create_monitor(ModelPath(config.root_dir, config.model_name), self.name)
         else:
-            return create_monitor(None, None, self.name, use_tensorboard=False)
+            return create_monitor(None, self.name, use_tensorboard=False)
     
-    def build_agent(self, strategy, monitor=None, config=None, to_save_code=True, constructors=None):
+    def build_agent(self, strategy, monitor=None, config=None, constructors=None):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         agent = constructors.agent(
             config=config.agent, 
             strategy=strategy, 
             monitor=monitor, 
-            name=self.name, 
-            to_save_code=to_save_code
+            name=config.name, 
         )
 
         return agent
 
-    """ Build an Strategy/Agent from Scratch """
-    def build_actor_strategy_from_scratch(self, config=None, build_monitor=True, to_build_for_eval=False):
-        elements = AttrDict()
-        if config is not None and config.algorithm != self.config.algorithm:
-            constructors = self.retrieve_constructor(config.algorithm)
-        else:
-            constructors = None
+    """ Build an Strategy/Agent from Scratch .
+    We delibrately define different interfaces for each type of 
+    Strategy/Agent to offer default setups for a variety of situations
+    
+    An acting strategy/agent is used to interact with environments only
+    A training strategy/agent is used for training only
+    A plain strategy/agent is used for both cases
+    """
+    def build_acting_strategy_from_scratch(self, 
+            config=None, 
+            build_monitor=True, 
+            to_build_for_eval=False):
+        constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
-        elements.model = self.build_model(config=config, env_stats=env_stats, 
-            to_build=not to_build_for_eval, to_build_for_eval=to_build_for_eval,
+        
+        elements = AttrDict()
+        elements.model = self.build_model(
+            config=config, 
+            env_stats=env_stats, 
+            to_build=not to_build_for_eval, 
+            to_build_for_eval=to_build_for_eval,
             constructors=constructors)
-        elements.actor = self.build_actor(model=elements.model, config=config,
+        elements.actor = self.build_actor(
+            model=elements.model, 
+            config=config,
             constructors=constructors)
-        elements.strategy = self.build_strategy(actor=elements.actor, config=config,
+        elements.strategy = self.build_strategy(
+            actor=elements.actor, 
+            config=config,
+            env_stats=env_stats,
             constructors=constructors)
         if build_monitor:
             elements.monitor = self.build_monitor(config=config, save_to_disk=False)
 
         return elements
     
-    def build_strategy_from_scratch(self, config=None, build_monitor=True):
-        elements = AttrDict()
-        if config is not None and config.algorithm != self.config.algorithm:
-            constructors = self.retrieve_constructor(config.algorithm)
-        else:
-            constructors = None
+    def build_training_strategy_from_scratch(self, 
+            config=None, 
+            build_monitor=True, 
+            save_stats_to_disk=False,
+            save_config=True):
+        constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
-        elements.model = self.build_model(config=config, env_stats=env_stats,
-            constructors=constructors)
-        elements.actor = self.build_actor(model=elements.model, config=config,
+        
+        elements = AttrDict()
+        elements.model = self.build_model(
+            config=config, 
+            env_stats=env_stats, 
             constructors=constructors)
         elements.trainer = self.build_trainer(
-            model=elements.model, config=config, env_stats=env_stats,
+            model=elements.model, 
+            config=config, 
+            env_stats=env_stats,
             constructors=constructors)
         elements.buffer = self.build_buffer(
-            model=elements.model, config=config, env_stats=env_stats,
+            model=elements.model, 
+            config=config, 
+            env_stats=env_stats,
+            constructors=constructors)
+        elements.dataset = self.build_dataset(
+            buffer=elements.buffer, 
+            model=elements.model, 
+            config=config,
+            env_stats=env_stats)
+        elements.strategy = self.build_strategy(
+            trainer=elements.trainer, 
+            dataset=elements.dataset, 
+            config=config,
+            env_stats=env_stats,
+            constructors=constructors)
+        if build_monitor:
+            elements.monitor = self.build_monitor(
+                config=config, 
+                save_to_disk=save_stats_to_disk)
+
+        if save_config:
+            self.save_config()
+
+        return elements
+    
+    def build_strategy_from_scratch(self, 
+            config=None, 
+            build_monitor=True, 
+            save_stats_to_disk=False,
+            save_config=True):
+        constructors = self.get_constructors(config)
+        env_stats = self.env_stats if config is None else get_env_stats(config.env)
+        
+        elements = AttrDict()
+        elements.model = self.build_model(
+            config=config, 
+            env_stats=env_stats,
+            constructors=constructors)
+        elements.actor = self.build_actor(
+            model=elements.model, 
+            config=config,
+            constructors=constructors)
+        elements.trainer = self.build_trainer(
+            model=elements.model, 
+            config=config, 
+            env_stats=env_stats,
+            constructors=constructors)
+        elements.buffer = self.build_buffer(
+            model=elements.model, 
+            config=config, 
+            env_stats=env_stats,
             constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
@@ -210,52 +296,74 @@ class ElementsBuilder:
             trainer=elements.trainer, 
             dataset=elements.dataset,
             config=config,
+            env_stats=env_stats,
             constructors=constructors)
         if build_monitor:
-            elements.monitor = self.build_monitor(config=config)
+            elements.monitor = self.build_monitor(
+                config=config, 
+                save_to_disk=save_stats_to_disk)
+
+        if save_config:
+            self.save_config()
 
         return elements
 
-    def build_actor_agent_from_scratch(self, config=None, to_build_for_eval=False):
-        elements = AttrDict()
-        if config is not None and config.algorithm != self.config.algorithm:
-            constructors = self.retrieve_constructor(config.algorithm)
-        else:
-            constructors = None
+    def build_acting_agent_from_scratch(self, 
+            config=None, 
+            build_monitor=True, 
+            to_build_for_eval=False):
+        constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
-        elements.model = self.build_model(config=config, env_stats=env_stats,
-            to_build=not to_build_for_eval, to_build_for_eval=to_build_for_eval,
+        
+        elements = AttrDict()
+        elements.model = self.build_model(
+            config=config, 
+            env_stats=env_stats,
+            to_build=not to_build_for_eval, 
+            to_build_for_eval=to_build_for_eval,
             constructors=constructors)
-        elements.actor = self.build_actor(model=elements.model, config=config,
+        elements.actor = self.build_actor(
+            model=elements.model, 
+            config=config,
             constructors=constructors)
-        elements.strategy = self.build_strategy(actor=elements.actor, config=config,
+        elements.strategy = self.build_strategy(
+            actor=elements.actor, 
+            config=config,
+            env_stats=env_stats,
             constructors=constructors)
-        elements.monitor = self.build_monitor(config=config, save_to_disk=False)
+        if build_monitor:
+            elements.monitor = self.build_monitor(
+                config=config, 
+                save_to_disk=False)
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
-            monitor=elements.monitor, 
+            monitor=None if build_monitor is None else elements.monitor, 
             config=config,
-            to_save_code=False,
             constructors=constructors)
 
         return elements
     
-    def build_agent_from_scratch(self, config=None):
-        elements = AttrDict()
-        if config is not None and config.algorithm != self.config.algorithm:
-            constructors = self.retrieve_constructor(config.algorithm)
-        else:
-            constructors = None
+    def build_training_agent_from_scratch(self, 
+            config=None, 
+            save_stats_to_disk=True,
+            save_config=True):
+        constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
-        elements.model = self.build_model(config=config, env_stats=env_stats,
-            constructors=constructors)
-        elements.actor = self.build_actor(model=elements.model, config=config,
+        
+        elements = AttrDict()
+        elements.model = self.build_model(
+            config=config, 
+            env_stats=env_stats,
             constructors=constructors)
         elements.trainer = self.build_trainer(
-            model=elements.model, config=config, env_stats=env_stats,
+            model=elements.model, 
+            config=config, 
+            env_stats=env_stats,
             constructors=constructors)
         elements.buffer = self.build_buffer(
-            model=elements.model, config=config, env_stats=env_stats,
+            model=elements.model, 
+            config=config, 
+            env_stats=env_stats,
             constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
@@ -263,38 +371,101 @@ class ElementsBuilder:
             config=config,
             env_stats=env_stats)
         elements.strategy = self.build_strategy(
-            actor=elements.actor, 
             trainer=elements.trainer, 
             dataset=elements.dataset,
             config=config,
+            env_stats=env_stats,
             constructors=constructors)
-        elements.monitor = self.build_monitor()
+        elements.monitor = self.build_monitor(
+            config=config,
+            save_to_disk=save_stats_to_disk)
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
             monitor=elements.monitor,
             config=config,
             constructors=constructors)
         
-        self.save_config()
+        if save_config:
+            self.save_config()
 
         return elements
+
+    def build_agent_from_scratch(self, 
+            config=None, 
+            save_stats_to_disk=True,
+            save_config=True):
+        constructors = self.get_constructors(config)
+        env_stats = self.env_stats if config is None else get_env_stats(config.env)
+        
+        elements = AttrDict()
+        elements.model = self.build_model(
+            config=config, 
+            env_stats=env_stats,
+            constructors=constructors)
+        elements.actor = self.build_actor(
+            model=elements.model, 
+            config=config,
+            constructors=constructors)
+        elements.trainer = self.build_trainer(
+            model=elements.model, 
+            config=config, 
+            env_stats=env_stats,
+            constructors=constructors)
+        elements.buffer = self.build_buffer(
+            model=elements.model, 
+            config=config, 
+            env_stats=env_stats,
+            constructors=constructors)
+        elements.dataset = self.build_dataset(
+            buffer=elements.buffer, 
+            model=elements.model, 
+            config=config,
+            env_stats=env_stats)
+        elements.strategy = self.build_strategy(
+            actor=elements.actor, 
+            trainer=elements.trainer, 
+            dataset=elements.dataset,
+            config=config,
+            env_stats=env_stats,
+            constructors=constructors)
+        elements.monitor = self.build_monitor(
+            config=config,
+            save_to_disk=save_stats_to_disk)
+        elements.agent = self.build_agent(
+            strategy=elements.strategy, 
+            monitor=elements.monitor,
+            config=config,
+            constructors=constructors)
+        
+        if save_config:
+            self.save_config()
+
+        return elements
+
+    def get_constructors(self, config):
+        if config is not None and config.algorithm != self.config.algorithm:
+            constructors = self.retrieve_constructor(config.algorithm)
+        else:
+            constructors = self.constructors
+        return constructors
 
     """ Configuration Operations """
     def get_config(self):
         return self.config
 
     def save_config(self):
-        save_config(ModelPath(self.config.root_dir, self.config.model_name), self.config)
+        save_config(self.config)
 
+    """ Save & Restore """
     def restore(self):
         if os.path.exists(self._builder_path) and self._incremental_version:
             with open(self._builder_path, 'rb') as f:
-                self._version = cloudpickle.load(f)
+                self._version, self._max_version = cloudpickle.load(f)
 
     def save(self):
         if self._incremental_version:
             with open(self._builder_path, 'wb') as f:
-                cloudpickle.dump(self._version, f)
+                cloudpickle.dump((self._version, self._max_version), f)
 
 
 if __name__ == '__main__':

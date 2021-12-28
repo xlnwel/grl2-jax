@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Union
+from typing import Dict, Tuple, Type, Union
 from numpy import concatenate
 import tensorflow as tf
 from tensorflow.keras import mixed_precision
@@ -49,7 +49,7 @@ def silence_tf_logs():
     tf.get_logger().setLevel('ERROR')
 
 def get_TensorSpecs(
-        TensorSpecs: Union[dict, list, tuple], 
+        TensorSpecs: Dict[str, Tuple[Tuple, Type, str]], 
         sequential: bool=False, 
         batch_size: int=None, 
         add_batch_dim: bool=False):
@@ -78,6 +78,10 @@ def get_TensorSpecs(
                 or isinstance(x, tf.Tensor) \
                     or isinstance(x, bool):
             return x
+        elif isinstance(x, dict):
+            return get_TensorSpecs(x, 
+                sequential=sequential, batch_size=batch_size,
+                add_batch_dim=add_batch_dim)
         elif isinstance(x, (list, tuple)):
             if hasattr(x, '_fields') or (len(x) > 1 and isinstance(x[1], tuple)):
                 # x is a list/tuple of TensorSpecs, recursively construct them

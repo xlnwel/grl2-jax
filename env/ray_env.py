@@ -8,7 +8,7 @@ from utility.utils import convert_batch_with_func
 
 class RayVecEnv(VecEnvBase):
     def __init__(self, EnvType, config, env_fn=make_env):
-        self.name = config['name']
+        self.name = config['env_name']
         self.n_workers= config.get('n_workers', 1)
         self.envsperworker = config.get('n_envs', 1)
         self.n_envs = self.envsperworker * self.n_workers

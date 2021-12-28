@@ -1,28 +1,5 @@
 import gym
 
-from env import wrappers
-from env.utils import process_single_agent_env
-
-
-def make_procgen(config):
-    assert 'procgen' in config['name'], config['name']
-    gray_scale = config.setdefault('gray_scale', False)
-    frame_skip = config.setdefault('frame_skip', 1)
-    env = Procgen(config)
-    if gray_scale:
-        env = wrappers.GrayScale(env)
-    if frame_skip > 1:
-        if gray_scale:
-            env = wrappers.MaxAndSkipEnv(env, frame_skip=frame_skip)
-        else:
-            env = wrappers.FrameSkip(env, frame_skip=frame_skip)
-    config.setdefault('max_episode_steps', env.spec.max_episode_steps)
-    if config['max_episode_steps'] is None:
-        config['max_episode_steps'] = int(1e9)
-    env = process_single_agent_env(env, config)
-    
-    return env
-
 
 class Procgen(gym.Env):
     """
@@ -31,7 +8,7 @@ class Procgen(gym.Env):
     def __init__(self, config):
         self._default_config = {
             "num_levels" : 0,  # The number of unique levels that can be generated. Set to 0 to use unlimited levels.
-            "name" : "coinrun",  # Name of environment, or comma-separate list of environment names to instantiate as each env in the VecEnv
+            "env_name" : "coinrun",  # Name of environment, or comma-separate list of environment names to instantiate as each env in the VecEnv
             "start_level" : 0,  # The lowest seed that will be used to generated levels. 'start_level' and 'num_levels' fully specify the set of possible levels
             "paint_vel_info" : False,  # Paint player velocity info in the top left corner. Only supported by certain games.
             "use_generated_assets" : False,  # Use randomly generated assets in place of human designed assets
@@ -45,7 +22,7 @@ class Procgen(gym.Env):
             k: config[k] for k in 
             config.keys() & self.config.keys()})
 
-        name = self.config.pop("name")
+        name = self.config.pop("env_name")
         self.name = name.split('_', 1)[-1]
 
         from procgen.env import ENV_NAMES as VALID_ENV_NAMES

@@ -26,7 +26,7 @@ def get_actor_class(AgentBase):
     class Actor(ActorBase):
         def __init__(self,
                     actor_id,
-                    model_fn,
+                    constructor,
                     config,
                     model_config,
                     env_config):
@@ -43,7 +43,7 @@ def get_actor_class(AgentBase):
             self._n_envs = env_config['n_envs']
             env = create_env(env_config)
 
-            models = model_fn(config=model_config, env=env)
+            models = constructor(config=model_config, env=env)
 
             super().__init__(
                 name=name,

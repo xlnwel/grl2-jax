@@ -9,4 +9,4 @@ fi
 
 outfile=eval_$1_vs_$opp
 
-python run/eval.py logs/card_gd2/zeroo/$1 -n 10000 -nw 80 >& $outfile
+python run/eval.py logs/card_gd/zero/$1 -n 10000 -nw 80 >& $outfile

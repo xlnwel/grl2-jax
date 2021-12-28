@@ -48,13 +48,13 @@ class Q(QBase):
 
 
 class QMixer(Module):
-    def __init__(self, config, n_agents, name='qmixer'):
+    def __init__(self, config, n_players, name='qmixer'):
         super().__init__(name=name)
 
         config = config.copy()
-        self.n_agents = n_agents
+        self.n_players = n_players
         self.hidden_dim = config.pop('hidden_dim')
-        self.w1 = mlp(**config, out_size=n_agents * self.hidden_dim, 
+        self.w1 = mlp(**config, out_size=n_players * self.hidden_dim, 
             name=f'{self.name}/w1')
         self.w2 = mlp(**config, out_size=self.hidden_dim, 
             name=f'{self.name}/w2')
@@ -70,14 +70,14 @@ class QMixer(Module):
         assert_rank(state, 3)
         B, seqlen = qs.shape[:2]
         tf.debugging.assert_shapes([
-            [qs, (B, seqlen, self.n_agents)],
+            [qs, (B, seqlen, self.n_players)],
             [state, (B, seqlen, None)],
         ])
-        qs = tf.reshape(qs, (-1, self.n_agents))
+        qs = tf.reshape(qs, (-1, self.n_players))
         state = tf.reshape(state, (-1, state.shape[-1]))
 
         w1 = tf.math.abs(self.w1(state))
-        w1 = tf.reshape(w1, (-1, self.n_agents, self.hidden_dim))
+        w1 = tf.reshape(w1, (-1, self.n_players, self.hidden_dim))
         b = self.b(state)
         h = tf.nn.elu(tf.einsum('ba,bah->bh', qs, w1) + b)
         tf.debugging.assert_shapes([
@@ -106,7 +106,7 @@ class QMIX(Ensemble):
         )[config['q_rnn']['rnn_name']]
 
         super().__init__(
-            model_fn=create_components, 
+            constructor=create_components, 
             config=config,
             env=env,
             **kwargs)
@@ -139,14 +139,14 @@ class QMIX(Ensemble):
         assert_rank(obs, 4)
         
         x = encoder(obs)                        # [B, S, A, F]
-        seqlen, n_agents = x.shape[1:3]
+        seqlen, n_players = x.shape[1:3]
 
-        tf.debugging.assert_equal(n_agents, self.qmixer.n_agents)
+        tf.debugging.assert_equal(n_players, self.qmixer.n_players)
         x = tf.transpose(x, [0, 2, 1, 3])       # [B, A, S, F]
         x = tf.reshape(x, [-1, *x.shape[2:]])   # [B * A, S, F]
         x = rnn(x, state)
         x, state = x[0], self.State(*x[1:])
-        x = tf.reshape(x, (-1, n_agents, seqlen, x.shape[-1]))  # [B, A, S, F]
+        x = tf.reshape(x, (-1, n_players, seqlen, x.shape[-1]))  # [B, A, S, F]
         x = tf.transpose(x, [0, 2, 1, 3])       # [B, S, A, F]
 
         if seqlen == 1:
@@ -188,20 +188,20 @@ class QMIX(Ensemble):
     def state_keys(self):
         return self.State._fields
 
-def create_components(config, env, n_agents, **kwargs):
+def create_components(config, env, n_players, **kwargs):
     return dict(
         q_encoder=Encoder(config['q_encoder'], name='encoder'),
         q_rnn=rnn(config['q_rnn'], name='q_rnn'),
         q=Q(config['q'], env.action_dim, name='q'),
-        qmixer=QMixer(config['q_mixer'], n_agents, name='qmix'), 
+        qmixer=QMixer(config['q_mixer'], n_players, name='qmix'), 
         target_q_encoder=Encoder(config['q_encoder'], name='target_encoder'),
         target_q_rnn=rnn(config['q_rnn'], name='target_q_rnn'),
         target_q=Q(config['q'], env.action_dim, name='target_q'),
-        target_qmixer=QMixer(config['q_mixer'], n_agents, name='target_qmix'), 
+        target_qmixer=QMixer(config['q_mixer'], n_players, name='target_qmix'), 
     )
 
 def create_model(config, env, **kwargs):
-    return QMIX(config, env, n_agents=env.n_agents, **kwargs)
+    return QMIX(config, env, n_players=env.n_players, **kwargs)
 
 
 if __name__ == '__main__':
@@ -228,15 +228,15 @@ if __name__ == '__main__':
     class Env:
         def __init__(self):
             self.action_dim = 5
-            self.n_agents = 3
+            self.n_players = 3
     B = 2
     env = Env()
     model = create_model(config, env)
-    x = tf.random.normal((B, env.n_agents, 5))
-    action_mask = tf.random.uniform((B, env.n_agents, env.action_dim), 0, 2, dtype=tf.int32)
+    x = tf.random.normal((B, env.n_players, 5))
+    action_mask = tf.random.uniform((B, env.n_players, env.action_dim), 0, 2, dtype=tf.int32)
     action_mask = tf.cast(action_mask, tf.bool)
     a = model.compute_utils(x)
-    x = tf.keras.Input(shape=(env.n_agents, 5))
-    action_mask = tf.keras.Input(shape=(env.n_agents, env.action_dim), dtype=tf.bool)
+    x = tf.keras.Input(shape=(env.n_players, 5))
+    action_mask = tf.keras.Input(shape=(env.n_players, env.action_dim), dtype=tf.bool)
     model = tf.keras.Model(inputs=x, outputs=a)
     model.summary(200)

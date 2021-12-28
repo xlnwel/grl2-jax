@@ -1,5 +1,4 @@
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
-from core.typing import ModelPath
 from utility import pkg
 
 

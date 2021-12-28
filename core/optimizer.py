@@ -74,11 +74,7 @@ class Optimizer(tf.Module):
         assert hasattr(self._opt, 'get_transformed_grads'), f'{self._opt} does not support "get_transformed_grads"'
         return self._opt.get_transformed_grads(var_list or self._variables)
 
-    def __call__(self, tape=None, loss=None, grads=None, output_gradients=None):
-        if loss is None and grads is None:
-            raise ValueError('Neither loss nor grads is provided')
-        if loss is not None and grads is not None:
-            raise ValueError('Both loss and grads are provvided')
+    def compute_gradients(self, tape, loss, output_gradients=None):
         if isinstance(loss, tf.Tensor) and loss.shape != ():
             raise ValueError(f'loss is expected to be a scalar Tensor, but get {loss}')
 
@@ -92,15 +88,19 @@ class Optimizer(tf.Module):
                     for i, m in enumerate(self._modules)]
                 self._scales = tf.nest.flatten(scales)
 
-        if grads is None:
-            if tape is None:
-                raise ValueError('tf.GradientTape is ')
-            if self._l2_reg:
-                loss = self._add_l2_regularization(loss)
-            if self._mpt:
-                with tape:
-                    loss = self._opt.get_scaled_loss(loss)
-            grads = tape.gradient(loss, self._variables, output_gradients=output_gradients)
+        if tape is None:
+            raise ValueError('tf.GradientTape is ')
+        if self._l2_reg:
+            loss = self._add_l2_regularization(loss)
+        if self._mpt:
+            with tape:
+                loss = self._opt.get_scaled_loss(loss)
+        grads = tape.gradient(loss, self._variables, output_gradients=output_gradients)
+
+        return grads
+
+    def apply_gradients(self, grads):
+        # TODO: handle the case where gradients come from multiple sources
         if None in grads:
             raise ValueError(f'No grads for {self._variables[grads.index(None)].name}')
         if self._mpt:
@@ -120,6 +120,10 @@ class Optimizer(tf.Module):
             return norm, {v.name: g for v, g in zip(self._variables, grads)}
         else:
             return norm
+
+    def __call__(self, tape=None, loss=None, grads=None, output_gradients=None):
+        grads = self.compute_gradients(tape, loss, output_gradients=output_gradients)
+        return self.apply_gradients(grads)
     
     def _add_l2_regularization(self, loss):
         do_logging(f'Apply L2 regularization with coefficient: {self._l2_reg}\n" \

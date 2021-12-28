@@ -75,10 +75,10 @@ class Actor(Module):
 
 
 class SAC(Ensemble):
-    def __init__(self, config, *, model_fn=None, env, **kwargs):
-        model_fn = model_fn or create_components
+    def __init__(self, config, *, constructor=None, env, **kwargs):
+        constructor = constructor or create_components
         super().__init__(
-            model_fn=model_fn, 
+            constructor=constructor, 
             config=config,
             env=env,
             **kwargs)

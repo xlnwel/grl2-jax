@@ -3,10 +3,11 @@ import cloudpickle
 import collections
 import logging
 import numpy as np
-from typing import Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 from core.log import do_logging
 from utility.rms import RunningMeanStd
+from utility.utils import dict2AttrDict
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ class RMS:
     def __init__(self, config: dict, name='rms'):
         # by default, we update reward stats once every N steps 
         # so we normalize along the first two axis
+        config = dict2AttrDict(config)
         self._gamma = config['gamma']
         self._reward_normalized_axis = tuple(
             config.get('reward_normalized_axis', (0, 1)))
@@ -31,7 +33,7 @@ class RMS:
         assert self._normalize_reward_with_return in ('reversed', 'forward', None)
         
         self._obs_names = config.get('obs_names', ['obs'])
-        self._obs_rms = {}
+        self._obs_rms: Dict[str, RunningMeanStd] = {}
         if self._normalize_obs:
             # we use dict to track a set of observation features
             for k in self._obs_names:
@@ -47,8 +49,8 @@ class RMS:
             self._return = 0
         else:
             self._return = -np.inf
-        if 'root_dir' in config:
-            self._rms_path = f'{config["root_dir"]}/{config["model_name"]}/{name}.pkl'
+        if 'model_path' in config:
+            self._rms_path = '/'.join([*config.model_path, f'{name}.pkl'])
         else:
             self._rms_path = None
 
@@ -72,7 +74,7 @@ class RMS:
 
     def process_obs_with_rms(self, 
                              inp: Union[dict, Tuple[str, np.ndarray]], 
-                             update_rms: bool=True, 
+                             update_rms: bool=False, 
                              mask=None):
         """ Do obs normalization if required
         
@@ -97,12 +99,18 @@ class RMS:
             inp = self.normalize_obs(inp, k, mask)
         return inp
 
-    def set_rms_stats(self, obs_rms={}, rew_rms=None):
-        if obs_rms:
-            for k, v in obs_rms.items():
+    def reset_rms_stats(self):
+        for rms in self._obs_rms.values():
+            rms.reset_rms_stats()
+        if self._reward_rms:
+            self._reward_rms.reset_rms_stats()
+
+    def set_rms_stats(self, rms_stats):
+        if rms_stats.obs:
+            for k, v in rms_stats.obs.items():
                 self._obs_rms[k].set_rms_stats(*v)
-        if rew_rms:
-            self._reward_rms.set_rms_stats(*rew_rms)
+        if rms_stats.reward:
+            self._reward_rms.set_rms_stats(*rms_stats.reward)
 
     def get_rms_stats(self):
         return RMSStats(self.get_obs_rms_stats(), self.get_rew_rms_stats())
@@ -113,7 +121,7 @@ class RMS:
         return obs_rms
 
     def get_rew_rms_stats(self):
-        rew_rms = self._reward_rms.get_rms_stats() if self._normalize_reward else ()
+        rew_rms = self._reward_rms.get_rms_stats() if self._normalize_reward else None
         return rew_rms
 
     @property
@@ -128,13 +136,25 @@ class RMS:
     def is_reward_normalized(self):
         return self._normalize_reward
 
-    def update_obs_rms(self, obs, name='obs', mask=None):
+    def update_all_rms(self, data, obs_mask=None, reward_mask=None):
+        for k in self._obs_names:
+            self._obs_rms[k].update(data[k], obs_mask)
+        self.update_reward_rms(data['reward'], data['discount'], reward_mask)
+
+    def update_obs_rms(self, obs, name=None, mask=None):
         if self._normalize_obs:
-            if obs.dtype == np.uint8 and \
+            if not isinstance(obs, dict) and obs.dtype == np.uint8 and \
                     getattr(self, '_image_normalization_warned', False):
-                logger.warning('Image observations are normalized. Make sure you intentionally do it.')
+                do_logging(
+                    'Image observations are normalized. Make sure you intentionally do it.',
+                    logger=logger, level='WARNING')
                 self._image_normalization_warned = True
-            self._obs_rms[name].update(obs, mask=mask)
+            if name is None:
+                assert isinstance(obs, dict), 'Expecting obs to be a dict when normalizing without a specified name'
+                for k in self._obs_names:
+                    self._obs_rms[k].update(obs[k], mask)
+            else:
+                self._obs_rms[name].update(obs, mask=mask)
 
     def update_reward_rms(self, reward, discount=None, mask=None):
         def forward_discounted_sum(next_ret, reward, discount, gamma):
@@ -155,12 +175,12 @@ class RMS:
                 prev_ret *= discount
                 return prev_ret, ret
             else:
-                # we assume the sequential dimension is at the second axis
-                nstep = reward.shape[1]
+                # we assume the sequential dimension is at the first axis
+                nstep = reward.shape[0]
                 ret = np.zeros_like(reward)
                 for t in range(nstep):
-                    ret[:, t] = prev_ret = reward[:, t] + gamma * prev_ret
-                    prev_ret *= discount[:, t]
+                    ret[t] = prev_ret = reward[t] + gamma * prev_ret
+                    prev_ret *= discount[t]
                 return prev_ret, ret
 
         if self._normalize_reward:
@@ -204,21 +224,15 @@ class RMS:
         return self._reward_rms.normalize(reward, zero_center=False, mask=mask) \
             if self._normalize_reward else reward
 
-    def update_rms_from_stats_list(self, obs_rms_list, rew_rms_list):
-        if obs_rms_list is not None:
-            assert isinstance(obs_rms_list, list), obs_rms_list
-            for rms in obs_rms_list:
-                self.update_obs_rms_from_stats(rms)
-        if rew_rms_list is not None:
-            assert isinstance(rew_rms_list, list), rew_rms_list
-            for rms in rew_rms_list:
-                self.update_rew_rms_from_stats(rms)
-    
-    def update_rms_from_stats(self, obs_rms, rew_rms):
-        if obs_rms is not None:
-            self.update_obs_rms_from_stats(obs_rms)
-        if rew_rms is not None:
-            self.update_rew_rms_from_stats(rew_rms)
+    def update_rms_from_stats_list(self, rms_stats_list: List[RMSStats]):
+        for rms_stats in rms_stats_list:
+            self.update_rms_from_stats(rms_stats)
+
+    def update_rms_from_stats(self, rms_stats: RMSStats):
+        if rms_stats.obs is not None:
+            self.update_obs_rms_from_stats(rms_stats.obs)
+        if rms_stats.reward is not None:
+            self.update_rew_rms_from_stats(rms_stats.reward)
 
     def update_obs_rms_from_stats(self, obs_rms):
         for k, v in obs_rms.items():

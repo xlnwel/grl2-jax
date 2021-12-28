@@ -1,17 +1,27 @@
 from core.mixin.monitor import create_recorder, create_tensorboard_writer
+from core.remote.base import RayBase
+from core.typing import ModelPath
 
 
-class Monitor:
-    def __init__(self, root_dir, model_name, name, 
-                use_recorder=True, use_tensorboard=True):
-        self._root_dir = root_dir
-        self._model_name = model_name
+class Monitor(RayBase):
+    def __init__(self, 
+                 model_path: ModelPath, 
+                 name='monitor', 
+                 use_recorder=True, 
+                 use_tensorboard=True
+                 ):
+        self._model_path = model_path
+        self._name = name
+        self._use_recorder = use_recorder
+        self._use_tensorboard = use_tensorboard
+        self._build(model_path)
+    
+    def _build(self, model_path):
         # we create a recorder anyway, but we do not store any data to the disk if use_recorder=False
-        self._recorder = create_recorder(
-            root_dir=root_dir if use_recorder else None, model_name=model_name)
-        if use_tensorboard and root_dir is not None:
+        self._recorder = create_recorder(self._model_path)
+        if self._use_tensorboard and self._model_path is not None:
             self._tb_writer = create_tensorboard_writer(
-                root_dir=root_dir, model_name=model_name, name=name)
+                model_path=model_path, name=self._name)
         else:
             self._tb_writer = None
 
@@ -24,11 +34,15 @@ class Monitor:
             return getattr(self._tb_writer, name)
         raise AttributeError(f"Attempted to get missing attribute '{name}'")
 
+    def reset_model_path(self, model_path: ModelPath):
+        self._model_path = model_path
+        self._build(model_path)
+        
     def record(self, step, adaptive=True):
         record(
             recorder=self._recorder, 
             tb_writer=self._tb_writer, 
-            model_name=self._model_name, 
+            model_name=self._model_path.model_name, 
             step=step,
             adaptive=adaptive
         )
@@ -50,5 +64,10 @@ def record(*, recorder, tb_writer, model_name,
 
 
 def create_monitor(
-        root_dir, model_name, name, use_recorder=True, use_tensorboard=True):
-    return Monitor(root_dir, model_name, name, use_recorder, use_tensorboard)
+        model_path: ModelPath, name, central_monitor=False,
+        use_recorder=True, use_tensorboard=True):
+    if central_monitor:
+        return Monitor.as_remote()(
+            model_path, name, use_recorder, use_tensorboard)
+    else:
+        return Monitor(model_path, name, use_recorder, use_tensorboard)

@@ -1,10 +1,8 @@
 from typing import Union
 
 from core.checkpoint import *
-from core.module import Ensemble, EnsembleWithCheckpoint
-from core.typing import ModelPath
-from run.utils import set_path
-from utility.utils import dict2AttrDict
+from core.module import Ensemble, constructor
+from utility.typing import AttrDict
 
 
 def construct_components(config):
@@ -22,15 +20,19 @@ class Model(Ensemble):
     <compute_value> """
     def __init__(self, 
                  *,
-                 config,
-                 env_stats=None,
-                 model_fn=construct_components,
-                 name,
+                 config: AttrDict,
+                 env_stats: AttrDict=None,
+                 constructor=construct_components,
+                 name: str,
                  to_build=False,
                  to_build_for_eval=False):
-        super().__init__(config=config, 
-            constructor=model_fn, name=name)
-        self.env_stats = dict2AttrDict(env_stats)
+        assert env_stats is not None, env_stats
+        self._pre_init(config, env_stats)
+        super().__init__(
+            config=config, 
+            env_stats=env_stats,
+            constructor=constructor, 
+            name=name)
 
         self._has_ckpt = 'root_dir' in config and 'model_name' in config
         if to_build:
@@ -46,7 +48,10 @@ class Model(Ensemble):
     def ckpt_model(self):
         return self.components
 
-    def _build(self):
+    def _pre_init(self, config, env_stats):
+        pass
+
+    def _build(self, env_stats, evaluation=False):
         pass
 
     def _post_init(self):
@@ -59,13 +64,6 @@ class Model(Ensemble):
         if hasattr(self, '_sync_nets'):
             # defined in TargetNetOps
             self._sync_nets()
-
-    def reset_model_path(self, model_path: ModelPath):
-        self._root_dir = model_path.root_dir
-        self._model_name = model_path.model_name
-        self._model_path = model_path
-        self.config = set_path(self.config, model_path, recursive=False)
-        self.setup_checkpoint(force=True)
 
     def get_weights(self, name: str=None):
         """ Returns a list/dict of weights
@@ -81,9 +79,9 @@ class Model(Ensemble):
             name = [name]
         assert isinstance(name, (tuple, list))
 
-        return {n: self.modules[n].get_weights() for n in name}
+        return {n: self.components[n].get_weights() for n in name}
 
-    def set_weights(self, weights: Union[list, dict]):
+    def set_weights(self, weights: Union[list, dict], default_initialization=None):
         """ Sets weights
 
         Args:
@@ -92,8 +90,11 @@ class Model(Ensemble):
             Otherwise, it sets all weights 
         """
         if isinstance(weights, dict):
-            for n, w in weights.items():
-                self[n].set_weights(w)
+            for n, m in self.components.items():
+                if n in weights:
+                    m.set_weights(weights[n])
+                elif default_initialization:
+                    m.set_weights(default_initialization)
         else:
             if len(weights) == 0:
                 return
@@ -128,32 +129,56 @@ class Model(Ensemble):
     def state_type(self):
         return self.rnn.state_type if hasattr(self, 'rnn') else None
 
-    """ Save & Restore Model """
-    def setup_checkpoint(self, force=False):
-        if force or not hasattr(self, 'ckpt'):
-            self.ckpt, self.ckpt_path, self.ckpt_manager = \
-                setup_checkpoint(self.components, self._root_dir, 
-                    self._model_name, name=self.name, 
-                    ckpt_kwargs=self.config.get('ckpt_kwargs', {}),
-                    ckptm_kwargs=self.config.get('ckptm_kwargs', {}),
-                )
 
-    def save(self, print_terminal_info=True):
-        if self._has_ckpt:
-            self.setup_checkpoint()
-            save(self.ckpt_manager, print_terminal_info)
+class ModelEnsemble(Ensemble):
+    def __init__(self, 
+                 *, 
+                 config: dict, 
+                 env_stats: dict,
+                 constructor=constructor, 
+                 name: str, 
+                 to_build=False, 
+                 to_build_for_eval=False,
+                 **classes):
+        super().__init__(
+            config=config, 
+            env_stats=env_stats, 
+            constructor=constructor, 
+            name=name, 
+            **classes
+        )
+        if to_build:
+            self._build(env_stats)
+            self.to_build = True
+        elif to_build_for_eval:
+            self._build(env_stats, evaluation=True)
+            self.to_build = True
         else:
-            raise RuntimeError(
-                'Cannot perform <save> as either root_dir or model_name was not specified at initialization')
+            self.to_build = False
 
-    def restore(self):
-        if self._has_ckpt:
-            self.setup_checkpoint()
-            restore(self.ckpt_manager, self.ckpt, self.ckpt_path, self.name)
+    def get_weights(self, name: Union[dict, list]=None):
+        if name:
+            weights = {}
+            if isinstance(name, dict):
+                for model_name, comp_name in name.items():
+                    weights[model_name] = self.components[model_name].get_weights(comp_name)
+            elif isinstance(name, list):
+                for model_name in name:
+                    weights[model_name] = self.components[model_name].get_weights()
+            return weights
         else:
-            raise RuntimeError(
-                'Cannot perform <restore> as either root_dir or model_name was not specified at initialization')
+            return [v.numpy() for v in self.variables]
 
-
-class ModelEnsemble(EnsembleWithCheckpoint):
-    pass
+    def set_weights(self, weights: Union[list, dict], default_initialization=None):
+        if isinstance(weights, dict):
+            for n, m in self.components.items():
+                if n in weights:
+                    m.set_weights(weights[n], default_initialization)
+                elif default_initialization:
+                    m.set_weights({}, default_initialization)
+        else:
+            if len(weights) == 0:
+                return
+            assert len(self.variables) == len(weights), \
+                (len(self.variables), len(weights))
+            [v.assign(w) for v, w in zip(self.variables, weights)]

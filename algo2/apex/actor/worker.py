@@ -86,7 +86,7 @@ def get_worker_class(AgentBase):
                     model_config, 
                     env_config, 
                     buffer_config,
-                    model_fn,
+                    constructor,
                     buffer_fn):
             self._id = worker_id
             name = f'Worker_{self._id}'
@@ -102,7 +102,7 @@ def get_worker_class(AgentBase):
                 buffer_config['seqlen'] = self.env.max_episode_steps
             buffer = buffer_fn(buffer_config)
 
-            models = model_fn(config=model_config, env=self.env)
+            models = constructor(config=model_config, env=self.env)
 
             super().__init__(
                 name=name,

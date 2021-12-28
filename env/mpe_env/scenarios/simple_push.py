@@ -12,11 +12,11 @@ class Scenario(BaseScenario):
         world = World()
         # set any world properties first
         world.dim_c = 2
-        n_agents = config['n_agents']#2
+        n_players = config['n_players']#2
         num_adversaries = 1
         num_landmarks = config['num_landmarks']#2
         # add agents
-        world.agents = [Agent() for i in range(n_agents)]
+        world.agents = [Agent() for i in range(n_players)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True

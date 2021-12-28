@@ -10,11 +10,12 @@ import random
 import numpy as np
 import tensorflow as tf
 
+from core.typing import ModelPath
 from utility.typing import AttrDict
 
 
-def dict2AttrDict(config: dict):
-    if isinstance(config, AttrDict):
+def dict2AttrDict(config: dict, to_copy=False):
+    if isinstance(config, AttrDict) and not to_copy:
         return config
 
     attr_config = AttrDict()
@@ -58,7 +59,7 @@ def eval_config(config):
             config[k] = v
     return config
 
-def config_attr(obj, config: dict, filter_dict: bool=False):
+def config_attr(obj, config: dict, filter_dict: bool=True):
     """ Add values in config as attributes of obj
 
     Args:
@@ -86,6 +87,26 @@ def config_attr(obj, config: dict, filter_dict: bool=False):
             v = int(v)
         setattr(obj, k, v)
     return config
+
+
+def set_path(config, model_path: ModelPath, recursive=True):
+    return modify_config(
+        config, 
+        root_dir=model_path.root_dir, 
+        model_name=model_path.model_name, 
+        recursive=recursive)
+
+
+def modify_config(config, recursive=True, **kwargs):
+    for k, v in kwargs.items():
+        assert not isinstance(config[k], dict), config[k]
+        config[k] = v
+        if recursive:
+            for sub in config.values():
+                if isinstance(sub, dict):
+                    sub[k] = v
+    return config
+
 
 def to_int(s):
     return int(float(s))

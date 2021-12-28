@@ -178,6 +178,7 @@ def evaluate(env,
         for _ in range(min(n_windows, env.n_envs))]
     if hasattr(agent, 'reset_states'):
         agent.reset_states()
+    env.manual_reset()
     env_output = env.reset()
     n_run_eps = env.n_envs  # count the number of episodes that has begun to run
     n = max(n, env.n_envs)

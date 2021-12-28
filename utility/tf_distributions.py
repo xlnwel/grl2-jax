@@ -131,7 +131,7 @@ class Categorical(Distribution):
         return y
 
 
-class DiagGaussian(Distribution):
+class MultivariateNormalDiag(Distribution):
     def __init__(self, mean, logstd):
         self.mu, self.logstd = mean, logstd
         self.std = tf.exp(self.logstd)

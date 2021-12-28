@@ -1,13 +1,14 @@
 import os, shutil
 import numpy as np
 
+from core.typing import ModelPath
 from utility import yaml_op
 from utility.typing import AttrDict
 
 
-def save_code(root_dir, model_name):
+def save_code(model_path: ModelPath):
     """ Saves the code so that we can check the chagnes latter """
-    dest_dir = f'{root_dir}/{model_name}/src'
+    dest_dir = '/'.join([*model_path, 'src'])
     if os.path.isdir(dest_dir):
         shutil.rmtree(dest_dir)
     
@@ -32,7 +33,13 @@ def simplify_datatype(config):
             config[k] = v
     return config
 
-def save_config(model_path, config, config_name='config.yaml'):
+def save_config(config, model_path=None, config_name='config.yaml'):
+    if model_path is None:
+        model_path = ModelPath(config.root_dir, config.model_name)
+    else:
+        assert model_path.root_dir == config.root_dir, (model_path.root_dir, config.root_dir)
+        assert model_path.model_name == config.model_name, (model_path.model_name, config.model_name)
+    print('save_config', model_path)
     config = simplify_datatype(config)
     yaml_op.save_config(config, 
         filename='/'.join([*model_path, config_name]))

@@ -134,7 +134,7 @@ class Game(object):
             last_action_first_move=self.last_action_first_move_shape,
             action_type_mask=self.action_type_mask_shape,
             card_rank_mask=self.card_rank_mask_shape,
-            mask=()
+            mask=(),
         )
         self.obs_dtype = dict(
             numbers=np.float32,
@@ -153,17 +153,19 @@ class Game(object):
             last_action_first_move=np.float32,
             action_type_mask=np.bool,
             card_rank_mask=np.bool,
-            mask=np.float32
+            mask=np.float32,
         )
 
         if not self.evaluation:
             self.obs_shape.update(dict(
                 others_numbers=self.others_numbers_shape,
                 others_jokers=self.others_jokers_shape,
+                others_h=(3, 128),
             ))
             self.obs_dtype.update(dict(
                 others_numbers=np.float32,
                 others_jokers=np.float32,
+                others_h=np.float32,
             ))
 
         # action info

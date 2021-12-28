@@ -2,59 +2,50 @@ import tensorflow as tf
 
 from core.checkpoint import *
 from core.elements.loss import Loss, LossEnsemble
-from core.module import EnsembleWithCheckpoint, constructor
+from core.module import constructor, Ensemble
 from core.optimizer import create_optimizer
-from core.typing import ModelPath
-from run.utils import set_path
 from utility.display import display_model_var_info
-from utility.utils import config_attr, eval_config
+from utility.typing import AttrDict
+from utility.utils import set_path
 
 
 class Trainer(tf.Module):
     def __init__(self, 
                  *,
-                 config: dict,
+                 config: AttrDict,
+                 env_stats: AttrDict,
                  loss: Loss,
-                 env_stats: dict,
                  name: str):
         self._raw_name = name
         super().__init__(name=f'{name}_trainer')
-        config = config.copy()
-        self.config = config_attr(self, config, filter_dict=True)
-        
+        self.config = config
+
         self.model = loss.model
         self.loss = loss
         self.env_stats = env_stats
 
-        if config.get('ordered_module', True):
-            # keep the order fixed, otherwise you may encounter 
-            # the permutation misalignment problem when restoring from a checkpoint
-            keys = sorted([k for k in self.model.keys() if not k.startswith('target')])
-            modules = tuple(self.model[k] for k in keys)
-        else:
-            # for backward compatibility
-            modules = tuple(v for k, v in self.model.items() 
-                if not k.startswith('target'))
-        opt_config = eval_config(config.pop('optimizer'))
-        self.optimizer = create_optimizer(modules, opt_config)
+        # keep the order fixed, otherwise you may encounter 
+        # the permutation misalignment problem when restoring from a checkpoint
+        keys = sorted([k for k in self.model.keys() if not k.startswith('target')])
+        modules = tuple(self.model[k] for k in keys)
+        self.optimizer = create_optimizer(modules, self.config.optimizer)
         
         self.train = tf.function(self.raw_train)
-        self._build_train(env_stats)
-        self._has_ckpt = 'root_dir' in config and 'model_name' in config
-        if self._has_ckpt:
-            self.setup_checkpoint()
-            if config.get('display_var', True):
-                display_model_var_info(self.model)
-        self._post_init(config, env_stats)
+        has_built = self._build_train(env_stats)
+
+        self._opt_ckpt = ckpt(self.config, self.ckpt_model(), self.name)
+
+        if has_built and self.config.get('display_var', True):
+            display_model_var_info(self.model)
+        self._post_init()
         self.model.sync_nets()
 
-    def reset_model_path(self, model_path: ModelPath):
-        self._root_dir = model_path.root_dir
-        self._model_name = model_path.model_name
-        self._model_path = model_path
-        self.config = set_path(self.config, model_path, recursive=False)
-        self.setup_checkpoint(force=True)
-        self._has_ckpt = True
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError(f"Attempted to get missing private attribute '{name}'")
+        elif hasattr(self._opt_ckpt, name):
+            return getattr(self._opt_ckpt, name)
+        raise AttributeError(f"Attempted to get missing attribute '{name}'")
 
     def get_weights(self, identifier=None):
         if identifier is None:
@@ -89,38 +80,25 @@ class Trainer(tf.Module):
         }
 
     def _build_train(self, env_stats):
-        pass
+        return False
 
     def raw_train(self):
         raise NotImplementedError
 
-    def _post_init(self, config, env_stats):
+    def _post_init(self):
         """ Add some additional attributes and do some post processing here """
         pass
 
     """ Save & Restore Optimizer """
-    def setup_checkpoint(self, force=False):
-        if force or not hasattr(self, 'ckpt'):
-            self.ckpt, self.ckpt_path, self.ckpt_manager = \
-                setup_checkpoint({'optimizer': self.optimizer}, 
-                    self._root_dir, self._model_name, name=self.name, 
-                    ckpt_kwargs=self.config.get('ckpt_kwargs', {}),
-                    ckptm_kwargs=self.config.get('ckptm_kwargs', {}),
-                )
+    def reset_model_path(self, model_path: ModelPath):
+        self.config = set_path(self.config, model_path, recursive=False)
+        self._opt_ckpt.reset_model_path(model_path)
 
     def save_optimizer(self, print_terminal_info=False):
-        if self._has_ckpt:
-            save(self.ckpt_manager, print_terminal_info)
-        else:
-            raise RuntimeError(
-                'Cannot perform <save> as root_dir or model_name was not specified at initialization')
+        self._opt_ckpt.save()
 
     def restore_optimizer(self):
-        if self._has_ckpt:
-            restore(self.ckpt_manager, self.ckpt, self.ckpt_path, self.name)
-        else:
-            raise RuntimeError(
-                'Cannot perform <restore> as root_dir or model_name was not specified at initialization')
+        self._opt_ckpt.restore()
 
     def save(self, print_terminal_info=False):
         self.save_optimizer(print_terminal_info)
@@ -131,29 +109,29 @@ class Trainer(tf.Module):
         self.model.restore()
 
 
-class TrainerEnsemble(EnsembleWithCheckpoint):
+class TrainerEnsemble(Ensemble):
     def __init__(self, 
                  *, 
-                 config, 
-                 loss: LossEnsemble,
+                 config: dict, 
                  env_stats: dict,
+                 loss: LossEnsemble,
                  constructor=constructor, 
                  name: str, 
                  **classes):
         super().__init__(
             config=config, 
+            env_stats=env_stats, 
             constructor=constructor, 
-            name=name, 
+            name=f'{name}_trainer', 
             **classes
         )
 
         self.model = loss.model
         self.loss = loss
-        self.env_stats = env_stats
 
         self.train = tf.function(self.raw_train)
-        self._build_train(env_stats)
-        if config.get('display_var', True):
+        has_built = self._build_train(env_stats)
+        if has_built and config.get('display_var', True):
             display_model_var_info(self.components)
 
     def _build_train(self, env_stats):
@@ -161,6 +139,30 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
     
     def raw_train(self):
         raise NotImplementedError
+
+    def get_weights(self):
+        weights = {
+            f'model': self.model.get_weights(),
+            f'opt': self.get_optimizer_weights(),
+        }
+        return weights
+
+    def set_weights(self, weights):
+        self.model.set_weights(weights['model'])
+        self.set_optimizer_weights(weights['opt'])
+
+    def get_model_weights(self, name: str=None):
+        return self.model.get_weights(name)
+
+    def set_model_weights(self, weights):
+        self.model.set_weights(weights)
+
+    def get_optimizer_weights(self):
+        return [trainer.get_optimizer_weights() for trainer in self.components.values()]
+
+    def set_optimizer_weights(self, weights):
+        [trainer.set_optimizer_weights(w) 
+            for trainer, w in zip(self.components.values(), weights)]
 
     def restore(self):
         super().restore()
@@ -177,9 +179,12 @@ class TrainerEnsemble(EnsembleWithCheckpoint):
         super().save(print_terminal_info)
 
 
-def create_trainer(config, loss, env_stats, *, name, trainer_cls, **kwargs):
+def create_trainer(config, env_stats, loss, *, name, trainer_cls, **kwargs):
     trainer = trainer_cls(
-        config=config, loss=loss, 
-        env_stats=env_stats, name=name, **kwargs)
+        config=config, 
+        env_stats=env_stats, 
+        loss=loss, 
+        name=name, 
+        **kwargs)
 
     return trainer

@@ -1,14 +1,16 @@
+from core.elements.trainer import Trainer
 from utility.timer import Timer
+from utility.typing import AttrDict
 from utility.utils import config_attr
 
 
 class TrainingLoopBase:
     def __init__(self, 
-                 config, 
+                 config: AttrDict, 
                  dataset, 
-                 trainer, 
+                 trainer: Trainer, 
                  **kwargs):
-        self.config = config_attr(self, config)
+        self.config = config_attr(self, config, filter_dict=True)
         self.dataset = dataset
         self.trainer = trainer
 

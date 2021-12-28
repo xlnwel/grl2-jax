@@ -13,11 +13,11 @@ from replay.local import LocalBuffer
 def get_data_format(*, env, replay_config, agent_config, **kwargs):
     sample_size = env.max_episode_steps
     data_format = dict(
-        obs=((None, sample_size+1, env.n_agents, *env.obs_shape), tf.float32),
+        obs=((None, sample_size+1, env.n_players, *env.obs_shape), tf.float32),
         global_state=((None, sample_size+1, *env.global_state_shape), tf.float32),
-        action_mask=((None, sample_size+1, env.n_agents, env.action_dim), tf.bool),
+        action_mask=((None, sample_size+1, env.n_players, env.action_dim), tf.bool),
         episodic_mask=((None, sample_size), tf.float32),
-        action=((None, sample_size, env.n_agents, *env.action_shape), tf.int32),
+        action=((None, sample_size, env.n_players, *env.action_shape), tf.int32),
         reward=((None, sample_size), tf.float32), 
         discount=((None, sample_size), tf.float32),
     )
@@ -75,17 +75,17 @@ class Agent(Memory, DQNBase):
         self._setup_memory_state_record()
 
         self._sample_size = env.max_episode_steps
-        self._n_agents = env.n_agents
+        self._n_players = env.n_players
 
     @override(DQNBase)
     def _build_train(self, env):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = dict(
-            obs=((self._sample_size+1, self._n_agents, *env.obs_shape), env.obs_dtype, 'obs'),
+            obs=((self._sample_size+1, self._n_players, *env.obs_shape), env.obs_dtype, 'obs'),
             global_state=((self._sample_size+1, *env.global_state_shape), env.global_state_dtype, 'global_state'),
-            action_mask=((self._sample_size+1, self._n_agents, env.action_dim), tf.bool, 'action_mask'),
+            action_mask=((self._sample_size+1, self._n_players, env.action_dim), tf.bool, 'action_mask'),
             episodic_mask=((self._sample_size,), tf.float32, 'episodic_mask'),
-            action=((self._sample_size, self._n_agents, env.action_dim), tf.float32, 'action'),
+            action=((self._sample_size, self._n_players, env.action_dim), tf.float32, 'action'),
             reward=((self._sample_size,), tf.float32, 'reward'),
             discount=((self._sample_size,), tf.float32, 'discount'),
         )
@@ -94,11 +94,11 @@ class Agent(Memory, DQNBase):
 
     def _process_input(self, env_output, evaluation):
         mask = self._get_mask(env_output.reset)
-        mask = np.tile(np.expand_dims(mask, -1), [1, self._n_agents]).reshape(-1)
+        mask = np.tile(np.expand_dims(mask, -1), [1, self._n_players]).reshape(-1)
         obs, kwargs = self._divide_obs(env_output.obs)
         kwargs = self._add_memory_state_to_kwargs(
             obs, mask=mask, kwargs=kwargs,
-            batch_size=obs.shape[0] * self._n_agents)
+            batch_size=obs.shape[0] * self._n_players)
         kwargs.pop('mask')  # no mask is applied to RNNs
 
         kwargs['epsilon'] = self._get_eps(evaluation)
@@ -177,8 +177,8 @@ class Agent(Memory, DQNBase):
         _, next_shared_state = tf.split(global_state, [1, self._sample_size], axis=1)
         _, next_action = tf.split(action, [1, self._sample_size], axis=1)
         tf.debugging.assert_shapes([
-            [next_utils, (self._batch_size, self._sample_size, self._n_agents, self._action_dim)],
-            [next_action, (self._batch_size, self._sample_size, self._n_agents, self._action_dim)],
+            [next_utils, (self._batch_size, self._sample_size, self._n_players, self._action_dim)],
+            [next_action, (self._batch_size, self._sample_size, self._n_players, self._action_dim)],
         ])
         next_q = self.model.compute_joint_q(
             next_utils, next_shared_state, online=False, action=next_action)

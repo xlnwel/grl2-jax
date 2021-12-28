@@ -59,11 +59,11 @@ def run(agent, env, buffer, step):
         _, reward, discount, reset = env_output
         discount[np.any(discount, 1)] = 1
         kwargs = dict(
-            action=action.reshape(env.n_envs, env.n_agents),
+            action=action.reshape(env.n_envs, env.n_players),
             reward=reward,
             discount=discount,
             **tf.nest.map_structure(
-                lambda x: x.reshape(env.n_envs, env.n_agents, *x.shape[1:]), terms)
+                lambda x: x.reshape(env.n_envs, env.n_players, *x.shape[1:]), terms)
         )
         kwargs = [{k: v[i] for k, v in kwargs.items()} for i in range(env.n_envs)]
         info_list = env.info()

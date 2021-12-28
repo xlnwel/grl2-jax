@@ -36,7 +36,7 @@ def main(env_config, model_config, agent_config, replay_config):
     replay = create_replay_center(replay_config) \
         if agent_config.get('use_central_buffer', True) else None
 
-    model_fn, Agent = pkg.import_agent(config=agent_config)
+    constructor, Agent = pkg.import_agent(config=agent_config)
     am = pkg.import_module('actor', config=agent_config)
     fm = pkg.import_module('func', config=agent_config)
 
@@ -45,7 +45,7 @@ def main(env_config, model_config, agent_config, replay_config):
     Learner = am.get_learner_class(Agent)
     learner = fm.create_learner(
         Learner=Learner, 
-        model_fn=model_fn, 
+        constructor=constructor, 
         replay=replay, 
         config=agent_config, 
         model_config=model_config, 
@@ -59,7 +59,7 @@ def main(env_config, model_config, agent_config, replay_config):
         worker = fm.create_worker(
             Worker=Worker, 
             worker_id=wid, 
-            model_fn=model_fn,
+            constructor=constructor,
             config=agent_config, 
             model_config=model_config, 
             env_config=env_config, 
@@ -72,7 +72,7 @@ def main(env_config, model_config, agent_config, replay_config):
         Evaluator = am.get_evaluator_class(Agent)
         evaluator = fm.create_evaluator(
             Evaluator=Evaluator,
-            model_fn=model_fn,
+            constructor=constructor,
             config=agent_config,
             model_config=model_config,
             env_config=env_config)

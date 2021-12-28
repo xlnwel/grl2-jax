@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from core.elements.model import Model, Ensemble, ModelEnsemble
-from utility.utils import config_attr
+from utility.typing import AttrDict
 
 
 class Loss(tf.Module):
@@ -11,13 +11,12 @@ class Loss(tf.Module):
     """
     def __init__(self,
                  *,
-                 config: dict,
+                 config: AttrDict,
                  model: Model,
                  use_tf: bool=False,
-                 name):
+                 name: str):
         super().__init__(name=f'{name}_loss')
-        config = config.copy()
-        config_attr(self, config, filter_dict=True)
+        self.config = config
 
         self.model = model
         [setattr(self, k, v) for k, v in self.model.items()]
@@ -40,7 +39,26 @@ class LossEnsemble(Ensemble):
             config=config,
             constructor=constructor,
             name=name,
+            has_ckpt=False, 
             **classes
         )
 
         self.model = model
+
+    def _init_components(self, constructor, classes):
+        if classes:
+            component_configs = [k for k, v in self.config.items() 
+                if isinstance(v, dict)]
+            if set(component_configs) != set(classes):
+                raise ValueError(
+                    f'Inconsistent configs and classes: '
+                    f'config({component_configs}) != classes({classes})'
+                )
+            self.components = {}
+            for k, cls in classes.items():
+                obj = constructor(self.config[k], cls, k)
+                self.components[k] = obj
+                setattr(self, k, obj)
+        else:
+            self.components = constructor(self.config)
+            [setattr(self, n, m) for n, m in self.components.items()]

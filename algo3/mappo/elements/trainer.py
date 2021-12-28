@@ -3,7 +3,7 @@ import tensorflow as tf
 from core.elements.trainer import Trainer, TrainerEnsemble
 from core.decorator import override
 from core.tf_config import build
-from algo.mappo.elements.utils import get_data_format
+from .utils import get_data_format
 
 
 class MAPPOActorTrainer(Trainer):
@@ -35,6 +35,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = get_data_format(self.config, env_stats, self.model, False)
         self.train = build(self.train, TensorSpecs)
+        return True
 
     def raw_train(self, obs, global_state, action, 
             value, traj_ret, advantage, logpi, mask,
@@ -61,16 +62,18 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         return terms
 
 
-def create_trainer(config, loss, env_stats, name='mappo'):
-    def constructor(config, cls, name):
+def create_trainer(config, env_stats, loss, name='mappo'):
+    def constructor(config, env_stats, cls, name):
         return cls(
-            config=config, loss=loss[name], 
-            env_stats=env_stats, name=name)
+            config=config, 
+            env_stats=env_stats, 
+            loss=loss[name], 
+            name=name)
 
     return MAPPOTrainerEnsemble(
         config=config,
-        loss=loss,
         env_stats=env_stats,
+        loss=loss,
         constructor=constructor,
         name=name,
         policy=MAPPOActorTrainer,

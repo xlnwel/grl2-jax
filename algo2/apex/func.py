@@ -43,7 +43,7 @@ def create_monitor(config):
     return monitor
 
 def create_learner(
-        Learner, model_fn, replay, config, 
+        Learner, constructor, replay, config, 
         model_config, env_config, replay_config):
     config = config.copy()
     model_config = model_config.copy()
@@ -57,7 +57,7 @@ def create_learner(
     ray_config = ray_remote_config(config, 'learner')
     RayLearner = Learner.as_remote(**ray_config)
     learner = RayLearner.remote( 
-        model_fn=model_fn, 
+        constructor=constructor, 
         replay=replay,
         config=config, 
         model_config=model_config, 
@@ -74,7 +74,7 @@ def create_learner(
 
 
 def create_worker(
-        Worker, worker_id, model_fn, 
+        Worker, worker_id, constructor, 
         config, model_config, 
         env_config, buffer_config):
     config = config.copy()
@@ -99,12 +99,12 @@ def create_worker(
         model_config=model_config, 
         env_config=env_config, 
         buffer_config=buffer_config, 
-        model_fn=model_fn, 
+        constructor=constructor, 
         buffer_fn=buffer_fn)
 
     return worker
 
-def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
+def create_evaluator(Evaluator, constructor, config, model_config, env_config):
     config = config.copy()
     model_config = model_config.copy()
     env_config = env_config.copy()
@@ -124,6 +124,6 @@ def create_evaluator(Evaluator, model_fn, config, model_config, env_config):
         config=config,
         model_config=model_config,
         env_config=env_config,
-        model_fn=model_fn)
+        constructor=constructor)
 
     return evaluator

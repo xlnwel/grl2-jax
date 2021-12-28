@@ -12,12 +12,12 @@ class Scenario(BaseScenario):
         #world.damping = 1
         num_good_agents = config['num_good_agents']#2
         num_adversaries = config['num_adversaries']#4
-        n_agents = num_adversaries + num_good_agents
+        n_players = num_adversaries + num_good_agents
         num_landmarks = config['num_landmarks']#1
         num_food = 2
         num_forests = 2
         # add agents
-        world.agents = [Agent() for i in range(n_agents)]
+        world.agents = [Agent() for i in range(n_players)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True

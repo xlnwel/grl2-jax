@@ -11,10 +11,10 @@ class Scenario(BaseScenario):
         world.dim_c = 10
         world.collaborative = True  # whether agents share rewards
         # add agents
-        world.n_agents = config['n_agents']  # 2
-        assert world.n_agents == 2, (
+        world.n_players = config['n_players']  # 2
+        assert world.n_players == 2, (
             "only 2 agents is supported, check the config.py.")
-        world.agents = [Agent() for i in range(world.n_agents)]
+        world.agents = [Agent() for i in range(world.n_players)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = False

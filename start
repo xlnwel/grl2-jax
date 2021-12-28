@@ -14,7 +14,7 @@ algos=(
     # sacdiqn5
     zero
 )
-suite=card
+suite=overcooked
 envs=(
     # leaper
     # ninja
@@ -32,10 +32,10 @@ envs=(
     # bossfight
     # maze
     # coinrun
-    gd2
+    counter_circuit
 )
 args1=(1 2)
-args2=(128 256)
+args2=(1e-3 5e-4)
 args3=(True)
 args4=(True)
 
@@ -47,7 +47,8 @@ args4=(True)
     
 # )
 
-i=4
+i=0
+j=1
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
         for a1 in "${args1[@]}"; do
@@ -60,19 +61,18 @@ for e in "${envs[@]}"; do
                         # sed -e "s/KI/${a2}/g" \
                         #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
                         # dir="logs/${suite}_${e}/${a}"
-                        kw1="N_MBS=$a1"
-                        kw2="N_STEPS=$a2"
-                        kw3="use_ln=$a3"
-                        kw4="norm_after_activation=$a4"
-                        env="${suite}_${e}"
+                        kw1="N_EPOCHS=$a1"
+                        kw2="lr=$a2"
+                        env="${suite}-${e}"
                         dir="logs/$a/$env/$kw1-$kw2"
                         mkdir -p $dir
                         # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
                         # py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard >& ${dir}/outputs.txt"
-                        py_script="CUDA_VISIBLE_DEVICES=$i python run/train.py ${a} -e $env -kw $kw1 $kw2 >& ${dir}/outputs.txt &"
+                        py_script="CUDA_VISIBLE_DEVICES=[$i,$j] python run/train.py -a ${a} -e $env -kw $kw1 $kw2 >& ${dir}/outputs.txt &"
                         echo $py_script
                         eval $py_script
-                        ((i=(i+1) % 8))
+                        ((i=(i+2) % 8))
+                        ((j=(j+2) % 8))
                         sleep 3
                         # last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)
                         # mv_script="mv ${dir}/outputs.txt ${last_dir}/outputs.txt"

@@ -123,6 +123,7 @@ class GrayScale(gym.ObservationWrapper):
 
         return obs
 
+
 class FrameSkip(gym.Wrapper):
     """ Unlike MaxAndSkipEnv defined in baselines
     this wrapper does not max pool observations.
@@ -406,7 +407,7 @@ class EnvStatsBase(gym.Wrapper):
             is_action_discrete=env.is_action_discrete,
             n_trainable_agents=getattr(env, 'n_trainable_agents', 1),
             n_controllable_agents=getattr(env, 'n_trainable_agents', 1),
-            n_agents=getattr(env, 'n_agents', 1),
+            n_players=getattr(env, 'n_players', 1),
             global_state_shape=getattr(env, 'global_state_shape', ()),
             global_state_dtype=getattr(env, 'global_state_dtype', None),
             use_life_mask=getattr(env, 'use_life_mask', False),
@@ -435,6 +436,9 @@ class EnvStatsBase(gym.Wrapper):
         self._epslen = 0
         self._game_over = False
         return self.observation(obs)
+
+    def manual_reset(self):
+        self.auto_reset = False
 
     def score(self, **kwargs):
         return self._info.get('score', self._score)
@@ -483,8 +487,8 @@ class EnvStats(EnvStatsBase):
         return self._output
 
     def step(self, action, **kwargs):
-        if self.game_over():
-            assert self.auto_reset == False
+        if self._game_over:
+            assert self.auto_reset == False, self.auto_reset
             # step after the game is over
             reward = self._get_zero_reward()
             discount = self.float_dtype(0)
@@ -555,11 +559,20 @@ class MASimEnvStats(EnvStatsBase):
             timeout_done=timeout_done, 
             auto_reset=auto_reset
         )
+        pid2aid = getattr(self.env, 'pid2aid', [0 for _ in range(self.n_players)])
+        aid2pids = []
+        for pid, aid in enumerate(pid2aid):
+            if aid > len(aid2pids):
+                raise ValueError(f'pid2aid({pid2aid}) is not sorted in order')
+            if aid == len(aid2pids):
+                aid2pids.append((pid, ))
+            else:
+                aid2pids += (pid,)
         self._stats.update({
-            'global_state_shape': self.global_state_shape,
-            'global_state_dtype': self.global_state_dtype,
-            'use_life_mask': self.use_life_mask,
-            'use_action_mask': self.use_action_mask,
+            'use_life_mask': getattr(self.env, 'use_life_mask', False),
+            'use_action_mask': getattr(self.env, 'use_action_mask', False),
+            'pid2aid': pid2aid,
+            'aid2pids': aid2pids
         })
 
     def reset(self):
@@ -576,11 +589,9 @@ class MASimEnvStats(EnvStatsBase):
 
     def _reset(self):
         obs = super()._reset()
-        if len(obs) == 1:
-            assert False, obs
-        reward = np.zeros(self.n_agents, self.float_dtype)
-        discount = np.ones(self.n_agents, self.float_dtype)
-        reset = np.ones(self.n_agents, self.float_dtype)
+        reward = np.zeros(self.n_players, self.float_dtype)
+        discount = np.ones(self.n_players, self.float_dtype)
+        reset = np.ones(self.n_players, self.float_dtype)
         self._output = EnvOutput(obs, reward, discount, reset)
 
         return self._output
@@ -593,10 +604,10 @@ class MASimEnvStats(EnvStatsBase):
             discount = np.zeros_like(self._output.discount, self.float_dtype)
             reset = np.zeros_like(self._output.reset, self.float_dtype)
             self._output = EnvOutput(self._output.obs, reward, discount, reset)
-            self._info['mask'] = np.zeros(self.n_agents, np.bool)
+            self._info['mask'] = np.zeros(self.n_players, np.bool)
             return self._output
 
-        # assert not np.any(np.isnan(action)), action
+        assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
         # define score, epslen, and game_over in info as multi-agent environments may vary in metrics 
         self._score = info['score']
@@ -617,7 +628,7 @@ class MASimEnvStats(EnvStatsBase):
             # when resetting, we override the obs and reset but keep the others
             obs, _, _, reset = self._reset()
         else:
-            reset = np.zeros(self.n_agents, self.float_dtype)
+            reset = np.zeros(self.n_players, self.float_dtype)
         obs = self.observation(obs)
         self._info = info
 

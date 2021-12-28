@@ -4,12 +4,12 @@ precision: 32
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
-# the following names are just examples; they will be reset in our training process
+# the following names are just examples; they will be re-specified in the entry point
 root_dir: *algo
 model_name: *algo
 
 env:
-    name: &env_name smac_3s5z_vs_3s6z
+    env_name: &env_name smac-3s5z_vs_3s6z
     n_workers: 8
     n_envs: &nenvs 2
     use_state_agent: True

@@ -1,6 +1,13 @@
 import os
 import importlib
 
+from gym.envs.registration import register
+
+register(
+    id='Overcooked-v0',
+    entry_point='env.overcooked.overcooked:OvercookedMultiEnv',
+)
+
 
 def retrieve_all_make_env():
     env_dict = {}
@@ -21,7 +28,7 @@ def retrieve_all_make_env():
 
 def make_env(config, eid=None, agents={}):
     config = config.copy()
-    env_name = config['name'].lower()
+    env_name = config['env_name'].lower()
 
     env_dict = retrieve_all_make_env()
     suite = env_name.split('_', 1)[0]

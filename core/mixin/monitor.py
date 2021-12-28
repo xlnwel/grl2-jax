@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 from core.log import do_logging
+from core.typing import ModelPath
 from utility.display import pwc
 from utility.graph import image_summary, video_summary
 from utility.utils import isscalar
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 """ Recorder """
 class Recorder:
-    def __init__(self, recorder_dir=None, record_file='record.txt'):
+    def __init__(self, model_path: ModelPath=None, record_file='record.txt'):
         """
         Initialize a Recorder.
 
@@ -30,9 +31,9 @@ class Recorder:
         """
         record_file = record_file if record_file.endswith('record.txt') \
             else record_file + '/record.txt'
-        self._recorder_dir = recorder_dir
-        if self._recorder_dir:
-            path = os.path.join(self._recorder_dir, record_file)
+        if model_path is not None:
+            path = os.path.join(*model_path, record_file)
+            recorder_dir = '/'.join(model_path)
             # if os.path.exists(path) and os.stat(path).st_size != 0:
             #     i = 1
             #     name, suffix = path.rsplit('.', 1)
@@ -42,16 +43,15 @@ class Recorder:
             #         f'Data will be logged to "{name + f"{i}." + suffix}" instead.',
             #         color='magenta')
             #     path = name + f"{i}." + suffix
-            if not os.path.isdir(self._recorder_dir):
-                os.makedirs(self._recorder_dir)
+            if not os.path.isdir(recorder_dir):
+                os.makedirs(recorder_dir)
             self._out_file = open(path, 'a')
             atexit.register(self._out_file.close)
-            pwc(f'Record data to "{self._out_file.name}"', color='green')
+            do_logging(f'Record data to "{self._out_file.name}"', logger=logger)
         else:
             self._out_file = None
-            pwc(f'Record directory is not specified; '
-                'no data will be recorded to the disk',
-                color='magenta')
+            do_logging(f'Record directory is not specified; no data will be recorded to the disk',
+                logger=logger)
 
         self._first_row=True
         self._headers = []
@@ -80,7 +80,7 @@ class Recorder:
         if key in self._store_dict:
             v = self._store_dict[key]
             del self._store_dict[key]
-            return {key: v}
+            return v
         return None
         
     def get_item(self, key, mean=True, std=False, min=False, max=False):
@@ -217,8 +217,8 @@ class Recorder:
 
 """ Tensorboard Writer """
 class TensorboardWriter:
-    def __init__(self, root_dir, model_name, name):
-        self._writer = create_tb_writer(root_dir, model_name)
+    def __init__(self, model_path: ModelPath, name):
+        self._writer = create_tb_writer(model_path)
         self.name = name
         tf.summary.experimental.set_step(0)
     
@@ -243,7 +243,7 @@ class TensorboardWriter:
         """
         assert isinstance(args[0], str), f'args[0] is expected to be a name string, but got "{args[0]}"'
         args = list(args)
-        args[0] = f'{self.name}/{args[0]}'
+        args[0] = f'{self.name}/{sum_type}/{args[0]}'
         graph_summary(self._writer, sum_type, args, step=step)
 
     def video_summary(self, video, step=None):
@@ -276,10 +276,9 @@ def get_stats(recorder, mean=True, std=False, min=False, max=False):
 def contains_stats(recorder, key):
     return key in recorder
 
-def create_recorder(root_dir, model_name):
-    recorder_dir = root_dir and f'{root_dir}/{model_name}'
+def create_recorder(model_path: ModelPath):
     # recorder save stats in f'{root_dir}/{model_name}/logs/record.txt'
-    recorder = Recorder(recorder_dir)
+    recorder = Recorder(model_path)
     return recorder
 
 
@@ -323,13 +322,13 @@ def graph_summary(writer, sum_type, args, step=None):
             fn(*args)
     return tf.numpy_function(inner, args, [])
 
-def create_tb_writer(root_dir, model_name):
+def create_tb_writer(model_path: ModelPath):
     # writer for tensorboard summary
     # stats are saved in directory f'{root_dir}/{model_name}'
     writer = tf.summary.create_file_writer(
-        f'{root_dir}/{model_name}', max_queue=1000, flush_millis=20000)
+        '/'.join(model_path), max_queue=1000, flush_millis=20000)
     writer.set_as_default()
     return writer
 
-def create_tensorboard_writer(root_dir, model_name, name):
-    return TensorboardWriter(root_dir, model_name, name)
+def create_tensorboard_writer(model_path: ModelPath, name):
+    return TensorboardWriter(model_path, name)

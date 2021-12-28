@@ -3,7 +3,7 @@ import argparse
 
 def parse_train_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('algorithm',
+    parser.add_argument('--algorithm', '-a', 
                         type=str,
                         nargs='*')
     parser.add_argument('--environment', '-e',
@@ -17,11 +17,13 @@ def parse_train_args():
     parser.add_argument('--kwargs', '-kw',
                         type=str,
                         nargs='*',
-                        default=[])
+                        default=[],
+                        help="key-values in config.yaml needed to be overwrite")
     parser.add_argument('--trials', '-t',
                         type=int,
                         default=1,
                         help='number of trials')
+    """ Arguments for logdir """
     parser.add_argument('--prefix', '-p',
                         default='',
                         help='directory prefix')
@@ -30,7 +32,8 @@ def parse_train_args():
                         help='model name')
     parser.add_argument('--logdir', '-ld',
                         type=str,
-                        default='logs')
+                        default='logs',
+                        help='the logging directory. By default, all training data will be stored in logdir/env/algo/model_name')
     parser.add_argument('--grid-search', '-gs',
                         action='store_true')
     parser.add_argument('--delay',
@@ -38,7 +41,8 @@ def parse_train_args():
                         type=int)
     parser.add_argument('--verbose', '-v',
                         type=str,
-                        default='warning')
+                        default='warning',
+                        help='the level for ')
     parser.add_argument('--other_directory', '-od',
                         type=str,
                         default=None,

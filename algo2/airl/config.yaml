@@ -1,6 +1,6 @@
 ---
 env:
-    name: &env_name Hopper-v3
+    env_name: &env_name Hopper-v3
     n_workers: 1
     n_envs: &nenvs 100
 
@@ -45,7 +45,7 @@ agent:
 
     # model path: root_dir/model_name/models
     # tensorboard path: root_dir/model_name/logs
-    # the following names are just examples; they will be reset in our training process
+    # the following names are just examples; they will be re-specified in the entry point
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
     RECORD: False

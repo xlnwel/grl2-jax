@@ -3,17 +3,26 @@ import time
 import itertools
 from multiprocessing import Process
 
+try:
+    from tensorflow.python.compiler.mlcompute import mlcompute
+    mlcompute.set_mlc_device(device_name='gpu')
+    print("----------M1----------")
+except:
+    print("----------Not M1-----------")
+    # os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import setup_logging, do_logging
-from core.typing import ModelPath
 from utility import pkg
+from utility.utils import modify_config
 from run.args import parse_train_args
 from run.grid_search import GridSearch
 from run.utils import *
 
 
 def _get_algo_name(algo):
+    # shortcuts for distributed algorithms
     algo_mapping = {
         'r2d2': 'apex-mrdqn',
         'impala': 'apg-impala',
@@ -64,8 +73,8 @@ if __name__ == '__main__':
                     processes += gs()
             else:
                 dir_prefix = prefix + '-' if prefix else prefix
-                root_dir=f'{logdir}/{dir_prefix}{config.env.name}/{config.algorithm}'
-                config = set_path(config, ModelPath(root_dir, model_name))
+                root_dir=f'{logdir}/{dir_prefix}{config.env.env_name}/{config.algorithm}'
+                config = modify_config(config, root_dir=root_dir, model_name=model_name)
                 config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
                 config.other_path = get_other_path(cmd_args.other_directory)
                 do_logging(config, level='DEBUG')

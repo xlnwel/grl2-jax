@@ -2,11 +2,12 @@ from env.cls import Env, VecEnv
 from env import make_env
 
 
-def create_env(config, env_fn=None, agents={}, force_envvec=True):
+def create_env(config, env_fn=None, agents={}, force_envvec=True, no_remote=False):
     """ Creates an Env/VecEnv from config """
     config = config.copy()
     env_fn = env_fn or make_env
-    if config.get('n_workers', 1) <= 1:
+    if no_remote or config.get('n_workers', 1) <= 1:
+        config['n_workers'] = 1
         EnvType = VecEnv if force_envvec or config.get('n_envs', 1) > 1 else Env
         env = EnvType(config, env_fn, agents=agents)
     else:
@@ -23,8 +24,8 @@ def get_env_stats(config):
     tmp_env_config['n_envs'] = 1
     env = create_env(tmp_env_config, force_envvec=False)
     env_stats = env.stats()
-    env_stats['n_workers'] = config['n_workers']
-    env_stats['n_envs'] = config['n_workers'] * config['n_envs']
+    env_stats['n_workers'] = config.get('n_workers', 1)
+    env_stats['n_envs'] = env_stats['n_workers'] * config['n_envs']
     env.close()
     return env_stats
 
@@ -49,7 +50,7 @@ if __name__ == '__main__':
     import ray
     # performance test
     config = dict(
-        name='BipedalWalker-v3',
+        env_name='BipedalWalker-v3',
         n_workers=1,
         n_envs=1,
         use_state_agent=True,

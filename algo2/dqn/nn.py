@@ -118,7 +118,7 @@ class Q(Module):
 class DQN(Ensemble):
     def __init__(self, config, env, **kwargs):
         super().__init__(
-            model_fn=create_components, 
+            constructor=create_components, 
             config=config,
             env=env,
             **kwargs)

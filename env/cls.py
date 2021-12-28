@@ -13,7 +13,7 @@ class Env(gym.Wrapper):
         self.env = env_fn(config, eid=None, agents=agents)
         if 'seed' in config and hasattr(self.env, 'seed'):
             self.env.seed(config['seed'])
-        self.name = config['name']
+        self.name = config['env_name']
         self.max_episode_steps = self.env.max_episode_steps
         self.n_envs = 1
         self.env_type = 'Env'
@@ -36,6 +36,9 @@ class Env(gym.Wrapper):
 
     def stats(self):
         return dict2AttrDict(self._stats)
+
+    def manual_reset(self):
+        self.env.manual_reset()
 
     """ the following code is needed for ray """
     def score(self, *args):
@@ -101,7 +104,7 @@ class VecEnvBase(gym.Wrapper):
 class VecEnv(VecEnvBase):
     def __init__(self, config, env_fn=make_env, agents={}):
         self.n_envs = n_envs = config.pop('n_envs', 1)
-        self.name = config['name']
+        self.name = config['env_name']
         self.envs = [env_fn(
             config, config['eid'] + eid if 'eid' in config else None, agents)
             for eid in range(n_envs)]
@@ -133,6 +136,8 @@ class VecEnv(VecEnvBase):
 
         return self.process_output(outs, convert_batch=convert_batch)
 
+    def manual_reset(self):
+        [e.manual_reset() for e in self.envs]
 
     def score(self, idxes=None):
         idxes = self._get_idxes(idxes)
@@ -203,7 +208,7 @@ class VecEnv(VecEnvBase):
 
 if __name__ == '__main__':
     config = dict(
-        name='smac_6h_vs_8z',
+        env_name='smac_6h_vs_8z',
         n_workers=8,
         n_envs=1,
         use_state_agent=True,

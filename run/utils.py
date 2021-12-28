@@ -3,7 +3,7 @@ import os, sys
 from core.typing import ModelPath
 from utility import pkg
 from utility.display import pwc
-from utility.utils import eval_str, dict2AttrDict
+from utility.utils import config_attr, eval_str, dict2AttrDict, modify_config
 from utility.yaml_op import load_config
 
 
@@ -18,7 +18,7 @@ def get_config(algo, env):
         raise RuntimeError(f'Algorithm({algo}) is not implemented')
     configs_dir = f'{algo_dir}/configs'
     files = [f for f in os.listdir(configs_dir) if 'config.yaml' in f]
-    env_split = env.split('_')
+    env_split = env.split('-')  # TODO: extra care need to be taken when we call env ending with version number (-vx)
     if len(env_split) == 1:
         filename = 'builtin.yaml'
     elif len(env_split) == 2:
@@ -39,28 +39,29 @@ def get_config(algo, env):
         raise RuntimeError('No configure is loaded')
 
     config['algorithm'] = algo
-    config['env']['name'] = f'{env_split[0]}_{env_split[-1]}'   # we may have version number in between
+    if len(env_split) == 1:
+        config['env']['env_name'] = env_split[0]
+    else:
+        config['env']['env_name'] = f'{env_split[0]}_{env_split[-1]}'   # we may specify configuration filename in between
 
     return config
 
 
-def change_config(kw, configs, model_name=''):
+def change_config(kw, config, model_name=''):
     """ Changes configs based on kw. model_name will
     be modified accordingly to embody changes 
     """
-    def extract_dicts(config):
-        keys = []
-        values = []
+    def change_dict(config, key, value, prefix):
+        modified_configs = []
         for k, v in config.items():
+            config_name = f'{prefix}-{k}' if prefix else k
+            if key == k:
+                config[k] = value
+                modified_configs.append(config_name)
             if isinstance(v, dict):
-                keys.append(k)
-                values.append(v)
-                ks, vs = extract_dicts(v)
-                keys += ks
-                values += vs
-        return keys, values
-    
-    config_keys, config_values = extract_dicts(configs)
+                modified_configs += change_dict(v, key, value, config_name)
+        return modified_configs
+            
     if kw:
         for s in kw:
             key, value = s.split('=', 1)
@@ -70,18 +71,10 @@ def change_config(kw, configs, model_name=''):
             model_name += s
 
             # change kwargs in config
-            key_configs = [('config', configs)] if key in configs else []
-            for name, config in zip(config_keys, config_values):
-                if key in config:
-                    key_configs.append((name, config))
-            assert key_configs, f'"{s}" does not appear in any config!'
-            if len(key_configs) > 1:
-                pwc(f'All {key} appeared in the following configs will be changed: '
-                        + f'{list([n for n, _ in key_configs])}.', color='cyan')
-                
-            for _, c in key_configs:
-                c[key]  = value
-
+            modified_configs = change_dict(config, key, value, '')
+            if len(modified_configs) > 1:
+                pwc(f'All "{key}" appeared in the following configs will be changed: '
+                        + f'{modified_configs}.', color='cyan')
     return model_name
 
 
@@ -114,18 +107,6 @@ def load_and_run(directory):
     main = pkg.import_main('train', config=configs.agent)
 
     main(configs)
-
-
-def set_path(config, model_path: ModelPath, recursive=True):
-    config['root_dir'] = model_path.root_dir
-    config['model_name'] = model_path.model_name
-    if recursive:
-        for v in config.values():
-            if not isinstance(v, dict):
-                continue
-            v['root_dir'] = model_path.root_dir
-            v['model_name'] = model_path.model_name
-    return config
 
 
 def search_for_all_configs(directory, to_attrdict=True):
@@ -163,6 +144,8 @@ def search_for_config(directory, to_attrdict=True):
                 pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
                 sys.exit()
 
+    if config_file is None:
+        raise RuntimeError(f'No configure file is found in {directory}')
     config = load_config(config_file, to_attrdict=to_attrdict)
     
     return config
