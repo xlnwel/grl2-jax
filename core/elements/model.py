@@ -27,7 +27,6 @@ class Model(Ensemble):
                  to_build=False,
                  to_build_for_eval=False):
         assert env_stats is not None, env_stats
-        self._pre_init(config, env_stats)
         super().__init__(
             config=config, 
             env_stats=env_stats,
@@ -43,20 +42,11 @@ class Model(Ensemble):
             self.to_build = True
         else:
             self.to_build = False
-        self._post_init()
 
     def ckpt_model(self):
         return self.components
 
-    def _pre_init(self, config, env_stats):
-        pass
-
     def _build(self, env_stats, evaluation=False):
-        pass
-
-    def _post_init(self):
-        """ Add some additional attributes and 
-        do some post processing here """
         pass
 
     def sync_nets(self):
@@ -123,7 +113,7 @@ class Model(Ensemble):
 
     @property
     def state_keys(self):
-        return self.rnn.state_keys if hasattr(self, 'rnn') else ()
+        return self.rnn.state_keys if hasattr(self, 'rnn') else {} # Empty tuple so that it can be iterable
 
     @property
     def state_type(self):

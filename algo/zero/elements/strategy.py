@@ -6,8 +6,6 @@ import numpy as np
 from .trainloop import PPOTrainingLoop
 from core.elements.strategy import Strategy, create_strategy
 from core.mixin.strategy import Memory
-from utility.utils import concat_map
-
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +35,6 @@ class MAPPOStrategy(Strategy):
         inp = env_output.obs.copy()
         state = self._memory.get_states_for_inputs(batch_size=env_output.reward.size)
         inp = self._memory.add_memory_state_to_input(inp, env_output.reset, state=state)
-
         return inp
 
     def _record_output(self, out):
@@ -46,15 +43,14 @@ class MAPPOStrategy(Strategy):
 
     """ PPO Methods """
     def record_inputs_to_vf(self, env_output):
-        value_input = concat_map({'global_state': env_output.obs['global_state']})
-        value_input = self.actor.process_obs_with_rms(
-            value_input, update_rms=False)
-        reset = concat_map(env_output.reset)
-        state = self._memory.get_states()
+        value_inp = {'global_state': env_output.obs['global_state']}
+        value_inp = self.actor.process_obs_with_rms(
+            value_inp, update_rms=False)
+        state = self._memory.get_states_for_inputs(batch_size=env_output.reward.size)
         mid = len(state) // 2
         state = self.model.value_state_type(*state[mid:])
         self._value_inp = self._memory.add_memory_state_to_input(
-            value_input, reset, state=state)
+            value_inp, env_output.reset, state=state)
 
     def compute_value(self, value_inp: Dict[str, np.ndarray]=None):
         # be sure global_state is normalized if obs normalization is required

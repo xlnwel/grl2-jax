@@ -112,7 +112,9 @@ class Recorder:
         for k in sorted(self._store_dict):
             v = self._store_dict[k]
             k_std, k_min, k_max = std, min, max
-            if adaptive and k.startswith('train/') or k.startswith('stats/'):
+            if k.endswith('score') and not k.startswith('metrics/'):
+                k = f'metrics/{k}'
+            if adaptive and (k.startswith('train/') or k.startswith('metrics/')):
                 k_std = k_min = k_max = True
             if isscalar(v):
                 stats[k] = v
@@ -121,7 +123,9 @@ class Recorder:
                 try:
                     stats[f'{k}'] = np.mean(v).astype(np.float32)
                 except:
-                    print(k, v)
+                    print(k)
+                    for x in v:
+                        print(x.shape)
                     exit()
             if k_std:
                 stats[f'{k}_std'] = np.std(v).astype(np.float32)
@@ -167,7 +171,7 @@ class Recorder:
             f"You already set {key} this iteration. " \
             "Maybe you forgot to call dump_tabular()"
         self._current_row[key] = val
-    
+
     def record_tabular(self, key, val=None, mean=True, std=False, min=False, max=False):
         """
         Record a value or possibly the mean/std/min/max values of a diagnostic.

@@ -14,7 +14,7 @@ from utility.graph import save_video
 from utility import pkg
 from env.func import create_env
 from run.args import parse_eval_args
-from run.utils import get_other_path, search_for_config
+from run.utils import search_for_config
 
 
 def main(config, n, record=False, size=(128, 128), video_len=1000, 
@@ -68,7 +68,8 @@ if __name__ == '__main__':
     setup_logging(args.verbose)
 
     # load respective config
-    config = search_for_config(args.directory)
+    configs = [search_for_config(d) for d in args.directory]
+    config = configs[0]
 
     silence_tf_logs()
     configure_gpu()
@@ -81,15 +82,15 @@ if __name__ == '__main__':
     #     print('Default main is used for evaluation')
 
     # set up env_config
-    n = args.n_episodes
-    if args.n_workers:
-        config.env['n_workers'] = args.n_workers
-    if args.n_envs:
-        config.env['n_envs'] = args.n_envs
-    n = max(args.n_workers * args.n_envs, n)
+    for config in configs:
+        n = args.n_episodes
+        if args.n_workers:
+            if 'runner' in config:
+                config.runner.n_workers = args.n_workers
+            config.env.n_workers = args.n_workers
+        if args.n_envs:
+            config.env.n_envs = args.n_envs
+        n = max(args.n_workers * args.n_envs, n)
 
-    other_path = get_other_path(args.other_directory)
-
-    main(config, n=n, record=args.record, size=args.size, 
-        video_len=args.video_len, fps=args.fps, save=args.save,
-        other_path=other_path)
+    main(configs, n=n, record=args.record, size=args.size, 
+        video_len=args.video_len, fps=args.fps, save=args.save)

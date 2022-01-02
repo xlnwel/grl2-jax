@@ -21,7 +21,7 @@ def dict2AttrDict(config: dict, to_copy=False):
     attr_config = AttrDict()
     for k, v in config.items():
         if isinstance(v, dict):
-            attr_config[k] = dict2AttrDict(v)
+            attr_config[k] = dict2AttrDict(v, to_copy=to_copy)
         else:
             attr_config[k] = copy.deepcopy(v)
 
@@ -97,14 +97,14 @@ def set_path(config, model_path: ModelPath, recursive=True):
         recursive=recursive)
 
 
-def modify_config(config, recursive=True, **kwargs):
+def modify_config(config, curr_layer=0, layer=1, overwrite_existed=False, **kwargs):
     for k, v in kwargs.items():
-        assert not isinstance(config[k], dict), config[k]
-        config[k] = v
-        if recursive:
-            for sub in config.values():
-                if isinstance(sub, dict):
-                    sub[k] = v
+        if not overwrite_existed or k in config:
+            config[k] = v
+    if curr_layer < layer:
+        for k, sub in config.items():
+            if isinstance(sub, dict):
+                config[k] = modify_config(sub, curr_layer+1, layer, overwrite_existed, **kwargs)
     return config
 
 

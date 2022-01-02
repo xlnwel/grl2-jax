@@ -3,7 +3,7 @@ import threading
 import psutil
 
 from core.tf_config import *
-from core.dataset import create_dataset
+from core.elements.dataset import create_dataset
 from utility.utils import config_attr
 from utility.ray_setup import config_actor
 from utility import pkg

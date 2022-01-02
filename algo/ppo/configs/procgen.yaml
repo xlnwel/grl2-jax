@@ -1,7 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
 algorithm: &algo ppo
-name: zero
+name: ppo
 
 precision: 16
 
@@ -11,16 +11,7 @@ precision: 16
 root_dir: *algo
 model_name: *algo
 
-env:
-    env_name: &env_name procgen_coinrun
-    n_workers: 1
-    n_envs: &nenvs 64
-    frame_skip: 1
-    frame_stack: 1
-    # num_levels: 200
-    distribution_mode: easy
-
-agent:
+routine:
     algorithm: *algo
 
     MAX_STEPS: 1e10
@@ -30,6 +21,17 @@ agent:
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
+
+env:
+    env_name: &env_name procgen-coinrun
+    n_workers: &nworkers 1
+    n_envs: &nenvs 64
+    frame_skip: 1
+    frame_stack: 1
+    # num_levels: 200
+    distribution_mode: easy
+
+agent: {}
 
 strategy:
     train_loop:
@@ -87,15 +89,23 @@ actor:
 
 buffer:
     use_dataset: True
+    type: ppo
 
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
+    n_workers: *nworkers
     n_envs: *nenvs
     N_STEPS: *nsteps
     N_EPOCHS: *nepochs
     N_VALUE_EPOCHS: *nval_epochs
     N_MBS: *nmbs        # number of minibatches
     norm_adv: minibatch
-    sample_keys: [obs, action, value, traj_ret, advantage, logpi]
+    sample_keys: 
+        - obs
+        - action
+        - value
+        - traj_ret
+        - advantage
+        - logpi
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

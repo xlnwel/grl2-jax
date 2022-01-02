@@ -1,7 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo clap
-name: clap
+algorithm: &algo zero
+name: zero
 version: 0
 
 precision: 32
@@ -32,9 +32,11 @@ ray_config:
         num_gpus: 1
 
 controller:
-    MAX_INTERATION: 10000
+    MAX_VERSION_ITERATIONS: 100000
+    MAX_TRAINING_ITERATION: 100000
+
 monitor:
-    store_period: 60
+    store_period: 180
 
 runner:
     n_workers: &nworkers 20
@@ -43,8 +45,7 @@ runner:
     push_every_episode: False
 
 env:
-    env_name: &env_name smac-3s5z_vs_3s6z
-    n_workers: 16
+    env_name: &env_name smac2-3s5z_vs_3s6z
     n_envs: &nenvs 1
     use_state_agent: True
     use_mustalive: True
@@ -160,14 +161,13 @@ actor:
         normalize_obs: True
         normalize_reward: True
         obs_normalized_axis: [0, 1]
+        reward_normalized_axis: [0, 1]
         gamma: &gamma .99
 
 buffer:
     type: *training
     # dir: data/gd-100000
     use_dataset: False
-    
-    mixed_data: False
 
     # PPO configs
     adv_type: gae     # nae or gae
@@ -198,34 +198,8 @@ buffer:
         - advantage
         - logpi
         - mask
-        - actor_h
-        - actor_c
-        - value_h
-        - value_c
-
-    aux_compute_keys:
-        - obs
-        - global_state
-        - action
-        - value
-        - traj_ret 
-        - advantage
-        - logpi
-        - mask
-        - actor_h
-        - actor_c
-        - value_h
-        - value_c
-
-    aux_sample_keys:
-        - obs
-        - global_state
-        - action
-        - value
-        - traj_ret 
-        - advantage
-        - logpi
-        - mask
+        - action_mask
+        - life_mask
         - actor_h
         - actor_c
         - value_h

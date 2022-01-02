@@ -1,1 +1,1 @@
-from env.overcooked_env import *
+from env.overcooked_env2 import *

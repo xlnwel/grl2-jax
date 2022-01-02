@@ -9,7 +9,7 @@ from utility.run import Runner, evaluate, RunMode
 from utility import pkg
 from env.func import create_env
 from replay.func import create_replay
-from core.dataset import create_dataset
+from core.elements.dataset import create_dataset
 
 
 def train(agent, env, eval_env, replay):

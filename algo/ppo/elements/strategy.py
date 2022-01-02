@@ -12,17 +12,17 @@ logger = logging.getLogger(__name__)
 
 class PPOStrategy(Strategy):
     def _post_init(self):
-        self._value_input = None
+        self._value_inp = None
 
     def record_inputs_to_vf(self, env_output):
-        self._value_input = {
+        self._value_inp = {
             'obs': self.actor.normalize_obs(env_output.obs['obs'])
         }
 
     def compute_value(self, value_inp: Dict[str, np.ndarray]=None):
         # be sure you normalize obs first if obs normalization is required
         if value_inp is None:
-            value_inp = self._value_input
+            value_inp = self._value_inp
         value, _ = self.model.compute_value(**value_inp)
         return value.numpy()
 

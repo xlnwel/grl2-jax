@@ -60,7 +60,6 @@ class Memory:
 
         if state is None:
             state = self._state
-        assert state == self._state, f'Inconsistent states: {state} != {self._state}'
 
         mask = self.get_mask(reset)
         state = self.apply_mask_to_state(state, mask)
@@ -75,10 +74,10 @@ class Memory:
         return np.float32(1. - reset)
 
     def apply_mask_to_state(self, state: tuple, mask: np.ndarray):
-        if state is not None:
-            mask_reshaped = mask.reshape(state[0].shape[0], 1)
-            state = tf.nest.map_structure(lambda x: x*mask_reshaped, state)
-        return state
+        assert state is not None, state
+        mask_reshaped = mask.reshape(state[0].shape[0], 1)
+        state = tf.nest.map_structure(lambda x: x*mask_reshaped, state)
+        return state 
 
     def reset_states(self):
         self._state = None

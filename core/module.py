@@ -109,6 +109,7 @@ class Ensemble(tf.Module):
         self.config = config_attr(self, config, filter_dict=True)
         self.env_stats = env_stats
 
+        self._pre_init()
         self._init_components(constructor, classes)
         if has_ckpt:
             self._ckpt = ckpt(self.config, self.ckpt_model(), self.name)
@@ -122,6 +123,11 @@ class Ensemble(tf.Module):
         elif hasattr(self._ckpt, name):
             return getattr(self._ckpt, name)
         raise AttributeError(f"Attempted to get missing attribute '{name}'")
+
+    def _pre_init(self):
+        """ Add some additional attributes and 
+        do some pre-processing here """
+        pass
 
     def _init_components(self, constructor, classes):
         if classes:
@@ -142,6 +148,8 @@ class Ensemble(tf.Module):
             [setattr(self, n, m) for n, m in self.components.items()]
 
     def _post_init(self):
+        """ Add some additional attributes and 
+        do some post processing here """
         pass
 
     """ Auxiliary functions that make Ensemble like a dict """

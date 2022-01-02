@@ -1,5 +1,6 @@
 import os, sys, signal
 import psutil
+import tensorflow as tf
 import ray
 
 from utility.display import pwc
@@ -16,7 +17,7 @@ def sigint_shutdown_ray():
     signal.signal(signal.SIGINT, handler)
 
 def cpu_affinity(name=None):
-    resources = ray.get_resource_ids()
+    resources = ray.worker.get_resource_ids()
     if 'CPU' in resources:
         cpus = [v[0] for v in resources['CPU']]
         psutil.Process().cpu_affinity(cpus)
@@ -28,20 +29,21 @@ def cpu_affinity(name=None):
 
 def gpu_affinity(name=None):
     gpus = ray.get_gpu_ids()
+
     if gpus:
+        if isinstance(gpus[0], str):
+            gpus = [c for c in gpus[0] if c.isdigit()]
         os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, gpus))
     if name:
         pwc(f'GPUs corresponding to {name}: {gpus}', color='cyan')
 
 def get_num_cpus():
-    return len(ray.get_resource_ids()['CPU'])
+    return len(ray.worker.get_resource_ids()['CPU'])
 
 def config_actor(name, config, gpu_idx=0):
     cpu_affinity(name)
     gpu_affinity(name)
     silence_tf_logs()
-    num_cpus = get_num_cpus()
-    configure_threads(num_cpus, num_cpus)
     use_gpu = configure_gpu(gpu_idx)
     if not use_gpu and 'precision' in config:
         config['precision'] = 32

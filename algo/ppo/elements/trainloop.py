@@ -1,25 +1,17 @@
 import collections
 import logging
-import tensorflow as tf
 
 from core.elements.trainloop import TrainingLoopBase
 from core.log import do_logging
+from utility.tf_utils import numpy2tensor
 
 
 logger = logging.getLogger(__name__)
 
 
 class PPOTrainingLoop(TrainingLoopBase):
-    def _post_init(self):
-        value_state_keys = self.trainer.model.state_keys
-        self._value_sample_keys = [
-            'global_state', 'value', 'traj_ret', 'mask'
-        ] + list(value_state_keys)
-
     def _train(self):
         train_step, stats = self._train_ppo()
-        extra_stats = self._train_extra_vf()
-        stats.update(extra_stats)
 
         return train_step, stats
 
@@ -31,7 +23,7 @@ class PPOTrainingLoop(TrainingLoopBase):
                 with self._sample_timer:
                     data = self._sample_data()
 
-                data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
+                data = numpy2tensor(data)
 
                 with self._train_timer:
                     terms = self.trainer.train(**data)
@@ -41,29 +33,32 @@ class PPOTrainingLoop(TrainingLoopBase):
 
                 for k, v in terms.items():
                     stats[f'train/{k}'].append(v.numpy())
-                if getattr(self, '_max_kl', None) and kl > self._max_kl:
+                if getattr(self.config, 'max_kl', None) and kl > self.config.max_kl:
                     break
 
                 self._after_train_step()
 
-                if self._value_update == 'reuse':
+                if self.config.value_update == 'reuse':
                     self.dataset.update('value', value)
 
-            if getattr(self, '_max_kl', None) and kl > self._max_kl:
+            if getattr(self.config, 'max_kl', None) and kl > self.config.max_kl:
                 do_logging(f'Eearly stopping after {i*self.N_MBS+j} update(s) '
                     f'due to reaching max kl. Current kl={kl:.3g}', logger=logger)
                 break
 
-            if self._value_update == 'once':
+            if self.config.value_update == 'once':
                 self.dataset.update_value_with_func(self.compute_value)
-            if self._value_update is not None:
+            if self.config.value_update is not None:
                 last_value = self.compute_value()
                 self.dataset.finish(last_value)
 
             self._after_train_epoch()
         n = i * self.N_MBS + j
 
-        stats['misc/policy_updates'] = n
+        for k, v in data.items():
+            if isinstance(v, tuple):
+                for kk, vv in v._asdict().items():
+                    stats[f'train/{kk}'] = vv
         stats['train/kl'] = kl
         stats['train/value'] = value,
         stats['time/sample_mean'] = self._sample_timer.average()
@@ -74,20 +69,6 @@ class PPOTrainingLoop(TrainingLoopBase):
             self._train_timer.reset()
 
         return n, stats
-
-    def _train_extra_vf(self):
-        stats = collections.defaultdict(list)
-        for _ in range(self.N_VALUE_EPOCHS):
-            for _ in range(self.N_MBS):
-                data = self.dataset.sample(self._value_sample_keys)
-
-                data = {k: tf.convert_to_tensor(data[k]) 
-                    for k in self._value_sample_keys}
-
-                terms = self.trainer.learn_value(**data)
-                for k, v in terms.items():
-                    stats[f'train/{k}'].append(v.numpy())
-        return stats
 
     def _sample_data(self):
         return self.dataset.sample()

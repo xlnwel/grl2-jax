@@ -65,8 +65,8 @@ class RunningMeanStd:
 
     def reset_rms_stats(self):
         self._mean = 0
-        self._var = 0
-        self._std = 0
+        self._var = 1
+        self._std = 1
         self._count = self._epsilon # avoid var being zero
 
     def set_rms_stats(self, mean, var, count):
@@ -78,14 +78,19 @@ class RunningMeanStd:
     def get_rms_stats(self):
         return Stats(self._mean, self._var, self._count)
 
-    def update(self, x, mask=None):
+    def update(self, x, mask=None, axis=None):
         x = x.astype(np.float64)
-        if self._axis is None:
+        if axis is None:
+            axis = self._axis
+            shape_slice = self._shape_slice
+        else:
+            shape_slice = np.s_[:max(axis)+1]
+        if axis is None:
             assert mask is None, mask
             batch_mean, batch_var, batch_count = x, np.zeros_like(x), 1
         else:
-            batch_mean, batch_var = moments(x, self._axis, mask)
-            batch_count = np.prod(x.shape[self._shape_slice]) \
+            batch_mean, batch_var = moments(x, axis, mask)
+            batch_count = np.prod(x.shape[shape_slice]) \
                 if mask is None else np.sum(mask)
         if batch_count > 0:
             if self._ndim is not None:
@@ -111,6 +116,8 @@ class RunningMeanStd:
     def normalize(self, x, zero_center=True, mask=None):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
         assert self._var is not None, (self._mean, self._var, self._count)
+        if self._count == self._epsilon:
+            return x
         assert x.ndim == self._var.ndim + (0 if self._axis is None else len(self._axis)), \
             (x.shape, self._var.shape, self._axis)
         if mask is not None:

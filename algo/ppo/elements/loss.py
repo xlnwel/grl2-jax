@@ -41,14 +41,14 @@ class PPOLoss(PPOLossImpl):
             # policy loss
             log_ratio = new_logpi - logpi
             policy_loss, entropy, kl, p_clip_frac = ppo_loss(
-                log_ratio, advantage, self._clip_range, entropy)
+                log_ratio, advantage, self.config.clip_range, entropy)
             # value loss
             value = self.value(x)
             value_loss, v_clip_frac = self._compute_value_loss(
                 value, traj_ret, old_value)
 
-            actor_loss = (policy_loss - self._entropy_coef * entropy)
-            value_loss = self._value_coef * value_loss
+            actor_loss = (policy_loss - self.config.entropy_coef * entropy)
+            value_loss = self.config.value_coef * value_loss
             loss = actor_loss + value_loss
 
         ratio = tf.exp(log_ratio)

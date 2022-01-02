@@ -102,7 +102,7 @@ class IMPALACNN(Module):
         x = self._flat(x)
         if self._time_distributed:
             x = tf.reshape(x, [-1, t, *x.shape[1:]])
-        
+
         if self.out_size:
             x = self._dense(x)
 

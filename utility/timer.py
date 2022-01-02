@@ -37,6 +37,10 @@ class Timer:
             assert mode in ['average', 'sum']
             self._mode = mode
 
+    @property
+    def name(self):
+        return self._summary_name
+
     def __enter__(self):
         if self._to_log:
             self._start = time()

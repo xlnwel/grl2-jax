@@ -2,10 +2,15 @@ from env import wrappers
 from env.utils import process_single_agent_env
 
 
+def _change_env_name(config):
+    config['env_name'] = config['env_name'].split('-', 1)[-1]
+    return config
+
+
 def make_builtin_gym(config):
     import gym
     from env.dummy import DummyEnv
-    config['env_name'] = config['env_name'].split('_')[-1]
+    config = _change_env_name(config)
     env = gym.make(config['env_name']).env
     env = DummyEnv(env)    # useful for hidding unexpected frame_skip
     config.setdefault('max_episode_steps', 
@@ -19,6 +24,7 @@ def make_builtin_gym(config):
 def make_atari(config):
     from env.atari import Atari
     assert 'atari' in config['env_name'], config['env_name']
+    config = _change_env_name(config)
     env = Atari(**config)
     config.setdefault('max_episode_steps', 108000)    # 30min
     env = process_single_agent_env(env, config)
@@ -31,6 +37,7 @@ def make_procgen(config):
     assert 'procgen' in config['env_name'], config['env_name']
     gray_scale = config.setdefault('gray_scale', False)
     frame_skip = config.setdefault('frame_skip', 1)
+    config = _change_env_name(config)
     env = Procgen(config)
     if gray_scale:
         env = wrappers.GrayScale(env)
@@ -50,7 +57,8 @@ def make_procgen(config):
 def make_dmc(config):
     from env.dmc import DeepMindControl
     assert 'dmc' in config['env_name']
-    task = config['env_name'].split('_', 1)[-1]
+    config = _change_env_name(config)
+    task = config['env_name']
     env = DeepMindControl(
         task, 
         size=config.setdefault('size', (84, 84)), 
@@ -64,6 +72,7 @@ def make_dmc(config):
 def make_mpe(config):
     from env.mpe_env.MPE_env import MPEEnv
     assert 'mpe' in config['env_name'], config['env_name']
+    config = _change_env_name(config)
     env = MPEEnv(config)
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
@@ -72,7 +81,8 @@ def make_mpe(config):
 
 
 def make_card(config):
-    env_name = config['env_name'].split('_', 1)[1]
+    config = _change_env_name(config)
+    env_name = config['env_name']
     if env_name == 'gd':
         from env.guandan.env import Env
         env = Env(**config)
@@ -95,7 +105,7 @@ def make_smac(config):
 def make_smac2(config):
     from env.smac2 import SMAC
     config = config.copy()
-    config['env_name'] = config['env_name'].split('_', maxsplit=1)[1]
+    config = _change_env_name(config)
     env = SMAC(**config)
     env = wrappers.MASimEnvStats(env)
     return env
@@ -104,7 +114,7 @@ def make_overcooked(config):
     assert 'overcooked' in config['env_name'], config['env_name']
     from env.overcooked import Overcooked
     config = config.copy()
-    config['env_name'] = config['env_name'].split('_', maxsplit=1)[1]
+    config = _change_env_name(config)
     env = Overcooked(config)
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)

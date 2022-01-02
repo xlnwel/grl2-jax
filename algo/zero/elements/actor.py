@@ -1,5 +1,3 @@
-import tensorflow as tf
-
 from core.elements.actor import Actor
 from utility.tf_utils import numpy2tensor, tensor2numpy
 
@@ -17,6 +15,8 @@ class MAPPOActor(Actor):
                 global_state=inp['global_state'],
                 mask=inp['mask']
             )
+            if 'action_mask' in inp:
+                actor_inp['action_mask'] = inp['action_mask']
             return {
                 'actor_inp': actor_inp, 
                 'actor_state': actor_state, 
@@ -44,15 +44,10 @@ class MAPPOActor(Actor):
         
         if not evaluation:
             terms.update({
-                'obs': inp['obs'],
-                'global_state': inp['global_state'],
+                **{k: inp[k] for k in self.config.rms.obs_names},
                 'mask': inp['mask'], 
                 **prev_state,
             })
-            if 'action_mask' in inp:
-                terms['action_mask'] = inp['action_mask']
-            if 'life_mask' in inp:
-                terms['life_mask'] = inp['life_mask']
 
         return action, terms, state
 

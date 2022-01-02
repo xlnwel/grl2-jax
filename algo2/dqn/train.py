@@ -1,7 +1,7 @@
 import functools
 
 from core.tf_config import *
-from core.dataset import create_dataset
+from core.elements.dataset import create_dataset
 from utility.utils import Every, TempStore
 from utility.graph import video_summary
 from utility.timer import Timer

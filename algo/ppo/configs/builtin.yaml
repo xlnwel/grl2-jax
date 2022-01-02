@@ -10,15 +10,7 @@ precision: 32
 root_dir: *algo
 model_name: *algo
 
-env:
-    env_name: &env_name BipedalWalker-v3
-    n_workers: 1
-    n_envs: &nenvs 64
-    seed: 0
-    reward_min: -1
-    reward_max: null
-
-agent:
+routine:
     algorithm: *algo
 
     MAX_STEPS: 1e10
@@ -28,6 +20,16 @@ agent:
 
     RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
+
+env:
+    env_name: &env_name BipedalWalker-v3
+    n_workers: 1
+    n_envs: &nenvs 64
+    seed: 0
+    reward_min: -1
+    reward_max: null
+
+agent: {}
 
 strategy:
     train_loop:

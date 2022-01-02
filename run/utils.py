@@ -1,9 +1,8 @@
 import os, sys
 
-from core.typing import ModelPath
 from utility import pkg
 from utility.display import pwc
-from utility.utils import config_attr, eval_str, dict2AttrDict, modify_config
+from utility.utils import eval_str, dict2AttrDict, modify_config
 from utility.yaml_op import load_config
 
 
@@ -38,11 +37,11 @@ def get_config(algo, env):
     if config is None:
         raise RuntimeError('No configure is loaded')
 
-    config['algorithm'] = algo
     if len(env_split) == 1:
-        config['env']['env_name'] = env_split[0]
+        env_name = env_split[0]
     else:
-        config['env']['env_name'] = f'{env_split[0]}_{env_split[-1]}'   # we may specify configuration filename in between
+        env_name = f'{env_split[0]}-{env_split[-1]}'   # we may specify configuration filename in between
+    config = modify_config(config, overwrite_existed=True, algorithm=algo, env_name=env_name)
 
     return config
 
@@ -72,9 +71,8 @@ def change_config(kw, config, model_name=''):
 
             # change kwargs in config
             modified_configs = change_dict(config, key, value, '')
-            if len(modified_configs) > 1:
-                pwc(f'All "{key}" appeared in the following configs will be changed: '
-                        + f'{modified_configs}.', color='cyan')
+            pwc(f'All "{key}" appeared in the following configs will be changed: '
+                + f'{modified_configs}.', color='cyan')
     return model_name
 
 
@@ -85,28 +83,6 @@ def load_configs_with_algo_env(algo, env, to_attrdict=True):
         config = dict2AttrDict(config)
 
     return config
-
-
-def load_and_run(directory):
-    # load model and log path
-    config_file = None
-    for root, _, files in os.walk(directory):
-        for f in files:
-            if 'src' in root:
-                break
-            if f == 'config.yaml' and config_file is None:
-                config_file = os.path.join(root, f)
-                break
-            elif f =='config.yaml' and config_file is not None:
-                pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
-                sys.exit()
-
-    config = load_config(config_file)
-    configs = dict2AttrDict(config)
-    
-    main = pkg.import_main('train', config=configs.agent)
-
-    main(configs)
 
 
 def search_for_all_configs(directory, to_attrdict=True):
@@ -150,11 +126,24 @@ def search_for_config(directory, to_attrdict=True):
     
     return config
 
-def get_other_path(other_dir):
-    if other_dir:
-        other_config = search_for_config(other_dir)
-        other_path = ModelPath(other_config.root_dir, other_config.model_name)
-    else:
-        other_path = None
 
-    return other_path
+def load_and_run(directory):
+    # load model and log path
+    config_file = None
+    for root, _, files in os.walk(directory):
+        for f in files:
+            if 'src' in root:
+                break
+            if f == 'config.yaml' and config_file is None:
+                config_file = os.path.join(root, f)
+                break
+            elif f =='config.yaml' and config_file is not None:
+                pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
+                sys.exit()
+
+    config = load_config(config_file)
+    configs = dict2AttrDict(config)
+    
+    main = pkg.import_main('train', config=configs.agent)
+
+    main(configs)

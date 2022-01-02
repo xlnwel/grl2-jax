@@ -8,7 +8,7 @@ from env.overcooked_env.planning.planners import MediumLevelActionManager, NO_CO
 from utility.utils import AttrDict2dict
 
 
-BASE_REW_SHAPING_PARAMS = {
+REW_SHAPING_PARAMS = {
     "PLACEMENT_IN_POT_REW": 1,
     "DISH_PICKUP_REWARD": 1,
     "SOUP_PICKUP_REWARD": 1,
@@ -23,28 +23,40 @@ class Overcooked:
         config = AttrDict2dict(config)
         self.name = config['env_name'].split('-', 1)[-1]
         self._mdp = OvercookedGridworld.from_layout_name(
-            layout_name=self.name, **config.get('layout_params', {}), rew_shaping_params=BASE_REW_SHAPING_PARAMS)
-        self._env = OvercookedEnv.from_mdp(self._mdp, horizon=config['max_episode_steps'])
+            layout_name=self.name, **config.get('layout_params', {}), rew_shaping_params=REW_SHAPING_PARAMS)
+        self._env = OvercookedEnv.from_mdp(self._mdp, horizon=config['max_episode_steps'], info_level=0)
 
-        mlp = MediumLevelActionManager.from_pickle_or_compute(self._mdp, NO_COUNTERS_PARAMS)
-        self.featurize_fn = lambda x: np.stack(self._mdp.featurize_state(x, mlp))
+        self._featurize = config.get('featurize', False)
+        if self._featurize:
+            mlp = MediumLevelActionManager.from_pickle_or_compute(self._mdp, NO_COUNTERS_PARAMS)
+            self.featurize_fn = lambda x: np.stack(self._mdp.featurize_state(x, mlp))
 
-        self.obs_shape = dict(
-            obs=self._setup_observation_shape(),
-            global_state=self._setup_global_state_shape(),
-        )
-        self.obs_dtype = dict(
-            obs=np.float32,
-            global_state=np.float32
-        )
+        if self._featurize:
+            self.obs_shape = dict(
+                obs=self._setup_observation_shape(),
+                global_state=self._setup_global_state_shape(),
+            )
+            self.obs_dtype = dict(
+                obs=np.float32,
+                global_state=np.float32
+            )
+        else:
+            self.obs_shape = dict(
+                obs=self._setup_observation_shape(),
+            )
+            self.obs_dtype = dict(
+                obs=np.uint8,
+            )
+        
         self.action_space = gym.spaces.Discrete(len(Action.ALL_ACTIONS))
         self.action_dim = self.action_space.n
         self.max_episode_steps = config['max_episode_steps']
-        self.n_players = 2
-        self.pid2aid = [0, 1]
+        self.pid2aid = config.get('pid2aid', [0, 1])
+        self.n_players = len(self.pid2aid)
+        self.n_agents = len(set([aid for aid in self.pid2aid]))
         self.dense_reward = config.get('dense_reward', False)
 
-    def __repr__(self):
+    def get_screen(self, **kwargs):
         """
         Standard way to view the state of an esnvironment programatically
         is just to print the Env object
@@ -56,43 +68,38 @@ class Overcooked:
 
     def _setup_observation_shape(self):
         dummy_state = self._mdp.get_standard_start_state()
-        obs_shape = self.featurize_fn(dummy_state)[0].shape
-        return obs_shape
+        if self._featurize:
+            obs_shape = self._env.featurize_state_mdp(dummy_state)[0].shape
+            return obs_shape
+        else:    
+            self._env.reset()
+            obs_shape = self._env.lossless_state_encoding_mdp(dummy_state)[0].shape
+            return obs_shape
 
     def _setup_global_state_shape(self):
-        dummy_state = self._mdp.get_standard_start_state()
-        obs_shape = self.featurize_fn(dummy_state)[0].shape
-        return obs_shape
+        return self._setup_observation_shape()
     
     def reset(self):
         self._env.reset()
-        obs = self.featurize_fn(self._env.state)
-        obs = dict(
-            obs=obs,
-            global_state=obs,
-        )
-
+        obs = self.get_obs(self._env.state)
         self._score = np.zeros(self.n_players, dtype=np.float32)
         self._dense_score = np.zeros(self.n_players, dtype=np.float32)
         self._epslen = 0
 
         return obs
-    
+
     def step(self, action):
         assert action.shape == (2,), action
         action = Action.ALL_ACTIONS[action[0]], Action.ALL_ACTIONS[action[1]]
         state, reward, done, info = self._env.step(action)
-        self._score += reward
+        rewards = reward * np.ones(self.n_players, np.float32)
+        self._score += rewards
         self._epslen += 1
-        reward = np.array([reward for _ in range(self.n_players)], np.float32)
-        if self.dense_reward:
-            reward += np.array(info['shaped_r_by_agent'], dtype=np.float32)
-        self._dense_score += reward
-        obs = self.featurize_fn(state)
-        obs = dict(
-            obs=obs,
-            global_state=obs,
-        )
+        if self.dense_reward and reward == 0:
+            dense_reward = max(info['shaped_r_by_agent'])
+            rewards = dense_reward * np.ones(self.n_players, np.float32)
+        self._dense_score += rewards
+        obs = self.get_obs(state)
         dones = np.array([done, done], dtype=np.bool)
         info.update(dict(
             score=self._score,
@@ -101,7 +108,20 @@ class Overcooked:
             game_over=done
         ))
 
-        return obs, reward, dones, info
+        return obs, rewards, dones, info
+
+    def get_obs(self, state):
+        if self._featurize:
+            obs = self._env.featurize_state_mdp(state)
+            return dict(
+                obs=obs,
+                global_state=obs,
+            )
+        else:
+            return dict(
+                obs=[obs.astype(np.uint8) 
+                    for obs in self._env.lossless_state_encoding_mdp(state)]
+            )
 
     def close(self):
         pass
@@ -119,19 +139,47 @@ if __name__ == '__main__':
     config = dict(
         env_name=args.env,
         max_episode_steps=400,
-        layout_params={
-            'onion_time': 1,
-        }
+        dense_reward=True,
+        featurize=False,
+        # layout_params={
+        #     'onion_time': 1,
+        # }
     )
+    def action2char(action):
+        dic = {
+            'w': (0, -1),
+            's': (0, 1),
+            'a': (-1, 0),
+            'd': (1, 0),
+            'q': (0, 0),
+            'e': 'interact',
+        }
+        a1, a2 = dic[action[0]], dic[action[1]]
+        return Action.ACTION_TO_CHAR[a1], Action.ACTION_TO_CHAR[a2]
+    def action2array(action):
+        dic = {
+            'w': 0,
+            's': 1,
+            'a': 3,
+            'd': 2,
+            'q': 4,
+            'e': 5,
+        }
+        return np.array([dic[action[0]], dic[action[1]]])
+
     env = Overcooked(config)
     obs = env.reset()
     d = False
     while not np.all(d):
+        print(env.get_screen())
         if args.interactive:
-            a = np.array(eval(input('action: ')))
+            a = input('action: ').split(' ')
         else:
             a = env.random_action()
-        print(Action.ACTION_TO_CHAR[a[0]], Action.ACTION_TO_CHAR[a[1]])
-        o, r, d, i = env.step(a)
-        print(env)
+        print(action2char(a))
+        o, r, d, i = env.step(action2array(a))
+        print(o['obs'][0][0, 0])
+        print(o['obs'][0][3, 0])
+        print(o['obs'][0][4, 0])
         print("Curr reward: (sparse)", i['sparse_r_by_agent'], "\t(dense)", i['shaped_r_by_agent'])
+        print('Reward', r)

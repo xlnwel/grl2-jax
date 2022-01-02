@@ -313,14 +313,13 @@ class DataProcess(gym.Wrapper):
                 self.action_space.low, self.action_space.high, 
                 self.action_space.shape, self.float_dtype)
         if not hasattr(self.env, 'obs_shape'):
-            self.obs_shape = self.observation_space.shape
+            self.obs_shape = {'obs': self.observation_space.shape}
+        if not hasattr(self.env, 'obs_dtype'):
+            self.obs_dtype = {'obs': infer_dtype(self.observation_space.dtype, precision)}
         if not hasattr(self.env, 'action_shape'):
             self.action_shape = self.action_space.shape
         if not hasattr(self.env, 'action_dim'):
             self.action_dim = self.action_space.n if self.is_action_discrete else self.action_shape[0]
-
-        if not hasattr(self.env, 'obs_dtype'):
-            self.obs_dtype = infer_dtype(self.observation_space.dtype, precision)
         if not hasattr(self.env, 'action_dtype'):
             self.action_dtype = np.int32 if self.is_action_discrete \
                 else infer_dtype(self.action_space.dtype, self.precision)
@@ -392,7 +391,8 @@ class EnvStatsBase(gym.Wrapper):
         # game_over indicates whether an episode is finished, 
         # either due to timeout or due to environment done
         self._game_over = True
-        self._score = 0
+        self._score = 0         # the final metrics for performance evaluation (i.e., win rate)
+        self._dense_score = 0   # the (shaped) reward for training
         self._epslen = 0
         self._info = {}
         self._output = None
@@ -408,6 +408,9 @@ class EnvStatsBase(gym.Wrapper):
             n_trainable_agents=getattr(env, 'n_trainable_agents', 1),
             n_controllable_agents=getattr(env, 'n_trainable_agents', 1),
             n_players=getattr(env, 'n_players', 1),
+            n_agents=getattr(env, 'n_agents', 1),
+            pid2aid=[0],
+            aid2pids=[[0]],
             global_state_shape=getattr(env, 'global_state_shape', ()),
             global_state_dtype=getattr(env, 'global_state_dtype', None),
             use_life_mask=getattr(env, 'use_life_mask', False),
@@ -430,8 +433,6 @@ class EnvStatsBase(gym.Wrapper):
 
     def _reset(self):
         obs = self.env.reset()
-        if len(obs) == 1:
-            assert False, obs
         self._score = 0
         self._epslen = 0
         self._game_over = False
@@ -503,6 +504,7 @@ class EnvStats(EnvStatsBase):
             self._score = info['score']
         else:
             self._score += info.get('reward', reward)
+        self._dense_score = info['dense_score'] = info.get('dense_score', self._score)
         if 'epslen' in info:
             self._epslen = info['epslen']
         else:
@@ -528,6 +530,9 @@ class EnvStats(EnvStatsBase):
             info['game_over'] = self._game_over
             info['score'] = self._score
             info['epslen'] = self._epslen
+            if not info.get('timeout'):
+                # if game is over not due to timeout, we expect discount to be 0
+                assert discount == 0, discount
             if self.auto_reset:
                 # when resetting, we override the obs and reset but keep the others
                 obs, _, _, reset = self._reset()
@@ -567,7 +572,9 @@ class MASimEnvStats(EnvStatsBase):
             if aid == len(aid2pids):
                 aid2pids.append((pid, ))
             else:
-                aid2pids += (pid,)
+                aid2pids[aid] += (pid,)
+        assert len(pid2aid) == self._stats.n_players, (len(pid2aid), self._stats.n_players)
+        assert len(aid2pids) == self._stats.n_agents, (len(aid2pids), self._stats.n_agents)
         self._stats.update({
             'use_life_mask': getattr(self.env, 'use_life_mask', False),
             'use_action_mask': getattr(self.env, 'use_action_mask', False),
@@ -609,8 +616,9 @@ class MASimEnvStats(EnvStatsBase):
 
         assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
-        # define score, epslen, and game_over in info as multi-agent environments may vary in metrics 
+        # expect score, epslen, and game_over in info as multi-agent environments may vary in metrics 
         self._score = info['score']
+        self._dense_score = info['dense_score']
         self._epslen = info['epslen']
         self._game_over = info['game_over']
         if self._epslen >= self.max_episode_steps:

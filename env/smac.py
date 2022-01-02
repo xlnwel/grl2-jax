@@ -62,14 +62,6 @@ class Direction(enum.IntEnum):
     WEST = 3
 
 
-def info_func(agent, info):
-    if isinstance(info, list):
-        won = [i['won'] for i in info]
-    else:
-        won = info['won']
-    agent.store(win_rate=won)
-
-
 class SMAC(gym.Env):
     """The StarCraft II environment for decentralised multi-agent
     micromanagement scenarios. This environment keeps stepping until
@@ -350,12 +342,24 @@ class SMAC(gym.Env):
 
         self.action_spaces = []
         self.observation_spaces = []
-        self.shared_state_spaces = []
+        self.global_state_spaces = []
         for i in range(self.n_players):
             self.action_spaces.append(Discrete(self.n_actions))
             self.observation_spaces.append(self.get_obs_size())
-            self.shared_state_spaces.append(self.get_state_size())
+            self.global_state_spaces.append(self.get_state_size())
 
+        self.obs_shape = dict(
+            obs=(self.observation_space[0],),
+            global_state=(self.global_state_space[0],),
+            action_mask=(self.action_dim,),
+            life_mask=()
+        )
+        self.obs_dtype = dict(
+            obs=np.float32,
+            global_state=np.float32,
+            action_mask=np.bool,
+            life_mask=np.float32
+        )
         if self.use_stacked_frames:
             self.stacked_local_obs = np.zeros((self.n_players, self.stacked_frames, int(self.get_obs_size()[0]/self.stacked_frames)), dtype=np.float32)
             self.stacked_global_state = np.zeros((self.n_players, self.stacked_frames, int(self.get_state_size()[0]/self.stacked_frames)), dtype=np.float32)
@@ -407,24 +411,8 @@ class SMAC(gym.Env):
         return self.observation_spaces[0]
     
     @property
-    def obs_shape(self):
-        return (self.observation_space[0],)
-    
-    @property
-    def obs_dtype(self):
-        return np.float32
-    
-    @property
     def global_state_space(self):
-        return self.shared_state_spaces[0]
-
-    @property
-    def global_state_shape(self):
-        return (self.global_state_space[0],)
-    
-    @property
-    def global_state_dtype(self):
-        return np.float32
+        return self.global_state_spaces[0]
 
     def _launch(self):
         """Launch the StarCraft II game."""
@@ -491,7 +479,6 @@ class SMAC(gym.Env):
             return obs
 
         self._reset_track_stats()
-        self._game_over = False
 
         if self._episode_count == 0:
             # Launch StarCraft II
@@ -541,11 +528,12 @@ class SMAC(gym.Env):
             local_obs = self.stacked_local_obs.reshape(self.n_players, -1)
             global_state = self.stacked_global_state.reshape(self.n_players, -1)
 
+        self.mask = np.ones(self.n_players, np.float32)
         obs_dict = dict(
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, np.bool),
-            life_mask=np.ones(self.n_players, np.float32)
+            life_mask=self.mask
         )
 
         return obs_dict
@@ -577,6 +565,7 @@ class SMAC(gym.Env):
 
         terminated = False
         infos = [{} for i in range(self.n_players)]
+        self.mask = (1 - self.dones).astype(np.float32)
         self.dones = dones = np.zeros(self.n_players, dtype=bool)
 
         actions_int = [int(a) for a in action]
@@ -642,16 +631,18 @@ class SMAC(gym.Env):
                 local_obs = self.stacked_local_obs.reshape(self.n_players, -1)
                 global_state = self.stacked_global_state.reshape(self.n_players, -1)
             
+            self.mask = np.ones_like(self.mask)
             obs_dict = dict(
                 obs=local_obs,
                 global_state=np.array(global_state, np.float32),
                 action_mask=np.array(available_actions, np.bool),
-                life_mask=np.ones(self.n_players, np.float32)
+                life_mask=self.mask
             )
             rewards = np.zeros(self.n_players, np.float32)
             info = batch_dicts(infos)
             info.update({
-                'score': self._score,
+                'dense_score': self._score * np.ones(self.n_players, np.float32),
+                'score': self.win_counted * np.ones(self.n_players, np.float32),
                 'epslen': self._episode_steps,
                 'game_over': terminated,
                 'bad_episode': False,
@@ -727,7 +718,8 @@ class SMAC(gym.Env):
         if self.reward_scale:
             reward /= self.max_reward / self.reward_scale_rate
 
-        self._score += np.max(reward)
+        self._score += reward
+        rewards = reward*np.ones(self.n_players, np.float32)
 
         if self.use_state_agent:
             global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_players)]
@@ -750,11 +742,12 @@ class SMAC(gym.Env):
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, np.bool),
-            life_mask=(1-dones).astype(np.float32)
+            life_mask=self.mask
         )
         info = batch_dicts(infos)
         info.update({
-            'score': self._score,
+            'dense_score': self._score * np.ones(self.n_players, np.float32),
+            'score': self.win_counted * np.ones(self.n_players, np.float32),
             'epslen': self._episode_steps,
             'game_over': self._episode_steps == self.max_episode_steps,
             'bad_episode': False,
@@ -764,7 +757,7 @@ class SMAC(gym.Env):
 
         self._reset_for_error = False
 
-        return obs_dict, reward, dones, info
+        return obs_dict, rewards, dones, info
 
     def _reset_track_stats(self):
         self._game_over = False
@@ -776,8 +769,8 @@ class SMAC(gym.Env):
         self._fake_episode_steps += 1
         obs = deepcopy(self._empty_obs)
         info = {
-            "won": [self.win_counted for _ in range(self.n_players)],
-            'score': self._score,
+            'dense_score': self._score * np.ones(self.n_players, np.float32),
+            'score': self.win_counted * np.ones(self.n_players, np.float32),
             'epslen': self._episode_steps,
             'game_over': self._fake_episode_steps == self.max_episode_steps,
             'extra_padding': self._fake_episode_steps - self._episode_steps, 
@@ -992,9 +985,31 @@ class SMAC(gym.Env):
 
         reward = np.zeros(self.n_players, np.float32)
         delta_deaths = 0
+        delta_ally = 0
         delta_enemy = 0
 
         neg_scale = self.reward_negative_scale
+
+        # update deaths
+        for aid, unit in self.agents.items():
+            if not self.death_tracker_ally[aid]:
+                # did not die so far
+                prev_health = (
+                    self.previous_ally_units[aid].health
+                    + self.previous_ally_units[aid].shield
+                )
+                if unit.health == 0:
+                    # just died
+                    self.death_tracker_ally[aid] = 1
+                    if not self.reward_only_positive:
+                        reward[aid] -= self.reward_death_value * neg_scale
+                        reward[aid] -= prev_health * neg_scale
+                else:
+                    # still alive
+                    if not self.reward_only_positive:
+                        reward[aid] -= neg_scale * (
+                            prev_health - unit.health - unit.shield
+                        )
 
         for e_id, e_unit in self.enemies.items():
             if not self.death_tracker_enemy[e_id]:
@@ -1011,29 +1026,6 @@ class SMAC(gym.Env):
 
         if self.reward_only_positive:
             reward += abs(delta_enemy + delta_deaths)  # shield regeneration
-        else:
-            reward += delta_enemy + delta_deaths
-
-            for aid, unit in self.agents.items():
-                if not self.death_tracker_ally[aid]:
-                    # did not die so far
-                    prev_health = (
-                        self.previous_ally_units[aid].health
-                        + self.previous_ally_units[aid].shield
-                    )
-                    if unit.health == 0:
-                        # just died
-                        self.death_tracker_ally[aid] = 1
-                        if not self.reward_only_positive:
-                            reward[aid] -= self.reward_death_value * neg_scale
-                        reward[aid] -= prev_health * neg_scale
-                    else:
-                        # still alive
-                        reward[aid] -= neg_scale * (
-                            prev_health - unit.health - unit.shield
-                        )
-                else:
-                    reward[aid] = 0
 
         return reward
 

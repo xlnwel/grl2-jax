@@ -18,7 +18,6 @@ class Atari:
                 sticky_actions=True, gray_scale=True, 
                 np_obs=False, **kwargs):
         version = 0 if sticky_actions else 4
-        name = name.split('_', 1)[-1]
         name = name[0].capitalize() + name[1:]
         name = f'{name}NoFrameskip-v{version}'
         env = gym.make(name)

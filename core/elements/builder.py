@@ -1,7 +1,7 @@
 import os
 import cloudpickle
 
-from core.dataset import create_dataset
+from core.elements.dataset import create_dataset
 from core.monitor import create_monitor
 from core.typing import ModelPath
 from core.utils import save_code, save_config
@@ -35,7 +35,7 @@ class ElementsBuilder:
             self.restore()
             self.set_config_version(self._version)
 
-        algo = self.config.algorithm
+        algo = self.config.algorithm.split('-')[-1]
         self.constructors = self.retrieve_constructor(algo)
 
         if to_save_code:
@@ -47,24 +47,20 @@ class ElementsBuilder:
     
     def retrieve_constructor(self, algo):
         constructors = AttrDict()
-        constructors.model = pkg.import_module(
-            name='elements.model', algo=algo, place=-1).create_model
-        constructors.loss = pkg.import_module(
-                name='elements.loss', algo=algo, place=-1).create_loss
-        constructors.trainer = pkg.import_module(
-            name='elements.trainer', algo=algo, place=-1).create_trainer
-        constructors.actor = pkg.import_module(
-            name='elements.actor', algo=algo, place=-1).create_actor
-        constructors.buffer = pkg.import_module(
-            'elements.buffer', algo=algo).create_buffer
-        constructors.strategy = pkg.import_module(
-            'elements.strategy', algo=algo).create_strategy
-        try:
-            constructors.agent = pkg.import_module(
-                'elements.agent', algo=algo).create_agent
-        except:
-            constructors.agent = pkg.import_module(
-                'elements.agent', pkg='core').create_agent
+        constructors.model = self._import_element(
+            name='model', algo=algo, place=-1).create_model
+        constructors.loss = self._import_element(
+            name='loss', algo=algo, place=-1).create_loss
+        constructors.trainer = self._import_element(
+            name='trainer', algo=algo, place=-1).create_trainer
+        constructors.actor = self._import_element(
+            name='actor', algo=algo, place=-1).create_actor
+        constructors.buffer = self._import_element(
+            'buffer', algo=algo).create_buffer
+        constructors.strategy = self._import_element(
+            'strategy', algo=algo).create_strategy
+        constructors.agent = self._import_element(
+            'agent', algo=algo).create_agent
 
         return constructors
 
@@ -120,12 +116,8 @@ class ElementsBuilder:
         
         return trainer
     
-    def build_buffer(self, model, config=None, env_stats=None, constructors=None, **kwargs):
+    def build_buffer(self, model, config=None, constructors=None, **kwargs):
         constructors = constructors or self.constructors
-        if config is None:
-            env_stats = dict2AttrDict(env_stats or self.env_stats)
-            self.config.buffer['n_envs'] = env_stats.n_envs
-            self.config.buffer['use_dataset'] = self.config.buffer.get('use_dataset', False)
         config = dict2AttrDict(config or self.config)
         buffer = constructors.buffer(config.buffer, model, **kwargs)
         
@@ -211,14 +203,16 @@ class ElementsBuilder:
             env_stats=env_stats,
             constructors=constructors)
         if build_monitor:
-            elements.monitor = self.build_monitor(config=config, save_to_disk=False)
+            elements.monitor = self.build_monitor(
+                config=config, 
+                save_to_disk=False)
 
         return elements
     
     def build_training_strategy_from_scratch(self, 
             config=None, 
             build_monitor=True, 
-            save_stats_to_disk=False,
+            save_monitor_stats_to_disk=False,
             save_config=True):
         constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
@@ -236,7 +230,6 @@ class ElementsBuilder:
         elements.buffer = self.build_buffer(
             model=elements.model, 
             config=config, 
-            env_stats=env_stats,
             constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
@@ -252,7 +245,7 @@ class ElementsBuilder:
         if build_monitor:
             elements.monitor = self.build_monitor(
                 config=config, 
-                save_to_disk=save_stats_to_disk)
+                save_to_disk=save_monitor_stats_to_disk)
 
         if save_config:
             self.save_config()
@@ -262,7 +255,7 @@ class ElementsBuilder:
     def build_strategy_from_scratch(self, 
             config=None, 
             build_monitor=True, 
-            save_stats_to_disk=False,
+            save_monitor_stats_to_disk=False,
             save_config=True):
         constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
@@ -284,7 +277,6 @@ class ElementsBuilder:
         elements.buffer = self.build_buffer(
             model=elements.model, 
             config=config, 
-            env_stats=env_stats,
             constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
@@ -301,7 +293,7 @@ class ElementsBuilder:
         if build_monitor:
             elements.monitor = self.build_monitor(
                 config=config, 
-                save_to_disk=save_stats_to_disk)
+                save_to_disk=save_monitor_stats_to_disk)
 
         if save_config:
             self.save_config()
@@ -345,7 +337,7 @@ class ElementsBuilder:
     
     def build_training_agent_from_scratch(self, 
             config=None, 
-            save_stats_to_disk=True,
+            save_monitor_stats_to_disk=True,
             save_config=True):
         constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
@@ -363,7 +355,6 @@ class ElementsBuilder:
         elements.buffer = self.build_buffer(
             model=elements.model, 
             config=config, 
-            env_stats=env_stats,
             constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
@@ -378,7 +369,7 @@ class ElementsBuilder:
             constructors=constructors)
         elements.monitor = self.build_monitor(
             config=config,
-            save_to_disk=save_stats_to_disk)
+            save_to_disk=save_monitor_stats_to_disk)
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
             monitor=elements.monitor,
@@ -392,7 +383,7 @@ class ElementsBuilder:
 
     def build_agent_from_scratch(self, 
             config=None, 
-            save_stats_to_disk=True,
+            save_monitor_stats_to_disk=True,
             save_config=True):
         constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
@@ -414,7 +405,6 @@ class ElementsBuilder:
         elements.buffer = self.build_buffer(
             model=elements.model, 
             config=config, 
-            env_stats=env_stats,
             constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
@@ -430,7 +420,7 @@ class ElementsBuilder:
             constructors=constructors)
         elements.monitor = self.build_monitor(
             config=config,
-            save_to_disk=save_stats_to_disk)
+            save_to_disk=save_monitor_stats_to_disk)
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
             monitor=elements.monitor,
@@ -467,6 +457,15 @@ class ElementsBuilder:
             with open(self._builder_path, 'wb') as f:
                 cloudpickle.dump((self._version, self._max_version), f)
 
+    """ Implementations"""
+    def _import_element(self, name, algo=None, *, config=None, place=0):
+        try:
+            module = pkg.import_module(
+                f'elements.{name}', algo=algo)
+        except:
+            module = pkg.import_module(
+                f'elements.{name}', pkg='core')
+        return module
 
 if __name__ == '__main__':
     from env.func import create_env

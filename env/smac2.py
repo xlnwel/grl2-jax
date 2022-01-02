@@ -62,14 +62,6 @@ class Direction(enum.IntEnum):
     WEST = 3
 
 
-def info_func(agent, info):
-    if isinstance(info, list):
-        won = [i['won'] for i in info]
-    else:
-        won = info['won']
-    agent.store(win_rate=won)
-
-
 class SMAC(gym.Env):
     """The StarCraft II environment for decentralised multi-agent
     micromanagement scenarios.
@@ -245,6 +237,7 @@ class SMAC(gym.Env):
         self.stacked_frames = stacked_frames
 
         map_params = get_map_params(self.name)
+        self.n_agents = 1
         self.n_players = map_params["n_players"]
         self.n_enemies = map_params["n_enemies"]
         self.max_episode_steps = map_params["limit"]
@@ -355,6 +348,18 @@ class SMAC(gym.Env):
             self.observation_spaces.append(self.get_obs_size())
             self.global_state_spaces.append(self.get_state_size())
 
+        self.obs_shape = dict(
+            obs=(self.observation_space[0],),
+            global_state=(self.global_state_space[0],),
+            action_mask=(self.action_dim,),
+            life_mask=()
+        )
+        self.obs_dtype = dict(
+            obs=np.float32,
+            global_state=np.float32,
+            action_mask=np.bool,
+            life_mask=np.float32
+        )
         if self.use_stacked_frames:
             self.stacked_local_obs = np.zeros((self.n_players, self.stacked_frames, int(self.get_obs_size()[0]/self.stacked_frames)), dtype=np.float32)
             self.stacked_global_state = np.zeros((self.n_players, self.stacked_frames, int(self.get_state_size()[0]/self.stacked_frames)), dtype=np.float32)
@@ -400,28 +405,11 @@ class SMAC(gym.Env):
         return self.observation_spaces[0]
     
     @property
-    def obs_shape(self):
-        return (self.observation_space[0],)
-    
-    @property
-    def obs_dtype(self):
-        return np.float32
-    
-    @property
     def global_state_space(self):
         return self.global_state_spaces[0]
 
-    @property
-    def global_state_shape(self):
-        return (self.global_state_space[0],)
-    
-    @property
-    def global_state_dtype(self):
-        return np.float32
-
     def _launch(self):
         """Launch the StarCraft II game."""
-        self.dones = np.zeros(self.n_players, dtype=bool)
         self._run_config = run_configs.get(version=self.game_version)
         _map = maps.get(self.name)
         self._seed += 1
@@ -533,12 +521,12 @@ class SMAC(gym.Env):
             local_obs = self.stacked_local_obs.reshape(self.n_players, -1)
             global_state = self.stacked_global_state.reshape(self.n_players, -1)
 
-        self.mask = np.ones(self.n_players, np.float32)
+        life_mask = np.ones(self.n_players, np.float32)
         obs_dict = dict(
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, np.bool),
-            life_mask=self.mask
+            life_mask=life_mask
         )
 
         return obs_dict
@@ -548,7 +536,6 @@ class SMAC(gym.Env):
         There is a trigger in the SC2Map file, which restarts the
         episode when there are no units left.
         """
-        self.dones = np.zeros(self.n_players, dtype=bool)
         try:
             self._kill_all_units()
             self._controller.step(2)
@@ -565,8 +552,7 @@ class SMAC(gym.Env):
         """A single environment step. Returns reward, terminated, info."""
         terminated = False
         infos = [{} for i in range(self.n_players)]
-        self.mask = (1 - self.dones).astype(np.float32)
-        self.dones = dones = np.zeros(self.n_players, dtype=bool)
+        life_mask = np.ones(self.n_players, np.float32)
 
         actions_int = [int(a) for a in action]
 
@@ -609,7 +595,7 @@ class SMAC(gym.Env):
                     "restarts": self.force_restarts,
                     "won": self.win_counted
                 }
-                dones[i] = True
+            dones = np.ones(self.n_players, dtype=bool)
                 
             if self.use_state_agent:
                 global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_players)]
@@ -628,19 +614,20 @@ class SMAC(gym.Env):
                 local_obs = self.stacked_local_obs.reshape(self.n_players, -1)
                 global_state = self.stacked_global_state.reshape(self.n_players, -1)
             
-            self.mask = np.ones_like(self.mask)
+            life_mask = np.ones(self.n_players, np.float32)
             obs_dict = dict(
                 obs=local_obs,
                 global_state=np.array(global_state, np.float32),
                 action_mask=np.array(available_actions, np.bool),
-                life_mask=self.mask
+                life_mask=life_mask
             )
             rewards = np.zeros(self.n_players, np.float32)
             info = batch_dicts(infos)
             info.update({
-                'score': self._score,
+                'dense_score': self._score * np.ones(self.n_players, np.float32),
+                'score': self.win_counted * np.ones(self.n_players, np.float32),
                 'epslen': self._episode_steps,
-                'game_over': terminated
+                'game_over': False  # we do not take auto reset as game over to avoid repeatly resetting in wrappers.EnvStats
             })
 
             self._reset_track_stats()
@@ -691,17 +678,15 @@ class SMAC(gym.Env):
                 "battles_game": self.battles_game,
                 "battles_draw": self.timeouts,
                 "restarts": self.force_restarts,
-                "won": self.win_counted,
-                "mask": self.mask[i]
             }
 
             if terminated:
-                dones[i] = True
+                life_mask[i] = 0
             else:
                 if self.death_tracker_ally[i]:  # the agent is dead, but its allies are still fighting
-                    dones[i] = True
+                    life_mask[i] = 0
                 else:
-                    dones[i] = False
+                    life_mask[i] = 1
 
         if self.debug:
             print("Reward = {}".format(reward).center(60, '-'))
@@ -713,7 +698,6 @@ class SMAC(gym.Env):
             reward /= self.max_reward / self.reward_scale_rate
 
         self._score += reward
-        rewards = reward*np.ones(self.n_players, np.float32)
 
         if self.use_state_agent:
             global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_players)]
@@ -736,21 +720,26 @@ class SMAC(gym.Env):
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, np.bool),
-            life_mask=self.mask
+            life_mask=life_mask
         )
         info = batch_dicts(infos)
         info.update({
-            'score': self._score,
+            'dense_score': self._score * np.ones(self.n_players, np.float32),
+            'score': self.win_counted * np.ones(self.n_players, np.float32),
             'epslen': self._episode_steps,
             'game_over': terminated
         })
+        assert np.all(life_mask == 0) == terminated, (life_mask, terminated)
+        dones = (np.zeros if np.any(life_mask) else np.ones)(self.n_players, np.bool)
         assert np.all(dones) == terminated, (dones, terminated)
 
         self._reset_for_error = False
-
-        return obs_dict, rewards, dones, info
+        assert reward.size == self.n_players, (reward, self.n_players)
+        
+        return obs_dict, reward, dones, info
 
     def _reset_track_stats(self):
+        self._game_over = False
         self._score = 0
         self._episode_steps = 0
 
@@ -956,7 +945,7 @@ class SMAC(gym.Env):
         if self.reward_sparse:
             return 0
 
-        reward = 0
+        reward = np.zeros(self.n_players, np.float32)
         delta_deaths = 0
         delta_ally = 0
         delta_enemy = 0
@@ -964,24 +953,25 @@ class SMAC(gym.Env):
         neg_scale = self.reward_negative_scale
 
         # update deaths
-        for al_id, al_unit in self.agents.items():
-            if not self.death_tracker_ally[al_id]:
+        for aid, unit in self.agents.items():
+            if not self.death_tracker_ally[aid]:
                 # did not die so far
                 prev_health = (
-                    self.previous_ally_units[al_id].health
-                    + self.previous_ally_units[al_id].shield
+                    self.previous_ally_units[aid].health
+                    + self.previous_ally_units[aid].shield
                 )
-                if al_unit.health == 0:
+                if unit.health == 0:
                     # just died
-                    self.death_tracker_ally[al_id] = 1
+                    self.death_tracker_ally[aid] = 1
                     if not self.reward_only_positive:
-                        delta_deaths -= self.reward_death_value * neg_scale
-                    delta_ally += prev_health * neg_scale
+                        reward[aid] -= self.reward_death_value * neg_scale
+                        reward[aid] -= prev_health * neg_scale
                 else:
                     # still alive
-                    delta_ally += neg_scale * (
-                        prev_health - al_unit.health - al_unit.shield
-                    )
+                    if not self.reward_only_positive:
+                        reward[aid] -= neg_scale * (
+                            prev_health - unit.health - unit.shield
+                        )
 
         for e_id, e_unit in self.enemies.items():
             if not self.death_tracker_enemy[e_id]:
@@ -997,9 +987,7 @@ class SMAC(gym.Env):
                     delta_enemy += prev_health - e_unit.health - e_unit.shield
 
         if self.reward_only_positive:
-            reward = abs(delta_enemy + delta_deaths)  # shield regeneration
-        else:
-            reward = delta_enemy + delta_deaths - delta_ally
+            reward += abs(delta_enemy + delta_deaths)  # shield regeneration
 
         return reward
 

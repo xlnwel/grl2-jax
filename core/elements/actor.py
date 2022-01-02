@@ -20,7 +20,7 @@ class Actor:
         self._model_path = ModelPath(config.root_dir, config.model_name)
         self.config = config
 
-        self.rms = getattr(self.config, 'rms', None)
+        self.rms: RMS = getattr(self.config, 'rms', None)
         self.setup_checkpoint()
 
         self.model = model
@@ -83,6 +83,8 @@ class Actor:
         Returns: 
             processed input to <model.action>
         """
+        if self.rms is not None:
+            inp = self.rms.process_obs_with_rms(inp)
         return inp, numpy2tensor(inp)
 
     def _add_eval(self, tf_inp, evaluation, return_eval_stats):
@@ -109,13 +111,15 @@ class Actor:
         action, terms, state = out
         if state is not None:
             action, terms, prev_state = tensor2numpy((action, terms, inp['state']))
+            if not evaluation:
+                terms.update({
+                    'mask': inp['mask'], 
+                    **prev_state._asdict(),
+                })
         else:
             action, terms = tensor2numpy((action, terms))
-        if not evaluation and state is not None:
-            terms.update({
-                'mask': inp['mask'], 
-                **prev_state._asdict(),
-            })
+        if not evaluation and getattr(self.rms, 'is_obs_normalized', False):
+            terms.update({k: inp[k] for k in self.config.rms.obs_names})
         return action, terms, state
 
     def get_weights(self, identifier=None):
@@ -170,3 +174,7 @@ class Actor:
     def restore(self):
         self.model.restore()
         self.restore_auxiliary_stats()
+
+
+def create_actor(config, model, name='actor'):
+    return Actor(config=config, model=model, name=name)

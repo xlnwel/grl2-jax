@@ -17,24 +17,23 @@ class ModelImpl(Model):
         assert_rank(mask, 3)
 
         T, A, F = x.shape[1:]
+        assert A == mask.shape[-1], (A, mask.shape)
+        assert T == mask.shape[1], (A, mask.shape)
         x = tf.transpose(x, [0, 2, 1, 3])
         x = tf.reshape(x, [-1, T, F])
         mask = tf.transpose(mask, [0, 2, 1])
         mask = tf.reshape(mask, [-1, T])
         x = self.encoder(x)
 
-        # merge the agent dimension into the batch dimension 
-        state = tf.nest.map_structure(
-            lambda x: tf.reshape(x, (-1, x.shape[-1])), state)
+        # # merge the agent dimension into the batch dimension 
+        # state = tf.nest.map_structure(
+        #     lambda x: tf.reshape(x, (-1, x.shape[-1])), state)
         if hasattr(self, 'rnn'):
             x, state = self.rnn(x, state, mask)
         else:
             state = None
         x = tf.reshape(x, [-1, A, T, x.shape[-1]])
         x = tf.transpose(x, [0, 2, 1, 3])
-
-        if T == 1:
-            x = tf.squeeze(x, 1)
 
         return x, state
 
@@ -84,6 +83,10 @@ class MAPPOModelEnsemble(ModelEnsemble):
             evaluation=evaluation,
             return_eval_stats=evaluation,
         )
+        if env_stats.use_action_mask:
+            TensorSpecs['actor_inp']['action_mask'] = (
+                (*basic_shape, env_stats.action_dim), tf.bool, 'action_mask'
+            )
         self.action = build(self.action, TensorSpecs)
 
     def _post_init(self):
@@ -92,19 +95,18 @@ class MAPPOModelEnsemble(ModelEnsemble):
             'mgru': 'actor_h value_h',
         }
         self.state_type = collections.namedtuple(
-            'State', state[self._rnn_type.split('_')[-1]])
+            'State', state[self.config.rnn_type.split('_')[-1]])
         self.compute_value = self.value.compute_value
 
     @tf.function
     def action(self, 
-               actor_inp, 
-               actor_state, 
-               value_inp, 
-               value_state,
-               evaluation=False, 
-               return_eval_stats=False):
-        actor_inp = self._add_seqential_dimension(**actor_inp)
-        value_inp = self._add_seqential_dimension(**value_inp)
+               actor_inp: dict, 
+               actor_state: tuple, 
+               value_inp: dict, 
+               value_state: tuple,
+               evaluation: bool=False, 
+               return_eval_stats: bool=False):
+        actor_inp, value_inp = self._add_seqential_dimension(actor_inp, value_inp)
         action, terms, actor_state = self.policy.action(
             **actor_inp, state=actor_state,
             evaluation=evaluation, return_eval_stats=return_eval_stats)
@@ -115,6 +117,7 @@ class MAPPOModelEnsemble(ModelEnsemble):
             terms.update({
                 'value': value,
             })
+        action, terms = self._remove_seqential_dimension(action, terms)
         return action, terms, state
 
     def split_state(self, state):
@@ -140,6 +143,14 @@ class MAPPOModelEnsemble(ModelEnsemble):
         return self.state_type(*self.state_type._fields)
 
     @property
+    def actor_state_keys(self):
+        return self.policy.state_keys
+
+    @property
+    def value_state_keys(self):
+        return self.value.state_keys
+
+    @property
     def actor_state_type(self):
         return self.policy.state_type
     
@@ -149,24 +160,25 @@ class MAPPOModelEnsemble(ModelEnsemble):
 
     def reset_states(self, state=None):
         actor_state, value_state = self.split_state(state)
-        self.policy.rnn.reset_states(actor_state)
-        self.value.rnn.reset_states(value_state)
+        self.policy.reset_states(actor_state)
+        self.value.reset_states(value_state)
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         if inputs is not None:
             inputs = inputs['obs']
-        actor_state = self.policy.rnn.get_initial_state(
+        actor_state = self.policy.get_initial_state(
             inputs, batch_size=batch_size, dtype=dtype)
-        value_state = self.value.rnn.get_initial_state(
+        value_state = self.value.get_initial_state(
             inputs, batch_size=batch_size, dtype=dtype)
         return self.state_type(*actor_state, *value_state)
 
-    def _add_seqential_dimension(self, add_sequential_dim=True, **kwargs):
-        if add_sequential_dim:
-            return tf.nest.map_structure(lambda x: tf.expand_dims(x, 1) 
-                if isinstance(x, tf.Tensor) else x, kwargs)
-        else:
-            return kwargs
+    def _add_seqential_dimension(self, *args):
+        return tf.nest.map_structure(lambda x: tf.expand_dims(x, 1) 
+            if isinstance(x, tf.Tensor) else x, args)
+
+    def _remove_seqential_dimension(self, *args):
+        return tf.nest.map_structure(lambda x: tf.squeeze(x, 1) 
+            if isinstance(x, tf.Tensor) else x, args)
 
 
 def create_model(

@@ -18,7 +18,7 @@ def get_package_from_algo(algo, place=0, separator='.'):
 
 
 def get_package(root_dir, base_name=None, separator='.'):
-    for i in range(1, 3):
+    for i in range(1, 10):
         indexed_root_dir = root_dir if i == 1 else f'{root_dir}{i}'
         pkg = pkg_str(indexed_root_dir, '.', base_name)
         try:
@@ -30,7 +30,7 @@ def get_package(root_dir, base_name=None, separator='.'):
     return None
 
 
-def import_module(name=None, pkg=None, algo=None, *, config=None, place=0):
+def import_module(name, pkg=None, algo=None, *, config=None, place=0):
     """ import <name> module from <pkg>, 
     if <pkg> is not provided, import <name> module
     according to <algo> or "algorithm" in <config> """
@@ -48,6 +48,7 @@ def import_module(name=None, pkg=None, algo=None, *, config=None, place=0):
 
 def import_main(module, algo=None, *, config=None):
     algo = algo or config['algorithm']
+    module = '.'.join([algo.split('-')[0], module])
     assert isinstance(algo, str), algo
     if '-' in algo:
         m = importlib.import_module(f'distributed.{module}')

@@ -75,8 +75,8 @@ class OvercookedEnv(object):
             if self._mlam is not None:
                 self._mp = self.mlam.motion_planner
             else:
-                # if self.info_level > 0:
-                #     print("Computing MotionPlanner")
+                if self.info_level > 0:
+                    print("Computing MotionPlanner")
                 self._mp = MotionPlanner.from_pickle_or_compute(self.mdp, self.mlam_params["counter_goals"],
                                                                 force_compute=False)
         return self._mp

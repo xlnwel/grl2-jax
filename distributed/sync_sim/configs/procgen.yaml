@@ -1,0 +1,172 @@
+---
+# NOTE: root_dir and model_name will be specified to all configs in run.train.py
+algorithm: &algo ppo
+name: ppo
+version: 0
+
+precision: 32
+
+training: &training pbt
+n_agents: 1
+
+# model path: root_dir/model_name/name
+# tensorboard path: root_dir/model_name/logs
+# the following names are just examples; they will be re-specified in the entry point
+root_dir: *algo
+model_name: *algo
+
+controller:
+    MAX_VERSION_ITERATIONS: 1
+    MAX_TRAINING_ITERATION: 10000
+    initialize_rms: &irms False
+
+parameter_server:
+    fsp: False
+    p: 3    # the exponent applied to convert scores to weights
+    default_score: 0
+    root_dir: *algo
+    model_name: *algo
+    start_checkpoint: null
+    # - logs/card_gd/clap
+    # - self_play_frac=0-fsp=True-oracle_value=False/v0
+
+ray_config:
+    runner:
+        num_cpus: 1
+    agent:
+        num_gpus: 1
+
+monitor:
+    store_period: 180
+
+runner:
+    n_workers: &nworkers 1
+    N_STEPS: &nsteps 400
+    record_self_play_stats: False
+    push_every_episode: False
+
+env:
+    env_name: &env_name procgen_coinrun
+    n_envs: &nenvs 64
+    frame_skip: 1
+    frame_stack: 1
+    # num_levels: 200
+    distribution_mode: easy
+
+agent: {}
+
+strategy:
+    train_loop:
+        N_EPOCHS: &nepochs 4
+        N_VALUE_EPOCHS: &nval_epochs 0
+        N_MBS: &nmbs 4
+        max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
+
+        # (once, reuse, null)
+        # "once" updates values at the end of each epoch
+        # "reuse" updates values using value from train, which is staler than once
+        # null doesn't update values.
+        value_update: null
+
+model:
+    training: *training
+    # rnn_type: &rnn rnn_mlstm
+    oracle_value: True
+    # sample_size: &ss 16
+
+    encoder: 
+        nn_id: cnn_impala
+        # time_distributed: True
+        out_size: 256
+
+    # rnn:
+    #     nn_id: *rnn
+    #     units: 256
+    #     kernel_initializer: orthogonal
+    #     use_ln: False
+
+    policy:
+        nn_id: policy
+        units_list: []
+        kernel_initializer: orthogonal
+        activation: relu
+        eval_act_temp: 1
+        attention_action: False
+        embed_dim: 32
+        out_gain: .01
+
+    value:
+        nn_id: value
+        units_list: []
+        kernel_initializer: orthogonal
+        activation: relu
+
+loss:
+    entropy_coef: .01
+    value_loss: clip
+    clip_range: .2
+    value_coef: .5
+
+trainer:
+    algorithm: *algo
+
+    # sample_size: *ss         # BPTT length
+    store_state: False
+    optimizer:
+        name: adam
+        schedule_lr: False
+        lr: 5e-4
+        clip_norm: .5
+        epsilon: 1.e-5
+        weight_decay: 0
+
+actor:
+    algorithm: *algo
+
+    rms:
+        obs_names: [obs]
+        normalize_obs: *irms
+        normalize_reward: True
+        obs_normalized_axis: [0]
+        reward_normalized_axis: [0]
+        gamma: &gamma .99
+
+buffer:
+    type: *training
+    # dir: data/gd-100000
+    use_dataset: False
+
+    # PPO configs
+    adv_type: gae     # nae or gae
+    gamma: *gamma
+    lam: .95
+    n_workers: *nworkers
+    n_envs: *nenvs
+    # batch_size: *bs
+    N_STEPS: *nsteps
+    N_EPOCHS: *nepochs
+    N_MBS: *nmbs        # number of minibatches
+    # sample_size: *ss
+    norm_adv: minibatch
+
+    # PPG configs
+    # N_PI: *npi
+    # N_SEGS: *nsegs
+    # N_AUX_MBS_PER_SEG: *nambs
+    # N_AUX_EPOCHS: *naepochs
+
+    # mini-batch size = n_workers * n_envs * epslen / n_mbs
+    sample_keys: &keys
+        - obs
+        - action
+        - value
+        - traj_ret
+        - advantage
+        - logpi
+        # - mask
+    #     - h
+    #     - c
+
+    # aux_compute_keys: *keys
+
+    # aux_sample_keys: *keys

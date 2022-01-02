@@ -22,7 +22,7 @@ def MPEEnv(config):
 
     # load scenario from script
     assert 'mpe' in config['name'], config['name']
-    name = config['env_name'].split('_', 1)[1]
+    name = config['env_name']
     scenario = load(name + ".py").Scenario()
     # create world
     world = scenario.make_world(config)

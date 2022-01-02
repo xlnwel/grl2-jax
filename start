@@ -32,10 +32,11 @@ envs=(
     # bossfight
     # maze
     # coinrun
-    counter_circuit
+    # counter_circuit
+    asymmetric_advantages
 )
-args1=(1 2)
-args2=(1e-3 5e-4)
+args1=(1 4)
+args2=(1e-4 5e-4)
 args3=(True)
 args4=(True)
 
@@ -64,11 +65,12 @@ for e in "${envs[@]}"; do
                         kw1="N_EPOCHS=$a1"
                         kw2="lr=$a2"
                         env="${suite}-${e}"
-                        dir="logs/$a/$env/$kw1-$kw2"
+                        n="impala"
+                        dir="logs/$env/$a/$n-$kw1-$kw2"
                         mkdir -p $dir
                         # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
                         # py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard >& ${dir}/outputs.txt"
-                        py_script="CUDA_VISIBLE_DEVICES=[$i,$j] python run/train.py -a ${a} -e $env -kw $kw1 $kw2 >& ${dir}/outputs.txt &"
+                        py_script="python run/train.py -a ${a} -e $env -kw $kw1 $kw2 --gpu $i $j -n $n >& ${dir}/outputs.txt &"
                         echo $py_script
                         eval $py_script
                         ((i=(i+2) % 8))

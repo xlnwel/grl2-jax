@@ -91,10 +91,10 @@ class MotionPlanner(object):
     @staticmethod
     def compute_mp(filename, mdp, counter_goals):
         final_filepath = os.path.join(PLANNERS_DIR, filename)
-        # print("Computing MotionPlanner to be saved in {}".format(final_filepath))
+        print("Computing MotionPlanner to be saved in {}".format(final_filepath))
         start_time = time.time()
         mp = MotionPlanner(mdp, counter_goals)
-        # print("It took {} seconds to create mp".format(time.time() - start_time))
+        print("It took {} seconds to create mp".format(time.time() - start_time))
         mp.save_to_file(final_filepath)
         return mp
 
@@ -433,8 +433,7 @@ class JointMotionPlanner(object):
         possible_joint_goal_states = list(itertools.product(valid_player_states, repeat=2))
         valid_joint_goal_states = list(filter(self.is_valid_joint_motion_goal, possible_joint_goal_states))
 
-        if self.debug: 
-            print("Number of plans being pre-calculated: ", len(valid_joint_start_states) * len(valid_joint_goal_states))
+        if self.debug: print("Number of plans being pre-calculated: ", len(valid_joint_start_states) * len(valid_joint_goal_states))
         for joint_start_state, joint_goal_state in itertools.product(valid_joint_start_states, valid_joint_goal_states):
             # If orientations not present, joint_start_state just includes positions.
             if not self.start_orientations:
@@ -1083,7 +1082,7 @@ class MediumLevelActionManager(object):
     #         end_state = self.jmp.derive_state(start_state, end_pos_and_ors, joint_motion_action_plans)
     #
     #         if SAFE_RUN:
-    #             from env.overcooked.mdp.overcooked_env import OvercookedEnv
+    #             from env.overcooked_env.mdp.overcooked_env import OvercookedEnv
     #             assert end_pos_and_ors[0] == goal_jm_state[0] or end_pos_and_ors[1] == goal_jm_state[1]
     #             s_prime, _ = OvercookedEnv.execute_plan(self.mdp, start_state, joint_motion_action_plans, display=False)
     #             assert end_state == s_prime,  [self.mdp.state_string(s_prime), self.mdp.state_string(end_state)]

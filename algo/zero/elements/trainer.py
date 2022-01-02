@@ -31,7 +31,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
     @override(TrainerEnsemble)
     def _build_train(self, env_stats):
         # Explicitly instantiate tf.function to avoid unintended retracing
-        TensorSpecs = get_data_format(self.config, env_stats, self.model, False)
+        TensorSpecs = get_data_format(self.config, env_stats, self.model)
         self.train = build(self.train, TensorSpecs)
         return True
 

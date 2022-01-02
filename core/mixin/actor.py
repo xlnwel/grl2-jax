@@ -29,8 +29,11 @@ class RMS:
         self._normalize_obs = config.get('normalize_obs', False)
         self._normalize_reward = config.get('normalize_reward', False)
         self._normalize_reward_with_return = \
-            config.get('normalize_reward_with_return', 'reversed')
-        assert self._normalize_reward_with_return in ('reversed', 'forward', None)
+            config.get('normalize_reward_with_return', 'backward')
+        self._update_reward_rms_in_time = config.get('update_reward_rms_in_time', True)
+        assert self._normalize_reward_with_return in ('backward', 'forward', None)
+        if self._update_reward_rms_in_time:
+            assert self._normalize_reward_with_return == 'backward', self._normalize_reward
         
         self._obs_names = config.get('obs_names', ['obs'])
         self._obs_rms: Dict[str, RunningMeanStd] = {}
@@ -63,10 +66,6 @@ class RMS:
         do_logging(
             f'Reward normalization with return: {self._normalize_reward_with_return}', 
             logger=logger)
-        if self._normalize_reward_with_return:
-            do_logging(
-                f"Reward normalization axis: {'1st' if self._normalize_reward_with_return == 'forward' else '2nd'}", 
-                logger=logger)
 
     @property
     def obs_names(self):
@@ -98,6 +97,16 @@ class RMS:
             k, inp = inp
             inp = self.normalize_obs(inp, k, mask)
         return inp
+
+    def process_reward_with_rms(self,
+                                reward: np.ndarray, 
+                                update_rms: bool=False, 
+                                discount: np.ndarray=None,
+                                mask=None):
+        if update_rms:
+            self.update_reward_rms(reward, discount, mask)
+        reward = self.normalize_reward(reward, mask)
+        return reward
 
     def reset_rms_stats(self):
         for rms in self._obs_rms.values():
@@ -136,27 +145,22 @@ class RMS:
     def is_reward_normalized(self):
         return self._normalize_reward
 
-    def update_all_rms(self, data, obs_mask=None, reward_mask=None):
-        for k in self._obs_names:
-            self._obs_rms[k].update(data[k], obs_mask)
-        self.update_reward_rms(data['reward'], data['discount'], reward_mask)
+    def update_all_rms(self, data, obs_mask=None, reward_mask=None, axis=None):
+        self.update_obs_rms(data, mask=obs_mask, axis=axis)
+        self.update_reward_rms(data['reward'], data['discount'], 
+            mask=reward_mask, axis=axis)
 
-    def update_obs_rms(self, obs, name=None, mask=None):
+    def update_obs_rms(self, obs, name=None, mask=None, axis=None):
         if self._normalize_obs:
-            if not isinstance(obs, dict) and obs.dtype == np.uint8 and \
-                    getattr(self, '_image_normalization_warned', False):
-                do_logging(
-                    'Image observations are normalized. Make sure you intentionally do it.',
-                    logger=logger, level='WARNING')
-                self._image_normalization_warned = True
             if name is None:
-                assert isinstance(obs, dict), 'Expecting obs to be a dict when normalizing without a specified name'
                 for k in self._obs_names:
-                    self._obs_rms[k].update(obs[k], mask)
+                    assert not obs[k].dtype == np.uint8, 'Unexpected normalization on images.'
+                    self._obs_rms[k].update(obs[k], mask, axis=axis)
             else:
-                self._obs_rms[name].update(obs, mask=mask)
+                assert not obs.dtype == np.uint8, 'Unexpected normalization on images.'
+                self._obs_rms[name].update(obs, mask=mask, axis=axis)
 
-    def update_reward_rms(self, reward, discount=None, mask=None):
+    def update_reward_rms(self, reward, discount=None, mask=None, axis=None):
         def forward_discounted_sum(next_ret, reward, discount, gamma):
             assert reward.shape == discount.shape, (reward.shape, discount.shape)
             # we assume the sequential dimension is at the first axis
@@ -169,7 +173,7 @@ class RMS:
         def backward_discounted_sum(prev_ret, reward, discount, gamma):
             """ Compute the discounted sum of rewards in the reverse order """
             assert reward.shape == discount.shape, (reward.shape, discount.shape)
-            if reward.ndim == 1:
+            if self._update_reward_rms_in_time:
                 prev_ret = reward + gamma * prev_ret
                 ret = prev_ret.copy()
                 prev_ret *= discount
@@ -186,7 +190,7 @@ class RMS:
         if self._normalize_reward:
             assert len(reward.shape) == len(self._reward_normalized_axis), \
                 (reward.shape, self._reward_normalized_axis)
-            if self._normalize_reward_with_return == 'reversed':
+            if self._normalize_reward_with_return == 'backward':
                 """
                 Pseudocode can be found in https://arxiv.org/pdf/1811.02553.pdf
                 section 9.3 (which is based on our Baselines code, haha)
@@ -199,18 +203,18 @@ class RMS:
                 Yeah, you may not find the pseudocode. That's why I quote:-)
                 """
                 assert discount is not None, \
-                    f"Normalizing rewards with reversed return requires environment's reset signals"
+                    f"Normalizing rewards with backward return requires environment's reset signals"
                 assert reward.ndim == discount.ndim == len(self._reward_rms.axis), \
                     (reward.shape, discount.shape, self._reward_rms.axis)
                 self._return, ret = backward_discounted_sum(
                     self._return, reward, discount, self._gamma)
-                self._reward_rms.update(ret, mask=mask)
+                self._reward_rms.update(ret, mask=mask, axis=axis)
             elif self._normalize_reward_with_return == 'forward':
                 self._return, ret = forward_discounted_sum(
                     self._return, reward, discount, self._gamma)
-                self._reward_rms.update(ret, mask=mask)
+                self._reward_rms.update(ret, mask=mask, axis=axis)
             elif self._normalize_reward_with_return == False:
-                self._reward_rms.update(reward, mask=mask)
+                self._reward_rms.update(reward, mask=mask, axis=axis)
             else:
                 raise ValueError(f"Invalid option: {self._normalize_reward_with_return}")
 

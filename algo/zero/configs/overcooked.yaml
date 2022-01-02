@@ -1,7 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo clap
-name: clap
+algorithm: &algo zero
+name: zero
 version: 0
 
 precision: 32
@@ -16,7 +16,8 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    MAX_INTERATION: 10000
+    MAX_VERSION_ITERATIONS: 100000
+    MAX_TRAINING_ITERATION: 100000
 
 parameter_server:
     fsp: False
@@ -35,11 +36,10 @@ ray_config:
         num_gpus: 1
 
 monitor:
-    store_period: 60
+    store_period: 180
 
 runner:
     n_workers: &nworkers 20
-    MAX_STEPS: 5e8
     N_STEPS: &nsteps 400
     record_self_play_stats: False
     push_every_episode: False
@@ -50,6 +50,8 @@ env:
     eid: 0
     n_envs: &nenvs 4
     dense_reward: True
+    featurize: True
+    pid2aid: [0, 1]
     # layout_params:
     #     rew_shaping_params:
     #         PLACEMENT_IN_POT_REW: 1
@@ -64,7 +66,7 @@ agent: {}
 strategy:
     train_loop:
         training: *training
-        N_EPOCHS: &nepochs 1
+        N_EPOCHS: &nepochs 4
         N_MBS: &nmbs 4
         N_AUX_EPOCHS: &naepochs 9
         N_PI: &npi 16
@@ -87,23 +89,22 @@ model:
     policy:
         encoder: 
             nn_id: mlp
-            units_list: [64, 64, 64]
+            units_list: [256, 256]
             kernel_initializer: orthogonal
             activation: relu
-            norm: null
+            norm: layer
             norm_after_activation: True
             norm_kwargs:
                 epsilon: 1.e-5
         rnn:
             nn_id: *rnn
-            units: 64
+            units: 256
             kernel_initializer: orthogonal
             use_ln: True
         policy:
             nn_id: policy
             units_list: []
             kernel_initializer: orthogonal
-            activation: relu
             eval_act_temp: 1
             attention_action: False
             embed_dim: 32
@@ -112,23 +113,23 @@ model:
     value:
         encoder:
             nn_id: mlp
-            units_list: [64, 64, 64]
+            units_list: [256, 256]
             kernel_initializer: orthogonal
             activation: relu
-            norm: null
+            norm: layer
             norm_after_activation: True
             norm_kwargs:
                 epsilon: 1.e-5
         rnn:
             nn_id: *rnn
-            units: 64
+            units: 256
             kernel_initializer: orthogonal
             use_ln: True
         value:
             nn_id: value
             units_list: []
             kernel_initializer: orthogonal
-            activation: relu
+        activation: relu
 
 loss:
     policy:
@@ -136,7 +137,7 @@ loss:
         entropy_coef: .01
         life_mask: True
     value:
-        value_loss: mse
+        value_loss: clip
         clip_range: .2
         value_coef: 1
         life_mask: False
@@ -148,7 +149,7 @@ trainer:
         optimizer:
             name: adam
             schedule_lr: False
-            lr: 5e-4
+            lr: 1e-3
             clip_norm: 10
             epsilon: 1.e-5
             weight_decay: 0
@@ -156,9 +157,10 @@ trainer:
         optimizer:
             name: adam
             schedule_lr: False
-            lr: 5e-4
+            lr: 1e-3
             clip_norm: 10
             epsilon: 1.e-5
+
 actor:
     algorithm: *algo
 
@@ -167,14 +169,13 @@ actor:
         normalize_obs: True
         normalize_reward: True
         obs_normalized_axis: [0, 1]
+        reward_normalized_axis: [0, 1]
         gamma: &gamma .99
 
 buffer:
     type: *training
     # dir: data/gd-100000
     use_dataset: False
-    
-    mixed_data: False
 
     # PPO configs
     adv_type: gae     # nae or gae
@@ -202,34 +203,6 @@ buffer:
         - action
         - value
         - traj_ret
-        - advantage
-        - logpi
-        - mask
-        - actor_h
-        - actor_c
-        - value_h
-        - value_c
-
-    aux_compute_keys:
-        - obs
-        - global_state
-        - action
-        - value
-        - traj_ret 
-        - advantage
-        - logpi
-        - mask
-        - actor_h
-        - actor_c
-        - value_h
-        - value_c
-
-    aux_sample_keys:
-        - obs
-        - global_state
-        - action
-        - value
-        - traj_ret 
         - advantage
         - logpi
         - mask

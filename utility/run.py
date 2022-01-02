@@ -142,7 +142,7 @@ class Runner:
         next_obs, reward, discount, reset = self.env_output
 
         if step_fn:
-            kwargs = dict(obs=obs, action=action, reward=reward,
+            kwargs = dict(**obs, action=action, reward=reward,
                 discount=discount, next_obs=next_obs)
             assert 'reward' not in terms, 'reward in terms is from the preivous timestep and should not be used to override here'
             # allow terms to overwrite the values in kwargs
@@ -154,11 +154,16 @@ class Runner:
     def store_info(self, info):
         if isinstance(info, list):
             score = [i['score'] for i in info]
+            dense_score = [i['dense_score'] for i in info]
             epslen = [i['epslen'] for i in info]
         else:
             score = info['score']
+            dense_score = info['dense_score']
             epslen = info['epslen']
-        self.agent.store(score=score, epslen=epslen)
+        self.agent.store(
+            score=score, 
+            dense_score=dense_score, 
+            epslen=epslen)
         if self._info_func is not None:
             self._info_func(self.agent, info)
 

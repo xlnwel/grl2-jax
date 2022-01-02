@@ -1,6 +1,4 @@
 import functools
-import signal
-import sys
 import numpy as np
 
 from core.elements.builder import ElementsBuilder
@@ -12,24 +10,25 @@ from utility import pkg
 from env.func import create_env
 
 
-def train(agent, env, eval_env, buffer):
-    collect_fn = pkg.import_module('elements.utils', algo=agent.algorithm).collect
+def train(config, agent, env, eval_env, buffer):
+    collect_fn = pkg.import_module('elements.utils', algo=config.algorithm).collect
     collect = functools.partial(collect_fn, buffer)
 
-    suite_name = env.name.split("_")[0] \
-        if '_' in env.name else 'builtin'
+    suite_name = env.name.split("-")[0] \
+        if '-' in env.name else 'builtin'
     em = pkg.import_module(suite_name, pkg='env')
     info_func = em.info_func if hasattr(em, 'info_func') else None
 
     step = agent.get_env_step()
-    runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS, info_func=info_func)
+    runner = Runner(env, agent, step=step, nsteps=config.N_STEPS, info_func=info_func)
 
     def initialize_rms():
         print('Start to initialize running stats...')
         for _ in range(10):
             runner.run(action_selector=env.random_action, step_fn=collect)
             agent.actor.update_obs_rms(np.concatenate(buffer['obs']))
-            agent.actor.update_reward_rms(buffer['reward'], buffer['discount'])
+            agent.actor.update_reward_rms(
+                np.array(buffer['reward']), np.array(buffer['discount']))
             buffer.reset()
         buffer.clear()
         agent.set_env_step(runner.step)
@@ -40,8 +39,8 @@ def train(agent, env, eval_env, buffer):
 
     runner.step = step
     # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_record = Every(agent.LOG_PERIOD, agent.LOG_PERIOD)
-    to_eval = Every(agent.EVAL_PERIOD)
+    to_record = Every(config.LOG_PERIOD, config.LOG_PERIOD)
+    to_eval = Every(config.EVAL_PERIOD)
     rt = Timer('run')
     tt = Timer('train')
     et = Timer('eval')
@@ -52,9 +51,9 @@ def train(agent, env, eval_env, buffer):
             with TempStore(agent.model.get_states, agent.model.reset_states):
                 with et:
                     eval_score, eval_epslen, video = evaluate(
-                        eval_env, agent, n=agent.N_EVAL_EPISODES, 
-                        record_video=agent.RECORD_VIDEO, size=(64, 64))
-                if agent.RECORD_VIDEO:
+                        eval_env, agent, n=config.N_EVAL_EPISODES, 
+                        record_video=config.RECORD_VIDEO, size=(64, 64))
+                if config.RECORD_VIDEO:
                     agent.video_summary(video, step=step)
                 agent.store(
                     eval_score=eval_score, 
@@ -78,7 +77,7 @@ def train(agent, env, eval_env, buffer):
 
     print('Training starts...')
     train_step = agent.get_train_step()
-    while step < agent.MAX_STEPS:
+    while step < config.MAX_STEPS:
         start_env_step = agent.get_env_step()
         with rt:
             step = runner.run(step_fn=collect)
@@ -89,8 +88,10 @@ def train(agent, env, eval_env, buffer):
         # The latter is adopted in our implementation. 
         # However, the following line currently doesn't store
         # a copy of unnormalized rewards
-        agent.actor.update_reward_rms(buffer['reward'], buffer['discount'])
-        buffer.update('reward', agent.actor.normalize_reward(buffer['reward']), field='all')
+        reward = np.array(buffer['reward'])
+        discount = np.array(buffer['discount'])
+        agent.actor.update_reward_rms(reward, discount)
+        buffer.update('reward', agent.actor.normalize_reward(reward), field='all')
         agent.record_inputs_to_vf(runner.env_output)
         value = agent.compute_value()
         buffer.finish(value)
@@ -104,7 +105,7 @@ def train(agent, env, eval_env, buffer):
             tps=(train_step-start_train_step)/tt.last())
         agent.set_env_step(step)
         buffer.reset()
-        if to_eval(train_step) or step > agent.MAX_STEPS:
+        if to_eval(train_step) or step > config.MAX_STEPS:
             evaluate_agent(step, eval_env, agent)
         if to_record(train_step) and agent.contains_stats('score'):
             record_stats(step)
@@ -147,7 +148,7 @@ def main(config, train=train):
     builder = ElementsBuilder(config, env_stats)
     elements = builder.build_agent_from_scratch()
 
-    train(elements.agent, env, eval_env, elements.buffer)
+    train(config.routine, elements.agent, env, eval_env, elements.buffer)
 
     if use_ray:
         env.close()

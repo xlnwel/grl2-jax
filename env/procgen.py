@@ -23,7 +23,7 @@ class Procgen(gym.Env):
             config.keys() & self.config.keys()})
 
         name = self.config.pop("env_name")
-        self.name = name.split('_', 1)[-1]
+        self.name = name
 
         from procgen.env import ENV_NAMES as VALID_ENV_NAMES
         assert self.name in VALID_ENV_NAMES, self.name

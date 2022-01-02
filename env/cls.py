@@ -174,17 +174,19 @@ class VecEnv(VecEnvBase):
 
         return self.process_output(out, convert_batch=convert_batch)
 
-    def get_screen(self, size=None):
+    def get_screen(self, size=None, convert_batch=True):
         if hasattr(self.env, 'get_screen'):
-            imgs = np.stack([env.get_screen() for env in self.envs])
+            imgs = [env.get_screen() for env in self.envs]
         else:
-            imgs = np.stack([env.render(mode='rgb_array') for env in self.envs])
+            imgs = [env.render(mode='rgb_array') for env in self.envs]
 
         if size is not None:
             # cv2 receive size of form (width, height)
-            imgs = np.stack([cv2.resize(i, size[::-1], interpolation=cv2.INTER_AREA) 
-                            for i in imgs])
-        
+            imgs = [cv2.resize(i, size[::-1], interpolation=cv2.INTER_AREA) 
+                            for i in imgs]
+        if convert_batch:
+            imgs = np.stack(imgs)
+
         return imgs
 
     def _envvec_op(self, name, convert_batch=True, **kwargs):

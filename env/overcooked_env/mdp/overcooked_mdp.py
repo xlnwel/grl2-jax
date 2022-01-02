@@ -104,14 +104,14 @@ class Recipe:
 
     @property
     def value(self):
-        # if self._delivery_reward:
-        #     return self._delivery_reward
-        # if self._value_mapping and self in self._value_mapping:
-        #     return self._value_mapping[self]
-        # if self._onion_value and self._tomato_value:
-        #     num_onions = len([ingredient for ingredient in self.ingredients if ingredient == self.ONION])
-        #     num_tomatoes = len([ingredient for ingredient in self.ingredients if ingredient == self.TOMATO])
-        #     return self._tomato_value * num_tomatoes + self._onion_value * num_onions
+        if self._delivery_reward:
+            return self._delivery_reward
+        if self._value_mapping and self in self._value_mapping:
+            return self._value_mapping[self]
+        if self._onion_value and self._tomato_value:
+            num_onions = len([ingredient for ingredient in self.ingredients if ingredient == self.ONION])
+            num_tomatoes = len([ingredient for ingredient in self.ingredients if ingredient == self.TOMATO])
+            return self._tomato_value * num_tomatoes + self._onion_value * num_onions
         return 20
 
     @property
@@ -846,7 +846,7 @@ class OvercookedGridworld(object):
     # INSTANTIATION METHODS #
     #########################
 
-    def __init__(self, terrain, start_player_positions, start_bonus_orders=[], rew_shaping_params=None, layout_name="unnamed_layout", start_all_orders=[], max_num_ingredients=3, order_bonus=2, start_state=None, **kwargs):
+    def __init__(self, terrain, start_player_positions, start_bonus_orders=[], rew_shaping_params=None, layout_name="unnamed_layout", start_all_orders=[], num_items_for_soup=3, order_bonus=2, start_state=None, **kwargs):
         """
         terrain: a matrix of strings that encode the MDP layout
         layout_name: string identifier of the layout
@@ -854,11 +854,11 @@ class OvercookedGridworld(object):
         start_bonus_orders: List of recipes dicts that are worth a bonus 
         rew_shaping_params: reward given for completion of specific subgoals
         all_orders: List of all available order dicts the players can make, defaults to all possible recipes if empy list provided
-        max_num_ingredients: Maximum number of ingredients that can be placed in a soup
+        num_items_for_soup: Maximum number of ingredients that can be placed in a soup
         order_bonus: Multiplicative factor for serving a bonus recipe
         start_state: Default start state returned by get_standard_start_state
         """
-        self._configure_recipes(start_all_orders, max_num_ingredients, **kwargs)
+        self._configure_recipes(start_all_orders, num_items_for_soup, **kwargs)
         self.start_all_orders = [r.to_dict() for r in Recipe.ALL_RECIPES] if not start_all_orders else start_all_orders
         self.height = len(terrain)
         self.width = len(terrain[0])
@@ -939,13 +939,12 @@ class OvercookedGridworld(object):
 
         return OvercookedGridworld(**mdp_config)
 
-    def _configure_recipes(self, start_all_orders, max_num_ingredients, **kwargs):
+    def _configure_recipes(self, start_all_orders, num_items_for_soup, **kwargs):
         self.recipe_config = {
-            "max_num_ingredients" : max_num_ingredients,
+            "num_items_for_soup" : num_items_for_soup,
             "all_orders" : start_all_orders,
             **kwargs
         }
-        # print('configure recipes', self.recipe_config)
         Recipe.configure(self.recipe_config)
 
     #####################
@@ -1960,14 +1959,6 @@ class OvercookedGridworld(object):
         return final_obs_for_players
 
     @property
-    def cook_time(self):
-        return Recipe._cook_time
-    
-    @property
-    def max_num_ingredients(self):
-        return Recipe.MAX_NUM_INGREDIENTS
-
-    @property
     def featurize_state_shape(self):
         warnings.warn(
             "Using the `featurize_state_shape` property is deprecated. Please use `get_featurize_state_shape` method instead",
@@ -2182,10 +2173,6 @@ class OvercookedGridworld(object):
             player_i_abs_pos = player_absolute_positions[i]
             player_i_rel_pos = player_relative_positions[i]
             other_player_features = np.concatenate([feats for j, feats in enumerate(player_features) if j != i])
-            # print(player_i_features.shape, player_i_features)
-            # print(player_i_abs_pos.shape, player_i_abs_pos)
-            # print(player_i_rel_pos.shape, player_i_rel_pos)
-            # exit()
             player_i_ordered_features = np.squeeze(np.concatenate([player_i_features, other_player_features, player_i_rel_pos, player_i_abs_pos]))
             ordered_features.append(player_i_ordered_features)
 
