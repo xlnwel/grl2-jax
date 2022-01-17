@@ -18,14 +18,16 @@ class Model(Ensemble):
     subclass is expected to implement some methods 
     of practical meaning, such as <action> and 
     <compute_value> """
-    def __init__(self, 
-                 *,
-                 config: AttrDict,
-                 env_stats: AttrDict=None,
-                 constructor=construct_components,
-                 name: str,
-                 to_build=False,
-                 to_build_for_eval=False):
+    def __init__(
+        self, 
+        *,
+        config: AttrDict,
+        env_stats: AttrDict=None,
+        constructor=construct_components,
+        name: str,
+        to_build=False,
+        to_build_for_eval=False
+    ):
         assert env_stats is not None, env_stats
         super().__init__(
             config=config, 
@@ -121,15 +123,17 @@ class Model(Ensemble):
 
 
 class ModelEnsemble(Ensemble):
-    def __init__(self, 
-                 *, 
-                 config: dict, 
-                 env_stats: dict,
-                 constructor=constructor, 
-                 name: str, 
-                 to_build=False, 
-                 to_build_for_eval=False,
-                 **classes):
+    def __init__(
+        self, 
+        *, 
+        config: dict, 
+        env_stats: dict,
+        constructor=constructor, 
+        name: str, 
+        to_build=False, 
+        to_build_for_eval=False,
+        **classes
+    ):
         super().__init__(
             config=config, 
             env_stats=env_stats, 

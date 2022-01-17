@@ -1,8 +1,14 @@
 import os
+from types import FunctionType
+from typing import Dict
 import cloudpickle
 
+from core.elements.actor import Actor
 from core.elements.dataset import create_dataset
-from core.monitor import create_monitor
+from core.elements.model import Model
+from core.elements.strategy import Strategy
+from core.elements.trainer import Trainer
+from core.monitor import Monitor, create_monitor
 from core.typing import ModelPath
 from core.utils import save_code, save_config
 from env.func import get_env_stats
@@ -13,33 +19,24 @@ from utility import pkg
 
 
 class ElementsBuilder:
-    def __init__(self, 
-                 config, 
-                 env_stats=None, 
-                 incremental_version=False,
-                 start_version=0,
-                 to_save_code=False):
+    def __init__(
+        self, 
+        config: dict, 
+        env_stats: dict=None, 
+        to_save_code: bool=False
+    ):
         self.config = dict2AttrDict(config, to_copy=True)
         self.env_stats = dict2AttrDict(
             get_env_stats(self.config.env) if env_stats is None else env_stats)
         self._name = self.config.name
 
         self._model_path = ModelPath(self.config.root_dir, self.config.model_name)
-        self._default_model_path = self._model_path
-        self._builder_path = '/'.join([*self._model_path, f'{self._name}_builder.pkl'])
-
-        self._incremental_version = incremental_version
-        self._version = start_version
-        self._max_version = start_version
-        if self._incremental_version:
-            self.restore()
-            self.set_config_version(self._version)
 
         algo = self.config.algorithm.split('-')[-1]
         self.constructors = self.retrieve_constructor(algo)
 
         if to_save_code:
-            save_code(self._default_model_path)
+            save_code(self._model_path)
 
     @property
     def name(self):
@@ -64,32 +61,18 @@ class ElementsBuilder:
 
         return constructors
 
-    def get_version(self):
-        return self._version
-
-    def increase_version(self):
-        self._max_version += 1
-        self.set_config_version(self._max_version)
-        self.save_config()
-        self.save()
-
-    def set_config_version(self, version):
-        if self._incremental_version:
-            root_dir = self.config.root_dir
-            model_name = f'{self._default_model_path.model_name}/v{version}'
-            self._model_path = ModelPath(root_dir, model_name)
-            model_dir = '/'.join(self._model_path)
-            self.config = set_path(self.config, self._model_path)
-            self.config.version = self._version = version
-            if not os.path.isdir(model_dir):
-                os.makedirs(model_dir, exist_ok=True)
-
     def get_model_path(self):
         return self._model_path
 
     """ Build Elements """
-    def build_model(self, config=None, env_stats=None, to_build=False, 
-            to_build_for_eval=False, constructors=None):
+    def build_model(
+        self, 
+        config: dict=None, 
+        env_stats: dict=None, 
+        to_build: bool=False, 
+        to_build_for_eval: bool=False, 
+        constructors: Dict[str, FunctionType]=None
+    ):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
@@ -99,14 +82,25 @@ class ElementsBuilder:
         
         return model
 
-    def build_actor(self, model, config=None, constructors=None):
+    def build_actor(
+        self, 
+        model: Model, 
+        config: dict=None, 
+        constructors: Dict[str, FunctionType]=None
+    ):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         actor = constructors.actor(config.actor, model, name=config.name)
         
         return actor
     
-    def build_trainer(self, model, config=None, env_stats=None, constructors=None):
+    def build_trainer(
+        self, 
+        model: Model, 
+        config: dict=None, 
+        env_stats: dict=None, 
+        constructors: Dict[str, FunctionType]=None
+    ):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
@@ -116,14 +110,27 @@ class ElementsBuilder:
         
         return trainer
     
-    def build_buffer(self, model, config=None, constructors=None, **kwargs):
+    def build_buffer(
+        self, 
+        model: Model, 
+        config: dict=None, 
+        constructors: Dict[str, FunctionType]=None, 
+        **kwargs
+    ):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         buffer = constructors.buffer(config.buffer, model, **kwargs)
         
         return buffer
 
-    def build_dataset(self, buffer, model, config=None, env_stats=None, central_buffer=False):
+    def build_dataset(
+        self, 
+        buffer, 
+        model: Model, 
+        config: dict=None, 
+        env_stats: dict=None, 
+        central_buffer: bool=False
+    ):
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
         if self.config.buffer['use_dataset']:
@@ -138,7 +145,15 @@ class ElementsBuilder:
 
         return dataset
     
-    def build_strategy(self, actor=None, trainer=None, dataset=None, config=None, env_stats=None, constructors=None):
+    def build_strategy(
+        self, 
+        actor: Actor=None, 
+        trainer: Trainer=None, 
+        dataset=None, 
+        config: dict=None, 
+        env_stats: dict=None, 
+        constructors: Dict[str, FunctionType]=None
+    ):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
@@ -152,14 +167,25 @@ class ElementsBuilder:
         
         return strategy
 
-    def build_monitor(self, config=None, save_to_disk=True):
+    def build_monitor(
+        self, 
+        config: dict=None, 
+        save_to_disk: bool=True
+    ):
         if save_to_disk:
             config = dict2AttrDict(config or self.config)
             return create_monitor(ModelPath(config.root_dir, config.model_name), self.name)
         else:
             return create_monitor(None, self.name, use_tensorboard=False)
     
-    def build_agent(self, strategy, monitor=None, config=None, constructors=None):
+    def build_agent(
+        self, 
+        strategy: Strategy, 
+        monitor: Monitor=None, 
+        config: dict=None, 
+        constructors: FunctionType=None,
+        to_restore: bool=True
+    ):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         agent = constructors.agent(
@@ -167,6 +193,7 @@ class ElementsBuilder:
             strategy=strategy, 
             monitor=monitor, 
             name=config.name, 
+            to_restore=to_restore
         )
 
         return agent
@@ -179,10 +206,12 @@ class ElementsBuilder:
     A training strategy/agent is used for training only
     A plain strategy/agent is used for both cases
     """
-    def build_acting_strategy_from_scratch(self, 
-            config=None, 
-            build_monitor=True, 
-            to_build_for_eval=False):
+    def build_acting_strategy_from_scratch(
+        self, 
+        config: dict=None, 
+        build_monitor: bool=True, 
+        to_build_for_eval: bool=False
+    ):
         constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
         
@@ -209,11 +238,13 @@ class ElementsBuilder:
 
         return elements
     
-    def build_training_strategy_from_scratch(self, 
-            config=None, 
-            build_monitor=True, 
-            save_monitor_stats_to_disk=False,
-            save_config=True):
+    def build_training_strategy_from_scratch(
+        self, 
+        config: dict=None, 
+        build_monitor: bool=True, 
+        save_monitor_stats_to_disk: bool=False,
+        save_config: bool=True
+    ):
         constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
         
@@ -252,11 +283,13 @@ class ElementsBuilder:
 
         return elements
     
-    def build_strategy_from_scratch(self, 
-            config=None, 
-            build_monitor=True, 
-            save_monitor_stats_to_disk=False,
-            save_config=True):
+    def build_strategy_from_scratch(
+        self, 
+        config: dict=None, 
+        build_monitor: bool=True, 
+        save_monitor_stats_to_disk: bool=False,
+        save_config: bool=True
+    ):
         constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
         
@@ -300,10 +333,13 @@ class ElementsBuilder:
 
         return elements
 
-    def build_acting_agent_from_scratch(self, 
-            config=None, 
-            build_monitor=True, 
-            to_build_for_eval=False):
+    def build_acting_agent_from_scratch(
+        self, 
+        config: dict=None, 
+        build_monitor: bool=True, 
+        to_build_for_eval: bool=False,
+        to_restore: bool=True
+    ):
         constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
         
@@ -331,14 +367,17 @@ class ElementsBuilder:
             strategy=elements.strategy, 
             monitor=None if build_monitor is None else elements.monitor, 
             config=config,
-            constructors=constructors)
+            constructors=constructors,
+            to_restore=to_restore)
 
         return elements
     
-    def build_training_agent_from_scratch(self, 
-            config=None, 
-            save_monitor_stats_to_disk=True,
-            save_config=True):
+    def build_training_agent_from_scratch(
+        self, 
+        config: dict=None, 
+        save_monitor_stats_to_disk: bool=True,
+        save_config: bool=True
+    ):
         constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
         
@@ -381,10 +420,12 @@ class ElementsBuilder:
 
         return elements
 
-    def build_agent_from_scratch(self, 
-            config=None, 
-            save_monitor_stats_to_disk=True,
-            save_config=True):
+    def build_agent_from_scratch(
+        self, 
+        config: dict=None, 
+        save_monitor_stats_to_disk: bool=True,
+        save_config: bool=True
+    ):
         constructors = self.get_constructors(config)
         env_stats = self.env_stats if config is None else get_env_stats(config.env)
         
@@ -432,7 +473,7 @@ class ElementsBuilder:
 
         return elements
 
-    def get_constructors(self, config):
+    def get_constructors(self, config: AttrDict):
         if config is not None and config.algorithm != self.config.algorithm:
             constructors = self.retrieve_constructor(config.algorithm)
         else:
@@ -446,17 +487,6 @@ class ElementsBuilder:
     def save_config(self):
         save_config(self.config)
 
-    """ Save & Restore """
-    def restore(self):
-        if os.path.exists(self._builder_path) and self._incremental_version:
-            with open(self._builder_path, 'rb') as f:
-                self._version, self._max_version = cloudpickle.load(f)
-
-    def save(self):
-        if self._incremental_version:
-            with open(self._builder_path, 'wb') as f:
-                cloudpickle.dump((self._version, self._max_version), f)
-
     """ Implementations"""
     def _import_element(self, name, algo=None, *, config=None, place=0):
         try:
@@ -466,6 +496,87 @@ class ElementsBuilder:
             module = pkg.import_module(
                 f'elements.{name}', pkg='core')
         return module
+
+
+""" Element Builder with Version Control """
+class ElementsBuilderVC(ElementsBuilder):
+    def __init__(
+        self, 
+        config: dict, 
+        env_stats: dict=None, 
+        start_version=0, 
+        to_save_code=False
+    ):
+        super().__init__(
+            config, 
+            env_stats=env_stats, 
+            to_save_code=to_save_code
+        )
+
+        self._default_model_path = self._model_path
+        self._builder_path = '/'.join([*self._model_path, f'{self._name}_builder.pkl'])
+
+        self._version = start_version
+        self._max_version = start_version
+        self.restore()
+        self.set_config_version(self._version)
+
+    """ Version Control """
+    def get_version(self):
+        return self._version
+
+    def increase_version(self):
+        self._max_version += 1
+        self.set_config_version(self._max_version)
+        self.save_config()
+        self.save()
+
+    def get_sub_version(self, config: AttrDict):
+        def increase_subversion(version):
+            if '.' in version:
+                base_version, sub_version = version.split('.')
+            else:
+                base_version = version
+                sub_version = '0'
+            sub_version = eval(sub_version)
+            sub_version = f'{sub_version + 1}'
+            version = '.'.join([base_version, sub_version])
+            return version
+
+        root_dir = config.root_dir
+        model_name = config.model_name
+        model_name, version = model_name.rsplit('/', 1)
+        assert version.startswith('v'), (model_name, version)
+        version = version[1:]   # remove prefix v
+        assert version == f'{config.version}', (version, config.version)
+        version = increase_subversion(version)
+        model_name = f'{model_name}/v{version}'
+        model_path = ModelPath(root_dir, model_name)
+        model_dir = '/'.join(model_path)
+        config = set_path(config, model_path)
+        config.version = version
+        if not os.path.isdir(model_dir):
+            os.makedirs(model_dir, exist_ok=True)
+        
+        return model_path, config
+
+    def set_config_version(self, version: float):
+        root_dir = self.config.root_dir
+        model_name = f'{self._default_model_path.model_name}/v{version}'
+        self._model_path = ModelPath(root_dir, model_name)
+        self.config = set_path(self.config, self._model_path)
+        self.config.version = self._version = version
+        self._model_path, self.config = self.get_sub_version(self.config)
+
+    """ Save & Restore """
+    def restore(self):
+        if os.path.exists(self._builder_path):
+            with open(self._builder_path, 'rb') as f:
+                self._version, self._max_version = cloudpickle.load(f)
+
+    def save(self):
+        with open(self._builder_path, 'wb') as f:
+            cloudpickle.dump((self._version, self._max_version), f)
 
 if __name__ == '__main__':
     from env.func import create_env

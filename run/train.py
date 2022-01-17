@@ -3,12 +3,12 @@ import time
 import itertools
 from multiprocessing import Process
 
-try:
-    from tensorflow.python.compiler.mlcompute import mlcompute
-    mlcompute.set_mlc_device(device_name='gpu')
-    print("----------M1----------")
-except:
-    print("----------Not M1-----------")
+# try:
+#     from tensorflow.python.compiler.mlcompute import mlcompute
+#     mlcompute.set_mlc_device(device_name='gpu')
+#     print("----------M1----------")
+# except:
+#     print("----------Not M1-----------")
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 

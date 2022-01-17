@@ -9,13 +9,15 @@ logger = logging.getLogger(__name__)
 
 
 class  RayDataset(Dataset):
-    def __init__(self, 
-                 buffer, 
-                 data_format, 
-                 process_fn=None, 
-                 batch_size=False, 
-                 print_data_format=True, 
-                 **kwargs):
+    def __init__(
+        self, 
+        buffer, 
+        data_format, 
+        process_fn=None, 
+        batch_size=False, 
+        print_data_format=True, 
+        **kwargs
+    ):
         super().__init__(
             buffer, 
             data_format, 

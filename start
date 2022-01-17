@@ -33,7 +33,8 @@ envs=(
     # maze
     # coinrun
     # counter_circuit
-    asymmetric_advantages
+    # asymmetric_advantages
+    counter_circuit
 )
 args1=(1 4)
 args2=(1e-4 5e-4)
@@ -48,55 +49,56 @@ args4=(True)
     
 # )
 
-i=0
-j=1
-for e in "${envs[@]}"; do
-    for a in "${algos[@]}"; do
-        for a1 in "${args1[@]}"; do
-            for a2 in "${args2[@]}"; do
-                for a3 in "${args3[@]}"; do
-                    for a4 in "${args3[@]}"; do
-                        # if [[ $a2 == $a3 ]]
-                        # then continue
-                        # fi
-                        # sed -e "s/KI/${a2}/g" \
-                        #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
-                        # dir="logs/${suite}_${e}/${a}"
-                        kw1="N_EPOCHS=$a1"
-                        kw2="lr=$a2"
-                        env="${suite}-${e}"
-                        n="impala"
-                        dir="logs/$env/$a/$n-$kw1-$kw2"
-                        mkdir -p $dir
-                        # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
-                        # py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard >& ${dir}/outputs.txt"
-                        py_script="python run/train.py -a ${a} -e $env -kw $kw1 $kw2 --gpu $i $j -n $n >& ${dir}/outputs.txt &"
-                        echo $py_script
-                        eval $py_script
-                        ((i=(i+2) % 8))
-                        ((j=(j+2) % 8))
-                        sleep 3
-                        # last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)
-                        # mv_script="mv ${dir}/outputs.txt ${last_dir}/outputs.txt"
-                        # echo $mv_script
-                        # eval $mv_script
-                    done
-                done
-            done
-        done
-    done
-done
-# a=${algos[1]}
-# e=gd2
-# kw1="N_MBS=2"
-# kw2="N_STEPS=1024"
-# kw3="n_envs=1"
-# env="${suite}_${e}"
-# dir="logs/$a/$env/action_mask=mask-$kw1-$kw2-$kw3"
-# mkdir -p $dir
-# py_script="CUDA_VISIBLE_DEVICES=6 python run/train.py $a -e $env -n action_mask=mask -kw $kw1 $kw2 $kw3 >& ${dir}/outputs.txt &"
-# echo $py_script
-# eval $py_script
+# i=0
+# j=1
+# for e in "${envs[@]}"; do
+#     for a in "${algos[@]}"; do
+#         for a1 in "${args1[@]}"; do
+#             for a2 in "${args2[@]}"; do
+#                 for a3 in "${args3[@]}"; do
+#                     for a4 in "${args3[@]}"; do
+#                         # if [[ $a2 == $a3 ]]
+#                         # then continue
+#                         # fi
+#                         # sed -e "s/KI/${a2}/g" \
+#                         #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
+#                         # dir="logs/${suite}_${e}/${a}"
+#                         kw1="N_EPOCHS=$a1"
+#                         kw2="lr=$a2"
+#                         env="${suite}-${e}"
+#                         n="impala"
+#                         dir="logs/$env/$a/$n-$kw1-$kw2"
+#                         mkdir -p $dir
+#                         # py_script="train ${a} -e ${suite}_${e} $@ >& ${dir}/outputs.txt"
+#                         # py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard >& ${dir}/outputs.txt"
+#                         py_script="python run/train.py -a ${a} -e $env -kw $kw1 $kw2 --gpu $i $j -n $n >& ${dir}/outputs.txt &"
+#                         echo $py_script
+#                         eval $py_script
+#                         ((i=(i+2) % 8))
+#                         ((j=(j+2) % 8))
+#                         sleep 3
+#                         # last_dir=$(ls -td ${dir}/* | grep -v txt | head -n 1)
+#                         # mv_script="mv ${dir}/outputs.txt ${last_dir}/outputs.txt"
+#                         # echo $mv_script
+#                         # eval $mv_script
+#                     done
+#                 done
+#             done
+#         done
+#     done
+# done
+a="sync_sim-zero"
+suite="overcooked"
+mid="overcooked_feat"
+e="counter_circuit"
+kw1="entropy_coef=0.03"
+env="${suite}-${mid}-${e}"
+dir="logs/${suite}-${e}/$a/$kw1"
+mkdir -p $dir
+py_script="python run/train.py -a $a -e $env -kw $kw1 >& ${dir}/outputs.txt"
+echo $py_script
+eval $py_script
+echo "$!"
 # kw1="N_MBS=1"
 # kw2="N_STEPS=128"
 # env="${suite}_${e}"

@@ -4,12 +4,13 @@ from core.typing import ModelPath
 
 
 class Monitor(RayBase):
-    def __init__(self, 
-                 model_path: ModelPath, 
-                 name='monitor', 
-                 use_recorder=True, 
-                 use_tensorboard=True
-                 ):
+    def __init__(
+        self, 
+        model_path: ModelPath, 
+        name='monitor', 
+        use_recorder=True, 
+        use_tensorboard=True
+    ):
         self._model_path = model_path
         self._name = name
         self._use_recorder = use_recorder

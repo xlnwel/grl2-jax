@@ -33,10 +33,19 @@ def create_optimizer(modules, config):
 
 
 class Optimizer(tf.Module):
-    def __init__(self, modules, *, opt_name='adam', lr, 
-                clip_norm=None, weight_decay=None, l2_reg=None,
-                wdpattern=r'.*', scales=None, return_grads=False, 
-                **kwargs):
+    def __init__(
+        self, modules, 
+        *, 
+        opt_name='adam', 
+        lr, 
+        clip_norm=None, 
+        weight_decay=None, 
+        l2_reg=None,
+        wdpattern=r'.*', 
+        scales=None, 
+        return_grads=False, 
+        **kwargs
+    ):
         self._modules = modules if isinstance(modules, (list, tuple)) else [modules]
         self._clip_norm = clip_norm
         self._weight_decay = weight_decay

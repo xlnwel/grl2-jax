@@ -21,7 +21,7 @@ def combine_rms(rms1, rms2):
     assert np.all(np.isfinite(M2)), f'M2: {M2}'
     new_var = M2 / total_count
 
-    return new_mean, new_var, total_count
+    return Stats(new_mean, new_var, total_count)
 
 
 class RunningMeanStd:

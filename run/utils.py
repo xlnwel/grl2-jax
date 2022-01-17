@@ -53,7 +53,7 @@ def change_config(kw, config, model_name=''):
     def change_dict(config, key, value, prefix):
         modified_configs = []
         for k, v in config.items():
-            config_name = f'{prefix}-{k}' if prefix else k
+            config_name = f'{prefix}:{k}' if prefix else k
             if key == k:
                 config[k] = value
                 modified_configs.append(config_name)
@@ -105,6 +105,8 @@ def search_for_all_configs(directory, to_attrdict=True):
 
 
 def search_for_config(directory, to_attrdict=True):
+    if isinstance(directory, tuple):
+        directory = '/'.join(directory)
     if not os.path.exists(directory):
         raise ValueError(f'Invalid directory: {directory}')
     directory = directory

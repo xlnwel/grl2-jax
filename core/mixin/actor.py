@@ -6,7 +6,8 @@ import numpy as np
 from typing import Dict, List, Tuple, Union
 
 from core.log import do_logging
-from utility.rms import RunningMeanStd
+from core.typing import ModelPath
+from utility.rms import RunningMeanStd, combine_rms
 from utility.utils import dict2AttrDict
 
 logger = logging.getLogger(__name__)
@@ -15,11 +16,20 @@ logger = logging.getLogger(__name__)
 RMSStats = collections.namedtuple('RMSStats', 'obs reward')
 
 
+def combine_rms_stats(rms_stats1: RMSStats, rms_stats2: RMSStats):
+    obs_rms = {}
+    for k in rms_stats1.obs.keys():
+        obs_rms[k] = combine_rms(rms_stats1.obs[k], rms_stats2.obs[k])
+    reward_rms = combine_rms(rms_stats1.reward, rms_stats2.reward)
+    return RMSStats(obs_rms, reward_rms)
+
+
 class RMS:
     def __init__(self, config: dict, name='rms'):
         # by default, we update reward stats once every N steps 
         # so we normalize along the first two axis
         config = dict2AttrDict(config)
+        self.name = name
         self._gamma = config['gamma']
         self._reward_normalized_axis = tuple(
             config.get('reward_normalized_axis', (0, 1)))
@@ -52,8 +62,9 @@ class RMS:
             self._return = 0
         else:
             self._return = -np.inf
+
         if 'model_path' in config:
-            self._rms_path = '/'.join([*config.model_path, f'{name}.pkl'])
+            self.reset_path(config.model_path)
         else:
             self._rms_path = None
 
@@ -67,10 +78,24 @@ class RMS:
             f'Reward normalization with return: {self._normalize_reward_with_return}', 
             logger=logger)
 
+    """ Attributes """
     @property
     def obs_names(self):
         return self._obs_names
 
+    @property
+    def is_obs_or_reward_normalized(self):
+        return self._normalize_obs or self._normalize_reward
+    
+    @property
+    def is_obs_normalized(self):
+        return self._normalize_obs
+
+    @property
+    def is_reward_normalized(self):
+        return self._normalize_reward
+
+    """ Processing Data with RMS """
     def process_obs_with_rms(self, 
                              inp: Union[dict, Tuple[str, np.ndarray]], 
                              update_rms: bool=False, 
@@ -108,6 +133,17 @@ class RMS:
         reward = self.normalize_reward(reward, mask)
         return reward
 
+    def normalize_obs(self, obs, name='obs', mask=None):
+        """ Normalize obs using obs RMS """
+        return self._obs_rms[name].normalize(obs, mask=mask) \
+            if self._normalize_obs else obs
+
+    def normalize_reward(self, reward, mask=None):
+        """ Normalize obs using reward RMS """
+        return self._reward_rms.normalize(reward, zero_center=False, mask=mask) \
+            if self._normalize_reward else reward
+
+    """ RMS Access & Override """
     def reset_rms_stats(self):
         for rms in self._obs_rms.values():
             rms.reset_rms_stats()
@@ -133,18 +169,7 @@ class RMS:
         rew_rms = self._reward_rms.get_rms_stats() if self._normalize_reward else None
         return rew_rms
 
-    @property
-    def is_obs_or_reward_normalized(self):
-        return self._normalize_obs or self._normalize_reward
-    
-    @property
-    def is_obs_normalized(self):
-        return self._normalize_obs
-
-    @property
-    def is_reward_normalized(self):
-        return self._normalize_reward
-
+    """ RMS Update """
     def update_all_rms(self, data, obs_mask=None, reward_mask=None, axis=None):
         self.update_obs_rms(data, mask=obs_mask, axis=axis)
         self.update_reward_rms(data['reward'], data['discount'], 
@@ -218,16 +243,6 @@ class RMS:
             else:
                 raise ValueError(f"Invalid option: {self._normalize_reward_with_return}")
 
-    def normalize_obs(self, obs, name='obs', mask=None):
-        """ Normalize obs using obs RMS """
-        return self._obs_rms[name].normalize(obs, mask=mask) \
-            if self._normalize_obs else obs
-
-    def normalize_reward(self, reward, mask=None):
-        """ Normalize obs using reward RMS """
-        return self._reward_rms.normalize(reward, zero_center=False, mask=mask) \
-            if self._normalize_reward else reward
-
     def update_rms_from_stats_list(self, rms_stats_list: List[RMSStats]):
         for rms_stats in rms_stats_list:
             self.update_rms_from_stats(rms_stats)
@@ -251,6 +266,7 @@ class RMS:
             batch_var=rew_rms.var,
             batch_count=rew_rms.count)
 
+    """ Checkpoint Operations """
     def restore_rms(self):
         if self._rms_path is None:
             raise RuntimeError('rms path is not configured.')
@@ -271,3 +287,6 @@ class RMS:
             raise RuntimeError('rms path is not configured.')
         with open(self._rms_path, 'wb') as f:
             cloudpickle.dump((self._obs_rms, self._reward_rms, self._return), f)
+
+    def reset_path(self, model_path: ModelPath):
+        self._rms_path = '/'.join([*model_path, f'{self.name}.pkl'])

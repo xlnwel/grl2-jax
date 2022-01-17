@@ -5,6 +5,7 @@ import gym
 import cv2
 
 from core.log import do_logging
+from env.utils import compute_aid2pids
 from utility.utils import dict2AttrDict, infer_dtype, convert_dtype
 from utility.typing import AttrDict
 from env.typing import EnvOutput, GymOutput
@@ -299,6 +300,43 @@ class FrameStack(gym.Wrapper):
             if self.np_obs else LazyFrames(list(self.frames))
 
 
+class StateRecorder(gym.Wrapper):
+    def __init__(self, env, rnn_type, state_size):
+        super().__init__(env)
+        from nn.typing import LSTMState, GRUState
+        if rnn_type.endswith('lstm'):
+            self.default_states = LSTMState(
+                np.zeros((self.n_agents, state_size)), np.zeros((self.n_agents, state_size)))
+        elif rnn_type.endswith('gru'):
+            self.default_states = GRUState(
+                np.zeros((self.n_agents, state_size)))
+        self.states = [None for _ in range(self.n_agents)]
+
+    def reset(self):
+        obs = self.env.reset()
+        self.states = self.default_states.copy()
+        obs = self._add_states_to_obs(obs, self.states)
+
+        return obs
+
+    def step(self, action):
+        action, self.states = action
+        obs, reward, done, info = self.env.step(action)
+        obs = self._add_states_to_obs(obs, self.states)
+
+        return obs, reward, done, info
+
+    def record_default_state(self, aid, state):
+        self.default_states[aid] = state
+
+    def _add_states_to_obs(self, obs, states):
+        keys = list(states[0]._asdict())
+        vals = [np.concatenate(s) for s in zip(*states)]
+        for k, v in zip(keys, vals):
+            obs[k] = v
+        return obs
+
+
 class DataProcess(gym.Wrapper):
     """ Convert observation to np.float32 or np.float16 """
     def __init__(self, env, precision=32):
@@ -565,14 +603,7 @@ class MASimEnvStats(EnvStatsBase):
             auto_reset=auto_reset
         )
         pid2aid = getattr(self.env, 'pid2aid', [0 for _ in range(self.n_players)])
-        aid2pids = []
-        for pid, aid in enumerate(pid2aid):
-            if aid > len(aid2pids):
-                raise ValueError(f'pid2aid({pid2aid}) is not sorted in order')
-            if aid == len(aid2pids):
-                aid2pids.append((pid, ))
-            else:
-                aid2pids[aid] += (pid,)
+        aid2pids = getattr(self.env, 'aid2pids', compute_aid2pids(pid2aid))
         assert len(pid2aid) == self._stats.n_players, (len(pid2aid), self._stats.n_players)
         assert len(aid2pids) == self._stats.n_agents, (len(aid2pids), self._stats.n_agents)
         self._stats.update({

@@ -6,7 +6,13 @@ from utility.tf_utils import explained_variance
 
 
 class PPOLossImpl(Loss):
-    def _compute_value_loss(self, value, traj_ret, old_value, mask=None):
+    def _compute_value_loss(
+        self, 
+        value, 
+        traj_ret, 
+        old_value, 
+        mask=None
+    ):
         value_loss_type = getattr(self.config, 'value_loss', 'mse')
         v_clip_frac = 0
         if value_loss_type == 'huber':
@@ -29,8 +35,17 @@ class PPOLossImpl(Loss):
 
 
 class PPOLoss(PPOLossImpl):
-    def loss(self, obs, action, value, traj_ret, advantage, logpi, 
-                state=None, mask=None):
+    def loss(
+        self, 
+        obs, 
+        action, 
+        value, 
+        traj_ret, 
+        advantage, 
+        logpi, 
+        state=None, 
+        mask=None
+    ):
         old_value = value
         terms = {}
         with tf.GradientTape() as tape:
@@ -58,7 +73,7 @@ class PPOLoss(PPOLossImpl):
             entropy=entropy, 
             kl=kl, 
             p_clip_frac=p_clip_frac,
-            ppo_loss=policy_loss,
+            policy_loss=policy_loss,
             actor_loss=actor_loss,
             v_loss=value_loss,
             explained_variance=explained_variance(traj_ret, value),

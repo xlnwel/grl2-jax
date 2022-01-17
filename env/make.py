@@ -1,5 +1,24 @@
 from env import wrappers
-from env.utils import process_single_agent_env
+
+
+def process_single_agent_env(env, config):
+    if config.get('reward_scale') \
+            or config.get('reward_min') \
+            or config.get('reward_max'):
+        env = wrappers.RewardHack(env, **config)
+    frame_stack = config.setdefault('frame_stack', 1)
+    if frame_stack > 1:
+        np_obs = config.setdefault('np_obs', False)
+        env = wrappers.FrameStack(env, frame_stack, np_obs)
+    frame_diff = config.setdefault('frame_diff', False)
+    assert not (frame_diff and frame_stack > 1), f"Don't support using FrameStack and FrameDiff at the same time"
+    if frame_diff:
+        gray_scale_residual = config.setdefault('gray_scale_residual', False)
+        distance = config.setdefault('distance', 1)
+        env = wrappers.FrameDiff(env, gray_scale_residual, distance)
+    env = wrappers.post_wrap(env, config)
+
+    return env
 
 
 def _change_env_name(config):
@@ -116,6 +135,8 @@ def make_overcooked(config):
     config = config.copy()
     config = _change_env_name(config)
     env = Overcooked(config)
+    if config.get('record_state', False):
+        env = wrappers.StateRecorder(env, config['rnn_type'], config['state_size'])
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
     

@@ -21,9 +21,6 @@ parameter_server:
     default_score: 0
     root_dir: *algo
     model_name: *algo
-    start_checkpoint: null
-    # - logs/card_gd/clap
-    # - self_play_frac=0-fsp=True-oracle_value=False/v0
 
 ray_config:
     runner:
@@ -33,7 +30,7 @@ ray_config:
 
 controller:
     MAX_VERSION_ITERATIONS: 100000
-    MAX_TRAINING_ITERATION: 100000
+    MAX_STEPS_PER_ITERATION: 5e8
     initialize_rms: &irms True
 
 monitor:
@@ -100,8 +97,6 @@ model:
             units_list: []
             kernel_initializer: orthogonal
             eval_act_temp: 1
-            attention_action: False
-            embed_dim: 32
             out_gain: .01
 
     value:
@@ -120,6 +115,11 @@ model:
             kernel_initializer: orthogonal
             use_ln: True
         value:
+            nn_id: value
+            units_list: []
+            kernel_initializer: orthogonal
+            activation: relu
+        advantage:
             nn_id: value
             units_list: []
             kernel_initializer: orthogonal

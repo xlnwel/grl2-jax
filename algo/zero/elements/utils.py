@@ -3,9 +3,10 @@ import tensorflow as tf
 
 def get_data_format(config, env_stats, model):
     n_players = len(env_stats.aid2pids[config.aid])
-    basic_shape = (None, config['sample_size'], n_players)
-    shapes = env_stats['obs_shape']
-    dtypes = env_stats['obs_dtype']
+    basic_shape = (None, config['sample_size'], n_players) \
+        if config.get('sample_size') else (None, n_players)
+    shapes = env_stats['obs_shape'][config.aid]
+    dtypes = env_stats['obs_dtype'][config.aid]
     data_format = {k: ((*basic_shape, *v), dtypes[k], k) 
         for k, v in shapes.items()}
 
@@ -15,10 +16,10 @@ def get_data_format(config, env_stats, model):
         traj_ret=(basic_shape, tf.float32, 'traj_ret'),
         advantage=(basic_shape, tf.float32, 'advantage'),
         logpi=(basic_shape, tf.float32, 'logpi'),
-        mask=(basic_shape, tf.float32, 'mask'),
     ))
 
-    if config['store_state']:
+    if config.get('store_state'):
+        data_format['mask'] = (basic_shape, tf.float32, 'mask')
         dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         state_type = type(model.state_size)
         data_format['state'] = state_type(*[((None, sz), dtype, name) 

@@ -34,12 +34,14 @@ class PPOModel(Model):
         self.action = build(self.action, TensorSpecs)
 
     @tf.function
-    def action(self, 
-               obs, 
-               state: Tuple[tf.Tensor]=None,
-               mask: tf.Tensor=None,
-               evaluation=False, 
-               return_eval_stats=False):
+    def action(
+        self, 
+        obs, 
+        state: Tuple[tf.Tensor]=None,
+        mask: tf.Tensor=None,
+        evaluation=False, 
+        return_eval_stats=False
+    ):
         x, state = self.encode(obs, state=state, mask=mask)
         act_dist = self.policy(x, evaluation=evaluation)
         action = self.policy.action(act_dist, evaluation)
@@ -54,10 +56,12 @@ class PPOModel(Model):
             return action, terms, state    # keep the batch dimension for later use
 
     @tf.function
-    def compute_value(self, 
-                      obs, 
-                      state: Tuple[tf.Tensor]=None,
-                      mask: tf.Tensor=None):
+    def compute_value(
+        self, 
+        obs, 
+        state: Tuple[tf.Tensor]=None,
+        mask: tf.Tensor=None
+    ):
         x, state = self.encode(obs, state, mask)
         value = self.value(x)
         return value, state

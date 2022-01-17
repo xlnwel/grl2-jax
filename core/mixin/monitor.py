@@ -194,6 +194,8 @@ class Recorder:
         """
         Write all of the diagnostics from the current iteration.
         """
+        def is_print_keys(key):
+            return key.startswith('metrics/') or '/' not in key
         vals = []
         key_lens = [len(key) for key in self._headers]
         max_key_len = max(15,max(key_lens))
@@ -204,7 +206,7 @@ class Recorder:
             val = self._current_row.get(key, "")
             # print(key, np.array(val).dtype)
             valstr = f"{val:8.3g}" if hasattr(val, "__float__") else val
-            if print_terminal_info:
+            if is_print_keys(key) and print_terminal_info:
                 print(f'| {key:>{max_key_len}s} | {valstr:>15s} |')
             vals.append(val)
         if print_terminal_info:

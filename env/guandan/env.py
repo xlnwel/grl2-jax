@@ -35,6 +35,7 @@ class Env:
         obs = get_obs(self._get_infoset())
         obs['eid'] = self.eid
         if not self.evaluation:
+            self.players_states = deque([np.zeros(128, dtype=np.float32) for _ in range(3)], 3)
             obs['others_h'] = self._get_others_state()
 
         return obs
@@ -52,8 +53,8 @@ class Env:
         if self.game_over():
             done = True
             reward = self._env.compute_reward()
-            info['won'] = reward[0] > 0
-            info['score'] = reward[0]
+            info['score'] = reward > 0
+            info['dense_score'] = reward
             info['game_over'] = True
         obs = get_obs(self._get_infoset())
         obs['eid'] = self.eid

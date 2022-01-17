@@ -44,9 +44,8 @@ def parse_train_args():
                         default='warning',
                         help="the verbose level for python's built-in logging")
     parser.add_argument('--gpu',
-                        type=int,
-                        default=None,
-                        nargs='*')
+                        type=str,
+                        default=None)
     args = parser.parse_args()
 
     return args

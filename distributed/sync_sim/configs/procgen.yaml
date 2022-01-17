@@ -6,7 +6,6 @@ version: 0
 
 precision: 32
 
-training: &training pbt
 n_agents: 1
 
 # model path: root_dir/model_name/name
@@ -17,7 +16,7 @@ model_name: *algo
 
 controller:
     MAX_VERSION_ITERATIONS: 1
-    MAX_TRAINING_ITERATION: 10000
+    MAX_STEPS_PER_ITERATION: 1e8
     initialize_rms: &irms False
 
 parameter_server:
@@ -26,9 +25,6 @@ parameter_server:
     default_score: 0
     root_dir: *algo
     model_name: *algo
-    start_checkpoint: null
-    # - logs/card_gd/clap
-    # - self_play_frac=0-fsp=True-oracle_value=False/v0
 
 ray_config:
     runner:
@@ -69,9 +65,7 @@ strategy:
         value_update: null
 
 model:
-    training: *training
     # rnn_type: &rnn rnn_mlstm
-    oracle_value: True
     # sample_size: &ss 16
 
     encoder: 
@@ -132,7 +126,7 @@ actor:
         gamma: &gamma .99
 
 buffer:
-    type: *training
+    type: ppo
     # dir: data/gd-100000
     use_dataset: False
 

@@ -17,11 +17,27 @@ class PPOTrainer(Trainer):
         self.train = build(self.train, TensorSpecs)
         return True
 
-    def raw_train(self, obs, action, value, traj_ret, 
-            advantage, logpi, state=None, mask=None):
+    def raw_train(
+        self, 
+        obs, 
+        action, 
+        value, 
+        traj_ret, 
+        advantage, 
+        logpi, 
+        state=None, 
+        mask=None
+    ):
         tape, loss, terms = self.loss.loss(
-            obs, action, value, traj_ret, 
-            advantage, logpi, state, mask)
+            obs, 
+            action, 
+            value, 
+            traj_ret, 
+            advantage, 
+            logpi, 
+            state, 
+            mask
+        )
         terms['norm'] = self.optimizer(tape, loss)
 
         return terms

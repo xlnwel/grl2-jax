@@ -31,7 +31,6 @@ class Monitor(RayBase):
         self.n_episodes: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
         self._dir = '/'.join([self.config.root_dir, self.config.model_name])
         self._path = '/'.join([self._dir, 'monitor.pkl'])
-        print('monitor path', self._path)
         self.restore()
 
     def store_train_stats(self, model_stats: ModelStats):
@@ -52,10 +51,13 @@ class Monitor(RayBase):
         if self._to_store[model](time()):
             stats = ray.get(self.parameter_server.get_aux_stats.remote(model))
             self.monitors[model].store(**stats)
-            self.parameter_server.save_active_models.remote(
+            pid = self.parameter_server.save_active_model.remote(
                 model, self.train_steps[model], self.env_steps[model])
-            self.record(model)
             self.save()
+            ray.get(pid)
+            # we ensure that all checkpoint stats are saved to the disk 
+            # before recording running/training stats. 
+            self.record(model)
 
     def build_monitor(self, model_path):
         if model_path not in self.monitors:

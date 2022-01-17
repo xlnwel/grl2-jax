@@ -186,7 +186,7 @@ class Ensemble(tf.Module):
         return ckpt_models
 
     def reset_model_path(self, model_path: ModelPath):
-        self.config = set_path(self.config, model_path, recursive=False)
+        self.config = set_path(self.config, model_path, max_layer=0)
         self._ckpt.reset_model_path(model_path)
 
     def restore(self):

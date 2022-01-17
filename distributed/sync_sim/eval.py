@@ -26,10 +26,11 @@ def main(configs, n, **kwargs):
     n_workers = config.runner.n_workers
     n = n_episodes - n_episodes % n_workers
     for k, v in stats.items():
+        print(k, v[0])
         for aid in range(n_agents):
             v = np.array(v[:n])
             pstd = np.std(np.mean(v.reshape(n_workers, -1), axis=-1)) * np.sqrt(n // n_workers)
-            print(f'{k} averaged over {n_episodes} episodes: mean({np.mean(v):3g}), std({np.std(v):3g}), pstd({pstd:3g})')
+            print(f'Agent{aid}: {k} averaged over {n_episodes} episodes: mean({np.mean(v):3g}), std({np.std(v):3g}), pstd({pstd:3g})')
     
     print(f'Evaluation time: total({duration:3g}), average({duration / n_episodes:3g})')
 

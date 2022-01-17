@@ -32,10 +32,16 @@ def get_env_stats(config):
 
 if __name__ == '__main__':
     import time
+    import numpy as np
+    import collections
+    State = collections.namedtuple('State', 'h c')
     def run(config):
         env = create_env(config)
         start = time.time()
-        env.reset()
+        env.record_default_state(np.zeros(2), State(np.zeros((2, 2)), np.ones((2, 2))))
+        env.record_default_state(np.ones(2), State(np.zeros((2, 2)), np.ones((2, 2))))
+        obs = env.reset()
+        print(obs)
         return time.time() - start
         # st = time.time()
         # for _ in range(10000):
@@ -50,14 +56,12 @@ if __name__ == '__main__':
     import ray
     # performance test
     config = dict(
-        env_name='BipedalWalker-v3',
-        n_workers=1,
-        n_envs=1,
-        use_state_agent=True,
-        use_mustalive=True,
-        add_center_xy=True,
-        timeout_done=True,
-        add_agent_id=False,
-        obs_agent_id=False,
+        env_name='overcooked-asymmetric_advantages',
+        max_episode_steps=400,
+        n_envs=4,
+        dense_reward=True,
+        featurize=False,
+        record_state=True,
+        pid2aid=[0, 1]
     )
-    
+    run(config)

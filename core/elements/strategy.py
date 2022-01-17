@@ -12,15 +12,16 @@ from utility.typing import AttrDict
 
 class Strategy:
     """ Initialization """
-    def __init__(self, 
-                 *, 
-                 name: str,
-                 config: AttrDict,
-                 env_stats: AttrDict,
-                 trainer: Union[Trainer, TrainerEnsemble]=None, 
-                 actor: Actor=None,
-                 train_loop: TrainingLoopBase=None,
-                 ):
+    def __init__(
+        self, 
+        *, 
+        name: str,
+        config: AttrDict,
+        env_stats: AttrDict,
+        trainer: Union[Trainer, TrainerEnsemble]=None, 
+        actor: Actor=None,
+        train_loop: TrainingLoopBase=None,
+    ):
         self._name = name
         self.config = config
         self.env_stats = env_stats
@@ -51,7 +52,7 @@ class Strategy:
             model_path, 
             name=f'{self._name}_step_counter'
         )
-        self.config = set_path(self.config, model_path, recursive=False)
+        self.config = set_path(self.config, model_path, max_layer=0)
         if self.model is not None:
             self.model.reset_model_path(model_path)
         if self.actor is not None:

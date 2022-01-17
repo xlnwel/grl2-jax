@@ -10,12 +10,14 @@ from utility.utils import set_path
 
 
 class Trainer(tf.Module):
-    def __init__(self, 
-                 *,
-                 config: AttrDict,
-                 env_stats: AttrDict,
-                 loss: Loss,
-                 name: str):
+    def __init__(
+        self, 
+        *,
+        config: AttrDict,
+        env_stats: AttrDict,
+        loss: Loss,
+        name: str
+    ):
         self._raw_name = name
         super().__init__(name=f'{name}_trainer')
         self.config = config
@@ -47,6 +49,17 @@ class Trainer(tf.Module):
             return getattr(self._opt_ckpt, name)
         raise AttributeError(f"Attempted to get missing attribute '{name}'")
 
+    def _build_train(self, env_stats):
+        return False
+
+    def raw_train(self):
+        raise NotImplementedError
+
+    def _post_init(self):
+        """ Add some additional attributes and do some post processing here """
+        pass
+
+    """ Weights Access """
     def get_weights(self, identifier=None):
         if identifier is None:
             identifier = self._raw_name
@@ -79,19 +92,9 @@ class Trainer(tf.Module):
             f'{self._raw_name}_opt': self.optimizer, 
         }
 
-    def _build_train(self, env_stats):
-        return False
-
-    def raw_train(self):
-        raise NotImplementedError
-
-    def _post_init(self):
-        """ Add some additional attributes and do some post processing here """
-        pass
-
-    """ Save & Restore Optimizer """
+    """ Checkpoints """
     def reset_model_path(self, model_path: ModelPath):
-        self.config = set_path(self.config, model_path, recursive=False)
+        self.config = set_path(self.config, model_path, max_layer=0)
         self._opt_ckpt.reset_model_path(model_path)
 
     def save_optimizer(self, print_terminal_info=False):
@@ -110,14 +113,16 @@ class Trainer(tf.Module):
 
 
 class TrainerEnsemble(Ensemble):
-    def __init__(self, 
-                 *, 
-                 config: dict, 
-                 env_stats: dict,
-                 loss: LossEnsemble,
-                 constructor=constructor, 
-                 name: str, 
-                 **classes):
+    def __init__(
+        self, 
+        *, 
+        config: dict, 
+        env_stats: dict,
+        loss: LossEnsemble,
+        constructor=constructor, 
+        name: str, 
+        **classes
+    ):
         super().__init__(
             config=config, 
             env_stats=env_stats, 
@@ -140,6 +145,7 @@ class TrainerEnsemble(Ensemble):
     def raw_train(self):
         raise NotImplementedError
 
+    """ Checkpoints """
     def get_weights(self):
         weights = {
             f'model': self.model.get_weights(),

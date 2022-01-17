@@ -7,65 +7,46 @@ from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.monitor import Monitor
 from core.remote.base import RayBase
-from utility.utils import AttrDict2dict
 
 
 class Agent(RayBase):
-    def __init__(self, 
-                 config: dict, 
-                 env_stats: dict, 
-                 parameter_server: ParameterServer=None,
-                 monitor: Monitor=None
-                 ):
+    def __init__(
+        self, 
+        config: dict, 
+        env_stats: dict, 
+        parameter_server: ParameterServer=None,
+        monitor: Monitor=None
+    ):
         super().__init__()
         # config_actor(f"{config['name']}-{config['aid']}", config)
         self.aid = config['aid']
         self.parameter_server = parameter_server
         self.monitor = monitor
 
-        self.builder = ElementsBuilder(
+        self.builder: ElementsBuilder = ElementsBuilder(
             config=config, 
-            env_stats=env_stats, 
-            incremental_version=True,
-            to_save_code=True)
+            env_stats=env_stats
+        )
         self.config = self.builder.config
         elements = self.builder.build_training_strategy_from_scratch(
-            build_monitor=False, save_config=True)
+            build_monitor=False, 
+            save_config=False
+        )
         self.strategy: Strategy = elements.strategy
-        self.strategy.restore()
-        self.strategy.save()
         self.buffer = elements.buffer
 
         self.train_step = None
-
-    """ Version Control """
-    def get_version(self):
-        return self.builder.get_version()
-
-    def increase_version(self):
-        self.builder.increase_version()
-        model_path = self.builder.get_model_path()
-        self.strategy.reset_model_path(model_path)
-        return model_path
-
-    """ Stats Retrieval """
-    def get_config(self):
-        return AttrDict2dict(self.config)
 
     """ Model Management """
     def get_model_path(self):
         return self.strategy.get_model_path()
 
-    def set_model_weights(self, model_weights):
+    def set_model_weights(self, model_weights: ModelWeights):
         self.strategy.reset_model_path(model_weights.model)
-        self.strategy.set_weights(model_weights.weights)
+        if model_weights.weights:
+            self.strategy.set_weights(model_weights.weights)
 
     """ Communications with Parameter Server """
-    def publish_strategy(self, wait=False):
-        ids = self.parameter_server.add_strategy_from_path.remote(
-            self.aid, self.get_model_path(), set_active=True)
-        self._wait(ids, wait)
-
     def publish_weights(self, wait=False):
         model_weights = ModelWeights(
             self.get_model_path(), 
@@ -80,9 +61,11 @@ class Agent(RayBase):
         self._training_thread.start()
 
     def _training(self):
-        self.publish_weights()
         while True:
             stats = self.strategy.train_record()
+            if stats is None:
+                print('Training stopped due to no data being received in time')
+                break
             self.publish_weights()
             self._send_train_stats(stats)
 
@@ -107,9 +90,9 @@ class Agent(RayBase):
     def is_buffer_ready(self):
         return self.buffer.ready()
 
-    """ Checkpoints """
-    def save(self):
-        self.strategy.save()
+    # """ Checkpoints """
+    # def save(self):
+    #     self.strategy.save()
 
     """ Implementations """
     def _wait(self, ids, wait=False):

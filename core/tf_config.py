@@ -1,7 +1,6 @@
 import os
 import logging
-from typing import Dict, Tuple, Type, Union
-from numpy import concatenate
+from typing import Dict, Tuple, Type
 import tensorflow as tf
 from tensorflow.keras import mixed_precision
 

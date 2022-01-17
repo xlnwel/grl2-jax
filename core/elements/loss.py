@@ -9,12 +9,14 @@ class Loss(tf.Module):
     in case one day we need multiple GPUs for training, 
     this class will come in handy.
     """
-    def __init__(self,
-                 *,
-                 config: AttrDict,
-                 model: Model,
-                 use_tf: bool=False,
-                 name: str):
+    def __init__(
+        self,
+        *,
+        config: AttrDict,
+        model: Model,
+        use_tf: bool=False,
+        name: str
+    ):
         super().__init__(name=f'{name}_loss')
         self.config = config
 
@@ -28,13 +30,15 @@ class Loss(tf.Module):
 
 
 class LossEnsemble(Ensemble):
-    def __init__(self, 
-                 *, 
-                 config, 
-                 model: ModelEnsemble,
-                 constructor, 
-                 name, 
-                 **classes):
+    def __init__(
+        self, 
+        *, 
+        config, 
+        model: ModelEnsemble,
+        constructor, 
+        name, 
+        **classes
+    ):
         super().__init__(
             config=config,
             constructor=constructor,

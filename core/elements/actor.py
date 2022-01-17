@@ -36,8 +36,10 @@ class Actor:
 
     def reset_model_path(self, model_path: ModelPath):
         self._model_path = model_path
-        self.config = set_path(self.config, model_path, recursive=False)
+        self.config = set_path(self.config, model_path, max_layer=0)
         self.setup_checkpoint()
+        if self.rms is not None:
+            self.rms.reset_path(model_path)
 
     def __getattr__(self, name):
         # Do not expose the interface of independent elements here. 

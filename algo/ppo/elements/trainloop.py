@@ -22,6 +22,8 @@ class PPOTrainingLoop(TrainingLoopBase):
             for j in range(1, self.N_MBS+1):
                 with self._sample_timer:
                     data = self._sample_data()
+                if data is None:
+                    return 0, None
 
                 data = numpy2tensor(data)
 

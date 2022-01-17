@@ -7,11 +7,12 @@ from algo.ppo.elements.loss import PPOLossImpl
 
 
 class MAPPOPolicyLoss(Loss):
-    def loss(self, obs, action, advantage, logpi, state=None, 
+    def loss(self, obs, goal, action, advantage, logpi, state=None, 
             action_mask=None, life_mask=None, mask=None):
         with tf.GradientTape() as tape:
-            x_actor, _ = self.model.encode(obs, state, mask)
-            act_dist = self.policy(x_actor, action_mask)
+            x, _ = self.model.encode(obs, state, mask)
+            goal = self.model.goal_encoder(goal)
+            act_dist = self.policy(x, goal, action_mask)
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             log_ratio = new_logpi - logpi
@@ -41,8 +42,8 @@ class MAPPOValueLoss(PPOLossImpl):
             state=None, life_mask=None, mask=None):
         old_value = value
         with tf.GradientTape() as tape:
-            x_value, _ = self.model.encode(global_state, state, mask)
-            value = self.value(x_value)
+            x, _ = self.model.encode(global_state, state, mask)
+            value = self.value(x)
 
             loss, clip_frac = self._compute_value_loss(
                 value, traj_ret, old_value,

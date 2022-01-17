@@ -3,7 +3,6 @@ import numpy as np
 import ray
 from ray.util.queue import Queue
 
-from .agent import Agent
 from .parameter_server import ParameterServer
 from .runner import MultiAgentSimRunner
 from core.monitor import Monitor
@@ -13,32 +12,32 @@ from utility.utils import AttrDict2dict, batch_dicts
 
 
 class RunnerManager:
-    def __init__(self, 
-                 config: AttrDict, 
-                 ray_config: AttrDict={}, 
-                 remote_agents: List[Agent]=None, 
-                 param_queues: List[List[Queue]]=None,
-                 parameter_server: ParameterServer=None,
-                 monitor: Monitor=None
-                 ):
+    def __init__(
+        self, 
+        config: AttrDict, 
+        ray_config: AttrDict={}, 
+        param_queues: List[List[Queue]]=None,
+        parameter_server: ParameterServer=None,
+        monitor: Monitor=None
+    ):
         self.config = config
-        self.remote_agents = remote_agents
         self.param_queues = param_queues
         self.parameter_server = parameter_server
         self.monitor = monitor
         self.RemoteRunner = MultiAgentSimRunner.as_remote(**ray_config)
 
     """ Runner Management """
-    def build_runners(self, 
-                      configs: List[dict], 
-                      store_data: bool=True,
-                      evaluation: bool=False):
+    def build_runners(
+        self, 
+        configs: List[dict], 
+        store_data: bool=True,
+        evaluation: bool=False
+    ):
         self.runners: List[MultiAgentSimRunner] = [
             self.RemoteRunner.remote(
                 [AttrDict2dict(config) for config in configs], 
                 store_data=store_data, 
                 evaluation=evaluation, 
-                remote_agents=self.remote_agents, 
                 param_queues=[pqs[i] for pqs in self.param_queues] if self.param_queues else None, 
                 parameter_server=self.parameter_server,
                 monitor=self.monitor) 
@@ -50,8 +49,8 @@ class RunnerManager:
 
     def run(self, wait=True):
         ids = [r.run.remote() for r in self.runners]
-        self._wait(ids, wait=wait)
-        
+        return self._wait(ids, wait=wait)
+
     def evaluate(self, total_episodes):
         """ Evaluation is problematic if self.runner.run does not end in a pass """
         n_eps = 0
@@ -78,6 +77,15 @@ class RunnerManager:
         pid = ray.put(model_paths)
         ids = [r.set_active_model_paths.remote(pid) for r in self.runners]
         self._wait(ids, wait=wait)
+
+    def set_current_model_paths(self, model_paths: List[ModelPath], wait=False):
+        pid = ray.put(model_paths)
+        ids = [r.set_current_model_paths.remote(pid) for r in self.runners]
+        self._wait(ids, wait=wait)
+
+    def register_handler(self, wait=True, **kwargs):
+        ids = [r.register_handler.remote(**kwargs) for r in self.runners]
+        return self._wait(ids, wait=wait)
 
     """ Implementations """
     def _wait(self, ids, wait=False):

@@ -3,6 +3,7 @@ import logging
 import collections
 import numpy as np
 
+from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from utility.utils import config_attr, dict2AttrDict, moments, standardize
@@ -75,11 +76,13 @@ def get_sample(memory, idxes, sample_keys, state_keys, state_type=None):
     return sample
 
 
-class LocalBuffer:
-    def __init__(self, 
-                 config: dict2AttrDict, 
-                 model: Model,
-                 n_players: int):
+class LocalBuffer(Buffer):
+    def __init__(
+        self, 
+        config: dict2AttrDict, 
+        model: Model,
+        n_players: int
+    ):
         self.config = config
 
         self._state_keys = model.state_keys
@@ -158,10 +161,12 @@ class LocalBuffer:
         return episode, epslen
 
 
-class PPOBuffer:
-    def __init__(self, 
-                 config: dict, 
-                 model: Model):
+class PPOBuffer(Buffer):
+    def __init__(
+        self, 
+        config: dict, 
+        model: Model
+    ):
         self.config = config_attr(self, config)
         self._add_attributes(model)
 
@@ -191,6 +196,8 @@ class PPOBuffer:
         self._sleep_time = 0.025
         self._sample_wait_time = 0
         self._epoch_idx = 0
+        self._first_sample = True
+        self.MAX_WAIT_TIME = self.config.get('MAX_WAIT_TIME', 60)
 
     @property
     def batch_size(self):
@@ -315,7 +322,9 @@ class PPOBuffer:
 
     """ Sampling """
     def sample(self, sample_keys=None):
-        self._wait_to_sample()
+        ready = self._wait_to_sample()
+        if not ready:
+            return None
         self._shuffle_indices()
         sample = self._sample(sample_keys)
         self._post_process_for_dataset()
@@ -323,11 +332,13 @@ class PPOBuffer:
 
     """ Implementations """
     def _wait_to_sample(self):
-        while not self._ready:
+        while not self._ready and (
+                self._first_sample or self._sample_wait_time < self.MAX_WAIT_TIME):
             time.sleep(self._sleep_time)
             self._sample_wait_time += self._sleep_time
-        # print(f'PPOBuffer starts sampling: waiting time: {self._sample_wait_time}')
+        # print(f'PPOBuffer starts sampling: waiting time: {self._sample_wait_time}', self._ready)
         self._sample_wait_time = 0
+        return self._ready
 
     def _shuffle_indices(self):
         if self.N_MBS > 1 and self._mb_idx == 0:

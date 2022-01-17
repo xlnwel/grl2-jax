@@ -1,27 +1,18 @@
-from env import wrappers
 from env.typing import EnvOutput
 from utility.utils import convert_batch_with_func
 
 
-def process_single_agent_env(env, config):
-    if config.get('reward_scale') \
-            or config.get('reward_min') \
-            or config.get('reward_max'):
-        env = wrappers.RewardHack(env, **config)
-    frame_stack = config.setdefault('frame_stack', 1)
-    if frame_stack > 1:
-        np_obs = config.setdefault('np_obs', False)
-        env = wrappers.FrameStack(env, frame_stack, np_obs)
-    frame_diff = config.setdefault('frame_diff', False)
-    assert not (frame_diff and frame_stack > 1), f"Don't support using FrameStack and FrameDiff at the same time"
-    if frame_diff:
-        gray_scale_residual = config.setdefault('gray_scale_residual', False)
-        distance = config.setdefault('distance', 1)
-        env = wrappers.FrameDiff(env, gray_scale_residual, distance)
-    env = wrappers.post_wrap(env, config)
-
-    return env
-
-
 def batch_env_output(out):
     return EnvOutput(*[convert_batch_with_func(o) for o in zip(*out)])
+
+
+def compute_aid2pids(pid2aid):
+    aid2pids = []
+    for pid, aid in enumerate(pid2aid):
+        if aid > len(aid2pids):
+            raise ValueError(f'pid2aid({pid2aid}) is not sorted in order')
+        if aid == len(aid2pids):
+            aid2pids.append((pid, ))
+        else:
+            aid2pids[aid] += (pid,)
+    return aid2pids

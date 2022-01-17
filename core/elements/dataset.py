@@ -20,12 +20,14 @@ def _transform_data(data_format):
 
 
 class Dataset:
-    def __init__(self, 
-                 buffer, 
-                 data_format: dict, 
-                 process_fn=None, 
-                 batch_size=False, 
-                 **kwargs):
+    def __init__(
+        self, 
+        buffer, 
+        data_format: dict, 
+        process_fn=None, 
+        batch_size=False, 
+        **kwargs
+    ):
         """ Create a tf.data.Dataset for data retrieval
         
         Args:

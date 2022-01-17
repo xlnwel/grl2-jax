@@ -7,12 +7,15 @@ from utility.typing import AttrDict
 
 class Agent:
     """ Initialization """
-    def __init__(self, 
-                 *, 
-                 config: AttrDict,
-                 strategy: Strategy=None,
-                 monitor: Monitor=None,
-                 name: str=None):
+    def __init__(
+        self, 
+        *, 
+        config: AttrDict,
+        strategy: Strategy=None,
+        monitor: Monitor=None,
+        name: str=None,
+        to_restore=True
+    ):
         self.config = config
         self._name = name
         self._model_path = ModelPath(config.root_dir, config.model_name)
@@ -20,7 +23,8 @@ class Agent:
         self.strategy = strategy
         self.monitor = monitor
 
-        self.restore()
+        if to_restore:
+            self.restore()
 
     @property
     def name(self):

@@ -5,11 +5,13 @@ from utility.utils import config_attr
 
 
 class TrainingLoopBase:
-    def __init__(self, 
-                 config: AttrDict, 
-                 dataset, 
-                 trainer: Trainer, 
-                 **kwargs):
+    def __init__(
+        self, 
+        config: AttrDict, 
+        dataset, 
+        trainer: Trainer, 
+        **kwargs
+    ):
         self.config = config_attr(self, config, filter_dict=True)
         self.dataset = dataset
         self.trainer = trainer

@@ -61,10 +61,6 @@ class Env(gym.Wrapper):
 
     def game_over(self):
         return self.env.game_over()
-    
-    def close(self):
-        if hasattr(self.env, 'close'):
-            self.env.close()
 
     def get_screen(self, size=None):
         if hasattr(self.env, 'get_screen'):
@@ -77,6 +73,13 @@ class Env(gym.Wrapper):
             img = cv2.resize(img, size[::-1], interpolation=cv2.INTER_AREA)
             
         return img
+
+    def record_default_state(self, aid, state):
+        self.env.record_default_state(aid, state)
+
+    def close(self):
+        if hasattr(self.env, 'close'):
+            self.env.close()
 
 
 class VecEnvBase(gym.Wrapper):
@@ -188,6 +191,12 @@ class VecEnv(VecEnvBase):
             imgs = np.stack(imgs)
 
         return imgs
+
+    def record_default_state(self, aids, states):
+        state_type = type(states)
+        states = [state_type(*s) for s in zip(*states)]
+        for e, a, s in zip(self.envs, aids, states):
+            e.record_default_state(a, s)
 
     def _envvec_op(self, name, convert_batch=True, **kwargs):
         method = lambda e: getattr(e, name)

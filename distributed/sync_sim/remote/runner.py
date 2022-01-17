@@ -15,25 +15,24 @@ from core.typing import ModelPath
 from env.func import create_env
 from env.typing import EnvOutput
 from utility.timer import Timer
-from utility.typing import AttrDict
 from utility.utils import dict2AttrDict
 
 
 class MultiAgentSimRunner(RayBase):
-    def __init__(self, 
-                 configs: List[dict], 
-                 store_data: bool, 
-                 evaluation: bool, 
-                 remote_agents: List[Agent]=None, 
-                 param_queues: List[Queue]=None, 
-                 parameter_server: ParameterServer=None,
-                 monitor: Monitor=None
-                 ):
+    def __init__(
+        self, 
+        configs: List[dict], 
+        store_data: bool, 
+        evaluation: bool, 
+        param_queues: List[Queue]=None, 
+        parameter_server: ParameterServer=None,
+        monitor: Monitor=None
+    ):
         super().__init__()
 
         self._store_data = store_data
         self._evaluation = evaluation
-        self.remote_agents = remote_agents
+        self.remote_agents: List[Agent] = []
         self.param_queues = param_queues
         self.parameter_server = parameter_server
         self.monitor = monitor
@@ -44,35 +43,31 @@ class MultiAgentSimRunner(RayBase):
         self.n_agents = self.env_stats.n_agents
         self.n_players = self.env_stats.n_players
         self.pid2aid = self.env_stats.pid2aid
+        self.aid2pids = self.env_stats.aid2pids
+        self.n_players_per_agent = [len(pids) for pids in self.aid2pids]
+
         self.env_output = self.env.output()
 
-        if remote_agents is not None:
-            assert self.n_agents == len(remote_agents), (self.n_agents, len(remote_agents))
         if param_queues is not None:
             assert self.n_agents == len(param_queues), (self.n_agents, len(param_queues))
 
-        self.n_players_per_agent = [0 for _ in range(self.n_agents)]
-        for aid in self.pid2aid:
-            self.n_players_per_agent[aid] += 1
-        for i in range(1, len(self.pid2aid)):
-            assert self.pid2aid[i] == self.pid2aid[i-1] \
-                or self.pid2aid[i] == self.pid2aid[i-1] + 1, \
-                    (self.pid2aid[i], self.pid2aid[i-1])
-
-        self.builder = ElementsBuilder(configs[0], self.env_stats)
+        self.builder = ElementsBuilder(
+            configs[0], 
+            self.env_stats
+        )
 
         self._push_every_episode = configs[0]['runner']['push_every_episode']
         
         self.build_from_configs(configs)
 
-    def build_from_configs(self, configs):
+    def build_from_configs(self, configs: List[dict]):
         assert len(configs) == self.n_agents, (len(configs), self.n_agents)
         configs = [dict2AttrDict(config) for config in configs]
         config = configs[0]
         self.config = config.runner
 
-        self.agents = []
-        self.is_agent_active = [True for _ in configs]
+        self.agents: List[Agent] = []
+        self.is_agent_active: List[bool] = [True for _ in configs]
         self.active_models: Set[ModelPath] = set()
         self.current_models: List[ModelPath] = []
         self.buffers = []
@@ -81,7 +76,11 @@ class MultiAgentSimRunner(RayBase):
         for aid, config in enumerate(configs):
             config.buffer.type = 'local'
             elements = self.builder.build_acting_agent_from_scratch(
-                config, build_monitor=True, to_build_for_eval=self._evaluation)
+                config, 
+                build_monitor=True, 
+                to_build_for_eval=self._evaluation, 
+                to_restore=False
+            )
             self.agents.append(elements.agent)
             
             model_path = ModelPath(config.root_dir, config.model_name)
@@ -167,8 +166,11 @@ class MultiAgentSimRunner(RayBase):
         return step, n_episodes, video, rewards, stats
 
     """ Running Setups """
-    def set_active_model_paths(self, model_paths):
+    def set_active_model_paths(self, model_paths: List[ModelPath]):
         self.active_models = set(model_paths)
+
+    def set_current_model_paths(self, model_paths: List[ModelPath]):
+        self.current_models = model_paths
 
     """ Implementations """
     def _reset_local_buffers(self):
@@ -228,6 +230,15 @@ class MultiAgentSimRunner(RayBase):
                         len(agent_terms), len(next_agent_env_outs),
                         len(self.buffers)
                     )
+                if self.config.get('partner_action'):
+                    agent_logits = [t.pop('logits') for t in agent_terms]
+                    agent_pactions = []
+                    agent_plogits = []
+                    for aid in range(self.n_agents):
+                        pactions = [a for i, a in enumerate(agent_actions) if i != aid]
+                        agent_pactions.append(np.concatenate(pactions, 1))
+                        plogits = [a for i, a in enumerate(agent_logits) if i != aid]
+                        agent_plogits.append(np.concatenate(plogits, 1))
                 for aid, (agent, env_out, next_env_out, buffer) in enumerate(
                         zip(self.agents, agent_env_outs, next_agent_env_outs, self.buffers)):
                     if self.is_agent_active[aid]:
@@ -242,6 +253,9 @@ class MultiAgentSimRunner(RayBase):
                             'reward': agent.actor.normalize_reward(next_env_out.reward),
                             'discount': next_env_out.discount,
                         }
+                        if self.config.get('partner_action'):
+                            stats['plogits'] = agent_plogits[aid]
+                            stats['paction'] = agent_pactions[aid]
                         stats.update(agent_terms[aid])
                         buffer.add(stats)
 
@@ -271,6 +285,7 @@ class MultiAgentSimRunner(RayBase):
                 **{f'time/{t.name}': t.total() for t in [it, et, st, dt, lt]}, 
                 **{f'time/{t.name}_mean': t.average() for t in [it, et, st, dt, lt]}
             )
+
         if self._store_data and not self._push_every_episode:
             for aid, (term, buffer) in enumerate(zip(terms, self.buffers)):
                 data, n = buffer.retrieve_all_data(term['value'])
@@ -424,5 +439,7 @@ class MultiAgentSimRunner(RayBase):
         stats = self.agents[aid].get_raw_stats()
         stats['env_step'] = env_step
         stats['n_episodes'] = n_episodes
-        model_stats = ModelStats(self.current_models[aid], stats)
+        model = self.current_models[aid]
+        assert model in self.active_models, (model, self.active_models)
+        model_stats = ModelStats(model, stats)
         self.monitor.store_run_stats.remote(model_stats)
