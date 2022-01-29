@@ -52,6 +52,9 @@ class PPolicy(Module):
     def action(self, dist, evaluation):
         return dist.mode() if evaluation and self.eval_act_temp == 0 \
             else dist.sample()
+    
+    def results(self):
+        return self._layers.results()
 
 
 @nn_registry.register('policy')

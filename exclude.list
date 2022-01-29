@@ -3,5 +3,4 @@ logs*
 outs*
 *.pyc
 nohup*
-*data*
 *__pycache__*

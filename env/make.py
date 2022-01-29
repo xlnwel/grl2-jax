@@ -115,7 +115,7 @@ def make_card(config):
 def make_smac(config):
     from env.smac import SMAC
     config = config.copy()
-    config['env_name'] = config['env_name'].split('_', maxsplit=1)[1]
+    config = _change_env_name(config)
     env = SMAC(**config)
     env = wrappers.MASimEnvStats(env)
     return env
@@ -140,4 +140,12 @@ def make_overcooked(config):
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
     
+    return env
+
+def make_unity(config):
+    from env.unity import Unity
+    config = config.copy()
+    config = _change_env_name(config)
+    env = Unity(config)
+    env = wrappers.UnityEnvStats(env)
     return env

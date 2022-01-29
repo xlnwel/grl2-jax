@@ -320,8 +320,8 @@ def infer_dtype(dtype, precision=None):
         dtype = {16: np.int16, 32: np.int32, 64: np.int64}[precision]
     elif np.issubdtype(dtype, np.uint8):
         dtype = np.uint8
-    elif dtype == np.bool:
-        dtype = np.bool
+    elif dtype == bool:
+        dtype = bool
     else:
         dtype = None
     return dtype

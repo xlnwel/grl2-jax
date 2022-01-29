@@ -24,6 +24,7 @@ class ParameterServer(RayBase):
     def __init__(
         self, 
         configs: dict, 
+        env_stats: dict,
         param_queues: List[List[Queue]],
         name='parameter_server'
     ):
@@ -41,7 +42,7 @@ class ParameterServer(RayBase):
             path = f'{config["root_dir"]}/{config["model_name"]}'
             assert path.rsplit('/')[-1] == f'a{aid}', path
             os.makedirs(path, exist_ok=True)
-            builder = ElementsBuilderVC(config, to_save_code=False)
+            builder = ElementsBuilderVC(config, env_stats, to_save_code=False)
             self.builders.append(builder)
         self._ps_dir = path.rsplit('/', 1)[0]
         os.makedirs(self._ps_dir, exist_ok=True)
@@ -55,38 +56,13 @@ class ParameterServer(RayBase):
         self._active_model_paths = [None for _ in configs]
         self._train_from_scratch_frac = self.config.get('train_from_scratch_frac', 1)
 
-        self.restore()
 
-    # def search_for_strategies(self, strategy_dir):
-    #     pwc(f'Parameter server: searching for strategies in directory({strategy_dir})', color='cyan')
-    #     configs = search_for_all_configs(strategy_dir)
-    #     for c in configs:
-    #         self.add_strategy_from_config(c)
+        self.restore()
 
     def get_configs(self):
         return self.configs
 
-    # """ Adding Strategies """
-    # def add_strategy_from_config(self, config: AttrDict, set_active=False):
-    #     assert not config.model_name.startswith('/'), config.model_name
-    #     aid = get_aid(config.model_name)
-    #     model_path = ModelPath(config.root_dir, config.model_name)
-    #     if set_active:
-    #         self._active_model_paths[aid] = model_path
-    #     if model_path not in self._params[aid]:
-    #         self._params[aid][model_path] = {}
-    #         self.save()
-    #     print(f'Strategies for Agent({aid}) in the pool:', list(self._params[aid]))
-
-    # def add_strategy_from_path(self, aid, model_path: ModelPath, set_active=False):
-    #     if model_path not in self._params[aid]:
-    #         path = '/'.join(model_path)
-    #         config = search_for_config(path)
-    #         self.add_strategy_from_config(config, set_active=set_active)
-    #     if set_active:
-    #         self._active_model_paths[aid] = model_path
-
-    """ Strategy Updates """
+    """ Strategy Management """
     def update_strategy_weights(self, aid, model_weights: ModelWeights):
         assert self._active_model_paths[aid] == model_weights.model, \
             (self._active_model_paths, model_weights.model)
@@ -114,25 +90,9 @@ class ParameterServer(RayBase):
         else:
             self._params[aid][model_weights.model]['aux'] = model_weights.weights['aux']
 
-    """ Strategy Sampling """
-    # def sample_strategy_path(self, aid, model_path: ModelPath):
-    #     aid2 = get_aid(model_path.model_name)
-    #     assert aid == aid2, (aid, aid2)
-    #     scores = self.get_scores(model_path.model_name)
-    #     weights = self.get_weights_vector(scores)
-
-    #     return random.choices(
-    #         [k for k in self._params[aid] if k != model_path], weights=weights)[0]
-
-    # def sample_rollout_strategy(self, aid, model_path: ModelPath):
-    #     path = self.sample_strategy_path(aid, model_path)
-    #     weights = self._params[aid][path]
-    #     weights = {name: weights[name] for name in ['model', 'aux']}
-
-    #     return path, ModelWeights(path, weights)
-
-    def sample_training_strategy(self):
+    def sample_training_strategies(self):
         strategies = []
+        is_raw_strategy = [False for _ in range(self.n_agents)]
         if any([am is not None for am in self._active_model_paths]):
             for aid, path in enumerate(self._active_model_paths):
                 weights = self._params[aid][path].copy()
@@ -146,19 +106,20 @@ class ParameterServer(RayBase):
                     path = self.builders[aid].get_model_path()
                     self._params[aid][path] = {}
                     weights = None
+                    is_raw_strategy[aid] = True
                 else:
                     path = random.choice(list(self._params[aid]))
                     weights = self._params[aid][path].copy()
                     weights.pop('aux')
                     config = search_for_config(path)
                     path, config = self.builders[aid].get_sub_version(config)
-                    print('sample_training_strategy: version', path, config.version)
+                    print('sample_training_strategies: version', path, config.version)
                 self._active_model_paths[aid] = path
                 strategies.append(ModelWeights(path, weights))
             self.save()
-        return strategies
 
-    """ Strategy """
+        return strategies, is_raw_strategy
+
     def archive_training_strategies(self):
         for model_path in self._active_model_paths:
             self.save_params(model_path)

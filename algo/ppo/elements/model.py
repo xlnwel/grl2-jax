@@ -47,7 +47,8 @@ class PPOModel(Model):
         action = self.policy.action(act_dist, evaluation)
 
         if evaluation:
-            return action, {}, state
+            value = self.value(x)
+            return action, {'value': value}, state
         else:
             logpi = act_dist.log_prob(action)
             value = self.value(x)

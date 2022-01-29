@@ -127,9 +127,11 @@ class Every:
     def __init__(self, period, start=0):
         self._period = period
         self._next = start
+        self._diff = 0
     
     def __call__(self, step):
         if step >= self._next:
+            self._diff = step - self._next
             while step >= self._next:
                 self._next += self._period
             return True
@@ -137,3 +139,7 @@ class Every:
 
     def step(self):
         return self._next - self._period
+
+    def difference(self):
+        """ Compute the most recent update difference """
+        return self._diff

@@ -1,3 +1,4 @@
+from distributed.sync_sim.eval import *
 import time
 import numpy as np
 import ray
@@ -13,6 +14,7 @@ def main(configs, n, **kwargs):
     runner = RunnerManager(configs[0].runner)
     runner.build_runners(configs, store_data=False, evaluation=True)
     
+    runner.set_weights_from_configs(configs, wait=True)
     start = time.time()
     stats, n_episodes, video, rewards = runner.evaluate(n)
     duration = time.time() - start

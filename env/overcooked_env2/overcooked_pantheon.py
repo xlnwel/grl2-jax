@@ -17,18 +17,18 @@ class MultiAgentEnv(gym.Env, ABC):
     Base class for all Multi-agent environments.
 
     :param ego_ind: The player that the ego represents
-    :param n_players: The number of players in the game
+    :param n_units: The number of players in the game
     :param partners: Lists of agents to choose from for the partner players
     """
 
     def __init__(self,
                  ego_ind: int = 0,
-                 n_players: int = 2,
+                 n_units: int = 2,
                  partners: Optional[List[List]] = None):
         self.ego_ind = ego_ind
-        self.n_players = n_players
+        self.n_units = n_units
         if partners is not None:
-            if len(partners) != n_players - 1:
+            if len(partners) != n_units - 1:
                 raise PlayerException(
                     "The number of partners needs to equal the number \
                     of non-ego players")
@@ -38,15 +38,15 @@ class MultiAgentEnv(gym.Env, ABC):
                     raise PlayerException(
                         "Sublist for each partner must be nonempty list")
 
-        self.partners = partners or [[]] * (n_players - 1)
-        self.partnerids = [0] * (n_players - 1)
+        self.partners = partners or [[]] * (n_units - 1)
+        self.partnerids = [0] * (n_units - 1)
 
         self._players: Tuple[int, ...] = tuple()
         self._obs: Tuple[Optional[np.ndarray], ...] = tuple()
         self._old_ego_obs: Optional[np.ndarray] = None
 
-        self.should_update = [False] * (self.n_players - 1)
-        self.total_rews = [0] * (self.n_players)
+        self.should_update = [False] * (self.n_units - 1)
+        self.total_rews = [0] * (self.n_units)
         self.ego_moved = False
 
     def getDummyEnv(self, player_num: int):
@@ -108,12 +108,12 @@ class MultiAgentEnv(gym.Env, ABC):
         return np.array(actions)
 
     def _update_players(self, rews, done):
-        for i in range(self.n_players - 1):
+        for i in range(self.n_units - 1):
             nextrew = rews[i + (0 if i < self.ego_ind else 1)]
             if self.should_update[i]:
                 self.partners[i][self.partnerids[i]].update(nextrew, done)
 
-        for i in range(self.n_players):
+        for i in range(self.n_units):
             self.total_rews[i] += rews[i]
 
     def step(self, action: np.ndarray) -> Tuple[Optional[np.ndarray], float, bool, Dict]:
@@ -167,8 +167,8 @@ class MultiAgentEnv(gym.Env, ABC):
         """
         self.resample_partner()
         self._players, self._obs = self.n_reset()
-        self.should_update = [False] * (self.n_players - 1)
-        self.total_rews = [0] * self.n_players
+        self.should_update = [False] * (self.n_units - 1)
+        self.total_rews = [0] * self.n_units
         self.ego_moved = False
 
         while self.ego_ind not in self._players:
@@ -240,7 +240,7 @@ class SimultaneousEnv(MultiAgentEnv, ABC):
     def __init__(self, partners: Optional[List] = None):
         partners = [partners] if partners else None
         super(SimultaneousEnv, self).__init__(
-            ego_ind=0, n_players=2, partners=partners)
+            ego_ind=0, n_units=2, partners=partners)
 
     def n_step(self, actions: List[np.ndarray]) -> Tuple[Tuple[int, ...],
                            Tuple[Optional[np.ndarray], ...],

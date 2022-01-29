@@ -17,8 +17,8 @@ class MAPPOModel(Model):
             self.config.encoder.time_distributed = 'rnn' in self.config
 
     def _build(self, env_stats, evaluation=False):
-        n_players = len(env_stats.aid2pids[self.config.aid])
-        basic_shape = (None, n_players)
+        n_units = len(env_stats.aid2uids[self.config.aid])
+        basic_shape = (None, n_units)
         dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         shapes = env_stats['obs_shape'][self.config.aid]
         dtypes = env_stats['obs_dtype'][self.config.aid]

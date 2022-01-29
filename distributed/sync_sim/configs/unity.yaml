@@ -1,0 +1,203 @@
+---
+# NOTE: root_dir and model_name will be specified to all configs in run.train.py
+algorithm: &algo hm
+name: hm
+version: 0
+
+precision: 32
+
+n_agents: 2
+
+# model path: root_dir/model_name/name
+# tensorboard path: root_dir/model_name/logs
+# the following names are just examples; they will be re-specified in the entry point
+root_dir: *algo
+model_name: *algo
+
+controller:
+    MAX_VERSION_ITERATIONS: 1
+    MAX_STEPS_PER_ITERATION: 3e8
+    initialize_rms: &irms True
+
+parameter_server:
+    fsp: False
+    p: 3    # the exponent applied to convert scores to weights
+    default_score: 0
+    root_dir: *algo
+    model_name: *algo
+
+ray_config:
+    runner:
+        num_cpus: 1
+    agent:
+        num_gpus: 1
+
+monitor:
+    store_period: 180
+
+runner:
+    n_workers: &nworkers 20
+    N_STEPS: &nsteps 400
+    record_self_play_stats: False
+    push_every_episode: False
+
+env:
+    env_name: &env_name unity-combat2d
+    max_episode_steps: 400
+    unity_config:
+        worker_id: 0
+        file_name: 'env/unity_env/combat2d/combat2d.x86_64'
+    n_envs: &nenvs 1    # This should be consistent with the Unity environemnt copies
+    uid2aid: [0, 1, 1, 1, 1]
+
+agent: {}
+
+strategy:
+    train_loop:
+        N_EPOCHS: &nepochs 5
+        N_MBS: &nmbs 1
+        N_AUX_EPOCHS: &naepochs 9
+        N_PI: &npi 16
+        N_SEGS: &nsegs 16
+        N_AUX_MBS_PER_SEG: &nambs 2
+        max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
+
+        # (once reuse null)
+        # "once" updates values at the end of each epoch
+        # "reuse" updates values using value from train which is staler than once
+        # null doesn't update values.
+        value_update: null
+
+model:
+    rnn_type: &rnn rnn_mlstm
+    sample_size: &ss 10
+
+    policy:
+        encoder: 
+            nn_id: mlp
+            units_list: [64, 64, 64]
+            kernel_initializer: orthogonal
+            activation: relu
+            norm: layer
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+        rnn:
+            nn_id: *rnn
+            units: 64
+            kernel_initializer: orthogonal
+            use_ln: True
+        policy:
+            nn_id: policy
+            units_list: []
+            kernel_initializer: orthogonal
+            eval_act_temp: 1
+            out_gain: .01
+
+    value:
+        encoder:
+            nn_id: mlp
+            units_list: [64, 64, 64]
+            kernel_initializer: orthogonal
+            activation: relu
+            norm: layer
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+        rnn:
+            nn_id: *rnn
+            units: 64
+            kernel_initializer: orthogonal
+            use_ln: True
+        value:
+            nn_id: value
+            units_list: []
+            kernel_initializer: orthogonal
+            activation: relu
+        advantage:
+            nn_id: value
+            units_list: []
+            kernel_initializer: orthogonal
+            activation: relu
+
+loss:
+    policy:
+        clip_range: .2
+        entropy_coef: .01
+        life_mask: True
+    value:
+        value_loss: clip
+        clip_range: .2
+        value_coef: 1
+        life_mask: False
+
+trainer:
+    algorithm: *algo
+
+    sample_size: *ss         # BPTT length
+    store_state: True
+    policy:
+        optimizer:
+            name: adam
+            schedule_lr: False
+            lr: 5e-4
+            clip_norm: 10
+            epsilon: 1.e-5
+            weight_decay: 0
+    value:
+        optimizer:
+            name: adam
+            schedule_lr: False
+            lr: 5e-4
+            clip_norm: 10
+            epsilon: 1.e-5
+actor:
+    algorithm: *algo
+
+    rms:
+        obs_names: [obs, global_state]
+        normalize_obs: *irms
+        normalize_reward: True
+        obs_normalized_axis: [0, 1]
+        reward_normalized_axis: [0, 1]
+        gamma: &gamma .99
+
+buffer:
+    type: ppo
+    use_dataset: False
+
+    # PPO configs
+    adv_type: gae     # nae or gae
+    gamma: *gamma
+    lam: .95
+    n_workers: *nworkers
+    n_envs: *nenvs
+    # batch_size: *bs
+    N_STEPS: *nsteps
+    N_EPOCHS: *nepochs
+    N_MBS: *nmbs        # number of minibatches
+    sample_size: *ss
+    norm_adv: minibatch
+
+    # PPG configs
+    N_PI: *npi
+    N_SEGS: *nsegs
+    N_AUX_MBS_PER_SEG: *nambs
+    N_AUX_EPOCHS: *naepochs
+
+    # mini-batch size = n_workers * n_envs * epslen / n_mbs
+    sample_keys:
+        - obs
+        - global_state
+        - action_mask
+        - life_mask
+        - action
+        - value
+        - traj_ret
+        - advantage
+        - logpi
+        - mask
+        - actor_h
+        - actor_c
+        - value_h
+        - value_c

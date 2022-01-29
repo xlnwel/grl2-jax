@@ -115,11 +115,11 @@ class MAPPOBuffer:
 
         if i in self._invalid_episodes:
             raise ValueError(f'Adding data to invalid episodes({i}). Current invalid episodes: {self._invalid_episodes}')
-        n_players = next(iter(data.values())).shape[0]
-        self._buffer_size[i] += n_players
-        self._n_transitions += n_players
+        n_units = next(iter(data.values())).shape[0]
+        self._buffer_size[i] += n_units
+        self._n_transitions += n_units
         for k, v in data.items():
-            assert v.shape[0] == n_players, (k, v.shape)
+            assert v.shape[0] == n_units, (k, v.shape)
             self._buffer[i][k].append(v)
     
     def remove(self, i):

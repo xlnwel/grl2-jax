@@ -42,7 +42,7 @@ class ReplayBuffer:
             self.next_obs = np.zeros([self.max_size, obs_dim], dtype=np.float32)
             self.action = np.zeros([self.max_size, act_dim], dtype=np.float32)
             self.reward = np.zeros(self.max_size, dtype=np.float32)
-            self.done = np.zeros(self.max_size, dtype=np.bool)
+            self.done = np.zeros(self.max_size, dtype=bool)
             self.n_steps = np.ones(self.max_size, dtype=np.uint8)
         self.obs[self.ptr] = obs
         self.next_obs[self.ptr] = next_obs

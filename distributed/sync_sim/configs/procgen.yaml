@@ -40,6 +40,7 @@ runner:
     N_STEPS: &nsteps 400
     record_self_play_stats: False
     push_every_episode: False
+    is_multi_agent_env: True
 
 env:
     env_name: &env_name procgen_coinrun

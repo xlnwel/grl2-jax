@@ -45,8 +45,8 @@ class InfoSet(object):
 
     def get_policy_mask(self, is_first_move):
         # TODO: avoid breaking Straight FLush when assigning self._action2id
-        action_type_mask = np.zeros(NUM_ACTION_TYPES, dtype=np.bool)
-        card_rank_mask = np.zeros((NUM_ACTION_TYPES, NUM_CARD_RANKS), dtype=np.bool)
+        action_type_mask = np.zeros(NUM_ACTION_TYPES, dtype=bool)
+        card_rank_mask = np.zeros((NUM_ACTION_TYPES, NUM_CARD_RANKS), dtype=bool)
         card_rank_mask[-1] = 1
         for aid, a in enumerate(self.legal_actions):
             assert a.type is not None, a.type
@@ -195,7 +195,7 @@ def get_obs(infoset: InfoSet):
     last_action_jokers = np.stack([a['jokers'] for a in last_action_reprs])
     last_action_types = np.stack([a['action_type'] for a in last_action_reprs])
     last_action_rel_pids = _get_rel_pids()
-    last_action_filters = np.array([a.type is not None for a in last_actions], dtype=np.bool)
+    last_action_filters = np.array([a.type is not None for a in last_actions], dtype=bool)
     last_action_first_move = np.array([infoset.all_last_action_first_move[i] for i in pids], dtype=np.float32)
     assert np.sum(last_action_first_move) < 2, (last_actions, last_action_first_move)
 

@@ -2,9 +2,9 @@ import tensorflow as tf
 
 
 def get_data_format(config, env_stats, model):
-    n_players = len(env_stats.aid2pids[config.aid])
-    basic_shape = (None, config['sample_size'], n_players) \
-        if config.get('sample_size') else (None, n_players)
+    n_units = len(env_stats.aid2uids[config.aid])
+    basic_shape = (None, config['sample_size'], n_units) \
+        if config.get('sample_size') else (None, n_units)
     shapes = env_stats['obs_shape'][config.aid]
     dtypes = env_stats['obs_dtype'][config.aid]
     data_format = {k: ((*basic_shape, *v), dtypes[k], k) 

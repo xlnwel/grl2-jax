@@ -27,6 +27,8 @@ class Module(tf.Module):
         name = name and name.split('/')[-1]
         super().__init__(name=name)
 
+        self._results = []
+
     def __call__(self, *args, **kwargs):
         if not self._is_built:
             self._build(*tf.nest.map_structure(
@@ -54,11 +56,13 @@ class Module(tf.Module):
         training_cls = tuple([c.func if isinstance(c, functools.partial) 
             else c for c in training_cls if inspect.isclass(c)])
         
+        self._results.clear()
         for l in self._layers:
             if isinstance(l, training_cls):
                 x = l(x, training=training)
             else:
                 x = l(x, **kwargs)
+            self._results.append(x)
         return x
 
     def get_weights(self):
@@ -84,6 +88,9 @@ class Module(tf.Module):
         initializer = get_initializer(name)
         for v in self.variables:
             v.assign(initializer(v.shape))
+
+    def results(self):
+        return self._results
 
 
 class Ensemble(tf.Module):

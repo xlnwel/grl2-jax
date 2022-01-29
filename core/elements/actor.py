@@ -68,7 +68,8 @@ class Actor:
         tf_inp = self._add_eval(
             tf_inp, 
             evaluation=evaluation, 
-            return_eval_stats=return_eval_stats)
+            return_eval_stats=return_eval_stats
+        )
         
         out = self.model.action(**tf_inp)
         out = self._process_output(inp, out, evaluation)

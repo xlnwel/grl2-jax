@@ -93,7 +93,7 @@ class Strategy:
     def set_weights(self, weights):
         if 'model' in weights:
             self.model.set_weights(weights['model'])
-        if 'opt' in weights:
+        if 'opt' in weights and self.trainer is not None:
             self.trainer.set_optimizer_weights(weights['opt'])
         if 'aux' in weights:
             self.actor.set_auxiliary_stats(weights['aux'])

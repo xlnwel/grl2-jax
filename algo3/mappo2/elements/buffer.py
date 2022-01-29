@@ -6,7 +6,7 @@ from algo.ppo.elements.buffer import PPOBuffer
 class MAPPOBuffer(PPOBuffer):
     def _add_attributes(self, model):
         super()._add_attributes(model)
-        self._batch_size *= model.n_players
+        self._batch_size *= model.n_units
         self._mb_size = self._batch_size // self.N_MBS
         self._idxes = np.arange(self._batch_size)
         self._shuffled_idxes = np.arange(self._batch_size)

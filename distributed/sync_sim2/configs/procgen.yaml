@@ -1,12 +1,12 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo zero4
-name: zero4
+algorithm: &algo ppo
+name: ppo
 version: 0
 
 precision: 32
 
-n_agents: 2
+n_agents: 1
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -15,8 +15,8 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    MAX_VERSION_ITERATIONS: 100000
-    MAX_STEPS_PER_ITERATION: 3e8
+    MAX_VERSION_ITERATIONS: 1
+    MAX_STEPS_PER_ITERATION: 1e8
     initialize_rms: &irms False
 
 parameter_server:
@@ -25,7 +25,6 @@ parameter_server:
     default_score: 0
     root_dir: *algo
     model_name: *algo
-    train_from_scratch_frac: 1
 
 ray_config:
     runner:
@@ -37,44 +36,31 @@ monitor:
     store_period: 180
 
 runner:
-    n_workers: &nworkers 10
+    n_workers: &nworkers 1
     N_STEPS: &nsteps 400
     record_self_play_stats: False
     push_every_episode: False
 
 env:
-    env_name: &env_name overcooked-asymmetric_advantages
-    max_episode_steps: 400
-    eid: 0
-    n_envs: &nenvs 4
-    dense_reward: True
-    featurize: *irms
-    add_goal: True
-    pid2aid: [0, 1]
-    # layout_params:
-    #     rew_shaping_params:
-    #         PLACEMENT_IN_POT_REW: 1
-    #         DISH_PICKUP_REWARD: 1
-    #         SOUP_PICKUP_REWARD: 1
-    #         DISH_DISP_DISTANCE_REW: 0
-    #         POT_DISTANCE_REW: 0
-    #         SOUP_DISTANCE_REW: 0
+    env_name: &env_name procgen_coinrun
+    n_envs: &nenvs 64
+    frame_skip: 1
+    frame_stack: 1
+    # num_levels: 200
+    distribution_mode: easy
 
 agent: {}
 
 strategy:
     train_loop:
         N_EPOCHS: &nepochs 4
+        N_VALUE_EPOCHS: &nval_epochs 0
         N_MBS: &nmbs 4
-        N_AUX_EPOCHS: &naepochs 9
-        N_PI: &npi 16
-        N_SEGS: &nsegs 16
-        N_AUX_MBS_PER_SEG: &nambs 2
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
-        # (once reuse null)
+        # (once, reuse, null)
         # "once" updates values at the end of each epoch
-        # "reuse" updates values using value from train which is staler than once
+        # "reuse" updates values using value from train, which is staler than once
         # null doesn't update values.
         value_update: null
 
@@ -84,18 +70,8 @@ model:
 
     encoder: 
         nn_id: cnn_impala
+        # time_distributed: True
         out_size: 256
-
-    goal_encoder: 
-        nn_id: mlp
-        units_list: &ge [64]
-        out_size: &go null
-        kernel_initializer: orthogonal
-        activation: relu
-        norm: null
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1.e-5
 
     # rnn:
     #     nn_id: *rnn
@@ -109,6 +85,8 @@ model:
         kernel_initializer: orthogonal
         activation: relu
         eval_act_temp: 1
+        attention_action: False
+        embed_dim: 32
         out_gain: .01
 
     value:
@@ -127,7 +105,7 @@ trainer:
     algorithm: *algo
 
     # sample_size: *ss         # BPTT length
-    # store_state: True
+    store_state: False
     optimizer:
         name: adam
         schedule_lr: False
@@ -143,18 +121,19 @@ actor:
         obs_names: [obs]
         normalize_obs: *irms
         normalize_reward: True
-        obs_normalized_axis: [0, 1]
-        reward_normalized_axis: [0, 1]
+        obs_normalized_axis: [0]
+        reward_normalized_axis: [0]
         gamma: &gamma .99
 
 buffer:
     type: ppo
+    # dir: data/gd-100000
     use_dataset: False
 
     # PPO configs
     adv_type: gae     # nae or gae
     gamma: *gamma
-    lam: .98
+    lam: .95
     n_workers: *nworkers
     n_envs: *nenvs
     # batch_size: *bs
@@ -165,23 +144,22 @@ buffer:
     norm_adv: minibatch
 
     # PPG configs
-    N_PI: *npi
-    N_SEGS: *nsegs
-    N_AUX_MBS_PER_SEG: *nambs
-    N_AUX_EPOCHS: *naepochs
+    # N_PI: *npi
+    # N_SEGS: *nsegs
+    # N_AUX_MBS_PER_SEG: *nambs
+    # N_AUX_EPOCHS: *naepochs
 
     # mini-batch size = n_workers * n_envs * epslen / n_mbs
-    sample_keys:
+    sample_keys: &keys
         - obs
-        - goal
         - action
         - value
         - traj_ret
         - advantage
         - logpi
         # - mask
-        # - h
-        # - c
+    #     - h
+    #     - c
 
     # aux_compute_keys: *keys
 

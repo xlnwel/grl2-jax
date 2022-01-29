@@ -9,11 +9,11 @@ class Scenario(BaseScenario):
         world.world_length = config['max_episode_steps']
         # set any world properties first
         world.dim_c = 2
-        world.n_players = config['n_players']
+        world.n_units = config['n_units']
         world.num_landmarks = config['num_landmarks']  # 3
         world.collaborative = True
         # add agents
-        world.agents = [Agent() for i in range(world.n_players)]
+        world.agents = [Agent() for i in range(world.n_units)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True

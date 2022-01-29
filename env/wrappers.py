@@ -5,7 +5,7 @@ import gym
 import cv2
 
 from core.log import do_logging
-from env.utils import compute_aid2pids
+from env.utils import compute_aid2uids
 from utility.utils import dict2AttrDict, infer_dtype, convert_dtype
 from utility.typing import AttrDict
 from env.typing import EnvOutput, GymOutput
@@ -426,6 +426,7 @@ class EnvStatsBase(gym.Wrapper):
         # if we take timeout as done
         self.timeout_done = timeout_done
         self.auto_reset = auto_reset
+        self.n_envs = getattr(self.env, 'n_envs', 1)
         # game_over indicates whether an episode is finished, 
         # either due to timeout or due to environment done
         self._game_over = True
@@ -435,35 +436,33 @@ class EnvStatsBase(gym.Wrapper):
         self._info = {}
         self._output = None
         self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
-        self._stats = AttrDict(
-            obs_shape=env.obs_shape,
-            obs_dtype=env.obs_dtype,
-            action_shape=env.action_shape,
-            action_dtype=env.action_dtype,
-            action_dim=env.action_dim,
-            reward_shape=getattr(env, 'reward_shape', ()),
-            is_action_discrete=env.is_action_discrete,
-            n_trainable_agents=getattr(env, 'n_trainable_agents', 1),
-            n_controllable_agents=getattr(env, 'n_trainable_agents', 1),
-            n_players=getattr(env, 'n_players', 1),
-            n_agents=getattr(env, 'n_agents', 1),
-            pid2aid=[0],
-            aid2pids=[[0]],
-            global_state_shape=getattr(env, 'global_state_shape', ()),
-            global_state_dtype=getattr(env, 'global_state_dtype', None),
-            use_life_mask=getattr(env, 'use_life_mask', False),
-            use_action_mask=getattr(env, 'use_action_mask', False),
-        )
+        if hasattr(self.env, 'stats'):
+            self._stats = dict2AttrDict(self.env.stats)
+        else:
+            self.n_agents = getattr(self.env, 'n_agents', 1)
+            self.n_units = getattr(self.env, 'n_units', 1)
+            self.uid2aid = getattr(self.env, 'uid2aid', [0 for _ in range(self.n_units)])
+            self.aid2uids = getattr(self.env, 'aid2uids', compute_aid2uids(self.uid2aid))
+            self._stats = AttrDict(
+                obs_shape=env.obs_shape,
+                obs_dtype=env.obs_dtype,
+                action_shape=env.action_shape,
+                action_dim=env.action_dim,
+                is_action_discrete=env.is_action_discrete,
+                action_dtype=env.action_dtype,
+                n_agents=self.n_agents,
+                n_units=self.n_units,
+                uid2aid=self.uid2aid,
+                aid2uids=self.aid2uids,
+                use_life_mask=getattr(env, 'use_life_mask', False),
+                use_action_mask=getattr(env, 'use_action_mask', False),
+            )
         if timeout_done:
             do_logging('Timeout is treated as done', logger=logger)
         self._reset()
-    
-    def observation(self, obs):
-        if not isinstance(obs, dict):
-            obs = dict(obs=obs)
-        return obs
 
     def stats(self):
+        # return a copy to avoid being modified from outside
         return dict2AttrDict(self._stats)
 
     def reset(self):
@@ -485,14 +484,11 @@ class EnvStatsBase(gym.Wrapper):
     def epslen(self, **kwargs):
         return self._info.get('epslen', self._epslen)
 
-    def mask(self, **kwargs):
-        return self._info.get('mask', True)
-
     def game_over(self):
         return self._game_over
 
     def prev_obs(self):
-        return self._info['prev_env_output'].obs
+        return self._prev_env_output.obs
 
     def info(self):
         return self._info
@@ -518,7 +514,7 @@ class EnvStats(EnvStatsBase):
 
     def _reset(self):
         obs = super()._reset()
-        reward = self._get_zero_reward()
+        reward = self.float_dtype(0)
         discount = self.float_dtype(1)
         reset = self.float_dtype(True)
         self._output = EnvOutput(obs, reward, discount, reset)
@@ -529,11 +525,10 @@ class EnvStats(EnvStatsBase):
         if self._game_over:
             assert self.auto_reset == False, self.auto_reset
             # step after the game is over
-            reward = self._get_zero_reward()
+            reward = self.float_dtype(0)
             discount = self.float_dtype(0)
             reset = self.float_dtype(0)
             self._output = EnvOutput(self._output.obs, reward, discount, reset)
-            self._info['mask'] = False
             return self._output
 
         # assert not np.any(np.isnan(action)), action
@@ -560,12 +555,11 @@ class EnvStats(EnvStatsBase):
         reset = self.float_dtype(info.get('reset', False))
 
         # store previous env output for later retrieval
-        info['prev_env_output'] = GymOutput(obs, reward, discount)
+        self._prev_env_output = GymOutput(obs, reward, discount)
 
         assert isinstance(self._game_over, bool), self._game_over
         # reset env
         if self._game_over:
-            info['game_over'] = self._game_over
             info['score'] = self._score
             info['epslen'] = self._epslen
             if not info.get('timeout'):
@@ -580,9 +574,10 @@ class EnvStats(EnvStatsBase):
         self._output = EnvOutput(obs, reward, discount, reset)
         return self._output
 
-    def _get_zero_reward(self):
-        return self.float_dtype(0) if self._stats.reward_shape == () \
-            else np.zeros(self._stats.reward_shape, dtype=self.float_dtype)
+    def observation(self, obs):
+        if not isinstance(obs, dict):
+            obs = dict(obs=obs)
+        return obs
 
 
 class MASimEnvStats(EnvStatsBase):
@@ -602,16 +597,6 @@ class MASimEnvStats(EnvStatsBase):
             timeout_done=timeout_done, 
             auto_reset=auto_reset
         )
-        pid2aid = getattr(self.env, 'pid2aid', [0 for _ in range(self.n_players)])
-        aid2pids = getattr(self.env, 'aid2pids', compute_aid2pids(pid2aid))
-        assert len(pid2aid) == self._stats.n_players, (len(pid2aid), self._stats.n_players)
-        assert len(aid2pids) == self._stats.n_agents, (len(aid2pids), self._stats.n_agents)
-        self._stats.update({
-            'use_life_mask': getattr(self.env, 'use_life_mask', False),
-            'use_action_mask': getattr(self.env, 'use_action_mask', False),
-            'pid2aid': pid2aid,
-            'aid2pids': aid2pids
-        })
 
     def reset(self):
         # if self.auto_reset:
@@ -627,9 +612,9 @@ class MASimEnvStats(EnvStatsBase):
 
     def _reset(self):
         obs = super()._reset()
-        reward = np.zeros(self.n_players, self.float_dtype)
-        discount = np.ones(self.n_players, self.float_dtype)
-        reset = np.ones(self.n_players, self.float_dtype)
+        reward = self._get_agent_wise_zeros()
+        discount = self._get_agent_wise_ones()
+        reset = self._get_agent_wise_ones()
         self._output = EnvOutput(obs, reward, discount, reset)
 
         return self._output
@@ -638,11 +623,10 @@ class MASimEnvStats(EnvStatsBase):
         if self.game_over():
             assert self.auto_reset == False
             # step after the game is over
-            reward = np.zeros_like(self._output.reward, self.float_dtype)
-            discount = np.zeros_like(self._output.discount, self.float_dtype)
-            reset = np.zeros_like(self._output.reset, self.float_dtype)
+            reward = self._get_agent_wise_zeros()
+            discount = self._get_agent_wise_zeros()
+            reset = self._get_agent_wise_zeros()
             self._output = EnvOutput(self._output.obs, reward, discount, reset)
-            self._info['mask'] = np.zeros(self.n_players, np.bool)
             return self._output
 
         assert not np.any(np.isnan(action)), action
@@ -651,23 +635,23 @@ class MASimEnvStats(EnvStatsBase):
         self._score = info['score']
         self._dense_score = info['dense_score']
         self._epslen = info['epslen']
-        self._game_over = info['game_over']
+        self._game_over = info.pop('game_over')
         if self._epslen >= self.max_episode_steps:
             self._game_over = True
             if self.timeout_done:
-                done = np.ones_like(done)
+                done = self._get_agent_wise_ones()
             info['timeout'] = True
-        discount = 1-np.array(done, self.float_dtype)
+        discount = [np.array(1-d, self.float_dtype) for d in done]
 
         # store previous env output for later retrieval
-        info['prev_env_output'] = GymOutput(obs, reward, discount)
+        self._prev_env_output = GymOutput(obs, reward, discount)
 
         # reset env
         if self._game_over and self.auto_reset:
             # when resetting, we override the obs and reset but keep the others
             obs, _, _, reset = self._reset()
         else:
-            reset = np.zeros(self.n_players, self.float_dtype)
+            reset = self._get_agent_wise_zeros()
         obs = self.observation(obs)
         self._info = info
 
@@ -676,6 +660,62 @@ class MASimEnvStats(EnvStatsBase):
         # assert np.all(reset) == info.get('game_over', False), (reset, info['game_over'])
         return self._output
 
+    def observation(self, obs):
+        if isinstance(obs, dict):
+            obs = [obs]
+        assert isinstance(obs, list) and len(obs) == self.n_agents, obs
+        assert isinstance(obs[0], dict), obs[0]
+        return obs
+
+    def _get_agent_wise_zeros(self):
+        return [np.zeros(len(uids), self.float_dtype) for uids in self.aid2uids]
+    
+    def _get_agent_wise_ones(self):
+        return [np.ones(len(uids), self.float_dtype) for uids in self.aid2uids]
+
+
+class UnityEnvStats(EnvStatsBase):
+    def reset(self):
+        if not self._output.reset:
+            return self._reset()
+        else:
+            if EnvStats.manual_reset_warning:
+                logger.debug('Repetitively calling reset results in no environment interaction')
+            return self._output
+
+    def _reset(self):
+        obs = self.env.reset()
+        self._score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
+        self._dense_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
+        self._epslen = np.zeros(self.n_envs, np.int32)
+
+        self._game_over = False
+        reward = [np.zeros((self.n_envs, len(uids))) for uids in self.aid2uids]
+        discount = [np.ones((self.n_envs, len(uids))) for uids in self.aid2uids]
+        reset = [np.ones((self.n_envs, len(uids)), dtype=bool) for uids in self.aid2uids]
+        self._output = EnvOutput(obs, reward, discount, reset)
+
+        return self._output
+
+    def step(self, action, **kwargs):
+        # assert not np.any(np.isnan(action)), action
+        obs, reward, discount, reset = self.env.step(action, **kwargs)
+        
+        self._info = info = self.env.info()
+        self._score = [i['score'] for i in info]
+        self._dense_score = [i['dense_score'] for i in info]
+        self._epslen = [i['epslen'] for i in info]
+        self._game_over = [i.pop('game_over') for i in info]
+
+        self._output = EnvOutput(obs, reward, discount, reset)
+        return self._output
+
+    def info(self, eids=None):
+        info = self.env.info()
+        if eids is None:
+            return info
+        else:
+            return [info[i] for i in eids]
 
 def get_wrapper_by_name(env, classname):
     currentenv = env

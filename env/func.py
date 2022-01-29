@@ -1,14 +1,27 @@
-from env.cls import Env, VecEnv
+from env.cls import Env, MAVecEnv, VecEnv
 from env import make_env
 
+
+def is_ma_suite(env_name):
+    ma_suites = ['overcooked', 'smac']
+    for suite in ma_suites:
+        if env_name.startswith(suite):
+            return True
+    return False
 
 def create_env(config, env_fn=None, agents={}, force_envvec=True, no_remote=False):
     """ Creates an Env/VecEnv from config """
     config = config.copy()
     env_fn = env_fn or make_env
-    if no_remote or config.get('n_workers', 1) <= 1:
+    if config['env_name'].startswith('unity'):
+        # Unity handles vectorized environments by itself
+        env = Env(config, env_fn, agents=agents)
+    elif no_remote or config.get('n_workers', 1) <= 1:
         config['n_workers'] = 1
-        EnvType = VecEnv if force_envvec or config.get('n_envs', 1) > 1 else Env
+        if force_envvec or config.get('n_envs', 1) > 1:
+            EnvType = MAVecEnv if is_ma_suite(config['env_name']) else VecEnv
+        else:
+            EnvType = Env
         env = EnvType(config, env_fn, agents=agents)
     else:
         from env.ray_env import RayVecEnv
@@ -21,7 +34,9 @@ def get_env_stats(config):
     # TODO (cxw): store env_stats in a standalone file for costly environments
     tmp_env_config = config.copy()
     tmp_env_config['n_workers'] = 1
-    tmp_env_config['n_envs'] = 1
+    # we cannot change n_envs for unity environments
+    if not config.env_name.startswith('unity'):
+        tmp_env_config['n_envs'] = 1
     env = create_env(tmp_env_config, force_envvec=False)
     env_stats = env.stats()
     env_stats['n_workers'] = config.get('n_workers', 1)
@@ -62,6 +77,6 @@ if __name__ == '__main__':
         dense_reward=True,
         featurize=False,
         record_state=True,
-        pid2aid=[0, 1]
+        uid2aid=[0, 1]
     )
     run(config)

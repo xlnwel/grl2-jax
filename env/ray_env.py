@@ -71,9 +71,6 @@ class RayVecEnv(VecEnvBase):
     def epslen(self, idxes=None):
         return self._remote_call('epslen', idxes, convert_batch=False)
 
-    def mask(self, idxes=None):
-        return self._remote_call('mask', idxes)
-
     def game_over(self, idxes=None):
         return self._remote_call('game_over', idxes)
 

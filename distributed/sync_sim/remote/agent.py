@@ -35,8 +35,6 @@ class Agent(RayBase):
         self.strategy: Strategy = elements.strategy
         self.buffer = elements.buffer
 
-        self.train_step = None
-
     """ Model Management """
     def get_model_path(self):
         return self.strategy.get_model_path()

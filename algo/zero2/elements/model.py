@@ -17,8 +17,8 @@ class MAPPOModel(Model):
             self.config.encoder.time_distributed = 'rnn' in self.config
 
     def _build(self, env_stats, evaluation=False):
-        n_players = len(env_stats.aid2pids[self.config.aid])
-        basic_shape = (None, n_players)
+        n_units = len(env_stats.aid2uids[self.config.aid])
+        basic_shape = (None, n_units)
         shapes = env_stats['obs_shape'][self.config.aid]
         dtypes = env_stats['obs_dtype'][self.config.aid]
         TensorSpecs = {k: ((*basic_shape, *v), dtypes[k], k) 
@@ -55,7 +55,8 @@ class MAPPOModel(Model):
         action = self.policy.action(act_dist, evaluation)
 
         if evaluation:
-            return action, {}, state
+            value = self.value(x)
+            return action, {'value': value}, state
         else:
             logpi = act_dist.log_prob(action)
             value = self.value(x)
@@ -122,8 +123,8 @@ class MAPPOModel(Model):
 
 class MAPPGMixin:
     def _build(self, env_stats, evaluation=False):
-        n_players = len(env_stats.aid2pids[self.config.aid])
-        basic_shape = (None, n_players)
+        n_units = len(env_stats.aid2uids[self.config.aid])
+        basic_shape = (None, n_units)
         shapes = env_stats['obs_shape'][self.config.aid]
         dtypes = env_stats['obs_dtype'][self.config.aid]
         TensorSpecs = {k: ((*basic_shape, *v), dtypes[k], k) 
@@ -143,7 +144,7 @@ class MAPPGMixin:
         )
         self.action = build(self.action, ActionTensorSpecs)
 
-        basic_shape = (None, self.config.sample_size, n_players)
+        basic_shape = (None, self.config.sample_size, n_units)
         self.compute_logits_values = build(self.compute_logits_values, TensorSpecs)
 
     @tf.function

@@ -81,7 +81,7 @@ class LocalBuffer(Buffer):
         self, 
         config: dict2AttrDict, 
         model: Model,
-        n_players: int
+        n_units: int
     ):
         self.config = config
 
@@ -90,7 +90,7 @@ class LocalBuffer(Buffer):
         self._n_envs = self.config.n_envs
         self._gae_discount = self.config.gamma * self.config.lam
         self._maxlen = self.config.N_STEPS
-        self._n_players = n_players
+        self._n_units = n_units
 
         self.reset()
 
@@ -101,16 +101,16 @@ class LocalBuffer(Buffer):
         self._memlen = 0
         self._buffers = [collections.defaultdict(list) for _ in range(self._n_envs)]
         self._buff_lens = [0 for _ in range(self._n_envs)]
-        self._train_steps = [[None for _ in range(self._n_players)] 
+        self._train_steps = [[None for _ in range(self._n_units)] 
             for _ in range(self._n_envs)]
 
     def add(self, data):
         for i in range(self._n_envs):
             for k, v in data.items():
                 # if k in self._state_keys:
-                #     assert v.shape[0] == self._n_envs * self._n_players, (k, v.shape, self._n_envs * self._n_players)
+                #     assert v.shape[0] == self._n_envs * self._n_units, (k, v.shape, self._n_envs * self._n_units)
                 # else:
-                #     assert v.shape[:2] == (self._n_envs, self._n_players), (k, v.shape, (self._n_envs, self._n_players))
+                #     assert v.shape[:2] == (self._n_envs, self._n_units), (k, v.shape, (self._n_envs, self._n_units))
                 self._buffers[i][k].append(v[i])
             self._buff_lens[i] += 1
         self._memlen += 1
@@ -121,11 +121,11 @@ class LocalBuffer(Buffer):
             for k in self._buffers[0].keys()}
         # for k, v in episode.items():
         #     if k in self._state_keys:
-        #         assert v.shape[:2] == (self._memlen, self._n_envs * self._n_players), \
-        #             (k, v.shape, (self._memlen, self._n_envs * self._n_players))
+        #         assert v.shape[:2] == (self._memlen, self._n_envs * self._n_units), \
+        #             (k, v.shape, (self._memlen, self._n_envs * self._n_units))
         #     else:
-        #         assert v.shape[:3] == (self._memlen, self._n_envs, self._n_players), \
-        #             (k, v.shape, (self._memlen, self._n_envs, self._n_players))
+        #         assert v.shape[:3] == (self._memlen, self._n_envs, self._n_units), \
+        #             (k, v.shape, (self._memlen, self._n_envs, self._n_units))
 
         episode['advantage'], episode['traj_ret'] = compute_gae(
             episode['reward'], episode['discount'], episode['value'], 
@@ -135,20 +135,20 @@ class LocalBuffer(Buffer):
             for k in self.config.sample_keys}
         # for k, v in data.items():
         #     if k in self._state_keys:
-        #         assert v.shape[:2] == (self._n_envs * self._n_players, self._memlen), \
-        #             (k, v.shape, (self._n_envs * self._n_players, self._memlen))
+        #         assert v.shape[:2] == (self._n_envs * self._n_units, self._memlen), \
+        #             (k, v.shape, (self._n_envs * self._n_units, self._memlen))
         #     else:
-        #         assert v.shape[:3] == (self._n_envs, self._memlen, self._n_players), \
-        #             (k, v.shape, (self._n_envs, self._memlen, self._n_players))
+        #         assert v.shape[:3] == (self._n_envs, self._memlen, self._n_units), \
+        #             (k, v.shape, (self._n_envs, self._memlen, self._n_units))
         
         return data, self._memlen * self._n_envs
 
     def retrieve_episode(self, eid, last_value):
-        last_value = np.zeros((self._n_players,), dtype=np.float32)
+        last_value = np.zeros((self._n_units,), dtype=np.float32)
         episode = {k: np.stack(v) for k, v in self._buffers[eid].items()}
         # for k, v in episode.items():
-        #     assert v.shape[:3] == (self._memlen, self._n_envs, self._n_players), \
-        #         (k, v.shape, (self._memlen, self._n_envs, self._n_players))
+        #     assert v.shape[:3] == (self._memlen, self._n_envs, self._n_units), \
+        #         (k, v.shape, (self._memlen, self._n_envs, self._n_units))
 
         episode['advantage'], episode['traj_ret'] = compute_gae(
             episode['reward'], episode['discount'], episode['value'], 

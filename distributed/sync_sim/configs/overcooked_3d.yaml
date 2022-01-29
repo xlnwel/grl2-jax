@@ -44,11 +44,10 @@ runner:
 env:
     env_name: &env_name overcooked-asymmetric_advantages
     max_episode_steps: 400
-    eid: 0
     n_envs: &nenvs 4
     dense_reward: True
     featurize: *irms
-    pid2aid: [0, 1]
+    uid2aid: [0, 1]
     # layout_params:
     #     rew_shaping_params:
     #         PLACEMENT_IN_POT_REW: 1
@@ -62,8 +61,8 @@ agent: {}
 
 strategy:
     train_loop:
-        N_EPOCHS: &nepochs 4
-        N_MBS: &nmbs 4
+        N_EPOCHS: &nepochs 2
+        N_MBS: &nmbs 8
         N_AUX_EPOCHS: &naepochs 9
         N_PI: &npi 16
         N_SEGS: &nsegs 16

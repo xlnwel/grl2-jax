@@ -12,7 +12,7 @@ from core.monitor import Monitor, create_monitor
 from core.typing import ModelPath
 from core.utils import save_code, save_config
 from env.func import get_env_stats
-from utility.utils import set_path
+from utility.utils import AttrDict2dict, set_path
 from utility.typing import AttrDict
 from utility.utils import dict2AttrDict
 from utility import pkg
@@ -209,11 +209,12 @@ class ElementsBuilder:
     def build_acting_strategy_from_scratch(
         self, 
         config: dict=None, 
+        env_stats: dict=None,
         build_monitor: bool=True, 
         to_build_for_eval: bool=False
     ):
         constructors = self.get_constructors(config)
-        env_stats = self.env_stats if config is None else get_env_stats(config.env)
+        env_stats = self.env_stats if env_stats is None else env_stats
         
         elements = AttrDict()
         elements.model = self.build_model(
@@ -241,12 +242,13 @@ class ElementsBuilder:
     def build_training_strategy_from_scratch(
         self, 
         config: dict=None, 
+        env_stats: dict=None,
         build_monitor: bool=True, 
         save_monitor_stats_to_disk: bool=False,
         save_config: bool=True
     ):
         constructors = self.get_constructors(config)
-        env_stats = self.env_stats if config is None else get_env_stats(config.env)
+        env_stats = self.env_stats if env_stats is None else env_stats
         
         elements = AttrDict()
         elements.model = self.build_model(
@@ -286,12 +288,13 @@ class ElementsBuilder:
     def build_strategy_from_scratch(
         self, 
         config: dict=None, 
+        env_stats: dict=None,
         build_monitor: bool=True, 
         save_monitor_stats_to_disk: bool=False,
         save_config: bool=True
     ):
         constructors = self.get_constructors(config)
-        env_stats = self.env_stats if config is None else get_env_stats(config.env)
+        env_stats = self.env_stats if env_stats is None else env_stats
         
         elements = AttrDict()
         elements.model = self.build_model(
@@ -336,12 +339,13 @@ class ElementsBuilder:
     def build_acting_agent_from_scratch(
         self, 
         config: dict=None, 
+        env_stats: dict=None,
         build_monitor: bool=True, 
         to_build_for_eval: bool=False,
         to_restore: bool=True
     ):
         constructors = self.get_constructors(config)
-        env_stats = self.env_stats if config is None else get_env_stats(config.env)
+        env_stats = self.env_stats if env_stats is None else env_stats
         
         elements = AttrDict()
         elements.model = self.build_model(
@@ -375,11 +379,12 @@ class ElementsBuilder:
     def build_training_agent_from_scratch(
         self, 
         config: dict=None, 
+        env_stats: dict=None,
         save_monitor_stats_to_disk: bool=True,
         save_config: bool=True
     ):
         constructors = self.get_constructors(config)
-        env_stats = self.env_stats if config is None else get_env_stats(config.env)
+        env_stats = self.env_stats if env_stats is None else env_stats
         
         elements = AttrDict()
         elements.model = self.build_model(
@@ -423,11 +428,12 @@ class ElementsBuilder:
     def build_agent_from_scratch(
         self, 
         config: dict=None, 
+        env_stats: dict=None,
         save_monitor_stats_to_disk: bool=True,
         save_config: bool=True
     ):
         constructors = self.get_constructors(config)
-        env_stats = self.env_stats if config is None else get_env_stats(config.env)
+        env_stats = self.env_stats if env_stats is None else env_stats
         
         elements = AttrDict()
         elements.model = self.build_model(
@@ -492,7 +498,9 @@ class ElementsBuilder:
         try:
             module = pkg.import_module(
                 f'elements.{name}', algo=algo)
-        except:
+        except Exception as e:
+            print(f'Switch to default module({name}) due to error: {e}')
+            print("You are safe to neglect it if it's an intended behavior. ")
             module = pkg.import_module(
                 f'elements.{name}', pkg='core')
         return module
@@ -519,7 +527,6 @@ class ElementsBuilderVC(ElementsBuilder):
         self._version = start_version
         self._max_version = start_version
         self.restore()
-        self.set_config_version(self._version)
 
     """ Version Control """
     def get_version(self):
@@ -572,11 +579,12 @@ class ElementsBuilderVC(ElementsBuilder):
     def restore(self):
         if os.path.exists(self._builder_path):
             with open(self._builder_path, 'rb') as f:
-                self._version, self._max_version = cloudpickle.load(f)
+                self._version, self._max_version, config = cloudpickle.load(f)
+                self.config = dict2AttrDict(config)
 
     def save(self):
         with open(self._builder_path, 'wb') as f:
-            cloudpickle.dump((self._version, self._max_version), f)
+            cloudpickle.dump((self._version, self._max_version, AttrDict2dict(self.config)), f)
 
 if __name__ == '__main__':
     from env.func import create_env

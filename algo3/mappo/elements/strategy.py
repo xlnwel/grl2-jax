@@ -30,7 +30,7 @@ class MAPPOStrategy(Strategy):
             ] + list(value_state_keys)
             if env_stats.use_life_mask:
                 self._value_sample_keys.append('life_mask')
-            self._n_players = env_stats.n_players
+            self._n_units = env_stats.n_units
 
     """ Calling Methods """
     def _prepare_input_to_actor(self, env_output):
@@ -61,7 +61,7 @@ class MAPPOStrategy(Strategy):
         if value_inp is None:
             value_inp = self._value_inp
         value, _ = self.model.compute_value(**value_inp)
-        value = value.numpy().reshape(-1, self._n_players)
+        value = value.numpy().reshape(-1, self._n_units)
         return value
 
 

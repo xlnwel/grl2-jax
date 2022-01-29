@@ -15,9 +15,11 @@ from utility.utils import dict2AttrDict
 
 
 class Monitor(RayBase):
-    def __init__(self, 
-                 config: dict,
-                 parameter_server: ParameterServer):
+    def __init__(
+        self, 
+        config: dict,
+        parameter_server: ParameterServer
+    ):
         super().__init__()
         self.config = dict2AttrDict(config)
         self.parameter_server = parameter_server
@@ -27,8 +29,11 @@ class Monitor(RayBase):
         self._to_store: Dict[ModelPath, Every] = {}
 
         self.train_steps: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
+        self.n_train_steps_in_period: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
         self.env_steps: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
+        self.n_env_steps_in_period: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
         self.n_episodes: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
+        self.n_episodes_in_period: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
         self._dir = '/'.join([self.config.root_dir, self.config.model_name])
         self._path = '/'.join([self._dir, 'monitor.pkl'])
         self.restore()
@@ -36,14 +41,21 @@ class Monitor(RayBase):
     def store_train_stats(self, model_stats: ModelStats):
         model, stats = model_stats
         self.build_monitor(model)
-        self.train_steps[model] = stats.pop('train_step')
+        train_step = stats.pop('train_step')
+        self.n_train_steps_in_period[model] = train_step - self.train_steps[model]
+        self.train_steps[model] = train_step
         self.monitors[model].store(**stats)
 
     def store_run_stats(self, model_stats: ModelStats):
         model, stats = model_stats
         self.build_monitor(model)
-        self.env_steps[model] += stats.pop('env_step')
-        self.n_episodes[model] += stats.pop('n_episodes')
+        env_steps = stats.pop('env_steps')
+        self.env_steps[model] += env_steps
+        self.n_env_steps_in_period[model] += env_steps
+        n_episodes = stats.pop('n_episodes')
+        self.n_episodes[model] += n_episodes
+        self.n_episodes_in_period[model] += n_episodes
+
         self.monitors[model].store(**stats)
 
         if model not in self._to_store:
@@ -57,7 +69,7 @@ class Monitor(RayBase):
             ray.get(pid)
             # we ensure that all checkpoint stats are saved to the disk 
             # before recording running/training stats. 
-            self.record(model)
+            self.record(model, self._to_store[model].difference())
 
     def build_monitor(self, model_path):
         if model_path not in self.monitors:
@@ -76,7 +88,15 @@ class Monitor(RayBase):
         with open(self._path, 'wb') as f:
             cloudpickle.dump([self.env_steps, self.train_steps, self.n_episodes], f)
 
-    def record(self, model):
-        self.monitors[model].store(train_step=self.train_steps[model])
-        self.monitors[model].store(n_episodes=self.n_episodes[model])
+    def record(self, model, duration):
+        self.monitors[model].store(
+            tps=self.n_train_steps_in_period[model] / duration,
+            fps=self.n_env_steps_in_period[model] / duration,
+            eps=self.n_episodes_in_period[model] / duration,
+            train_step=self.train_steps[model],
+            n_episodes=self.n_episodes[model],
+        )
         self.monitors[model].record(self.env_steps[model])
+        self.n_train_steps_in_period[model] = 0
+        self.n_env_steps_in_period[model] = 0
+        self.n_episodes_in_period[model] = 0

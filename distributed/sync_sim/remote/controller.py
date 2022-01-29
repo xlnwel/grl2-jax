@@ -37,6 +37,7 @@ class Controller:
         self.parameter_server: ParameterServer = \
             ParameterServer.as_remote().remote(
                 configs=[c.asdict() for c in self.configs],
+                env_stats=env_stats.asdict(),
                 param_queues=queues.param
             )
         monitor: Monitor = Monitor.as_remote().remote(
@@ -76,14 +77,16 @@ class Controller:
         self.agent_manager.build_agents(self.configs)
         self.runner_manager.register_handler(
             remote_agents=self.agent_manager.get_agents())
-        model_weights = ray.get(
-            self.parameter_server.sample_training_strategy.remote())
+        model_weights, is_raw_strategy = ray.get(
+            self.parameter_server.sample_training_strategies.remote())
         self.agent_manager.set_model_weights(model_weights)
         model_paths = [path for path, _ in model_weights]
         self.runner_manager.set_active_model_paths(model_paths, wait=True)
-        if self.config.initialize_rms:
+        if self.config.initialize_rms and any(is_raw_strategy):
+            aids = [i for i, is_raw in enumerate(is_raw_strategy) if is_raw]
+            print(f'Initializing RMS for agents: {aids}')
             self.runner_manager.set_current_model_paths(model_paths)
-            self.runner_manager.random_run()
+            self.runner_manager.random_run(aids)
 
     def train(
         self, 
@@ -143,7 +146,7 @@ class Controller:
 
     def _setup_models(self):
             model_weights = ray.get(
-                self.parameter_server.sample_training_strategy.remote())
+                self.parameter_server.sample_training_strategies.remote())
             self.agent_manager.set_model_weights(model_weights)
             model_paths = [path for path, _ in model_weights]
             self.runner_manager.set_active_model_paths(model_paths, wait=True)

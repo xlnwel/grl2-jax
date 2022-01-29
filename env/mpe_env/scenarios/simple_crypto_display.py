@@ -20,12 +20,12 @@ class Scenario(BaseScenario):
     def make_world(self,config):
         world = World()
         # set any world properties first
-        n_players = config['n_players']#3
+        n_units = config['n_units']#3
         num_adversaries = 1
         num_landmarks = config['num_landmarks']#2
         world.dim_c = 4
         # add agents
-        world.agents = [CryptoAgent() for i in range(n_players)]
+        world.agents = [CryptoAgent() for i in range(n_units)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = False

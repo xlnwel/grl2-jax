@@ -10,10 +10,10 @@ class Scenario(BaseScenario):
         world.dim_c = 2
         num_good_agents = config['num_good_agents']#1
         num_adversaries = config['num_adversaries']#3
-        n_players = num_adversaries + num_good_agents
+        n_units = num_adversaries + num_good_agents
         num_landmarks = config['num_landmarks']#2
         # add agents
-        world.agents = [Agent() for i in range(n_players)]
+        world.agents = [Agent() for i in range(n_units)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True

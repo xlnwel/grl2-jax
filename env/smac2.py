@@ -239,7 +239,7 @@ class SMAC(gym.Env):
 
         map_params = get_map_params(self.name)
         self.n_agents = 1
-        self.n_players = map_params["n_players"]
+        self.n_units = map_params["n_units"]
         self.n_enemies = map_params["n_enemies"]
         self.max_episode_steps = map_params["limit"]
         self._move_amount = move_amount
@@ -318,11 +318,11 @@ class SMAC(gym.Env):
         self.timeouts = 0
         self.force_restarts = 0
         self.last_stats = None
-        self.death_tracker_ally = np.zeros(self.n_players, dtype=np.float32)
+        self.death_tracker_ally = np.zeros(self.n_units, dtype=np.float32)
         self.death_tracker_enemy = np.zeros(self.n_enemies, dtype=np.float32)
         self.previous_ally_units = None
         self.previous_enemy_units = None
-        self.last_action = np.zeros((self.n_players, self.n_actions), dtype=np.float32)
+        self.last_action = np.zeros((self.n_units, self.n_actions), dtype=np.float32)
         self._min_unit_type = 0
         self.marine_id = self.marauder_id = self.medivac_id = 0
         self.hydralisk_id = self.zergling_id = self.baneling_id = 0
@@ -342,29 +342,28 @@ class SMAC(gym.Env):
         # Try to avoid leaking SC2 processes on shutdown
         atexit.register(self.close)
 
-        self.action_spaces = []
-        self.observation_spaces = []
-        self.global_state_spaces = []
-        for i in range(self.n_players):
-            self.action_spaces.append(Discrete(self.n_actions))
-            self.observation_spaces.append(self.get_obs_size())
-            self.global_state_spaces.append(self.get_state_size())
+        self.action_space = [Discrete(self.n_actions)]
+        self.action_shape = [a.shape for a in self.action_space]
+        self.action_dim = [a.n for a in self.action_space]
+        self.action_dtype = [np.int32 for a in self.action_space]
+        self.is_action_discrete = [True for a in self.action_space]
 
-        self.obs_shape = dict(
-            obs=(self.observation_space[0],),
-            global_state=(self.global_state_space[0],),
-            action_mask=(self.action_dim,),
+        self.obs_shape = [dict(
+            obs=(self.get_obs_size()[0],),
+            global_state=(self.get_state_size()[0],),
+            action_mask=(self.action_dim[0],),
             life_mask=()
-        )
-        self.obs_dtype = dict(
+        )]
+        self.obs_dtype = [dict(
             obs=np.float32,
             global_state=np.float32,
-            action_mask=np.bool,
+            action_mask=bool,
             life_mask=np.float32
-        )
+        )]
+        
         if self.use_stacked_frames:
-            self.stacked_local_obs = np.zeros((self.n_players, self.stacked_frames, int(self.get_obs_size()[0]/self.stacked_frames)), dtype=np.float32)
-            self.stacked_global_state = np.zeros((self.n_players, self.stacked_frames, int(self.get_state_size()[0]/self.stacked_frames)), dtype=np.float32)
+            self.stacked_local_obs = np.zeros((self.n_units, self.stacked_frames, int(self.get_obs_size()[0]/self.stacked_frames)), dtype=np.float32)
+            self.stacked_global_state = np.zeros((self.n_units, self.stacked_frames, int(self.get_state_size()[0]/self.stacked_frames)), dtype=np.float32)
 
         # some properties for multi-agent environments
         self.use_life_mask = True
@@ -381,34 +380,6 @@ class SMAC(gym.Env):
     @property
     def is_multiagent(self):
         return True
-
-    @property
-    def action_space(self):
-        return self.action_spaces[0]
-    
-    @property
-    def is_action_discrete(self):
-        return True
-
-    @property
-    def action_shape(self):
-        return self.action_space.shape
-    
-    @property
-    def action_dim(self):
-        return self.n_actions
-    
-    @property
-    def action_dtype(self):
-        return np.int32
-    
-    @property
-    def observation_space(self):
-        return self.observation_spaces[0]
-    
-    @property
-    def global_state_space(self):
-        return self.global_state_spaces[0]
 
     def _launch(self):
         """Launch the StarCraft II game."""
@@ -451,10 +422,10 @@ class SMAC(gym.Env):
                 self.map_x, int(self.map_y / 8))
             self.pathing_grid = np.transpose(np.array([
                 [(b >> i) & 1 for b in row for i in range(7, -1, -1)]
-                for row in vals], dtype=np.bool))
+                for row in vals], dtype=bool))
         else:
             self.pathing_grid = np.invert(np.flip(np.transpose(np.array(
-                list(map_info.pathing_grid.data), dtype=np.bool).reshape(
+                list(map_info.pathing_grid.data), dtype=bool).reshape(
                     self.map_x, self.map_y)), axis=1))
 
         self.terrain_height = np.flip(
@@ -471,7 +442,7 @@ class SMAC(gym.Env):
             assert self._last_reset_obs is not None, self._last_reset_obs
             obs = self._last_reset_obs
             self._last_reset_obs = None
-            return obs
+            return [obs]
 
         self._reset_track_stats()
 
@@ -482,17 +453,17 @@ class SMAC(gym.Env):
             self._restart()
 
         # Information kept for counting the reward
-        self.death_tracker_ally = np.zeros(self.n_players, dtype=np.float32)
+        self.death_tracker_ally = np.zeros(self.n_units, dtype=np.float32)
         self.death_tracker_enemy = np.zeros(self.n_enemies, dtype=np.float32)
         self.previous_ally_units = None
         self.previous_enemy_units = None
         self.win_counted = False
         self.defeat_counted = False
 
-        self.last_action = np.zeros((self.n_players, self.n_actions), dtype=np.float32)
+        self.last_action = np.zeros((self.n_units, self.n_actions), dtype=np.float32)
 
         if self.heuristic_ai:
-            self.heuristic_targets = [None] * self.n_players
+            self.heuristic_targets = [None] * self.n_units
 
         try:
             self._obs = self._controller.observe()
@@ -507,9 +478,9 @@ class SMAC(gym.Env):
                           .format(self._episode_count).center(60, "*"))
 
         if self.use_state_agent:
-            global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_players)]
+            global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_units)]
         else:
-            global_state = [self.get_state(agent_id) for agent_id in range(self.n_players)]
+            global_state = [self.get_state(agent_id) for agent_id in range(self.n_units)]
 
         local_obs = self.get_obs()
 
@@ -520,18 +491,18 @@ class SMAC(gym.Env):
             self.stacked_local_obs[:, -1, :] = np.array(local_obs).copy()
             self.stacked_global_state[:, -1, :] = np.array(global_state).copy()
 
-            local_obs = self.stacked_local_obs.reshape(self.n_players, -1)
-            global_state = self.stacked_global_state.reshape(self.n_players, -1)
+            local_obs = self.stacked_local_obs.reshape(self.n_units, -1)
+            global_state = self.stacked_global_state.reshape(self.n_units, -1)
 
-        life_mask = np.ones(self.n_players, np.float32)
+        life_mask = np.ones(self.n_units, np.float32)
         obs_dict = dict(
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
-            action_mask=np.array(available_actions, np.bool),
+            action_mask=np.array(available_actions, bool),
             life_mask=life_mask
         )
 
-        return obs_dict
+        return [obs_dict]
 
     def _restart(self):
         """Restart the environment by killing all units on the map.
@@ -552,11 +523,13 @@ class SMAC(gym.Env):
 
     def step(self, action):
         """A single environment step. Returns reward, terminated, info."""
+        assert len(action) == 1, action
+        assert isinstance(action, tuple), action
         terminated = False
-        infos = [{} for i in range(self.n_players)]
-        life_mask = np.ones(self.n_players, np.float32)
+        infos = [{} for i in range(self.n_units)]
+        life_mask = np.ones(self.n_units, np.float32)
 
-        actions_int = [int(a) for a in action]
+        actions_int = [int(a) for a in action[0]]
 
         self.last_action = np.eye(self.n_actions)[np.array(actions_int)]
 
@@ -588,7 +561,7 @@ class SMAC(gym.Env):
             self.full_restart()
             terminated = True
             available_actions = []
-            for i in range(self.n_players):
+            for i in range(self.n_units):
                 available_actions.append(self.get_avail_agent_actions(i))
                 infos[i] = {
                     "battles_won": self.battles_won,
@@ -597,12 +570,12 @@ class SMAC(gym.Env):
                     "restarts": self.force_restarts,
                     "won": self.win_counted
                 }
-            dones = np.ones(self.n_players, dtype=bool)
+            dones = np.ones(self.n_units, dtype=bool)
                 
             if self.use_state_agent:
-                global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_players)]
+                global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_units)]
             else:
-                global_state = [self.get_state(agent_id) for agent_id in range(self.n_players)]
+                global_state = [self.get_state(agent_id) for agent_id in range(self.n_units)]
 
             local_obs = self.get_obs()
 
@@ -613,21 +586,21 @@ class SMAC(gym.Env):
                 self.stacked_local_obs[:, -1, :] = np.array(local_obs).copy()
                 self.stacked_global_state[:, -1, :] = np.array(global_state).copy()
 
-                local_obs = self.stacked_local_obs.reshape(self.n_players, -1)
-                global_state = self.stacked_global_state.reshape(self.n_players, -1)
+                local_obs = self.stacked_local_obs.reshape(self.n_units, -1)
+                global_state = self.stacked_global_state.reshape(self.n_units, -1)
             
-            life_mask = np.ones(self.n_players, np.float32)
+            life_mask = np.ones(self.n_units, np.float32)
             obs_dict = dict(
                 obs=local_obs,
                 global_state=np.array(global_state, np.float32),
-                action_mask=np.array(available_actions, np.bool),
+                action_mask=np.array(available_actions, bool),
                 life_mask=life_mask
             )
-            rewards = np.zeros(self.n_players, np.float32)
+            rewards = np.zeros(self.n_units, np.float32)
             info = batch_dicts(infos)
             info.update({
-                'dense_score': self._score * np.ones(self.n_players, np.float32),
-                'score': self.win_counted * np.ones(self.n_players, np.float32),
+                'dense_score': self._score * np.ones(self.n_units, np.float32),
+                'score': self.win_counted * np.ones(self.n_units, np.float32),
                 'epslen': self._episode_steps,
                 'game_over': False  # we do not take auto reset as game over to avoid repeatly resetting in wrappers.EnvStats
             })
@@ -636,7 +609,7 @@ class SMAC(gym.Env):
             self._reset_for_error = True
             self._last_reset_obs = obs_dict
             
-            return obs_dict, rewards, dones, info
+            return [obs_dict], [rewards], [dones], info
 
         self._total_steps += 1
         self._episode_steps += 1
@@ -657,24 +630,24 @@ class SMAC(gym.Env):
                 if not self.reward_sparse:
                     reward += self.reward_win
                 else:
-                    reward = np.ones(self.n_players, np.float32)
+                    reward = np.ones(self.n_units, np.float32)
             elif game_end_code == -1 and not self.defeat_counted:
                 self.defeat_counted = True
                 if not self.reward_sparse:
                     reward += self.reward_defeat
                 else:
-                    reward = -1 * np.ones(self.n_players, np.float32)
+                    reward = -1 * np.ones(self.n_units, np.float32)
 
         elif self._episode_steps >= self.max_episode_steps:
             # Episode limit reached
             terminated = True
             if self.continuing_episode:
-                for i in range(self.n_players):
+                for i in range(self.n_units):
                     infos[i]["max_episode_steps"] = True
             self.battles_game += 1
             self.timeouts += 1
 
-        for i in range(self.n_players):
+        for i in range(self.n_units):
             infos[i] = {
                 "battles_won": self.battles_won,
                 "battles_game": self.battles_game,
@@ -702,9 +675,9 @@ class SMAC(gym.Env):
         self._score += reward
 
         if self.use_state_agent:
-            global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_players)]
+            global_state = [self.get_state_agent(agent_id) for agent_id in range(self.n_units)]
         else:
-            global_state = [self.get_state(agent_id) for agent_id in range(self.n_players)]
+            global_state = [self.get_state(agent_id) for agent_id in range(self.n_units)]
 
         local_obs = self.get_obs()
 
@@ -715,30 +688,30 @@ class SMAC(gym.Env):
             self.stacked_local_obs[:, -1, :] = np.array(local_obs).copy()
             self.stacked_global_state[:, -1, :] = np.array(global_state).copy()
 
-            local_obs = self.stacked_local_obs.reshape(self.n_players, -1)
-            global_state = self.stacked_global_state.reshape(self.n_players, -1)
+            local_obs = self.stacked_local_obs.reshape(self.n_units, -1)
+            global_state = self.stacked_global_state.reshape(self.n_units, -1)
 
         obs_dict = dict(
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
-            action_mask=np.array(available_actions, np.bool),
+            action_mask=np.array(available_actions, bool),
             life_mask=life_mask
         )
         info = batch_dicts(infos)
         info.update({
-            'dense_score': self._score * np.ones(self.n_players, np.float32),
-            'score': self.win_counted * np.ones(self.n_players, np.float32),
+            'dense_score': self._score * np.ones(self.n_units, np.float32),
+            'score': self.win_counted * np.ones(self.n_units, np.float32),
             'epslen': self._episode_steps,
             'game_over': terminated
         })
         assert np.all(life_mask == 0) == terminated, (life_mask, terminated)
-        dones = (np.zeros if np.any(life_mask) else np.ones)(self.n_players, np.bool)
+        dones = (np.zeros if np.any(life_mask) else np.ones)(self.n_units, bool)
         assert np.all(dones) == terminated, (dones, terminated)
 
         self._reset_for_error = False
-        assert reward.size == self.n_players, (reward, self.n_players)
+        assert reward.size == self.n_units, (reward, self.n_units)
         
-        return obs_dict, reward, dones, info
+        return [obs_dict], [reward], [dones], info
 
     def _reset_track_stats(self):
         self._game_over = False
@@ -993,8 +966,8 @@ class SMAC(gym.Env):
             else:
                 reward = delta_enemy + delta_deaths - delta_ally
 
-            return reward * np.ones(self.n_players, np.float32)
-        reward = np.zeros(self.n_players, np.float32)
+            return reward * np.ones(self.n_units, np.float32)
+        reward = np.zeros(self.n_units, np.float32)
         delta_deaths = 0
         delta_ally = 0
         delta_enemy = 0
@@ -1188,7 +1161,7 @@ class SMAC(gym.Env):
         enemy_feats = np.zeros(enemy_feats_dim, dtype=np.float32)
         ally_feats = np.zeros(ally_feats_dim, dtype=np.float32)
         own_feats = np.zeros(own_feats_dim, dtype=np.float32)
-        agent_id_feats = np.zeros(self.n_players, dtype=np.float32)
+        agent_id_feats = np.zeros(self.n_units, dtype=np.float32)
 
         if unit.health > 0:  # otherwise dead, return all zeros
             x = unit.pos.x
@@ -1236,7 +1209,7 @@ class SMAC(gym.Env):
                         enemy_feats[e_id, ind + type_id] = 1  # unit type
 
             # Ally features
-            al_ids = [al_id for al_id in range(self.n_players) if al_id != agent_id]
+            al_ids = [al_id for al_id in range(self.n_units) if al_id != agent_id]
             for i, al_id in enumerate(al_ids):
 
                 al_unit = self.get_unit_by_id(al_id)
@@ -1324,7 +1297,7 @@ class SMAC(gym.Env):
         during decentralised execution.
         """
         agents_obs = np.array(
-            [self.get_obs_agent(i) for i in range(self.n_players)], dtype=np.float32)
+            [self.get_obs_agent(i) for i in range(self.n_units)], dtype=np.float32)
         return agents_obs
 
     def get_state(self, agent_id=-1):
@@ -1363,10 +1336,10 @@ class SMAC(gym.Env):
 
         nf_mv = self.get_state_move_feats_size()
 
-        ally_state = np.zeros((self.n_players, nf_al), dtype=np.float32)
+        ally_state = np.zeros((self.n_units, nf_al), dtype=np.float32)
         enemy_state = np.zeros((self.n_enemies, nf_en), dtype=np.float32)
         move_state = np.zeros((1, nf_mv), dtype=np.float32)
-        agent_id_feats = np.zeros((self.n_players, 1), dtype=np.float32)
+        agent_id_feats = np.zeros((self.n_units, 1), dtype=np.float32)
 
         center_x = self.map_x / 2
         center_y = self.map_y / 2
@@ -1542,7 +1515,7 @@ class SMAC(gym.Env):
         enemy_feats = np.zeros(enemy_feats_dim, dtype=np.float32)
         ally_feats = np.zeros(ally_feats_dim, dtype=np.float32)
         own_feats = np.zeros(own_feats_dim, dtype=np.float32)
-        agent_id_feats = np.zeros(self.n_players, dtype=np.float32)
+        agent_id_feats = np.zeros(self.n_units, dtype=np.float32)
 
         center_x = self.map_x / 2
         center_y = self.map_y / 2
@@ -1601,7 +1574,7 @@ class SMAC(gym.Env):
                         enemy_feats[e_id, ind+1] = (e_y - center_y) / self.max_distance_y  # center Y
 
             # Ally features
-            al_ids = [al_id for al_id in range(self.n_players) if al_id != agent_id]
+            al_ids = [al_id for al_id in range(self.n_units) if al_id != agent_id]
             for i, al_id in enumerate(al_ids):
 
                 al_unit = self.get_unit_by_id(al_id)
@@ -1734,7 +1707,7 @@ class SMAC(gym.Env):
         if self.obs_last_action:
             nf_al += self.n_actions
 
-        return self.n_players - 1, nf_al
+        return self.n_units - 1, nf_al
 
     def get_state_ally_feats_size(self):
         """Returns the dimensions of the matrix containing ally features.
@@ -1751,7 +1724,7 @@ class SMAC(gym.Env):
         if self.add_center_xy:
             nf_al += 2
 
-        return self.n_players - 1, nf_al
+        return self.n_units - 1, nf_al
 
     def get_obs_own_feats_size(self):
         """Returns the size of the vector containing the agents' own features.
@@ -1817,7 +1790,7 @@ class SMAC(gym.Env):
         timestep_feats = 0
 
         if self.obs_agent_id:
-            agent_id_feats = self.n_players
+            agent_id_feats = self.n_units
             all_feats += agent_id_feats
 
         if self.obs_timestep_number:
@@ -1833,7 +1806,7 @@ class SMAC(gym.Env):
     def get_state_size(self):
         """Returns the size of the global state."""
         if self.obs_instead_of_state:
-            return [self.get_obs_size()[0] * self.n_players, [self.n_players, self.get_obs_size()[0]]]
+            return [self.get_obs_size()[0] * self.n_units, [self.n_units, self.get_obs_size()[0]]]
 
         if self.use_state_agent:
             own_feats = self.get_state_own_feats_size()
@@ -1851,7 +1824,7 @@ class SMAC(gym.Env):
             timestep_feats = 0
 
             if self.state_agent_id:
-                agent_id_feats = self.n_players
+                agent_id_feats = self.n_units
                 all_feats += agent_id_feats
 
             if self.state_timestep_number:
@@ -1889,7 +1862,7 @@ class SMAC(gym.Env):
             nf_en += 1
 
         enemy_state = self.n_enemies * nf_en
-        ally_state = self.n_players * nf_al
+        ally_state = self.n_units * nf_al
 
         size = enemy_state + ally_state 
 
@@ -1911,19 +1884,19 @@ class SMAC(gym.Env):
             size += timestep_state
 
         if self.add_agent_id:
-            agent_id_feats = self.n_players
+            agent_id_feats = self.n_units
             size += agent_id_feats
 
-        return [size * self.stacked_frames if self.use_stacked_frames else size, [self.n_players, nf_al], [self.n_enemies, nf_en], [1, move_state + obs_agent_size + timestep_state + agent_id_feats]]
+        return [size * self.stacked_frames if self.use_stacked_frames else size, [self.n_units, nf_al], [self.n_enemies, nf_en], [1, move_state + obs_agent_size + timestep_state + agent_id_feats]]
     
     def get_visibility_matrix(self):
         """Returns a boolean numpy array of dimensions 
-        (n_players, n_players + n_enemies) indicating which units
+        (n_units, n_units + n_enemies) indicating which units
         are visible to each agent.
         """
-        arr = np.zeros((self.n_players, self.n_players + self.n_enemies), dtype=np.bool)
+        arr = np.zeros((self.n_units, self.n_units + self.n_enemies), dtype=bool)
 
-        for agent_id in range(self.n_players):
+        for agent_id in range(self.n_units):
             current_agent = self.get_unit_by_id(agent_id)
             if current_agent.health > 0:  # it agent not dead
                 x = current_agent.pos.x
@@ -1938,11 +1911,11 @@ class SMAC(gym.Env):
 
                     if (dist < sight_range and e_unit.health > 0):
                         # visible and alive
-                        arr[agent_id, self.n_players + e_id] = 1
+                        arr[agent_id, self.n_units + e_id] = 1
 
                 # The matrix for allies is filled symmetrically
                 al_ids = [
-                    al_id for al_id in range(self.n_players)
+                    al_id for al_id in range(self.n_units)
                     if al_id > agent_id
                 ]
                 for i, al_id in enumerate(al_ids):
@@ -2037,7 +2010,7 @@ class SMAC(gym.Env):
     def get_avail_actions(self):
         """Returns the available actions of all agents in a list."""
         avail_actions = []
-        for agent_id in range(self.n_players):
+        for agent_id in range(self.n_units):
             avail_agent = self.get_avail_agent_actions(agent_id)
             avail_actions.append(avail_agent)
         return avail_actions
@@ -2107,7 +2080,7 @@ class SMAC(gym.Env):
                 )
                 self._init_ally_unit_types(min_unit_type)
 
-            all_agents_created = (len(self.agents) == self.n_players)
+            all_agents_created = (len(self.agents) == self.n_units)
             all_enemies_created = (len(self.enemies) == self.n_enemies)
 
             if all_agents_created and all_enemies_created:  # all good

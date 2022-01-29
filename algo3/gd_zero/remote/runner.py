@@ -97,7 +97,7 @@ class TwoAgentRunner(RayBase):
         super().__init__()
         self.store_data = store_data
         self.evaluation = evaluation
-        self.n_players = 4
+        self.n_units = 4
         self.other_agent = None
         self.algo2agent = {}  # record agents that use different algorithms
         self.parameter_server = parameter_server
@@ -288,7 +288,7 @@ class TwoAgentRunner(RayBase):
         self._force_self_play = False
 
     def self_play(self):
-        self._set_pids(list(range(self.n_players)))
+        self._set_pids(list(range(self.n_units)))
         assert self.other_pids == [], self.other_agent
 
     def construct_other_agent_from_path(self, other_path):
@@ -320,7 +320,7 @@ class TwoAgentRunner(RayBase):
         self._set_pids(self.config.agent_pids)
 
     def compute_other_pids(self):
-        return [i for i in range(self.n_players) if i not in self.agent_pids]
+        return [i for i in range(self.n_units) if i not in self.agent_pids]
 
     """ Interactions with other process """
     def retrieve_other_agent_from_parameter_server(self):
@@ -346,7 +346,7 @@ class TwoAgentRunner(RayBase):
     def _set_pids(self, agent_pids):
         self.agent_pids = agent_pids
         self.other_pids = self.compute_other_pids()
-        self._self_play = len(self.agent_pids) == self.n_players
+        self._self_play = len(self.agent_pids) == self.n_units
         if self.buffer is not None:
             self.buffer.set_pids(self.agent_pids, self.other_pids)
 

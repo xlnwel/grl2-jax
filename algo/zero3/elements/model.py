@@ -34,7 +34,7 @@ class MAPPOValueModel(ModelImpl):
 
 class MAPPOWithGoalModelEnsemble(MAPPOModelEnsemble):
     def _build(self, env_stats, evaluation=False):
-        basic_shape = (None, len(env_stats.aid2pids[self.config.aid]))
+        basic_shape = (None, len(env_stats.aid2uids[self.config.aid]))
         dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         actor_inp=dict(
             obs=((*basic_shape, *env_stats['obs_shape'][self.config.aid]['obs']), 

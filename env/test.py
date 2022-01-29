@@ -11,7 +11,7 @@ if __name__ == '__main__':
         name='gd',
         # n_envs=10,
         # max_episode_steps=100,
-        # n_players=2,
+        # n_units=2,
         # num_good_agents=3,
         # num_adversaries=2,
         # num_landmarks=3

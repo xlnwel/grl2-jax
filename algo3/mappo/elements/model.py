@@ -92,7 +92,7 @@ class MAPPOModelEnsemble(ModelEnsemble):
         self.state_type = collections.namedtuple(
             'State', state[self._rnn_type.split('_')[-1]])
         self.compute_value = self.value.compute_value
-        self.n_players = self.env_stats.n_players
+        self.n_units = self.env_stats.n_units
 
     @tf.function
     def action(self, 

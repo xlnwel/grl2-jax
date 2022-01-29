@@ -1,4 +1,5 @@
 import os
+from pprint import pp
 from typing import Tuple
 import tensorflow as tf
 
@@ -17,8 +18,8 @@ class PMModel(Model):
             self.config.encoder.time_distributed = 'rnn' in self.config
 
     def _build(self, env_stats, evaluation=False):
-        n_players = len(env_stats.aid2pids[self.config.aid])
-        basic_shape = (None, n_players)
+        n_units = len(env_stats.aid2uids[self.config.aid])
+        basic_shape = (None, n_units)
         dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         shapes = env_stats['obs_shape'][self.config.aid]
         dtypes = env_stats['obs_dtype'][self.config.aid]
@@ -48,21 +49,31 @@ class PMModel(Model):
     ):
         if self.has_rnn:
             obs, mask = self._add_seqential_dimension(obs, mask)
-        x, _, paction, state = self.encode(obs, state=state, mask=mask)
-        one_hot = tf.one_hot(paction, self.policy.action_dim)
+        x, pact_dist, paction, ppolicy_penultimate, state = self.encode(obs, state=state, mask=mask)
+        one_hot = tf.one_hot(paction, self.ppolicy.action_dim)
         if self.has_rnn:
             x = tf.squeeze(x, 1)
-        act_dist = self.policy(x, one_hot, evaluation=evaluation)
+        act_dist = self.policy(x, ppolicy_penultimate, evaluation=evaluation)
         action = self.policy.action(act_dist, evaluation)
 
         if evaluation:
-            return action, {'paction': paction}, state
+            value = self.value(x)
+            terms = {
+                'value': value, 
+                'paction': paction
+            }
+            return action, terms, state
         else:
             logpi = act_dist.log_prob(action)
             value = self.value(x)
             terms = {
+                'plogits': pact_dist.logits,
+                'pentropy': pact_dist.entropy(),
+                'paction': paction,
                 'logits': act_dist.logits, 
-                'logpi': logpi, 
+                'entropy': act_dist.entropy(),
+                'logpi': logpi,
+                # 'logpi': -.05 * tf.ones_like(value), 
                 'value': value
             }
 
@@ -116,7 +127,10 @@ class PMModel(Model):
         pact_dist = self.ppolicy(px)
         paction = self.ppolicy.action(pact_dist, True)
 
-        return x, pact_dist, paction, state
+        ppolicy_results = self.ppolicy.results()
+        ppolicy_penultimate = ppolicy_results[-2]
+
+        return x, pact_dist, paction, ppolicy_penultimate, state
 
     def _add_seqential_dimension(self, *args, add_sequential_dim=True):
         if add_sequential_dim:

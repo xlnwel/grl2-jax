@@ -6,7 +6,6 @@ version: 0
 
 precision: 32
 
-training: &training pbt
 n_agents: 1
 
 # model path: root_dir/model_name/name
@@ -14,6 +13,11 @@ n_agents: 1
 # the following names are just examples; they will be re-specified in the entry point
 root_dir: *algo
 model_name: *algo
+
+controller:
+    MAX_VERSION_ITERATIONS: 1
+    MAX_STEPS_PER_ITERATION: 3e8
+    initialize_rms: &irms True
 
 parameter_server:
     fsp: False
@@ -27,11 +31,6 @@ ray_config:
         num_cpus: 1
     agent:
         num_gpus: 1
-
-controller:
-    MAX_VERSION_ITERATIONS: 100000
-    MAX_STEPS_PER_ITERATION: 5e8
-    initialize_rms: &irms True
 
 monitor:
     store_period: 180
@@ -56,7 +55,6 @@ agent: {}
 
 strategy:
     train_loop:
-        training: *training
         N_EPOCHS: &nepochs 5
         N_MBS: &nmbs 1
         N_AUX_EPOCHS: &naepochs 9
@@ -72,9 +70,7 @@ strategy:
         value_update: null
 
 model:
-    training: *training
     rnn_type: &rnn rnn_mlstm
-    oracle_value: True
     sample_size: &ss 10
 
     policy:
@@ -137,6 +133,8 @@ loss:
         life_mask: False
 
 trainer:
+    algorithm: *algo
+
     sample_size: *ss         # BPTT length
     store_state: True
     policy:
@@ -166,8 +164,7 @@ actor:
         gamma: &gamma .99
 
 buffer:
-    type: *training
-    # dir: data/gd-100000
+    type: ppo
     use_dataset: False
 
     # PPO configs
@@ -193,14 +190,14 @@ buffer:
     sample_keys:
         - obs
         - global_state
+        - action_mask
+        - life_mask
         - action
         - value
         - traj_ret
         - advantage
         - logpi
         - mask
-        - action_mask
-        - life_mask
         - actor_h
         - actor_c
         - value_h

@@ -141,7 +141,7 @@ class Game(object):
             jokers=np.float32,
             left_cards=np.float32,
             is_last_teammate_move=np.float32,
-            is_first_move=np.bool,
+            is_first_move=bool,
             last_valid_action_type=np.float32,
             rank=np.float32,
             bombs_dealt=np.float32,
@@ -149,10 +149,10 @@ class Game(object):
             last_action_jokers=np.float32,
             last_action_types=np.float32,
             last_action_rel_pids=np.float32,
-            last_action_filters=np.bool,
+            last_action_filters=bool,
             last_action_first_move=np.float32,
-            action_type_mask=np.bool,
-            card_rank_mask=np.bool,
+            action_type_mask=bool,
+            card_rank_mask=bool,
             mask=np.float32,
         )
 

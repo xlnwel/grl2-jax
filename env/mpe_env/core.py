@@ -136,7 +136,7 @@ class World(object):
         # zoe 20200420
         self.world_length = 25
         self.world_step = 0
-        self.n_players = 0
+        self.n_units = 0
         self.num_landmarks = 0
 
     # return all entities in the world
