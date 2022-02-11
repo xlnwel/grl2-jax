@@ -119,8 +119,9 @@ def create_model(
         to_build=False,
         to_build_for_eval=False,
         **kwargs):
-    config.policy.action_dim = env_stats.action_dim
-    config.policy.is_action_discrete = env_stats.is_action_discrete
+    aid = config['aid']
+    config.policy.action_dim = env_stats.action_dim[aid]
+    config.policy.is_action_discrete = env_stats.is_action_discrete[aid]
 
     return MAPPOModel(
         config=config, 

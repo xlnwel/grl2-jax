@@ -23,6 +23,7 @@ def load_config(filename='config.yaml', to_attrdict=True):
             else:
                 return config
         except yaml.YAMLError as exc:
+            print(f'Fail loading configuration: {filename}')
             print(exc)
 
 # save config to config.yaml

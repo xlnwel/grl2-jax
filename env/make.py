@@ -1,3 +1,4 @@
+from textwrap import wrap
 from env import wrappers
 
 
@@ -140,6 +141,17 @@ def make_overcooked(config):
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
     
+    return env
+
+def make_grf(config):
+    assert 'grf' in config['env_name'], config['env_name']
+    from env.grf import GRF
+    config = config.copy()
+    config = _change_env_name(config)
+    env = GRF(**config)
+    env = wrappers.DataProcess(env)
+    env = wrappers.MASimEnvStats(env)
+
     return env
 
 def make_unity(config):

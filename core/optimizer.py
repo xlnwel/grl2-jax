@@ -109,7 +109,6 @@ class Optimizer(tf.Module):
         return grads
 
     def apply_gradients(self, grads):
-        # TODO: handle the case where gradients come from multiple sources
         if None in grads:
             raise ValueError(f'No grads for {self._variables[grads.index(None)].name}')
         if self._mpt:

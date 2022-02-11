@@ -2,7 +2,7 @@ from typing import List
 import numpy as np
 import gym
 
-# from env.utils import compute_aid2uids
+from env.utils import compute_aid2uids
 
 """  Naming Conventions:
 An Agent is the one that makes decisions, it's typically a RL agent
@@ -11,18 +11,18 @@ Each agent may control a number of units.
 All ids start from 0 and increases sequentially
 """
 
-def compute_aid2uids(uid2aid):
-    """ Compute aid2uids from uid2aid """
-    aid2uids = []
-    for pid, aid in enumerate(uid2aid):
-        if aid > len(aid2uids):
-            raise ValueError(f'uid2aid({uid2aid}) is not sorted in order')
-        if aid == len(aid2uids):
-            aid2uids.append((pid, ))
-        else:
-            aid2uids[aid] += (pid,)
+# def compute_aid2uids(uid2aid):
+#     """ Compute aid2uids from uid2aid """
+#     aid2uids = []
+#     for pid, aid in enumerate(uid2aid):
+#         if aid > len(aid2uids):
+#             raise ValueError(f'uid2aid({uid2aid}) is not sorted in order')
+#         if aid == len(aid2uids):
+#             aid2uids.append((pid, ))
+#         else:
+#             aid2uids[aid] += (pid,)
 
-    return aid2uids
+#     return aid2uids
 
 
 # MAGIC NUMBERS
@@ -115,6 +115,8 @@ class UnityEnv:
         self._dense_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
         self._epslen = np.zeros(self.n_envs, np.int32)
 
+        self._info = [{} for i in range(self.n_envs)]
+
         # decision_steps, terminal_steps = self.env.reset()
         decision_steps, terminal_steps = {}, {}
 
@@ -148,8 +150,8 @@ class UnityEnv:
         resets = np.tile(reset.reshape(-1, 1), (1, self.n_units))
         
         self._info = [dict(
-            score=self._score[i],
-            dense_score=self._dense_score[i],
+            score=self._score[i].copy(),
+            dense_score=self._dense_score[i].copy(),
             epslen=self._epslen[i],
             game_over=discount[i] == 0
         ) for i in range(self.n_envs)]
@@ -202,30 +204,30 @@ if __name__ == '__main__':
         n_envs=4,
         unity_config={},
     )
-    # from utility.display import print_dict, print_dict_tensors
-    def print_dict(d, prefix=''):
-        for k, v in d.items():
-            if isinstance(v, dict):
-                print(f'{prefix} {k}')
-                print_dict(v, prefix+'\t')
-            elif isinstance(v, tuple):
-                # namedtuple is assumed
-                print(f'{prefix} {k}')
-                print_dict(v._asdict(), prefix+'\t')
-            else:
-                print(f'{prefix} {k}: {v}')
+    from utility.display import print_dict, print_dict_tensors
+    # def print_dict(d, prefix=''):
+    #     for k, v in d.items():
+    #         if isinstance(v, dict):
+    #             print(f'{prefix} {k}')
+    #             print_dict(v, prefix+'\t')
+    #         elif isinstance(v, tuple):
+    #             # namedtuple is assumed
+    #             print(f'{prefix} {k}')
+    #             print_dict(v._asdict(), prefix+'\t')
+    #         else:
+    #             print(f'{prefix} {k}: {v}')
 
-    def print_dict_tensors(d, prefix=''):
-        for k, v in d.items():
-            if isinstance(v, dict):
-                print(f'{prefix} {k}')
-                print_dict_tensors(v, prefix+'\t')
-            elif isinstance(v, tuple):
-                # namedtuple is assumed
-                print(f'{prefix} {k}')
-                print_dict_tensors(v._asdict(), prefix+'\t')
-            else:
-                print(f'{prefix} {k}: {v.shape} {v.dtype}')
+    # def print_dict_tensors(d, prefix=''):
+    #     for k, v in d.items():
+    #         if isinstance(v, dict):
+    #             print(f'{prefix} {k}')
+    #             print_dict_tensors(v, prefix+'\t')
+    #         elif isinstance(v, tuple):
+    #             # namedtuple is assumed
+    #             print(f'{prefix} {k}')
+    #             print_dict_tensors(v._asdict(), prefix+'\t')
+    #         else:
+    #             print(f'{prefix} {k}: {v.shape} {v.dtype}')
 
     env = UnityEnv(**config)
     observations = env.reset()

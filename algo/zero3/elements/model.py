@@ -76,8 +76,9 @@ def create_model(
         to_build=False,
         to_build_for_eval=False,
         **kwargs):
-    config.policy.policy.action_dim = env_stats.action_dim
-    config.policy.policy.is_action_discrete = env_stats.is_action_discrete
+    aid = config['aid']
+    config.policy.policy.action_dim = env_stats.action_dim[aid]
+    config.policy.policy.is_action_discrete = env_stats.is_action_discrete[aid]
 
     return MAPPOWithGoalModelEnsemble(
         config=config, 

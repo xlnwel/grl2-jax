@@ -1,6 +1,6 @@
 import os
 from types import FunctionType
-from typing import Dict
+from typing import Dict, Tuple
 import cloudpickle
 
 from core.elements.actor import Actor
@@ -538,7 +538,7 @@ class ElementsBuilderVC(ElementsBuilder):
         self.save_config()
         self.save()
 
-    def get_sub_version(self, config: AttrDict):
+    def get_sub_version(self, config: AttrDict) -> Tuple[ModelPath, AttrDict]:
         def increase_subversion(version):
             if '.' in version:
                 base_version, sub_version = version.split('.')

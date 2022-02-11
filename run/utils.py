@@ -6,44 +6,35 @@ from utility.utils import eval_str, dict2AttrDict, modify_config
 from utility.yaml_op import load_config
 
 
-def get_config(algo, env):
-    def search_add(word, files, filename):
-        if [f for f in files if word in f]:
-            # if suffix meets any config in the dir, we add it to filename
-            filename = f'{word}_{filename}'
-        return filename
+def get_configs_dir(algo):
     algo_dir = pkg.get_package_from_algo(algo, 0, '/')
     if algo_dir is None:
         raise RuntimeError(f'Algorithm({algo}) is not implemented')
     configs_dir = f'{algo_dir}/configs'
-    files = [f for f in os.listdir(configs_dir) if 'config.yaml' in f]
+
+    return configs_dir
+
+
+def get_filename_with_env(env):
     env_split = env.split('-')  # TODO: extra care need to be taken when we call env ending with version number (-vx)
     if len(env_split) == 1:
-        filename = 'builtin.yaml'
+        filename = 'builtin'
     elif len(env_split) == 2:
-        filename = f'{env_split[0]}.yaml'
-    else:
-        filename = '_'.join(env_split[1:-1]) + '.yaml'
-    if '-' in algo:
-        suffix = algo.split('-')[-1]
-        if [f for f in files if suffix in f]:
-            filename = search_add(suffix, files, filename)
-        elif suffix[-1].isdigit():
-            suffix = suffix[:-1]
-            filename = search_add(suffix, files, filename)
-    path = f'{configs_dir}/{filename}'
+        filename = env_split[0]
+    else:   # we may use intermediate characters in env to specify the configuration filename
+        filename = '_'.join(env_split[1:-1])
 
-    config = load_config(path)
-    if config is None:
-        raise RuntimeError('No configure is loaded')
+    return filename
 
+
+def get_env_name(env):
+    env_split = env.split('-')
     if len(env_split) == 1:
         env_name = env_split[0]
     else:
-        env_name = f'{env_split[0]}-{env_split[-1]}'   # we may specify configuration filename in between
-    config = modify_config(config, overwrite_existed=True, algorithm=algo, env_name=env_name)
-
-    return config
+        # we may specify the configuration filename in between
+        env_name = f'{env_split[0]}-{env_split[-1]}'
+    return env_name
 
 
 def change_config(kw, config, model_name=''):
@@ -76,9 +67,20 @@ def change_config(kw, config, model_name=''):
     return model_name
 
 
-def load_configs_with_algo_env(algo, env, to_attrdict=True):
-    config = get_config(algo, env)
-    
+def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True):
+    configs_dir = get_configs_dir(algo)
+    if filename is None:
+        filename = get_filename_with_env(env)
+    filename = filename + '.yaml'
+    path = f'{configs_dir}/{filename}'
+
+    config = load_config(path)
+    if config is None:
+        raise RuntimeError('No configure is loaded')
+    env_name = get_env_name(env)
+
+    config = modify_config(config, overwrite_existed=True, algorithm=algo, env_name=env_name)
+
     if to_attrdict:
         config = dict2AttrDict(config)
 

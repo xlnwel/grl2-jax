@@ -3,7 +3,7 @@ from env import make_env
 
 
 def is_ma_suite(env_name):
-    ma_suites = ['overcooked', 'smac']
+    ma_suites = ['overcooked', 'smac', 'grf']
     for suite in ma_suites:
         if env_name.startswith(suite):
             return True

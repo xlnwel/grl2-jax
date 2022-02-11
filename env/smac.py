@@ -380,7 +380,7 @@ class SMAC(gym.Env):
             choices = [i for i, v in enumerate(avail_actions) if v]
             actions.append(random.choice(choices))
             
-        return np.stack(actions)
+        return [np.stack(actions)]
 
     @property
     def is_multiagent(self):

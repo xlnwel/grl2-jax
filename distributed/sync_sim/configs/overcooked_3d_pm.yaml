@@ -26,6 +26,9 @@ parameter_server:
     root_dir: *algo
     model_name: *algo
 
+    payoff:
+        step_size: .1
+
 ray_config:
     runner:
         num_cpus: 1
@@ -145,6 +148,7 @@ actor:
         normalize_reward: True
         obs_normalized_axis: [0, 1]
         reward_normalized_axis: [0, 1]
+        update_reward_rms_in_time: True
         gamma: &gamma .99
 
 buffer:

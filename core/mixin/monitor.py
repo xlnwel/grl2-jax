@@ -53,7 +53,7 @@ class Recorder:
             do_logging(f'Record directory is not specified; no data will be recorded to the disk',
                 logger=logger)
 
-        self._first_row=True
+        self._first_row = True
         self._headers = []
         self._current_row = {}
         self._store_dict = defaultdict(list)
@@ -192,7 +192,7 @@ class Recorder:
 
     def dump_tabular(self, print_terminal_info=True):
         """
-        Write all of the diagnostics from the current iteration.
+        Write to disk all the diagnostics from the current iteration.
         """
         def is_print_keys(key):
             return key.startswith('metrics/') or '/' not in key
@@ -218,7 +218,7 @@ class Recorder:
             self._out_file.flush()
         self._current_row.clear()
         self._store_dict.clear()
-        self._first_row=False
+        self._first_row = False
 
 
 """ Tensorboard Writer """

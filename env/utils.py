@@ -1,3 +1,5 @@
+import numpy as np
+
 from env.typing import EnvOutput
 from utility.utils import convert_batch_with_func
 
@@ -16,5 +18,6 @@ def compute_aid2uids(uid2aid):
             aid2uids.append((uid, ))
         else:
             aid2uids[aid] += (uid,)
+    aid2uids = [np.array(uids, np.int32) for uids in aid2uids]
 
     return aid2uids

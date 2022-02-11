@@ -24,14 +24,22 @@ class ModelImpl(Model):
             x = tf.reshape(x, [-1, T, F])
             mask = tf.transpose(mask, [0, 2, 1])
             mask = tf.reshape(mask, [-1, T])
-            x = self.encoder(x)
-            x, state = self.rnn(x, state, mask)
+            embed = self.encoder(x)
+            self.encoder_out = embed
+            x, state = self.rnn(embed, state, mask)
+            self.lstm_out = x
+            x = x + embed
+            self.res_out = x
             x = tf.reshape(x, [-1, A, T, x.shape[-1]])
             x = tf.transpose(x, [0, 2, 1, 3])
         else:
             assert_rank(x, 3)
             
             x = self.encoder(x)
+            self.encoder_out = x
+            self.lstm_out = x
+            self.res_out = x
+
             state = None
 
         return x, state

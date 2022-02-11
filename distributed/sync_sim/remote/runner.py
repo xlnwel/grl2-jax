@@ -32,9 +32,9 @@ class MultiAgentSimRunner(RayBase):
         super().__init__()
 
         self._id = runner_id
-
         self._store_data = store_data
         self._evaluation = evaluation
+
         self.remote_agents: List[Agent] = []
         self.param_queues = param_queues
         self.parameter_server = parameter_server
@@ -49,16 +49,15 @@ class MultiAgentSimRunner(RayBase):
         self.uid2aid = self.env_stats.uid2aid
         self.aid2uids = self.env_stats.aid2uids
         self.n_units_per_agent = [len(uids) for uids in self.aid2uids]
+        self.is_multi_agent = self.env_stats.is_multi_agent
 
         self.env_output = self.env.output()
+        self.scores = [[] for _ in range(self.n_agents)]
 
         if param_queues is not None:
             assert self.n_agents == len(param_queues), (self.n_agents, len(param_queues))
 
-        self.builder = ElementsBuilder(
-            configs[0], 
-            self.env_stats
-        )
+        self.builder = ElementsBuilder(configs[0], self.env_stats)
 
         self.build_from_configs(configs)
 
@@ -90,6 +89,7 @@ class MultiAgentSimRunner(RayBase):
             self.active_models.add(model_path)
             self.current_models.append(model_path)
 
+            # TODO: handle the case in which some algorithms do not require normalization with RMS
             self.rms.append(RMS(config.actor.rms))
 
             if self._store_data:
@@ -112,21 +112,12 @@ class MultiAgentSimRunner(RayBase):
             self.env_output = self.env.step(self.env.random_action())
             agent_env_outs = self._divide_outs(self.env_output)
             self._update_rms(agent_env_outs)
-            self._log_for_done(self.env_output[0].reset)
             step += 1
 
         if aids is None:
             aids = range(self.n_agents)
         for aid in aids:
-            self.agents[aid].actor.update_rms_from_stats(
-                self.rms[aid].get_rms_stats())
             self._send_aux_stats(aid)
-
-        # stats = [a.get_stats() for a in self.agents]
-        # print(f'Random running stats:')
-        # for i, s in enumerate(stats):
-        #     print(f'Random Agent {i}')
-        #     print_dict(s)
 
     def run(self):
         def set_weights():
@@ -144,25 +135,30 @@ class MultiAgentSimRunner(RayBase):
             steps, n_episodes = self._run_impl()
 
         for aid, is_active in enumerate(self.is_agent_active):
-            if is_active:
-                self.agents[aid].store(**{
-                    **{f'time/{t.name}_total': t.total() for t in [wt, rt]}, 
-                    **{f'time/{t.name}': t.average() for t in [wt, rt]},
-                })
-                self._send_aux_stats(aid)
+            self.agents[aid].store(**{
+                **{f'time/{t.name}_total': t.total() for t in [wt, rt]}, 
+                **{f'time/{t.name}': t.average() for t in [wt, rt]},
+            })
+            if n_episodes > 0:
                 self._send_run_stats(aid, steps, n_episodes)
+            if is_active:
+                self._send_aux_stats(aid)
+        self._update_payoff()
 
         return steps
 
     def evaluate(self):
         video, rewards = [], []
         step, n_episodes = self._run_impl(video, rewards)
-        stats = {
-            'score': np.stack([
-                a.get_raw_item('score') for a in self.agents], 1),
-            'dense_score': np.stack([
-                a.get_raw_item('dense_score') for a in self.agents], 1),
-        }
+        if n_episodes > 0:
+            stats = {
+                'score': np.stack([
+                    a.get_raw_item('score') for a in self.agents], 1),
+                'dense_score': np.stack([
+                    a.get_raw_item('dense_score') for a in self.agents], 1),
+            }
+        else:
+            stats = {}
         return step, n_episodes, video, rewards, stats
 
     """ Running Setups """
@@ -191,10 +187,10 @@ class MultiAgentSimRunner(RayBase):
         return self.env_output
 
     def _run_impl(self, video: list=None, reward: list=None):
-        if self.n_units == 1:
-            step, n_episodes = self._run_impl_sa(video, reward)
-        else:
+        if self.is_multi_agent:
             step, n_episodes = self._run_impl_ma(video, reward)
+        else:
+            step, n_episodes = self._run_impl_sa(video, reward)
         return step, n_episodes
 
     def _run_impl_ma(self, video: list=None, rewards: list=None):
@@ -220,8 +216,8 @@ class MultiAgentSimRunner(RayBase):
 
         def step_env(actions):
             self.env_output = self.env.step(actions)
-            if video is not None:
-                video.append(self.env.get_screen(convert_batch=False)[0])
+            # if video is not None:
+            #     video.append(self.env.get_screen(convert_batch=False)[0])
             if rewards is not None:
                 rewards.append(self.env_output.reward[0])
             agent_env_outs = self._divide_outs(self.env_output)
@@ -292,8 +288,9 @@ class MultiAgentSimRunner(RayBase):
 
         if self._store_data:
             for aid, (term, buffer) in enumerate(zip(terms, self.buffers)):
-                data, n = buffer.retrieve_all_data(term['value'])
-                self.remote_agents[aid].merge_data.remote(data, n)
+                if self.is_agent_active[aid]:
+                    data, n = buffer.retrieve_all_data(term['value'])
+                    self.remote_agents[aid].merge_data.remote(data, n)
 
         return step * self.n_envs, n_episodes
 
@@ -359,7 +356,7 @@ class MultiAgentSimRunner(RayBase):
         for i in range(self.n_agents):
             for k, v in outs[i].obs.items():
                 assert v.shape[:2] == (self.n_envs, self.n_units_per_agent[i]), \
-                    (v.shape, (self.n_envs, self.n_units_per_agent))
+                    (k, v.shape, (self.n_envs, self.n_units_per_agent))
             assert outs[i].reward.shape == (self.n_envs, self.n_units_per_agent[i]), (outs[i].reward.shape, (self.n_envs, self.n_units_per_agent[i]))
             assert outs[i].discount.shape == (self.n_envs, self.n_units_per_agent[i])
             assert outs[i].reset.shape == (self.n_envs, self.n_units_per_agent[i])
@@ -386,22 +383,23 @@ class MultiAgentSimRunner(RayBase):
                 for k, v in i.items():
                     stats[k].append(v)
             for aid, uids in enumerate(self.aid2uids):
-                if self.is_agent_active[aid]:
-                    self.agents[aid].store(
-                        **{
-                            k: [vv[uids] for vv in v]
-                            if isinstance(v[0], np.ndarray) else v
-                            for k, v in stats.items()
-                        }
-                    )
+                self.scores[aid] += [v[uids].mean() for v in stats['score']]
+                self.agents[aid].store(
+                    **{
+                        k: [vv[uids] for vv in v]
+                        if isinstance(v[0], np.ndarray) else v
+                        for k, v in stats.items()
+                    }
+                )
 
         return len(done_env_ids)
 
     def _send_aux_stats(self, aid):
         aux_stats = self.rms[aid].get_rms_stats()
         self.rms[aid].reset_rms_stats()
-        model_weights = ModelWeights(
-            self.current_models[aid], {'aux': aux_stats})
+        model = self.current_models[aid]
+        assert model in self.active_models, (model, self.active_models)
+        model_weights = ModelWeights(model, {'aux': aux_stats})
         self.parameter_server.update_strategy_aux_stats.remote(aid, model_weights)
 
     def _send_run_stats(self, aid, env_steps, n_episodes):
@@ -409,7 +407,6 @@ class MultiAgentSimRunner(RayBase):
         stats['env_steps'] = env_steps
         stats['n_episodes'] = n_episodes
         model = self.current_models[aid]
-        assert model in self.active_models, (model, self.active_models)
         model_stats = ModelStats(model, stats)
         self.monitor.store_run_stats.remote(model_stats)
 
@@ -419,3 +416,7 @@ class MultiAgentSimRunner(RayBase):
             config['env']['unity_config']['worker_id'] += config['env']['n_envs'] * self._id + 1
 
         return config
+
+    def _update_payoff(self):
+        self.parameter_server.update_payoffs.remote(self.current_models, self.scores)
+        self.scores = [[] for _ in range(self.n_agents)]

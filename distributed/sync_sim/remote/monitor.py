@@ -26,16 +26,18 @@ class Monitor(RayBase):
 
         self.monitors: Dict[ModelPath, ModelMonitor] = {}
 
-        self._to_store: Dict[ModelPath, Every] = {}
-
         self.train_steps: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
         self.n_train_steps_in_period: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
         self.env_steps: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
         self.n_env_steps_in_period: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
         self.n_episodes: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
         self.n_episodes_in_period: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
+
+        self._to_store: Dict[ModelPath, Every] = {}
+
         self._dir = '/'.join([self.config.root_dir, self.config.model_name])
         self._path = '/'.join([self._dir, 'monitor.pkl'])
+
         self.restore()
 
     def store_train_stats(self, model_stats: ModelStats):
@@ -66,10 +68,10 @@ class Monitor(RayBase):
             pid = self.parameter_server.save_active_model.remote(
                 model, self.train_steps[model], self.env_steps[model])
             self.save()
-            ray.get(pid)
             # we ensure that all checkpoint stats are saved to the disk 
             # before recording running/training stats. 
             self.record(model, self._to_store[model].difference())
+            ray.get(pid)
 
     def build_monitor(self, model_path):
         if model_path not in self.monitors:
@@ -80,13 +82,19 @@ class Monitor(RayBase):
     def restore(self):
         if os.path.exists(self._path):
             with open(self._path, 'rb') as f:
-                self.env_steps, self.train_steps, self.n_episodes = cloudpickle.load(f)
+                self.train_steps, self.n_train_steps_in_period, \
+                self.env_steps, self.n_env_steps_in_period, \
+                self.n_episodes, self.n_episodes_in_period = cloudpickle.load(f)
 
     def save(self):
         if not os.path.isdir(self._dir):
             os.makedirs(self._dir)
         with open(self._path, 'wb') as f:
-            cloudpickle.dump([self.env_steps, self.train_steps, self.n_episodes], f)
+            cloudpickle.dump((
+                self.train_steps, self.n_train_steps_in_period, 
+                self.env_steps, self.n_env_steps_in_period,
+                self.n_episodes, self.n_episodes_in_period,
+            ), f)
 
     def record(self, model, duration):
         self.monitors[model].store(

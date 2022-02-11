@@ -110,7 +110,9 @@ def train(config, agent, env, eval_env, buffer):
         if to_record(train_step) and agent.contains_stats('score'):
             record_stats(step)
 
-def main(config, train=train):
+def main(configs, train=train):
+    assert len(configs) == 1, configs
+    config = configs[0]
     silence_tf_logs()
     configure_gpu()
     configure_precision(config.precision)

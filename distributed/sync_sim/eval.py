@@ -11,6 +11,13 @@ def main(configs, n, **kwargs):
     ray.init()
     sigint_shutdown_ray()
 
+    for c in configs:
+        c.env.write_video = True
+        c.env.dump_frequency = 1
+        c.env.write_full_episode_dumps = True
+        c.env.render = True
+        c.runner.N_STEPS = c.env.max_episode_steps = 3000
+
     runner = RunnerManager(configs[0].runner)
     runner.build_runners(configs, store_data=False, evaluation=True)
     

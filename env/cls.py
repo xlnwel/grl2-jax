@@ -122,6 +122,7 @@ class VecEnv(VecEnvBase):
         self._stats = self.env.stats()
         self._stats['n_workers'] = 1
         self._stats['n_envs'] = self.n_envs
+        self._stats['is_multi_agent'] = False
 
     def random_action(self, *args, **kwargs):
         return np.stack([env.random_action() if hasattr(env, 'random_action') \
@@ -235,10 +236,11 @@ class MAVecEnv(VecEnvBase):
         self._stats = self.env.stats()
         self._stats['n_workers'] = 1
         self._stats['n_envs'] = self.n_envs
+        self._stats['is_multi_agent'] = True
 
     def random_action(self, *args, **kwargs):
-        return np.stack([env.random_action() if hasattr(env, 'random_action') \
-            else env.action_space.sample() for env in self.envs])
+        actions = list(zip(*[env.random_action() for env in self.envs]))
+        return actions
 
     def reset(self, idxes=None, convert_batch=True, **kwargs):
         idxes = self._get_idxes(idxes)

@@ -24,42 +24,10 @@ class Controller:
         ])
 
         self.config = configs[0].controller
-
-        self._build_managers(configs)
         model_path = ModelPath(self.config.root_dir, self.config.model_name)
         save_code(model_path)
 
-    def _build_managers(self, configs: List[AttrDict]):
-        queues = self._build_queues(configs)
-        env_stats = get_env_stats(configs[0].env)
-        self.configs = configs = self._setup_configs(configs, env_stats)
-
-        self.parameter_server: ParameterServer = \
-            ParameterServer.as_remote().remote(
-                configs=[c.asdict() for c in self.configs],
-                env_stats=env_stats.asdict(),
-                param_queues=queues.param
-            )
-        monitor: Monitor = Monitor.as_remote().remote(
-            self.configs[0].monitor.asdict(), 
-            self.parameter_server
-        )
-
-        self.agent_manager: AgentManager = AgentManager(
-            ray_config=self.configs[0].ray_config.agent,
-            env_stats=env_stats, 
-            parameter_server=self.parameter_server,
-            monitor=monitor
-        )
-
-        self.runner_manager: RunnerManager = RunnerManager(
-            self.configs[0].runner,
-            ray_config=configs[0].ray_config.runner,
-            param_queues=queues.param,
-            parameter_server=self.parameter_server,
-            monitor=monitor
-        )
-        self.runner_manager.build_runners(configs)
+        self._build_managers(configs)
 
     def pbt_train(self):
         iteration = 0
@@ -72,21 +40,14 @@ class Controller:
             )
 
             self.cleanup()
+            iteration += 1
 
     def initialize_actors(self):
         self.agent_manager.build_agents(self.configs)
         self.runner_manager.register_handler(
             remote_agents=self.agent_manager.get_agents())
-        model_weights, is_raw_strategy = ray.get(
-            self.parameter_server.sample_training_strategies.remote())
-        self.agent_manager.set_model_weights(model_weights)
-        model_paths = [path for path, _ in model_weights]
-        self.runner_manager.set_active_model_paths(model_paths, wait=True)
-        if self.config.initialize_rms and any(is_raw_strategy):
-            aids = [i for i, is_raw in enumerate(is_raw_strategy) if is_raw]
-            print(f'Initializing RMS for agents: {aids}')
-            self.runner_manager.set_current_model_paths(model_paths)
-            self.runner_manager.random_run(aids)
+        model_paths, is_raw_strategy = self._setup_models()
+        self._initialize_rms(model_paths, is_raw_strategy)
 
     def train(
         self, 
@@ -123,6 +84,38 @@ class Controller:
 
         return configs
 
+    def _build_managers(self, configs: List[AttrDict]):
+        queues = self._build_queues(configs)
+        env_stats = get_env_stats(configs[0].env)
+        self.configs = self._setup_configs(configs, env_stats)
+
+        self.parameter_server: ParameterServer = \
+            ParameterServer.as_remote().remote(
+                configs=[c.asdict() for c in self.configs],
+                env_stats=env_stats.asdict(),
+                param_queues=queues.param
+            )
+        monitor: Monitor = Monitor.as_remote().remote(
+            self.configs[0].monitor.asdict(), 
+            self.parameter_server
+        )
+
+        self.agent_manager: AgentManager = AgentManager(
+            ray_config=self.configs[0].ray_config.agent,
+            env_stats=env_stats, 
+            parameter_server=self.parameter_server,
+            monitor=monitor
+        )
+
+        self.runner_manager: RunnerManager = RunnerManager(
+            self.configs[0].runner,
+            ray_config=configs[0].ray_config.runner,
+            param_queues=queues.param,
+            parameter_server=self.parameter_server,
+            monitor=monitor
+        )
+        self.runner_manager.build_runners(self.configs)
+
     def _build_queues(
         self, 
         configs: List[AttrDict]
@@ -142,11 +135,22 @@ class Controller:
     ):
         for key in keys:
             for i, c in enumerate(configs):
-                assert configs[0][key] == c[key], (key, i, c[key], configs[0][key])
+                for k in c[key].keys():
+                    if k != 'root_dir':
+                        assert configs[0][key][k] == c[key][k], (key, i, k, c[key][k], configs[0][key][k])
 
     def _setup_models(self):
-            model_weights = ray.get(
-                self.parameter_server.sample_training_strategies.remote())
-            self.agent_manager.set_model_weights(model_weights)
-            model_paths = [path for path, _ in model_weights]
-            self.runner_manager.set_active_model_paths(model_paths, wait=True)
+        model_weights, is_raw_strategy = ray.get(
+            self.parameter_server.sample_training_strategies.remote())
+        self.agent_manager.set_model_weights(model_weights)
+        model_paths = [path for path, _ in model_weights]
+        self.runner_manager.set_active_model_paths(model_paths, wait=True)
+
+        return model_paths, is_raw_strategy
+
+    def _initialize_rms(self, model_paths, is_raw_strategy):
+        if self.config.initialize_rms and any(is_raw_strategy):
+            aids = [i for i, is_raw in enumerate(is_raw_strategy) if is_raw]
+            print(f'Initializing RMS for agents: {aids}')
+            self.runner_manager.set_current_model_paths(model_paths)
+            self.runner_manager.random_run(aids)

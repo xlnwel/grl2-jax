@@ -3,13 +3,16 @@ import argparse
 
 def parse_train_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--algorithm', '-a', 
+    parser.add_argument('--algorithms', '-a', 
                         type=str,
                         nargs='*')
-    parser.add_argument('--environment', '-e',
+    parser.add_argument('--environments', '-e',
+                        type=str,
+                        nargs='*')
+    parser.add_argument('--configs', '-c',
                         type=str,
                         nargs='*',
-                        default=[''])
+                        default=[None])
     parser.add_argument('--directory', '-d',
                         type=str,
                         default='',

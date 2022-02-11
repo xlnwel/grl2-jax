@@ -374,8 +374,8 @@ class SMAC(gym.Env):
         for avail_actions in self.get_avail_actions():
             choices = [i for i, v in enumerate(avail_actions) if v]
             actions.append(random.choice(choices))
-            
-        return np.stack(actions)
+
+        return (np.stack(actions),)
 
     @property
     def is_multiagent(self):
@@ -597,13 +597,12 @@ class SMAC(gym.Env):
                 life_mask=life_mask
             )
             rewards = np.zeros(self.n_units, np.float32)
-            info = batch_dicts(infos)
-            info.update({
+            info = {
                 'dense_score': self._score * np.ones(self.n_units, np.float32),
                 'score': self.win_counted * np.ones(self.n_units, np.float32),
                 'epslen': self._episode_steps,
                 'game_over': False  # we do not take auto reset as game over to avoid repeatly resetting in wrappers.EnvStats
-            })
+            }
 
             self._reset_track_stats()
             self._reset_for_error = True
@@ -697,13 +696,12 @@ class SMAC(gym.Env):
             action_mask=np.array(available_actions, bool),
             life_mask=life_mask
         )
-        info = batch_dicts(infos)
-        info.update({
+        info = {
             'dense_score': self._score * np.ones(self.n_units, np.float32),
             'score': self.win_counted * np.ones(self.n_units, np.float32),
             'epslen': self._episode_steps,
             'game_over': terminated
-        })
+        }
         assert np.all(life_mask == 0) == terminated, (life_mask, terminated)
         dones = (np.zeros if np.any(life_mask) else np.ones)(self.n_units, bool)
         assert np.all(dones) == terminated, (dones, terminated)

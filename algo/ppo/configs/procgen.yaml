@@ -85,6 +85,7 @@ actor:
     rms:
         normalize_obs: False
         normalize_reward: True
+        update_reward_rms_in_time: False
         gamma: &gamma .999
 
 buffer:

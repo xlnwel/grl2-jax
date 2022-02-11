@@ -6,6 +6,8 @@ import cloudpickle
 import ray
 from ray.util.queue import Queue
 
+from distributed.sync_sim.remote.payoff import PayoffManager
+
 from .typing import ModelWeights
 from .utils import get_aid, get_aid_vid
 from core.elements.builder import ElementsBuilderVC
@@ -18,6 +20,15 @@ from utility.utils import dict2AttrDict
 
 payoff = collections.defaultdict(lambda: collections.deque(maxlen=1000))
 score = collections.defaultdict(lambda: 0)
+
+
+""" Name Conventions:
+
+We use "model" and "strategy" interchangeably. 
+In general, we prefer the term "strategy" in the context of 
+training and inference, and the term "model" when a model 
+path is involved (e.g., when saving&restoring a model).
+"""
 
 
 class ParameterServer(RayBase):
@@ -44,18 +55,22 @@ class ParameterServer(RayBase):
             os.makedirs(path, exist_ok=True)
             builder = ElementsBuilderVC(config, env_stats, to_save_code=False)
             self.builders.append(builder)
-        self._ps_dir = path.rsplit('/', 1)[0]
-        os.makedirs(self._ps_dir, exist_ok=True)
-        self._path = f'{self._ps_dir}/path.pkl'
 
+        assert path.rsplit('/')[-1] == f'a{aid}', path
+        self._dir = path.rsplit('/', 1)[0]   # remove "/a*"
+        os.makedirs(self._dir, exist_ok=True)
+        self._path = f'{self._dir}/{self.name}.pkl'
+
+        self.payoff_manager: PayoffManager = PayoffManager(
+            self._dir,
+            self.n_agents, 
+            **self.config.payoff
+        )
         self._params: List[Dict[ModelPath, Dict]] = [{} for _ in configs]
-        # self._payoffs: Dict[Tuple[ModelPath], Deque[float]] = payoff
-        # self._scores: Dict[Tuple[ModelPath], float] = collections.defaultdict(lambda: 0)
 
         # an active model is the one under training
         self._active_model_paths = [None for _ in configs]
         self._train_from_scratch_frac = self.config.get('train_from_scratch_frac', 1)
-
 
         self.restore()
 
@@ -116,6 +131,7 @@ class ParameterServer(RayBase):
                     print('sample_training_strategies: version', path, config.version)
                 self._active_model_paths[aid] = path
                 strategies.append(ModelWeights(path, weights))
+            self.payoff_manager.add_strategies([s.model for s in strategies])
             self.save()
 
         return strategies, is_raw_strategy
@@ -125,6 +141,10 @@ class ParameterServer(RayBase):
             self.save_params(model_path)
         self._active_model_paths = [None for _ in range(self.n_agents)]
         self.save()
+
+    """ Payoff Operations """
+    def update_payoffs(self, models: List[ModelPath], scores: List[List[float]]):
+        self.payoff_manager.update_payoffs(models, scores)
 
     """ Checkpoints """
     def save_active_model(self, model, train_step, env_step):
@@ -140,11 +160,11 @@ class ParameterServer(RayBase):
 
     def save_params(self, model: ModelPath):
         assert model in self._active_model_paths, (model, self._active_model_paths)
-        assert self._ps_dir.rsplit('/', 1)[-1] == model.model_name.split('/', 1)[0], (
-            self._ps_dir, model.model_name
+        assert self._dir.rsplit('/', 1)[-1] == model.model_name.split('/', 1)[0], (
+            self._dir, model.model_name
         )
         aid, vid = get_aid_vid(model.model_name)
-        ps_dir = f'{self._ps_dir}/a{aid}'
+        ps_dir = f'{self._dir}/a{aid}'
         if not os.path.isdir(ps_dir):
             os.makedirs(ps_dir)
         path = f'{ps_dir}/v{vid}/params.pkl'
@@ -154,7 +174,7 @@ class ParameterServer(RayBase):
 
     def restore_params(self, model: ModelPath):
         aid, vid = get_aid_vid(model.model_name)
-        path = f'{self._ps_dir}/a{aid}/v{vid}/params.pkl'
+        path = f'{self._dir}/a{aid}/v{vid}/params.pkl'
         if os.path.exists(path):
             with open(path, 'rb') as f:
                 self._params[aid][model] = cloudpickle.load(f)
@@ -163,11 +183,13 @@ class ParameterServer(RayBase):
             self._params[aid][model] = {}
 
     def save(self):
+        self.payoff_manager.save()
         with open(self._path, 'wb') as f:
             cloudpickle.dump(
                 ([list(p) for p in self._params], self._active_model_paths), f)
 
     def restore(self):
+        self.payoff_manager.restore()
         if os.path.exists(self._path):
             try:
                 with open(self._path, 'rb') as f:

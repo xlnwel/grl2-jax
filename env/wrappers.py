@@ -456,6 +456,7 @@ class EnvStatsBase(gym.Wrapper):
                 aid2uids=self.aid2uids,
                 use_life_mask=getattr(env, 'use_life_mask', False),
                 use_action_mask=getattr(env, 'use_action_mask', False),
+                is_multi_agent=getattr(env, 'is_multi_agent', len(self.uid2aid) > 1)
             )
         if timeout_done:
             do_logging('Timeout is treated as done', logger=logger)
@@ -597,6 +598,7 @@ class MASimEnvStats(EnvStatsBase):
             timeout_done=timeout_done, 
             auto_reset=auto_reset
         )
+        self._stats.is_multi_agent = True
 
     def reset(self):
         # if self.auto_reset:

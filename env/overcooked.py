@@ -64,10 +64,13 @@ class Overcooked:
         self.obs_shape = self._get_observation_shape()
         self.obs_dtype = self._get_observation_dtype()
 
-        self.action_space = gym.spaces.Discrete(len(Action.ALL_ACTIONS))
-        self.action_shape = self.action_space.shape
-        self.action_dim = self.action_space.n
-        self.action_dtype = np.int32
+        self.action_space = [gym.spaces.Discrete(len(Action.ALL_ACTIONS)) 
+            for _ in range(self.n_agents)]
+        self.action_shape = [a.shape for a in self.action_space]
+        self.action_dim = [a.n for a in self.action_space]
+        self.action_dtype = [np.int32
+            for _ in range(self.n_agents)]
+        self.is_action_discrete = [True for _ in range(self.n_agents)]
 
     def get_screen(self, **kwargs):
         """
@@ -143,8 +146,8 @@ class Overcooked:
             game_over=done
         )
 
-        rewards = [np.expand_dims(rewards[uids], -1) for uids in self.aid2uids]
-        dones = [np.expand_dims(dones[uids], -1) for uids in self.aid2uids]
+        rewards = [rewards[uids] for uids in self.aid2uids]
+        dones = [dones[uids] for uids in self.aid2uids]
 
         return obs, rewards, dones, info
 
