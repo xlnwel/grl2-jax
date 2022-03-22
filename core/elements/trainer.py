@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from core.checkpoint import *
+from core.ckpt.tf import *
 from core.elements.loss import Loss, LossEnsemble
 from core.module import constructor, Ensemble
 from core.optimizer import create_optimizer
@@ -35,7 +35,7 @@ class Trainer(tf.Module):
         self.train = tf.function(self.raw_train)
         has_built = self._build_train(env_stats)
 
-        self._opt_ckpt = ckpt(self.config, self.ckpt_model(), self.name)
+        self._opt_ckpt = TFCheckpoint(self.config, self.ckpt_model(), self.name)
 
         if has_built and self.config.get('display_var', True):
             display_model_var_info(self.model)

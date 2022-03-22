@@ -18,8 +18,8 @@ class PPOTrainingLoop(TrainingLoopBase):
     def _train_ppo(self):
         stats = collections.defaultdict(list)
 
-        for i in range(self.N_EPOCHS):
-            for j in range(1, self.N_MBS+1):
+        for i in range(self.n_epochs):
+            for j in range(1, self.n_mbs+1):
                 with self._sample_timer:
                     data = self._sample_data()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
@@ -46,7 +46,7 @@ class PPOTrainingLoop(TrainingLoopBase):
                 self.dataset.finish(last_value)
 
             self._after_train_epoch()
-        n = i * self.N_MBS + j
+        n = i * self.n_mbs + j
 
         stats.update({
             'train/action_type_kl': action_type_kl,
@@ -63,7 +63,7 @@ class PPOTrainingLoop(TrainingLoopBase):
     def _train_extra_vf(self):
         stats = collections.defaultdict(list)
         for _ in range(self.N_VALUE_EPOCHS):
-            for _ in range(self.N_MBS):
+            for _ in range(self.n_mbs):
                 data = self.dataset.sample(self._value_sample_keys)
 
                 data = {k: tf.convert_to_tensor(data[k]) 
@@ -88,12 +88,12 @@ class PPOTrainingLoop(TrainingLoopBase):
 
 class PPGTrainingLoop(PPOTrainingLoop):
     def _post_init(self):
-        self.N_AUX_MBS = self.N_SEGS * self.N_AUX_MBS_PER_SEG
+        self.N_AUX_MBS = self.n_segs * self.n_aux_mbs_per_seg
 
     def aux_train_record(self):
         stats = collections.defaultdict(list)
 
-        for i in range(self.N_AUX_EPOCHS):
+        for i in range(self.n_aux_epochs):
             for j in range(1, self.N_AUX_MBS+1):
                 data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
@@ -123,7 +123,7 @@ class PPGTrainingLoop(PPOTrainingLoop):
     def _train_extra_vf(self):
         stats = collections.defaultdict(list)
         for _ in range(self.N_VALUE_EPOCHS):
-            for _ in range(self.N_MBS):
+            for _ in range(self.n_mbs):
                 data = self.dataset.sample(self._value_sample_keys)
 
                 data = {k: tf.convert_to_tensor(data[k]) 

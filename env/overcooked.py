@@ -143,7 +143,9 @@ class Overcooked:
             score=self._score,
             epslen=self._epslen,
             dense_score=self._dense_score,
-            game_over=done
+            game_over=done,
+            dense_reward=info['shaped_r_by_agent'],
+            sparse_reward=info['sparse_r_by_agent'],
         )
 
         rewards = [rewards[uids] for uids in self.aid2uids]
@@ -195,7 +197,7 @@ if __name__ == '__main__':
         max_episode_steps=400,
         dense_reward=True,
         featurize=False,
-        add_goal=True
+        add_goal=False
         # layout_params={
         #     'onion_time': 1,
         # }
@@ -220,7 +222,7 @@ if __name__ == '__main__':
             'q': 4,
             'e': 5,
         }
-        return np.array([dic[action[0]], dic[action[1]]])
+        return np.array([[dic[action[0]]], [dic[action[1]]]])
 
     env = Overcooked(config)
     obs = env.reset()
@@ -233,6 +235,6 @@ if __name__ == '__main__':
             a = env.random_action()
         print(action2char(a))
         o, r, d, i = env.step(action2array(a))
-        print(o['goal'])
-        print("Curr reward: (sparse)", i['sparse_r_by_agent'], "\t(dense)", i['shaped_r_by_agent'])
+        # print(o['goal'])
+        print("Curr reward: (sparse)", i['sparse_reward'], "\t(dense)", i['dense_reward'])
         print('Reward', r)

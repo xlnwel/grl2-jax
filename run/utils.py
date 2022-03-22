@@ -2,6 +2,7 @@ import os, sys
 
 from utility import pkg
 from utility.display import pwc
+from utility.file import search_for_all_files, search_for_file
 from utility.utils import eval_str, dict2AttrDict, modify_config
 from utility.yaml_op import load_config
 
@@ -34,6 +35,7 @@ def get_env_name(env):
     else:
         # we may specify the configuration filename in between
         env_name = f'{env_split[0]}-{env_split[-1]}'
+
     return env_name
 
 
@@ -50,6 +52,7 @@ def change_config(kw, config, model_name=''):
                 modified_configs.append(config_name)
             if isinstance(v, dict):
                 modified_configs += change_dict(v, key, value, config_name)
+
         return modified_configs
             
     if kw:
@@ -64,6 +67,8 @@ def change_config(kw, config, model_name=''):
             modified_configs = change_dict(config, key, value, '')
             pwc(f'All "{key}" appeared in the following configs will be changed: '
                 + f'{modified_configs}.', color='cyan')
+            assert modified_configs != [], modified_configs
+
     return model_name
 
 
@@ -90,64 +95,24 @@ def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True):
 def search_for_all_configs(directory, to_attrdict=True):
     if not os.path.exists(directory):
         return []
-    directory = directory
-    config_files = []
-    for root, _, files in os.walk(directory):
-        for f in files:
-            if 'src' in root:
-                break
-            elif f.endswith('config.yaml'):
-                config_files.append(os.path.join(root, f))
 
-    configs = []
-    for f in config_files:
-        configs.append(load_config(f, to_attrdict=to_attrdict))
-    
+    config_files = search_for_all_files(directory, 'config.yaml')
+    if config_files == []:
+        raise RuntimeError(f'No configure file is found in {directory}')
+    configs = [load_config(f, to_attrdict=to_attrdict) for f in config_files]
+
     return configs
 
 
-def search_for_config(directory, to_attrdict=True):
+def search_for_config(directory, to_attrdict=True, check_duplicates=True):
     if isinstance(directory, tuple):
         directory = '/'.join(directory)
     if not os.path.exists(directory):
         raise ValueError(f'Invalid directory: {directory}')
-    directory = directory
-    config_file = None
-    for root, _, files in os.walk(directory):
-        for f in files:
-            if 'src' in root:
-                break
-            elif f.endswith('config.yaml') and config_file is None:
-                config_file = os.path.join(root, f)
-                break
-            elif f.endswith('config.yaml') and config_file is not None:
-                pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
-                sys.exit()
-
+    
+    config_file = search_for_file(directory, 'config.yaml', check_duplicates)
     if config_file is None:
         raise RuntimeError(f'No configure file is found in {directory}')
     config = load_config(config_file, to_attrdict=to_attrdict)
     
     return config
-
-
-def load_and_run(directory):
-    # load model and log path
-    config_file = None
-    for root, _, files in os.walk(directory):
-        for f in files:
-            if 'src' in root:
-                break
-            if f == 'config.yaml' and config_file is None:
-                config_file = os.path.join(root, f)
-                break
-            elif f =='config.yaml' and config_file is not None:
-                pwc(f'Get multiple "config.yaml": "{config_file}" and "{os.path.join(root, f)}"')
-                sys.exit()
-
-    config = load_config(config_file)
-    configs = dict2AttrDict(config)
-    
-    main = pkg.import_main('train', config=configs.agent)
-
-    main(configs)

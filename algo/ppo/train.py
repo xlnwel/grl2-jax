@@ -20,7 +20,7 @@ def train(config, agent, env, eval_env, buffer):
     info_func = em.info_func if hasattr(em, 'info_func') else None
 
     step = agent.get_env_step()
-    runner = Runner(env, agent, step=step, nsteps=config.N_STEPS, info_func=info_func)
+    runner = Runner(env, agent, step=step, nsteps=config.n_steps, info_func=info_func)
 
     def initialize_rms():
         print('Start to initialize running stats...')

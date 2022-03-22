@@ -1,6 +1,5 @@
 from time import strftime, gmtime, time
 from collections import defaultdict
-import tensorflow as tf
 
 from utility.aggregator import Aggregator
 from utility.display import pwc
@@ -19,7 +18,7 @@ def timeit(func, *args, name=None, to_print=True,
             f'Start "{strftime("%d %b %H:%M:%S", start_time)}"', 
             f'End "{strftime("%d %b %H:%M:%S", end_time)}" ' 
             f'Duration "{end - start:.3g}s"', color='blue')
-    
+
     if return_duration:
 	    return end - start, result
     else:
@@ -92,6 +91,7 @@ class TBTimer:
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
+        import tensorflow as tf
         if self._to_log:
             duration = time() - self._start
             aggregator = self.aggregators[self._summary_name]
@@ -126,19 +126,17 @@ class LoggerTimer:
 class Every:
     def __init__(self, period, start=0):
         self._period = period
-        self._next = start
+        self._curr = start
+        self._next = start + period
         self._diff = 0
     
     def __call__(self, step):
         if step >= self._next:
-            self._diff = step - self._next
-            while step >= self._next:
-                self._next += self._period
+            self._diff = step - self._curr
+            self._curr = step
+            self._next = step + self._period
             return True
         return False
-
-    def step(self):
-        return self._next - self._period
 
     def difference(self):
         """ Compute the most recent update difference """

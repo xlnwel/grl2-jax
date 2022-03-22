@@ -125,8 +125,8 @@ class Agent(PPOBase):
         return terms
 
     def _sample_train(self):
-        for i in range(self.N_EPOCHS):
-            for j in range(1, self.N_MBS+1):
+        for i in range(self.n_epochs):
+            for j in range(1, self.n_mbs+1):
                 with self._sample_timer:
                     data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(data[k]) for k in self._policy_data}
@@ -141,16 +141,16 @@ class Agent(PPOBase):
                     break
             if getattr(self, '_max_kl', None) and kl > self._max_kl:
                 logger.info(f'{self._model_name}: Eearly stopping after '
-                    f'{i*self.N_MBS+j} update(s) due to reaching max kl.'
+                    f'{i*self.n_mbs+j} update(s) due to reaching max kl.'
                     f'Current kl={kl:.3g}')
                 break
         
-        n = i * self.N_MBS + j
+        n = i * self.n_mbs + j
         if self._to_summary(n):
             self._summary(data, terms)
 
         for i in range(self.N_VALUE_EPOCHS):
-            for j in range(1, self.N_MBS+1):
+            for j in range(1, self.n_mbs+1):
                 with self._sample_timer:
                     data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(data[k]) for k in self._value_data}

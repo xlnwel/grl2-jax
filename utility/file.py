@@ -43,3 +43,40 @@ def check_make_dir(path):
 
     if not os.path.isdir(path):
         os.mkdir(path)
+
+
+def search_for_all_files(directory, filename):
+    if not os.path.exists(directory):
+        return []
+    directory = directory
+    all_target_files = []
+    for root, _, files in os.walk(directory):
+        if 'src' in root:
+            continue
+        for f in files:
+            if f.endswith(filename):
+                all_target_files.append(os.path.join(root, f))
+    
+    return all_target_files
+
+
+def search_for_file(directory, filename, check_duplicates=True):
+    if not os.path.exists(directory):
+        return None
+    directory = directory
+    target_file = None
+    for root, _, files in os.walk(directory):
+        if 'src' in root:
+            continue
+        for f in files:
+            if f.endswith(filename) and target_file is None:
+                target_file = os.path.join(root, f)
+                if not check_duplicates:
+                    break
+            elif f.endswith(filename) and target_file is not None:
+                print(f'Get multiple "{filename}": "{target_file}" and "{os.path.join(root, f)}"')
+                exit()
+        if not check_duplicates and target_file is not None:
+            break
+
+    return target_file

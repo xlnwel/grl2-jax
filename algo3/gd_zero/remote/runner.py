@@ -21,7 +21,7 @@ class RunnerManager(RayBase):
     def __init__(self, config, store_data=True, evaluation=False, parameter_server=None):
         self.config = dict2AttrDict(config['runner'])
         self.n_envs = config['env']['n_workers'] * config['env']['n_envs']
-        self.n_eval_envs = max(self.n_envs * (1 - self.config.self_play_frac) * .5, 100)
+        self.n_eval_envs = max(self.n_envs * (1 - self.config.online_frac) * .5, 100)
         config = AttrDict2dict(config)
         RemoteRunner = TwoAgentRunner.as_remote(**config['runner']['ray'])
         self.runners = [RemoteRunner.remote(
@@ -112,7 +112,7 @@ class TwoAgentRunner(RayBase):
         self.config = config.runner
         self.name = config.name
         self._main_path = ModelPath(config.root_dir, config.model_name)
-        self._self_play_frac = self.config.get('self_play_frac', 0)
+        self._self_play_frac = self.config.get('online_frac', 0)
         self._record_self_play_stats = self.config.get('record_self_play_stats', True)
         config.buffer.type = 'local'
         n_workers = config.env.n_workers
@@ -176,7 +176,7 @@ class TwoAgentRunner(RayBase):
             if self.store_data:
                 return self.buffer.ready_to_retrieve()
             else:
-                return i >= self.config.N_STEPS
+                return i >= self.config.n_steps
 
         def divide_outs(outs):
             agent_eids = []

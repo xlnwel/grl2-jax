@@ -2,11 +2,12 @@ import threading
 import ray
 
 from .parameter_server import ParameterServer
-from .typing import ModelStats, ModelWeights
+from ..common.typing import ModelStats, ModelWeights
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.monitor import Monitor
 from core.remote.base import RayBase
+from utility.display import pwt
 
 
 class Agent(RayBase):
@@ -35,6 +36,8 @@ class Agent(RayBase):
         self.strategy: Strategy = elements.strategy
         self.buffer = elements.buffer
 
+        self.train_signal = True
+
     """ Model Management """
     def get_model_path(self):
         return self.strategy.get_model_path()
@@ -43,15 +46,20 @@ class Agent(RayBase):
         self.strategy.reset_model_path(model_weights.model)
         if model_weights.weights:
             self.strategy.set_weights(model_weights.weights)
+        pwt('Set model to', model_weights.model, 'with weights', model_weights.weights is None)
 
     """ Communications with Parameter Server """
-    def publish_weights(self, wait=False):
+    def publish_weights(self, wait=True):
         model_weights = ModelWeights(
             self.get_model_path(), 
-            self.strategy.get_weights(aux_stats=False, train_step=True, env_step=False))
+            self.strategy.get_weights(aux_stats=False, train_step=True, env_step=False)
+        )
+        assert set(model_weights.weights) == set(['model', 'opt', 'train_step']), list(model_weights.weights)
         ids = self.parameter_server.update_strategy_weights.remote(
-            self.aid, model_weights)
-        self._wait(ids, wait)
+            self.aid, model_weights
+        )
+        if wait:
+            ray.get(ids)
 
     """ Training """
     def start_training(self):
@@ -59,13 +67,19 @@ class Agent(RayBase):
         self._training_thread.start()
 
     def _training(self):
-        while True:
+        while self.train_signal:
             stats = self.strategy.train_record()
             if stats is None:
-                print('Training stopped due to no data being received in time')
-                break
+                # print('Training stopped due to no data being received in time')
+                continue
             self.publish_weights()
             self._send_train_stats(stats)
+
+        pwt('Training terminated')
+
+    def stop_training(self):
+        self.train_signal = False
+        self._training_thread.join()
 
     def _send_train_stats(self, stats):
         stats['train_step'] = self.strategy.get_train_step()
@@ -82,19 +96,12 @@ class Agent(RayBase):
     #     self.buffer.merge_episode(episode, n)
     #     return self.buffer.ready()
     
-    def merge_data(self, data, n):
-        self.buffer.merge_data(data, n)
+    def merge_data(self, rid, data, n):
+        self.buffer.merge_data(rid, data, n)
 
     def is_buffer_ready(self):
         return self.buffer.ready()
 
-    # """ Checkpoints """
-    # def save(self):
-    #     self.strategy.save()
-
     """ Implementations """
     def _wait(self, ids, wait=False):
-        if wait:
-            return ray.get(ids)
-        else:
-            return ids
+        return ray.get(ids) if wait else ids

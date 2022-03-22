@@ -32,7 +32,7 @@ def train(agent, env, eval_env, buffer):
     collect = functools.partial(collect_fn, buffer)
 
     step = agent.get_env_step()
-    runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
+    runner = Runner(env, agent, step=step, nsteps=agent.n_steps)
     exp_buffer = get_expert_data(f'{buffer.DATA_PATH}-{env.name}')
 
     if step == 0 and agent.is_obs_normalized:

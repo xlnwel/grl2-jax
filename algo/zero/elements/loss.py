@@ -3,73 +3,66 @@ import tensorflow as tf
 from core.elements.loss import Loss, LossEnsemble
 from utility.rl_loss import ppo_loss
 from utility.tf_utils import explained_variance
-from algo.ppo.elements.loss import PPOLossImpl
-
-
-class MAPPOPolicyLoss(Loss):
-    def loss(
-        self, 
-        obs, 
-        action, 
-        advantage, 
-        logpi, 
-        state=None, 
-        action_mask=None, 
-        life_mask=None, 
-        mask=None
-    ):
-        with tf.GradientTape() as tape:
-            x_actor, _ = self.model.encode(obs, state, mask)
-            act_dist = self.policy(x_actor, action_mask)
-            new_logpi = act_dist.log_prob(action)
-            entropy = act_dist.entropy()
-            log_ratio = new_logpi - logpi
-            policy_loss, entropy, kl, clip_frac = ppo_loss(
-                log_ratio, advantage, self.config.clip_range, entropy, 
-                life_mask if self.config.life_mask else None)
-            loss = policy_loss - self.config.entropy_coef * entropy
-
-        terms = dict(
-            ratio=tf.exp(log_ratio),
-            entropy=entropy,
-            kl=kl,
-            p_clip_frac=clip_frac,
-            policy_loss=policy_loss,
-            actor_loss=loss,
-        )
-        if action_mask is not None:
-            terms['n_avail_actions'] = tf.reduce_sum(tf.cast(action_mask, tf.float32), -1)
-        if life_mask is not None:
-            terms['life_mask'] = life_mask
-
-        return tape, loss, terms
+from algo.hm.elements.loss import PPOLossImpl, MAPPOPolicyLoss
 
 
 class MAPPOValueLoss(PPOLossImpl):
     def loss(
         self, 
         global_state, 
+        action, 
         value, 
+        value_a, 
         traj_ret, 
+        prev_reward=None, 
+        prev_action=None, 
         state=None, 
         life_mask=None, 
         mask=None
     ):
         old_value = value
+        old_value_a = value_a
         with tf.GradientTape() as tape:
-            x_value, _ = self.model.encode(global_state, state, mask)
-            value = self.value(x_value)
+            value, value_a, _ = self.model.compute_value(
+                global_state=global_state,
+                action=action, 
+                prev_reward=prev_reward,
+                prev_action=prev_action,
+                state=state,
+                mask=mask
+            )
 
-            loss, clip_frac = self._compute_value_loss(
-                value, traj_ret, old_value,
-                life_mask if self.config.life_mask else None)
-            loss = self.config.value_coef * loss
+            v_loss, clip_frac = self._compute_value_loss(
+                value, 
+                traj_ret, 
+                old_value, 
+                life_mask if self.config.life_mask else None
+            )
+            va_loss, va_clip_frac = self._compute_value_loss(
+                value_a, 
+                traj_ret, 
+                old_value_a, 
+                life_mask if self.config.life_mask else None
+            )
+            loss = self.config.value_coef * v_loss + self.config.va_coef * va_loss
+
+        var = self.encoder.variables[0]
+        value_weights = var[:global_state.shape[-1]]
+        va_weights = var[global_state.shape[-1]:]
 
         terms = dict(
             value=value,
-            v_loss=loss,
+            ae_weights=self.action_embed.variables[0], 
+            value_weights=value_weights,
+            va_weights=va_weights, 
+            value_a=value_a,
+            v_loss=v_loss,
+            va_loss=va_loss,
+            value_loss=loss,
             explained_variance=explained_variance(traj_ret, value),
+            va_explained_variance=explained_variance(traj_ret, value_a),
             v_clip_frac=clip_frac,
+            va_clip_frac=va_clip_frac,
         )
 
         return tape, loss, terms

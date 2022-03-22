@@ -30,7 +30,7 @@ class PPOLossImpl(Loss):
                 mask=mask, threshold=self.config.huber_threshold)
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
-        
+
         return value_loss, v_clip_frac
 
 
@@ -41,13 +41,21 @@ class MAPPOPolicyLoss(Loss):
         action, 
         advantage, 
         logpi, 
+        prev_reward=None, 
+        prev_action=None, 
         state=None, 
         action_mask=None, 
         life_mask=None, 
         mask=None
     ):
         with tf.GradientTape() as tape:
-            x, _ = self.model.encode(obs, state, mask)
+            x, _ = self.model.encode(
+                obs, 
+                prev_reward, 
+                prev_action, 
+                state, 
+                mask
+            )
             act_dist = self.policy(x, action_mask)
             new_logpi = act_dist.log_prob(action)
             entropy = act_dist.entropy()
@@ -55,23 +63,27 @@ class MAPPOPolicyLoss(Loss):
             policy_loss, entropy, kl, clip_frac = ppo_loss(
                 log_ratio, advantage, self.config.clip_range, entropy, 
                 life_mask if self.config.life_mask else None)
-            loss = policy_loss - self.config.entropy_coef * entropy
+            entropy_loss = - self.config.entropy_coef * entropy
+            loss = policy_loss + entropy_loss
 
         terms = dict(
+            prev_reward=prev_reward,
             ratio=tf.exp(log_ratio),
             entropy=entropy,
             kl=kl,
+            logpi=logpi,
+            new_logpi=new_logpi, 
             p_clip_frac=clip_frac,
             policy_loss=policy_loss,
+            entropy_loss=entropy_loss, 
             actor_loss=loss,
-            policy_encoder_out=self.model.encoder_out,
-            policy_lstm_out=self.model.lstm_out,
-            policy_res_out=self.model.res_out,
         )
         if action_mask is not None:
             terms['n_avail_actions'] = tf.reduce_sum(tf.cast(action_mask, tf.float32), -1)
         if life_mask is not None:
             terms['life_mask'] = life_mask
+        if not self.policy.is_action_discrete:
+            terms['std'] = tf.exp(self.policy.logstd)
 
         return tape, loss, terms
 
@@ -82,18 +94,28 @@ class MAPPOValueLoss(PPOLossImpl):
         global_state, 
         value, 
         traj_ret, 
+        prev_reward=None, 
+        prev_action=None, 
         state=None, 
         life_mask=None, 
         mask=None
     ):
         old_value = value
         with tf.GradientTape() as tape:
-            x, _ = self.model.encode(global_state, state, mask)
-            value = self.value(x)
+            value, _ = self.model.compute_value(
+                global_state=global_state,
+                prev_reward=prev_reward,
+                prev_action=prev_action,
+                state=state,
+                mask=mask
+            )
 
             loss, clip_frac = self._compute_value_loss(
-                value, traj_ret, old_value,
-                life_mask if self.config.life_mask else None)
+                value=value, 
+                traj_ret=traj_ret, 
+                old_value=old_value, 
+                mask=life_mask if self.config.life_mask else None
+            )
             loss = self.config.value_coef * loss
 
         terms = dict(
@@ -101,9 +123,6 @@ class MAPPOValueLoss(PPOLossImpl):
             v_loss=loss,
             explained_variance=explained_variance(traj_ret, value),
             v_clip_frac=clip_frac,
-            value_encoder_out=self.model.encoder_out,
-            value_lstm_out=self.model.lstm_out,
-            value_res_out=self.model.res_out,
         )
 
         return tape, loss, terms

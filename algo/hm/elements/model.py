@@ -11,34 +11,40 @@ source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
 class ModelImpl(Model):
-    def encode(self, x, state, mask):
+    def encode(self, x, prev_reward, prev_action, state, mask):
         if hasattr(self, 'rnn'):
-            # we expect x and mask to be of shape [B, T, A(, *)]
+            # we expect x and mask to be of shape [B, T, U(, *)]
             assert_rank(x, 4)
+            assert_rank(prev_reward, 3)
+            assert_rank(prev_action, 4)
             assert_rank(mask, 3)
 
-            T, A, F = x.shape[1:]
-            assert A == mask.shape[-1], (A, mask.shape)
-            assert T == mask.shape[1], (A, mask.shape)
+            T, U, F = x.shape[1:]
+            assert prev_reward.shape[1:] == (T, U), (prev_reward.shape, (T, U))
+            assert mask.shape[1:] == (T, U), (mask.shape, (T, U))
             x = tf.transpose(x, [0, 2, 1, 3])
             x = tf.reshape(x, [-1, T, F])
             mask = tf.transpose(mask, [0, 2, 1])
             mask = tf.reshape(mask, [-1, T])
-            embed = self.encoder(x)
-            self.encoder_out = embed
-            x, state = self.rnn(embed, state, mask)
-            self.lstm_out = x
-            x = x + embed
-            self.res_out = x
-            x = tf.reshape(x, [-1, A, T, x.shape[-1]])
+            x = self.encoder(x)
+            if self.config.use_prev_reward:
+                prev_reward = tf.transpose(prev_reward, [0, 2, 1])
+                prev_reward = tf.reshape(prev_reward, [-1, T])
+                prev_reward = prev_reward * mask
+                x = tf.concat([x, prev_reward[..., None]], -1)
+            if self.config.use_prev_action:
+                A = prev_action.shape[-1]
+                prev_action = tf.transpose(prev_action, [0, 2, 1, 3])
+                prev_action = tf.reshape(prev_action, [-1, T, A])
+                prev_action = prev_action * mask[..., None]
+                x = tf.concat([x, prev_action], -1)
+            x, state = self.rnn(x, state, mask)
+            x = tf.reshape(x, [-1, U, T, x.shape[-1]])
             x = tf.transpose(x, [0, 2, 1, 3])
         else:
             assert_rank(x, 3)
-            
+
             x = self.encoder(x)
-            self.encoder_out = x
-            self.lstm_out = x
-            self.res_out = x
 
             state = None
 
@@ -49,13 +55,15 @@ class MAPPOActorModel(ModelImpl):
     def action(
         self, 
         obs, 
+        prev_reward=None, 
+        prev_action=None, 
         state=None, 
         mask=None, 
         action_mask=None,
         evaluation=False, 
         return_eval_stats=False
     ):
-        x, state = self.encode(obs, state, mask)
+        x, state = self.encode(obs, prev_reward, prev_action, state, mask)
         act_dist = self.policy(x, action_mask, evaluation=evaluation)
         action = self.policy.action(act_dist, evaluation)
 
@@ -69,8 +77,21 @@ class MAPPOActorModel(ModelImpl):
 
 
 class MAPPOValueModel(ModelImpl):
-    def compute_value(self, global_state, state=None, mask=None):
-        x, state = self.encode(global_state, state, mask)
+    def compute_value(
+        self, 
+        global_state, 
+        prev_reward, 
+        prev_action, 
+        state=None, 
+        mask=None
+    ):
+        x, state = self.encode(
+            global_state, 
+            prev_reward, 
+            prev_action, 
+            state, 
+            mask
+        )
         value = self.value(x)
         return value, state
 
@@ -81,13 +102,17 @@ class MAPPOModelEnsemble(ModelEnsemble):
         basic_shape = (None, len(env_stats.aid2uids[aid]))
         dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         actor_inp=dict(
-            obs=((*basic_shape, *env_stats['obs_shape'][aid]['obs']), 
-                env_stats['obs_dtype'][aid]['obs'], 'obs'),
+            obs=((*basic_shape, *env_stats.obs_shape[aid]['obs']), 
+                env_stats.obs_dtype[aid]['obs'], 'obs'),
+            prev_reward=(basic_shape, tf.float32, 'prev_reward'), 
+            prev_action=((*basic_shape, env_stats.action_dim[aid]), tf.float32, 'prev_action'), 
         )
         value_inp=dict(
             global_state=(
-                (*basic_shape, *env_stats['obs_shape'][aid]['global_state']), 
-                env_stats['obs_dtype'][aid]['global_state'], 'global_state'),
+                (*basic_shape, *env_stats.obs_shape[aid]['global_state']), 
+                env_stats.obs_dtype[aid]['global_state'], 'global_state'), 
+            prev_reward=(basic_shape, tf.float32, 'prev_reward'), 
+            prev_action=((*basic_shape, env_stats.action_dim[aid]), tf.float32, 'prev_action'), 
         )
         TensorSpecs = dict(
             actor_inp=actor_inp,
@@ -96,8 +121,8 @@ class MAPPOModelEnsemble(ModelEnsemble):
             return_eval_stats=evaluation,
         )
         if self.has_rnn:
-            actor_inp['mask'] = (basic_shape, tf.float32, 'mask')
-            value_inp['mask'] = (basic_shape, tf.float32, 'mask')
+            for inp in [actor_inp, value_inp]:
+                inp['mask'] = (basic_shape, tf.float32, 'mask')
             TensorSpecs.update(dict(
                 actor_state=self.actor_state_type(*[((None, sz), dtype, name) 
                     for name, sz in self.actor_state_size._asdict().items()]),
@@ -226,6 +251,15 @@ def create_model(
     aid = config['aid']
     config.policy.policy.action_dim = env_stats.action_dim[aid]
     config.policy.policy.is_action_discrete = env_stats.is_action_discrete[aid]
+
+    if config.get('rnn_type') is None:
+        for c in config.values():
+            if isinstance(c, dict):
+                c.pop('rnn', None)
+    else:
+        for c in config.values():
+            if isinstance(c, dict) and 'rnn' in c:
+                c['rnn']['nn_id'] = config['rnn_type']
 
     return MAPPOModelEnsemble(
         config=config, 

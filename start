@@ -63,7 +63,7 @@ args4=(True)
 #                         # sed -e "s/KI/${a2}/g" \
 #                         #     algo/ppo/${suite}_template.yaml > algo/ppo/${suite}_config.yaml
 #                         # dir="logs/${suite}_${e}/${a}"
-#                         kw1="N_EPOCHS=$a1"
+#                         kw1="n_epochs=$a1"
 #                         kw2="lr=$a2"
 #                         env="${suite}-${e}"
 #                         n="impala"
@@ -99,8 +99,8 @@ py_script="python run/train.py -a $a -e $env -kw $kw1 >& ${dir}/outputs.txt"
 echo $py_script
 eval $py_script
 echo "$!"
-# kw1="N_MBS=1"
-# kw2="N_STEPS=128"
+# kw1="n_mbs=1"
+# kw2="n_steps=128"
 # env="${suite}_${e}"
 # dir="logs/$a/$env/action_mask=mask-$kw1-$kw2"
 # mkdir -p $dir

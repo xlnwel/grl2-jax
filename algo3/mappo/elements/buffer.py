@@ -50,7 +50,7 @@ class MAPPOBuffer:
 
         self._batch_size = self.config.batch_size
         self._size = self._batch_size * self._sample_size
-        self._mb_size = self._batch_size // self.N_MBS
+        self._mb_size = self._batch_size // self.n_mbs
         self._mb_idx = 0
         self._idxes = np.arange(self._batch_size)
         self._shuffled_idxes = np.arange(self._batch_size)
@@ -195,7 +195,7 @@ class MAPPOBuffer:
         def post_process_for_dataset():
             if self._mb_idx == 0:
                 self._epoch_idx += 1
-                if self._epoch_idx == self.N_EPOCHS:
+                if self._epoch_idx == self.n_epochs:
                     self.reset()
         if not self._ready:
             self.wait_to_sample()
@@ -227,7 +227,7 @@ class MAPPOBuffer:
             return sample
         
         self._mb_idx, self._curr_idxes = compute_indices(
-            self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_MBS
+            self._shuffled_idxes, self._mb_idx, self._mb_size, self.n_mbs
         )
         sample_keys = sample_keys or self._sample_keys
         sample = get_sample(sample_keys, self._curr_idxes)

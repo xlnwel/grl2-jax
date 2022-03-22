@@ -1,6 +1,7 @@
 import os
 import logging
 
+from utility.display import pwt, pwc, pwtc
 from utility.utils import get_frame
 
 
@@ -38,22 +39,25 @@ def do_logging(x, prefix='', logger=None, level='INFO', func_lineno=None, backtr
         'info': logger.info,
         'debug': logger.debug,
         'print': print,
+        'pwt': pwt, 
+        'pwc': pwc, 
+        'pwtc': pwtc
     }[level.lower()]
 
     if isinstance(x, str):
-        log_func(f'{new_prefix}{x}')
+        log_func(f'{new_prefix}: {x}')
     elif isinstance(x, (list, tuple)):
         for v in x:
             if isinstance(v, dict):
                 do_logging(v, logger=logger, prefix=prefix+'\t', func_lineno=func_lineno)
             else:
-                log_func(f'{new_prefix}{v}')
+                log_func(f'{new_prefix}: {v}')
     elif isinstance(x, dict):
         for k, v in x.items():
             if isinstance(v, dict):
-                log_func(f'{new_prefix}{k}')
+                log_func(f'{new_prefix} {k}')
                 do_logging(v, logger=logger, prefix=prefix+'\t', func_lineno=func_lineno)
             else:
-                log_func(f'{new_prefix}{k}: {v}')
+                log_func(f'{new_prefix} {k}: {v}')
     else:
         raise ValueError(f'{x} is of unknown type.')

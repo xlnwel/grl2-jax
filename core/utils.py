@@ -39,7 +39,6 @@ def save_config(config, model_path=None, config_name='config.yaml'):
     else:
         assert model_path.root_dir == config.root_dir, (model_path.root_dir, config.root_dir)
         assert model_path.model_name == config.model_name, (model_path.model_name, config.model_name)
-    print('save_config', model_path)
     config = simplify_datatype(config)
     yaml_op.save_config(config, 
         filename='/'.join([*model_path, config_name]))

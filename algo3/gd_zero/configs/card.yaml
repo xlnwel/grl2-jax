@@ -24,10 +24,10 @@ runner:
         # num_gpus: .03
 
     MAX_STEPS: 2e9
-    N_STEPS: &nsteps 128
+    n_steps: &nsteps 128
     agent_pids: &pids [0, 2]
     initialize_other: False
-    self_play_frac: 0
+    online_frac: 0
 
 env:
     env_name: &env_name card_gd
@@ -45,9 +45,9 @@ agent:
 strategy:
     train_loop:
         training: *training
-        N_EPOCHS: &nepochs 2
+        n_epochs: &nepochs 2
         N_VALUE_EPOCHS: &nval_epochs 0
-        N_MBS: &nmbs 2
+        n_mbs: &nmbs 2
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
         # (once reuse null)
@@ -210,10 +210,10 @@ buffer:
     n_workers: *nworkers
     n_envs: *nenvs
     # batch_size: *bs
-    N_STEPS: *nsteps
-    N_EPOCHS: *nepochs
+    n_steps: *nsteps
+    n_epochs: *nepochs
     N_VALUE_EPOCHS: *nval_epochs
-    N_MBS: *nmbs        # number of minibatches
+    n_mbs: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: minibatch
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

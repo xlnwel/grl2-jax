@@ -1,6 +1,7 @@
-from typing import Union
+from typing import Tuple, Union
 
 from core.elements.actor import Actor
+from core.elements.model import Model
 from core.elements.trainer import Trainer, TrainerEnsemble
 from core.elements.trainloop import TrainingLoopBase
 from core.mixin.strategy import StepCounter
@@ -29,10 +30,10 @@ class Strategy:
         if trainer is None and actor is None:
             raise RuntimeError('Neither trainer nor actor is provided')
 
-        self.model = actor.model if trainer is None else trainer.model
-        self.trainer = trainer
-        self.actor = actor
-        self.train_loop = train_loop
+        self.model: Model = actor.model if trainer is None else trainer.model
+        self.trainer: Trainer = trainer
+        self.actor: Actor = actor
+        self.train_loop: TrainingLoopBase = train_loop
         self.step_counter = StepCounter(
             self._model_path, 
             name=f'{self._name}_step_counter'
@@ -115,10 +116,12 @@ class Strategy:
         pass
 
     """ Call """
-    def __call__(self, 
-                 env_output: EnvOutput, 
-                 evaluation: bool=False,
-                 return_eval_stats: bool=False):
+    def __call__(
+        self, 
+        env_output: EnvOutput, 
+        evaluation: bool=False,
+        return_eval_stats: bool=False
+    ):
         inp = self._prepare_input_to_actor(env_output)
         out = self.actor(inp, evaluation=evaluation, 
             return_eval_stats=return_eval_stats)
@@ -132,7 +135,7 @@ class Strategy:
         inp = env_output.obs.copy()
         return inp
 
-    def _record_output(self, out):
+    def _record_output(self, out: Tuple):
         """ Record some data in out """
         pass
 

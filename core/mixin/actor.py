@@ -20,7 +20,13 @@ def combine_rms_stats(rms_stats1: RMSStats, rms_stats2: RMSStats):
     obs_rms = {}
     for k in rms_stats1.obs.keys():
         obs_rms[k] = combine_rms(rms_stats1.obs[k], rms_stats2.obs[k])
-    reward_rms = combine_rms(rms_stats1.reward, rms_stats2.reward)
+        # for n, rms in zip([f'{k}_before', f'{k}_new', f'{k}_after'], [rms_stats1.obs[k], rms_stats2.obs[k], obs_rms[k]]):
+        #     for i, (m, v) in enumerate(zip(*rms[:2])):
+        #         do_logging('combine rms stats: {n}, {i}, mean, {m}, var, {v}', logger=logger)
+    if rms_stats1.reward:
+        reward_rms = combine_rms(rms_stats1.reward, rms_stats2.reward)
+    else:
+        reward_rms = None
     return RMSStats(obs_rms, reward_rms)
 
 
@@ -96,10 +102,13 @@ class RMS:
         return self._normalize_reward
 
     """ Processing Data with RMS """
-    def process_obs_with_rms(self, 
-                             inp: Union[dict, Tuple[str, np.ndarray]], 
-                             update_rms: bool=False, 
-                             mask=None):
+    def process_obs_with_rms(
+        self, 
+        inp: Union[dict, Tuple[str, np.ndarray]], 
+        name: str=None,
+        update_rms: bool=False, 
+        mask=None
+    ):
         """ Do obs normalization if required
         
         Args:
@@ -108,26 +117,26 @@ class RMS:
                 useful for multi-agent environments, where 
                 some agents might be dead before others.
         """
-        if isinstance(inp, dict):
+        if name is None:
             for k in self._obs_names:
                 if k not in inp:
                     continue
-                v = inp[k]
                 if update_rms:
-                    self.update_obs_rms(v, k, mask=mask)
+                    self.update_obs_rms(inp, k, mask=mask)
                 # mask is important here as the value function still matters
                 # even after the agent is dead
-                inp[k] = self.normalize_obs(v, k, mask=mask)
+                inp[k] = self.normalize_obs(inp, k, mask=mask)
         else:
-            k, inp = inp
-            inp = self.normalize_obs(inp, k, mask)
+            inp[name] = self.normalize_obs(inp, name, mask)
         return inp
 
-    def process_reward_with_rms(self,
-                                reward: np.ndarray, 
-                                update_rms: bool=False, 
-                                discount: np.ndarray=None,
-                                mask=None):
+    def process_reward_with_rms(
+        self,
+        reward: np.ndarray, 
+        update_rms: bool=False, 
+        discount: np.ndarray=None,
+        mask=None
+    ):
         if update_rms:
             self.update_reward_rms(reward, discount, mask)
         reward = self.normalize_reward(reward, mask)
@@ -135,7 +144,7 @@ class RMS:
 
     def normalize_obs(self, obs, name='obs', mask=None):
         """ Normalize obs using obs RMS """
-        return self._obs_rms[name].normalize(obs, mask=mask) \
+        return self._obs_rms[name].normalize(obs[name], mask=mask) \
             if self._normalize_obs else obs
 
     def normalize_reward(self, reward, mask=None):
@@ -150,7 +159,7 @@ class RMS:
         if self._reward_rms:
             self._reward_rms.reset_rms_stats()
 
-    def set_rms_stats(self, rms_stats):
+    def set_rms_stats(self, rms_stats: RMSStats):
         if rms_stats.obs:
             for k, v in rms_stats.obs.items():
                 self._obs_rms[k].set_rms_stats(*v)
@@ -179,11 +188,11 @@ class RMS:
         if self._normalize_obs:
             if name is None:
                 for k in self._obs_names:
-                    assert not obs[k].dtype == np.uint8, 'Unexpected normalization on images.'
+                    assert not obs[k].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
                     self._obs_rms[k].update(obs[k], mask, axis=axis)
             else:
-                assert not obs.dtype == np.uint8, 'Unexpected normalization on images.'
-                self._obs_rms[name].update(obs, mask=mask, axis=axis)
+                assert not obs[name].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
+                self._obs_rms[name].update(obs[name], mask=mask, axis=axis)
 
     def update_reward_rms(self, reward, discount=None, mask=None, axis=None):
         def forward_discounted_sum(next_ret, reward, discount, gamma):

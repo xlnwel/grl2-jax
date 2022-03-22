@@ -34,9 +34,9 @@ agent:
     gamma: &gamma .999
 
     MAX_STEPS: 2.5e7
-    N_STEPS: &nsteps 256
-    N_EPOCHS: 3
-    N_MBS: &nmbs 8
+    n_steps: &nsteps 256
+    n_epochs: 3
+    n_mbs: &nmbs 8
     sample_size: &ss 16       # BPTT length
     LOG_PERIOD: 100
     EVAL_PERIOD: 100
@@ -81,8 +81,8 @@ buffer:
     gamma: *gamma
     lam: .95
     n_envs: *nenvs
-    N_STEPS: *nsteps
-    N_MBS: *nmbs        # number of minibatches
+    n_steps: *nsteps
+    n_mbs: *nmbs        # number of minibatches
     sample_keys: [obs, action, value, traj_ret, advantage, logpi, mask, h, c]
     # sample_keys: [obs, action, value, traj_ret, advantage, logpi, mask, h, c, prev_action, prev_reward]
     sample_size: *ss

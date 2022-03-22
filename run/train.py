@@ -43,18 +43,29 @@ def _get_algo_env_config(cmd_args):
     return algo_env_config
 
 
-def run_all(cmd_args):
+def _grid_search(config, main, trials, logdir, prefix, delay=1):
+    gs = GridSearch(
+        config, main, n_trials=trials, 
+        logdir=logdir, dir_prefix=prefix,
+        separate_process=True, 
+        delay=delay)
+
+    processes = []
+    processes += gs()
+    [p.join() for p in processes]
+
+
+def _run_with_configs(cmd_args):
     algo_env_config = _get_algo_env_config(cmd_args)
 
     logdir = cmd_args.logdir
     prefix = cmd_args.prefix
-    model_name = cmd_args.model_name
 
     configs = []
     for algo, env, config in algo_env_config:
         algo = _get_algo_name(algo)
         config = load_config_with_algo_env(algo, env, config)
-        model_name = change_config(cmd_args.kwargs, config, model_name)
+        model_name = change_config(cmd_args.kwargs, config, cmd_args.model_name)
         if model_name == '':
             model_name = 'baseline'
 
@@ -68,19 +79,8 @@ def run_all(cmd_args):
         configs.append(config)
 
     if cmd_args.grid_search or cmd_args.trials > 1:
-        assert len(configs) == 1, len(configs)
-        gs = GridSearch(
-            config, main, n_trials=cmd_args.trials, 
-            logdir=logdir, dir_prefix=prefix,
-            separate_process=True, 
-            delay=cmd_args.delay)
-
-        processes = []
-        if cmd_args.grid_search:
-            processes += gs()
-        else:
-            processes += gs()
-        [p.join() for p in processes]
+        assert len(configs) == 1, configs
+        _grid_search(config, main, cmd_args.trials, cmd_args)
     else:
         do_logging(config, level='DEBUG')
         main(configs)
@@ -95,6 +95,7 @@ if __name__ == '__main__':
 
     processes = []
     if cmd_args.directory != '':
-        load_and_run(cmd_args.directory)
+        configs = [search_for_config(d) for d in cmd_args.directory]
+        main = pkg.import_main('train', config=configs[0])
     else:
-        run_all(cmd_args)
+        _run_with_configs(cmd_args)

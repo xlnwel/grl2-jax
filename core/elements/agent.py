@@ -38,7 +38,7 @@ class Agent:
     def get_model_path(self):
         return self._model_path
 
-    def add_strategy(self, sid, strategy):
+    def add_strategy(self, sid, strategy: Strategy):
         self.strategies[sid] = strategy
 
     def set_strategy(self, sid):

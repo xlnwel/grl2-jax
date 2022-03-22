@@ -32,9 +32,9 @@ agent:
     disc_batch_size: 64
 
     MAX_STEPS: 1e10
-    N_STEPS: &nsteps 100
-    N_EPOCHS: &nepochs 50
-    N_MBS: &nmbs 1
+    n_steps: &nsteps 100
+    n_epochs: &nepochs 50
+    n_mbs: &nmbs 1
     LOG_PERIOD: 200
     EVAL_PERIOD: 2000
     max_kl: .1            # early stop when max_kl is violated. 0 or null suggests unbound
@@ -67,9 +67,9 @@ buffer:
     gamma: *gamma
     lam: .97
     n_envs: *nenvs
-    N_STEPS: *nsteps
-    N_EPOCHS: *nepochs
-    N_MBS: *nmbs        # number of minibatches
+    n_steps: *nsteps
+    n_epochs: *nepochs
+    n_mbs: *nmbs        # number of minibatches
     sample_keys: [obs, action, value, traj_ret, advantage, logpi]
     # mini-batch size = n_workers * n_envs * epslen / n_mbs
 

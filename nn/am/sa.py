@@ -13,7 +13,7 @@ class Attention(layers.Layer):
         super().__init__(name=name)
 
     def call(self, q, k, v, mask=None):
-        # softmax(QK^T/)V
+        # softmax(QK^T)V
         dot_product = tf.matmul(q, k, transpose_b=True)
         if mask is not None:
             dot_product *= mask
@@ -36,7 +36,7 @@ class MultiHeadSelfAttention(layers.Layer):
                  norm_kwargs={},
                  drop_rate=0,
                  use_rezero=False,
-                 name='sa',
+                 name='mhsa',
                  **kwargs):
         super().__init__(name=name)
         self._key_size = key_size
@@ -77,11 +77,12 @@ class MultiHeadSelfAttention(layers.Layer):
         super().build(input_shape)
 
     def call(self, x, training=False, mask=None):
+        pre_dims = x.shape[:-2]
         y = call_norm(self._norm, self._norm_layer, x, training) \
             if self._pre_norm else x
         qkv = self._embed(y)
-        qkv = self._group_heads(qkv)                    # [B, N, F] -> [B, N, H, F/H]
-        qkv = tf.transpose(qkv, [0, 2, 1, 3])           # [B, N, H, F/H] -> [B, H, N, F/H]
+        qkv = self._group_heads(qkv)                            # [B, N, F] -> [B, N, H, F/H]
+        qkv = tf.transpose(qkv, [*pre_dims, 2, 1, 3])      # [B, N, H, F/H] -> [B, H, N, F/H]
 
         q, k, v = tf.split(qkv, [self._key_size, self._key_size, self._val_size], -1)
         
@@ -97,7 +98,7 @@ class MultiHeadSelfAttention(layers.Layer):
         # out = tf.einsum('bqhk,bkhn->bqhn', weights, v)
 
         # [B, H, N, V] -> [B, N, H, V]
-        out = tf.transpose(out, [0, 2, 1, 3])
+        out = tf.transpose(out, [*pre_dims, 2, 1, 3])
         # [B, N, H, V] -> [B, N, H * V]
         y = self._concat(out)
         y = self._out(y)

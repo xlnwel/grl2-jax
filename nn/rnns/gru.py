@@ -5,6 +5,7 @@ from tensorflow.keras.mixed_precision import global_policy
 from core.module import Module
 from nn.registry import rnn_registry
 from nn.typing import GRUState
+from nn.utils import get_initializer
 from utility.tf_utils import assert_rank
 
 
@@ -39,9 +40,9 @@ class MGRUCell(layers.Layer):
         self.use_bias = use_bias
         self.use_ln = use_ln
 
-        self.kernel_initializer = initializers.get(kernel_initializer)
-        self.recurrent_initializer = initializers.get(recurrent_initializer)
-        self.bias_initializer = initializers.get(bias_initializer)
+        self.kernel_initializer = get_initializer(kernel_initializer)
+        self.recurrent_initializer = get_initializer(recurrent_initializer)
+        self.bias_initializer = get_initializer(bias_initializer)
         self.unit_update_bias = unit_update_bias
 
         self.kernel_regularizer = regularizers.get(kernel_regularizer)

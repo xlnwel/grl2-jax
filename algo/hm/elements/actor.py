@@ -5,11 +5,8 @@ from utility.tf_utils import numpy2tensor, tensor2numpy
 class MAPPOActor(Actor):
     """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
-        if evaluation:
-            inp = self.rms.process_obs_with_rms(inp)
-        else:
-            life_mask = inp.get('life_mask')
-            inp = self.rms.process_obs_with_rms(inp, mask=life_mask)
+        inp = self.rms.process_obs_with_rms(inp)
+        inp['prev_reward'] = inp['prev_reward']
         tf_inp = numpy2tensor(inp)
         tf_inp = self._split_input(tf_inp)
 
@@ -17,36 +14,40 @@ class MAPPOActor(Actor):
 
     def _split_input(self, inp):
         actor_inp = dict(
-            obs=inp['obs'],
+            obs=inp['obs'], 
+            prev_reward=inp['prev_reward'], 
+            prev_action=inp['prev_action'], 
         )
         value_inp = dict(
-            global_state=inp['global_state'],
+            global_state=inp['global_state'], 
+            prev_reward=inp['prev_reward'], 
+            prev_action=inp['prev_action'], 
         )
         if 'action_mask' in inp:
             actor_inp['action_mask'] = inp['action_mask']
         if self.model.has_rnn:
-            actor_inp['mask'] = inp['mask']
-            value_inp['mask'] = inp['mask']
+            for dest_inp in [actor_inp, value_inp]:
+                dest_inp['mask'] = inp['mask']
             actor_state, value_state = self.model.split_state(inp['state'])
             return {
                 'actor_inp': actor_inp, 
-                'value_inp': value_inp,
+                'value_inp': value_inp, 
                 'actor_state': actor_state, 
-                'value_state': value_state,
+                'value_state': value_state, 
             }
         else:
             return {
                 'actor_inp': actor_inp, 
-                'value_inp': value_inp,
+                'value_inp': value_inp, 
             }
 
     def _process_output(self, inp, out, evaluation):
         action, terms, state = out
-        # convert to np.ndarray and restore the agent dimension
-        b, a = inp['obs'].shape[:2]
+        # convert to np.ndarray and restore the unit dimension
+        b, u = inp['obs'].shape[:2]
         if self.model.has_rnn:
             action, terms, prev_state = tensor2numpy((action, terms, inp['state']))
-            prev_state = {k: v.reshape(b, a, v.shape[-1]) 
+            prev_state = {k: v.reshape(b, u, v.shape[-1]) 
                 for k, v in prev_state._asdict().items()}
             
             if not evaluation:

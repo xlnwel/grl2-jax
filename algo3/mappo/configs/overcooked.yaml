@@ -26,7 +26,7 @@ parameter_server:
     model_name: *algo
     start_checkpoint: null
     # - logs/card_gd/clap
-    # - self_play_frac=0-fsp=True-oracle_value=False/v0
+    # - online_frac=0-fsp=True-oracle_value=False/v0
 
 ray_config:
     runner:
@@ -40,7 +40,7 @@ monitor:
 runner:
     n_workers: &nworkers 20
     MAX_STEPS: 5e8
-    N_STEPS: &nsteps 400
+    n_steps: &nsteps 400
     record_self_play_stats: False
     push_every_episode: False
 
@@ -64,12 +64,12 @@ agent: {}
 strategy:
     train_loop:
         training: *training
-        N_EPOCHS: &nepochs 1
-        N_MBS: &nmbs 4
-        N_AUX_EPOCHS: &naepochs 9
-        N_PI: &npi 16
-        N_SEGS: &nsegs 16
-        N_AUX_MBS_PER_SEG: &nambs 2
+        n_epochs: &nepochs 1
+        n_mbs: &nmbs 4
+        n_aux_epochs: &naepochs 9
+        n_pi: &npi 16
+        n_segs: &nsegs 16
+        n_aux_mbs_per_seg: &nambs 2
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
         # (once reuse null)
@@ -183,17 +183,17 @@ buffer:
     n_workers: *nworkers
     n_envs: *nenvs
     # batch_size: *bs
-    N_STEPS: *nsteps
-    N_EPOCHS: *nepochs
-    N_MBS: *nmbs        # number of minibatches
+    n_steps: *nsteps
+    n_epochs: *nepochs
+    n_mbs: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: minibatch
 
     # PPG configs
-    N_PI: *npi
-    N_SEGS: *nsegs
-    N_AUX_MBS_PER_SEG: *nambs
-    N_AUX_EPOCHS: *naepochs
+    n_pi: *npi
+    n_segs: *nsegs
+    n_aux_mbs_per_seg: *nambs
+    n_aux_epochs: *naepochs
 
     # mini-batch size = n_workers * n_envs * epslen / n_mbs
     sample_keys:

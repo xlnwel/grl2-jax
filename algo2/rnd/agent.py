@@ -93,7 +93,7 @@ class Agent(PPOAgent):
     @step_track
     def train_record(self, step):
         for i in range(self.N_UPDATES):
-            for j in range(1, self.N_MBS+1):
+            for j in range(1, self.n_mbs+1):
                 data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}
                 terms = self.train(**data)
@@ -117,7 +117,7 @@ class Agent(PPOAgent):
                     self.dataset.update('value_ext', value_ext)
             if getattr(self, '_max_kl', None) and kl > self._max_kl:
                 logger.info(f'{self._model_name}: Eearly stopping after '
-                    f'{i*self.N_MBS+j} update(s) due to reaching max kl.'
+                    f'{i*self.n_mbs+j} update(s) due to reaching max kl.'
                     f'Current kl={kl:.3g}')
                 break
             
@@ -143,21 +143,21 @@ class Agent(PPOAgent):
                 'train/reward_int_rms_var': rew_rms.var
             })
 
-        return i * self.N_MBS + j
+        return i * self.n_mbs + j
 
     @tf.function
     def _learn(self, obs, obs_norm, action, traj_ret_int, traj_ret_ext, 
             value_int, value_ext, advantage, logpi):
         old_value_int, old_value_ext = value_int, value_ext
         obs_norm = tf.reshape(obs_norm, 
-            (self._n_envs, self.N_STEPS // self.N_MBS, *obs_norm.shape[-3:]))
+            (self._n_envs, self.n_steps // self.n_mbs, *obs_norm.shape[-3:]))
         assert obs_norm.dtype == tf.float32, obs_norm
         terms = {}
         with tf.GradientTape() as pred_tape:
             target_feat = tf.stop_gradient(self.target(obs_norm))
             pred_feat = self.predictor(obs_norm)
             pred_loss = tf.reduce_mean(tf.square(target_feat - pred_feat), axis=-1)
-            tf.debugging.assert_shapes([[pred_loss, (self._n_envs, self.N_STEPS // self.N_MBS)]])
+            tf.debugging.assert_shapes([[pred_loss, (self._n_envs, self.n_steps // self.n_mbs)]])
             mask = tf.random.uniform(pred_loss.shape, maxval=1., dtype=pred_loss.dtype)
             mask = tf.cast(mask < self._pred_frac, pred_loss.dtype)
             pred_loss = tf.reduce_sum(mask * pred_loss) / tf.maximum(tf.reduce_sum(mask), 1)

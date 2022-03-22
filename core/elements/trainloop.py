@@ -1,7 +1,7 @@
 from core.elements.trainer import Trainer
 from utility.timer import Timer
 from utility.typing import AttrDict
-from utility.utils import config_attr
+from utility.utils import dict2AttrDict
 
 
 class TrainingLoopBase:
@@ -12,9 +12,11 @@ class TrainingLoopBase:
         trainer: Trainer, 
         **kwargs
     ):
-        self.config = config_attr(self, config, filter_dict=True)
+        self.config = dict2AttrDict(config)
         self.dataset = dataset
         self.trainer = trainer
+
+        self.use_dataset = self.config.get('use_dataset', False)
 
         for k, v in kwargs.items():
             setattr(self, k, v)

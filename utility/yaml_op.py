@@ -44,4 +44,21 @@ def save_config(config, config_to_update={}, filename='config.yaml'):
             yaml.dump(config_to_update, f)
         except yaml.YAMLError as exc:
             print(exc)
-    
+
+def load(path: str):
+    with open(path, 'r') as f:
+        try:
+            data = yaml.load(f, Loader=yaml.FullLoader)
+        except yaml.YAMLError as exc:
+            print(f'Fail loading configuration: {path}')
+            print(exc)
+            return
+
+    return data
+
+def dump(path: str, **kwargs):
+    with open(path, 'w') as f:
+        try:
+            yaml.dump(kwargs, f)
+        except yaml.YAMLError as exc:
+            print(exc)

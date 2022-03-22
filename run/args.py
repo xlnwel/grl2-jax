@@ -12,7 +12,7 @@ def parse_train_args():
     parser.add_argument('--configs', '-c',
                         type=str,
                         nargs='*',
-                        default=[None])
+                        default=[])
     parser.add_argument('--directory', '-d',
                         type=str,
                         default='',
@@ -30,14 +30,14 @@ def parse_train_args():
     parser.add_argument('--prefix', '-p',
                         default='',
                         help='directory prefix')
-    parser.add_argument('--model-name', '-n',
+    parser.add_argument('--model_name', '-n',
                         default='',
                         help='model name')
     parser.add_argument('--logdir', '-ld',
                         type=str,
                         default='logs',
                         help='the logging directory. By default, all training data will be stored in logdir/env/algo/model_name')
-    parser.add_argument('--grid-search', '-gs',
+    parser.add_argument('--grid_search', '-gs',
                         action='store_true')
     parser.add_argument('--delay',
                         default=1,
@@ -83,6 +83,32 @@ def parse_eval_args():
     parser.add_argument('--fps', 
                         type=int, 
                         default=30)
+    parser.add_argument('--verbose', '-v', 
+                        type=str, 
+                        default='warning')
+    args = parser.parse_args()
+
+    return args
+
+
+def parse_rank_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('directory',
+                        type=str,
+                        help='directory where checkpoints and "config.yaml" exist')
+    parser.add_argument('--payoff', '-p', 
+                        type=str,
+                        default='eval_payoff', 
+                        help='payoff name')
+    parser.add_argument('--n_episodes', '-n', 
+                        type=int, 
+                        default=10)
+    parser.add_argument('--n_envs', '-ne', 
+                        type=int, 
+                        default=None)
+    parser.add_argument('--n_workers', '-nw', 
+                        type=int, 
+                        default=None)
     parser.add_argument('--verbose', '-v', 
                         type=str, 
                         default='warning')

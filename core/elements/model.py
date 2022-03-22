@@ -1,6 +1,6 @@
 from typing import Union
 
-from core.checkpoint import *
+from core.ckpt.tf import *
 from core.module import Ensemble, constructor
 from utility.typing import AttrDict
 

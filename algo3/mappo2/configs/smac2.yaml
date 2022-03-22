@@ -12,7 +12,7 @@ model_name: *algo
 routine:
     algorithm: *algo
     MAX_STEPS: 1e8
-    N_STEPS: &nsteps 400
+    n_steps: &nsteps 400
     LOG_PERIOD: 200
 
 env:
@@ -30,9 +30,9 @@ agent: {}
 
 strategy:
     train_loop:
-        N_EPOCHS: &nepochs 5
+        n_epochs: &nepochs 5
         N_VALUE_EPOCHS: &nval_epochs 0
-        N_MBS: &nmbs 1
+        n_mbs: &nmbs 1
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
         # (once, reuse, null)
@@ -137,9 +137,9 @@ buffer:
     lam: .95
     n_workers: *nworkers
     n_envs: *nenvs
-    N_STEPS: *nsteps
-    N_EPOCHS: *nepochs
-    N_MBS: *nmbs        # number of minibatches
+    n_steps: *nsteps
+    n_epochs: *nepochs
+    n_mbs: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: minibatch
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

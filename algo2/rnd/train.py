@@ -15,7 +15,7 @@ def train(agent, env, eval_env, buffer):
         buffer.add(**kwargs)
 
     step = agent.get_env_step()
-    runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
+    runner = Runner(env, agent, step=step, nsteps=agent.n_steps)
     actsel = lambda *args, **kwargs: np.random.randint(0, env.action_dim, size=env.n_envs)
     if not agent.rnd_rms_restored():
         print('Start to initialize observation running stats...')
@@ -39,7 +39,7 @@ def train(agent, env, eval_env, buffer):
         agent.record_inputs_to_vf(runner.env_output)
         value_int, value_ext = agent.compute_value()
         obs = buffer.get_obs(runner.env_output.obs)
-        assert obs.shape[:2] == (env.n_envs, agent.N_STEPS+1)
+        assert obs.shape[:2] == (env.n_envs, agent.n_steps+1)
         assert obs.dtype == np.uint8
         agent.update_obs_rms(obs[:, :-1])
         norm_obs = agent.normalize_obs(obs)

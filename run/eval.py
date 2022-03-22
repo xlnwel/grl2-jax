@@ -71,22 +71,22 @@ if __name__ == '__main__':
     configs = [search_for_config(d) for d in args.directory]
     config = configs[0]
 
+    # get the main function
+    try:
+        main = pkg.import_main('eval', config=config)
+    except:
+        print('Default main is used for evaluation')
+
     silence_tf_logs()
     configure_gpu()
     configure_precision(config.precision)
-    
-    # get the main function
-    # try:
-    main = pkg.import_main('eval', config=config)
-    # except:
-    #     print('Default main is used for evaluation')
 
     # set up env_config
     for config in configs:
         n = args.n_episodes
         if args.n_workers:
             if 'runner' in config:
-                config.runner.n_workers = args.n_workers
+                config.runner.n_runners = args.n_workers
             config.env.n_workers = args.n_workers
         if args.n_envs:
             config.env.n_envs = args.n_envs

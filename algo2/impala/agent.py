@@ -157,8 +157,8 @@ class Agent(Memory, RMSAgentBase):
         return terms
 
     def _sample_train(self):
-        for i in range(self.N_EPOCHS):
-            for j in range(1, self.N_MBS+1):
+        for i in range(self.n_epochs):
+            for j in range(1, self.n_mbs+1):
                 with self._sample_timer:
                     data = self.dataset.sample()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}

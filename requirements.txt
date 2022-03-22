@@ -1,11 +1,13 @@
 tensorflow-gpu
-tensorboard
+tensorflow-probability
 ray
 scipy
 pandas
 Pillow
+matplotlib
 plotly
 opencv-python
-gym[all]
+gym
 atari_py
 pysc2
+gfootball

@@ -17,9 +17,9 @@ class Agent(PPOBase):
     @override(PPOBase)
     def _add_attributes(self, env, dateset):
         super()._add_attributes(env, dateset)
-        assert self.N_SEGS <= self.N_PI, f'{self.N_SEGS} > {self.N_PI}'
-        self.N_AUX_MBS = self.N_SEGS * self.N_AUX_MBS_PER_SEG
-        self._aux_batch_size = env.n_envs * self.N_STEPS // self.N_AUX_MBS_PER_SEG
+        assert self.n_segs <= self.n_pi, f'{self.n_segs} > {self.n_pi}'
+        self.N_AUX_MBS = self.n_segs * self.n_aux_mbs_per_seg
+        self._aux_batch_size = env.n_envs * self.n_steps // self.n_aux_mbs_per_seg
 
     @override(PPOBase)
     def _construct_optimizers(self):
@@ -78,7 +78,7 @@ class Agent(PPOBase):
         return out
 
     def aux_train_log(self, step):
-        for i in range(self.N_AUX_EPOCHS):
+        for i in range(self.n_aux_epochs):
             for j in range(1, self.N_AUX_MBS+1):
                 data = self.dataset.sample_aux_data()
                 data = {k: tf.convert_to_tensor(v) for k, v in data.items()}

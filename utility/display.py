@@ -1,3 +1,4 @@
+from datetime import datetime
 import numpy as np
 
 
@@ -35,6 +36,13 @@ def pwc(*args, color='red', bold=False, highlight=False):
             print(colorize(s, color, bold, highlight))
     else:
         print(colorize(args, color, bold, highlight))
+
+def pwt(*args):
+    print(datetime.now(), *args)
+
+def pwtc(*args, color='red', bold=False, highlight=False):
+    args = (datetime.now()) + args
+    pwc(*args, color=color, bold=bold, highlight=highlight)
 
 def assert_colorize(cond, err_msg=''):
     assert cond, colorize(err_msg, 'red')
@@ -84,14 +92,16 @@ def print_dict(d, prefix=''):
         else:
             print(f'{prefix} {k}: {v}')
 
-def print_dict_tensors(d, prefix=''):
+def print_dict_info(d, prefix=''):
     for k, v in d.items():
         if isinstance(v, dict):
             print(f'{prefix} {k}')
-            print_dict_tensors(v, prefix+'\t')
+            print_dict_info(v, prefix+'\t')
         elif isinstance(v, tuple):
             # namedtuple is assumed
             print(f'{prefix} {k}')
-            print_dict_tensors(v._asdict(), prefix+'\t')
-        else:
+            print_dict_info(v._asdict(), prefix+'\t')
+        elif isinstance(v, np.ndarray):
             print(f'{prefix} {k}: {v.shape} {v.dtype}')
+        else:
+            print(f'{prefix} {k}: {v}')

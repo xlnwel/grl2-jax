@@ -14,7 +14,7 @@ def train(agent, env, eval_env, buffer):
     collect = functools.partial(collect_fn, buffer)
 
     step = agent.get_env_step()
-    runner = Runner(env, agent, step=step, nsteps=agent.N_STEPS)
+    runner = Runner(env, agent, step=step, nsteps=agent.n_steps)
     if step == 0 and agent.is_obs_normalized:
         print('Start to initialize running stats...')
         for _ in range(10):
@@ -38,7 +38,7 @@ def train(agent, env, eval_env, buffer):
     print('Training starts...')
     while step < agent.MAX_STEPS:
         agent.before_run(env)
-        for _ in range(agent.N_PI):
+        for _ in range(agent.n_pi):
             start_env_step = agent.get_env_step()
             with rt:
                 step = runner.run(step_fn=collect)
@@ -103,7 +103,7 @@ def train(agent, env, eval_env, buffer):
 
         with at:
             agent.aux_train_log(step)
-        agent.store(atps=(agent.N_AUX_EPOCHS * agent.N_AUX_MBS)/at.last())
+        agent.store(atps=(agent.n_aux_epochs * agent.N_AUX_MBS)/at.last())
         buffer.aux_reset()
 
 main = functools.partial(main, train=train)

@@ -12,8 +12,8 @@ config = dict(
     adv_type='gae',
     n_minibatches=2,
     n_envs=8, 
-    N_STEPS=1000,
-    N_MBS=4, 
+    n_steps=1000,
+    n_mbs=4, 
     sample_size=10
 )
 
@@ -22,7 +22,7 @@ class TestClass:
         from algo.ppo.elements.buffer import Buffer
         buffer = Buffer(config)
         n_envs = config['n_envs']
-        n_steps = config['N_STEPS']
+        n_steps = config['n_steps']
         d = np.zeros(n_envs)
         for i in range(n_steps):
             r = np.random.rand(n_envs)
@@ -55,7 +55,7 @@ class TestClass:
             config['precision'] = prec
             buffer = Buffer(config)
             n_envs = config['n_envs']
-            n_steps = config['N_STEPS']
+            n_steps = config['n_steps']
             d = np.zeros(n_envs)
             for i in range(n_steps):
                 r = np.random.rand(n_envs)

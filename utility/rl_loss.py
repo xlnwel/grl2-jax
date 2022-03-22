@@ -257,7 +257,7 @@ def _compute_ppo_policy_losses(log_ratio, advantages, clip_range):
 
 
 def _compute_ppo_value_losses(value, traj_ret, old_value, clip_range, huber_threshold=None):
-    value_diff = value - old_value,
+    value_diff = value - old_value
     value_clipped = old_value + tf.clip_by_value(value_diff, -clip_range, clip_range)
     if huber_threshold is None:
         loss1 = 0.5 * tf.square(value - traj_ret)

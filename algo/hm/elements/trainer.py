@@ -11,6 +11,8 @@ class MAPPOActorTrainer(Trainer):
         action, 
         advantage, 
         logpi, 
+        prev_reward, 
+        prev_action, 
         state=None, 
         action_mask=None, 
         life_mask=None, 
@@ -21,13 +23,16 @@ class MAPPOActorTrainer(Trainer):
             action, 
             advantage, 
             logpi, 
+            prev_reward, 
+            prev_action, 
             state, 
             action_mask, 
             life_mask, 
             mask
         )
         
-        terms['actor_norm'] = self.optimizer(tape, loss)
+        terms['actor_norm'], terms['actor_var_norm'] = \
+            self.optimizer(tape, loss, return_var_norms=True)
 
         return terms
 
@@ -38,14 +43,25 @@ class MAPPOValueTrainer(Trainer):
         global_state, 
         value, 
         traj_ret, 
+        prev_reward, 
+        prev_action, 
         state=None, 
         life_mask=None, 
         mask=None
     ):
         tape, loss, terms = self.loss.loss(
-            global_state, value, traj_ret, state, life_mask, mask)
+            global_state=global_state, 
+            value=value, 
+            traj_ret=traj_ret, 
+            prev_reward=prev_reward, 
+            prev_action=prev_action, 
+            state=state, 
+            life_mask=life_mask,
+            mask=mask
+        )
 
-        terms['value_norm'] = self.optimizer(tape, loss)
+        terms['value_norm'], terms['value_var_norm'] = \
+            self.optimizer(tape, loss, return_var_norms=True)
 
         return terms
 
@@ -67,6 +83,8 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         traj_ret, 
         advantage, 
         logpi, 
+        prev_reward, 
+        prev_action, 
         action_mask=None, 
         life_mask=None, 
         state=None, 
@@ -77,12 +95,26 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         else:
             actor_state, value_state = self.model.split_state(state)
         actor_terms = self.policy.raw_train(
-            obs, action, advantage, logpi, actor_state, 
-            action_mask, life_mask, mask
+            obs=obs, 
+            action=action, 
+            advantage=advantage, 
+            logpi=logpi, 
+            prev_reward=prev_reward, 
+            prev_action=prev_action, 
+            state=actor_state, 
+            action_mask=action_mask, 
+            life_mask=life_mask, 
+            mask=mask
         )
         value_terms = self.value.raw_train(
-            global_state, value, traj_ret, value_state,
-            life_mask, mask
+            global_state=global_state, 
+            value=value, 
+            traj_ret=traj_ret, 
+            prev_reward=prev_reward, 
+            prev_action=prev_action, 
+            state=value_state, 
+            life_mask=life_mask,
+            mask=mask
         )
 
         return {**actor_terms, **value_terms}

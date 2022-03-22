@@ -8,6 +8,10 @@ Stats = collections.namedtuple('RMS', 'mean var count')
 
 
 def combine_rms(rms1, rms2):
+    if np.any(np.abs(rms1.mean - rms2.mean)) > 100 \
+        or np.any(np.abs(rms1.var - rms2.var)) > 100:
+        raise ValueError(f'Large difference between two RMSs {rms1} vs {rms2}')
+
     mean1, var1, count1 = rms1
     mean2, var2, count2 = rms2
     delta = mean2 - mean1
@@ -105,8 +109,8 @@ class RunningMeanStd:
         assert self._var.shape == batch_var.shape
 
         new_mean, new_var, total_count = combine_rms(
-            (self._mean, self._var, self._count), 
-            (batch_mean, batch_var, batch_count))
+            Stats(self._mean, self._var, self._count), 
+            Stats(batch_mean, batch_var, batch_count))
         self._mean = new_mean
         self._var = new_var
         self._std = np.sqrt(self._var)
@@ -117,19 +121,19 @@ class RunningMeanStd:
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
         assert self._var is not None, (self._mean, self._var, self._count)
         if self._count == self._epsilon:
+            x = np.clip(x, -self._clip, self._clip)
             return x
-        assert x.ndim == self._var.ndim + (0 if self._axis is None else len(self._axis)), \
-            (x.shape, self._var.shape, self._axis)
+        # assert x.ndim == self._var.ndim + (0 if self._axis is None else len(self._axis)), \
+        #     (x.shape, self._var.shape, self._axis)
+        x_new = x.astype(np.float32)
         if mask is not None:
             assert mask.ndim == len(self._axis), (mask.shape, self._axis)
-            old = x.copy()
         if zero_center:
-            x -= self._mean
-        x /= self._std
+            x_new -= self._mean
+        x_new /= self._std
         if self._clip:
-            x = np.clip(x, -self._clip, self._clip)
+            x_new = np.clip(x_new, -self._clip, self._clip)
         if mask is not None:
-            mask = expand_dims_match(mask, x)
-            x = np.where(mask, x, old)
-        x = x.astype(np.float32)
-        return x
+            mask = expand_dims_match(mask, x_new)
+            x_new = np.where(mask, x_new, x)
+        return x_new

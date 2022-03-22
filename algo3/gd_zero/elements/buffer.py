@@ -25,10 +25,10 @@ def compute_gae(reward, discount, value, gamma, gae_discount):
     return advs, traj_ret
 
 
-def compute_indices(idxes, mb_idx, mb_size, N_MBS):
+def compute_indices(idxes, mb_idx, mb_size, n_mbs):
     start = mb_idx * mb_size
     end = (mb_idx + 1) * mb_size
-    mb_idx = (mb_idx + 1) % N_MBS
+    mb_idx = (mb_idx + 1) % n_mbs
     curr_idxes = idxes[start: end]
     return mb_idx, curr_idxes
 
@@ -47,7 +47,7 @@ class LocalBuffer:
     def __init__(self, config):
         self.config = dict2AttrDict(config)
         self._gae_discount = self.config.gamma * self.config.lam
-        self._maxlen = self.config.n_envs * self.config.N_STEPS
+        self._maxlen = self.config.n_envs * self.config.n_steps
         self.reset()
 
     def size(self):
@@ -133,19 +133,19 @@ class PPOBuffer:
 
         self._sample_size = getattr(self, '_sample_size', None)
         self._state_keys = ['h', 'c']
-        assert self._n_envs * self.N_STEPS % self._sample_size == 0, \
-            f'{self._n_envs} * {self.N_STEPS} % {self._sample_size} != 0'
+        assert self._n_envs * self.n_steps % self._sample_size == 0, \
+            f'{self._n_envs} * {self.n_steps} % {self._sample_size} != 0'
         do_logging(f'Sample size: {self._sample_size}', logger=logger)
 
-        self._max_size = self._n_envs * self.N_STEPS
+        self._max_size = self._n_envs * self.n_steps
         self._batch_size = self._max_size // self._sample_size
-        self._mb_size = self._batch_size // self.N_MBS
+        self._mb_size = self._batch_size // self.n_mbs
         self._idxes = np.arange(self._batch_size)
         self._shuffled_idxes = np.arange(self._batch_size)
         self._gae_discount = self._gamma * self._lam
         self._epsilon = 1e-5
         if hasattr(self, 'N_VALUE_EPOCHS'):
-            self.N_EPOCHS += self.N_VALUE_EPOCHS
+            self.n_epochs += self.N_VALUE_EPOCHS
         self.reset()
         do_logging(f'Batch size: {self._batch_size}', logger=logger)
         do_logging(f'Mini-batch size: {self._mb_size}', logger=logger)
@@ -208,14 +208,14 @@ class PPOBuffer:
             self._sample_wait_time += self._sleep_time
 
     def _shuffle_indices(self):
-        if self.N_MBS > 1 and self._mb_idx == 0:
+        if self.n_mbs > 1 and self._mb_idx == 0:
             np.random.shuffle(self._shuffled_idxes)
         
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self._sample_keys
         self._mb_idx, self._curr_idxes = compute_indices(
             self._shuffled_idxes, self._mb_idx, 
-            self._mb_size, self.N_MBS)
+            self._mb_size, self.n_mbs)
 
         sample = get_sample(self._memory, sample_keys, self._state_keys, self._curr_idxes)
         sample = self._process_sample(sample)
@@ -231,7 +231,7 @@ class PPOBuffer:
     def _post_process_for_dataset(self):
         if self._mb_idx == 0:
             self._epoch_idx += 1
-            if self._epoch_idx == self.N_EPOCHS:
+            if self._epoch_idx == self.n_epochs:
                 # resetting here is especially important 
                 # if we use tf.data as sampling is done 
                 # in a background thread
@@ -249,16 +249,16 @@ class PPGBuffer:
         self._aux_compute_keys = self.config.aux_compute_keys
         self._state_keys = ['h', 'c']
 
-        assert self.N_PI >= self.N_SEGS, (self.N_PI, self.N_SEGS)
+        assert self.n_pi >= self.n_segs, (self.n_pi, self.n_segs)
         buff_size = self._buff.max_size()
-        self._size = buff_size * self.N_SEGS
+        self._size = buff_size * self.n_segs
         self._batch_size = self._size // self._sample_size
         assert self._size == self._batch_size * self._sample_size, \
             (self._size, self._batch_size, self._sample_size)
-        self._aux_mb_size = self._batch_size // self.N_SEGS // self.N_AUX_MBS_PER_SEG
-        assert self._batch_size == self.N_AUX_MBS_PER_SEG * self.N_SEGS * self._aux_mb_size, \
-            (self._batch_size, self._aux_mb_size, self.N_AUX_MBS_PER_SEG, self.N_SEGS)
-        self.N_AUX_MBS = self.N_SEGS * self.N_AUX_MBS_PER_SEG
+        self._aux_mb_size = self._batch_size // self.n_segs // self.n_aux_mbs_per_seg
+        assert self._batch_size == self.n_aux_mbs_per_seg * self.n_segs * self._aux_mb_size, \
+            (self._batch_size, self._aux_mb_size, self.n_aux_mbs_per_seg, self.n_segs)
+        self.N_AUX_MBS = self.n_segs * self.n_aux_mbs_per_seg
         self._shuffled_idxes = np.arange(self._batch_size)
         self._idx = 0
         self._mb_idx = 0
@@ -322,7 +322,7 @@ class PPGBuffer:
         def post_process_for_dataset():
             if self._mb_idx == 0:
                 self._epoch_idx += 1
-                if self._epoch_idx == self.N_AUX_EPOCHS:
+                if self._epoch_idx == self.n_aux_epochs:
                     # resetting here is especially important 
                     # if we use tf.data as sampling is done 
                     # in a background thread
@@ -345,14 +345,14 @@ class PPGBuffer:
     def finish(self):
         def transfer_data(data):
             assert self._buff.ready(), (self._buff.size(), self._buff.max_size())
-            if self._idx >= self.N_PI - self.N_SEGS:
+            if self._idx >= self.n_pi - self.n_segs:
                 for k, v in data.items():
                     self._memory[k].append(v)
-            self._idx = (self._idx + 1) % self.N_PI
+            self._idx = (self._idx + 1) % self.n_pi
 
         def aux_finish():
             for k, v in self._memory.items():
-                assert len(v) == self.N_SEGS, (len(v), self.N_SEGS)
+                assert len(v) == self.n_segs, (len(v), self.n_segs)
                 v = np.concatenate(v)
                 assert v.shape[0] == self._batch_size, (v.shape, self._batch_size)
                 self._memory[k] = v[-self._batch_size:]
@@ -370,7 +370,7 @@ class PPGBuffer:
         value_list = []
         start = 0
 
-        for _ in range(self.N_SEGS * self.N_AUX_MBS_PER_SEG):
+        for _ in range(self.n_segs * self.n_aux_mbs_per_seg):
             end = start + self._aux_mb_size
             sample = get_sample(
                 self._memory, self._aux_compute_keys, self._state_keys, np.arange(start, end))
@@ -422,13 +422,13 @@ if __name__ == '__main__':
         n_workers=2,
         n_envs=2,
         sample_size=2,
-        N_STEPS=n_steps,
-        N_EPOCHS=n_epochs,
+        n_steps=n_steps,
+        n_epochs=n_epochs,
         N_VALUE_EPOCHS=0,
-        N_MBS=n_mbs,
+        n_mbs=n_mbs,
         N_AUX_MBS=n_mbs,
-        N_PI=2,
-        N_SEGS=2,
+        n_pi=2,
+        n_segs=2,
         sample_keys=['reward', 'value', 'action_h', 'action_c'],
         norm_adv='batch',
     )

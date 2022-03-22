@@ -12,8 +12,8 @@ def compute_aid2uids(uid2aid):
     """ Compute aid2uids from uid2aid """
     aid2uids = []
     for uid, aid in enumerate(uid2aid):
-        if aid > len(aid2uids):
-            raise ValueError(f'uid2aid({uid2aid}) is not sorted in order')
+        # if aid > len(aid2uids):
+        #     raise ValueError(f'uid2aid({uid2aid}) is not sorted in order')
         if aid == len(aid2uids):
             aid2uids.append((uid, ))
         else:
@@ -21,3 +21,12 @@ def compute_aid2uids(uid2aid):
     aid2uids = [np.array(uids, np.int32) for uids in aid2uids]
 
     return aid2uids
+
+def compute_relative_position(center, x):
+    return x - center
+
+def compute_angle_cos_sin(center, x):
+    diff = x - center
+    dist = np.linalg.norm(diff)
+    ans = diff / dist
+    return ans

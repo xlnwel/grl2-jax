@@ -83,6 +83,7 @@ class SMAC(gym.Env):
         use_stacked_frames=False,
         stacked_frames=1,
         use_obs_instead_of_state=False,
+        life_mask_at_done=0,
         # all the above are from args
         step_mul=8,
         move_amount=2,
@@ -236,6 +237,7 @@ class SMAC(gym.Env):
         self.add_center_xy = add_center_xy
         self.use_stacked_frames = use_stacked_frames
         self.stacked_frames = stacked_frames
+        self.life_mask_at_done = life_mask_at_done
 
         map_params = get_map_params(self.name)
         self.n_agents = 1
@@ -351,12 +353,16 @@ class SMAC(gym.Env):
         self.obs_shape = [dict(
             obs=(self.get_obs_size()[0],),
             global_state=(self.get_state_size()[0],),
+            prev_reward=(),
+            prev_action=(self.action_dim[0],),
             action_mask=(self.action_dim[0],),
             life_mask=()
         )]
         self.obs_dtype = [dict(
             obs=np.float32,
             global_state=np.float32,
+            prev_reward=np.float32,
+            prev_action=np.float32,
             action_mask=bool,
             life_mask=np.float32
         )]
@@ -499,6 +505,8 @@ class SMAC(gym.Env):
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, bool),
+            prev_reward=np.zeros(self.n_units, np.float32),
+            prev_action=np.zeros((self.n_units, self.action_dim[0]), np.float32),
             life_mask=life_mask
         )
 
@@ -528,6 +536,7 @@ class SMAC(gym.Env):
         terminated = False
         infos = [{} for i in range(self.n_units)]
         life_mask = np.ones(self.n_units, np.float32)
+        dones = np.zeros(self.n_units, bool)
 
         actions_int = [int(a) for a in action[0]]
 
@@ -594,6 +603,8 @@ class SMAC(gym.Env):
                 obs=local_obs,
                 global_state=np.array(global_state, np.float32),
                 action_mask=np.array(available_actions, bool),
+                prev_reward=np.zeros(self.n_units, np.float32),
+                prev_action=np.zeros((self.n_units, self.action_dim[0]), np.float32),
                 life_mask=life_mask
             )
             rewards = np.zeros(self.n_units, np.float32)
@@ -655,12 +666,14 @@ class SMAC(gym.Env):
             }
 
             if terminated:
-                life_mask[i] = 0
+                life_mask[i] = self.life_mask_at_done
+                dones[i] = 1
             else:
-                if self.death_tracker_ally[i]:  # the agent is dead, but its allies are still fighting
-                    life_mask[i] = 0
-                else:
-                    life_mask[i] = 1
+                # if self.death_tracker_ally[i]:  # the agent is dead, but its allies are still fighting
+                #     life_mask[i] = 0
+                # else:
+                #     life_mask[i] = 1
+                life_mask[i] = not self.death_tracker_ally[i]
 
         if self.debug:
             print("Reward = {}".format(reward).center(60, '-'))
@@ -690,10 +703,14 @@ class SMAC(gym.Env):
             local_obs = self.stacked_local_obs.reshape(self.n_units, -1)
             global_state = self.stacked_global_state.reshape(self.n_units, -1)
 
+        action_oh = np.zeros((self.n_units, self.action_dim[0]), np.float32)
+        action_oh[np.arange(action[0].size), action[0]] = 1
         obs_dict = dict(
             obs=local_obs,
             global_state=np.array(global_state, np.float32),
             action_mask=np.array(available_actions, bool),
+            prev_reward=reward,
+            prev_action=action_oh,
             life_mask=life_mask
         )
         info = {
@@ -702,13 +719,17 @@ class SMAC(gym.Env):
             'epslen': self._episode_steps,
             'game_over': terminated
         }
-        assert np.all(life_mask == 0) == terminated, (life_mask, terminated)
-        dones = (np.zeros if np.any(life_mask) else np.ones)(self.n_units, bool)
+
+        if terminated and self.life_mask_at_done:
+            assert np.all(life_mask == 1), (life_mask, terminated)
+        else:
+            assert np.all(life_mask == 0) == terminated, (life_mask, terminated)
+        # dones = (np.zeros if np.any(life_mask) else np.ones)(self.n_units, bool)
         assert np.all(dones) == terminated, (dones, terminated)
 
         self._reset_for_error = False
         assert reward.size == self.n_units, (reward, self.n_units)
-        
+
         return [obs_dict], [reward], [dones], info
 
     def _reset_track_stats(self):

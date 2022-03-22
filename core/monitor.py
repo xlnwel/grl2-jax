@@ -1,4 +1,4 @@
-from core.mixin.monitor import create_recorder, create_tensorboard_writer
+from core.mixin.monitor import Recorder, TensorboardWriter
 from core.remote.base import RayBase
 from core.typing import ModelPath
 
@@ -19,9 +19,9 @@ class Monitor(RayBase):
     
     def _build(self, model_path):
         # we create a recorder anyway, but we do not store any data to the disk if use_recorder=False
-        self._recorder = create_recorder(self._model_path)
+        self._recorder = Recorder(self._model_path)
         if self._use_tensorboard and self._model_path is not None:
-            self._tb_writer = create_tensorboard_writer(
+            self._tb_writer = TensorboardWriter(
                 model_path=model_path, name=self._name)
         else:
             self._tb_writer = None
@@ -38,24 +38,32 @@ class Monitor(RayBase):
     def reset_model_path(self, model_path: ModelPath):
         self._model_path = model_path
         self._build(model_path)
-        
-    def record(self, step, adaptive=True):
+
+    def record(self, step, adaptive=True, print_terminal_info=True):
         record(
             recorder=self._recorder, 
             tb_writer=self._tb_writer, 
             model_name=self._model_path.model_name, 
             step=step,
+            print_terminal_info=print_terminal_info, 
             adaptive=adaptive
         )
 
 
-def record(*, recorder, tb_writer, model_name, 
-           prefix=None, step, print_terminal_info=True, 
-           **kwargs):
+def record(
+    *, 
+    recorder: Recorder, 
+    tb_writer: TensorboardWriter, 
+    model_name: str, 
+    prefix: str=None, 
+    step: int, 
+    print_terminal_info=True, 
+    **kwargs
+):
     stats = dict(
         model_name=f'{model_name}',
         steps=step,
-        **recorder.get_stats(**kwargs),
+        **recorder.get_stats(**kwargs)
     )
     if tb_writer is not None:
         tb_writer.scalar_summary(stats, prefix=prefix, step=step)
@@ -65,8 +73,12 @@ def record(*, recorder, tb_writer, model_name,
 
 
 def create_monitor(
-        model_path: ModelPath, name, central_monitor=False,
-        use_recorder=True, use_tensorboard=True):
+    model_path: ModelPath, 
+    name: str=None, 
+    central_monitor: bool=False,
+    use_recorder: bool=True, 
+    use_tensorboard: bool=True
+):
     if central_monitor:
         return Monitor.as_remote()(
             model_path, name, use_recorder, use_tensorboard)

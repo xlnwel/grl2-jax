@@ -15,8 +15,9 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    MAX_VERSION_ITERATIONS: 1
-    MAX_STEPS_PER_ITERATION: 1e8
+    store_period: 180
+    max_version_iterations: 1
+    max_steps_per_iteration: 1e8
     initialize_rms: &irms False
 
 parameter_server:
@@ -35,12 +36,11 @@ ray_config:
     agent:
         num_gpus: 1
 
-monitor:
-    store_period: 180
+monitor: {}
 
 runner:
-    n_workers: &nworkers 1
-    N_STEPS: &nsteps 400
+    n_runners: &nrunners 1
+    n_steps: &nsteps 400
     record_self_play_stats: False
     push_every_episode: False
     is_multi_agent_env: True
@@ -57,9 +57,9 @@ agent: {}
 
 strategy:
     train_loop:
-        N_EPOCHS: &nepochs 4
+        n_epochs: &nepochs 4
         N_VALUE_EPOCHS: &nval_epochs 0
-        N_MBS: &nmbs 4
+        n_mbs: &nmbs 4
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
         # (once, reuse, null)
@@ -139,22 +139,23 @@ buffer:
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
-    n_workers: *nworkers
+    n_runners: *nrunners
     n_envs: *nenvs
     # batch_size: *bs
-    N_STEPS: *nsteps
-    N_EPOCHS: *nepochs
-    N_MBS: *nmbs        # number of minibatches
+    fragment_size: *nsteps
+    n_steps: *nsteps
+    n_epochs: *nepochs
+    n_mbs: *nmbs        # number of minibatches
     # sample_size: *ss
     norm_adv: minibatch
 
     # PPG configs
-    # N_PI: *npi
-    # N_SEGS: *nsegs
-    # N_AUX_MBS_PER_SEG: *nambs
-    # N_AUX_EPOCHS: *naepochs
+    # n_pi: *npi
+    # n_segs: *nsegs
+    # n_aux_mbs_per_seg: *nambs
+    # n_aux_epochs: *naepochs
 
-    # mini-batch size = n_workers * n_envs * epslen / n_mbs
+    # mini-batch size = n_runners * n_envs * epslen / n_mbs
     sample_keys: &keys
         - obs
         - action

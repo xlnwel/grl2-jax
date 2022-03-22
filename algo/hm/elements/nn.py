@@ -19,7 +19,7 @@ class Policy(Module):
         self.eval_act_temp = config.pop('eval_act_temp', 1)
         self.attention_action = config.pop('attention_action', False)
         embed_dim = config.pop('embed_dim', 10)
-        self._init_std = config.pop('init_std', 1)
+        self.init_std = config.pop('init_std', 1)
         assert self.eval_act_temp >= 0, self.eval_act_temp
 
         if self.attention_action:
@@ -31,7 +31,7 @@ class Policy(Module):
 
         if not self.is_action_discrete:
             self.logstd = tf.Variable(
-                initial_value=np.log(self._init_std)*np.ones(self.action_dim), 
+                initial_value=np.log(self.init_std)*np.ones(self.action_dim), 
                 dtype='float32', 
                 trainable=True, 
                 name=f'policy/logstd')
@@ -60,8 +60,13 @@ class Policy(Module):
         return act_dist
 
     def action(self, dist, evaluation):
-        return dist.mode() if evaluation and self.eval_act_temp == 0 \
-            else dist.sample()
+        if self.is_action_discrete:
+            return dist.mode() if evaluation and self.eval_act_temp == 0 \
+                else dist.sample()
+        else:
+            self.raw_action = dist.sample()
+            action = tf.clip_by_value(self.raw_action, -1, 1)
+            return action
 
 
 @nn_registry.register('value')
@@ -71,10 +76,13 @@ class Value(Module):
         config = config.copy()
         
         config.setdefault('out_gain', 1)
-        self._layers = mlp(**config,
-                          out_size=1,
-                          out_dtype='float32',
-                          name=name)
+        if 'out_size' not in config:
+            config['out_size'] = 1
+        self._layers = mlp(
+            **config,
+            out_dtype='float32',
+            name=name
+        )
 
     def call(self, x):
         value = self._layers(x)

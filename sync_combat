@@ -1,6 +1,13 @@
 rsync -avz --exclude-from=exclude.list ./algo/hm ~/github/combat/algo
-rsync -avz --exclude-from=exclude.list ./distributed/sync_sim ~/github/combat/distributed
+rsync -avz --exclude-from=exclude.list --exclude=configs ./distributed/sync_sim ~/github/combat/distributed
+rsync -avz --exclude-from=exclude.list ./distributed/sync_sim/configs/unity.yaml ~/github/combat/distributed/sync_sim/configs
 rsync -avz --exclude-from=exclude.list ./core ~/github/combat
 rsync -avz --exclude-from=exclude.list ./utility ~/github/combat
 rsync -avz --exclude-from=exclude.list ./nn ~/github/combat
 rsync -avz --exclude-from=exclude.list ./run ~/github/combat
+rsync -avz --exclude-from=exclude.list ./env/unity_env ~/github/combat/env
+rsync -avz --exclude-from=exclude.list ./env/unity.py ~/github/combat/env
+rsync -avz --exclude-from=exclude.list ./gt ~/github/combat
+rsync -avz --exclude-from=exclude.list ./env/wrappers.py ~/github/combat/env
+rsync -avz --exclude-from=exclude.list ./readme.md ~/github/combat
+rsync -avz --exclude-from=exclude.list ./main.py ~/github/combat

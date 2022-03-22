@@ -1,4 +1,5 @@
 import collections
+import copy
 import logging
 import numpy as np
 import gym
@@ -547,7 +548,6 @@ class EnvStats(EnvStatsBase):
         if self._epslen >= self.max_episode_steps:
             self._game_over = True
             done = self.timeout_done
-            info['timeout'] = True
         reward = self.float_dtype(reward)
         discount = self.float_dtype(1-done)
         # we expect auto-reset environments, 
@@ -642,7 +642,6 @@ class MASimEnvStats(EnvStatsBase):
             self._game_over = True
             if self.timeout_done:
                 done = self._get_agent_wise_ones()
-            info['timeout'] = True
         discount = [np.array(1-d, self.float_dtype) for d in done]
 
         # store previous env output for later retrieval
@@ -700,6 +699,8 @@ class UnityEnvStats(EnvStatsBase):
         return self._output
 
     def step(self, action, **kwargs):
+        action = copy.deepcopy(action)
+        kwargs = copy.deepcopy(kwargs)
         # assert not np.any(np.isnan(action)), action
         obs, reward, discount, reset = self.env.step(action, **kwargs)
         

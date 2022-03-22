@@ -14,7 +14,7 @@ def main(config, n, other_path, **kwargs):
     # model_name = 'sp_exploiter_ws_ft'
     # set_path(config, ModelPath(config.root_dir, model_name))
     # config.runner.initialize_other = False
-    # config.runner.self_play_frac = 0
+    # config.runner.online_frac = 0
     # save_config(config.root_dir, config.model_name, config)
     # exit()
     ray.init()

@@ -1,5 +1,6 @@
 import re
 import logging
+from typing import List, Tuple, Union
 import tensorflow as tf
 from tensorflow.keras import mixed_precision as prec
 
@@ -38,12 +39,11 @@ class Optimizer(tf.Module):
         *, 
         opt_name='adam', 
         lr, 
-        clip_norm=None, 
-        weight_decay=None, 
-        l2_reg=None,
-        wdpattern=r'.*', 
-        scales=None, 
-        return_grads=False, 
+        clip_norm: float=None, 
+        weight_decay: float=None, 
+        l2_reg: float=None,
+        wdpattern: str=r'.*', 
+        scales: Union[List[float], Tuple[float]]=None, 
         **kwargs
     ):
         self._modules = modules if isinstance(modules, (list, tuple)) else [modules]
@@ -55,8 +55,7 @@ class Optimizer(tf.Module):
             assert isinstance(scales, (list, tuple)), scales
             assert len(scales) == len(self._modules), (len(scales), len(self._modules))
         self._scales = scales
-        self._opt = select_optimizer(opt_name)(lr, **kwargs)
-        self._return_grads = return_grads
+        self._opt: tf.optimizers.Optimizer = select_optimizer(opt_name)(lr, **kwargs)
         # useful for mixed precision training on GPUs to
         # avoid numerical underflow caused by using float16 gradients
         prec_policy = prec.global_policy()
@@ -83,7 +82,13 @@ class Optimizer(tf.Module):
         assert hasattr(self._opt, 'get_transformed_grads'), f'{self._opt} does not support "get_transformed_grads"'
         return self._opt.get_transformed_grads(var_list or self._variables)
 
-    def compute_gradients(self, tape, loss, output_gradients=None):
+    def compute_gradients(
+        self, 
+        tape, 
+        loss, 
+        output_gradients=None, 
+        return_var_norms=False
+    ):
         if isinstance(loss, tf.Tensor) and loss.shape != ():
             raise ValueError(f'loss is expected to be a scalar Tensor, but get {loss}')
 
@@ -99,16 +104,21 @@ class Optimizer(tf.Module):
 
         if tape is None:
             raise ValueError('tf.GradientTape is ')
-        if self._l2_reg:
-            loss = self._add_l2_regularization(loss)
+        if self._l2_reg or return_var_norms:
+            var_norms = self._get_var_norms()
+            if self._l2_reg:
+                loss = self._add_l2_regularization(loss, var_norms)
         if self._mpt:
             with tape:
                 loss = self._opt.get_scaled_loss(loss)
         grads = tape.gradient(loss, self._variables, output_gradients=output_gradients)
 
-        return grads
+        if return_var_norms:
+            return grads, var_norms
+        else:
+            return grads
 
-    def apply_gradients(self, grads):
+    def apply_gradients(self, grads, return_grads=False):
         if None in grads:
             raise ValueError(f'No grads for {self._variables[grads.index(None)].name}')
         if self._mpt:
@@ -124,21 +134,50 @@ class Optimizer(tf.Module):
         self.grads = grads
         self._opt.apply_gradients(zip(grads, self._variables))
 
-        if self._return_grads:
+        if return_grads:
             return norm, {v.name: g for v, g in zip(self._variables, grads)}
         else:
             return norm
 
-    def __call__(self, tape=None, loss=None, grads=None, output_gradients=None):
-        grads = self.compute_gradients(tape, loss, output_gradients=output_gradients)
-        return self.apply_gradients(grads)
-    
-    def _add_l2_regularization(self, loss):
+    def __call__(
+        self, 
+        tape: tf.GradientTape=None, 
+        loss: tf.Tensor=None, 
+        output_gradients=None, 
+        return_var_norms=False, 
+        return_grads=False, 
+    ):
+        grads = self.compute_gradients(
+            tape, 
+            loss, 
+            output_gradients=output_gradients, 
+            return_var_norms=return_var_norms
+        )
+        if return_var_norms:
+            grads, var_norms = grads
+        norms = self.apply_gradients(grads, return_grads=return_grads)
+        if return_grads:
+            norms, grads = norms
+        if return_var_norms and return_grads:
+            return norms, var_norms, grads
+        elif return_var_norms:
+            return norms, var_norms
+        elif return_grads:
+            return norms, grads
+        else:
+            return norms
+
+    def _get_var_norms(self):
+        var_norms = []
+        for var in self._variables:
+            var_norms.append(tf.nn.l2_loss(var))
+        return var_norms
+        
+    def _add_l2_regularization(self, loss, var_norms: List):
         do_logging(f'Apply L2 regularization with coefficient: {self._l2_reg}\n" \
             "Wait, are you sure you want to apply l2 regularization instead of weight decay?',
             logger=logger)
-        for var in self._variables:
-            loss += self._l2_reg * tf.nn.l2_loss(var)
+        loss += tf.reduce_sum([self._l2_reg * norm for norm in var_norms])
         return loss
 
     def _apply_weight_decay(self):
@@ -148,6 +187,7 @@ class Optimizer(tf.Module):
             if re.search(self._wdpattern, var.name):
                 print(var.name, self._weight_decay)
                 var.assign((1 - self._weight_decay) * var)
+
 
 if __name__ == '__main__':
     l = tf.keras.layers.Dense(1, kernel_regularizer=tf.keras.regularizers.l2(.01))

@@ -15,11 +15,11 @@ class Buffer:
         self._add_attributes()
 
     def _add_attributes(self):
-        assert self.N_PI >= self.N_SEGS, (self.N_PI, self.N_SEGS)
-        self.TOTAL_STEPS = self.N_STEPS * self.N_PI
-        buff_size = self._n_envs * self.N_STEPS
-        self._size = buff_size * self.N_SEGS
-        self._mb_size = buff_size // self.N_AUX_MBS_PER_SEG
+        assert self.n_pi >= self.n_segs, (self.n_pi, self.n_segs)
+        self.TOTAL_STEPS = self.n_steps * self.n_pi
+        buff_size = self._n_envs * self.n_steps
+        self._size = buff_size * self.n_segs
+        self._mb_size = buff_size // self.n_aux_mbs_per_seg
         self._n_aux_mbs = self._size / self._mb_size
         self._shuffled_idxes = np.arange(self._size)
         self._idx = 0
@@ -77,7 +77,7 @@ class Buffer:
     def transfer_data(self):
         assert self._buff.ready()
         self._buff.reshape_to_store()
-        if self._idx >= self.N_PI - self.N_SEGS:
+        if self._idx >= self.n_pi - self.n_segs:
             for k in self._transfer_keys:
                 v = self._buff[k]
                 if k in self._memory:
@@ -89,7 +89,7 @@ class Buffer:
                     )
                 else:
                     self._memory[k] = v.copy()
-        self._idx = (self._idx + 1) % self.N_PI
+        self._idx = (self._idx + 1) % self.n_pi
 
     def sample(self):
         return self._buff.sample()
@@ -99,7 +99,7 @@ class Buffer:
         if self._mb_idx == 0:
             np.random.shuffle(self._shuffled_idxes)
         self._mb_idx, self._curr_idxes = compute_indices(
-            self._shuffled_idxes, self._mb_idx, self._mb_size, self.N_SEGS)
+            self._shuffled_idxes, self._mb_idx, self._mb_size, self.n_segs)
         return {k: self._memory[k][self._curr_idxes] for k in self._aux_sample_keys}
 
     def compute_mean_max_std(self, stats='reward'):

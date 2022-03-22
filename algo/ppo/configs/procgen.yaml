@@ -15,7 +15,7 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 1e10
-    N_STEPS: &nsteps 256
+    n_steps: &nsteps 256
     LOG_PERIOD: 200
     EVAL_PERIOD: 200
 
@@ -35,9 +35,9 @@ agent: {}
 
 strategy:
     train_loop:
-        N_EPOCHS: &nepochs 4
+        n_epochs: &nepochs 4
         N_VALUE_EPOCHS: &nval_epochs 0
-        N_MBS: &nmbs 4
+        n_mbs: &nmbs 4
         max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
 
         # (once, reuse, null)
@@ -97,10 +97,10 @@ buffer:
     lam: .95
     n_workers: *nworkers
     n_envs: *nenvs
-    N_STEPS: *nsteps
-    N_EPOCHS: *nepochs
+    n_steps: *nsteps
+    n_epochs: *nepochs
     N_VALUE_EPOCHS: *nval_epochs
-    N_MBS: *nmbs        # number of minibatches
+    n_mbs: *nmbs        # number of minibatches
     norm_adv: minibatch
     sample_keys: 
         - obs

@@ -5,16 +5,10 @@ from tensorflow.keras import layers, activations, initializers
 
 from core.log import do_logging
 from nn.norm import EvoNorm
+from nn.dummy import Dummy
 
 logger = logging.getLogger(__name__)
 
-
-class Dummy(tf.Module):
-    def __init__(self, **kwargs):
-        super().__init__(name='dummy')
-
-    def __call__(self, x, **kwargs):
-        return x
 
 def get_activation(act_name, return_cls=False, **kwargs):
     custom_activations = {
@@ -56,6 +50,7 @@ def get_norm(name):
         # assume name is an normalization layer class
         return name
 
+
 def calculate_gain(name, param=None):
     """ a replica of torch.nn.init.calculate_gain """
     m = {
@@ -72,8 +67,10 @@ def calculate_gain(name, param=None):
     }
     return m[name]
 
+
 def constant_initializer(val):
     return initializers.Constant(val)
+
 
 def get_initializer(name, **kwargs):
     """ 
@@ -94,6 +91,7 @@ def get_initializer(name, **kwargs):
         return initializers.get(name)
     else:
         return name
+
 
 def ortho_init(scale=1.0):
     """ 
@@ -139,6 +137,7 @@ def convert_obs(x, obs_range, dtype=tf.float32):
 #     shape = tf.concat([tf.shape(x)[:-3], [tf.reduce_prod(x.shape[-3:])]], 0)
 #     x = tf.reshape(x, shape)
 #     return x
+
 
 def call_norm(norm_type, norm_layer, x, training):
     if norm_type == 'batch':

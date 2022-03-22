@@ -3,7 +3,7 @@ import functools
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from core.checkpoint import *
+from core.ckpt.tf import *
 from utility.typing import AttrDict
 from utility.utils import config_attr, set_path
 
@@ -119,7 +119,7 @@ class Ensemble(tf.Module):
         self._pre_init()
         self._init_components(constructor, classes)
         if has_ckpt:
-            self._ckpt = ckpt(self.config, self.ckpt_model(), self.name)
+            self._ckpt = TFCheckpoint(self.config, self.ckpt_model(), self.name)
         else:
             self._ckpt = None
         self._post_init()

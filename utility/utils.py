@@ -59,7 +59,13 @@ def eval_config(config):
             config[k] = v
     return config
 
-def config_attr(obj, config: dict, filter_dict: bool=True):
+def config_attr(
+    obj, 
+    config: dict, 
+    filter_dict: bool=True, 
+    config_as_attr: bool=True, 
+    private_attr: bool=False
+):
     """ Add values in config as attributes of obj
 
     Args:
@@ -69,14 +75,17 @@ def config_attr(obj, config: dict, filter_dict: bool=True):
             associated to lowercase keys are added as
             private attributes
         filter_dict: whether to omit dictionaries
+        config_as_attr: whether to set the config as an attribute
+        config_as_attr: whether to take configurations as private attributes
     """
     config = eval_config(config)
     config = dict2AttrDict(config)
-    setattr(obj, 'config', config)
+    if config_as_attr:
+        setattr(obj, 'config', config)
     for k, v in config.items():
         if filter_dict and isinstance(v, dict):
             continue
-        if k.islower():
+        if private_attr and k.islower():
             k = f'_{k}'
         if isinstance(v, str):
             try:
@@ -110,7 +119,7 @@ def modify_config(config, curr_layer=0, max_layer=1, overwrite_existed=False, **
 
 def to_int(s):
     return int(float(s))
-    
+
 def to_array32(x):
     x = np.array(x, copy=False)
     if x.dtype == np.float64:
@@ -130,7 +139,7 @@ def step_str(step):
     else:
         return f'{step/1000000:.3g}m'
 
-def expand_dims_match(x, target):
+def expand_dims_match(x: np.ndarray, target: np.ndarray):
     """ Expands dimensions of x to match target,
     an efficient implementation of the following process 
         while len(x.shape) < len(target.shape):
@@ -236,6 +245,14 @@ def get_and_unpack(x):
 
     return results
 
+def positional_encodings(n_pos, size, base=10000):
+    denominator = base ** (2 / size)
+    pos_encodings = [
+        [(np.sin if i % 2 == 0 else np.cos)(pos/denominator**(i//2))
+            for i in range(size)]
+        for pos in range(1, n_pos+1)]
+    return np.array(pos_encodings)
+
 def squarest_grid_size(n, more_on_width=True):
     """Calculates the size of the most squared grid for n.
 
@@ -282,7 +299,7 @@ def zip_pad(*args):
             new_args.append(x)
 
     return list(zip(*new_args))
-    
+
 def convert_indices(indices, *args):
     """ 
     convert 1d indices to a tuple of for ndarray index

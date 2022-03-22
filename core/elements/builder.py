@@ -1,4 +1,5 @@
 import os
+import logging
 from types import FunctionType
 from typing import Dict, Tuple
 import cloudpickle
@@ -8,14 +9,19 @@ from core.elements.dataset import create_dataset
 from core.elements.model import Model
 from core.elements.strategy import Strategy
 from core.elements.trainer import Trainer
+from core.log import do_logging
 from core.monitor import Monitor, create_monitor
 from core.typing import ModelPath
 from core.utils import save_code, save_config
 from env.func import get_env_stats
+from utility.display import pwt
 from utility.utils import AttrDict2dict, set_path
 from utility.typing import AttrDict
 from utility.utils import dict2AttrDict
 from utility import pkg
+
+
+logger = logging.getLogger(__name__)
 
 
 class ElementsBuilder:
@@ -23,12 +29,13 @@ class ElementsBuilder:
         self, 
         config: dict, 
         env_stats: dict=None, 
-        to_save_code: bool=False
+        to_save_code: bool=False,
+        name='builder'
     ):
         self.config = dict2AttrDict(config, to_copy=True)
         self.env_stats = dict2AttrDict(
             get_env_stats(self.config.env) if env_stats is None else env_stats)
-        self._name = self.config.name
+        self._name = name
 
         self._model_path = ModelPath(self.config.root_dir, self.config.model_name)
 
@@ -37,6 +44,7 @@ class ElementsBuilder:
 
         if to_save_code:
             save_code(self._model_path)
+            pwt('Save code', self._model_path)
 
     @property
     def name(self):
@@ -134,7 +142,8 @@ class ElementsBuilder:
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
         if self.config.buffer['use_dataset']:
-            am = pkg.import_module('elements.utils', algo=config.algorithm)
+            am = pkg.import_module(
+                'elements.utils', algo=config.algorithm, place=-1)
             data_format = am.get_data_format(
                 self.config.trainer, env_stats, model)
             dataset = create_dataset(buffer, env_stats, 
@@ -174,9 +183,9 @@ class ElementsBuilder:
     ):
         if save_to_disk:
             config = dict2AttrDict(config or self.config)
-            return create_monitor(ModelPath(config.root_dir, config.model_name), self.name)
+            return create_monitor(ModelPath(config.root_dir, config.model_name))
         else:
-            return create_monitor(None, self.name, use_tensorboard=False)
+            return create_monitor(None, use_tensorboard=False)
     
     def build_agent(
         self, 
@@ -492,6 +501,7 @@ class ElementsBuilder:
 
     def save_config(self):
         save_config(self.config)
+        pwt('Save config', ModelPath(self.config.root_dir, self.config.model_name))
 
     """ Implementations"""
     def _import_element(self, name, algo=None, *, config=None, place=0):
@@ -499,8 +509,12 @@ class ElementsBuilder:
             module = pkg.import_module(
                 f'elements.{name}', algo=algo)
         except Exception as e:
-            print(f'Switch to default module({name}) due to error: {e}')
-            print("You are safe to neglect it if it's an intended behavior. ")
+            do_logging(
+                f'Switch to default module({name}) due to error: {e}', 
+                logger=logger, level='INFO')
+            do_logging(
+                "You are safe to neglect it if it's an intended behavior. ", 
+                logger=logger, level='INFO')
             module = pkg.import_module(
                 f'elements.{name}', pkg='core')
         return module
@@ -513,16 +527,18 @@ class ElementsBuilderVC(ElementsBuilder):
         config: dict, 
         env_stats: dict=None, 
         start_version=0, 
-        to_save_code=False
+        to_save_code=False, 
+        name='builder', 
     ):
         super().__init__(
             config, 
             env_stats=env_stats, 
-            to_save_code=to_save_code
+            to_save_code=to_save_code, 
+            name=name
         )
 
         self._default_model_path = self._model_path
-        self._builder_path = '/'.join([*self._model_path, f'{self._name}_builder.pkl'])
+        self._builder_path = '/'.join([*self._model_path, f'{self._name}.pkl'])
 
         self._version = start_version
         self._max_version = start_version
@@ -580,7 +596,7 @@ class ElementsBuilderVC(ElementsBuilder):
         if os.path.exists(self._builder_path):
             with open(self._builder_path, 'rb') as f:
                 self._version, self._max_version, config = cloudpickle.load(f)
-                self.config = dict2AttrDict(config)
+                # self.config = dict2AttrDict(config)
 
     def save(self):
         with open(self._builder_path, 'wb') as f:

@@ -26,12 +26,12 @@ class Buffer(BufferBase):
         assert mb_idx == 0, mb_idx
 
     def get_obs(self, last_obs):
-        assert self._idx == self.N_STEPS, self._idx
+        assert self._idx == self.n_steps, self._idx
         return np.concatenate(
             [self._memory['obs'], np.expand_dims(last_obs, 1)], axis=1)
 
     def finish(self, reward_int, obs_norm, last_value_int, last_value_ext):
-        assert self._idx == self.N_STEPS, self._idx
+        assert self._idx == self.n_steps, self._idx
         assert obs_norm.shape == self._memory['obs_norm'].shape, obs_norm.shape
         self._memory['obs_norm'] = obs_norm
         self.reshape_to_store()
@@ -51,13 +51,13 @@ class Buffer(BufferBase):
         self._ready = True
 
     def _init_buffer(self, data):
-        init_buffer(self._memory, pre_dims=(self._n_envs, self.N_STEPS), **data)
+        init_buffer(self._memory, pre_dims=(self._n_envs, self.n_steps), **data)
         self._memory['discount_int'] = np.ones_like(self._memory['discount'])   # non-episodic
         norm_obs_shape = self._memory['obs'].shape[:-1] + (1, )
         self._memory['obs_norm'] = np.zeros(norm_obs_shape, dtype=np.float32)
-        self._memory['traj_ret_int'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
-        self._memory['traj_ret_ext'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
-        self._memory['advantage'] = np.zeros((self._n_envs, self.N_STEPS), dtype=np.float32)
+        self._memory['traj_ret_int'] = np.zeros((self._n_envs, self.n_steps), dtype=np.float32)
+        self._memory['traj_ret_ext'] = np.zeros((self._n_envs, self.n_steps), dtype=np.float32)
+        self._memory['advantage'] = np.zeros((self._n_envs, self.n_steps), dtype=np.float32)
         print_buffer(self._memory)
         if self._inferred_sample_keys or getattr(self, '_sample_keys', None) is None:
             self._sample_keys = set(self._memory.keys()) - set(('discount', 'reward'))

@@ -34,13 +34,13 @@ agent:
     gamma: &gamma .999
     
     MAX_STEPS: 2.5e7
-    N_STEPS: &nsteps 256
-    N_PI: &npi 32           # 32
-    N_SEGS: &nsegs 32        # this should be no greater than N_PI. 
-    N_EPOCHS: 1
-    N_MBS: &nmbs 8
-    N_AUX_EPOCHS: 6
-    N_AUX_MBS_PER_SEG: &nambs 16    # 16
+    n_steps: &nsteps 256
+    n_pi: &npi 32           # 32
+    n_segs: &nsegs 32        # this should be no greater than n_pi. 
+    n_epochs: 1
+    n_mbs: &nmbs 8
+    n_aux_epochs: 6
+    n_aux_mbs_per_seg: &nambs 16    # 16
     LOG_PERIOD: 40
     EVAL_PERIOD: 100
     max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
@@ -78,16 +78,16 @@ agent:
     bc_coef: 1.
 
 buffer:
-    N_PI: *npi
-    N_SEGS: *nsegs
-    N_AUX_MBS_PER_SEG: *nambs
+    n_pi: *npi
+    n_segs: *nsegs
+    n_aux_mbs_per_seg: *nambs
 
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
     n_envs: *nenvs
-    N_STEPS: *nsteps
-    N_MBS: *nmbs        # number of minibatches
+    n_steps: *nsteps
+    n_mbs: *nmbs        # number of minibatches
     sample_keys: [obs, action, value, traj_ret, advantage, logpi]
     transfer_keys: [obs, reward, discount, traj_ret]
     aux_sample_keys: [obs, logits, value, traj_ret]

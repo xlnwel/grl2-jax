@@ -10,11 +10,13 @@ from utility.typing import AttrDict
 
 
 class Actor:
-    def __init__(self, 
-                 *, 
-                 config: AttrDict, 
-                 model: Model, 
-                 name: str):
+    def __init__(
+        self, 
+        *, 
+        config: AttrDict, 
+        model: Model, 
+        name: str
+    ):
         self._raw_name = name
         self._name = f'{name}_actor'
         self._model_path = ModelPath(config.root_dir, config.model_name)
@@ -51,10 +53,12 @@ class Actor:
         else:
             raise AttributeError(f"no attribute '{name}' is found")
 
-    def __call__(self, 
-                 inp: dict,
-                 evaluation: bool=False, 
-                 return_eval_stats: bool=False):
+    def __call__(
+        self, 
+        inp: dict,
+        evaluation: bool=False, 
+        return_eval_stats: bool=False
+    ):
         """ The interface to interact with the environment
         
         Args:

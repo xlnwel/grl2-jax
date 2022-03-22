@@ -9,9 +9,12 @@ class Unity:
         self.env = self._create_env(config)
 
         self.action_shape = [a.shape for a in self.env.action_space]
-        self.action_dim = [a.n for a in self.env.action_space]
-        self.action_dtype = [np.int32 for a in self.env.action_space]
         self.is_action_discrete = [isinstance(a, gym.spaces.Discrete) for a in self.env.action_space]
+        self.action_dim = [a.n if c else a.shape[0] 
+            for c, a in zip(self.is_action_discrete, self.env.action_space)]
+        self.action_dtype = [np.int32 if c else a.dtype 
+            for c, a in zip(self.is_action_discrete, self.env.action_space)]
+        self.is_multi_agent = True
 
     def _create_env(self, config):
         UnityEnv = pkg.import_module(config['env_name'], 'env.unity_env').UnityEnv
@@ -32,7 +35,7 @@ if __name__ == '__main__':
         max_episode_steps=100,
         n_envs=4,
     )
-    # from utility.display import print_dict, print_dict_tensors
+    # from utility.display import print_dict, print_dict_info
     def print_dict(d, prefix=''):
         for k, v in d.items():
             if isinstance(v, dict):
@@ -45,15 +48,15 @@ if __name__ == '__main__':
             else:
                 print(f'{prefix} {k}: {v}')
 
-    def print_dict_tensors(d, prefix=''):
+    def print_dict_info(d, prefix=''):
         for k, v in d.items():
             if isinstance(v, dict):
                 print(f'{prefix} {k}')
-                print_dict_tensors(v, prefix+'\t')
+                print_dict_info(v, prefix+'\t')
             elif isinstance(v, tuple):
                 # namedtuple is assumed
                 print(f'{prefix} {k}')
-                print_dict_tensors(v._asdict(), prefix+'\t')
+                print_dict_info(v._asdict(), prefix+'\t')
             else:
                 print(f'{prefix} {k}: {v.shape} {v.dtype}')
 
@@ -61,14 +64,14 @@ if __name__ == '__main__':
     observations = env.reset()
     print('reset observations')
     for i, o in enumerate(observations):
-        print_dict_tensors(o, f'\tagent{i}')
+        print_dict_info(o, f'\tagent{i}')
     for k in range(1, 3):
         actions = env.random_action()
         print(f'Step {k}, random actions', actions)
         observations, rewards, dones, reset = env.step(actions)
         print(f'Step {k}, observations')
         for i, o in enumerate(observations):
-            print_dict_tensors(o, f'\tagent{i}')
+            print_dict_info(o, f'\tagent{i}')
         print(f'Step {k}, rewards', rewards)
         print(f'Step {k}, dones', dones)
         print(f'Step {k}, reset', reset)

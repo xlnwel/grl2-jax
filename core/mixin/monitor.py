@@ -6,7 +6,6 @@ import tensorflow as tf
 
 from core.log import do_logging
 from core.typing import ModelPath
-from utility.display import pwc
 from utility.graph import image_summary, video_summary
 from utility.utils import isscalar
 
@@ -17,18 +16,6 @@ logger = logging.getLogger(__name__)
 """ Recorder """
 class Recorder:
     def __init__(self, model_path: ModelPath=None, record_file='record.txt'):
-        """
-        Initialize a Recorder.
-
-        Args:
-            log_dir (string): A directory for saving results to. If 
-                `None/False`, Recorder only serves as a storage but 
-                doesn't write anything to the disk.
-
-            record_file (string): Name for the tab-separated-value file 
-                containing metrics logged throughout a training run. 
-                Defaults to "log.txt". 
-        """
         record_file = record_file if record_file.endswith('record.txt') \
             else record_file + '/record.txt'
         if model_path is not None:
@@ -60,10 +47,10 @@ class Recorder:
 
     def __contains__(self, item):
         return item in self._store_dict and self._store_dict[item] != []
-    
+
     def contains_stats(self, item):
         return item in self._store_dict and self._store_dict[item] != []
-        
+
     def store(self, **kwargs):
         for k, v in kwargs.items():
             if isinstance(v, tf.Tensor):
@@ -120,13 +107,7 @@ class Recorder:
                 stats[k] = v
                 continue
             if mean:
-                try:
-                    stats[f'{k}'] = np.mean(v).astype(np.float32)
-                except:
-                    print(k)
-                    for x in v:
-                        print(x.shape)
-                    exit()
+                stats[k] = np.mean(v).astype(np.float32)
             if k_std:
                 stats[f'{k}_std'] = np.std(v).astype(np.float32)
             if k_min:
@@ -195,7 +176,10 @@ class Recorder:
         Write to disk all the diagnostics from the current iteration.
         """
         def is_print_keys(key):
-            return key.startswith('metrics/') or '/' not in key
+            return key.startswith('metrics/') \
+                or key.startswith('run/') \
+                or '/' not in key
+        
         vals = []
         key_lens = [len(key) for key in self._headers]
         max_key_len = max(15,max(key_lens))

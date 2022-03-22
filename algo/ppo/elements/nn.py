@@ -71,10 +71,13 @@ class Value(Module):
         config = config.copy()
         
         config.setdefault('out_gain', 1)
-        self._layers = mlp(**config,
-                          out_size=1,
-                          out_dtype='float32',
-                          name=name)
+        if 'out_size' not in config:
+            config['out_size'] = 1
+        self._layers = mlp(
+            **config,
+            out_dtype='float32',
+            name=name
+        )
 
     def call(self, x):
         value = self._layers(x)
