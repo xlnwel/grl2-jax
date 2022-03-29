@@ -48,7 +48,8 @@ def compute_gae(
     else:
         next_value = value[1:]
         value = value[:-1]
-    assert value.shape == next_value.shape, (value.shape, next_value.shape)
+    next_value = np.mean(next_value, axis=2, keepdims=True)
+    assert value.ndim == next_value.ndim, (value.shape, next_value.shape)
     advs = delta = (reward + discount * gamma * next_value - value).astype(np.float32)
     next_adv = 0
     for i in reversed(range(advs.shape[0])):

@@ -189,7 +189,7 @@ class Opponent(object):
         angle = self.get_clock_angle(vel, diff)
         dis = math.sqrt(math.pow(diff[0], 2) + math.pow(diff[1], 2))
         #if dis < SHOT_DIS_MAIN + 10 * self.left_missile[bid] and isMain:
-        if dis < SHOT_DIS_MAIN and isMain and self.left_missile[bid] == 3:
+        if dis < SHOT_DIS_MAIN and isMain:
             shot_id = 0
             shot = 1
 

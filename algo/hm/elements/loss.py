@@ -50,11 +50,11 @@ class MAPPOPolicyLoss(Loss):
     ):
         with tf.GradientTape() as tape:
             x, _ = self.model.encode(
-                obs, 
-                prev_reward, 
-                prev_action, 
-                state, 
-                mask
+                x=obs, 
+                prev_reward=prev_reward, 
+                prev_action=prev_action, 
+                state=state, 
+                mask=mask
             )
             act_dist = self.policy(x, action_mask)
             new_logpi = act_dist.log_prob(action)
@@ -77,6 +77,7 @@ class MAPPOPolicyLoss(Loss):
             policy_loss=policy_loss,
             entropy_loss=entropy_loss, 
             actor_loss=loss,
+            adv_std=tf.math.reduce_std(advantage, axis=-1), 
         )
         if action_mask is not None:
             terms['n_avail_actions'] = tf.reduce_sum(tf.cast(action_mask, tf.float32), -1)
@@ -122,6 +123,7 @@ class MAPPOValueLoss(PPOLossImpl):
             value=value,
             v_loss=loss,
             explained_variance=explained_variance(traj_ret, value),
+            traj_ret_std=tf.math.reduce_std(traj_ret, axis=-1), 
             v_clip_frac=clip_frac,
         )
 

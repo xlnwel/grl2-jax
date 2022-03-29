@@ -1,3 +1,4 @@
+from types import FunctionType
 from env.cls import Env, MAVecEnv, VecEnv
 from env import make_env
 
@@ -9,7 +10,13 @@ def is_ma_suite(env_name):
             return True
     return False
 
-def create_env(config, env_fn=None, agents={}, force_envvec=True, no_remote=False):
+def create_env(
+    config: dict, 
+    env_fn: FunctionType=None, 
+    agents={}, 
+    force_envvec=True, 
+    no_remote=False
+):
     """ Creates an Env/VecEnv from config """
     config = config.copy()
     env_fn = env_fn or make_env

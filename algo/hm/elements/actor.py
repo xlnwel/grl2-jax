@@ -6,7 +6,6 @@ class MAPPOActor(Actor):
     """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
         inp = self.rms.process_obs_with_rms(inp)
-        inp['prev_reward'] = inp['prev_reward']
         tf_inp = numpy2tensor(inp)
         tf_inp = self._split_input(tf_inp)
 

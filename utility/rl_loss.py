@@ -260,8 +260,8 @@ def _compute_ppo_value_losses(value, traj_ret, old_value, clip_range, huber_thre
     value_diff = value - old_value
     value_clipped = old_value + tf.clip_by_value(value_diff, -clip_range, clip_range)
     if huber_threshold is None:
-        loss1 = 0.5 * tf.square(value - traj_ret)
-        loss2 = 0.5 * tf.square(value_clipped - traj_ret)
+        loss1 = .5 * tf.square(value - traj_ret)
+        loss2 = .5 * tf.square(value_clipped - traj_ret)
     else:
         loss1 = huber_loss(value, traj_ret, threshold=huber_threshold)
         loss2 = huber_loss(value_clipped, traj_ret, threshold=huber_threshold)

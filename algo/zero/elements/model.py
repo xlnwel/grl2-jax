@@ -1,8 +1,6 @@
 import os
-import collections
 import tensorflow as tf
 
-from core.tf_config import build
 from utility.file import source_file
 from algo.hm.elements.model import ModelImpl, MAPPOActorModel, \
     MAPPOModelEnsemble as MAPPOModelBase
@@ -22,26 +20,24 @@ class MAPPOValueModel(ModelImpl):
     ):
         ae = self.action_embed(action)
         x_a = tf.concat([global_state, ae], -1)
-        x = tf.concat([global_state, tf.zeros_like(ae)], -1)
-
-        x, state = self.encode(
-            x, 
-            prev_reward, 
-            prev_action, 
-            state, 
-            mask
-        )
-
-        value = self.value(x)
-
         x_a, state = self.encode(
-            x_a, 
-            prev_reward, 
-            prev_action, 
-            state, 
-            mask
+            x=x_a, 
+            prev_reward=prev_reward, 
+            prev_action=prev_action, 
+            state=state, 
+            mask=mask
         )
         value_a = self.value(x_a)
+
+        x = tf.concat([global_state, tf.zeros_like(ae)], -1)
+        x, state = self.encode(
+            x=x, 
+            prev_reward=prev_reward, 
+            prev_action=prev_action, 
+            state=state, 
+            mask=mask
+        )
+        value = self.value(x)
 
         return value, value_a, state
 

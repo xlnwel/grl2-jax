@@ -6,7 +6,8 @@ import numpy as np
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
-from utility.utils import dict2AttrDict, moments, standardize
+from utility.utils import dict2AttrDict, standardize
+from algo.hm.elements.buffer import compute_indices, get_sample, get_sample_keys_size
 
 
 logger = logging.getLogger(__name__)
@@ -29,51 +30,23 @@ def compute_gae(
         next_value = np.concatenate([value[1:], last_value], axis=0)
     else:
         next_value = value[1:]
-    assert value.shape == next_value.shape, (value.shape, next_value.shape)
+        value_a = value_a[:-1]
+    next_value = np.mean(next_value, axis=2, keepdims=True)
+    assert value.ndim == next_value.ndim, (value.shape, next_value.shape)
     advs = delta = (reward + discount * gamma * next_value - value_a).astype(np.float32)
     next_adv = 0
     for i in reversed(range(advs.shape[0])):
         advs[i] = next_adv = (delta[i] 
             + discount[i] * gae_discount * next_adv)
-    traj_ret = advs + value_a
+    traj_ret_a = advs + value_a
+    traj_ret = np.mean(traj_ret_a, axis=2, keepdims=True)
+    assert traj_ret.ndim == traj_ret_a.ndim == 3, traj_ret.shape
+    traj_ret = np.tile(traj_ret, traj_ret_a.shape[-1])
+    assert traj_ret.shape == traj_ret_a.shape, traj_ret.shape
     if norm_adv:
         advs = standardize(advs, mask=mask, epsilon=epsilon)
 
-    return advs, traj_ret
-
-def compute_indices(idxes, mb_idx, mb_size, n_mbs):
-    start = mb_idx * mb_size
-    end = (mb_idx + 1) * mb_size
-    mb_idx = (mb_idx + 1) % n_mbs
-    curr_idxes = idxes[start: end]
-
-    return mb_idx, curr_idxes
-
-def get_sample(memory, idxes, sample_keys, state_keys, state_type=None):
-    if state_type is None:
-        sample = {k: memory[k][idxes, 0]
-            if k in state_keys else memory[k][idxes] 
-            for k in sample_keys}
-    else:
-        sample = {}
-        state = []
-        for k in sample_keys:
-            if k in state_keys:
-                v = memory[k][idxes, 0]
-                state.append(v.reshape(-1, v.shape[-1]))
-            else:
-                sample[k] = memory[k][idxes]
-        sample['state'] = state_type(*state)
-
-    return sample
-
-
-def _remote_state_keys(sample_keys):
-    for k in ['mask', 'actor_h', 'actor_c', 'value_h', 'value_c', 'h', 'c']:
-        if k in sample_keys:
-            sample_keys.remove(k)
-
-    return sample_keys
+    return advs, traj_ret, traj_ret_a
 
 
 class LocalBuffer(Buffer):
@@ -87,14 +60,10 @@ class LocalBuffer(Buffer):
         self.config = config
         self.runner_id = runner_id
 
-        self.state_keys = model.state_keys
+        self.actor_state_keys = (f'actor_{k}' for k in model.actor_state_keys)
+        self.value_state_keys = (f'value_{k}' for k in model.value_state_keys)
+        self.sample_keys, self.sample_size = get_sample_keys_size(config)
 
-        if self.config.get('rnn_type'): 
-            self.sample_keys = self.config.sample_keys
-            self.sample_size = self.config.sample_size
-        else:
-            self.sample_keys = _remote_state_keys(self.config.sample_keys)
-            self.sample_size = None
         if self.config.get('fragment_size', None) is not None:
             self.maxlen = self.config.fragment_size
         elif self.sample_size is not None:
@@ -104,7 +73,7 @@ class LocalBuffer(Buffer):
         self.maxlen = min(self.maxlen, self.config.n_steps)
         if self.sample_size is not None:
             assert self.maxlen % self.sample_size == 0, (self.maxlen, self.sample_size)
-            assert self.config.n_steps % self.maxlen == 0, (self.maxlen, self.config.n_steps)
+            assert self.config.n_steps % self.maxlen == 0, (self.config.n_steps, self.maxlen)
             self.n_samples = self.maxlen // self.sample_size
         self.n_envs = self.config.n_envs
         self.gae_discount = self.config.gamma * self.config.lam
@@ -127,7 +96,7 @@ class LocalBuffer(Buffer):
         # self._train_steps = [[None for _ in range(self.n_units)] 
         #     for _ in range(self.n_envs)]
 
-    def add(self, data):
+    def add(self, data: dict):
         for k, v in data.items():
             assert v.shape[:2] == (self.n_envs, self.n_units), \
                 (k, v.shape, (self.n_envs, self.n_units))
@@ -143,7 +112,7 @@ class LocalBuffer(Buffer):
             assert v.shape[:3] == (self._memlen, self.n_envs, self.n_units), \
                 (k, v.shape, (self._memlen, self.n_envs, self.n_units))
 
-        data['advantage'], data['traj_ret'] = compute_gae(
+        data['advantage'], data['traj_ret'], data['traj_ret_a'] = compute_gae(
             reward=data['reward'], 
             discount=data['discount'], 
             value=data['value'], 
@@ -191,6 +160,7 @@ class PPOBuffer(Buffer):
             self.sample_size = None
         self.state_keys = model.state_keys
         self.state_type = model.state_type
+        self.sample_keys, self.sample_size = get_sample_keys_size(self.config)
 
         self.n_runners = self.config.n_runners
         self.n_steps = self.config.n_steps
@@ -249,7 +219,7 @@ class PPOBuffer(Buffer):
     def finish(self, last_value):
         assert self._current_size == self.n_steps, self._current_size
         if self.config.adv_type == 'gae':
-            self._memory['advantage'], self._memory['traj_ret'] = \
+            self._memory['advantage'], self._memory['traj_ret'], self._memory['traj_ret_a'] = \
                 compute_gae(
                 reward=self._memory['reward'], 
                 discount=self._memory['discount'],
@@ -358,8 +328,14 @@ class PPOBuffer(Buffer):
             self.mb_size, self.n_mbs)
 
         sample = get_sample(
-            self._memory, self._curr_idxes, sample_keys,
-            self.state_keys, self.state_type)
+            self._memory, 
+            self._curr_idxes, 
+            sample_keys,
+            self.actor_state_keys, 
+            self.value_state_keys,
+            self.actor_state_type, 
+            self.value_state_type
+        )
         sample = self._process_sample(sample)
 
         return sample

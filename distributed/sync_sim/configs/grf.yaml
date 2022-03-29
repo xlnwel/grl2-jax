@@ -22,9 +22,6 @@ controller:
     initialize_rms: &irms True
 
 parameter_server:
-    fsp: False
-    p: 3    # the exponent applied to convert scores to weights
-    default_score: 0
     root_dir: *algo
     model_name: *algo
 
@@ -44,7 +41,7 @@ ray_config:
 monitor: {}
 
 runner:
-    n_runners: &nrunners 64
+    n_runners: &nrunners 60
     n_steps: &nsteps 64
     push_every_episode: False
 
@@ -109,7 +106,7 @@ model:
             units: 256
             kernel_initializer: orthogonal
             recurrent_initializer: orthogonal
-            use_ln: True
+            use_ln: False
         policy:
             nn_id: policy
             units_list: []
@@ -134,7 +131,7 @@ model:
             units: 256
             kernel_initializer: orthogonal
             recurrent_initializer: orthogonal
-            use_ln: True
+            use_ln: False
         value:
             nn_id: value
             units_list: []

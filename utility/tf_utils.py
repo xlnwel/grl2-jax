@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import tensorflow as tf
 
@@ -223,7 +224,7 @@ def assert_shape_compatibility(tensors):
         tensor_shape = tf.TensorShape(tensor.shape)
         union_of_shapes = union_of_shapes.merge_with(tensor_shape)
 
-def assert_rank_and_shape_compatibility(tensors, rank=None):
+def assert_rank_and_shape_compatibility(tensors: List[tf.Tensor], rank=None):
     """Asserts that the tensors have the correct rank and compatible shapes.
 
     Shapes (of equal rank) are compatible if corresponding dimensions are all

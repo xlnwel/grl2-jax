@@ -71,7 +71,7 @@ def _compute_running_steps(config):
     n_sp_workers = int(n_runners * online_frac)
     n_individual_workers = (n_runners - n_sp_workers) // n_agents
     assert n_sp_workers + n_individual_workers * n_agents == n_runners, \
-        (n_sp_workers, n_individual_workers, n_agents, n_runners)
+        (n_agents, n_sp_workers, n_individual_workers, n_runners)
     n_agent_runners = n_sp_workers + n_individual_workers
     n_pbt_steps = ceil(worker_steps / n_agent_runners)
     # do_logging(worker_steps, n_sp_workers, n_agent_runners, n_pbt_steps)
@@ -141,7 +141,11 @@ class Controller(CheckpointBase):
 
         config = self.configs[0]
         self.n_runners = config.runner.n_runners
-        self.n_agent_runners, self.n_pbt_steps = _compute_running_steps(config)
+        if self.config.max_version_iterations == 1:
+            self.n_agent_runners, self.n_pbt_steps = _compute_running_steps(config)
+        else:
+            self.n_agent_runners, self.n_pbt_steps = None, None
+
 
         self.parameter_server: ParameterServer = \
             ParameterServer.as_remote().remote(

@@ -18,6 +18,7 @@ def get_data_format(config, env_stats, model):
         value=(basic_shape, tf.float32, 'value'),
         value_a=(basic_shape, tf.float32, 'value_a'),
         traj_ret=(basic_shape, tf.float32, 'traj_ret'),
+        traj_ret_a=(basic_shape, tf.float32, 'traj_ret_a'),
         advantage=(basic_shape, tf.float32, 'advantage'),
         logpi=(basic_shape, tf.float32, 'logpi'),
     ))
