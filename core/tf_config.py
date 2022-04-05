@@ -25,7 +25,7 @@ def configure_gpu(idx=0):
             logical_gpus = tf.config.experimental.list_logical_devices('GPU')
             do_logging(
                 f'{len(gpus)} Physical GPUs, {len(logical_gpus)} Logical GPU', 
-                logger=logger)
+                logger=logger, level='info')
         except RuntimeError as e:
             # visible devices must be set before GPUs have been initialized
             do_logging(e, logger=logger, level='warning')

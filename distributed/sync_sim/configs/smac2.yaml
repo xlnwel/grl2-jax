@@ -22,9 +22,6 @@ controller:
     initialize_rms: &irms True
 
 parameter_server:
-    fsp: False
-    p: 3    # the exponent applied to convert scores to weights
-    default_score: 0
     root_dir: *algo
     model_name: *algo
 
@@ -79,7 +76,8 @@ strategy:
         value_update: null
 
 model:
-    rnn_type: &rnn null
+    actor_rnn_type: &arnn rnn_mlstm
+    value_rnn_type: &vrnn rnn_mlstm
     sample_size: &ss 10
 
     policy:
@@ -95,7 +93,7 @@ model:
             norm_kwargs:
                 epsilon: 1.e-5
         rnn:
-            nn_id: *rnn 
+            nn_id: *arnn 
             units: 64
             kernel_initializer: orthogonal
             recurrent_initializer: orthogonal
@@ -110,6 +108,13 @@ model:
     value:
         use_prev_reward: True
         use_prev_action: True
+        action_embed:
+            nn_id: embed
+            embed_size: 8
+            units_list: [64]
+            kernel_initializer: orthogonal
+            # activation: null
+            norm: null
         encoder:
             nn_id: mlp
             units_list: [64, 64, 64]
@@ -120,7 +125,7 @@ model:
             norm_kwargs:
                 epsilon: 1.e-5
         rnn:
-            nn_id: *rnn
+            nn_id: *vrnn
             units: 64
             kernel_initializer: orthogonal
             recurrent_initializer: orthogonal
@@ -145,7 +150,8 @@ loss:
 trainer:
     algorithm: *algo
 
-    rnn_type: *rnn
+    actor_rnn_type: *arnn
+    value_rnn_type: *vrnn
     sample_size: *ss         # BPTT length
     store_state: True
     policy:
@@ -189,8 +195,9 @@ buffer:
     n_steps: *nsteps
     n_epochs: *nepochs
     n_mbs: *nmbs        # number of minibatches
-    fragment_size: null
-    rnn_type: *rnn
+    fragment_size: 100
+    actor_rnn_type: *arnn
+    value_rnn_type: *vrnn
     sample_size: *ss
     norm_adv: minibatch
 
@@ -209,6 +216,7 @@ buffer:
         - action_mask
         - life_mask
         - action
+        - reward
         - value
         - traj_ret
         - advantage

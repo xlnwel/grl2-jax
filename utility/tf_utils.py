@@ -9,7 +9,7 @@ def tensor2numpy(x):
 
 def numpy2tensor(x):
     return tf.nest.map_structure(
-        lambda x: tf.convert_to_tensor(x), x)
+        lambda x: tf.convert_to_tensor(x) if x is not None else x, x)
 
 def upsample(x):
     h, w = x.get_shape().as_list()[1:-1]
@@ -36,6 +36,7 @@ def standard_normalization(x):
 def reduce_mean(x, mask=None, n=None, axis=None):
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
+        n = tf.where(n == 0, 1., n)
     return tf.reduce_mean(x, axis=axis) \
         if mask is None else tf.reduce_sum(x * mask, axis=axis) / n
 

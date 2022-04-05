@@ -17,7 +17,7 @@ model_name: *algo
 controller:
     store_period: 600
     restart_runners_priod: null
-    max_version_iterations: 5
+    max_version_iterations: 1
     max_steps_per_iteration: 3e8
     initialize_rms: &irms True
 
@@ -86,7 +86,8 @@ strategy:
         value_update: null
 
 model:
-    rnn_type: &rnn null
+    actor_rnn_type: &arnn null
+    value_rnn_type: &vrnn null
     sample_size: &ss 16
 
     policy:
@@ -102,7 +103,7 @@ model:
             norm_kwargs:
                 epsilon: 1.e-5
         rnn:
-            nn_id: *rnn
+            nn_id: *arnn
             units: 256
             kernel_initializer: orthogonal
             recurrent_initializer: orthogonal
@@ -118,14 +119,17 @@ model:
         use_prev_reward: True
         use_prev_action: True
         action_embed:
-            nn_id: ae
+            nn_id: embed
             embed_size: 8
+            embeddings_initializer: zeros
             units_list: [64]
             kernel_initializer: orthogonal
+            # activation: null
             norm: null
         encoder:
             nn_id: mlp
             units_list: [256, 256, 256]
+            # out_size: 256
             kernel_initializer: orthogonal
             activation: relu
             norm: layer
@@ -133,7 +137,7 @@ model:
             norm_kwargs:
                 epsilon: 1.e-5
         rnn:
-            nn_id: *rnn
+            nn_id: *vrnn
             units: 256
             kernel_initializer: orthogonal
             recurrent_initializer: orthogonal
@@ -158,7 +162,8 @@ loss:
 trainer:
     algorithm: *algo
 
-    rnn_type: *rnn
+    actor_rnn_type: *arnn
+    value_rnn_type: *vrnn
     sample_size: *ss         # BPTT length
     store_state: True
     policy:
@@ -203,7 +208,8 @@ buffer:
     n_epochs: *nepochs
     n_mbs: *nmbs        # number of minibatches
     fragment_size: null
-    rnn_type: *rnn
+    actor_rnn_type: *arnn
+    value_rnn_type: *vrnn
     sample_size: *ss
     norm_adv: minibatch
 
@@ -221,10 +227,12 @@ buffer:
         - prev_action
         - action_mask
         - action
+        - reward
         - value
         - value_a
         - traj_ret
         - traj_ret_a
+        - raw_adv
         - advantage
         - logpi
         - mask

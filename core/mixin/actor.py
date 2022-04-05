@@ -117,6 +117,8 @@ class RMS:
                 useful for multi-agent environments, where 
                 some agents might be dead before others.
         """
+        if not self._normalize_obs:
+            return inp
         if name is None:
             for k in self._obs_names:
                 if k not in inp:

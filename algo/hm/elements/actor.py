@@ -6,12 +6,13 @@ class MAPPOActor(Actor):
     """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
         inp = self.rms.process_obs_with_rms(inp)
+        inp['prev_reward'] = self.rms.process_reward_with_rms(inp['prev_reward'])
         tf_inp = numpy2tensor(inp)
         tf_inp = self._split_input(tf_inp)
 
         return inp, tf_inp
 
-    def _split_input(self, inp):
+    def _split_input(self, inp: dict):
         actor_inp = dict(
             obs=inp['obs'], 
             prev_reward=inp['prev_reward'], 
@@ -46,14 +47,20 @@ class MAPPOActor(Actor):
         b, u = inp['obs'].shape[:2]
         if self.model.has_rnn:
             action, terms, prev_state = tensor2numpy((action, terms, inp['state']))
-            prev_state = {k: v.reshape(b, u, v.shape[-1]) 
-                for k, v in prev_state._asdict().items()}
-            
+
             if not evaluation:
-                terms.update({
-                    'mask': inp['mask'], 
-                    **prev_state,
-                })
+                actor_state, value_state = prev_state
+                terms['mask'] = inp['mask']
+                if actor_state is not None:
+                    terms.update({
+                        f'actor_{k}': v.reshape(b, u, v.shape[-1]) 
+                        for k, v in actor_state._asdict().items()
+                    })
+                if value_state is not None:
+                    terms.update({
+                        f'value_{k}': v.reshape(b, u, v.shape[-1]) 
+                        for k, v in value_state._asdict().items()
+                    })
         else:
             action, terms = tensor2numpy((action, terms))
         if not evaluation and self.rms is not None and self.rms.is_obs_normalized:

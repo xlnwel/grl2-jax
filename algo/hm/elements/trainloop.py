@@ -17,6 +17,7 @@ class PPOTrainingLoop(TrainingLoopBase):
 
     def _train_ppo(self):
         def train():
+            raw_data = None
             for i in range(self.config.n_epochs):
                 for j in range(1, self.config.n_mbs+1):
                     if self.use_dataset:
@@ -60,10 +61,12 @@ class PPOTrainingLoop(TrainingLoopBase):
             n = i * self.config.n_mbs + j
             
             stats = {'train/kl': kl}
+            if raw_data is None:
+                raw_data = tensor2numpy(data)
 
-            return n, stats, tensor2numpy(data) if self.use_dataset else raw_data, tensor2numpy(terms)
+            return n, stats, raw_data, tensor2numpy(terms)
 
-        def combine_stats(stats, data, terms, maxlen=100):
+        def combine_stats(stats, data, terms, maxlen=500):
             size = next(iter(data.values())).shape[0]
             # we only sample a small amount of data to reduce the cost
             idx = np.random.randint(0, size, maxlen)

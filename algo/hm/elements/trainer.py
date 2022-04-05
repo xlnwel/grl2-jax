@@ -1,3 +1,5 @@
+import tensorflow as tf
+
 from core.elements.trainer import Trainer, TrainerEnsemble
 from core.decorator import override
 from core.tf_config import build
@@ -7,30 +9,14 @@ from .utils import get_data_format
 class MAPPOActorTrainer(Trainer):
     def raw_train(
         self, 
-        obs, 
-        action, 
-        advantage, 
-        logpi, 
-        prev_reward, 
-        prev_action, 
-        state=None, 
-        action_mask=None, 
-        life_mask=None, 
-        mask=None
+        **kwargs
     ):
-        tape, loss, terms = self.loss.loss(
-            obs, 
-            action, 
-            advantage, 
-            logpi, 
-            prev_reward, 
-            prev_action, 
-            state, 
-            action_mask, 
-            life_mask, 
-            mask
-        )
-        
+        if not hasattr(self.model, 'rnn') and len(kwargs['action'].shape) == 3:
+            kwargs = tf.nest.map_structure(
+                lambda x: tf.reshape(x, (-1, *x.shape[2:])) 
+                if x is not None else x, kwargs)
+        tape, loss, terms = self.loss.loss(**kwargs)
+
         terms['actor_norm'], terms['actor_var_norm'] = \
             self.optimizer(tape, loss, return_var_norms=True)
 
@@ -79,6 +65,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         obs, 
         global_state, 
         action, 
+        reward, 
         value, 
         traj_ret, 
         advantage, 
@@ -87,13 +74,10 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         prev_action, 
         action_mask=None, 
         life_mask=None, 
-        state=None, 
+        actor_state=None, 
+        value_state=None, 
         mask=None
     ):
-        if state is None:
-            actor_state, value_state = None, None
-        else:
-            actor_state, value_state = self.model.split_state(state)
         actor_terms = self.policy.raw_train(
             obs=obs, 
             action=action, 

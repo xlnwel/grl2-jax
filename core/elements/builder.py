@@ -15,9 +15,8 @@ from core.typing import ModelPath
 from core.utils import save_code, save_config
 from env.func import get_env_stats
 from utility.display import pwt
-from utility.utils import AttrDict2dict, set_path
+from utility.utils import AttrDict2dict, dict2AttrDict, set_path
 from utility.typing import AttrDict
-from utility.utils import dict2AttrDict
 from utility import pkg
 
 
@@ -499,8 +498,8 @@ class ElementsBuilder:
     def get_config(self):
         return self.config
 
-    def save_config(self):
-        save_config(self.config)
+    def save_config(self, config: dict=None):
+        save_config(config or self.config)
         pwt('Save config', ModelPath(self.config.root_dir, self.config.model_name))
 
     """ Implementations"""
@@ -509,12 +508,13 @@ class ElementsBuilder:
             module = pkg.import_module(
                 f'elements.{name}', algo=algo)
         except Exception as e:
+            level = 'info' if name == 'agent' else 'pwc'
             do_logging(
                 f'Switch to default module({name}) due to error: {e}', 
-                logger=logger, level='INFO')
+                logger=logger, level=level)
             do_logging(
                 "You are safe to neglect it if it's an intended behavior. ", 
-                logger=logger, level='INFO')
+                logger=logger, level=level)
             module = pkg.import_module(
                 f'elements.{name}', pkg='core')
         return module
@@ -540,7 +540,8 @@ class ElementsBuilderVC(ElementsBuilder):
         self._default_model_path = self._model_path
         self._builder_path = '/'.join([*self._model_path, f'{self._name}.pkl'])
 
-        self._version = start_version
+        self._version: str = str(start_version)
+        self._all_versions = set()
         self._max_version = start_version
         self.restore()
 
@@ -551,28 +552,38 @@ class ElementsBuilderVC(ElementsBuilder):
     def increase_version(self):
         self._max_version += 1
         self.set_config_version(self._max_version)
+        self._all_versions.add(self._max_version)
         self.save_config()
         self.save()
 
     def get_sub_version(self, config: AttrDict) -> Tuple[ModelPath, AttrDict]:
-        def increase_subversion(version):
+        def compute_next_version(version: str):
+            def next_version(base_version: str, sub_version: str):
+                sub_version = eval(sub_version)
+                new_sub_version = f'{sub_version + 1}'
+                version = '.'.join([base_version, new_sub_version])
+                return version
+
             if '.' in version:
-                base_version, sub_version = version.split('.')
+                base_version, sub_version = version.rsplit('.', maxsplit=1)
             else:
                 base_version = version
                 sub_version = '0'
-            sub_version = eval(sub_version)
-            sub_version = f'{sub_version + 1}'
-            version = '.'.join([base_version, sub_version])
+            version = next_version(base_version, sub_version)
+            if version in self._all_versions:
+                base_version = '.'.join([base_version, sub_version])
+                sub_version = '0'
+            version = next_version(base_version, sub_version)
+
             return version
 
         root_dir = config.root_dir
         model_name = config.model_name
-        model_name, version = model_name.rsplit('/', 1)
+        model_name, version = model_name.rsplit('/', maxsplit=1)
         assert version.startswith('v'), (model_name, version)
         version = version[1:]   # remove prefix v
         assert version == f'{config.version}', (version, config.version)
-        version = increase_subversion(version)
+        version = compute_next_version(version)
         model_name = f'{model_name}/v{version}'
         model_path = ModelPath(root_dir, model_name)
         model_dir = '/'.join(model_path)
@@ -580,7 +591,9 @@ class ElementsBuilderVC(ElementsBuilder):
         config.version = version
         if not os.path.isdir(model_dir):
             os.makedirs(model_dir, exist_ok=True)
-        
+        self.save_config(config)
+        self._all_versions.add(self._max_version)
+
         return model_path, config
 
     def set_config_version(self, version: float):
@@ -588,7 +601,8 @@ class ElementsBuilderVC(ElementsBuilder):
         model_name = f'{self._default_model_path.model_name}/v{version}'
         self._model_path = ModelPath(root_dir, model_name)
         self.config = set_path(self.config, self._model_path)
-        self.config.version = self._version = version
+        self._version = version
+        self.config.version = str(version)
         self._model_path, self.config = self.get_sub_version(self.config)
 
     """ Save & Restore """

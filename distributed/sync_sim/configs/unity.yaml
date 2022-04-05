@@ -6,7 +6,7 @@ version: 0
 
 precision: 32
 
-n_agents: 1
+n_agents: 2
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -22,14 +22,15 @@ controller:
     initialize_rms: &irms True
 
 parameter_server:
-    p: 3    # the exponent applied to convert scores to weights
-    default_score: 0
     root_dir: *algo
     model_name: *algo
 
+    train_from_scratch_frac: 1
+    online_frac: 1
+
     payoff:
-        sampling_strategy: fsp
         step_size: .1
+        sampling_strategy: fsp
 
 ray_config:
     runner:
@@ -51,17 +52,17 @@ runner:
 env:
     env_name: &env_name unity-combat2d
     max_episode_steps: 1000
-    frame_skip: 5
+    frame_skip: 10
     unity_config:
         worker_id: 100
-        file_name: env/unity_env/data/no_ally/combat.x86_64
+        file_name: env/unity_env/data/1copy/combat.x86_64
     reward_config:
         detect_reward: 0
         main_dead_reward: 0
         blue_dead_reward: 1
         grid_reward: 0
     n_envs: &nenvs 1    # This should be consistent with the Unity environemnt copies
-    uid2aid: [0]
+    uid2aid: [0, 1, 1, 1, 1]
 
 agent: {}
 
@@ -135,8 +136,8 @@ model:
 
 loss:
     policy:
-        clip_range: .05
-        entropy_coef: .001
+        clip_range: .2
+        entropy_coef: 1e-5
         life_mask: True
     value:
         value_loss: clip
@@ -154,7 +155,7 @@ trainer:
         optimizer:
             name: adam
             schedule_lr: False
-            lr: 5e-4
+            lr: 3e-4
             clip_norm: 10
             epsilon: 1.e-5
             weight_decay: 0
@@ -162,7 +163,7 @@ trainer:
         optimizer:
             name: adam
             schedule_lr: False
-            lr: 5e-4
+            lr: 3e-4
             clip_norm: 10
             epsilon: 1.e-5
 actor:

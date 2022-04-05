@@ -86,11 +86,11 @@ class MAPPOValueModel(ModelImpl):
         mask=None
     ):
         x, state = self.encode(
-            global_state, 
-            prev_reward, 
-            prev_action, 
-            state, 
-            mask
+            x=global_state, 
+            prev_reward=prev_reward, 
+            prev_action=prev_action, 
+            state=state, 
+            mask=mask
         )
         value = self.value(x)
         return value, state
@@ -123,12 +123,14 @@ class MAPPOModelEnsemble(ModelEnsemble):
         if self.has_rnn:
             for inp in [actor_inp, value_inp]:
                 inp['mask'] = (basic_shape, tf.float32, 'mask')
-            TensorSpecs.update(dict(
-                actor_state=self.actor_state_type(*[((None, sz), dtype, name) 
-                    for name, sz in self.actor_state_size._asdict().items()]),
-                value_state=self.value_state_type(*[((None, sz), dtype, name) 
-                    for name, sz in self.value_state_size._asdict().items()]),            
-            ))
+            if self.actor_has_rnn:
+                TensorSpecs['actor_state'] = self.actor_state_type(
+                    *[((None, sz), dtype, name) 
+                    for name, sz in self.actor_state_size._asdict().items()])
+            if self.value_has_rnn:
+                TensorSpecs['value_state'] = self.value_state_type(
+                    *[((None, sz), dtype, name) 
+                    for name, sz in self.value_state_size._asdict().items()])
         if env_stats.use_action_mask:
             TensorSpecs['actor_inp']['action_mask'] = (
                 (*basic_shape, env_stats.action_dim[aid]), tf.bool, 'action_mask'
@@ -136,16 +138,14 @@ class MAPPOModelEnsemble(ModelEnsemble):
         self.action = build(self.action, TensorSpecs)
 
     def _post_init(self):
-        self.has_rnn = bool(self.config.get('rnn_type'))
+        self.actor_has_rnn = bool(self.config.get('actor_rnn_type'))
+        self.value_has_rnn = bool(self.config.get('value_rnn_type'))
+        self.has_rnn = self.actor_has_rnn or self.value_has_rnn
         if self.has_rnn:
-            state = {
-                'mlstm': 'actor_h actor_c value_h value_c',
-                'mgru': 'actor_h value_h',
-            }
-            self.state_type = collections.namedtuple(
-                'State', state[self.config.rnn_type.split('_')[-1]])
+            self.state_type = collections.namedtuple('State', 'actor value')
         else:
             self.state_type = None
+
         self.compute_value = self.value.compute_value
 
     @tf.function
@@ -154,67 +154,77 @@ class MAPPOModelEnsemble(ModelEnsemble):
         actor_inp: dict, 
         value_inp: dict, 
         actor_state: tuple=None, 
-        value_state: tuple=None,
+        value_state: tuple=None, 
         evaluation: bool=False, 
         return_eval_stats: bool=False
     ):
-        if self.has_rnn:
-            actor_inp, value_inp = self._add_seqential_dimension(
-                actor_inp, value_inp)
+        if self.actor_has_rnn:
+            actor_inp, = self._add_seqential_dimension(actor_inp)
+        if self.value_has_rnn:
+            value_inp, = self._add_seqential_dimension(value_inp)
         action, terms, actor_state = self.policy.action(
             **actor_inp, state=actor_state,
             evaluation=evaluation, return_eval_stats=return_eval_stats)
         value, value_state = self.value.compute_value(
             **value_inp, state=value_state)
-        state = self.state_type(*actor_state, *value_state) \
+        state = self.state_type(actor_state, value_state) \
             if self.has_rnn else None
+        if self.actor_has_rnn:
+            action, terms = self._remove_seqential_dimension(action, terms)
+        if self.value_has_rnn:
+            value, = self._remove_seqential_dimension(value)
         if not evaluation:
             terms.update({
                 'value': value,
             })
-        if self.has_rnn:
-            action, terms = self._remove_seqential_dimension(action, terms)
         return action, terms, state
 
     def split_state(self, state):
-        mid = len(state) // 2
-        actor_state, value_state = state[:mid], state[mid:]
-        return self.policy.state_type(*actor_state), \
-            self.value.state_type(*value_state)
+        if self.has_rnn:
+            actor_state, value_state = state[0], state[1]
+            if self.actor_has_rnn:
+                assert actor_state is not None, actor_state
+                actor_state = self.actor_state_type(*actor_state)
+            if self.value_has_rnn:
+                assert value_state is not None, value_state
+                value_state = self.value_state_type(*value_state)
+            return actor_state, value_state
 
     @property
     def state_size(self):
-        return self.state_type(*self.policy.rnn.state_size, *self.value.rnn.state_size) \
-            if self.has_rnn else None
+        if self.state_type is None:
+            return None
+        return self.state_type(self.actor_state_size, self.value_state_size)
 
     @property
     def actor_state_size(self):
-        return self.policy.rnn.state_size
+        return self.policy.state_size if self.actor_has_rnn else None
 
     @property
     def value_state_size(self):
-        return self.value.rnn.state_size
+        return self.value.state_size if self.value_has_rnn else None
 
     @property
     def state_keys(self):
-        return self.state_type(*self.state_type._fields) \
-            if self.has_rnn else ()
+        if self.state_type is None:
+            return ()
+        return self.state_type(*self.state_type._fields)
 
     @property
     def actor_state_keys(self):
-        return self.policy.state_keys
+        return self.policy.state_keys if self.actor_has_rnn else ()
 
     @property
     def value_state_keys(self):
-        return self.value.state_keys
+        return self.value.state_keys if self.value_has_rnn else ()
 
     @property
     def actor_state_type(self):
-        return self.policy.state_type
+        return self.policy.state_type if self.actor_has_rnn else None
     
     @property
     def value_state_type(self):
-        return self.value.state_type
+        return self.value.state_type if self.value_has_rnn else None
 
     def reset_states(self, state=None):
         actor_state, value_state = self.split_state(state)
@@ -224,12 +234,14 @@ class MAPPOModelEnsemble(ModelEnsemble):
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         if inputs is not None:
             inputs = inputs['obs']
-        if self.has_rnn:
+        if self.state_type:
             actor_state = self.policy.get_initial_state(
-                inputs, batch_size=batch_size, dtype=dtype)
+                inputs, batch_size=batch_size, dtype=dtype) \
+                    if self.actor_has_rnn else None
             value_state = self.value.get_initial_state(
-                inputs, batch_size=batch_size, dtype=dtype)
-            return self.state_type(*actor_state, *value_state)
+                inputs, batch_size=batch_size, dtype=dtype) \
+                    if self.value_has_rnn else None
+            return self.state_type(actor_state, value_state)
         return None
 
     def _add_seqential_dimension(self, *args):
@@ -252,14 +264,14 @@ def create_model(
     config.policy.policy.action_dim = env_stats.action_dim[aid]
     config.policy.policy.is_action_discrete = env_stats.is_action_discrete[aid]
 
-    if config.get('rnn_type') is None:
-        for c in config.values():
-            if isinstance(c, dict):
-                c.pop('rnn', None)
+    if config['actor_rnn_type'] is None:
+        config['policy'].pop('rnn', None)
     else:
-        for c in config.values():
-            if isinstance(c, dict) and 'rnn' in c:
-                c['rnn']['nn_id'] = config['rnn_type']
+        config['policy']['rnn']['nn_id'] = config['actor_rnn_type']
+    if config['value_rnn_type'] is None:
+        config['value'].pop('rnn', None)
+    else:
+        config['value']['rnn']['nn_id'] = config['value_rnn_type']
 
     return MAPPOModelEnsemble(
         config=config, 

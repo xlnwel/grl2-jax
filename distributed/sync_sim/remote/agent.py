@@ -46,7 +46,8 @@ class Agent(RayBase):
         self.strategy.reset_model_path(model_weights.model)
         if model_weights.weights:
             self.strategy.set_weights(model_weights.weights)
-        pwt('Set model to', model_weights.model, 'with weights', model_weights.weights is None)
+        pwt('Set model to', model_weights.model, 'with weights', 
+            None if model_weights.weights is None else list(model_weights.weights))
 
     """ Communications with Parameter Server """
     def publish_weights(self, wait=True):

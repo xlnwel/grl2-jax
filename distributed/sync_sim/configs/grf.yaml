@@ -17,7 +17,7 @@ model_name: *algo
 controller:
     store_period: 600
     restart_runners_priod: null
-    max_version_iterations: 5
+    max_version_iterations: 1
     max_steps_per_iteration: 3e8
     initialize_rms: &irms True
 
@@ -86,7 +86,8 @@ strategy:
         value_update: null
 
 model:
-    rnn_type: &rnn null
+    actor_rnn_type: &arnn null
+    value_rnn_type: &vrnn null
     sample_size: &ss 16
 
     policy:
@@ -102,11 +103,11 @@ model:
             norm_kwargs:
                 epsilon: 1.e-5
         rnn:
-            nn_id: *rnn
+            nn_id: *arnn
             units: 256
             kernel_initializer: orthogonal
             recurrent_initializer: orthogonal
-            use_ln: False
+            use_ln: True
         policy:
             nn_id: policy
             units_list: []
@@ -127,7 +128,7 @@ model:
             norm_kwargs:
                 epsilon: 1.e-5
         rnn:
-            nn_id: *rnn
+            nn_id: *vrnn
             units: 256
             kernel_initializer: orthogonal
             recurrent_initializer: orthogonal
@@ -141,7 +142,9 @@ model:
 loss:
     policy:
         clip_range: .2
+        tau: .001
         entropy_coef: .001
+        kl_coef: .001
         life_mask: False
     value:
         value_loss: clip
@@ -152,7 +155,8 @@ loss:
 trainer:
     algorithm: *algo
 
-    rnn_type: *rnn
+    actor_rnn_type: *arnn
+    value_rnn_type: *vrnn
     sample_size: *ss         # BPTT length
     store_state: True
     policy:
@@ -197,7 +201,8 @@ buffer:
     n_epochs: *nepochs
     n_mbs: *nmbs        # number of minibatches
     fragment_size: null
-    rnn_type: *rnn
+    actor_rnn_type: *arnn
+    value_rnn_type: *vrnn
     sample_size: *ss
     norm_adv: minibatch
 
@@ -215,6 +220,7 @@ buffer:
         - prev_action
         - action_mask
         - action
+        - reward
         - value
         - traj_ret
         - advantage

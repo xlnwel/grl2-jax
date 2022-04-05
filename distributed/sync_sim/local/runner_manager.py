@@ -8,6 +8,7 @@ from ..remote.runner import MultiAgentSimRunner
 from core.monitor import Monitor
 from core.remote.base import ManagerBase, RayBase
 from core.typing import ModelPath
+from utility.display import pwt
 from utility.typing import AttrDict
 from utility.utils import AttrDict2dict, batch_dicts
 
@@ -75,7 +76,7 @@ class RunnerManager(ManagerBase):
             self.parameter_server.sample_strategies_for_evaluation.remote()
         )
 
-        print('The total number of strategy tuples:', len(strategies))
+        pwt('The total number of strategy tuples:', len(strategies))
         for s in strategies:
             self.set_weights_from_model_paths(s)
             self.evaluate(total_episodes)

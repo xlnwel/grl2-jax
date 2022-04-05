@@ -14,6 +14,7 @@ from core.log import do_logging
 from core.typing import ModelPath
 from core.utils import save_code
 from env.func import get_env_stats
+from gt.alpharank import AlphaRank
 from utility.timer import Every
 from utility.typing import AttrDict
 from utility.utils import modify_config
@@ -141,7 +142,7 @@ class Controller(CheckpointBase):
 
         config = self.configs[0]
         self.n_runners = config.runner.n_runners
-        if self.config.max_version_iterations == 1:
+        if self.config.max_version_iterations > 1:
             self.n_agent_runners, self.n_pbt_steps = _compute_running_steps(config)
         else:
             self.n_agent_runners, self.n_pbt_steps = None, None
@@ -249,7 +250,7 @@ class Controller(CheckpointBase):
         agent_manager.stop_training(wait=True)
 
     def cleanup(self):
-        self.parameter_server.archive_training_strategies.remote()
+        ray.get(self.parameter_server.archive_training_strategies.remote())
         self.agent_manager.destroy_agents()
         self.runner_manager.destroy_runners()
 
@@ -266,14 +267,18 @@ class Controller(CheckpointBase):
 
     """ Evaluation """
     def evaluate_all(self, total_episodes, filename):
-        ray.get(self.parameter_server.reset_payoffs.remote())
+        ray.get(self.parameter_server.reset_payoffs.remote(from_scratch=False))
         self.runner_manager.evaluate_all(total_episodes)
         payoffs = self.parameter_server.get_payoffs.remote()
         counts = self.parameter_server.get_counts.remote()
         payoffs = ray.get(payoffs)
         counts = ray.get(counts)
-        do_logging('Final payoffs', logger=logger)
-        do_logging(payoffs)
+        do_logging('Final payoffs', logger=logger, level='pwt')
+        do_logging(payoffs, logger=logger, level='pwt')
+        alpha_rank = AlphaRank(1000, 5, 0)
+        ranks, mass = alpha_rank.compute_rank(payoffs, return_mass=True)
+        print('Alpha Rank Results:\n', ranks)
+        print('Mass at Stationary Point:\n', mass)
         path = f'{self._dir}/{filename}.pkl'
         with open(path, 'wb') as f:
             cloudpickle.dump((payoffs, counts), f)

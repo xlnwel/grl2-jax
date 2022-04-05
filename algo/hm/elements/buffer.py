@@ -12,8 +12,15 @@ from utility.utils import dict2AttrDict, moments, standardize
 logger = logging.getLogger(__name__)
 
 
-def compute_nae(reward, discount, value, last_value, 
-                gamma, mask=None, epsilon=1e-8):
+def compute_nae(
+    reward, 
+    discount, 
+    value, 
+    last_value, 
+    gamma, 
+    mask=None, 
+    epsilon=1e-8
+):
     next_return = last_value
     traj_ret = np.zeros_like(reward)
     for i in reversed(range(reward.shape[0])):
@@ -69,27 +76,67 @@ def compute_indices(idxes, mb_idx, mb_size, n_mbs):
 
     return mb_idx, curr_idxes
 
-def get_sample(memory, idxes, sample_keys, state_keys, state_type=None):
-    if state_type is None:
-        sample = {k: memory[k][idxes, 0]
-            if k in state_keys else memory[k][idxes] 
-            for k in sample_keys}
+def get_sample(
+    memory, 
+    idxes, 
+    sample_keys, 
+    actor_state_keys, 
+    value_state_keys, 
+    actor_state_type,
+    value_state_type,
+):
+    if actor_state_type is None and value_state_type is None:
+        sample = {k: memory[k][idxes] for k in sample_keys}
     else:
         sample = {}
-        state = []
+        actor_state = []
+        value_state = []
         for k in sample_keys:
-            if k in state_keys:
+            if k in actor_state_keys:
                 v = memory[k][idxes, 0]
-                state.append(v.reshape(-1, v.shape[-1]))
+                actor_state.append(v.reshape(-1, v.shape[-1]))
+            elif k in value_state_keys:
+                v = memory[k][idxes, 0]
+                value_state.append(v.reshape(-1, v.shape[-1]))
             else:
                 sample[k] = memory[k][idxes]
-        sample['state'] = state_type(*state)
+        if actor_state:
+            sample['actor_state'] = actor_state_type(*actor_state)
+        if value_state:
+            sample['value_state'] = value_state_type(*value_state)
 
     return sample
 
 
-def _remote_state_keys(sample_keys):
-    for k in ['mask', 'actor_h', 'actor_c', 'value_h', 'value_c', 'h', 'c']:
+def get_sample_keys_size(config):
+    actor_state_keys = ['actor_h', 'actor_c']
+    value_state_keys = ['value_h', 'value_c']
+    if config['actor_rnn_type'] or config['value_rnn_type']: 
+        sample_keys = config.sample_keys
+        sample_size = config.sample_size
+        if not config['actor_rnn_type']:
+            sample_keys = _remote_state_keys(
+                sample_keys, 
+                actor_state_keys, 
+            )
+        if not config['value_rnn_type']:
+            sample_keys = _remote_state_keys(
+                sample_keys, 
+                value_state_keys, 
+            )
+    else:
+        sample_keys = _remote_state_keys(
+            config.sample_keys, 
+            actor_state_keys + value_state_keys, 
+        )
+        sample_keys.remove('mask')
+        sample_size = None
+
+    return sample_keys, sample_size
+
+
+def _remote_state_keys(sample_keys, state_keys):
+    for k in state_keys:
         if k in sample_keys:
             sample_keys.remove(k)
 
@@ -107,14 +154,10 @@ class LocalBuffer(Buffer):
         self.config = config
         self.runner_id = runner_id
 
-        self.state_keys = model.state_keys
+        self.actor_state_keys = (f'actor_{k}' for k in model.actor_state_keys)
+        self.value_state_keys = (f'value_{k}' for k in model.value_state_keys)
+        self.sample_keys, self.sample_size = get_sample_keys_size(config)
 
-        if self.config.get('rnn_type'): 
-            self.sample_keys = self.config.sample_keys
-            self.sample_size = self.config.sample_size
-        else:
-            self.sample_keys = _remote_state_keys(self.config.sample_keys)
-            self.sample_size = None
         if self.config.get('fragment_size', None) is not None:
             self.maxlen = self.config.fragment_size
         elif self.sample_size is not None:
@@ -124,7 +167,7 @@ class LocalBuffer(Buffer):
         self.maxlen = min(self.maxlen, self.config.n_steps)
         if self.sample_size is not None:
             assert self.maxlen % self.sample_size == 0, (self.maxlen, self.sample_size)
-            assert self.config.n_steps % self.maxlen == 0, (self.maxlen, self.config.n_steps)
+            assert self.config.n_steps % self.maxlen == 0, (self.config.n_steps, self.maxlen)
             self.n_samples = self.maxlen // self.sample_size
         self.n_envs = self.config.n_envs
         self.gae_discount = self.config.gamma * self.config.lam
@@ -202,14 +245,11 @@ class PPOBuffer(Buffer):
         self.use_dataset = self.config.get('use_dataset', False)
         do_logging(f'Is dataset used for data pipline: {self.use_dataset}', logger=logger)
 
-        if self.config.get('rnn_type'): 
-            self.sample_keys = self.config.sample_keys
-            self.sample_size = self.config.sample_size
-        else:
-            self.sample_keys = _remote_state_keys(self.config.sample_keys)
-            self.sample_size = None
-        self.state_keys = model.state_keys
-        self.state_type = model.state_type
+        self.actor_state_keys = tuple([f'actor_{k}' for k in model.actor_state_keys])
+        self.value_state_keys = tuple([f'value_{k}' for k in model.value_state_keys])
+        self.actor_state_type = model.actor_state_type
+        self.value_state_type = model.value_state_type
+        self.sample_keys, self.sample_size = get_sample_keys_size(self.config)
 
         self.n_runners = self.config.n_runners
         self.n_steps = self.config.n_steps
@@ -388,8 +428,14 @@ class PPOBuffer(Buffer):
             self.mb_size, self.n_mbs)
 
         sample = get_sample(
-            self._memory, self._curr_idxes, sample_keys,
-            self.state_keys, self.state_type)
+            self._memory, 
+            self._curr_idxes, 
+            sample_keys,
+            self.actor_state_keys, 
+            self.value_state_keys,
+            self.actor_state_type, 
+            self.value_state_type
+        )
         sample = self._process_sample(sample)
 
         return sample

@@ -86,5 +86,6 @@ class Value(Module):
 
     def call(self, x):
         value = self._layers(x)
-        value = tf.squeeze(value, -1)
+        if value.shape[-1] == 1:
+            value = tf.squeeze(value, -1)
         return value

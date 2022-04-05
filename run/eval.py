@@ -84,13 +84,13 @@ if __name__ == '__main__':
     # set up env_config
     for config in configs:
         n = args.n_episodes
-        if args.n_workers:
+        if args.n_runners:
             if 'runner' in config:
-                config.runner.n_runners = args.n_workers
-            config.env.n_workers = args.n_workers
+                config.runner.n_runners = args.n_runners
+            config.env.n_workers = args.n_runners
         if args.n_envs:
             config.env.n_envs = args.n_envs
-        n = max(args.n_workers * args.n_envs, n)
+        n = max(args.n_runners * args.n_envs, n)
 
     main(configs, n=n, record=args.record, size=args.size, 
         video_len=args.video_len, fps=args.fps, save=args.save)

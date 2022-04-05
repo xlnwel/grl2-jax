@@ -26,12 +26,8 @@ class Trainer(tf.Module):
         self.loss = loss
         self.env_stats = env_stats
 
-        # keep the order fixed, otherwise you may encounter 
-        # the permutation misalignment problem when restoring from a checkpoint
-        keys = sorted([k for k in self.model.keys() if not k.startswith('target')])
-        modules = tuple(self.model[k] for k in keys)
-        self.optimizer = create_optimizer(modules, self.config.optimizer)
-        
+        self.construct_optimizers()
+
         self.train = tf.function(self.raw_train)
         has_built = self._build_train(env_stats)
 
@@ -55,6 +51,13 @@ class Trainer(tf.Module):
     def raw_train(self):
         raise NotImplementedError
 
+    def construct_optimizers(self):
+        # keep the order fixed, otherwise you may encounter 
+        # the permutation misalignment problem when restoring from a checkpoint
+        keys = sorted([k for k in self.model.keys() if not k.startswith('target')])
+        modules = tuple(self.model[k] for k in keys)
+        self.optimizer = create_optimizer(modules, self.config.optimizer)
+        
     def _post_init(self):
         """ Add some additional attributes and do some post processing here """
         pass

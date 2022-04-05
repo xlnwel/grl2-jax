@@ -71,7 +71,7 @@ def parse_eval_args():
     parser.add_argument('--n_envs', '-ne', 
                         type=int, 
                         default=0)
-    parser.add_argument('--n_workers', '-nw', 
+    parser.add_argument('--n_runners', '-nr', 
                         type=int, 
                         default=0)
     parser.add_argument('--size', '-s', 

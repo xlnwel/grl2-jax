@@ -13,7 +13,6 @@ def get_package_from_algo(algo, place=0, separator='.'):
     pkg = get_package('algo', algo, separator)
     if pkg is None:
         pkg = get_package('distributed', algo, separator)
-
     return pkg
 
 
@@ -48,7 +47,8 @@ def import_module(name, pkg=None, algo=None, *, config=None, place=0):
 
 def import_main(module, algo=None, *, config=None):
     algo = algo or config['algorithm']
-    module = '.'.join([algo.split('-')[0], module])
+    if '-' in algo:
+        module = '.'.join([algo.split('-')[0], module])
     assert isinstance(algo, str), algo
     if '-' in algo:
         m = importlib.import_module(f'distributed.{module}')

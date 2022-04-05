@@ -49,9 +49,16 @@ strategy:
     RECORD_VIDEO: True
 
 model:
+    rnn_type: &rnn rnn_mlstm
     encoder: 
         nn_id: cnn_impala
         out_size: 256
+    rnn:
+        nn_id: *rnn
+        units: 256
+        kernel_initializer: orthogonal
+        recurrent_initializer: orthogonal
+        use_ln: True
     policy:
         nn_id: policy
         units_list: []
@@ -101,6 +108,7 @@ buffer:
     n_epochs: *nepochs
     N_VALUE_EPOCHS: *nval_epochs
     n_mbs: *nmbs        # number of minibatches
+    rnn_type: *rnn
     norm_adv: minibatch
     sample_keys: 
         - obs
@@ -109,4 +117,6 @@ buffer:
         - traj_ret
         - advantage
         - logpi
+        - h
+        - c
     # mini-batch size = n_workers * n_envs * epslen / n_mbs

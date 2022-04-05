@@ -206,7 +206,7 @@ class GRF:
         infield_penalty=0, 
         # required configs for grl
         max_episode_steps=3000,
-        use_action_mask=True,
+        use_action_mask=False,
         uid2aid=None,
         **kwargs,
     ):
@@ -454,8 +454,12 @@ class GRF:
                 global_state=obs[uids], 
                 prev_reward=reward[aid], 
                 prev_action=action[aid], 
-                action_mask=np.ones((len(uids), self.action_dim[aid]), bool) 
+                
             ) for aid, uids in enumerate(self.aid2uids)]
+
+            if self.use_action_mask:
+                for aid, o in enumerate(agent_obs):
+                    o['action_mask'] =np.ones((len(uids), self.action_dim[aid]), bool) 
 
         if self.add_role_to_obs:
             roles = _get_roles(obs_list, uids)

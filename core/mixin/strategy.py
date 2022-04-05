@@ -1,4 +1,5 @@
 import os
+from typing import NamedTuple
 import cloudpickle
 import numpy as np
 import tensorflow as tf
@@ -53,7 +54,7 @@ class Memory:
         self._state = None
 
     def add_memory_state_to_input(self, 
-            inp: dict, reset: np.ndarray, state: tuple=None):
+            inp: dict, reset: np.ndarray, state: NamedTuple=None):
         """ Adds memory state and mask to the input. """
         if state is None and self._state is None:
             self._state = self.model.get_initial_state(inp)
@@ -73,16 +74,17 @@ class Memory:
     def get_mask(self, reset):
         return np.float32(1. - reset)
 
-    def apply_mask_to_state(self, state: tuple, mask: np.ndarray):
+    def apply_mask_to_state(self, state: NamedTuple, mask: np.ndarray):
         assert state is not None, state
-        mask_reshaped = mask.reshape(state[0].shape[0], 1)
-        state = tf.nest.map_structure(lambda x: x*mask_reshaped, state)
+        mask_reshaped = mask.reshape(-1, 1)
+        state = tf.nest.map_structure(lambda x: x*mask_reshaped \
+            if x is not None else x, state)
         return state 
 
     def reset_states(self):
         self._state = None
 
-    def set_states(self, state: tuple=None):
+    def set_states(self, state: NamedTuple=None):
         self._state = state
 
     def get_states(self):
