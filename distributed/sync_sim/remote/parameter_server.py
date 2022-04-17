@@ -50,7 +50,7 @@ class ParameterServer(RayBase):
         to_restore_params=True, 
         name='parameter_server',
     ):
-        super().__init__()
+        super().__init__(seed=config.get('seed'))
         self.config = dict2AttrDict(config['parameter_server'])
         self.name = name
 
@@ -65,19 +65,20 @@ class ParameterServer(RayBase):
         model_name = config["model_name"].rsplit('/')[0]
         self._dir = f'{config["root_dir"]}/{model_name}'
         os.makedirs(self._dir, exist_ok=True)
-        self._path = f'{self._dir}/{self.name}.pkl'
+        self._path = f'{self._dir}/{self.name}.yaml'
 
         self.payoff_manager: PayoffManager = PayoffManager(
             self.config.payoff,
             self.n_agents, 
             self._dir,
         )
-        self._params: List[Dict[ModelPath, Dict]] = [{}] * self.n_agents
-        self._prepared_strategies: List[List[ModelWeights]] = [[None] * self.n_agents] * self.n_runners
-        self._ready = [False] * self.n_runners
+        self._params: List[Dict[ModelPath, Dict]] = [{} for _ in range(self.n_agents)]
+        self._prepared_strategies: List[List[ModelWeights]] = \
+            [[None for _ in range(self.n_agents)] for _ in range(self.n_runners)]
+        self._ready = [False for _ in range(self.n_runners)]
 
         # an active model is the one under training
-        self._active_models: List[ModelPath] = [None] * self.n_agents
+        self._active_models: List[ModelPath] = [None for _ in range(self.n_agents)]
         # is the first pbt iteration
         self._first_iteration = True
         self._all_strategies = None
@@ -86,7 +87,7 @@ class ParameterServer(RayBase):
             _divide_runners(
                 self.n_agents, 
                 self.n_runners, 
-                self.online_frac,
+                self.online_frac, 
             )
         self.restore(to_restore_params)
 
@@ -101,7 +102,11 @@ class ParameterServer(RayBase):
             model = f'{config["root_dir"]}/{config["model_name"]}'
             assert model.rsplit('/')[-1] == f'a{aid}', model
             os.makedirs(model, exist_ok=True)
-            builder = ElementsBuilderVC(config, env_stats, to_save_code=False)
+            builder = ElementsBuilderVC(
+                config, 
+                env_stats, 
+                to_save_code=False
+            )
             self.builders.append(builder)
         assert len(self.builders) == self.n_agents, \
             (len(configs), len(self.builders), self.n_agents)
@@ -118,14 +123,17 @@ class ParameterServer(RayBase):
             if not all(self._ready):
                 return None
             strategies = self._prepared_strategies
-            self._prepared_strategies = [[None] * self.n_agents] * self.n_runners
+            self._prepared_strategies = [
+                [None for _ in range(self.n_agents)] 
+                for _ in range(self.n_runners)
+            ]
             self._ready = [False] *self.n_runners
             return strategies
         else:
             if not self._ready[rid]:
                 return None
             strategies = self._prepared_strategies[rid]
-            self._prepared_strategies[rid] = [None] * self.n_agents
+            self._prepared_strategies[rid] = [None for _ in range(self.n_agents)]
             self._ready[rid] = False
             return strategies
 
@@ -136,7 +144,7 @@ class ParameterServer(RayBase):
             assert model in models, (model, models)
             assert len(models) == self.n_agents, (self.n_agents, models)
             # We directly store mid for the agent with aid below rather than storing the associated data
-            weights = [{}] * self.n_agents
+            weights = [{} for _ in range(self.n_agents)]
             for i, m in enumerate(models):
                 if i == aid:
                     weights[i] = mid
@@ -154,7 +162,8 @@ class ParameterServer(RayBase):
         
         def prepare_models(aid, model_weights: ModelWeights):
             model_weights.weights.pop('opt')
-            model_weights.weights['aux'] = self._params[aid][model_weights.model].get('aux', RMSStats({}, None))
+            model_weights.weights['aux'] = \
+                self._params[aid][model_weights.model].get('aux', RMSStats({}, None))
             mid = ray.put(model_weights)
 
             if self._first_iteration or self.online_frac == 1:
@@ -175,15 +184,12 @@ class ParameterServer(RayBase):
                         self._prepared_strategies[rid] = mids
                         self._ready[rid] = True
 
-        assert self._active_models[aid] == model_weights.model, \
-            (self._active_models, model_weights.model)
-        assert set(model_weights.weights) == set(['model', 'opt', 'train_step']), \
-            list(model_weights.weights)
+        assert self._active_models[aid] == model_weights.model, (self._active_models, model_weights.model)
+        assert set(model_weights.weights) == set(['model', 'opt', 'train_step']), list(model_weights.weights)
         assert aid == get_aid(model_weights.model.model_name), (aid, model_weights.model)
         self._params[aid][model_weights.model].update(model_weights.weights)
 
         prepare_models(aid, model_weights)
-
 
     def update_strategy_aux_stats(self, aid, model_weights: ModelWeights):
         assert len(model_weights.weights) == 1, list(model_weights.weights)
@@ -200,32 +206,40 @@ class ParameterServer(RayBase):
 
     def sample_training_strategies(self):
         strategies = []
-        is_raw_strategy = [False] * self.n_agents
+        is_raw_strategy = [False for _ in range(self.n_agents)]
         if any([am is not None for am in self._active_models]):
             # restore active strategies 
             for aid, model in enumerate(self._active_models):
+                assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
                 weights = self._params[aid][model].copy()
                 weights.pop('aux', None)
                 strategies.append(ModelWeights(model, weights))
                 pwt('Restore active strategy', model)
+                [b.save_config() for b in self.builders]
         else:
             assert all([am is None for am in self._active_models]), self._active_models
             for aid in range(self.n_agents):
-                if random.random() < self.train_from_scratch_frac:
+                if self._first_iteration or random.random() < self.train_from_scratch_frac:
                     self.builders[aid].increase_version()
                     model = self.builders[aid].get_model_path()
+                    assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
                     assert model not in self._params[aid], (model, list(self._params[aid]))
                     self._params[aid][model] = {}
                     weights = None
                     is_raw_strategy[aid] = True
-                    pwt('Sample raw training strategy', model)
+                    pwt('A raw strategy is sampled for training:', model)
                 else:
                     model = random.choice(list(self._params[aid]))
+                    pwt(f'Sampling a historical stratgy from {list(self._params[aid])}')
+                    assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
                     weights = self._params[aid][model].copy()
                     weights.pop('aux')
                     config = search_for_config(model)
                     model, config = self.builders[aid].get_sub_version(config)
-                    pwt('Sample historical training strategy', model, config.version)
+                    assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
+                    assert model not in self._params[aid], f'{model} is already in {list(self._params[aid])}'
+                    self._params[aid][model] = weights
+                    pwt('A historical strategy is sampled for training:', model, config.version)
                 self._active_models[aid] = model
                 strategies.append(ModelWeights(model, weights))
             self.payoff_manager.add_strategies([s.model for s in strategies])
@@ -247,13 +261,13 @@ class ParameterServer(RayBase):
         pwt('Archive training strategies')
         for model_path in self._active_models:
             self.save_params(model_path)
-        self._active_models = [None] * self.n_agents
+        self._active_models = [None for _ in range(self.n_agents)]
         self._first_iteration = False
         self.save()
 
     """ Payoff Operations """
-    def reset_payoffs(self, preserve_shape=True):
-        self.payoff_manager.reset(preserve_shape)
+    def reset_payoffs(self, from_scratch=True):
+        self.payoff_manager.reset(from_scratch=from_scratch)
 
     def get_payoffs(self):
         return self.payoff_manager.get_payoffs()
@@ -278,9 +292,6 @@ class ParameterServer(RayBase):
 
     def save_params(self, model: ModelPath, filename='params'):
         assert model in self._active_models, (model, self._active_models)
-        assert self._dir.rsplit('/', 1)[-1] == model.model_name.split('/', 1)[0], (
-            self._dir, model.model_name
-        )
         aid, vid = get_aid_vid(model.model_name)
         ps_dir = f'{self._dir}/a{aid}'
         if not os.path.isdir(ps_dir):
@@ -319,7 +330,9 @@ class ParameterServer(RayBase):
             if config is None:
                 return
             model_paths = config.pop('model_paths')
-            self._active_models = [ModelPath(*m) for m in config.pop('active_models')]
+            self._active_models = [
+                m if m is None else ModelPath(*m) 
+                for m in config.pop('active_models')]
             config_attr(self, config, config_as_attr=False, private_attr=True)
             if to_restore_params:
                 for models in model_paths:

@@ -9,14 +9,14 @@ from utility.utils import convert_batch_with_func
 class RayVecEnv(VecEnvBase):
     def __init__(self, EnvType, config, env_fn=make_env):
         self.name = config['env_name']
-        self.n_workers= config.get('n_workers', 1)
+        self.n_runners= config.get('n_runners', 1)
         self.envsperworker = config.get('n_envs', 1)
-        self.n_envs = self.envsperworker * self.n_workers
+        self.n_envs = self.envsperworker * self.n_runners
         RayEnvType = ray.remote(EnvType)
         # leave the name "envs" for consistency, albeit workers seems more appropriate
         self.envs = []
-        for i in range(self.n_workers):
-            if 'seed' in config:
+        for i in range(self.n_runners):
+            if config.get('seed'):
                 config['seed'] = i * self.envsperworker
             if 'eid' in config:
                 config['eid'] = i * self.envsperworker
@@ -30,7 +30,7 @@ class RayVecEnv(VecEnvBase):
         super().__init__()
         
         self._stats = self.env.stats()
-        self._stats['n_workers'] = self.n_workers
+        self._stats['n_runners'] = self.n_runners
         self._stats['n_envs'] = self.n_envs
 
     def reset(self, idxes=None):
@@ -42,11 +42,11 @@ class RayVecEnv(VecEnvBase):
 
     def step(self, actions, **kwargs):
         if isinstance(actions, (tuple, list)):
-            actions = list(zip(*[np.split(a, self.n_workers) for a in actions]))
+            actions = list(zip(*[np.split(a, self.n_runners) for a in actions]))
         else:
-            actions = [np.squeeze(a) for a in np.split(actions, self.n_workers)]
+            actions = [np.squeeze(a) for a in np.split(actions, self.n_runners)]
         if kwargs:
-            kwargs = {k: [np.squeeze(x) for x in np.split(v, self.n_workers)] 
+            kwargs = {k: [np.squeeze(x) for x in np.split(v, self.n_runners)] 
                 for k, v in kwargs.items()}
             kwargs = [dict(x) for x in zip(*[itertools.product([k], v) 
                 for k, v in kwargs.items()])]
@@ -97,7 +97,7 @@ class RayVecEnv(VecEnvBase):
             if isinstance(self.env, Env):
                 out = ray.get([method(self.envs[i]).remote() for i in idxes])
             else:
-                new_idxes = [[] for _ in range(self.n_workers)]
+                new_idxes = [[] for _ in range(self.n_runners)]
                 for i in idxes:
                     new_idxes[i // self.envsperworker].append(i % self.envsperworker)
                 out = ray.get([method(self.envs[i]).remote(j) 

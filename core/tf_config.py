@@ -47,6 +47,9 @@ def silence_tf_logs():
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     tf.get_logger().setLevel('ERROR')
 
+def set_tf_random_seed(seed: int=None):
+    tf.random.set_seed(seed)
+
 def get_TensorSpecs(
         TensorSpecs: Dict[str, Tuple[Tuple, Type, str]], 
         sequential: bool=False, 

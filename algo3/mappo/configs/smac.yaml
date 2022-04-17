@@ -10,7 +10,7 @@ model_name: *algo
 
 env:
     env_name: &env_name smac-3s5z_vs_3s6z
-    n_workers: 8
+    n_runners: 8
     n_envs: &nenvs 2
     use_state_agent: True
     use_mustalive: True
@@ -134,5 +134,5 @@ buffer:
     n_mbs: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: batch
-    # mini-batch size = n_workers * n_envs * epslen / n_mbs
+    # mini-batch size = n_runners * n_envs * epslen / n_mbs
     sample_keys: [obs, global_state, action, value, traj_ret, advantage, logpi, mask, action_mask, life_mask, actor_h, actor_c, value_h, value_c]

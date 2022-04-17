@@ -26,13 +26,13 @@ def main(configs, n, **kwargs):
 
     config = configs[0]
     n_agents = config.n_agents
-    n_workers = config.runner.n_runners
-    n = n_episodes - n_episodes % n_workers
+    n_runners = config.runner.n_runners
+    n = n_episodes - n_episodes % n_runners
     for k, v in stats.items():
         print(k, v[0])
         for aid in range(n_agents):
             v = np.array(v[:n])
-            pstd = np.std(np.mean(v.reshape(n_workers, -1), axis=-1)) * np.sqrt(n // n_workers)
+            pstd = np.std(np.mean(v.reshape(n_runners, -1), axis=-1)) * np.sqrt(n // n_runners)
             print(
                 f'Agent{aid}: {k} averaged over {n_episodes} episodes: mean({np.mean(v):3g}), std({np.std(v):3g}), pstd({pstd:3g})')
 

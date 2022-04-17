@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 import collections
+import sys
 from time import time
 from typing import Dict
 import cloudpickle
@@ -11,6 +12,7 @@ from ..common.typing import ModelStats
 from core.monitor import Monitor as ModelMonitor
 from core.remote.base import RayBase
 from core.typing import ModelPath
+from utility.timer import Timer
 from utility.utils import dict2AttrDict
 
 
@@ -20,7 +22,7 @@ class Monitor(RayBase):
         config: dict,
         parameter_server: ParameterServer
     ):
-        super().__init__()
+        super().__init__(seed=config.get('seed'))
         self.config = dict2AttrDict(config)
         self.parameter_server = parameter_server
 
@@ -119,7 +121,9 @@ class Monitor(RayBase):
             self.save()
             # we ensure that all checkpoint stats are saved to the disk 
             # before recording running/training stats. 
-            self.record(model, current_time - self._last_save_time)
+            with Timer('Monitor Recording Time', period=1):
+                self.record(model, current_time - self._last_save_time)
+        sys.stdout.flush()
         self._last_save_time = current_time
         with open('check.txt', 'w') as f:
             f.write(datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S'))

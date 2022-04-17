@@ -38,12 +38,12 @@ def main(config, n, **kwargs):
         other_root_dir='logs/card_gd/gd_zero',
         other_model_name='baseline',
     )
-    n_workers = config.env.n_workers
+    n_runners = config.env.n_runners
 
-    n = n - n % n_workers
+    n = n - n % n_runners
     for k, v in stats.items():
         v = np.array(v[:n])
-        pstd = np.std(np.mean(v.reshape(n_workers, -1), axis=-1)) * np.sqrt(n // n_workers)
+        pstd = np.std(np.mean(v.reshape(n_runners, -1), axis=-1)) * np.sqrt(n // n_runners)
         print(f'{k} averaged over {n} episodes: mean({np.mean(v):3g}), std({np.std(v):3g}), pstd({pstd:3g})')
     
     duration = time.time() - start

@@ -76,8 +76,8 @@ strategy:
         value_update: null
 
 model:
-    actor_rnn_type: &arnn rnn_mlstm
-    value_rnn_type: &vrnn rnn_mlstm
+    actor_rnn_type: &arnn null
+    value_rnn_type: &vrnn null
     sample_size: &ss 10
 
     policy:
@@ -111,10 +111,12 @@ model:
         action_embed:
             nn_id: embed
             embed_size: 8
-            units_list: [64]
+            embeddings_initializer: zeros
+            units_list: [16]
             kernel_initializer: orthogonal
-            # activation: null
+            activation: null
             norm: null
+            use_bias: False
         encoder:
             nn_id: mlp
             units_list: [64, 64, 64]
@@ -218,7 +220,10 @@ buffer:
         - action
         - reward
         - value
+        - value_a
         - traj_ret
+        - traj_ret_a
+        - raw_adv
         - advantage
         - logpi
         - mask

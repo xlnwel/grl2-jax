@@ -18,6 +18,7 @@ All ids start from 0 and increases sequentially
 MAX_LEN = 50
 SHOT_DIS = 40
 
+
 def compute_aid2uids(uid2aid):
     """ Compute aid2uids from uid2aid """
     aid2uids = []
@@ -42,7 +43,7 @@ class UnityEnv:
             n_envs,
             unity_config,
             frame_skip=10,
-            is_action_discrete=True, 
+            is_action_discrete=True,
             reward_config={
                 'detect_reward': 0,
                 'main_dead_reward': 0,
@@ -296,25 +297,25 @@ class UnityEnv:
             lose_rate=self._lose_rate[i].copy(),
             draw_rate=self._draw_rate[i].copy(),
             dense_score=self._dense_score[i].copy(),
-            epslen=self._epslen[i],
+            epslen=np.array(self._epslen[i]*self.n_units),
             game_over=discount[i] == 0,
-            #consecutive_action=self._consecutive_action[i].copy(),
-            left_missile_red=self.red_missile_left[i],
+            # consecutive_action=self._consecutive_action[i].copy(),
+            left_missile_red=np.hstack([self.red_missile_left[i]]*self.n_units),
             left_missile_blue0=self.blue_missile_left[i][0],
             left_missile_blue1=self.blue_missile_left[i][1],
-            alive_blue=alive_blue[i],
-            alive_main=alive_main[i],
-            alive_ally=alive_ally[i],
+            alive_blue=np.array(alive_blue[i]*self.n_units),
+            alive_main=np.array(alive_main[i]*self.n_units),
+            alive_ally=np.array(alive_ally[i]*self.n_units),
             # main_detect_steps=self.detect_steps[i][2],
             # ally0_detect_steps=self.detect_steps[i][3],
             # ally1_detect_steps=self.detect_steps[i][4],
             # ally2_detect_steps=self.detect_steps[i][5],
             # ally3_detect_steps=self.detect_steps[i][6],
-            main_alive_steps=self.alive_steps[i][0],
-            ally_alive_steps=self.alive_steps[i][1:].mean(),
-            blue_detect_main=self.detect_steps[i][0],
-            blue0_alive_steps=self.alive_steps[i][-2],
-            blue1_alive_steps=self.alive_steps[i][-1]
+            main_alive_steps=np.array(self.alive_steps[i][0]*self.n_units),
+            ally_alive_steps=np.array(self.alive_steps[i][1:].mean()*self.n_units),
+            blue_detect_main=np.array(self.detect_steps[i][0]*self.n_units),
+            blue0_alive_steps=np.array(self.alive_steps[i][-2]*self.n_units),
+            blue1_alive_steps=np.array(self.alive_steps[i][-1]*self.n_units)
         ) for i in range(self.n_envs)]
 
         agent_reward = [rewards[:, uids] for uids in self.aid2uids]
@@ -337,8 +338,8 @@ class UnityEnv:
                 self.detect_units[i] = np.zeros((self.n_units,), bool)
                 self.detect_steps[i] = np.zeros(self.n_planes)
                 self.alive_steps[i] = np.zeros(self.n_planes)
-                #self.flying_missile[i] = np.ones(2, np.int32)
-                #self.grid_map[i] = np.zeros((10, 10), np.int32)
+                # self.flying_missile[i] = np.ones(2, np.int32)
+                # self.grid_map[i] = np.zeros((10, 10), np.int32)
                 self.enemy_position[i] = np.zeros((2, 4))
                 self.prev_action = None
 
@@ -460,8 +461,8 @@ class UnityEnv:
                 vel = red_state_info[i][4:6]
                 direction = red_state_info[i][7:9]
                 left_missile = red_missile_info[i][1] if i < self.n_red_main else 0
-                nearest_wall = np.array([min(abs(red_state_info[i][2]-150), abs(red_state_info[i][2]+150),
-                                             abs(red_state_info[i][3]-50), abs(red_state_info[i][3]+50))])
+                nearest_wall = np.array([min(abs(red_state_info[i][2] - 150), abs(red_state_info[i][2] + 150),
+                                             abs(red_state_info[i][3] - 50), abs(red_state_info[i][3] + 50))])
 
                 other_info = [info for j, info in enumerate(plane_infos) if j != i]
                 other_state_info = copy.deepcopy(other_info)
@@ -508,29 +509,29 @@ class UnityEnv:
                 #     self.missile_dis[team][v] -= me_missile
                 blue_missile_left = blue_missile_info[:, 1]
                 obs = [
-                    vel,#0, 2
-                    direction,#2, 2
-                    np.array([left_missile]),#4, 1
-                    other_distance, # 5, 6
-                    detect_flag, # 11, 2
-                    me_missile, # 13, 1
-                    nearest_wall, # 14, 1
-                    *other_state_info, # 15, 30
-                    *other_position # 45, 12
+                    vel,  # 0, 2
+                    direction,  # 2, 2
+                    np.array([left_missile]),  # 4, 1
+                    other_distance,  # 5, 6
+                    detect_flag,  # 11, 2
+                    me_missile,  # 13, 1
+                    nearest_wall,  # 14, 1
+                    *other_state_info,  # 15, 30
+                    *other_position  # 45, 12
                 ]
                 # other_state_info 12, 10
                 # print(f'vel: {obs[0:2]}\ndirection: {obs[2:4]}\nleft missile')
                 global_state = [
-                    vel, #0, 2
-                    direction, #2, 2
-                    np.array([left_missile]),#4, 1
-                    other_distance, # 5, 6
-                    detect_flag,# 11, 2
-                    me_missile,# 13, 1
-                    nearest_wall, # 14, 1
+                    vel,  # 0, 2
+                    direction,  # 2, 2
+                    np.array([left_missile]),  # 4, 1
+                    other_distance,  # 5, 6
+                    detect_flag,  # 11, 2
+                    me_missile,  # 13, 1
+                    nearest_wall,  # 14, 1
                     *other_state_info,  # 15, 30
-                    *other_position, # 45, 12
-                    blue_missile_left, # 57, 2
+                    *other_position,  # 45, 12
+                    blue_missile_left,  # 57, 2
                 ]
 
                 if i < self.n_red_main:
@@ -574,12 +575,11 @@ class UnityEnv:
                 # print(f'split res vel: {obs[0:2]}\ndirection: {obs[2:4]}\nleft missile: {obs[4:5]}\n'
                 # f'other_distance:{obs[5:7]}\ndetect_flag:{obs[7:9]}\nme_missile:{obs[9:10]}\n'
                 # f'nearest_wall:{obs[10:11]}\nother_state_info:{obs[11:21]}\nother_position:{obs[21:25]},red_missile_info:{obs[25]}')
-                
+
                 all_global_state.append(global_state)
                 all_alive.append(alive)
                 prev_action = np.zeros((self.action_dim[self.uid2aid[i]]), np.float32)
                 all_prev_action.append(prev_action)
-
 
             observations['obs'] = all_obs
             observations['global_state'] = all_global_state
@@ -614,15 +614,14 @@ class UnityEnv:
         for id, missile_info in enumerate(blue_missile_info):
             for missle_left in range(2, len(missile_info) - 5 - 9 + 1, 9):
                 if missile_info[missle_left + 8] == 2:
-                    self.missile_end[team][id+1] += 1
-
+                    self.missile_end[team][id + 1] += 1
 
     def _update_blue_alive(self, team, blue_state_info):
         for id, blue in enumerate(self._blue_names[team]):
             if blue_state_info[id][1] == 1:
                 self.alive_steps[team][id + 1] += 1
-            if blue_state_info[id][1] == 0 and self.alive_units[team][id+1] == 1:
-                self.alive_units[team][id+1] = 0
+            if blue_state_info[id][1] == 0 and self.alive_units[team][id + 1] == 1:
+                self.alive_units[team][id + 1] = 0
 
     def _get_all_positions(self, all_states):
         pos = np.array(all_states[:, 2:4])
@@ -637,11 +636,11 @@ class UnityEnv:
         for i, name in enumerate(self._red_names[team] + self._blue_names[team]):
             state = all_states[i]
             role = self._get_plane_role(name)
-            #velocity = list(state[4:6])
-            #direction = list(state[7:9])
+            # velocity = list(state[4:6])
+            # direction = list(state[7:9])
             alive = [1, 0] if state[1] == 1 else [0, 1]
 
-            #ret.append(role + velocity + direction + alive)
+            # ret.append(role + velocity + direction + alive)
             ret.append(role + alive)
         return ret
 
@@ -698,28 +697,27 @@ class UnityEnv:
         if len(actions) == 2:
             move = actions[0]
             shot = actions[1]
-            #assert -1 <= move <= 1, move
-            #assert -1 <= shot <= 1, shot
+            # assert -1 <= move <= 1, move
+            # assert -1 <= shot <= 1, shot
 
-            if move < -1/3 and shot < -1/3:
+            if move < -1 / 3 and shot < -1 / 3:
                 return 0
-            if move < 1/3 and shot < -1/3:
+            if move < 1 / 3 and shot < -1 / 3:
                 return 1
-            if move <= 1 and shot < -1/3:
+            if move <= 1 and shot < -1 / 3:
                 return 2
-            if shot < 1/3:
+            if shot < 1 / 3:
                 return 3
             else:
                 return 4
         if len(actions) == 1:
             move = actions
-            if move < -1/3:
+            if move < -1 / 3:
                 return 0
-            if move < 1/3:
+            if move < 1 / 3:
                 return 1
             if move <= 1:
                 return 2
-
 
     def _set_blue_action(self, actions):
         for name, action in actions.items():
@@ -825,25 +823,25 @@ class UnityEnv:
 
             if done[i] == 0:
                 for j in range(len(self._blue_names[0])):
-                    if self.alive_units[i][j+1] == 0:
-                        #reward[i] += self.reward_config['blue_dead_reward']
-                        self.alive_units[i][j+1] = -1
-                        self.alive_steps[i][j+1] = self._epslen[i]
+                    if self.alive_units[i][j + 1] == 0:
+                        # reward[i] += self.reward_config['blue_dead_reward']
+                        self.alive_units[i][j + 1] = -1
+                        self.alive_steps[i][j + 1] = self._epslen[i]
 
-                #for j in range(len(self._red_names[0])):
-                    #assert sum(self.detect_units[i][j]) <= 2
-                    # if self.missile_end[i][2] != 4:
-                    #reward[i][j] += self.reward_config['detect_reward'] * sum(self.detect_units[i][j])
-                    #detect_r[i][j] += self.reward_config['detect_reward'] * sum(self.detect_units[i][j])
+                # for j in range(len(self._red_names[0])):
+                # assert sum(self.detect_units[i][j]) <= 2
+                # if self.missile_end[i][2] != 4:
+                # reward[i][j] += self.reward_config['detect_reward'] * sum(self.detect_units[i][j])
+                # detect_r[i][j] += self.reward_config['detect_reward'] * sum(self.detect_units[i][j])
 
-                    # if self.missile_locked[i][j] == -2:
-                    #     bomb_dis = np.linalg.norm(self.missile_position[i][j])
-                    #     if bomb_dis > MAX_LEN:
-                    #         bomb_dis = MAX_LEN - 1
-                    #     # reward[i][j] -= 0.05 * np.log(MAX_LEN - bomb_dis)
-                    #     missile_r[i][j] -= 0.05 * np.log(MAX_LEN - bomb_dis)
-                    #
-                    #     self.missile_locked[i][j] = -1
+                # if self.missile_locked[i][j] == -2:
+                #     bomb_dis = np.linalg.norm(self.missile_position[i][j])
+                #     if bomb_dis > MAX_LEN:
+                #         bomb_dis = MAX_LEN - 1
+                #     # reward[i][j] -= 0.05 * np.log(MAX_LEN - bomb_dis)
+                #     missile_r[i][j] -= 0.05 * np.log(MAX_LEN - bomb_dis)
+                #
+                #     self.missile_locked[i][j] = -1
 
                 # for g_x in range(10):
                 #     for g_z in range(10):
@@ -859,7 +857,7 @@ class UnityEnv:
 if __name__ == '__main__':
     config = dict(
         env_name='dummy',
-        uid2aid=[0,1,1,1,1],
+        uid2aid=[0, 1, 1, 1, 1],
         max_episode_steps=1000,
         n_envs=1,
         unity_config={

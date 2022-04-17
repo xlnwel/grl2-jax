@@ -27,22 +27,22 @@ def colorize(string, color, bold=False, highlight=False):
     if bold: attr.append('1')
     return f'\x1b[{";".join(attr)}m{string}\x1b[0m'
 
-def pwc(*args, color='red', bold=False, highlight=False):
+def pwc(*args, color='red', bold=False, highlight=False, **kwargs):
     """
     Print with color
     """
     if isinstance(args, (tuple, list)):
         for s in args:
-            print(colorize(s, color, bold, highlight))
+            print(colorize(s, color, bold, highlight), **kwargs)
     else:
-        print(colorize(args, color, bold, highlight))
+        print(colorize(args, color, bold, highlight), **kwargs)
 
-def pwt(*args):
-    print(datetime.now(), *args)
+def pwt(*args, **kwargs):
+    print(datetime.now(), *args, **kwargs)
 
-def pwtc(*args, color='red', bold=False, highlight=False):
+def pwtc(*args, color='red', bold=False, highlight=False, **kwargs):
     args = (datetime.now()) + args
-    pwc(*args, color=color, bold=bold, highlight=highlight)
+    pwc(*args, color=color, bold=bold, highlight=highlight, **kwargs)
 
 def assert_colorize(cond, err_msg=''):
     assert cond, colorize(err_msg, 'red')

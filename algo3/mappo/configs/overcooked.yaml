@@ -38,7 +38,7 @@ monitor:
     store_period: 60
 
 runner:
-    n_workers: &nworkers 20
+    n_runners: &nrunners 20
     MAX_STEPS: 5e8
     n_steps: &nsteps 400
     record_self_play_stats: False
@@ -180,7 +180,7 @@ buffer:
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
-    n_workers: *nworkers
+    n_runners: *nrunners
     n_envs: *nenvs
     # batch_size: *bs
     n_steps: *nsteps
@@ -195,7 +195,7 @@ buffer:
     n_aux_mbs_per_seg: *nambs
     n_aux_epochs: *naepochs
 
-    # mini-batch size = n_workers * n_envs * epslen / n_mbs
+    # mini-batch size = n_runners * n_envs * epslen / n_mbs
     sample_keys:
         - obs
         - global_state

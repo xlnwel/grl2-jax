@@ -94,7 +94,7 @@ def get_worker_class(AgentBase):
             config_actor(name, config)
             
             # avoids additional workers created by RayVecEnv
-            env_config['n_workers'] = 1
+            env_config['n_runners'] = 1
             self.env = create_env(env_config)
 
             buffer_config['n_envs'] = self.env.n_envs

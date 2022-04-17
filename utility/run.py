@@ -77,8 +77,6 @@ class Runner:
                 and i in self._record_envs]
             if done_env_ids:
                 info = self.env.info(done_env_ids)
-                # further filter done caused by life loss
-                info = [i for i in info if i.get('game_over')]
                 if info:
                     self.store_info(info)
                 self.episodes[done_env_ids] += 1

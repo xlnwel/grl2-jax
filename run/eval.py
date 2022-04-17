@@ -19,7 +19,7 @@ from run.utils import search_for_config
 
 def main(config, n, record=False, size=(128, 128), video_len=1000, 
         fps=30, save=False):
-    use_ray = config.env.get('n_workers', 0) > 1
+    use_ray = config.env.get('n_runners', 0) > 1
     if use_ray:
         import ray
         ray.init()
@@ -87,7 +87,7 @@ if __name__ == '__main__':
         if args.n_runners:
             if 'runner' in config:
                 config.runner.n_runners = args.n_runners
-            config.env.n_workers = args.n_runners
+            config.env.n_runners = args.n_runners
         if args.n_envs:
             config.env.n_envs = args.n_envs
         n = max(args.n_runners * args.n_envs, n)

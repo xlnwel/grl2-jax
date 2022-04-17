@@ -2,7 +2,7 @@ from time import strftime, gmtime, time
 from collections import defaultdict
 
 from utility.aggregator import Aggregator
-from utility.display import pwc
+from utility.display import pwt
 
 
 def timeit(func, *args, name=None, to_print=True, 
@@ -14,15 +14,12 @@ def timeit(func, *args, name=None, to_print=True,
     end_time = gmtime()
 
     if to_print:
-        pwc(f'{name if name else func.__name__}: '
+        pwt(f'{name if name else func.__name__}: '
             f'Start "{strftime("%d %b %H:%M:%S", start_time)}"', 
             f'End "{strftime("%d %b %H:%M:%S", end_time)}" ' 
-            f'Duration "{end - start:.3g}s"', color='blue')
+            f'Duration "{end - start:.3g}s"')
 
-    if return_duration:
-	    return end - start, result
-    else:
-        return result
+    return end - start, result if return_duration else result
 
 
 class Timer:
@@ -55,11 +52,11 @@ class Timer:
                     duration = aggregator.average()
                     duration = (f'{duration*1000:.3g}ms' if duration < 1e-1 
                                 else f'{duration:.3g}s')
-                    pwc(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times', color='blue')
+                    pwt(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times')
                     aggregator.reset()
                 else:
                     duration = aggregator.sum
-                    pwc(f'{self._summary_name} duration: "{duration}" for {aggregator.count} times', color='blue')
+                    pwt(f'{self._summary_name} duration: "{duration}" for {aggregator.count} times')
 
     def reset(self):
         aggregator = self.aggregators[self._summary_name]
@@ -102,7 +99,7 @@ class TBTimer:
                 tf.summary.scalar(f'time/{self._summary_name}', duration, step=step)
                 aggregator.reset()
                 if self._print_terminal_info:
-                    pwc(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times', color='blue')
+                    pwt(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times')
 
 
 class LoggerTimer:

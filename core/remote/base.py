@@ -1,13 +1,23 @@
 from typing import Any, List
+import random
+import numpy as np
 import ray
 
-from core.tf_config import configure_gpu, silence_tf_logs
+from core.tf_config import \
+    configure_gpu, silence_tf_logs, set_tf_random_seed
 
 
 class RayBase:
-    def __init__(self):
+    def __init__(self, id=None, seed=None):
         silence_tf_logs()
         configure_gpu()
+        if seed is not None:
+            if id is not None:
+                seed += id * 1000
+            print('seed', seed)
+            random.seed(seed)
+            np.random.seed(seed)
+            set_tf_random_seed(seed)
 
     def register_handler(self, **kwargs):
         for k, v in kwargs.items():

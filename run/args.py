@@ -1,4 +1,5 @@
 import argparse
+from datetime import datetime
 
 
 def parse_train_args():
@@ -30,8 +31,9 @@ def parse_train_args():
     parser.add_argument('--prefix', '-p',
                         default='',
                         help='directory prefix')
+    dt = datetime.now()
     parser.add_argument('--model_name', '-n',
-                        default='',
+                        default=f'{dt.month:02d}{dt.day:02d}',
                         help='model name')
     parser.add_argument('--logdir', '-ld',
                         type=str,
@@ -48,6 +50,9 @@ def parse_train_args():
                         help="the verbose level for python's built-in logging")
     parser.add_argument('--gpu',
                         type=str,
+                        default=None)
+    parser.add_argument('--seed', '-s',
+                        type=int,
                         default=None)
     args = parser.parse_args()
 
@@ -102,11 +107,11 @@ def parse_rank_args():
                         help='payoff name')
     parser.add_argument('--n_episodes', '-n', 
                         type=int, 
-                        default=10)
+                        default=1000)
     parser.add_argument('--n_envs', '-ne', 
                         type=int, 
                         default=None)
-    parser.add_argument('--n_workers', '-nw', 
+    parser.add_argument('--n_runners', '-nw', 
                         type=int, 
                         default=None)
     parser.add_argument('--verbose', '-v', 

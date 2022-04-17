@@ -2,7 +2,9 @@ import functools
 import numpy as np
 
 from core.elements.builder import ElementsBuilder
-from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
+from core.tf_config import \
+    configure_gpu, configure_precision, set_tf_random_seed, silence_tf_logs
+from utility.display import pwt
 from utility.utils import TempStore
 from utility.run import Runner, evaluate
 from utility.timer import Every, Timer
@@ -75,7 +77,7 @@ def train(config, agent, env, eval_env, buffer):
             agent.record(step=step)
             agent.save()
 
-    print('Training starts...')
+    pwt('Training starts...')
     train_step = agent.get_train_step()
     while step < config.MAX_STEPS:
         start_env_step = agent.get_env_step()
@@ -107,6 +109,7 @@ def train(config, agent, env, eval_env, buffer):
         buffer.reset()
         if to_eval(train_step) or step > config.MAX_STEPS:
             evaluate_agent(step, eval_env, agent)
+
         if to_record(train_step) and agent.contains_stats('score'):
             record_stats(step)
 
@@ -114,10 +117,14 @@ def main(configs, train=train):
     assert len(configs) == 1, configs
     config = configs[0]
     silence_tf_logs()
+    seed = config.get('seed')
+    print('seed', seed)
+    np.random.seed(seed)
+    set_tf_random_seed(seed)
     configure_gpu()
     configure_precision(config.precision)
 
-    use_ray = config.env.get('n_workers', 1) > 1
+    use_ray = config.env.get('n_runners', 1) > 1
     if use_ray:
         import ray
         from utility.ray_setup import sigint_shutdown_ray
@@ -132,7 +139,7 @@ def main(configs, train=train):
                 eval_env_config['num_levels'] = 0
             if 'seed' in eval_env_config:
                 eval_env_config['seed'] += 1000
-            eval_env_config['n_workers'] = 1
+            eval_env_config['n_runners'] = 1
             for k in list(eval_env_config.keys()):
                 # pop reward hacks
                 if 'reward' in k:

@@ -61,9 +61,6 @@ class Overcooked:
         self.n_units = len(self.uid2aid)
         self.n_agents = len(self.aid2uids)
 
-        self.obs_shape = self._get_observation_shape()
-        self.obs_dtype = self._get_observation_dtype()
-
         self.action_space = [gym.spaces.Discrete(len(Action.ALL_ACTIONS)) 
             for _ in range(self.n_agents)]
         self.action_shape = [a.shape for a in self.action_space]
@@ -71,6 +68,9 @@ class Overcooked:
         self.action_dtype = [np.int32
             for _ in range(self.n_agents)]
         self.is_action_discrete = [True for _ in range(self.n_agents)]
+
+        self.obs_shape = self._get_observation_shape()
+        self.obs_dtype = self._get_observation_dtype()
 
     def get_screen(self, **kwargs):
         """
@@ -88,12 +88,16 @@ class Overcooked:
             shape = self._env.featurize_state_mdp(dummy_state)[0].shape
             obs_shape = [dict(
                 obs=shape,
-                global_state=shape
+                global_state=shape, 
+                prev_reward=(), 
+                prev_action=(self.action_dim[0],), 
             ) for _ in self.aid2uids]
         else:
             shape = self._env.lossless_state_encoding_mdp(dummy_state)[0].shape
             obs_shape = [dict(
                 obs=shape,
+                prev_reward=(), 
+                prev_action=(self.action_dim[0],), 
             ) for _ in self.aid2uids]
         if self._add_goal:
             for shape in obs_shape:
@@ -105,10 +109,14 @@ class Overcooked:
             obs_dtype = [dict(
                 obs=np.float32,
                 global_state=np.float32,
+                prev_reward=np.float32, 
+                prev_action=np.float32, 
             ) for _ in self.aid2uids]
         else:
             obs_dtype = [dict(
                 obs=np.float32,
+                prev_reward=np.float32, 
+                prev_action=np.float32, 
             ) for _ in self.aid2uids]
         if self._add_goal:
             for dtype in obs_dtype:
@@ -156,10 +164,16 @@ class Overcooked:
     def _get_obs(self, state, action=None):
         if self._featurize:
             obs = self._env.featurize_state_mdp(state)
-            obs = [np.expand_dims(o, 0) for o in obs]
-            obs = [dict(obs=o, global_state=o) for o in obs]
+            obs = [np.expand_dims(o, 0).astype(np.float32) for o in obs]
+            obs = [dict(
+                obs=o, 
+                global_state=o, 
+                prev_reward=np.zeros((1, self.action_dim[0]), dtype=np.float32), 
+                prev_action=np.zeros((1, ), dtype=np.float32), 
+            ) for o in obs]
         else:
-            obs = [dict(obs=np.expand_dims(o, 0).astype(np.float32)) 
+            obs = [dict(
+                obs=np.expand_dims(o, 0).astype(np.float32)) 
                 for o in self._env.lossless_state_encoding_mdp(state)]
         if self._add_goal:
             goal = self._get_pots_status()

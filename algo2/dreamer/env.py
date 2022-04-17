@@ -170,7 +170,7 @@ class Atari(gym.Env):
 if __name__ == '__main__':
     config= dict(
         name='dmc_walker_walk',
-        n_workers=1,
+        n_runners=1,
         n_envs=1,
         log_episode=True,
         auto_reset=True,

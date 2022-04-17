@@ -12,14 +12,14 @@ from env.utils import batch_env_output
 class Env(gym.Wrapper):
     def __init__(self, config, env_fn=make_env, agents={}):
         self.env = env_fn(config, eid=None, agents=agents)
-        if 'seed' in config and hasattr(self.env, 'seed'):
+        if config.get('seed') and hasattr(self.env, 'seed'):
             self.env.seed(config['seed'])
         self.name = config['env_name']
         self.max_episode_steps = self.env.max_episode_steps
         self.n_envs = getattr(self.env, 'n_envs', 1)
         self.env_type = 'Env'
         self._stats = self.env.stats()
-        self._stats['n_workers'] = 1
+        self._stats['n_runners'] = 1
         self._stats['n_envs'] = self.n_envs
         super().__init__(self.env)
 
@@ -113,14 +113,14 @@ class VecEnv(VecEnvBase):
             config, config['eid'] + eid if 'eid' in config else None, agents)
             for eid in range(n_envs)]
         self.env = self.envs[0]
-        if 'seed' in config:
+        if config.get('seed'):
             [env.seed(config['seed'] + i) 
                 for i, env in enumerate(self.envs)
                 if hasattr(env, 'seed')]
         self.max_episode_steps = self.env.max_episode_steps
         super().__init__()
         self._stats = self.env.stats()
-        self._stats['n_workers'] = 1
+        self._stats['n_runners'] = 1
         self._stats['n_envs'] = self.n_envs
         self._stats['is_multi_agent'] = False
 
@@ -227,14 +227,14 @@ class MAVecEnv(VecEnvBase):
             config, config['eid'] + eid if 'eid' in config else None, agents)
             for eid in range(n_envs)]
         self.env = self.envs[0]
-        if 'seed' in config:
+        if config.get('seed'):
             [env.seed(config['seed'] + i) 
                 for i, env in enumerate(self.envs)
                 if hasattr(env, 'seed')]
         self.max_episode_steps = self.env.max_episode_steps
         super().__init__()
         self._stats = self.env.stats()
-        self._stats['n_workers'] = 1
+        self._stats['n_runners'] = 1
         self._stats['n_envs'] = self.n_envs
         self._stats['is_multi_agent'] = True
 
@@ -369,7 +369,7 @@ class MAVecEnv(VecEnvBase):
 if __name__ == '__main__':
     config = dict(
         env_name='smac_6h_vs_8z',
-        n_workers=8,
+        n_runners=8,
         n_envs=1,
         use_state_agent=True,
         use_mustalive=True,

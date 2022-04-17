@@ -15,16 +15,13 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 180
-    restart_runners_priod: 3600
+    store_period: 60
+    restart_runners_priod: null
     max_version_iterations: 1000
-    max_steps_per_iteration: 10000
+    max_steps_per_iteration: 1000
     initialize_rms: &irms False
 
 parameter_server:
-    fsp: False
-    p: 3    # the exponent applied to convert scores to weights
-    default_score: 0
     root_dir: *algo
     model_name: *algo
 
@@ -38,9 +35,6 @@ parameter_server:
 ray_config:
     runner:
         num_cpus: 1
-        max_restarts: -1
-        max_task_retries: -1
-
     agent:
         num_gpus: 1
 
@@ -49,7 +43,6 @@ monitor: {}
 runner:
     n_runners: &nrunners 10
     n_steps: &nsteps 20
-    record_self_play_stats: False
     push_every_episode: False
 
 env:
@@ -72,7 +65,7 @@ agent: {}
 
 strategy:
     train_loop:
-        n_epochs: &nepochs 2
+        n_epochs: &nepochs 1
         n_mbs: &nmbs 1
         n_aux_epochs: &naepochs 9
         n_pi: &npi 16
@@ -138,7 +131,7 @@ actor:
     algorithm: *algo
 
     rms:
-        obs_names: [obs]
+        obs_names: []
         normalize_obs: *irms
         normalize_reward: True
         obs_normalized_axis: [0, 1]
@@ -160,6 +153,7 @@ buffer:
     n_epochs: *nepochs
     n_mbs: *nmbs        # number of minibatches
     fragment_size: null
+    rnn_type: *rnn
     sample_size: *ss
     norm_adv: minibatch
 

@@ -66,7 +66,7 @@ def get_learner_class(AgentBase):
             config_actor(name, config)
 
             # avoids additional workers created by RayVecEnv
-            env_config['n_workers'] = 1
+            env_config['n_runners'] = 1
             env_config['n_envs'] = 1
             env = create_env(env_config)
 

@@ -19,7 +19,7 @@ default_agent_config = {
     # distributed algo params
     'n_learner_cpus': 1,
     'n_learner_gpus': 1,
-    'n_workers': 5,
+    'n_runners': 5,
     'n_worker_cpus': 1,
     'n_worker_gpus': 0,
 }
@@ -55,7 +55,7 @@ def main(env_config, model_config, agent_config, replay_config):
 
     Worker = am.get_worker_class(Agent)
     workers = []
-    for wid in range(agent_config['n_workers']):
+    for wid in range(agent_config['n_runners']):
         worker = fm.create_worker(
             Worker=Worker, 
             worker_id=wid, 

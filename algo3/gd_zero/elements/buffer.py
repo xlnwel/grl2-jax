@@ -419,7 +419,7 @@ if __name__ == '__main__':
         type='ppg',
         gamma=1,
         lam=1,
-        n_workers=2,
+        n_runners=2,
         n_envs=2,
         sample_size=2,
         n_steps=n_steps,

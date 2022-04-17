@@ -23,8 +23,8 @@ def create_env(
     if config['env_name'].startswith('unity'):
         # Unity handles vectorized environments by itself
         env = Env(config, env_fn, agents=agents)
-    elif no_remote or config.get('n_workers', 1) <= 1:
-        config['n_workers'] = 1
+    elif no_remote or config.get('n_runners', 1) <= 1:
+        config['n_runners'] = 1
         if force_envvec or config.get('n_envs', 1) > 1:
             EnvType = MAVecEnv if is_ma_suite(config['env_name']) else VecEnv
         else:
@@ -40,14 +40,14 @@ def create_env(
 def get_env_stats(config):
     # TODO (cxw): store env_stats in a standalone file for costly environments
     tmp_env_config = config.copy()
-    tmp_env_config['n_workers'] = 1
+    tmp_env_config['n_runners'] = 1
     # we cannot change n_envs for unity environments
     if not config.env_name.startswith('unity'):
         tmp_env_config['n_envs'] = 1
     env = create_env(tmp_env_config, force_envvec=False)
     env_stats = env.stats()
-    env_stats.n_workers = config.get('n_workers', 1)
-    env_stats.n_envs = env_stats.n_workers * config.n_envs
+    env_stats.n_runners = config.get('n_runners', 1)
+    env_stats.n_envs = env_stats.n_runners * config.n_envs
     env.close()
     return env_stats
 

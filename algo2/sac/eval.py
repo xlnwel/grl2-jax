@@ -17,7 +17,7 @@ def main(env_config, model_config, agent_config, replay_config,
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
 
-    use_ray = env_config.get('n_workers', 0) > 1
+    use_ray = env_config.get('n_runners', 0) > 1
     if use_ray:
         import ray
         ray.init()
@@ -28,7 +28,7 @@ def main(env_config, model_config, agent_config, replay_config,
 
     if record:
         env_config['log_episode'] = True
-        env_config['n_workers'] = env_config['n_envs'] = 1
+        env_config['n_runners'] = env_config['n_envs'] = 1
 
     env = create_env(env_config, force_envvec=force_envvec)
 
@@ -43,9 +43,9 @@ def main(env_config, model_config, agent_config, replay_config,
         env=env)
 
     if save:
-        n_workers = env_config.get('n_workers', 1)
+        n_runners = env_config.get('n_runners', 1)
         n_envs = env_config.get('n_envs', 1)
-        replay_config['n_envs'] = n_workers * n_envs
+        replay_config['n_envs'] = n_runners * n_envs
         replay_config['replay_type'] = 'uniform'
         replay_config['dir'] = f'data/{agent.name.lower()}-{env.name.lower()}'
         replay_config['n_steps'] = 1

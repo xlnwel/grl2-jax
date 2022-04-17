@@ -62,7 +62,7 @@ def main(env_config, model_config, agent_config, replay_config):
     configure_gpu()
     configure_precision(agent_config['precision'])
 
-    use_ray = env_config.get('n_workers', 0) > 1
+    use_ray = env_config.get('n_runners', 0) > 1
     if use_ray:
         import ray
         ray.init()
@@ -71,7 +71,7 @@ def main(env_config, model_config, agent_config, replay_config):
     env = create_env(env_config, make_env, force_envvec=True)
     eval_env_config = env_config.copy()
     eval_env_config['n_envs'] = 1
-    eval_env_config['n_workers'] = 1
+    eval_env_config['n_runners'] = 1
     eval_env = create_env(eval_env_config, make_env)
 
     replay_config['dir'] = agent_config['root_dir'].replace('logs', 'data')

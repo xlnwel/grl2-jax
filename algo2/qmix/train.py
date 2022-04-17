@@ -88,7 +88,7 @@ def main(env_config, model_config, agent_config, replay_config):
     configure_gpu()
     configure_precision(agent_config.get('precision', 32))
 
-    use_ray = env_config.get('n_workers', 1) > 1
+    use_ray = env_config.get('n_runners', 1) > 1
     if use_ray:
         import ray
         from utility.ray_setup import sigint_shutdown_ray
@@ -97,20 +97,20 @@ def main(env_config, model_config, agent_config, replay_config):
 
     env = create_env(env_config)
     # eval_env_config = env_config.copy()
-    # eval_env_config['n_workers'] = 1
+    # eval_env_config['n_runners'] = 1
     # eval_env_config['n_envs'] = 1
     # reward_key = [k for k in eval_env_config.keys() if 'reward' in k]
     # [eval_env_config.pop(k) for k in reward_key]
     # eval_env = create_env(eval_env_config, force_envvec=True)
     eval_env = None
 
-    agent_config['N_UPDATES'] *= env_config['n_workers'] * env_config['n_envs']
+    agent_config['N_UPDATES'] *= env_config['n_runners'] * env_config['n_envs']
     create_model, Agent = pkg.import_agent(config=agent_config)
     models = create_model(model_config, env)
 
-    n_workers = env_config.get('n_workers', 1)
+    n_runners = env_config.get('n_runners', 1)
     n_envs = env_config.get('n_envs', 1)
-    replay_config['n_envs'] = n_workers * n_envs
+    replay_config['n_envs'] = n_runners * n_envs
     replay_config['seqlen'] = env.max_episode_steps
     if getattr(models, 'state_keys', ()):
         replay_config['state_keys'] = list(models.state_keys)

@@ -66,12 +66,19 @@ class PPOLoss(PPOLossImpl):
             value_loss = self.config.value_coef * value_loss
             loss = actor_loss + value_loss
 
+        pi = tf.exp(logpi)
+        new_pi = tf.exp(new_logpi)
         ratio = tf.exp(log_ratio)
         terms.update(dict(
             value=value,
             ratio=ratio, 
             entropy=entropy, 
             kl=kl, 
+            logpi=logpi,
+            new_logpi=new_logpi, 
+            pi=pi,
+            new_pi=new_pi, 
+            diff_pi=new_pi - pi, 
             p_clip_frac=p_clip_frac,
             policy_loss=policy_loss,
             actor_loss=actor_loss,

@@ -29,10 +29,10 @@ if __name__ == '__main__':
 
     # set up env_config
     n = args.n_episodes
-    if args.n_workers:
+    if args.n_runners:
         if 'runner' in config:
-            config.runner.n_runners = args.n_workers
-        config.env.n_workers = args.n_workers
+            config.runner.n_runners = args.n_runners
+        config.env.n_runners = args.n_runners
     if args.n_envs:
         config.env.n_envs = args.n_envs
     n = max(config.runner.n_runners * config.env.n_envs, n)

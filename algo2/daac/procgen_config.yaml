@@ -1,7 +1,7 @@
 ---
 env:
     env_name: &env_name procgen_coinrun
-    n_workers: 1
+    n_runners: 1
     n_envs: &nenvs 64
     frame_skip: 1
     frame_stack: 1
@@ -81,4 +81,4 @@ buffer:
     n_mbs: *nmbs        # number of minibatches
     sample_keys: [obs, action, value, traj_ret, advantage, logpi]
     norm_adv: True
-    # mini-batch size = n_workers * n_envs * epslen / n_mbs
+    # mini-batch size = n_runners * n_envs * epslen / n_mbs

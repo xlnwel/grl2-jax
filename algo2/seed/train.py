@@ -39,7 +39,7 @@ def main(env_config, model_config, agent_config, replay_config):
     # create workers
     Worker = am.get_worker_class()
     workers = []
-    for wid in range(agent_config['n_workers']):
+    for wid in range(agent_config['n_runners']):
         worker = fm.create_worker(
             Worker=Worker, 
             worker_id=wid, 
@@ -65,8 +65,8 @@ def main(env_config, model_config, agent_config, replay_config):
     Actor = am.get_actor_class(Agent)
     actors = []
     na = agent_config['n_actors']
-    nw = agent_config['n_workers']
-    assert nw % na == 0, f"n_workers({nw}) is not divisible by n_actors({na})"
+    nw = agent_config['n_runners']
+    assert nw % na == 0, f"n_runners({nw}) is not divisible by n_actors({na})"
     wpa = nw // na
     for aid in range(agent_config['n_actors']):
         actor = fm.create_actor(

@@ -36,7 +36,7 @@ class ActionScheduler:
                     self._act_eps_type, 
                     self._act_eps, 
                     getattr(self, '_id', None), 
-                    getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
+                    getattr(self, '_n_runners', getattr(env, 'n_runners', 1)), 
                     env.n_envs)
                 if env.action_shape != ():
                     self._act_eps = self._act_eps.reshape(-1, 1)
@@ -54,7 +54,7 @@ class ActionScheduler:
                 self._max_temp,
                 getattr(self, '_n_exploit_envs', 0),
                 getattr(self, '_id', None),
-                getattr(self, '_n_workers', getattr(env, 'n_workers', 1)), 
+                getattr(self, '_n_runners', getattr(env, 'n_runners', 1)), 
                 env.n_envs)
             self._act_temp = self._act_temp.reshape(-1, 1)
             self._schedule_act_temp = False         # not run-time scheduling    

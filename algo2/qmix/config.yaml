@@ -1,7 +1,7 @@
 ---
 env:
     env_name: &env_name smac2_3m
-    n_workers: 1
+    n_runners: 1
     n_envs: &nenvs 1
     obs_agent_id: True
     obs_own_last_action: True

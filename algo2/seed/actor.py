@@ -37,7 +37,7 @@ def get_actor_class(AgentBase):
             psutil.Process().nice(config.get('default_nice', 0)+2)
 
             # avoids additional workers created by RayVecEnv
-            env_config['n_workers'] = 1
+            env_config['n_runners'] = 1
             # create env to get state&action spaces
             self._n_vecenvs = env_config['n_vecenvs']
             self._n_envs = env_config['n_envs']
@@ -53,7 +53,7 @@ def get_actor_class(AgentBase):
                 env=env)
 
             # number of workers per actor
-            self._wpa = self._n_workers // self._n_actors
+            self._wpa = self._n_runners // self._n_actors
 
             # number of env(vec) instances for each inference pass
             self._action_batch = int(
@@ -218,7 +218,7 @@ def get_worker_class():
             self.name = f'Worker_{self._id}'
             
             # avoids additional workers created by RayVecEnv
-            env_config['n_workers'] = 1
+            env_config['n_runners'] = 1
             self._n_vecenvs, self._envvecs = self._create_envvec(env_config)
             
             collect_fn = pkg.import_module(
@@ -277,7 +277,7 @@ def get_worker_class():
 
         def _create_envvec(self, env_config):
             n_vecenvs = env_config.pop('n_vecenvs')
-            env_config.pop('n_workers', None)
+            env_config.pop('n_runners', None)
             envvecs = [
                 create_env(env_config, force_envvec=True) 
                 for _ in range(n_vecenvs)]

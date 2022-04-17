@@ -20,7 +20,7 @@ from utility.utils import AttrDict2dict, batch_dicts, dict2AttrDict
 class RunnerManager(RayBase):
     def __init__(self, config, store_data=True, evaluation=False, parameter_server=None):
         self.config = dict2AttrDict(config['runner'])
-        self.n_envs = config['env']['n_workers'] * config['env']['n_envs']
+        self.n_envs = config['env']['n_runners'] * config['env']['n_envs']
         self.n_eval_envs = max(self.n_envs * (1 - self.config.online_frac) * .5, 100)
         config = AttrDict2dict(config)
         RemoteRunner = TwoAgentRunner.as_remote(**config['runner']['ray'])
@@ -29,7 +29,7 @@ class RunnerManager(RayBase):
             store_data=store_data, 
             evaluation=evaluation,
             parameter_server=parameter_server) 
-                for _ in range(config['env']['n_workers'])]
+                for _ in range(config['env']['n_runners'])]
 
     def max_steps(self):
         return self.config.MAX_STEPS
@@ -115,8 +115,8 @@ class TwoAgentRunner(RayBase):
         self._self_play_frac = self.config.get('online_frac', 0)
         self._record_self_play_stats = self.config.get('record_self_play_stats', True)
         config.buffer.type = 'local'
-        n_workers = config.env.n_workers
-        config.env.n_workers = 1
+        n_runners = config.env.n_runners
+        config.env.n_runners = 1
 
         self.env = create_env(config.env)
         self.env_stats = self.env.stats()
@@ -130,7 +130,7 @@ class TwoAgentRunner(RayBase):
             elements = builder.build_acting_agent_from_scratch(to_build_for_eval=self.evaluation)
             self.other_agent = elements.agent
             self.algo2agent[config.model_name.split('/')[0]] = self.other_agent
-        self.step = self.agent.get_env_step() // n_workers
+        self.step = self.agent.get_env_step() // n_runners
         self.n_episodes = 0
 
         if self.store_data:

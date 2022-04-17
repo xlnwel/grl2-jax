@@ -841,15 +841,15 @@ if __name__ == '__main__':
                 print(f'{prefix} {k}: {v}')
 
 
-    def print_dict_tensors(d, prefix=''):
+    def print_dict_info(d, prefix=''):
         for k, v in d.items():
             if isinstance(v, dict):
                 print(f'{prefix} {k}')
-                print_dict_tensors(v, prefix + '\t')
+                print_dict_info(v, prefix + '\t')
             elif isinstance(v, tuple):
                 # namedtuple is assumed
                 print(f'{prefix} {k}')
-                print_dict_tensors(v._asdict(), prefix + '\t')
+                print_dict_info(v._asdict(), prefix + '\t')
             else:
                 print(f'{prefix} {k}: {v.shape} {v.dtype}')
 
@@ -865,7 +865,7 @@ if __name__ == '__main__':
     observations = env.reset()
     print('reset observations')
     for i, o in enumerate(observations):
-        print_dict_tensors(o, f'\tagent{i}')
+        print_dict_info(o, f'\tagent{i}')
 
     for k in range(1, 50000):
         # env.env.reset_envs_with_ids([2])
@@ -874,7 +874,7 @@ if __name__ == '__main__':
         observations, rewards, dones, reset = env.step(actions)
         print(f'Step {k}, observations')
         for i, o in enumerate(observations):
-            print_dict_tensors(o, f'\tagent{i}')
+            print_dict_info(o, f'\tagent{i}')
         print(f'Step {k}, rewards', rewards)
         print(f'Step {k}, dones', dones)
         print(f'Step {k}, reset', reset)

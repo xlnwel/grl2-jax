@@ -2,17 +2,34 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 from core.module import Module
-from nn.registry import layer_registry, block_registry
+from nn.func import mlp
+from nn.registry import layer_registry, block_registry, nn_registry
 from nn.utils import get_norm, call_norm
 
 
+@nn_registry.register('att')
+@block_registry.register('att')
 @layer_registry.register('att')
 class Attention(layers.Layer):
-    def __init__(self,
-                 name='attention',):
+    def __init__(
+        self,
+        query=None, 
+        key=None, 
+        value=None, 
+        name='attention',
+    ):
+        self._query_layer = mlp(**query, name=f'query') if query else None
+        self._key_layer = mlp(**key, name=f'key') if key else None
+        self._value_layer = mlp(**value, name=f'value') if value else None
         super().__init__(name=name)
 
     def call(self, q, k, v, mask=None):
+        if self._query_layer is not None:
+            q = self._query_layer(q)
+        if self._key_layer is not None:
+            k = self._key_layer(k)
+        if self._value_layer is not None:
+            v = self._value_layer(v)
         # softmax(QK^T)V
         dot_product = tf.matmul(q, k, transpose_b=True)
         if mask is not None:
@@ -22,22 +39,25 @@ class Attention(layers.Layer):
         return x
 
 
+@nn_registry.register('mhsa')
 @block_registry.register('mhsa')
 @layer_registry.register('mhsa')
 class MultiHeadSelfAttention(layers.Layer):
-    def __init__(self,
-                 key_size,
-                 val_size,
-                 num_heads,
-                 scale_logits=True,
-                 out_size=None,
-                 pre_norm=False,
-                 norm='layer',
-                 norm_kwargs={},
-                 drop_rate=0,
-                 use_rezero=False,
-                 name='mhsa',
-                 **kwargs):
+    def __init__(
+        self,
+        key_size,
+        val_size,
+        num_heads,
+        scale_logits=True,
+        out_size=None,
+        pre_norm=False,
+        norm='layer',
+        norm_kwargs={},
+        drop_rate=0,
+        use_rezero=False,
+        name='mhsa',
+        **kwargs
+    ):
         super().__init__(name=name)
         self._key_size = key_size
         self._val_size = val_size
@@ -114,27 +134,30 @@ class MultiHeadSelfAttention(layers.Layer):
         return x
 
 
+@nn_registry.register('conv_sa')
 @block_registry.register('conv_sa')
 class ConvSelfAttention(Module):
     """ Convolutional Self-Attention Module, 
     following SAGAN: https://arxiv.org/abs/1805.08318
     """
-    def __init__(self,
-                 key_size=None,
-                 val_size=None,
-                 key_ratio=8,
-                 val_ratio=2,
-                 scale_logits=False,
-                 conv='conv2d',
-                 downsample_ratio=2,
-                 out_size=None,
-                 pre_norm=False,
-                 norm=None,
-                 norm_kwargs={},
-                 drop_rate=0,
-                 use_rezero=True,
-                 name='conv_sa',
-                 **kwargs):
+    def __init__(
+        self,
+        key_size=None,
+        val_size=None,
+        key_ratio=8,
+        val_ratio=2,
+        scale_logits=False,
+        conv='conv2d',
+        downsample_ratio=2,
+        out_size=None,
+        pre_norm=False,
+        norm=None,
+        norm_kwargs={},
+        drop_rate=0,
+        use_rezero=True,
+        name='conv_sa',
+        **kwargs
+    ):
         super().__init__(name=name)
         self._key_size = key_size
         self._val_size = val_size

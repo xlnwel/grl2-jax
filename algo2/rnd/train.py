@@ -113,7 +113,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     create_model, Agent = pkg.import_agent(config=agent_config)
     Buffer = pkg.import_module('buffer', config=agent_config).Buffer
 
-    use_ray = env_config.get('n_workers', 1) > 1
+    use_ray = env_config.get('n_runners', 1) > 1
     if use_ray:
         import ray
         from utility.ray_setup import sigint_shutdown_ray
@@ -123,7 +123,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     env = create_env(env_config, force_envvec=True)
     eval_env_config = env_config.copy()
     eval_env_config['seed'] += 1000
-    eval_env_config['n_workers'] = 1
+    eval_env_config['n_runners'] = 1
     eval_env_config['n_envs'] = 1
     for k in list(eval_env_config.keys()):
         # pop reward hacks

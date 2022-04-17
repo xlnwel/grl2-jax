@@ -62,6 +62,9 @@ class Recorder:
             else:
                 self._store_dict[k].append(v)
 
+    def peep_stats_names(self):
+        return list(self._store_dict)
+
     """ All get functions below will remove the corresponding items from the store """
     def get_raw_item(self, key):
         if key in self._store_dict:

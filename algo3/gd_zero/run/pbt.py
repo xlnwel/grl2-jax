@@ -15,7 +15,7 @@ def main(config):
     sigint_shutdown_ray()
 
     env_stats = get_env_stats(config.env)
-    config.buffer.n_envs = env_stats.n_workers * env_stats.n_envs
+    config.buffer.n_envs = env_stats.n_runners * env_stats.n_envs
 
     parameter_server = ParameterServer.as_remote().remote(
         config=config.asdict(),

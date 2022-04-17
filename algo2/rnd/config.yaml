@@ -2,7 +2,7 @@
 env:
     env_name: &env_name atari_MontezumaRevenge
     max_episode_steps: 18000
-    n_workers: 5
+    n_runners: 5
     n_envs: &nenvs 2
     seed: 0
     frame_skip: 4
@@ -70,4 +70,4 @@ buffer:
     n_steps: *nsteps
     n_mbs: *nmbs        # number of minibatches
     norm-adv: False
-    # mini-batch size = n_workers * n_envs * epslen / n_mbs
+    # mini-batch size = n_runners * n_envs * epslen / n_mbs

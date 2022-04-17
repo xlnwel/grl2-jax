@@ -56,7 +56,7 @@ agent:
     # distributed algo params
     n_learner_cpus: 1
     n_learner_gpus: .1
-    n_workers: 10
+    n_runners: 10
     n_worker_cpus: 1
     n_worker_gpus: 0.01
     run_mode: traj

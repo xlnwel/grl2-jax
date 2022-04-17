@@ -5,10 +5,6 @@ from utility.typing import AttrDict
 
 
 class Loss(tf.Module):
-    """ We do not need this class for now. However, 
-    in case one day we need multiple GPUs for training, 
-    this class will come in handy.
-    """
     def __init__(
         self,
         *,
@@ -24,9 +20,14 @@ class Loss(tf.Module):
         [setattr(self, k, v) for k, v in self.model.items()]
         if use_tf:
             self.loss = tf.function(self.loss)
+        self._post_init()
 
     def loss(self):
         raise NotImplementedError
+
+    def _post_init(self):
+        """ Add some additional attributes and do some post processing here """
+        pass
 
 
 class LossEnsemble(Ensemble):

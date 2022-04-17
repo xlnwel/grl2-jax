@@ -175,8 +175,7 @@ def create_model(
     config.policy.action_dim = env_stats.action_dim[aid]
     config.policy.is_action_discrete = env_stats.is_action_discrete[aid]
 
-    Model = MAPPOModel if config.get('type', 'mappo') == 'mappo' else MAPPGModel
-    return Model(
+    return MAPPOModel(
         config=config, 
         env_stats=env_stats, 
         name=name,

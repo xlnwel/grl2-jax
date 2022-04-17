@@ -35,7 +35,8 @@ def create_optimizer(modules, config):
 
 class Optimizer(tf.Module):
     def __init__(
-        self, modules, 
+        self, 
+        modules, 
         *, 
         opt_name='adam', 
         lr, 

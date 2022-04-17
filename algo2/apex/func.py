@@ -52,7 +52,7 @@ def create_learner(
     
     config = disable_info_logging(config, display_var=True)
     # avoids additional workers created by RayVecEnv
-    env_config['n_workers'] = 1
+    env_config['n_runners'] = 1
 
     ray_config = ray_remote_config(config, 'learner')
     RayLearner = Learner.as_remote(**ray_config)
@@ -89,7 +89,7 @@ def create_worker(
     if 'seed' in env_config:
         env_config['seed'] += worker_id * 100
     # avoids additional workers created by RayVecEnv
-    env_config['n_workers'] = 1
+    env_config['n_runners'] = 1
 
     ray_config = ray_remote_config(config, 'worker')
     RayWorker = Worker.as_remote(**ray_config)
@@ -116,7 +116,7 @@ def create_evaluator(Evaluator, constructor, config, model_config, env_config):
 
     if 'seed' in env_config:
         env_config['seed'] += 999
-    env_config['n_workers'] = 1
+    env_config['n_runners'] = 1
     env_config['n_envs'] = env_config.pop('n_eval_envs', 4)
 
     RayEvaluator = Evaluator.as_remote(num_cpus=1)

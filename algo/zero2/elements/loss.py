@@ -40,6 +40,5 @@ class PPGLoss(PPOLoss):
 
         return tape, loss, terms
 
-def create_loss(config, model, name='mappo'):
-    Loss = PPOLoss if config.get('type', 'mappo') else PPGLoss
-    return Loss(config=config, model=model, name=name)
+def create_loss(config, model, name='ppo'):
+    return PPOLoss(config=config, model=model, name=name)

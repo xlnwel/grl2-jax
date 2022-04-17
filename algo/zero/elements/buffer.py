@@ -23,7 +23,8 @@ def compute_gae(
     gae_discount, 
     norm_adv=False, 
     mask=None, 
-    epsilon=1e-8
+    epsilon=1e-8, 
+    same_next_value=False
 ):
     if last_value is not None:
         last_value = np.expand_dims(last_value, 0)
@@ -31,7 +32,8 @@ def compute_gae(
     else:
         next_value = value[1:]
         value_a = value_a[:-1]
-    next_value = np.mean(next_value, axis=2, keepdims=True)
+    if same_next_value:
+        next_value = np.mean(next_value, axis=-1, keepdims=True)
     assert value.ndim == next_value.ndim, (value.shape, next_value.shape)
     advs = delta = (reward + discount * gamma * next_value - value_a).astype(np.float32)
     next_adv = 0
@@ -119,7 +121,9 @@ class LocalBuffer(Buffer):
             value_a=data['value_a'], 
             last_value=last_value, 
             gamma=self.config.gamma, 
-            gae_discount=self.gae_discount
+            gae_discount=self.gae_discount, 
+            mask=data.get('life_mask'),
+            same_next_value=self.config.get('same_next_value', False)
         )
         data['raw_adv'] = data['advantage']
 
@@ -226,7 +230,8 @@ class PPOBuffer(Buffer):
                 gae_discount=self.gae_discount,
                 norm_adv=self.norm_adv == 'batch',
                 mask=self._memory.get('life_mask'),
-                epsilon=self.epsilon)
+                epsilon=self.epsilon,
+                same_next_value=self.config.get('same_next_value', True))
         elif self.config.adv_type == 'vtrace':
             pass
         else:

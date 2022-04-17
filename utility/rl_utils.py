@@ -58,42 +58,42 @@ def logpi_correction(action, logpi, is_action_squashed):
     return logpi
 
 
-def apex_epsilon_greedy(worker_id, envs_per_worker, n_workers, epsilon=.4, alpha=8, sequential=True):
+def apex_epsilon_greedy(worker_id, envs_per_worker, n_runners, epsilon=.4, alpha=8, sequential=True):
     # the 𝝐-greedy schedule used in Ape-X and Agent57
-    assert worker_id is None or worker_id < n_workers, (worker_id, n_workers)
-    n_envs = n_workers * envs_per_worker
+    assert worker_id is None or worker_id < n_runners, (worker_id, n_runners)
+    n_envs = n_runners * envs_per_worker
     env_ids = np.arange(n_envs)
     if worker_id is not None:
         if sequential:
-            env_ids = env_ids.reshape((n_workers, envs_per_worker))[worker_id]
+            env_ids = env_ids.reshape((n_runners, envs_per_worker))[worker_id]
         else:
-            env_ids = env_ids.reshape((envs_per_worker, n_workers))[:, worker_id]
+            env_ids = env_ids.reshape((envs_per_worker, n_runners))[:, worker_id]
     env_ids = n_envs - env_ids - 1  # reverse the indices
     return epsilon ** (1 + env_ids / (n_envs - 1) * alpha)
 
 
-def compute_act_eps(act_eps_type, act_eps, worker_id, n_workers, envs_per_worker):
-    assert worker_id is None or worker_id < n_workers, \
-        f'worker ID({worker_id}) exceeds range. Valid range: [0, {n_workers})'
+def compute_act_eps(act_eps_type, act_eps, worker_id, n_runners, envs_per_worker):
+    assert worker_id is None or worker_id < n_runners, \
+        f'worker ID({worker_id}) exceeds range. Valid range: [0, {n_runners})'
     if act_eps_type == 'apex':
         act_eps = apex_epsilon_greedy(
-            worker_id, envs_per_worker, n_workers, 
+            worker_id, envs_per_worker, n_runners, 
             epsilon=act_eps, 
             sequential=True)
     elif act_eps_type == 'line':
         act_eps = np.linspace(
-            0, act_eps, n_workers * envs_per_worker)
+            0, act_eps, n_runners * envs_per_worker)
         if worker_id is not None:
             act_eps = act_eps.reshape(
-                n_workers, envs_per_worker)[worker_id]
+                n_runners, envs_per_worker)[worker_id]
     else:
         raise ValueError(f'Unknown type: {act_eps_type}')
 
     return act_eps
 
 
-def compute_act_temp(min_temp, max_temp, n_exploit_envs, worker_id, n_workers, envs_per_worker):
-    n_envs = n_workers * envs_per_worker
+def compute_act_temp(min_temp, max_temp, n_exploit_envs, worker_id, n_runners, envs_per_worker):
+    n_envs = n_runners * envs_per_worker
     if n_exploit_envs:
         assert n_exploit_envs < n_envs, f'{n_exploit_envs} >= {n_envs}'
         act_temps = np.concatenate(
@@ -104,9 +104,9 @@ def compute_act_temp(min_temp, max_temp, n_exploit_envs, worker_id, n_workers, e
     else:
         act_temps = np.logspace(
             np.log10(min_temp), np.log10(max_temp), 
-            n_workers * envs_per_worker)
+            n_runners * envs_per_worker)
     if worker_id is not None:
-        act_temps = act_temps.reshape(n_workers, envs_per_worker)[worker_id]
+        act_temps = act_temps.reshape(n_runners, envs_per_worker)[worker_id]
     
     return act_temps
 

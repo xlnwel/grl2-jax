@@ -14,7 +14,7 @@ def create_worker(
     if 'seed' in env_config:
         env_config['seed'] += worker_id * 100
     # avoids additional workers created by RayVecEnv
-    env_config['n_workers'] = 1
+    env_config['n_runners'] = 1
 
     ray_config = ray_remote_config(config, 'worker', default_cpus=1)
     RayWorker = Worker.as_remote(**ray_config)

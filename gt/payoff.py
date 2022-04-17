@@ -108,6 +108,9 @@ class PayoffWithModel(Payoff):
         self.sid2model: List[List[ModelPath]] = [[] for _ in range(n_agents)]
 
     """ Get & Set """
+    def get_all_models(self):
+        return self.sid2model
+
     def get_sid2model(self):
         return self.sid2model
     

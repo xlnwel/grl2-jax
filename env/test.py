@@ -23,7 +23,7 @@ if __name__ == '__main__':
         # debug=True
     )
 
-    if config.get('n_workers', 1) > 1:
+    if config.get('n_runners', 1) > 1:
         ray.init()
     env = create_env(config)
     print_dict(env.stats())

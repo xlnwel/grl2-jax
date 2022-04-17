@@ -17,7 +17,7 @@ routine:
 
 env:
     env_name: &env_name smac2-3s5z_vs_3s6z
-    n_workers: &nworkers 16
+    n_runners: &nrunners 16
     n_envs: &nenvs 1
     use_state_agent: True
     use_mustalive: True
@@ -135,14 +135,14 @@ buffer:
     adv_type: gae     # nae or gae
     gamma: *gamma
     lam: .95
-    n_workers: *nworkers
+    n_runners: *nrunners
     n_envs: *nenvs
     n_steps: *nsteps
     n_epochs: *nepochs
     n_mbs: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: minibatch
-    # mini-batch size = n_workers * n_envs * epslen / n_mbs
+    # mini-batch size = n_runners * n_envs * epslen / n_mbs
     sample_keys: 
         - obs
         - global_state

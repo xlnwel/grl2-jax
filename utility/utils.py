@@ -87,7 +87,7 @@ def config_attr(
             continue
         if private_attr and k.islower():
             k = f'_{k}'
-        if isinstance(v, str):
+        if isinstance(v, str) and k != 'root_dir' and k != 'model_name':
             try:
                 v = float(v)
             except:

@@ -32,7 +32,7 @@ runner:
 env:
     env_name: &env_name card_gd
     eid: 0
-    n_workers: &nworkers 80
+    n_runners: &nrunners 80
     n_envs: &nenvs 2
     skip_players: [1, 3]
 
@@ -217,7 +217,7 @@ buffer:
     # PPO configs
     gamma: *gamma
     lam: .95
-    n_workers: *nworkers
+    n_runners: *nrunners
     n_envs: *nenvs
     # batch_size: *bs
     n_steps: *nsteps
@@ -227,7 +227,7 @@ buffer:
     n_mbs: *nmbs        # number of minibatches
     sample_size: *ss
     norm_adv: minibatch
-    # mini-batch size = n_workers * n_envs * epslen / n_mbs
+    # mini-batch size = n_runners * n_envs * epslen / n_mbs
     sample_keys:
         - numbers
         - jokers

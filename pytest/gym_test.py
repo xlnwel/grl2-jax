@@ -67,7 +67,7 @@ class TestClass:
                 config['name'] = name
                 ray.init()
                 config['n_envs'] = 2
-                config['n_workers'] = 2
+                config['n_runners'] = 2
                 env = create_env(config)
                 cr = np.zeros(env.n_envs)
                 n = np.zeros(env.n_envs)
@@ -91,9 +91,9 @@ class TestClass:
     #     ray.init()
     #     config = default_config.copy()
     #     config['frame_skip'] = True
-    #     for n_workers in [1, 2]:
+    #     for n_runners in [1, 2]:
     #         for n_envs in [1, 2]:
-    #             config['n_workers'] = n_workers
+    #             config['n_runners'] = n_runners
     #             config['n_envs'] = n_envs
     #             for name in ['BipedalWalkerHardcore-v3']:
     #                 config['name'] = name
@@ -103,7 +103,7 @@ class TestClass:
     #                 cr = np.zeros(env.n_envs)
     #                 n = np.zeros(env.n_envs)
     #                 for _ in range(1000):
-    #                     frame_skip = np.random.randint(1, 10, size=(n_workers, n_envs))
+    #                     frame_skip = np.random.randint(1, 10, size=(n_runners, n_envs))
     #                     frame_skip = np.squeeze(frame_skip)
     #                     a = env.random_action()
     #                     s, r, d, info = env.step(a, frame_skip=frame_skip)

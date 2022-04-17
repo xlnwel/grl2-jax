@@ -5,7 +5,7 @@ from tensorflow.keras import layers
 
 from core.ckpt.tf import *
 from utility.typing import AttrDict
-from utility.utils import config_attr, set_path
+from utility.utils import set_path
 
 
 def constructor(config, env_stats, cls, name):
@@ -113,7 +113,7 @@ class Ensemble(tf.Module):
         """
         super().__init__(name=name)
 
-        self.config = config_attr(self, config, filter_dict=True)
+        self.config = config
         self.env_stats = env_stats
 
         self._pre_init()

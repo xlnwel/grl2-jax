@@ -42,11 +42,11 @@ class GridSearch:
         self._setup_root_dir()
         if kwargs == {} and self.n_trials == 1 and not self.separate_process:
             # if no argument is passed in, run the default setting
-            p = Process(target=self.train_func, args=(self.config,))
+            p = Process(target=self.train_func, args=([self.config],))
             self.processes.append(p)
         else:
             # do grid search
-            model_name = ''
+            model_name = self.config.model_name
             self._change_config(model_name, **kwargs)
 
         return self.processes
@@ -54,9 +54,11 @@ class GridSearch:
     def _setup_root_dir(self):
         if self.dir_prefix:
             self.dir_prefix += '-'
-        self.root_dir = (f'{self.root_dir}/'
-                        f'{self.config.env["name"]}/'
-                        f'{self.config.agent["algorithm"]}')
+        self.root_dir = (
+            f'{self.root_dir}/'
+            f'{self.config.env["env_name"]}/'
+            f'{self.config.algorithm}'
+        )
 
     def _change_config(self, model_name, **kwargs):
         kw_list = product_flatten_dict(**kwargs)
@@ -99,7 +101,7 @@ class GridSearch:
                 change_config(kw, config2)
                 modify_config(config2, root_dir=self.root_dir, model_name=mn2)
                 print_dict(config2)
-                p = Process(target=self.train_func, args=(config2,))
+                p = Process(target=self.train_func, args=([config2],))
                 p.start()
                 self.processes.append(p)
                 time.sleep(self.delay)   # ensure sub-processs starts in order

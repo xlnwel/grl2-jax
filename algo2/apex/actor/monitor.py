@@ -10,7 +10,7 @@ from utility.graph import video_summary
 class Monitor(AgentImpl):
     @record
     def __init__(self):
-        self._ready = np.zeros(self._n_workers)
+        self._ready = np.zeros(self._n_runners)
         
         self.time = time.time()
         self.env_step = 0

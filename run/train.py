@@ -1,4 +1,5 @@
 import os, sys
+from datetime import datetime
 
 # try:
 #     from tensorflow.python.compiler.mlcompute import mlcompute
@@ -43,12 +44,16 @@ def _get_algo_env_config(cmd_args):
     return algo_env_config
 
 
-def _grid_search(config, main, trials, logdir, prefix, delay=1):
+def _grid_search(config, main, cmd_args):
     gs = GridSearch(
-        config, main, n_trials=trials, 
-        logdir=logdir, dir_prefix=prefix,
+        config, 
+        main, 
+        n_trials=cmd_args.trials, 
+        logdir=cmd_args.logdir, 
+        dir_prefix=cmd_args.prefix,
         separate_process=True, 
-        delay=delay)
+        delay=cmd_args.delay
+    )
 
     processes = []
     processes += gs()
@@ -60,12 +65,19 @@ def _run_with_configs(cmd_args):
 
     logdir = cmd_args.logdir
     prefix = cmd_args.prefix
+    if cmd_args.model_name[:4].isdigit():
+        raw_model_name = cmd_args.model_name
+    else:
+        dt = datetime.now()
+        raw_model_name = f'{dt.month:02d}{dt.day:02d}-{cmd_args.model_name}'
+    if cmd_args.seed:
+        raw_model_name = f'{raw_model_name}-seed={cmd_args.seed}'
 
     configs = []
     for algo, env, config in algo_env_config:
         algo = _get_algo_name(algo)
         config = load_config_with_algo_env(algo, env, config)
-        model_name = change_config(cmd_args.kwargs, config, cmd_args.model_name)
+        model_name = change_config(cmd_args.kwargs, config, raw_model_name)
         if model_name == '':
             model_name = 'baseline'
 
@@ -73,14 +85,19 @@ def _run_with_configs(cmd_args):
         
         dir_prefix = prefix + '-' if prefix else prefix
         root_dir = f'{logdir}/{dir_prefix}{config.env.env_name}/{config.algorithm}'
-        config = modify_config(config, root_dir=root_dir, model_name=model_name)
+        config = modify_config(
+            config, 
+            root_dir=root_dir, 
+            model_name=model_name, 
+            seed=cmd_args.seed
+        )
         config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
 
         configs.append(config)
 
     if cmd_args.grid_search or cmd_args.trials > 1:
-        assert len(configs) == 1, configs
-        _grid_search(config, main, cmd_args.trials, cmd_args)
+        assert len(configs) == 1, 'No support for multi-agent grid search.'
+        _grid_search(config, main, cmd_args)
     else:
         do_logging(config, level='DEBUG')
         main(configs)

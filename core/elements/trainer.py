@@ -31,7 +31,8 @@ class Trainer(tf.Module):
         self.train = tf.function(self.raw_train)
         has_built = self._build_train(env_stats)
 
-        self._opt_ckpt = TFCheckpoint(self.config, self.ckpt_model(), self.name)
+        self._opt_ckpt = TFCheckpoint(
+            self.config, self.ckpt_model(), self.name)
 
         if has_built and self.config.get('display_var', True):
             display_model_var_info(self.model)
@@ -54,9 +55,11 @@ class Trainer(tf.Module):
     def construct_optimizers(self):
         # keep the order fixed, otherwise you may encounter 
         # the permutation misalignment problem when restoring from a checkpoint
-        keys = sorted([k for k in self.model.keys() if not k.startswith('target')])
+        keys = sorted([
+            k for k in self.model.keys() if not k.startswith('target')])
         modules = tuple(self.model[k] for k in keys)
-        self.optimizer = create_optimizer(modules, self.config.optimizer)
+        self.optimizer = create_optimizer(
+            modules, self.config.optimizer)
         
     def _post_init(self):
         """ Add some additional attributes and do some post processing here """

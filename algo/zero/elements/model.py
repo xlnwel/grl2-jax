@@ -9,6 +9,16 @@ source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
 class MAPPOValueModel(ModelImpl):
+    def compute_action_embedding(
+        self, 
+        action
+    ):
+        raw_ae = self.action_embed(
+            action, tile=True, mask_out_self=True, flatten=True)
+        ae = self.ae_encoder(raw_ae)
+
+        return ae
+
     def compute_value(
         self, 
         global_state, 
@@ -16,9 +26,10 @@ class MAPPOValueModel(ModelImpl):
         prev_reward, 
         prev_action, 
         state=None, 
-        mask=None
+        mask=None, 
+        return_ae=False
     ):
-        ae = self.action_embed(action)
+        ae = self.compute_action_embedding(action)
         x_a = tf.concat([global_state, ae], -1)
         x_a, state = self.encode(
             x=x_a, 
@@ -52,7 +63,10 @@ class MAPPOValueModel(ModelImpl):
         # x = tf.concat([x, tf.zeros_like(ae)], -1)
         # value = self.value(x)
 
-        return value, value_a, state
+        if return_ae:
+            return ae, value, value_a, state
+        else:
+            return value, value_a, state
 
 
 class MAPPOModelEnsemble(MAPPOModelBase):

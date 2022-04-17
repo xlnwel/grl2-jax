@@ -1,6 +1,6 @@
 from typing import List
 import numpy as np
-from scipy.linalg import eig
+from scipy import linalg as la
 
 
 class AlphaRank:
@@ -68,7 +68,7 @@ class AlphaRank:
         # print('payoff', *payoffs, sep='\n')
         transition = self.compute_transition_matrix(payoffs, is_single_population)
         # print('transition', transition, sep='\n')
-        eig_vals, eig_vecs = eig(transition, left=True, right=False)
+        eig_vals, eig_vecs = la.eig(transition, left=True, right=False)
         # print('eigen values', np.real(eig_vals))
         mask = np.isclose(1-eig_vals, 1e-10)
         if np.sum(mask) != 1:

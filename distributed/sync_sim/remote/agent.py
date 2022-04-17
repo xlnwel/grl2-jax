@@ -18,8 +18,8 @@ class Agent(RayBase):
         parameter_server: ParameterServer=None,
         monitor: Monitor=None
     ):
-        super().__init__()
-        # config_actor(f"{config['name']}-{config['aid']}", config)
+        super().__init__(config['aid'], seed=config.get('seed'))
+
         self.aid = config['aid']
         self.parameter_server = parameter_server
         self.monitor = monitor

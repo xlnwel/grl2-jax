@@ -12,10 +12,21 @@ logger = logging.getLogger(__name__)
 
 @nn_registry.register('mlp')
 class MLP(Module):
-    def __init__(self, units_list, out_size=None, layer_type='dense', 
-                norm=None, activation=None, kernel_initializer='glorot_uniform', 
-                name=None, out_dtype=None, out_gain=1, norm_after_activation=False, 
-                norm_kwargs={}, **kwargs):
+    def __init__(
+        self, 
+        units_list, 
+        out_size=None, 
+        layer_type='dense', 
+        norm=None, 
+        activation=None, 
+        kernel_initializer='glorot_uniform', 
+        name=None, 
+        out_dtype=None, 
+        out_gain=1, 
+        norm_after_activation=False, 
+        norm_kwargs={}, 
+        **kwargs
+    ):
         super().__init__(name=name)
         layer_cls = layer_registry.get(layer_type)
         Layer = layer_registry.get('layer')
@@ -26,19 +37,28 @@ class MLP(Module):
             do_logging(f'MLP({name}) with units_list({units_list}) and out_size({out_size}) has no activation.', 
                 logger=logger, level='WARNING')
 
-        self._layers = [
-            Layer(u, layer_type=layer_cls, norm=norm, 
-                activation=activation, kernel_initializer=kernel_initializer, 
-                norm_after_activation=norm_after_activation, norm_kwargs=norm_kwargs,
-                name=f'{name}/{layer_type}_{i}', **kwargs)
-            for i, u in enumerate(units_list)]
+        self._layers = [Layer(
+            u, 
+            layer_type=layer_cls, 
+            norm=norm, 
+            activation=activation, 
+            kernel_initializer=kernel_initializer, 
+            norm_after_activation=norm_after_activation, 
+            norm_kwargs=norm_kwargs, 
+            name=f'{name}/{layer_type}_{i}', 
+            **kwargs
+        ) for i, u in enumerate(units_list)]
         if out_size:
             kwargs.pop('gain', None)
             do_logging(f'{self.name} out gain: {out_gain}', logger=logger, level='DEBUG')
             kernel_initializer = get_initializer(kernel_initializer, gain=out_gain)
             self._layers.append(layer_cls(
-                out_size, kernel_initializer=kernel_initializer, 
-                dtype=out_dtype, name=f'{name}/out', **kwargs))
+                out_size, 
+                kernel_initializer=kernel_initializer, 
+                dtype=out_dtype, 
+                name=f'{name}/out', 
+                **kwargs
+            ))
 
     def reset(self):
         for l in self._layers:
