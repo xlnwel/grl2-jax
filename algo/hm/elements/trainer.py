@@ -6,7 +6,7 @@ from core.tf_config import build
 from .utils import get_data_format
 
 
-class MAPPOActorTrainer(Trainer):
+class PPOActorTrainer(Trainer):
     def raw_train(
         self, 
         **kwargs
@@ -26,7 +26,7 @@ class MAPPOActorTrainer(Trainer):
         return terms
 
 
-class MAPPOValueTrainer(Trainer):
+class PPOValueTrainer(Trainer):
     def raw_train(
         self, 
         **kwargs, 
@@ -41,7 +41,7 @@ class MAPPOValueTrainer(Trainer):
         return terms
 
 
-class MAPPOTrainerEnsemble(TrainerEnsemble):
+class PPOTrainerEnsemble(TrainerEnsemble):
     @override(TrainerEnsemble)
     def _build_train(self, env_stats):
         # Explicitly instantiate tf.function to avoid unintended retracing
@@ -95,7 +95,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         return {**actor_terms, **value_terms}
 
 
-def create_trainer(config, env_stats, loss, name='mappo'):
+def create_trainer(config, env_stats, loss, name='ppo'):
     def constructor(config, env_stats, cls, name):
         return cls(
             config=config, 
@@ -103,12 +103,12 @@ def create_trainer(config, env_stats, loss, name='mappo'):
             loss=loss[name], 
             name=name)
 
-    return MAPPOTrainerEnsemble(
+    return PPOTrainerEnsemble(
         config=config,
         env_stats=env_stats,
         loss=loss,
         constructor=constructor,
         name=name,
-        policy=MAPPOActorTrainer,
-        value=MAPPOValueTrainer,
+        policy=PPOActorTrainer,
+        value=PPOValueTrainer,
     )

@@ -67,8 +67,14 @@ class MAPPOPolicyLoss(Loss):
             entropy = act_dist.entropy()
             log_ratio = new_logprob - logprob
             raw_policy_loss, raw_entropy, kl, clip_frac = ppo_loss(
-                log_ratio, advantage, self.config.clip_range, 
-                entropy, mask=loss_mask, n=n, reduce=False)
+                log_ratio, 
+                advantage, 
+                self.config.clip_range, 
+                entropy, 
+                mask=loss_mask, 
+                n=n, 
+                reduce=False
+            )
             policy_loss = reduce_mean(raw_policy_loss, loss_mask, n)
             entropy = reduce_mean(raw_entropy, loss_mask, n)
             entropy_loss = - self.config.entropy_coef * entropy

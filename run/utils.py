@@ -19,24 +19,13 @@ def get_configs_dir(algo):
 def get_filename_with_env(env):
     env_split = env.split('-')  # TODO: extra care need to be taken when we call env ending with version number (-vx)
     if len(env_split) == 1:
-        filename = 'builtin'
+        filename = 'gym'
     elif len(env_split) == 2:
         filename = env_split[0]
-    else:   # we may use intermediate characters in env to specify the configuration filename
-        filename = '_'.join(env_split[1:-1])
+    else:
+        raise ValueError(f'Cannot extract filename from env: {env}')
 
     return filename
-
-
-def get_env_name(env):
-    env_split = env.split('-')
-    if len(env_split) == 1:
-        env_name = env_split[0]
-    else:
-        # we may specify the configuration filename in between
-        env_name = f'{env_split[0]}-{env_split[-1]}'
-
-    return env_name
 
 
 def change_config(kw, config, model_name=''):
@@ -82,9 +71,9 @@ def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True):
     config = load_config(path)
     if config is None:
         raise RuntimeError('No configure is loaded')
-    env_name = get_env_name(env)
 
-    config = modify_config(config, overwrite_existed=True, algorithm=algo, env_name=env_name)
+    config = modify_config(
+        config, overwrite_existed=True, algorithm=algo, env_name=env)
 
     if to_attrdict:
         config = dict2AttrDict(config)

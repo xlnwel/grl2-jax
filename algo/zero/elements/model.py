@@ -3,13 +3,13 @@ import tensorflow as tf
 
 from core.tf_config import build
 from utility.file import source_file
-from algo.hm.elements.model import ModelImpl, MAPPOActorModel, \
-    MAPPOModelEnsemble as MAPPOModelBase
+from algo.hm.elements.model import ModelImpl, PPOActorModel, \
+    PPOModelEnsemble as PPOModelBase
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
-class MAPPOActorModel(ModelImpl):
+class PPOActorModel(ModelImpl):
     def action(
         self, 
         obs, 
@@ -42,9 +42,10 @@ class MAPPOActorModel(ModelImpl):
             return (action, pi), terms, state
 
 
-class MAPPOValueModel(ModelImpl):
+class PPOValueModel(ModelImpl):
     def compute_action_embedding(
         self, 
+        global_state, 
         action,
         life_mask,
         multiply=False
@@ -61,6 +62,27 @@ class MAPPOValueModel(ModelImpl):
 
         return ae
 
+    def compute_value_with_action_embeddings(
+        self, 
+        global_state, 
+        ae,
+        prev_reward=None, 
+        prev_action=None, 
+        state=None, 
+        mask=None
+    ):
+        x = tf.concat([global_state, ae], -1)
+        x, state = self.encode(
+            x=x, 
+            prev_reward=prev_reward, 
+            prev_action=prev_action, 
+            state=state, 
+            mask=mask
+        )
+        value = self.value(x)
+
+        return value, state
+
     def compute_value(
         self, 
         global_state, 
@@ -73,38 +95,39 @@ class MAPPOValueModel(ModelImpl):
         mask=None, 
         return_ae=False
     ):
-        ae = self.compute_action_embedding(action, life_mask)
-        x_a = tf.concat([global_state, ae], -1)
-        if life_mask is not None:
-            tf.debugging.assert_equal(
-                tf.where(tf.cast(life_mask[..., None], tf.bool), 
-                tf.zeros_like(x_a), x_a), 0.)
-        x_a, state = self.encode(
-            x=x_a, 
+        ae = self.compute_action_embedding(
+            global_state, 
+            action, 
+            life_mask
+        )
+        value_a, state = self.compute_value_with_action_embeddings(
+            global_state=global_state, 
+            ae=ae,
             prev_reward=prev_reward, 
             prev_action=prev_action, 
             state=state, 
             mask=mask
         )
-        value_a = self.value(x_a)
 
+        # NOTE: we do not distinguish states of V(s) and V(s, a^{-i})
+        # This is incorrect for RNNs, which we do not consider for now
         if self.config.v_pi:
-            pi_ae = self.compute_action_embedding(pi, life_mask, True)
-            x = tf.concat([global_state, pi_ae], -1)
+            pi_ae = self.compute_action_embedding(
+                global_state, 
+                pi, 
+                life_mask, 
+                True
+            )
         else:
-            x = tf.concat([global_state, tf.zeros_like(ae)], -1)
-        if life_mask is not None:
-            tf.debugging.assert_equal(
-                tf.where(tf.cast(life_mask[..., None], tf.bool), 
-                tf.zeros_like(x), x), 0.)
-        x, state = self.encode(
-            x=x, 
+            pi_ae = tf.zeros_like(ae)
+        value, state = self.compute_value_with_action_embeddings(
+            global_state=global_state, 
+            ae=pi_ae,
             prev_reward=prev_reward, 
             prev_action=prev_action, 
             state=state, 
             mask=mask
         )
-        value = self.value(x)
 
         # x, state = self.encode(
         #     x=global_state, 
@@ -125,7 +148,7 @@ class MAPPOValueModel(ModelImpl):
             return value, value_a, state
 
 
-class MAPPOModelEnsemble(MAPPOModelBase):
+class PPOModelEnsemble(PPOModelBase):
     def _build(self, env_stats, evaluation=False):
         aid = self.config.aid
         basic_shape = (None, len(env_stats.aid2uids[aid]))
@@ -200,6 +223,7 @@ class MAPPOModelEnsemble(MAPPOModelBase):
             terms.update({
                 'value': value,
                 'value_a': value_a,
+                'pi': pi
             })
         return action, terms, state
 
@@ -207,7 +231,7 @@ class MAPPOModelEnsemble(MAPPOModelBase):
 def create_model(
         config, 
         env_stats, 
-        name='mappo', 
+        name='ppo', 
         to_build=False,
         to_build_for_eval=False,
         **kwargs):
@@ -226,13 +250,13 @@ def create_model(
     else:
         config['value']['rnn']['nn_id'] = config['value_rnn_type']
 
-    return MAPPOModelEnsemble(
+    return PPOModelEnsemble(
         config=config, 
         env_stats=env_stats, 
         name=name,
         to_build=to_build, 
         to_build_for_eval=to_build_for_eval,
-        policy=MAPPOActorModel,
-        value=MAPPOValueModel,
+        policy=PPOActorModel,
+        value=PPOValueModel,
         **kwargs
     )

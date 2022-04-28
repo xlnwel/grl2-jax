@@ -120,7 +120,7 @@ trainer:
     sample_size: *ss         # BPTT length
     store_state: True
     optimizer:
-        name: adam
+        opt_name: adam
         schedule_lr: False
         lr: 1e-3
         clip_norm: .1

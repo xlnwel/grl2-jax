@@ -1,3 +1,4 @@
+from email import policy
 import tensorflow as tf
 
 from utility.tf_utils import static_scan, reduce_mean, \
@@ -197,16 +198,27 @@ def v_trace_from_ratio(reward, value, next_value,
     return vs, adv
 
 
-def ppo_loss(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
+def ppo_loss(
+    log_ratio, 
+    advantage, 
+    clip_range, 
+    entropy, 
+    mask=None, 
+    n=None,
+    reduce=True
+):
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
-        assert_rank_and_shape_compatibility([advantages, mask])
-    assert_rank_and_shape_compatibility([log_ratio, advantages])
+        assert_rank_and_shape_compatibility([advantage, mask])
+    assert_rank_and_shape_compatibility([log_ratio, advantage])
     ratio, loss1, loss2 = _compute_ppo_policy_losses(
-        log_ratio, advantages, clip_range)
+        log_ratio, advantage, clip_range)
     
-    policy_loss = reduce_mean(tf.maximum(loss1, loss2), mask, n)
-    entropy = reduce_mean(entropy, mask, n)
+    if reduce:
+        policy_loss = reduce_mean(tf.maximum(loss1, loss2), mask, n)
+        entropy = reduce_mean(entropy, mask, n)
+    else:
+        policy_loss = tf.maximum(loss1, loss2)
     # debug stats: KL between old and current policy and fraction of data being clipped
     approx_kl = .5 * reduce_mean((-log_ratio)**2, mask, n)
     clip_frac = reduce_mean(tf.cast(tf.greater(
@@ -274,8 +286,8 @@ def _compute_ppo_value_losses(value, traj_ret, old_value, clip_range, huber_thre
         loss1 = .5 * tf.square(value - traj_ret)
         loss2 = .5 * tf.square(value_clipped - traj_ret)
     else:
-        loss1 = huber_loss(value, traj_ret, threshold=huber_threshold)
-        loss2 = huber_loss(value_clipped, traj_ret, threshold=huber_threshold)
+        loss1 = huber_loss(value, y=traj_ret, threshold=huber_threshold)
+        loss2 = huber_loss(value_clipped, y=traj_ret, threshold=huber_threshold)
 
     return value_diff, loss1, loss2
 

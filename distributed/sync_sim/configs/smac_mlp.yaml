@@ -41,7 +41,7 @@ ray_config:
 monitor: {}
 
 runner:
-    n_runners: &nrunners 20
+    n_runners: &nrunners 8
     n_steps: &nsteps 400
     push_every_episode: False
 
@@ -85,7 +85,7 @@ model:
         use_prev_action: False
         encoder: 
             nn_id: mlp
-            units_list: [64, 64, 64]
+            units_list: [64, 64]
             kernel_initializer: orthogonal
             activation: relu
             norm: layer
@@ -108,7 +108,7 @@ model:
     value:
         use_prev_reward: False
         use_prev_action: False
-        v_pi: False
+        v_pi: True
         action_embed:
             nn_id: embed
             embed_size: 8
@@ -122,7 +122,7 @@ model:
             use_bias: False
         encoder:
             nn_id: mlp
-            units_list: [64, 64, 64]
+            units_list: [64, 64]
             kernel_initializer: orthogonal
             activation: relu
             norm: layer
@@ -149,8 +149,10 @@ loss:
         policy_life_mask: True
     value:
         value_loss: clip
+        huber_threshold: 10
         clip_range: .2
         value_coef: 1
+        va_coef: 0
         value_life_mask: False
 
 trainer:
@@ -162,7 +164,7 @@ trainer:
     store_state: True
     policy:
         optimizer:
-            name: adam
+            opt_name: adam
             schedule_lr: False
             lr: 5e-4
             clip_norm: 10
@@ -170,7 +172,7 @@ trainer:
             weight_decay: 0
     value:
         optimizer:
-            name: adam
+            opt_name: adam
             schedule_lr: False
             lr: 5e-4
             clip_norm: 10
@@ -239,6 +241,7 @@ buffer:
         - target_prob
         - tr_prob
         - logprob
+        - pi
         - mask
         - actor_h
         - actor_c

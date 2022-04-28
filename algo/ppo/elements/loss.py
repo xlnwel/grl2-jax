@@ -34,17 +34,26 @@ class PPOLoss(PPOLossImpl):
             # policy loss
             log_ratio = new_logprob - logprob
             raw_policy_loss, raw_entropy, kl, p_clip_frac = ppo_loss(
-                log_ratio, advantage, self.config.clip_range, 
-                entropy, reduce=False)
+                log_ratio, 
+                advantage, 
+                self.config.clip_range, 
+                entropy, 
+                reduce=False
+            )
             policy_loss = reduce_mean(raw_policy_loss, loss_mask, n)
             entropy = reduce_mean(raw_entropy, loss_mask, n)
             entropy_loss = - self.config.entropy_coef * entropy
+            actor_loss = policy_loss + entropy_loss
             # value loss
             value = self.value(x)
-            value_loss, v_clip_frac = self._compute_value_loss(
-                value, traj_ret, old_value)
-
-            actor_loss = policy_loss + entropy_loss
+            raw_v_loss, v_clip_frac = self._compute_value_loss(
+                value=value, 
+                traj_ret=traj_ret, 
+                old_value=old_value, 
+                mask=loss_mask,
+                reduce=False
+            )
+            value_loss = reduce_mean(raw_v_loss, loss_mask, n)
             value_loss = self.config.value_coef * value_loss
             loss = actor_loss + value_loss
 
@@ -62,8 +71,11 @@ class PPOLoss(PPOLossImpl):
             new_prob=new_prob, 
             diff_prob=new_prob - prob, 
             p_clip_frac=p_clip_frac,
+            raw_policy_loss=raw_policy_loss,
             policy_loss=policy_loss,
+            entropy_loss=entropy_loss, 
             actor_loss=actor_loss,
+            raw_v_loss=raw_v_loss,
             v_loss=value_loss,
             explained_variance=explained_variance(traj_ret, value),
             v_clip_frac=v_clip_frac

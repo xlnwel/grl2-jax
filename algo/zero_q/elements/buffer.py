@@ -6,122 +6,52 @@ import numpy as np
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
-from utility.utils import dict2AttrDict, moments, standardize
+from utility.utils import dict2AttrDict, standardize
+from algo.hm.elements.buffer import \
+    compute_bounded_target, compute_clipped_target, compute_mixture_target, \
+        compute_indices, get_sample, get_sample_keys_size
 
 
 logger = logging.getLogger(__name__)
 
 
-def compute_nae(
-    reward, 
-    discount, 
-    value, 
-    last_value, 
-    gamma, 
-    mask=None, 
-    epsilon=1e-8
-):
-    next_return = last_value
-    traj_ret = np.zeros_like(reward)
-    for i in reversed(range(reward.shape[0])):
-        traj_ret[i] = next_return = (reward[i]
-            + discount[i] * gamma * next_return)
-
-    # Standardize traj_ret and advantages
-    traj_ret_mean, traj_ret_var = moments(traj_ret)
-    traj_ret_std = np.maximum(np.sqrt(traj_ret_var), 1e-8)
-    value = standardize(value, mask=mask, epsilon=epsilon)
-    # To have the same mean and std as trajectory return
-    value = (value + traj_ret_mean) / traj_ret_std     
-    advantage = standardize(traj_ret - value, mask=mask, epsilon=epsilon)
-    traj_ret = standardize(traj_ret, mask=mask, epsilon=epsilon)
-
-    return advantage, traj_ret
-
 def compute_gae(
     reward, 
     discount, 
     value, 
+    value_a, 
     last_value, 
     gamma,
     gae_discount, 
     norm_adv=False, 
     mask=None, 
-    epsilon=1e-8
+    epsilon=1e-8, 
+    same_next_value=False
 ):
     if last_value is not None:
         last_value = np.expand_dims(last_value, 0)
         next_value = np.concatenate([value[1:], last_value], axis=0)
     else:
         next_value = value[1:]
-        value = value[:-1]
+        value_a = value_a[:-1]
+    if same_next_value:
+        next_value = np.mean(next_value, axis=-1, keepdims=True)
     assert value.ndim == next_value.ndim, (value.shape, next_value.shape)
     advs = delta = (reward + discount * gamma * next_value - value).astype(np.float32)
     next_adv = 0
+    advs_a = delta = (reward + discount * gamma * next_value - value_a).astype(np.float32)
+    next_adv_a = 0
     for i in reversed(range(advs.shape[0])):
         advs[i] = next_adv = (delta[i] 
             + discount[i] * gae_discount * next_adv)
+        advs_a[i] = next_adv_a = (delta[i] 
+            + discount[i] * gae_discount * next_adv_a)
     traj_ret = advs + value
+    traj_ret_a = advs_a + value_a
     if norm_adv:
         advs = standardize(advs, mask=mask, epsilon=epsilon)
 
-    return advs, traj_ret
-
-def compute_indices(idxes, mb_idx, mb_size, n_mbs):
-    start = mb_idx * mb_size
-    end = (mb_idx + 1) * mb_size
-    mb_idx = (mb_idx + 1) % n_mbs
-    curr_idxes = idxes[start: end]
-
-    return mb_idx, curr_idxes
-
-def get_sample(
-    memory, 
-    idxes, 
-    sample_keys, 
-    state_keys, 
-    state_type,
-):
-    if state_type is None:
-        sample = {k: memory[k][idxes] for k in sample_keys}
-    else:
-        sample = {}
-        state = []
-        for k in sample_keys:
-            if k in state_keys:
-                v = memory[k][idxes, 0]
-                state.append(v.reshape(-1, v.shape[-1]))
-            else:
-                sample[k] = memory[k][idxes]
-        if state:
-            sample['state'] = state_type(*state)
-
-    return sample
-
-
-def get_sample_keys_size(config):
-    state_keys = ['h', 'c']
-    if config.get('rnn_type'): 
-        sample_keys = config.sample_keys
-        sample_size = config.sample_size
-    else:
-        sample_keys = _remote_state_keys(
-            config.sample_keys, 
-            state_keys, 
-        )
-        if 'mask' in sample_keys:
-            sample_keys.remove('mask')
-        sample_size = None
-
-    return sample_keys, sample_size
-
-
-def _remote_state_keys(sample_keys, state_keys):
-    for k in state_keys:
-        if k in sample_keys:
-            sample_keys.remove(k)
-
-    return sample_keys
+    return advs, traj_ret, traj_ret_a
 
 
 class LocalBuffer(Buffer):
@@ -135,7 +65,8 @@ class LocalBuffer(Buffer):
         self.config = config
         self.runner_id = runner_id
 
-        self.state_keys = (k for k in model.state_keys)
+        self.actor_state_keys = (f'actor_{k}' for k in model.actor_state_keys)
+        self.value_state_keys = (f'value_{k}' for k in model.value_state_keys)
         self.sample_keys, self.sample_size = get_sample_keys_size(config)
 
         if self.config.get('fragment_size', None) is not None:
@@ -186,15 +117,34 @@ class LocalBuffer(Buffer):
             assert v.shape[:3] == (self._memlen, self.n_envs, self.n_units), \
                 (k, v.shape, (self._memlen, self.n_envs, self.n_units))
 
-        data['advantage'], data['traj_ret'] = compute_gae(
+        data['advantage'], data['traj_ret'], data['traj_ret_a'] = compute_gae(
             reward=data['reward'], 
             discount=data['discount'], 
             value=data['value'], 
+            value_a=data['value_a'], 
             last_value=last_value, 
             gamma=self.config.gamma, 
-            gae_discount=self.gae_discount
+            gae_discount=self.gae_discount, 
+            mask=data.get('life_mask'),
+            same_next_value=self.config.get('same_next_value', False)
         )
         data['raw_adv'] = data['advantage']
+
+        prob = np.exp(data['logprob'])
+        if self.config.target_type == 'bounded':
+            data['target_prob'], data['tr_prob'] = compute_bounded_target(
+                prob, data['advantage'], self.config.tau, self.config.c
+            )
+        elif self.config.target_type == 'clip':
+            data['target_prob'], data['tr_prob'] = compute_clipped_target(
+                prob, data['advantage'], self.config.tau, self.config.c
+            )
+        elif self.config.target_type == 'mix':
+            data['target_prob'], data['tr_prob'] = compute_mixture_target(
+                prob, data['advantage'], self.config.tau, self.config.alpha
+            )
+        else:
+            raise NotImplementedError
 
         data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
         for k, v in data.items():
@@ -208,7 +158,7 @@ class LocalBuffer(Buffer):
                     (self.n_envs * self._memlen, *v.shape[2:]))
         
         self.reset()
-        
+
         return self.runner_id, data, self.n_envs * self.maxlen
 
 
@@ -226,8 +176,10 @@ class PPOBuffer(Buffer):
         self.use_dataset = self.config.get('use_dataset', False)
         do_logging(f'Is dataset used for data pipeline: {self.use_dataset}', logger=logger)
 
-        self.state_keys = tuple([k for k in model.state_keys])
-        self.state_type = model.state_type
+        self.actor_state_keys = tuple([f'actor_{k}' for k in model.actor_state_keys])
+        self.value_state_keys = tuple([f'value_{k}' for k in model.value_state_keys])
+        self.actor_state_type = model.actor_state_type
+        self.value_state_type = model.value_state_type
         self.sample_keys, self.sample_size = get_sample_keys_size(self.config)
 
         self.n_runners = self.config.n_runners
@@ -286,19 +238,8 @@ class PPOBuffer(Buffer):
 
     def finish(self, last_value):
         assert self._current_size == self.n_steps, self._current_size
-        if self.config.adv_type == 'nae':
-            assert self.norm_adv == 'batch', self.norm_adv
-            self._memory['advantage'], self._memory['traj_ret'] = \
-                compute_nae(
-                reward=self._memory['reward'], 
-                discount=self._memory['discount'],
-                value=self._memory['value'],
-                last_value=last_value,
-                gamma=self.gamma,
-                mask=self._memory.get('life_mask'),
-                epsilon=self.epsilon)
-        elif self.config.adv_type == 'gae':
-            self._memory['advantage'], self._memory['traj_ret'] = \
+        if self.config.adv_type == 'gae':
+            self._memory['advantage'], self._memory['traj_ret'], self._memory['traj_ret_a'] = \
                 compute_gae(
                 reward=self._memory['reward'], 
                 discount=self._memory['discount'],
@@ -308,15 +249,30 @@ class PPOBuffer(Buffer):
                 gae_discount=self.gae_discount,
                 norm_adv=self.norm_adv == 'batch',
                 mask=self._memory.get('life_mask'),
-                epsilon=self.epsilon)
+                epsilon=self.epsilon,
+                same_next_value=self.config.get('same_next_value', True))
         elif self.config.adv_type == 'vtrace':
             pass
         else:
             raise NotImplementedError
-        self._memory['raw_adv'] = self._memory['advantage']
+        
+        prob = np.exp(self._memory['logprob'])
+        if self.config.target_type == 'bounded':
+            self._memory['target_prob'], self._memory['tr_prob'] = compute_bounded_target(
+                prob, self._memory['advantage'], self.config.tau, self.config.c
+            )
+        elif self.config.target_type == 'clip':
+            self._memory['target_prob'], self._memory['tr_prob'] = compute_clipped_target(
+                prob, self._memory['advantage'], self.config.tau, self.config.c
+            )
+        elif self.config.target_type == 'mix':
+            self._memory['target_prob'], self._memory['tr_prob'] = compute_mixture_target(
+                prob, self._memory['advantage'], self.config.tau, self.config.alpha
+            )
+        else:
+            raise NotImplementedError
 
         for k, v in self._memory.items():
-            assert v.shape[:2] == (self.config.n_steps, self.config.n_envs), (k, v.shape, (self.config.n_steps, self.config.n_envs))
             v = np.swapaxes(v, 0, 1)
             self._memory[k] = np.reshape(v,
                 (self.batch_size, self.sample_size, *v.shape[2:])
@@ -405,18 +361,17 @@ class PPOBuffer(Buffer):
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self.sample_keys
         self._mb_idx, self._curr_idxes = compute_indices(
-            self.shuffled_idxes, 
-            self._mb_idx, 
-            self.mb_size, 
-            self.n_mbs
-        )
+            self.shuffled_idxes, self._mb_idx, 
+            self.mb_size, self.n_mbs)
 
         sample = get_sample(
             self._memory, 
             self._curr_idxes, 
             sample_keys,
-            self.state_keys,
-            self.state_type
+            self.actor_state_keys, 
+            self.value_state_keys,
+            self.actor_state_type, 
+            self.value_state_type
         )
         sample = self._process_sample(sample)
 

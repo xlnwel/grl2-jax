@@ -2,10 +2,10 @@ from core.elements.trainer import TrainerEnsemble
 from core.decorator import override
 from core.tf_config import build
 from .utils import get_data_format
-from algo.hm.elements.trainer import MAPPOActorTrainer, MAPPOValueTrainer
+from algo.hm.elements.trainer import PPOActorTrainer, PPOValueTrainer
 
 
-class MAPPOTrainerEnsemble(TrainerEnsemble):
+class PPOTrainerEnsemble(TrainerEnsemble):
     @override(TrainerEnsemble)
     def _build_train(self, env_stats):
         # Explicitly instantiate tf.function to avoid unintended retracing
@@ -16,20 +16,21 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
     def raw_train(
         self, 
         obs, 
-        global_state, 
         action, 
-        reward, 
         value, 
         value_a, 
         traj_ret, 
         traj_ret_a, 
-        raw_adv, 
         advantage, 
         target_prob, 
         tr_prob, 
         logprob, 
-        prev_reward, 
-        prev_action, 
+        pi, 
+        global_state=None, 
+        reward=None, 
+        raw_adv=None, 
+        prev_reward=None, 
+        prev_action=None, 
         action_mask=None, 
         life_mask=None, 
         actor_state=None, 
@@ -43,6 +44,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
             target_prob=target_prob, 
             tr_prob=tr_prob, 
             logprob=logprob, 
+            pi=pi,
             prev_reward=prev_reward, 
             prev_action=prev_action, 
             state=actor_state, 
@@ -54,7 +56,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         value_terms = self.value.raw_train(
             global_state=global_state, 
             action=action, 
-            pi=actor_terms['pi'], 
+            pi=actor_terms['new_pi'], 
             value=value, 
             value_a=value_a, 
             traj_ret=traj_ret, 
@@ -69,7 +71,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         return {**actor_terms, **value_terms}
 
 
-def create_trainer(config, env_stats, loss, name='mappo'):
+def create_trainer(config, env_stats, loss, name='ppo'):
     def constructor(config, env_stats, cls, name):
         return cls(
             config=config, 
@@ -77,12 +79,12 @@ def create_trainer(config, env_stats, loss, name='mappo'):
             loss=loss[name], 
             name=name)
 
-    return MAPPOTrainerEnsemble(
+    return PPOTrainerEnsemble(
         config=config,
         env_stats=env_stats,
         loss=loss,
         constructor=constructor,
         name=name,
-        policy=MAPPOActorTrainer,
-        value=MAPPOValueTrainer,
+        policy=PPOActorTrainer,
+        value=PPOValueTrainer,
     )

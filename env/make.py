@@ -26,7 +26,15 @@ def _change_env_name(config):
     return config
 
 
-def make_builtin_gym(config):
+def make_bypass(config):
+    from env.bypass import BypassEnv
+    config = _change_env_name(config)
+    env = BypassEnv()
+    env = process_single_agent_env(env, config)
+
+    return env
+
+def make_gym(config):
     import gym
     from env.dummy import DummyEnv
     config = _change_env_name(config)
@@ -36,7 +44,6 @@ def make_builtin_gym(config):
         env.spec.max_episode_steps)
 
     env = process_single_agent_env(env, config)
-    
     return env
 
 

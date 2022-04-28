@@ -40,7 +40,9 @@ class PPOTrainer(Trainer):
             state, 
             mask
         )
-        terms['norm'] = self.optimizer(tape, loss)
+
+        terms['norm'], terms['var_norm'] = \
+            self.optimizer(tape, loss, return_var_norms=True)
 
         return terms
 

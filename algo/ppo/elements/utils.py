@@ -19,7 +19,7 @@ def get_data_format(config, env_stats, model):
         logprob=(basic_shape, tf.float32, 'logprob'),
     ))
 
-    if config.get('store_state'):
+    if config.get('store_state') and config.get('rnn_type'):
         assert model.state_size is not None, model.state_size
         dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         state_type = type(model.state_size)

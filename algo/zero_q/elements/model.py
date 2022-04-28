@@ -1,37 +1,67 @@
 import os
 import tensorflow as tf
 
+from algo.zero.elements.model import ModelImpl, MAPPOActorModel, \
+    MAPPOModelEnsemble as MAPPOModelBase
 from utility.file import source_file
-from algo.hm.elements.model import ModelImpl, PPOActorModel, \
-    PPOModelEnsemble as PPOModelBase
+from utility.tf_utils import assert_rank_and_shape_compatibility
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
-class PPOValueModel(ModelImpl):
+class MAPPOValueModel(ModelImpl):
     def compute_action_embedding(
         self, 
-        global_state, 
-        action
+        action,
+        life_mask,
     ):
         raw_ae = self.action_embed(
-            action, tile=True, mask_out_self=True, flatten=True)
-        ae_weights = self.hyper_ae(global_state)
-        eqt = 'bah,baho->bao' if len(raw_ae.shape) == 3 else 'btah,btaho->btao'
-        ae = tf.einsum(eqt, raw_ae, ae_weights)
+            action, 
+            tile=True, 
+            mask_out_self=True, 
+            flatten=True, 
+            mask=life_mask
+        )
+        ae = self.ae_encoder(raw_ae)
 
         return ae
 
-    def compute_value_with_action_embeddings(
+    def compute_expected_value(self, x, probs):
+        q = self.value(x)
+        assert_rank_and_shape_compatibility([q, probs])
+        value = tf.reduce_mean(q * probs, -1)
+        return value
+
+    def compute_value(
         self, 
         global_state, 
-        ae,
+        action, 
+        pi, 
         prev_reward, 
-        prev_action, 
+        prev_action,
+        life_mask=None, 
         state=None, 
-        mask=None
+        mask=None, 
+        return_ae=False,
+        return_v=True
     ):
-        x = tf.concat([global_state, ae], -1)
+        ae = self.compute_action_embedding(action, life_mask)
+        x_a = tf.concat([global_state, ae], -1)
+        x_a, state = self.encode(
+            x=x_a, 
+            prev_reward=prev_reward, 
+            prev_action=prev_action, 
+            state=state, 
+            mask=mask
+        )
+        value_a = self.compute_expected_value(x_a, pi) \
+            if return_v else self.value(x_a)
+
+        if self.config.v_pi:
+            pi_ae = self.compute_action_embedding(pi, life_mask)
+            x = tf.concat([global_state, pi_ae], -1)
+        else:
+            x = tf.concat([global_state, tf.zeros_like(ae)], -1)
         x, state = self.encode(
             x=x, 
             prev_reward=prev_reward, 
@@ -39,40 +69,8 @@ class PPOValueModel(ModelImpl):
             state=state, 
             mask=mask
         )
-        value = self.value(x)
-
-        return value, state
-
-    def compute_value(
-        self, 
-        global_state, 
-        action, 
-        prev_reward, 
-        prev_action, 
-        state=None, 
-        mask=None,
-        return_ae=False
-    ):
-        ae = self.compute_action_embedding(global_state, action)
-        value_a, state = self.compute_value_with_action_embeddings(
-            global_state=global_state, 
-            ae=ae,
-            prev_reward=prev_reward, 
-            prev_action=prev_action, 
-            state=state, 
-            mask=mask
-        )
-
-        # NOTE: we do not distinguish states of V(s) and V(s, a^{-i})
-        # This is incorrect for RNNs, which we do not consider for now
-        value, state = self.compute_value_with_action_embeddings(
-            global_state=global_state, 
-            ae=tf.zeros_like(ae),
-            prev_reward=prev_reward, 
-            prev_action=prev_action, 
-            state=state, 
-            mask=mask
-        )
+        value = self.compute_expected_value(x, pi) \
+            if return_v else self.value(x)
 
         # x, state = self.encode(
         #     x=global_state, 
@@ -93,7 +91,7 @@ class PPOValueModel(ModelImpl):
             return value, value_a, state
 
 
-class PPOModelEnsemble(PPOModelBase):
+class MAPPOModelEnsemble(MAPPOModelBase):
     @tf.function
     def action(
         self, 
@@ -108,11 +106,12 @@ class PPOModelEnsemble(PPOModelBase):
             actor_inp, = self._add_seqential_dimension(actor_inp)
         if self.value_has_rnn:
             value_inp, = self._add_seqential_dimension(value_inp)
-        action, terms, actor_state = self.policy.action(
+        (action, pi), terms, actor_state = self.policy.action(
             **actor_inp, state=actor_state,
-            evaluation=evaluation, return_eval_stats=return_eval_stats)
+            evaluation=evaluation, 
+            return_eval_stats=return_eval_stats)
         value, value_a, value_state = self.value.compute_value(
-            **value_inp, action=action, state=value_state)
+            **value_inp, action=action, pi=pi, state=value_state)
         state = self.state_type(actor_state, value_state) \
             if self.has_rnn else None
         if self.actor_has_rnn:
@@ -130,7 +129,7 @@ class PPOModelEnsemble(PPOModelBase):
 def create_model(
         config, 
         env_stats, 
-        name='ppo', 
+        name='mappo', 
         to_build=False,
         to_build_for_eval=False,
         **kwargs):
@@ -139,8 +138,7 @@ def create_model(
     config.policy.policy.is_action_discrete = env_stats.is_action_discrete[aid]
     config.value.action_embed.input_dim = env_stats.action_dim[aid]
     config.value.action_embed.input_length = env_stats.n_units
-    config.value.hyper_ae.w_in = \
-        config.value.action_embed.embed_size * env_stats.n_units
+    config.value.value.out_size = env_stats.action_dim[aid]
 
     if config['actor_rnn_type'] is None:
         config['policy'].pop('rnn', None)
@@ -151,13 +149,13 @@ def create_model(
     else:
         config['value']['rnn']['nn_id'] = config['value_rnn_type']
 
-    return PPOModelEnsemble(
+    return MAPPOModelEnsemble(
         config=config, 
         env_stats=env_stats, 
         name=name,
         to_build=to_build, 
         to_build_for_eval=to_build_for_eval,
-        policy=PPOActorModel,
-        value=PPOValueModel,
+        policy=MAPPOActorModel,
+        value=MAPPOValueModel,
         **kwargs
     )

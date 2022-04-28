@@ -60,7 +60,7 @@ class Agent:
     """ Train """
     def train_record(self):
         stats = self.strategy.train_record()
-        self.store(**stats)
+        self.monitor.store(**stats)
 
     def save(self, print_terminal_info=False):
         for s in self.strategies.values():

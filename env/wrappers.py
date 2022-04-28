@@ -563,9 +563,6 @@ class EnvStats(EnvStatsBase):
         if self._game_over:
             info['score'] = self._score
             info['epslen'] = self._epslen
-            if not info.get('timeout'):
-                # if game is over not due to timeout, we expect discount to be 0
-                assert discount == 0, discount
             if self.auto_reset:
                 # when resetting, we override the obs and reset but keep the others
                 obs, _, _, reset = self._reset()

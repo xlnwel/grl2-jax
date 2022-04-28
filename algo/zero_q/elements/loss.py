@@ -6,7 +6,7 @@ from utility.tf_utils import explained_variance, reduce_mean
 from algo.hm.elements.loss import PPOLossImpl
 
 
-class PPOPolicyLoss(Loss):
+class MAPPOPolicyLoss(Loss):
     def loss(
         self, 
         obs, 
@@ -15,7 +15,6 @@ class PPOPolicyLoss(Loss):
         target_prob, 
         tr_prob, 
         logprob, 
-        pi, 
         prev_reward=None, 
         prev_action=None, 
         state=None, 
@@ -23,8 +22,7 @@ class PPOPolicyLoss(Loss):
         life_mask=None, 
         mask=None
     ):
-        loss_mask = life_mask if self.config.policy_life_mask else None
-        n = None if loss_mask is None else tf.reduce_sum(loss_mask)
+        life_mask = life_mask if self.config.policy_life_mask else None
         with tf.GradientTape() as tape:
             x, _ = self.model.encode(
                 x=obs, 
@@ -37,70 +35,52 @@ class PPOPolicyLoss(Loss):
             new_logprob = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             log_ratio = new_logprob - logprob
-            raw_policy_loss, raw_entropy, kl, clip_frac = ppo_loss(
-                log_ratio, 
-                advantage, 
-                self.config.clip_range, 
-                entropy, 
-                mask=loss_mask, 
-                n=n, 
-                reduce=False
-            )
-            policy_loss = reduce_mean(raw_policy_loss, loss_mask, n)
-            entropy = reduce_mean(raw_entropy, loss_mask, n)
+            policy_loss, entropy, kl, clip_frac = ppo_loss(
+                log_ratio, advantage, self.config.clip_range, 
+                entropy, life_mask)
             entropy_loss = - self.config.entropy_coef * entropy
             new_prob = tf.exp(new_logprob)
             tr_diff_prob = new_prob - tr_prob
             raw_maca_loss = reduce_mean(tr_diff_prob**2, mask)
-            maca_loss = self.config.maca_coef * raw_maca_loss
+            maca_loss = raw_maca_loss * self.config.maca_coef
             loss = policy_loss + entropy_loss + maca_loss
-        
+
         prob = tf.exp(logprob)
         new_prob = tf.exp(new_logprob)
-        new_pi = tf.nn.softmax(act_dist.logits)
-        diff_prob = new_prob - prob
-        max_diff_prob = tf.math.reduce_max(new_pi - pi, axis=-1)
-        diff_match = tf.math.equal(diff_prob, max_diff_prob)
         terms = dict(
+            target_prob=target_prob, 
+            tr_prob=tr_prob, 
             target_old_diff_prob=target_prob - prob, 
             tr_old_diff_prob=tr_prob - prob, 
             tr_diff_prob=tr_diff_prob, 
             prev_reward=prev_reward,
             ratio=tf.exp(log_ratio),
-            raw_entropy=raw_entropy,
             entropy=entropy,
             kl=kl,
             logprob=logprob,
             new_logprob=new_logprob, 
             prob=prob,
             new_prob=new_prob, 
-            diff_prob=diff_prob, 
+            diff_prob=new_prob - prob, 
             p_clip_frac=clip_frac,
-            raw_policy_loss=raw_policy_loss,
             policy_loss=policy_loss,
             entropy_loss=entropy_loss, 
             raw_maca_loss=raw_maca_loss, 
             maca_loss=maca_loss, 
             actor_loss=loss,
             adv_std=tf.math.reduce_std(advantage, axis=-1), 
-            new_pi=new_pi,
-            max_diff_prob=max_diff_prob,
-            diff_match=diff_match
+            pi=tf.nn.softmax(act_dist.logits)
         )
         if action_mask is not None:
             terms['n_avail_actions'] = tf.reduce_sum(
                 tf.cast(action_mask, tf.float32), -1)
-        if life_mask is not None:
-            terms['n_alive_units'] = tf.reduce_sum(
-                life_mask, -1)
         if not self.policy.is_action_discrete:
-            terms['policy_mean'] = act_dist.mean()
-            terms['policy_std'] = tf.exp(self.policy.logstd)
+            terms['std'] = tf.exp(self.policy.logstd)
 
         return tape, loss, terms
 
 
-class PPOValueLoss(PPOLossImpl):
+class MAPPOValueLoss(PPOLossImpl):
     def loss(
         self, 
         global_state, 
@@ -120,9 +100,8 @@ class PPOValueLoss(PPOLossImpl):
         old_value_a = value_a
         n_units = self.model.env_stats.n_units
         loss_mask = life_mask if self.config.value_life_mask else None
-        n = None if loss_mask is None else tf.reduce_sum(loss_mask)
         with tf.GradientTape() as tape:
-            ae, value, value_a, _ = self.model.compute_value(
+            ae, qs, qs_a, _ = self.model.compute_value(
                 global_state=global_state,
                 action=action, 
                 pi=pi, 
@@ -131,35 +110,35 @@ class PPOValueLoss(PPOLossImpl):
                 life_mask=life_mask, 
                 state=state,
                 mask=mask,
-                return_ae=True
+                return_ae=True,
+                return_v=False
             )
 
-            raw_v_loss, clip_frac = self._compute_value_loss(
+            one_hot = tf.one_hot(action, qs.shape[-1])
+            value = tf.reduce_sum(qs * one_hot, axis=-1)
+            v_loss, clip_frac = self._compute_value_loss(
                 value=value, 
                 traj_ret=traj_ret, 
                 old_value=old_value, 
-                mask=loss_mask, 
-                reduce=False
+                mask=loss_mask
             )
-            raw_va_loss, va_clip_frac = self._compute_value_loss(
+
+            value_a = tf.reduce_sum(qs_a * one_hot, axis=-1)
+            va_loss, va_clip_frac = self._compute_value_loss(
                 value=value_a, 
                 traj_ret=traj_ret_a, 
                 old_value=old_value_a, 
-                mask=loss_mask,
-                reduce=False,
+                mask=loss_mask
             )
 
-            v_loss = reduce_mean(raw_v_loss, loss_mask, n)
-            va_loss = reduce_mean(raw_va_loss, loss_mask, n)
-            if self.config.va_coef == 0: 
-                print('Unit-wise value loss')
-                value_loss = 1 / (n_units+1) * v_loss \
-                    + n_units / (n_units+1) * va_loss
-                value_loss = self.config.value_coef * value_loss
-            else:
-                print('Manual value loss')
-                value_loss = self.config.value_coef * v_loss \
-                    + self.config.va_coef * va_loss
+            value_loss = tf.where(life_mask,
+                1 / (n_units+1) * v_loss 
+                + n_units / (n_units+1) * va_loss,
+                v_loss
+            )
+            value_loss = self.config.value_coef * value_loss
+            # value_loss = self.config.value_coef * v_loss \
+            #     + self.config.va_coef * va_loss
 
         var = self.encoder.variables[0]
         value_weights = var[:global_state.shape[-1]]
@@ -173,13 +152,11 @@ class PPOValueLoss(PPOLossImpl):
         vaev = explained_variance(traj_ret_a, value_a)
         terms = dict(
             value=value,
-            diff_v=(value - value_a), 
+            v_diff=(value - value_a), 
             ae_weights=ae_weights, 
             value_weights=value_weights,
             va_weights=va_weights, 
             value_a=value_a,
-            raw_v_loss=raw_v_loss,
-            raw_va_loss=raw_va_loss,
             v_loss=v_loss,
             va_loss=va_loss,
             value_loss=value_loss,
@@ -208,7 +185,7 @@ class PPOValueLoss(PPOLossImpl):
         return tape, value_loss, terms
 
 
-def create_loss(config, model, name='ppo'):
+def create_loss(config, model, name='mappo'):
     def constructor(config, cls, name):
         return cls(
             config=config, 
@@ -220,6 +197,6 @@ def create_loss(config, model, name='ppo'):
         model=model,
         constructor=constructor,
         name=name,
-        policy=PPOPolicyLoss,
-        value=PPOValueLoss,
+        policy=MAPPOPolicyLoss,
+        value=MAPPOValueLoss,
     )

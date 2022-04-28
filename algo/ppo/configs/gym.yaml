@@ -53,9 +53,9 @@ model:
     rnn_type: &rnn null
     sample_size: &ss 16
     encoder: 
-        nn_id: null
+        nn_id: mlp
         units_list: []
-        activation: relu
+        activation: tanh
     policy:
         nn_id: policy
         units_list: [256, 256]
@@ -75,14 +75,17 @@ loss:
     # arguments for loss
     value_loss: clip
     huber_threshold: 10
-    clip_range: .2          # clip range for ppo
+    clip_range: .2
     entropy_coef: 1e-3
     value_coef: 1
 
 trainer:
     algorithm: *algo
-    sample_size: *ss         # BPTT length
     
+    rnn_type: *rnn
+    sample_size: *ss         # BPTT length
+    store_state: True
+
     optimizer:
         opt_name: adam
         schedule_lr: False
@@ -100,7 +103,7 @@ actor:
 
 buffer:
     type: ppo
-    use_dataset: False
+    use_dataset: *dataset
 
     adv_type: gae     # nae or gae
     gamma: *gamma
@@ -122,3 +125,6 @@ buffer:
         - raw_adv
         - advantage
         - logprob
+        - mask
+        - h
+        - c

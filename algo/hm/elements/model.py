@@ -75,7 +75,7 @@ class ModelImpl(Model):
         return x, state
 
 
-class MAPPOActorModel(ModelImpl):
+class PPOActorModel(ModelImpl):
     def action(
         self, 
         obs, 
@@ -108,7 +108,7 @@ class MAPPOActorModel(ModelImpl):
             return action, terms, state
 
 
-class MAPPOValueModel(ModelImpl):
+class PPOValueModel(ModelImpl):
     @tf.function
     def compute_value(
         self, 
@@ -129,7 +129,7 @@ class MAPPOValueModel(ModelImpl):
         return value, state
 
 
-class MAPPOModelEnsemble(ModelEnsemble):
+class PPOModelEnsemble(ModelEnsemble):
     def _build(self, env_stats, evaluation=False):
         aid = self.config.aid
         basic_shape = (None, len(env_stats.aid2uids[aid]))
@@ -297,7 +297,7 @@ class MAPPOModelEnsemble(ModelEnsemble):
 def create_model(
         config, 
         env_stats, 
-        name='mappo', 
+        name='ppo', 
         to_build=False,
         to_build_for_eval=False,
         **kwargs):
@@ -318,13 +318,13 @@ def create_model(
     else:
         config['value']['rnn']['nn_id'] = config['value_rnn_type']
 
-    return MAPPOModelEnsemble(
+    return PPOModelEnsemble(
         config=config, 
         env_stats=env_stats, 
         name=name,
         to_build=to_build, 
         to_build_for_eval=to_build_for_eval,
-        policy=MAPPOActorModel,
-        value=MAPPOValueModel,
+        policy=PPOActorModel,
+        value=PPOValueModel,
         **kwargs
     )

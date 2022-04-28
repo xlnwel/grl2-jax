@@ -56,7 +56,7 @@ class Recorder:
             if isinstance(v, tf.Tensor):
                 v = v.numpy()
             if v is None:
-                return
+                continue
             elif isinstance(v, (list, tuple)):
                 self._store_dict[k] += list(v)
             else:

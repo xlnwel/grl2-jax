@@ -146,7 +146,7 @@ trainer:
     store_state: True
     policy:
         optimizer:
-            name: adam
+            opt_name: adam
             schedule_lr: False
             lr: 1e-3
             clip_norm: 10
@@ -154,7 +154,7 @@ trainer:
             weight_decay: 0
     value:
         optimizer:
-            name: adam
+            opt_name: adam
             schedule_lr: False
             lr: 1e-3
             clip_norm: 10

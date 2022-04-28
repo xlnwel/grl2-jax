@@ -354,7 +354,7 @@ class PPOBuffer(Buffer):
                 norm_adv=self.norm_adv == 'batch',
                 mask=self._memory.get('life_mask'),
                 epsilon=self.epsilon,
-                same_next_value=self.config.get('same_next_value', True))
+                same_next_value=self.config.get('same_next_value', False))
         elif self.config.adv_type == 'vtrace':
             pass
         else:
@@ -362,6 +362,7 @@ class PPOBuffer(Buffer):
         self._memory['raw_adv'] = self._memory['advantage']
 
         for k, v in self._memory.items():
+            assert v.shape[:2] == (self.config.n_steps, self.config.n_envs), (k, v.shape, (self.config.n_steps, self.config.n_envs))
             v = np.swapaxes(v, 0, 1)
             self._memory[k] = np.reshape(v,
                 (self.batch_size, self.sample_size, *v.shape[2:])

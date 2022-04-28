@@ -48,6 +48,7 @@ class MLP(Module):
             name=f'{name}/{layer_type}_{i}', 
             **kwargs
         ) for i, u in enumerate(units_list)]
+
         if out_size:
             kwargs.pop('gain', None)
             do_logging(f'{self.name} out gain: {out_gain}', logger=logger, level='DEBUG')

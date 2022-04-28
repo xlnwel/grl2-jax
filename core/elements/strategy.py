@@ -106,7 +106,6 @@ class Strategy:
     def train_record(self):
         n, stats = self.train_loop.train()
         self.step_counter.add_train_step(n)
-
         return stats
 
     def reset_states(self, states=None):
