@@ -45,6 +45,9 @@ class MAPPOPolicyLoss(Loss):
         action, 
         advantage, 
         logprob, 
+        pi, 
+        pi_mean, 
+        pi_std, 
         prev_reward=None, 
         prev_action=None, 
         state=None, 
@@ -82,6 +85,7 @@ class MAPPOPolicyLoss(Loss):
 
         prob = tf.exp(logprob)
         new_prob = tf.exp(new_logprob)
+        diff_prob = new_prob - prob
         terms = dict(
             ratio=tf.exp(log_ratio),
             raw_entropy=raw_entropy,
@@ -91,7 +95,7 @@ class MAPPOPolicyLoss(Loss):
             new_logprob=new_logprob, 
             prob=prob,
             new_prob=new_prob, 
-            diff_prob=new_prob - prob, 
+            diff_prob=diff_prob, 
             p_clip_frac=clip_frac,
             raw_policy_loss=raw_policy_loss,
             policy_loss=policy_loss,
@@ -102,9 +106,22 @@ class MAPPOPolicyLoss(Loss):
         if action_mask is not None:
             terms['n_avail_actions'] = tf.reduce_sum(
                 tf.cast(action_mask, tf.float32), -1)
-        if not self.policy.is_action_discrete:
-            terms['policy_mean'] = act_dist.mean()
-            terms['policy_std'] = tf.exp(self.policy.logstd)
+        if life_mask is not None:
+            terms['n_alive_units'] = tf.reduce_sum(
+                life_mask, -1)
+        if self.policy.is_action_discrete:
+            new_pi = tf.nn.softmax(act_dist.logits)
+            max_diff_prob = tf.math.reduce_max(new_pi - pi, axis=-1)
+            terms['new_pi'] = new_pi
+            terms['max_diff_prob'] = max_diff_prob
+            terms['diff_match'] = tf.math.equal(diff_prob, max_diff_prob)
+        else:
+            new_mean = act_dist.mean()
+            new_std = tf.exp(self.policy.logstd)
+            terms['new_mean'] = new_mean
+            terms['new_std'] = new_std
+            terms['diff_mean'] = new_mean - pi_mean
+            terms['diff_std'] = new_std - pi_std
 
         return tape, loss, terms
 

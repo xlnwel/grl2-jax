@@ -121,6 +121,7 @@ model:
     value:
         use_prev_reward: True
         use_prev_action: True
+
         encoder:
             nn_id: mlp
             units_list: [256, 256, 256]
@@ -228,6 +229,7 @@ buffer:
         - raw_adv
         - advantage
         - logprob
+        - pi
         - mask
         - actor_h
         - actor_c

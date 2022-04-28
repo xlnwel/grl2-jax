@@ -16,6 +16,8 @@ class PPOPolicyLoss(Loss):
         tr_prob, 
         logprob, 
         pi, 
+        pi_mean, 
+        pi_std, 
         prev_reward=None, 
         prev_action=None, 
         state=None, 
@@ -57,10 +59,7 @@ class PPOPolicyLoss(Loss):
         
         prob = tf.exp(logprob)
         new_prob = tf.exp(new_logprob)
-        new_pi = tf.nn.softmax(act_dist.logits)
         diff_prob = new_prob - prob
-        max_diff_prob = tf.math.reduce_max(new_pi - pi, axis=-1)
-        diff_match = tf.math.equal(diff_prob, max_diff_prob)
         terms = dict(
             target_old_diff_prob=target_prob - prob, 
             tr_old_diff_prob=tr_prob - prob, 
@@ -83,9 +82,6 @@ class PPOPolicyLoss(Loss):
             maca_loss=maca_loss, 
             actor_loss=loss,
             adv_std=tf.math.reduce_std(advantage, axis=-1), 
-            new_pi=new_pi,
-            max_diff_prob=max_diff_prob,
-            diff_match=diff_match
         )
         if action_mask is not None:
             terms['n_avail_actions'] = tf.reduce_sum(
@@ -93,9 +89,19 @@ class PPOPolicyLoss(Loss):
         if life_mask is not None:
             terms['n_alive_units'] = tf.reduce_sum(
                 life_mask, -1)
-        if not self.policy.is_action_discrete:
-            terms['policy_mean'] = act_dist.mean()
-            terms['policy_std'] = tf.exp(self.policy.logstd)
+        if self.policy.is_action_discrete:
+            new_pi = tf.nn.softmax(act_dist.logits)
+            max_diff_prob = tf.math.reduce_max(new_pi - pi, axis=-1)
+            terms['new_pi'] = new_pi
+            terms['max_diff_prob'] = max_diff_prob
+            terms['diff_match'] = tf.math.equal(diff_prob, max_diff_prob)
+        else:
+            new_mean = act_dist.mean()
+            new_std = tf.exp(self.policy.logstd)
+            terms['new_mean'] = new_mean
+            terms['new_std'] = new_std
+            terms['diff_mean'] = new_mean - pi_mean
+            terms['diff_std'] = new_std - pi_std
 
         return tape, loss, terms
 
@@ -161,12 +167,14 @@ class PPOValueLoss(PPOLossImpl):
                 value_loss = self.config.value_coef * v_loss \
                     + self.config.va_coef * va_loss
 
-        var = self.encoder.variables[0]
-        value_weights = var[:global_state.shape[-1]]
-        va_weights = var[global_state.shape[-1]:]
-        # var = self.value.variables[0]
-        # value_weights = var[:256]
-        # va_weights = var[256:]
+        if self.model.config.concat_end:
+            var = self.value.variables[0]
+            value_weights = var[:-ae.shape[-1]]
+            va_weights = var[-ae.shape[-1]:]
+        else:
+            var = self.encoder.variables[0]
+            value_weights = var[:global_state.shape[-1]]
+            va_weights = var[global_state.shape[-1]:]
 
         ae_weights = self.action_embed.embedding_vars()
         vev = explained_variance(traj_ret, value)

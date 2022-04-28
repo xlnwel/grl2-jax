@@ -76,8 +76,8 @@ strategy:
         value_update: null
 
 model:
-    actor_rnn_type: &arnn null
-    value_rnn_type: &vrnn null
+    actor_rnn_type: &arnn rnn_mlstm
+    value_rnn_type: &vrnn rnn_mlstm
     sample_size: &ss 10
 
     policy:
@@ -102,6 +102,7 @@ model:
             nn_id: policy
             units_list: []
             kernel_initializer: orthogonal
+            activation: relu
             eval_act_temp: 1
             out_gain: .01
 
@@ -109,6 +110,8 @@ model:
         use_prev_reward: False
         use_prev_action: False
         v_pi: True
+        concat_end: True
+
         action_embed:
             nn_id: embed
             embed_size: 8

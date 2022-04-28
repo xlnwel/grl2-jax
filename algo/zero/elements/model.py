@@ -1,45 +1,11 @@
 import os
 import tensorflow as tf
 
-from core.tf_config import build
 from utility.file import source_file
 from algo.hm.elements.model import ModelImpl, PPOActorModel, \
     PPOModelEnsemble as PPOModelBase
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
-
-
-class PPOActorModel(ModelImpl):
-    def action(
-        self, 
-        obs, 
-        prev_reward=None, 
-        prev_action=None, 
-        state=None, 
-        mask=None, 
-        action_mask=None,
-        evaluation=False, 
-        return_eval_stats=False
-    ):
-        x, state = self.encode(
-            x=obs, 
-            prev_reward=prev_reward, 
-            prev_action=prev_action, 
-            state=state, 
-            mask=mask
-        )
-        act_dist = self.policy(x, action_mask, evaluation=evaluation)
-        action = self.policy.action(act_dist, evaluation)
-        pi = tf.nn.softmax(act_dist.logits)
-        if evaluation:
-            # we do not compute the value state at evaluation 
-            return (action, pi), {}, state
-        else:
-            logprob = act_dist.log_prob(action)
-            terms = {
-                'logprob': logprob, 
-            }
-            return (action, pi), terms, state
 
 
 class PPOValueModel(ModelImpl):
@@ -71,7 +37,8 @@ class PPOValueModel(ModelImpl):
         state=None, 
         mask=None
     ):
-        x = tf.concat([global_state, ae], -1)
+        x = global_state if self.config.concat_end \
+            else tf.concat([global_state, ae], -1)
         x, state = self.encode(
             x=x, 
             prev_reward=prev_reward, 
@@ -79,68 +46,86 @@ class PPOValueModel(ModelImpl):
             state=state, 
             mask=mask
         )
+
         value = self.value(x)
 
         return value, state
 
+    @tf.function
     def compute_value(
         self, 
         global_state, 
         action, 
         pi, 
-        prev_reward, 
-        prev_action, 
+        prev_reward=None, 
+        prev_action=None, 
         life_mask=None, 
         state=None, 
         mask=None, 
         return_ae=False
     ):
+        if hasattr(self, 'rnn'):
+            T, U, F = global_state.shape[1:]
+            gs_shaped = tf.reshape(global_state, (-1, U, F))
+            a_shaped = tf.reshape(action, (-1, *action.shape[2:]))
+            lm_shaped = tf.reshape(life_mask, (-1, U))
+        else:
+            gs_shaped = global_state
+            a_shaped = action
+            lm_shaped = life_mask
         ae = self.compute_action_embedding(
-            global_state, 
-            action, 
-            life_mask
-        )
-        value_a, state = self.compute_value_with_action_embeddings(
-            global_state=global_state, 
-            ae=ae,
-            prev_reward=prev_reward, 
-            prev_action=prev_action, 
-            state=state, 
-            mask=mask
+            gs_shaped, 
+            a_shaped, 
+            lm_shaped
         )
 
-        # NOTE: we do not distinguish states of V(s) and V(s, a^{-i})
-        # This is incorrect for RNNs, which we do not consider for now
         if self.config.v_pi:
+            pi_shaped = tf.reshape(pi, (-1, *pi.shape[2:]))
             pi_ae = self.compute_action_embedding(
-                global_state, 
-                pi, 
-                life_mask, 
+                gs_shaped, 
+                pi_shaped, 
+                lm_shaped, 
                 True
             )
         else:
             pi_ae = tf.zeros_like(ae)
-        value, state = self.compute_value_with_action_embeddings(
-            global_state=global_state, 
-            ae=pi_ae,
-            prev_reward=prev_reward, 
-            prev_action=prev_action, 
-            state=state, 
-            mask=mask
-        )
+        
+        if hasattr(self, 'rnn'):
+            ae = tf.reshape(ae, (-1, T, *ae.shape[1:]))
+            pi_ae = tf.reshape(pi_ae, (-1, T, *pi_ae.shape[1:]))
 
-        # x, state = self.encode(
-        #     x=global_state, 
-        #     prev_reward=prev_reward, 
-        #     prev_action=prev_action, 
-        #     state=state, 
-        #     mask=mask
-        # )
-        # ae = self.action_embed(action)
-        # x_a = tf.concat([x, ae], -1)
-        # value_a = self.value(x_a)
-        # x = tf.concat([x, tf.zeros_like(ae)], -1)
-        # value = self.value(x)
+        if self.config.concat_end:
+            x = global_state
+            x, state = self.encode(
+                x=x, 
+                prev_reward=prev_reward, 
+                prev_action=prev_action, 
+                state=state, 
+                mask=mask
+            )
+            value_a = self.value(tf.concat([x, ae], -1))
+            value = self.value(tf.concat([x, pi_ae], -1))
+        else:
+            assert not hasattr(self, 'rnn'), 'rnn state is incorrect'
+            x = tf.concat([global_state, ae], -1)
+            x, state = self.encode(
+                x=x, 
+                prev_reward=prev_reward, 
+                prev_action=prev_action, 
+                state=state, 
+                mask=mask
+            )
+            value_a = self.value(x)
+
+            x = tf.concat([global_state, pi_ae], -1)
+            x, state = self.encode(
+                x=x, 
+                prev_reward=prev_reward, 
+                prev_action=prev_action, 
+                state=state, 
+                mask=mask
+            )
+            value = self.value(x)
 
         if return_ae:
             return ae, value, value_a, state
@@ -149,50 +134,6 @@ class PPOValueModel(ModelImpl):
 
 
 class PPOModelEnsemble(PPOModelBase):
-    def _build(self, env_stats, evaluation=False):
-        aid = self.config.aid
-        basic_shape = (None, len(env_stats.aid2uids[aid]))
-        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
-        actor_inp=dict(
-            obs=((*basic_shape, *env_stats.obs_shape[aid]['obs']), 
-                env_stats.obs_dtype[aid]['obs'], 'obs'),
-            prev_reward=(basic_shape, tf.float32, 'prev_reward'), 
-            prev_action=((*basic_shape, env_stats.action_dim[aid]), tf.float32, 'prev_action'), 
-        )
-        value_inp=dict(
-            global_state=(
-                (*basic_shape, *env_stats.obs_shape[aid]['global_state']), 
-                env_stats.obs_dtype[aid]['global_state'], 'global_state'), 
-            prev_reward=(basic_shape, tf.float32, 'prev_reward'), 
-            prev_action=((*basic_shape, env_stats.action_dim[aid]), tf.float32, 'prev_action'), 
-        )
-        TensorSpecs = dict(
-            actor_inp=actor_inp,
-            value_inp=value_inp,
-            evaluation=evaluation,
-            return_eval_stats=evaluation,
-        )
-        if self.has_rnn:
-            for inp in [actor_inp, value_inp]:
-                inp['mask'] = (basic_shape, tf.float32, 'mask')
-            if self.actor_has_rnn:
-                TensorSpecs['actor_state'] = self.actor_state_type(
-                    *[((None, sz), dtype, name) 
-                    for name, sz in self.actor_state_size._asdict().items()])
-            if self.value_has_rnn:
-                TensorSpecs['value_state'] = self.value_state_type(
-                    *[((None, sz), dtype, name) 
-                    for name, sz in self.value_state_size._asdict().items()])
-        if env_stats.use_action_mask:
-            TensorSpecs['actor_inp']['action_mask'] = (
-                (*basic_shape, env_stats.action_dim[aid]), tf.bool, 'action_mask'
-            )
-        if env_stats.use_life_mask:
-            TensorSpecs['value_inp']['life_mask'] = (
-                basic_shape, tf.float32, 'life_mask'
-            )
-        self.action = build(self.action, TensorSpecs)
-
     @tf.function
     def action(
         self, 
@@ -207,12 +148,12 @@ class PPOModelEnsemble(PPOModelBase):
             actor_inp, = self._add_seqential_dimension(actor_inp)
         if self.value_has_rnn:
             value_inp, = self._add_seqential_dimension(value_inp)
-        (action, pi), terms, actor_state = self.policy.action(
+        action, terms, actor_state = self.policy.action(
             **actor_inp, state=actor_state,
             evaluation=evaluation, 
             return_eval_stats=return_eval_stats)
         value, value_a, value_state = self.value.compute_value(
-            **value_inp, action=action, pi=pi, state=value_state)
+            **value_inp, action=action, pi=terms.get('pi'), state=value_state)
         state = self.state_type(actor_state, value_state) \
             if self.has_rnn else None
         if self.actor_has_rnn:
@@ -223,7 +164,6 @@ class PPOModelEnsemble(PPOModelBase):
             terms.update({
                 'value': value,
                 'value_a': value_a,
-                'pi': pi
             })
         return action, terms, state
 

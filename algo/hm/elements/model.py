@@ -96,15 +96,24 @@ class PPOActorModel(ModelImpl):
         )
         act_dist = self.policy(x, action_mask, evaluation=evaluation)
         action = self.policy.action(act_dist, evaluation)
-
+        if self.policy.is_action_discrete:
+            pi = tf.nn.softmax(act_dist.logits)
+            terms = {
+                'pi': pi
+            }
+        else:
+            mean = act_dist.mean()
+            std = tf.exp(self.policy.logstd)
+            terms = {
+                'pi_mean': mean,
+                'pi_std': std * tf.ones_like(mean), 
+            }
         if evaluation:
             # we do not compute the value state at evaluation 
             return action, {}, state
         else:
             logprob = act_dist.log_prob(action)
-            terms = {
-                'logprob': logprob, 
-            }
+            terms['logprob'] = logprob
             return action, terms, state
 
 
@@ -115,6 +124,7 @@ class PPOValueModel(ModelImpl):
         global_state, 
         prev_reward=None, 
         prev_action=None, 
+        life_mask=None, 
         state=None, 
         mask=None
     ):
@@ -167,6 +177,10 @@ class PPOModelEnsemble(ModelEnsemble):
         if env_stats.use_action_mask:
             TensorSpecs['actor_inp']['action_mask'] = (
                 (*basic_shape, env_stats.action_dim[aid]), tf.bool, 'action_mask'
+            )
+        if env_stats.use_life_mask:
+            TensorSpecs['value_inp']['life_mask'] = (
+                basic_shape, tf.float32, 'life_mask'
             )
         self.action = build(self.action, TensorSpecs)
 

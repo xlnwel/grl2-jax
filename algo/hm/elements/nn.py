@@ -69,7 +69,7 @@ class Policy(Module):
                 else dist.sample()
         else:
             action = dist.sample()
-            action = tf.clip_by_value(action, -1, 1)
+            action = tf.clip_by_value(action, -2, 2)
         return action
 
 

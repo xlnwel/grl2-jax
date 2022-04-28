@@ -73,19 +73,19 @@ def compute_gae(
 def compute_bounded_target(prob, adv, tau, clip_range):
     target_prob = prob * np.exp(adv / tau)
     tr_prob = np.clip(prob * np.exp(adv / tau), prob-clip_range, prob+clip_range)
-    tr_prob = np.clip(prob, 0, 1)
+    tr_prob = np.clip(tr_prob, 0, 1)
     return target_prob, tr_prob
 
 def compute_clipped_target(prob, adv, tau, clip_range):
     target_prob = prob * np.exp(adv / tau)
     tr_prob = prob * np.clip(np.exp(adv / tau), 1-clip_range, 1+clip_range)
-    tr_prob = np.clip(prob, 0, 1)
+    tr_prob = np.clip(tr_prob, 0, 1)
     return target_prob, tr_prob
 
 def compute_mixture_target(prob, adv, tau, alpha):
     target_prob = prob * np.exp(adv / tau)
     tr_prob = (1 - alpha) * prob + alpha * target_prob
-    tr_prob = np.clip(prob, 0, 1)
+    tr_prob = np.clip(tr_prob, 0, 1)
     return target_prob, tr_prob
 
 def compute_indices(idxes, mb_idx, mb_size, n_mbs):
@@ -319,9 +319,9 @@ class PPOBuffer(Buffer):
         self._ready = False
 
     """ Filling Methods """
-    def add(self, **transition):
+    def add(self, **data):
         """ Add transitions """
-        for k, v in transition.items():
+        for k, v in data.items():
             self._memory[k].append(v)
         self._current_size += 1
 

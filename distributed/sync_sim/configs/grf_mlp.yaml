@@ -122,6 +122,8 @@ model:
         use_prev_reward: True
         use_prev_action: True
         v_pi: False
+        concat_end: False
+
         action_embed:
             nn_id: embed
             embed_size: 8

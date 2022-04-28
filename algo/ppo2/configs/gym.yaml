@@ -175,6 +175,8 @@ buffer:
         - raw_adv
         - advantage
         - logprob
+        - pi_mean
+        - pi_std
         # - mask
         # - actor_h
         # - actor_c

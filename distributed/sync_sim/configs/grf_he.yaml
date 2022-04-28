@@ -112,13 +112,18 @@ model:
             nn_id: policy
             units_list: []
             kernel_initializer: orthogonal
+            activation: relu
+            norm: null
             eval_act_temp: 1
             out_gain: .01
+            init_std: 1
 
     value:
         use_prev_reward: True
         use_prev_action: True
         v_pi: False
+        concat_end: False
+
         action_embed:
             nn_id: embed
             embed_size: 8
@@ -149,6 +154,7 @@ model:
             units_list: []
             kernel_initializer: orthogonal
             activation: relu
+            norm: null
 
 loss:
     policy:
@@ -160,6 +166,7 @@ loss:
         value_loss: clip
         clip_range: .2
         value_coef: 1
+        va_coef: 0
         value_life_mask: False
 
 trainer:
@@ -246,6 +253,7 @@ buffer:
         - target_prob
         - tr_prob
         - logprob
+        - pi
         - mask
         - actor_h
         - actor_c

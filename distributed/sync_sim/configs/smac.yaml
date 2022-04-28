@@ -76,8 +76,8 @@ strategy:
         value_update: null
 
 model:
-    actor_rnn_type: &arnn rnn_mlstm
-    value_rnn_type: &vrnn rnn_mlstm
+    actor_rnn_type: &arnn null
+    value_rnn_type: &vrnn null
     sample_size: &ss 10
 
     policy:
