@@ -12,37 +12,61 @@ source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 class ModelImpl(Model):
     def encode(self, x, prev_reward, prev_action, state, mask):
-        if hasattr(self, 'rnn'):
-            # we expect x and mask to be of shape [B, T, U(, *)]
-            assert_rank(x, 4)
-            assert_rank(prev_reward, 3)
-            assert_rank(prev_action, 4)
-            assert_rank(mask, 3)
+        has_rnn = hasattr(self, 'rnn')
+        if has_rnn:
+            if self.env_stats.is_multi_agent:
+                # we expect x and mask to be of shape [B, T, U(, *)]
+                assert_rank(x, 4)
+                assert_rank(prev_reward, 3)
+                assert_rank(prev_action, 4)
+                assert_rank(mask, 3)
 
-            T, U, F = x.shape[1:]
-            assert prev_reward.shape[1:] == (T, U), (prev_reward.shape, (T, U))
-            assert mask.shape[1:] == (T, U), (mask.shape, (T, U))
-            x = tf.transpose(x, [0, 2, 1, 3])
-            x = tf.reshape(x, [-1, T, F])
-            mask = tf.transpose(mask, [0, 2, 1])
-            mask = tf.reshape(mask, [-1, T])
-            x = self.encoder(x)
-            if self.config.use_prev_reward:
-                prev_reward = tf.transpose(prev_reward, [0, 2, 1])
-                prev_reward = tf.reshape(prev_reward, [-1, T])
-                prev_reward = prev_reward * mask
-                x = tf.concat([x, prev_reward[..., None]], -1)
-            if self.config.use_prev_action:
-                A = prev_action.shape[-1]
-                prev_action = tf.transpose(prev_action, [0, 2, 1, 3])
-                prev_action = tf.reshape(prev_action, [-1, T, A])
-                prev_action = prev_action * mask[..., None]
-                x = tf.concat([x, prev_action], -1)
-            x, state = self.rnn(x, state, mask)
-            x = tf.reshape(x, [-1, U, T, x.shape[-1]])
-            x = tf.transpose(x, [0, 2, 1, 3])
+                T, U, F = x.shape[1:]
+                assert prev_reward.shape[1:] == (T, U), (prev_reward.shape, (T, U))
+                assert mask.shape[1:] == (T, U), (mask.shape, (T, U))
+                x = tf.transpose(x, [0, 2, 1, 3])
+                x = tf.reshape(x, [-1, T, F])
+                mask = tf.transpose(mask, [0, 2, 1])
+                mask = tf.reshape(mask, [-1, T])
+                x = self.encoder(x)
+                if self.config.use_prev_reward:
+                    prev_reward = tf.transpose(prev_reward, [0, 2, 1])
+                    prev_reward = tf.reshape(prev_reward, [-1, T])
+                    prev_reward = prev_reward * mask
+                    x = tf.concat([x, prev_reward[..., None]], -1)
+                if self.config.use_prev_action:
+                    A = prev_action.shape[-1]
+                    prev_action = tf.transpose(prev_action, [0, 2, 1, 3])
+                    prev_action = tf.reshape(prev_action, [-1, T, A])
+                    prev_action = prev_action * mask[..., None]
+                    x = tf.concat([x, prev_action], -1)
+                x, state = self.rnn(x, state, mask)
+                x = tf.reshape(x, [-1, U, T, x.shape[-1]])
+                x = tf.transpose(x, [0, 2, 1, 3])
+            else:
+                # we expect x and mask to be of shape [B, T(, *)]
+                assert_rank(x, 3)
+                assert_rank(prev_reward, 2)
+                assert_rank(prev_action, 3)
+                assert_rank(mask, 2)
+
+                T, F = x.shape[1:]
+                assert prev_reward.shape[1:] == (T,), (prev_reward.shape, (T,))
+                assert mask.shape[1:] == (T,), (mask.shape, (T,))
+                x = self.encoder(x)
+                if self.config.use_prev_reward:
+                    prev_reward = prev_reward * mask
+                    x = tf.concat([x, prev_reward[..., None]], -1)
+                if self.config.use_prev_action:
+                    prev_action = prev_action * mask[..., None]
+                    x = tf.concat([x, prev_action], -1)
+                x, state = self.rnn(x, state, mask)
+                x = tf.reshape(x, [-1, T, x.shape[-1]])
         else:
-            assert_rank(x, 3)
+            if self.env_stats.is_multi_agent:
+                assert_rank(x, 3)
+            else:
+                assert_rank(x, 2)
 
             x = self.encoder(x)
 
@@ -77,20 +101,20 @@ class MAPPOActorModel(ModelImpl):
             # we do not compute the value state at evaluation 
             return action, {}, state
         else:
-            logpi = act_dist.log_prob(action)
+            logprob = act_dist.log_prob(action)
             terms = {
-                'logpi': logpi, 
-                'logits': act_dist.logits, 
+                'logprob': logprob, 
             }
             return action, terms, state
 
 
 class MAPPOValueModel(ModelImpl):
+    @tf.function
     def compute_value(
         self, 
         global_state, 
-        prev_reward, 
-        prev_action, 
+        prev_reward=None, 
+        prev_action=None, 
         state=None, 
         mask=None
     ):
@@ -235,10 +259,18 @@ class MAPPOModelEnsemble(ModelEnsemble):
     def value_state_type(self):
         return self.value.state_type if self.value_has_rnn else None
 
+    def get_states(self):
+        actor_state = self.policy.get_states()
+        value_state = self.value.get_states()
+        if actor_state is not None or value_state is not None:
+            return self.state_type(actor_state, value_state)
+        return None
+
     def reset_states(self, state=None):
-        actor_state, value_state = self.split_state(state)
-        self.policy.reset_states(actor_state)
-        self.value.reset_states(value_state)
+        if state is not None:
+            actor_state, value_state = self.split_state(state)
+            self.policy.reset_states(actor_state)
+            self.value.reset_states(value_state)
 
     def get_initial_state(self, inputs=None, batch_size=None, dtype=None):
         if inputs is not None:
@@ -269,9 +301,13 @@ def create_model(
         to_build=False,
         to_build_for_eval=False,
         **kwargs):
-    aid = config['aid']
-    config.policy.policy.action_dim = env_stats.action_dim[aid]
-    config.policy.policy.is_action_discrete = env_stats.is_action_discrete[aid]
+    if 'aid' in config:
+        aid = config['aid']
+        config.policy.policy.action_dim = env_stats.action_dim[aid]
+        config.policy.policy.is_action_discrete = env_stats.is_action_discrete[aid]
+    else:
+        config.policy.policy.action_dim = env_stats.action_dim
+        config.policy.policy.is_action_discrete = env_stats.is_action_discrete
 
     if config['actor_rnn_type'] is None:
         config['policy'].pop('rnn', None)

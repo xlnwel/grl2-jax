@@ -143,12 +143,12 @@ loss:
     policy:
         clip_range: .2
         entropy_coef: .001
-        life_mask: False
+        policy_life_mask: False
     value:
         value_loss: clip
         clip_range: .2
         value_coef: 1
-        life_mask: False
+        value_life_mask: False
 
 trainer:
     algorithm: *algo
@@ -223,7 +223,7 @@ buffer:
         - traj_ret
         - raw_adv
         - advantage
-        - logpi
+        - logprob
         - mask
         - actor_h
         - actor_c

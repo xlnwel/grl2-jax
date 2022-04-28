@@ -221,7 +221,7 @@ class PPOBuffer(Buffer):
     def _add_attributes(self, model):
         self.norm_adv = self.config.get('norm_adv', 'minibatch')
         self.use_dataset = self.config.get('use_dataset', False)
-        do_logging(f'Is dataset used for data pipline: {self.use_dataset}', logger=logger)
+        do_logging(f'Is dataset used for data pipeline: {self.use_dataset}', logger=logger)
 
         self.state_keys = tuple([k for k in model.state_keys])
         self.state_type = model.state_type
@@ -310,6 +310,7 @@ class PPOBuffer(Buffer):
             pass
         else:
             raise NotImplementedError
+        self._memory['raw_adv'] = self._memory['advantage']
 
         for k, v in self._memory.items():
             v = np.swapaxes(v, 0, 1)

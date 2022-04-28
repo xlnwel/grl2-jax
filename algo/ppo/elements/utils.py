@@ -11,10 +11,12 @@ def get_data_format(config, env_stats, model):
 
     data_format.update(dict(
         action=((*basic_shape, *env_stats['action_shape']), env_stats['action_dtype'], 'action'),
+        reward=(basic_shape, tf.float32, 'reward'),
         value=(basic_shape, tf.float32, 'value'),
         traj_ret=(basic_shape, tf.float32, 'traj_ret'),
+        raw_adv=(basic_shape, tf.float32, 'raw_adv'),
         advantage=(basic_shape, tf.float32, 'advantage'),
-        logpi=(basic_shape, tf.float32, 'logpi'),
+        logprob=(basic_shape, tf.float32, 'logprob'),
     ))
 
     if config.get('store_state'):

@@ -41,7 +41,7 @@ class MAPPOBuffer:
     def _add_attributes(self, model):
         self._norm_adv = getattr(self.config, 'norm_adv', False)
         self._use_dataset = getattr(self.config, 'use_dataset', False)
-        do_logging(f'Is dataset used for data pipline: {self._use_dataset}', logger=logger)
+        do_logging(f'Is dataset used for data pipeline: {self._use_dataset}', logger=logger)
 
         self._sample_size = self.config.sample_size
         self._sample_keys = self.config.sample_keys

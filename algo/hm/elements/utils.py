@@ -2,17 +2,29 @@ import tensorflow as tf
 
 
 def get_data_format(config, env_stats, model):
-    aid = config.aid
-    n_units = len(env_stats.aid2uids[aid])
-    basic_shape = (None, config['sample_size'], n_units) \
-        if model.has_rnn else (None, n_units)
-    shapes = env_stats['obs_shape'][aid]
-    dtypes = env_stats['obs_dtype'][aid]
-    data_format = {k: ((*basic_shape, *v), dtypes[k], k) 
-        for k, v in shapes.items()}
+    if 'aid' in config:
+        aid = config.aid
+        n_units = len(env_stats.aid2uids[aid])
+        basic_shape = (None, config['sample_size'], n_units) \
+            if model.has_rnn else (None, n_units)
+        shapes = env_stats['obs_shape'][aid]
+        dtypes = env_stats['obs_dtype'][aid]
+        data_format = {k: ((*basic_shape, *v), dtypes[k], k) 
+            for k, v in shapes.items()}
 
-    action_shape = env_stats.action_shape[aid]
-    action_dtype = env_stats.action_dtype[aid]
+        action_shape = env_stats.action_shape[aid]
+        action_dtype = env_stats.action_dtype[aid]
+    else:
+        basic_shape = (None, config['sample_size']) \
+            if model.has_rnn else (None,)
+        shapes = env_stats['obs_shape']
+        dtypes = env_stats['obs_dtype']
+        data_format = {k: ((*basic_shape, *v), dtypes[k], k) 
+            for k, v in shapes.items()}
+
+        action_shape = env_stats.action_shape
+        action_dtype = env_stats.action_dtype
+
     data_format.update(dict(
         action=((*basic_shape, *action_shape), action_dtype, 'action'),
         reward=(basic_shape, tf.float32, 'reward'),
@@ -20,7 +32,7 @@ def get_data_format(config, env_stats, model):
         traj_ret=(basic_shape, tf.float32, 'traj_ret'),
         raw_adv=(basic_shape, tf.float32, 'raw_adv'),
         advantage=(basic_shape, tf.float32, 'advantage'),
-        logpi=(basic_shape, tf.float32, 'logpi'),
+        logprob=(basic_shape, tf.float32, 'logprob'),
     ))
 
     if config.get('store_state'):

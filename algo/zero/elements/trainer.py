@@ -1,43 +1,8 @@
-from core.elements.trainer import Trainer, TrainerEnsemble
+from core.elements.trainer import TrainerEnsemble
 from core.decorator import override
 from core.tf_config import build
 from .utils import get_data_format
-from algo.hm.elements.trainer import MAPPOActorTrainer
-
-
-class MAPPOValueTrainer(Trainer):
-    def raw_train(
-        self, 
-        global_state, 
-        action, 
-        value, 
-        value_a, 
-        traj_ret, 
-        traj_ret_a, 
-        prev_reward, 
-        prev_action, 
-        state=None, 
-        life_mask=None, 
-        mask=None
-    ):
-        tape, loss, terms = self.loss.loss(
-            global_state=global_state, 
-            action=action, 
-            value=value, 
-            value_a=value_a,
-            traj_ret=traj_ret, 
-            traj_ret_a=traj_ret_a, 
-            prev_reward=prev_reward, 
-            prev_action=prev_action, 
-            state=state, 
-            life_mask=life_mask,
-            mask=mask
-        )
-
-        terms['value_norm'], terms['value_var_norm'] = \
-            self.optimizer(tape, loss, return_var_norms=True)
-
-        return terms
+from algo.hm.elements.trainer import MAPPOActorTrainer, MAPPOValueTrainer
 
 
 class MAPPOTrainerEnsemble(TrainerEnsemble):
@@ -60,7 +25,9 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
         traj_ret_a, 
         raw_adv, 
         advantage, 
-        logpi, 
+        target_prob, 
+        tr_prob, 
+        logprob, 
         prev_reward, 
         prev_action, 
         action_mask=None, 
@@ -73,7 +40,9 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
             obs=obs, 
             action=action, 
             advantage=advantage, 
-            logpi=logpi, 
+            target_prob=target_prob, 
+            tr_prob=tr_prob, 
+            logprob=logprob, 
             prev_reward=prev_reward, 
             prev_action=prev_action, 
             state=actor_state, 
@@ -81,9 +50,11 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
             life_mask=life_mask, 
             mask=mask
         )
+
         value_terms = self.value.raw_train(
             global_state=global_state, 
             action=action, 
+            pi=actor_terms['pi'], 
             value=value, 
             value_a=value_a, 
             traj_ret=traj_ret, 

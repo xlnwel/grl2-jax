@@ -456,7 +456,7 @@ class MultiAgentSimRunner(RayBase):
             self.rms[0].update_obs_rms(
                 agent_env_outs.obs, 'obs', mask=out.obs.get('life_mask'))
             self.rms[0].update_obs_rms(
-                agent_env_outs.obs, 'global_state')
+                agent_env_outs.obs, 'global_state', mask=out.obs.get('life_mask'))
             self.rms[0].update_reward_rms(agent_env_outs.reward, agent_env_outs.discount)
         else:
             assert len(self.rms) == len(agent_env_outs), (len(self.rms), len(agent_env_outs))

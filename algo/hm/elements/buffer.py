@@ -70,6 +70,24 @@ def compute_gae(
 
     return advs, traj_ret
 
+def compute_bounded_target(prob, adv, tau, clip_range):
+    target_prob = prob * np.exp(adv / tau)
+    tr_prob = np.clip(prob * np.exp(adv / tau), prob-clip_range, prob+clip_range)
+    tr_prob = np.clip(prob, 0, 1)
+    return target_prob, tr_prob
+
+def compute_clipped_target(prob, adv, tau, clip_range):
+    target_prob = prob * np.exp(adv / tau)
+    tr_prob = prob * np.clip(np.exp(adv / tau), 1-clip_range, 1+clip_range)
+    tr_prob = np.clip(prob, 0, 1)
+    return target_prob, tr_prob
+
+def compute_mixture_target(prob, adv, tau, alpha):
+    target_prob = prob * np.exp(adv / tau)
+    tr_prob = (1 - alpha) * prob + alpha * target_prob
+    tr_prob = np.clip(prob, 0, 1)
+    return target_prob, tr_prob
+
 def compute_indices(idxes, mb_idx, mb_size, n_mbs):
     start = mb_idx * mb_size
     end = (mb_idx + 1) * mb_size
@@ -131,7 +149,8 @@ def get_sample_keys_size(config):
             config.sample_keys, 
             actor_state_keys + value_state_keys, 
         )
-        sample_keys.remove('mask')
+        if 'mask' in sample_keys:
+            sample_keys.remove('mask')
         sample_size = None
 
     return sample_keys, sample_size
@@ -248,7 +267,7 @@ class PPOBuffer(Buffer):
     def _add_attributes(self, model):
         self.norm_adv = self.config.get('norm_adv', 'minibatch')
         self.use_dataset = self.config.get('use_dataset', False)
-        do_logging(f'Is dataset used for data pipline: {self.use_dataset}', logger=logger)
+        do_logging(f'Is dataset used for data pipeline: {self.use_dataset}', logger=logger)
 
         self.actor_state_keys = tuple([f'actor_{k}' for k in model.actor_state_keys])
         self.value_state_keys = tuple([f'value_{k}' for k in model.value_state_keys])
@@ -340,6 +359,7 @@ class PPOBuffer(Buffer):
             pass
         else:
             raise NotImplementedError
+        self._memory['raw_adv'] = self._memory['advantage']
 
         for k, v in self._memory.items():
             v = np.swapaxes(v, 0, 1)
@@ -430,8 +450,11 @@ class PPOBuffer(Buffer):
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self.sample_keys
         self._mb_idx, self._curr_idxes = compute_indices(
-            self.shuffled_idxes, self._mb_idx, 
-            self.mb_size, self.n_mbs)
+            self.shuffled_idxes, 
+            self._mb_idx, 
+            self.mb_size, 
+            self.n_mbs
+        )
 
         sample = get_sample(
             self._memory, 

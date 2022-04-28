@@ -12,7 +12,8 @@ source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 class PPOModel(Model):
     def _pre_init(self):
-        if self.config.encoder.nn_id.startswith('cnn'):
+        if self.config.encoder.nn_id is not None \
+            and self.config.encoder.nn_id.startswith('cnn'):
             self.config.encoder.time_distributed = 'rnn' in self.config
 
     def _build(
@@ -54,30 +55,30 @@ class PPOModel(Model):
             value = self.value(x)
             return action, {'value': value}, state
         else:
-            logpi = act_dist.log_prob(action)
+            logprob = act_dist.log_prob(action)
             value = self.value(x)
-            terms = {'logpi': logpi, 'value': value}
+            terms = {'logprob': logprob, 'value': value}
 
             return action, terms, state    # keep the batch dimension for later use
 
     @tf.function
     def compute_value(
         self, 
-        obs, 
+        global_state, 
         state: Tuple[tf.Tensor]=None,
         mask: tf.Tensor=None
     ):
-        x, state = self.encode(obs, state, mask)
+        x, state = self.encode(global_state, state, mask)
         value = self.value(x)
         return value, state
 
     def encode(
         self, 
-        obs, 
+        x, 
         state: Tuple[tf.Tensor]=None,
         mask: tf.Tensor=None
     ):
-        x = self.encoder(obs)
+        x = self.encoder(x)
         if hasattr(self, 'rnn'):
             x, state = self.rnn(x, state, mask)
             return x, state
@@ -94,7 +95,7 @@ def create_model(
     **kwargs
 ):
     config.policy.action_dim = env_stats.action_dim
-    config.policy.is_action_discrete = env_stats.action_dim
+    config.policy.is_action_discrete = env_stats.is_action_discrete
 
     if config['rnn_type'] is None:
         config.pop('rnn', None)

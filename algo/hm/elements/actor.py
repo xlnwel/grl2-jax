@@ -5,8 +5,9 @@ from utility.tf_utils import numpy2tensor, tensor2numpy
 class MAPPOActor(Actor):
     """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
-        inp = self.rms.process_obs_with_rms(inp)
-        inp['prev_reward'] = self.rms.process_reward_with_rms(inp['prev_reward'])
+        inp = self.rms.process_obs_with_rms(inp, mask=inp.get('life_mask'))
+        if 'prev_reward' in inp:
+            inp['prev_reward'] = self.rms.process_reward_with_rms(inp['prev_reward'])
         tf_inp = numpy2tensor(inp)
         tf_inp = self._split_input(tf_inp)
 
@@ -15,19 +16,20 @@ class MAPPOActor(Actor):
     def _split_input(self, inp: dict):
         actor_inp = dict(
             obs=inp['obs'], 
-            prev_reward=inp['prev_reward'], 
-            prev_action=inp['prev_action'], 
         )
+        global_state = inp['global_state'] if 'global_state' in inp else inp['obs']
         value_inp = dict(
-            global_state=inp['global_state'], 
-            prev_reward=inp['prev_reward'], 
-            prev_action=inp['prev_action'], 
+            global_state=global_state, 
         )
         if 'action_mask' in inp:
             actor_inp['action_mask'] = inp['action_mask']
         if self.model.has_rnn:
             for dest_inp in [actor_inp, value_inp]:
                 dest_inp['mask'] = inp['mask']
+                if 'prev_reward' in inp:
+                    dest_inp['prev_reward'] = inp['prev_reward']
+                if 'prev_action' in inp:
+                    dest_inp['prev_action'] = inp['prev_action']
             actor_state, value_state = self.model.split_state(inp['state'])
             return {
                 'actor_inp': actor_inp, 
@@ -46,7 +48,8 @@ class MAPPOActor(Actor):
         # convert to np.ndarray and restore the unit dimension
         b, u = inp['obs'].shape[:2]
         if self.model.has_rnn:
-            action, terms, prev_state = tensor2numpy((action, terms, inp['state']))
+            action, terms, prev_state = tensor2numpy(
+                (action, terms, inp['state']))
 
             if not evaluation:
                 actor_state, value_state = self.model.split_state(prev_state)

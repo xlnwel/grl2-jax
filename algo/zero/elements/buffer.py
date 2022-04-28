@@ -7,7 +7,9 @@ from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from utility.utils import dict2AttrDict, standardize
-from algo.hm.elements.buffer import compute_indices, get_sample, get_sample_keys_size
+from algo.hm.elements.buffer import \
+    compute_bounded_target, compute_clipped_target, compute_mixture_target, \
+        compute_indices, get_sample, get_sample_keys_size
 
 
 logger = logging.getLogger(__name__)
@@ -35,16 +37,23 @@ def compute_gae(
     if same_next_value:
         next_value = np.mean(next_value, axis=-1, keepdims=True)
     assert value.ndim == next_value.ndim, (value.shape, next_value.shape)
-    advs = delta = (reward + discount * gamma * next_value - value_a).astype(np.float32)
+    advs = delta = (reward + discount * gamma * next_value - value).astype(np.float32)
     next_adv = 0
+    advs_a = delta = (reward + discount * gamma * next_value - value_a).astype(np.float32)
+    next_adv_a = 0
     for i in reversed(range(advs.shape[0])):
         advs[i] = next_adv = (delta[i] 
             + discount[i] * gae_discount * next_adv)
-    traj_ret_a = advs + value_a
-    traj_ret = np.mean(traj_ret_a, axis=2, keepdims=True)
-    assert traj_ret.ndim == traj_ret_a.ndim == 3, traj_ret.shape
-    traj_ret = np.tile(traj_ret, traj_ret_a.shape[-1])
-    assert traj_ret.shape == traj_ret_a.shape, traj_ret.shape
+        advs_a[i] = next_adv_a = (delta[i] 
+            + discount[i] * gae_discount * next_adv_a)
+    traj_ret = advs + value
+    traj_ret_a = advs_a + value_a
+    # traj_ret = np.mean(traj_ret_a, axis=2, keepdims=True)
+    # assert traj_ret.ndim == traj_ret_a.ndim == 3, traj_ret.shape
+    # traj_ret = np.tile(traj_ret, traj_ret_a.shape[-1])
+    # assert traj_ret.shape == traj_ret_a.shape, traj_ret.shape
+    # if mask is not None:
+    #     traj_ret = np.where(mask, traj_ret, traj_ret_a)
     if norm_adv:
         advs = standardize(advs, mask=mask, epsilon=epsilon)
 
@@ -127,6 +136,22 @@ class LocalBuffer(Buffer):
         )
         data['raw_adv'] = data['advantage']
 
+        prob = np.exp(data['logprob'])
+        if self.config.target_type == 'bounded':
+            data['target_prob'], data['tr_prob'] = compute_bounded_target(
+                prob, data['advantage'], self.config.tau, self.config.c
+            )
+        elif self.config.target_type == 'clip':
+            data['target_prob'], data['tr_prob'] = compute_clipped_target(
+                prob, data['advantage'], self.config.tau, self.config.c
+            )
+        elif self.config.target_type == 'mix':
+            data['target_prob'], data['tr_prob'] = compute_mixture_target(
+                prob, data['advantage'], self.config.tau, self.config.alpha
+            )
+        else:
+            raise NotImplementedError
+
         data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
         for k, v in data.items():
             assert v.shape[:3] == (self.n_envs, self._memlen, self.n_units), \
@@ -155,7 +180,7 @@ class PPOBuffer(Buffer):
     def _add_attributes(self, model):
         self.norm_adv = self.config.get('norm_adv', 'minibatch')
         self.use_dataset = self.config.get('use_dataset', False)
-        do_logging(f'Is dataset used for data pipline: {self.use_dataset}', logger=logger)
+        do_logging(f'Is dataset used for data pipeline: {self.use_dataset}', logger=logger)
 
         self.actor_state_keys = tuple([f'actor_{k}' for k in model.actor_state_keys])
         self.value_state_keys = tuple([f'value_{k}' for k in model.value_state_keys])
@@ -234,6 +259,22 @@ class PPOBuffer(Buffer):
                 same_next_value=self.config.get('same_next_value', True))
         elif self.config.adv_type == 'vtrace':
             pass
+        else:
+            raise NotImplementedError
+        
+        prob = np.exp(self._memory['logprob'])
+        if self.config.target_type == 'bounded':
+            self._memory['target_prob'], self._memory['tr_prob'] = compute_bounded_target(
+                prob, self._memory['advantage'], self.config.tau, self.config.c
+            )
+        elif self.config.target_type == 'clip':
+            self._memory['target_prob'], self._memory['tr_prob'] = compute_clipped_target(
+                prob, self._memory['advantage'], self.config.tau, self.config.c
+            )
+        elif self.config.target_type == 'mix':
+            self._memory['target_prob'], self._memory['tr_prob'] = compute_mixture_target(
+                prob, self._memory['advantage'], self.config.tau, self.config.alpha
+            )
         else:
             raise NotImplementedError
 

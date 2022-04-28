@@ -1,37 +1,8 @@
 import tensorflow as tf
 
-from core.elements.loss import Loss
-from utility.rl_loss import huber_loss, reduce_mean, ppo_loss, clipped_value_loss
+from utility.rl_loss import reduce_mean, ppo_loss
 from utility.tf_utils import explained_variance
-
-
-class PPOLossImpl(Loss):
-    def _compute_value_loss(
-        self, 
-        value, 
-        traj_ret, 
-        old_value, 
-        mask=None
-    ):
-        value_loss_type = getattr(self.config, 'value_loss', 'mse')
-        v_clip_frac = 0
-        if value_loss_type == 'huber':
-            value_loss = reduce_mean(
-                huber_loss(value, traj_ret, threshold=self.config.huber_threshold), mask)
-        elif value_loss_type == 'mse':
-            value_loss = .5 * reduce_mean((value - traj_ret)**2, mask)
-        elif value_loss_type == 'clip':
-            value_loss, v_clip_frac = clipped_value_loss(
-                value, traj_ret, old_value, self.config.clip_range, 
-                mask=mask)
-        elif value_loss_type == 'clip_huber':
-            value_loss, v_clip_frac = clipped_value_loss(
-                value, traj_ret, old_value, self.config.clip_range, 
-                mask=mask, threshold=self.config.huber_threshold)
-        else:
-            raise ValueError(f'Unknown value loss type: {value_loss_type}')
-        
-        return value_loss, v_clip_frac
+from algo.hm.elements.loss import PPOLossImpl
 
 
 class PPOLoss(PPOLossImpl):
@@ -42,50 +13,67 @@ class PPOLoss(PPOLossImpl):
         value, 
         traj_ret, 
         advantage, 
-        logpi, 
+        logprob, 
         state=None, 
+        action_mask=None, 
+        life_mask=None, 
         mask=None
     ):
         old_value = value
-        terms = {}
+        loss_mask = life_mask
+        n = None if loss_mask is None else tf.reduce_sum(loss_mask)
         with tf.GradientTape() as tape:
-            x, state = self.model.encode(obs, state, mask)
+            x, _ = self.model.encode(
+                x=obs, 
+                state=state, 
+                mask=mask
+            )
             act_dist = self.policy(x)
-            new_logpi = act_dist.log_prob(action)
+            new_logprob = act_dist.log_prob(action)
             entropy = act_dist.entropy()
             # policy loss
-            log_ratio = new_logpi - logpi
-            policy_loss, entropy, kl, p_clip_frac = ppo_loss(
-                log_ratio, advantage, self.config.clip_range, entropy)
+            log_ratio = new_logprob - logprob
+            raw_policy_loss, raw_entropy, kl, p_clip_frac = ppo_loss(
+                log_ratio, advantage, self.config.clip_range, 
+                entropy, reduce=False)
+            policy_loss = reduce_mean(raw_policy_loss, loss_mask, n)
+            entropy = reduce_mean(raw_entropy, loss_mask, n)
+            entropy_loss = - self.config.entropy_coef * entropy
             # value loss
             value = self.value(x)
             value_loss, v_clip_frac = self._compute_value_loss(
                 value, traj_ret, old_value)
 
-            actor_loss = (policy_loss - self.config.entropy_coef * entropy)
+            actor_loss = policy_loss + entropy_loss
             value_loss = self.config.value_coef * value_loss
             loss = actor_loss + value_loss
 
-        pi = tf.exp(logpi)
-        new_pi = tf.exp(new_logpi)
+        prob = tf.exp(logprob)
+        new_prob = tf.exp(new_logprob)
         ratio = tf.exp(log_ratio)
-        terms.update(dict(
+        terms = dict(
             value=value,
             ratio=ratio, 
             entropy=entropy, 
             kl=kl, 
-            logpi=logpi,
-            new_logpi=new_logpi, 
-            pi=pi,
-            new_pi=new_pi, 
-            diff_pi=new_pi - pi, 
+            logprob=logprob,
+            new_logprob=new_logprob, 
+            prob=prob,
+            new_prob=new_prob, 
+            diff_prob=new_prob - prob, 
             p_clip_frac=p_clip_frac,
             policy_loss=policy_loss,
             actor_loss=actor_loss,
             v_loss=value_loss,
             explained_variance=explained_variance(traj_ret, value),
             v_clip_frac=v_clip_frac
-        ))
+        )
+        if action_mask is not None:
+            terms['n_avail_actions'] = tf.reduce_sum(
+                tf.cast(action_mask, tf.float32), -1)
+        if not self.policy.is_action_discrete:
+            terms['policy_mean'] = act_dist.mean()
+            terms['policy_std'] = tf.exp(self.policy.logstd)
 
         return tape, loss, terms
 

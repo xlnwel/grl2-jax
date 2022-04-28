@@ -28,7 +28,7 @@ def train(config, agent, env, eval_env, buffer):
         print('Start to initialize running stats...')
         for _ in range(10):
             runner.run(action_selector=env.random_action, step_fn=collect)
-            agent.actor.update_obs_rms(np.concatenate(buffer['obs']))
+            agent.actor.update_obs_rms({'obs': np.concatenate(buffer['obs'])})
             agent.actor.update_reward_rms(
                 np.array(buffer['reward']), np.array(buffer['discount']))
             buffer.reset()
@@ -137,7 +137,7 @@ def main(configs, train=train):
         if config.env.pop('do_evaluation', True):
             if 'num_levels' in eval_env_config:
                 eval_env_config['num_levels'] = 0
-            if 'seed' in eval_env_config:
+            if 'seed' in eval_env_config and eval_env_config['seed'] is not None:
                 eval_env_config['seed'] += 1000
             eval_env_config['n_runners'] = 1
             for k in list(eval_env_config.keys()):

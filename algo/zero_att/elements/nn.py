@@ -1,4 +1,4 @@
-from algo.hm.elements.nn import *
+from algo.zero.elements.nn import *
 from nn.func import mlp, nn_registry
 
 """ Source this file to register Networks """
@@ -32,4 +32,3 @@ class Attention(Module):
         weights = tf.nn.softmax(dot_product)
         x = tf.einsum('bao,baod->bad', weights, v)
         return x
-

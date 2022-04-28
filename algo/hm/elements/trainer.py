@@ -11,11 +11,14 @@ class MAPPOActorTrainer(Trainer):
         self, 
         **kwargs
     ):
-        if not hasattr(self.model, 'rnn') and len(kwargs['action'].shape) == 3:
-            kwargs = tf.nest.map_structure(
+        if not hasattr(self.model, 'rnn') \
+                and len(kwargs['action'].shape) == 3:
+            new_kwargs = tf.nest.map_structure(
                 lambda x: tf.reshape(x, (-1, *x.shape[2:])) 
                 if x is not None else x, kwargs)
-        tape, loss, terms = self.loss.loss(**kwargs)
+        else:
+            new_kwargs = kwargs
+        tape, loss, terms = self.loss.loss(**new_kwargs)
 
         terms['actor_norm'], terms['actor_var_norm'] = \
             self.optimizer(tape, loss, return_var_norms=True)
@@ -26,24 +29,10 @@ class MAPPOActorTrainer(Trainer):
 class MAPPOValueTrainer(Trainer):
     def raw_train(
         self, 
-        global_state, 
-        value, 
-        traj_ret, 
-        prev_reward, 
-        prev_action, 
-        state=None, 
-        life_mask=None, 
-        mask=None
+        **kwargs, 
     ):
         tape, loss, terms = self.loss.loss(
-            global_state=global_state, 
-            value=value, 
-            traj_ret=traj_ret, 
-            prev_reward=prev_reward, 
-            prev_action=prev_action, 
-            state=state, 
-            life_mask=life_mask,
-            mask=mask
+            **kwargs
         )
 
         terms['value_norm'], terms['value_var_norm'] = \
@@ -63,16 +52,16 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
     def raw_train(
         self, 
         obs, 
-        global_state, 
         action, 
-        reward, 
         value, 
         traj_ret, 
-        raw_adv, 
         advantage, 
-        logpi, 
-        prev_reward, 
-        prev_action, 
+        logprob, 
+        global_state=None, 
+        reward=None, 
+        raw_adv=None, 
+        prev_reward=None, 
+        prev_action=None, 
         action_mask=None, 
         life_mask=None, 
         actor_state=None, 
@@ -83,7 +72,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
             obs=obs, 
             action=action, 
             advantage=advantage, 
-            logpi=logpi, 
+            logprob=logprob, 
             prev_reward=prev_reward, 
             prev_action=prev_action, 
             state=actor_state, 
@@ -91,6 +80,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
             life_mask=life_mask, 
             mask=mask
         )
+        global_state = obs if global_state is None else global_state
         value_terms = self.value.raw_train(
             global_state=global_state, 
             value=value, 

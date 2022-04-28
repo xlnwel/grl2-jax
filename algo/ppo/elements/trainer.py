@@ -24,7 +24,9 @@ class PPOTrainer(Trainer):
         value, 
         traj_ret, 
         advantage, 
-        logpi, 
+        logprob, 
+        reward=None, 
+        raw_adv=None, 
         state=None, 
         mask=None
     ):
@@ -34,7 +36,7 @@ class PPOTrainer(Trainer):
             value, 
             traj_ret, 
             advantage, 
-            logpi, 
+            logprob, 
             state, 
             mask
         )

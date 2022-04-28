@@ -25,6 +25,7 @@ libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-pip
 echo "nameserver 114.114.114.114" >> sudo /etc/resolv.conf
 echo "nameserver 8.8.8.8" >> sudo /etc/resolv.conf
 yes y | sudo apt-get install libboost-all-dev
+sudo chmod -R +wrx /opt/conda
 yes y | conda create -n grl python==3.8.10
 
 source activate grl
@@ -40,3 +41,4 @@ pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ray
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple scipy pandas Pillow plotly opencv-python
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ipython
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tqdm
+pip install pysc2

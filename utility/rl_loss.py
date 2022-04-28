@@ -215,8 +215,16 @@ def ppo_loss(log_ratio, advantages, clip_range, entropy, mask=None, n=None):
     return policy_loss, entropy, approx_kl, clip_frac
 
 
-def clipped_value_loss(value, traj_ret, old_value, clip_range, 
-                    mask=None, n=None, huber_threshold=None):
+def clipped_value_loss(
+    value, 
+    traj_ret, 
+    old_value, 
+    clip_range, 
+    mask=None, 
+    n=None, 
+    huber_threshold=None,
+    reduce=True,
+):
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
         assert_rank_and_shape_compatibility([value, mask])
@@ -224,7 +232,10 @@ def clipped_value_loss(value, traj_ret, old_value, clip_range,
     value_diff, loss1, loss2 = _compute_ppo_value_losses(
         value, traj_ret, old_value, clip_range, huber_threshold)
     
-    value_loss = reduce_mean(tf.maximum(loss1, loss2), mask, n)
+    if reduce:
+        value_loss = reduce_mean(tf.maximum(loss1, loss2), mask, n)
+    else:
+        value_loss = tf.maximum(loss1, loss2)
     clip_frac = reduce_mean(
         tf.cast(tf.greater(tf.abs(value_diff), clip_range), value.dtype), mask, n)
 

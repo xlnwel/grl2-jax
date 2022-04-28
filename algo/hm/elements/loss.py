@@ -11,26 +11,30 @@ class PPOLossImpl(Loss):
         value, 
         traj_ret, 
         old_value, 
-        mask=None
+        mask=None,
+        reduce=True,
     ):
         value_loss_type = getattr(self.config, 'value_loss', 'mse')
         v_clip_frac = 0
         if value_loss_type == 'huber':
-            value_loss = reduce_mean(
-                huber_loss(value, traj_ret, threshold=self.config.huber_threshold), mask)
+            value_loss = huber_loss(
+                value, traj_ret, threshold=self.config.huber_threshold)
         elif value_loss_type == 'mse':
-            value_loss = .5 * reduce_mean((value - traj_ret)**2, mask)
+            value_loss = .5 * (value - traj_ret)**2
         elif value_loss_type == 'clip':
             value_loss, v_clip_frac = clipped_value_loss(
                 value, traj_ret, old_value, self.config.clip_range, 
-                mask=mask)
+                mask=mask, reduce=False)
         elif value_loss_type == 'clip_huber':
             value_loss, v_clip_frac = clipped_value_loss(
                 value, traj_ret, old_value, self.config.clip_range, 
-                mask=mask, threshold=self.config.huber_threshold)
+                mask=mask, huber_threshold=self.config.huber_threshold,
+                reduce=False)
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
 
+        if reduce:
+            value_loss = reduce_mean(value_loss, mask)
         return value_loss, v_clip_frac
 
 
@@ -40,7 +44,7 @@ class MAPPOPolicyLoss(Loss):
         obs, 
         action, 
         advantage, 
-        logpi, 
+        logprob, 
         prev_reward=None, 
         prev_action=None, 
         state=None, 
@@ -48,6 +52,8 @@ class MAPPOPolicyLoss(Loss):
         life_mask=None, 
         mask=None
     ):
+        loss_mask = life_mask if self.config.policy_life_mask else None
+        n = None if loss_mask is None else tf.reduce_sum(loss_mask)
         with tf.GradientTape() as tape:
             x, _ = self.model.encode(
                 x=obs, 
@@ -57,39 +63,42 @@ class MAPPOPolicyLoss(Loss):
                 mask=mask
             )
             act_dist = self.policy(x, action_mask)
-            new_logpi = act_dist.log_prob(action)
+            new_logprob = act_dist.log_prob(action)
             entropy = act_dist.entropy()
-            log_ratio = new_logpi - logpi
-            policy_loss, entropy, kl, clip_frac = ppo_loss(
-                log_ratio, advantage, self.config.clip_range, entropy, 
-                life_mask if self.config.life_mask else None)
+            log_ratio = new_logprob - logprob
+            raw_policy_loss, raw_entropy, kl, clip_frac = ppo_loss(
+                log_ratio, advantage, self.config.clip_range, 
+                entropy, mask=loss_mask, n=n, reduce=False)
+            policy_loss = reduce_mean(raw_policy_loss, loss_mask, n)
+            entropy = reduce_mean(raw_entropy, loss_mask, n)
             entropy_loss = - self.config.entropy_coef * entropy
             loss = policy_loss + entropy_loss
 
-        pi = tf.exp(logpi)
-        new_pi = tf.exp(new_logpi)
+        prob = tf.exp(logprob)
+        new_prob = tf.exp(new_logprob)
         terms = dict(
-            prev_reward=prev_reward,
             ratio=tf.exp(log_ratio),
+            raw_entropy=raw_entropy,
             entropy=entropy,
             kl=kl,
-            logpi=logpi,
-            new_logpi=new_logpi, 
-            pi=pi,
-            new_pi=new_pi, 
-            diff_pi=new_pi - pi, 
+            logprob=logprob,
+            new_logprob=new_logprob, 
+            prob=prob,
+            new_prob=new_prob, 
+            diff_prob=new_prob - prob, 
             p_clip_frac=clip_frac,
+            raw_policy_loss=raw_policy_loss,
             policy_loss=policy_loss,
             entropy_loss=entropy_loss, 
             actor_loss=loss,
             adv_std=tf.math.reduce_std(advantage, axis=-1), 
         )
         if action_mask is not None:
-            terms['n_avail_actions'] = tf.reduce_sum(tf.cast(action_mask, tf.float32), -1)
-        if life_mask is not None:
-            terms['life_mask'] = life_mask
+            terms['n_avail_actions'] = tf.reduce_sum(
+                tf.cast(action_mask, tf.float32), -1)
         if not self.policy.is_action_discrete:
-            terms['std'] = tf.exp(self.policy.logstd)
+            terms['policy_mean'] = act_dist.mean()
+            terms['policy_std'] = tf.exp(self.policy.logstd)
 
         return tape, loss, terms
 
@@ -107,6 +116,8 @@ class MAPPOValueLoss(PPOLossImpl):
         mask=None
     ):
         old_value = value
+        loss_mask = life_mask if self.config.value_life_mask else None
+        n = None if loss_mask is None else tf.reduce_sum(loss_mask)
         with tf.GradientTape() as tape:
             value, _ = self.model.compute_value(
                 global_state=global_state,
@@ -116,18 +127,22 @@ class MAPPOValueLoss(PPOLossImpl):
                 mask=mask
             )
 
-            loss, clip_frac = self._compute_value_loss(
+            raw_loss, clip_frac = self._compute_value_loss(
                 value=value, 
                 traj_ret=traj_ret, 
                 old_value=old_value, 
-                mask=life_mask if self.config.life_mask else None
+                mask=loss_mask,
+                reduce=False
             )
+            loss = reduce_mean(raw_loss, loss_mask, n)
             loss = self.config.value_coef * loss
 
+        ev = explained_variance(traj_ret, value)
         terms = dict(
             value=value,
+            raw_v_loss=raw_loss,
             v_loss=loss,
-            explained_variance=explained_variance(traj_ret, value),
+            explained_variance=ev,
             traj_ret_std=tf.math.reduce_std(traj_ret, axis=-1), 
             v_clip_frac=clip_frac,
         )

@@ -22,7 +22,9 @@ def get_data_format(config, env_stats, model):
         traj_ret_a=(basic_shape, tf.float32, 'traj_ret_a'),
         raw_adv=(basic_shape, tf.float32, 'raw_adv'),
         advantage=(basic_shape, tf.float32, 'advantage'),
-        logpi=(basic_shape, tf.float32, 'logpi'),
+        target_prob=(basic_shape, tf.float32, 'target_prob'),
+        tr_prob=(basic_shape, tf.float32, 'tr_prob'),
+        logprob=(basic_shape, tf.float32, 'logprob'),
     ))
 
     if config.get('store_state'):

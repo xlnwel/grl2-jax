@@ -283,7 +283,7 @@ class GRF:
 def parse_args():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--left', '-l', type=int, default=1)
+    parser.add_argument('--left', '-l', type=int, default=11)
     parser.add_argument('--right', '-r', type=int, default=0)
     parser.add_argument('--step', '-s', type=int, default=10)
     parser.add_argument('--unit', '-u', action='store_true')
@@ -298,26 +298,31 @@ if __name__ == '__main__':
         'rewards': 'scoring,checkpoints', 
         'number_of_left_players_agent_controls': args.left,
         'number_of_right_players_agent_controls': args.right,
-        'shared_ckpt_reward': False, 
-        'uid2aid': None
+        'shared_ckpt_reward': True, 
+        'uid2aid': None,
+        'seed': 1
     }
 
     from utility.display import print_dict_info, print_dict
     env = GRF(**config)
+    env2 = GRF(**config)
+    import random
+    random.seed(0)
+    np.random.seed(0)
     n = env.obs_shape[0]['obs'][0]
-    env.reset()
+    o = env.reset()
+    random.seed(0)
+    np.random.seed(0)
+    o2 = env2.reset()
+    np.testing.assert_allclose(o[0]['obs'], o2[0]['obs'])
     for i in range(args.step):
+        print(i)
         a = env.random_action()
+        random.seed(0)
+        np.random.seed(0)
         o, r, d, info = env.step(a)
-        pr = o[-1]['prev_reward']
-        if np.any(np.array(r) != 0):
-            print(i, 'reward', r)
-        # if np.any(r[-1] != 0) or np.any(pr != 0):
-        #     print(i, 'previous reward', r, o[-1]['prev_reward'])
-        o = np.stack([oo['obs'] for oo in o])
-    print_dict(info)
-    # for oo in o:
-    #     print_dict(oo)
-    # print(env._score)
-    # for dd in d:
-    #     print(dd)
+        random.seed(0)
+        np.random.seed(0)
+        o2, r2, d2, info2 = env2.step(a)
+        print(a)
+        np.testing.assert_allclose(o[0]['obs'], o2[0]['obs'])

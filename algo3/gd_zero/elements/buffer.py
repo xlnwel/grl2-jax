@@ -129,7 +129,7 @@ class PPOBuffer:
         self.config = config_attr(self, config)
         self._use_dataset = getattr(self, '_use_dataset', False)
         if self._use_dataset:
-            do_logging(f'Dataset is used for data pipline', logger=logger)
+            do_logging(f'Dataset is used for data pipeline', logger=logger)
 
         self._sample_size = getattr(self, '_sample_size', None)
         self._state_keys = ['h', 'c']

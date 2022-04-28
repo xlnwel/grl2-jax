@@ -27,26 +27,35 @@ class Embedding(Module):
     def call(
         self, 
         x, 
+        multiply: bool=False, 
         tile: bool=False, 
         mask_out_self: bool=False, 
-        flatten=False
+        flatten=False,
+        mask=None,
+        time_distributed=False, 
     ):
         """
         Args:
-            tile: if true we replicate the input's last dimension, 
-                this yields a tensor of shape (B, A, A, D) given 
-                the input/resulting embedding of shape (B, A)/(B, A, D) 
-            mask_out_self: if true (and <tile> must be true), we 
+            tile: If true we replicate the input's last dimension, 
+                this yields a tensor of shape (B, U, U, D) given 
+                the input/resulting embedding of shape (B, U)/(B, U, D).
+                This is useful in MARL, where we consider other agents'
+                actions for the current agent.
+            mask_out_self: If true (and <tile> must be true), we 
                 make (B, i, i, D) = 0 for i in range(A)
-            flatten
+            flatten: Flatten the tiled tensor.
         """
-        assert len(x.shape) == 2 or len(x.shape) == 3, x.shape
-        T = x.shape[1] if len(x.shape) == 3 else 0
-        if T:
+        if time_distributed:
+            T = x.shape[1]
             x = tf.reshape(x, (-1, *x.shape[2:]))
-        assert x.shape[1:] == (self.input_length,), x.shape
+        if multiply:
+            x = x @ self._embed.variables[0]
+            assert x.shape[1:] == (self.input_length, self.embed_size), \
+                (x.shape, (self.input_length, self.embed_size))
+        else:
+            assert x.shape[1:] == (self.input_length,), (x.shape, self.input_length)
 
-        x = self._embed(x)
+            x = self._embed(x)
         if tile:
             # same as 
             # x = tf.expand_dims(x, 1)
@@ -57,21 +66,31 @@ class Embedding(Module):
                 [self.input_length, 1]
             )
             x = tf.gather(x, idx, axis=-2)
+            if mask is not None:
+                mask = tf.cast(mask, tf.bool)
+                mask1 = mask[..., None, :, None]
+                mask2 = mask[..., None, None]
+                mask = tf.math.logical_and(mask1, mask2)
+                x = tf.where(mask, x, tf.zeros_like(x))
+                tf.debugging.assert_equal(
+                    tf.where(mask1, tf.zeros_like(x), x), 0.)
+                tf.debugging.assert_equal(
+                    tf.where(mask2, tf.zeros_like(x), x), 0.)
         if mask_out_self:
             assert tile, 'tile must be true when mask_out_self is true'
             assert x.shape[1:] == (self.input_length, self.input_length, self.embed_size), x.shape
-            mask = np.eye(self.input_length).reshape(
+            self_mask = np.eye(self.input_length).reshape(
                 1, self.input_length, self.input_length, 1).astype(np.int32)
-            mask = mask + tf.zeros_like(x, dtype=tf.int32)
-            mask = tf.cast(mask, tf.bool)
-            assert_rank_and_shape_compatibility([mask, x])
-            x = tf.where(mask, tf.zeros_like(x), x)
+            self_mask = self_mask + tf.zeros_like(x, dtype=tf.int32)
+            self_mask = tf.cast(self_mask, tf.bool)
+            assert_rank_and_shape_compatibility([self_mask, x])
+            x = tf.where(self_mask, tf.zeros_like(x), x)
         if flatten:
             assert x.shape[1:] == (self.input_length, self.input_length, self.embed_size), x.shape
             x = tf.reshape(x, (-1, self.input_length, self.input_length * self.embed_size))
 
-        if T:
-            x = tf.reshape(x, (-1, T, self.input_length, x.shape[-1]))
+        if time_distributed:
+            x = tf.reshape(x, (-1, T, self.input_length, *x.shape[2:]))
 
         return x
 

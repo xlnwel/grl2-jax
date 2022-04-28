@@ -1,6 +1,7 @@
 import os
 import tensorflow as tf
 
+from core.tf_config import build
 from utility.file import source_file
 from algo.hm.elements.model import ModelImpl, MAPPOActorModel, \
     MAPPOModelEnsemble as MAPPOModelBase
@@ -8,13 +9,54 @@ from algo.hm.elements.model import ModelImpl, MAPPOActorModel, \
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
+class MAPPOActorModel(ModelImpl):
+    def action(
+        self, 
+        obs, 
+        prev_reward=None, 
+        prev_action=None, 
+        state=None, 
+        mask=None, 
+        action_mask=None,
+        evaluation=False, 
+        return_eval_stats=False
+    ):
+        x, state = self.encode(
+            x=obs, 
+            prev_reward=prev_reward, 
+            prev_action=prev_action, 
+            state=state, 
+            mask=mask
+        )
+        act_dist = self.policy(x, action_mask, evaluation=evaluation)
+        action = self.policy.action(act_dist, evaluation)
+        pi = tf.nn.softmax(act_dist.logits)
+        if evaluation:
+            # we do not compute the value state at evaluation 
+            return (action, pi), {}, state
+        else:
+            logprob = act_dist.log_prob(action)
+            terms = {
+                'logprob': logprob, 
+            }
+            return (action, pi), terms, state
+
+
 class MAPPOValueModel(ModelImpl):
     def compute_action_embedding(
         self, 
-        action
+        action,
+        life_mask,
+        multiply=False
     ):
         raw_ae = self.action_embed(
-            action, tile=True, mask_out_self=True, flatten=True)
+            action, 
+            multiply=multiply, 
+            tile=True, 
+            mask_out_self=True, 
+            flatten=True, 
+            mask=life_mask
+        )
         ae = self.ae_encoder(raw_ae)
 
         return ae
@@ -23,14 +65,20 @@ class MAPPOValueModel(ModelImpl):
         self, 
         global_state, 
         action, 
+        pi, 
         prev_reward, 
         prev_action, 
+        life_mask=None, 
         state=None, 
         mask=None, 
         return_ae=False
     ):
-        ae = self.compute_action_embedding(action)
+        ae = self.compute_action_embedding(action, life_mask)
         x_a = tf.concat([global_state, ae], -1)
+        if life_mask is not None:
+            tf.debugging.assert_equal(
+                tf.where(tf.cast(life_mask[..., None], tf.bool), 
+                tf.zeros_like(x_a), x_a), 0.)
         x_a, state = self.encode(
             x=x_a, 
             prev_reward=prev_reward, 
@@ -40,7 +88,15 @@ class MAPPOValueModel(ModelImpl):
         )
         value_a = self.value(x_a)
 
-        x = tf.concat([global_state, tf.zeros_like(ae)], -1)
+        if self.config.v_pi:
+            pi_ae = self.compute_action_embedding(pi, life_mask, True)
+            x = tf.concat([global_state, pi_ae], -1)
+        else:
+            x = tf.concat([global_state, tf.zeros_like(ae)], -1)
+        if life_mask is not None:
+            tf.debugging.assert_equal(
+                tf.where(tf.cast(life_mask[..., None], tf.bool), 
+                tf.zeros_like(x), x), 0.)
         x, state = self.encode(
             x=x, 
             prev_reward=prev_reward, 
@@ -70,6 +126,50 @@ class MAPPOValueModel(ModelImpl):
 
 
 class MAPPOModelEnsemble(MAPPOModelBase):
+    def _build(self, env_stats, evaluation=False):
+        aid = self.config.aid
+        basic_shape = (None, len(env_stats.aid2uids[aid]))
+        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        actor_inp=dict(
+            obs=((*basic_shape, *env_stats.obs_shape[aid]['obs']), 
+                env_stats.obs_dtype[aid]['obs'], 'obs'),
+            prev_reward=(basic_shape, tf.float32, 'prev_reward'), 
+            prev_action=((*basic_shape, env_stats.action_dim[aid]), tf.float32, 'prev_action'), 
+        )
+        value_inp=dict(
+            global_state=(
+                (*basic_shape, *env_stats.obs_shape[aid]['global_state']), 
+                env_stats.obs_dtype[aid]['global_state'], 'global_state'), 
+            prev_reward=(basic_shape, tf.float32, 'prev_reward'), 
+            prev_action=((*basic_shape, env_stats.action_dim[aid]), tf.float32, 'prev_action'), 
+        )
+        TensorSpecs = dict(
+            actor_inp=actor_inp,
+            value_inp=value_inp,
+            evaluation=evaluation,
+            return_eval_stats=evaluation,
+        )
+        if self.has_rnn:
+            for inp in [actor_inp, value_inp]:
+                inp['mask'] = (basic_shape, tf.float32, 'mask')
+            if self.actor_has_rnn:
+                TensorSpecs['actor_state'] = self.actor_state_type(
+                    *[((None, sz), dtype, name) 
+                    for name, sz in self.actor_state_size._asdict().items()])
+            if self.value_has_rnn:
+                TensorSpecs['value_state'] = self.value_state_type(
+                    *[((None, sz), dtype, name) 
+                    for name, sz in self.value_state_size._asdict().items()])
+        if env_stats.use_action_mask:
+            TensorSpecs['actor_inp']['action_mask'] = (
+                (*basic_shape, env_stats.action_dim[aid]), tf.bool, 'action_mask'
+            )
+        if env_stats.use_life_mask:
+            TensorSpecs['value_inp']['life_mask'] = (
+                basic_shape, tf.float32, 'life_mask'
+            )
+        self.action = build(self.action, TensorSpecs)
+
     @tf.function
     def action(
         self, 
@@ -84,11 +184,12 @@ class MAPPOModelEnsemble(MAPPOModelBase):
             actor_inp, = self._add_seqential_dimension(actor_inp)
         if self.value_has_rnn:
             value_inp, = self._add_seqential_dimension(value_inp)
-        action, terms, actor_state = self.policy.action(
+        (action, pi), terms, actor_state = self.policy.action(
             **actor_inp, state=actor_state,
-            evaluation=evaluation, return_eval_stats=return_eval_stats)
+            evaluation=evaluation, 
+            return_eval_stats=return_eval_stats)
         value, value_a, value_state = self.value.compute_value(
-            **value_inp, action=action, state=value_state)
+            **value_inp, action=action, pi=pi, state=value_state)
         state = self.state_type(actor_state, value_state) \
             if self.has_rnn else None
         if self.actor_has_rnn:

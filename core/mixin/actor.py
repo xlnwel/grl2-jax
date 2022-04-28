@@ -129,7 +129,7 @@ class RMS:
                 # even after the agent is dead
                 inp[k] = self.normalize_obs(inp, k, mask=mask)
         else:
-            inp[name] = self.normalize_obs(inp, name, mask)
+            inp[name] = self.normalize_obs(inp, name, mask=mask)
         return inp
 
     def process_reward_with_rms(

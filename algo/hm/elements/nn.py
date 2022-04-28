@@ -55,6 +55,7 @@ class Policy(Module):
                 logits = tf.where(action_mask, logits, -1e10)
             act_dist = tfd.Categorical(logits)
         else:
+            x = tf.tanh(x)
             std = tf.exp(self.logstd)
             if evaluation and self.eval_act_temp:
                 std = std * self.eval_act_temp
@@ -64,12 +65,12 @@ class Policy(Module):
 
     def action(self, dist, evaluation):
         if self.is_action_discrete:
-            return dist.mode() if evaluation and self.eval_act_temp == 0 \
+            action = dist.mode() if evaluation and self.eval_act_temp == 0 \
                 else dist.sample()
         else:
-            self.raw_action = dist.sample()
-            action = tf.clip_by_value(self.raw_action, -1, 1)
-            return action
+            action = dist.sample()
+            action = tf.clip_by_value(action, -2, 2)
+        return action
 
 
 @nn_registry.register('value')

@@ -179,9 +179,12 @@ class Recorder:
         Write to disk all the diagnostics from the current iteration.
         """
         def is_print_keys(key):
-            return key.startswith('metrics/') \
-                or key.startswith('run/') \
-                or '/' not in key
+            return (not key.endswith('std')
+                and not key.endswith('max')
+                and not key.endswith('min')) and (
+                    key.startswith('metrics/') 
+                    or key.startswith('run/') 
+                    or '/' not in key)
         
         vals = []
         key_lens = [len(key) for key in self._headers]
