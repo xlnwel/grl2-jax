@@ -1,7 +1,7 @@
 import yaml
 from pathlib import Path
 
-from utility.utils import dict2AttrDict, eval_config
+from utility.utils import dict2AttrDict, eval_config, flatten_dict
 
 
 def default_path(filename):
@@ -27,7 +27,7 @@ def load_config(filename='config.yaml', to_attrdict=True):
             print(exc)
 
 # save config to config.yaml
-def save_config(config, config_to_update={}, filename='config.yaml'):
+def save_config(config: dict, config_to_update={}, filename='config.yaml'):
     assert isinstance(config, dict)
     
     filepath = default_path(filename)
@@ -62,3 +62,13 @@ def dump(path: str, **kwargs):
             yaml.dump(kwargs, f)
         except yaml.YAMLError as exc:
             print(exc)
+
+def yaml2json(yaml_path, json_path, flatten=False):
+    config = load_config(yaml_path)
+    if flatten:
+        config = flatten_dict(config)
+    import json
+    with open(json_path, 'w') as json_file:
+        json.dump(config, json_file)
+
+    return config

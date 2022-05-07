@@ -2,10 +2,10 @@ import tensorflow as tf
 
 from core.elements.loss import LossEnsemble
 from utility.tf_utils import explained_variance, reduce_mean
-from algo.hm.elements.loss import PPOLossImpl, PPOPolicyLoss
+from algo.hm.elements.loss import ValueLossImpl, PPOPolicyLoss
 
 
-class PPOValueLoss(PPOLossImpl):
+class PPOValueLoss(ValueLossImpl):
     def loss(
         self, 
         global_state, 
@@ -39,14 +39,14 @@ class PPOValueLoss(PPOLossImpl):
                 return_ae=True
             )
 
-            raw_v_loss, clip_frac = self._compute_value_loss(
+            raw_v_loss, clip_frac = self._value_loss(
                 value=value, 
                 traj_ret=traj_ret, 
                 old_value=old_value, 
                 mask=loss_mask, 
                 reduce=False
             )
-            raw_va_loss, va_clip_frac = self._compute_value_loss(
+            raw_va_loss, va_clip_frac = self._value_loss(
                 value=value_a, 
                 traj_ret=traj_ret_a, 
                 old_value=old_value_a, 

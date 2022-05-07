@@ -15,7 +15,8 @@ class PPOStrategy(Strategy):
         self._value_inp = {}
 
     def record_inputs_to_vf(self, env_output):
-        self._value_inp['global_state'] = self.actor.normalize_obs(env_output.obs)
+        self._value_inp = self.actor.normalize_obs(
+            env_output.obs)
 
     def compute_value(self, value_inp: Dict[str, np.ndarray]=None):
         # be sure you normalize obs first if obs normalization is required

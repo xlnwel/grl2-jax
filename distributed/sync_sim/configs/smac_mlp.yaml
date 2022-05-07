@@ -150,6 +150,7 @@ loss:
         entropy_coef: .01
         gpo_l2_coef: 0
         gpo_kl_coef: 0
+        pg_coef: 1
         policy_life_mask: True
     value:
         value_loss: clip_huber
@@ -220,7 +221,7 @@ buffer:
     alpha: .2
     lower_clip: .4
     upper_clip: .4
-
+    valid_clip: True
 
     # PPG configs
     n_pi: *npi

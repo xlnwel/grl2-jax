@@ -118,7 +118,7 @@ class Agent(PPOBase):
         with tf.GradientTape() as tape:
             x_value = self.value_encoder(obs) if hasattr(self, 'value_encoder') else x
             value = self.value(x_value)
-            value_loss, v_clip_frac = self._compute_value_loss(
+            value_loss, v_clip_frac = self._value_loss(
                 value, traj_ret, old_value)
         terms['value_norm'] = self._value_opt(tape, value_loss)
 
@@ -168,7 +168,7 @@ class Agent(PPOBase):
                 # allow gradients from value head if using a shared encoder
                 value = self.value(x)
 
-            value_loss, v_clip_frac = self._compute_value_loss(
+            value_loss, v_clip_frac = self._value_loss(
                 value, traj_ret, old_value)
             loss = actor_loss + value_loss
 

@@ -44,6 +44,17 @@ def deep_update(source: dict, target:dict):
             source[k] = v
     return source
 
+def flatten_dict(d: dict):
+    result = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            v = flatten_dict(v)
+            for kk, vv in v.items():
+                result[f'{k}/{kk}'] = vv
+        else:
+            result[k] = v
+    return result
+
 def eval_config(config):
     for k, v in config.items():
         if isinstance(v, dict):
@@ -58,6 +69,13 @@ def eval_config(config):
                 v = int(v)
             config[k] = v
     return config
+
+def add_attr(
+    obj, 
+    attrs,
+):
+    for k, v in attrs.items():
+        setattr(obj, k, v)
 
 def config_attr(
     obj, 
@@ -349,10 +367,10 @@ def convert_dtype(value, precision=32, dtype=None, **kwargs):
         dtype = infer_dtype(value.dtype, precision)
     return value.astype(dtype)
 
-def flatten_dict(kwargs):
-    """ Flatten a dict of lists into a list of dicts
+def dol2lod(kwargs):
+    """ Convert a dict of lists into a list of dicts
     For example
-    flatten_dict(lr=[1, 2], a=[10,3], b=dict(c=[2, 4], d=np.arange(1, 3)))
+    dol2lod(lr=[1, 2], a=[10,3], b=dict(c=[2, 4], d=np.arange(1, 3)))
     >>>
     [{'lr': 1, 'a': 10, 'b': {'c': 2, 'd': 1}},
     {'lr': 2, 'a': 3, 'b': {'c': 4, 'd': 2}}]
@@ -361,7 +379,7 @@ def flatten_dict(kwargs):
     for k, v in kwargs.items():
         ks.append(k)
         if isinstance(v, dict):
-            vs.append(flatten_dict(v))
+            vs.append(dol2lod(v))
         elif isinstance(v, (int, float)):
             vs.append([v])
         else:

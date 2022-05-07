@@ -1,44 +1,218 @@
 import tensorflow as tf
 
 from core.elements.loss import Loss, LossEnsemble
-from utility.rl_loss import huber_loss, reduce_mean, ppo_loss, clipped_value_loss
-from utility.tf_utils import explained_variance
+from utility import rl_loss
+from utility.tf_utils import reduce_mean, explained_variance
 
 
-class PPOLossImpl(Loss):
-    def _compute_value_loss(
+def prefix_name(terms, name):
+    if name is not None:
+        new_terms = {}
+        for k, v in terms.items():
+            new_terms[f'{name}/{k}'] = v
+        return new_terms
+    return terms
+
+
+class PGLossImpl(Loss):
+    def _pg_loss(
         self, 
+        tape, 
+        act_dist,
+        action, 
+        advantage, 
+        tr_prob,
+        logprob, 
+        target_pi, 
+        pi=None, 
+        pi_mean=None, 
+        pi_std=None, 
+        action_mask=None, 
+        mask=None, 
+        n=None, 
+        name=None,
+    ):
+        use_gpo_l2 = self.config.get('gpo_l2_coef', None) is not None
+        use_gpo_kl = self.config.get('gpo_kl_coef', None) is not None
+        new_logprob = act_dist.log_prob(action)
+        tf.debugging.assert_all_finite(new_logprob, 'Bad new_logprob')
+        entropy = act_dist.entropy()
+        tf.debugging.assert_all_finite(entropy, 'Bad entropy')
+        log_ratio = new_logprob - logprob
+        raw_pg_loss, raw_entropy, kl, clip_frac = rl_loss.ppo_loss(
+            log_ratio, 
+            advantage, 
+            self.config.clip_range, 
+            entropy, 
+            mask=mask, 
+            n=n, 
+            reduce=False
+        )
+        tf.debugging.assert_all_finite(raw_pg_loss, 'Bad raw_pg_loss')
+        raw_pg_loss = reduce_mean(raw_pg_loss, mask, n)
+        pg_loss = self.config.pg_coef * raw_pg_loss
+        entropy = reduce_mean(raw_entropy, mask, n)
+        entropy_loss = - self.config.entropy_coef * entropy
+
+        # GPO L2
+        if use_gpo_l2:
+            new_prob = tf.exp(new_logprob)
+            tr_diff_prob = tr_prob - new_prob
+            raw_gpo_l2_loss = reduce_mean(tr_diff_prob**2, mask, n)
+            gpo_l2_loss = self.config.gpo_l2_coef * raw_gpo_l2_loss
+        else:
+            raw_gpo_l2_loss = 0
+            gpo_l2_loss = 0
+
+        # GPO KL
+        new_pi = tf.nn.softmax(act_dist.logits)
+        if use_gpo_kl:
+            gpo_kl = rl_loss.kl_from_probabilities(
+                new_pi, target_pi, action_mask)
+            raw_gpo_kl_loss = reduce_mean(gpo_kl, mask, n)
+            gpo_kl_loss = self.config.gpo_kl_coef * raw_gpo_kl_loss
+        else:
+            raw_gpo_kl_loss = 0
+            gpo_kl_loss = 0
+
+        # GPO Loss
+        if use_gpo_l2 or use_gpo_kl:
+            raw_gpo_loss = raw_gpo_l2_loss + raw_gpo_kl_loss
+            gpo_loss = gpo_l2_loss + gpo_kl_loss
+            tf.debugging.assert_all_finite(gpo_loss, 'Bad gpo_loss')
+        else:
+            gpo_loss = 0
+
+        loss = pg_loss + entropy_loss + gpo_loss
+
+        if self.config.get('debug', True):
+            with tape.stop_recording():
+                prob = tf.exp(logprob)
+                diff_prob = new_prob - prob
+                tt_prob = tf.gather(target_pi, action, batch_dims=len(action.shape))
+                terms = dict(
+                    tr_old_diff_prob=tr_prob - prob, 
+                    tt_old_diff_prob=tt_prob - prob, 
+                    tr_tt_diff_prob=tr_prob - tt_prob, 
+                    tr_diff_prob=tr_diff_prob, 
+                    tt_diff_prob=tt_prob - new_prob, 
+                    ratio=tf.exp(log_ratio),
+                    raw_entropy=raw_entropy,
+                    entropy=entropy,
+                    kl=kl,
+                    new_logprob=new_logprob, 
+                    prob=prob,
+                    new_prob=new_prob, 
+                    diff_prob=diff_prob, 
+                    p_clip_frac=clip_frac,
+                    raw_pg_loss=raw_pg_loss,
+                    pg_loss=pg_loss,
+                    entropy_loss=entropy_loss, 
+                    raw_gpo_l2_loss=raw_gpo_l2_loss, 
+                    raw_gpo_loss=raw_gpo_loss, 
+                    gpo_l2_loss=gpo_l2_loss, 
+                    gpo_loss=gpo_loss, 
+                    actor_loss=loss,
+                    adv_std=tf.math.reduce_std(advantage, axis=-1), 
+                )
+                if use_gpo_kl:
+                    terms.update(dict(
+                        gpo_kl=gpo_kl, 
+                    ))
+                if action_mask is not None:
+                    terms['n_avail_actions'] = tf.reduce_sum(
+                        tf.cast(action_mask, tf.float32), -1)
+                terms = prefix_name(terms, name)
+                if pi is not None:
+                    diff_prob = new_pi - pi
+                    terms['diff_prob'] = diff_prob
+                    max_diff_action = tf.cast(
+                        tf.math.argmax(tf.math.abs(diff_prob), axis=-1), tf.int32)
+                    terms['diff_match'] = tf.reduce_mean(
+                        tf.cast(max_diff_action == action, tf.float32)
+                    )
+                elif pi_mean is not None:
+                    new_mean = act_dist.mean()
+                    new_std = tf.exp(self.policy.logstd)
+                    terms['new_mean'] = new_mean
+                    terms['new_std'] = new_std
+                    terms['diff_mean'] = new_mean - pi_mean
+                    terms['diff_std'] = new_std - pi_std
+
+        else:
+            terms = {}
+
+        return terms, loss
+
+
+class ValueLossImpl(Loss):
+    def _value_loss(
+        self, 
+        tape, 
         value, 
         traj_ret, 
         old_value, 
         mask=None,
-        reduce=True,
+        n=None, 
+        name=None, 
     ):
         value_loss_type = getattr(self.config, 'value_loss', 'mse')
         v_clip_frac = 0
         if value_loss_type == 'huber':
-            value_loss = huber_loss(
-                value, traj_ret, threshold=self.config.huber_threshold)
+            raw_value_loss = rl_loss.huber_loss(
+                value, 
+                traj_ret, 
+                threshold=self.config.huber_threshold
+            )
         elif value_loss_type == 'mse':
-            value_loss = .5 * (value - traj_ret)**2
+            raw_value_loss = .5 * (value - traj_ret)**2
         elif value_loss_type == 'clip':
-            value_loss, v_clip_frac = clipped_value_loss(
-                value, traj_ret, old_value, self.config.clip_range, 
-                mask=mask, reduce=False)
+            raw_value_loss, v_clip_frac = rl_loss.clipped_value_loss(
+                value, 
+                traj_ret, 
+                old_value, 
+                self.config.clip_range, 
+                mask=mask, 
+                n=n,
+                reduce=False
+            )
         elif value_loss_type == 'clip_huber':
-            value_loss, v_clip_frac = clipped_value_loss(
-                value, traj_ret, old_value, self.config.clip_range, 
-                mask=mask, huber_threshold=self.config.huber_threshold,
-                reduce=False)
+            raw_value_loss, v_clip_frac = rl_loss.clipped_value_loss(
+                value, 
+                traj_ret, 
+                old_value, 
+                self.config.clip_range, 
+                mask=mask, 
+                n=n, 
+                huber_threshold=self.config.huber_threshold,
+                reduce=False
+            )
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
 
-        if reduce:
-            value_loss = reduce_mean(value_loss, mask)
-        return value_loss, v_clip_frac
+        value_loss = reduce_mean(raw_value_loss, mask)
+        loss = reduce_mean(value_loss, mask, n)
+        loss = self.config.value_coef * loss
+
+        if self.config.get('debug', True):
+            with tape.stop_recording():
+                ev = explained_variance(traj_ret, value)
+                terms = dict(
+                    value=value,
+                    raw_v_loss=raw_value_loss,
+                    v_loss=loss,
+                    explained_variance=ev,
+                    traj_ret_std=tf.math.reduce_std(traj_ret, axis=-1), 
+                    v_clip_frac=v_clip_frac,
+                )
+                terms = prefix_name(terms, name)
+        else:
+            terms = {}
+
+        return terms, loss
 
 
-class PPOPolicyLoss(Loss):
+class PPOPolicyLoss(PGLossImpl):
     def loss(
         self, 
         obs, 
@@ -69,109 +243,34 @@ class PPOPolicyLoss(Loss):
                 mask=mask
             )
             act_dist = self.policy(x, action_mask)
-            new_logprob = act_dist.log_prob(action)
-            tf.debugging.assert_all_finite(new_logprob, 'Bad new_logprob')
-            entropy = act_dist.entropy()
-            tf.debugging.assert_all_finite(entropy, 'Bad entropy')
-            log_ratio = new_logprob - logprob
-            raw_pg_loss, raw_entropy, kl, clip_frac = ppo_loss(
-                log_ratio, 
-                advantage, 
-                self.config.clip_range, 
-                entropy, 
+            terms, loss = self._pg_loss(
+                tape=tape, 
+                act_dist=act_dist, 
+                action=action, 
+                advantage=advantage, 
+                tr_prob=tr_prob,
+                logprob=logprob, 
+                target_pi=target_pi, 
+                pi=pi, 
+                pi_mean=pi_mean, 
+                pi_std=pi_std, 
+                action_mask=action_mask, 
                 mask=loss_mask, 
-                n=n, 
-                reduce=False
+                n=n
             )
-            tf.debugging.assert_all_finite(raw_pg_loss, 'Bad raw_pg_loss')
-            raw_pg_loss = reduce_mean(raw_pg_loss, loss_mask, n)
-            pg_loss = self.config.pg_coef * raw_pg_loss
-            entropy = reduce_mean(raw_entropy, loss_mask, n)
-            entropy_loss = - self.config.entropy_coef * entropy
 
-            # GPO L2
-            new_prob = tf.exp(new_logprob)
-            tr_diff_prob = tr_prob - new_prob
-            tf.debugging.assert_all_finite(act_dist.logits, 'Bad logits')
-            new_pi = tf.nn.softmax(act_dist.logits)
-            tf.debugging.assert_all_finite(new_pi, 'Bad new pi')
-            raw_gpo_l2_loss = reduce_mean(tr_diff_prob**2, loss_mask, n)
-            gpo_l2_loss = self.config.gpo_l2_coef * raw_gpo_l2_loss
-
-            # GPO KL
-            ratio = new_pi / target_pi
-            if action_mask is not None:
-                ratio = tf.where(action_mask, ratio, 1)
-            tf.debugging.assert_all_finite(ratio, 'Bad ratio')
-            log_ratio = tf.math.log(ratio)
-            tf.debugging.assert_all_finite(log_ratio, 'Bade log_ratio')
-            gpo_kl = tf.reduce_sum(
-                tf.math.multiply_no_nan(new_pi, log_ratio), axis=-1)
-            tf.debugging.assert_all_finite(gpo_kl, 'Bad gpo_kl')
-            raw_gpo_kl_loss = reduce_mean(gpo_kl, loss_mask, n)
-            gpo_kl_loss = self.config.gpo_kl_coef * raw_gpo_kl_loss
-            raw_gpo_loss = raw_gpo_l2_loss + raw_gpo_kl_loss
-            gpo_loss = gpo_l2_loss + gpo_kl_loss
-            tf.debugging.assert_all_finite(gpo_loss, 'Bad gpo_loss')
-
-            loss = pg_loss + entropy_loss + gpo_l2_loss
-
-        prob = tf.exp(logprob)
-        diff_prob = new_prob - prob
-        terms = dict(
-            target_old_diff_prob=target_prob - prob, 
-            tr_old_diff_prob=tr_prob - prob, 
-            tr_diff_prob=tr_diff_prob, 
-            prev_reward=prev_reward,
-            ratio=tf.exp(log_ratio),
-            raw_entropy=raw_entropy,
-            entropy=entropy,
-            kl=kl,
-            gpo_kl=gpo_kl, 
-            logprob=logprob,
-            new_logprob=new_logprob, 
-            prob=prob,
-            new_prob=new_prob, 
-            diff_prob=diff_prob, 
-            p_clip_frac=clip_frac,
-            raw_pg_loss=raw_pg_loss,
-            pg_loss=pg_loss,
-            entropy_loss=entropy_loss, 
-            raw_gpo_l2_loss=raw_gpo_l2_loss, 
-            raw_gpo_kl_loss=raw_gpo_kl_loss, 
-            raw_gpo_loss=raw_gpo_loss, 
-            gpo_l2_loss=gpo_l2_loss, 
-            gpo_kl_loss=gpo_kl_loss, 
-            gpo_loss=gpo_loss, 
-            actor_loss=loss,
-            adv_std=tf.math.reduce_std(advantage, axis=-1), 
-        )
-        if action_mask is not None:
-            terms['n_avail_actions'] = tf.reduce_sum(
-                tf.cast(action_mask, tf.float32), -1)
-        if life_mask is not None:
-            terms['n_alive_units'] = tf.reduce_sum(
-                life_mask, -1)
-        if self.policy.is_action_discrete:
-            max_diff_prob = tf.math.reduce_max(new_pi - pi, axis=-1)
-            terms['new_pi'] = new_pi
-            terms['max_diff_prob'] = max_diff_prob
-            terms['diff_match'] = tf.reduce_mean(
-                tf.cast(tf.math.abs(diff_prob - max_diff_prob) < .01, 
-                tf.float32)
-            )
-        else:
-            new_mean = act_dist.mean()
-            new_std = tf.exp(self.policy.logstd)
-            terms['new_mean'] = new_mean
-            terms['new_std'] = new_std
-            terms['diff_mean'] = new_mean - pi_mean
-            terms['diff_std'] = new_std - pi_std
+        if self.config.get('debug', True):
+            terms.update(dict(
+                target_old_diff_prob=target_prob - terms['prob'], 
+            ))
+            if life_mask is not None:
+                terms['n_alive_units'] = tf.reduce_sum(
+                    life_mask, -1)
 
         return tape, loss, terms
 
 
-class PPOValueLoss(PPOLossImpl):
+class PPOValueLoss(ValueLossImpl):
     def loss(
         self, 
         global_state, 
@@ -195,25 +294,14 @@ class PPOValueLoss(PPOLossImpl):
                 mask=mask
             )
 
-            raw_loss, clip_frac = self._compute_value_loss(
+            terms, loss = self._value_loss(
+                tape=tape, 
                 value=value, 
                 traj_ret=traj_ret, 
                 old_value=old_value, 
                 mask=loss_mask,
-                reduce=False
+                n=n,
             )
-            loss = reduce_mean(raw_loss, loss_mask, n)
-            loss = self.config.value_coef * loss
-
-        ev = explained_variance(traj_ret, value)
-        terms = dict(
-            value=value,
-            raw_v_loss=raw_loss,
-            v_loss=loss,
-            explained_variance=ev,
-            traj_ret_std=tf.math.reduce_std(traj_ret, axis=-1), 
-            v_clip_frac=clip_frac,
-        )
 
         return tape, loss, terms
 

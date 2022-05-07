@@ -103,6 +103,7 @@ model:
             units_list: []
             kernel_initializer: orthogonal
             activation: relu
+            norm: null
             eval_act_temp: 1
             out_gain: .01
 
@@ -129,6 +130,7 @@ model:
             units_list: []
             kernel_initializer: orthogonal
             activation: relu
+            norm: null
 
 loss:
     policy:

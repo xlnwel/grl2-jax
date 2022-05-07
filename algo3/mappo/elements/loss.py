@@ -3,7 +3,7 @@ import tensorflow as tf
 from core.elements.loss import Loss, LossEnsemble
 from utility.rl_loss import ppo_loss
 from utility.tf_utils import explained_variance
-from algo.ppo.elements.loss import PPOLossImpl
+from algo.ppo.elements.loss import ValueLossImpl
 
 
 class MAPPOPolicyLoss(Loss):
@@ -36,7 +36,7 @@ class MAPPOPolicyLoss(Loss):
         return tape, loss, terms
 
 
-class MAPPOValueLoss(PPOLossImpl):
+class MAPPOValueLoss(ValueLossImpl):
     def loss(self, global_state, value, traj_ret, 
             state=None, life_mask=None, mask=None):
         old_value = value
@@ -44,7 +44,7 @@ class MAPPOValueLoss(PPOLossImpl):
             x_value, _ = self.model.encode(global_state, state, mask)
             value = self.value(x_value)
 
-            loss, clip_frac = self._compute_value_loss(
+            loss, clip_frac = self._value_loss(
                 value, traj_ret, old_value,
                 life_mask if self.config.life_mask else None)
             loss = self.config.value_coef * loss

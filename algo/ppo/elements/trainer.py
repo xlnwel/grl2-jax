@@ -24,21 +24,31 @@ class PPOTrainer(Trainer):
         value, 
         traj_ret, 
         advantage, 
+        target_prob, 
+        tr_prob, 
         logprob, 
-        reward=None, 
-        raw_adv=None, 
+        pi=None, 
+        target_pi=None, 
+        pi_mean=None, 
+        pi_std=None, 
         state=None, 
         mask=None
     ):
         tape, loss, terms = self.loss.loss(
-            obs, 
-            action, 
-            value, 
-            traj_ret, 
-            advantage, 
-            logprob, 
-            state, 
-            mask
+            obs=obs, 
+            action=action, 
+            value=value, 
+            traj_ret=traj_ret, 
+            advantage=advantage, 
+            target_prob=target_prob, 
+            tr_prob=tr_prob, 
+            logprob=logprob, 
+            pi=pi, 
+            target_pi=target_pi, 
+            pi_mean=pi_mean, 
+            pi_std=pi_std, 
+            state=state, 
+            mask=mask
         )
 
         terms['norm'], terms['var_norm'] = \

@@ -7,7 +7,7 @@ from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from utility.typing import AttrDict
-from utility.utils import dict2AttrDict, moments, standardize
+from utility.utils import add_attr, dict2AttrDict, moments, standardize
 
 
 logger = logging.getLogger(__name__)
@@ -149,73 +149,6 @@ def compute_indices(idxes, mb_idx, mb_size, n_mbs):
 
     return mb_idx, curr_idxes
 
-def get_sample(
-    memory, 
-    idxes, 
-    sample_keys, 
-    actor_state_keys, 
-    value_state_keys, 
-    actor_state_type,
-    value_state_type,
-):
-    if actor_state_type is None and value_state_type is None:
-        sample = {k: memory[k][idxes] for k in sample_keys}
-    else:
-        sample = {}
-        actor_state = []
-        value_state = []
-        for k in sample_keys:
-            if k in actor_state_keys:
-                v = memory[k][idxes, 0]
-                actor_state.append(v.reshape(-1, v.shape[-1]))
-            elif k in value_state_keys:
-                v = memory[k][idxes, 0]
-                value_state.append(v.reshape(-1, v.shape[-1]))
-            else:
-                sample[k] = memory[k][idxes]
-        if actor_state:
-            sample['actor_state'] = actor_state_type(*actor_state)
-        if value_state:
-            sample['value_state'] = value_state_type(*value_state)
-
-    return sample
-
-
-def get_sample_keys_size(config):
-    actor_state_keys = ['actor_h', 'actor_c']
-    value_state_keys = ['value_h', 'value_c']
-    if config['actor_rnn_type'] or config['value_rnn_type']: 
-        sample_keys = config.sample_keys
-        sample_size = config.sample_size
-        if not config['actor_rnn_type']:
-            sample_keys = _remote_state_keys(
-                sample_keys, 
-                actor_state_keys, 
-            )
-        if not config['value_rnn_type']:
-            sample_keys = _remote_state_keys(
-                sample_keys, 
-                value_state_keys, 
-            )
-    else:
-        sample_keys = _remote_state_keys(
-            config.sample_keys, 
-            actor_state_keys + value_state_keys, 
-        )
-        if 'mask' in sample_keys:
-            sample_keys.remove('mask')
-        sample_size = None
-
-    return sample_keys, sample_size
-
-
-def _remote_state_keys(sample_keys, state_keys):
-    for k in state_keys:
-        if k in sample_keys:
-            sample_keys.remove(k)
-
-    return sample_keys
-
 
 class AdvantageCalculator:
     def compute_adv(self, config, last_value, data):
@@ -280,7 +213,84 @@ class TargetProbabilityCalculator:
             data['target_pi'] = target_pi
 
 
-class LocalBufferBase(TargetProbabilityCalculator, Buffer):
+class SamplingKeysExtractor:
+    def extract_sampling_keys(self, model):
+        self.actor_state_keys = tuple([f'actor_{k}' for k in model.actor_state_keys])
+        self.value_state_keys = tuple([f'value_{k}' for k in model.value_state_keys])
+        self.actor_state_type = model.actor_state_type
+        self.value_state_type = model.value_state_type
+        self.sample_keys, self.sample_size = self._get_sample_keys_size()
+
+    def _get_sample_keys_size(self):
+        actor_state_keys = ['actor_h', 'actor_c']
+        value_state_keys = ['value_h', 'value_c']
+        if self.config.actor_rnn_type or self.config.value_rnn_type: 
+            sample_keys = self.config.sample_keys
+            sample_size = self.config.sample_size
+            if not self.config.actor_rnn_type:
+                sample_keys = self._remote_state_keys(
+                    sample_keys, 
+                    actor_state_keys, 
+                )
+            if not self.config.value_rnn_type:
+                sample_keys = self._remote_state_keys(
+                    sample_keys, 
+                    value_state_keys, 
+                )
+        else:
+            sample_keys = self._remote_state_keys(
+                self.config.sample_keys, 
+                actor_state_keys + value_state_keys, 
+            )
+            if 'mask' in sample_keys:
+                sample_keys.remove('mask')
+            sample_size = None
+        return sample_keys, sample_size
+
+    def _remote_state_keys(self, sample_keys, state_keys):
+        for k in state_keys:
+            if k in sample_keys:
+                sample_keys.remove(k)
+
+        return sample_keys
+
+
+class Sampler:
+    def get_sample(
+        self, 
+        memory, 
+        idxes, 
+        sample_keys, 
+    ):
+        if self.actor_state_type is None and self.value_state_type is None:
+            sample = {k: memory[k][idxes] for k in sample_keys}
+        else:
+            sample = {}
+            actor_state = []
+            value_state = []
+            for k in sample_keys:
+                if k in self.actor_state_keys:
+                    v = memory[k][idxes, 0]
+                    actor_state.append(v.reshape(-1, v.shape[-1]))
+                elif k in self.value_state_keys:
+                    v = memory[k][idxes, 0]
+                    value_state.append(v.reshape(-1, v.shape[-1]))
+                else:
+                    sample[k] = memory[k][idxes]
+            if actor_state:
+                sample['actor_state'] = self.actor_state_type(*actor_state)
+            if value_state:
+                sample['value_state'] = self.value_state_type(*value_state)
+
+        return sample
+
+
+class LocalBufferBase(
+    SamplingKeysExtractor, 
+    AdvantageCalculator, 
+    TargetProbabilityCalculator, 
+    Buffer
+):
     def __init__(
         self, 
         config: AttrDict,
@@ -300,9 +310,7 @@ class LocalBufferBase(TargetProbabilityCalculator, Buffer):
         self._add_attributes(model)
 
     def _add_attributes(self, model):
-        self.actor_state_keys = (f'actor_{k}' for k in model.actor_state_keys)
-        self.value_state_keys = (f'value_{k}' for k in model.value_state_keys)
-        self.sample_keys, self.sample_size = get_sample_keys_size(self.config)
+        self.extract_sampling_keys(model)
 
         if self.config.get('fragment_size', None) is not None:
             self.maxlen = self.config.fragment_size
@@ -369,7 +377,13 @@ class LocalBufferBase(TargetProbabilityCalculator, Buffer):
         return self.runner_id, data, self.n_envs * self.maxlen
 
 
-class PPOBufferBase(TargetProbabilityCalculator, Buffer):
+class PPOBufferBase(
+    Sampler, 
+    SamplingKeysExtractor, 
+    AdvantageCalculator, 
+    TargetProbabilityCalculator, 
+    Buffer
+):
     def __init__(
         self, 
         config: AttrDict, 
@@ -388,11 +402,7 @@ class PPOBufferBase(TargetProbabilityCalculator, Buffer):
         self.use_dataset = self.config.get('use_dataset', False)
         do_logging(f'Is dataset used for data pipeline: {self.use_dataset}', logger=logger)
 
-        self.actor_state_keys = tuple([f'actor_{k}' for k in model.actor_state_keys])
-        self.value_state_keys = tuple([f'value_{k}' for k in model.value_state_keys])
-        self.actor_state_type = model.actor_state_type
-        self.value_state_type = model.value_state_type
-        self.sample_keys, self.sample_size = get_sample_keys_size(self.config)
+        self.extract_sampling_keys(model)
 
         self.n_runners = self.config.n_runners
         self.n_steps = self.config.n_steps
@@ -448,6 +458,8 @@ class PPOBufferBase(TargetProbabilityCalculator, Buffer):
 
     def finish(self, last_value):
         assert self._current_size == self.n_steps, self._current_size
+        self._memory = {k: np.stack(v) for k, v in self._memory.items()}
+
         self.compute_adv(self.config, last_value, self._memory)
         self.compute_target_tr_probs(self.config, self._memory)
 
@@ -547,14 +559,10 @@ class PPOBufferBase(TargetProbabilityCalculator, Buffer):
             self.n_mbs
         )
 
-        sample = get_sample(
+        sample = self.get_sample(
             self._memory, 
             self._curr_idxes, 
             sample_keys,
-            self.actor_state_keys, 
-            self.value_state_keys,
-            self.actor_state_type, 
-            self.value_state_type
         )
         sample = self._process_sample(sample)
 
@@ -579,11 +587,12 @@ class PPOBufferBase(TargetProbabilityCalculator, Buffer):
     def clear(self):
         self.reset()
 
-class LocalBuffer(AdvantageCalculator, LocalBufferBase):
+
+class LocalBuffer(LocalBufferBase):
     pass
 
 
-class PPOBuffer(AdvantageCalculator, PPOBufferBase):
+class PPOBuffer(PPOBufferBase):
     pass
 
 

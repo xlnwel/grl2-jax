@@ -4,10 +4,10 @@ from tensorflow_probability import distributions as tfd
 from core.elements.loss import Loss
 from utility.rl_loss import huber_loss, ppo_loss, clipped_value_loss
 from utility.tf_utils import assert_rank, assert_rank_and_shape_compatibility, explained_variance, reduce_mean
-from algo.ppo.elements.loss import PPOLossImpl
+from algo.ppo.elements.loss import ValueLossImpl
 
 
-class PPOLoss(PPOLossImpl):
+class PPOLoss(ValueLossImpl):
     def loss(self, 
             numbers, 
             jokers, 
@@ -89,7 +89,7 @@ class PPOLoss(PPOLossImpl):
                 others_h=others_h
             )
 
-            value_loss, v_clip_frac = self._compute_value_loss(
+            value_loss, v_clip_frac = self._value_loss(
                 value, traj_ret, old_value)
             value_loss = self._value_coef * value_loss
             loss = actor_loss + value_loss
@@ -118,7 +118,7 @@ class PPOLoss(PPOLossImpl):
         return tape, loss, terms
 
 
-class PPGLoss(PPOLossImpl):
+class PPGLoss(ValueLossImpl):
     def loss(self, 
             numbers, 
             jokers, 
@@ -202,7 +202,7 @@ class PPGLoss(PPOLossImpl):
                 others_h=others_h,
             )
 
-            value_loss, v_clip_frac = self._compute_value_loss(
+            value_loss, v_clip_frac = self._value_loss(
                 value, traj_ret, old_value)
             value_loss = self._value_coef * value_loss
             loss = actor_loss + value_loss
@@ -291,7 +291,7 @@ class PPGLoss(PPOLossImpl):
 
             value = self.model.compute_value_stream(
                 x, others_numbers, others_jokers, others_h)
-            value_loss, v_clip_frac = self._compute_value_loss(
+            value_loss, v_clip_frac = self._value_loss(
                 value, traj_ret, old_value)
             loss = bc_loss + value_loss
         

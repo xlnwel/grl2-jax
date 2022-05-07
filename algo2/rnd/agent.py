@@ -172,8 +172,8 @@ class Agent(PPOAgent):
             policy_loss, entropy, kl, p_clip_frac = ppo_loss(
                 log_ratio, advantage, self._clip_range, entropy)
             # value loss
-            value_loss_int, v_int_clip_frac = self._compute_value_loss(value_int, traj_ret_int, old_value_int)
-            value_loss_ext, v_out_clip_frac = self._compute_value_loss(value_ext, traj_ret_ext, old_value_ext)
+            value_loss_int, v_int_clip_frac = self._value_loss(value_int, traj_ret_int, old_value_int)
+            value_loss_ext, v_out_clip_frac = self._value_loss(value_ext, traj_ret_ext, old_value_ext)
 
             entropy_loss = - self._entropy_coef * entropy
             actor_loss = policy_loss + entropy_loss

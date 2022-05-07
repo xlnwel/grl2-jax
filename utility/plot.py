@@ -2,6 +2,7 @@ import os, sys, glob
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from tensorboard.backend.event_processing import event_accumulator
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -49,6 +50,22 @@ def get_datasets(filedir, tag, condition=None):
                 unit +=1
 
     return datasets
+
+def event_to_pd(path_to_tb_event):
+    print(path_to_tb_event)
+    event_data = event_accumulator.EventAccumulator(path_to_tb_event)  # a python interface for loading Event data
+    event_data.Reload()  # synchronously loads all of the data written so far b
+    print('event tags', event_data.Tags())  # print all tags
+    keys = event_data.scalars.Keys()  # get all tags,save in a list
+    # print(keys)
+    df = pd.DataFrame(columns=keys)  # my first column is training loss per iteration, so I abandon it
+    # print(list(keys))
+    if len(keys) == 0:
+        return None
+    for key in keys:
+        df[key] = pd.DataFrame(event_data.Scalars(key)).value
+    return df
+
 
 def main():
     import argparse

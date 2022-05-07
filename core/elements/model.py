@@ -48,7 +48,7 @@ class Model(Ensemble):
     def ckpt_model(self):
         return self.components
 
-    def _build(self, env_stats, evaluation=False):
+    def _build(self, env_stats: AttrDict, evaluation=False):
         pass
 
     def sync_nets(self):

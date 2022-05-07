@@ -2,10 +2,10 @@ import tensorflow as tf
 
 from utility.rl_loss import ppo_loss
 from utility.tf_utils import explained_variance
-from algo.ppo.elements.loss import PPOLossImpl
+from algo.ppo.elements.loss import ValueLossImpl
 
 
-class PPOLoss(PPOLossImpl):
+class PPOLoss(ValueLossImpl):
     def loss(self, obs, goal, action, value, traj_ret, advantage, logpi, 
                 state=None, mask=None):
         old_value = value
@@ -22,7 +22,7 @@ class PPOLoss(PPOLossImpl):
                 log_ratio, advantage, self.config.clip_range, entropy)
             # value loss
             value = self.value(x)
-            value_loss, v_clip_frac = self._compute_value_loss(
+            value_loss, v_clip_frac = self._value_loss(
                 value, traj_ret, old_value)
 
             actor_loss = (policy_loss - self.config.entropy_coef * entropy)

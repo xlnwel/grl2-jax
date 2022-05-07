@@ -1,4 +1,3 @@
-from email import policy
 import tensorflow as tf
 
 from utility.tf_utils import static_scan, reduce_mean, \
@@ -14,7 +13,13 @@ def huber_loss(x, *, y=None, threshold=1.):
                     name='huber_loss')
 
 
-def quantile_regression_loss(qtv, target, tau_hat, kappa=1., return_error=False):
+def quantile_regression_loss(
+    qtv, 
+    target, 
+    tau_hat, 
+    kappa=1., 
+    return_error=False
+):
     assert qtv.shape[-1] == 1, qtv.shape
     assert target.shape[-2] == 1, target.shape
     assert tau_hat.shape[-1] == 1, tau_hat.shape
@@ -46,7 +51,14 @@ def inverse_h(x, epsilon=1e-3):
     return tf.math.sign(x) * (tf.math.square(frac_term) - 1.)
 
 
-def n_step_target(reward, nth_value, discount=1., gamma=.99, steps=1., tbo=False):
+def n_step_target(
+    reward, 
+    nth_value, 
+    discount=1., 
+    gamma=.99, 
+    steps=1., 
+    tbo=False
+):
     """
     discount is only the done signal
     """
@@ -56,7 +68,14 @@ def n_step_target(reward, nth_value, discount=1., gamma=.99, steps=1., tbo=False
         return reward + discount * gamma**steps * nth_value
 
 
-def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
+def lambda_return(
+    reward, 
+    value, 
+    discount, 
+    lambda_, 
+    bootstrap=None, 
+    axis=0
+):
     """
     discount includes the done signal if there is any.
     axis specifies the time dimension
@@ -85,8 +104,19 @@ def lambda_return(reward, value, discount, lambda_, bootstrap=None, axis=0):
     return target
 
 
-def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount, 
-        lambda_=.95, ratio_clip=1, axis=0, tbo=False, regularization=None):
+def retrace(
+    reward, 
+    next_qs, 
+    next_action, 
+    next_pi, 
+    next_mu_a, 
+    discount, 
+    lambda_=.95, 
+    ratio_clip=1, 
+    axis=0, 
+    tbo=False, 
+    regularization=None
+):
     """
     Params:
         discount = gamma * (1-done). 
@@ -135,9 +165,19 @@ def retrace(reward, next_qs, next_action, next_pi, next_mu_a, discount,
     return target
 
 
-def v_trace(reward, value, next_value, 
-        pi, mu, discount, lambda_=1, c_clip=1, 
-        rho_clip=1, rho_clip_pg=1, axis=0):
+def v_trace(
+    reward, 
+    value, 
+    next_value, 
+    pi, 
+    mu, 
+    discount, 
+    lambda_=1, 
+    c_clip=1, 
+    rho_clip=1, 
+    rho_clip_pg=1, 
+    axis=0
+):
     """
     Params:
         discount = gamma * (1-done). 
@@ -149,9 +189,18 @@ def v_trace(reward, value, next_value,
         rho_clip, rho_clip_pg, axis)
 
 
-def v_trace_from_ratio(reward, value, next_value, 
-        ratio, discount, lambda_=1, c_clip=1, 
-        rho_clip=1, rho_clip_pg=1, axis=0):
+def v_trace_from_ratio(
+    reward, 
+    value, 
+    next_value, 
+    ratio, 
+    discount, 
+    lambda_=1, 
+    c_clip=1, 
+    rho_clip=1, 
+    rho_clip_pg=1, 
+    axis=0
+):
     """
     Params:
         discount = gamma * (1-done). 
@@ -254,7 +303,14 @@ def clipped_value_loss(
     return value_loss, clip_frac
 
 
-def tppo_loss(log_ratio, kl, advantages, kl_weight, clip_range, entropy):
+def tppo_loss(
+    log_ratio, 
+    kl, 
+    advantages, 
+    kl_weight, 
+    clip_range, 
+    entropy
+):
     ratio = tf.exp(log_ratio)
     condition = tf.math.logical_and(
         kl >= clip_range, ratio * advantages > advantages)
@@ -279,7 +335,13 @@ def _compute_ppo_policy_losses(log_ratio, advantages, clip_range):
     return ratio, loss1, loss2
 
 
-def _compute_ppo_value_losses(value, traj_ret, old_value, clip_range, huber_threshold=None):
+def _compute_ppo_value_losses(
+    value, 
+    traj_ret, 
+    old_value, 
+    clip_range, 
+    huber_threshold=None
+):
     value_diff = value - old_value
     value_clipped = old_value + tf.clip_by_value(value_diff, -clip_range, clip_range)
     if huber_threshold is None:
@@ -290,6 +352,23 @@ def _compute_ppo_value_losses(value, traj_ret, old_value, clip_range, huber_thre
         loss2 = huber_loss(value_clipped, y=traj_ret, threshold=huber_threshold)
 
     return value_diff, loss1, loss2
+
+def kl_from_probabilities(
+    pi1, 
+    pi2, 
+    pi_mask=None
+):
+    log_pi1 = tf.math.log(tf.clip_by_value(pi1, 1e-10, 1))
+    log_pi2 = tf.math.log(tf.clip_by_value(pi2, 1e-10, 1))
+    log_ratio = log_pi1 - log_pi2
+    if pi_mask is not None:
+        log_ratio = tf.where(pi_mask, log_ratio, 0)
+    tf.debugging.assert_all_finite(log_ratio, 'Bad log_ratio')
+    kl = tf.reduce_sum(
+        pi1 * log_ratio, axis=-1)
+
+    return kl
+
 
 # if __name__ == '__main__':
 #     value = tf.random.normal((2, 3))

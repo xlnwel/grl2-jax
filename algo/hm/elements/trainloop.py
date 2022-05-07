@@ -16,21 +16,50 @@ class PPOTrainingLoop(TrainingLoopBase):
         return train_step, stats
 
     def _train_ppo(self):
-        def train():
+        def get_data():
             raw_data = None
+            if self.use_dataset:
+                with self._sample_timer:
+                    data = self._sample_data()
+            else:
+                with self._sample_timer:
+                    raw_data = self._sample_data()
+                    data = None if raw_data is None else numpy2tensor(raw_data)
+            return raw_data, data
+
+        def combine_stats(stats, data, terms, max_record_size=100):
+            batch_size = next(iter(data.values())).shape[0]
+            # we only sample a small amount of data to reduce the cost
+            idx = np.random.randint(0, batch_size, max_record_size)
+
+            for k, v in data.items():
+                if isinstance(v, tuple):
+                    for kk, vv in v._asdict().items():
+                        vv_shape = np.shape(vv)
+                        stats[f'train/{kk}'] = vv[idx] \
+                            if vv_shape != () and vv_shape[0] == batch_size else vv
+                else:
+                    v_shape = np.shape(v)
+                    stats[f'train/{k}'] = v[idx] \
+                        if v_shape != () and v_shape[0] == batch_size else v
+
+            stats.update(
+                **{f'train/{k}': v[idx] 
+                    if np.shape(v) != () and np.shape(v)[0] == batch_size else v 
+                    for k, v in terms.items()}, 
+                **{f'time/{t.name}_total': t.total() 
+                    for t in [self._sample_timer, self._train_timer]},
+                **{f'time/{t.name}': t.average() 
+                    for t in [self._sample_timer, self._train_timer]},
+            )
+            return stats
+
+        def train(max_record_size=100):
             for i in range(self.config.n_epochs):
                 for j in range(1, self.config.n_mbs+1):
-                    if self.use_dataset:
-                        with self._sample_timer:
-                            data = self._sample_data()
-                        if data is None:
-                            return
-                    else:
-                        with self._sample_timer:
-                            raw_data = self._sample_data()
-                            if raw_data is None:
-                                return
-                            data = numpy2tensor(raw_data)
+                    raw_data, data = get_data()
+                    if data is None:
+                        return
 
                     with self._train_timer:
                         terms = self.trainer.train(**data)
@@ -60,44 +89,22 @@ class PPOTrainingLoop(TrainingLoopBase):
                 self._after_train_epoch()
             n = i * self.config.n_mbs + j
 
-            stats = {'train/kl': kl}
             if raw_data is None:
                 raw_data = tensor2numpy(data)
-
-            return n, stats, raw_data, tensor2numpy(terms)
-
-        def combine_stats(stats, data, terms, maxlen=100):
-            size = next(iter(data.values())).shape[0]
-            # we only sample a small amount of data to reduce the cost
-            idx = np.random.randint(0, size, maxlen)
-
-            for k, v in data.items():
-                if isinstance(v, tuple):
-                    for kk, vv in v._asdict().items():
-                        vv_shape = np.shape(vv)
-                        stats[f'train/{kk}'] = vv[idx] \
-                            if vv_shape != () and vv_shape[0] == size else vv
-                else:
-                    v_shape = np.shape(v)
-                    stats[f'train/{k}'] = v[idx] \
-                        if v_shape != () and v_shape[0] == size else v
-
-            stats.update(
-                **{f'train/{k}': v[idx] 
-                    if np.shape(v) != () and np.shape(v)[0] == size else v 
-                    for k, v in terms.items()}, 
-                **{f'time/{t.name}_total': t.total() 
-                    for t in [self._sample_timer, self._train_timer]},
-                **{f'time/{t.name}': t.average() 
-                    for t in [self._sample_timer, self._train_timer]},
+            stats = {'train/kl': kl}
+            stats = combine_stats(
+                stats, 
+                raw_data, 
+                tensor2numpy(terms), 
+                max_record_size=max_record_size
             )
-            return stats
+
+            return n, stats
 
         result = train()
         if result is None:
             return 0, None
-        n, stats, data, terms = result
-        stats = combine_stats(stats, data, terms)
+        n, stats = result
 
         if self._train_timer.total() > 1000:
             self._train_timer.reset()

@@ -1,11 +1,9 @@
 import tensorflow as tf
 
-from utility.rl_loss import reduce_mean, ppo_loss
-from utility.tf_utils import explained_variance
-from algo.hm.elements.loss import PPOLossImpl
+from algo.hm.elements.loss import ValueLossImpl, PGLossImpl
 
 
-class PPOLoss(PPOLossImpl):
+class PPOLoss(ValueLossImpl, PGLossImpl):
     def loss(
         self, 
         obs, 
@@ -13,7 +11,13 @@ class PPOLoss(PPOLossImpl):
         value, 
         traj_ret, 
         advantage, 
+        target_prob, 
+        tr_prob, 
         logprob, 
+        pi=None, 
+        target_pi=None, 
+        pi_mean=None, 
+        pi_std=None, 
         state=None, 
         action_mask=None, 
         life_mask=None, 
@@ -28,64 +32,44 @@ class PPOLoss(PPOLossImpl):
                 state=state, 
                 mask=mask
             )
-            act_dist = self.policy(x)
-            new_logprob = act_dist.log_prob(action)
-            entropy = act_dist.entropy()
-            # policy loss
-            log_ratio = new_logprob - logprob
-            raw_policy_loss, raw_entropy, kl, p_clip_frac = ppo_loss(
-                log_ratio, 
-                advantage, 
-                self.config.clip_range, 
-                entropy, 
-                reduce=False
-            )
-            policy_loss = reduce_mean(raw_policy_loss, loss_mask, n)
-            entropy = reduce_mean(raw_entropy, loss_mask, n)
-            entropy_loss = - self.config.entropy_coef * entropy
-            actor_loss = policy_loss + entropy_loss
-            # value loss
-            value = self.value(x)
-            raw_v_loss, v_clip_frac = self._compute_value_loss(
-                value=value, 
-                traj_ret=traj_ret, 
-                old_value=old_value, 
-                mask=loss_mask,
-                reduce=False
-            )
-            value_loss = reduce_mean(raw_v_loss, loss_mask, n)
-            value_loss = self.config.value_coef * value_loss
-            loss = actor_loss + value_loss
 
-        prob = tf.exp(logprob)
-        new_prob = tf.exp(new_logprob)
-        ratio = tf.exp(log_ratio)
-        terms = dict(
-            value=value,
-            ratio=ratio, 
-            entropy=entropy, 
-            kl=kl, 
-            logprob=logprob,
-            new_logprob=new_logprob, 
-            prob=prob,
-            new_prob=new_prob, 
-            diff_prob=new_prob - prob, 
-            p_clip_frac=p_clip_frac,
-            raw_policy_loss=raw_policy_loss,
-            policy_loss=policy_loss,
-            entropy_loss=entropy_loss, 
-            actor_loss=actor_loss,
-            raw_v_loss=raw_v_loss,
-            v_loss=value_loss,
-            explained_variance=explained_variance(traj_ret, value),
-            v_clip_frac=v_clip_frac
-        )
-        if action_mask is not None:
-            terms['n_avail_actions'] = tf.reduce_sum(
-                tf.cast(action_mask, tf.float32), -1)
-        if not self.policy.is_action_discrete:
-            terms['policy_mean'] = act_dist.mean()
-            terms['policy_std'] = tf.exp(self.policy.logstd)
+            act_dist = self.policy(x)
+            actor_terms, actor_loss = self._pg_loss(
+                tape=tape, 
+                act_dist=act_dist, 
+                action=action, 
+                advantage=advantage, 
+                tr_prob=tr_prob, 
+                logprob=logprob, 
+                target_pi=target_pi, 
+                pi=pi, 
+                pi_mean=pi_mean, 
+                pi_std=pi_std, 
+                action_mask=action_mask,
+                mask=loss_mask,
+                n=n
+            )
+
+            value = self.value(x)
+            value_terms, value_loss = self._value_loss(
+                tape=tape, 
+                value=value,
+                traj_ret=traj_ret, 
+                old_value=old_value,
+                mask=loss_mask, 
+                n=n, 
+            )
+
+            loss = actor_loss + value_loss
+        
+        terms = {**actor_terms, **value_terms}
+        if self.config.get('debug', True):
+            terms.update(dict(
+                target_old_diff_prob=target_prob - terms['prob'], 
+            ))
+            if life_mask is not None:
+                terms['n_alive_units'] = tf.reduce_sum(
+                    life_mask, -1)
 
         return tape, loss, terms
 

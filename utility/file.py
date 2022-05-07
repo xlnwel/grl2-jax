@@ -45,7 +45,7 @@ def check_make_dir(path):
         os.mkdir(path)
 
 
-def search_for_all_files(directory, filename):
+def search_for_all_files(directory, filename, suffix=True):
     if not os.path.exists(directory):
         return []
     directory = directory
@@ -54,8 +54,12 @@ def search_for_all_files(directory, filename):
         if 'src' in root:
             continue
         for f in files:
-            if f.endswith(filename):
-                all_target_files.append(os.path.join(root, f))
+            if suffix:
+                if f.endswith(filename):
+                    all_target_files.append(os.path.join(root, f))
+            else:
+                if f.startswith(filename):
+                    all_target_files.append(os.path.join(root, f))
     
     return all_target_files
 
@@ -80,3 +84,39 @@ def search_for_file(directory, filename, check_duplicates=True):
             break
 
     return target_file
+
+def search_for_all_files(directory, filename, is_suffix=True):
+    if not os.path.exists(directory):
+        return []
+    directory = directory
+    all_target_files = []
+    for root, _, files in os.walk(directory):
+        if 'src' in root:
+            continue
+        for f in files:
+            if is_suffix:
+                if f.endswith(filename):
+                    all_target_files.append(os.path.join(root, f))
+            else:
+                if f.startswith(filename):
+                    all_target_files.append(os.path.join(root, f))
+    
+    return all_target_files
+
+def search_for_dirs(directory, dirname, is_suffix=True):
+    if not os.path.exists(directory):
+        return []
+    directory = directory
+    all_target_files = set()
+    for root, _, _ in os.walk(directory):
+        if 'src' in root:
+            continue
+        endname = root.rsplit('/', 1)[-1]
+        if is_suffix:
+            if endname.endswith(dirname):
+                all_target_files.add(root)
+        else:
+            if endname.startswith(dirname):
+                all_target_files.add(root)
+
+    return list(all_target_files)

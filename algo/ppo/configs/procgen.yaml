@@ -80,6 +80,9 @@ loss:
     clip_range: .2          # clip range for ppo
     entropy_coef: .01
     value_coef: .5
+    gpo_l2_coef: 0
+    gpo_kl_coef: 0
+    pg_coef: 1
 
 trainer:
     algorithm: *algo
@@ -114,13 +117,27 @@ buffer:
     n_mbs: *nmbs        # number of minibatches
     rnn_type: *rnn
     norm_adv: minibatch
+
+    # Trust region arguments
+    target_type: bounded
+    tau: 1
+    alpha: .2
+    lower_clip: 1
+    upper_clip: 1
+    valid_clip: True
+
     sample_keys: 
         - obs
         - action
         - value
         - traj_ret
         - advantage
-        - logpi
+        - target_prob
+        - tr_prob
+        - logprob
+        - pi
+        - target_pi
+        - mask
         - h
         - c
     # mini-batch size = n_runners * n_envs * epslen / n_mbs

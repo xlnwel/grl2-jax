@@ -24,7 +24,7 @@ class PPGLoss(PPOLoss):
             bc_loss = self.config.bc_coef * kl
             # value loss
             value = self.value(x)
-            value_loss, v_clip_frac = self._compute_value_loss(
+            value_loss, v_clip_frac = self._value_loss(
                 value, traj_ret, old_value)
 
             loss = bc_loss + value_loss

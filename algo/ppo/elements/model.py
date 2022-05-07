@@ -5,6 +5,7 @@ import tensorflow as tf
 from core.elements.model import Model
 from core.tf_config import build
 from utility.file import source_file
+from utility.typing import AttrDict
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -18,8 +19,8 @@ class PPOModel(Model):
 
     def _build(
         self, 
-        env_stats, 
-        evaluation=False
+        env_stats: AttrDict, 
+        evaluation: bool=False
     ):
         basic_shape = (None,)
         dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
@@ -51,24 +52,37 @@ class PPOModel(Model):
         act_dist = self.policy(x, evaluation=evaluation)
         action = self.policy.action(act_dist, evaluation)
 
+        if self.policy.is_action_discrete:
+            pi = tf.nn.softmax(act_dist.logits)
+            terms = {
+                'pi': pi
+            }
+        else:
+            mean = act_dist.mean()
+            std = tf.exp(self.policy.logstd)
+            terms = {
+                'pi_mean': mean,
+                'pi_std': std * tf.ones_like(mean), 
+            }
+
         if evaluation:
             value = self.value(x)
             return action, {'value': value}, state
         else:
             logprob = act_dist.log_prob(action)
             value = self.value(x)
-            terms = {'logprob': logprob, 'value': value}
+            terms.update({'logprob': logprob, 'value': value})
 
             return action, terms, state    # keep the batch dimension for later use
 
     @tf.function
     def compute_value(
         self, 
-        global_state, 
+        obs, 
         state: Tuple[tf.Tensor]=None,
         mask: tf.Tensor=None
     ):
-        x, state = self.encode(global_state, state, mask)
+        x, state = self.encode(obs, state, mask)
         value = self.value(x)
         return value, state
 

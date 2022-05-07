@@ -112,7 +112,7 @@ class Agent(PPOBase):
             if state is not None:
                 x, state = self.value_rnn(x, state, mask=mask)
             value = self.value(x)
-            value_loss, v_clip_frac = self._compute_value_loss(
+            value_loss, v_clip_frac = self._value_loss(
                 value, traj_ret, old_value)
         value_norm = self._value_opt(tape, value_loss)
         terms.update(dict(
