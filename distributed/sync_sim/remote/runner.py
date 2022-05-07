@@ -105,6 +105,7 @@ class MultiAgentSimRunner(RayBase):
                 buffer = self.builder.build_buffer(
                     elements.model, 
                     config=config, 
+                    env_stats=self.env_stats, 
                     runner_id=self.id, 
                     n_units=self.n_units_per_agent[aid], 
                 )

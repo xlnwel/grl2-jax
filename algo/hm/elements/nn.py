@@ -63,6 +63,11 @@ class Policy(Module):
         self.act_dist = act_dist
         return act_dist
 
+    def get_distribution(self, *, logits, mean, std):
+        act_dist = tfd.Categorical(logits) \
+            if self.is_action_discrete else tfd.MultivariateNormalDiag(mean, std)
+        return act_dist
+
     def action(self, dist, evaluation):
         if self.is_action_discrete:
             action = dist.mode() if evaluation and self.eval_act_temp == 0 \

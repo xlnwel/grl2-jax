@@ -1,3 +1,5 @@
+import tensorflow as tf
+
 from core.elements.trainer import TrainerEnsemble
 from core.decorator import override
 from core.tf_config import build
@@ -26,6 +28,7 @@ class PPOTrainerEnsemble(TrainerEnsemble):
         tr_prob, 
         logprob, 
         pi=None, 
+        target_pi=None, 
         pi_mean=None, 
         pi_std=None, 
         global_state=None, 
@@ -47,6 +50,7 @@ class PPOTrainerEnsemble(TrainerEnsemble):
             tr_prob=tr_prob, 
             logprob=logprob, 
             pi=pi,
+            target_pi=target_pi, 
             pi_mean=pi_mean, 
             pi_std=pi_std, 
             prev_reward=prev_reward, 
@@ -71,6 +75,10 @@ class PPOTrainerEnsemble(TrainerEnsemble):
             life_mask=life_mask,
             mask=mask
         )
+        value_terms.update({
+            'reward_per_std': tf.math.reduce_std(reward, axis=-1), 
+            'raw_adv_a_per_std': tf.math.reduce_std(raw_adv, axis=-1), 
+        })
 
         return {**actor_terms, **value_terms}
 

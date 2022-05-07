@@ -1,15 +1,12 @@
-yes y | sudo apt-get update
-yes y | sudo apt-get install tmux
-yes y | sudo apt-get install nano vim
-yes y | sudo apt-get install rsync
-sh ~/.oh-my-zsh/install-oh-my-zsh.sh
-chsh -s `which zsh`
-rsync -avz ~/chenxinwei/.zshrc ~/
-rsync -avz ~/chenxinwei/.script ~/
-source .zshrc
+set -e
+source ~/.zshrc
 
-setup mosh
-yes y | sudo apt-get update
+apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub
+sudo apt-key del 7fa2af80
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F60F4B3D7FA2AF80
+
+# setup mosh
+# yes y | sudo apt-get update
 yes y | sudo apt-get install mosh
 yes y | sudo apt-get install -y locales
 # install en_US.UTF-8
@@ -22,13 +19,13 @@ yes y | sudo apt-get install git cmake build-essential libgl1-mesa-dev libsdl2-d
 libsdl2-image-dev libsdl2-ttf-dev libsdl2-gfx-dev \
 libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-pip
 
-echo "nameserver 114.114.114.114" >> sudo /etc/resolv.conf
-echo "nameserver 8.8.8.8" >> sudo /etc/resolv.conf
+echo "nameserver 114.114.114.114" | sudo tee -a /etc/resolv.conf
+echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
 yes y | sudo apt-get install libboost-all-dev
-sudo chmod -R +wrx /opt/conda
+sudo chmod a+wrx /opt/conda
 yes y | conda create -n grl python==3.8.10
 
-source activate grl
+conda activate grl
 
 yes y | conda install cudnn
 pip install --upgrade pip
@@ -42,3 +39,5 @@ pip install -i https://pypi.tuna.tsinghua.edu.cn/simple scipy pandas Pillow plot
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ipython
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tqdm
 pip install pysc2
+
+rsync -avz ~/chenxinwei/StarCraftII ~/

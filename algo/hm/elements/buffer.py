@@ -6,6 +6,7 @@ import numpy as np
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
+from utility.typing import AttrDict
 from utility.utils import dict2AttrDict, moments, standardize
 
 
@@ -70,22 +71,74 @@ def compute_gae(
 
     return advs, traj_ret
 
-def compute_bounded_target(prob, adv, tau, clip_range):
-    target_prob = prob * np.exp(adv / tau)
-    tr_prob = np.clip(prob * np.exp(adv / tau), prob-clip_range, prob+clip_range)
-    tr_prob = np.clip(tr_prob, 0, 1)
+def compute_upgo(
+    reward, 
+    discount, 
+    value, 
+    last_value, 
+    gamma,
+    gae_discount, 
+    norm_adv=False, 
+    mask=None, 
+    epsilon=1e-8, 
+    same_next_value=False
+):
+    if last_value is not None:
+        last_value = np.expand_dims(last_value, 0)
+        next_value = np.concatenate([value[1:], last_value], axis=0)
+    else:
+        next_value = value[1:]
+        value = value[:-1]
+    if same_next_value:
+        next_value = np.mean(next_value, axis=-1, keepdims=True)
+    assert value.ndim == next_value.ndim, (value.shape, next_value.shape)
+    rets = reward + discount * gamma * next_value
+    next_ret = rets[-1]
+    for i in reversed(range(advs.shape[0]))[1:]:
+        rets[i] = next_ret = np.where(
+            reward[i] + discount * gamma * next_ret > value[i], 
+            reward[i] + discount * gamma * next_ret, rets[i]
+        )
+    advs = rets - value
+    if norm_adv:
+        advs = standardize(advs, mask=mask, epsilon=epsilon)
+
+    return advs
+
+def compute_bounded_target(prob, adv, config, z=0):
+    c = config.get('c', .2)
+    lower_clip = config.get('lower_clip', c)
+    upper_clip = config.get('upper_clip', c)
+    target_prob = prob * np.exp(adv / config.tau - z)
+    tr_prob = np.clip(
+        target_prob, 
+        target_prob if lower_clip is None else prob-lower_clip, 
+        target_prob if upper_clip is None else prob+upper_clip
+    )
+    if config.valid_clip:
+        tr_prob = np.clip(tr_prob, 0, 1)
     return target_prob, tr_prob
 
-def compute_clipped_target(prob, adv, tau, clip_range):
-    target_prob = prob * np.exp(adv / tau)
-    tr_prob = prob * np.clip(np.exp(adv / tau), 1-clip_range, 1+clip_range)
-    tr_prob = np.clip(tr_prob, 0, 1)
+def compute_clipped_target(prob, adv, config, z=0):
+    c = config.get('c', .2)
+    lower_clip = config.get('lower_clip', c)
+    upper_clip = config.get('upper_clip', c)
+    exp_adv = np.exp(adv / config.tau - z)
+    target_prob = prob * exp_adv
+    tr_prob = prob * np.clip(
+        exp_adv, 
+        exp_adv if upper_clip is None else 1-lower_clip, 
+        exp_adv if upper_clip is None else 1+upper_clip
+    )
+    if config.valid_clip:
+        tr_prob = np.clip(tr_prob, 0, 1)
     return target_prob, tr_prob
 
-def compute_mixture_target(prob, adv, tau, alpha):
-    target_prob = prob * np.exp(adv / tau)
-    tr_prob = (1 - alpha) * prob + alpha * target_prob
-    tr_prob = np.clip(tr_prob, 0, 1)
+def compute_mixture_target(prob, adv, config, z=0):
+    target_prob = prob * np.exp(adv / config.tau - z)
+    tr_prob = (1 - config.alpha) * prob + config.alpha * target_prob
+    if config.valid_clip:
+        tr_prob = np.clip(tr_prob, 0, 1)
     return target_prob, tr_prob
 
 def compute_indices(idxes, mb_idx, mb_size, n_mbs):
@@ -164,20 +217,92 @@ def _remote_state_keys(sample_keys, state_keys):
     return sample_keys
 
 
-class LocalBuffer(Buffer):
+class AdvantageCalculator:
+    def compute_adv(self, config, last_value, data):
+        if config.adv_type == 'gae':
+            data['advantage'], data['traj_ret'] = \
+                compute_gae(
+                reward=data['reward'], 
+                discount=data['discount'],
+                value=data['value'],
+                last_value=last_value,
+                gamma=config.gamma,
+                gae_discount=config.gae_discount,
+                norm_adv=config.norm_adv == 'batch',
+                mask=data.get('life_mask'),
+                epsilon=config.epsilon,
+                same_next_value=config.get('same_next_value', False)
+            )
+            data['raw_adv'] = data['advantage']
+        elif config.adv_type == 'vtrace':
+            pass
+        else:
+            raise NotImplementedError
+
+
+class TargetProbabilityCalculator:
+    def compute_target_tr_probs(self, config, data):
+        compute_func = {
+            'bounded': compute_bounded_target, 
+            'clip': compute_clipped_target, 
+            'mix': compute_mixture_target, 
+        }[config.target_type]
+        prob = np.exp(data['logprob'])
+        data['target_prob'], data['tr_prob'] = compute_func(
+            prob, data['advantage'], config
+        )
+        if 'target_pi' in config['sample_keys']:
+            target_pi = data['pi'].copy()
+            if data['action'].ndim == 1:
+                idx = (
+                    np.arange(data['action'].shape[0]),
+                    data['action']
+                )
+            elif data['action'].ndim == 2:
+                d1, d2 = data['action'].shape
+                idx = (
+                    np.tile(np.arange(d1)[:, None], [1, d2]), 
+                    np.tile(np.arange(d2)[None, :], [d1, 1]), 
+                    data['action']
+                )
+            elif data['action'].ndim == 3:
+                d1, d2, d3 = data['action'].shape
+                idx = (
+                    np.tile(np.arange(d1)[:, None, None], [1, d2, d3]), 
+                    np.tile(np.arange(d2)[None, :, None], [d1, 1, d3]), 
+                    np.tile(np.arange(d3)[None, None, :], [d1, d2, 1]), 
+                    data['action']
+                )
+            else:
+                raise NotImplementedError(f'No support for dimensionality higher than 3, got {data["action"].shape}')
+            target_pi[idx] = data['tr_prob']
+            target_pi = target_pi / np.sum(target_pi, axis=-1, keepdims=True)
+            data['target_pi'] = target_pi
+
+
+class LocalBufferBase(TargetProbabilityCalculator, Buffer):
     def __init__(
         self, 
-        config: dict2AttrDict, 
+        config: AttrDict,
+        env_stats: AttrDict,  
         model: Model,
         runner_id: int,
         n_units: int,
     ):
         self.config = config
+        self.config.gae_discount = self.config.gamma * self.config.lam
+        self.config.epsilon = self.config.get('epsilon', 1e-5)
+        self.config.valid_clip = self.config.get(
+            'valid_clip', env_stats.is_action_discrete)
         self.runner_id = runner_id
+        self.n_units = n_units
 
+        self._add_attributes(model)
+
+    def _add_attributes(self, model):
         self.actor_state_keys = (f'actor_{k}' for k in model.actor_state_keys)
         self.value_state_keys = (f'value_{k}' for k in model.value_state_keys)
-        self.sample_keys, self.sample_size = get_sample_keys_size(config)
+        self.sample_keys, self.sample_size = get_sample_keys_size(self.config)
 
         if self.config.get('fragment_size', None) is not None:
             self.maxlen = self.config.fragment_size
@@ -191,8 +316,6 @@ class LocalBuffer(Buffer):
             assert self.config.n_steps % self.maxlen == 0, (self.config.n_steps, self.maxlen)
             self.n_samples = self.maxlen // self.sample_size
         self.n_envs = self.config.n_envs
-        self.gae_discount = self.config.gamma * self.config.lam
-        self.n_units = n_units
 
         self.reset()
 
@@ -227,17 +350,8 @@ class LocalBuffer(Buffer):
             assert v.shape[:3] == (self._memlen, self.n_envs, self.n_units), \
                 (k, v.shape, (self._memlen, self.n_envs, self.n_units))
 
-        data['advantage'], data['traj_ret'] = compute_gae(
-            reward=data['reward'], 
-            discount=data['discount'], 
-            value=data['value'], 
-            last_value=last_value, 
-            gamma=self.config.gamma, 
-            gae_discount=self.gae_discount, 
-            mask=data.get('life_mask'),
-            same_next_value=self.config.get('same_next_value', False)
-        )
-        data['raw_adv'] = data['advantage']
+        self.compute_adv(self.config, last_value, data)
+        self.compute_target_tr_probs(self.config, data)
 
         data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
         for k, v in data.items():
@@ -255,13 +369,18 @@ class LocalBuffer(Buffer):
         return self.runner_id, data, self.n_envs * self.maxlen
 
 
-class PPOBuffer(Buffer):
+class PPOBufferBase(TargetProbabilityCalculator, Buffer):
     def __init__(
         self, 
-        config: dict, 
-        model: Model
+        config: AttrDict, 
+        env_stats: AttrDict, 
+        model: Model, 
     ):
         self.config = dict2AttrDict(config)
+        self.config.gae_discount = self.config.gamma * self.config.lam
+        self.config.epsilon = self.config.get('epsilon', 1e-5)
+        self.config.is_action_discrete = env_stats.is_action_discrete
+
         self._add_attributes(model)
 
     def _add_attributes(self, model):
@@ -286,9 +405,7 @@ class PPOBuffer(Buffer):
         self.mb_size = self.batch_size // self.n_mbs
         self.idxes = np.arange(self.batch_size)
         self.shuffled_idxes = np.arange(self.batch_size)
-        self.gamma = self.config.gamma
-        self.gae_discount = self.gamma * self.config.lam
-        self.epsilon = 1e-5
+
         do_logging(f'Batch size: {self.batch_size}', logger=logger)
         do_logging(f'Mini-batch size: {self.mb_size}', logger=logger)
 
@@ -331,35 +448,8 @@ class PPOBuffer(Buffer):
 
     def finish(self, last_value):
         assert self._current_size == self.n_steps, self._current_size
-        if self.config.adv_type == 'nae':
-            assert self.norm_adv == 'batch', self.norm_adv
-            self._memory['advantage'], self._memory['traj_ret'] = \
-                compute_nae(
-                reward=self._memory['reward'], 
-                discount=self._memory['discount'],
-                value=self._memory['value'],
-                last_value=last_value,
-                gamma=self.gamma,
-                mask=self._memory.get('life_mask'),
-                epsilon=self.epsilon)
-        elif self.config.adv_type == 'gae':
-            self._memory['advantage'], self._memory['traj_ret'] = \
-                compute_gae(
-                reward=self._memory['reward'], 
-                discount=self._memory['discount'],
-                value=self._memory['value'],
-                last_value=last_value,
-                gamma=self.gamma,
-                gae_discount=self.gae_discount,
-                norm_adv=self.norm_adv == 'batch',
-                mask=self._memory.get('life_mask'),
-                epsilon=self.epsilon,
-                same_next_value=self.config.get('same_next_value', False))
-        elif self.config.adv_type == 'vtrace':
-            pass
-        else:
-            raise NotImplementedError
-        self._memory['raw_adv'] = self._memory['advantage']
+        self.compute_adv(self.config, last_value, self._memory)
+        self.compute_target_tr_probs(self.config, self._memory)
 
         for k, v in self._memory.items():
             assert v.shape[:2] == (self.config.n_steps, self.config.n_envs), (k, v.shape, (self.config.n_steps, self.config.n_envs))
@@ -474,7 +564,7 @@ class PPOBuffer(Buffer):
         if 'advantage' in sample and self.norm_adv == 'minibatch':
             sample['advantage'] = standardize(
                 sample['advantage'], mask=sample.get('life_mask'), 
-                epsilon=self.epsilon)
+                epsilon=self.config.get('epsilon', 1e-5))
         return sample
 
     def _post_process_for_dataset(self):
@@ -489,11 +579,24 @@ class PPOBuffer(Buffer):
     def clear(self):
         self.reset()
 
-def create_buffer(config, model, **kwargs):
+class LocalBuffer(AdvantageCalculator, LocalBufferBase):
+    pass
+
+
+class PPOBuffer(AdvantageCalculator, PPOBufferBase):
+    pass
+
+
+def create_buffer(config, model, env_stats, **kwargs):
     config = dict2AttrDict(config)
-    if config.type == 'ppo':
-        return PPOBuffer(config, model, **kwargs)
-    elif config.type == 'local':
-        return LocalBuffer(config, model, **kwargs)
-    else:
-        raise ValueError(config.type)
+    env_stats = dict2AttrDict(env_stats)
+    BufferCls = {
+        'ppo': PPOBuffer, 
+        'local': LocalBuffer
+    }[config.type]
+    return BufferCls(
+        config=config, 
+        env_stats=env_stats, 
+        model=model, 
+        **kwargs
+    )

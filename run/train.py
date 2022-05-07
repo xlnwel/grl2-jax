@@ -93,6 +93,7 @@ def _run_with_configs(cmd_args):
         )
         config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
 
+        config['info'] = cmd_args.info
         configs.append(config)
 
     if cmd_args.grid_search or cmd_args.trials > 1:

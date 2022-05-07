@@ -7,9 +7,9 @@ class PPOActor(Actor):
     def _process_input(self, inp: dict, evaluation: bool):
         inp = self.rms.process_obs_with_rms(
             inp, mask=inp.get('life_mask'))
-        if 'prev_reward' in inp:
-            inp['prev_reward'] = self.rms.process_reward_with_rms(
-                inp['prev_reward'])
+        # if 'prev_reward' in inp:
+        #     inp['prev_reward'] = self.rms.process_reward_with_rms(
+        #         inp['prev_reward'])
         tf_inp = numpy2tensor(inp)
         tf_inp = self._split_input(tf_inp)
 

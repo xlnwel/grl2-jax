@@ -49,6 +49,8 @@ class Embedding(Module):
             T = x.shape[1]
             x = tf.reshape(x, (-1, *x.shape[2:]))
         if multiply:
+            assert x.shape[1:] == (self.input_length, self.input_dim), \
+                (x.shape, (self.input_length, self.input_dim))
             x = x @ self._embed.variables[0]
             assert x.shape[1:] == (self.input_length, self.embed_size), \
                 (x.shape, (self.input_length, self.embed_size))

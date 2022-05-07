@@ -38,14 +38,17 @@ class PPOLossImpl(Loss):
         return value_loss, v_clip_frac
 
 
-class MAPPOPolicyLoss(Loss):
+class PPOPolicyLoss(Loss):
     def loss(
         self, 
         obs, 
         action, 
         advantage, 
+        target_prob, 
+        tr_prob, 
         logprob, 
         pi, 
+        target_pi, 
         pi_mean, 
         pi_std, 
         prev_reward=None, 
@@ -67,9 +70,11 @@ class MAPPOPolicyLoss(Loss):
             )
             act_dist = self.policy(x, action_mask)
             new_logprob = act_dist.log_prob(action)
+            tf.debugging.assert_all_finite(new_logprob, 'Bad new_logprob')
             entropy = act_dist.entropy()
+            tf.debugging.assert_all_finite(entropy, 'Bad entropy')
             log_ratio = new_logprob - logprob
-            raw_policy_loss, raw_entropy, kl, clip_frac = ppo_loss(
+            raw_pg_loss, raw_entropy, kl, clip_frac = ppo_loss(
                 log_ratio, 
                 advantage, 
                 self.config.clip_range, 
@@ -78,28 +83,66 @@ class MAPPOPolicyLoss(Loss):
                 n=n, 
                 reduce=False
             )
-            policy_loss = reduce_mean(raw_policy_loss, loss_mask, n)
+            tf.debugging.assert_all_finite(raw_pg_loss, 'Bad raw_pg_loss')
+            raw_pg_loss = reduce_mean(raw_pg_loss, loss_mask, n)
+            pg_loss = self.config.pg_coef * raw_pg_loss
             entropy = reduce_mean(raw_entropy, loss_mask, n)
             entropy_loss = - self.config.entropy_coef * entropy
-            loss = policy_loss + entropy_loss
+
+            # GPO L2
+            new_prob = tf.exp(new_logprob)
+            tr_diff_prob = tr_prob - new_prob
+            tf.debugging.assert_all_finite(act_dist.logits, 'Bad logits')
+            new_pi = tf.nn.softmax(act_dist.logits)
+            tf.debugging.assert_all_finite(new_pi, 'Bad new pi')
+            raw_gpo_l2_loss = reduce_mean(tr_diff_prob**2, loss_mask, n)
+            gpo_l2_loss = self.config.gpo_l2_coef * raw_gpo_l2_loss
+
+            # GPO KL
+            ratio = new_pi / target_pi
+            if action_mask is not None:
+                ratio = tf.where(action_mask, ratio, 1)
+            tf.debugging.assert_all_finite(ratio, 'Bad ratio')
+            log_ratio = tf.math.log(ratio)
+            tf.debugging.assert_all_finite(log_ratio, 'Bade log_ratio')
+            gpo_kl = tf.reduce_sum(
+                tf.math.multiply_no_nan(new_pi, log_ratio), axis=-1)
+            tf.debugging.assert_all_finite(gpo_kl, 'Bad gpo_kl')
+            raw_gpo_kl_loss = reduce_mean(gpo_kl, loss_mask, n)
+            gpo_kl_loss = self.config.gpo_kl_coef * raw_gpo_kl_loss
+            raw_gpo_loss = raw_gpo_l2_loss + raw_gpo_kl_loss
+            gpo_loss = gpo_l2_loss + gpo_kl_loss
+            tf.debugging.assert_all_finite(gpo_loss, 'Bad gpo_loss')
+
+            loss = pg_loss + entropy_loss + gpo_l2_loss
 
         prob = tf.exp(logprob)
-        new_prob = tf.exp(new_logprob)
         diff_prob = new_prob - prob
         terms = dict(
+            target_old_diff_prob=target_prob - prob, 
+            tr_old_diff_prob=tr_prob - prob, 
+            tr_diff_prob=tr_diff_prob, 
+            prev_reward=prev_reward,
             ratio=tf.exp(log_ratio),
             raw_entropy=raw_entropy,
             entropy=entropy,
             kl=kl,
+            gpo_kl=gpo_kl, 
             logprob=logprob,
             new_logprob=new_logprob, 
             prob=prob,
             new_prob=new_prob, 
             diff_prob=diff_prob, 
             p_clip_frac=clip_frac,
-            raw_policy_loss=raw_policy_loss,
-            policy_loss=policy_loss,
+            raw_pg_loss=raw_pg_loss,
+            pg_loss=pg_loss,
             entropy_loss=entropy_loss, 
+            raw_gpo_l2_loss=raw_gpo_l2_loss, 
+            raw_gpo_kl_loss=raw_gpo_kl_loss, 
+            raw_gpo_loss=raw_gpo_loss, 
+            gpo_l2_loss=gpo_l2_loss, 
+            gpo_kl_loss=gpo_kl_loss, 
+            gpo_loss=gpo_loss, 
             actor_loss=loss,
             adv_std=tf.math.reduce_std(advantage, axis=-1), 
         )
@@ -110,11 +153,13 @@ class MAPPOPolicyLoss(Loss):
             terms['n_alive_units'] = tf.reduce_sum(
                 life_mask, -1)
         if self.policy.is_action_discrete:
-            new_pi = tf.nn.softmax(act_dist.logits)
             max_diff_prob = tf.math.reduce_max(new_pi - pi, axis=-1)
             terms['new_pi'] = new_pi
             terms['max_diff_prob'] = max_diff_prob
-            terms['diff_match'] = tf.math.equal(diff_prob, max_diff_prob)
+            terms['diff_match'] = tf.reduce_mean(
+                tf.cast(tf.math.abs(diff_prob - max_diff_prob) < .01, 
+                tf.float32)
+            )
         else:
             new_mean = act_dist.mean()
             new_std = tf.exp(self.policy.logstd)
@@ -126,7 +171,7 @@ class MAPPOPolicyLoss(Loss):
         return tape, loss, terms
 
 
-class MAPPOValueLoss(PPOLossImpl):
+class PPOValueLoss(PPOLossImpl):
     def loss(
         self, 
         global_state, 
@@ -173,7 +218,7 @@ class MAPPOValueLoss(PPOLossImpl):
         return tape, loss, terms
 
 
-def create_loss(config, model, name='mappo'):
+def create_loss(config, model, name='ppo'):
     def constructor(config, cls, name):
         return cls(
             config=config, 
@@ -185,6 +230,6 @@ def create_loss(config, model, name='mappo'):
         model=model,
         constructor=constructor,
         name=name,
-        policy=MAPPOPolicyLoss,
-        value=MAPPOValueLoss,
+        policy=PPOPolicyLoss,
+        value=PPOValueLoss,
     )

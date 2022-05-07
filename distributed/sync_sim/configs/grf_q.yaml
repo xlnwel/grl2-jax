@@ -153,11 +153,11 @@ model:
 loss:
     policy:
         clip_range: .2
-        entropy_coef: .001
+        entropy_coef: 5e-4
         clip_tr: False
         adapt_maca: False
         adapt_pg: False
-        maca_coef: 0
+        gpo_coef: 0
         life_mask: False
     value:
         value_loss: clip
@@ -224,7 +224,9 @@ buffer:
     target_type: clip
     tau: 1
     alpha: .2
-    c: .2
+    lower_clip: .2
+    upper_clip: .2
+
 
     # PPG configs
     n_pi: *npi

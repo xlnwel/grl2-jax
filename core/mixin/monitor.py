@@ -32,6 +32,7 @@ class Recorder:
             #     path = name + f"{i}." + suffix
             if not os.path.isdir(recorder_dir):
                 os.makedirs(recorder_dir)
+            self.record_path = path
             self._out_file = open(path, 'a')
             atexit.register(self._out_file.close)
             do_logging(f'Record data to "{self._out_file.name}"', logger=logger)
@@ -114,7 +115,10 @@ class Recorder:
             if k_std:
                 stats[f'{k}_std'] = np.std(v).astype(np.float32)
             if k_min:
-                stats[f'{k}_min'] = np.min(v).astype(np.float32)
+                try:
+                    stats[f'{k}_min'] = np.min(v).astype(np.float32)
+                except:
+                    print(k, 'has no data')
             if k_max:
                 stats[f'{k}_max'] = np.max(v).astype(np.float32)
         self._store_dict.clear()
@@ -202,7 +206,7 @@ class Recorder:
         if print_terminal_info:
             print("-"*n_slashes)
         if self._out_file is not None:
-            if self._first_row:
+            if self._first_row and os.stat(self.record_path).st_size == 0:
                 self._out_file.write("\t".join(self._headers)+"\n")
             self._out_file.write("\t".join(map(str,vals))+"\n")
             self._out_file.flush()

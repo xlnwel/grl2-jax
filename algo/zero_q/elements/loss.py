@@ -42,7 +42,7 @@ class MAPPOPolicyLoss(Loss):
             new_prob = tf.exp(new_logprob)
             tr_diff_prob = new_prob - tr_prob
             raw_maca_loss = reduce_mean(tr_diff_prob**2, mask)
-            maca_loss = raw_maca_loss * self.config.maca_coef
+            maca_loss = raw_maca_loss * self.config.gpo_coef
             loss = policy_loss + entropy_loss + maca_loss
 
         prob = tf.exp(logprob)

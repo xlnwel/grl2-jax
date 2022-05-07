@@ -121,12 +121,18 @@ class ElementsBuilder:
         self, 
         model: Model, 
         config: dict=None, 
+        env_stats: dict=None, 
         constructors: Dict[str, FunctionType]=None, 
         **kwargs
     ):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
-        buffer = constructors.buffer(config.buffer, model, **kwargs)
+        buffer = constructors.buffer(
+            config.buffer, 
+            model, 
+            env_stats, 
+            **kwargs
+        )
         
         return buffer
 
@@ -271,6 +277,7 @@ class ElementsBuilder:
         elements.buffer = self.build_buffer(
             model=elements.model, 
             config=config, 
+            env_stats=env_stats, 
             constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
@@ -321,6 +328,7 @@ class ElementsBuilder:
         elements.buffer = self.build_buffer(
             model=elements.model, 
             config=config, 
+            env_stats=env_stats, 
             constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
@@ -407,6 +415,7 @@ class ElementsBuilder:
         elements.buffer = self.build_buffer(
             model=elements.model, 
             config=config, 
+            env_stats=env_stats, 
             constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 
@@ -460,6 +469,7 @@ class ElementsBuilder:
         elements.buffer = self.build_buffer(
             model=elements.model, 
             config=config, 
+            env_stats=env_stats, 
             constructors=constructors)
         elements.dataset = self.build_dataset(
             buffer=elements.buffer, 

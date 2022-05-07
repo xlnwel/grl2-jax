@@ -92,7 +92,7 @@ class MAPPOTrainerEnsemble(TrainerEnsemble):
             advantage=advantage, 
             target_pi=target_pi, 
             tr_pi=tr_pi, 
-            maca_coef=value_terms['explained_variance'], 
+            gpo_coef=value_terms['explained_variance'], 
             logpi=logpi, 
             prev_reward=prev_reward, 
             prev_action=prev_action, 

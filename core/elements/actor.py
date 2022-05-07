@@ -81,7 +81,11 @@ class Actor:
         return out
 
     """ Overwrite the following methods if necessary """
-    def _process_input(self, inp: dict, evaluation: bool):
+    def _process_input(
+        self, 
+        inp: dict, 
+        evaluation: bool
+    ):
         """ Processes input to Model at the algorithmic level 
         
         Args:
@@ -94,7 +98,12 @@ class Actor:
             inp = self.rms.process_obs_with_rms(inp)
         return inp, numpy2tensor(inp)
 
-    def _add_eval(self, tf_inp, evaluation, return_eval_stats):
+    def _add_eval(
+        self, 
+        tf_inp, 
+        evaluation, 
+        return_eval_stats
+    ):
         if not self.model.to_build:
             tf_inp.update({
                 'evaluation': evaluation,
@@ -102,10 +111,12 @@ class Actor:
             })
         return tf_inp
 
-    def _process_output(self, 
-                        inp: dict, 
-                        out: Tuple[tf.Tensor, Dict[str, tf.Tensor]], 
-                        evaluation: bool):
+    def _process_output(
+        self, 
+        inp: dict, 
+        out: Tuple[tf.Tensor, Dict[str, tf.Tensor]], 
+        evaluation: bool
+    ):
         """ Post-processes output. By default, 
         we convert tf.Tensor to np.ndarray
         

@@ -1,4 +1,4 @@
-import os, sys
+import os
 
 from utility import pkg
 from utility.display import pwc
