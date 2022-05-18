@@ -16,6 +16,8 @@ class Policy(Module):
 
         self.action_dim = config.pop('action_dim')
         self.is_action_discrete = config.pop('is_action_discrete')
+        self.action_low = config.pop('action_low', 0)
+        self.action_high = config.pop('action_high', self.action_dim)
         self.eval_act_temp = config.pop('eval_act_temp', 1)
         self.attention_action = config.pop('attention_action', False)
         embed_dim = config.pop('embed_dim', 10)
@@ -74,7 +76,8 @@ class Policy(Module):
                 else dist.sample()
         else:
             action = dist.sample()
-            action = tf.clip_by_value(action, -2, 2)
+            action = tf.clip_by_value(
+                action, self.action_low, self.action_high)
         return action
 
 

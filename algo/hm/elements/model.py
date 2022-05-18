@@ -311,7 +311,7 @@ class PPOModelEnsemble(ModelEnsemble):
 def create_model(
     config, 
     env_stats, 
-    name='ppo', 
+    name='gpo', 
     to_build=False,
     to_build_for_eval=False,
     **kwargs
@@ -323,6 +323,9 @@ def create_model(
     else:
         config.policy.policy.action_dim = env_stats.action_dim
         config.policy.policy.is_action_discrete = env_stats.is_action_discrete
+        config.policy.policy.action_low = env_stats.get('action_low')
+        config.policy.policy.action_high = env_stats.get('action_high')
+
 
     if config['actor_rnn_type'] is None:
         config['policy'].pop('rnn', None)

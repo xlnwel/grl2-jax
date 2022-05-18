@@ -1,4 +1,4 @@
-rsync -avz --exclude-from=exclude.list ./algo.gpo ~/github/combat/algo
+rsync -avz --exclude-from=exclude.list ./algo/hm ~/github/combat/algo
 rsync -avz --exclude-from=exclude.list --exclude=configs ./distributed/sync_sim ~/github/combat/distributed
 rsync -avz --exclude-from=exclude.list ./distributed/sync_sim/configs/unity.yaml ~/github/combat/distributed/sync_sim/configs
 rsync -avz --exclude-from=exclude.list ./core ~/github/combat
