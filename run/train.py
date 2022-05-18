@@ -29,17 +29,20 @@ def _get_algo_name(algo):
 
 
 def _get_algo_env_config(cmd_args):
-    algorithms = list(cmd_args.algorithms)
-    environments = list(cmd_args.environments)
+    algos = list(cmd_args.algorithms)
+    envs = list(cmd_args.environments)
     configs = list(cmd_args.configs)
-    if len(algorithms) < len(configs):
-        assert len(algorithms) == 1, algorithms
-        algorithms = algorithms * len(configs)
-    if len(environments) < len(configs):
-        assert len(environments) == 1, environments
-        environments = environments * len(configs)
-    assert len(algorithms) == len(environments) == len(configs), (algorithms, environments, configs)
-    algo_env_config = list(zip(algorithms, environments, configs))
+    if len(algos) < len(configs):
+        assert len(algos) == 1, algos
+        configurations = [read_config(algos[0], envs[0], c) for c in configs]
+        algos = [c.algorithm for c in configurations]
+    if len(envs) < len(configs):
+        assert len(envs) == 1, envs
+        envs = [envs[0] for _ in configs]
+    if len(configs) == 0:
+        configs = [get_filename_with_env(e) for e in envs]
+    assert len(algos) == len(envs) == len(configs), (algos, envs, configs)
+    algo_env_config = list(zip(algos, envs, configs))
     
     return algo_env_config
 
@@ -68,10 +71,8 @@ def _run_with_configs(cmd_args):
     if cmd_args.model_name[:4].isdigit():
         raw_model_name = cmd_args.model_name
     else:
-        dt = datetime.now()
-        raw_model_name = f'{dt.month:02d}{dt.day:02d}-{cmd_args.model_name}'
-    if cmd_args.seed:
-        raw_model_name = f'{raw_model_name}-seed={cmd_args.seed}'
+        dt = datetime.now().strftime("%m%d")
+        raw_model_name = f'{dt}-{cmd_args.model_name}'
 
     configs = []
     for algo, env, config in algo_env_config:
@@ -80,6 +81,9 @@ def _run_with_configs(cmd_args):
         model_name = change_config(cmd_args.kwargs, config, raw_model_name)
         if model_name == '':
             model_name = 'baseline'
+
+        if cmd_args.seed is not None:
+            model_name = f'{model_name}-seed={cmd_args.seed}'
 
         main = pkg.import_main('train', algo)
         

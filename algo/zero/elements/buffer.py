@@ -1,7 +1,7 @@
 import numpy as np
 
 from utility.utils import dict2AttrDict, standardize
-from algo.hm.elements.buffer import \
+from algo.gpo.elements.buffer import \
     LocalBufferBase, PPOBufferBase
 
 

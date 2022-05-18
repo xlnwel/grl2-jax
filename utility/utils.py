@@ -124,14 +124,20 @@ def set_path(config, model_path: ModelPath, max_layer=1):
         model_name=model_path.model_name)
 
 
-def modify_config(config, curr_layer=0, max_layer=1, overwrite_existed=False, **kwargs):
+def modify_config(
+    config, 
+    curr_layer=0, 
+    max_layer=1, 
+    overwrite_existed_only=False, 
+    **kwargs
+):
     for k, v in kwargs.items():
-        if not overwrite_existed or k in config:
+        if not overwrite_existed_only or k in config:
             config[k] = v
     if curr_layer < max_layer:
         for k, sub in config.items():
             if isinstance(sub, dict):
-                config[k] = modify_config(sub, curr_layer+1, max_layer, overwrite_existed, **kwargs)
+                config[k] = modify_config(sub, curr_layer+1, max_layer, overwrite_existed_only, **kwargs)
     return config
 
 

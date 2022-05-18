@@ -1,5 +1,4 @@
 set -e
-source ~/.zshrc
 
 apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub
 sudo apt-key del 7fa2af80
@@ -31,7 +30,8 @@ yes y | conda install cudnn
 pip install --upgrade pip
 
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --upgrade setuptools psutil wheel
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple opencv-python
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py procgen
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gfootball
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tensorflow-gpu tensorflow-probability
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ray

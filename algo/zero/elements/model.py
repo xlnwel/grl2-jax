@@ -2,7 +2,7 @@ import os
 import tensorflow as tf
 
 from utility.file import source_file
-from algo.hm.elements.model import ModelImpl, PPOActorModel, \
+from algo.gpo.elements.model import ModelImpl, PPOActorModel, \
     PPOModelEnsemble as PPOModelBase
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))

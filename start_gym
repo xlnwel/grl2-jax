@@ -1,0 +1,58 @@
+#!/bin/zsh
+
+source activate grl
+
+algos=(
+    gpo
+)
+suite=gym
+envs=(
+    # Ant-v3
+    # Humanoid-v3
+    # Walker2d-v3
+    HalfCheetah-v3
+    # Hopper-v3
+    # Swimmer-v3
+)
+config=gym
+seeds=(0 1 2 3 4)
+args1=(1)
+args2=(1)
+args3=(None)
+args4=(0)
+date=$(date +"%m%d")
+
+i=0
+j=1
+for e in "${envs[@]}"; do
+    for a in "${algos[@]}"; do
+        for a1 in "${args1[@]}"; do
+            for a2 in "${args2[@]}"; do
+                for a3 in "${args3[@]}"; do
+                    for a4 in "${args4[@]}"; do
+                        for seed in "${seeds[@]}"; do
+                            kw1="kl_prior_coef=$a1"
+                            kw2="pg_coef=$a2"
+                            kw3="policy_clip_range=$a3"
+                            kw4="aux_l2_coef=$a4"
+                            kws="$kw1-$kw2-$kw3-$kw4"
+                            env="${suite}-${e}"
+                            n="$date"
+                            ld="logs-$suite"
+                            dir="$ld/$env/$a/$n-$kws-seed=$seed"
+                            dir="$ld/$env/$a/$n-seed=$seed"
+                            mkdir -p $dir
+                            # py_script="python run/train.py -a ${a} -e $env -c $config -kw $kw1 $kw2 $kw3 $kw4 -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
+                            # py_script="python run/train.py -a ${a} -e $env -c $config -kw norm_adv=minibatch -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
+                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -kw $@ --gpu $i -n $n -s $seed &"
+                            echo $py_script
+                            eval $py_script
+                            sleep 1
+                        done
+                    done
+                done
+            done
+        done
+    done
+    ((i=(i+1) % 8))
+done

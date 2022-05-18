@@ -1,1 +1,1 @@
-from algo.hm.elements.strategy import *
+from algo.gpo.elements.strategy import *

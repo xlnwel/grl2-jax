@@ -9,7 +9,7 @@ from env import make_env
 from env.utils import batch_env_output
 
 
-class Env(gym.Wrapper):
+class Env:
     def __init__(self, config, env_fn=make_env, agents={}):
         self.env = env_fn(config, eid=None, agents=agents)
         if config.get('seed') and hasattr(self.env, 'seed'):
@@ -21,7 +21,13 @@ class Env(gym.Wrapper):
         self._stats = self.env.stats()
         self._stats['n_runners'] = 1
         self._stats['n_envs'] = self.n_envs
-        super().__init__(self.env)
+    
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(
+                "attempted to get missing private attribute '{}'".format(name)
+            )
+        return getattr(self.env, name)
 
     def reset(self, idxes=None):
         return self.env.reset()
@@ -83,10 +89,27 @@ class Env(gym.Wrapper):
             self.env.close()
 
 
-class VecEnvBase(gym.Wrapper):
-    def __init__(self):
+class VecEnvBase():
+    def __init__(self, config, env_fn=make_env, agents={}):
+        self.n_envs = n_envs = config.pop('n_envs', 1)
+        self.name = config['env_name']
+        self.envs = [env_fn(
+            config, config['eid'] + eid if 'eid' in config else None, agents)
+            for eid in range(n_envs)]
+        self.env = self.envs[0]
+        if config.get('seed'):
+            [env.seed(config['seed'] + i) 
+                for i, env in enumerate(self.envs)
+                if hasattr(env, 'seed')]
+        self.max_episode_steps = self.env.max_episode_steps
         self.env_type = 'VecEnv'
-        super().__init__(self.env)
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(
+                "attempted to get missing private attribute '{}'".format(name)
+            )
+        return getattr(self.env, name)
 
     def stats(self):
         return dict2AttrDict(self._stats)
@@ -107,18 +130,7 @@ class VecEnvBase(gym.Wrapper):
 
 class VecEnv(VecEnvBase):
     def __init__(self, config, env_fn=make_env, agents={}):
-        self.n_envs = n_envs = config.pop('n_envs', 1)
-        self.name = config['env_name']
-        self.envs = [env_fn(
-            config, config['eid'] + eid if 'eid' in config else None, agents)
-            for eid in range(n_envs)]
-        self.env = self.envs[0]
-        if config.get('seed'):
-            [env.seed(config['seed'] + i) 
-                for i, env in enumerate(self.envs)
-                if hasattr(env, 'seed')]
-        self.max_episode_steps = self.env.max_episode_steps
-        super().__init__()
+        super().__init__(config, env_fn, agents)
         self._stats = self.env.stats()
         self._stats['n_runners'] = 1
         self._stats['n_envs'] = self.n_envs
@@ -221,18 +233,7 @@ class VecEnv(VecEnvBase):
 
 class MAVecEnv(VecEnvBase):
     def __init__(self, config, env_fn=make_env, agents={}):
-        self.n_envs = n_envs = config.pop('n_envs', 1)
-        self.name = config['env_name']
-        self.envs = [env_fn(
-            config, config['eid'] + eid if 'eid' in config else None, agents)
-            for eid in range(n_envs)]
-        self.env = self.envs[0]
-        if config.get('seed'):
-            [env.seed(config['seed'] + i) 
-                for i, env in enumerate(self.envs)
-                if hasattr(env, 'seed')]
-        self.max_episode_steps = self.env.max_episode_steps
-        super().__init__()
+        super().__init__(config, env_fn, agents)
         self._stats = self.env.stats()
         self._stats['n_runners'] = 1
         self._stats['n_envs'] = self.n_envs

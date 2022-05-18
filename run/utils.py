@@ -17,11 +17,9 @@ def get_configs_dir(algo):
 
 
 def get_filename_with_env(env):
-    env_split = env.split('-')  # TODO: extra care need to be taken when we call env ending with version number (-vx)
+    env_split = env.split('-', 1)
     if len(env_split) == 1:
         filename = 'gym'
-    elif len(env_split) == 2:
-        filename = env_split[0]
     else:
         raise ValueError(f'Cannot extract filename from env: {env}')
 
@@ -61,6 +59,18 @@ def change_config(kw, config, model_name=''):
     return model_name
 
 
+def read_config(algo, env, filename):
+    configs_dir = get_configs_dir(algo)
+    if filename is None:
+        filename = get_filename_with_env(env)
+    filename = filename + '.yaml'
+    path = f'{configs_dir}/{filename}'
+    config = load_config(path)
+
+    config = dict2AttrDict(config)
+
+    return config
+
 def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True):
     configs_dir = get_configs_dir(algo)
     if filename is None:
@@ -73,7 +83,11 @@ def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True):
         raise RuntimeError('No configure is loaded')
 
     config = modify_config(
-        config, overwrite_existed=True, algorithm=algo, env_name=env)
+        config, 
+        overwrite_existed_only=True, 
+        algorithm=algo, 
+        env_name=env
+    )
 
     if to_attrdict:
         config = dict2AttrDict(config)

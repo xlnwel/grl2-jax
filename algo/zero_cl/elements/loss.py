@@ -3,7 +3,7 @@ import tensorflow as tf
 from core.elements.loss import Loss, LossEnsemble
 from utility.rl_loss import ppo_loss, reduce_mean
 from utility.tf_utils import explained_variance
-from algo.hm.elements.loss import ValueLossImpl
+from algo.gpo.elements.loss import ValueLossImpl
 
 
 class MAPPOPolicyLoss(Loss):

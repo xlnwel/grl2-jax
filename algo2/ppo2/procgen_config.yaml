@@ -72,7 +72,7 @@ agent:
         epsilon: 1.e-5
     # arguments for loss
     value_loss: clip
-    clip_range: .2          # clip range for ppo
+    value_clip_range: .2          # clip range for ppo
     entropy_coef: .01
     value_coef: .5
 

@@ -33,7 +33,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     
-    dirs = search_for_dirs(args.directory, 'v', is_suffix=False)
+    dirs = search_for_dirs(args.directory, '0517', is_suffix=False)
     
     for d in dirs:
         target_dir = '/'.join([args.target, d])

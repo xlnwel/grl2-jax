@@ -147,7 +147,7 @@ class RMS:
     def normalize_obs(self, obs, name='obs', mask=None):
         """ Normalize obs using obs RMS """
         return self._obs_rms[name].normalize(obs[name], mask=mask) \
-            if self._normalize_obs else obs
+            if self._normalize_obs else obs['obs']
 
     def normalize_reward(self, reward, mask=None):
         """ Normalize obs using reward RMS """

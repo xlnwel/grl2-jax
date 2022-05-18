@@ -309,12 +309,13 @@ class PPOModelEnsemble(ModelEnsemble):
 
 
 def create_model(
-        config, 
-        env_stats, 
-        name='ppo', 
-        to_build=False,
-        to_build_for_eval=False,
-        **kwargs):
+    config, 
+    env_stats, 
+    name='ppo', 
+    to_build=False,
+    to_build_for_eval=False,
+    **kwargs
+):
     if 'aid' in config:
         aid = config['aid']
         config.policy.policy.action_dim = env_stats.action_dim[aid]

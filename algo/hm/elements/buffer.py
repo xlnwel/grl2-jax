@@ -7,37 +7,11 @@ from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from utility.typing import AttrDict
-from utility.utils import add_attr, dict2AttrDict, moments, standardize
+from utility.utils import dict2AttrDict, standardize
 
 
 logger = logging.getLogger(__name__)
 
-
-def compute_nae(
-    reward, 
-    discount, 
-    value, 
-    last_value, 
-    gamma, 
-    mask=None, 
-    epsilon=1e-8
-):
-    next_return = last_value
-    traj_ret = np.zeros_like(reward)
-    for i in reversed(range(reward.shape[0])):
-        traj_ret[i] = next_return = (reward[i]
-            + discount[i] * gamma * next_return)
-
-    # Standardize traj_ret and advantages
-    traj_ret_mean, traj_ret_var = moments(traj_ret)
-    traj_ret_std = np.maximum(np.sqrt(traj_ret_var), 1e-8)
-    value = standardize(value, mask=mask, epsilon=epsilon)
-    # To have the same mean and std as trajectory return
-    value = (value + traj_ret_mean) / traj_ret_std     
-    advantage = standardize(traj_ret - value, mask=mask, epsilon=epsilon)
-    traj_ret = standardize(traj_ret, mask=mask, epsilon=epsilon)
-
-    return advantage, traj_ret
 
 def compute_gae(
     reward, 
@@ -71,76 +45,6 @@ def compute_gae(
 
     return advs, traj_ret
 
-def compute_upgo(
-    reward, 
-    discount, 
-    value, 
-    last_value, 
-    gamma,
-    gae_discount, 
-    norm_adv=False, 
-    mask=None, 
-    epsilon=1e-8, 
-    same_next_value=False
-):
-    if last_value is not None:
-        last_value = np.expand_dims(last_value, 0)
-        next_value = np.concatenate([value[1:], last_value], axis=0)
-    else:
-        next_value = value[1:]
-        value = value[:-1]
-    if same_next_value:
-        next_value = np.mean(next_value, axis=-1, keepdims=True)
-    assert value.ndim == next_value.ndim, (value.shape, next_value.shape)
-    rets = reward + discount * gamma * next_value
-    next_ret = rets[-1]
-    for i in reversed(range(advs.shape[0]))[1:]:
-        rets[i] = next_ret = np.where(
-            reward[i] + discount * gamma * next_ret > value[i], 
-            reward[i] + discount * gamma * next_ret, rets[i]
-        )
-    advs = rets - value
-    if norm_adv:
-        advs = standardize(advs, mask=mask, epsilon=epsilon)
-
-    return advs
-
-def compute_bounded_target(prob, adv, config, z=0):
-    c = config.get('c', .2)
-    lower_clip = config.get('lower_clip', c)
-    upper_clip = config.get('upper_clip', c)
-    target_prob = prob * np.exp(adv / config.tau - z)
-    tr_prob = np.clip(
-        target_prob, 
-        target_prob if lower_clip is None else prob-lower_clip, 
-        target_prob if upper_clip is None else prob+upper_clip
-    )
-    if config.valid_clip:
-        tr_prob = np.clip(tr_prob, 0, 1)
-    return target_prob, tr_prob
-
-def compute_clipped_target(prob, adv, config, z=0):
-    c = config.get('c', .2)
-    lower_clip = config.get('lower_clip', c)
-    upper_clip = config.get('upper_clip', c)
-    exp_adv = np.exp(adv / config.tau - z)
-    target_prob = prob * exp_adv
-    tr_prob = prob * np.clip(
-        exp_adv, 
-        exp_adv if upper_clip is None else 1-lower_clip, 
-        exp_adv if upper_clip is None else 1+upper_clip
-    )
-    if config.valid_clip:
-        tr_prob = np.clip(tr_prob, 0, 1)
-    return target_prob, tr_prob
-
-def compute_mixture_target(prob, adv, config, z=0):
-    target_prob = prob * np.exp(adv / config.tau - z)
-    tr_prob = (1 - config.alpha) * prob + config.alpha * target_prob
-    if config.valid_clip:
-        tr_prob = np.clip(tr_prob, 0, 1)
-    return target_prob, tr_prob
-
 def compute_indices(idxes, mb_idx, mb_size, n_mbs):
     start = mb_idx * mb_size
     end = (mb_idx + 1) * mb_size
@@ -171,46 +75,6 @@ class AdvantageCalculator:
             pass
         else:
             raise NotImplementedError
-
-
-class TargetProbabilityCalculator:
-    def compute_target_tr_probs(self, config, data):
-        compute_func = {
-            'bounded': compute_bounded_target, 
-            'clip': compute_clipped_target, 
-            'mix': compute_mixture_target, 
-        }[config.target_type]
-        prob = np.exp(data['logprob'])
-        data['target_prob'], data['tr_prob'] = compute_func(
-            prob, data['advantage'], config
-        )
-        if 'target_pi' in config['sample_keys']:
-            target_pi = data['pi'].copy()
-            if data['action'].ndim == 1:
-                idx = (
-                    np.arange(data['action'].shape[0]),
-                    data['action']
-                )
-            elif data['action'].ndim == 2:
-                d1, d2 = data['action'].shape
-                idx = (
-                    np.tile(np.arange(d1)[:, None], [1, d2]), 
-                    np.tile(np.arange(d2)[None, :], [d1, 1]), 
-                    data['action']
-                )
-            elif data['action'].ndim == 3:
-                d1, d2, d3 = data['action'].shape
-                idx = (
-                    np.tile(np.arange(d1)[:, None, None], [1, d2, d3]), 
-                    np.tile(np.arange(d2)[None, :, None], [d1, 1, d3]), 
-                    np.tile(np.arange(d3)[None, None, :], [d1, d2, 1]), 
-                    data['action']
-                )
-            else:
-                raise NotImplementedError(f'No support for dimensionality higher than 3, got {data["action"].shape}')
-            target_pi[idx] = data['tr_prob']
-            target_pi = target_pi / np.sum(target_pi, axis=-1, keepdims=True)
-            data['target_pi'] = target_pi
 
 
 class SamplingKeysExtractor:
@@ -288,7 +152,6 @@ class Sampler:
 class LocalBufferBase(
     SamplingKeysExtractor, 
     AdvantageCalculator, 
-    TargetProbabilityCalculator, 
     Buffer
 ):
     def __init__(
@@ -359,7 +222,6 @@ class LocalBufferBase(
                 (k, v.shape, (self._memlen, self.n_envs, self.n_units))
 
         self.compute_adv(self.config, last_value, data)
-        self.compute_target_tr_probs(self.config, data)
 
         data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
         for k, v in data.items():
@@ -381,7 +243,6 @@ class PPOBufferBase(
     Sampler, 
     SamplingKeysExtractor, 
     AdvantageCalculator, 
-    TargetProbabilityCalculator, 
     Buffer
 ):
     def __init__(
@@ -461,7 +322,6 @@ class PPOBufferBase(
         self._memory = {k: np.stack(v) for k, v in self._memory.items()}
 
         self.compute_adv(self.config, last_value, self._memory)
-        self.compute_target_tr_probs(self.config, self._memory)
 
         for k, v in self._memory.items():
             assert v.shape[:2] == (self.config.n_steps, self.config.n_envs), (k, v.shape, (self.config.n_steps, self.config.n_envs))
@@ -570,9 +430,17 @@ class PPOBufferBase(
 
     def _process_sample(self, sample):
         if 'advantage' in sample and self.norm_adv == 'minibatch':
+            if 'aux_adv' in sample:
+                sample['aux_adv'] = standardize(
+                    sample['aux_adv'], 
+                    mask=sample.get('life_mask'), 
+                    epsilon=self.config.get('epsilon', 1e-5)
+                )
             sample['advantage'] = standardize(
-                sample['advantage'], mask=sample.get('life_mask'), 
-                epsilon=self.config.get('epsilon', 1e-5))
+                sample['advantage'], 
+                mask=sample.get('life_mask'), 
+                epsilon=self.config.get('epsilon', 1e-5)
+            )
         return sample
 
     def _post_process_for_dataset(self):

@@ -103,7 +103,7 @@ class Recorder:
         for k in sorted(self._store_dict):
             v = self._store_dict[k]
             k_std, k_min, k_max = std, min, max
-            if k.endswith('score') and not k.startswith('metrics/'):
+            if (k.endswith('score') or k.endswith('epslen')) and not k.startswith('metrics/'):
                 k = f'metrics/{k}'
             if adaptive and (k.startswith('train/') or k.startswith('metrics/')):
                 k_std = k_min = k_max = True
@@ -115,10 +115,7 @@ class Recorder:
             if k_std:
                 stats[f'{k}_std'] = np.std(v).astype(np.float32)
             if k_min:
-                try:
-                    stats[f'{k}_min'] = np.min(v).astype(np.float32)
-                except:
-                    print(k, 'has no data')
+                stats[f'{k}_min'] = np.min(v).astype(np.float32)
             if k_max:
                 stats[f'{k}_max'] = np.max(v).astype(np.float32)
         self._store_dict.clear()

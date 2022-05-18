@@ -3,11 +3,12 @@ import ray
 
 from env.cls import *
 from env.typing import EnvOutput
-from utility.utils import convert_batch_with_func
+from utility.utils import AttrDict2dict, convert_batch_with_func
 
 
-class RayVecEnv(VecEnvBase):
+class RayVecEnv:
     def __init__(self, EnvType, config, env_fn=make_env):
+        self.env_type = 'VecEnv'
         self.name = config['env_name']
         self.n_runners= config.get('n_runners', 1)
         self.envsperworker = config.get('n_envs', 1)
@@ -15,23 +16,29 @@ class RayVecEnv(VecEnvBase):
         RayEnvType = ray.remote(EnvType)
         # leave the name "envs" for consistency, albeit workers seems more appropriate
         self.envs = []
+        config = AttrDict2dict(config)
         for i in range(self.n_runners):
             if config.get('seed'):
                 config['seed'] = i * self.envsperworker
             if 'eid' in config:
                 config['eid'] = i * self.envsperworker
-            self.envs.append(RayEnvType.remote(config, env_fn))
+            self.envs.append(RayEnvType.remote(config))
 
         self.env = EnvType(config, env_fn)
         self.stats = self.env.stats
         self.max_episode_steps = self.env.max_episode_steps
         self._combine_func = np.stack if isinstance(self.env, Env) else np.concatenate
 
-        super().__init__()
-        
         self._stats = self.env.stats()
         self._stats['n_runners'] = self.n_runners
         self._stats['n_envs'] = self.n_envs
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(
+                "attempted to get missing private attribute '{}'".format(name)
+            )
+        return getattr(self.env, name)
 
     def reset(self, idxes=None):
         out = self._remote_call('reset', idxes, single_output=False)

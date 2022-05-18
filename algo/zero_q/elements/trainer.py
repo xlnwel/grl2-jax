@@ -2,7 +2,7 @@ from core.elements.trainer import Trainer, TrainerEnsemble
 from core.decorator import override
 from core.tf_config import build
 from .utils import get_data_format
-from algo.hm.elements.trainer import MAPPOActorTrainer
+from algo.gpo.elements.trainer import MAPPOActorTrainer
 
 
 class MAPPOValueTrainer(Trainer):

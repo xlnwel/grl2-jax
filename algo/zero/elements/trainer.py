@@ -4,7 +4,7 @@ from core.elements.trainer import TrainerEnsemble
 from core.decorator import override
 from core.tf_config import build
 from .utils import get_data_format
-from algo.hm.elements.trainer import PPOActorTrainer, PPOValueTrainer
+from algo.gpo.elements.trainer import PPOActorTrainer, PPOValueTrainer
 
 
 class PPOTrainerEnsemble(TrainerEnsemble):

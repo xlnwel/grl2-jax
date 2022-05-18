@@ -1,12 +1,13 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo ppo
-name: ppo
+algorithm: &algo sync_sim-gpo
+name: sync_sim-gpo
 version: 0
 
 precision: 32
 
 n_agents: 1
+seed: 42
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -15,10 +16,10 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 180
+    store_period: 300
     restart_runners_priod: null
     max_version_iterations: 1
-    max_steps_per_iteration: 3e8
+    max_steps_per_iteration: 3e7
     initialize_rms: &irms True
 
 parameter_server:
@@ -108,8 +109,9 @@ model:
             out_gain: .01
 
     value:
-        use_prev_reward: False
-        use_prev_action: False
+        use_prev_reward: True
+        use_prev_action: True
+
         encoder:
             nn_id: mlp
             units_list: [64, 64]
@@ -134,16 +136,20 @@ model:
 
 loss:
     policy:
-        clip_range: .2
+        policy_clip_range: .2
         entropy_coef: .01
-        gpo_l2_coef: 0
-        gpo_kl_coef: 0
+        aux_l1_coef: 0
+        aux_l2_coef: 0
+        kl_prior_coef: 0
+        aux_pg_coef: 0
         pg_coef: 1
+        approx_kl: False
         policy_life_mask: True
+        norm_adv: True
     value:
         value_loss: clip_huber
         huber_threshold: 10
-        clip_range: .2
+        value_clip_range: .2
         value_coef: 1
         value_life_mask: False
 
@@ -199,16 +205,21 @@ buffer:
     actor_rnn_type: *arnn
     value_rnn_type: *vrnn
     sample_size: *ss
-    norm_adv: minibatch
     same_next_value: False
 
     # Trust region arguments
-    target_type: bounded
-    tau: 1
+    target_type: exp
+    adv_tau: 1
     alpha: .2
-    lower_clip: .4
-    upper_clip: .4
-    valid_clip: True
+    pr_lower_clip: .2
+    pr_upper_clip: .2
+    exp_lower_clip: 1
+    exp_upper_clip: 1
+    adv_lower_clip: 0
+    adv_upper_clip: null
+    lin_lower_clip: .5
+    lin_upper_clip: 3
+    lin_weights: 1
 
     # PPG configs
     n_pi: *npi
@@ -228,10 +239,12 @@ buffer:
         - reward
         - value
         - traj_ret
-        - raw_adv
         - advantage
         - target_prob
         - tr_prob
+        - vt_prob
+        - target_prob_prime
+        - tr_prob_prime
         - logprob
         - pi
         - target_pi

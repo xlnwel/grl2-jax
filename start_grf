@@ -1,0 +1,52 @@
+#!/bin/zsh
+
+source activate grl
+
+algos=(
+    sync_sim-gpo
+)
+suite=grf
+envs=(
+    11_vs_11_hard_stochastic
+)
+config=grf
+seeds=(0 1)
+args1=(None)
+args2=(1)
+args3=(True)
+args4=(.2)
+date=$(date +"%m%d")
+
+i=0
+j=1
+for e in "${envs[@]}"; do
+    for a in "${algos[@]}"; do
+        for a1 in "${args1[@]}"; do
+            for a2 in "${args2[@]}"; do
+                for a3 in "${args3[@]}"; do
+                    for a4 in "${args4[@]}"; do
+                        for seed in "${seeds[@]}"; do
+                            # kw1="policy_clip_range=$a1"
+                            # kw2="kl_prior_coef=$a2"
+                            # kw3="approx_kl=$a3"
+                            # kw4="pr_upper_clip=$a4"
+                            # kws="$kw1-$kw2-$kw3"
+                            env="${suite}-${e}"
+                            n="$date"
+                            ld="logs-$suite"
+                            # dir="$ld/$env/$a/$n-$kws-seed=$seed"
+                            # mkdir -p $dir
+                            # py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard >& ${dir}/outputs.txt"
+                            # py_script="python run/train.py -a ${a} -e $env -c $config -kw $kw1 $kw2 $kw3 -ld $ld --gpu $seed -n $n -s $seed | tee ${dir}/outputs.txt &"
+                            # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $seed -n $n -s $seed | tee ${dir}/outputs.txt &"
+                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $seed -n $n -s $seed -kw $@ &"
+                            echo $py_script
+                            eval $py_script
+                            sleep 1
+                        done
+                    done
+                done
+            done
+        done
+    done
+done

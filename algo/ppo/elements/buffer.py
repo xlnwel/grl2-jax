@@ -1,18 +1,16 @@
 import logging
 
 from utility.utils import dict2AttrDict
-from algo.hm.elements.buffer import LocalBufferBase, PPOBufferBase
+from algo.gpo.elements.buffer import LocalBufferBase, PPOBufferBase
 
 logger = logging.getLogger(__name__)
 
 
 class SamplingKeysExtractor:
     def extract_sampling_keys(self, model):
-        keys = {}
-        keys['state_keys'] = (k for k in model.state_keys)
-        keys['state_type'] = model.state_type
-        keys['sample_keys'], keys['sample_size'] = self._get_sample_keys_size()
-        return keys
+        self.state_keys = tuple([k for k in model.state_keys])
+        self.state_type = model.state_type
+        self.sample_keys, self.sample_size = self._get_sample_keys_size()
 
     def _get_sample_keys_size(self):
         state_keys = ['h', 'c']

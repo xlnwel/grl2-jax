@@ -146,16 +146,16 @@ model:
 
 loss:
     policy:
-        clip_range: .2
+        policy_clip_range: .2
         entropy_coef: .01
-        gpo_l2_coef: 0
+        aux_l2_coef: 0
         gpo_kl_coef: 0
         pg_coef: 1
         policy_life_mask: True
     value:
         value_loss: clip_huber
         huber_threshold: 10
-        clip_range: .2
+        value_clip_range: .2
         value_coef: 1
         va_coef: 0
         value_life_mask: False

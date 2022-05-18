@@ -17,6 +17,9 @@ def get_data_format(config, env_stats, model):
         advantage=(basic_shape, tf.float32, 'advantage'),
         target_prob=(basic_shape, tf.float32, 'target_prob'),
         tr_prob=(basic_shape, tf.float32, 'tr_prob'),
+        vt_prob=(basic_shape, tf.float32, 'vt_prob'),
+        target_prob_prime=(basic_shape, tf.float32, 'target_prob_prime'),
+        tr_prob_prime=(basic_shape, tf.float32, 'tr_prob_prime'),
         logprob=(basic_shape, tf.float32, 'logprob'),
     ))
     if env_stats.is_action_discrete:

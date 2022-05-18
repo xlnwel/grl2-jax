@@ -72,17 +72,9 @@ def get_data_format(
         traj_ret=(basic_shape, tf.float32, 'traj_ret'),
         raw_adv=(basic_shape, tf.float32, 'raw_adv'),
         advantage=(basic_shape, tf.float32, 'advantage'),
-        target_prob=(basic_shape, tf.float32, 'target_prob'),
-        tr_prob=(basic_shape, tf.float32, 'tr_prob'),
         logprob=(basic_shape, tf.float32, 'logprob'),
     ))
-    if env_stats.is_action_discrete:
-        data_format['pi'] = ((*basic_shape, action_dim), tf.float32, 'pi')
-        data_format['target_pi'] = ((*basic_shape, action_dim), tf.float32, 'target_pi')
-    else:
-        data_format['pi_mean'] = ((*basic_shape, action_dim), tf.float32, 'pi_mean')
-        data_format['pi_std'] = ((*basic_shape, action_dim), tf.float32, 'pi_std')
-    
+
     data_format = update_data_format_with_rnn_states(
         data_format,
         config,
@@ -92,3 +84,6 @@ def get_data_format(
     )
 
     return data_format
+
+def collect(buffer, env, env_step, reset, next_obs, **kwargs):
+    buffer.add(**kwargs)

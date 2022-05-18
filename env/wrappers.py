@@ -362,6 +362,13 @@ class DataProcess(gym.Wrapper):
         if not hasattr(self.env, 'action_dtype'):
             self.action_dtype = np.int32 if self.is_action_discrete \
                 else infer_dtype(self.action_space.dtype, self.precision)
+        if self.is_action_discrete:
+            self.action_low = 0
+            self.action_high = self.action_dim
+        else:
+            # by lfm's suggestion
+            self.action_low = -2
+            self.action_high = 2
 
     def observation(self, observation):
         if isinstance(observation, np.ndarray):
@@ -381,6 +388,12 @@ class DataProcess(gym.Wrapper):
         return self.observation(obs)
 
     def step(self, action, **kwargs):
+        if not self.is_action_discrete:
+            low = self.action_space.low
+            high = self.action_space.high
+            size = high - low
+            action = action / (self.action_high - self.action_low) * size + (low + high)
+            assert np.all(low <= action) and np.all(action <= high), action
         obs, reward, done, info = self.env.step(action, **kwargs)
         return self.observation(obs), reward, done, info
 
@@ -449,6 +462,8 @@ class EnvStatsBase(gym.Wrapper):
                 obs_dtype=env.obs_dtype,
                 action_shape=env.action_shape,
                 action_dim=env.action_dim,
+                action_low=env.action_low, 
+                action_high=env.action_high, 
                 is_action_discrete=env.is_action_discrete,
                 action_dtype=env.action_dtype,
                 n_agents=self.n_agents,

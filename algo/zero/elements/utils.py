@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from utility.typing import AttrDict
-from algo.hm.elements.utils import get_basics, \
+from algo.gpo.elements.utils import get_basics, \
     get_data_format as get_ppo_data_format
 
 

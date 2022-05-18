@@ -6,10 +6,12 @@ def parse_train_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--algorithms', '-a', 
                         type=str,
-                        nargs='*')
+                        nargs='*',
+                        default=[])
     parser.add_argument('--environments', '-e',
                         type=str,
-                        nargs='*')
+                        nargs='*',
+                        default=[])
     parser.add_argument('--configs', '-c',
                         type=str,
                         nargs='*',

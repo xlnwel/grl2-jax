@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow_probability import distributions as tfd
 
 from utility.tf_utils import static_scan, reduce_mean, \
     assert_rank, assert_rank_and_shape_compatibility
@@ -262,18 +263,22 @@ def ppo_loss(
     assert_rank_and_shape_compatibility([log_ratio, advantage])
     ratio, loss1, loss2 = _compute_ppo_policy_losses(
         log_ratio, advantage, clip_range)
-    
+
     if reduce:
         policy_loss = reduce_mean(tf.maximum(loss1, loss2), mask, n)
         entropy = reduce_mean(entropy, mask, n)
     else:
         policy_loss = tf.maximum(loss1, loss2)
+
     # debug stats: KL between old and current policy and fraction of data being clipped
     approx_kl = .5 * reduce_mean((-log_ratio)**2, mask, n)
-    clip_frac = reduce_mean(tf.cast(tf.greater(
-        tf.abs(ratio - 1.), clip_range), ratio.dtype), mask, n)
+    if clip_range is None:
+        clip_frac = 0
+    else:
+        clip_frac = reduce_mean(tf.cast(tf.greater(
+            tf.abs(ratio - 1.), clip_range), ratio.dtype), mask, n)
 
-    return policy_loss, entropy, approx_kl, clip_frac
+    return ratio, loss1, loss2, policy_loss, entropy, approx_kl, clip_frac
 
 
 def clipped_value_loss(
@@ -331,7 +336,10 @@ def _compute_ppo_policy_losses(log_ratio, advantages, clip_range):
     ratio = tf.exp(log_ratio)
     neg_adv = -advantages
     loss1 = neg_adv * ratio
-    loss2 = neg_adv * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
+    if clip_range is None:
+        loss2 = loss1
+    else:
+        loss2 = neg_adv * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
     return ratio, loss1, loss2
 
 
@@ -354,18 +362,30 @@ def _compute_ppo_value_losses(
     return value_diff, loss1, loss2
 
 def kl_from_probabilities(
-    pi1, 
-    pi2, 
+    *,
+    pi1=None, 
+    pi2=None,
+    pi1_mean=None,  
+    pi1_std=None,  
+    pi2_mean=None,  
+    pi2_std=None,  
     pi_mask=None
 ):
-    log_pi1 = tf.math.log(tf.clip_by_value(pi1, 1e-10, 1))
-    log_pi2 = tf.math.log(tf.clip_by_value(pi2, 1e-10, 1))
-    log_ratio = log_pi1 - log_pi2
-    if pi_mask is not None:
-        log_ratio = tf.where(pi_mask, log_ratio, 0)
-    tf.debugging.assert_all_finite(log_ratio, 'Bad log_ratio')
-    kl = tf.reduce_sum(
-        pi1 * log_ratio, axis=-1)
+    # d1 = tfd.Categorical(pi1)
+    # d2 = tfd.Categorical(pi2)
+    # d1.kl_divergence(d2)
+    if pi1 is None:
+        d1 = tfd.MultivariateNormalDiag(pi1_mean, pi1_std)
+        d2 = tfd.MultivariateNormalDiag(pi2_mean, pi2_std)
+        kl = d1.kl_divergence(d2)
+    else:
+        log_pi1 = tf.math.log(tf.clip_by_value(pi1, 1e-10, 1))
+        log_pi2 = tf.math.log(tf.clip_by_value(pi2, 1e-10, 1))
+        log_ratio = log_pi1 - log_pi2
+        if pi_mask is not None:
+            log_ratio = tf.where(pi_mask, log_ratio, 0)
+        tf.debugging.assert_all_finite(log_ratio, 'Bad log_ratio')
+        kl = tf.reduce_sum(pi1 * log_ratio, axis=-1)
 
     return kl
 

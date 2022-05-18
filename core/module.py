@@ -111,7 +111,7 @@ class Ensemble(tf.Module):
         with <config> as its only argument. See for an example:
         <core.elements.construct_components>
         """
-        super().__init__(name=name)
+        super().__init__(name=name.split('-')[-1])
 
         self.config = config
         self.env_stats = env_stats
