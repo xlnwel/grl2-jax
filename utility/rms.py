@@ -67,6 +67,18 @@ class RunningMeanStd:
     def axis(self):
         return self._axis
 
+    @property
+    def mean(self):
+        return self._mean
+
+    @property
+    def var(self):
+        return self._var
+
+    @property
+    def std(self):
+        return self._std
+
     def reset_rms_stats(self):
         self._mean = 0
         self._var = 1
@@ -113,15 +125,16 @@ class RunningMeanStd:
             Stats(batch_mean, batch_var, batch_count))
         self._mean = new_mean
         self._var = new_var
-        self._std = np.sqrt(self._var)
+        self._std = np.sqrt(self._var + self._epsilon)
         self._count = total_count
         assert np.all(self._var > 0), self._var[self._var <= 0]
 
     def normalize(self, x, zero_center=True, mask=None):
         assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
-        assert self._var is not None, (self._mean, self._var, self._count)
+        assert self._std is not None, (self._mean, self._std, self._count)
         if self._count == self._epsilon:
-            x = np.clip(x, -self._clip, self._clip)
+            if self._clip:
+                x = np.clip(x, -self._clip, self._clip)
             return x
         # assert x.ndim == self._var.ndim + (0 if self._axis is None else len(self._axis)), \
         #     (x.shape, self._var.shape, self._axis)
@@ -133,6 +146,24 @@ class RunningMeanStd:
         x_new /= self._std
         if self._clip:
             x_new = np.clip(x_new, -self._clip, self._clip)
+        if mask is not None:
+            mask = expand_dims_match(mask, x_new)
+            x_new = np.where(mask, x_new, x)
+        return x_new
+
+    def denormalize(self, x, zero_center=True, mask=None):
+        assert not np.isinf(np.std(x)), f'{np.min(x)}\t{np.max(x)}'
+        assert self._std is not None, (self._mean, self._std, self._count)
+        # assert x.ndim == self._var.ndim + (0 if self._axis is None else len(self._axis)), \
+        #     (x.shape, self._var.shape, self._axis)
+        if self._count == self._epsilon:
+            return x
+        x_new = x.astype(np.float32)
+        if mask is not None:
+            assert mask.ndim == len(self._axis), (mask.shape, self._axis)
+        x_new *= self._std
+        if zero_center:
+            x_new += self._mean
         if mask is not None:
             mask = expand_dims_match(mask, x_new)
             x_new = np.where(mask, x_new, x)

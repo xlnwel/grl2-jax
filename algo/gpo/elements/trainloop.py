@@ -25,22 +25,30 @@ class PPOTrainingLoop(TrainingLoopBase):
                 with self._sample_timer:
                     raw_data = self._sample_data()
                     data = None if raw_data is None else numpy2tensor(raw_data)
+            
+            if data is not None:
+                data.pop('discount', None)
+                data.pop('reset', None)
+            
             return raw_data, data
 
         def combine_stats(stats, data, terms, max_record_size=100):
             batch_size = next(iter(data.values())).shape[0]
             # we only sample a small amount of data to reduce the cost
-            idx = np.random.randint(0, batch_size, max_record_size)
+            if max_record_size is not None:
+                idx = np.random.randint(0, batch_size, max_record_size)
+            else:
+                idx = np.arange(batch_size)
 
             for k, v in data.items():
                 if isinstance(v, tuple):
                     for kk, vv in v._asdict().items():
                         vv_shape = np.shape(vv)
-                        stats[f'train/{kk}'] = vv[idx] \
+                        stats[f'data/{kk}'] = vv[idx] \
                             if vv_shape != () and vv_shape[0] == batch_size else vv
                 else:
                     v_shape = np.shape(v)
-                    stats[f'train/{k}'] = v[idx] \
+                    stats[f'data/{k}'] = v[idx] \
                         if v_shape != () and v_shape[0] == batch_size else v
 
             stats.update(
@@ -110,7 +118,7 @@ class PPOTrainingLoop(TrainingLoopBase):
 
             if raw_data is None:
                 raw_data = tensor2numpy(data)
-            stats = {'train/kl': kl}
+            stats = {'train/approx_kl': kl}
             stats = combine_stats(
                 stats, 
                 raw_data, 

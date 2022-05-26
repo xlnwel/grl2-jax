@@ -19,7 +19,7 @@ class RayVecEnv:
         config = AttrDict2dict(config)
         for i in range(self.n_runners):
             if config.get('seed'):
-                config['seed'] = i * self.envsperworker
+                config['seed'] += i * self.envsperworker
             if 'eid' in config:
                 config['eid'] = i * self.envsperworker
             self.envs.append(RayEnvType.remote(config))

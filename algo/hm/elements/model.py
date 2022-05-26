@@ -63,10 +63,10 @@ class ModelImpl(Model):
                 x, state = self.rnn(x, state, mask)
                 x = tf.reshape(x, [-1, T, x.shape[-1]])
         else:
-            if self.env_stats.is_multi_agent:
-                assert_rank(x, 3)
-            else:
-                assert_rank(x, 2)
+            # if self.env_stats.is_multi_agent:
+            #     assert_rank(x, 3)
+            # else:
+            #     assert_rank(x, 2)
 
             x = self.encoder(x)
 
@@ -207,23 +207,26 @@ class PPOModelEnsemble(ModelEnsemble):
     ):
         if self.actor_has_rnn:
             actor_inp, = self._add_seqential_dimension(actor_inp)
-        if self.value_has_rnn:
-            value_inp, = self._add_seqential_dimension(value_inp)
         action, terms, actor_state = self.policy.action(
             **actor_inp, state=actor_state,
             evaluation=evaluation, return_eval_stats=return_eval_stats)
-        value, value_state = self.value.compute_value(
-            **value_inp, state=value_state)
         state = self.state_type(actor_state, value_state) \
             if self.has_rnn else None
         if self.actor_has_rnn:
             action, terms = self._remove_seqential_dimension(action, terms)
-        if self.value_has_rnn:
-            value, = self._remove_seqential_dimension(value)
-        if not evaluation:
-            terms.update({
-                'value': value,
-            })
+        if self.config.get('compute_value_at_execution', True) or self.has_rnn:
+            if self.value_has_rnn:
+                value_inp, = self._add_seqential_dimension(value_inp)
+            value, value_state = self.value.compute_value(
+                **value_inp, state=value_state)
+            state = self.state_type(actor_state, value_state) \
+                if self.has_rnn else None
+            if self.value_has_rnn:
+                value, = self._remove_seqential_dimension(value)
+            if not evaluation:
+                terms.update({
+                    'value': value,
+                })
         return action, terms, state
 
     def split_state(self, state):
@@ -311,7 +314,7 @@ class PPOModelEnsemble(ModelEnsemble):
 def create_model(
     config, 
     env_stats, 
-    name='gpo', 
+    name='ppo', 
     to_build=False,
     to_build_for_eval=False,
     **kwargs
@@ -320,12 +323,13 @@ def create_model(
         aid = config['aid']
         config.policy.policy.action_dim = env_stats.action_dim[aid]
         config.policy.policy.is_action_discrete = env_stats.is_action_discrete[aid]
+        config.policy.policy.action_low = env_stats.get('action_low')
+        config.policy.policy.action_high = env_stats.get('action_high')
     else:
         config.policy.policy.action_dim = env_stats.action_dim
         config.policy.policy.is_action_discrete = env_stats.is_action_discrete
         config.policy.policy.action_low = env_stats.get('action_low')
         config.policy.policy.action_high = env_stats.get('action_high')
-
 
     if config['actor_rnn_type'] is None:
         config['policy'].pop('rnn', None)

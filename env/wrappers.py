@@ -20,6 +20,14 @@ def post_wrap(env, config):
     """ Does some post processing and bookkeeping. 
     Does not change anything that will affect the agent's performance 
     """
+    if isinstance(env.action_space, gym.spaces.Box):
+        env = ContinuousActionMapper(
+            env, 
+            bound_method=config.get('bound_method', 'clip'), 
+            to_rescale=False,
+            action_low=config.get('action_low', -1), 
+            action_high=config.get('action_high', 1)
+        )
     env = DataProcess(env, config.get('precision', 32))
     env = EnvStats(
         env, config.get('max_episode_steps', None), 
@@ -338,6 +346,78 @@ class StateRecorder(gym.Wrapper):
         return obs
 
 
+class ContinuousActionMapper(gym.ActionWrapper):
+    def __init__(
+        self, 
+        env, 
+        bound_method='clip', # clip, tanh, rescale
+        to_rescale=True, 
+        # clip sampled actions, this embodied in training
+        action_low=None,
+        action_high=None, 
+    ):
+        self.is_multi_agent = getattr(env, 'is_multi_agent', False)
+        if self.is_multi_agent:
+            assert np.all([isinstance(a, gym.spaces.Box) for a in env.action_space]), env.action_space
+            assert bound_method in ('clip', 'tanh', None), bound_method
+        else:
+            assert isinstance(env.action_space, gym.spaces.Box), env.action_space
+            assert bound_method in ('clip', 'tanh', None), bound_method
+        super().__init__(env)
+
+        self.bound_method = bound_method
+        self.to_rescale = to_rescale
+        if to_rescale:
+            assert action_low is not None, action_low
+            assert action_high is not None, action_high
+        if self.is_multi_agent:
+            self.env_action_low = [a.low for a in self.action_space]
+            self.env_action_high = [a.high for a in self.action_space]
+        else:
+            self.env_action_low = self.action_space.low
+            self.env_action_high = self.action_space.high
+        self.action_low = action_low
+        self.action_high = action_high
+        print('Continuous Action Wrapper', self.action_low, action_high)
+        self._is_random_action = False
+
+    def random_action(self):
+        self._is_random_action = True
+        return self.env.random_action()
+
+    def action(self, action):
+        if self.is_multi_agent:
+            if self._is_random_action:
+                self._is_random_action = False
+                return action
+            if self.bound_method == 'clip':
+                action = [np.clip(a, -1, 1) for a in action]
+            elif self.bound_method == 'tanh':
+                action = [np.tanh(a) for a in action]
+            if self.to_rescale:
+                size = [ah - al for ah, al in zip(self.env_action_high, self.env_action_low)]
+                action = [s * (a - self.action_low) / (self.action_high - self.action_low) + al
+                    for a, al, s in zip(action, self.env_action_low, size)]
+                assert np.all([al <= a for al, a in zip(self.env_action_low, action)]) \
+                    and np.all([a <= ah for a, ah, in zip(action, self.env_action_high)]), action
+        else:
+            if self._is_random_action:
+                self._is_random_action = False
+                return action
+            if self.bound_method == 'clip':
+                action = np.clip(action, -1, 1)
+            elif self.bound_method == 'tanh':
+                action = np.tanh(action)
+            if self.to_rescale:
+                assert np.all(self.action_low <= action <= self.action_high), (action, self.action_low, self.action_high)
+                size = self.env_action_high - self.env_action_low
+                action = size * (action - self.action_low) / (self.action_high - self.action_low) + self.env_action_low
+                assert np.all(self.env_action_low <= action) \
+                    and np.all(action <= self.env_action_high), action
+
+        return action
+
+
 class DataProcess(gym.Wrapper):
     """ Convert observation to np.float32 or np.float16 """
     def __init__(self, env, precision=32):
@@ -346,7 +426,8 @@ class DataProcess(gym.Wrapper):
         self.float_dtype = np.float32 if precision == 32 else np.float16
 
         if not hasattr(self.env, 'is_action_discrete'):
-            self.is_action_discrete = isinstance(self.action_space, gym.spaces.Discrete)
+            self.is_action_discrete = isinstance(
+                self.env.action_space, gym.spaces.Discrete)
         if not self.is_action_discrete and precision == 16:
             self.action_space = gym.spaces.Box(
                 self.action_space.low, self.action_space.high, 
@@ -362,13 +443,6 @@ class DataProcess(gym.Wrapper):
         if not hasattr(self.env, 'action_dtype'):
             self.action_dtype = np.int32 if self.is_action_discrete \
                 else infer_dtype(self.action_space.dtype, self.precision)
-        if self.is_action_discrete:
-            self.action_low = 0
-            self.action_high = self.action_dim
-        else:
-            # by lfm's suggestion
-            self.action_low = -2
-            self.action_high = 2
 
     def observation(self, observation):
         if isinstance(observation, np.ndarray):
@@ -388,12 +462,6 @@ class DataProcess(gym.Wrapper):
         return self.observation(obs)
 
     def step(self, action, **kwargs):
-        if not self.is_action_discrete:
-            low = self.action_space.low
-            high = self.action_space.high
-            size = high - low
-            action = action / (self.action_high - self.action_low) * size + (low + high)
-            assert np.all(low <= action) and np.all(action <= high), action
         obs, reward, done, info = self.env.step(action, **kwargs)
         return self.observation(obs), reward, done, info
 
@@ -425,8 +493,13 @@ We distinguish several signals:
         the environment/previous wrapper.
 """
 class EnvStatsBase(gym.Wrapper):
-    def __init__(self, env, max_episode_steps=None, timeout_done=False, 
-            auto_reset=True):
+    def __init__(
+        self, 
+        env, 
+        max_episode_steps=None, 
+        timeout_done=False, 
+        auto_reset=True
+    ):
         """ Records environment statistics """
         super().__init__(env)
         if max_episode_steps is None:
@@ -462,8 +535,8 @@ class EnvStatsBase(gym.Wrapper):
                 obs_dtype=env.obs_dtype,
                 action_shape=env.action_shape,
                 action_dim=env.action_dim,
-                action_low=env.action_low, 
-                action_high=env.action_high, 
+                action_low=getattr(env, 'action_low', None), 
+                action_high=getattr(env, 'action_high', None), 
                 is_action_discrete=env.is_action_discrete,
                 action_dtype=env.action_dtype,
                 n_agents=self.n_agents,
@@ -581,6 +654,7 @@ class EnvStats(EnvStatsBase):
             if self.auto_reset:
                 # when resetting, we override the obs and reset but keep the others
                 obs, _, _, reset = self._reset()
+
         obs = self.observation(obs)
         self._info = info
         

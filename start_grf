@@ -10,7 +10,7 @@ envs=(
     11_vs_11_hard_stochastic
 )
 config=grf
-seeds=(0 1)
+seeds=(2 3)
 args1=(None)
 args2=(1)
 args3=(True)
@@ -34,12 +34,14 @@ for e in "${envs[@]}"; do
                             env="${suite}-${e}"
                             n="$date"
                             ld="logs-$suite"
+                            gpus=$(nvidia-smi -L | wc -l)
+                            gpu=$(($seed % $gpus))
                             # dir="$ld/$env/$a/$n-$kws-seed=$seed"
                             # mkdir -p $dir
                             # py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard >& ${dir}/outputs.txt"
                             # py_script="python run/train.py -a ${a} -e $env -c $config -kw $kw1 $kw2 $kw3 -ld $ld --gpu $seed -n $n -s $seed | tee ${dir}/outputs.txt &"
                             # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $seed -n $n -s $seed | tee ${dir}/outputs.txt &"
-                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $seed -n $n -s $seed -kw $@ &"
+                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $seed $@ &"
                             echo $py_script
                             eval $py_script
                             sleep 1

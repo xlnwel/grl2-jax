@@ -36,11 +36,11 @@ class PPOTrainingLoop(TrainingLoopBase):
                 if isinstance(v, tuple):
                     for kk, vv in v._asdict().items():
                         vv_shape = np.shape(vv)
-                        stats[f'train/{kk}'] = vv[idx] \
+                        stats[f'data/{kk}'] = vv[idx] \
                             if vv_shape != () and vv_shape[0] == batch_size else vv
                 else:
                     v_shape = np.shape(v)
-                    stats[f'train/{k}'] = v[idx] \
+                    stats[f'data/{k}'] = v[idx] \
                         if v_shape != () and v_shape[0] == batch_size else v
 
             stats.update(
@@ -64,7 +64,7 @@ class PPOTrainingLoop(TrainingLoopBase):
                     with self._train_timer:
                         terms = self.trainer.train(**data)
 
-                    kl = terms.pop('kl').numpy()
+                    kl = terms.pop('approx_kl').numpy()
                     # value = terms.pop('value').numpy()
 
                     if getattr(self.config, 'max_kl', None) and kl > self.config.max_kl:
@@ -91,7 +91,7 @@ class PPOTrainingLoop(TrainingLoopBase):
 
             if raw_data is None:
                 raw_data = tensor2numpy(data)
-            stats = {'train/kl': kl}
+            stats = {'train/approx_kl': kl}
             stats = combine_stats(
                 stats, 
                 raw_data, 

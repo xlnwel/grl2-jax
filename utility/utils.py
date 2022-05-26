@@ -206,12 +206,14 @@ def moments(x, axis=None, mask=None):
 
     return x_mean, x_var
     
-def standardize(x, mask=None, axis=None, epsilon=1e-8):
+def standardize(x, zero_center=True, mask=None, axis=None, epsilon=1e-8):
     if mask is not None:
         mask = expand_dims_match(mask, x)
     x_mean, x_var = moments(x, axis=axis, mask=mask)
     x_std = np.sqrt(x_var + epsilon)
-    y = (x - x_mean) / x_std
+    if zero_center:
+        x = (x - x_mean)
+    y = x / x_std
     if mask is not None:
         y = np.where(mask == 1, y, x)
     return y

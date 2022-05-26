@@ -9,7 +9,7 @@ import ray
 
 from ..common.typing import ModelWeights
 from core.elements.builder import ElementsBuilderVC
-from core.mixin.actor import RMSStats, combine_rms_stats
+from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.remote.base import RayBase
 from core.typing import ModelPath, get_aid, get_aid_vid
 from distributed.sync_sim.remote.payoff import PayoffManager
@@ -341,18 +341,6 @@ class ParameterServer(RayBase):
 
     """ Data Retrieval """
     def get_aux_stats(self, model_path: ModelPath):
-        def rms2dict(rms: RMSStats):
-            stats = {}
-            if rms.obs:
-                for k, v in rms.obs.items():
-                    for kk, vv in v._asdict().items():
-                        stats[f'aux/{k}/{kk}'] = vv
-            if rms.reward:
-                for k, v in rms.reward._asdict().items():
-                    stats[f'aux/reward/{k}'] = v
-
-            return stats
-
         aid = get_aid(model_path.model_name)
         rms = self._params[aid][model_path].get('aux', RMSStats({}, None))
         stats = rms2dict(rms)

@@ -3,9 +3,9 @@ import logging
 from typing import Dict
 import numpy as np
 
+from .trainloop import PPOTrainingLoop
 from core.elements.strategy import Strategy, create_strategy
-from algo.ppo.elements.trainloop import PPOTrainingLoop
-
+from core.mixin.strategy import Memory
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 class PPOStrategy(Strategy):
     def _post_init(self):
         self._value_inp = {}
+        if self.actor is not None and self.model.state_type:
+            self._memory = Memory(self.model)
+
 
     def record_inputs_to_vf(self, env_output):
         self._value_inp['obs'] = self.actor.normalize_obs(
@@ -22,6 +25,8 @@ class PPOStrategy(Strategy):
         # be sure you normalize obs first if obs normalization is required
         if value_inp is None:
             value_inp = self._value_inp
+        if 'global_state' in value_inp:
+            value_inp['obs'] = value_inp.pop('global_state')
         value, _ = self.model.compute_value(**value_inp)
         return value.numpy()
 

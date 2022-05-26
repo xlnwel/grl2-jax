@@ -22,6 +22,8 @@ def parse_args():
     parser.add_argument('directory',
                         type=str,
                         default='.')
+    parser.add_argument('--prefix', '-p', 
+                        type=str)
     parser.add_argument('--target', '-t', 
                         type=str,
                         default='html-logs')
@@ -33,9 +35,11 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     
-    dirs = search_for_dirs(args.directory, '0517', is_suffix=False)
+    dirs = search_for_dirs(args.directory, args.prefix, is_suffix=False)
     
     for d in dirs:
+        if d.split('/')[-1].startswith('0517-aux_pg_coef=1'):
+            continue
         target_dir = '/'.join([args.target, d])
         print(f'copy from {d} to {target_dir}')
         if not os.path.isdir(target_dir):
@@ -55,7 +59,10 @@ if __name__ == '__main__':
             if isinstance(v, dict):
                 del v['root_dir']
                 del v['model_name']
+
         config = flatten_dict(config)
+        if 'model/policy/out_act' not in config:
+            config['model/policy/out_act'] = None
         with open(json_path, 'w') as json_file:
             json.dump(config, json_file)
 

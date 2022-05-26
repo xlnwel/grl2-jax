@@ -213,7 +213,7 @@ buffer:
     value_rnn_type: *vrnn
     sample_size: *ss
     norm_adv: minibatch
-    same_next_value: False
+    
 
     # Trust region arguments
     target_type: bounded

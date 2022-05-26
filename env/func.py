@@ -1,6 +1,7 @@
 from types import FunctionType
 from env.cls import Env, MAVecEnv, VecEnv
 from env import make_env
+from utility.display import print_dict
 
 
 def is_ma_suite(env_name):
@@ -44,10 +45,11 @@ def get_env_stats(config):
     # we cannot change n_envs for unity environments
     if not config.env_name.startswith('unity'):
         tmp_env_config['n_envs'] = 1
-    env = create_env(tmp_env_config, force_envvec=False)
+    env = create_env(tmp_env_config, force_envvec=False, no_remote=True)
     env_stats = env.stats()
     env_stats.n_runners = config.get('n_runners', 1)
     env_stats.n_envs = env_stats.n_runners * config.n_envs
+    print_dict(env_stats, 'env stats')
     env.close()
     return env_stats
 

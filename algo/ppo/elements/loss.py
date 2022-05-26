@@ -1,9 +1,9 @@
 import tensorflow as tf
 
-from algo.gpo.elements.loss import ValueLossImpl, PGLossImpl
+from algo.gpo.elements.loss import ValueLossImpl, GPOLossImpl
 
 
-class PPOLoss(ValueLossImpl, PGLossImpl):
+class GPOLoss(ValueLossImpl, GPOLossImpl):
     def loss(
         self, 
         obs, 
@@ -81,5 +81,5 @@ class PPOLoss(ValueLossImpl, PGLossImpl):
 
         return tape, loss, terms
 
-def create_loss(config, model, name='ppo'):
-    return PPOLoss(config=config, model=model, name=name)
+def create_loss(config, model, name='gpo'):
+    return GPOLoss(config=config, model=model, name=name)

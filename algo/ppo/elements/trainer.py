@@ -1,8 +1,10 @@
 import functools
+import tensorflow as tf
 
 from core.elements.trainer import Trainer, create_trainer
 from core.decorator import override
 from core.tf_config import build
+from utility.display import print_dict
 from utility import pkg
 
 
@@ -14,6 +16,7 @@ class PPOTrainer(Trainer):
             'elements.utils', algo=algo).get_data_format
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = get_data_format(self.config, env_stats, self.loss.model)
+        print_dict(TensorSpecs, prefix='Tensor Specifications')
         self.train = build(self.train, TensorSpecs)
         return True
 
@@ -26,10 +29,11 @@ class PPOTrainer(Trainer):
         advantage, 
         target_prob, 
         tr_prob, 
-        vt_prob, 
         target_prob_prime, 
         tr_prob_prime, 
         logprob, 
+        reward=None, 
+        vt_prob=None, 
         pi=None, 
         target_pi=None, 
         pi_mean=None, 
@@ -57,9 +61,9 @@ class PPOTrainer(Trainer):
             mask=mask
         )
 
-        terms['norm'], terms['var_norm'] = \
-            self.optimizer(tape, loss, return_var_norms=True)
-
+        terms['norm'], terms['var_norm'], grads = \
+            self.optimizer(tape, loss, return_var_norms=True, return_grads=True)
+        terms['grads_norm'] = tf.linalg.global_norm(list(grads.values()))
         return terms
 
 

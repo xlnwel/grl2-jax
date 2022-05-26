@@ -2,7 +2,7 @@ import tensorflow as tf
 
 from core.elements.loss import Loss, LossEnsemble
 from utility import rl_loss
-from utility.tf_utils import reduce_mean, explained_variance
+from utility.tf_utils import reduce_mean, explained_variance, standard_normalization
 
 
 def prefix_name(terms, name):
@@ -27,23 +27,29 @@ class PGLossImpl(Loss):
         n=None, 
         name=None,
     ):
+        with tape.stop_recording():
+            raw_adv = advantage
+            if self.config.norm_adv:
+                advantage = standard_normalization(advantage, mask=mask)
+
         new_logprob = act_dist.log_prob(action)
         tf.debugging.assert_all_finite(new_logprob, 'Bad new_logprob')
         entropy = act_dist.entropy()
         tf.debugging.assert_all_finite(entropy, 'Bad entropy')
         log_ratio = new_logprob - logprob
-        raw_pg_loss, raw_entropy, kl, clip_frac = rl_loss.ppo_loss(
+        ratio, loss1, loss2, raw_ppo_loss, raw_entropy, approx_kl, clip_frac = \
+            rl_loss.ppo_loss(
             log_ratio, 
             advantage, 
-            self.config.clip_range, 
+            self.config.policy_clip_range, 
             entropy, 
             mask=mask, 
             n=n, 
             reduce=False
         )
-        tf.debugging.assert_all_finite(raw_pg_loss, 'Bad raw_pg_loss')
-        raw_pg_loss = reduce_mean(raw_pg_loss, mask, n)
-        pg_loss = self.config.pg_coef * raw_pg_loss
+        tf.debugging.assert_all_finite(raw_ppo_loss, 'Bad raw_ppo_loss')
+        raw_ppo_loss = reduce_mean(raw_ppo_loss, mask, n)
+        pg_loss = self.config.pg_coef * raw_ppo_loss
         entropy = reduce_mean(raw_entropy, mask, n)
         entropy_loss = - self.config.entropy_coef * entropy
 
@@ -52,13 +58,14 @@ class PGLossImpl(Loss):
         if self.config.get('debug', True):
             with tape.stop_recording():
                 terms = dict(
+                    raw_adv=raw_adv, 
                     ratio=tf.exp(log_ratio),
                     raw_entropy=raw_entropy,
                     entropy=entropy,
-                    kl=kl,
+                    approx_kl=approx_kl,
                     new_logprob=new_logprob, 
                     p_clip_frac=clip_frac,
-                    raw_pg_loss=raw_pg_loss,
+                    raw_ppo_loss=raw_ppo_loss,
                     pg_loss=pg_loss,
                     entropy_loss=entropy_loss, 
                     actor_loss=loss,
@@ -100,7 +107,7 @@ class ValueLossImpl(Loss):
                 value, 
                 traj_ret, 
                 old_value, 
-                self.config.clip_range, 
+                self.config.value_clip_range, 
                 mask=mask, 
                 n=n,
                 reduce=False
@@ -110,7 +117,7 @@ class ValueLossImpl(Loss):
                 value, 
                 traj_ret, 
                 old_value, 
-                self.config.clip_range, 
+                self.config.value_clip_range, 
                 mask=mask, 
                 n=n, 
                 huber_threshold=self.config.huber_threshold,

@@ -25,7 +25,7 @@ envs=(
     # coinrun
 )
 config=procgen
-seeds=(0 1 2)
+seeds=(0)
 args1=(1)
 args2=(pr)
 args3=(.2)
@@ -50,12 +50,14 @@ for e in "${envs[@]}"; do
                             env="${suite}-${e}"
                             n="$date"
                             ld="logs-$suite"
+                            gpus=$(nvidia-smi -L | wc -l)
+                            gpu=$(($i % $gpus))
                             # dir="$ld/$env/$a/$n-$kws-seed=$seed"
                             # dir="$ld/$env/$a/$n-seed=$seed"
                             # mkdir -p $dir
                             # py_script="python run/train.py -a ${a} -e $env -c $config -kw $kw1 $kw2 $kw3 $kw4 -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
                             # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
-                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $i -n $n -s $seed -kw $@ &"
+                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $seed $@ &"
                             echo $py_script
                             eval $py_script
                             sleep 1
@@ -65,5 +67,5 @@ for e in "${envs[@]}"; do
             done
         done
     done
-    ((i=(i+1) % 8))
+    ((i=(i+1) ))
 done

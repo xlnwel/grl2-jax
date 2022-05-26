@@ -25,6 +25,8 @@ class DummyEnv:
     def is_multiagent(self):
         return getattr(self.env, 'is_multiagent', False)
 
+    def random_action(self):
+        return self.action_space.sample()
 
 
 class RandomEnv():

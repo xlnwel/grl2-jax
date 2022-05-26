@@ -52,7 +52,7 @@ def change_config(kw, config, model_name=''):
 
             # change kwargs in config
             modified_configs = change_dict(config, key, value, '')
-            pwc(f'All "{key}" appeared in the following configs will be changed: '
+            pwc(f'All "{key}" appeared in the following configs will be changed to "{value}": '
                 + f'{modified_configs}.', color='cyan')
             assert modified_configs != [], modified_configs
 

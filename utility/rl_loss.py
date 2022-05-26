@@ -361,7 +361,7 @@ def _compute_ppo_value_losses(
 
     return value_diff, loss1, loss2
 
-def kl_from_probabilities(
+def kl_from_distributions(
     *,
     pi1=None, 
     pi2=None,
@@ -371,9 +371,6 @@ def kl_from_probabilities(
     pi2_std=None,  
     pi_mask=None
 ):
-    # d1 = tfd.Categorical(pi1)
-    # d2 = tfd.Categorical(pi2)
-    # d1.kl_divergence(d2)
     if pi1 is None:
         d1 = tfd.MultivariateNormalDiag(pi1_mean, pi1_std)
         d2 = tfd.MultivariateNormalDiag(pi2_mean, pi2_std)
@@ -389,6 +386,45 @@ def kl_from_probabilities(
 
     return kl
 
+def kl_from_samples(
+    *,
+    logp,
+    logq, 
+    mask=None,
+    n=None
+):
+    log_ratio = logp - logq
+    approx_kl = .5 * reduce_mean(
+        tf.stop_gradient(tf.exp(logp)) * log_ratio**2, mask, n)
+    return approx_kl
+
+def reverse_kl_from_samples(
+    *,
+    logp,
+    logq, 
+    mask=None,
+    n=None
+):
+    log_ratio = logp - logq
+    approx_kl = .5 * reduce_mean(log_ratio**2, mask, n)
+    return approx_kl
+
+def js_from_samples(
+    *,
+    logp,
+    logq, 
+    mask=None,
+    n=None
+):
+    p = tf.exp(logp)
+    q = tf.exp(logq)
+    avg = (p + q) / 2
+    logavg = tf.math.log(avg)
+    approx_js = .5 * (
+        kl_from_samples(logp=logq, logq=logavg, mask=mask, n=n)
+        + reverse_kl_from_samples(logp=logp, logq=logavg, mask=mask, n=n)
+    )
+    return approx_js
 
 # if __name__ == '__main__':
 #     value = tf.random.normal((2, 3))

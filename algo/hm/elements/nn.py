@@ -16,10 +16,13 @@ class Policy(Module):
 
         self.action_dim = config.pop('action_dim')
         self.is_action_discrete = config.pop('is_action_discrete')
-        self.action_low = config.pop('action_low', 0)
-        self.action_high = config.pop('action_high', self.action_dim)
+        self.action_low = config.pop('action_low', None)
+        self.action_high = config.pop('action_high', None)
+        print('action_low', self.action_low)
+        print('action_high', self.action_high)
         self.eval_act_temp = config.pop('eval_act_temp', 1)
         self.attention_action = config.pop('attention_action', False)
+        self.out_act = config.pop('out_act', None)
         embed_dim = config.pop('embed_dim', 10)
         self.init_std = config.pop('init_std', 1)
         assert self.eval_act_temp >= 0, self.eval_act_temp
@@ -57,7 +60,10 @@ class Policy(Module):
                 logits = tf.where(action_mask, logits, -1e10)
             act_dist = tfd.Categorical(logits)
         else:
-            x = tf.tanh(x)
+            if self.out_act == 'tanh':
+                x = tf.tanh(x)
+            else:
+                assert self.out_act is None, 'Unknown output activation '
             std = tf.exp(self.logstd)
             if evaluation and self.eval_act_temp:
                 std = std * self.eval_act_temp
@@ -76,8 +82,9 @@ class Policy(Module):
                 else dist.sample()
         else:
             action = dist.sample()
-            action = tf.clip_by_value(
-                action, self.action_low, self.action_high)
+            if self.action_low is not None:
+                action = tf.clip_by_value(
+                    action, self.action_low, self.action_high)
         return action
 
 

@@ -1,3 +1,5 @@
+from types import FunctionType
+import numpy as np
 import tensorflow as tf
 
 from utility.typing import AttrDict
@@ -7,21 +9,20 @@ def update_data_format_with_rnn_states(
     data_format, 
     config, 
     basic_shape, 
-    actor, 
-    value
+    model, 
 ):
     if config.get('store_state'):
         if config.get('actor_rnn_type') or config.get('value_rnn_type'):
             data_format['mask'] = (basic_shape, tf.float32, 'mask')
             dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         if config.get('actor_rnn_type'):
-            data_format['actor_state'] = actor.state_type(
+            data_format['actor_state'] = model.policy.state_type(
                 *[((None, sz), dtype, name) 
-                for name, sz in actor.state_size._asdict().items()])
+                for name, sz in model.policy.state_size._asdict().items()])
         if config.get('value_rnn_type'):
-            data_format['value_state'] = value.state_type(
+            data_format['value_state'] = model.value.state_type(
                 *[((None, sz), dtype, name) 
-                for name, sz in value.state_size._asdict().items()])
+                for name, sz in model.value.state_size._asdict().items()])
 
     return data_format
 
@@ -56,7 +57,8 @@ def get_basics(
 def get_data_format(
     config: AttrDict, 
     env_stats: AttrDict, 
-    model
+    model, 
+    rnn_state_fn: FunctionType=update_data_format_with_rnn_states, 
 ):
     basic_shape, shapes, dtypes, action_shape, \
         action_dim, action_dtype = \
@@ -85,15 +87,15 @@ def get_data_format(
         data_format['pi_mean'] = ((*basic_shape, action_dim), tf.float32, 'pi_mean')
         data_format['pi_std'] = ((*basic_shape, action_dim), tf.float32, 'pi_std')
     
-    data_format = update_data_format_with_rnn_states(
+    data_format = rnn_state_fn(
         data_format,
         config,
         basic_shape,
-        model.policy,
-        model.value,
+        model,
     )
 
     return data_format
 
-def collect(buffer, env, env_step, reset, next_obs, **kwargs):
-    buffer.add(**kwargs)
+def collect(buffer, env, env_step, reset, next_obs_dict, **kwargs):
+    next_obs = np.where(np.expand_dims(reset, -1), env.prev_obs(), next_obs_dict['obs'])
+    buffer.add(**kwargs, reset=reset, next_obs=next_obs)

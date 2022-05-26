@@ -6,7 +6,9 @@ class PPOActor(Actor):
     """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
         inp = self.rms.process_obs_with_rms(
-            inp, mask=inp.get('life_mask'))
+            inp, mask=inp.get('life_mask'), 
+            update_rms=self.config.get('update_obs_rms_at_execution', False)
+        )
         # if 'prev_reward' in inp:
         #     inp['prev_reward'] = self.rms.process_reward_with_rms(
         #         inp['prev_reward'])
@@ -85,7 +87,9 @@ class PPOActor(Actor):
                 })
         else:
             action, terms = tensor2numpy((action, terms))
-        if not evaluation and self.rms is not None and self.rms.is_obs_normalized:
+        if self.config.get('update_obs_at_execution', True) \
+            and not evaluation and self.rms is not None \
+                and self.rms.is_obs_normalized:
             terms.update({k: inp[k] for k in self.config.rms.obs_names})
         return action, terms, state
 

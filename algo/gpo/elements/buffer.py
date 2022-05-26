@@ -6,6 +6,7 @@ import numpy as np
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
+from utility.rms import RunningMeanStd
 from utility.typing import AttrDict
 from utility.utils import dict2AttrDict, moments, standardize
 
@@ -43,31 +44,43 @@ def compute_gae(
     reward, 
     discount, 
     value, 
-    last_value, 
     gamma,
     gae_discount, 
+    last_value=None, 
+    next_value=None, 
     norm_adv=False, 
+    zero_center=True, 
     mask=None, 
     epsilon=1e-8, 
-    same_next_value=False
+    reset=None, 
 ):
-    if last_value is not None:
+    if reset is not None:
+        assert next_value is not None, f'next_value is required when reset is given'
+    if next_value is not None:
+        pass
+    elif last_value is not None:
         last_value = np.expand_dims(last_value, 0)
         next_value = np.concatenate([value[1:], last_value], axis=0)
     else:
         next_value = value[1:]
         value = value[:-1]
-    if same_next_value:
-        next_value = np.mean(next_value, axis=-1, keepdims=True)
     assert value.ndim == next_value.ndim, (value.shape, next_value.shape)
-    advs = delta = (reward + discount * gamma * next_value - value).astype(np.float32)
+    delta = (reward + discount * gamma * next_value - value).astype(np.float32)
+    discount = (discount if reset is None else (1 - reset)) * gae_discount
     next_adv = 0
+    advs = np.zeros_like(reward)
     for i in reversed(range(advs.shape[0])):
-        advs[i] = next_adv = (delta[i] 
-            + discount[i] * gae_discount * next_adv)
+        advs[i] = next_adv = (delta[i] + discount[i] * next_adv)
     traj_ret = advs + value
     if norm_adv:
-        advs = standardize(advs, mask=mask, epsilon=epsilon)
+        advs = standardize(
+            advs, zero_center=zero_center, mask=mask, epsilon=epsilon)
+
+    # print('params', gamma, gae_discount)
+    # print('rew', reward.mean(), reward.max(), reward.min(), reward.std())
+    # print('val', value.mean(), value.max(), value.min(), value.std())
+    # print('adv', advs.mean(), advs.max(), advs.min(), advs.std())
+    # print('ret', traj_ret.mean(), traj_ret.max(), traj_ret.min(), traj_ret.std())
 
     return advs, traj_ret
 
@@ -104,7 +117,7 @@ def compute_upgo(
 
     return advs
 
-def compute_target_pi(data):
+def compute_target_pi(data, config):
     target_pi = data['pi'].copy()
     if data['action'].ndim == 1:
         idx = (
@@ -128,10 +141,18 @@ def compute_target_pi(data):
         )
     else:
         raise NotImplementedError(f'No support for dimensionality higher than 3, got {data["action"].shape}')
-    target_pi[idx] = data['tr_prob_prime']
+
+    target_prob_key = config.get('target_prob_key', 'tr_prob_prime')
+    target_pi[idx] = data[target_prob_key]
     target_pi = target_pi / np.sum(target_pi, axis=-1, keepdims=True)
     data['target_pi'] = target_pi
     data['vt_prob'] = target_pi[idx]
+
+def add_probs_to_data(data, target_prob_prime, tr_prob_prime):
+    data['target_prob_prime'] = target_prob_prime
+    data['tr_prob_prime'] = tr_prob_prime
+    data['target_prob'] = np.clip(target_prob_prime, 0, 1)
+    data['tr_prob'] = np.clip(tr_prob_prime, 0, 1)
 
 def compute_pr_clipped_target(
     data, 
@@ -142,6 +163,7 @@ def compute_pr_clipped_target(
     prob = np.exp(data['logprob'])
     lower_clip = config['pr_lower_clip']
     upper_clip = config['pr_upper_clip']
+
     target_prob_prime = prob * np.exp(adv / config.adv_tau - z)
     tr_prob_prime = np.clip(
         target_prob_prime, 
@@ -149,10 +171,7 @@ def compute_pr_clipped_target(
         target_prob_prime if upper_clip is None else prob+upper_clip
     )
 
-    data['target_prob_prime'] = target_prob_prime
-    data['tr_prob_prime'] = tr_prob_prime
-    data['target_prob'] = np.clip(target_prob_prime, 0, 1)
-    data['tr_prob'] = np.clip(tr_prob_prime, 0, 1)
+    add_probs_to_data(data, target_prob_prime, tr_prob_prime)
 
 def compute_exp_clipped_target(
     data, 
@@ -173,10 +192,7 @@ def compute_exp_clipped_target(
     )
     tr_prob_prime = np.maximum(tr_prob_prime, 0)
 
-    data['target_prob_prime'] = target_prob_prime
-    data['tr_prob_prime'] = tr_prob_prime
-    data['target_prob'] = np.clip(target_prob_prime, 0, 1)
-    data['tr_prob'] = np.clip(tr_prob_prime, 0, 1)
+    add_probs_to_data(data, target_prob_prime, tr_prob_prime)
 
 def compute_adv_clipped_target(
     data, 
@@ -196,10 +212,7 @@ def compute_adv_clipped_target(
     ) / config.adv_tau - z)
     tr_prob_prime = np.maximum(tr_prob_prime, 0)
 
-    data['target_prob_prime'] = target_prob_prime
-    data['tr_prob_prime'] = tr_prob_prime
-    data['target_prob'] = np.clip(target_prob_prime, 0, 1)
-    data['tr_prob'] = np.clip(tr_prob_prime, 0, 1)
+    add_probs_to_data(data, target_prob_prime, tr_prob_prime)
 
 def compute_linear_clipped_target(
     data, 
@@ -220,11 +233,7 @@ def compute_linear_clipped_target(
     )
     tr_prob_prime = np.maximum(tr_prob_prime, 0)
 
-    data['target_prob_prime'] = target_prob_prime
-    data['tr_prob_prime'] = tr_prob_prime
-    data['target_prob'] = np.clip(target_prob_prime, 0, 1)
-    data['tr_prob'] = np.clip(tr_prob_prime, 0, 1)
-
+    add_probs_to_data(data, target_prob_prime, tr_prob_prime)
 
 def compute_mixture_target(
     data, 
@@ -237,11 +246,28 @@ def compute_mixture_target(
     target_prob_prime = prob * np.exp(adv / config.adv_tau - z)
     tr_prob_prime = (1 - config.alpha) * prob + config.alpha * target_prob_prime
 
-    data['target_prob_prime'] = target_prob_prime
-    data['tr_prob_prime'] = tr_prob_prime
-    data['target_prob'] = np.clip(target_prob_prime, 0, 1)
-    data['tr_prob'] = np.clip(tr_prob_prime, 0, 1)
+    add_probs_to_data(data, target_prob_prime, tr_prob_prime)
 
+def compute_step_target(
+    data, 
+    config, 
+    z=0
+):
+    adv = data['advantage']
+    prob = np.exp(data['logprob'])
+
+    if config.normalize_adv:
+        adv = standardize(
+            adv, 
+            config.zero_center, 
+            data.get('life_mask'), 
+        )
+
+    target_prob_prime = prob + adv / prob
+    tr_prob_prime = prob + config.step_size * adv / prob
+    tr_prob_prime = np.maximum(tr_prob_prime, 0)
+
+    add_probs_to_data(data, target_prob_prime, tr_prob_prime)
 
 def compute_indices(
     idxes, 
@@ -258,26 +284,71 @@ def compute_indices(
 
 
 class AdvantageCalculator:
-    def compute_adv(self, data, last_value, config):
+    def __init__(self, config):
+        if config.get('normalize_value', False):
+            self.value_rms = RunningMeanStd([0, 1])
+        else:
+            self.value_rms = None
+        print('Value normalization:', config.get('normalize_value', False))
+
+    def compute_adv(
+        self, 
+        data, 
+        config, 
+        last_value=None, 
+        value=None, 
+        next_value=None,
+        reset=None, 
+    ):
+        if next_value is None:
+            last_value = np.expand_dims(last_value, 0)
+            value = np.concatenate([data['value'], last_value], axis=0)
+            self.denormalize_value(value)
+            next_value = value[1:]
+            value = value[:-1]
+        else:
+            value = data['value']
+            value = self.denormalize_value(value)
+            next_value = self.denormalize_value(next_value)
+
         if config.adv_type == 'gae':
-            adv, data['traj_ret'] = \
+            data['advantage'], traj_ret = \
                 compute_gae(
                 reward=data['reward'], 
                 discount=data['discount'],
-                value=data['value'],
-                last_value=last_value,
+                value=value,
                 gamma=config.gamma,
                 gae_discount=config.gae_discount,
-                norm_adv=False,
+                next_value=next_value,
+                norm_adv=config.get('normalize_adv'),
+                zero_center=config.get('zero_center_adv'), 
                 mask=data.get('life_mask'),
                 epsilon=config.epsilon,
-                same_next_value=config.get('same_next_value', False)
+                reset=reset,
             )
-            data['advantage'] = adv
+            data['traj_ret'] = self.normalize_value(traj_ret)
+            self.update_value_rms(traj_ret)
         elif config.adv_type == 'vtrace':
             pass
         else:
             raise NotImplementedError
+
+    """ Value RMS Operations """    
+    def update_value_rms(self, ret, mask=None):
+        if self.value_rms is not None:
+            self.value_rms.update(ret, mask=mask)
+
+    def normalize_value(self, value, mask=None):
+        if self.value_rms is not None:
+            value = self.value_rms.normalize(
+                value, zero_center=False, mask=mask)
+        return value
+
+    def denormalize_value(self, value, mask=None):
+        if self.value_rms is not None:
+            value = self.value_rms.denormalize(
+                value, zero_center=False, mask=mask)
+        return value
 
 
 class TargetPolicyCalculator:
@@ -288,12 +359,13 @@ class TargetPolicyCalculator:
             'adv': compute_adv_clipped_target, 
             'lin': compute_linear_clipped_target, 
             'mix': compute_mixture_target, 
-        }[config.target_type]
+            'step': compute_step_target
+        }[config.target_pi.target_type]
 
-        compute_target_probs(data, config)
+        compute_target_probs(data, config.target_pi)
 
         if 'pi' in data:
-            compute_target_pi(data)
+            compute_target_pi(data, config.target_pi)
 
 
 class SamplingKeysExtractor:
@@ -390,6 +462,9 @@ class LocalBufferBase(
         self.runner_id = runner_id
         self.n_units = n_units
 
+        assert not self.config.get('normalize_value', False), 'Do not support normalizing value in local buffer for now'
+        AdvantageCalculator.__init__(self, config)
+
         self._add_attributes(model)
 
     def _add_attributes(self, model):
@@ -441,7 +516,7 @@ class LocalBufferBase(
             assert v.shape[:3] == (self._memlen, self.n_envs, self.n_units), \
                 (k, v.shape, (self._memlen, self.n_envs, self.n_units))
 
-        self.compute_adv(data, last_value, self.config)
+        self.compute_adv(data, self.config, last_value)
         self.compute_target_policy(data, self.config)
 
         data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
@@ -477,6 +552,8 @@ class PPOBufferBase(
         self.config.gae_discount = self.config.gamma * self.config.lam
         self.config.epsilon = self.config.get('epsilon', 1e-5)
         self.config.is_action_discrete = env_stats.is_action_discrete
+
+        AdvantageCalculator.__init__(self, config)
 
         self._add_attributes(model)
 
@@ -539,11 +616,27 @@ class PPOBufferBase(
             for k, v in self._memory.items():
                 self._memory[k] = np.stack(v)
 
-    def finish(self, last_value):
+    def finish(
+        self, 
+        *, 
+        last_value=None, 
+        value=None, 
+        next_value=None, 
+        reset=None
+    ):
         assert self._current_size == self.n_steps, self._current_size
+        if value is not None:
+            self._memory['value'] = value
         self._memory = {k: np.stack(v) for k, v in self._memory.items()}
 
-        self.compute_adv(self._memory, last_value, self.config)
+        self.compute_adv(
+            self._memory, 
+            self.config, 
+            last_value=last_value, 
+            value=value, 
+            next_value=next_value, 
+            reset=reset, 
+        )
         self.compute_target_policy(self._memory, self.config)
 
         for k, v in self._memory.items():

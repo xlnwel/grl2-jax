@@ -77,6 +77,10 @@ class Optimizer(tf.Module):
 
     @property
     def variables(self):
+        return self._variables
+    
+    @property
+    def opt_variables(self):
         return self._opt.variables()
     
     def get_transformed_grads(self, var_list=[]):

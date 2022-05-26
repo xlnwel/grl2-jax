@@ -15,11 +15,14 @@ routine:
 
     MAX_STEPS: 3e6
     n_steps: &nsteps 32
-    LOG_PERIOD: 500
-    EVAL_PERIOD: 500
+    LOG_PERIOD: 1000
+    EVAL_PERIOD: 1000
 
     RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
+
+    timeout_done: &td False
+    update_obs_rms_at_execution: &uorae False
 
 env:
     env_name: &env_name HalfCheetah-v3
@@ -28,7 +31,11 @@ env:
     seed: 0
     reward_min: null
     reward_max: null
-    timeout_done: True
+    timeout_done: *td
+    bound_method: clip
+    action_low: null
+    action_high: null
+    to_rescale: True
 
 agent: {}
 
@@ -36,7 +43,7 @@ strategy:
     train_loop:
         use_dataset: &dataset False
         n_epochs: &nepochs 10
-        n_mbs: &nmbs 32
+        n_mbs: &nmbs 4
         n_aux_epochs: &naepochs 9
         n_pi: &npi 16
         n_segs: &nsegs 16
@@ -52,6 +59,7 @@ strategy:
 model:
     actor_rnn_type: &arnn null
     value_rnn_type: &vrnn null
+    compute_value_at_execution: *td
     sample_size: &ss 16
 
     policy:
@@ -61,11 +69,11 @@ model:
             nn_id: mlp
             units_list: [64, 64]
             kernel_initializer: orthogonal
-            activation: relu
+            activation: tanh
             norm: null
             norm_after_activation: True
             norm_kwargs:
-                epsilon: 1.e-5
+                epsilon: 1e-5
         rnn:
             nn_id: *arnn
             units: 64
@@ -76,11 +84,12 @@ model:
             nn_id: policy
             units_list: []
             kernel_initializer: orthogonal
-            activation: relu
+            activation: tanh
             norm: null
             eval_act_temp: 1
             out_gain: .01
-            init_std: 1
+            init_std: .6065
+            out_act: null
 
     value:
         use_prev_reward: True
@@ -89,11 +98,11 @@ model:
             nn_id: mlp
             units_list: [64, 64]
             kernel_initializer: orthogonal
-            activation: relu
+            activation: tanh
             norm: null
             norm_after_activation: True
             norm_kwargs:
-                epsilon: 1.e-5
+                epsilon: 1e-5
         rnn:
             nn_id: *vrnn
             units: 64
@@ -104,7 +113,7 @@ model:
             nn_id: value
             units_list: []
             kernel_initializer: orthogonal
-            activation: relu
+            activation: tanh
             norm: null
 
 loss:
@@ -113,10 +122,12 @@ loss:
         entropy_coef: 0
         aux_l1_coef: 0
         aux_l2_coef: 0
+        weighted_l_dist: False
         kl_prior_coef: 0
-        aux_pg_coef: null
+        new_po_coef: 0
         pg_coef: 1
-        approx_kl: False
+        js_coef: null
+        kl_prior: reverse
         policy_life_mask: False
         norm_adv: False
 
@@ -139,22 +150,26 @@ trainer:
             opt_name: adam
             schedule_lr: False
             lr: 3e-4
-            clip_norm: .5
-            epsilon: 1.e-5
+            clip_norm: .2
+            epsilon: 1e-8
             weight_decay: 0
     value:
         optimizer:
             opt_name: adam
             schedule_lr: False
             lr: 3e-4
-            clip_norm: .5
-            epsilon: 1.e-5
+            clip_norm: .2
+            epsilon: 1e-8
 
 actor:
+    update_obs_rms_at_execution: *uorae
+    update_obs_at_execution: False
     rms:
         obs_names: [obs]
+        obs_normalized_axis: [0, 1]
         normalize_obs: True
-        normalize_reward: True
+        obs_clip: 10
+        normalize_reward: False
         update_reward_rms_in_time: False
         gamma: &gamma .99
 
@@ -172,9 +187,9 @@ buffer:
     n_mbs: *nmbs        # number of minibatches
     actor_rnn_type: *arnn
     value_rnn_type: *vrnn
-
+    
     # Trust region arguments
-    target_type: pr
+    target_type: exp
     adv_tau: 1
     alpha: .2
     pr_lower_clip: .2
@@ -204,8 +219,10 @@ buffer:
         - logprob
         - pi_mean
         - pi_std
-        # - mask
-        # - actor_h
-        # - actor_c
-        # - value_h
-        # - value_c
+        - reset
+        - discount
+        - mask
+        - actor_h
+        - actor_c
+        - value_h
+        - value_c

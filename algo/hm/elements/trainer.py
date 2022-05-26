@@ -11,14 +11,14 @@ class PPOActorTrainer(Trainer):
         self, 
         **kwargs
     ):
-        if not hasattr(self.model, 'rnn') \
-                and len(kwargs['action'].shape) == 3:
-            new_kwargs = tf.nest.map_structure(
-                lambda x: tf.reshape(x, (-1, *x.shape[2:])) 
-                if x is not None else x, kwargs)
-        else:
-            new_kwargs = kwargs
-        tape, loss, terms = self.loss.loss(**new_kwargs)
+        # if not hasattr(self.model, 'rnn') \
+        #         and len(kwargs['action'].shape) == 3:
+        #     new_kwargs = tf.nest.map_structure(
+        #         lambda x: tf.reshape(x, (-1, *x.shape[2:])) 
+        #         if x is not None else x, kwargs)
+        # else:
+        #     new_kwargs = kwargs
+        tape, loss, terms = self.loss.loss(**kwargs)
 
         terms['actor_norm'], terms['actor_var_norm'] = \
             self.optimizer(tape, loss, return_var_norms=True)
@@ -59,8 +59,6 @@ class PPOTrainerEnsemble(TrainerEnsemble):
         logprob, 
         global_state=None, 
         reward=None, 
-        raw_adv=None, 
-        raw_aux_adv=None, 
         prev_reward=None, 
         prev_action=None, 
         action_mask=None, 

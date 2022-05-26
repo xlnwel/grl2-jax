@@ -95,7 +95,10 @@ class Actor:
             processed input to <model.action>
         """
         if self.rms is not None:
-            inp = self.rms.process_obs_with_rms(inp)
+            inp = self.rms.process_obs_with_rms(
+                inp, mask=inp.get('life_mask'), 
+                update_rms=self.config.get('update_obs_rms_at_execution', False)
+            )
         return inp, numpy2tensor(inp)
 
     def _add_eval(
@@ -136,7 +139,9 @@ class Actor:
                 })
         else:
             action, terms = tensor2numpy((action, terms))
-        if not evaluation and getattr(self.rms, 'is_obs_normalized', False):
+        if self.config.get('update_obs_rms_at_execution', True) \
+            and not evaluation and self.rms is not None \
+                and self.rms.is_obs_normalized:
             terms.update({k: inp[k] for k in self.config.rms.obs_names})
         return action, terms, state
 

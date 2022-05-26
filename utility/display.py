@@ -14,7 +14,12 @@ color2num = dict(
     crimson=38
 )
 
-def colorize(string, color, bold=False, highlight=False):
+def colorize(
+    string, 
+    color, 
+    bold=False, 
+    highlight=False
+):
     """
     Colorize a string.
 
@@ -27,7 +32,13 @@ def colorize(string, color, bold=False, highlight=False):
     if bold: attr.append('1')
     return f'\x1b[{";".join(attr)}m{string}\x1b[0m'
 
-def pwc(*args, color='red', bold=False, highlight=False, **kwargs):
+def pwc(
+    *args, 
+    color='red', 
+    bold=False, 
+    highlight=False, 
+    **kwargs
+):
     """
     Print with color
     """
@@ -55,8 +66,8 @@ def display_var_info(tf_vars, name='trainable', prefix=''):
         if '/Adam' in name or 'beta1_power' in name or 'beta2_power' in name: continue
         v_params = int(np.prod(v.shape.as_list()))
         nparams += v_params
-        if '/b:' in name or '/biases' in name: continue    # Wx+b, bias is not interesting to look at => count params, but not print
-        pwc(f'{prefix}   {name}{" "*(100-len(name))} {v_params:d} params {v.shape}', color='yellow')
+        v_norm = np.linalg.norm(v.numpy())
+        pwc(f'{prefix}   {name}{" "*(100-len(name))} {v_params:d} params {v_norm:.4g} {v.shape}', color='yellow')
 
     pwc(f'{prefix}Total model parameters: {nparams*1e-6:0.4g} million', color='yellow')
 	
@@ -85,7 +96,7 @@ def print_dict(d, prefix=''):
         if isinstance(v, dict):
             print(f'{prefix} {k}')
             print_dict(v, prefix+'\t')
-        elif isinstance(v, tuple):
+        elif isinstance(v, tuple) and hasattr(v, '_asdict'):
             # namedtuple is assumed
             print(f'{prefix} {k}')
             print_dict(v._asdict(), prefix+'\t')
@@ -97,7 +108,7 @@ def print_dict_info(d, prefix=''):
         if isinstance(v, dict):
             print(f'{prefix} {k}')
             print_dict_info(v, prefix+'\t')
-        elif isinstance(v, tuple):
+        elif isinstance(v, tuple) and hasattr(v, '_asdict'):
             # namedtuple is assumed
             print(f'{prefix} {k}')
             print_dict_info(v._asdict(), prefix+'\t')

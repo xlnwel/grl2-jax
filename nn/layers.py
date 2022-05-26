@@ -10,10 +10,17 @@ from utility import tf_utils
 
 @layer_registry.register('layer')
 class Layer(Module):
-    def __init__(self, *args, layer_type=layers.Dense, norm=None, 
-                activation=None, kernel_initializer='glorot_uniform', 
-                name=None, norm_after_activation=False, 
-                norm_kwargs={}, **kwargs):
+    def __init__(
+        self, 
+        *args, 
+        layer_type=layers.Dense, 
+        norm=None, 
+        activation=None, 
+        kernel_initializer='glorot_uniform', 
+        name=None, 
+        norm_after_activation=False, 
+        norm_kwargs={}, 
+        **kwargs):
         super().__init__(name=name)
         if isinstance(layer_type, str):
             layer_type = layer_registry.get(layer_type)
@@ -46,6 +53,7 @@ class Layer(Module):
         # reset noisy layer
         if isinstance(self._layer, Noisy):
             self._layer.reset()
+
 
 @layer_registry.register('noisy')
 class Noisy(layers.Dense):

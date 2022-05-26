@@ -207,24 +207,39 @@ class PPOModelEnsemble(ModelEnsemble):
     ):
         if self.actor_has_rnn:
             actor_inp, = self._add_seqential_dimension(actor_inp)
-        if self.value_has_rnn:
-            value_inp, = self._add_seqential_dimension(value_inp)
         action, terms, actor_state = self.policy.action(
             **actor_inp, state=actor_state,
             evaluation=evaluation, return_eval_stats=return_eval_stats)
-        value, value_state = self.value.compute_value(
-            **value_inp, state=value_state)
         state = self.state_type(actor_state, value_state) \
             if self.has_rnn else None
         if self.actor_has_rnn:
             action, terms = self._remove_seqential_dimension(action, terms)
-        if self.value_has_rnn:
-            value, = self._remove_seqential_dimension(value)
-        if not evaluation:
-            terms.update({
-                'value': value,
-            })
+        if self.config.get('compute_value_at_execution', True) or self.has_rnn:
+            if self.value_has_rnn:
+                value_inp, = self._add_seqential_dimension(value_inp)
+            value, value_state = self.value.compute_value(
+                **value_inp, state=value_state)
+            state = self.state_type(actor_state, value_state) \
+                if self.has_rnn else None
+            if self.value_has_rnn:
+                value, = self._remove_seqential_dimension(value)
+            if not evaluation:
+                terms.update({
+                    'value': value,
+                })
         return action, terms, state
+
+    @tf.function
+    def compute_value(
+        self, 
+        obs, 
+        state,
+        mask
+    ):
+        shape = obs.shape
+        x = tf.reshape(obs, [-1, *shape[2:]])
+        value, state = self.compute_value(obs, state, mask)
+        return value, state
 
     def split_state(self, state):
         if self.has_rnn:

@@ -11,8 +11,9 @@ from utility.typing import AttrDict
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
 
-class PPOModel(Model):
+class GPOModel(Model):
     def _pre_init(self):
+        self.has_rnn = bool(self.config.get('rnn_type'))
         if self.config.encoder.nn_id is not None \
             and self.config.encoder.nn_id.startswith('cnn'):
             self.config.encoder.time_distributed = 'rnn' in self.config
@@ -82,8 +83,11 @@ class PPOModel(Model):
         state: Tuple[tf.Tensor]=None,
         mask: tf.Tensor=None
     ):
-        x, state = self.encode(obs, state, mask)
+        shape = obs.shape
+        x = tf.reshape(obs, [-1, *shape[2:]])
+        x, state = self.encode(x, state, mask)
         value = self.value(x)
+        value = tf.reshape(value, (-1, shape[1]))
         return value, state
 
     def encode(
@@ -103,7 +107,7 @@ class PPOModel(Model):
 def create_model(
     config, 
     env_stats, 
-    name='ppo', 
+    name='gpo', 
     to_build=False,
     to_build_for_eval=False,
     **kwargs
@@ -116,7 +120,7 @@ def create_model(
     else:
         config['rnn']['nn_id'] = config['actor_rnn_type']
 
-    return PPOModel(
+    return GPOModel(
         config=config, 
         env_stats=env_stats, 
         name=name,

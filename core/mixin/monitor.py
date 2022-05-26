@@ -105,7 +105,8 @@ class Recorder:
             k_std, k_min, k_max = std, min, max
             if (k.endswith('score') or k.endswith('epslen')) and not k.startswith('metrics/'):
                 k = f'metrics/{k}'
-            if adaptive and (k.startswith('train/') or k.startswith('metrics/')):
+            if adaptive and (k.startswith('train/') \
+                or k.startswith('metrics/')) or k.startswith('data/'):
                 k_std = k_min = k_max = True
             if isscalar(v):
                 stats[k] = v

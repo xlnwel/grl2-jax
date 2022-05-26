@@ -23,13 +23,6 @@ def safe_norm(m, axis=None, keepdims=None, epsilon=1e-6):
     squared_norms = tf.reduce_sum(m * m, axis=axis, keepdims=keepdims)
     return tf.sqrt(squared_norms + epsilon)
 
-def standard_normalization(x, mask=None, n=None, axis=None):
-    mean, var = reduce_moments(x, mask=mask, n=n, axis=axis)
-    std = tf.sqrt(tf.maximum(var, 1e-8))
-    x = (x - mean) / std
-
-    return x
-
 def reduce_mean(x, mask=None, n=None, axis=None):
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
@@ -44,6 +37,13 @@ def reduce_moments(x, mask=None, n=None, axis=None):
     mean = reduce_mean(x, mask=mask, n=n, axis=axis)
     var = reduce_mean((x - mean)**2, mask=mask, n=n, axis=axis)
     return mean, var
+
+def standard_normalization(x, mask=None, n=None, axis=None):
+    mean, var = reduce_moments(x, mask=mask, n=n, axis=axis)
+    std = tf.sqrt(var + 1e-8)
+    x = (x - mean) / std
+
+    return x
 
 def explained_variance(y, pred, axis=None, mask=None):
     if None in y.shape:

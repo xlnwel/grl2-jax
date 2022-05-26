@@ -30,6 +30,19 @@ def combine_rms_stats(rms_stats1: RMSStats, rms_stats2: RMSStats):
     return RMSStats(obs_rms, reward_rms)
 
 
+def rms2dict(rms: RMSStats):
+    stats = {}
+    if rms.obs:
+        for k, v in rms.obs.items():
+            for kk, vv in v._asdict().items():
+                stats[f'aux/{k}/{kk}'] = vv
+    if rms.reward:
+        for k, v in rms.reward._asdict().items():
+            stats[f'aux/reward/{k}'] = v
+
+    return stats
+
+
 class RMS:
     def __init__(self, config: dict, name='rms'):
         # by default, we update reward stats once every N steps 
@@ -146,8 +159,10 @@ class RMS:
 
     def normalize_obs(self, obs, name='obs', mask=None):
         """ Normalize obs using obs RMS """
-        return self._obs_rms[name].normalize(obs[name], mask=mask) \
-            if self._normalize_obs else obs['obs']
+        if isinstance(obs, dict):
+            obs = obs[name]
+        return self._obs_rms[name].normalize(obs, mask=mask) \
+            if self._normalize_obs else obs
 
     def normalize_reward(self, reward, mask=None):
         """ Normalize obs using reward RMS """
@@ -188,7 +203,9 @@ class RMS:
 
     def update_obs_rms(self, obs, name=None, mask=None, axis=None):
         if self._normalize_obs:
-            if name is None:
+            if not isinstance(obs, dict):
+                self._obs_rms['obs'].update(obs, mask=mask, axis=axis)
+            elif name is None:
                 for k in self._obs_names:
                     assert not obs[k].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
                     self._obs_rms[k].update(obs[k], mask, axis=axis)

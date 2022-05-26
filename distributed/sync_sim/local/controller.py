@@ -137,9 +137,11 @@ class Controller(CheckpointBase):
             'env', 
         ])
 
+        do_logging('Retrieving Environment Stats...', logger=logger)
         env_stats = get_env_stats(configs[0].env)
         self.configs = _setup_configs(configs, env_stats)
 
+        do_logging('Compute Future Running Steps...', logger=logger)
         config = self.configs[0]
         self.n_runners = config.runner.n_runners
         if self.config.max_version_iterations > 1:
@@ -147,7 +149,7 @@ class Controller(CheckpointBase):
         else:
             self.n_agent_runners, self.n_pbt_steps = None, None
 
-
+        do_logging('Building Parameter Server...', logger=logger)
         self.parameter_server: ParameterServer = \
             ParameterServer.as_remote().remote(
                 config=config.asdict(),
@@ -158,11 +160,13 @@ class Controller(CheckpointBase):
             env_stats=env_stats.asdict(),
         ))
 
+        do_logging('Buiding Monitor...', logger=logger)
         self.monitor: Monitor = Monitor.as_remote().remote(
             config.monitor.asdict(), 
             self.parameter_server
         )
 
+        do_logging('Building Agent Manager...', logger=logger)
         self.agent_manager: AgentManager = AgentManager(
             ray_config=config.ray_config.agent,
             env_stats=env_stats, 
@@ -170,6 +174,7 @@ class Controller(CheckpointBase):
             monitor=self.monitor
         )
 
+        do_logging('Building Runner Manager...', logger=logger)
         self.runner_manager: RunnerManager = RunnerManager(
             config.runner,
             ray_config=config.ray_config.runner,

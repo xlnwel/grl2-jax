@@ -42,6 +42,7 @@ def configure_precision(precision=16):
     if precision == 16:
         policy = mixed_precision.Policy('mixed_float16')
         mixed_precision.set_global_policy(policy)
+        print('Mixed Precision is used')
 
 def silence_tf_logs():
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'

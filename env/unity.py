@@ -35,19 +35,7 @@ if __name__ == '__main__':
         max_episode_steps=100,
         n_envs=4,
     )
-    # from utility.display import print_dict, print_dict_info
-    def print_dict(d, prefix=''):
-        for k, v in d.items():
-            if isinstance(v, dict):
-                print(f'{prefix} {k}')
-                print_dict(v, prefix+'\t')
-            elif isinstance(v, tuple):
-                # namedtuple is assumed
-                print(f'{prefix} {k}')
-                print_dict(v._asdict(), prefix+'\t')
-            else:
-                print(f'{prefix} {k}: {v}')
-
+    from utility.display import print_dict, print_dict_info
     def print_dict_info(d, prefix=''):
         for k, v in d.items():
             if isinstance(v, dict):

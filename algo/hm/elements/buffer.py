@@ -6,6 +6,7 @@ import numpy as np
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
+from utility.rms import RunningMeanStd
 from utility.typing import AttrDict
 from utility.utils import dict2AttrDict, standardize
 
@@ -17,35 +18,44 @@ def compute_gae(
     reward, 
     discount, 
     value, 
-    last_value, 
     gamma,
     gae_discount, 
+    last_value=None, 
+    next_value=None, 
     norm_adv=False, 
     mask=None, 
     epsilon=1e-8, 
-    same_next_value=False
+    reset=None, 
 ):
-    if last_value is not None:
+    if reset is not None:
+        assert next_value is not None, f'next_value is required when reset is given'
+    if next_value is not None:
+        pass
+    elif last_value is not None:
         last_value = np.expand_dims(last_value, 0)
         next_value = np.concatenate([value[1:], last_value], axis=0)
     else:
         next_value = value[1:]
         value = value[:-1]
-    if same_next_value:
-        next_value = np.mean(next_value, axis=-1, keepdims=True)
     assert value.ndim == next_value.ndim, (value.shape, next_value.shape)
     advs = delta = (reward + discount * gamma * next_value - value).astype(np.float32)
     next_adv = 0
+    discount = discount * gae_discount if reset is None else (1 - reset) * gae_discount
     for i in reversed(range(advs.shape[0])):
-        advs[i] = next_adv = (delta[i] 
-            + discount[i] * gae_discount * next_adv)
+        advs[i] = next_adv = (delta[i] + discount[i] * next_adv)
     traj_ret = advs + value
     if norm_adv:
         advs = standardize(advs, mask=mask, epsilon=epsilon)
 
     return advs, traj_ret
 
-def compute_indices(idxes, mb_idx, mb_size, n_mbs):
+
+def compute_indices(
+    idxes, 
+    mb_idx, 
+    mb_size, 
+    n_mbs
+):
     start = mb_idx * mb_size
     end = (mb_idx + 1) * mb_size
     mb_idx = (mb_idx + 1) % n_mbs
@@ -55,26 +65,70 @@ def compute_indices(idxes, mb_idx, mb_size, n_mbs):
 
 
 class AdvantageCalculator:
-    def compute_adv(self, config, last_value, data):
+    def __init__(self, config):
+        if config.get('normalize_value', False):
+            self.value_rms = RunningMeanStd([0, 1])
+        else:
+            self.value_rms = None
+        print('Value normalization:', config.get('normalize_value', False))
+
+    def compute_adv(
+        self, 
+        data, 
+        config, 
+        last_value=None, 
+        value=None, 
+        next_value=None,
+        reset=None, 
+    ):
+        if next_value is None:
+            last_value = np.expand_dims(last_value, 0)
+            value = np.concatenate([data['value'], last_value], axis=0)
+            self.denormalize_value(value)
+            next_value = value[1:]
+            value = value[:-1]
+        else:
+            value = data['value']
+            value = self.denormalize_value(value)
+            next_value = self.denormalize_value(next_value)
+
         if config.adv_type == 'gae':
-            data['advantage'], data['traj_ret'] = \
+            data['advantage'], traj_ret = \
                 compute_gae(
                 reward=data['reward'], 
                 discount=data['discount'],
-                value=data['value'],
-                last_value=last_value,
+                value=value,
                 gamma=config.gamma,
                 gae_discount=config.gae_discount,
-                norm_adv=config.norm_adv == 'batch',
+                next_value=next_value,
+                norm_adv=False,
                 mask=data.get('life_mask'),
                 epsilon=config.epsilon,
-                same_next_value=config.get('same_next_value', False)
+                reset=reset,
             )
-            data['raw_adv'] = data['advantage']
+            data['traj_ret'] = self.normalize_value(traj_ret)
+            self.update_value_rms(traj_ret)
         elif config.adv_type == 'vtrace':
             pass
         else:
             raise NotImplementedError
+
+    """ Value RMS Operations """    
+    def update_value_rms(self, ret, mask=None):
+        if self.value_rms is not None:
+            self.value_rms.update(ret, mask=mask)
+
+    def normalize_value(self, value, mask=None):
+        if self.value_rms is not None:
+            value = self.value_rms.normalize(
+                value, zero_center=False, mask=mask)
+        return value
+
+    def denormalize_value(self, value, mask=None):
+        if self.value_rms is not None:
+            value = self.value_rms.denormalize(
+                value, zero_center=False, mask=mask)
+        return value
 
 
 class SamplingKeysExtractor:
@@ -170,6 +224,9 @@ class LocalBufferBase(
         self.runner_id = runner_id
         self.n_units = n_units
 
+        assert not self.config.get('normalize_value', False), 'Do not support normalizing value in local buffer for now'
+        AdvantageCalculator.__init__(self, config)
+
         self._add_attributes(model)
 
     def _add_attributes(self, model):
@@ -221,7 +278,7 @@ class LocalBufferBase(
             assert v.shape[:3] == (self._memlen, self.n_envs, self.n_units), \
                 (k, v.shape, (self._memlen, self.n_envs, self.n_units))
 
-        self.compute_adv(self.config, last_value, data)
+        self.compute_adv(data, self.config, last_value)
 
         data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
         for k, v in data.items():
@@ -256,16 +313,18 @@ class PPOBufferBase(
         self.config.epsilon = self.config.get('epsilon', 1e-5)
         self.config.is_action_discrete = env_stats.is_action_discrete
 
+        AdvantageCalculator.__init__(self, config)
+
         self._add_attributes(model)
 
     def _add_attributes(self, model):
-        self.norm_adv = self.config.get('norm_adv', 'minibatch')
         self.use_dataset = self.config.get('use_dataset', False)
         do_logging(f'Is dataset used for data pipeline: {self.use_dataset}', logger=logger)
 
         self.extract_sampling_keys(model)
 
         self.n_runners = self.config.n_runners
+        self.n_envs = self.n_runners * self.config.n_envs
         self.n_steps = self.config.n_steps
         self.max_size = self.config.get('max_size', self.n_runners * self.config.n_envs * self.n_steps)
         if self.sample_size:
@@ -317,14 +376,30 @@ class PPOBufferBase(
             for k, v in self._memory.items():
                 self._memory[k] = np.stack(v)
 
-    def finish(self, last_value):
+    def finish(
+        self, 
+        *, 
+        last_value=None, 
+        value=None, 
+        next_value=None, 
+        reset=None
+    ):
         assert self._current_size == self.n_steps, self._current_size
+        if value is not None:
+            self._memory['value'] = value
         self._memory = {k: np.stack(v) for k, v in self._memory.items()}
 
-        self.compute_adv(self.config, last_value, self._memory)
+        self.compute_adv(
+            self._memory, 
+            self.config, 
+            last_value=last_value, 
+            value=value, 
+            next_value=next_value, 
+            reset=reset, 
+        )
 
         for k, v in self._memory.items():
-            assert v.shape[:2] == (self.config.n_steps, self.config.n_envs), (k, v.shape, (self.config.n_steps, self.config.n_envs))
+            assert v.shape[:2] == (self.config.n_steps, self.n_envs), (k, v.shape, (self.config.n_steps, self.config.n_envs))
             v = np.swapaxes(v, 0, 1)
             self._memory[k] = np.reshape(v,
                 (self.batch_size, self.sample_size, *v.shape[2:])
@@ -369,7 +444,7 @@ class PPOBufferBase(
         for start in range(0, self.batch_size, self.mb_size):
             end = start + self.mb_size
             curr_idxes = self.idxes[start:end]
-            obs = self._memory['obs'][curr_idxes]
+            obs = self._memory['global_state'][curr_idxes]
             if self.sample_size:
                 state = tuple([self._memory[k][curr_idxes, 0] 
                     for k in self.state_keys])
@@ -429,18 +504,12 @@ class PPOBufferBase(
         return sample
 
     def _process_sample(self, sample):
-        if 'advantage' in sample and self.norm_adv == 'minibatch':
-            if 'aux_adv' in sample:
-                sample['aux_adv'] = standardize(
-                    sample['aux_adv'], 
-                    mask=sample.get('life_mask'), 
-                    epsilon=self.config.get('epsilon', 1e-5)
-                )
-            sample['advantage'] = standardize(
-                sample['advantage'], 
-                mask=sample.get('life_mask'), 
-                epsilon=self.config.get('epsilon', 1e-5)
-            )
+        # if 'advantage' in sample and self.config.norm_adv == 'minibatch':
+        #     sample['advantage'] = standardize(
+        #         sample['advantage'], 
+        #         mask=sample.get('life_mask'), 
+        #         epsilon=self.config.get('epsilon', 1e-5)
+        #     )
         return sample
 
     def _post_process_for_dataset(self):

@@ -119,7 +119,6 @@ class Runner:
         return self.step
 
     def step_env(self, obs, action, step_fn):
-        prev_reset = self.env_output.reset
         if isinstance(action, tuple):
             if len(action) == 2:
                 action, terms = action
@@ -141,11 +140,11 @@ class Runner:
 
         if step_fn:
             kwargs = dict(**obs, action=action, reward=reward,
-                discount=discount, next_obs=next_obs)
+                discount=discount, next_obs_dict=next_obs)
             assert 'reward' not in terms, 'reward in terms is from the preivous timestep and should not be used to override here'
             # allow terms to overwrite the values in kwargs
             kwargs.update(terms)
-            step_fn(self.env, self.step, prev_reset, **kwargs)
+            step_fn(self.env, self.step, reset, **kwargs)
 
         return next_obs, reset
     

@@ -47,7 +47,6 @@ class PPOStrategy(Strategy):
         return value.numpy()
 
 
-
 create_strategy = functools.partial(
     create_strategy, 
     strategy_cls=PPOStrategy,

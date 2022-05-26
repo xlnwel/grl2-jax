@@ -165,5 +165,12 @@ def make_unity(config):
     config = config.copy()
     config = _change_env_name(config)
     env = Unity(config)
+    env = wrappers.ContinuousActionMapper(
+        env, 
+        bound_method=config.get('bound_method', 'clip'), 
+        to_rescale=False,
+        action_low=config.get('action_low', -1), 
+        action_high=config.get('action_high', 1)
+    )
     env = wrappers.UnityEnvStats(env)
     return env

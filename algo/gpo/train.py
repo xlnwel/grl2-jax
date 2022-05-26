@@ -2,6 +2,7 @@ import functools
 import numpy as np
 
 from core.elements.builder import ElementsBuilder
+from core.mixin.actor import rms2dict
 from core.tf_config import \
     configure_gpu, configure_precision, set_tf_random_seed, silence_tf_logs
 from utility.display import pwt
@@ -13,7 +14,8 @@ from env.func import create_env
 
 
 def train(config, agent, env, eval_env, buffer):
-    collect_fn = pkg.import_module('elements.utils', algo=config.algorithm).collect
+    collect_fn = pkg.import_module(
+        'elements.utils', algo=config.algorithm).collect
     collect = functools.partial(collect_fn, buffer)
 
     suite_name = env.name.split("-")[0] \
@@ -22,13 +24,14 @@ def train(config, agent, env, eval_env, buffer):
     info_func = em.info_func if hasattr(em, 'info_func') else None
 
     step = agent.get_env_step()
-    runner = Runner(env, agent, step=step, nsteps=config.n_steps, info_func=info_func)
+    runner = Runner(
+        env, agent, step=step, nsteps=config.n_steps, info_func=info_func)
 
     def initialize_rms():
         print('Start to initialize running stats...')
         for _ in range(10):
             runner.run(action_selector=env.random_action, step_fn=collect)
-            agent.actor.update_obs_rms({'obs': np.concatenate(buffer['obs'])})
+            agent.actor.update_obs_rms({'obs': buffer['obs']})
             agent.actor.update_reward_rms(
                 np.array(buffer['reward']), np.array(buffer['discount']))
             buffer.reset()
@@ -40,8 +43,9 @@ def train(config, agent, env, eval_env, buffer):
         initialize_rms()
 
     runner.step = step
-    # print("Initial running stats:", *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_record = Every(config.LOG_PERIOD, config.LOG_PERIOD)
+    # print("Initial running stats:", 
+    #     *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
+    to_record = Every(config.LOG_PERIOD)
     to_eval = Every(config.EVAL_PERIOD)
     rt = Timer('run')
     tt = Timer('train')
@@ -62,6 +66,8 @@ def train(config, agent, env, eval_env, buffer):
                     eval_epslen=eval_epslen)
 
     def record_stats(step):
+        aux_stats = agent.actor.get_rms_stats()
+        aux_stats = rms2dict(aux_stats)
         with lt:
             agent.store(**{
                 'misc/train_step': agent.get_train_step(),
@@ -73,7 +79,7 @@ def train(config, agent, env, eval_env, buffer):
                 'time/train_mean': tt.average(),
                 'time/eval_mean': et.average(),
                 'time/log_mean': lt.average(),
-            })
+            }, **aux_stats)
             agent.record(step=step)
             agent.save()
 
@@ -81,22 +87,34 @@ def train(config, agent, env, eval_env, buffer):
     train_step = agent.get_train_step()
     while step < config.MAX_STEPS:
         start_env_step = agent.get_env_step()
+        assert buffer.size() == 0, buffer.size()
         with rt:
             step = runner.run(step_fn=collect)
-        # NOTE: normalizing rewards here may introduce some inconsistency 
-        # if normalized rewards is fed as an input to the network.
-        # One can reconcile this by moving normalization to collect 
-        # or feeding the network with unnormalized rewards.
-        # The latter is adopted in our implementation. 
-        # However, the following line currently doesn't store
-        # a copy of unnormalized rewards
+        # reward normalization
         reward = np.array(buffer['reward'])
         discount = np.array(buffer['discount'])
         agent.actor.update_reward_rms(reward, discount)
-        buffer.update('reward', agent.actor.normalize_reward(reward), field='all')
+        buffer.update(
+            'reward', agent.actor.normalize_reward(reward), field='all')
         agent.record_inputs_to_vf(runner.env_output)
-        value = agent.compute_value()
-        buffer.finish(value)
+        
+        # observation normalization
+        raw_obs = buffer['obs']
+        obs = agent.actor.normalize_obs(raw_obs)
+        buffer.update('obs', obs, field='all')
+        next_obs = agent.actor.normalize_obs(buffer['next_obs'])
+        agent.actor.update_obs_rms(raw_obs)
+        if not config.get('timeout_done', True):
+            value = agent.compute_value({'global_state': obs})
+            next_value = agent.compute_value({'global_state': next_obs})
+            buffer.finish(
+                value=value.reshape(buffer.n_steps, buffer.n_envs), 
+                next_value=next_value.reshape(buffer.n_steps, buffer.n_envs),
+                reset=buffer['reset']
+            )
+        else:
+            value = agent.compute_value()
+            buffer.finish(last_value=value)
 
         start_train_step = agent.get_train_step()
         with tt:
@@ -134,10 +152,11 @@ def main(configs, train=train):
     def build_envs():
         env = create_env(config.env, force_envvec=True)
         eval_env_config = config.env.copy()
-        if config.env.pop('do_evaluation', True):
+        if config.env.pop('do_evaluation', False):
             if 'num_levels' in eval_env_config:
                 eval_env_config['num_levels'] = 0
-            if 'seed' in eval_env_config and eval_env_config['seed'] is not None:
+            if 'seed' in eval_env_config \
+                and eval_env_config['seed'] is not None:
                 eval_env_config['seed'] += 1000
             eval_env_config['n_runners'] = 1
             for k in list(eval_env_config.keys()):

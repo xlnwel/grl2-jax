@@ -4,29 +4,33 @@ from core.elements.trainer import Trainer, TrainerEnsemble
 from core.decorator import override
 from core.tf_config import build
 from .utils import get_data_format
+from utility.display import print_dict
 
 
-class PPOActorTrainer(Trainer):
+class GPOActorTrainer(Trainer):
     def raw_train(
         self, 
         **kwargs
     ):
-        if not hasattr(self.model, 'rnn') \
-                and len(kwargs['action'].shape) == 3:
-            new_kwargs = tf.nest.map_structure(
-                lambda x: tf.reshape(x, (-1, *x.shape[2:])) 
-                if x is not None else x, kwargs)
-        else:
-            new_kwargs = kwargs
-        tape, loss, terms = self.loss.loss(**new_kwargs)
+        # if not hasattr(self.model, 'rnn') \
+        #         and len(kwargs['action'].shape) == 3:
+        #     new_kwargs = tf.nest.map_structure(
+        #         lambda x: tf.reshape(x, (-1, *x.shape[2:])) 
+        #         if x is not None else x, kwargs)
+        # else:
+        #     new_kwargs = kwargs
+        tape, loss, terms = self.loss.loss(**kwargs)
 
-        terms['actor_norm'], terms['actor_var_norm'] = \
+        terms['actor_norm'], actor_var_norms = \
             self.optimizer(tape, loss, return_var_norms=True)
+        _vars = self.optimizer.variables
+        for k, v in zip(_vars, actor_var_norms):
+            terms[f'{k.name}_norm'] = v
 
         return terms
 
 
-class PPOValueTrainer(Trainer):
+class GPOValueTrainer(Trainer):
     def raw_train(
         self, 
         **kwargs, 
@@ -41,11 +45,12 @@ class PPOValueTrainer(Trainer):
         return terms
 
 
-class PPOTrainerEnsemble(TrainerEnsemble):
+class GPOTrainerEnsemble(TrainerEnsemble):
     @override(TrainerEnsemble)
     def _build_train(self, env_stats):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = get_data_format(self.config, env_stats, self.model)
+        print_dict(TensorSpecs, prefix='Tensor Specifications')
         self.train = build(self.train, TensorSpecs)
         return True
 
@@ -121,12 +126,12 @@ def create_trainer(config, env_stats, loss, name='ppo'):
             loss=loss[name], 
             name=name)
 
-    return PPOTrainerEnsemble(
+    return GPOTrainerEnsemble(
         config=config,
         env_stats=env_stats,
         loss=loss,
         constructor=constructor,
         name=name,
-        policy=PPOActorTrainer,
-        value=PPOValueTrainer,
+        policy=GPOActorTrainer,
+        value=GPOValueTrainer,
     )
