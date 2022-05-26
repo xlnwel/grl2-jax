@@ -272,11 +272,11 @@ def ppo_loss(
 
     # debug stats: KL between old and current policy and fraction of data being clipped
     approx_kl = .5 * reduce_mean((-log_ratio)**2, mask, n)
+    # We still count how much will be clipped by range .2 when clipping is off
     if clip_range is None:
-        clip_frac = 0
-    else:
-        clip_frac = reduce_mean(tf.cast(tf.greater(
-            tf.abs(ratio - 1.), clip_range), ratio.dtype), mask, n)
+        clip_range = .2
+    clip_frac = reduce_mean(tf.cast(tf.greater(
+        tf.abs(ratio - 1.), clip_range), ratio.dtype), mask, n)
 
     return ratio, loss1, loss2, policy_loss, entropy, approx_kl, clip_frac
 

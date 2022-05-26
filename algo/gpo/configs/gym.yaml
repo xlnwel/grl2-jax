@@ -187,7 +187,13 @@ buffer:
     n_mbs: *nmbs        # number of minibatches
     actor_rnn_type: *arnn
     value_rnn_type: *vrnn
-    
+
+    process_adv: null
+    normalize_adv: False
+    zero_center: True
+    adv_normalizer: 5
+    adv_scale: 10
+
     # Trust region arguments
     target_type: exp
     adv_tau: 1

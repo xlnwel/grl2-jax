@@ -128,6 +128,12 @@ buffer:
     n_mbs: *nmbs        # number of minibatches
     rnn_type: *rnn
 
+    process_adv: null
+    normalize_adv: False
+    zero_center: True
+    adv_normalizer: 5
+    adv_scale: 10
+
     # Trust region arguments
     target_pi:
         target_type: exp

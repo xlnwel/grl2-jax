@@ -61,6 +61,9 @@ if __name__ == '__main__':
                 del v['model_name']
 
         config = flatten_dict(config)
+        for k, v in config.items():
+            if k.endswith('env_name'):
+                config[k] = v.split('-', 1)[-1]
         if 'model/policy/out_act' not in config:
             config['model/policy/out_act'] = None
         with open(json_path, 'w') as json_file:

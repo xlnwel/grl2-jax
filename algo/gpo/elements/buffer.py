@@ -48,10 +48,6 @@ def compute_gae(
     gae_discount, 
     last_value=None, 
     next_value=None, 
-    norm_adv=False, 
-    zero_center=True, 
-    mask=None, 
-    epsilon=1e-8, 
     reset=None, 
 ):
     if reset is not None:
@@ -72,10 +68,6 @@ def compute_gae(
     for i in reversed(range(advs.shape[0])):
         advs[i] = next_adv = (delta[i] + discount[i] * next_adv)
     traj_ret = advs + value
-    if norm_adv:
-        advs = standardize(
-            advs, zero_center=zero_center, mask=mask, epsilon=epsilon)
-
     # print('params', gamma, gae_discount)
     # print('rew', reward.mean(), reward.max(), reward.min(), reward.std())
     # print('val', value.mean(), value.max(), value.min(), value.std())
@@ -256,7 +248,7 @@ def compute_step_target(
     adv = data['advantage']
     prob = np.exp(data['logprob'])
 
-    if config.normalize_adv:
+    if config.normalize_adv_for_step:
         adv = standardize(
             adv, 
             config.zero_center, 
@@ -312,7 +304,7 @@ class AdvantageCalculator:
             next_value = self.denormalize_value(next_value)
 
         if config.adv_type == 'gae':
-            data['advantage'], traj_ret = \
+            adv, traj_ret = \
                 compute_gae(
                 reward=data['reward'], 
                 discount=data['discount'],
@@ -320,12 +312,9 @@ class AdvantageCalculator:
                 gamma=config.gamma,
                 gae_discount=config.gae_discount,
                 next_value=next_value,
-                norm_adv=config.get('normalize_adv'),
-                zero_center=config.get('zero_center_adv'), 
-                mask=data.get('life_mask'),
-                epsilon=config.epsilon,
                 reset=reset,
             )
+            data['advantage'] = adv
             data['traj_ret'] = self.normalize_value(traj_ret)
             self.update_value_rms(traj_ret)
         elif config.adv_type == 'vtrace':

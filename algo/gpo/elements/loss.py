@@ -41,8 +41,15 @@ class GPOLossImpl(Loss):
             use_js = self.config.get('js_coef', None) is not None
             is_action_discrete = self.model.policy.is_action_discrete
             raw_adv = advantage
-            if self.config.norm_adv:
+            if self.config.normalize_adv:
                 advantage = standard_normalization(advantage, mask=mask)
+            if self.config.process_adv == 'tanh':
+                advantage = self.config.adv_scale * \
+                    tf.math.tanh(advantage / self.config.adv_normalizer)
+            elif self.config.process_adv is None:
+                pass
+            else:
+                raise NotImplementedError(f'Unknown {self.config.process_adv}')
             prob = tf.exp(logprob)
 
         tf.debugging.assert_all_finite(advantage, 'Bad advantage')
@@ -155,8 +162,8 @@ class GPOLossImpl(Loss):
             kl_prior_loss = 0.
 
         # GPO's loss
+        vt_old_diff_prob = vt_prob - prob
         if use_new_po:
-            vt_old_diff_prob = vt_prob - prob
             in_range = tf.sign(vt_diff_prob) == tf.sign(vt_old_diff_prob)
             weighted_l1_po = advantage * tf.where(in_range, vt_diff_prob, 0) / prob
             raw_new_po_loss = reduce_mean(weighted_l1_po, mask, n)

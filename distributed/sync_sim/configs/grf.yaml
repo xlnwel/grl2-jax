@@ -156,7 +156,12 @@ loss:
         pg_coef: 1
         kl_prior: reverse
         policy_life_mask: False
-        norm_adv: True
+
+        normalize_adv: False
+        process_adv: null
+        zero_center: True
+        adv_normalizer: 5
+        adv_scale: 10
     value:
         value_loss: clip
         value_clip_range: .2
@@ -215,7 +220,6 @@ buffer:
     actor_rnn_type: *arnn
     value_rnn_type: *vrnn
     sample_size: *ss
-    
 
     # Trust region arguments
     target_pi:
@@ -231,7 +235,7 @@ buffer:
         lin_lower_clip: .5
         lin_upper_clip: 3
         lin_weights: 1
-        normalize_adv: True
+        normalize_adv_for_step: True
         zero_center: True
         step_size: .1
 
