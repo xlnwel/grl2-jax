@@ -27,8 +27,8 @@ class GPOLoss(ValueLossImpl, GPOLossImpl):
         mask=None
     ):
         old_value = value
-        loss_mask = life_mask
-        n = None if loss_mask is None else tf.reduce_sum(loss_mask)
+        sample_mask = life_mask
+        n = None if sample_mask is None else tf.reduce_sum(sample_mask)
         with tf.GradientTape() as tape:
             x, _ = self.model.encode(
                 x=obs, 
@@ -50,7 +50,7 @@ class GPOLoss(ValueLossImpl, GPOLossImpl):
                 pi_mean=pi_mean, 
                 pi_std=pi_std, 
                 action_mask=action_mask,
-                mask=loss_mask,
+                sample_mask=sample_mask,
                 n=n
             )
 
@@ -60,7 +60,7 @@ class GPOLoss(ValueLossImpl, GPOLossImpl):
                 value=value,
                 traj_ret=traj_ret, 
                 old_value=old_value,
-                mask=loss_mask, 
+                sample_mask=sample_mask, 
                 n=n, 
             )
 

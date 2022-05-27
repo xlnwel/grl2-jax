@@ -222,7 +222,6 @@ class Controller(CheckpointBase):
         agent_manager: AgentManager, 
         runner_manager: RunnerManager, 
     ):
-        self._steps = 0
         agent_manager.start_training()
         to_restart_runners = self.config.get('restart_runners_priod', None) \
             and Every(self.config.restart_runners_priod, time.time())
@@ -253,6 +252,7 @@ class Controller(CheckpointBase):
                 )
 
         agent_manager.stop_training(wait=True)
+        self._steps = 0
 
     def cleanup(self):
         ray.get(self.parameter_server.archive_training_strategies.remote())

@@ -89,11 +89,18 @@ loss:
     aux_l2_coef: 0
     weighted_l_dist: False
     kl_prior_coef: 0
+    kl_target_coef: 0
     new_po_coef: 0
     pg_coef: 1
     js_coef: null
     kl_prior: reverse
-    norm_adv: False
+    kl_target: reverse_approx
+
+    normalize_adv: False
+    process_adv: null
+    zero_center: True
+    adv_normalizer: 5
+    adv_scale: 10
 
 trainer:
     algorithm: *algo
@@ -128,12 +135,6 @@ buffer:
     n_mbs: *nmbs        # number of minibatches
     rnn_type: *rnn
 
-    process_adv: null
-    normalize_adv: False
-    zero_center: True
-    adv_normalizer: 5
-    adv_scale: 10
-
     # Trust region arguments
     target_pi:
         target_type: exp
@@ -148,7 +149,10 @@ buffer:
         lin_lower_clip: .5
         lin_upper_clip: 1
         lin_weights: 1
-        normalize_adv: False
+        normalize_adv_for_step: False
+        process_adv_for_step: null
+        adv_scale_for_step: 5
+        adv_normalizer_for_step: 2
         zero_center: False
         step_size: .1
 

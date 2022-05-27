@@ -254,6 +254,13 @@ def compute_step_target(
             config.zero_center, 
             data.get('life_mask'), 
         )
+        if config.process_adv_for_step == 'tanh':
+            adv = config.adv_scale_for_step * \
+                np.tanh(adv / config.adv_normalizer_for_step)
+        elif config.process_adv_for_step is None:
+            pass
+        else:
+            raise NotImplementedError(f'Unknown {config.process_adv}')
 
     target_prob_prime = prob + adv / prob
     tr_prob_prime = prob + config.step_size * adv / prob
@@ -478,51 +485,88 @@ class LocalBufferBase(
         return self._memlen
 
     def is_empty(self):
-        return self._memlen == 0
+        return np.all(self._memlen == 0)
 
     def is_full(self):
-        return self._memlen == self.maxlen
+        return np.all(self._memlen >= self.maxlen)
 
-    def reset(self):
-        self._memlen = 0
-        self._buffers = [collections.defaultdict(list) for _ in range(self.n_envs)]
+    def reset(self, eids=None):
+        if eids is None:
+            self._memlen = np.zeros(self.n_envs, np.int32)
+            self._buffers = [collections.defaultdict(list) for _ in range(self.n_envs)]
+        else:
+            self._memlen[eids] = 0
+            for eid in eids:
+                self._buffers[eid] = collections.defaultdict(list)
         # self._train_steps = [[None for _ in range(self.n_units)] 
         #     for _ in range(self.n_envs)]
 
     def add(self, data: dict):
-        for k, v in data.items():
-            assert v.shape[:2] == (self.n_envs, self.n_units), \
-                (k, v.shape, (self.n_envs, self.n_units))
-            for i in range(self.n_envs):
-                self._buffers[i][k].append(v[i])
-        self._memlen += 1
+        if 'eid' in data:
+            for k, v in data.items():
+                for i in range(data['eid']):
+                    self._buffers[i][k].append(v[i])
+            self._memlen[data['eid']] += 1
+        else:
+            for k, v in data.items():
+                assert v.shape[:2] == (self.n_envs, self.n_units), \
+                    (k, v.shape, (self.n_envs, self.n_units))
+                for i in range(self.n_envs):
+                    self._buffers[i][k].append(v[i])
+            self._memlen += 1
 
-    def retrieve_all_data(self, last_value):
-        assert self._memlen == self.maxlen, (self._memlen, self.maxlen)
-        data = {k: np.stack([np.stack(b[k]) for b in self._buffers], 1)
-            for k in self._buffers[0].keys()}
-        for k, v in data.items():
-            assert v.shape[:3] == (self._memlen, self.n_envs, self.n_units), \
-                (k, v.shape, (self._memlen, self.n_envs, self.n_units))
+    def retrieve_all_data(self, last_value, eids=None):
+        if eids is None:
+            assert self._memlen == self.maxlen, (self._memlen, self.maxlen)
+            data = {k: np.stack([np.stack(b[k]) for b in self._buffers], 1)
+                for k in self._buffers[0].keys()}
+            for k, v in data.items():
+                assert v.shape[:3] == (self._memlen, self.n_envs, self.n_units), \
+                    (k, v.shape, (self._memlen, self.n_envs, self.n_units))
 
-        self.compute_adv(data, self.config, last_value)
-        self.compute_target_policy(data, self.config)
+            self.compute_adv(data, self.config, last_value)
+            self.compute_target_policy(data, self.config)
 
-        data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
-        for k, v in data.items():
-            assert v.shape[:3] == (self.n_envs, self._memlen, self.n_units), \
-                (k, v.shape, (self.n_envs, self._memlen, self.n_units))
-            if self.sample_size is not None:
-                data[k] = np.reshape(v, 
-                    (self.n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
-            else:
-                data[k] = np.reshape(v,
-                    (self.n_envs * self._memlen, *v.shape[2:]))
-        
-        self.reset()
-        
-        return self.runner_id, data, self.n_envs * self.maxlen
+            data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
+            for k, v in data.items():
+                assert v.shape[:3] == (self.n_envs, self._memlen, self.n_units), \
+                    (k, v.shape, (self.n_envs, self._memlen, self.n_units))
+                if self.sample_size is not None:
+                    data[k] = np.reshape(v, 
+                        (self.n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
+                else:
+                    data[k] = np.reshape(v,
+                        (self.n_envs * self._memlen, *v.shape[2:]))
+            
+            self.reset()
+            
+            return self.runner_id, data, self.n_envs * self.maxlen
+        else:
+            n_envs = len(eids)
+            assert self._memlen == self.maxlen, (self._memlen, self.maxlen)
+            data = {k: np.stack([np.stack(b[k]) for b in self._buffers[eids]], 1)
+                for k in self._buffers[0].keys()}
+            for k, v in data.items():
+                assert v.shape[:3] == (self._memlen, n_envs, self.n_units), \
+                    (k, v.shape, (self._memlen, n_envs, self.n_units))
 
+            self.compute_adv(data, self.config, last_value)
+            self.compute_target_policy(data, self.config)
+
+            data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
+            for k, v in data.items():
+                assert v.shape[:3] == (n_envs, self._memlen, self.n_units), \
+                    (k, v.shape, (n_envs, self._memlen, self.n_units))
+                if self.sample_size is not None:
+                    data[k] = np.reshape(v, 
+                        (n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
+                else:
+                    data[k] = np.reshape(v,
+                        (n_envs * self._memlen, *v.shape[2:]))
+            
+            self.reset(eids)
+            
+            return self.runner_id, data, n_envs * self.maxlen
 
 class PPOBufferBase(
     Sampler, 

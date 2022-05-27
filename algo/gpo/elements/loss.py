@@ -29,7 +29,7 @@ class GPOLossImpl(Loss):
         pi_mean=None, 
         pi_std=None, 
         action_mask=None, 
-        mask=None, 
+        sample_mask=None, 
         n=None, 
         name=None,
     ):
@@ -38,14 +38,16 @@ class GPOLossImpl(Loss):
             use_gpo_l2 = self.config.get('aux_l2_coef', None) is not None
             use_new_po = self.config.get('new_po_coef', None) is not None
             use_kl_prior = self.config.get('kl_prior_coef', None) is not None
+            use_kl_target = self.config.get('kl_target_coef', None) is not None
             use_js = self.config.get('js_coef', None) is not None
             is_action_discrete = self.model.policy.is_action_discrete
             raw_adv = advantage
             if self.config.normalize_adv:
-                advantage = standard_normalization(advantage, mask=mask)
+                advantage = standard_normalization(
+                    advantage, mask=sample_mask, n=n)
             if self.config.process_adv == 'tanh':
-                advantage = self.config.adv_scale * \
-                    tf.math.tanh(advantage / self.config.adv_normalizer)
+                scale = tf.minimum(tf.reduce_max(tf.math.abs(advantage)), 10)
+                advantage = scale * tf.math.tanh(advantage * 2 / scale)
             elif self.config.process_adv is None:
                 pass
             else:
@@ -64,14 +66,14 @@ class GPOLossImpl(Loss):
             advantage, 
             self.config.policy_clip_range, 
             entropy, 
-            mask=mask, 
+            mask=sample_mask, 
             n=n, 
             reduce=False
         )
         tf.debugging.assert_all_finite(raw_ppo_loss, 'Bad raw_ppo_loss')
-        ppo_loss = reduce_mean(raw_ppo_loss, mask, n)
+        ppo_loss = reduce_mean(raw_ppo_loss, sample_mask, n)
         pg_loss = self.config.pg_coef * ppo_loss
-        entropy = reduce_mean(raw_entropy, mask, n)
+        entropy = reduce_mean(raw_entropy, sample_mask, n)
         entropy_loss = - self.config.entropy_coef * entropy
 
         # GPO with L1
@@ -83,7 +85,8 @@ class GPOLossImpl(Loss):
                 l1_loss = tf.math.abs(tr_diff_prob) / prob
             else:
                 l1_loss = tf.math.abs(tr_diff_prob)
-            raw_gpo_l1_loss = reduce_mean(tf.math.abs(l1_loss), mask, n)
+            raw_gpo_l1_loss = reduce_mean(
+                tf.math.abs(l1_loss), sample_mask, n)
             tf.debugging.assert_all_finite(raw_gpo_l1_loss, 'Bad raw_gpo_l1_loss')
             gpo_l1_loss = self.config.aux_l1_coef * raw_gpo_l1_loss
         else:
@@ -96,7 +99,7 @@ class GPOLossImpl(Loss):
                 l2_loss = tr_diff_prob**2 / prob
             else:
                 l2_loss = tr_diff_prob**2
-            raw_gpo_l2_loss = reduce_mean(l2_loss, mask, n)
+            raw_gpo_l2_loss = reduce_mean(l2_loss, sample_mask, n)
             tf.debugging.assert_all_finite(raw_gpo_l2_loss, 'Bad raw_gpo_l2_loss')
             gpo_l2_loss = self.config.aux_l2_coef * raw_gpo_l2_loss
         else:
@@ -112,61 +115,42 @@ class GPOLossImpl(Loss):
             new_pi_mean = act_dist.loc
             new_pi_std = tf.exp(self.model.policy.logstd)
 
-        if use_kl_prior:
-            tf.debugging.assert_all_finite(approx_kl, 'Bad approx_kl')
-            if self.config.kl_prior == 'forward_approx':
-                kl_prior = rl_loss.kl_from_samples(
-                    logp=new_logprob, 
-                    logq=logprob,
-                    mask=mask,
-                    n=n
-                )
-            elif self.config.kl_prior == 'reverse_approx':
-                kl_prior = rl_loss.reverse_kl_from_samples(
-                    logp=new_logprob, 
-                    logq=logprob,
-                    mask=mask,
-                    n=n
-                )
-            elif self.config.kl_prior == 'forward':
-                kl_prior = rl_loss.kl_from_distributions(
-                    pi1=pi, 
-                    pi2=new_pi, 
-                    pi1_mean=pi_mean, 
-                    pi1_std=pi_std, 
-                    pi2_mean=new_pi_mean, 
-                    pi2_std=new_pi_std, 
-                    pi_mask=action_mask
-                )
-            elif self.config.kl_prior == 'reverse':
-                kl_prior = rl_loss.kl_from_distributions(
-                    pi1=new_pi, 
-                    pi2=pi, 
-                    pi1_mean=new_pi_mean, 
-                    pi1_std=new_pi_std, 
-                    pi2_mean=pi_mean,
-                    pi2_std=pi_std, 
-                    pi_mask=action_mask
-                )
-            else:
-                raise NotImplementedError(f'Unknown kl {self.config.kl_prior}')
-            raw_kl_loss = reduce_mean(
-                kl_prior, 
-                mask, 
-                n
-            )
-            tf.debugging.assert_all_finite(raw_kl_loss, 'Bad raw_kl_loss')
-            kl_prior_loss = self.config.kl_prior_coef * raw_kl_loss
-        else:
-            raw_kl_loss = 0.
-            kl_prior_loss = 0.
+        kl_prior, raw_kl_prior_loss, kl_prior_loss = rl_loss.compute_kl(
+            kl_type=self.config.kl_prior,
+            kl_coef=self.config.kl_prior_coef,
+            logp=logprob,
+            logq=new_logprob, 
+            pi1=pi,
+            pi2=new_pi,
+            pi1_mean=pi_mean,
+            pi2_mean=new_pi_mean,
+            pi1_std=pi_std,
+            pi2_std=new_pi_std,
+            sample_mask=sample_mask,
+            n=n, 
+            pi_mask=action_mask,
+        )
+
+        target_logprob = tf.math.log(vt_prob)
+        kl_target, raw_kl_target_loss, kl_target_loss = rl_loss.compute_kl(
+            kl_type=self.config.kl_target,
+            kl_coef=self.config.kl_target_coef,
+            logp=target_logprob,
+            logq=new_logprob, 
+            pi1=target_pi,
+            pi2=new_pi,
+            sample_mask=sample_mask,
+            n=n, 
+            pi_mask=action_mask,
+        )
 
         # GPO's loss
         vt_old_diff_prob = vt_prob - prob
         if use_new_po:
             in_range = tf.sign(vt_diff_prob) == tf.sign(vt_old_diff_prob)
-            weighted_l1_po = advantage * tf.where(in_range, vt_diff_prob, 0) / prob
-            raw_new_po_loss = reduce_mean(weighted_l1_po, mask, n)
+            weighted_l1_po = advantage / prob * tf.where(
+                in_range, tf.abs(vt_diff_prob), 0)
+            raw_new_po_loss = reduce_mean(weighted_l1_po, sample_mask, n)
             tf.debugging.assert_all_finite(raw_new_po_loss, 'Bad raw_new_po_loss')
             new_po_loss = self.config.new_po_coef * raw_new_po_loss
         else:
@@ -180,13 +164,11 @@ class GPOLossImpl(Loss):
         #     raw_tv_loss = 0
         #     gpo_tv_loss = 0
         # GPO with Mix of Forward and Backward KL
+        log_vtp = tf.math.log(vt_prob)
         if use_js:
-            log_vtp = tf.math.log(vt_prob)
-            raw_js_loss = rl_loss.js_from_samples(
+            raw_js_loss = rl_loss.compute_js(
                 logp=new_logprob, 
                 logq=log_vtp, 
-                mask=mask, 
-                n=n
             )
             tf.debugging.assert_all_finite(raw_js_loss, 'Bad raw_js_loss')
             js_loss = self.config.js_coef * raw_js_loss
@@ -276,9 +258,15 @@ class GPOLossImpl(Loss):
                     ))
                 if use_kl_prior:
                     terms.update(dict(
-                        kl=kl_prior, 
-                        raw_kl_loss=raw_kl_loss, 
+                        kl_prior=kl_prior, 
+                        raw_kl_prior_loss=raw_kl_prior_loss, 
                         kl_prior_loss=kl_prior_loss, 
+                    ))
+                if use_kl_target:
+                    terms.update(dict(
+                        kl_target=kl_target, 
+                        raw_kl_target_loss=raw_kl_target_loss, 
+                        kl_target_loss=kl_target_loss, 
                     ))
                 if use_new_po:
                     terms.update(dict(
@@ -302,7 +290,6 @@ class GPOLossImpl(Loss):
 
         return terms, loss
 
-
 class ValueLossImpl(Loss):
     def _value_loss(
         self, 
@@ -310,7 +297,7 @@ class ValueLossImpl(Loss):
         value, 
         traj_ret, 
         old_value, 
-        mask=None,
+        sample_mask=None,
         n=None, 
         name=None, 
     ):
@@ -330,7 +317,7 @@ class ValueLossImpl(Loss):
                 traj_ret, 
                 old_value, 
                 self.config.value_clip_range, 
-                mask=mask, 
+                mask=sample_mask, 
                 n=n,
                 reduce=False
             )
@@ -340,7 +327,7 @@ class ValueLossImpl(Loss):
                 traj_ret, 
                 old_value, 
                 self.config.value_clip_range, 
-                mask=mask, 
+                mask=sample_mask, 
                 n=n, 
                 huber_threshold=self.config.huber_threshold,
                 reduce=False
@@ -348,8 +335,7 @@ class ValueLossImpl(Loss):
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
 
-        value_loss = reduce_mean(raw_value_loss, mask)
-        loss = reduce_mean(value_loss, mask, n)
+        loss = reduce_mean(raw_value_loss, sample_mask, n)
         loss = self.config.value_coef * loss
 
         if self.config.get('debug', True):
@@ -465,7 +451,7 @@ class GPOValueLoss(ValueLossImpl):
                 value=value, 
                 traj_ret=traj_ret, 
                 old_value=old_value, 
-                mask=loss_mask,
+                sample_mask=loss_mask,
                 n=n,
             )
 

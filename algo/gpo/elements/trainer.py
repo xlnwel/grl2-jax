@@ -2,12 +2,30 @@ import tensorflow as tf
 
 from core.elements.trainer import Trainer, TrainerEnsemble
 from core.decorator import override
+from core.optimizer import create_optimizer
 from core.tf_config import build
 from .utils import get_data_format
 from utility.display import print_dict
 
 
 class GPOActorTrainer(Trainer):
+    def construct_optimizers(self):
+        keys = sorted([
+            k for k in self.model.keys() if not k.startswith('target')])
+        modules = tuple([
+            self.model[k] for k in keys if not k.startswith('meta')
+        ])
+        self.optimizer = create_optimizer(
+            modules, self.config.optimizer)
+        
+        if self.config.get('meta_opt'):
+            meta_modules = tuple([
+                self.model[k] for k in keys if k.startswith('meta')
+            ])
+            self.meta_opt = create_optimizer(
+                meta_modules, self.config.meta_opt
+            )
+
     def raw_train(
         self, 
         **kwargs

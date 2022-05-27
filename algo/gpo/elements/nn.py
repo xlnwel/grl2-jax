@@ -106,3 +106,23 @@ class Value(Module):
         if value.shape[-1] == 1:
             value = tf.squeeze(value, -1)
         return value
+
+
+@nn_registry.register('meta')
+class MetaParams(Module):
+    def __init__(self, config, name='meta_params'):
+        super().__init__(name=name)
+
+        for k, v in config.items():
+            setattr(self, k, tf.Variable(
+                v['init'], dtype='float32', trainable=v['trainable'], name=f'meta/{k}'))
+            setattr(self, f'{k}_outer', v['outer'])
+            setattr(self, f'{k}_act', tf.keras.activations.get(v['act']))
+
+        self.params = list(config)
+    
+    def __call__(self, name):
+        val = getattr(self, name)
+        outer = getattr(self, f'{name}_outer')
+        act = getattr(self, f'{name}_act')
+        return outer * act(val)

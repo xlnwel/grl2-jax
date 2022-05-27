@@ -15,7 +15,8 @@ class PPOTrainer(Trainer):
         get_data_format = pkg.import_module(
             'elements.utils', algo=algo).get_data_format
         # Explicitly instantiate tf.function to avoid unintended retracing
-        TensorSpecs = get_data_format(self.config, env_stats, self.loss.model)
+        TensorSpecs = get_data_format(
+            self.config, env_stats, self.loss.model)
         print_dict(TensorSpecs, prefix='Tensor Specifications')
         self.train = build(self.train, TensorSpecs)
         return True

@@ -170,7 +170,7 @@ def v_trace(
     reward, 
     value, 
     next_value, 
-    pi, 
+    pi1, 
     mu, 
     discount, 
     lambda_=1, 
@@ -184,7 +184,7 @@ def v_trace(
         discount = gamma * (1-done). 
         axis specifies the time dimension
     """
-    ratio = pi / mu
+    ratio = pi1 / mu
     return v_trace_from_ratio(reward, value, next_value, 
         ratio, discount, lambda_, c_clip, 
         rho_clip, rho_clip_pg, axis)
@@ -369,7 +369,9 @@ def kl_from_distributions(
     pi1_std=None,  
     pi2_mean=None,  
     pi2_std=None,  
-    pi_mask=None
+    pi_mask=None,
+    sample_mask=None, 
+    n=None
 ):
     if pi1 is None:
         d1 = tfd.MultivariateNormalDiag(pi1_mean, pi1_std)
@@ -383,6 +385,7 @@ def kl_from_distributions(
             log_ratio = tf.where(pi_mask, log_ratio, 0)
         tf.debugging.assert_all_finite(log_ratio, 'Bad log_ratio')
         kl = tf.reduce_sum(pi1 * log_ratio, axis=-1)
+    kl = reduce_mean(kl, mask=sample_mask, n=n)
 
     return kl
 
@@ -390,41 +393,139 @@ def kl_from_samples(
     *,
     logp,
     logq, 
-    mask=None,
-    n=None
 ):
     log_ratio = logp - logq
-    approx_kl = .5 * reduce_mean(
-        tf.stop_gradient(tf.exp(logp)) * log_ratio**2, mask, n)
+    approx_kl = (-tf.exp(logq) * tf.stop_gradient(
+        tf.sign(log_ratio) * tf.exp(log_ratio)))
     return approx_kl
 
 def reverse_kl_from_samples(
     *,
-    logp,
+    logp, 
     logq, 
-    mask=None,
-    n=None
 ):
     log_ratio = logp - logq
-    approx_kl = .5 * reduce_mean(log_ratio**2, mask, n)
+    approx_kl = tf.stop_gradient(log_ratio+1) * tf.exp(logp)
     return approx_kl
+
+
+def compute_kl(
+    *, 
+    kl_type,
+    kl_coef=None, 
+    logp=None,
+    logq=None, 
+    pi1=None,
+    pi2=None,
+    pi1_mean=None,
+    pi2_mean=None,
+    pi1_std=None,
+    pi2_std=None,
+    sample_mask=None,
+    n=None, 
+    pi_mask=None, 
+):
+    if kl_coef is not None:
+        if kl_type == 'forward_approx':
+            kl = kl_from_samples(
+                logp=logp, 
+                logq=logq,
+            )
+        elif kl_type == 'reverse_approx':
+            kl = reverse_kl_from_samples(
+                logp=logq, 
+                logq=logp,
+            )
+        elif kl_type == 'forward':
+            kl = kl_from_distributions(
+                pi1=pi1, 
+                pi2=pi2, 
+                pi1_mean=pi1_mean, 
+                pi1_std=pi1_std, 
+                pi2_mean=pi2_mean, 
+                pi2_std=pi2_std, 
+                pi_mask=pi_mask
+            )
+        elif kl_type == 'reverse':
+            kl = kl_from_distributions(
+                pi1=pi2, 
+                pi2=pi1, 
+                pi1_mean=pi2_mean, 
+                pi1_std=pi2_std, 
+                pi2_mean=pi1_mean,
+                pi2_std=pi1_std, 
+                pi_mask=pi_mask
+            )
+        else:
+            raise NotImplementedError(f'Unknown kl {kl_type}')
+        raw_kl_loss = reduce_mean(
+            kl, mask=sample_mask, n=n
+        )
+        tf.debugging.assert_all_finite(raw_kl_loss, 'Bad raw_kl_loss')
+        kl_loss = kl_coef * raw_kl_loss
+    else:
+        kl = 0.
+        raw_kl_loss = 0.
+        kl_loss = 0.
+
+    return kl, raw_kl_loss, kl_loss
+
 
 def js_from_samples(
     *,
     logp,
     logq, 
-    mask=None,
-    n=None
 ):
     p = tf.exp(logp)
     q = tf.exp(logq)
     avg = (p + q) / 2
     logavg = tf.math.log(avg)
     approx_js = .5 * (
-        kl_from_samples(logp=logq, logq=logavg, mask=mask, n=n)
-        + reverse_kl_from_samples(logp=logp, logq=logavg, mask=mask, n=n)
+        kl_from_samples(logp=logq, logq=logavg)
+        + reverse_kl_from_samples(logp=logp, logq=logavg)
     )
     return approx_js
+
+
+def js_from_distributions(
+    *,
+    q,
+    p, 
+):
+    avg = (p + q) / 2
+    approx_js = .5 * (
+        kl_from_distributions(pi1=p, pi2=avg)
+        + kl_from_distributions(pi1=q, pi2=avg)
+    )
+    return approx_js
+
+
+def compute_js(
+    *, 
+    js_type, 
+    js_coef, 
+    logp=None, 
+    logq=None,
+    p=None,
+    q=None,
+):
+    if js_coef is not None:
+        if js_type == 'approx':
+            raw_js_loss = js_from_samples(
+                logp=logp, 
+                logq=logq, 
+            )
+            tf.debugging.assert_all_finite(raw_js_loss, 'Bad raw_js_loss')
+            js_loss = js_coef * raw_js_loss
+        else:
+            raw_js_loss = js_from_distributions(
+                p=p, q=q
+            )
+    else:
+        raw_js_loss = 0.
+        js_loss = 0.
+    
+    return raw_js_loss, js_loss
 
 # if __name__ == '__main__':
 #     value = tf.random.normal((2, 3))
