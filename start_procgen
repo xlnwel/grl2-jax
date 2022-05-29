@@ -57,7 +57,7 @@ for e in "${envs[@]}"; do
                             # mkdir -p $dir
                             # py_script="python run/train.py -a ${a} -e $env -c $config -kw $kw1 $kw2 $kw3 $kw4 -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
                             # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
-                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $seed $@ &"
+                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $seed -p t $@ &"
                             echo $py_script
                             eval $py_script
                             sleep 1

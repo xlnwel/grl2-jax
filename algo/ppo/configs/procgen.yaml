@@ -92,7 +92,8 @@ loss:
     kl_target_coef: 0
     new_po_coef: 0
     pg_coef: 1
-    js_coef: null
+    js_target_coef: 0
+    js_target: approx
     kl_prior: reverse
     kl_target: reverse_approx
 
@@ -156,6 +157,7 @@ buffer:
         zero_center: False
         step_size: .1
 
+        target_prob_key: target_prob_prime
 
     aux_adv_lower_clip: null
     aux_adv_upper_clip: null

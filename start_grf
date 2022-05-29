@@ -10,7 +10,7 @@ envs=(
     11_vs_11_hard_stochastic
 )
 config=grf
-seeds=(2 3)
+seeds=(0 1)
 args1=(None)
 args2=(1)
 args3=(True)

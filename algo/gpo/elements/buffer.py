@@ -134,7 +134,7 @@ def compute_target_pi(data, config):
     else:
         raise NotImplementedError(f'No support for dimensionality higher than 3, got {data["action"].shape}')
 
-    target_prob_key = config.get('target_prob_key', 'tr_prob_prime')
+    target_prob_key = config.get('target_prob_key', 'target_prob_prime')
     target_pi[idx] = data[target_prob_key]
     target_pi = target_pi / np.sum(target_pi, axis=-1, keepdims=True)
     data['target_pi'] = target_pi
@@ -182,7 +182,6 @@ def compute_exp_clipped_target(
         exp_adv if lower_clip is None else 1-lower_clip, 
         exp_adv if upper_clip is None else 1+upper_clip
     )
-    tr_prob_prime = np.maximum(tr_prob_prime, 0)
 
     add_probs_to_data(data, target_prob_prime, tr_prob_prime)
 
@@ -202,7 +201,6 @@ def compute_adv_clipped_target(
         adv if lower_clip is None else -lower_clip, 
         adv if upper_clip is None else upper_clip
     ) / config.adv_tau - z)
-    tr_prob_prime = np.maximum(tr_prob_prime, 0)
 
     add_probs_to_data(data, target_prob_prime, tr_prob_prime)
 
@@ -223,7 +221,6 @@ def compute_linear_clipped_target(
         g if lower_clip is None else -lower_clip, 
         g if upper_clip is None else upper_clip
     )
-    tr_prob_prime = np.maximum(tr_prob_prime, 0)
 
     add_probs_to_data(data, target_prob_prime, tr_prob_prime)
 
@@ -264,7 +261,6 @@ def compute_step_target(
 
     target_prob_prime = prob + adv / prob
     tr_prob_prime = prob + config.step_size * adv / prob
-    tr_prob_prime = np.maximum(tr_prob_prime, 0)
 
     add_probs_to_data(data, target_prob_prime, tr_prob_prime)
 
@@ -288,7 +284,6 @@ class AdvantageCalculator:
             self.value_rms = RunningMeanStd([0, 1])
         else:
             self.value_rms = None
-        print('Value normalization:', config.get('normalize_value', False))
 
     def compute_adv(
         self, 
@@ -485,6 +480,101 @@ class LocalBufferBase(
         return self._memlen
 
     def is_empty(self):
+        return self._memlen == 0
+
+    def is_full(self):
+        return self._memlen >= self.maxlen
+
+    def reset(self):
+        self._memlen = 0
+        self._buffers = [collections.defaultdict(list) for _ in range(self.n_envs)]
+        # self._train_steps = [[None for _ in range(self.n_units)] 
+        #     for _ in range(self.n_envs)]
+
+    def add(self, data: dict):
+        for k, v in data.items():
+            assert v.shape[:2] == (self.n_envs, self.n_units), \
+                (k, v.shape, (self.n_envs, self.n_units))
+            for i in range(self.n_envs):
+                self._buffers[i][k].append(v[i])
+        self._memlen += 1
+
+    def retrieve_all_data(self, last_value):
+        assert self._memlen == self.maxlen, (self._memlen, self.maxlen)
+        data = {k: np.stack([np.stack(b[k]) for b in self._buffers], 1)
+            for k in self._buffers[0].keys()}
+        for k, v in data.items():
+            assert v.shape[:3] == (self._memlen, self.n_envs, self.n_units), \
+                (k, v.shape, (self._memlen, self.n_envs, self.n_units))
+
+        self.compute_adv(data, self.config, last_value)
+        self.compute_target_policy(data, self.config)
+
+        data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
+        for k, v in data.items():
+            assert v.shape[:3] == (self.n_envs, self._memlen, self.n_units), \
+                (k, v.shape, (self.n_envs, self._memlen, self.n_units))
+            if self.sample_size is not None:
+                data[k] = np.reshape(v, 
+                    (self.n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
+            else:
+                data[k] = np.reshape(v,
+                    (self.n_envs * self._memlen, *v.shape[2:]))
+        
+        self.reset()
+        
+        return self.runner_id, data, self.n_envs * self.maxlen
+
+
+class TurnBasedLocalBufferBase(
+    SamplingKeysExtractor, 
+    AdvantageCalculator, 
+    TargetPolicyCalculator, 
+    Buffer
+):
+    def __init__(
+        self, 
+        config: AttrDict,
+        env_stats: AttrDict,  
+        model: Model,
+        runner_id: int,
+        n_units: int,
+    ):
+        self.config = config
+        self.config.gae_discount = self.config.gamma * self.config.lam
+        self.config.epsilon = self.config.get('epsilon', 1e-5)
+        self.config.valid_clip = self.config.get(
+            'valid_clip', env_stats.is_action_discrete)
+        self.runner_id = runner_id
+        self.n_units = n_units
+
+        assert not self.config.get('normalize_value', False), 'Do not support normalizing value in local buffer for now'
+        AdvantageCalculator.__init__(self, config)
+
+        self._add_attributes(model)
+
+    def _add_attributes(self, model):
+        self.extract_sampling_keys(model)
+
+        if self.config.get('fragment_size', None) is not None:
+            self.maxlen = self.config.fragment_size
+        elif self.sample_size is not None:
+            self.maxlen = self.sample_size * 4
+        else:
+            self.maxlen = 64
+        self.maxlen = min(self.maxlen, self.config.n_steps)
+        if self.sample_size is not None:
+            assert self.maxlen % self.sample_size == 0, (self.maxlen, self.sample_size)
+            assert self.config.n_steps % self.maxlen == 0, (self.config.n_steps, self.maxlen)
+            self.n_samples = self.maxlen // self.sample_size
+        self.n_envs = self.config.n_envs
+
+        self.reset()
+
+    def size(self):
+        return self._memlen
+
+    def is_empty(self):
         return np.all(self._memlen == 0)
 
     def is_full(self):
@@ -492,8 +582,9 @@ class LocalBufferBase(
 
     def reset(self, eids=None):
         if eids is None:
-            self._memlen = np.zeros(self.n_envs, np.int32)
-            self._buffers = [collections.defaultdict(list) for _ in range(self.n_envs)]
+            self._memlen = np.zeros(self.n_envs)
+            self._buffers = [collections.defaultdict(list) 
+                for _ in range(self.n_envs)]
         else:
             self._memlen[eids] = 0
             for eid in eids:
@@ -502,71 +593,35 @@ class LocalBufferBase(
         #     for _ in range(self.n_envs)]
 
     def add(self, data: dict):
-        if 'eid' in data:
-            for k, v in data.items():
-                for i in range(data['eid']):
-                    self._buffers[i][k].append(v[i])
-            self._memlen[data['eid']] += 1
-        else:
-            for k, v in data.items():
-                assert v.shape[:2] == (self.n_envs, self.n_units), \
-                    (k, v.shape, (self.n_envs, self.n_units))
-                for i in range(self.n_envs):
-                    self._buffers[i][k].append(v[i])
-            self._memlen += 1
+        for k, v in data.items():
+            for i in range(data['eid']):
+                self._buffers[i][k].append(v[i])
+        self._memlen[data['eid']] += 1
 
     def retrieve_all_data(self, last_value, eids=None):
-        if eids is None:
-            assert self._memlen == self.maxlen, (self._memlen, self.maxlen)
-            data = {k: np.stack([np.stack(b[k]) for b in self._buffers], 1)
-                for k in self._buffers[0].keys()}
-            for k, v in data.items():
-                assert v.shape[:3] == (self._memlen, self.n_envs, self.n_units), \
-                    (k, v.shape, (self._memlen, self.n_envs, self.n_units))
+        n_envs = len(eids)
+        assert self._memlen == self.maxlen, (self._memlen, self.maxlen)
+        data = {k: np.stack([np.stack(b[k]) for b in self._buffers[eids]], 1)
+            for k in self._buffers[0].keys()}
+        for k, v in data.items():
+            assert v.shape[:3] == (self._memlen, n_envs, self.n_units), \
+                (k, v.shape, (self._memlen, n_envs, self.n_units))
 
-            self.compute_adv(data, self.config, last_value)
-            self.compute_target_policy(data, self.config)
+        self.compute_adv(data, self.config, last_value)
+        self.compute_target_policy(data, self.config)
 
-            data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
-            for k, v in data.items():
-                assert v.shape[:3] == (self.n_envs, self._memlen, self.n_units), \
-                    (k, v.shape, (self.n_envs, self._memlen, self.n_units))
-                if self.sample_size is not None:
-                    data[k] = np.reshape(v, 
-                        (self.n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
-                else:
-                    data[k] = np.reshape(v,
-                        (self.n_envs * self._memlen, *v.shape[2:]))
-            
-            self.reset()
-            
-            return self.runner_id, data, self.n_envs * self.maxlen
-        else:
-            n_envs = len(eids)
-            assert self._memlen == self.maxlen, (self._memlen, self.maxlen)
-            data = {k: np.stack([np.stack(b[k]) for b in self._buffers[eids]], 1)
-                for k in self._buffers[0].keys()}
-            for k, v in data.items():
-                assert v.shape[:3] == (self._memlen, n_envs, self.n_units), \
-                    (k, v.shape, (self._memlen, n_envs, self.n_units))
+        data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
+        for k, v in data.items():
+            assert v.shape[:3] == (n_envs, self._memlen, self.n_units), \
+                (k, v.shape, (n_envs, self._memlen, self.n_units))
+            if self.sample_size is not None:
+                data[k] = np.reshape(v, 
+                    (n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
+            else:
+                data[k] = np.reshape(v,
+                    (n_envs * self._memlen, *v.shape[2:]))
 
-            self.compute_adv(data, self.config, last_value)
-            self.compute_target_policy(data, self.config)
-
-            data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
-            for k, v in data.items():
-                assert v.shape[:3] == (n_envs, self._memlen, self.n_units), \
-                    (k, v.shape, (n_envs, self._memlen, self.n_units))
-                if self.sample_size is not None:
-                    data[k] = np.reshape(v, 
-                        (n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
-                else:
-                    data[k] = np.reshape(v,
-                        (n_envs * self._memlen, *v.shape[2:]))
-            
-            self.reset(eids)
-            
-            return self.runner_id, data, n_envs * self.maxlen
+        return self.runner_id, data, n_envs * self.maxlen
 
 class PPOBufferBase(
     Sampler, 
@@ -803,6 +858,10 @@ class LocalBuffer(LocalBufferBase):
     pass
 
 
+class TurnBasedLocalBuffer(TurnBasedLocalBufferBase):
+    pass
+
+
 class PPOBuffer(PPOBufferBase):
     pass
 
@@ -812,7 +871,8 @@ def create_buffer(config, model, env_stats, **kwargs):
     env_stats = dict2AttrDict(env_stats)
     BufferCls = {
         'ppo': PPOBuffer, 
-        'local': LocalBuffer
+        'local': LocalBuffer, 
+        'tblocal': TurnBasedLocalBuffer
     }[config.type]
     return BufferCls(
         config=config, 

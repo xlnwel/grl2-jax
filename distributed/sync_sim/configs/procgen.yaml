@@ -147,7 +147,6 @@ buffer:
     n_epochs: *nepochs
     n_mbs: *nmbs        # number of minibatches
     # sample_size: *ss
-    norm_adv: minibatch
 
     # PPG configs
     # n_pi: *npi

@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
+from utility import div
 from utility.tf_utils import static_scan, reduce_mean, \
     assert_rank, assert_rank_and_shape_compatibility
 
@@ -361,52 +362,6 @@ def _compute_ppo_value_losses(
 
     return value_diff, loss1, loss2
 
-def kl_from_distributions(
-    *,
-    pi1=None, 
-    pi2=None,
-    pi1_mean=None,  
-    pi1_std=None,  
-    pi2_mean=None,  
-    pi2_std=None,  
-    pi_mask=None,
-    sample_mask=None, 
-    n=None
-):
-    if pi1 is None:
-        d1 = tfd.MultivariateNormalDiag(pi1_mean, pi1_std)
-        d2 = tfd.MultivariateNormalDiag(pi2_mean, pi2_std)
-        kl = d1.kl_divergence(d2)
-    else:
-        log_pi1 = tf.math.log(tf.clip_by_value(pi1, 1e-10, 1))
-        log_pi2 = tf.math.log(tf.clip_by_value(pi2, 1e-10, 1))
-        log_ratio = log_pi1 - log_pi2
-        if pi_mask is not None:
-            log_ratio = tf.where(pi_mask, log_ratio, 0)
-        tf.debugging.assert_all_finite(log_ratio, 'Bad log_ratio')
-        kl = tf.reduce_sum(pi1 * log_ratio, axis=-1)
-    kl = reduce_mean(kl, mask=sample_mask, n=n)
-
-    return kl
-
-def kl_from_samples(
-    *,
-    logp,
-    logq, 
-):
-    log_ratio = logp - logq
-    approx_kl = (-tf.exp(logq) * tf.stop_gradient(
-        tf.sign(log_ratio) * tf.exp(log_ratio)))
-    return approx_kl
-
-def reverse_kl_from_samples(
-    *,
-    logp, 
-    logq, 
-):
-    log_ratio = logp - logq
-    approx_kl = tf.stop_gradient(log_ratio+1) * tf.exp(logp)
-    return approx_kl
 
 
 def compute_kl(
@@ -415,29 +370,32 @@ def compute_kl(
     kl_coef=None, 
     logp=None,
     logq=None, 
+    sample_prob=None, 
     pi1=None,
     pi2=None,
     pi1_mean=None,
     pi2_mean=None,
     pi1_std=None,
     pi2_std=None,
+    pi_mask=None, 
     sample_mask=None,
     n=None, 
-    pi_mask=None, 
 ):
     if kl_coef is not None:
         if kl_type == 'forward_approx':
-            kl = kl_from_samples(
+            kl = div.kl_from_samples(
                 logp=logp, 
                 logq=logq,
+                sample_prob=sample_prob, 
             )
         elif kl_type == 'reverse_approx':
-            kl = reverse_kl_from_samples(
+            kl = div.reverse_kl_from_samples(
                 logp=logq, 
                 logq=logp,
+                sample_prob=sample_prob, 
             )
         elif kl_type == 'forward':
-            kl = kl_from_distributions(
+            kl = div.kl_from_distributions(
                 pi1=pi1, 
                 pi2=pi2, 
                 pi1_mean=pi1_mean, 
@@ -447,7 +405,7 @@ def compute_kl(
                 pi_mask=pi_mask
             )
         elif kl_type == 'reverse':
-            kl = kl_from_distributions(
+            kl = div.kl_from_distributions(
                 pi1=pi2, 
                 pi2=pi1, 
                 pi1_mean=pi2_mean, 
@@ -471,61 +429,43 @@ def compute_kl(
     return kl, raw_kl_loss, kl_loss
 
 
-def js_from_samples(
-    *,
-    logp,
-    logq, 
-):
-    p = tf.exp(logp)
-    q = tf.exp(logq)
-    avg = (p + q) / 2
-    logavg = tf.math.log(avg)
-    approx_js = .5 * (
-        kl_from_samples(logp=logq, logq=logavg)
-        + reverse_kl_from_samples(logp=logp, logq=logavg)
-    )
-    return approx_js
-
-
-def js_from_distributions(
-    *,
-    q,
-    p, 
-):
-    avg = (p + q) / 2
-    approx_js = .5 * (
-        kl_from_distributions(pi1=p, pi2=avg)
-        + kl_from_distributions(pi1=q, pi2=avg)
-    )
-    return approx_js
-
-
 def compute_js(
     *, 
     js_type, 
     js_coef, 
     logp=None, 
     logq=None,
+    sample_prob=None, 
     p=None,
     q=None,
+    pi_mask=None, 
+    sample_mask=None, 
+    n=None
 ):
     if js_coef is not None:
         if js_type == 'approx':
-            raw_js_loss = js_from_samples(
+            js = div.js_from_samples(
                 logp=logp, 
                 logq=logq, 
+                sample_prob=sample_prob, 
             )
-            tf.debugging.assert_all_finite(raw_js_loss, 'Bad raw_js_loss')
-            js_loss = js_coef * raw_js_loss
+        elif js_type == 'exact':
+            js = div.js_from_distributions(
+                p=p, q=q, pi_mask=pi_mask
+            )
         else:
-            raw_js_loss = js_from_distributions(
-                p=p, q=q
-            )
+            raise NotImplementedError(f'Unknown JS type {js_type}')
+        raw_js_loss = reduce_mean(
+            js, mask=sample_mask, n=n
+        )
+        tf.debugging.assert_all_finite(raw_js_loss, 'Bad raw_js_loss')
+        js_loss = js_coef * raw_js_loss
     else:
+        js = 0,
         raw_js_loss = 0.
         js_loss = 0.
     
-    return raw_js_loss, js_loss
+    return js, raw_js_loss, js_loss
 
 # if __name__ == '__main__':
 #     value = tf.random.normal((2, 3))

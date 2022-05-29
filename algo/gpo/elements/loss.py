@@ -1,3 +1,4 @@
+import re
 import tensorflow as tf
 
 from core.elements.loss import Loss, LossEnsemble
@@ -21,9 +22,11 @@ class GPOLossImpl(Loss):
         act_dist,
         action, 
         advantage, 
+        logprob, 
         tr_prob,
         vt_prob,
-        logprob, 
+        target_prob_prime, 
+        tr_prob_prime, 
         target_pi, 
         pi=None, 
         pi_mean=None, 
@@ -60,7 +63,7 @@ class GPOLossImpl(Loss):
         entropy = act_dist.entropy()
         tf.debugging.assert_all_finite(entropy, 'Bad entropy')
         log_ratio = new_logprob - logprob
-        ratio, loss1, loss2, raw_ppo_loss, raw_entropy, approx_kl, clip_frac = \
+        ratio, loss1, loss2, raw_pg, entropy, approx_kl, clip_frac = \
             rl_loss.ppo_loss(
             log_ratio, 
             advantage, 
@@ -70,23 +73,23 @@ class GPOLossImpl(Loss):
             n=n, 
             reduce=False
         )
-        tf.debugging.assert_all_finite(raw_ppo_loss, 'Bad raw_ppo_loss')
-        ppo_loss = reduce_mean(raw_ppo_loss, sample_mask, n)
-        pg_loss = self.config.pg_coef * ppo_loss
-        entropy = reduce_mean(raw_entropy, sample_mask, n)
-        entropy_loss = - self.config.entropy_coef * entropy
+        tf.debugging.assert_all_finite(raw_pg, 'Bad raw_ppo_loss')
+        raw_pg_loss = reduce_mean(raw_pg, sample_mask, n)
+        pg_loss = self.config.pg_coef * reduce_mean(raw_pg, sample_mask, n)
+        raw_entropy_loss = - reduce_mean(entropy, sample_mask, n)
+        entropy_loss = self.config.entropy_coef * raw_entropy_loss
 
         # GPO with L1
-        new_prob = tf.exp(new_logprob)
+        new_prob = act_dist.prob(action)
         tr_diff_prob = tr_prob - new_prob
         vt_diff_prob = vt_prob - new_prob
         if use_gpo_l1:
             if self.config.get('weighted_l_dist', False):
-                l1_loss = tf.math.abs(tr_diff_prob) / prob
+                l1_distance = tf.math.abs(tr_diff_prob) / prob
             else:
-                l1_loss = tf.math.abs(tr_diff_prob)
+                l1_distance = tf.math.abs(tr_diff_prob)
             raw_gpo_l1_loss = reduce_mean(
-                tf.math.abs(l1_loss), sample_mask, n)
+                tf.math.abs(l1_distance), sample_mask, n)
             tf.debugging.assert_all_finite(raw_gpo_l1_loss, 'Bad raw_gpo_l1_loss')
             gpo_l1_loss = self.config.aux_l1_coef * raw_gpo_l1_loss
         else:
@@ -96,10 +99,10 @@ class GPOLossImpl(Loss):
         # GPO with L2
         if use_gpo_l2:
             if self.config.get('weighted_l_dist', False):
-                l2_loss = tr_diff_prob**2 / prob
+                l2_distance = tr_diff_prob**2 / prob
             else:
-                l2_loss = tr_diff_prob**2
-            raw_gpo_l2_loss = reduce_mean(l2_loss, sample_mask, n)
+                l2_distance = tr_diff_prob**2
+            raw_gpo_l2_loss = reduce_mean(l2_distance, sample_mask, n)
             tf.debugging.assert_all_finite(raw_gpo_l2_loss, 'Bad raw_gpo_l2_loss')
             gpo_l2_loss = self.config.aux_l2_coef * raw_gpo_l2_loss
         else:
@@ -115,34 +118,38 @@ class GPOLossImpl(Loss):
             new_pi_mean = act_dist.loc
             new_pi_std = tf.exp(self.model.policy.logstd)
 
-        kl_prior, raw_kl_prior_loss, kl_prior_loss = rl_loss.compute_kl(
-            kl_type=self.config.kl_prior,
-            kl_coef=self.config.kl_prior_coef,
-            logp=logprob,
-            logq=new_logprob, 
-            pi1=pi,
-            pi2=new_pi,
-            pi1_mean=pi_mean,
-            pi2_mean=new_pi_mean,
-            pi1_std=pi_std,
-            pi2_std=new_pi_std,
-            sample_mask=sample_mask,
-            n=n, 
-            pi_mask=action_mask,
-        )
+        kl_prior, raw_kl_prior_loss, kl_prior_loss = \
+            rl_loss.compute_kl(
+                kl_type=self.config.kl_prior,
+                kl_coef=self.config.kl_prior_coef,
+                logp=logprob,
+                logq=new_logprob, 
+                sample_prob=prob, 
+                pi1=pi,
+                pi2=new_pi,
+                pi1_mean=pi_mean,
+                pi2_mean=new_pi_mean,
+                pi1_std=pi_std,
+                pi2_std=new_pi_std,
+                sample_mask=sample_mask,
+                n=n, 
+                pi_mask=action_mask,
+            )
 
-        target_logprob = tf.math.log(vt_prob)
-        kl_target, raw_kl_target_loss, kl_target_loss = rl_loss.compute_kl(
-            kl_type=self.config.kl_target,
-            kl_coef=self.config.kl_target_coef,
-            logp=target_logprob,
-            logq=new_logprob, 
-            pi1=target_pi,
-            pi2=new_pi,
-            sample_mask=sample_mask,
-            n=n, 
-            pi_mask=action_mask,
-        )
+        target_logprob = tf.math.log(target_prob_prime)
+        kl_target, raw_kl_target_loss, kl_target_loss = \
+            rl_loss.compute_kl(
+                kl_type=self.config.kl_target,
+                kl_coef=self.config.kl_target_coef,
+                logp=target_logprob,
+                logq=new_logprob, 
+                sample_prob=prob, 
+                pi1=target_pi,
+                pi2=new_pi,
+                pi_mask=action_mask,
+                sample_mask=sample_mask,
+                n=n, 
+            )
 
         # GPO's loss
         vt_old_diff_prob = vt_prob - prob
@@ -164,27 +171,40 @@ class GPOLossImpl(Loss):
         #     raw_tv_loss = 0
         #     gpo_tv_loss = 0
         # GPO with Mix of Forward and Backward KL
-        log_vtp = tf.math.log(vt_prob)
-        if use_js:
-            raw_js_loss = rl_loss.compute_js(
-                logp=new_logprob, 
-                logq=log_vtp, 
-            )
-            tf.debugging.assert_all_finite(raw_js_loss, 'Bad raw_js_loss')
-            js_loss = self.config.js_coef * raw_js_loss
-        else:
-            raw_js_loss = 0.
-            js_loss = 0.
+        js, raw_js_loss, js_loss = rl_loss.compute_js(
+            js_type=self.config.js_target, 
+            js_coef=self.config.js_target_coef, 
+            logp=new_logprob, 
+            logq=target_logprob, 
+            sample_prob=prob, 
+            pi_mask=action_mask, 
+            sample_mask=sample_mask,
+            n=n, 
+        )
+        tf.debugging.assert_all_finite(raw_js_loss, 'Bad raw_js_loss')
 
         # GPO Loss
+        raw_losses = {k: v for k, v in locals().items() 
+            if re.search(r'raw_.*_loss$', k)
+            and k != 'raw_pg_loss' and k != 'raw_entropy_loss'}
+        losses = {k: v for k, v in locals().items() 
+            if re.search(r'^(?!raw_).*_loss$', k) 
+            and k != 'pg_loss' and k != 'entropy_loss'}
+        print('raw losses', raw_losses)
+        print('losses', losses)
         tf.debugging.assert_all_finite(raw_gpo_l1_loss, 'Bad raw_gpo_l1_loss')
         tf.debugging.assert_all_finite(raw_gpo_l2_loss, 'Bad raw_gpo_l2_loss')
         tf.debugging.assert_all_finite(raw_new_po_loss, 'Bad raw_new_po_loss')
         tf.debugging.assert_all_finite(raw_js_loss, 'Bad raw_js_loss')
         
-        raw_gpo_loss = raw_gpo_l1_loss + raw_gpo_l2_loss \
-            + raw_new_po_loss + raw_js_loss
-        gpo_loss = gpo_l1_loss + gpo_l2_loss + new_po_loss + js_loss
+        raw_gpo_loss = sum(raw_losses.values())
+        gpo_loss = sum(losses.values())
+        # raw_gpo_loss = raw_gpo_l1_loss + raw_gpo_l2_loss \
+        #     + raw_new_po_loss + raw_kl_prior_loss \
+        #         + raw_kl_target_loss + raw_js_loss
+        # gpo_loss = gpo_l1_loss + gpo_l2_loss + \
+        #     new_po_loss + kl_prior_loss \
+        #         + kl_target_loss + js_loss
         tf.debugging.assert_all_finite(raw_gpo_loss, 'Bad raw_gpo_loss')
         tf.debugging.assert_all_finite(gpo_loss, 'Bad gpo_loss')
         tf.debugging.assert_all_finite(entropy_loss, 'Bad entropy_loss')
@@ -198,19 +218,17 @@ class GPOLossImpl(Loss):
                     new_old_diff_prob=diff_prob, 
                     trust_region_old_diff_prob=tr_prob - prob, 
                     trust_region_new_diff_prob=tr_diff_prob, 
-                    valid_target_new_diff_prob=vt_diff_prob, 
-                    valid_target_old_diff_prob=vt_old_diff_prob, 
                     ratio=ratio,
-                    raw_entropy=raw_entropy,
                     entropy=entropy,
                     approx_kl=approx_kl,
                     prob=prob,
                     new_logprob=new_logprob, 
                     new_prob=new_prob, 
                     p_clip_frac=clip_frac,
-                    raw_pg_loss=loss1, 
+                    ppo_loss1=loss1, 
+                    ppo_loss2=loss2, 
                     raw_clipped_loss=loss2, 
-                    raw_ppo_loss=raw_ppo_loss,
+                    raw_pg_loss=raw_pg_loss,
                     pg_loss=pg_loss,
                     entropy_loss=entropy_loss, 
                     gpo_loss=gpo_loss, 
@@ -221,12 +239,15 @@ class GPOLossImpl(Loss):
                 )
                 if is_action_discrete:
                     tt_prob = tf.gather(target_pi, action, batch_dims=len(action.shape))
+                    tf.debugging.assert_equal(tt_prob, vt_prob)
                     terms.update(dict(
                         logits=act_dist.logits, 
-                        tt_prob=tt_prob, 
-                        tt_old_diff_prob=tt_prob - prob, 
-                        tr_tt_diff_prob=tr_prob - tt_prob, 
-                        tt_diff_prob=tt_prob - new_prob, 
+                        valid_target_prob=vt_prob, 
+                        valid_target_old_diff_prob=vt_old_diff_prob, 
+                        valid_target_new_diff_prob=vt_diff_prob, 
+                        valid_target_old_prob_ratio=vt_prob / prob, 
+                        valid_target_new_prob_ratio=vt_prob / new_prob, 
+                        valid_target_new_pi_ratio=target_pi / new_pi, 
                     ))
                     if pi is not None:
                         diff_pi = new_pi - pi
@@ -246,13 +267,13 @@ class GPOLossImpl(Loss):
 
                 if use_gpo_l1:
                     terms.update(dict(
-                        l1_loss=l1_loss, 
+                        l1_distance=l1_distance, 
                         raw_gpo_l1_loss=raw_gpo_l1_loss, 
                         gpo_l1_loss=gpo_l1_loss, 
                     ))
                 if use_gpo_l2:
                     terms.update(dict(
-                        l2_loss=l2_loss, 
+                        l2_distance=l2_distance, 
                         raw_gpo_l2_loss=raw_gpo_l2_loss, 
                         gpo_l2_loss=gpo_l2_loss, 
                     ))
@@ -277,7 +298,7 @@ class GPOLossImpl(Loss):
                     ))
                 if use_js:
                     terms.update(dict(
-                        log_valid_target_prob=log_vtp, 
+                        js=js, 
                         raw_js_loss=raw_js_loss,
                         js_loss=js_loss,
                     ))
@@ -362,12 +383,12 @@ class GPOPolicyLoss(GPOLossImpl):
         obs, 
         action, 
         advantage, 
+        logprob, 
         target_prob, 
         tr_prob, 
         vt_prob, 
         target_prob_prime, 
         tr_prob_prime, 
-        logprob, 
         pi, 
         target_pi, 
         pi_mean, 
@@ -395,25 +416,32 @@ class GPOPolicyLoss(GPOLossImpl):
                 act_dist=act_dist, 
                 action=action, 
                 advantage=advantage, 
+                logprob=logprob, 
                 tr_prob=tr_prob, 
                 vt_prob=vt_prob, 
-                logprob=logprob, 
-                target_pi=target_pi, 
+                target_prob_prime=target_prob_prime, 
+                tr_prob_prime=tr_prob_prime, 
                 pi=pi, 
+                target_pi=target_pi, 
                 pi_mean=pi_mean, 
                 pi_std=pi_std, 
                 action_mask=action_mask, 
-                mask=loss_mask, 
+                sample_mask=loss_mask, 
                 n=n
             )
 
         if self.config.get('debug', True):
             terms.update(dict(
-                t_old_diff_prob=target_prob - terms['prob'], 
-                tp_old_diff_prob=target_prob_prime - terms['prob'], 
-                trp_old_diff_prob=tr_prob_prime - terms['prob'], 
-                tp_t_diff_prob=target_prob_prime - target_prob, 
-                trp_tr_diff_prob=tr_prob_prime - tr_prob, 
+                target_prime_old_diff_prob=target_prob_prime - terms['prob'], 
+                trust_prime_old_diff_prob=tr_prob_prime - terms['prob'], 
+                target_prime_target_diff_prob=target_prob_prime - target_prob, 
+                trust_prime_trust_diff_prob=tr_prob_prime - tr_prob, 
+                target_prime_trust_prime_diff_prob=target_prob_prime - tr_prob_prime, 
+                target_trust_diff_prob=target_prob - tr_prob, 
+                target_prime_valid_target_diff_prob=target_prob_prime - vt_prob, 
+                trust_prime_valid_target_diff_prob=tr_prob_prime - vt_prob, 
+                target_valid_target_diff_prob=target_prob - vt_prob, 
+                trust_valid_target_diff_prob=tr_prob - vt_prob, 
             ))
             if life_mask is not None:
                 terms['n_alive_units'] = tf.reduce_sum(

@@ -144,6 +144,18 @@ model:
             activation: relu
             norm: null
 
+    # meta:
+    #     entropy_coef: 
+    #         init: 4.96
+    #         outer: &ec .01
+    #         act: sigmoid
+    #         units: 16
+    #     value_coef: 
+    #         init: 4.96
+    #         outer: &vc .5
+    #         act: sigmoid
+    #         units: 16
+
 loss:
     policy:
         policy_clip_range: null
@@ -151,10 +163,14 @@ loss:
         aux_l1_coef: 0
         aux_l2_coef: 0
         weighted_l_dist: False
-        kl_prior_coef: 1
-        aux_pg_coef: 0
+        kl_prior_coef: 0
+        kl_target_coef: 0
+        new_po_coef: 0
         pg_coef: 1
+        js_target_coef: 0
+        js_target: approx
         kl_prior: reverse
+        kl_target: reverse_approx
         policy_life_mask: False
 
         normalize_adv: False
@@ -238,6 +254,8 @@ buffer:
         normalize_adv_for_step: True
         zero_center: True
         step_size: .1
+
+        target_prob_key: target_prob_prime
 
     aux_adv_lower_clip: null
     aux_adv_upper_clip: null
