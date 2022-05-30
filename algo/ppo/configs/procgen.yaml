@@ -92,6 +92,7 @@ loss:
     kl_target_coef: 0
     new_po_coef: 0
     pg_coef: 1
+    target_prob: target_prob_prime
     js_target_coef: 0
     js_target: approx
     kl_prior: reverse
@@ -135,6 +136,7 @@ buffer:
     N_VALUE_EPOCHS: *nval_epochs
     n_mbs: *nmbs        # number of minibatches
     rnn_type: *rnn
+    normalize_adv_in_buffer: False
 
     # Trust region arguments
     target_pi:

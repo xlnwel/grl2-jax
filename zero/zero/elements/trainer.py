@@ -17,6 +17,14 @@ class GPOActorTrainer(Trainer):
         ])
         self.optimizer = create_optimizer(
             modules, self.config.optimizer)
+        
+        if self.config.get('meta_opt'):
+            meta_modules = tuple([
+                self.model[k] for k in keys if k.startswith('meta')
+            ])
+            self.meta_opt = create_optimizer(
+                meta_modules, self.config.meta_opt
+            )
 
     def raw_train(
         self, 

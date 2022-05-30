@@ -167,6 +167,7 @@ loss:
         kl_target_coef: 0
         new_po_coef: 0
         pg_coef: 1
+        target_prob: target_prob_prime
         js_target_coef: 0
         js_target: approx
         kl_prior: reverse
@@ -236,6 +237,7 @@ buffer:
     actor_rnn_type: *arnn
     value_rnn_type: *vrnn
     sample_size: *ss
+    normalize_adv_in_buffer: True
 
     # Trust region arguments
     target_pi:

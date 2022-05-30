@@ -294,20 +294,16 @@ class AdvantageCalculator:
         next_value=None,
         reset=None, 
     ):
-        if next_value is None and last_value is not None:
+        if next_value is None:
             last_value = np.expand_dims(last_value, 0)
             value = np.concatenate([data['value'], last_value], axis=0)
-            value = self.denormalize_value(value)
+            self.denormalize_value(value)
             next_value = value[1:]
             value = value[:-1]
-        elif next_value is not None:
+        else:
             value = data['value']
             value = self.denormalize_value(value)
             next_value = self.denormalize_value(next_value)
-        else:
-            value = self.denormalize_value(value)
-            next_value = value[1:]
-            value = value[:-1]
 
         if config.adv_type == 'gae':
             adv, traj_ret = \
@@ -600,47 +596,35 @@ class TurnBasedLocalBufferBase(
         #     for _ in range(self.n_envs)]
 
     def add(self, data: dict):
-        eids = data.pop('eid')
-        for i, eid in enumerate(eids):
-            for k, v in data.items():
-                self._buffers[eid][k].append(v[i])
-
-    def add_reward_discount(self, eids, reward, discount):
-        for i, eid in enumerate(eids):
-            self._buffers[eid]['reward'].append(reward[i])
-            self._buffers[eid]['discount'].append(discount[i])
-        self._memlen[eid] += 1
-
-    def retrieve_all_data(self, last_value, eids):
-        assert self.is_full(), (self._memlen, self.maxlen)
-        for i, eid in enumerate(eids):
-            self._buffers[eid]['value'] = last_value[i]
-        for b in self._buffers:
-            b['next_value'] = b['next_value'][-self.maxlen:]
-            b['value'] = b['value'][-self.maxlen-1:-1]
-        data = {k: np.stack(
-            [np.stack(b[k][-self.maxlen:]) for b in self._buffers[eids]], 1)
-            for k in self._buffers[0].keys()
-        }
         for k, v in data.items():
-            assert v.shape[:3] == (self.maxlen, self.n_envs, self.n_units), \
-                (k, v.shape, (self.maxlen, self.n_envs, self.n_units))
+            for i, eid in enumerate(data['eid']):
+                self._buffers[eid][k].append(v[i])
+        self._memlen[data['eid']] += 1
+
+    def retrieve_all_data(self, last_value, eids=None):
+        n_envs = len(eids)
+        assert self._memlen == self.maxlen, (self._memlen, self.maxlen)
+        data = {k: np.stack([np.stack(b[k]) for b in self._buffers[eids]], 1)
+            for k in self._buffers[0].keys()}
+        for k, v in data.items():
+            assert v.shape[:3] == (self._memlen, n_envs, self.n_units), \
+                (k, v.shape, (self._memlen, n_envs, self.n_units))
 
         self.compute_adv(data, self.config, last_value)
         self.compute_target_policy(data, self.config)
 
         data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
         for k, v in data.items():
-            assert v.shape[:3] == (self.n_envs, self.maxlen, self.n_units), \
-                (k, v.shape, (self.n_envs, self.maxlen, self.n_units))
+            assert v.shape[:3] == (n_envs, self._memlen, self.n_units), \
+                (k, v.shape, (n_envs, self._memlen, self.n_units))
             if self.sample_size is not None:
                 data[k] = np.reshape(v, 
-                    (self.n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
+                    (n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
             else:
                 data[k] = np.reshape(v,
-                    (self.n_envs * self.maxlen, *v.shape[2:]))
+                    (n_envs * self._memlen, *v.shape[2:]))
 
-        return self.runner_id, data, self.n_envs * self.maxlen
+        return self.runner_id, data, n_envs * self.maxlen
 
 class PPOBufferBase(
     Sampler, 

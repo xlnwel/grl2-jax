@@ -241,10 +241,10 @@ class GPOLossImpl(Loss):
                 elif pi_mean is not None:
                     new_mean = act_dist.mean()
                     new_std = tf.exp(self.policy.logstd)
-                    terms['new_pi_mean'] = new_mean
-                    terms['new_pi_std'] = new_std
-                    terms['diff_pi_mean'] = new_mean - pi_mean
-                    terms['diff_pi_std'] = new_std - pi_std
+                    terms['new_mean'] = new_mean
+                    terms['new_std'] = new_std
+                    terms['diff_mean'] = new_mean - pi_mean
+                    terms['diff_std'] = new_std - pi_std
 
                 if use_gpo_l1:
                     terms.update(dict(

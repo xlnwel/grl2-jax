@@ -112,8 +112,5 @@ def print_dict_info(d, prefix=''):
             # namedtuple is assumed
             print(f'{prefix} {k}')
             print_dict_info(v._asdict(), prefix+'\t')
-        # elif isinstance(v, np.ndarray):
         else:
             print(f'{prefix} {k}: {v.shape} {v.dtype}')
-        # else:
-        #     print(f'{prefix} {k}: {v}')

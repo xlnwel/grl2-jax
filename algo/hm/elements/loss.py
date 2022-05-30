@@ -59,6 +59,7 @@ class PGLossImpl(Loss):
             with tape.stop_recording():
                 terms = dict(
                     raw_adv=raw_adv, 
+                    advantage=advantage, 
                     ratio=tf.exp(log_ratio),
                     raw_entropy=raw_entropy,
                     entropy=entropy,
@@ -71,6 +72,11 @@ class PGLossImpl(Loss):
                     actor_loss=loss,
                     adv_std=tf.math.reduce_std(advantage, axis=-1), 
                 )
+                if not act_dist.is_action_discrete:
+                    new_mean = act_dist.mean()
+                    new_std = tf.exp(self.policy.logstd)
+                    terms['pi_mean'] = new_mean
+                    terms['pi_std'] = new_std
                 if action_mask is not None:
                     terms['n_avail_actions'] = tf.reduce_sum(
                         tf.cast(action_mask, tf.float32), -1)
