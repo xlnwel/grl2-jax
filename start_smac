@@ -3,7 +3,7 @@
 source activate grl
 
 algos=(
-    sync_sim-gpo
+    sync-gpo
 )
 suite=smac
 envs=(

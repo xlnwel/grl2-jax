@@ -38,10 +38,15 @@ def reduce_moments(x, mask=None, n=None, axis=None):
     var = reduce_mean((x - mean)**2, mask=mask, n=n, axis=axis)
     return mean, var
 
-def standard_normalization(x, mask=None, n=None, axis=None):
+def standard_normalization(x, zero_center=True, 
+        mask=None, n=None, axis=None, clip=None):
     mean, var = reduce_moments(x, mask=mask, n=n, axis=axis)
     std = tf.sqrt(var + 1e-8)
-    x = (x - mean) / std
+    if zero_center:
+        x = x - mean
+    x = x / std
+    if clip is not None:
+        x = tf.clip_by_value(x, -clip, clip)
 
     return x
 

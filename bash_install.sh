@@ -1,4 +1,4 @@
-set -e
+# set -e
 
 yes y | sudo apt-get update
 yes y | sudo apt-get install tmux

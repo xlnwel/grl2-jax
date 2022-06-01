@@ -230,13 +230,12 @@ class VecEnv(VecEnvBase):
             [env.close() for env in self.envs]
 
 
-class MAVecEnv(VecEnvBase):
+class MASimVecEnv(VecEnvBase):
     def __init__(self, config, env_fn=make_env, agents={}):
         super().__init__(config, env_fn, agents)
         self._stats = self.env.stats()
         self._stats['n_runners'] = 1
         self._stats['n_envs'] = self.n_envs
-        self._stats['is_multi_agent'] = True
 
     def random_action(self, *args, **kwargs):
         actions = list(zip(*[env.random_action() for env in self.envs]))
@@ -364,6 +363,134 @@ class MAVecEnv(VecEnvBase):
         assert len(out.discount) == self.env.n_agents, len(out.discount)
         assert len(out.reset) == self.env.n_agents, len(out.reset)
         return out
+
+
+class MATBVecEnv(VecEnvBase):
+    """ Different from other Envs which returns data of structure
+    (n_envs, n_agents, n_units, ...). MATBVecEnv returns data of
+    form (n_agents, n_envs, n_units, ...) since the current players
+    vary for different environments
+    """
+    def __init__(self, config, env_fn=make_env, agents={}):
+        super().__init__(config, env_fn, agents)
+        self._stats = self.env.stats()
+        self._stats['n_runners'] = 1
+        self._stats['n_envs'] = self.n_envs
+
+    def random_action(self, *args, **kwargs):
+        actions = [env.random_action() for env in self.envs]
+        return actions
+
+    def reset(self, idxes=None, convert_batch=True, **kwargs):
+        idxes = self._get_idxes(idxes)
+        out = [self.envs[i].reset() for i in idxes]
+
+        return self.process_output(out, convert_batch=convert_batch)
+
+    def step(self, actions, convert_batch=True, **kwargs):
+        outs = [e.step(a) for e, a in zip(self.envs, actions)]
+
+        return self.process_output(outs, convert_batch=convert_batch)
+
+    def manual_reset(self):
+        [e.manual_reset() for e in self.envs]
+
+    def score(self, idxes=None):
+        idxes = self._get_idxes(idxes)
+        return [self.envs[i].score() for i in idxes]
+
+    def epslen(self, idxes=None):
+        idxes = self._get_idxes(idxes)
+        return [self.envs[i].epslen() for i in idxes]
+
+    def mask(self, idxes=None):
+        idxes = self._get_idxes(idxes)
+        return np.stack([self.envs[i].mask() for i in idxes])
+
+    def game_over(self):
+        return np.stack([env.game_over() for env in self.envs])
+
+    def prev_obs(self, idxes=None):
+        idxes = self._get_idxes(idxes)
+        obs = [self.envs[i].prev_obs() for i in idxes]
+        if isinstance(obs[0], dict):
+            obs = batch_dicts(obs)
+        return obs
+
+    def info(self, idxes=None, convert_batch=False):
+        idxes = self._get_idxes(idxes)
+        info = [self.envs[i].info() for i in idxes]
+        if convert_batch:
+            info = batch_dicts(info)
+        return info
+
+    def output(self, idxes=None, convert_batch=True):
+        idxes = self._get_idxes(idxes)
+        out = [self.envs[i].output() for i in idxes]
+
+        return self.process_output(out, convert_batch=convert_batch)
+
+    def get_screen(self, size=None, convert_batch=True):
+        if hasattr(self.env, 'get_screen'):
+            imgs = [env.get_screen() for env in self.envs]
+        else:
+            imgs = [env.render(mode='rgb_array') for env in self.envs]
+
+        if size is not None:
+            # cv2 receive size of form (width, height)
+            imgs = [cv2.resize(i, size[::-1], interpolation=cv2.INTER_AREA) 
+                            for i in imgs]
+        if convert_batch:
+            imgs = np.stack(imgs)
+
+        return imgs
+
+    def record_default_state(self, aids, states):
+        state_type = type(states)
+        states = [state_type(*s) for s in zip(*states)]
+        for e, a, s in zip(self.envs, aids, states):
+            e.record_default_state(a, s)
+
+    def _envvec_op(self, name, convert_batch=True, **kwargs):
+        method = lambda e: getattr(e, name)
+        if kwargs:
+            kwargs = {k: [np.squeeze(x) for x in np.split(v, self.n_envs)]
+                if isinstance(v, np.ndarray) else list(zip(*v)) 
+                for k, v in kwargs.items()}
+            kwargs = [dict(x) for x in zip(*[itertools.product([k], v) 
+                for k, v in kwargs.items()])]
+            out = [method(env)(**kw) for env, kw in zip(self.envs, kwargs)]
+        else:
+            out = [method(env)() for env in self.envs]
+
+        return self.process_output(out, convert_batch=convert_batch)
+
+    def close(self):
+        if hasattr(self.env, 'close'):
+            [env.close() for env in self.envs]
+
+    def process_output(self, out, convert_batch=True):
+        obs = [[] for _ in range(self._stats.n_agents)]
+        reward = [[] for _ in range(self._stats.n_agents)]
+        discount = [[] for _ in range(self._stats.n_agents)]
+        reset = [[] for _ in range(self._stats.n_agents)]
+        for eid, o in enumerate(out):
+            uid = o.obs['uid']
+            o.obs['eid'] = eid
+            obs[uid].append(o.obs)
+            reward[uid].append(o.reward)
+            discount[uid].append(o.discount)
+            reset[uid].append(o.reset)
+        
+        if convert_batch:
+            agent_env_outs = [EnvOutput(*o)
+                for out in zip(obs, reward, discount, reset)
+                for o in [[convert_batch_with_func(o) for o in out]]
+            ]
+            # Unlike other environments, we return env_output for each agent
+            return agent_env_outs
+        else:
+            return out
 
 
 if __name__ == '__main__':

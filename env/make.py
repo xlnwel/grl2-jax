@@ -106,6 +106,17 @@ def make_mpe(config):
     return env
 
 
+def make_spiel(config):
+    config = _change_env_name(config)
+    from env.openspiel import OpenSpiel
+    env = OpenSpiel(**config)
+    env = wrappers.TurnBasedProcess(env)
+    env = wrappers.Single2MultiAgent(env, obs_only=True)
+    env = wrappers.SqueezeObs(env, config['squeeze_keys'])
+    env = wrappers.MATurnBasedEnvStats(env)
+
+    return env
+
 def make_card(config):
     config = _change_env_name(config)
     env_name = config['env_name']

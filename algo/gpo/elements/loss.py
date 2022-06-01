@@ -17,7 +17,7 @@ def prefix_name(terms, name):
 
 
 class GPOLossImpl(Loss):
-    def _pg_loss(
+    def _ppo_loss(
         self, 
         tape, 
         act_dist,
@@ -38,17 +38,11 @@ class GPOLossImpl(Loss):
         name=None,
     ):
         with tape.stop_recording():
-            use_gpo_l1 = self.config.get('aux_l1_coef', None) is not None
-            use_gpo_l2 = self.config.get('aux_l2_coef', None) is not None
-            use_new_po = self.config.get('new_po_coef', None) is not None
-            use_kl_prior = self.config.get('kl_prior_coef', None) is not None
-            use_kl_target = self.config.get('kl_target_coef', None) is not None
-            use_js = self.config.get('js_coef', None) is not None
             is_action_discrete = self.model.policy.is_action_discrete
             raw_adv = advantage
             if self.config.normalize_adv:
                 advantage = standard_normalization(
-                    advantage, mask=sample_mask, n=n)
+                    advantage, mask=sample_mask, n=n, clip=self.config.clip)
             if self.config.process_adv == 'tanh':
                 scale = tf.minimum(tf.reduce_max(tf.math.abs(advantage)), 10)
                 advantage = scale * tf.math.tanh(advantage * 2 / scale)
@@ -58,57 +52,103 @@ class GPOLossImpl(Loss):
                 raise NotImplementedError(f'Unknown {self.config.process_adv}')
             prob = tf.exp(logprob)
 
+            terms = {}
+
+        self.log_for_debug(
+            tape, 
+            terms, 
+            prob=prob, 
+            target_prime_old_diff_prob=target_prob_prime - prob, 
+            trust_region_old_diff_prob=tr_prob - prob, 
+            trust_region_prime_old_diff_prob=tr_prob_prime - prob, 
+            valid_target_old_diff_prob=vt_prob - prob, 
+            raw_adv=raw_adv, 
+            advantage=advantage, 
+            raw_adv_unit_std=tf.math.reduce_std(raw_adv, axis=-1), 
+            adv_unit_std=tf.math.reduce_std(advantage, axis=-1), 
+        )
+        if action_mask is not None:
+            n_avail_actions = tf.reduce_sum(
+                tf.cast(action_mask, tf.float32), -1)
+            self.log_for_debug(
+                tape, 
+                terms, 
+                n_avail_actions=n_avail_actions
+            )
+
         tf.debugging.assert_all_finite(advantage, 'Bad advantage')
         new_logprob = act_dist.log_prob(action)
         tf.debugging.assert_all_finite(new_logprob, 'Bad new_logprob')
-        entropy = act_dist.entropy()
-        tf.debugging.assert_all_finite(entropy, 'Bad entropy')
+        raw_entropy = act_dist.entropy()
+        tf.debugging.assert_all_finite(raw_entropy, 'Bad entropy')
         log_ratio = new_logprob - logprob
-        ratio, loss1, loss2, raw_pg, entropy, approx_kl, clip_frac = \
+        ratio, loss_pg, loss_clip, raw_ppo_loss, ppo_loss, \
+            raw_entropy_loss, entropy_loss, approx_kl, clip_frac = \
             rl_loss.ppo_loss(
-            log_ratio, 
-            advantage, 
-            self.config.policy_clip_range, 
-            entropy, 
-            mask=sample_mask, 
-            n=n, 
-            reduce=False
+                pg_coef=self.config.pg_coef, 
+                entropy_coef=self.config.entropy_coef, 
+                log_ratio=log_ratio, 
+                advantage=advantage, 
+                clip_range=self.config.ppo_clip_range, 
+                entropy=raw_entropy, 
+                mask=sample_mask, 
+                n=n, 
+            )
+        self.log_for_debug(
+            tape, 
+            terms, 
+            ratio=ratio,
+            entropy=raw_entropy,
+            approx_kl=approx_kl,
+            new_logprob=new_logprob, 
+            p_clip_frac=clip_frac,
+            raw_pg_loss=loss_pg, 
+            raw_clipped_loss=loss_clip, 
+            raw_ppo_loss=raw_ppo_loss,
+            ppo_loss=ppo_loss,
+            raw_entropy_loss=raw_entropy_loss, 
+            entropy_loss=entropy_loss, 
         )
-        tf.debugging.assert_all_finite(raw_pg, 'Bad raw_ppo_loss')
-        raw_pg_loss = reduce_mean(raw_pg, sample_mask, n)
-        pg_loss = self.config.pg_coef * reduce_mean(raw_pg, sample_mask, n)
-        raw_entropy_loss = - reduce_mean(entropy, sample_mask, n)
-        entropy_loss = self.config.entropy_coef * raw_entropy_loss
 
         # GPO with L1
         new_prob = act_dist.prob(action)
         tr_diff_prob = tr_prob - new_prob
         vt_diff_prob = vt_prob - new_prob
-        if use_gpo_l1:
-            if self.config.get('weighted_l_dist', False):
-                l1_distance = tf.math.abs(tr_diff_prob) / prob
-            else:
-                l1_distance = tf.math.abs(tr_diff_prob)
-            raw_gpo_l1_loss = reduce_mean(
-                tf.math.abs(l1_distance), sample_mask, n)
-            tf.debugging.assert_all_finite(raw_gpo_l1_loss, 'Bad raw_gpo_l1_loss')
-            gpo_l1_loss = self.config.aux_l1_coef * raw_gpo_l1_loss
+        if self.config.get('weighted_l_dist', False):
+            l1_distance = tf.math.abs(tr_diff_prob) / prob
         else:
-            raw_gpo_l1_loss = 0.
-            gpo_l1_loss = 0.
+            l1_distance = tf.math.abs(tr_diff_prob)
+        raw_gpo_l1_loss = reduce_mean(
+            tf.math.abs(l1_distance), sample_mask, n)
+        tf.debugging.assert_all_finite(raw_gpo_l1_loss, 'Bad raw_gpo_l1_loss')
+        gpo_l1_loss = self.config.aux_l1_coef * raw_gpo_l1_loss
+        self.log_for_debug(
+            tape, 
+            terms, 
+            new_prob=new_prob, 
+            new_old_diff_prob=new_prob - prob, 
+            trust_region_new_diff_prob=tr_diff_prob, 
+            valid_target_new_diff_prob=vt_diff_prob, 
+            l1_distance=l1_distance, 
+            raw_gpo_l1_loss=raw_gpo_l1_loss, 
+            gpo_l1_loss=gpo_l1_loss, 
+        )
 
         # GPO with L2
-        if use_gpo_l2:
-            if self.config.get('weighted_l_dist', False):
-                l2_distance = tr_diff_prob**2 / prob
-            else:
-                l2_distance = tr_diff_prob**2
-            raw_gpo_l2_loss = reduce_mean(l2_distance, sample_mask, n)
-            tf.debugging.assert_all_finite(raw_gpo_l2_loss, 'Bad raw_gpo_l2_loss')
-            gpo_l2_loss = self.config.aux_l2_coef * raw_gpo_l2_loss
+        if self.config.get('weighted_l_dist', False):
+            l2_distance = tr_diff_prob**2 / prob
         else:
-            raw_gpo_l2_loss = 0.
-            gpo_l2_loss = 0.
+            l2_distance = tr_diff_prob**2
+        raw_gpo_l2_loss = reduce_mean(l2_distance, sample_mask, n)
+        tf.debugging.assert_all_finite(raw_gpo_l2_loss, 'Bad raw_gpo_l2_loss')
+        gpo_l2_loss = self.config.aux_l2_coef * raw_gpo_l2_loss
+        self.log_for_debug(
+            tape, 
+            terms, 
+            l2_distance=l2_distance, 
+            raw_gpo_l2_loss=raw_gpo_l2_loss, 
+            gpo_l2_loss=gpo_l2_loss, 
+        )
 
         if is_action_discrete:
             new_pi = tf.nn.softmax(act_dist.logits)
@@ -136,6 +176,13 @@ class GPOLossImpl(Loss):
                 n=n, 
                 pi_mask=action_mask,
             )
+        self.log_for_debug(
+            tape, 
+            terms, 
+            kl_prior=kl_prior, 
+            raw_kl_prior_loss=raw_kl_prior_loss, 
+            kl_prior_loss=kl_prior_loss,
+        )
 
         target_prob = locals()[self.config.target_prob]
         target_logprob = tf.math.log(target_prob)
@@ -152,143 +199,76 @@ class GPOLossImpl(Loss):
                 sample_mask=sample_mask,
                 n=n, 
             )
+        self.log_for_debug(
+            tape, 
+            terms, 
+            target_prob=target_prob, 
+            kl_target=kl_target, 
+            raw_kl_target_loss=raw_kl_target_loss, 
+            kl_target_loss=kl_target_loss,
+        )
 
-        js, raw_js_loss, js_loss = rl_loss.compute_js(
-            js_type=self.config.js_target, 
-            js_coef=self.config.js_target_coef, 
-            logp=new_logprob, 
-            logq=target_logprob, 
-            sample_prob=prob, 
-            pi_mask=action_mask, 
-            sample_mask=sample_mask,
-            n=n, 
+        js_target, raw_js_target_loss, js_target_loss = \
+            rl_loss.compute_js(
+                js_type=self.config.js_target, 
+                js_coef=self.config.js_target_coef, 
+                p=target_prob, 
+                q=new_prob, 
+                sample_prob=prob, 
+                pi1=target_pi,
+                pi2=new_pi,
+                pi_mask=action_mask, 
+                sample_mask=sample_mask,
+                n=n, 
+            )
+        self.log_for_debug(
+            tape, 
+            terms, 
+            js_target=js_target, 
+            raw_js_target_loss=raw_js_target_loss, 
+            js_target_loss=js_target_loss,
         )
 
         # GPO's loss
         vt_old_diff_prob = vt_prob - prob
-        if use_new_po:
-            in_range = tf.sign(vt_diff_prob) == tf.sign(vt_old_diff_prob)
-            weighted_l1_po = advantage / prob * tf.where(
-                in_range, tf.abs(vt_diff_prob), 0)
-            raw_new_po_loss = reduce_mean(weighted_l1_po, sample_mask, n)
-            tf.debugging.assert_all_finite(raw_new_po_loss, 'Bad raw_new_po_loss')
-            new_po_loss = self.config.new_po_coef * raw_new_po_loss
-        else:
-            raw_new_po_loss = 0.
-            new_po_loss = 0.
+        in_range = tf.sign(vt_diff_prob) == tf.sign(vt_old_diff_prob)
+        weighted_l1_po = advantage / prob * tf.where(
+            in_range, tf.abs(vt_diff_prob), 0)
+        raw_new_po_loss = reduce_mean(weighted_l1_po, sample_mask, n)
+        tf.debugging.assert_all_finite(raw_new_po_loss, 'Bad raw_new_po_loss')
+        new_po_loss = self.config.new_po_coef * raw_new_po_loss
+
+        self.log_for_debug(
+            tape, 
+            terms, 
+            out_of_region_frac=1 - tf.cast(in_range, tf.float32), 
+            weighted_l1_po=weighted_l1_po, 
+            raw_new_po_loss=raw_new_po_loss, 
+            new_po_loss=new_po_loss
+        )
 
         # GPO Loss
         raw_losses = {k: v for k, v in locals().items() 
             if re.search(r'raw_.*_loss$', k)
-            and k != 'raw_pg_loss' and k != 'raw_entropy_loss'}
+            and k != 'raw_ppo_loss' and k != 'raw_entropy_loss'}
         losses = {k: v for k, v in locals().items() 
             if re.search(r'^(?!raw_).*_loss$', k) 
-            and k != 'pg_loss' and k != 'entropy_loss'}
+            and k != 'ppo_loss' and k != 'entropy_loss'}
         print_dict(raw_losses, prefix='raw losses')
         print_dict(losses, prefix='losses')
 
         raw_gpo_loss = sum(raw_losses.values())
         gpo_loss = sum(losses.values())
-        loss = pg_loss + entropy_loss + gpo_loss
+        loss = ppo_loss + entropy_loss + gpo_loss
 
-        if self.config.get('debug', True):
-            with tape.stop_recording():
-                diff_prob = new_prob - prob
-                terms = dict(
-                    new_old_diff_prob=diff_prob, 
-                    trust_region_old_diff_prob=tr_prob - prob, 
-                    trust_region_new_diff_prob=tr_diff_prob, 
-                    ratio=ratio,
-                    entropy=entropy,
-                    approx_kl=approx_kl,
-                    prob=prob,
-                    new_logprob=new_logprob, 
-                    new_prob=new_prob, 
-                    p_clip_frac=clip_frac,
-                    ppo_loss1=loss1, 
-                    ppo_loss2=loss2, 
-                    raw_clipped_loss=loss2, 
-                    raw_pg_loss=raw_pg_loss,
-                    pg_loss=pg_loss,
-                    entropy_loss=entropy_loss, 
-                    raw_gpo_loss=raw_gpo_loss, 
-                    gpo_loss=gpo_loss, 
-                    actor_loss=loss,
-                    advantage=advantage, 
-                    raw_adv_std=tf.math.reduce_std(raw_adv, axis=-1), 
-                    adv_std=tf.math.reduce_std(advantage, axis=-1), 
-                )
-                if is_action_discrete:
-                    tt_prob = tf.gather(target_pi, action, batch_dims=len(action.shape))
-                    tf.debugging.assert_equal(tt_prob, vt_prob)
-                    terms.update(dict(
-                        logits=act_dist.logits, 
-                        valid_target_prob=vt_prob, 
-                        valid_target_old_diff_prob=vt_old_diff_prob, 
-                        valid_target_new_diff_prob=vt_diff_prob, 
-                        valid_target_old_prob_ratio=vt_prob / prob, 
-                        valid_target_new_prob_ratio=vt_prob / new_prob, 
-                        valid_target_new_pi_ratio=target_pi / new_pi, 
-                    ))
-                    if pi is not None:
-                        diff_pi = new_pi - pi
-                        terms['diff_pi'] = diff_pi
-                        max_diff_action = tf.cast(
-                            tf.math.argmax(tf.math.abs(diff_pi), axis=-1), tf.int32)
-                        terms['diff_match'] = tf.reduce_mean(
-                            tf.cast(max_diff_action == action, tf.float32)
-                        )
-                elif pi_mean is not None:
-                    new_mean = act_dist.mean()
-                    new_std = tf.exp(self.policy.logstd)
-                    terms['new_pi_mean'] = new_mean
-                    terms['new_pi_std'] = new_std
-                    terms['diff_pi_mean'] = new_mean - pi_mean
-                    terms['diff_pi_std'] = new_std - pi_std
-
-                if use_gpo_l1:
-                    terms.update(dict(
-                        l1_distance=l1_distance, 
-                        raw_gpo_l1_loss=raw_gpo_l1_loss, 
-                        gpo_l1_loss=gpo_l1_loss, 
-                    ))
-                if use_gpo_l2:
-                    terms.update(dict(
-                        l2_distance=l2_distance, 
-                        raw_gpo_l2_loss=raw_gpo_l2_loss, 
-                        gpo_l2_loss=gpo_l2_loss, 
-                    ))
-                if use_kl_prior:
-                    terms.update(dict(
-                        kl_prior=kl_prior, 
-                        raw_kl_prior_loss=raw_kl_prior_loss, 
-                        kl_prior_loss=kl_prior_loss, 
-                    ))
-                if use_kl_target:
-                    terms.update(dict(
-                        kl_target=kl_target, 
-                        raw_kl_target_loss=raw_kl_target_loss, 
-                        kl_target_loss=kl_target_loss, 
-                    ))
-                if use_new_po:
-                    terms.update(dict(
-                        out_of_region_frac=1 - tf.cast(in_range, tf.float32), 
-                        weighted_l1_po=weighted_l1_po, 
-                        raw_new_po_loss=raw_new_po_loss, 
-                        new_po_loss=new_po_loss
-                    ))
-                if use_js:
-                    terms.update(dict(
-                        js=js, 
-                        raw_js_loss=raw_js_loss,
-                        js_loss=js_loss,
-                    ))
-                if action_mask is not None:
-                    terms['n_avail_actions'] = tf.reduce_sum(
-                        tf.cast(action_mask, tf.float32), -1)
-                terms = prefix_name(terms, name)
-        else:
-            terms = {}
+        self.log_for_debug(
+            tape, 
+            terms, 
+            raw_gpo_loss=raw_gpo_loss, 
+            gpo_loss=gpo_loss, 
+            loss=loss, 
+        )
+        terms = prefix_name(terms, name)
 
         return terms, loss
 
@@ -392,7 +372,7 @@ class GPOPolicyLoss(GPOLossImpl):
                 mask=mask
             )
             act_dist = self.policy(x, action_mask)
-            terms, loss = self._pg_loss(
+            terms, loss = self._ppo_loss(
                 tape=tape, 
                 act_dist=act_dist, 
                 action=action, 

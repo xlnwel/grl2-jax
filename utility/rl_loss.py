@@ -250,26 +250,29 @@ def v_trace_from_ratio(
 
 
 def ppo_loss(
+    *, 
+    pg_coef, 
+    entropy_coef, 
     log_ratio, 
     advantage, 
     clip_range, 
     entropy, 
     mask=None, 
     n=None,
-    reduce=True
 ):
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
         assert_rank_and_shape_compatibility([advantage, mask])
     assert_rank_and_shape_compatibility([log_ratio, advantage])
-    ratio, loss1, loss2 = _compute_ppo_policy_losses(
+    ratio, pg_loss, clipped_loss = _compute_ppo_policy_losses(
         log_ratio, advantage, clip_range)
 
-    if reduce:
-        policy_loss = reduce_mean(tf.maximum(loss1, loss2), mask, n)
-        entropy = reduce_mean(entropy, mask, n)
-    else:
-        policy_loss = tf.maximum(loss1, loss2)
+    raw_ppo = tf.maximum(pg_loss, clipped_loss)
+    tf.debugging.assert_all_finite(raw_ppo, 'Bad raw_ppo')
+    raw_ppo_loss = reduce_mean(raw_ppo, mask=mask, n=n)
+    ppo_loss = pg_coef * raw_ppo_loss
+    raw_entropy_loss = - reduce_mean(entropy, mask, n)
+    entropy_loss = entropy_coef * reduce_mean(entropy, mask, n)
 
     # debug stats: KL between old and current policy and fraction of data being clipped
     approx_kl = .5 * reduce_mean((-log_ratio)**2, mask, n)
@@ -279,7 +282,8 @@ def ppo_loss(
     clip_frac = reduce_mean(tf.cast(tf.greater(
         tf.abs(ratio - 1.), clip_range), ratio.dtype), mask, n)
 
-    return ratio, loss1, loss2, policy_loss, entropy, approx_kl, clip_frac
+    return ratio, pg_loss, clipped_loss, raw_ppo_loss, ppo_loss, \
+        raw_entropy_loss, entropy_loss, approx_kl, clip_frac
 
 
 def clipped_value_loss(
@@ -363,7 +367,6 @@ def _compute_ppo_value_losses(
     return value_diff, loss1, loss2
 
 
-
 def compute_kl(
     *, 
     kl_type,
@@ -433,11 +436,11 @@ def compute_js(
     *, 
     js_type, 
     js_coef, 
-    logp=None, 
-    logq=None,
-    sample_prob=None, 
-    p=None,
+    p=None, 
     q=None,
+    sample_prob=None, 
+    pi1=None,
+    pi2=None,
     pi_mask=None, 
     sample_mask=None, 
     n=None
@@ -445,13 +448,13 @@ def compute_js(
     if js_coef is not None:
         if js_type == 'approx':
             js = div.js_from_samples(
-                logp=logp, 
-                logq=logq, 
+                p=p, 
+                q=q, 
                 sample_prob=sample_prob, 
             )
         elif js_type == 'exact':
             js = div.js_from_distributions(
-                p=p, q=q, pi_mask=pi_mask
+                pi1=pi1, pi2=pi2, pi_mask=pi_mask
             )
         else:
             raise NotImplementedError(f'Unknown JS type {js_type}')

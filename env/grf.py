@@ -230,6 +230,7 @@ class GRF:
         if action is None:
             action = [np.zeros((len(uids), a), np.float32) 
                 for uids, a in zip(self.aid2uids, self.action_dim)]
+        if reward is None:
             reward = [np.zeros(len(uids), np.float32) for uids in self.aid2uids]
 
         if self.n_units == 1:
@@ -307,7 +308,6 @@ if __name__ == '__main__':
 
     from utility.display import print_dict_info, print_dict
     env = GRF(**config)
-    env2 = GRF(**config)
     import random
     random.seed(0)
     np.random.seed(0)
@@ -315,16 +315,9 @@ if __name__ == '__main__':
     o = env.reset()
     random.seed(0)
     np.random.seed(0)
-    o2 = env2.reset()
-    np.testing.assert_allclose(o[0]['obs'], o2[0]['obs'])
     for i in range(args.step):
         print(i)
         a = env.random_action()
-        random.seed(0)
-        np.random.seed(0)
         o, r, d, info = env.step(a)
-        random.seed(0)
-        np.random.seed(0)
-        o2, r2, d2, info2 = env2.step(a)
-        print(a)
-        np.testing.assert_allclose(o[0]['obs'], o2[0]['obs'])
+        idx = np.where(o[0]['obs'][0] != o[0]['obs'][1])
+        np.testing.assert_allclose(o[0]['obs'][0], o[0]['obs'][1])

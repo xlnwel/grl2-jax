@@ -8,7 +8,7 @@ from core.elements.model import Model
 from core.log import do_logging
 from utility.rms import RunningMeanStd
 from utility.typing import AttrDict
-from utility.utils import dict2AttrDict, moments, standardize
+from utility.utils import batch_dicts, dict2AttrDict, moments, standardize
 
 
 logger = logging.getLogger(__name__)
@@ -63,11 +63,11 @@ def compute_gae(
     else:
         next_value = value[1:]
         value = value[:-1]
-    assert value.ndim == next_value.ndim, (value.shape, next_value.shape)
+    assert reward.shape == discount.shape == value.shape == next_value.shape, (reward.shape, discount.shape, value.shape, next_value.shape)
     delta = (reward + discount * gamma * next_value - value).astype(np.float32)
     discount = (discount if reset is None else (1 - reset)) * gae_discount
     next_adv = 0
-    advs = np.zeros_like(reward)
+    advs = np.zeros_like(reward, dtype=np.float32)
     for i in reversed(range(advs.shape[0])):
         advs[i] = next_adv = (delta[i] + discount[i] * next_adv)
     traj_ret = advs + value
@@ -108,6 +108,31 @@ def compute_upgo(
         advs = standardize(advs, mask=mask, epsilon=epsilon)
 
     return advs
+
+def normalize_adv(
+    adv, 
+    data, 
+    normalize_adv=False, 
+    zero_center=True, 
+    process_adv=None, 
+    adv_clip=None, 
+):
+    if normalize_adv:
+        adv = standardize(
+            adv, 
+            zero_center, 
+            data.get('life_mask'), 
+        )
+    if process_adv == 'tanh':
+        adv_max = np.max(adv)
+        adv = adv_max * np.tanh(2 * adv / adv_max)
+    elif process_adv is None:
+        pass
+    else:
+        raise NotImplementedError(f'Unknown {process_adv}')
+    if adv_clip is not None:
+        adv = np.clip(adv, -adv_clip, adv_clip)
+    return adv
 
 def compute_target_pi(data, config):
     target_pi = data['pi'].copy()
@@ -245,19 +270,13 @@ def compute_step_target(
     adv = data['advantage']
     prob = np.exp(data['logprob'])
 
-    if config.normalize_adv_for_step:
-        adv = standardize(
-            adv, 
-            config.zero_center, 
-            data.get('life_mask'), 
-        )
-        if config.process_adv_for_step == 'tanh':
-            adv_max = np.max(adv)
-            adv = adv_max * np.tanh(2 * adv / adv_max)
-        elif config.process_adv_for_step is None:
-            pass
-        else:
-            raise NotImplementedError(f'Unknown {config.process_adv}')
+    adv = normalize_adv(
+        adv, 
+        data, 
+        normalize_adv=config.normalize_adv_for_step, 
+        zero_center=config.zero_center_for_step, 
+        process_adv=config.process_adv_for_step
+    )
 
     target_prob_prime = prob + adv / prob
     tr_prob_prime = prob + config.step_size * adv / prob
@@ -323,7 +342,13 @@ class AdvantageCalculator:
                     mask=data.get('life_mask'),
                     epsilon=config.get('epsilon', 1e-8),
                 )
-            data['advantage'] = adv
+            data['advantage'] = normalize_adv(
+                adv, 
+                config.normalize_adv_in_buffer, 
+                zero_center=config.zero_center_adv_in_buffer, 
+                process_adv=config.process_adv_in_buffer,
+                adv_clip=config.adv_clip_in_buffer, 
+            )
             data['traj_ret'] = self.normalize_value(traj_ret)
             self.update_value_rms(traj_ret)
         elif config.adv_type == 'vtrace':
@@ -563,13 +588,7 @@ class TurnBasedLocalBufferBase(
     def _add_attributes(self, model):
         self.extract_sampling_keys(model)
 
-        if self.config.get('fragment_size', None) is not None:
-            self.maxlen = self.config.fragment_size
-        elif self.sample_size is not None:
-            self.maxlen = self.sample_size * 4
-        else:
-            self.maxlen = 64
-        self.maxlen = min(self.maxlen, self.config.n_steps)
+        self.maxlen = self.config.n_envs * self.config.n_steps
         if self.sample_size is not None:
             assert self.maxlen % self.sample_size == 0, (self.maxlen, self.sample_size)
             assert self.config.n_steps % self.maxlen == 0, (self.config.n_steps, self.maxlen)
@@ -582,65 +601,81 @@ class TurnBasedLocalBufferBase(
         return self._memlen
 
     def is_empty(self):
-        return np.all(self._memlen == 0)
+        return self._memlen == 0
 
     def is_full(self):
-        return np.all(self._memlen >= self.maxlen)
+        return self._memlen >= self.maxlen
 
-    def reset(self, eids=None):
-        if eids is None:
-            self._memlen = np.zeros(self.n_envs)
-            self._buffers = [collections.defaultdict(list) 
-                for _ in range(self.n_envs)]
-        else:
-            self._memlen[eids] = 0
-            for eid in eids:
-                self._buffers[eid] = collections.defaultdict(list)
-        # self._train_steps = [[None for _ in range(self.n_units)] 
-        #     for _ in range(self.n_envs)]
+    def reset(self):
+        self._memory = []
+        self._memlen = 0
+        self._buffers = collections.defaultdict(
+            lambda: collections.defaultdict(list))
+        self._buff_lens = collections.defaultdict(int)
 
-    def add(self, data: dict):
+    def add(self, data: dict, reset):
         eids = data.pop('eid')
-        for i, eid in enumerate(eids):
+        uids = data.pop('uid')
+        for i, (eid, uid) in enumerate(zip(eids, uids)):
+            if reset[i]:
+                assert self._buff_lens[(eid, uid)] == 0, (eid, uid, self._buff_lens[(eid, uid)])
+                assert len(self._buffers[(eid, uid)]) == 0, (eid, uid, len(self._buffers[(eid, uid)])) 
             for k, v in data.items():
-                self._buffers[eid][k].append(v[i])
+                self._buffers[(eid, uid)][k].append(v[i])
 
-    def add_reward_discount(self, eids, reward, discount):
+    def add_reward(self, eids, uids, reward, discount):
+        assert len(eids) == len(uids), (eids, uids)
+        for i, (eid, uid) in enumerate(zip(eids, uids)):
+            if np.any(discount[i] == 0):
+                np.testing.assert_equal(discount[i], 0)
+                continue
+            if not self._buffers[(eid, uid)]:
+                continue
+            assert 'obs' in self._buffers[(eid, uid)], self._buffers[(eid, uid)]
+            self._buffers[(eid, uid)]['reward'].append([reward[i][uid]])
+            self._buff_lens[(eid, uid)] += 1
+
+    def finish_episode(self, eids, uids, reward):
         for i, eid in enumerate(eids):
-            self._buffers[eid]['reward'].append(reward[i])
-            self._buffers[eid]['discount'].append(discount[i])
-        self._memlen[eid] += 1
+            for uid in uids:
+                if self._buffers[(eid, uid)]:
+                    self._buffers[(eid, uid)]['reward'].append([reward[i][uid]])
+                    self._buff_lens[(eid, uid)] += 1
+                    self.merge_episode(eid, uid)
+                else:
+                    self._reset_buffer(eid, uid)
 
-    def retrieve_all_data(self, last_value, eids):
-        assert self.is_full(), (self._memlen, self.maxlen)
-        for i, eid in enumerate(eids):
-            self._buffers[eid]['value'] = last_value[i]
-        for b in self._buffers:
-            b['next_value'] = b['next_value'][-self.maxlen:]
-            b['value'] = b['value'][-self.maxlen-1:-1]
-        data = {k: np.stack(
-            [np.stack(b[k][-self.maxlen:]) for b in self._buffers[eids]], 1)
-            for k in self._buffers[0].keys()
-        }
+    def merge_episode(self, eid, uid):
+        episode = {k: np.stack(v) for k, v in self._buffers[(eid, uid)].items()}
+        episode['discount'] = np.ones_like(episode['reward'], dtype=np.float32)
+        episode['discount'][-1] = 0
+        epslen = self._buff_lens[(eid, uid)]
+        for k, v in episode.items():
+            assert v.shape[0] == epslen, (k, v.shape, epslen)
+
+        self.compute_adv(episode, self.config, last_value=np.array([0], np.float32))
+        self.compute_target_policy(episode, self.config)
+
+        self._memory.append(episode)
+        self._memlen += epslen
+        self._reset_buffer(eid, uid)
+        return episode
+
+    def retrieve_all_data(self):
+        data = batch_dicts(self._memory, np.concatenate)
         for k, v in data.items():
-            assert v.shape[:3] == (self.maxlen, self.n_envs, self.n_units), \
-                (k, v.shape, (self.maxlen, self.n_envs, self.n_units))
-
-        self.compute_adv(data, self.config, last_value)
-        self.compute_target_policy(data, self.config)
-
-        data = {k: np.swapaxes(data[k], 0, 1) for k in self.sample_keys}
-        for k, v in data.items():
-            assert v.shape[:3] == (self.n_envs, self.maxlen, self.n_units), \
-                (k, v.shape, (self.n_envs, self.maxlen, self.n_units))
+            assert v.shape[0] == self._memlen, (v.shape, self._memlen)
+            data[k] = v[-self.maxlen:]
             if self.sample_size is not None:
-                data[k] = np.reshape(v, 
-                    (self.n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
-            else:
-                data[k] = np.reshape(v,
-                    (self.n_envs * self.maxlen, *v.shape[2:]))
+                data[k] = np.reshape(v, (
+                    self.n_envs * self.n_samples, self.sample_size, *v.shape[2:]))
+        self.reset()
+        return self.runner_id, data, self.maxlen
 
-        return self.runner_id, data, self.n_envs * self.maxlen
+    def _reset_buffer(self, eid, uid):
+        self._buffers[(eid, uid)] = collections.defaultdict(list)
+        self._buff_lens[(eid, uid)] = 0
+
 
 class PPOBufferBase(
     Sampler, 
@@ -767,7 +802,8 @@ class PPOBufferBase(
 
         if self._current_size >= self.max_size:
             self._memory = {k: np.concatenate(
-                    [np.concatenate(b[k]) for b in self._buffers if b])[-self.batch_size:]
+                    [np.concatenate(b[k]) for b in self._buffers if b]
+                )[-self.batch_size:]
                 for k in self.sample_keys}
             for k, v in self._memory.items():
                 assert v.shape[0] == self.batch_size, (v.shape, self.batch_size)

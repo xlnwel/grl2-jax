@@ -81,7 +81,7 @@ model:
 loss:
     # arguments for loss
     value_loss: clip
-    policy_clip_range: .2          # clip range for ppo
+    ppo_clip_range: .2          # clip range for ppo
     value_clip_range: .2          # clip range for ppo
     entropy_coef: .01
     value_coef: .5
@@ -137,6 +137,9 @@ buffer:
     n_mbs: *nmbs        # number of minibatches
     rnn_type: *rnn
     normalize_adv_in_buffer: False
+    zero_center_adv_in_buffer: True
+    process_adv_in_buffer: null
+    adv_clip_in_buffer: null
 
     # Trust region arguments
     target_pi:
@@ -153,10 +156,8 @@ buffer:
         lin_upper_clip: 1
         lin_weights: 1
         normalize_adv_for_step: False
+        zero_center_for_step: True
         process_adv_for_step: null
-        adv_scale_for_step: 5
-        adv_normalizer_for_step: 2
-        zero_center: False
         step_size: .1
 
         target_prob_key: target_prob_prime

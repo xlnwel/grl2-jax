@@ -21,7 +21,7 @@ from run.utils import *
 def _get_algo_name(algo):
     # shortcuts for distributed algorithms
     algo_mapping = {
-        'ssppo': 'sync_sim-ppo',
+        'ssppo': 'sync-ppo',
     }
     if algo in algo_mapping:
         return algo_mapping[algo]

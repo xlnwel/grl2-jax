@@ -118,7 +118,7 @@ model:
 
 loss:
     policy:
-        policy_clip_range: .2
+        ppo_clip_range: .2
         entropy_coef: 0
         pg_coef: 1
         policy_life_mask: False

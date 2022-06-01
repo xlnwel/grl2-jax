@@ -51,26 +51,24 @@ def reverse_kl_from_samples(
 
 def js_from_samples(
     *,
-    logp,
-    logq, 
+    p,
+    q, 
     sample_prob
 ):
-    p = tf.exp(logp)
-    q = tf.exp(logq)
-    approx_js = .5 * p * tf.stop_gradient(
-        (tf.math.log(2.) + logp - tf.math.log(p+q)) / sample_prob)
+    approx_js = .5 * q * tf.stop_gradient(
+        (tf.math.log(2.) + tf.math.log(q) -  tf.math.log(p+q)) / sample_prob)
     return approx_js
 
 def js_from_distributions(
     *,
-    q,
-    p, 
+    pi1,
+    pi2, 
     pi_mask=None
 ):
-    avg = (p + q) / 2
+    avg = (pi1 + pi2) / 2
     approx_js = .5 * (
-        kl_from_distributions(pi1=p, pi2=avg, pi_mask=pi_mask)
-        + kl_from_distributions(pi1=q, pi2=avg, pi_mask=pi_mask)
+        kl_from_distributions(pi1=pi1, pi2=avg, pi_mask=pi_mask)
+        + kl_from_distributions(pi1=pi2, pi2=avg, pi_mask=pi_mask)
     )
     return approx_js
 
@@ -82,3 +80,18 @@ def tv_from_samples(
 ):
     approx_tv = .5 * tf.abs(p-q) / sample_prob
     return approx_tv
+
+def tsallis_from_samples(
+    *, 
+    p, 
+    q, 
+    sample_prob, 
+    tsallis_q,
+):
+    if tsallis_q == 1:
+        logp = tf.math.log(p)
+        logq = tf.math.log(q)
+        return reverse_kl_from_samples(
+            logp=logp, logq=logq, sample_prob=sample_prob)
+    else:
+        pass

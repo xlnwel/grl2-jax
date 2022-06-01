@@ -1,5 +1,5 @@
 from types import FunctionType
-from env.cls import Env, MAVecEnv, VecEnv
+from env.cls import Env, VecEnv, MASimVecEnv, MATBVecEnv
 from env import make_env
 from utility.display import print_dict
 
@@ -7,6 +7,13 @@ from utility.display import print_dict
 def is_ma_suite(env_name):
     ma_suites = ['overcooked', 'smac', 'grf']
     for suite in ma_suites:
+        if env_name.startswith(suite):
+            return True
+    return False
+
+def is_matb_suite(env_name):
+    matb_suites = ['spiel']
+    for suite in matb_suites:
         if env_name.startswith(suite):
             return True
     return False
@@ -27,7 +34,12 @@ def create_env(
     elif no_remote or config.get('n_runners', 1) <= 1:
         config['n_runners'] = 1
         if force_envvec or config.get('n_envs', 1) > 1:
-            EnvType = MAVecEnv if is_ma_suite(config['env_name']) else VecEnv
+            if is_matb_suite(config['env_name']):
+                EnvType = MATBVecEnv
+            elif is_ma_suite(config['env_name']):
+                EnvType = MASimVecEnv
+            else:
+                EnvType = VecEnv
         else:
             EnvType = Env
         env = EnvType(config, env_fn, agents=agents)
@@ -35,7 +47,6 @@ def create_env(
         from env.ray_env import RayVecEnv
         EnvType = VecEnv if config.get('n_envs', 1) > 1 else Env
         env = RayVecEnv(EnvType, config, env_fn)
-
     return env
 
 def get_env_stats(config):
@@ -49,6 +60,7 @@ def get_env_stats(config):
     env_stats = env.stats()
     env_stats.n_runners = config.get('n_runners', 1)
     env_stats.n_envs = env_stats.n_runners * config.n_envs
+    print('Get env stats')
     print_dict(env_stats, 'env stats')
     env.close()
     return env_stats

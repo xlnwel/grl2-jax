@@ -41,7 +41,7 @@ class PGLossImpl(Loss):
             rl_loss.ppo_loss(
             log_ratio, 
             advantage, 
-            self.config.policy_clip_range, 
+            self.config.ppo_clip_range, 
             entropy, 
             mask=mask, 
             n=n, 

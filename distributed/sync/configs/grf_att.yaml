@@ -1,0 +1,279 @@
+---
+# NOTE: root_dir and model_name will be specified to all configs in run.train.py
+algorithm: &algo zero
+name: zero
+version: 0
+
+precision: 32
+
+n_agents: 1
+
+# model path: root_dir/model_name/name
+# tensorboard path: root_dir/model_name/logs
+# the following names are just examples; they will be re-specified in the entry point
+root_dir: *algo
+model_name: *algo
+
+controller:
+    store_period: 600
+    restart_runners_priod: null
+    max_version_iterations: 1
+    max_steps_per_iteration: 5e8
+    initialize_rms: &irms True
+
+parameter_server:
+    root_dir: *algo
+    model_name: *algo
+
+    train_from_scratch_frac: 1
+    online_frac: .2
+
+    payoff:
+        step_size: .1
+        sampling_strategy: fsp
+
+ray_config:
+    runner:
+        num_cpus: 1
+    agent:
+        num_gpus: 1
+
+monitor: {}
+
+runner:
+    n_runners: &nrunners 60
+    n_steps: &nsteps 64
+    push_every_episode: False
+
+env:
+    env_name: &env_name grf-11_vs_11_stochastic
+    representation: simple115v2
+    rewards: scoring
+    render: False
+    write_full_episode_dumps: False
+    write_video: False
+    dump_frequency: 1000
+    logdir: data/grf
+    extra_players: null
+    number_of_left_players_agent_controls: 11
+    number_of_right_players_agent_controls: 0
+    add_role_to_obs: False
+    shared_ckpt_reward: True
+
+    max_episode_steps: 3000
+    use_action_mask: False
+    uid2aid: null
+
+    n_envs: &nenvs 1
+
+agent: {}
+
+strategy:
+    train_loop:
+        use_dataset: &dataset False
+        n_epochs: &nepochs 5
+        n_mbs: &nmbs 1
+        n_aux_epochs: &naepochs 9
+        n_pi: &npi 16
+        n_segs: &nsegs 16
+        n_aux_mbs_per_seg: &nambs 2
+        max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
+
+        # (once reuse null)
+        # "once" updates values at the end of each epoch
+        # "reuse" updates values using value from train which is staler than once
+        # null doesn't update values.
+        value_update: null
+
+model:
+    actor_rnn_type: &arnn null
+    value_rnn_type: &vrnn null
+    sample_size: &ss 16
+
+    policy:
+        use_prev_reward: True
+        use_prev_action: True
+        encoder: 
+            nn_id: mlp
+            units_list: [256, 256, 256]
+            kernel_initializer: orthogonal
+            activation: relu
+            norm: layer
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+        rnn:
+            nn_id: *arnn
+            units: 256
+            kernel_initializer: orthogonal
+            recurrent_initializer: orthogonal
+            use_ln: True
+        policy:
+            nn_id: policy
+            units_list: []
+            kernel_initializer: orthogonal
+            activation: relu
+            norm: null
+            eval_act_temp: 1
+            out_gain: .01
+            init_std: 1
+
+    value:
+        use_prev_reward: True
+        use_prev_action: True
+        v_pi: False
+        concat_end: False
+
+        action_embed:
+            nn_id: embed
+            embed_size: 8
+        attention:
+            nn_id: att
+            query:
+                units_list: [64]
+                out_size: 32
+                kernel_initializer: orthogonal
+                activation: relu
+                norm: null
+            key:
+                units_list: []
+                out_size: 32
+                kernel_initializer: orthogonal
+                activation: relu
+                norm: null
+            value:
+                units_list: []
+                out_size: 32
+                kernel_initializer: orthogonal
+                activation: relu
+                norm: null
+        encoder:
+            nn_id: mlp
+            units_list: [256, 256, 256]
+            kernel_initializer: orthogonal
+            activation: relu
+            norm: layer
+            norm_after_activation: True
+            norm_kwargs:
+                epsilon: 1.e-5
+        rnn:
+            nn_id: *vrnn
+            units: 256
+            kernel_initializer: orthogonal
+            recurrent_initializer: orthogonal
+            use_ln: True
+        value:
+            nn_id: value
+            units_list: []
+            kernel_initializer: orthogonal
+            activation: relu
+            norm: null
+
+loss:
+    policy:
+        ppo_clip_range: .2
+        entropy_coef: 5e-4
+        aux_l2_coef: 0
+        gpo_kl_coef: 0
+        pg_coef: 1
+        policy_life_mask: False
+    value:
+        value_loss: clip
+        value_clip_range: .2
+        value_coef: 1
+        va_coef: 0
+        value_life_mask: False
+
+trainer:
+    algorithm: *algo
+
+    actor_rnn_type: *arnn
+    value_rnn_type: *vrnn
+    sample_size: *ss         # BPTT length
+    store_state: True
+    policy:
+        optimizer:
+            opt_name: adam
+            schedule_lr: False
+            lr: 1e-4
+            clip_norm: .5
+            epsilon: 1.e-5
+            weight_decay: 0
+    value:
+        optimizer:
+            opt_name: adam
+            schedule_lr: False
+            lr: 1e-4
+            clip_norm: .5
+            epsilon: 1.e-5
+
+actor:
+    algorithm: *algo
+
+    rms:
+        obs_names: [obs, global_state]
+        normalize_obs: *irms
+        normalize_reward: True
+        obs_normalized_axis: [0, 1]
+        reward_normalized_axis: [0, 1]
+        update_reward_rms_in_time: True
+        gamma: &gamma .995
+
+buffer:
+    type: ppo
+    use_dataset: *dataset
+
+    # PPO configs
+    adv_type: gae     # nae or gae
+    gamma: *gamma
+    lam: .95
+    n_runners: *nrunners
+    n_envs: *nenvs
+    n_steps: *nsteps
+    n_epochs: *nepochs
+    n_mbs: *nmbs        # number of minibatches
+    fragment_size: null
+    actor_rnn_type: *arnn
+    value_rnn_type: *vrnn
+    sample_size: *ss
+    norm_adv: minibatch
+    
+
+    # Trust region arguments
+    target_type: bounded
+    tau: 1
+    alpha: .2
+    lower_clip: .2
+    upper_clip: .2
+    valid_clip: True
+
+    # PPG configs
+    n_pi: *npi
+    n_segs: *nsegs
+    n_aux_mbs_per_seg: *nambs
+    n_aux_epochs: *naepochs
+
+    # mini-batch size = n_runners * n_envs * epslen / n_mbs
+    sample_keys:
+        - obs
+        - global_state
+        - prev_reward
+        - prev_action
+        - action
+        - reward
+        - value
+        - value_a
+        - traj_ret
+        - traj_ret_a
+        - raw_adv
+        - advantage
+        - target_prob
+        - tr_prob
+        - logprob
+        - pi
+        - target_pi
+        - mask
+        - actor_h
+        - actor_c
+        - value_h
+        - value_c

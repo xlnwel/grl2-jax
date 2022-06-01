@@ -31,11 +31,8 @@ class GPOActorTrainer(Trainer):
         #     new_kwargs = kwargs
         tape, loss, terms = self.loss.loss(**kwargs)
 
-        terms['actor_norm'], actor_var_norms = \
+        terms['actor_norm'], terms['actor_var_norm'] = \
             self.optimizer(tape, loss, return_var_norms=True)
-        _vars = self.optimizer.variables
-        for k, v in zip(_vars, actor_var_norms):
-            terms[f'{k.name}_norm'] = v
 
         return terms
 

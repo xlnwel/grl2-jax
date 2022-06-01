@@ -3,7 +3,7 @@
 source activate grl
 
 algos=(
-    sync_sim-gpo
+    sync-gpo
 )
 suite=grf
 envs=(
@@ -26,7 +26,7 @@ for e in "${envs[@]}"; do
                 for a3 in "${args3[@]}"; do
                     for a4 in "${args4[@]}"; do
                         for seed in "${seeds[@]}"; do
-                            # kw1="policy_clip_range=$a1"
+                            # kw1="ppo_clip_range=$a1"
                             # kw2="kl_prior_coef=$a2"
                             # kw3="approx_kl=$a3"
                             # kw4="pr_upper_clip=$a4"

@@ -4,6 +4,7 @@ import logging
 import numpy as np
 import gym
 import cv2
+import tensorflow as tf
 
 from core.log import do_logging
 from env.utils import compute_aid2uids
@@ -545,7 +546,8 @@ class EnvStatsBase(gym.Wrapper):
                 aid2uids=self.aid2uids,
                 use_life_mask=getattr(env, 'use_life_mask', False),
                 use_action_mask=getattr(env, 'use_action_mask', False),
-                is_multi_agent=getattr(env, 'is_multi_agent', len(self.uid2aid) > 1)
+                is_multi_agent=getattr(env, 'is_multi_agent', len(self.uid2aid) > 1),
+                is_simultaneous_move=getattr(env, 'is_simultaneous_move', True),
             )
         if timeout_done:
             do_logging('Timeout is treated as done', logger=logger)
@@ -667,6 +669,134 @@ class EnvStats(EnvStatsBase):
         return obs
 
 
+class TurnBasedProcess(gym.Wrapper):
+    def __init__(self, env) -> None:
+        super().__init__(env)
+        self.env = env
+        self._current_player = -1
+
+        self._prev_action = [np.zeros(ad, dtype=np.float32) 
+            for ad in self.env.action_dim]
+        self._prev_rewards = np.zeros(self.env.n_units, dtype=np.float32)
+        self._dense_score = np.zeros(self.env.n_units, dtype=np.float32)
+        self._epslen = np.zeros(self.env.n_units, dtype=np.int32)
+
+    def reset(self):
+        self._prev_action = [np.zeros(ad, dtype=np.float32) 
+            for ad in self.env.action_dim]
+        self._prev_rewards = np.zeros(self.env.n_units, dtype=np.float32)
+        self._dense_score = np.zeros(self.env.n_units, dtype=np.float32)
+        self._epslen = np.zeros(self.env.n_units, dtype=np.int32)
+
+        obs = self.env.reset()
+        self._current_player = obs['uid']
+        obs.update({
+            'prev_action': self._prev_action[self._current_player],
+            'prev_reward': np.float32(0.),
+        })
+
+        return obs
+
+    def step(self, action):
+        assert self._current_player >= 0, self._current_player
+        self._prev_action[self._current_player] = np.zeros(
+            self.env.action_dim[self._current_player], dtype=np.float32)
+        self._prev_action[self._current_player][np.squeeze(action)] = 1
+
+        # obs is specific to the current player only, 
+        # while others are for all players
+        obs, rewards, discounts, info = self.env.step(action)
+        assert len(rewards) == len(discounts) == self.env.n_units, (len(rewards), len(discounts), self.env.n_units)
+        self._current_player = obs['uid']
+
+        acc_rewards = self._get_reward(rewards, self._current_player)
+        scores = self._get_scores(rewards)
+
+        info.update(scores)
+        info['current_player'] = obs['uid']
+        info['total_epslen'] = np.sum(self._epslen)
+        info['epslen'] = self._epslen
+
+        obs.update({
+            'prev_action': self._prev_action[self._current_player],
+            'prev_reward': acc_rewards[self._current_player],
+        })
+
+        return obs, acc_rewards, discounts, info
+
+    def _get_reward(self, rewards, pid):
+        self._prev_rewards += rewards
+        acc_rewards = self._prev_rewards.copy()
+        self._prev_rewards[pid] = 0
+
+        return acc_rewards
+    
+    def _get_scores(self, rewards):
+        self._dense_score += rewards
+        win_score = self._dense_score > 0
+        draw_score = self._dense_score == 0
+        score = np.sign(self._dense_score)
+
+        return dict(
+            dense_score=self._dense_score, 
+            win_score=win_score, 
+            draw_score=draw_score, 
+            score=score, 
+        )
+
+
+class Single2MultiAgent(gym.Wrapper):
+    """ Add unit dimension """
+    def __init__(self, env, obs_only=False):
+        super().__init__(env)
+        self._obs_only = obs_only
+
+    def reset(self):
+        obs = self.env.reset()
+        obs = self._get_obs(obs)
+
+        return obs
+
+    def step(self, action, **kwargs):
+        obs, reward, discount, info = self.env.step(action, **kwargs)
+        obs = self._get_obs(obs)
+        if not self._obs_only:
+            reward = np.expand_dims(reward, 0)
+            discount = np.expand_dims(discount, 0)
+
+        return obs, reward, discount, info
+
+    def _get_obs(self, obs):
+        obs = tf.nest.map_structure(
+            lambda x: np.expand_dims(x, 0), obs)
+
+        return obs
+
+
+class SqueezeObs(gym.Wrapper):
+    """ Squeeze the unit dimension of keys in observation """
+    def __init__(self, env, keys=[]):
+        super().__init__(env)
+        self.env = env
+        self._keys = keys
+
+    def reset(self):
+        obs = self.env.reset()
+        obs = self._squeeze_obs(obs)
+
+        return obs
+    
+    def step(self, action, **kwargs):
+        obs, reward, discount, info = self.env.step(action, **kwargs)
+        obs = self._squeeze_obs(obs)
+
+        return obs, reward, discount, info
+
+    def _squeeze_obs(self, obs):
+        for k in self._keys:
+            obs[k] = np.squeeze(obs[k], 0)
+        return obs
+
 class MASimEnvStats(EnvStatsBase):
     """ Wrapper for multi-agent simutaneous environments
     <MASimEnvStats> expects agent-wise reward and done signal per step.
@@ -742,6 +872,9 @@ class MASimEnvStats(EnvStatsBase):
         obs = self.observation(obs)
         self._info = info
 
+        # we return reward and discount for all agents so that
+        # 
+        # while obs and reset is for the current agent only
         self._output = EnvOutput(obs, reward, discount, reset)
         # assert np.all(done) == info.get('game_over', False), (reset, info['game_over'])
         # assert np.all(reset) == info.get('game_over', False), (reset, info['game_over'])
@@ -759,6 +892,88 @@ class MASimEnvStats(EnvStatsBase):
     
     def _get_agent_wise_ones(self):
         return [np.ones(len(uids), self.float_dtype) for uids in self.aid2uids]
+
+
+class MATurnBasedEnvStats(EnvStatsBase):
+    """ Wrapper for multi-agent simutaneous environments
+    <MASimEnvStats> expects agent-wise reward and done signal per step.
+    Otherwise, go for <EnvStats>
+    """
+    manual_reset_warning = True
+    def __init__(self, 
+                 env, 
+                 max_episode_steps=None, 
+                 timeout_done=False, 
+                 auto_reset=True):
+        super().__init__(
+            env, 
+            max_episode_steps=max_episode_steps, 
+            timeout_done=timeout_done, 
+            auto_reset=auto_reset
+        )
+        self._stats.is_multi_agent = True
+        self._stats.is_simultaneous_move = False
+
+    def reset(self):
+        if not np.any(self._output.reset):
+            return self._reset()
+        else:
+            logger.debug('Repetitively calling reset results in no environment interaction')
+            return self._output
+
+    def _reset(self):
+        obs = super()._reset()
+        reward = self._get_zeros()
+        discount = self._get_ones()
+        self._resets = np.ones(self.env.n_units, dtype=np.float32)
+        reset = np.expand_dims(self._resets[obs['uid']], 0)
+        self._resets[obs['uid']] = 0
+        self._output = EnvOutput(obs, reward, discount, reset)
+
+        return self._output
+
+    def step(self, action, **kwargs):
+        assert not self._game_over, self._game_over
+        assert not np.any(np.isnan(action)), action
+        obs, reward, discount, info = self.env.step(action, **kwargs)
+        # expect score, epslen, and game_over in info as multi-agent environments may vary in metrics 
+        self._score = info['score']
+        self._dense_score = info['dense_score']
+        self._epslen = info['epslen']
+        self._game_over = info.pop('game_over')
+        if np.sum(self._epslen) >= self.max_episode_steps:
+            self._game_over = True
+        if np.any(discount == 0):
+            assert self._game_over, self._game_over
+        if self._game_over:
+            assert np.all(discount == 0), discount
+
+        # store previous env output for later retrieval
+        self._prev_env_output = GymOutput(obs, reward, discount)
+
+        # reset env
+        if self._game_over and self.auto_reset:
+            # when resetting, we override the obs and reset but keep the others
+            obs, _, _, reset = self._reset()
+            np.testing.assert_array_equal(discount, 0)
+        else:
+            reset = np.expand_dims(self._resets[obs['uid']], 0)
+            self._resets[obs['uid']] = 0
+        self._info = info
+
+        self._output = EnvOutput(obs, reward, discount, reset)
+        # assert np.all(done) == info.get('game_over', False), (reset, info['game_over'])
+        # assert np.all(reset) == info.get('game_over', False), (reset, info['game_over'])
+        return self._output
+
+    def observation(self, obs):
+        return obs
+
+    def _get_zeros(self):
+        return np.zeros(self.n_units, self.float_dtype)
+    
+    def _get_ones(self):
+        return np.ones(self.n_units, self.float_dtype)
 
 
 class UnityEnvStats(EnvStatsBase):

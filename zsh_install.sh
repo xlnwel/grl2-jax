@@ -31,7 +31,7 @@ pip install --upgrade pip
 
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --upgrade setuptools psutil wheel
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple opencv-python
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py procgen
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py procgen mujoco-py
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gfootball
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tensorflow-gpu tensorflow-probability
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ray
