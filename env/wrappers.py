@@ -711,6 +711,7 @@ class TurnBasedProcess(gym.Wrapper):
 
         acc_rewards = self._get_reward(rewards, self._current_player)
         scores = self._get_scores(rewards)
+        self._epslen[self._current_player] += 1
 
         info.update(scores)
         info['current_player'] = obs['uid']

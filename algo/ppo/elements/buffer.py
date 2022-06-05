@@ -28,7 +28,6 @@ class SamplingKeysExtractor:
 
         return sample_keys, sample_size
 
-
     def _remote_state_keys(self, sample_keys, state_keys):
         for k in state_keys:
             if k in sample_keys:

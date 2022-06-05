@@ -62,13 +62,16 @@ class UnityInterface:
             side_channels=[self._side_channel, e_b]
         )
 
+        print('filename', file_name)
         if file_name is not None:
-            file_name = os.path.join(os.path.abspath('.'), file_name)
+            if not file_name.startswith('/'):
+                file_name = os.path.join(os.path.abspath('.'), file_name)
             env_kwargs.update(
                 file_name=file_name,
                 base_port=port,
                 no_graphics=not render
             )
+        print(env_kwargs)
         self.env = UnityEnvironment(**env_kwargs)
         self.env.reset()
         self._behavior_names = list(self.env.behavior_specs.keys())

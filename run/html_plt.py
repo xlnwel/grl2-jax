@@ -38,8 +38,9 @@ if __name__ == '__main__':
     dirs = search_for_dirs(args.directory, args.prefix, is_suffix=False)
     
     for d in dirs:
-        if d.split('/')[-1].startswith('0517-aux_pg_coef=1'):
-            continue
+        # if d.split('/')[-1].startswith('0602'):
+        #     print(d.split('/')[-1])
+        #     continue
         target_dir = '/'.join([args.target, d])
         print(f'copy from {d} to {target_dir}')
         if not os.path.isdir(target_dir):
@@ -50,6 +51,7 @@ if __name__ == '__main__':
         json_path = '/'.join([target_dir, 'parameter.json'])
         record_path = '/'.join([d, 'record.txt'])
         process_path = '/'.join([target_dir, 'progress.csv'])
+        print('yaml path', yaml_path)
         if not os.path.exists(yaml_path) or not os.path.exists(record_path):
             continue
             
@@ -61,9 +63,13 @@ if __name__ == '__main__':
                 del v['model_name']
 
         config = flatten_dict(config)
-        for k, v in config.items():
-            if k.endswith('env_name'):
-                config[k] = v.split('-', 1)[-1]
+        env_names = [(k, v) for k, v in config.items() if k.endswith('env_name')]
+        for k, v in env_names:
+            prefix = k.rsplit('/', 1)[0]
+            suite = v.split('-', 1)[0]
+            env_name = v.split('-', 1)[1]
+            config[f'{prefix}/suite'] = suite
+            config[k] = env_name
         if 'model/policy/out_act' not in config:
             config['model/policy/out_act'] = None
         with open(json_path, 'w') as json_file:

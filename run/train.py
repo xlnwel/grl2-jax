@@ -59,7 +59,13 @@ def _grid_search(config, main, cmd_args):
     )
 
     processes = []
-    processes += gs()
+    processes += gs(
+        lr=[1e-1, 1e-2], 
+        n_steps=[16, 32, 64], 
+        n_mbs=[1, 4, 8], 
+        entropy_coef=[1e-2, 1e-3], 
+        seed=[0, 1]
+    )
     [p.join() for p in processes]
 
 

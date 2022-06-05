@@ -37,7 +37,7 @@ class GPOLoss(ValueLossImpl, GPOLossImpl):
             )
 
             act_dist = self.policy(x)
-            actor_terms, actor_loss = self._pg_loss(
+            actor_terms, actor_loss = self._ppo_loss(
                 tape=tape, 
                 act_dist=act_dist, 
                 action=action, 

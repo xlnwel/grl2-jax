@@ -32,10 +32,25 @@ def change_config(kw, config, model_name=''):
     """
     def change_dict(config, key, value, prefix):
         modified_configs = []
+        if ':' in key:
+            keys = key.split(':')
+            key = keys[0]
+        else:
+            keys = None
         for k, v in config.items():
             config_name = f'{prefix}:{k}' if prefix else k
             if key == k:
-                config[k] = value
+                if keys is None:
+                    config[k] = value
+                else:
+                    key_config = config[k]
+                    for kk in keys[1:-1]:
+                        assert kk in key_config, f'{config_name} does not exist'
+                        key_config = key_config[kk]
+                        config_name = f'{config_name}:{kk}'
+                    assert keys[-1] in key_config, f'{config_name} does not exist'
+                    key_config[keys[-1]] = value
+                    config_name = f'{config_name}:{keys[-1]}'
                 modified_configs.append(config_name)
             if isinstance(v, dict):
                 modified_configs += change_dict(v, key, value, config_name)

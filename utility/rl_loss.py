@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from utility import div
+from utility import tf_div
 from utility.tf_utils import static_scan, reduce_mean, \
     assert_rank, assert_rank_and_shape_compatibility
 
@@ -272,7 +272,7 @@ def ppo_loss(
     raw_ppo_loss = reduce_mean(raw_ppo, mask=mask, n=n)
     ppo_loss = pg_coef * raw_ppo_loss
     raw_entropy_loss = - reduce_mean(entropy, mask, n)
-    entropy_loss = entropy_coef * reduce_mean(entropy, mask, n)
+    entropy_loss = entropy_coef * raw_entropy_loss
 
     # debug stats: KL between old and current policy and fraction of data being clipped
     approx_kl = .5 * reduce_mean((-log_ratio)**2, mask, n)
@@ -386,19 +386,19 @@ def compute_kl(
 ):
     if kl_coef is not None:
         if kl_type == 'forward_approx':
-            kl = div.kl_from_samples(
+            kl = tf_div.kl_from_samples(
                 logp=logp, 
                 logq=logq,
                 sample_prob=sample_prob, 
             )
         elif kl_type == 'reverse_approx':
-            kl = div.reverse_kl_from_samples(
+            kl = tf_div.reverse_kl_from_samples(
                 logp=logq, 
                 logq=logp,
                 sample_prob=sample_prob, 
             )
         elif kl_type == 'forward':
-            kl = div.kl_from_distributions(
+            kl = tf_div.kl_from_distributions(
                 pi1=pi1, 
                 pi2=pi2, 
                 pi1_mean=pi1_mean, 
@@ -408,7 +408,7 @@ def compute_kl(
                 pi_mask=pi_mask
             )
         elif kl_type == 'reverse':
-            kl = div.kl_from_distributions(
+            kl = tf_div.kl_from_distributions(
                 pi1=pi2, 
                 pi2=pi1, 
                 pi1_mean=pi2_mean, 
@@ -447,13 +447,13 @@ def compute_js(
 ):
     if js_coef is not None:
         if js_type == 'approx':
-            js = div.js_from_samples(
+            js = tf_div.js_from_samples(
                 p=p, 
                 q=q, 
                 sample_prob=sample_prob, 
             )
         elif js_type == 'exact':
-            js = div.js_from_distributions(
+            js = tf_div.js_from_distributions(
                 pi1=pi1, pi2=pi2, pi_mask=pi_mask
             )
         else:
@@ -470,12 +470,72 @@ def compute_js(
     
     return js, raw_js_loss, js_loss
 
-# if __name__ == '__main__':
-#     value = tf.random.normal((2, 3))
-#     traj_ret = tf.random.normal((2, 3))
-#     old_value = tf.random.normal((2, 3))
-#     clip_range = .2
-#     value_loss1, clip_frac1 = clipped_value_loss(value, traj_ret, old_value, clip_range)
-#     value_loss2, clip_frac2 = ppo_value_loss_with_mask(value, traj_ret, old_value, clip_range)
-#     tf.debugging.assert_near(value_loss1, value_loss2)
-#     tf.debugging.assert_near(clip_frac1, clip_frac2)
+
+def compute_tsallis(
+    *, 
+    tsallis_type,
+    tsallis_coef, 
+    tsallis_q, 
+    p=None,
+    q=None, 
+    sample_prob=None, 
+    pi1=None,
+    pi2=None,
+    pi1_mean=None,
+    pi2_mean=None,
+    pi1_std=None,
+    pi2_std=None,
+    pi_mask=None, 
+    sample_mask=None,
+    n=None, 
+):
+    if tsallis_coef is not None:
+        if tsallis_type == 'forward_approx':
+            tsallis = tf_div.tsallis_from_samples(
+                p=p, 
+                q=q,
+                sample_prob=sample_prob, 
+                tsallis_q=tsallis_q, 
+            )
+        elif tsallis_type == 'reverse_approx':
+            tsallis = tf_div.reverse_tsallis_from_samples(
+                p=q, 
+                q=p,
+                sample_prob=sample_prob, 
+                tsallis_q=tsallis_q, 
+            )
+        elif tsallis_type == 'forward':
+            tsallis = tf_div.tsallis_from_distributions(
+                pi1=pi1, 
+                pi2=pi2, 
+                pi1_mean=pi1_mean, 
+                pi1_std=pi1_std, 
+                pi2_mean=pi2_mean, 
+                pi2_std=pi2_std, 
+                pi_mask=pi_mask, 
+                tsallis_q=tsallis_q, 
+            )
+        elif tsallis_type == 'reverse':
+            tsallis = tf_div.tsallis_from_distributions(
+                pi1=pi2, 
+                pi2=pi1, 
+                pi1_mean=pi2_mean, 
+                pi1_std=pi2_std, 
+                pi2_mean=pi1_mean,
+                pi2_std=pi1_std, 
+                pi_mask=pi_mask, 
+                tsallis_q=tsallis_q
+            )
+        else:
+            raise NotImplementedError(f'Unknown Tsallis {tsallis_type}')
+        raw_tsallis_loss = reduce_mean(
+            tsallis, mask=sample_mask, n=n
+        )
+        tf.debugging.assert_all_finite(raw_tsallis_loss, 'Bad raw_tsallis_loss')
+        tsallis_loss = tsallis_coef * raw_tsallis_loss
+    else:
+        tsallis = 0.
+        raw_tsallis_loss = 0.
+        tsallis_loss = 0.
+
+    return tsallis, raw_tsallis_loss, tsallis_loss

@@ -36,6 +36,7 @@ class GPOLossImpl(Loss):
         sample_mask=None, 
         n=None, 
         name=None,
+        use_meta=False,
     ):
         with tape.stop_recording():
             is_action_discrete = self.model.policy.is_action_discrete
@@ -77,6 +78,13 @@ class GPOLossImpl(Loss):
                 n_avail_actions=n_avail_actions
             )
 
+        pg_coef = self.model.meta('pg_coef', inner=use_meta)
+        entropy_coef = self.model.meta('entropy_coef', inner=use_meta)
+        kl_prior_coef = self.model.meta('kl_prior_coef', inner=use_meta)
+        kl_target_coef = self.model.meta('kl_target_coef', inner=use_meta)
+        js_target_coef = self.model.meta('js_target_coef', inner=use_meta)
+        tsallis_target_coef = self.model.meta('tsallis_target_coef', inner=use_meta)
+
         tf.debugging.assert_all_finite(advantage, 'Bad advantage')
         new_logprob = act_dist.log_prob(action)
         tf.debugging.assert_all_finite(new_logprob, 'Bad new_logprob')
@@ -86,8 +94,8 @@ class GPOLossImpl(Loss):
         ratio, loss_pg, loss_clip, raw_ppo_loss, ppo_loss, \
             raw_entropy_loss, entropy_loss, approx_kl, clip_frac = \
             rl_loss.ppo_loss(
-                pg_coef=self.config.pg_coef, 
-                entropy_coef=self.config.entropy_coef, 
+                pg_coef=pg_coef, 
+                entropy_coef=entropy_coef, 
                 log_ratio=log_ratio, 
                 advantage=advantage, 
                 clip_range=self.config.ppo_clip_range, 
@@ -158,7 +166,7 @@ class GPOLossImpl(Loss):
         kl_prior, raw_kl_prior_loss, kl_prior_loss = \
             rl_loss.compute_kl(
                 kl_type=self.config.kl_prior,
-                kl_coef=self.config.kl_prior_coef,
+                kl_coef=kl_prior_coef,
                 logp=logprob,
                 logq=new_logprob, 
                 sample_prob=prob, 
@@ -185,7 +193,7 @@ class GPOLossImpl(Loss):
         kl_target, raw_kl_target_loss, kl_target_loss = \
             rl_loss.compute_kl(
                 kl_type=self.config.kl_target,
-                kl_coef=self.config.kl_target_coef,
+                kl_coef=kl_target_coef,
                 logp=target_logprob,
                 logq=new_logprob, 
                 sample_prob=prob, 
@@ -207,7 +215,7 @@ class GPOLossImpl(Loss):
         js_target, raw_js_target_loss, js_target_loss = \
             rl_loss.compute_js(
                 js_type=self.config.js_target, 
-                js_coef=self.config.js_target_coef, 
+                js_coef=js_target_coef, 
                 p=target_prob, 
                 q=new_prob, 
                 sample_prob=prob, 
@@ -228,7 +236,7 @@ class GPOLossImpl(Loss):
         tsallis_target, raw_tsallis_target_loss, tsallis_target_loss = \
             rl_loss.compute_tsallis(
                 tsallis_type=self.config.tsallis_target,
-                tsallis_coef=self.config.tsallis_target_coef,
+                tsallis_coef=tsallis_target_coef,
                 tsallis_q=self.config.tsallis_q,
                 p=target_prob,
                 q=new_prob, 

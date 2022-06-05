@@ -34,26 +34,22 @@ class PGLossImpl(Loss):
 
         new_logprob = act_dist.log_prob(action)
         tf.debugging.assert_all_finite(new_logprob, 'Bad new_logprob')
-        entropy = act_dist.entropy()
-        tf.debugging.assert_all_finite(entropy, 'Bad entropy')
+        raw_entropy = act_dist.entropy()
+        tf.debugging.assert_all_finite(raw_entropy, 'Bad entropy')
         log_ratio = new_logprob - logprob
-        ratio, loss1, loss2, raw_ppo_loss, raw_entropy, approx_kl, clip_frac = \
+        ratio, loss_pg, loss_clip, raw_ppo_loss, ppo_loss, \
+            raw_entropy_loss, entropy_loss, approx_kl, clip_frac = \
             rl_loss.ppo_loss(
-            log_ratio, 
-            advantage, 
-            self.config.ppo_clip_range, 
-            entropy, 
-            mask=mask, 
-            n=n, 
-            reduce=False
-        )
-        tf.debugging.assert_all_finite(raw_ppo_loss, 'Bad raw_ppo_loss')
-        raw_ppo_loss = reduce_mean(raw_ppo_loss, mask, n)
-        pg_loss = self.config.pg_coef * raw_ppo_loss
-        entropy = reduce_mean(raw_entropy, mask, n)
-        entropy_loss = - self.config.entropy_coef * entropy
-
-        loss = pg_loss + entropy_loss
+                pg_coef=self.config.pg_coef, 
+                entropy_coef=self.config.entropy_coef, 
+                log_ratio=log_ratio, 
+                advantage=advantage, 
+                clip_range=self.config.ppo_clip_range, 
+                entropy=raw_entropy, 
+                mask=mask, 
+                n=n, 
+            )
+        loss = ppo_loss + entropy_loss
 
         if self.config.get('debug', True):
             with tape.stop_recording():
@@ -62,17 +58,18 @@ class PGLossImpl(Loss):
                     advantage=advantage, 
                     ratio=tf.exp(log_ratio),
                     raw_entropy=raw_entropy,
-                    entropy=entropy,
+                    entropy=raw_entropy,
+                    raw_entropy_loss=raw_entropy_loss,
                     approx_kl=approx_kl,
                     new_logprob=new_logprob, 
                     p_clip_frac=clip_frac,
                     raw_ppo_loss=raw_ppo_loss,
-                    pg_loss=pg_loss,
+                    ppo_loss=ppo_loss,
                     entropy_loss=entropy_loss, 
                     actor_loss=loss,
                     adv_std=tf.math.reduce_std(advantage, axis=-1), 
                 )
-                if not act_dist.is_action_discrete:
+                if not self.model.policy.is_action_discrete:
                     new_mean = act_dist.mean()
                     new_std = tf.exp(self.policy.logstd)
                     terms['pi_mean'] = new_mean

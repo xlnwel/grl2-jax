@@ -16,7 +16,8 @@ class GPOActorTrainer(Trainer):
             self.model[k] for k in keys if not k.startswith('meta')
         ])
         self.optimizer = create_optimizer(
-            modules, self.config.optimizer)
+            modules, self.config.optimizer
+        )
 
     def raw_train(
         self, 

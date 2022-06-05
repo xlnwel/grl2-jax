@@ -85,18 +85,22 @@ loss:
     value_clip_range: .2          # clip range for ppo
     entropy_coef: .01
     value_coef: .5
+    pg_coef: 1
     aux_l1_coef: 0
     aux_l2_coef: 0
     weighted_l_dist: False
     kl_prior_coef: 0
+    kl_prior: reverse
     kl_target_coef: 0
+    kl_target: reverse_approx
     new_po_coef: 0
-    pg_coef: 1
     target_prob: target_prob_prime
     js_target_coef: 0
     js_target: approx
-    kl_prior: reverse
-    kl_target: reverse_approx
+    tsallis_target_coef: 0
+    tsallis_target: reverse_approx
+    tsallis_q: 1.2
+    policy_life_mask: False
 
     normalize_adv: False
     process_adv: null
@@ -136,10 +140,10 @@ buffer:
     N_VALUE_EPOCHS: *nval_epochs
     n_mbs: *nmbs        # number of minibatches
     rnn_type: *rnn
-    normalize_adv_in_buffer: False
-    zero_center_adv_in_buffer: True
-    process_adv_in_buffer: null
-    adv_clip_in_buffer: null
+    normalize_adv: False
+    zero_center_adv: True
+    process_adv: null
+    adv_clip: null
 
     # Trust region arguments
     target_pi:
@@ -150,14 +154,16 @@ buffer:
         pr_upper_clip: .2
         exp_lower_clip: 1
         exp_upper_clip: 1
+        tsallis_lower_clip: 1
+        tsallis_upper_clip: 1
         adv_lower_clip: 1
         adv_upper_clip: 3
         lin_lower_clip: .5
         lin_upper_clip: 1
         lin_weights: 1
-        normalize_adv_for_step: False
-        zero_center_for_step: True
-        process_adv_for_step: null
+        normalize_adv: False
+        zero_center: True
+        process_adv: null
         step_size: .1
 
         target_prob_key: target_prob_prime

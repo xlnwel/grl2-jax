@@ -20,14 +20,16 @@ def find_key(key, config, results):
 
 
 class GridSearch:
-    def __init__(self, 
-                 config, 
-                 train_func, 
-                 n_trials=1, 
-                 logdir='logs', 
-                 dir_prefix='', 
-                 separate_process=False, 
-                 delay=1):
+    def __init__(
+        self, 
+        config, 
+        train_func, 
+        n_trials=1, 
+        logdir='logs', 
+        dir_prefix='', 
+        separate_process=False, 
+        delay=1
+    ):
         self.config = dict2AttrDict(config)
         self.train_func = train_func
         self.n_trials = n_trials

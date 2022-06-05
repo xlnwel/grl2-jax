@@ -1,7 +1,7 @@
 import numpy as np
 import gym
 from open_spiel.python import rl_environment
-
+from open_spiel.python.algorithms import exploitability
 from env.utils import *
 
 
@@ -54,6 +54,10 @@ class OpenSpiel:
             for a in self._time_step.observations['legal_actions']
                 if a != []
         ]
+
+    def seed(self, seed=None):
+        print('seed', seed)
+        self.env.seed(seed)
 
     def reset(self):
         self._time_step = self.env.reset()
@@ -130,11 +134,11 @@ if __name__ == "__main__":
     #         print(out.reward[uid])
     config['env_name'] = 'leduc_poker'
     env = OpenSpiel(**config)
-    env.reset()
-    for i in range(1000):
-        print('iteration', i)
+    obs = env.reset()
+    print(obs['uid'])
+    for i in range(10):
         a = env.random_action()
         obs, reward, discount, info = env.step(a)
         if np.all(discount == 0):
-            env.reset()
-            print('reset')
+            obs = env.reset()
+            print(obs['uid'])

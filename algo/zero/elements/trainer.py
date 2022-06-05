@@ -50,9 +50,23 @@ class GPOActorTrainer(Trainer):
             
             meta_tape, meta_loss, meta_terms = self.loss.loss(
                 **kwargs, use_meta=False)
+            out_grads = tape.gradient(
+                meta_loss, 
+                self.meta_opt.variables
+            )
+            out_grads = tape.gradient(
+                self.optimizer.get_transformed_grads(self.meta_opt.variables), 
+                self.optimizer.grads, 
+                output_gradients=out_grads
+            )
             terms.update(meta_terms)
             terms['meta_norm'], terms['meta_var_norm'] = \
-                self.meta_opt(meta_tape, meta_loss, return_var_norms=True)
+                self.meta_opt(
+                    meta_tape, 
+                    self.optimizer.grads, 
+                    output_gradients=out_grads, 
+                    return_var_norms=True
+                )
 
         return terms
 
