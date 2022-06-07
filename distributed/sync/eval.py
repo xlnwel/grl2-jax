@@ -2,6 +2,8 @@ import time
 import numpy as np
 import ray
 
+from utility.timer import Timer
+
 from .local.runner_manager import RunnerManager
 from utility.ray_setup import sigint_shutdown_ray
 
@@ -20,9 +22,8 @@ def main(configs, n, **kwargs):
     runner.build_runners(configs, store_data=False, evaluation=True)
     
     runner.set_weights_from_configs(configs, wait=True)
-    start = time.time()
-    steps, n_episodes, video, rewards, stats = runner.evaluate_and_return_stats(n)
-    duration = time.time() - start
+    with Timer('eval') as et:
+        steps, n_episodes, video, rewards, stats = runner.evaluate_and_return_stats(n)
     print(stats)
 
     # for f, r in zip(video[-100:], rewards[-100:]):
@@ -39,8 +40,8 @@ def main(configs, n, **kwargs):
             pstd = np.std(np.mean(v.reshape(n_runners, -1), axis=-1)) * np.sqrt(n // n_runners)
             print(f'Agent{aid}: {k} averaged over {n_episodes} episodes: mean({np.mean(v):3g}), std({np.std(v):3g}), pstd({pstd:3g})')
 
-    print(f'Evaluation time: total({duration:3g}),',
-        f'episode per second({duration / n_episodes:3g}),',
-        f'steps per second({duration / steps})')
+    print(f'Evaluation time: total({et.total():3g}),',
+        f'episode per second({et.total() / n_episodes:3g}),',
+        f'steps per second({et.total() / steps})')
 
     ray.shutdown()

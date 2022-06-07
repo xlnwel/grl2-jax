@@ -1,12 +1,13 @@
-from dis import dis
 from typing import List, Set, Tuple, Union
-import cloudpickle
 import collections
 import numpy as np
 import ray
 
+from run.utils import search_for_all_configs
+
 from .parameter_server import ParameterServer
 from ..common.typing import ModelStats, ModelWeights
+from core.ckpt.pickle import set_weights_for_agent
 from core.elements.agent import Agent
 from core.elements.builder import ElementsBuilder
 from core.mixin.actor import RMS
@@ -16,7 +17,7 @@ from core.typing import ModelPath
 from env.func import create_env
 from env.typing import EnvOutput
 from utility.timer import Timer
-from utility.utils import batch_dicts, dict2AttrDict
+from utility.utils import dict2AttrDict
 
 
 class MultiAgentSimRunner(RayBase):
@@ -69,6 +70,8 @@ class MultiAgentSimRunner(RayBase):
 
         self.env_output = self.env.output()
         self.scores = [[] for _ in range(self.n_agents)]
+        self.score_metric = config.parameter_server.get(
+            'score_metric', 'score')
 
         self.builder = ElementsBuilder(config, self.env_stats)
 
@@ -231,20 +234,14 @@ class MultiAgentSimRunner(RayBase):
         assert len(configs) == len(self.current_models) == self.n_agents, (configs, self.current_models)
         for aid, (config, agent) in enumerate(zip(configs, self.agents)):
             model = ModelPath(config['root_dir'], config['model_name'])
-            self.set_weights_for_agent(agent, model, filename=filename)
+            set_weights_for_agent(agent, model, filename=filename)
             self.current_models[aid] = model
 
     def set_weights_from_model_paths(self, models: List[ModelPath], filename='params.pkl'):
         assert len(models) == len(self.current_models) == self.n_agents, (models, self.current_models)
         for aid, (model, agent) in enumerate(zip(models, self.agents)):
-            self.set_weights_for_agent(agent, model, filename=filename)
+            set_weights_for_agent(agent, model, filename=filename)
             self.current_models[aid] = model
-
-    def set_weights_for_agent(self, agent: Agent, model: ModelPath, filename='params.pkl'):
-        path = '/'.join([model.root_dir, model.model_name, filename])
-        with open(path, 'rb') as f:
-            weights = cloudpickle.load(f)
-            agent.set_weights(weights)
 
     def set_running_steps(self, n_steps):
         self.n_steps = n_steps
@@ -481,12 +478,13 @@ class MultiAgentSimRunner(RayBase):
                         done_eids.append(env_out.obs['eid'][i])
                         done_rewards.append(reward[i])
                 if done_eids:
-                    for i, buffer in enumerate(self.buffers):
-                        buffer.finish_episode(
-                            done_eids, 
-                            self.aid2uids[i], 
-                            done_rewards
-                        )
+                    for aid, buffer in enumerate(self.buffers):
+                        if self.is_agent_active[aid]:
+                            buffer.finish_episode(
+                                done_eids, 
+                                self.aid2uids[aid], 
+                                done_rewards
+                            )
                     info = self.env.info(done_eids)
                     stats = collections.defaultdict(list)
                     for i in info:
@@ -494,7 +492,7 @@ class MultiAgentSimRunner(RayBase):
                             stats[k].append(v)
                     for aid, uids in enumerate(self.aid2uids):
                         self.scores[aid] += [
-                            v[uids] for v in stats['score']]
+                            v[uids] for v in stats[self.score_metric]]
                         self.agents[aid].store(
                             **{
                                 k: [vv[uids] for vv in v]
@@ -648,7 +646,8 @@ class MultiAgentSimRunner(RayBase):
                 for k, v in i.items():
                     stats[k].append(v)
             for aid, uids in enumerate(self.aid2uids):
-                self.scores[aid] += [v[uids].mean() for v in stats['score']]
+                self.scores[aid] += [
+                    v[uids].mean() for v in stats[self.score_metric]]
                 self.agents[aid].store(
                     **{
                         k: [vv[uids] for vv in v]
@@ -665,7 +664,8 @@ class MultiAgentSimRunner(RayBase):
         model = self.current_models[aid]
         assert model in self.active_models, (model, self.active_models)
         model_weights = ModelWeights(model, {'aux': aux_stats})
-        self.parameter_server.update_strategy_aux_stats.remote(aid, model_weights)
+        self.parameter_server.update_strategy_aux_stats.remote(
+            aid, model_weights)
 
     def _send_run_stats(self, aid, env_steps, n_episodes):
         stats = self.agents[aid].get_raw_stats()

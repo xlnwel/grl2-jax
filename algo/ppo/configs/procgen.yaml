@@ -100,7 +100,7 @@ loss:
     tsallis_target_coef: 0
     tsallis_target: reverse_approx
     tsallis_q: 1.2
-    policy_life_mask: False
+    life_mask: False
 
     normalize_adv: False
     process_adv: null

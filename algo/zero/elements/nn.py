@@ -122,7 +122,7 @@ class H(Module):
                 **config, out_size=h, name=f'{self.name}/w{i}'
             ))
             setattr(self, f'b{i}', mlp(
-                **config, out_size=h, name=f'{self.name}/w{i}'
+                **config, out_size=h, name=f'{self.name}/b{i}'
             ))
 
         config.setdefault('out_gain', 1)

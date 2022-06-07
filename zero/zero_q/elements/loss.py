@@ -22,7 +22,7 @@ class MAPPOPolicyLoss(Loss):
         life_mask=None, 
         mask=None
     ):
-        life_mask = life_mask if self.config.policy_life_mask else None
+        life_mask = life_mask if self.config.life_mask else None
         with tf.GradientTape() as tape:
             x, _ = self.model.encode(
                 x=obs, 
@@ -99,7 +99,7 @@ class MAPPOValueLoss(ValueLossImpl):
         old_value = value
         old_value_a = value_a
         n_units = self.model.env_stats.n_units
-        loss_mask = life_mask if self.config.value_life_mask else None
+        loss_mask = life_mask if self.config.life_mask else None
         with tf.GradientTape() as tape:
             ae, qs, qs_a, _ = self.model.compute_value(
                 global_state=global_state,

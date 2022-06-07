@@ -8,17 +8,18 @@ from utility.utils import dict2AttrDict
 
 @nn_registry.register('meta')
 class MetaParams(Module):
-    def __init__(self, config, name='meta_params'):
+    def __init__(self, name='meta_params', **config):
         super().__init__(name=name)
 
         self.config = dict2AttrDict(config)
 
-        for k, v in config.items():
-            setattr(self, k, v['val'])
-            if v['init'] is not None:
+        for k, v in self.config.items():
+            setattr(self, k, v.val)
+            if v.init is not None:
+                init = v.init * tf.ones(v.shape) if v.get('shape') else v.init
                 setattr(self, f'{k}_var', tf.Variable(
-                    v['init'], dtype='float32', name=f'meta/{k}'))
-                setattr(self, f'{k}_act', get_activation(v['act']))
+                    init, dtype='float32', name=f'meta/{k}'))
+                setattr(self, f'{k}_act', get_activation(v.act))
 
         self.params = list(config)
 

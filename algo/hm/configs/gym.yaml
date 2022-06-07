@@ -121,14 +121,14 @@ loss:
         ppo_clip_range: .2
         entropy_coef: 0
         pg_coef: 1
-        policy_life_mask: False
+        life_mask: False
         norm_adv: False
 
     value:
         value_loss: mse
         value_clip_range: .2
         value_coef: .5
-        value_life_mask: False
+        life_mask: False
 
 trainer:
     algorithm: *algo

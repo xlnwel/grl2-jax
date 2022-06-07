@@ -131,7 +131,8 @@ class Actor:
         """
         action, terms, state = out
         if state is not None:
-            action, terms, prev_state = tensor2numpy((action, terms, inp['state']))
+            action, terms, prev_state = tensor2numpy(
+                (action, terms, inp['state']))
             if not evaluation:
                 terms.update({
                     'mask': inp['mask'], 
@@ -142,7 +143,8 @@ class Actor:
         if self.config.get('update_obs_rms_at_execution', True) \
             and not evaluation and self.rms is not None \
                 and self.rms.is_obs_normalized:
-            terms.update({k: inp[k] for k in self.config.rms.obs_names})
+            terms.update({k: inp[k] 
+                for k in self.config.rms.obs_names})
         return action, terms, state
 
     def get_weights(self, identifier=None):

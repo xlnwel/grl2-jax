@@ -24,7 +24,7 @@ class PPOValueLoss(ValueLossImpl):
         old_value = value
         old_value_a = value_a
         n_units = self.model.env_stats.n_units
-        loss_mask = life_mask if self.config.value_life_mask else None
+        loss_mask = life_mask if self.config.life_mask else None
         n = None if loss_mask is None else tf.reduce_sum(loss_mask)
         with tf.GradientTape() as tape:
             ae, value, value_a, _ = self.model.compute_value(

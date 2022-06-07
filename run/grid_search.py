@@ -28,7 +28,8 @@ class GridSearch:
         logdir='logs', 
         dir_prefix='', 
         separate_process=False, 
-        delay=1
+        delay=1,
+        multiprocess=True
     ):
         self.config = dict2AttrDict(config)
         self.train_func = train_func
@@ -38,14 +39,20 @@ class GridSearch:
         self.separate_process = separate_process
         self.delay=delay
 
-        self.processes = []
+        if multiprocess:
+            self.processes = []
+        else:
+            self.processes = None
 
     def __call__(self, **kwargs):
         self._setup_root_dir()
         if kwargs == {} and self.n_trials == 1 and not self.separate_process:
             # if no argument is passed in, run the default setting
-            p = Process(target=self.train_func, args=([self.config],))
-            self.processes.append(p)
+            if self.processes is None:
+                self.train_func([self.config])
+            else:
+                p = Process(target=self.train_func, args=([self.config],))
+                self.processes.append(p)
         else:
             # do grid search
             model_name = self.config.model_name
@@ -102,8 +109,11 @@ class GridSearch:
                 kw = [f'root_dir={self.root_dir}', f'model_name={mn2}']
                 change_config(kw, config2)
                 modify_config(config2, root_dir=self.root_dir, model_name=mn2)
-                print_dict(config2)
-                p = Process(target=self.train_func, args=([config2],))
-                p.start()
-                self.processes.append(p)
-                time.sleep(self.delay)   # ensure sub-processs starts in order
+                # print_dict(config2)
+                if self.processes is None:
+                    self.train_func([config2])
+                else:
+                    p = Process(target=self.train_func, args=([config2],))
+                    p.start()
+                    self.processes.append(p)
+                    time.sleep(self.delay)   # ensure sub-processs starts in order

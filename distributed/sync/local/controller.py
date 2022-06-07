@@ -15,6 +15,8 @@ from core.typing import ModelPath
 from core.utils import save_code
 from env.func import get_env_stats
 from gt.alpharank import AlphaRank
+from run.utils import search_for_all_configs
+from utility.process import run_process
 from utility.timer import Every
 from utility.typing import AttrDict
 from utility.utils import modify_config
@@ -139,6 +141,7 @@ class Controller(CheckpointBase):
 
         do_logging('Retrieving Environment Stats...', logger=logger)
         env_stats = get_env_stats(configs[0].env)
+        self.suite, _ = configs[0].env.env_name.split('-', 1)
         self.configs = _setup_configs(configs, env_stats)
 
         do_logging('Compute Future Running Steps...', logger=logger)
@@ -206,15 +209,19 @@ class Controller(CheckpointBase):
 
         model_weights, is_raw_strategy = ray.get(
             self.parameter_server.sample_training_strategies.remote())
+        print(f'Training strategies at iteration {self._iteration}: {list(model_weights)}')
         self.agent_manager.build_agents(self.configs)
         self.agent_manager.set_model_weights(model_weights, wait=True)
+        print(f'Finish setting model weights')
         self.agent_manager.publish_weights(wait=True)
+        print(f'Finish publishing model weights')
         self.active_models = [model for model, _ in model_weights]
         self.runner_manager.build_runners(
             self.configs, 
             remote_buffers=self.agent_manager.get_agents(),
             active_models=self.active_models, 
         )
+        print(f'Finish building runners')
         self._initialize_rms(self.active_models, is_raw_strategy)
 
     def train(
@@ -231,8 +238,9 @@ class Controller(CheckpointBase):
             while model_weights is None:
                 time.sleep(.025)
                 model_weights = ray.get(self.parameter_server.get_strategies.remote())
+            print('Sampling models for running...')
             assert len(model_weights) == runner_manager.n_runners, (len(model_weights), runner_manager.n_runners)
-            
+
             steps = sum(runner_manager.run_with_model_weights(model_weights))
             if self._iteration > 1:
                 # we count the total number of steps taken by each training agent
@@ -251,10 +259,17 @@ class Controller(CheckpointBase):
                     active_models=self.active_models, 
                 )
 
+        self._post_processing()
+        ray.get([
+            self.monitor.save_all.remote(),
+            self.monitor.save_payoff_table.remote(self._iteration)
+        ])
+        self.save()
         agent_manager.stop_training(wait=True)
         self._steps = 0
 
     def cleanup(self):
+        do_logging('Cleaning up for the next training iteration...', logger=logger)
         ray.get(self.parameter_server.archive_training_strategies.remote())
         self.agent_manager.destroy_agents()
         self.runner_manager.destroy_runners()
@@ -269,6 +284,11 @@ class Controller(CheckpointBase):
             do_logging(f'Initializing RMS for agents: {aids}', logger=logger)
             self.runner_manager.set_current_models(models)
             self.runner_manager.random_run(aids)
+
+    def _post_processing(self):
+        if self.suite == 'spiel':
+            print('Computing Nash Convergence...')
+            self.compute_nash_conv()
 
     """ Evaluation """
     def evaluate_all(self, total_episodes, filename):
@@ -288,6 +308,12 @@ class Controller(CheckpointBase):
         with open(path, 'wb') as f:
             cloudpickle.dump((payoffs, counts), f)
         do_logging(f'Payoffs have been saved at {path}', logger=logger)
+
+    def compute_nash_conv(self):
+        configs = search_for_all_configs(self._dir)
+        from run.spiel_eval import main
+        result_file = '/'.join([self._dir, 'nash_conv.txt'])
+        run_process(main, configs, result_file=result_file)
 
     """ Checkpoints """
     def save(self):

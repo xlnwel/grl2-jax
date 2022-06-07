@@ -165,7 +165,7 @@ class PPOPolicyLoss(PGLossImpl):
         life_mask=None, 
         mask=None
     ):
-        loss_mask = life_mask if self.config.policy_life_mask else None
+        loss_mask = life_mask if self.config.life_mask else None
         n = None if loss_mask is None else tf.reduce_sum(loss_mask)
         with tf.GradientTape() as tape:
             x, _ = self.model.encode(
@@ -207,7 +207,7 @@ class PPOValueLoss(ValueLossImpl):
         mask=None
     ):
         old_value = value
-        loss_mask = life_mask if self.config.value_life_mask else None
+        loss_mask = life_mask if self.config.life_mask else None
         n = None if loss_mask is None else tf.reduce_sum(loss_mask)
         with tf.GradientTape() as tape:
             value, _ = self.model.compute_value(

@@ -43,9 +43,13 @@ class PPOStrategy(Strategy):
         # be sure you normalize obs first if obs normalization is required
         if value_inp is None:
             value_inp = self._value_inp
+        for k, v in value_inp.items():
+            value_inp[k] = v.reshape(-1, *v.shape[2:])
         value, _ = self.model.compute_value(**value_inp)
-        return value.numpy()
+        value = value.numpy()
+        value = value.reshape(v.shape[:2])
 
+        return value
 
 
 create_strategy = functools.partial(

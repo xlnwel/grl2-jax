@@ -1,3 +1,4 @@
+import copy
 from typing import Tuple, Union
 
 from core.elements.actor import Actor
@@ -131,7 +132,7 @@ class Strategy:
     def _prepare_input_to_actor(self, env_output):
         """ Extract data from env_output as the input 
         to Actor for inference """
-        inp = env_output.obs.copy()
+        inp = copy.deepcopy(env_output.obs)
         return inp
 
     def _record_output(self, out: Tuple):

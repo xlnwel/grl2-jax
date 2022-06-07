@@ -18,10 +18,15 @@ yes y | sudo apt-get install git cmake build-essential libgl1-mesa-dev libsdl2-d
 libsdl2-image-dev libsdl2-ttf-dev libsdl2-gfx-dev \
 libdirectfb-dev libst-dev mesa-utils xvfb x11vnc python3-pip
 
-echo "nameserver 114.114.114.114" | sudo tee -a /etc/resolv.conf
-echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
+# echo "nameserver 114.114.114.114" | sudo tee -a /etc/resolv.conf
+# echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
+cd /etc/apt/sources.list.d
+sudo mv cuda.list cuda.list-old
+sudo mv nvidia-ml.list nvidia-ml.list-old
+cd ~
 yes y | sudo apt-get install libboost-all-dev
-sudo chmod a+wrx /opt/conda
+sudo chown -R ubuntu ~/.condarc
+conda config --add envs_dirs $HOME/chenxinwei/conda/envs
 yes y | conda create -n grl python==3.8.10
 
 conda activate grl
@@ -31,13 +36,14 @@ pip install --upgrade pip
 
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --upgrade setuptools psutil wheel
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple opencv-python
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py procgen mujoco-py
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py procgen mujoco-py mujoco
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gfootball
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tensorflow-gpu tensorflow-probability
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ray
-pip install -i https://pypi.tuna.tsinghua.edu.cn/simple scipy pandas Pillow plotly opencv-python
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple scipy pandas Pillow matplotlib plotly
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ipython
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tqdm
 pip install pysc2
 
 rsync -avz ~/chenxinwei/StarCraftII ~/
+rsync -avz ~/chenxinwei/.mujoco ~/

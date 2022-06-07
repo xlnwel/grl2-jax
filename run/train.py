@@ -55,16 +55,15 @@ def _grid_search(config, main, cmd_args):
         logdir=cmd_args.logdir, 
         dir_prefix=cmd_args.prefix,
         separate_process=True, 
-        delay=cmd_args.delay
+        delay=cmd_args.delay, 
+        multiprocess=cmd_args.multiprocess
     )
 
     processes = []
     processes += gs(
-        lr=[1e-1, 1e-2], 
-        n_steps=[16, 32, 64], 
-        n_mbs=[1, 4, 8], 
-        entropy_coef=[1e-2, 1e-3], 
-        seed=[0, 1]
+        lr=[1e-1, 1e-2, 1e-3], 
+        entropy_coef=[1e-3, 1e-4], 
+        # seed=[0, 1, 2]
     )
     [p.join() for p in processes]
 

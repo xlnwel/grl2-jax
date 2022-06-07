@@ -32,6 +32,7 @@ def change_config(kw, config, model_name=''):
     """
     def change_dict(config, key, value, prefix):
         modified_configs = []
+        original_key = key
         if ':' in key:
             keys = key.split(':')
             key = keys[0]
@@ -42,18 +43,23 @@ def change_config(kw, config, model_name=''):
             if key == k:
                 if keys is None:
                     config[k] = value
+                    modified_configs.append(config_name)
                 else:
+                    keys_in_config = True
                     key_config = config[k]
                     for kk in keys[1:-1]:
-                        assert kk in key_config, f'{config_name} does not exist'
+                        if kk not in key_config:
+                            keys_in_config = False
+                            break
                         key_config = key_config[kk]
                         config_name = f'{config_name}:{kk}'
-                    assert keys[-1] in key_config, f'{config_name} does not exist'
-                    key_config[keys[-1]] = value
-                    config_name = f'{config_name}:{keys[-1]}'
-                modified_configs.append(config_name)
+                    if keys_in_config and keys[-1] in key_config:
+                        key_config[keys[-1]] = value
+                        config_name = f'{config_name}:{keys[-1]}'
+                        modified_configs.append(config_name)
             if isinstance(v, dict):
-                modified_configs += change_dict(v, key, value, config_name)
+                modified_configs += change_dict(
+                    v, original_key, value, config_name)
 
         return modified_configs
             
@@ -97,11 +103,14 @@ def load_config_with_algo_env(algo, env, filename=None, to_attrdict=True):
     if config is None:
         raise RuntimeError('No configure is loaded')
 
+    suite, name = env.split('-', 1)
+    config['env']['suite'] = suite
+    config['env']['name'] = name
     config = modify_config(
         config, 
         overwrite_existed_only=True, 
         algorithm=algo, 
-        env_name=env
+        env_name=env, 
     )
 
     if to_attrdict:

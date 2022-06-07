@@ -1,7 +1,7 @@
 import numpy as np
 
 from core.typing import ModelPath
-from gt.payoff import PayoffWithModel
+from gt.payoff import PayoffTableWithModel
 
 
 class FSP:
@@ -12,11 +12,11 @@ class FSP:
         self, 
         aid: int, 
         model: ModelPath, 
-        payoff: PayoffWithModel
+        payoff_table: PayoffTableWithModel
     ):
         """ Fictitious Self-Play """
-        model2sid = payoff.get_model2sid()
-        sid2model = payoff.get_sid2model()
+        model2sid = payoff_table.get_model2sid()
+        sid2model = payoff_table.get_sid2model()
         models = []
         for i in range(len(model2sid)):
             if i == aid:

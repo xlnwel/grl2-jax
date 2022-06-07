@@ -118,24 +118,33 @@ model:
 
 loss:
     policy:
+        pg_coef: 1
         ppo_clip_range: .2
         entropy_coef: 0
         aux_l1_coef: 0
         aux_l2_coef: 0
         weighted_l_dist: False
         kl_prior_coef: 0
-        new_po_coef: 0
-        pg_coef: 1
-        js_coef: null
         kl_prior: reverse
-        policy_life_mask: False
-        norm_adv: False
+        kl_target_coef: 0
+        kl_target: reverse_approx
+        target_prob: target_prob_prime
+        js_target_coef: 0
+        js_target: approx
+        tsallis_target_coef: 0
+        tsallis_target: reverse_approx
+        tsallis_q: 1.2
+        life_mask: False
 
+        normalize_adv: True
+        zero_center_adv: True
+        process_adv: null
+        adv_clip_range: null
     value:
         value_loss: mse
         value_clip_range: .2
         value_coef: .5
-        value_life_mask: False
+        life_mask: False
 
 trainer:
     algorithm: *algo
@@ -169,7 +178,7 @@ actor:
         obs_normalized_axis: [0, 1]
         normalize_obs: True
         obs_clip: 10
-        normalize_reward: False
+        normalize_reward: True
         update_reward_rms_in_time: False
         gamma: &gamma .99
 
@@ -188,28 +197,31 @@ buffer:
     actor_rnn_type: *arnn
     value_rnn_type: *vrnn
 
-    process_adv: null
     normalize_adv: False
-    zero_center: True
-    adv_normalizer: 5
-    adv_scale: 10
+    zero_center_adv: True
+    process_adv: null
+    adv_clip: null
 
     # Trust region arguments
-    target_type: exp
-    adv_tau: 1
-    alpha: .2
-    pr_lower_clip: .2
-    pr_upper_clip: .2
-    exp_lower_clip: 1
-    exp_upper_clip: 1
-    adv_lower_clip: 1
-    adv_upper_clip: 3
-    lin_lower_clip: .5
-    lin_upper_clip: 1
-    lin_weights: 1
+    target_pi:
+        target_type: pr
+        adv_tau: 1
+        alpha: .2
+        pr_lower_clip: .2
+        pr_upper_clip: .2
+        exp_lower_clip: 1
+        exp_upper_clip: 1
+        adv_lower_clip: 1
+        adv_upper_clip: 1
+        lin_lower_clip: .5
+        lin_upper_clip: 3
+        lin_weights: 1
+        normalize_adv: False
+        zero_center: True
+        process_adv: null
+        step_size: .1
 
-    aux_adv_lower_clip: null
-    aux_adv_upper_clip: null
+        target_prob_key: target_prob_prime
 
     sample_keys: 
         - obs

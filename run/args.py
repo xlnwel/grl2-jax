@@ -59,6 +59,8 @@ def parse_train_args():
     parser.add_argument('--seed', '-s',
                         type=int,
                         default=None)
+    parser.add_argument('--multiprocess', '-mp', 
+                        action='store_true')
     args = parser.parse_args()
 
     return args

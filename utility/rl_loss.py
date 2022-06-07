@@ -260,6 +260,7 @@ def ppo_loss(
     mask=None, 
     n=None,
 ):
+    is_unit_wise_coef = isinstance(pg_coef, tf.Tensor) and pg_coef.shape != ()
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
         assert_rank_and_shape_compatibility([advantage, mask])
@@ -268,11 +269,16 @@ def ppo_loss(
         log_ratio, advantage, clip_range)
 
     raw_ppo = tf.maximum(pg_loss, clipped_loss)
+    if is_unit_wise_coef:
+        raw_ppo = pg_coef * raw_ppo
     tf.debugging.assert_all_finite(raw_ppo, 'Bad raw_ppo')
     raw_ppo_loss = reduce_mean(raw_ppo, mask=mask, n=n)
-    ppo_loss = pg_coef * raw_ppo_loss
+    ppo_loss = raw_ppo_loss if is_unit_wise_coef else pg_coef * raw_ppo_loss
+    is_unit_wise_coef = isinstance(entropy_coef, tf.Tensor) and entropy_coef.shape != ()
+    if is_unit_wise_coef:
+        entropy = entropy_coef * entropy
     raw_entropy_loss = - reduce_mean(entropy, mask, n)
-    entropy_loss = entropy_coef * raw_entropy_loss
+    entropy_loss = raw_entropy_loss if is_unit_wise_coef else entropy_coef * raw_entropy_loss
 
     # debug stats: KL between old and current policy and fraction of data being clipped
     approx_kl = .5 * reduce_mean((-log_ratio)**2, mask, n)
@@ -384,6 +390,7 @@ def compute_kl(
     sample_mask=None,
     n=None, 
 ):
+    is_unit_wise_coef = isinstance(kl_coef, tf.Tensor) and kl_coef.shape != ()
     if kl_coef is not None:
         if kl_type == 'forward_approx':
             kl = tf_div.kl_from_samples(
@@ -419,11 +426,11 @@ def compute_kl(
             )
         else:
             raise NotImplementedError(f'Unknown kl {kl_type}')
-        raw_kl_loss = reduce_mean(
-            kl, mask=sample_mask, n=n
-        )
+        if is_unit_wise_coef:
+            kl = kl_coef * kl
+        raw_kl_loss = reduce_mean(kl, mask=sample_mask, n=n)
         tf.debugging.assert_all_finite(raw_kl_loss, 'Bad raw_kl_loss')
-        kl_loss = kl_coef * raw_kl_loss
+        kl_loss = raw_kl_loss if is_unit_wise_coef else kl_coef * raw_kl_loss
     else:
         kl = 0.
         raw_kl_loss = 0.
@@ -445,6 +452,7 @@ def compute_js(
     sample_mask=None, 
     n=None
 ):
+    is_unit_wise_coef = isinstance(js_coef, tf.Tensor) and js_coef.shape != ()
     if js_coef is not None:
         if js_type == 'approx':
             js = tf_div.js_from_samples(
@@ -458,11 +466,11 @@ def compute_js(
             )
         else:
             raise NotImplementedError(f'Unknown JS type {js_type}')
-        raw_js_loss = reduce_mean(
-            js, mask=sample_mask, n=n
-        )
+        if is_unit_wise_coef:
+            js = js_coef * js
+        raw_js_loss = reduce_mean(js, mask=sample_mask, n=n)
         tf.debugging.assert_all_finite(raw_js_loss, 'Bad raw_js_loss')
-        js_loss = js_coef * raw_js_loss
+        js_loss = raw_js_loss if is_unit_wise_coef else js_coef * raw_js_loss
     else:
         js = 0,
         raw_js_loss = 0.
@@ -489,6 +497,7 @@ def compute_tsallis(
     sample_mask=None,
     n=None, 
 ):
+    is_unit_wise_coef = isinstance(tsallis_coef, tf.Tensor) and tsallis_coef.shape != ()
     if tsallis_coef is not None:
         if tsallis_type == 'forward_approx':
             tsallis = tf_div.tsallis_from_samples(
@@ -528,11 +537,11 @@ def compute_tsallis(
             )
         else:
             raise NotImplementedError(f'Unknown Tsallis {tsallis_type}')
-        raw_tsallis_loss = reduce_mean(
-            tsallis, mask=sample_mask, n=n
-        )
+        if is_unit_wise_coef:
+            tsallis = tsallis_coef * tsallis
+        raw_tsallis_loss = reduce_mean(tsallis, mask=sample_mask, n=n)
         tf.debugging.assert_all_finite(raw_tsallis_loss, 'Bad raw_tsallis_loss')
-        tsallis_loss = tsallis_coef * raw_tsallis_loss
+        tsallis_loss = raw_tsallis_loss if is_unit_wise_coef else tsallis_coef * raw_tsallis_loss
     else:
         tsallis = 0.
         raw_tsallis_loss = 0.

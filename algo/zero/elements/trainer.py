@@ -4,6 +4,7 @@ from core.elements.trainer import Trainer, TrainerEnsemble
 from core.decorator import override
 from core.optimizer import create_optimizer
 from core.tf_config import build
+from utility.utils import dict2AttrDict
 from .utils import get_data_format
 from utility.adam import Adam
 from utility.display import print_dict
@@ -16,7 +17,7 @@ class GPOActorTrainer(Trainer):
         modules = tuple([
             self.model[k] for k in keys if not k.startswith('meta')
         ])
-        config = self.config.copy()
+        config = dict2AttrDict(self.config, to_copy=True)
         config.optimizer.opt_name = Adam
         self.optimizer = create_optimizer(
             modules, config.optimizer
@@ -32,7 +33,24 @@ class GPOActorTrainer(Trainer):
 
     def raw_train(
         self, 
-        **kwargs
+        obs, 
+        action, 
+        advantage, 
+        logprob, 
+        target_prob, 
+        tr_prob, 
+        target_prob_prime, 
+        tr_prob_prime, 
+        pi, 
+        target_pi, 
+        pi_mean, 
+        pi_std, 
+        prev_reward=None, 
+        prev_action=None, 
+        state=None, 
+        action_mask=None, 
+        life_mask=None, 
+        mask=None, 
     ):
         # if not hasattr(self.model, 'rnn') \
         #         and len(kwargs['action'].shape) == 3:
@@ -41,32 +59,78 @@ class GPOActorTrainer(Trainer):
         #         if x is not None else x, kwargs)
         # else:
         #     new_kwargs = kwargs
-        with tf.GradientTape(persistent=True) as tape:
+        loss_mask = life_mask if self.loss.config.life_mask else None
+        n = None if loss_mask is None else tf.reduce_sum(loss_mask)
+        with tf.GradientTape(persistent=True) as meta_tape:
             tape, loss, terms = self.loss.loss(
-                **kwargs, use_meta=True)
+                obs=obs, 
+                action=action, 
+                advantage=advantage, 
+                logprob=logprob, 
+                target_prob=target_prob, 
+                tr_prob=tr_prob, 
+                target_prob_prime=target_prob_prime, 
+                tr_prob_prime=tr_prob_prime, 
+                pi=pi, 
+                target_pi=target_pi, 
+                pi_mean=pi_mean, 
+                pi_std=pi_std, 
+                prev_reward=prev_reward, 
+                prev_action=prev_action, 
+                state=state, 
+                action_mask=action_mask, 
+                life_mask=life_mask, 
+                mask=mask, 
+                use_meta=True, 
+            )
 
             terms['actor_norm'], terms['actor_var_norm'] = \
                 self.optimizer(tape, loss, return_var_norms=True)
             
-            meta_tape, meta_loss, meta_terms = self.loss.loss(
-                **kwargs, use_meta=False)
-            out_grads = tape.gradient(
-                meta_loss, 
-                self.meta_opt.variables
+            x, _ = self.model.encode(
+                x=obs, 
+                prev_reward=prev_reward, 
+                prev_action=prev_action, 
+                state=state, 
+                mask=mask
             )
-            out_grads = tape.gradient(
-                self.optimizer.get_transformed_grads(self.meta_opt.variables), 
+            act_dist = self.loss.policy(x, action_mask)
+            meta_terms, meta_loss = self.loss._ppo_loss(
+                tape=meta_tape, 
+                act_dist=act_dist, 
+                action=action, 
+                advantage=advantage, 
+                logprob=logprob, 
+                tr_prob=tr_prob, 
+                target_prob_prime=target_prob_prime, 
+                tr_prob_prime=tr_prob_prime, 
+                pi=pi, 
+                target_pi=target_pi, 
+                pi_mean=pi_mean, 
+                pi_std=pi_std, 
+                action_mask=action_mask, 
+                sample_mask=loss_mask, 
+                n=n, 
+                use_meta=False, 
+                name='meta'
+            )
+        out_grads = meta_tape.gradient(
+            meta_loss, 
+            self.optimizer.variables
+        )
+        out_grads = meta_tape.gradient(
+            self.optimizer.get_transformed_grads(self.optimizer.variables), 
+            self.optimizer.grads, 
+            output_gradients=out_grads
+        )
+        terms.update(meta_terms)
+        terms['meta_norm'], terms['meta_var_norm'] = \
+            self.meta_opt(
+                meta_tape, 
                 self.optimizer.grads, 
-                output_gradients=out_grads
+                output_gradients=out_grads, 
+                return_var_norms=True
             )
-            terms.update(meta_terms)
-            terms['meta_norm'], terms['meta_var_norm'] = \
-                self.meta_opt(
-                    meta_tape, 
-                    self.optimizer.grads, 
-                    output_gradients=out_grads, 
-                    return_var_norms=True
-                )
 
         return terms
 
@@ -109,7 +173,6 @@ class GPOTrainerEnsemble(TrainerEnsemble):
         tr_prob_prime, 
         pi=None, 
         target_pi=None, 
-        vt_prob=None, 
         pi_mean=None, 
         pi_std=None, 
         global_state=None, 
@@ -129,7 +192,6 @@ class GPOTrainerEnsemble(TrainerEnsemble):
             logprob=logprob, 
             target_prob=target_prob, 
             tr_prob=tr_prob, 
-            vt_prob=vt_prob, 
             target_prob_prime=target_prob_prime, 
             tr_prob_prime=tr_prob_prime, 
             pi=pi,

@@ -80,7 +80,6 @@ def get_data_format(
         logprob=(basic_shape, tf.float32, 'logprob'),
     ))
     if env_stats.is_action_discrete:
-        data_format['vt_prob'] = (basic_shape, tf.float32, 'vt_prob')
         data_format['pi'] = ((*basic_shape, action_dim), tf.float32, 'pi')
         data_format['target_pi'] = ((*basic_shape, action_dim), tf.float32, 'target_pi')
     else:

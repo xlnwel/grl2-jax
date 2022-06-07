@@ -6,7 +6,7 @@ import numpy as np
 from core.typing import ModelPath, get_aid
 
 
-class Payoff:
+class PayoffTable:
     def __init__(
         self, 
         n_agents, 
@@ -24,13 +24,30 @@ class Payoff:
         self.payoffs = [np.zeros([0] * n_agents, dtype=np.float32) for _ in range(n_agents)]
         self.counts = [np.zeros([0] * n_agents, dtype=np.int64) for _ in range(n_agents)]
 
-    """ Payoff Management """
+    """ Payoff Retrieval """
     def get_payoffs(self):
         return self.payoffs
+
+    def get_payoffs_for_agent(self, aid: int, *, sid: int=None):
+        payoff = self.payoffs[aid]
+        assert payoff.shape == (self.n_agents, ) * self.n_agents, payoff.shape
+        if sid is not None:
+            payoff = payoff[(slice(None), ) * (aid-1) + (sid)]
+            assert payoff.shape == (self.n_agents, ) * (self.n_agents - 1), payoff.shape
+        return payoff
 
     def get_counts(self):
         return self.counts
 
+    def get_counts_for_agent(self, aid: int, *, sid: int):
+        count = self.counts[aid]
+        assert count.shape == (self.n_agents, ) * self.n_agents, count.shape
+        if sid is not None:
+            count = count[(slice(None), ) * (aid-1) + (sid)]
+            assert count.shape == (self.n_agents, ) * (self.n_agents - 1), count.shape
+        return count
+
+    """ Payoff Management """
     def reset(self, from_scratch=False):
         if from_scratch:
             self.payoffs = [
@@ -66,7 +83,7 @@ class Payoff:
                 continue
             elif count[sids] == 0:
                 payoff[sids] = s_sum / s_total
-            elif self.step_size == 0:
+            elif self.step_size == 0 or self.step_size is None:
                 payoff[sids] = (count[sids] * payoff[sids] + s_sum) / (count[sids] + s_total)
             else:
                 payoff[sids] += self.step_size * (s_sum / s_total - payoff[sids])
@@ -88,7 +105,7 @@ class Payoff:
         self.counts[aid] = np.pad(self.counts[aid], pad_width)
 
 
-class PayoffWithModel(Payoff):
+class PayoffTableWithModel(PayoffTable):
     def __init__(
         self, 
         n_agents, 
@@ -116,6 +133,19 @@ class PayoffWithModel(Payoff):
     
     def get_model2sid(self):
         return self.model2sid
+
+    """ Payoff Retrieval """
+    def get_payoffs_for_agent(self, aid: int, *, sid: int=None, model: ModelPath):
+        if sid is None and model is not None:
+            sid = self.sid2model[aid][model]
+        payoff = super().get_payoffs_for_agent(aid, sid=sid)
+        return payoff
+
+    def get_counts_for_agent(self, aid: int, *, sid: int, model: ModelPath):
+        if sid is None and model is not None:
+            sid = self.sid2model[aid][model]
+        counts = super().get_counts_for_agent(aid, sid=sid)
+        return counts
 
     """ Payoff Management """
     def reset(self, from_scratch=False):

@@ -7,6 +7,8 @@ from typing import Dict
 import cloudpickle
 import ray
 
+from utility.graph import decode_png, matrix_plot
+
 from .parameter_server import ParameterServer
 from ..common.typing import ModelStats
 from core.monitor import Monitor as ModelMonitor
@@ -127,3 +129,28 @@ class Monitor(RayBase):
         self._last_save_time = current_time
         with open('check.txt', 'w') as f:
             f.write(datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S'))
+
+    def save_payoff_table(self, step=None):
+        mid = self.parameter_server.get_active_models.remote()
+        pid = self.parameter_server.get_payoffs.remote()
+        cid = self.parameter_server.get_counts.remote()
+        models, payoffs, counts = ray.get([mid, pid, cid])
+
+        if len(payoffs) == 2:
+            for i, (m, p, c) in enumerate(zip(models, payoffs, counts)):
+                if step is None:
+                    step = self._env_steps[m]
+                p_buf = matrix_plot(
+                    p, figsize=6, label_top=True, 
+                    label_bottom=False, invert_yaxis=True
+                )
+                payoff = decode_png(p_buf.getvalue())
+                c_buf = matrix_plot(
+                    c, figsize=6, label_top=True, 
+                    label_bottom=False, invert_yaxis=True
+                )
+                count = decode_png(c_buf.getvalue())
+                self.monitors[m].image_summary(
+                    f'payoff/{i}', payoff, step=step)
+                self.monitors[m].image_summary(
+                    f'count/{i}', count, step=step)

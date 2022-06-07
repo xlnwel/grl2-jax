@@ -1,6 +1,7 @@
 import os, atexit
 import logging
 from collections import defaultdict
+from matplotlib import image
 import numpy as np
 import tensorflow as tf
 
@@ -232,8 +233,15 @@ class TensorboardWriter:
         """ Adds histogram summary to tensorboard """
         histogram_summary(self._writer, stats, prefix=prefix, step=step)
 
+    def image_summary(self, name, images, step):
+        with self._writer.as_default():
+            if len(images.shape) == 3:
+                images = images[None]
+            tf.summary.image(name, images, step=step)
+
     def graph_summary(self, sum_type, *args, step=None):
         """ Adds graph summary to tensorboard
+        This should only be called inside @tf.function
         Args:
             sum_type str: either "video" or "image"
             args: Args passed to summary function defined in utility.graph,

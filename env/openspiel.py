@@ -12,7 +12,11 @@ class OpenSpiel:
         uid2aid=None, 
         **kwargs, 
     ):
-        self.env = env = rl_environment.Environment(env_name)
+        self.env = env = rl_environment.Environment(
+            env_name, 
+            enable_legality_check=True
+        )
+        self.game = self.env.game
         self.uid2aid = uid2aid
         self.aid2uids = compute_aid2uids(self.uid2aid)
         self.n_units = len(self.uid2aid)
@@ -56,14 +60,13 @@ class OpenSpiel:
         ]
 
     def seed(self, seed=None):
-        print('seed', seed)
         self.env.seed(seed)
 
     def reset(self):
         self._time_step = self.env.reset()
         self._current_player = self._time_step.observations['current_player']
 
-        return self._get_obs(self._time_step)
+        return self.get_obs(self._time_step)
 
     def step(self, action):
         assert action[0] in self._time_step.observations['legal_actions'][self._current_player], \
@@ -82,11 +85,11 @@ class OpenSpiel:
             'game_over': self._time_step.last()
         }
 
-        obs = self._get_obs(self._time_step)
+        obs = self.get_obs(self._time_step)
 
         return obs, rewards, discounts, info
 
-    def _get_obs(self, time_step):
+    def get_obs(self, time_step):
         uid = max(time_step.observations['current_player'], 0)
         info_state = np.array(time_step.observations['info_state'][uid], dtype=np.float32)
         action_mask = np.zeros(self.action_dim[uid], bool)
@@ -100,9 +103,6 @@ class OpenSpiel:
         )
 
         return obs
-    
-    def seed(self, seed=None):
-        self.env.seed(seed)
 
     def close(self):
         return

@@ -385,7 +385,7 @@ class ElementsBuilder:
                 save_to_disk=False)
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
-            monitor=None if build_monitor is None else elements.monitor, 
+            monitor=elements.monitor if build_monitor else None, 
             config=config,
             constructors=constructors,
             to_restore=to_restore)
@@ -620,6 +620,9 @@ class ElementsBuilderVC(ElementsBuilder):
         if os.path.exists(self._builder_path):
             with open(self._builder_path, 'rb') as f:
                 self._version, self._max_version, config = cloudpickle.load(f)
+                # we only restore the model_path but not other configs
+                model = ModelPath(config['root_dir'], config['model_name'])
+                self.config = set_path(self.config, model)
                 # self.config = dict2AttrDict(config)
 
     def save(self):

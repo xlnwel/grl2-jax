@@ -143,7 +143,7 @@ class PPOModelEnsemble(ModelEnsemble):
     def _build(self, env_stats, evaluation=False):
         aid = self.config.aid
         basic_shape = (None, len(env_stats.aid2uids[aid]))
-        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        dtype = tf.keras.mixed_precision.global_policy().compute_dtype
         actor_inp=dict(
             obs=((*basic_shape, *env_stats.obs_shape[aid]['obs']), 
                 env_stats.obs_dtype[aid]['obs'], 'obs'),
@@ -228,18 +228,6 @@ class PPOModelEnsemble(ModelEnsemble):
                     'value': value,
                 })
         return action, terms, state
-
-    @tf.function
-    def compute_value(
-        self, 
-        obs, 
-        state,
-        mask
-    ):
-        shape = obs.shape
-        x = tf.reshape(obs, [-1, *shape[2:]])
-        value, state = self.compute_value(obs, state, mask)
-        return value, state
 
     def split_state(self, state):
         if self.has_rnn:
@@ -340,7 +328,6 @@ def create_model(
         config.policy.policy.is_action_discrete = env_stats.is_action_discrete
         config.policy.policy.action_low = env_stats.get('action_low')
         config.policy.policy.action_high = env_stats.get('action_high')
-
 
     if config['actor_rnn_type'] is None:
         config['policy'].pop('rnn', None)

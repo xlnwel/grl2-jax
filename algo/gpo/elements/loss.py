@@ -25,7 +25,6 @@ class GPOLossImpl(Loss):
         advantage, 
         logprob, 
         tr_prob,
-        vt_prob,
         target_prob_prime, 
         tr_prob_prime, 
         target_pi, 
@@ -62,7 +61,6 @@ class GPOLossImpl(Loss):
             target_prime_old_diff_prob=target_prob_prime - prob, 
             trust_region_old_diff_prob=tr_prob - prob, 
             trust_region_prime_old_diff_prob=tr_prob_prime - prob, 
-            valid_target_old_diff_prob=vt_prob - prob, 
             raw_adv=raw_adv, 
             advantage=advantage, 
             raw_adv_unit_std=tf.math.reduce_std(raw_adv, axis=-1), 
@@ -114,7 +112,6 @@ class GPOLossImpl(Loss):
         # GPO with L1
         new_prob = act_dist.prob(action)
         tr_diff_prob = tr_prob - new_prob
-        vt_diff_prob = vt_prob - new_prob
         l1_divident = prob if self.config.get('weighted_l_dist', False) else 1
         l1_distance = tf.math.abs(tr_diff_prob) / l1_divident
         raw_gpo_l1_loss = reduce_mean(l1_distance, mask=sample_mask, n=n)
@@ -126,7 +123,6 @@ class GPOLossImpl(Loss):
             new_prob=new_prob, 
             new_old_diff_prob=new_prob - prob, 
             trust_region_new_diff_prob=tr_diff_prob, 
-            valid_target_new_diff_prob=vt_diff_prob, 
             l1_distance=l1_distance, 
             raw_gpo_l1_loss=raw_gpo_l1_loss, 
             gpo_l1_loss=gpo_l1_loss, 
@@ -247,24 +243,6 @@ class GPOLossImpl(Loss):
             tsallis_target_loss=tsallis_target_loss, 
         )
 
-        # GPO's loss
-        vt_old_diff_prob = vt_prob - prob
-        in_range = tf.sign(vt_diff_prob) == tf.sign(vt_old_diff_prob)
-        weighted_l1_po = advantage / prob * tf.where(
-            in_range, tf.abs(vt_diff_prob), 0)
-        raw_new_po_loss = reduce_mean(weighted_l1_po, sample_mask, n)
-        tf.debugging.assert_all_finite(raw_new_po_loss, 'Bad raw_new_po_loss')
-        new_po_loss = self.config.new_po_coef * raw_new_po_loss
-
-        self.log_for_debug(
-            tape, 
-            terms, 
-            out_of_region_frac=1 - tf.cast(in_range, tf.float32), 
-            weighted_l1_po=weighted_l1_po, 
-            raw_new_po_loss=raw_new_po_loss, 
-            new_po_loss=new_po_loss
-        )
-
         # GPO Loss
         raw_losses = {k: v for k, v in locals().items() 
             if re.search(r'raw_.*_loss$', k)
@@ -366,7 +344,6 @@ class GPOPolicyLoss(GPOLossImpl):
         logprob, 
         target_prob, 
         tr_prob, 
-        vt_prob, 
         target_prob_prime, 
         tr_prob_prime, 
         pi, 
@@ -380,7 +357,7 @@ class GPOPolicyLoss(GPOLossImpl):
         life_mask=None, 
         mask=None
     ):
-        loss_mask = life_mask if self.config.policy_life_mask else None
+        loss_mask = life_mask if self.config.life_mask else None
         n = None if loss_mask is None else tf.reduce_sum(loss_mask)
         with tf.GradientTape() as tape:
             x, _ = self.model.encode(
@@ -398,7 +375,6 @@ class GPOPolicyLoss(GPOLossImpl):
                 advantage=advantage, 
                 logprob=logprob, 
                 tr_prob=tr_prob, 
-                vt_prob=vt_prob, 
                 target_prob_prime=target_prob_prime, 
                 tr_prob_prime=tr_prob_prime, 
                 pi=pi, 
@@ -410,20 +386,7 @@ class GPOPolicyLoss(GPOLossImpl):
                 n=n
             )
 
-        if self.config.get('debug', True):
-            terms.update(dict(
-                target_prime_old_diff_prob=target_prob_prime - terms['prob'], 
-                trust_prime_old_diff_prob=tr_prob_prime - terms['prob'], 
-                target_prime_target_diff_prob=target_prob_prime - target_prob, 
-                trust_prime_trust_diff_prob=tr_prob_prime - tr_prob, 
-                target_prime_trust_prime_diff_prob=target_prob_prime - tr_prob_prime, 
-                target_trust_diff_prob=target_prob - tr_prob, 
-                target_prime_valid_target_diff_prob=target_prob_prime - vt_prob, 
-                trust_prime_valid_target_diff_prob=tr_prob_prime - vt_prob, 
-                target_valid_target_diff_prob=target_prob - vt_prob, 
-                trust_valid_target_diff_prob=tr_prob - vt_prob, 
-            ))
-            if life_mask is not None:
+        if self.config.get('debug', True) and life_mask is not None:
                 terms['n_alive_units'] = tf.reduce_sum(
                     life_mask, -1)
 
@@ -443,7 +406,7 @@ class GPOValueLoss(ValueLossImpl):
         mask=None
     ):
         old_value = value
-        loss_mask = life_mask if self.config.value_life_mask else None
+        loss_mask = life_mask if self.config.life_mask else None
         n = None if loss_mask is None else tf.reduce_sum(loss_mask)
         with tf.GradientTape() as tape:
             value, _ = self.model.compute_value(
