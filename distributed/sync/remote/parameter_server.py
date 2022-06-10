@@ -9,12 +9,12 @@ import ray
 
 from ..common.typing import ModelWeights
 from core.elements.builder import ElementsBuilderVC
+from core.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.remote.base import RayBase
 from core.typing import ModelPath, get_aid, get_aid_vid
 from distributed.sync.remote.payoff import PayoffManager
 from run.utils import search_for_config
-from utility.display import pwt
 from utility.utils import config_attr, dict2AttrDict
 from utility import yaml_op
 
@@ -117,6 +117,15 @@ class ParameterServer(RayBase):
     def get_active_models(self):
         return self._active_models
 
+    def get_opponent_distributions_for_active_models(self):
+        dists = {m: 
+            self.payoff_manager.get_opponent_distribution(
+                i, m
+            ) for i, m in enumerate(self._active_models)
+        }
+
+        return dists
+
     """ Strategy Management """
     def get_strategies(self, rid: int=-1):
         if rid < 0:
@@ -214,7 +223,7 @@ class ParameterServer(RayBase):
                 weights = self._params[aid][model].copy()
                 weights.pop('aux', None)
                 strategies.append(ModelWeights(model, weights))
-                pwt('Restore active strategy', model)
+                do_logging(f'Restore active strategy: {model}', level='pwt')
                 [b.save_config() for b in self.builders]
         else:
             assert all([am is None for am in self._active_models]), self._active_models
@@ -227,10 +236,10 @@ class ParameterServer(RayBase):
                     self._params[aid][model] = {}
                     weights = None
                     is_raw_strategy[aid] = True
-                    pwt('A raw strategy is sampled for training:', model)
+                    do_logging(f'A raw strategy is sampled for training: {model}', level='pwt')
                 else:
                     model = random.choice(list(self._params[aid]))
-                    pwt(f'Sampling a historical stratgy from {list(self._params[aid])}')
+                    do_logging(f'Sampling a historical stratgy from {list(self._params[aid])}', level='pwt')
                     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
                     weights = self._params[aid][model].copy()
                     weights.pop('aux')
@@ -239,7 +248,7 @@ class ParameterServer(RayBase):
                     assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
                     assert model not in self._params[aid], f'{model} is already in {list(self._params[aid])}'
                     self._params[aid][model] = weights
-                    pwt('A historical strategy is sampled for training:', model, config.version)
+                    do_logging(f'A historical strategy is sampled for training: {model}, {config.version}', level='pwt')
                 self._active_models[aid] = model
                 strategies.append(ModelWeights(model, weights))
             self.payoff_manager.add_strategies([s.model for s in strategies])
@@ -258,7 +267,8 @@ class ParameterServer(RayBase):
         return self._all_strategies
 
     def archive_training_strategies(self):
-        pwt('Archive training strategies')
+        do_logging('Archive training strategies', 
+            level='print', time=True, color='blue')
         for model_path in self._active_models:
             self.save_params(model_path)
         self._active_models = [None for _ in range(self.n_agents)]
@@ -280,7 +290,7 @@ class ParameterServer(RayBase):
 
     """ Checkpoints """
     def save_active_model(self, model: ModelPath, train_step, env_step):
-        pwt('Save active model', model)
+        do_logging(f'Save active model: {model}', level='pwt')
         if model not in self._active_models:
             raise ValueError(f'{model} does not in active models{self._active_models}')
         aid = get_aid(model.model_name)
@@ -299,7 +309,7 @@ class ParameterServer(RayBase):
         path = f'{ps_dir}/v{vid}/{filename}.pkl'
         with open(path, 'wb') as f:
             cloudpickle.dump(self._params[aid][model], f)
-        pwt(f'Save parameters in "{path}"')
+        do_logging(f'Save parameters in "{path}"', level='pwt')
 
     def restore_params(self, model: ModelPath, filename='params'):
         aid, vid = get_aid_vid(model.model_name)
@@ -307,21 +317,20 @@ class ParameterServer(RayBase):
         if os.path.exists(path):
             with open(path, 'rb') as f:
                 self._params[aid][model] = cloudpickle.load(f)
-            pwt(f'Restore parameters from "{path}"')
+            do_logging(f'Restore parameters from "{path}"', level='pwt')
         else:
             self._params[aid][model] = {}
 
     def save(self):
         self.payoff_manager.save()
-        with open(self._path, 'wb') as f:
-            model_paths = [[list(mn) for mn in p] for p in self._params]
-            active_models = [list(m) if m is not None else m for m in self._active_models]
-            yaml_op.dump(
-                self._path, 
-                model_paths=model_paths, 
-                active_models=active_models, 
-                first_iteration=self._first_iteration
-            )
+        model_paths = [[list(mn) for mn in p] for p in self._params]
+        active_models = [list(m) if m is not None else m for m in self._active_models]
+        yaml_op.dump(
+            self._path, 
+            model_paths=model_paths, 
+            active_models=active_models, 
+            first_iteration=self._first_iteration
+        )
 
     def restore(self, to_restore_params=True):
         self.payoff_manager.restore()

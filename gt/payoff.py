@@ -30,10 +30,8 @@ class PayoffTable:
 
     def get_payoffs_for_agent(self, aid: int, *, sid: int=None):
         payoff = self.payoffs[aid]
-        assert payoff.shape == (self.n_agents, ) * self.n_agents, payoff.shape
         if sid is not None:
-            payoff = payoff[(slice(None), ) * (aid-1) + (sid)]
-            assert payoff.shape == (self.n_agents, ) * (self.n_agents - 1), payoff.shape
+            payoff = payoff[(slice(None), ) * (aid-1) + (sid,)]
         return payoff
 
     def get_counts(self):
@@ -41,10 +39,8 @@ class PayoffTable:
 
     def get_counts_for_agent(self, aid: int, *, sid: int):
         count = self.counts[aid]
-        assert count.shape == (self.n_agents, ) * self.n_agents, count.shape
         if sid is not None:
             count = count[(slice(None), ) * (aid-1) + (sid)]
-            assert count.shape == (self.n_agents, ) * (self.n_agents - 1), count.shape
         return count
 
     """ Payoff Management """
@@ -135,7 +131,7 @@ class PayoffTableWithModel(PayoffTable):
         return self.model2sid
 
     """ Payoff Retrieval """
-    def get_payoffs_for_agent(self, aid: int, *, sid: int=None, model: ModelPath):
+    def get_payoffs_for_agent(self, aid: int, *, sid: int=None, model: ModelPath=None):
         if sid is None and model is not None:
             sid = self.sid2model[aid][model]
         payoff = super().get_payoffs_for_agent(aid, sid=sid)

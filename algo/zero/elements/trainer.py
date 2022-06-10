@@ -7,7 +7,6 @@ from core.tf_config import build
 from utility.utils import dict2AttrDict
 from .utils import get_data_format
 from utility.adam import Adam
-from utility.display import print_dict
 
 
 class GPOActorTrainer(Trainer):
@@ -95,23 +94,18 @@ class GPOActorTrainer(Trainer):
                 mask=mask
             )
             act_dist = self.loss.policy(x, action_mask)
-            meta_terms, meta_loss = self.loss._ppo_loss(
+            meta_terms, meta_loss = self.loss.meta_loss(
                 tape=meta_tape, 
                 act_dist=act_dist, 
                 action=action, 
                 advantage=advantage, 
                 logprob=logprob, 
-                tr_prob=tr_prob, 
-                target_prob_prime=target_prob_prime, 
-                tr_prob_prime=tr_prob_prime, 
                 pi=pi, 
-                target_pi=target_pi, 
                 pi_mean=pi_mean, 
                 pi_std=pi_std, 
                 action_mask=action_mask, 
                 sample_mask=loss_mask, 
                 n=n, 
-                use_meta=False, 
                 name='meta'
             )
         out_grads = meta_tape.gradient(
@@ -155,7 +149,6 @@ class GPOTrainerEnsemble(TrainerEnsemble):
     def _build_train(self, env_stats):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = get_data_format(self.config, env_stats, self.model)
-        print_dict(TensorSpecs, prefix='Tensor Specifications')
         self.train = build(self.train, TensorSpecs)
         return True
 

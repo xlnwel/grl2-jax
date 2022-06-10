@@ -36,8 +36,10 @@ if __name__ == '__main__':
     args = parse_args()
     
     dirs = search_for_dirs(args.directory, args.prefix, is_suffix=False)
+    dirs = [d for d in dirs if 'a0' not in d and 'a1' not in d]
+    dirs2 = ['/'.join([d, 'a0', 'v1.1']) for d in dirs]
     
-    for d in dirs:
+    for d, d2 in zip(dirs, dirs2):
         # if d.split('/')[-1].startswith('0602'):
         #     print(d.split('/')[-1])
         #     continue
@@ -47,9 +49,9 @@ if __name__ == '__main__':
             Path(target_dir).mkdir(parents=True)
         
         # define paths
-        yaml_path = '/'.join([d, 'config.yaml'])
+        yaml_path = '/'.join([d2, 'config.yaml'])
         json_path = '/'.join([target_dir, 'parameter.json'])
-        record_path = '/'.join([d, 'record.txt'])
+        record_path = '/'.join([d, 'nash_conv.yaml'])
         process_path = '/'.join([target_dir, 'progress.csv'])
         print('yaml path', yaml_path)
         if not os.path.exists(yaml_path) or not os.path.exists(record_path):

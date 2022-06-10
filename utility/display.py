@@ -52,7 +52,7 @@ def pwt(*args, **kwargs):
     print(datetime.now(), *args, **kwargs)
 
 def pwtc(*args, color='red', bold=False, highlight=False, **kwargs):
-    args = (datetime.now()) + args
+    args = (datetime.now(),) + args
     pwc(*args, color=color, bold=bold, highlight=highlight, **kwargs)
 
 def assert_colorize(cond, err_msg=''):

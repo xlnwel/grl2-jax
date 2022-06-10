@@ -1,5 +1,6 @@
 import os, sys
 from datetime import datetime
+import numpy as np
 
 # try:
 #     from tensorflow.python.compiler.mlcompute import mlcompute
@@ -14,14 +15,14 @@ from core.log import setup_logging, do_logging
 from utility import pkg
 from utility.utils import modify_config
 from run.args import parse_train_args
-from run.grid_search import GridSearch
+from run.random_search import RandomSearch
 from run.utils import *
 
 
 def _get_algo_name(algo):
     # shortcuts for distributed algorithms
     algo_mapping = {
-        'ssppo': 'sync-ppo',
+        'sppo': 'sync-ppo',
     }
     if algo in algo_mapping:
         return algo_mapping[algo]
@@ -48,7 +49,7 @@ def _get_algo_env_config(cmd_args):
 
 
 def _grid_search(config, main, cmd_args):
-    gs = GridSearch(
+    gs = RandomSearch(
         config, 
         main, 
         n_trials=cmd_args.trials, 
@@ -61,9 +62,15 @@ def _grid_search(config, main, cmd_args):
 
     processes = []
     processes += gs(
-        lr=[1e-1, 1e-2, 1e-3], 
-        entropy_coef=[1e-3, 1e-4], 
-        # seed=[0, 1, 2]
+        kw_dict={
+            'policy:optimizer:lr': [1e-3],
+            'value:optimizer:lr': [1e-2],
+            # 'sampling_strategy:type': ['fsp', 'pfsp'],
+            # 'sampling_strategy:p': [1, 2],
+        }, 
+        n_aux_value_updates=[0, 1, 10, 20], 
+        online_frac=[.25], 
+        seed=range(5)
     )
     [p.join() for p in processes]
 
@@ -83,7 +90,7 @@ def _run_with_configs(cmd_args):
     for algo, env, config in algo_env_config:
         algo = _get_algo_name(algo)
         config = load_config_with_algo_env(algo, env, config)
-        model_name = change_config(cmd_args.kwargs, config, raw_model_name)
+        model_name = change_config_with_kw_string(cmd_args.kwargs, config, raw_model_name)
         if model_name == '':
             model_name = 'baseline'
 
@@ -105,7 +112,7 @@ def _run_with_configs(cmd_args):
         config['info'] = cmd_args.info
         configs.append(config)
 
-    if cmd_args.grid_search or cmd_args.trials > 1:
+    if cmd_args.random_search or cmd_args.trials > 1:
         assert len(configs) == 1, 'No support for multi-agent grid search.'
         _grid_search(config, main, cmd_args)
     else:
@@ -118,7 +125,7 @@ if __name__ == '__main__':
 
     setup_logging(cmd_args.verbose)
     if cmd_args.gpu is not None:
-        os.environ["CUDA_VISIBLE_DEVICES"]= f"{cmd_args.gpu}"
+        os.environ["CUDA_VISIBLE_DEVICES"] = f"{cmd_args.gpu}"
 
     processes = []
     if cmd_args.directory != '':

@@ -1,7 +1,8 @@
 import os
 import logging
+from datetime import datetime
 
-from utility.display import pwt, pwc, pwtc
+from utility.display import colorize, pwt, pwc, pwtc
 from utility.utils import get_frame
 
 
@@ -23,15 +24,31 @@ def get_sys_logger(backtrack=1):
     logger = logging.getLogger(filename)
     return logger
 
-def do_logging(x, prefix='', logger=None, level='INFO', func_lineno=None, backtrack=2):
+def do_logging(
+    x, 
+    prefix='', 
+    logger=None, 
+    level='INFO', 
+    func_lineno=None, 
+    backtrack=2, 
+    time=False, 
+    color=None, 
+    bold=False, 
+    highlight=False, 
+    **log_kwargs, 
+):
     if logger is None:
         logger = get_sys_logger(backtrack)
     frame = get_frame(backtrack)
     if func_lineno is None:
         funcname = frame.f_code.co_name
         lineno = frame.f_lineno
-        func_lineno = f'{funcname}: {lineno}: '
+        func_lineno = f'{funcname}: line {lineno}: '
+    if prefix:
+        prefix = f'{prefix}: '
     new_prefix = func_lineno + prefix
+    if time:
+        new_prefix = f'{datetime.now()}: {new_prefix}'
     log_func = {
         'critical': logger.critical,
         'error': logger.error,
@@ -44,20 +61,44 @@ def do_logging(x, prefix='', logger=None, level='INFO', func_lineno=None, backtr
         'pwtc': pwtc
     }[level.lower()]
 
+    def decorate_content(x):
+        content = f'{new_prefix}: {x}'
+        if color or bold or highlight:
+            content = colorize(content, color=color, bold=bold, highlight=highlight)
+        return content
+
     if isinstance(x, str):
-        log_func(f'{new_prefix}: {x}')
+        log_func(decorate_content(x))
     elif isinstance(x, (list, tuple)):
         for v in x:
             if isinstance(v, dict):
-                do_logging(v, logger=logger, prefix=prefix+'\t', func_lineno=func_lineno)
+                do_logging(
+                    v, 
+                    logger=logger, 
+                    prefix=prefix, 
+                    func_lineno=func_lineno, 
+                    time=time, 
+                    color=color, 
+                    bold=bold, 
+                    highlight=highlight
+                )
             else:
-                log_func(f'{new_prefix}: {v}')
+                log_func(decorate_content(v))
     elif isinstance(x, dict):
         for k, v in x.items():
             if isinstance(v, dict):
-                log_func(f'{new_prefix} {k}')
-                do_logging(v, logger=logger, prefix=prefix+'\t', func_lineno=func_lineno)
+                log_func(decorate_content(k))
+                do_logging(
+                    v, 
+                    logger=logger, 
+                    prefix=prefix, 
+                    func_lineno=func_lineno, 
+                    time=time, 
+                    color=color, 
+                    bold=bold, 
+                    highlight=highlight
+                )
             else:
-                log_func(f'{new_prefix} {k}: {v}')
+                log_func(decorate_content(f'{k}: {v}'))
     else:
         raise ValueError(f'{x} is of unknown type.')

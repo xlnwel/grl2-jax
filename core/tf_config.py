@@ -9,29 +9,33 @@ from core.log import do_logging
 logger = logging.getLogger(__name__)
 
 
-def configure_gpu(idx=0):
+def configure_gpu(idx=-1):
     """ Configures gpu for Tensorflow
     Args:
         idx: index(es) of PhysicalDevice objects returned by `list_physical_devices`
     """
     gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
+    if gpus and idx is not None:
         try:
             # memory growth
             for gpu in gpus:
                 tf.config.experimental.set_memory_growth(gpu, True)
             # restrict TensorFlow to only use the i-th GPU
-            tf.config.experimental.set_visible_devices(gpus[idx], 'GPU')
+            if idx >= 0:
+                gpus = gpus[idx]
+            tf.config.experimental.set_visible_devices(gpus, 'GPU')
             logical_gpus = tf.config.experimental.list_logical_devices('GPU')
             do_logging(
                 f'{len(gpus)} Physical GPUs, {len(logical_gpus)} Logical GPU', 
-                logger=logger, level='info')
+                logger=logger, 
+            )
         except RuntimeError as e:
             # visible devices must be set before GPUs have been initialized
             do_logging(e, logger=logger, level='warning')
         return True
     else:
-        # do_logging('No gpu is used', logger=logger, level='warning')
+        tf.config.experimental.set_visible_devices([], 'GPU')
+        do_logging('No gpu is used', logger=logger, level='warning')
         return False
 
 def configure_threads(intra_num_threads, inter_num_threads):
@@ -149,12 +153,22 @@ def build(func, TensorSpecs, sequential=False, batch_size=None, print_terminal_i
     level = 'print' if print_terminal_info else 'info'
     do_logging(
         f'{func.__name__} is built with TensorSpecs:',
-        logger=logger,
-        level=level)
-    do_logging(TensorSpecs, prefix='\t', logger=logger, level=level)
+        level=level,
+        backtrack=4
+    )
+    do_logging(
+        TensorSpecs, 
+        prefix='\t', 
+        level=level,
+        backtrack=4
+    )
     if isinstance(TensorSpecs, dict):
         concrete_func = func.get_concrete_function(**TensorSpecs)
     else: 
         concrete_func = func.get_concrete_function(*TensorSpecs)
-    do_logging(str(concrete_func), logger=logger, level=level)
+    do_logging(
+        str(concrete_func), 
+        level=level,
+        backtrack=4
+    )
     return concrete_func

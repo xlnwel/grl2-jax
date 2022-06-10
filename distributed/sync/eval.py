@@ -18,7 +18,7 @@ def main(configs, n, **kwargs):
             c.env.number_of_right_players_agent_controls = 0
             c.runner.n_steps = c.env.max_episode_steps = 3000
 
-    runner = RunnerManager(configs[0].runner)
+    runner = RunnerManager()
     runner.build_runners(configs, store_data=False, evaluation=True)
     
     runner.set_weights_from_configs(configs, wait=True)

@@ -34,6 +34,7 @@ from core.ckpt.pickle import set_weights_for_agent
 from env.func import create_env
 from run.args import parse_eval_args
 from run.utils import search_for_all_configs, search_for_config
+from utility.utils import dict2AttrDict
 
 
 class FPEMPolicies(policy.Policy):
@@ -89,7 +90,6 @@ def build_policies(configs, env):
             to_restore=False
         )
         model = ModelPath(config['root_dir'], config['model_name'])
-        print(model)
         aid = get_aid(model.model_name)
         assert aid == config.aid, (aid, config.aid)
         filename = 'params.pkl'
@@ -100,7 +100,8 @@ def build_policies(configs, env):
     return policies
 
 
-def main(configs, result_file=None):
+def main(configs, step, filename=None):
+    configs = [dict2AttrDict(c) for c in configs]
     for config in configs:
         config.runner.n_runners = 1
         config.env.n_runners = 1
@@ -108,7 +109,7 @@ def main(configs, result_file=None):
     env = create_env(config.env)
 
     silence_tf_logs()
-    configure_gpu()
+    configure_gpu(None)
     configure_precision(config.precision)
 
     policies = build_policies(configs, env)
@@ -116,19 +117,30 @@ def main(configs, result_file=None):
     pol_agg = policy_aggregator.PolicyAggregator(env.game)
     aggr_policy = pol_agg.aggregate([0, 1], policies, probs)
 
-    expl = exploitability.nash_conv(env.game, aggr_policy, False)
-    print(expl)
+    nash_conv = exploitability.nash_conv(env.game, aggr_policy, False)
+    nash_conv = dict(
+        step=step, 
+        nash_conv=float(nash_conv.nash_conv), 
+        expl1=float(nash_conv.player_improvements[0]), 
+        expl2=float(nash_conv.player_improvements[1])
+    )
+    if filename is not None:
+        with open(filename, 'a') as f:
+            if os.stat(filename).st_size == 0:
+                f.write('\t'.join(['root_dir', 'model_name', *nash_conv.keys()]) + '\n')
+            f.write('\t'.join([
+                config['root_dir'], 
+                config['model_name'], 
+                *[f'{v:.3f}' if isinstance(v, float) else f'{v}' for v in nash_conv.values()]
+            ]) + '\n')
 
-    if result_file is not None:
-        with open(result_file, 'a') as f:
-            f.write(f'{expl}\n')
+    return nash_conv
 
 
 if __name__ == '__main__':
     args = parse_eval_args()
 
     setup_logging(args.verbose)
-
     # load respective config
     if len(args.directory) == 1:
         configs = search_for_all_configs(args.directory[0])

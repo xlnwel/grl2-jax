@@ -6,7 +6,7 @@ version: 0
 
 precision: 32
 
-n_agents: 2
+n_agents: 1
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -15,7 +15,7 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 180
+    store_period: 300
     restart_runners_priod: null
     max_version_iterations: 1
     max_steps_per_iteration: 3e8
@@ -30,7 +30,9 @@ parameter_server:
 
     payoff:
         step_size: .1
-        sampling_strategy: fsp
+        sampling_strategy:
+            type: fsp
+            p: 1
 
 ray_config:
     runner:
@@ -49,18 +51,18 @@ runner:
 
 env:
     env_name: &env_name unity-combat2d
-    max_episode_steps: 1000
+    max_episode_steps: 200
     frame_skip: 1
     unity_config:
         worker_id: 20000
         file_name: '/home/ubuntu/wuyunkun/hm/env/unity_env/data/3d/3d.x86_64'
     reward_config:
         detect_reward: 0
-        main_dead_reward: 0
+        main_dead_reward: -1
         blue_dead_reward: 1
         grid_reward: 0
     n_envs: &nenvs 1    # This should be consistent with the Unity environemnt copies
-    uid2aid: [0,1,1,1,1]
+    uid2aid: [0,0,0,0,0]
 
     bound_method: null
     to_rescale: False

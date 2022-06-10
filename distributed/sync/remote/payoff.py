@@ -60,5 +60,18 @@ class PayoffManager:
         )
 
     """ Payoff Management """
-    def update_payoffs(self, models: List[ModelPath], scores: List[List[float]]):
+    def update_payoffs(
+        self, 
+        models: List[ModelPath], 
+        scores: List[List[float]]
+    ):
         self.payoff_table.update(models, scores)
+
+    def get_opponent_distribution(
+        self, 
+        aid: int, 
+        model: ModelPath, 
+    ):
+        payoffs, dist = self.sampling_strategy.compute_opponent_distribution(
+            aid, model, self.payoff_table)
+        return payoffs, dist

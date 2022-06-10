@@ -4,7 +4,6 @@ import logging
 import numpy as np
 import gym
 import cv2
-import tensorflow as tf
 
 from core.log import do_logging
 from env.utils import compute_aid2uids
@@ -348,6 +347,7 @@ class StateRecorder(gym.Wrapper):
 
 
 class ContinuousActionMapper(gym.ActionWrapper):
+    to_print = True
     def __init__(
         self, 
         env, 
@@ -379,7 +379,9 @@ class ContinuousActionMapper(gym.ActionWrapper):
             self.env_action_high = self.action_space.high
         self.action_low = action_low
         self.action_high = action_high
-        print('Continuous Action Wrapper', self.action_low, action_high)
+        if ContinuousActionMapper.to_print:
+            print('Continuous Action Wrapper', self.action_low, action_high)
+            ContinuousActionMapper.to_print = False
         self._is_random_action = False
 
     def random_action(self):
@@ -768,8 +770,8 @@ class Single2MultiAgent(gym.Wrapper):
         return obs, reward, discount, info
 
     def _get_obs(self, obs):
-        obs = tf.nest.map_structure(
-            lambda x: np.expand_dims(x, 0), obs)
+        for k, v in obs.items():
+            obs[k] = np.expand_dims(v, 0)
 
         return obs
 

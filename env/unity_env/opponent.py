@@ -83,13 +83,13 @@ class Opponent(object):
 
         detect_red = [0, 0]
         if sum(self.detect_red_main) != 0:
-            if self.chase_steps[team] != 0:
-                actions = [np.array([1, 0, 0, 0]), np.array([1, 0, 0, 0])]
-            if self.chase_steps[team] % CHASE_LEN == 0:
-                actions = self.chase_main()
-                self.chase_steps[team] = 0
+            #if self.chase_steps[team] != 0:
+            #    actions = [np.array([1, 0, 0, 0]), np.array([1, 0, 0, 0])]
+            #if self.chase_steps[team] % CHASE_LEN == 0:
+            actions = self.chase_main()
+            #    self.chase_steps[team] = 0
             detect_red[0] += 1
-            self.chase_steps[team] += 1
+            #self.chase_steps[team] += 1
         else:
             # 没探测到主机，探测到了无人机
             if (sum(self.detect_red_ally[0]) + sum(self.detect_red_ally[1])) != 0:
@@ -97,6 +97,8 @@ class Opponent(object):
                     actions = [np.array([1, 0, 0, 0]), np.array([1, 0, 0, 0])]
                 if self.chase_steps[team] % CHASE_LEN == 0:
                     actions = self.chase_ally()
+                    target = self.history_pos[team].get()
+                    actions[1] = self._chase(target - self.position[1], self.direction[1], isMain=True, id=0, bid=1)
                     self.chase_steps[team] = 0
                 detect_red[1] += 1
                 self.chase_steps[team] += 1
@@ -188,8 +190,8 @@ class Opponent(object):
         shot = 0
         angle = self.get_clock_angle(vel, diff)
         dis = math.sqrt(math.pow(diff[0], 2) + math.pow(diff[1], 2))
-        #if dis < SHOT_DIS_MAIN + 10 * self.left_missile[bid] and isMain:
-        if dis < SHOT_DIS_MAIN and isMain:
+        if dis < SHOT_DIS_MAIN + 10 * self.left_missile[bid] and isMain:
+        #if dis < SHOT_DIS_MAIN and isMain:
             shot_id = 0
             shot = 1
 
@@ -240,6 +242,7 @@ class Opponent(object):
     def _calculate_detect_position(self, index, distance):
         pass
 
+
     def avoid_missile(self, position, dir, miss_info):
         v1 = dir
         v2 = miss_info[-2:]
@@ -250,8 +253,8 @@ class Opponent(object):
         cos_v = np.dot(v1, v2) / v_norm
 
         if cos_v >= 0:
-            return np.array([1, 1])
-            #return np.array([1, 0])
+            #return np.array([1, 1])
+            return np.array([1, 0])
         else:
             return np.array([1, 1])
 

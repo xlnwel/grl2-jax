@@ -72,6 +72,9 @@ class PPOTrainingLoop(TrainingLoopBase):
                     with self._train_timer:
                         terms = self.trainer.train(**data)
                     
+                    for _ in range(self.config.n_aux_value_updates):
+                        self.trainer.value.train(**data)
+
                     if self.config.get('debug', False):
                         print(i * self.config.n_mbs + j)
                         logprob = data['logprob'].numpy()

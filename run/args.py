@@ -44,7 +44,7 @@ def parse_train_args():
                         type=str,
                         default='logs',
                         help='the logging directory. By default, all training data will be stored in logdir/env/algo/model_name')
-    parser.add_argument('--grid_search', '-gs',
+    parser.add_argument('--random_search', '-rs',
                         action='store_true')
     parser.add_argument('--delay',
                         default=1,

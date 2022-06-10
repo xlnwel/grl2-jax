@@ -134,13 +134,6 @@ def train(config, agent, env, eval_env, buffer):
 def main(configs, train=train):
     assert len(configs) == 1, configs
     config = configs[0]
-    silence_tf_logs()
-    seed = config.get('seed')
-    print('seed', seed)
-    np.random.seed(seed)
-    set_tf_random_seed(seed)
-    configure_gpu()
-    configure_precision(config.precision)
 
     use_ray = config.env.get('n_runners', 1) > 1
     if use_ray:
@@ -148,6 +141,14 @@ def main(configs, train=train):
         from utility.ray_setup import sigint_shutdown_ray
         ray.init()
         sigint_shutdown_ray()
+
+    silence_tf_logs()
+    seed = config.get('seed')
+    print('seed', seed)
+    np.random.seed(seed)
+    set_tf_random_seed(seed)
+    configure_gpu()
+    configure_precision(config.precision)
 
     def build_envs():
         env = create_env(config.env, force_envvec=True)

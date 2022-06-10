@@ -1,0 +1,6 @@
+for item in `ls logs-spiel-old/spiel-leduc_poker/sync-gpo`; do 
+    echo $item
+    mkdir -p tmp-logs/$item
+    # ls logs-spiel/spiel-leduc_poker/sync-gpo/$item | grep even | sort | tail -n 1 | xargs -t -I {} cp logs-spiel/spiel-leduc_poker/sync-gpo/$item/{} tmp-logs/$item/ 
+    ls logs-spiel-old/spiel-leduc_poker/sync-gpo/$item | grep even | xargs -t -I {} cp logs-spiel/spiel-leduc_poker/sync-gpo/$item/{} tmp-logs/$item/ 
+done

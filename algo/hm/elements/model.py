@@ -143,7 +143,7 @@ class PPOModelEnsemble(ModelEnsemble):
     def _build(self, env_stats, evaluation=False):
         aid = self.config.aid
         basic_shape = (None, len(env_stats.aid2uids[aid]))
-        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+        dtype = tf.keras.mixed_precision.global_policy().compute_dtype
         actor_inp=dict(
             obs=((*basic_shape, *env_stats.obs_shape[aid]['obs']), 
                 env_stats.obs_dtype[aid]['obs'], 'obs'),

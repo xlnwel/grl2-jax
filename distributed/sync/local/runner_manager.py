@@ -16,15 +16,14 @@ from utility.utils import AttrDict2dict, batch_dicts
 class RunnerManager(ManagerBase):
     def __init__(
         self, 
-        config: AttrDict, 
         ray_config: AttrDict={}, 
         parameter_server: ParameterServer=None,
         monitor: Monitor=None
     ):
-        self.config = config
         self.parameter_server = parameter_server
         self.monitor = monitor
         self.RemoteRunner = MultiAgentSimRunner.as_remote(**ray_config)
+        self.runners = None
 
     """ Runner Management """
     def build_runners(
@@ -35,9 +34,15 @@ class RunnerManager(ManagerBase):
         store_data: bool=True,
         evaluation: bool=False
     ):
+        if self.runners:
+            for r in self.runners:
+                r.set_active_models.remote(active_models)
+            return
         if isinstance(configs, list):
+            config = configs[0]
             configs = [AttrDict2dict(config) for config in configs]
         else:
+            config = config
             configs = AttrDict2dict(configs)
         self.runners: List[MultiAgentSimRunner] = [
             self.RemoteRunner.remote(
@@ -49,7 +54,7 @@ class RunnerManager(ManagerBase):
                 remote_buffers=remote_buffers, 
                 active_models=active_models, 
                 monitor=self.monitor)
-            for i in range(self.config.n_runners)
+            for i in range(config.runner.n_runners)
         ]
     
     @property
@@ -57,7 +62,9 @@ class RunnerManager(ManagerBase):
         return len(self.runners) if hasattr(self, 'runners') else 0
 
     def destroy_runners(self):
-        del self.runners
+        for r in self.runners:
+            ray.kill(r)
+        self.runners = None
 
     """ Running Routines """
     def random_run(self, aids=None, wait=False):

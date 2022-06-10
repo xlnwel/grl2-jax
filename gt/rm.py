@@ -50,15 +50,15 @@ class RegretMatching:
         return self.average_meta_strategies
 
 
-# if __name__ == '__main__':
-#     import nashpy as nash
+if __name__ == '__main__':
+    import nashpy as nash
 
-#     m = 5
-#     n = 2
-#     A = np.random.randint(0, 10, size=(5, 5))
-#     payoffs = [A, -A]
-#     game = nash.Game(A)
-#     print(game.lemke_howson(initial_dropped_label=0))
-#     rm = RegretMatching(n, m)
-#     ans = rm.compute(payoffs, n, m, 10000)
-#     print(ans)
+    m = 5
+    n = 2
+    A = np.random.randint(0, 10, size=(5, 5))
+    payoffs = [A, -A]
+    game = nash.Game(A)
+    print(game.lemke_howson(initial_dropped_label=0))
+    rm = RegretMatching(n, m)
+    ans = rm.compute(payoffs, n, m, 10000)
+    print(ans)

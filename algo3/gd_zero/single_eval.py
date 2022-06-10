@@ -30,7 +30,7 @@ def main(config, n, **kwargs):
     actor = create_actor(config.actor, model, name=config.name)
     strategy = create_strategy()
 
-    runner_manager = RunnerManager(config, store_data=False)
+    runner_manager = RunnerManager(store_data=False)
     start = time.time()
     
     stats, n = runner_manager.evaluate(

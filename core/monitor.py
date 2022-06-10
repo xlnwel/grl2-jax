@@ -15,6 +15,7 @@ class Monitor(RayBase):
         self._name = name
         self._use_recorder = use_recorder
         self._use_tensorboard = use_tensorboard
+        self._step = None
         self._build(model_path)
     
     def _build(self, model_path):
@@ -39,12 +40,15 @@ class Monitor(RayBase):
         self._model_path = model_path
         self._build(model_path)
 
-    def record(self, step, adaptive=True, print_terminal_info=True):
+    def set_step(self, step):
+        self._step = step
+
+    def record(self, step=None, adaptive=True, print_terminal_info=True):
         record(
             recorder=self._recorder, 
             tb_writer=self._tb_writer, 
             model_name=self._model_path.model_name, 
-            step=step,
+            step=self._step if step is None else step,
             print_terminal_info=print_terminal_info, 
             adaptive=adaptive
         )

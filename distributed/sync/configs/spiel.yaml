@@ -15,10 +15,10 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 10
+    store_period: 20
     restart_runners_priod: null
-    max_version_iterations: 10
-    max_steps_per_iteration: 1e7
+    max_version_iterations: 20
+    max_steps_per_iteration: 1e6
     initialize_rms: &irms False
 
 parameter_server:
@@ -27,7 +27,7 @@ parameter_server:
 
     score_metric: dense_score
     train_from_scratch_frac: 1
-    online_frac: 0
+    online_frac: .25
 
     payoff:
         step_size: .1
@@ -45,7 +45,7 @@ monitor: {}
 
 runner:
     n_runners: &nrunners 16
-    n_steps: &nsteps 8
+    n_steps: &nsteps 2
     push_every_episode: False
 
 env:
@@ -53,7 +53,7 @@ env:
     squeeze_keys:
         - uid
     uid2aid: [0, 1]
-    n_envs: &nenvs 64
+    n_envs: &nenvs 8
 
 agent: {}
 
@@ -73,6 +73,7 @@ strategy:
         # "reuse" updates values using value from train which is staler than once
         # null doesn't update values.
         value_update: null
+        n_aux_value_updates: 10
 
 model:
     actor_rnn_type: &arnn null
@@ -84,7 +85,7 @@ model:
         use_prev_action: True
         encoder: 
             nn_id: mlp
-            units_list: [64]
+            units_list: [128]
             kernel_initializer: orthogonal
             activation: relu
             norm: null
@@ -113,7 +114,7 @@ model:
 
         encoder:
             nn_id: mlp
-            units_list: [64, 64]
+            units_list: [128]
             kernel_initializer: orthogonal
             activation: relu
             norm: null
@@ -138,7 +139,7 @@ loss:
     policy:
         pg_coef: 1
         ppo_clip_range: .2
-        entropy_coef: 1e-3
+        entropy_coef: 1e-2
         aux_l1_coef: 0
         aux_l2_coef: 0
         weighted_l_dist: False
@@ -155,7 +156,7 @@ loss:
         tsallis_q: 1.2
         life_mask: False
 
-        normalize_adv: True
+        normalize_adv: False
         zero_center_adv: True
         process_adv: null
         adv_clip_range: null
@@ -176,7 +177,7 @@ trainer:
         optimizer:
             opt_name: adam
             schedule_lr: False
-            lr: 1e-3
+            lr: 1e-2
             clip_norm: .5
             epsilon: 1.e-5
             weight_decay: 0
@@ -184,7 +185,7 @@ trainer:
         optimizer:
             opt_name: adam
             schedule_lr: False
-            lr: 1e-3
+            lr: 1e-2
             clip_norm: .5
             epsilon: 1.e-5
 
@@ -194,7 +195,7 @@ actor:
     rms:
         obs_names: [obs, global_state]
         normalize_obs: *irms
-        normalize_reward: True
+        normalize_reward: False
         obs_normalized_axis: [0, 1]
         reward_normalized_axis: [0, 1]
         normalize_reward_with_return: forward

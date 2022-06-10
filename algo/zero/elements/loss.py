@@ -1,10 +1,13 @@
+import logging
 import re
 import tensorflow as tf
 
 from core.elements.loss import Loss, LossEnsemble
+from core.log import do_logging
 from utility import rl_loss
-from utility.display import print_dict
 from utility.tf_utils import reduce_mean, explained_variance, standard_normalization
+
+logger = logging.getLogger(__name__)
 
 
 def prefix_name(terms, name):
@@ -278,8 +281,20 @@ class GPOLossImpl(Loss):
         losses = {k: v for k, v in locals().items() 
             if re.search(r'^(?!raw_).*_loss$', k) 
             and k != 'ppo_loss' and k != 'entropy_loss'}
-        print_dict(raw_losses, prefix='raw losses')
-        print_dict(losses, prefix='losses')
+        do_logging(
+            raw_losses, 
+            prefix='raw losses', 
+            logger=logger, 
+            level='info', 
+            color='blue'
+        )
+        do_logging(
+            losses, 
+            prefix='losses', 
+            logger=logger, 
+            level='info', 
+            color='blue'
+        )
 
         raw_gpo_loss = sum(raw_losses.values())
         gpo_loss = sum(losses.values())
@@ -423,6 +438,130 @@ class GPOPolicyLoss(GPOLossImpl):
                 life_mask, -1)
 
         return tape, loss, terms
+    
+    def meta_loss(
+        self, 
+        tape, 
+        act_dist,
+        action, 
+        advantage, 
+        logprob, 
+        pi=None, 
+        pi_mean=None, 
+        pi_std=None, 
+        action_mask=None, 
+        sample_mask=None, 
+        n=None, 
+        name=None,
+    ):
+        with tape.stop_recording():
+            is_action_discrete = self.model.policy.is_action_discrete
+            if self.config.normalize_adv:
+                advantage = standard_normalization(
+                    advantage, zero_center=self.config.zero_center_adv, 
+                    mask=sample_mask, n=n, clip=self.config.adv_clip_range)
+            if self.config.process_adv == 'tanh':
+                scale = tf.minimum(tf.reduce_max(tf.math.abs(advantage)), 10)
+                advantage = scale * tf.math.tanh(advantage * 2 / scale)
+            elif self.config.process_adv is None:
+                pass
+            else:
+                raise NotImplementedError(f'Unknown {self.config.process_adv}')
+            prob = tf.exp(logprob)
+
+            terms = {}
+
+        pg_coef = self.model.meta('pg_coef', inner=False)
+        entropy_coef = self.model.meta('entropy_coef', inner=False)
+        kl_prior_coef = self.model.meta('kl_prior_coef', inner=False)
+        self.log_for_debug(
+            tape, 
+            terms, 
+            pg_coef=pg_coef, 
+            entropy_coef=entropy_coef, 
+            kl_prior_coef=kl_prior_coef, 
+        )
+
+        tf.debugging.assert_all_finite(advantage, 'Bad advantage')
+        new_logprob = act_dist.log_prob(action)
+        tf.debugging.assert_all_finite(new_logprob, 'Bad new_logprob')
+        raw_entropy = act_dist.entropy()
+        tf.debugging.assert_all_finite(raw_entropy, 'Bad entropy')
+        log_ratio = new_logprob - logprob
+        ratio, loss_pg, loss_clip, raw_ppo_loss, ppo_loss, \
+            raw_entropy_loss, entropy_loss, approx_kl, clip_frac = \
+            rl_loss.ppo_loss(
+                pg_coef=pg_coef, 
+                entropy_coef=entropy_coef, 
+                log_ratio=log_ratio, 
+                advantage=advantage, 
+                clip_range=self.config.outer_ppo_clip_range, 
+                entropy=raw_entropy, 
+                mask=sample_mask, 
+                n=n, 
+            )
+        self.log_for_debug(
+            tape, 
+            terms, 
+            ratio=ratio,
+            entropy=raw_entropy,
+            approx_kl=approx_kl,
+            new_logprob=new_logprob, 
+            p_clip_frac=clip_frac,
+            raw_pg_loss=loss_pg, 
+            raw_clipped_loss=loss_clip, 
+            raw_ppo_loss=raw_ppo_loss,
+            ppo_loss=ppo_loss,
+            raw_entropy_loss=raw_entropy_loss, 
+            entropy_loss=entropy_loss, 
+        )
+
+        if is_action_discrete:
+            new_pi = tf.nn.softmax(act_dist.logits)
+            new_pi_mean = None
+            new_pi_std = None
+        else:
+            new_pi = None
+            new_pi_mean = act_dist.loc
+            new_pi_std = tf.exp(self.model.policy.logstd)
+
+        kl_prior, raw_kl_prior_loss, kl_prior_loss = \
+            rl_loss.compute_kl(
+                kl_type=self.config.kl_prior,
+                kl_coef=kl_prior_coef,
+                logp=logprob,
+                logq=new_logprob, 
+                sample_prob=prob, 
+                pi1=pi,
+                pi2=new_pi,
+                pi1_mean=pi_mean,
+                pi2_mean=new_pi_mean,
+                pi1_std=pi_std,
+                pi2_std=new_pi_std,
+                sample_mask=sample_mask,
+                n=n, 
+                pi_mask=action_mask,
+            )
+        self.log_for_debug(
+            tape, 
+            terms, 
+            kl_prior=kl_prior, 
+            raw_kl_prior_loss=raw_kl_prior_loss, 
+            kl_prior_loss=kl_prior_loss,
+        )
+
+        raw_loss = raw_ppo_loss + raw_kl_prior_loss + raw_entropy_loss
+        loss = ppo_loss + kl_prior_loss + entropy_loss
+        
+        self.log_for_debug(
+            tape, 
+            terms, 
+            raw_loss=raw_loss, 
+            loss=loss, 
+        )
+        terms = prefix_name(terms, name)
+
+        return terms, loss
 
 
 class GPOValueLoss(ValueLossImpl):

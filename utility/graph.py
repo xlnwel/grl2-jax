@@ -4,10 +4,29 @@ import numpy as np
 from PIL import Image
 import tensorflow as tf
 import tensorflow.compat.v1 as tf1
-from matplotlib import patches, colors, cm
+from matplotlib import colors
 import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 from utility.utils import squarest_grid_size
+
+
+def construct_df(matrix, col_name='y', row_name='x', col_labels=None, row_labels=None):
+    col = np.arange(matrix.shape[0])
+    row = np.arange(matrix.shape[1])
+    d = {
+        col_name: np.tile(col.reshape(-1, 1), (1, matrix.shape[1])).reshape(-1),
+        row_name: np.tile(row, matrix.shape[0]),
+        'val': matrix.reshape(-1)
+    }
+    df = pd.DataFrame(data=d)
+    if col_labels:
+        df[col_name].replace(col, col_labels, inplace=True)
+    if row_labels:
+        df[row_name].replace(row, row_labels, inplace=True)
+    df = df.pivot(col_name, row_name, 'val')
+    return df
 
 
 def decode_png(png):
@@ -17,76 +36,76 @@ def decode_png(png):
 
 def matrix_plot(
     matrix, 
-    figsize=4.5, 
-    tick_left=False, 
-    tick_bottom=False, 
+    figsize=6, 
     label_top=False, 
     label_bottom=True, 
-    anno_max=7, 
-    invert_yaxis=False
+    anno_max=10, 
+    save_path=None, 
+    xlabel=None, 
+    ylabel=None, 
+    xticklabels='auto', 
+    yticklabels='auto', 
+    xticklabelnames=None,
+    yticklabelnames=None,
+    dpi=300
 ):
-    cmap = plt.get_cmap('PuBu_r')
-    n = matrix.shape[0]
-    def plot_square(ax, x, y, v):
-        v = matrix[x, y]
-        ax.add_patch(patches.Rectangle(
-            (y , x),
-            1.,  # width
-            1.,  # height
-            facecolor=cmap(v),
-            linewidth=0,
-            # cmap=cmap,
-            # c=v,
-            edgecolor='black'
-        ))
-        if n < anno_max:
-            cx = x + .5
-            cy = y + .5
-            ann = f'{v:.2f}' if v < 0 else f'{v:.2g}'
-            ax.annotate(ann, (cy, cx), ha='center', va='center')
     plt.clf()
-    fig = plt.figure(0, figsize=(figsize, 4/5 * figsize))
+    fig = plt.figure(0, figsize=(figsize, 4/5 * figsize), dpi=dpi)
     ax = fig.add_subplot(111)
+    def get_norm(matrix):        
+        vmin = np.min(matrix)
+        vmax = np.max(matrix)
+        if vmax - vmin > 1000 and vmin >= 0:
+            new_matrix = matrix.astype(np.float32)
+            new_matrix[new_matrix==0] = np.nan
+            vmin = np.nanmin(new_matrix)
+            norm = colors.LogNorm(vmin=vmin, vmax=vmax)
+        else:
+            if vmin < 0 and vmax > 0:
+                norm = colors.TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
+            else:
+                norm = colors.Normalize(vmin=vmin, vmax=vmax)
+        return norm
+    kwargs = {
+        'cmap': 'YlGnBu', 
+        'norm': get_norm(matrix), 
+        'center': 0, 
+        'xticklabels': xticklabels, 
+        'yticklabels': yticklabels, 
+        'ax': ax
+    }
+    if matrix.shape[0] < anno_max and matrix.shape[1] < anno_max:
+        v = matrix.max()
+        kwargs.update({
+            'annot': True, 
+            'fmt': f'.2f' if v < 0 else f'.2g'
+        })
+    pd = construct_df(
+        matrix, 
+        col_name=ylabel, 
+        row_name=xlabel, 
+        col_labels=yticklabelnames, 
+        row_labels=xticklabelnames, 
+    )
+    ax = sns.heatmap(pd, **kwargs)
     ax.tick_params(
         axis='both',        # changes apply to the x-axis
         which='both',       # both major and minor ticks are affected
-        left=tick_left,
-        bottom=tick_bottom, 
         labeltop=label_top, 
-        labelbottom=label_bottom
+        labelbottom=label_bottom, 
+        left=False, 
+        bottom=False
     )
-    plt.xlim(left=0, right=n)
-    plt.ylim(bottom=0, top=n)
 
-    vmin = np.min(matrix)
-    vmax = np.max(matrix)
-    if vmax - vmin > 1000:
-        new_matrix = matrix.astype(np.float32)
-        new_matrix[new_matrix==0] = np.nan
-        vmin = np.nanmin(new_matrix)
-        norm = colors.LogNorm(vmin=vmin, vmax=vmax)
-    else:
-        norm = colors.Normalize(vmin=vmin, vmax=vmax)
-    pcm = ax.pcolor(
-        matrix, 
-        norm=norm,
-        cmap=cmap, 
-        shading='auto'
-    )
-    fig.colorbar(pcm, ax=ax)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(n))
-    ax.yaxis.set_major_locator(plt.MaxNLocator(n))
+    ax.xaxis.set_label_position('top')
 
-    if invert_yaxis:
-        plt.gca().invert_yaxis()
-    for x in range(n):
-        for y in range(n):
-            plot_square(ax, x, y, norm(matrix[x, y]))
+    if save_path:
+        plt.savefig(f'{save_path}.pdf')
 
-    # plt.scatter([-100, -100], [100, 100], c=[0, 1])
     buf = io.BytesIO()
-    plt.savefig(buf, format='png')
+    plt.savefig(buf, format='png', dpi=dpi)
     buf.seek(0)
+
     return buf
 
 def _matrix_plot_test():
@@ -99,6 +118,13 @@ def _matrix_plot_test():
     plt.savefig('exponential_matrix.pdf')
 
     payoff = np.arange(n*n).reshape((n, n)) / n / n
+    matrix_plot(
+        payoff, figsize=6, label_top=True, 
+        label_bottom=False, invert_yaxis=True
+    )
+    plt.savefig('linear_matrix.pdf')
+
+    payoff = np.arange(n*n).reshape((n, n)) / n / n - .4
     matrix_plot(
         payoff, figsize=6, label_top=True, 
         label_bottom=False, invert_yaxis=True

@@ -1,7 +1,11 @@
+import logging
 from types import FunctionType
+
+from core.log import do_logging
 from env.cls import Env, VecEnv, MASimVecEnv, MATBVecEnv
 from env import make_env
-from utility.display import print_dict
+
+logger = logging.getLogger(__name__)
 
 
 def is_ma_suite(env_name):
@@ -60,8 +64,12 @@ def get_env_stats(config):
     env_stats = env.stats()
     env_stats.n_runners = config.get('n_runners', 1)
     env_stats.n_envs = env_stats.n_runners * config.n_envs
-    print('Get env stats')
-    print_dict(env_stats, 'env stats')
+    do_logging(
+        env_stats, 
+        prefix='env stats', 
+        logger=logger, 
+        color='blue'
+    )
     env.close()
     return env_stats
 

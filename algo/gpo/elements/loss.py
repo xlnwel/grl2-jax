@@ -1,10 +1,13 @@
+import logging
 import re
 import tensorflow as tf
 
 from core.elements.loss import Loss, LossEnsemble
+from core.log import do_logging
 from utility import rl_loss
-from utility.display import print_dict
 from utility.tf_utils import reduce_mean, explained_variance, standard_normalization
+
+logger = logging.getLogger(__name__)
 
 
 def prefix_name(terms, name):
@@ -250,8 +253,20 @@ class GPOLossImpl(Loss):
         losses = {k: v for k, v in locals().items() 
             if re.search(r'^(?!raw_).*_loss$', k) 
             and k != 'ppo_loss' and k != 'entropy_loss'}
-        print_dict(raw_losses, prefix='raw losses')
-        print_dict(losses, prefix='losses')
+        do_logging(
+            raw_losses, 
+            prefix='raw losses', 
+            logger=logger, 
+            level='info', 
+            color='blue'
+        )
+        do_logging(
+            losses, 
+            prefix='losses', 
+            logger=logger, 
+            level='info', 
+            color='blue'
+        )
 
         raw_gpo_loss = sum(raw_losses.values())
         gpo_loss = sum(losses.values())
@@ -403,7 +418,8 @@ class GPOValueLoss(ValueLossImpl):
         prev_action=None, 
         state=None, 
         life_mask=None, 
-        mask=None
+        mask=None, 
+        **kwargs
     ):
         old_value = value
         loss_mask = life_mask if self.config.life_mask else None

@@ -16,10 +16,10 @@ from core.utils import save_code
 from env.func import get_env_stats
 from gt.alpharank import AlphaRank
 from run.utils import search_for_all_configs
-from utility.process import run_process
+from utility.process import run_ray_process
 from utility.timer import Every
 from utility.typing import AttrDict
-from utility.utils import modify_config
+from utility.utils import batch_dicts, dict2AttrDict, modify_config
 from utility import yaml_op
 
 
@@ -46,6 +46,7 @@ def _setup_configs(
     configs: List[AttrDict], 
     env_stats: List[AttrDict]
 ):
+    configs = [dict2AttrDict(c, to_copy=True) for c in configs]
     max_size = _compute_max_buffer_size(configs[0].buffer)
     for aid, config in enumerate(configs):
         config.aid = aid
@@ -99,6 +100,7 @@ class Controller(CheckpointBase):
 
         self._iteration = 1
         self._steps = 0
+        self._pids = []
 
         self._to_store = Every(
             self.config.store_period, time.time())
@@ -115,7 +117,6 @@ class Controller(CheckpointBase):
             )
 
         self.runner_manager: RunnerManager = RunnerManager(
-            config.runner,
             ray_config=config.ray_config.runner,
             parameter_server=self.parameter_server,
             monitor=None
@@ -144,8 +145,8 @@ class Controller(CheckpointBase):
         self.suite, _ = configs[0].env.env_name.split('-', 1)
         self.configs = _setup_configs(configs, env_stats)
 
-        do_logging('Compute Future Running Steps...', logger=logger)
-        config = self.configs[0]
+        do_logging('Computing Future Running Steps...', logger=logger)
+        config = configs[0]
         self.n_runners = config.runner.n_runners
         if self.config.max_version_iterations > 1:
             self.n_agent_runners, self.n_pbt_steps = _compute_running_steps(config)
@@ -179,7 +180,6 @@ class Controller(CheckpointBase):
 
         do_logging('Building Runner Manager...', logger=logger)
         self.runner_manager: RunnerManager = RunnerManager(
-            config.runner,
             ray_config=config.ray_config.runner,
             parameter_server=self.parameter_server,
             monitor=self.monitor
@@ -199,8 +199,9 @@ class Controller(CheckpointBase):
             self.cleanup()
             self._iteration += 1
             self.save()
-        do_logging(f'Training finished. Total iterations: {self._iteration-1}', 
+        do_logging(f'Training Finished. Total Iterations: {self._iteration-1}', 
             logger=logger)
+        self._log_remote_stats(self._pids)
 
     def initialize_actors(self):
         if self._iteration > 1:
@@ -209,19 +210,24 @@ class Controller(CheckpointBase):
 
         model_weights, is_raw_strategy = ray.get(
             self.parameter_server.sample_training_strategies.remote())
-        print(f'Training strategies at iteration {self._iteration}: {list(model_weights)}')
+        self.current_models = [m.model for m in model_weights]
+        do_logging(f'Training Strategies at Iteration {self._iteration}: {self.current_models}', 
+            logger=logger)
         self.agent_manager.build_agents(self.configs)
         self.agent_manager.set_model_weights(model_weights, wait=True)
-        print(f'Finish setting model weights')
+        do_logging(f'Finish Setting Model Weights', 
+            logger=logger)
         self.agent_manager.publish_weights(wait=True)
-        print(f'Finish publishing model weights')
+        do_logging(f'Finish Publishing Model Weights', 
+            logger=logger)
         self.active_models = [model for model, _ in model_weights]
         self.runner_manager.build_runners(
             self.configs, 
             remote_buffers=self.agent_manager.get_agents(),
             active_models=self.active_models, 
         )
-        print(f'Finish building runners')
+        do_logging(f'Finish Building Runners', 
+            logger=logger)
         self._initialize_rms(self.active_models, is_raw_strategy)
 
     def train(
@@ -238,7 +244,6 @@ class Controller(CheckpointBase):
             while model_weights is None:
                 time.sleep(.025)
                 model_weights = ray.get(self.parameter_server.get_strategies.remote())
-            print('Sampling models for running...')
             assert len(model_weights) == runner_manager.n_runners, (len(model_weights), runner_manager.n_runners)
 
             steps = sum(runner_manager.run_with_model_weights(model_weights))
@@ -252,12 +257,16 @@ class Controller(CheckpointBase):
                 self.monitor.save_all.remote()
                 self.save()
             if to_restart_runners is not None and to_restart_runners(curr_time):
-                do_logging('Restarting runners', logger=logger)
+                do_logging('Restarting Runners', logger=logger)
                 self.runner_manager.build_runners(
                     self.configs, 
                     remote_buffers=agent_manager.get_agents(),
                     active_models=self.active_models, 
                 )
+            if self._pids:
+                ready_pids, self._pids = ray.wait(self._pids, timeout=1e-5)
+                if ready_pids:
+                    self._log_remote_stats(ready_pids)
 
         self._post_processing()
         ray.get([
@@ -269,7 +278,7 @@ class Controller(CheckpointBase):
         self._steps = 0
 
     def cleanup(self):
-        do_logging('Cleaning up for the next training iteration...', logger=logger)
+        do_logging(f'Cleaning up for The {self._iteration+1}-th Training Iteration...', logger=logger)
         ray.get(self.parameter_server.archive_training_strategies.remote())
         self.agent_manager.destroy_agents()
         self.runner_manager.destroy_runners()
@@ -281,14 +290,25 @@ class Controller(CheckpointBase):
     ):
         if self.config.initialize_rms and any(is_raw_strategy):
             aids = [i for i, is_raw in enumerate(is_raw_strategy) if is_raw]
-            do_logging(f'Initializing RMS for agents: {aids}', logger=logger)
+            do_logging(f'Initializing RMS for Agents: {aids}', logger=logger)
             self.runner_manager.set_current_models(models)
             self.runner_manager.random_run(aids)
 
     def _post_processing(self):
+        # return
         if self.suite == 'spiel':
-            print('Computing Nash Convergence...')
+            do_logging('Computing Nash Convergence...', logger=logger)
             self.compute_nash_conv()
+
+    def _log_remote_stats(self, pids):
+        stats_list = ray.get(pids)
+        for stats in stats_list:
+            step = stats.pop('step')
+            self.monitor.store_stats.remote(
+                stats, 
+                step=step, 
+                record=True
+            )
 
     """ Evaluation """
     def evaluate_all(self, total_episodes, filename):
@@ -298,7 +318,7 @@ class Controller(CheckpointBase):
         counts = self.parameter_server.get_counts.remote()
         payoffs = ray.get(payoffs)
         counts = ray.get(counts)
-        do_logging('Final payoffs', logger=logger, level='pwt')
+        do_logging('Final Payoffs', logger=logger, level='pwt')
         do_logging(payoffs, logger=logger, level='pwt')
         alpha_rank = AlphaRank(1000, 5, 0)
         ranks, mass = alpha_rank.compute_rank(payoffs, return_mass=True)
@@ -310,10 +330,12 @@ class Controller(CheckpointBase):
         do_logging(f'Payoffs have been saved at {path}', logger=logger)
 
     def compute_nash_conv(self):
-        configs = search_for_all_configs(self._dir)
+        configs = search_for_all_configs(self._dir, to_attrdict=False)
         from run.spiel_eval import main
-        result_file = '/'.join([self._dir, 'nash_conv.txt'])
-        run_process(main, configs, result_file=result_file)
+        filename = '/'.join([self._dir, 'nash_conv.txt'])
+        self._pids.append(
+            run_ray_process(main, configs, step=self._iteration, filename=filename)
+        )
 
     """ Checkpoints """
     def save(self):

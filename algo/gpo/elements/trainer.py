@@ -58,7 +58,6 @@ class GPOTrainerEnsemble(TrainerEnsemble):
     def _build_train(self, env_stats):
         # Explicitly instantiate tf.function to avoid unintended retracing
         TensorSpecs = get_data_format(self.config, env_stats, self.model)
-        print_dict(TensorSpecs, prefix='Tensor Specifications')
         self.train = build(self.train, TensorSpecs)
         return True
 

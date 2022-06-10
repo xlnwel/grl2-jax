@@ -5,15 +5,15 @@ source activate grl
 algos=(
     # ppo
     # gpo
-    hm
+    zero
 )
 suite=gym
 envs=(
     Ant-v3
-    # Humanoid-v3
-    Walker2d-v3
     HalfCheetah-v3
-    Hopper-v3
+    # Humanoid-v3
+    # Walker2d-v3
+    # Hopper-v3
     # Swimmer-v3
 )
 config=gym
@@ -40,7 +40,8 @@ for e in "${envs[@]}"; do
                             n="$date"
                             ld="logs-$suite"
                             gpus=$(nvidia-smi -L | wc -l)
-                            gpu=$(($i % $gpus))
+                            # gpu=$(($i % $gpus))
+                            gpu=1
                             dir="$ld/$env/$a/$n-$kws-seed=$seed"
                             # dir="$ld/$env/$a/$n-seed=$seed"
                             # mkdir -p $dir

@@ -17,7 +17,7 @@ from env.func import get_env_stats
 from utility.display import pwt
 from utility.utils import AttrDict2dict, dict2AttrDict, set_path
 from utility.typing import AttrDict
-from utility import pkg
+from utility import pkg, yaml_op
 
 
 logger = logging.getLogger(__name__)
@@ -537,6 +537,7 @@ class ElementsBuilderVC(ElementsBuilder):
         config: dict, 
         env_stats: dict=None, 
         start_version=0, 
+        start_iteration=0, 
         to_save_code=False, 
         name='builder', 
     ):
@@ -548,19 +549,24 @@ class ElementsBuilderVC(ElementsBuilder):
         )
 
         self._default_model_path = self._model_path
-        self._builder_path = '/'.join([*self._model_path, f'{self._name}.pkl'])
+        self._builder_path = '/'.join([*self._model_path, f'{self._name}.yaml'])
 
         self._version: str = str(start_version)
         self._all_versions = set()
         self._max_version = start_version
+        self._iteration = start_iteration
         self.restore()
 
     """ Version Control """
     def get_version(self):
         return self._version
+    
+    def get_iteration(self):
+        return self._iteration
 
     def increase_version(self):
         self._max_version += 1
+        self._iteration += 1
         self.set_config_version(self._max_version)
         self._all_versions.add(self._max_version)
         self.save_config()
@@ -599,6 +605,8 @@ class ElementsBuilderVC(ElementsBuilder):
         model_dir = '/'.join(model_path)
         config = set_path(config, model_path)
         config.version = version
+        self._iteration += 1
+        config.iteration = self._iteration
         if not os.path.isdir(model_dir):
             os.makedirs(model_dir, exist_ok=True)
         self.save_config(config)
@@ -613,26 +621,34 @@ class ElementsBuilderVC(ElementsBuilder):
         self.config = set_path(self.config, self._model_path)
         self._version = version
         self.config.version = str(version)
+        self.config.iteration = self._iteration
         self._model_path, self.config = self.get_sub_version(self.config)
 
     """ Save & Restore """
     def restore(self):
         if os.path.exists(self._builder_path):
-            with open(self._builder_path, 'rb') as f:
-                self._version, self._max_version, config = cloudpickle.load(f)
-                # we only restore the model_path but not other configs
-                model = ModelPath(config['root_dir'], config['model_name'])
-                self.config = set_path(self.config, model)
-                # self.config = dict2AttrDict(config)
+            data = yaml_op.load(self._builder_path)
+            self._version = data['version']
+            self._iteration = data['iteration']
+            self._max_version = data['max_version']
+            root_dir = data['root_dir']
+            model_name = data['model_name']
+            model = ModelPath(root_dir, model_name)
+            self.config = set_path(self.config, model)
 
     def save(self):
-        with open(self._builder_path, 'wb') as f:
-            cloudpickle.dump((self._version, self._max_version, AttrDict2dict(self.config)), f)
+        yaml_op.dump(
+            self._builder_path, 
+            max_version=self._max_version, 
+            version=self._version,
+            iteration=self._iteration, 
+            root_dir=self.config.root_dir, 
+            model_name=self.config.model_name
+        )
 
 if __name__ == '__main__':
     from env.func import create_env
-    from utility.yaml_op import load_config
-    config = load_config('algo/zero/configs/card.yaml')
+    config = yaml_op.load_config('algo/zero/configs/card.yaml')
     env = create_env(config['env'])
     config.model_name = 'test'
     env_stats = env.stats()

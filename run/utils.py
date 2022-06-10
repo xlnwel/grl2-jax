@@ -1,10 +1,13 @@
 import os
+import logging
 
+from core.log import do_logging
 from utility import pkg
-from utility.display import pwc
 from utility.file import search_for_all_files, search_for_file
 from utility.utils import eval_str, dict2AttrDict, modify_config
 from utility.yaml_op import load_config
+
+logger = logging.getLogger(__name__)
 
 
 def get_configs_dir(algo):
@@ -26,43 +29,44 @@ def get_filename_with_env(env):
     return filename
 
 
-def change_config(kw, config, model_name=''):
+def change_config_with_key_value(config, key, value, prefix=''):
+    modified_configs = []
+    original_key = key
+    if ':' in key:
+        keys = key.split(':')
+        key = keys[0]
+    else:
+        keys = None
+    for k, v in config.items():
+        config_name = f'{prefix}:{k}' if prefix else k
+        if key == k:
+            if keys is None:
+                config[k] = value
+                modified_configs.append(config_name)
+            else:
+                keys_in_config = True
+                key_config = config[k]
+                for kk in keys[1:-1]:
+                    if kk not in key_config:
+                        keys_in_config = False
+                        break
+                    key_config = key_config[kk]
+                    config_name = f'{config_name}:{kk}'
+                if keys_in_config and keys[-1] in key_config:
+                    key_config[keys[-1]] = value
+                    config_name = f'{config_name}:{keys[-1]}'
+                    modified_configs.append(config_name)
+        if isinstance(v, dict):
+            modified_configs += change_config_with_key_value(
+                v, original_key, value, config_name)
+
+    return modified_configs
+
+
+def change_config_with_kw_string(kw, config, model_name=''):
     """ Changes configs based on kw. model_name will
     be modified accordingly to embody changes 
     """
-    def change_dict(config, key, value, prefix):
-        modified_configs = []
-        original_key = key
-        if ':' in key:
-            keys = key.split(':')
-            key = keys[0]
-        else:
-            keys = None
-        for k, v in config.items():
-            config_name = f'{prefix}:{k}' if prefix else k
-            if key == k:
-                if keys is None:
-                    config[k] = value
-                    modified_configs.append(config_name)
-                else:
-                    keys_in_config = True
-                    key_config = config[k]
-                    for kk in keys[1:-1]:
-                        if kk not in key_config:
-                            keys_in_config = False
-                            break
-                        key_config = key_config[kk]
-                        config_name = f'{config_name}:{kk}'
-                    if keys_in_config and keys[-1] in key_config:
-                        key_config[keys[-1]] = value
-                        config_name = f'{config_name}:{keys[-1]}'
-                        modified_configs.append(config_name)
-            if isinstance(v, dict):
-                modified_configs += change_dict(
-                    v, original_key, value, config_name)
-
-        return modified_configs
-            
     if kw:
         for s in kw:
             key, value = s.split('=', 1)
@@ -72,9 +76,12 @@ def change_config(kw, config, model_name=''):
             model_name += s
 
             # change kwargs in config
-            modified_configs = change_dict(config, key, value, '')
-            pwc(f'All "{key}" appeared in the following configs will be changed to "{value}": '
-                + f'{modified_configs}.', color='cyan')
+            modified_configs = change_config_with_key_value(config, key, value)
+            do_logging(
+                f'All "{key}" appeared in the following configs will be changed to "{value}": {modified_configs}', 
+                logger=logger, 
+                color='cyan'
+            )
             assert modified_configs != [], modified_configs
 
     return model_name
@@ -127,7 +134,8 @@ def search_for_all_configs(directory, to_attrdict=True):
     if config_files == []:
         raise RuntimeError(f'No configure file is found in {directory}')
     configs = [load_config(f, to_attrdict=to_attrdict) for f in config_files]
-
+    if any([c is None for c in configs]):
+        raise RuntimeError(f'No configure file is found in {directory}')
     return configs
 
 
@@ -141,5 +149,7 @@ def search_for_config(directory, to_attrdict=True, check_duplicates=True):
     if config_file is None:
         raise RuntimeError(f'No configure file is found in {directory}')
     config = load_config(config_file, to_attrdict=to_attrdict)
+    if config is None:
+        raise RuntimeError(f'No configure file is found in {directory}')
     
     return config

@@ -1,4 +1,5 @@
 from typing import List
+import ray
 
 from ..remote.agent import Agent
 from ..remote.parameter_server import ParameterServer
@@ -21,9 +22,12 @@ class AgentManager(ManagerBase):
         self.env_stats = AttrDict2dict(env_stats)
         self.parameter_server = parameter_server
         self.monitor = monitor
+        self.agents = None
 
     """ Agent Management """
     def build_agents(self, configs: List[dict]):
+        if self.agents:
+            return
         self.agents: List[Agent] = [self.RemoteAgent.remote(
             config=AttrDict2dict(config),
             env_stats=self.env_stats,
@@ -35,7 +39,9 @@ class AgentManager(ManagerBase):
         return self.agents
 
     def destroy_agents(self):
-        del self.agents
+        for a in self.agents:
+            ray.kill(a)
+        self.agents = None
 
     """ Model Management """
     def get_model_paths(self, wait=True):
