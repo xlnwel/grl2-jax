@@ -37,7 +37,7 @@ from run.utils import search_for_all_configs, search_for_config
 from utility.utils import dict2AttrDict
 
 
-class FPEMPolicies(policy.Policy):
+class RLPolicy(policy.Policy):
     """Joint policy to be evaluated."""
 
     def __init__(self, env, agent, aid):
@@ -78,7 +78,49 @@ class FPEMPolicies(policy.Policy):
         prob_dict = {action: probs[action] for action in legal_actions}
         return prob_dict
 
+
+class JointPolicy(policy.Policy):
+    """Joint policy to be evaluated."""
+
+    def __init__(self, env, agents):
+        player_ids = [0, 1]
+        super().__init__(env.game, player_ids)
+        self.env = env
+        self._agents = agents
+        self._obs = {"info_state": [None, None], "legal_actions": [None, None]}
+
+    def action_probabilities(self, state, player_id=None):
+        cur_player = state.current_player()
+        legal_actions = state.legal_actions(cur_player)
+
+        self._obs["current_player"] = cur_player
+        self._obs["info_state"][cur_player] = (
+            state.information_state_tensor(cur_player))
+        self._obs["legal_actions"][cur_player] = legal_actions
+
+        info_state = rl_environment.TimeStep(
+            observations=self._obs, 
+            rewards=None, 
+            discounts=None, 
+            step_type=None
+        )
+
+        obs = self.env.get_obs(info_state)
+        obs['prev_action'] = np.zeros(legal_actions, dtype=np.float32)
+        obs['prev_reward'] = np.zeros((), dtype=np.float32)
+        for k, v in obs.items():
+            obs[k] = np.expand_dims(np.expand_dims(v, 0), 0)
+
+        _, terms, _ = self._agents[cur_player].actor(obs)
+        probs = np.squeeze(terms['pi'])
+        prob_dict = {action: probs[action] for action in legal_actions}
+        return prob_dict
+
 def build_policies(configs, env):
+    iteration1 = -1
+    iteration2 = -1
+    agent1 = None
+    agent2 = None
     policies = [[], []]
     builder = ElementsBuilder(configs[0], env.stats())
     for config in configs:
@@ -94,10 +136,19 @@ def build_policies(configs, env):
         assert aid == config.aid, (aid, config.aid)
         filename = 'params.pkl'
         set_weights_for_agent(elements.agent, model, filename=filename)
-        policies[config.aid].append(FPEMPolicies(
+        policies[config.aid].append(RLPolicy(
             env, elements.agent, config.aid))
+        if config.aid == 0:
+            if config.iteration > iteration1:
+                iteration1 = config.iteration
+                agent1 = elements.agent
+        else:
+            if config.iteration > iteration2:
+                iteration2 = config.iteration
+                agent2 = elements.agent
+    joint_policy = JointPolicy(env, [agent1, agent2])
 
-    return policies
+    return policies, joint_policy
 
 
 def main(configs, step, filename=None):
@@ -112,18 +163,25 @@ def main(configs, step, filename=None):
     configure_gpu(None)
     configure_precision(config.precision)
 
-    policies = build_policies(configs, env)
+    policies, joint_policy = build_policies(configs, env)
     probs = [np.ones(len(pls)) for pls in policies]
     pol_agg = policy_aggregator.PolicyAggregator(env.game)
     aggr_policy = pol_agg.aggregate([0, 1], policies, probs)
 
-    nash_conv = exploitability.nash_conv(env.game, aggr_policy, False)
+    result = exploitability.nash_conv(env.game, aggr_policy, False)
     nash_conv = dict(
         step=step, 
-        nash_conv=float(nash_conv.nash_conv), 
-        expl1=float(nash_conv.player_improvements[0]), 
-        expl2=float(nash_conv.player_improvements[1])
+        nash_conv=float(result.nash_conv), 
+        expl1=float(result.player_improvements[0]), 
+        expl2=float(result.player_improvements[1])
     )
+
+    result = exploitability.nash_conv(env.game, joint_policy, False)
+    nash_conv.update(dict(
+        latest_nash_conv=float(result.nash_conv), 
+        latest_expl1=float(result.player_improvements[0]), 
+        latest_expl2=float(result.player_improvements[1])
+    ))
     if filename is not None:
         with open(filename, 'a') as f:
             if os.stat(filename).st_size == 0:
@@ -148,4 +206,5 @@ if __name__ == '__main__':
         configs = [search_for_config(d) for d in args.directory]
     config = configs[0]
 
-    main(configs)
+    nash_conv = main(configs, 0)
+    print(nash_conv)

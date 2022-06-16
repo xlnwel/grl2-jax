@@ -3,8 +3,6 @@ import collections
 import numpy as np
 import ray
 
-from run.utils import search_for_all_configs
-
 from .parameter_server import ParameterServer
 from ..common.typing import ModelStats, ModelWeights
 from core.ckpt.pickle import set_weights_for_agent
@@ -136,37 +134,35 @@ class MultiAgentSimRunner(RayBase):
             self._send_aux_stats(aid)
 
     def run_with_model_weights(self, mids: List[ModelWeights]):
-        def set_weights(mids):
+        def set_strategies(mids):
             for aid, mid in enumerate(mids):
                 model_weights = ray.get(mid)
                 self.is_agent_active[aid] = model_weights.model in self.active_models
                 self.current_models[aid] = model_weights.model
                 assert set(model_weights.weights) == set(['model', 'aux', 'train_step']), set(model_weights.weights)
-                self.agents[aid].set_weights(model_weights.weights)
+                self.agents[aid].set_strategy(model_weights)
 
             assert any(self.is_agent_active), (self.active_models, self.current_models)
 
-        def send_stats(steps, n_episodes, wt: Timer, rt: Timer):
+        def send_stats(steps, n_episodes):
             for aid, is_active in enumerate(self.is_agent_active):
-                self.agents[aid].store(**{
-                    **{f'time/{t.name}_total': t.total() for t in [wt, rt]}, 
-                    **{f'time/{t.name}': t.average() for t in [wt, rt]}, 
-                })
                 if n_episodes > 0:
                     self._send_run_stats(aid, steps, n_episodes)
                 if is_active:
                     self._send_aux_stats(aid)
             self._update_payoffs()
 
-        with Timer('runner_set_weights') as wt:
-            set_weights(mids)
+        with Timer('set_strategies') as wt:
+            set_strategies(mids)
         for b in self.buffers:
             assert b.is_empty(), b.size()
-        with Timer('runner_run') as rt:
+        with Timer('run') as rt:
             steps, n_episodes = self.run()
         self._steps += steps
 
-        send_stats(self._steps, n_episodes, wt, rt)
+        self._save_time_recordings([wt, rt])
+        send_stats(self._steps, n_episodes)
+
         if n_episodes > 0:
             self._steps = 0
 
@@ -284,10 +280,7 @@ class MultiAgentSimRunner(RayBase):
                     a, t = agent(o, evaluation=self.evaluation)
                 action.append(a)
                 terms.append(t)
-                agent.store(**{
-                    'time/ind_infer_total': it.total(),
-                    'time/ind_infer': it.average(),
-                })
+                self._save_time_recordings([it])
             return action, terms
 
         def step_env(actions: List):
@@ -366,11 +359,7 @@ class MultiAgentSimRunner(RayBase):
                 n_episodes += self._log_for_done(agent_env_outs[0].reset)
             step += 1
 
-        for aid in range(self.n_agents):
-            self.agents[aid].store(
-                **{f'time/{t.name}_total': t.total() for t in [it, et, st, dt, lt]}, 
-                **{f'time/{t.name}': t.average() for t in [it, et, st, dt, lt]}
-            )
+        self._save_time_recordings([it, et, st, dt, lt])
 
         return step * self.n_envs, n_episodes
 
@@ -397,10 +386,7 @@ class MultiAgentSimRunner(RayBase):
                     a, t = agent(o, evaluation=self.evaluation)
                 action.append(a)
                 terms.append(t)
-                agent.store(**{
-                    'time/ind_infer_total': it.total(),
-                    'time/ind_infer': it.average(),
-                })
+                self._save_time_recordings([it])
             return action, terms
 
         def step_env(agent_env_outs: List, agent_actions: List):
@@ -526,14 +512,10 @@ class MultiAgentSimRunner(RayBase):
             with Timer('log') as lt:
                 n_episodes += log_for_done(agent_env_outs)
             step += 1
+        
+        self._save_time_recordings([it, et, dt, lt])
 
         send_data()
-
-        for aid in range(self.n_agents):
-            self.agents[aid].store(
-                **{f'time/{t.name}_total': t.total() for t in [it, et, dt, lt]}, 
-                **{f'time/{t.name}': t.average() for t in [it, et, dt, lt]}
-            )
 
         return step * self.n_envs, n_episodes
 
@@ -593,11 +575,8 @@ class MultiAgentSimRunner(RayBase):
             step += 1
         _, terms = self.agents[0](self.env_output, evaluation=self.evaluation)
 
-        for aid in range(self.n_agents):
-            self.agents[aid].store(
-                **{f'time/{t.name}_total': t.total() for t in [it, et, st, dt, lt]}, 
-                **{f'time/{t.name}': t.average() for t in [it, et, st, dt, lt]}
-            )
+        self._save_time_recordings([it, et, st, dt, lt])
+
         if self.store_data:
             for aid, buffer in enumerate(self.buffers):
                 rid, data, n = buffer.retrieve_all_data(terms['value'])
@@ -695,5 +674,14 @@ class MultiAgentSimRunner(RayBase):
 
     def _update_payoffs(self):
         if sum([len(s) for s in self.scores]) > 0:
-            self.parameter_server.update_payoffs.remote(self.current_models, self.scores)
+            self.parameter_server.update_payoffs.remote(
+                self.current_models, self.scores)
             self.scores = [[] for _ in range(self.n_agents)]
+
+    def _save_time_recordings(self, timers: List[Timer]):
+        stats = {}
+        for s in [t.to_stats() for t in timers]:
+            stats.update(s)
+        for aid, is_active in enumerate(self.is_agent_active):
+            if is_active:
+                self.agents[aid].store(**stats)

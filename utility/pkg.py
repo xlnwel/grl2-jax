@@ -33,7 +33,8 @@ def get_package(root_dir, base_name=None, separator='.'):
 def import_module(name, pkg=None, algo=None, *, config=None, place=0):
     """ import <name> module from <pkg>, 
     if <pkg> is not provided, import <name> module
-    according to <algo> or "algorithm" in <config> """
+    according to <algo> or "algorithm" in <config> 
+    """
     if pkg is None:
         algo = algo or config['algorithm']
         assert isinstance(algo, str), algo

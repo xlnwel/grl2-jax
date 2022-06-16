@@ -3,17 +3,19 @@ from typing import List
 from core.typing import ModelPath
 from gt.func import select_sampling_strategy
 from gt.payoff import PayoffTableWithModel
+from utility.typing import AttrDict
+from utility.utils import dict2AttrDict
 
 
 class PayoffManager:
     def __init__(
         self,
-        config,
-        n_agents,
-        model_dir,
+        config: AttrDict,
+        n_agents: int, 
+        model_dir: str,
         name='payoff',
     ):
-        self.config = config
+        self.config = dict2AttrDict(config, to_copy=True)
         self.n_agents = n_agents
         self.name = name
 
@@ -21,7 +23,7 @@ class PayoffManager:
         self._path = f'{self._dir}/{self.name}.pkl'
 
         self.payoff_table = PayoffTableWithModel(
-            n_agents=n_agents, 
+            n_agents=self.n_agents, 
             step_size=self.config.step_size, 
             payoff_dir=model_dir, 
             name=name
@@ -30,8 +32,6 @@ class PayoffManager:
         self.sampling_strategy = select_sampling_strategy(
             **self.config.sampling_strategy,
         )
-
-        self.restore()
 
     def __getattr__(self, name):
         if name.startswith('_'):
@@ -44,20 +44,13 @@ class PayoffManager:
     def get_all_strategies(self):
         return self.payoff_table.get_all_models()
 
-    def add_strategy(self, model: ModelPath):
+    def add_strategy(self, model: ModelPath, aid=None):
         """ Add a strategy for a single agent """
-        self.payoff_table.expand(model)
+        self.payoff_table.expand(model, aid=aid)
 
     def add_strategies(self, models: List[ModelPath]):
         """ Add strategies for all agents at once """
         self.payoff_table.expand_all(models)
-
-    def sample_strategies(self, aid, model: ModelPath):
-        return self.sampling_strategy(
-            aid, 
-            model=model, 
-            payoff_table=self.payoff_table, 
-        )
 
     """ Payoff Management """
     def update_payoffs(
@@ -72,6 +65,9 @@ class PayoffManager:
         aid: int, 
         model: ModelPath, 
     ):
-        payoffs, dist = self.sampling_strategy.compute_opponent_distribution(
-            aid, model, self.payoff_table)
+        payoffs, dist = self.sampling_strategy(
+            aid, 
+            self.payoff_table.get_payoffs_for_agent(aid, model=model), 
+            self.n_agents
+        )
         return payoffs, dist

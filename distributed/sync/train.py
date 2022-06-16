@@ -7,15 +7,8 @@ from utility.ray_setup import sigint_shutdown_ray
 from utility.utils import dict2AttrDict
 from utility import yaml_op
 
-def main(configs):
-    if ray.is_initialized():
-        ray.shutdown()
-    ray.init()
-    sigint_shutdown_ray()
 
-    if len(configs) == 1:
-        configs = [dict2AttrDict(configs[0], to_copy=True) 
-            for _ in range(configs[0].n_agents)]
+def save_configs(configs):
     for i, config in enumerate(configs):
         config.n_agents = len(configs)
         yaml_op.save_config(
@@ -26,6 +19,19 @@ def main(configs):
                 f'config_p{i}.yaml'
             ])
         )
+
+def main(configs):
+    if ray.is_initialized():
+        ray.shutdown()
+    ray.init()
+    sigint_shutdown_ray()
+
+    if len(configs) == 1:
+        configs = [dict2AttrDict(configs[0], to_copy=True) 
+            for _ in range(configs[0].n_agents)]
+
+    save_configs(configs)
+    config = configs[0]
     seed = config.get('seed')
     print('seed', seed)
     set_tf_random_seed(seed)

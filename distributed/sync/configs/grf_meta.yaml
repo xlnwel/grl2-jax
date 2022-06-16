@@ -29,9 +29,10 @@ parameter_server:
     online_frac: .2
 
     payoff:
-        step_size: .1
+        step_size: 1e-2     # step size towards the most recent data, 0 or null average payoff over the entire history
+        update_interval: 10
         sampling_strategy:
-            type: fsp
+            type: pfsp
             p: 1
 
 ray_config:

@@ -3,13 +3,14 @@ import logging
 import cloudpickle
 import time
 from typing import List
+import numpy as np
 import ray
 
 from .agent_manager import AgentManager
 from .runner_manager import RunnerManager
 from ..remote.monitor import Monitor
 from ..remote.parameter_server import ParameterServer
-from core.ckpt.base import CheckpointBase
+from core.ckpt.base import YAMLCheckpointBase
 from core.log import do_logging
 from core.typing import ModelPath
 from core.utils import save_code
@@ -17,9 +18,9 @@ from env.func import get_env_stats
 from gt.alpharank import AlphaRank
 from run.utils import search_for_all_configs
 from utility.process import run_ray_process
-from utility.timer import Every
+from utility.timer import Every, Timer
 from utility.typing import AttrDict
-from utility.utils import batch_dicts, dict2AttrDict, modify_config
+from utility.utils import dict2AttrDict, eval_config, modify_config
 from utility import yaml_op
 
 
@@ -85,20 +86,20 @@ def _compute_running_steps(config):
     return n_agent_runners, n_pbt_steps
 
 
-class Controller(CheckpointBase):
+class Controller(YAMLCheckpointBase):
     def __init__(
         self, 
         config: AttrDict,
         name='controller',
         to_restore=True,
     ):
-        self.config = config.controller
+        self.config = eval_config(config.controller)
         model_path = ModelPath(self.config.root_dir, self.config.model_name.split('/')[0])
         self._dir = '/'.join(model_path)
         self._path = f'{self._dir}/{name}.yaml'
         save_code(model_path)
 
-        self._iteration = 1
+        self._iteration = 0
         self._steps = 0
         self._pids = []
 
@@ -166,7 +167,7 @@ class Controller(CheckpointBase):
 
         do_logging('Buiding Monitor...', logger=logger)
         self.monitor: Monitor = Monitor.as_remote().remote(
-            config.monitor.asdict(), 
+            config.asdict(), 
             self.parameter_server
         )
 
@@ -187,24 +188,42 @@ class Controller(CheckpointBase):
 
     """ Training """
     def pbt_train(self):
-        while self._iteration <= self.config.max_version_iterations: 
-            do_logging(f'Iteration {self._iteration} starts', logger=logger)
-            self.initialize_actors()
-
-            self.train(
-                self.agent_manager, 
-                self.runner_manager, 
+        if isinstance(self.config.max_steps_per_iteration, (list, tuple)):
+            assert len(self.config.max_steps_per_iteration) == 2, \
+                self.config.max_steps_per_iteration
+            
+            max_steps_per_iteration = np.linspace(
+                *self.config.max_steps_per_iteration, 
+                num=self.config.max_version_iterations
             )
+        else:
+            max_steps_per_iteration = [
+                self.config.max_steps_per_iteration 
+                for _ in range(self.config.max_version_iterations)
+            ]
 
-            self.cleanup()
-            self._iteration += 1
-            self.save()
-        do_logging(f'Training Finished. Total Iterations: {self._iteration-1}', 
+        with Timer('iteration') as it:
+            while self._iteration < self.config.max_version_iterations: 
+                do_logging(f'Iteration {self._iteration} starts', logger=logger)
+                self.initialize_actors()
+
+                self.train(
+                    self.agent_manager, 
+                    self.runner_manager, 
+                    max_steps_per_iteration[self._iteration]
+                )
+
+                self.cleanup()
+                self._iteration += 1
+                self.save()
+        
+        do_logging(f'Training Finished. Total Iterations: {self._iteration}', 
             logger=logger)
+        self.monitor.store_stats.remote(it.to_stats())
         self._log_remote_stats(self._pids)
 
     def initialize_actors(self):
-        if self._iteration > 1:
+        if self._iteration > 0:
             for c in self.configs:
                 c.runner.n_steps = self.n_pbt_steps
 
@@ -234,12 +253,13 @@ class Controller(CheckpointBase):
         self, 
         agent_manager: AgentManager, 
         runner_manager: RunnerManager, 
+        max_steps_per_iteration
     ):
         agent_manager.start_training()
         to_restart_runners = self.config.get('restart_runners_priod', None) \
             and Every(self.config.restart_runners_priod, time.time())
 
-        while self._steps < self.config.max_steps_per_iteration:
+        while self._steps < max_steps_per_iteration:
             model_weights = ray.get(self.parameter_server.get_strategies.remote())
             while model_weights is None:
                 time.sleep(.025)
@@ -247,7 +267,7 @@ class Controller(CheckpointBase):
             assert len(model_weights) == runner_manager.n_runners, (len(model_weights), runner_manager.n_runners)
 
             steps = sum(runner_manager.run_with_model_weights(model_weights))
-            if self._iteration > 1:
+            if self._iteration > 0:
                 # we count the total number of steps taken by each training agent
                 steps = steps // self.n_runners * self.n_agent_runners
             self._steps += steps
@@ -271,7 +291,7 @@ class Controller(CheckpointBase):
         self._post_processing()
         ray.get([
             self.monitor.save_all.remote(),
-            self.monitor.save_payoff_table.remote(self._iteration)
+            self.monitor.save_payoff_table.remote(self._iteration+1)
         ])
         self.save()
         agent_manager.stop_training(wait=True)
@@ -279,9 +299,13 @@ class Controller(CheckpointBase):
 
     def cleanup(self):
         do_logging(f'Cleaning up for The {self._iteration+1}-th Training Iteration...', logger=logger)
-        ray.get(self.parameter_server.archive_training_strategies.remote())
-        self.agent_manager.destroy_agents()
+        oids = [
+            self.parameter_server.archive_training_strategies.remote(),
+            self.monitor.clear_iteration_stats.remote()
+        ]
         self.runner_manager.destroy_runners()
+        self.agent_manager.destroy_agents()
+        ray.get(oids)
 
     def _initialize_rms(
         self, 
@@ -334,7 +358,7 @@ class Controller(CheckpointBase):
         from run.spiel_eval import main
         filename = '/'.join([self._dir, 'nash_conv.txt'])
         self._pids.append(
-            run_ray_process(main, configs, step=self._iteration, filename=filename)
+            run_ray_process(main, configs, step=self._iteration+1, filename=filename)
         )
 
     """ Checkpoints """

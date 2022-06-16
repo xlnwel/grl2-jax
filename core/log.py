@@ -41,9 +41,11 @@ def do_logging(
         logger = get_sys_logger(backtrack)
     frame = get_frame(backtrack)
     if func_lineno is None:
+        filename = frame.f_code.co_filename
+        filename = filename.rsplit('/', 1)[-1]
         funcname = frame.f_code.co_name
         lineno = frame.f_lineno
-        func_lineno = f'{funcname}: line {lineno}: '
+        func_lineno = f'{filename} {funcname}: line {lineno}: '
     if prefix:
         prefix = f'{prefix}: '
     new_prefix = func_lineno + prefix

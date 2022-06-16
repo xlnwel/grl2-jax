@@ -31,6 +31,16 @@ class GRF:
         **kwargs,
     ):
         self.name = env_name
+        self.representation = representation
+        if representation != 'simple115v2':
+            representation = 'raw'
+            if self.representation == 'mat':
+                from env.grf_env.mat_obs import FeatureEncoder
+                self.feat_encoder = FeatureEncoder()
+            else:
+                raise NotImplementedError(f'Unknown representation {self.representation}')
+        else:
+            self.feat_encoder = lambda x: x
         assert number_of_left_players_agent_controls in (1, 11), \
             number_of_left_players_agent_controls
         assert number_of_right_players_agent_controls in (0, 1, 11), \
@@ -111,8 +121,11 @@ class GRF:
         self._collected_checkpoints = [0, 0]
 
     def _get_observation_shape(self):
-        obs_shape = self.env.observation_space.shape \
-            if self.n_units == 1 else self.env.observation_space.shape[1:]
+        if self.representation == 'mat':
+            obs_shape = self.feat_encoder.obs_shape
+        else:
+            obs_shape = self.env.observation_space.shape \
+                if self.n_units == 1 else self.env.observation_space.shape[1:]
         shape = [dict(
             obs=obs_shape, 
             global_state=obs_shape, 
@@ -127,7 +140,10 @@ class GRF:
         return shape
 
     def _get_observation_dtype(self):
-        obs_dtype = self.env.observation_space.dtype
+        if self.representation == 'mat':
+            obs_dtype = np.float32
+        else:
+            obs_dtype = self.env.observation_space.dtype
         dtype = [dict(
             obs=obs_dtype,
             global_state=obs_dtype,
@@ -233,15 +249,35 @@ class GRF:
         if reward is None:
             reward = [np.zeros(len(uids), np.float32) for uids in self.aid2uids]
 
-        if self.n_units == 1:
-            obs = np.expand_dims(obs, 0)
+        if self.representation == 'mat':
+            obs_array = []
+            act_masks = []
+            for i, o in enumerate(obs):
+                o = self.feat_encoder(o, i)
+                act_masks.append(o['avail'])
+                o = np.concatenate([
+                    np.array(v, np.float32).flatten() for v in o.values()
+                ])
+                obs_array.append(o)
+            obs = np.stack(obs_array)
+            act_masks = np.stack(act_masks).astype(bool)
+            agent_obs = [dict(
+                obs=obs[uids], 
+                global_state=obs[uids], 
+                prev_reward=reward[aid], 
+                prev_action=action[aid], 
+                action_mask=act_masks[uids], 
+            ) for aid, uids in enumerate(self.aid2uids)]
+        else:
+            if self.n_units == 1:
+                obs = np.expand_dims(obs, 0)
 
-        agent_obs = [dict(
-            obs=obs[uids], 
-            global_state=obs[uids], 
-            prev_reward=reward[aid], 
-            prev_action=action[aid], 
-        ) for aid, uids in enumerate(self.aid2uids)]
+            agent_obs = [dict(
+                obs=obs[uids], 
+                global_state=obs[uids], 
+                prev_reward=reward[aid], 
+                prev_action=action[aid], 
+            ) for aid, uids in enumerate(self.aid2uids)]
 
         return agent_obs
 
@@ -298,10 +334,12 @@ if __name__ == '__main__':
     args = parse_args()
     config = {
         'env_name': '11_vs_11_easy_stochastic',
+        'representation': 'mat',
         'rewards': 'scoring,checkpoints', 
         'number_of_left_players_agent_controls': args.left,
         'number_of_right_players_agent_controls': args.right,
         'shared_ckpt_reward': True, 
+        'use_action_mask':True, 
         'uid2aid': None,
         'seed': 1
     }
@@ -311,13 +349,17 @@ if __name__ == '__main__':
     import random
     random.seed(0)
     np.random.seed(0)
-    n = env.obs_shape[0]['obs'][0]
-    o = env.reset()
+    n = env.obs_shape
+    print(n)
+    obs = env.reset()
+    for o in obs:
+        for k, v in o.items():
+            print(k, v.shape)
     random.seed(0)
     np.random.seed(0)
     for i in range(args.step):
-        print(i)
         a = env.random_action()
         o, r, d, info = env.step(a)
         idx = np.where(o[0]['obs'][0] != o[0]['obs'][1])
-        np.testing.assert_allclose(o[0]['obs'][0], o[0]['obs'][1])
+        if np.any(d):
+            env.reset()

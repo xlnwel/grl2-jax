@@ -15,7 +15,7 @@ from core.log import setup_logging, do_logging
 from utility import pkg
 from utility.utils import modify_config
 from run.args import parse_train_args
-from run.random_search import RandomSearch
+from run.grid_search import GridSearch
 from run.utils import *
 
 
@@ -49,7 +49,7 @@ def _get_algo_env_config(cmd_args):
 
 
 def _grid_search(config, main, cmd_args):
-    gs = RandomSearch(
+    gs = GridSearch(
         config, 
         main, 
         n_trials=cmd_args.trials, 
@@ -63,14 +63,12 @@ def _grid_search(config, main, cmd_args):
     processes = []
     processes += gs(
         kw_dict={
-            'policy:optimizer:lr': [1e-3],
-            'value:optimizer:lr': [1e-2],
             # 'sampling_strategy:type': ['fsp', 'pfsp'],
-            # 'sampling_strategy:p': [1, 2],
+            'sampling_strategy:p': [1, 2],
         }, 
-        n_aux_value_updates=[0, 1, 10, 20], 
-        online_frac=[.25], 
-        seed=range(5)
+        step_size=[1e-1, 1e-2, 1e-3], 
+        update_interval=[None, 60], 
+        seed=range(3)
     )
     [p.join() for p in processes]
 
@@ -112,7 +110,7 @@ def _run_with_configs(cmd_args):
         config['info'] = cmd_args.info
         configs.append(config)
 
-    if cmd_args.random_search or cmd_args.trials > 1:
+    if cmd_args.grid_search or cmd_args.trials > 1:
         assert len(configs) == 1, 'No support for multi-agent grid search.'
         _grid_search(config, main, cmd_args)
     else:

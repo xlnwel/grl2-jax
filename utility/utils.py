@@ -55,19 +55,32 @@ def flatten_dict(d: dict):
             result[k] = v
     return result
 
+def str2int(x):
+    if isinstance(x, str):
+        try:
+            x = float(x)
+        except:
+            pass
+    if isinstance(x, float) and x == int(x):
+        x = int(x)
+    return x
+
+def eval_str_list(x):
+    if isinstance(x, (list, tuple)):
+        return [eval_str_list(v) for v in x]
+    else:
+        return str2int(x)
+
 def eval_config(config):
     for k, v in config.items():
+        if k == 'model_name':
+            continue
         if isinstance(v, dict):
             config[k] = eval_config(v)
+        elif isinstance(v, (list, tuple)):
+            config[k] = eval_str_list(v)
         else:
-            if isinstance(v, str):
-                try:
-                    v = float(v)
-                except:
-                    pass
-            if isinstance(v, float) and v == int(v):
-                v = int(v)
-            config[k] = v
+            config[k] = str2int(v)
     return config
 
 def add_attr(
@@ -339,7 +352,7 @@ def convert_indices(indices, *args):
     indices = convert_shape(indices, *x.shape)
     print(indices)
     >>> (array([1, 1, 0, 0, 0]), array([1, 1, 0, 1, 0]), array([0, 0, 0, 1, 1]))
-    print(x[indices])
+    print(x[indices])key
     >>> array(['b0', 'c1', 'b1', 'a1', 'c0'])
     """
     res = []

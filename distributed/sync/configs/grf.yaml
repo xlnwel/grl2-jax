@@ -29,10 +29,19 @@ parameter_server:
     online_frac: .2
 
     payoff:
-        step_size: .1
+        step_size: 1e-2     # step size towards the most recent data, 0 or null average payoff over the entire history
+        update_interval: 180
         sampling_strategy:
-            type: fsp
+            type: pfsp
             p: 1
+
+    # rule_strategies:
+    #     # agent name / config
+    #     random:
+    #         aid: 1
+    #         vid: 1
+    #         path: rule/random   # path to the file that defines Strategy
+    #         # other configs
 
 ray_config:
     runner:
@@ -268,6 +277,7 @@ buffer:
         - global_state
         - prev_reward
         - prev_action
+        - action_mask
         - action
         - reward
         - value

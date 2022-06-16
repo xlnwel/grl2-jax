@@ -29,6 +29,9 @@ class RayBase:
             return ray.remote(**kwargs)(cls)
         return ray.remote(cls)
 
+    def exit(self):
+        ray.actor.exit_actor()
+
 
 class ManagerBase:
     def _remote_call(self, remotes: List, func: str, wait: bool=False):

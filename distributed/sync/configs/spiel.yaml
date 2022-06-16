@@ -15,10 +15,10 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 20
+    store_period: 30
     restart_runners_priod: null
     max_version_iterations: 20
-    max_steps_per_iteration: 1e6
+    max_steps_per_iteration: [1e6, 5e6]
     initialize_rms: &irms False
 
 parameter_server:
@@ -28,12 +28,21 @@ parameter_server:
     score_metric: dense_score
     train_from_scratch_frac: 1
     online_frac: .25
+    update_interval: 100
 
     payoff:
-        step_size: .1
+        step_size: 1e-2
         sampling_strategy:
-            type: fsp
+            type: pfsp
             p: 1
+
+    # rule_strategies:
+    #     # agent name / config
+    #     random:
+    #         aid: 1
+    #         vid: 1
+    #         path: rule/random   # path to the file that defines Strategy
+    #         # other configs
 
 ray_config:
     runner:
@@ -70,7 +79,7 @@ strategy:
 
         # (once reuse null)
         # "once" updates values at the end of each epoch
-        # "reuse" updates values using value from train which is staler than once
+        # "reuse" updates values using value from train which is staler than once'
         # null doesn't update values.
         value_update: null
         n_aux_value_updates: 10
@@ -139,7 +148,7 @@ loss:
     policy:
         pg_coef: 1
         ppo_clip_range: .2
-        entropy_coef: 1e-2
+        entropy_coef: 1e-1
         aux_l1_coef: 0
         aux_l2_coef: 0
         weighted_l_dist: False
@@ -177,7 +186,7 @@ trainer:
         optimizer:
             opt_name: adam
             schedule_lr: False
-            lr: 1e-2
+            lr: 1e-3
             clip_norm: .5
             epsilon: 1.e-5
             weight_decay: 0
@@ -185,7 +194,7 @@ trainer:
         optimizer:
             opt_name: adam
             schedule_lr: False
-            lr: 1e-2
+            lr: 1e-3
             clip_norm: .5
             epsilon: 1.e-5
 

@@ -20,7 +20,7 @@ def find_key(key, config, results):
     return results
 
 
-class RandomSearch:
+class GridSearch:
     def __init__(
         self, 
         config, 

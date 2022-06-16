@@ -1,4 +1,4 @@
-# #!/bin/zsh
+#!/bin/zsh
 
 source activate grl
 
@@ -9,14 +9,15 @@ suite=spiel
 envs=(
     leduc_poker
 )
-config=grf
-seeds=(0 1)
-args1=(None)
-args2=(1)
-args3=(True)
-args4=(.2)
+config=spiel
+seeds=(0 1 2)
+args1=(pfsp)
+args2=(1e-3)
+args3=(1 100 1000)
+args4=(1)
 date=$(date +"%m%d")
 
+shift
 i=0
 j=1
 for e in "${envs[@]}"; do
@@ -26,25 +27,36 @@ for e in "${envs[@]}"; do
                 for a3 in "${args3[@]}"; do
                     for a4 in "${args4[@]}"; do
                         for seed in "${seeds[@]}"; do
-                            # kw1="ppo_clip_range=$a1"
-                            # kw2="kl_prior_coef=$a2"
-                            # kw3="approx_kl=$a3"
-                            # kw4="pr_upper_clip=$a4"
-                            # kws="$kw1-$kw2-$kw3"
+                            cmdkws=""
+                            for item in $@; do
+                                if [ -z != $cmdkws ]; then
+                                    cmdkws="$cmdkws-$item"
+                                else
+                                    cmdkws="$item"
+                                fi
+                            done
+                            kw1="sampling_strategy:type=$a1"
+                            kw2="step_size=$a2"
+                            kw3="update_interval=$a3"
+                            kw4="p=$a4"
+                            kwstr="$kw1-$kw2-$kw3-$kw4"
+                            if [ 0 != $# ]; then
+                                kwstr="$cmdkws-$kwstr"
+                            fi
                             env="${suite}-${e}"
-                            n="$date"
+                            n="$date-max_steps_per_iteration=1e6_3e6"
                             ld="logs-$suite"
-                            gpus=$(nvidia-smi -L | wc -l)
-                            gpu=$(($seed % $gpus))
-                            # dir="$ld/$env/$a/$n-$kws-seed=$seed"
-                            # mkdir -p $dir
-                            # py_script="train ${a} -e ${suite}_${e} -kw distribution_mode=hard >& ${dir}/outputs.txt"
-                            # py_script="python run/train.py -a ${a} -e $env -c $config -kw $kw1 $kw2 $kw3 -ld $ld --gpu $seed -n $n -s $seed | tee ${dir}/outputs.txt &"
-                            # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $seed -n $n -s $seed | tee ${dir}/outputs.txt &"
-                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld $@ -gs -mp -v info"
+                            dir="$ld/$env/$a/$n-$kwstr-seed=$seed"
+                            mkdir -p $dir
+                            if [ "0" = $# ]; then
+                                kws="$kw1 $kw2 $kw3 $kw4"
+                            else
+                                kws="$@ $kw1 $kw2 $kw3 $kw4"
+                            fi
+                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $seed -v info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
                             echo $py_script
                             eval $py_script
-                            sleep 1
+                            sleep 3
                         done
                     done
                 done
@@ -53,14 +65,43 @@ for e in "${envs[@]}"; do
     done
 done
 
-# python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen -kw normalize_obs=True normalize_reward=True
-# python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen -kw normalize_obs=True normalize_reward=False
-# python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen -kw normalize_obs=False normalize_reward=True
-# python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen -kw normalize_obs=False normalize_reward=False
-# python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen -kw lr=1e-1 n_steps=8 n_mbs=1
-# python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen -kw lr=1e-1 n_steps=8 n_mbs=4
-# python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen -kw lr=1e-1 n_steps=8 n_mbs=8
-# python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen -kw lr=1e-1 n_steps=16 n_mbs=1
-# python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen -kw lr=1e-1 n_steps=16 n_mbs=4
-# python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen -kw lr=1e-1 n_steps=16 n_mbs=8
-CUDA_VISIBLE_DEVICES=2,3 python run/train.py -a sync-gpo -e spiel-leduc_poker -c spiel -ld logs-procgen $@ -gs | tee debug.log
+# config=spiel
+# seeds=(0)
+# args1=(1 100 1000)
+# date=$(date +"%m%d")
+
+# for e in "${envs[@]}"; do
+#     for a in "${algos[@]}"; do
+#         for a1 in "${args1[@]}"; do
+#             for seed in "${seeds[@]}"; do
+#                 cmdkws=""
+#                 for item in $@; do
+#                     if [ -z != $cmdkws ]; then
+#                         cmdkws="$cmdkws-$item"
+#                     else
+#                         cmdkws="$item"
+#                     fi
+#                 done
+#                 kw1="update_interval=$a1"
+#                 kwstr="$kw1"
+#                 if [ 0 != $# ]; then
+#                     kwstr="$cmdkws-$kwstr"
+#                 fi
+#                 env="${suite}-${e}"
+#                 n="$date"
+#                 ld="logs-$suite"
+#                 dir="$ld/$env/$a/$n-$kwstr-seed=$seed"
+#                 mkdir -p $dir
+#                 if [ "0" = $# ]; then
+#                     kws="$kw1"
+#                 else
+#                     kws="$@ $kw1"
+#                 fi
+#                 py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -n $n -kw $kws -s $seed -v info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
+#                 echo $py_script
+#                 eval $py_script
+#                 sleep 3
+#             done
+#         done
+#     done
+# done

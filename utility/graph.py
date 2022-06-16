@@ -1,5 +1,6 @@
 import io
 import os
+import math
 import numpy as np
 from PIL import Image
 import tensorflow as tf
@@ -34,6 +35,10 @@ def decode_png(png):
     return image
 
 
+def get_tick_labels(size, threshould=10):
+    return math.ceil(size / threshould) if size > threshould else 'auto'
+
+
 def matrix_plot(
     matrix, 
     figsize=6, 
@@ -49,7 +54,6 @@ def matrix_plot(
     yticklabelnames=None,
     dpi=300
 ):
-    plt.clf()
     fig = plt.figure(0, figsize=(figsize, 4/5 * figsize), dpi=dpi)
     ax = fig.add_subplot(111)
     def get_norm(matrix):        
@@ -104,25 +108,45 @@ def matrix_plot(
 
     buf = io.BytesIO()
     plt.savefig(buf, format='png', dpi=dpi)
+    plt.close()
     buf.seek(0)
+    image = decode_png(buf.getvalue())
+    buf.close()
 
-    return buf
+    return image
 
 def _matrix_plot_test():
-    n = 3
-    payoff = np.logspace(0, 100, n*n).reshape((n, n)) / n / n
-    matrix_plot(
-        payoff, figsize=6, label_top=True, 
-        label_bottom=False, invert_yaxis=True
-    )
-    plt.savefig('exponential_matrix.pdf')
+    m = 5
+    n = 10
+    payoff = np.logspace(0, 100, m*n).reshape((m, n)) / m / n
 
-    payoff = np.arange(n*n).reshape((n, n)) / n / n
-    matrix_plot(
-        payoff, figsize=6, label_top=True, 
-        label_bottom=False, invert_yaxis=True
+    buf = matrix_plot(
+        payoff, 
+        label_top=True, 
+        label_bottom=False, 
+        xlabel='Opponents', 
+        ylabel='Time', 
+        xticklabels=get_tick_labels(payoff.shape[1]), 
+        yticklabels=get_tick_labels(payoff.shape[0]),
+        yticklabelnames=list('abcde'), 
     )
-    plt.savefig('linear_matrix.pdf')
+    image = decode_png(buf.getvalue())
+    plt.imshow(image)
+
+    payoff = np.arange(m*n).reshape((m, n)) / m / n - .3
+    print(payoff)
+    matrix_plot(
+        payoff, 
+        label_top=True, 
+        label_bottom=False, 
+        xlabel='Opponents', 
+        ylabel='Time', 
+        xticklabels=get_tick_labels(payoff.shape[1]), 
+        yticklabels=get_tick_labels(payoff.shape[0]),
+        yticklabelnames=list('abcde'), 
+    )
+    image = decode_png(buf.getvalue())
+    plt.imshow(image)
 
     payoff = np.arange(n*n).reshape((n, n)) / n / n - .4
     matrix_plot(

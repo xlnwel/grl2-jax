@@ -1,8 +1,8 @@
 import os
+import importlib
 import logging
 from types import FunctionType
 from typing import Dict, Tuple
-import cloudpickle
 
 from core.elements.actor import Actor
 from core.elements.dataset import create_dataset
@@ -11,10 +11,9 @@ from core.elements.strategy import Strategy
 from core.elements.trainer import Trainer
 from core.log import do_logging
 from core.monitor import Monitor, create_monitor
-from core.typing import ModelPath
+from core.typing import ModelPath, construct_model_name_from_version, get_vid
 from core.utils import save_code, save_config
 from env.func import get_env_stats
-from utility.display import pwt
 from utility.utils import AttrDict2dict, dict2AttrDict, set_path
 from utility.typing import AttrDict
 from utility import pkg, yaml_op
@@ -43,7 +42,6 @@ class ElementsBuilder:
 
         if to_save_code:
             save_code(self._model_path)
-            pwt('Save code', self._model_path)
 
     @property
     def name(self):
@@ -177,9 +175,24 @@ class ElementsBuilder:
             env_stats=env_stats,
             actor=actor, 
             trainer=trainer, 
-            dataset=dataset)
+            dataset=dataset, 
+        )
         
         return strategy
+
+    def build_rule_based_strategy(
+        self, 
+        path, 
+        env, 
+        **kwargs, 
+    ):
+        path = path.replace('/', '.')
+        m = importlib.import_module(path)
+
+        elements = AttrDict()
+        elements.strategy = m.create_strategy(env, **kwargs)
+
+        return elements
 
     def build_monitor(
         self, 
@@ -198,16 +211,17 @@ class ElementsBuilder:
         monitor: Monitor=None, 
         config: dict=None, 
         constructors: FunctionType=None,
-        to_restore: bool=True
+        to_restore: bool=True, 
     ):
-        constructors = constructors or self.constructors
+        constructors = constructors or self.get_constructors(config)
         config = dict2AttrDict(config or self.config)
         agent = constructors.agent(
             config=config.agent, 
-            strategy=strategy, 
+            strategy={config.algorithm: strategy}, 
             monitor=monitor, 
             name=config.name, 
-            to_restore=to_restore
+            to_restore=to_restore, 
+            builder=self
         )
 
         return agent
@@ -250,6 +264,8 @@ class ElementsBuilder:
             elements.monitor = self.build_monitor(
                 config=config, 
                 save_to_disk=False)
+        else:
+            elements.monitor = None
 
         return elements
     
@@ -293,7 +309,10 @@ class ElementsBuilder:
         if build_monitor:
             elements.monitor = self.build_monitor(
                 config=config, 
-                save_to_disk=save_monitor_stats_to_disk)
+                save_to_disk=save_monitor_stats_to_disk
+            )
+        else:
+            elements.monitor = None
 
         if save_config:
             self.save_config()
@@ -360,35 +379,18 @@ class ElementsBuilder:
         to_build_for_eval: bool=False,
         to_restore: bool=True
     ):
-        constructors = self.get_constructors(config)
-        env_stats = self.env_stats if env_stats is None else env_stats
-        
-        elements = AttrDict()
-        elements.model = self.build_model(
+        elements = self.build_acting_strategy_from_scratch(
             config=config, 
-            env_stats=env_stats,
-            to_build=not to_build_for_eval, 
-            to_build_for_eval=to_build_for_eval,
-            constructors=constructors)
-        elements.actor = self.build_actor(
-            model=elements.model, 
-            config=config,
-            constructors=constructors)
-        elements.strategy = self.build_strategy(
-            actor=elements.actor, 
-            config=config,
-            env_stats=env_stats,
-            constructors=constructors)
-        if build_monitor:
-            elements.monitor = self.build_monitor(
-                config=config, 
-                save_to_disk=False)
+            env_stats=env_stats, 
+            build_monitor=build_monitor ,
+            to_build_for_eval=to_build_for_eval
+        )
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
-            monitor=elements.monitor if build_monitor else None, 
+            monitor=elements.monitor, 
             config=config,
-            constructors=constructors,
-            to_restore=to_restore)
+            to_restore=to_restore
+        )
 
         return elements
     
@@ -399,46 +401,17 @@ class ElementsBuilder:
         save_monitor_stats_to_disk: bool=True,
         save_config: bool=True
     ):
-        constructors = self.get_constructors(config)
-        env_stats = self.env_stats if env_stats is None else env_stats
-        
-        elements = AttrDict()
-        elements.model = self.build_model(
-            config=config, 
-            env_stats=env_stats,
-            constructors=constructors)
-        elements.trainer = self.build_trainer(
-            model=elements.model, 
-            config=config, 
-            env_stats=env_stats,
-            constructors=constructors)
-        elements.buffer = self.build_buffer(
-            model=elements.model, 
+        elements = self.build_training_strategy_from_scratch(
             config=config, 
             env_stats=env_stats, 
-            constructors=constructors)
-        elements.dataset = self.build_dataset(
-            buffer=elements.buffer, 
-            model=elements.model, 
-            config=config,
-            env_stats=env_stats)
-        elements.strategy = self.build_strategy(
-            trainer=elements.trainer, 
-            dataset=elements.dataset,
-            config=config,
-            env_stats=env_stats,
-            constructors=constructors)
-        elements.monitor = self.build_monitor(
-            config=config,
-            save_to_disk=save_monitor_stats_to_disk)
+            save_monitor_stats_to_disk=save_monitor_stats_to_disk,
+            save_config=save_config
+        )
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
             monitor=elements.monitor,
             config=config,
-            constructors=constructors)
-        
-        if save_config:
-            self.save_config()
+        )
 
         return elements
 
@@ -449,53 +422,23 @@ class ElementsBuilder:
         save_monitor_stats_to_disk: bool=True,
         save_config: bool=True
     ):
-        constructors = self.get_constructors(config)
-        env_stats = self.env_stats if env_stats is None else env_stats
-        
-        elements = AttrDict()
-        elements.model = self.build_model(
-            config=config, 
-            env_stats=env_stats,
-            constructors=constructors)
-        elements.actor = self.build_actor(
-            model=elements.model, 
-            config=config,
-            constructors=constructors)
-        elements.trainer = self.build_trainer(
-            model=elements.model, 
-            config=config, 
-            env_stats=env_stats,
-            constructors=constructors)
-        elements.buffer = self.build_buffer(
-            model=elements.model, 
+        elements = self.build_strategy_from_scratch(
             config=config, 
             env_stats=env_stats, 
-            constructors=constructors)
-        elements.dataset = self.build_dataset(
-            buffer=elements.buffer, 
-            model=elements.model, 
-            config=config,
-            env_stats=env_stats)
-        elements.strategy = self.build_strategy(
-            actor=elements.actor, 
-            trainer=elements.trainer, 
-            dataset=elements.dataset,
-            config=config,
-            env_stats=env_stats,
-            constructors=constructors)
-        elements.monitor = self.build_monitor(
-            config=config,
-            save_to_disk=save_monitor_stats_to_disk)
+            save_monitor_stats_to_disk=save_monitor_stats_to_disk,
+            save_config=save_config, 
+        )
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
             monitor=elements.monitor,
             config=config,
-            constructors=constructors)
+        )
         
-        if save_config:
-            self.save_config()
-
         return elements
+
+    """ Configuration Operations """
+    def get_config(self):
+        return self.config
 
     def get_constructors(self, config: AttrDict):
         if config is not None and config.algorithm != self.config.algorithm:
@@ -504,13 +447,15 @@ class ElementsBuilder:
             constructors = self.constructors
         return constructors
 
-    """ Configuration Operations """
-    def get_config(self):
-        return self.config
-
     def save_config(self, config: dict=None):
         save_config(config or self.config)
-        pwt('Save config', ModelPath(self.config.root_dir, self.config.model_name))
+        model = ModelPath(self.config.root_dir, self.config.model_name)
+        do_logging(
+            f'Save config: {model}', 
+            level='print', 
+            backtrack=3, 
+            time=True
+        )
 
     """ Implementations"""
     def _import_element(self, name, algo=None, *, config=None, place=0):
@@ -567,62 +512,63 @@ class ElementsBuilderVC(ElementsBuilder):
     def increase_version(self):
         self._max_version += 1
         self._iteration += 1
-        self.set_config_version(self._max_version)
-        self._all_versions.add(self._max_version)
+        self._version = str(self._max_version)
+        self.config.version = self._version
+        self.config.iteration = self._iteration
+
+        root_dir = self.config.root_dir
+        model_name = construct_model_name_from_version(
+            self._default_model_path.model_name, 
+            self._iteration, 
+            self._version
+        )
+        self._model_path = ModelPath(root_dir, model_name)
+        self.config = set_path(self.config, self._model_path)
+        self._all_versions.add(str(self._max_version))
         self.save_config()
         self.save()
 
     def get_sub_version(self, config: AttrDict) -> Tuple[ModelPath, AttrDict]:
-        def compute_next_version(version: str):
-            def next_version(base_version: str, sub_version: str):
-                sub_version = eval(sub_version)
-                new_sub_version = f'{sub_version + 1}'
-                version = '.'.join([base_version, new_sub_version])
-                return version
-
-            if '.' in version:
-                base_version, sub_version = version.rsplit('.', maxsplit=1)
-            else:
+        def compute_next_version(version: str, expand: bool):
+            if expand:
                 base_version = version
-                sub_version = '0'
-            version = next_version(base_version, sub_version)
-            if version in self._all_versions:
-                base_version = '.'.join([base_version, sub_version])
-                sub_version = '0'
-            version = next_version(base_version, sub_version)
+                sub_version = 0
+            else:
+                base_version, sub_version = version.rsplit('.', maxsplit=1)
+                sub_version = eval(sub_version)
+
+            sub_version += 1
+            version = '.'.join([base_version, str(sub_version)])
+            while version in self._all_versions:
+                sub_version += 1
+                version = '.'.join([base_version, str(sub_version)])
+            assert version not in self._all_versions, (version, self._all_versions)
 
             return version
 
         root_dir = config.root_dir
-        model_name = config.model_name
-        model_name, version = model_name.rsplit('/', maxsplit=1)
-        assert version.startswith('v'), (model_name, version)
-        version = version[1:]   # remove prefix v
+        version = get_vid(config.model_name)
         assert version == f'{config.version}', (version, config.version)
-        version = compute_next_version(version)
-        model_name = f'{model_name}/v{version}'
-        model_path = ModelPath(root_dir, model_name)
-        model_dir = '/'.join(model_path)
-        config = set_path(config, model_path)
+        version = compute_next_version(version, expand=True)
         config.version = version
         self._iteration += 1
         config.iteration = self._iteration
+
+        model_name = construct_model_name_from_version(
+            self._default_model_path.model_name, 
+            self._iteration, 
+            version
+        )
+        model_path = ModelPath(root_dir, model_name)
+        model_dir = '/'.join(model_path)
+        config = set_path(config, model_path)
         if not os.path.isdir(model_dir):
             os.makedirs(model_dir, exist_ok=True)
+        self._all_versions.add(version)
         self.save_config(config)
-        self._all_versions.add(self._max_version)
+        self.save()
 
         return model_path, config
-
-    def set_config_version(self, version: float):
-        root_dir = self.config.root_dir
-        model_name = f'{self._default_model_path.model_name}/v{version}'
-        self._model_path = ModelPath(root_dir, model_name)
-        self.config = set_path(self.config, self._model_path)
-        self._version = version
-        self.config.version = str(version)
-        self.config.iteration = self._iteration
-        self._model_path, self.config = self.get_sub_version(self.config)
 
     """ Save & Restore """
     def restore(self):
@@ -631,10 +577,8 @@ class ElementsBuilderVC(ElementsBuilder):
             self._version = data['version']
             self._iteration = data['iteration']
             self._max_version = data['max_version']
-            root_dir = data['root_dir']
-            model_name = data['model_name']
-            model = ModelPath(root_dir, model_name)
-            self.config = set_path(self.config, model)
+            self._all_versions = data['all_versions']
+            self.config = dict2AttrDict(data['config'])
 
     def save(self):
         yaml_op.dump(
@@ -642,8 +586,8 @@ class ElementsBuilderVC(ElementsBuilder):
             max_version=self._max_version, 
             version=self._version,
             iteration=self._iteration, 
-            root_dir=self.config.root_dir, 
-            model_name=self.config.model_name
+            all_versions=self._all_versions, 
+            config=AttrDict2dict(self.config), 
         )
 
 if __name__ == '__main__':

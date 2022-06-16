@@ -72,7 +72,7 @@ class PPOTrainingLoop(TrainingLoopBase):
                     with self._train_timer:
                         terms = self.trainer.train(**data)
                     
-                    for _ in range(self.config.n_aux_value_updates):
+                    for _ in range(self.config.get('n_aux_value_updates', 0)):
                         self.trainer.value.train(**data)
 
                     if self.config.get('debug', False):

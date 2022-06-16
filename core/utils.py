@@ -1,6 +1,7 @@
 import os, shutil
 import numpy as np
 
+from core.log import do_logging
 from core.typing import ModelPath
 from utility import yaml_op
 from utility.typing import AttrDict
@@ -17,6 +18,12 @@ def save_code(model_path: ModelPath):
             '*logs*', '*data*', '.*', '*.md',
             '*pycache*', '*.pyc', '*test*', '*outs*',
             '*results*'))
+    do_logging(
+        f'Save code: {model_path}', 
+        level='print', 
+        time=True, 
+        backtrack=3, 
+    )
 
 def simplify_datatype(config):
     """ Converts ndarray to list, useful for saving config as a yaml file """

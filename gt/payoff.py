@@ -21,17 +21,21 @@ class PayoffTable:
         self._dir = payoff_dir
         self._path = f'{self._dir}/{self.name}.pkl'
 
-        self.payoffs = [np.zeros([0] * n_agents, dtype=np.float32) for _ in range(n_agents)]
+        self.payoffs = [np.zeros([0] * n_agents, dtype=np.float32) * np.nan for _ in range(n_agents)]
         self.counts = [np.zeros([0] * n_agents, dtype=np.int64) for _ in range(n_agents)]
+
+        self.restore()
 
     """ Payoff Retrieval """
     def get_payoffs(self):
         return self.payoffs
 
     def get_payoffs_for_agent(self, aid: int, *, sid: int=None):
+        """ Get the payoff table for agent aid """
         payoff = self.payoffs[aid]
         if sid is not None:
-            payoff = payoff[(slice(None), ) * (aid-1) + (sid,)]
+            payoff = payoff[(slice(None), ) * aid + (sid,)]
+        assert len(payoff.shape) == self.n_agents - 1, (payoff.shape, self.n_agents)
         return payoff
 
     def get_counts(self):
@@ -40,14 +44,14 @@ class PayoffTable:
     def get_counts_for_agent(self, aid: int, *, sid: int):
         count = self.counts[aid]
         if sid is not None:
-            count = count[(slice(None), ) * (aid-1) + (sid)]
+            count = count[(slice(None), ) * aid + (sid)]
         return count
 
     """ Payoff Management """
     def reset(self, from_scratch=False):
         if from_scratch:
             self.payoffs = [
-                np.zeros([0] * self.n_agents, dtype=np.float32) 
+                np.zeros([0] * self.n_agents, dtype=np.float32) * np.nan
                 for _ in range(self.n_agents)
             ]
             self.counts = [
@@ -55,12 +59,12 @@ class PayoffTable:
                 for _ in range(self.n_agents)
             ]
         else:
-            self.payoffs = [np.zeros_like(p) for p in self.payoffs]
+            self.payoffs = [np.zeros_like(p) * np.nan for p in self.payoffs]
             self.counts = [np.zeros_like(c) for c in self.counts]
 
     def expand(self, aid):
-        pad_width = [(0, 0)] * self.n_agents
-        pad_width[aid] = [(0, 1) for _ in range(self.n_agents)]
+        pad_width = [(0, 0) for _ in range(self.n_agents)]
+        pad_width[aid] = (0, 1)
         for i in range(self.n_agents):
             self._expand(i, pad_width)
 
@@ -83,6 +87,7 @@ class PayoffTable:
                 payoff[sids] = (count[sids] * payoff[sids] + s_sum) / (count[sids] + s_total)
             else:
                 payoff[sids] += self.step_size * (s_sum / s_total - payoff[sids])
+            assert not np.isnan(payoff[sids]), (count[sids], payoff[sids])
             count[sids] += s_total
 
     """ Checkpoints """
@@ -97,7 +102,7 @@ class PayoffTable:
 
     """ implementations """
     def _expand(self, aid, pad_width):
-        self.payoffs[aid] = np.pad(self.payoffs[aid], pad_width)
+        self.payoffs[aid] = np.pad(self.payoffs[aid], pad_width, constant_values=np.nan)
         self.counts[aid] = np.pad(self.counts[aid], pad_width)
 
 
@@ -131,13 +136,25 @@ class PayoffTableWithModel(PayoffTable):
         return self.model2sid
 
     """ Payoff Retrieval """
-    def get_payoffs_for_agent(self, aid: int, *, sid: int=None, model: ModelPath=None):
+    def get_payoffs_for_agent(
+        self, 
+        aid: int, 
+        *, 
+        sid: int=None, 
+        model: ModelPath=None
+    ):
         if sid is None and model is not None:
-            sid = self.sid2model[aid][model]
+            sid = self.model2sid[aid][model]
         payoff = super().get_payoffs_for_agent(aid, sid=sid)
         return payoff
 
-    def get_counts_for_agent(self, aid: int, *, sid: int, model: ModelPath):
+    def get_counts_for_agent(
+        self, 
+        aid: int, 
+        *, 
+        sid: int, 
+        model: ModelPath
+    ):
         if sid is None and model is not None:
             sid = self.sid2model[aid][model]
         counts = super().get_counts_for_agent(aid, sid=sid)
@@ -150,8 +167,9 @@ class PayoffTableWithModel(PayoffTable):
             self.model2sid: List[Dict[ModelPath, int]] = [{} for _ in range(self.n_agents)]
             self.sid2model: List[List[ModelPath]] = [[] for _ in range(self.n_agents)]
 
-    def expand(self, model: ModelPath):
-        aid = get_aid(model.model_name)
+    def expand(self, model: ModelPath, aid=None):
+        if aid is None:
+            aid = get_aid(model.model_name)
         self._expand_mappings(aid, model)
         super().expand(aid)
 
@@ -168,7 +186,11 @@ class PayoffTableWithModel(PayoffTable):
         for aid, model in enumerate(models):
             self._check_consistency(aid, model)
 
-    def update(self, models: List[ModelPath], scores: List[List[float]]):
+    def update(
+        self, 
+        models: List[ModelPath], 
+        scores: List[List[float]]
+    ):
         assert len(models) == len(scores) == self.n_agents, (models, scores, self.n_agents)
         sids = tuple([
             m2sid[model] for m2sid, model in zip(self.model2sid, models) if model in m2sid
@@ -189,16 +211,21 @@ class PayoffTableWithModel(PayoffTable):
 
     """ Implementations """
     def _expand_mappings(self, aid, model: ModelPath):
-        assert aid == get_aid(model.model_name), (aid, model)
-        if model in self.model2sid[aid]:
-            raise ValueError(f'Model({model}) is already in {list(self.model2sid[aid])}')
+        if isinstance(model.model_name, str):
+            assert aid == get_aid(model.model_name), (aid, model)
+        else:
+            assert isinstance(model.model_name, int), model.model_name
+        assert model not in self.model2sid[aid], f'Model({model}) is already in {list(self.model2sid[aid])}'
         sid = self.payoffs[aid].shape[aid]
         self.model2sid[aid][model] = sid
         self.sid2model[aid].append(model)
         assert len(self.sid2model[aid]) == sid+1, (sid, self.sid2model)
 
     def _check_consistency(self, aid, model: ModelPath):
-        assert aid == get_aid(model.model_name), (aid, model)
+        if isinstance(model.model_name, str):
+            assert aid == get_aid(model.model_name), (aid, model)
+        else:
+            assert isinstance(model.model_name, int), model.model_name
         for i in range(self.n_agents):
             assert self.payoffs[i].shape[aid] == self.model2sid[aid][model] + 1, \
                 (self.payoffs[i].shape[aid], self.model2sid[aid][model] + 1)

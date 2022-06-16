@@ -6,17 +6,22 @@ from core.typing import ModelPath
 class Monitor(RayBase):
     def __init__(
         self, 
-        model_path: ModelPath, 
+        model_path: ModelPath=None, 
         name='monitor', 
         use_recorder=True, 
-        use_tensorboard=True
+        use_tensorboard=True, 
     ):
         self._model_path = model_path
+        self.save_to_disk = model_path is not None
         self._name = name
         self._use_recorder = use_recorder
         self._use_tensorboard = use_tensorboard
         self._step = None
         self._build(model_path)
+    
+    @property
+    def model_path(self):
+        return self._model_path
     
     def _build(self, model_path):
         # we create a recorder anyway, but we do not store any data to the disk if use_recorder=False

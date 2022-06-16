@@ -56,8 +56,8 @@ class Agent(RayBase):
             self.strategy.get_weights(aux_stats=False, train_step=True, env_step=False)
         )
         assert set(model_weights.weights) == set(['model', 'opt', 'train_step']), list(model_weights.weights)
-        ids = self.parameter_server.update_strategy_weights.remote(
-            self.aid, model_weights
+        ids = self.parameter_server.update_and_prepare_strategy.remote(
+            self.aid, model_weights, model_weights.weights['train_step']
         )
         if wait:
             ray.get(ids)

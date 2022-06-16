@@ -27,7 +27,6 @@ class Strategy:
         self._name = name
         self.config = config
         self.env_stats = env_stats
-        self._model_path = ModelPath(config.root_dir, config.model_name)
         if trainer is None and actor is None:
             raise RuntimeError('Neither trainer nor actor is provided')
 
@@ -35,14 +34,25 @@ class Strategy:
         self.trainer: Trainer = trainer
         self.actor: Actor = actor
         self.train_loop: TrainingLoopBase = train_loop
-        self.step_counter = StepCounter(
-            self._model_path, 
-            name=f'{self._name}_step_counter'
-        )
+
+        if self.config.get('root_dir'):
+            self._model_path = ModelPath(
+                self.config.root_dir, 
+                self.config.model_name
+            )
+            self.step_counter = StepCounter(
+                self._model_path, 
+                name=f'{self._name}_step_counter'
+            )
+
         self._post_init()
 
-    def _post_init():
+    def _post_init(self):
         pass
+
+    @property
+    def is_trainable(self):
+        return self.trainer is not None
 
     @property
     def name(self):

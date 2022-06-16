@@ -1,0 +1,47 @@
+#!/bin/zsh
+
+source activate grl
+
+algos=(
+    sync-gpo
+)
+suite=spiel
+envs=(
+    leduc_poker
+)
+config=spiel
+seeds=(0 1 2)
+date=$(date +"%m%d")
+
+kws="$@"
+shift
+kwstr=""
+for item in $@; do
+    if [ -z != $kwstr ]; then
+        kwstr="$kwstr-$item"
+    else
+        kwstr="$item"
+    fi
+done
+
+for e in "${envs[@]}"; do
+    for a in "${algos[@]}"; do
+        for s in "${seeds[@]}"; do
+            env="${suite}-${e}"
+            n="$date"
+            ld="logs-$suite"
+            if [ 0 != $# ]; then
+                dir="$ld/$env/$a/$n-$kwstr-seed=$s"
+            else
+                dir="$ld/$env/$a/$n-seed=$s"
+            fi
+            mkdir -p $dir
+            # gpus=$(nvidia-smi -L | wc -l)
+            # gpu=$(($seed % $gpus))
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld $kws -s $s -v info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
+            echo $py_script
+            eval $py_script
+            sleep 3
+        done
+    done
+done

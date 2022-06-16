@@ -1,13 +1,12 @@
 import os, atexit
 import logging
 from collections import defaultdict
-from matplotlib import image
 import numpy as np
 import tensorflow as tf
 
 from core.log import do_logging
 from core.typing import ModelPath
-from utility.graph import image_summary, video_summary
+from utility import graph
 from utility.utils import isscalar
 
 
@@ -233,11 +232,8 @@ class TensorboardWriter:
         """ Adds histogram summary to tensorboard """
         histogram_summary(self._writer, stats, prefix=prefix, step=step)
 
-    def image_summary(self, name, images, step):
-        with self._writer.as_default():
-            if len(images.shape) == 3:
-                images = images[None]
-            tf.summary.image(name, images, step=step)
+    def image_summary(self, images, name, prefix=None, step=None):
+        image_summary(self._writer, images, name, prefix=prefix, step=step)
 
     def graph_summary(self, sum_type, *args, step=None):
         """ Adds graph summary to tensorboard
@@ -253,7 +249,35 @@ class TensorboardWriter:
         graph_summary(self._writer, sum_type, args, step=step)
 
     def video_summary(self, video, step=None):
-        video_summary(f'{self.name}/sim', video, step=step)
+        graph.video_summary(f'{self.name}/sim', video, step=step)
+
+    def matrix_summary(
+        self, 
+        *, 
+        model, 
+        matrix, 
+        label_top=True, 
+        label_bottom=False, 
+        xlabel, 
+        ylabel, 
+        xticklabels, 
+        yticklabels,
+        name, 
+        step=None, 
+    ):
+        matrix_summary(
+            model=model, 
+            matrix=matrix, 
+            label_top=label_top, 
+            label_bottom=label_bottom, 
+            xlabel=xlabel, 
+            ylabel=ylabel, 
+            xticklabels=xticklabels, 
+            yticklabels=yticklabels,
+            name=name, 
+            writer=self._writer, 
+            step=step, 
+        )
 
     def flush(self):
         self._writer.flush()
@@ -319,7 +343,7 @@ def histogram_summary(writer, stats, prefix=None, step=None):
 
 def graph_summary(writer, sum_type, args, step=None):
     """ This function should only be called inside a tf.function """
-    fn = {'image': image_summary, 'video': video_summary}[sum_type]
+    fn = {'image': graph.image_summary, 'video': graph.video_summary}[sum_type]
     if step is None:
         step = tf.summary.experimental.get_step()
     def inner(*args):
@@ -328,11 +352,47 @@ def graph_summary(writer, sum_type, args, step=None):
             fn(*args)
     return tf.numpy_function(inner, args, [])
 
+def image_summary(writer, images, name, prefix=None, step=None):
+    if step is not None:
+        tf.summary.experimental.set_step(step)
+    if len(images.shape) == 3:
+        images = images[None]
+    if prefix:
+        name = f'{prefix}/{name}'
+    with writer.as_default():
+        tf.summary.image(name, images, step=step)
+
+def matrix_summary(
+    *, 
+    model, 
+    matrix, 
+    label_top=True, 
+    label_bottom=False, 
+    xlabel, 
+    ylabel, 
+    xticklabels, 
+    yticklabels,
+    name, 
+    writer, 
+    step=None, 
+):
+    save_path = None if model is None else '/'.join([*model, name])
+    image = graph.matrix_plot(
+        matrix, 
+        label_top=label_top, 
+        label_bottom=label_bottom, 
+        save_path=save_path, 
+        xlabel=xlabel, 
+        ylabel=ylabel, 
+        xticklabels=xticklabels, 
+        yticklabels=yticklabels
+    )
+    image_summary(writer, image, name, step=step)
+
 def create_tb_writer(model_path: ModelPath):
     # writer for tensorboard summary
     # stats are saved in directory f'{root_dir}/{model_name}'
-    writer = tf.summary.create_file_writer(
-        '/'.join(model_path), max_queue=1000, flush_millis=20000)
+    writer = tf.summary.create_file_writer('/'.join(model_path))
     writer.set_as_default()
     return writer
 

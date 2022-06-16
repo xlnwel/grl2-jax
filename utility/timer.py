@@ -1,5 +1,6 @@
 from time import strftime, gmtime, time
 from collections import defaultdict
+from core.log import do_logging
 
 from utility.aggregator import Aggregator
 from utility.display import pwt
@@ -52,11 +53,17 @@ class Timer:
                     duration = aggregator.average()
                     duration = (f'{duration*1000:.3g}ms' if duration < 1e-1 
                                 else f'{duration:.3g}s')
-                    pwt(f'{self._summary_name} duration: "{duration}" averaged over {self._period} times')
+                    do_logging(
+                        f'{self._summary_name} duration: "{duration}" averaged over {self._period} times',
+                        level='pwt', backtrack=3
+                    )
                     aggregator.reset()
                 else:
                     duration = aggregator.sum
-                    pwt(f'{self._summary_name} duration: "{duration}" for {aggregator.count} times')
+                    do_logging(
+                        f'{self._summary_name} duration: "{duration}" for {aggregator.count} times', 
+                            level='pwt', backtrack=3
+                    )
 
     def reset(self):
         aggregator = self.aggregators[self._summary_name]
@@ -70,6 +77,16 @@ class Timer:
     
     def total(self):
         return self.aggregators[self._summary_name].total
+    
+    def to_stats(self, prefix=None):
+        if prefix:
+            prefix = f'timer/{prefix}/'
+        else:
+            prefix = f'timer/'
+        return {
+            f'{prefix}/{self.name}_total': self.total(),
+            f'{prefix}/{self.name}': self.average()
+        }
 
 
 class TBTimer:
@@ -124,7 +141,7 @@ class Every:
     def __init__(self, period, start=0):
         self._period = period
         self._curr = start
-        self._next = start + period
+        self._next = start
         self._diff = 0
     
     def __call__(self, step):
