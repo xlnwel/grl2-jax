@@ -32,7 +32,7 @@ def create_network(config, name):
         raise TypeError(f'create_network returns invalid network: {network}')
     return network(**config, name=name)
 
-def mlp(units_list=[], out_size=None, **kwargs):
+def mlp(units_list=[], out_size=None, **kwargs) -> MLP:
     return MLP(units_list, out_size=out_size, **kwargs)
 
 def rnn(config, name='rnn'):

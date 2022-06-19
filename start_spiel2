@@ -15,10 +15,12 @@ date=$(date +"%m%d")
 
 kws="$@"
 shift
-kwstr=""
+kw1="step_size=1e-3"
+kwstr="$kw1"
+kws="$kws $kw1"
 for item in $@; do
     if [ -z != $kwstr ]; then
-        kwstr="$kwstr-$item"
+        kwstr="$item-$kwstr"
     else
         kwstr="$item"
     fi

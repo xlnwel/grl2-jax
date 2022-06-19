@@ -74,6 +74,8 @@ class ParameterServer(RayBase):
             [[None for _ in range(self.n_agents)] for _ in range(self.n_runners)]
         self._ready = [False for _ in range(self.n_runners)]
 
+        self._rule_strategies = set()
+
         self._opp_dist: Dict[ModelPath, List[float]] = {}
         self._to_update: Dict[ModelPath, Every] = collections.defaultdict(
             lambda: Every(self.config.setdefault('update_interval', 1), -1))
@@ -158,7 +160,8 @@ class ParameterServer(RayBase):
             aid = config['aid']
             assert aid <= self.n_agents, (aid, self.n_agents)
             vid = config['vid']
-            model = ModelPath(name, vid)
+            model = ModelPath(name, f'{name}/a{aid}/i1-v{vid}')
+            self._rule_strategies.add(model)
             self._params[aid][model] = AttrDict2dict(config)
             models.append(model)
             if not local:
@@ -217,7 +220,7 @@ class ParameterServer(RayBase):
                 if i == aid:
                     weights[i] = mid
                 else:
-                    if isinstance(m.model_name, int):
+                    if m in self._rule_strategies:
                         # rule-based strategy
                         weights[i] = self._params[i][m]
                     else:
@@ -401,7 +404,7 @@ class ParameterServer(RayBase):
         model: ModelPath
     ):
         assert isinstance(model, ModelPath), model
-        do_logging('Update opponent distributions', level='pwt')
+        # do_logging('Update opponent distributions', level='pwt')
         self._opp_dist[model] = self.payoff_manager.\
             get_opponent_distribution(aid, model)[1]
 

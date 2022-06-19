@@ -61,8 +61,8 @@ if __name__ == '__main__':
         config = yaml_op.load_config(yaml_path)
         for k, v in config.items():
             if isinstance(v, dict):
-                del v['root_dir']
-                del v['model_name']
+                for k in ['root_dir', 'model_name', 'seed']:
+                    del v[k]
 
         config = flatten_dict(config)
         env_names = [(k, v) for k, v in config.items() if k.endswith('env_name')]

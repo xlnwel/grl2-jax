@@ -19,7 +19,6 @@ class FSP:
             aid, 
             model_payoff, 
             n_agents, 
-            0, 
             {'p': 0, 'type': 'uniform'}
         )
 

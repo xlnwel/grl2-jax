@@ -67,15 +67,14 @@ class Agent:
             learned by RL
         """
         self._model_path = strategy.model
-        if isinstance(strategy.model.model_name, int):
+        if len(strategy.model.root_dir.split('/')) < 3:
             # the strategy is rule-based if model_name is int(standing for version)
             # for rule-based strategies, we expect strategy.weights 
             # to be the kwargs for the strategy initialization
-            sid = ''.join([f'{s}' for s in strategy.model])
-            if sid not in self.strategies:
-                self.strategies[sid] = \
+            algo = strategy.model
+            if algo not in self.strategies:
+                self.strategies[algo] = \
                     self.builder.build_rule_based_strategy(
-                        strategy.model, 
                         env, 
                         strategy.weights
                     )

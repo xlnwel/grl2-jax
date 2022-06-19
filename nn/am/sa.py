@@ -7,20 +7,37 @@ from nn.registry import layer_registry, block_registry, nn_registry
 from nn.utils import get_norm, call_norm
 
 
-@nn_registry.register('att')
+def compute_dot_product_attention(q, k, v, mask=None, scale_logits=False):
+    """ compute softmax(qk^T)v """
+    if scale_logits:
+        q *= q.shape[-1] ** -.5
+    dot_product = tf.matmul(q, k, transpose_b=True)
+    if mask is not None:
+        dot_product *= mask
+    weights = tf.nn.softmax(dot_product)
+    x = tf.matmul(weights, v)
+    return x
+
+"""
+Attention provides the most universal implementation of self-attention,
+(and is probably the one would never be used), while Attention2 and 
+Attention3 make simplifications to the input and neural network
+"""
 @block_registry.register('att')
 @layer_registry.register('att')
-class Attention(layers.Layer):
+class Attention(Module):
     def __init__(
         self,
         query=None, 
         key=None, 
         value=None, 
+        scale_logits=False, 
         name='attention',
     ):
         self._query_layer = mlp(**query, name=f'query') if query else None
         self._key_layer = mlp(**key, name=f'key') if key else None
         self._value_layer = mlp(**value, name=f'value') if value else None
+        self._scale_logits = scale_logits
         super().__init__(name=name)
 
     def call(self, q, k, v, mask=None):
@@ -30,19 +47,92 @@ class Attention(layers.Layer):
             k = self._key_layer(k)
         if self._value_layer is not None:
             v = self._value_layer(v)
-        # softmax(QK^T)V
-        dot_product = tf.matmul(q, k, transpose_b=True)
-        if mask is not None:
-            dot_product *= mask
-        weights = tf.nn.softmax(dot_product)
-        x = tf.matmul(weights, v)
+        x = compute_dot_product_attention(
+            q, k, v, 
+            mask=mask, 
+            scale_logits=self._scale_logits
+        )
         return x
 
 
-@nn_registry.register('mhsa')
+@block_registry.register('att2')
+@layer_registry.register('att2')
+class Attention2(Module):
+    def __init__(
+        self,
+        key_size, 
+        val_size, 
+        scale_logits=False, 
+        name='attention',
+        **config, 
+    ):
+        """ Attention2 implemenets self-attention """
+        self._key_size = key_size
+        self._val_size = val_size
+        self._scale_logits = scale_logits
+        out_size = 2 * key_size + val_size
+        self._layers = mlp(
+            **config, 
+            out_size=out_size, 
+            name=f'{name}/embed'
+        )
+        super().__init__(name=name)
+
+    def call(self, x, mask=None):
+        qkv = self._layers(x)
+        q, k, v = tf.split(qkv, [self._key_size, self._key_size, self._val_size], -1)
+        x = compute_dot_product_attention(
+            q, k, v, 
+            mask=mask, 
+            scale_logits=self._scale_logits
+        )
+        return x
+
+
+@block_registry.register('att3')
+@layer_registry.register('att3')
+class Attention3(Module):
+    def __init__(
+        self,
+        key_size, 
+        val_size, 
+        scale_logits=False, 
+        name='attention',
+        **config, 
+    ):
+        """ Attention3 distinguishes query from key and values but
+        does not distinguish betwen key and value.
+        """
+        self._key_size = key_size
+        self._val_size = val_size
+        self._scale_logits = scale_logits
+        self._query = mlp(
+            **config, 
+            out_size=key_size, 
+            name=f'{name}/query_embed'
+        )
+        self._kv = mlp(
+            **config, 
+            out_size=key_size + val_size, 
+            name=f'{name}/kv_embed'
+        )
+        super().__init__(name=name)
+
+    def call(self, q, kv, mask=None):
+        q = self._query(x)
+        kv = self._kv(kv)
+        k, v = tf.split(kv, [self._key_size, self._val_size], -1)
+        x = compute_dot_product_attention(
+            q, k, v, 
+            mask=mask, 
+            scale_logits=self._scale_logits
+        )
+        return x
+
+
 @block_registry.register('mhsa')
 @layer_registry.register('mhsa')
-class MultiHeadSelfAttention(layers.Layer):
+class MultiHeadSelfAttention(Module):
     def __init__(
         self,
         key_size,
@@ -50,13 +140,9 @@ class MultiHeadSelfAttention(layers.Layer):
         num_heads,
         scale_logits=True,
         out_size=None,
-        pre_norm=False,
-        norm='layer',
-        norm_kwargs={},
         drop_rate=0,
-        use_rezero=False,
         name='mhsa',
-        **kwargs
+        **mlp_config
     ):
         super().__init__(name=name)
         self._key_size = key_size
@@ -64,13 +150,8 @@ class MultiHeadSelfAttention(layers.Layer):
         self._num_heads = num_heads
         self._scale_logits = scale_logits
         self._out_size = out_size
-        self._pre_norm = pre_norm
-        self._norm = norm
-        self._norm_kwargs = norm_kwargs
         self._drop_rate = drop_rate
-        self._use_rezero = use_rezero
-        kwargs.setdefault('use_bias', False)
-        self._kwargs = kwargs
+        self._mlp_config = mlp_config
 
     def build(self, input_shape):
         assert len(input_shape) == 3, input_shape
@@ -80,56 +161,129 @@ class MultiHeadSelfAttention(layers.Layer):
         out_size = self._out_size or out_size
 
         prefix = f'{self.name}/'
-        self._embed = layers.Dense(total_size, **self._kwargs, name=prefix+'embed')
-        self._att = Attention(prefix+'att')
+        self._embed = mlp(
+            **self._mlp_config, 
+            out_size=total_size, 
+            name=prefix+'embed'
+        )
 
         self._group_heads = layers.Reshape((seqlen, self._num_heads, qkv_size), name=prefix+'group_heads')
         self._concat = layers.Reshape((seqlen, self._num_heads * self._val_size), name=prefix+'concat')
-        self._out = layers.Dense(out_size, **self._kwargs, name=prefix+'out')
+        self._out = mlp(
+            **self._mlp_config, 
+            out_size=out_size, 
+            name=prefix+'out'
+        )
         if self._drop_rate > 0:
             self._drop = layers.Dropout(self._drop_rate, (None, None, 1), name=prefix+'drop')
-        
-        norm_cls = get_norm(self._norm)
-        self._norm_layer = norm_cls(**self._norm_kwargs, name=prefix+self._norm)
-        if self._use_rezero:
-            self._rezero = tf.Variable(0., trainable=True, dtype=tf.float32, name=prefix+'rezero')
         
         super().build(input_shape)
 
     def call(self, x, training=False, mask=None):
-        pre_dims = x.shape[:-2]
-        y = call_norm(self._norm, self._norm_layer, x, training) \
-            if self._pre_norm else x
-        qkv = self._embed(y)
+        qkv = self._embed(x)
         qkv = self._group_heads(qkv)                            # [B, N, F] -> [B, N, H, F/H]
-        qkv = tf.transpose(qkv, [*pre_dims, 2, 1, 3])      # [B, N, H, F/H] -> [B, H, N, F/H]
+        qkv = tf.transpose(qkv, [0, 2, 1, 3])      # [B, N, H, F/H] -> [B, H, N, F/H]
 
         q, k, v = tf.split(qkv, [self._key_size, self._key_size, self._val_size], -1)
         
         # softmax(QK^T/(d**2))V
-        if self._scale_logits:
-            q *= self._key_size ** -.5
-        out = self._att(q, k, v, mask)
-        # equivalence using einsum
-        # dot_product = tf.einsum('bqhf,bkhf->bqhk', q, k)
-        # if mask is not None:
-        #     dot_product *= mask
-        # weights = tf.nn.softmax(dot_product)
-        # out = tf.einsum('bqhk,bkhn->bqhn', weights, v)
+        out = compute_dot_product_attention(
+            q, k, v, 
+            mask=mask, 
+            scale_logits=self._scale_logits
+        )
 
         # [B, H, N, V] -> [B, N, H, V]
-        out = tf.transpose(out, [*pre_dims, 2, 1, 3])
+        out = tf.transpose(out, [0, 2, 1, 3])
         # [B, N, H, V] -> [B, N, H * V]
-        y = self._concat(out)
-        y = self._out(y)
+        x = self._concat(out)
+        x = self._out(x)
 
         if self._drop_rate > 0:
-            y = self._drop(y, training=training)
-        if self._use_rezero:
-            y = self._rezero * y
-        x = x + y
-        x = x if self._pre_norm else \
-            call_norm(self._norm, self._norm_layer, x, training)
+            x = self._drop(x, training=training)
+
+        return x
+
+
+@block_registry.register('mhsa2')
+@layer_registry.register('mhsa2')
+class MultiHeadSelfAttention2(Module):
+    def __init__(
+        self,
+        key_size,
+        val_size,
+        num_heads,
+        scale_logits=True,
+        out_size=None,
+        drop_rate=0,
+        name='mhsa',
+        **mlp_config
+    ):
+        super().__init__(name=name)
+        self._key_size = key_size
+        self._val_size = val_size
+        self._num_heads = num_heads
+        self._scale_logits = scale_logits
+        self._out_size = out_size
+        self._drop_rate = drop_rate
+        self._mlp_config = mlp_config
+
+    def build(self, input_shape, *args):
+        assert len(input_shape) == 3, input_shape
+        seqlen, out_size = input_shape[1:]
+        kv_size =self._key_size + self._val_size
+        out_size = self._out_size or out_size
+
+        prefix = f'{self.name}/'
+        self._q_embed = mlp(
+            **self._mlp_config, 
+            out_size=self._key_size, 
+            name=prefix+'q_embed'
+        )
+        self._kv_embed = mlp(
+            **self._mlp_config, 
+            out_size=kv_size, 
+            name=prefix+'kv_embed'
+        )
+
+        self._concat = layers.Reshape((seqlen, self._num_heads * self._val_size), name=prefix+'concat')
+        self._out =  mlp(
+            **self._mlp_config, 
+            out_size=out_size, 
+            name=prefix+'out'
+        )
+        if self._drop_rate > 0:
+            self._drop = layers.Dropout(self._drop_rate, (None, None, 1), name=prefix+'drop')
+
+        super().build(input_shape)
+
+    def call(self, q, kv, training=False, mask=None):
+        N = q.shape[1]
+        q = self._q_embed(q)
+        kv = self._kv_embed(kv)
+
+        q = tf.reshape(q, (-1, N, self._num_heads, self._key_size))     # [B, N, F] -> [B, N, H, F/H]
+        kv = tf.reshape(kv, (-1, N, self._num_heads, self._key_size+self._val_size))    # [B, N, F] -> [B, N, H, F/H]
+        q = tf.transpose(q, [0, 2, 1, 3])       # [B, N, H, F/H] -> [B, H, N, F/H]
+        kv = tf.transpose(kv, [0, 2, 1, 3])     # [B, N, H, F/H] -> [B, H, N, F/H]
+
+        k, v = tf.split(kv, [self._key_size, self._val_size], -1)
+        
+        # softmax(QK^T/(d**2))V
+        out = compute_dot_product_attention(
+            q, k, v, 
+            mask=mask, 
+            scale_logits=self._scale_logits
+        )
+
+        # [B, H, N, V] -> [B, N, H, V]
+        out = tf.transpose(out, [0, 2, 1, 3])
+        # [B, N, H, V] -> [B, N, H * V]
+        x = self._concat(out)
+        x = self._out(x)
+
+        if self._drop_rate > 0:
+            x = self._drop(x, training=training)
 
         return x
 
@@ -202,7 +356,6 @@ class ConvSelfAttention(Module):
         self._k_reshape = layers.Reshape((kv_seqlen, key_size), name=prefix+'k_reshape')
         self._v_reshape = layers.Reshape((kv_seqlen, val_size), name=prefix+'v_reshape')
 
-        self._att = Attention(prefix+'attention')
         self._o_reshape = layers.Reshape((H, W, val_size), name=prefix+'o_reshape')
         self._o_conv = conv_cls(C, 1, **self._kwargs, name=prefix+'o')
 
@@ -229,9 +382,11 @@ class ConvSelfAttention(Module):
         k = self._k_reshape(k)
         v = self._v_reshape(v)
 
-        if self._scale_logits:
-            q *= self._key_size ** -.5
-        o = self._att(q, k, v)
+        o = compute_dot_product_attention(
+            q, k, v, 
+            mask=None, 
+            scale_logits=self._scale_logits
+        )
         o = self._o_reshape(o)
         o = self._o_conv(o)
 
@@ -254,6 +409,91 @@ class ConvSelfAttention(Module):
             key_size = self._key_size
             val_size = self._val_size
         return key_size, val_size
+
+
+@nn_registry.register('trans_encoder')
+class TransformerEncoder(Module):
+    def __init__(
+        self, 
+        n_blocks, 
+        att_config,
+        mlp_config, 
+        name='trans_encoder'
+    ):
+        super().__init__(name=name)
+
+        att_id = att_config.pop('nn_id')
+        if att_id == 'att':
+            att_id = 'att2'
+        AttCls = block_registry.get(att_id)
+        if att_id.startswith('att'):
+            att_config.pop('num_heads')
+        elif att_id.startswith('mhsa'):
+            att_config.setdefault('num_heads', 1)
+
+        self._layers = [
+            (AttCls(**att_config, name=name+f'trans_enc_att{i}'), 
+            layers.LayerNormalization(name=name+f'trans_enc_ln{i}_1'), 
+            mlp(**mlp_config, name=name+f'trans_enc_mlp{i}'), 
+            layers.LayerNormalization(name=name+f'trans_enc_ln{i}_2'))
+            for i in range(n_blocks)
+        ]
+
+    def call(self, x, mask=None):
+        for att, ln1, ff, ln2 in self._layers:
+            y = att(x, mask=mask)
+            x = ln1(x + y)
+            y = ff(x)
+            x = ln2(x + y)
+        return x
+
+
+@nn_registry.register('trans_decoder')
+class TransformerDecoder(Module):
+    def __init__(
+        self, 
+        n_blocks, 
+        att_config,
+        mlp_config, 
+        name='trans_encoder'
+    ):
+        super().__init__(name=name)
+
+        att_id = att_config.pop('nn_id')
+        if att_id.startswith('att'):
+            att_config.pop('num_heads')
+        elif att_id.startswith('mhsa'):
+            att_config.setdefault('num_heads', 1)
+
+        if att_id == 'att':
+            att1_id = 'att2'
+            att2_id = 'att3'
+        else:
+            att1_id = 'mhsa'
+            att2_id = 'mhsa2'
+        AttCls1 = block_registry.get(att1_id)
+        AttCls2 = block_registry.get(att2_id)
+        self._layers = [
+            (AttCls1(**att_config, name=name+f'trans_dec_att{i}_1'), 
+            layers.LayerNormalization(name=name+f'trans_dec_ln{i}_1'), 
+            AttCls2(**att_config, name=name+f'trans_dec_att{i}_2'), 
+            layers.LayerNormalization(name=name+f'trans_dec_ln{i}_2'), 
+            mlp(**mlp_config, name=name+f'trans_mlp{i}'), 
+            layers.LayerNormalization(name=name+f'trans_dec_ln{i}_3'))
+            for i in range(n_blocks)
+        ]
+
+    def call(self, x, encoder_x, reverse=False, mask=None):
+        for att1, ln1, att2, ln2, ff, ln3 in self._layers:
+            y = att1(x, mask=mask)
+            x = ln1(x + y)
+            if reverse:
+                x, encoder_x = encoder_x, x
+            y = att2(encoder_x, x, mask=mask)
+            x = ln2(x + y)
+            y = ff(x)
+            x = ln3(x + y)
+        return x
 
 
 if __name__ == "__main__":

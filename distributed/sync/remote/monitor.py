@@ -175,7 +175,8 @@ class Monitor(RayBase):
                 store_stats(model, active_stats[model], pids)
 
                 with Timer('Monitor Real-Time Plot Time', period=1):
-                    self.save_real_time_opp_dist(model, payoff, dist)
+                    self.plot_recording_stats(model, 'payoff', payoff, fill_nan=True)
+                    self.plot_recording_stats(model, 'opp_dist', dist)
 
         ray.get(pids)
         self._last_save_time = time.time()
@@ -192,81 +193,84 @@ class Monitor(RayBase):
                 ])
             with Timer('Monitor Matrix Plot Time', period=1):
                 for m, p, c in zip(models, payoffs, counts):
-                    self.save_payoff_table_for_model(m, p, c, step=step)
+                    stats = {}
+                    for i, (pp, cc) in enumerate(zip(p, c)):
+                        stats[f'payoff{i}'] = pp
+                        stats[f'count{i}'] = cc
 
-    def save_real_time_opp_dist(
-        self,
-        model: ModelPath, 
-        payoff: np.ndarray, 
-        dist: np.ndarray, 
+                    self.monitors[m].store(payoff=p, count=c)
+                    self.plot_stats(
+                        model=m,
+                        stats=p, 
+                        xlabel='Player2', 
+                        ylabel='Player1', 
+                        name='payoff', 
+                        step=step
+                    )
+                    self.plot_stats(
+                        model=m,
+                        stats=c, 
+                        xlabel='Player2', 
+                        ylabel='Player1', 
+                        name='count', 
+                        step=step
+                    )
+
+    def plot_recording_stats(
+        self, 
+        model, 
+        name, 
+        stats, 
+        fill_nan=False
     ):
-        payoff = np.reshape(payoff, (-1, 1)).astype(np.float16)
-        dist = np.reshape(dist, (-1, 1)).astype(np.float16)
-        rp = self._recording_stats['payoffs']
-        rod = self._recording_stats['opp_dists']
-        if model in rod:
-            rp[model] = np.concatenate([rp[model], payoff], -1)
-            rod[model] = np.concatenate([rod[model], dist], -1)
-        else:
-            rp[model] = payoff
-            rod[model] = dist
-
-        rp[model][np.isnan(rp[model])] = np.nanmin(rp[model])
-        xlabel = 'Step'
-        ylabel = 'Opponent'
-        xticklabels = get_tick_labels(rod[model].shape[1])
-        yticklabels = get_tick_labels(rod[model].shape[0])
-        self.monitors[model].matrix_summary(
-            model=model, 
-            matrix=rp[model], 
-            xlabel=xlabel, 
-            ylabel=ylabel, 
-            xticklabels=xticklabels, 
-            yticklabels=yticklabels, 
-            name='realtime_payoff', 
-            step=self._env_steps[model]
+        self.update_recording_stats(
+            model, name, stats, fill_nan=fill_nan
         )
-        self.monitors[model].matrix_summary(
-            model=model, 
-            matrix=rod[model], 
-            xlabel=xlabel, 
-            ylabel=ylabel, 
-            xticklabels=xticklabels, 
-            yticklabels=yticklabels, 
-            name='realtime_opp_dists', 
-            step=self._env_steps[model]
+        self.plot_stats(
+            model, 
+            stats=self._recording_stats[name][model], 
+            xlabel='Step', 
+            ylabel='Opponent', 
+            name=f'realtime_{name}', 
         )
 
-    def save_payoff_table_for_model(
+    def update_recording_stats(
         self, 
         model: ModelPath, 
-        payoff: np.ndarray, 
-        counts: np.ndarray=None,
+        stats_name: str, 
+        new_stats: np.ndarray, 
+        fill_nan: bool=False
+    ):
+        new_stats = np.reshape(new_stats, (-1, 1)).astype(np.float16)
+        hist_stats = self._recording_stats[stats_name]
+        if model in hist_stats:
+            hist_stats[model] = np.concatenate([hist_stats[model], new_stats], -1)
+        else:
+            hist_stats[model] = new_stats
+        
+        if fill_nan:
+            hist_stats[model][np.isnan(hist_stats[model])] = np.nanmin(hist_stats[model])
+        
+        return hist_stats
+        
+    def plot_stats(
+        self, 
+        model: ModelPath, 
+        stats: np.ndarray, 
+        xlabel: str, 
+        ylabel: str, 
+        name: str, 
         step=None, 
     ):
-        if step is None:
-            step = self._env_steps[model]
-        xlabel='Player2'
-        ylabel='Player1'
-        xticklabels = get_tick_labels(payoff.shape[1])
-        yticklabels = get_tick_labels(payoff.shape[0])
+        xticklabels = get_tick_labels(stats.shape[1])
+        yticklabels = get_tick_labels(stats.shape[0])
         self.monitors[model].matrix_summary(
             model=model, 
-            matrix=payoff, 
+            matrix=stats, 
             xlabel=xlabel, 
             ylabel=ylabel, 
             xticklabels=xticklabels, 
             yticklabels=yticklabels, 
-            name='payoff', 
-            step=step
-        )
-        self.monitors[model].matrix_summary(
-            model=model, 
-            matrix=counts, 
-            xlabel=xlabel, 
-            ylabel=ylabel, 
-            xticklabels=xticklabels, 
-            yticklabels=yticklabels, 
-            name='count', 
-            step=step
+            name=name, 
+            step=self._env_steps[model] if step is None else step
         )

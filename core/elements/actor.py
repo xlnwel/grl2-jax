@@ -19,10 +19,13 @@ class Actor:
     ):
         self._raw_name = name
         self._name = f'{name}_actor'
-        self._model_path = ModelPath(config.root_dir, config.model_name)
+        if config.get('root_dir'):
+            self._model_path = ModelPath(config.root_dir, config.model_name)
+        else:
+            self._model_path = None
         self.config = config
 
-        self.rms: RMS = getattr(self.config, 'rms', None)
+        self.rms: RMS = self.config.get('rms', None)
         self.setup_checkpoint()
 
         self.model = model
@@ -146,6 +149,11 @@ class Actor:
             terms.update({k: inp[k] 
                 for k in self.config.rms.obs_names})
         return action, terms, state
+
+    def normalize_reward(self, reward):
+        if self.rms is not None:
+            return self.rms.normalize_reward(reward)
+        return reward
 
     def get_weights(self, identifier=None):
         if identifier is None:

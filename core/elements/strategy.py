@@ -40,10 +40,12 @@ class Strategy:
                 self.config.root_dir, 
                 self.config.model_name
             )
-            self.step_counter = StepCounter(
-                self._model_path, 
-                name=f'{self._name}_step_counter'
-            )
+        else:
+            self._model_path = None
+        self.step_counter = StepCounter(
+            self._model_path, 
+            name=f'{self._name}_step_counter'
+        )
 
         self._post_init()
 

@@ -4,12 +4,12 @@ import numpy as np
 import ray
 
 from .parameter_server import ParameterServer
+from .monitor import Monitor
 from ..common.typing import ModelStats, ModelWeights
 from core.ckpt.pickle import set_weights_for_agent
 from core.elements.agent import Agent
 from core.elements.builder import ElementsBuilder
 from core.mixin.actor import RMS
-from core.monitor import Monitor
 from core.remote.base import RayBase
 from core.typing import ModelPath
 from env.func import create_env
@@ -139,8 +139,8 @@ class MultiAgentSimRunner(RayBase):
                 model_weights = ray.get(mid)
                 self.is_agent_active[aid] = model_weights.model in self.active_models
                 self.current_models[aid] = model_weights.model
-                assert set(model_weights.weights) == set(['model', 'aux', 'train_step']), set(model_weights.weights)
-                self.agents[aid].set_strategy(model_weights)
+                assert set(model_weights.weights) == set(['model', 'aux', 'train_step']) or set(model_weights.weights) == set(['aid', 'vid', 'path']), set(model_weights.weights)
+                self.agents[aid].set_strategy(model_weights, env=self.env)
 
             assert any(self.is_agent_active), (self.active_models, self.current_models)
 

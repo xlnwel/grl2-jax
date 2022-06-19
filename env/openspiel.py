@@ -1,7 +1,8 @@
+import random
 import numpy as np
 import gym
+
 from open_spiel.python import rl_environment
-from open_spiel.python.algorithms import exploitability
 from env.utils import *
 
 
@@ -54,12 +55,14 @@ class OpenSpiel:
         return self._current_player
 
     def random_action(self):
-        return [np.random.choice(a) 
-            for a in self._time_step.observations['legal_actions']
-                if a != []
-        ]
+        action = [random.choice(self._time_step.observations['legal_actions'][self._current_player]) ]
+        assert action[0] in self._time_step.observations['legal_actions'][self._current_player], \
+            (action, self._time_step.observations['legal_actions'][self._current_player])
+        return action
+        
 
     def seed(self, seed=None):
+        print('Open-Spiel seed:', seed)
         self.env.seed(seed)
 
     def reset(self):

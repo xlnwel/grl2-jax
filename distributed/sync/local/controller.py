@@ -18,6 +18,7 @@ from env.func import get_env_stats
 from gt.alpharank import AlphaRank
 from run.utils import search_for_all_configs
 from utility.process import run_ray_process
+from utility.schedule import PiecewiseSchedule
 from utility.timer import Every, Timer
 from utility.typing import AttrDict
 from utility.utils import dict2AttrDict, eval_config, modify_config
@@ -189,18 +190,12 @@ class Controller(YAMLCheckpointBase):
     """ Training """
     def pbt_train(self):
         if isinstance(self.config.max_steps_per_iteration, (list, tuple)):
-            assert len(self.config.max_steps_per_iteration) == 2, \
-                self.config.max_steps_per_iteration
-            
-            max_steps_per_iteration = np.linspace(
-                *self.config.max_steps_per_iteration, 
-                num=self.config.max_version_iterations
-            )
+            max_step_scheduler = PiecewiseSchedule(self.config.max_steps_per_iteration)
         else:
-            max_steps_per_iteration = [
-                self.config.max_steps_per_iteration 
-                for _ in range(self.config.max_version_iterations)
-            ]
+            max_step_scheduler = PiecewiseSchedule([(
+                self.config.max_version_iterations, 
+                self.config.max_steps_per_iteration
+            )])
 
         with Timer('iteration') as it:
             while self._iteration < self.config.max_version_iterations: 
@@ -210,7 +205,7 @@ class Controller(YAMLCheckpointBase):
                 self.train(
                     self.agent_manager, 
                     self.runner_manager, 
-                    max_steps_per_iteration[self._iteration]
+                    max_step_scheduler.value(self._iteration)
                 )
 
                 self.cleanup()
@@ -219,7 +214,7 @@ class Controller(YAMLCheckpointBase):
         
         do_logging(f'Training Finished. Total Iterations: {self._iteration}', 
             logger=logger)
-        self.monitor.store_stats.remote(it.to_stats())
+        self.monitor.store_stats.remote(it.to_stats(), self._iteration)
         self._log_remote_stats(self._pids)
 
     def initialize_actors(self):

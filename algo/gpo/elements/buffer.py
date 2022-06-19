@@ -414,12 +414,20 @@ class TargetPolicyCalculator:
 
 
 class SamplingKeysExtractor:
-    def extract_sampling_keys(self, model):
+    def extract_sampling_keys(self, env_stats, model):
         self.actor_state_keys = tuple([f'actor_{k}' for k in model.actor_state_keys])
         self.value_state_keys = tuple([f'value_{k}' for k in model.value_state_keys])
         self.actor_state_type = model.actor_state_type
         self.value_state_type = model.value_state_type
         self.sample_keys, self.sample_size = self._get_sample_keys_size()
+        if env_stats.use_action_mask:
+            self.sample_keys.append('action_mask')
+        elif 'action_mask' in self.sample_keys:
+            self.sample_keys.remove('action_mask')
+        if env_stats.use_life_mask:
+            self.sample_keys.append('life_mask')
+        elif 'life_mask' in self.sample_keys:
+            self.sample_keys.remove('life_mask')
 
     def _get_sample_keys_size(self):
         actor_state_keys = ['actor_h', 'actor_c']
@@ -510,10 +518,10 @@ class LocalBufferBase(
         assert not self.config.get('normalize_value', False), 'Do not support normalizing value in local buffer for now'
         AdvantageCalculator.__init__(self, config)
 
-        self._add_attributes(model)
+        self._add_attributes(env_stats, model)
 
-    def _add_attributes(self, model):
-        self.extract_sampling_keys(model)
+    def _add_attributes(self, env_stats, model):
+        self.extract_sampling_keys(env_stats, model)
 
         if self.config.get('fragment_size', None) is not None:
             self.maxlen = self.config.fragment_size
@@ -605,10 +613,10 @@ class TurnBasedLocalBufferBase(
         assert not self.config.get('normalize_value', False), 'Do not support normalizing value in local buffer for now'
         AdvantageCalculator.__init__(self, config)
 
-        self._add_attributes(model)
+        self._add_attributes(env_stats, model)
 
-    def _add_attributes(self, model):
-        self.extract_sampling_keys(model)
+    def _add_attributes(self, env_stats, model):
+        self.extract_sampling_keys(env_stats, model)
 
         self.maxlen = self.config.n_envs * self.config.n_steps
         if self.sample_size is not None:
@@ -720,13 +728,13 @@ class PPOBufferBase(
 
         AdvantageCalculator.__init__(self, config)
 
-        self._add_attributes(model)
+        self._add_attributes(env_stats, model)
 
-    def _add_attributes(self, model):
+    def _add_attributes(self, env_stats, model):
         self.use_dataset = self.config.get('use_dataset', False)
         do_logging(f'Is dataset used for data pipeline: {self.use_dataset}', logger=logger)
 
-        self.extract_sampling_keys(model)
+        self.extract_sampling_keys(env_stats, model)
 
         self.n_runners = self.config.n_runners
         self.n_envs = self.n_runners * self.config.n_envs

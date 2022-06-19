@@ -1,6 +1,7 @@
 import os, atexit
 import logging
 from collections import defaultdict
+from typing import Union
 import numpy as np
 import tensorflow as tf
 
@@ -19,8 +20,8 @@ class Recorder:
         record_file = record_file if record_file.endswith('record.txt') \
             else record_file + '/record.txt'
         if model_path is not None:
-            path = os.path.join(*model_path, record_file)
-            recorder_dir = '/'.join(model_path)
+            recorder_dir = f'{model_path.root_dir}/{model_path.model_name}'
+            path = os.path.join(recorder_dir, record_file)
             # if os.path.exists(path) and os.stat(path).st_size != 0:
             #     i = 1
             #     name, suffix = path.rsplit('.', 1)
@@ -364,14 +365,14 @@ def image_summary(writer, images, name, prefix=None, step=None):
 
 def matrix_summary(
     *, 
-    model, 
-    matrix, 
+    model: ModelPath, 
+    matrix: np.ndarray, 
     label_top=True, 
     label_bottom=False, 
-    xlabel, 
-    ylabel, 
-    xticklabels, 
-    yticklabels,
+    xlabel: str, 
+    ylabel: str, 
+    xticklabels: Union[str, int, np.ndarray], 
+    yticklabels: Union[str, int, np.ndarray],
     name, 
     writer, 
     step=None, 

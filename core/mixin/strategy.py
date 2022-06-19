@@ -11,7 +11,7 @@ class StepCounter:
     def __init__(self, model_path: ModelPath, name='step_counter'):
         self._env_step = 0
         self._train_step = 0
-        self._counter_path = '/'.join([*model_path, f'{name}.pkl'])
+        self._path = None if model_path is None else '/'.join([*model_path, f'{name}.pkl'])
 
     def get_env_step(self):
         return self._env_step
@@ -38,12 +38,13 @@ class StepCounter:
         self._train_step, self._env_step = steps
     
     def save_step(self):
-        with open(self._counter_path, 'wb') as f:
-            cloudpickle.dump((self._env_step, self._train_step), f)
+        if self._path:
+            with open(self._path, 'wb') as f:
+                cloudpickle.dump((self._env_step, self._train_step), f)
 
     def restore_step(self):
-        if os.path.exists(self._counter_path):
-            with open(self._counter_path, 'rb') as f:
+        if self._path is not None and os.path.exists(self._path):
+            with open(self._path, 'rb') as f:
                 self._env_step, self._train_step = cloudpickle.load(f)
 
 

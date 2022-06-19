@@ -46,12 +46,14 @@ def get_base_model_name(model_name: str):
 
 def get_algo(model: ModelPath):
     s = model.root_dir.split('/')
-    if len(s) == 3:
+    if len(s) == 1:
+        algo = model.root_dir
+    elif len(s) == 3:
         algo = s[-1]
     elif len(s) == 4:
         algo = ''.join(s[-2:])
     else:
         # raise ValueError(f'Unknown model: {model}')
-        assert False
+        assert False, f'Unknown model: {model}'
 
     return algo

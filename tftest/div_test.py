@@ -9,8 +9,14 @@ class MetaGradientTest(tf.test.TestCase):
 
     def testKLCategorical(self):
         # First
-        x = tf.Variable(tf.math.log([[.3, .7]]), trainable=True)
-        y = tf.Variable(tf.math.log([[.5, .5]]))
+        x = tf.random.uniform((2, 10), 0, 3)
+        y = tf.random.uniform((2, 10), 0, 3)
+        x = x / tf.reduce_sum(x, -1, keepdims=True)
+        y = y / tf.reduce_sum(y, -1, keepdims=True)
+        tf.debugging.assert_equal(tf.reduce_sum(x, -1), 1.)
+        tf.debugging.assert_equal(tf.reduce_sum(y, -1), 1.)
+        x = tf.Variable(tf.math.log(x), trainable=True)
+        y = tf.Variable(tf.math.log(y))
         px = tf.nn.softmax(x)
         py = tf.nn.softmax(y)
         raw_kl = tf.math.log(px / py) * px
@@ -75,8 +81,8 @@ class MetaGradientTest(tf.test.TestCase):
             _, _, loss2 = rl_loss.compute_js(
                 js_type='exact', 
                 js_coef=1, 
-                p=px, 
-                q=py
+                pi1=px, 
+                pi2=py
             )
             tf.debugging.assert_near(loss1, loss2)
             loss3 = js_from_sample(logp=x, logq=y)

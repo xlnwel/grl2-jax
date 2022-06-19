@@ -29,7 +29,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.elements.builder import ElementsBuilder
 from core.log import setup_logging
 from core.tf_config import *
-from core.typing import ModelPath, get_aid
+from core.typing import ModelPath, get_aid, get_base_model_name
 from core.ckpt.pickle import set_weights_for_agent
 from env.func import create_env
 from run.args import parse_eval_args
@@ -122,6 +122,8 @@ def build_policies(configs, env):
     agent1 = None
     agent2 = None
     policies = [[], []]
+    latest_configs = [None, None]
+    latest_configs2 = None
     builder = ElementsBuilder(configs[0], env.stats())
     for config in configs:
         elements = builder.build_acting_agent_from_scratch(
@@ -142,13 +144,15 @@ def build_policies(configs, env):
             if config.iteration > iteration1:
                 iteration1 = config.iteration
                 agent1 = elements.agent
+                latest_configs[0] = config
         else:
             if config.iteration > iteration2:
                 iteration2 = config.iteration
                 agent2 = elements.agent
+                latest_configs[1] = config
     joint_policy = JointPolicy(env, [agent1, agent2])
 
-    return policies, joint_policy
+    return policies, joint_policy, latest_configs
 
 
 def main(configs, step, filename=None):
@@ -163,7 +167,7 @@ def main(configs, step, filename=None):
     configure_gpu(None)
     configure_precision(config.precision)
 
-    policies, joint_policy = build_policies(configs, env)
+    policies, joint_policy, latest_configs = build_policies(configs, env)
     probs = [np.ones(len(pls)) for pls in policies]
     pol_agg = policy_aggregator.PolicyAggregator(env.game)
     aggr_policy = pol_agg.aggregate([0, 1], policies, probs)
@@ -182,13 +186,16 @@ def main(configs, step, filename=None):
         latest_expl1=float(result.player_improvements[0]), 
         latest_expl2=float(result.player_improvements[1])
     ))
+
+    root_dir = latest_configs[0].root_dir
+    model_name = get_base_model_name(latest_configs[0].model_name)
     if filename is not None:
         with open(filename, 'a') as f:
             if os.stat(filename).st_size == 0:
                 f.write('\t'.join(['root_dir', 'model_name', *nash_conv.keys()]) + '\n')
             f.write('\t'.join([
-                config['root_dir'], 
-                config['model_name'], 
+                root_dir, 
+                model_name, 
                 *[f'{v:.3f}' if isinstance(v, float) else f'{v}' for v in nash_conv.values()]
             ]) + '\n')
 

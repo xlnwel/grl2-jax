@@ -12,10 +12,11 @@ envs=(
 config=spiel
 seeds=(0 1 2)
 args1=(pfsp)
-args2=(1e-3)
+args2=(1e-2)
 args3=(1 100 1000)
-args4=(1)
-date=$(date +"%m%d")
+args4=(2)
+# date=$(date +"%m%d")
+date=0616
 
 shift
 i=0
@@ -44,7 +45,7 @@ for e in "${envs[@]}"; do
                                 kwstr="$cmdkws-$kwstr"
                             fi
                             env="${suite}-${e}"
-                            n="$date-max_steps_per_iteration=1e6_3e6"
+                            n="$date"
                             ld="logs-$suite"
                             dir="$ld/$env/$a/$n-$kwstr-seed=$seed"
                             mkdir -p $dir

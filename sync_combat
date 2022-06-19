@@ -11,3 +11,4 @@ rsync -avz --exclude-from=exclude.list ./gt ~/github/combat
 rsync -avz --exclude-from=exclude.list ./env/wrappers.py ~/github/combat/env
 rsync -avz --exclude-from=exclude.list ./readme.md ~/github/combat
 rsync -avz --exclude-from=exclude.list ./main.py ~/github/combat
+rsync -avz --exclude-from=exclude.list ./rule ~/github/combat

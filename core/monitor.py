@@ -23,7 +23,7 @@ class Monitor(RayBase):
     def model_path(self):
         return self._model_path
     
-    def _build(self, model_path):
+    def _build(self, model_path: ModelPath):
         # we create a recorder anyway, but we do not store any data to the disk if use_recorder=False
         self._recorder = Recorder(self._model_path)
         if self._use_tensorboard and self._model_path is not None:

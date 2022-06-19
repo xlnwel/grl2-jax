@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.typing import ModelPath
 from utility.file import search_for_dirs
 from utility import yaml_op
-from utility.utils import flatten_dict
+from utility.utils import flatten_dict, recursively_remove
 
 
 def get_model_path(dirpath) -> ModelPath:
@@ -31,6 +31,21 @@ def parse_args():
     args = parser.parse_args()
 
     return args
+
+
+def remove_lists(d):
+    to_remove_keys = []
+    dicts = []
+    for k, v in d.items():
+        if isinstance(v, list):
+            to_remove_keys.append(k)
+        elif isinstance(v, dict):
+            dicts.append((k, v))
+    for k in to_remove_keys:
+        del d[k]
+    for k, v in dicts:
+        d[k] = remove_lists(v)
+    return d
 
 
 if __name__ == '__main__':
@@ -58,10 +73,13 @@ if __name__ == '__main__':
             
         # save config
         config = yaml_op.load_config(yaml_path)
-        for k, v in config.items():
-            if isinstance(v, dict):
-                del v['root_dir']
-                del v['model_name']
+        to_remove_keys = ['root_dir', 'model_name', 'seed']
+        if isinstance(config.controller.max_steps_per_iteration, list):
+            config['info'] = 'mspi=' + '-'.join([f'{x[0]}_{x[1]:g}' for x in config.controller.max_steps_per_iteration])
+        else:
+            config['info'] = f'mspi={config.controller.max_steps_per_iteration:g}'
+        config = recursively_remove(config, to_remove_keys)
+        config = remove_lists(config)
 
         config = flatten_dict(config)
         env_names = [(k, v) for k, v in config.items() if k.endswith('env_name')]

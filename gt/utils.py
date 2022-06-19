@@ -14,12 +14,14 @@ def compute_utility(payoff, strategies, left2right=False):
             payoff = payoff @ s
     return payoff
 
-def compute_prioritized_weights(w, type: str, p: float=None):
+def compute_prioritized_weights(w, type: str, p: float=None, threshold=0):
     if type == 'uniform':
         return np.ones_like(w)
     elif type == 'reverse_poly':    # prioritize small w
-        return (1 - w) ** p
+        w = np.maximum(1-w, threshold) if threshold else 1-w
+        return w ** p
     elif type == 'poly':            # prioritize large w
+        w = np.maximum(w, threshold) if threshold else w
         return w ** p
     else:
         raise NotImplementedError(f'Unknown type {type}')
@@ -28,8 +30,7 @@ def compute_opponent_weights(
     aid: int, 
     model_payoff: np.ndarray, 
     n_agents: int=None, 
-    threshold: float=.1, 
-    reweight_kwargs={},
+    reweight_kwargs: dict={},
 ):
     """ Weights for Prioritized Fictitous Self-Play """
     payoffs = []
@@ -58,15 +59,14 @@ def compute_opponent_weights(
                 if pmax == pmin:
                     weights_i = 0
                 else:
-                    pmax += (pmax - pmin) * threshold  # to avoid zero weights
                     weights_i = (payoff_i - pmin) / (pmax - pmin)
             else:
                 weights_i = payoff_i
             weights_i = compute_prioritized_weights(
                 weights_i, **reweight_kwargs)
             weights.append(weights_i)
-            if not np.any(np.isnan(payoff_i)):
-                assert np.all(weights_i > 0), (payoff_i, weights_i)
+            # if not np.any(np.isnan(payoff_i)):
+            #     assert np.all(weights_i > 0), (payoff_i, weights_i)
     payoffs = np.stack(payoffs)
     weights = np.stack(weights)
 
@@ -76,14 +76,12 @@ def compute_opponent_distribution(
     aid: int, 
     model_payoff: np.ndarray, 
     n_agents: int, 
-    threshold: float=.1, 
-    reweight_kwargs={},
+    reweight_kwargs: dict={},
 ):
     payoffs, weights = compute_opponent_weights(
         aid=aid, 
         model_payoff=model_payoff, 
         n_agents=n_agents, 
-        threshold=threshold, 
         reweight_kwargs=reweight_kwargs
     )
 

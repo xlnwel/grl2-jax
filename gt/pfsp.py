@@ -7,7 +7,7 @@ class PFSP:
     def __init__(
         self, 
         p, 
-        threshold=.1, 
+        threshold=0, 
         **kwargs
     ):
         self._p = p
@@ -25,8 +25,7 @@ class PFSP:
             aid, 
             model_payoff, 
             n_agents, 
-            self._threshold, 
-            {'p': self._p, 'type': 'reverse_poly'}
+            {'p': self._p, 'type': 'reverse_poly', 'threshold': self._threshold}
         )
 
         return payoffs, dists

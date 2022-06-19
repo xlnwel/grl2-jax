@@ -8,13 +8,15 @@ from nn.registry import *
 def run_module(registry, name, keras_summary=True, shape=(64, 64, 12), **kwargs):
     if keras_summary:
         x = layers.Input(shape)
+        x2 = layers.Input(shape)
         block_cls = registry.get(name)
+        print('Block', block_cls)
         block = block_cls(**kwargs)
-        y = block(x)
-        model = tf.keras.Model(x, y)
+        y = block(x, x2)
+        model = tf.keras.Model((x, x2), y)
         model.summary(200)
     else:
-        logdir = f'temp-logs/{name}'
+        logdir = f'tmp-logs/{name}'
         writer = tf.summary.create_file_writer(logdir)
         block_cls = registry.get(name)
         block = block_cls(**kwargs)
@@ -89,7 +91,7 @@ def run_cnn(*, keras_summary=True, **new_kwargs):
         model = tf.keras.Model(x, y)
         model.summary(200)
     else:
-        logdir = 'temp-logs'
+        logdir = 'tmp-logs'
         writer = tf.summary.create_file_writer(logdir)
         net = cnn(**kwargs)
         @tf.function
@@ -118,20 +120,26 @@ def parse_args():
 
 if __name__ == "__main__":
     kwargs = parse_args()
-    run_cnn(keras_summary=True, **kwargs)
-    # run_module(
-    #     am_registry, 
-    #     name='se', 
-    #     keras_summary=True, 
-    #     shape=(64, 64, 12),
-    #     **kwargs)
-    # import yaml
-    # import os
-    # path = os.path.abspath('algo/sacdiqn/procgen_config.yaml')
-    # with open(path) as f:
-    #     config = yaml.safe_load(f)
-    # config = config['model']
-    # kwargs = config['encoder']
-    # for k, v in kwargs.items():
-    #     print(k, v)
     # run_cnn(keras_summary=True, **kwargs)
+    # run_module(
+    #     block_registry, 
+    #     name='att2', 
+    #     keras_summary=True, 
+    #     shape=(64, 4, 12),
+    #     **kwargs)
+    import yaml
+    import os
+    path = os.path.abspath('distributed/sync/configs/grf_mat.yaml')
+    with open(path) as f:
+        config = yaml.safe_load(f)
+    config = config['model']
+    kwargs = config['policy']
+    for k, v in kwargs.items():
+        print(k, v)
+    nn_id = kwargs.pop('nn_id')
+    run_module(
+        nn_registry, 
+        name=nn_id, 
+        keras_summary=True, 
+        shape=(10, 64),
+        **kwargs)

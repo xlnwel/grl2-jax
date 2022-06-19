@@ -55,6 +55,15 @@ def flatten_dict(d: dict):
             result[k] = v
     return result
 
+def recursively_remove(d: dict, keys: list):
+    for k in keys:
+        if k in d:
+            del d[k]
+    for k, v in d.items():
+        if isinstance(v, dict):
+            recursively_remove(v, keys)
+    return d
+
 def str2int(x):
     if isinstance(x, str):
         try:

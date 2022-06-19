@@ -182,17 +182,15 @@ class ElementsBuilder:
 
     def build_rule_based_strategy(
         self, 
-        path, 
         env, 
-        **kwargs, 
+        config, 
     ):
-        path = path.replace('/', '.')
+        path = config['path'].replace('/', '.')
         m = importlib.import_module(path)
 
-        elements = AttrDict()
-        elements.strategy = m.create_strategy(env, **kwargs)
+        strategy = m.create_strategy(env, config)
 
-        return elements
+        return strategy
 
     def build_monitor(
         self, 
