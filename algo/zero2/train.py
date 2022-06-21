@@ -4,9 +4,9 @@ import numpy as np
 from core.elements.builder import ElementsBuilder
 from core.mixin.actor import rms2dict
 from core.tf_config import \
-    configure_gpu, configure_precision, set_tf_random_seed, silence_tf_logs
+    configure_gpu, configure_precision, silence_tf_logs
 from utility.display import pwt
-from utility.utils import TempStore
+from utility.utils import TempStore, set_seed
 from utility.run import Runner, evaluate
 from utility.timer import Every, Timer
 from utility import pkg
@@ -145,8 +145,7 @@ def main(configs, train=train):
     silence_tf_logs()
     seed = config.get('seed')
     print('seed', seed)
-    np.random.seed(seed)
-    set_tf_random_seed(seed)
+    set_seed(seed)
     configure_gpu()
     configure_precision(config.precision)
 

@@ -1,6 +1,6 @@
 ---
-algorithm: &algo gpo
-name: gpo
+algorithm: &algo zero
+name: zero
 
 precision: 32
 
@@ -194,23 +194,23 @@ trainer:
         optimizer:
             opt_name: adam
             schedule_lr: False
-            lr: 3e-4
+            lr: 7e-4
             clip_norm: .2
-            epsilon: 1e-8
+            epsilon: 1e-5
             weight_decay: 0
         meta_opt:
             opt_name: adam
             schedule_lr: False
-            lr: 1e-3
+            lr: 1e-4
             epsilon: 1e-8
             weight_decay: 0
     value:
         optimizer:
             opt_name: adam
             schedule_lr: False
-            lr: 3e-4
+            lr: 7e-4
             clip_norm: .2
-            epsilon: 1e-8
+            epsilon: 1e-5
 
 actor:
     update_obs_rms_at_execution: *uorae

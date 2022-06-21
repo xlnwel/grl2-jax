@@ -16,6 +16,7 @@ class Policy(Module):
 
         self.action_dim = config.pop('action_dim')
         self.is_action_discrete = config.pop('is_action_discrete')
+        self.clip_sample_action = config.pop('clip_sample_action', False)
         self.action_low = config.pop('action_low', None)
         self.action_high = config.pop('action_high', None)
         self.eval_act_temp = config.pop('eval_act_temp', 1)
@@ -80,7 +81,7 @@ class Policy(Module):
                 else dist.sample()
         else:
             action = dist.sample()
-            if self.action_low is not None:
+            if self.clip_sample_action:
                 action = tf.clip_by_value(
                     action, self.action_low, self.action_high)
         return action

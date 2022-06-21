@@ -64,7 +64,7 @@ if __name__ == '__main__':
         # define paths
         yaml_path = '/'.join([d, 'config_p0.yaml'])
         json_path = '/'.join([target_dir, 'parameter.json'])
-        record_path = '/'.join([d, 'nash_conv.txt'])
+        record_path = '/'.join([d, 'record.txt'])
         process_path = '/'.join([target_dir, 'progress.csv'])
         print('yaml path', yaml_path)
         print('record path', record_path)

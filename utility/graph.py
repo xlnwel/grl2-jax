@@ -69,21 +69,27 @@ def matrix_plot(
                 norm = colors.TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
             else:
                 norm = colors.Normalize(vmin=vmin, vmax=vmax)
+
         return norm
-    kwargs = {
-        'cmap': 'YlGnBu', 
-        'norm': get_norm(matrix), 
-        'center': 0, 
-        'xticklabels': xticklabels, 
-        'yticklabels': yticklabels, 
-        'ax': ax
-    }
-    if matrix.shape[0] < anno_max and matrix.shape[1] < anno_max:
-        v = matrix.max()
-        kwargs.update({
-            'annot': True, 
-            'fmt': f'.2f' if v < 0 else f'.2g'
-        })
+
+    def get_kwargs(matrix):
+        kwargs = {
+            'cmap': 'YlGnBu', 
+            'norm': get_norm(matrix), 
+            'center': 0, 
+            'xticklabels': xticklabels, 
+            'yticklabels': yticklabels, 
+            'ax': ax
+        }
+        if matrix.shape[0] < anno_max and matrix.shape[1] < anno_max:
+            v = matrix.max()
+            kwargs.update({
+                'annot': True, 
+                'fmt': f'.2f' if v < 0 else f'.2g'
+            })
+        return kwargs
+
+    kwargs = get_kwargs(matrix)
     pd = construct_df(
         matrix, 
         col_name=ylabel, 

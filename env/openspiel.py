@@ -17,6 +17,7 @@ class OpenSpiel:
             env_name, 
             enable_legality_check=True
         )
+        self.env.seed(kwargs['seed'])
         self.game = self.env.game
         self.uid2aid = uid2aid
         self.aid2uids = compute_aid2uids(self.uid2aid)
@@ -116,32 +117,22 @@ if __name__ == "__main__":
         env_name='spiel-leduc_poker',
         squeeze_keys=['uid'], 
         uid2aid=[0, 1],
+        seed=0, 
         n_envs=2
     )
-    # from env.func import create_env
-    # env = create_env(config)
-    # done = np.zeros((config['n_envs'], len(config['uid2aid'])), bool)
-    # reward = np.zeros((config['n_envs'], len(config['uid2aid'])))
-    # for i in range(10):
-    #     print('iteration', i)
-    #     a = env.random_action()
-    #     agent_outs = env.step(a)
-    #     print('action\t', np.squeeze(a))
-    #     for pid, out in enumerate(agent_outs):
-    #         if len(out.obs) == 0:
-    #             continue
-    #         uid = out.obs['current_player']
-    #         print(np.stack([np.arange(len(uid)), uid]))
-    #         uid = tuple(zip(np.arange(len(uid)), uid))
-    #         print(out.reward)
-    #         print(out.reward[uid])
-    config['env_name'] = 'leduc_poker'
-    env = OpenSpiel(**config)
-    obs = env.reset()
-    print(obs['uid'])
+    from env.func import create_env
+    random.seed(config['seed'])
+    env = create_env(config)
+    done = np.zeros((config['n_envs'], len(config['uid2aid'])), bool)
+    reward = np.zeros((config['n_envs'], len(config['uid2aid'])))
     for i in range(10):
+        print('iteration', i)
         a = env.random_action()
-        obs, reward, discount, info = env.step(a)
-        if np.all(discount == 0):
-            obs = env.reset()
-            print(obs['uid'])
+        agent_outs = env.step(a)
+        print('action\t', np.squeeze(a))
+        for pid, out in enumerate(agent_outs):
+            if len(out.obs) == 0:
+                continue
+            print(out.obs)
+            print(out.reward)
+            

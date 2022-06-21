@@ -44,6 +44,7 @@ def make_gym(config):
         env.spec.max_episode_steps)
 
     env = process_single_agent_env(env, config)
+    print(env)
     return env
 
 
@@ -179,7 +180,7 @@ def make_unity(config):
     env = wrappers.ContinuousActionMapper(
         env, 
         bound_method=config.get('bound_method', 'clip'), 
-        to_rescale=False,
+        to_rescale=config.get('to_rescale', True),
         action_low=config.get('action_low', -1), 
         action_high=config.get('action_high', 1)
     )

@@ -414,7 +414,7 @@ class TargetPolicyCalculator:
 
 
 class SamplingKeysExtractor:
-    def extract_sampling_keys(self, env_stats, model):
+    def extract_sampling_keys(self, env_stats: AttrDict, model: Model):
         self.actor_state_keys = tuple([f'actor_{k}' for k in model.actor_state_keys])
         self.value_state_keys = tuple([f'value_{k}' for k in model.value_state_keys])
         self.actor_state_type = model.actor_state_type
@@ -453,6 +453,7 @@ class SamplingKeysExtractor:
             if 'mask' in sample_keys:
                 sample_keys.remove('mask')
             sample_size = None
+
         return sample_keys, sample_size
 
     def _remote_state_keys(self, sample_keys, state_keys):

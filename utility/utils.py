@@ -499,6 +499,11 @@ def get_frame(backtrack):
         frame = frame.f_back
     return frame
 
+def set_seed(seed: int=None):
+    random.seed(seed)
+    np.random.seed(seed)
+    tf.random.set_seed(seed)
+
 class TempStore:
     def __init__(self, get_fn, set_fn):
         self._get_fn = get_fn

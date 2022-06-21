@@ -40,8 +40,10 @@ def get_all_ids(model_name: str):
     assert isinstance(iid, int), iid
     return aid, iid, vid
 
-def get_base_model_name(model_name: str):
-    name = model_name.split('/', maxsplit=1)[0]
+def get_basic_model_name(model_name: str):
+    """ Basic model name excludes aid and vid """
+    name = '/'.join(model_name.split('/')[:2])
+
     return name
 
 def get_algo(model: ModelPath):

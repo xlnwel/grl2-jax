@@ -12,6 +12,7 @@ class FSP:
         aid: int, 
         model_payoff: np.ndarray, 
         n_agents: int, 
+        prioritize_unmet: bool=True
     ):
         """ Fictitious Self-Play """
         assert len(model_payoff.shape) == n_agents - 1, (model_payoff.shape, n_agents)
@@ -19,7 +20,11 @@ class FSP:
             aid, 
             model_payoff, 
             n_agents, 
-            {'p': 0, 'type': 'uniform'}
+            prioritize_unmet=prioritize_unmet, 
+            reweight_kwargs={
+                'p': 0, 
+                'type': 'uniform'
+            }
         )
 
         return payoffs, dists

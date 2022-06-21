@@ -17,9 +17,6 @@ def compute_utility(payoff, strategies, left2right=False):
 def compute_prioritized_weights(w, type: str, p: float=None, threshold=0):
     if type == 'uniform':
         return np.ones_like(w)
-    elif type == 'reverse_poly':    # prioritize small w
-        w = np.maximum(1-w, threshold) if threshold else 1-w
-        return w ** p
     elif type == 'poly':            # prioritize large w
         w = np.maximum(w, threshold) if threshold else w
         return w ** p
@@ -30,6 +27,7 @@ def compute_opponent_weights(
     aid: int, 
     model_payoff: np.ndarray, 
     n_agents: int=None, 
+    prioritize_unmet=True, 
     reweight_kwargs: dict={},
 ):
     """ Weights for Prioritized Fictitous Self-Play """
@@ -50,20 +48,20 @@ def compute_opponent_weights(
             payoffs.append(payoff_i)
             assert len(payoff_i.shape) == 1, (payoff_i.size, model_payoff.shape)
             assert payoff_i.size == model_payoff.shape[0], (payoff_i.size, model_payoff.shape)
-            if np.any(np.isnan(payoff_i)):
+            if prioritize_unmet and np.any(np.isnan(payoff_i)):
                 # prioritize unmet opponents
-                weights_i = 1-np.isnan(payoff_i)
-            elif np.any(payoff_i > 1) or np.any(payoff_i < 0):
-                pmax = payoff_i.max()
-                pmin = payoff_i.min()
-                if pmax == pmin:
-                    weights_i = 0
-                else:
-                    weights_i = (payoff_i - pmin) / (pmax - pmin)
+                weights_i = np.isnan(payoff_i)
             else:
-                weights_i = payoff_i
-            weights_i = compute_prioritized_weights(
-                weights_i, **reweight_kwargs)
+                if np.any(payoff_i > 1) or np.any(payoff_i < 0):
+                    pmax = np.nanmax(payoff_i)
+                    pmin = np.nanmin(payoff_i)
+                    if pmax == pmin:
+                        payoff_i = np.ones_like(payoff_i, dtype=np.float32)
+                    else:
+                        payoff_i = (payoff_i - pmin) / (pmax - pmin)
+                weights_i = 1 - payoff_i
+                weights_i[np.isnan(weights_i)] = np.nanmax(weights_i)
+                weights_i = compute_prioritized_weights(weights_i, **reweight_kwargs)
             weights.append(weights_i)
             # if not np.any(np.isnan(payoff_i)):
             #     assert np.all(weights_i > 0), (payoff_i, weights_i)
@@ -76,12 +74,14 @@ def compute_opponent_distribution(
     aid: int, 
     model_payoff: np.ndarray, 
     n_agents: int, 
+    prioritize_unmet: bool=True, 
     reweight_kwargs: dict={},
 ):
     payoffs, weights = compute_opponent_weights(
         aid=aid, 
         model_payoff=model_payoff, 
         n_agents=n_agents, 
+        prioritize_unmet=prioritize_unmet, 
         reweight_kwargs=reweight_kwargs
     )
 

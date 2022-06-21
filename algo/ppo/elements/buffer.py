@@ -1,5 +1,7 @@
 import logging
 
+from core.elements.model import Model
+from utility.typing import AttrDict
 from utility.utils import dict2AttrDict
 from algo.gpo.elements.buffer import LocalBufferBase, PPOBufferBase
 
@@ -7,10 +9,18 @@ logger = logging.getLogger(__name__)
 
 
 class SamplingKeysExtractor:
-    def extract_sampling_keys(self, model):
+    def extract_sampling_keys(self, env_stats: AttrDict, model: Model):
         self.state_keys = tuple([k for k in model.state_keys])
         self.state_type = model.state_type
         self.sample_keys, self.sample_size = self._get_sample_keys_size()
+        if env_stats.use_action_mask:
+            self.sample_keys.append('action_mask')
+        elif 'action_mask' in self.sample_keys:
+            self.sample_keys.remove('action_mask')
+        if env_stats.use_life_mask:
+            self.sample_keys.append('life_mask')
+        elif 'life_mask' in self.sample_keys:
+            self.sample_keys.remove('life_mask')
 
     def _get_sample_keys_size(self):
         state_keys = ['h', 'c']

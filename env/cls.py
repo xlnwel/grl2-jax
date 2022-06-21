@@ -11,7 +11,7 @@ from env.utils import batch_env_output
 class Env:
     def __init__(self, config, env_fn=make_env, agents={}):
         self.env = env_fn(config, eid=None, agents=agents)
-        if config.get('seed') and hasattr(self.env, 'seed'):
+        if config.get('seed') is not None and hasattr(self.env, 'seed'):
             self.env.seed(config['seed'])
         self.name = config['env_name']
         self.max_episode_steps = self.env.max_episode_steps
@@ -96,7 +96,7 @@ class VecEnvBase():
             config, config['eid'] + eid if 'eid' in config else None, agents)
             for eid in range(n_envs)]
         self.env = self.envs[0]
-        if config.get('seed'):
+        if config.get('seed') is not None and hasattr(self.env, 'seed'):
             [env.seed(config['seed'] + i) 
                 for i, env in enumerate(self.envs)
                 if hasattr(env, 'seed')]

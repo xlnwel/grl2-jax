@@ -64,10 +64,12 @@ class PayoffManager:
         self, 
         aid: int, 
         model: ModelPath, 
+        prioritize_unmet: bool=True
     ):
         payoffs, dist = self.sampling_strategy(
             aid, 
             self.payoff_table.get_payoffs_for_agent(aid, model=model), 
-            self.n_agents
+            self.n_agents, 
+            prioritize_unmet
         )
         return payoffs, dist

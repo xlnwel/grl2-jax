@@ -2,10 +2,12 @@ import os
 from datetime import datetime
 import collections
 import time
-from typing import Any, Dict
+from typing import Any, Dict, List
 import cloudpickle
 import numpy as np
 import ray
+
+from rule.utils import is_rule_strategy
 
 from .parameter_server import ParameterServer
 from ..common.typing import ModelStats
@@ -52,8 +54,21 @@ class Monitor(RayBase):
                 model_path, name=model_path.model_name)
 
     """ Stats Management """
+    def store_stats_for_model(
+        self, 
+        model: ModelPath, 
+        stats: Dict, 
+        record=False, 
+        step=None
+    ):
+        self.build_monitor(model)
+        self.monitors[model].store(**stats)
+        if record:
+            self.monitors[model].record(step, print_terminal_info=True)
+
     def store_stats(
         self, 
+        *, 
         stats: Dict, 
         step: int, 
         record=False
@@ -73,11 +88,10 @@ class Monitor(RayBase):
         model_stats: ModelStats
     ):
         model, stats = model_stats
-        self.build_monitor(model)
         train_step = stats.pop('train_step')
         self._train_steps_in_period[model] = train_step - self._train_steps[model]
         self._train_steps[model] = train_step
-        self.monitors[model].store(**stats)
+        self.store_stats_for_model(model, stats)
 
     def store_run_stats(self, model_stats: ModelStats):
         model, stats = model_stats
@@ -89,10 +103,16 @@ class Monitor(RayBase):
         self._episodes[model] += n_episodes
         self._episodes_in_period[model] += n_episodes
 
-        self.monitors[model].store(**{
+        stats = {
             k if k.endswith('score') or '/' in k else f'run/{k}': v
             for k, v in stats.items()
-        })
+        }
+        self.store_stats_for_model(
+            model, 
+            stats, 
+            record=is_rule_strategy(model), 
+            step=env_steps
+        )
 
     def record(
         self, 

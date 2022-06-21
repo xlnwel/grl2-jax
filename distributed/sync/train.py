@@ -1,10 +1,10 @@
 import ray
 
 from core.tf_config import \
-    configure_gpu, configure_precision, set_tf_random_seed, silence_tf_logs
+    configure_gpu, configure_precision, silence_tf_logs
 from .local.controller import Controller
 from utility.ray_setup import sigint_shutdown_ray
-from utility.utils import dict2AttrDict
+from utility.utils import dict2AttrDict, set_seed
 from utility import yaml_op
 
 
@@ -34,7 +34,7 @@ def main(configs):
     config = configs[0]
     seed = config.get('seed')
     print('seed', seed)
-    set_tf_random_seed(seed)
+    set_seed(seed)
     silence_tf_logs()
     configure_gpu(None)
     configure_precision(config.precision)

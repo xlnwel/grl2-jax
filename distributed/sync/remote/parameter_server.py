@@ -13,8 +13,9 @@ from core.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.remote.base import RayBase
 from core.typing import ModelPath, construct_model_name, \
-    get_aid, get_all_ids, get_base_model_name
+    get_aid, get_all_ids, get_basic_model_name
 from distributed.sync.remote.payoff import PayoffManager
+from rule.utils import is_rule_strategy
 from run.utils import search_for_config
 from utility.timer import Every
 from utility.utils import AttrDict2dict, config_attr, dict2AttrDict
@@ -39,8 +40,8 @@ def _divide_runners(n_agents, n_runners, online_frac):
     n_online_runners = int(n_runners * online_frac)
     n_rest_queues = n_runners - n_online_runners
     n_agent_runners = n_rest_queues // n_agents
-    assert n_agent_runners * n_agents + n_online_runners == n_runners, \
-        (n_agent_runners, n_agents, n_online_runners, n_runners)
+    # assert n_agent_runners * n_agents + n_online_runners == n_runners, \
+    #     (n_agent_runners, n_agents, n_online_runners, n_runners)
 
     return n_online_runners, n_agent_runners
 
@@ -64,7 +65,7 @@ class ParameterServer(RayBase):
         # self-play fraction
         self.online_frac = self.config.get('online_frac', .2)
 
-        model_name = get_base_model_name(config["model_name"])
+        model_name = get_basic_model_name(config["model_name"])
         self._dir = f'{config["root_dir"]}/{model_name}'
         os.makedirs(self._dir, exist_ok=True)
         self._path = f'{self._dir}/{self.name}.yaml'
@@ -147,7 +148,7 @@ class ParameterServer(RayBase):
     def get_opponent_distributions_for_active_models(self):
         dists = {m: 
             self.payoff_manager.get_opponent_distribution(
-                i, m
+                i, m, False
             ) for i, m in enumerate(self._active_models)
         }
 
@@ -160,11 +161,16 @@ class ParameterServer(RayBase):
             aid = config['aid']
             assert aid <= self.n_agents, (aid, self.n_agents)
             vid = config['vid']
-            model = ModelPath(name, f'{name}/a{aid}/i1-v{vid}')
+            model_name = get_basic_model_name(self.config.model_name)
+            model_name = f'{model_name}/{name}-rule'
+            model_name = construct_model_name(model_name, aid, vid, vid)
+            model = ModelPath(self.config.root_dir, model_name)
             self._rule_strategies.add(model)
             self._params[aid][model] = AttrDict2dict(config)
             models.append(model)
+            do_logging(f'Adding rule strategy {model}', level='pwt')
             if not local:
+                do_logging(f'Adding rule strategy to payoff table', level='pwt')
                 self.payoff_manager.add_strategy(model, aid=aid)
 
     def add_strategies_to_payoff(self, models: List[ModelPath]):
@@ -203,7 +209,7 @@ class ParameterServer(RayBase):
         model_weights: ModelWeights, 
         step=None
     ):
-        def get_model_ids(aid, model_weights: ModelWeights, mid):
+        def get_model_ids(aid, mid, model_weights: ModelWeights):
             model = model_weights.model
             assert aid == get_aid(model.model_name), (aid, model)
             models = self.sample_strategies(
@@ -238,6 +244,21 @@ class ParameterServer(RayBase):
 
             return mids
         
+        def prepare_recent_models(aid, mid, n_runners):
+             # prepare the most recent model for the first n_runners runners
+            for rid in range(n_runners):
+                self._prepared_strategies[rid][aid] = mid
+                self._ready[rid] = all(
+                    [m is not None for m in self._prepared_strategies[rid]])
+        
+        def prepare_historical_models(aid, mid, model_weights):
+            rid_min = self.n_online_runners + aid * self.n_agent_runners
+            rid_max = self.n_online_runners + (aid + 1) * self.n_agent_runners
+            mids = get_model_ids(aid, mid, model_weights)
+            for rid in range(rid_min, rid_max):
+                self._prepared_strategies[rid] = mids
+                self._ready[rid] = True
+
         def prepare_models(aid, model_weights: ModelWeights):
             model_weights.weights.pop('opt')
             model_weights.weights['aux'] = \
@@ -246,24 +267,13 @@ class ParameterServer(RayBase):
 
             if self._first_iteration or self.online_frac == 1:
                 # prepare the most recent model for all runners
-                for rid in range(self.n_runners):
-                    self._prepared_strategies[rid][aid] = mid
-                    self._ready[rid] = all(
-                        [m is not None for m in self._prepared_strategies[rid]])
+                prepare_recent_models(aid, mid, self.n_runners)
             else:
                 # prepare the most recent model for online runners
-                for rid in range(self.n_online_runners):
-                    self._prepared_strategies[rid][aid] = mid
-                    self._ready[rid] = all(
-                        [m is not None for m in self._prepared_strategies[rid]])
+                prepare_recent_models(aid, mid, self.n_online_runners)
                 
-                # prepare models for selected runners
-                mids = get_model_ids(aid, model_weights, mid)
-                rid_min = self.n_online_runners + aid * self.n_agent_runners
-                rid_max = self.n_online_runners + (aid + 1) * self.n_agent_runners
-                for rid in range(rid_min, rid_max):
-                    self._prepared_strategies[rid] = mids
-                    self._ready[rid] = True
+                # prepare historical models for selected runners
+                prepare_historical_models(aid, mid, model_weights)
 
         assert self._active_models[aid] == model_weights.model, (self._active_models, model_weights.model)
         assert set(model_weights.weights) == set(['model', 'opt', 'train_step']), list(model_weights.weights)
@@ -306,6 +316,7 @@ class ParameterServer(RayBase):
             models = [s.model for s in strategies]
             self.add_strategies_to_payoff(models)
             self.update_active_models(models)
+            self.save_active_models()
             self.save()
 
         return strategies, is_raw_strategy
@@ -318,7 +329,7 @@ class ParameterServer(RayBase):
             weights = self._params[aid][model].copy()
             weights.pop('aux', None)
             strategies.append(ModelWeights(model, weights))
-            do_logging(f'Restore active strategy: {model}', level='pwt')
+            do_logging(f'Restoring active strategy: {model}', level='pwt')
             [b.save_config() for b in self.builders]
         return strategies
 
@@ -330,12 +341,12 @@ class ParameterServer(RayBase):
         self._params[aid][model] = {}
         weights = None
         model_weights = ModelWeights(model, weights)
-        do_logging(f'A raw strategy is sampled for training: {model}', level='pwt')
+        do_logging(f'Sampling raw strategy for training: {model}', level='pwt')
         
         return model_weights
 
     def _sample_historical_strategy(self, aid):
-        model = random.choice([m for m in self._params[aid] if isinstance(m.model_name, str)])
+        model = random.choice([m for m in self._params[aid] if not is_rule_strategy(m)])
         do_logging(f'Sampling historical stratgy({model}) from {list(self._params[aid])}', level='pwt')
         assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
         weights = self._params[aid][model].copy()
@@ -346,12 +357,11 @@ class ParameterServer(RayBase):
         assert model not in self._params[aid], f'{model} is already in {list(self._params[aid])}'
         self._params[aid][model] = weights
         model_weights = ModelWeights(model, weights)
-        do_logging(f'A historical strategy is sampled for training: {model}', level='pwt')
         
         return model_weights
     
     def archive_training_strategies(self):
-        do_logging('Archive training strategies', 
+        do_logging('Archiving training strategies', 
             level='print', time=True, color='blue')
         for aid, model in enumerate(self._active_models):
             self.save_params(model)
@@ -404,9 +414,9 @@ class ParameterServer(RayBase):
         model: ModelPath
     ):
         assert isinstance(model, ModelPath), model
-        # do_logging('Update opponent distributions', level='pwt')
         self._opp_dist[model] = self.payoff_manager.\
             get_opponent_distribution(aid, model)[1]
+        do_logging(f'Updating opponent distributions for agent {aid}: {self._opp_dist[model]}', level='pwt')
 
     def sample_strategies_for_evaluation(self):
         if self._all_strategies is None:
@@ -442,13 +452,17 @@ class ParameterServer(RayBase):
         train_step: int, 
         env_step: int
     ):
-        do_logging(f'Save active model: {model}', level='pwt')
+        do_logging(f'Saving active model: {model}', level='pwt')
         assert model in self._active_models, (model, self._active_models)
         aid = get_aid(model.model_name)
         assert model in self._params[aid], f'{model} does not in {list(self._params[aid])}'
         self._params[aid][model]['train_step'] = train_step
         self._params[aid][model]['env_step'] = env_step
         self.save_params(model)
+
+    def save_active_models(self):
+        for m in self._active_models:
+            self.save_active_model(m, 0, 0)
 
     def save_params(
         self, 
@@ -464,7 +478,7 @@ class ParameterServer(RayBase):
         path = f'{ps_dir}/{filename}.pkl'
         with open(path, 'wb') as f:
             cloudpickle.dump(self._params[aid][model], f)
-        do_logging(f'Save parameters in "{path}"', level='pwt')
+        do_logging(f'Saving parameters in "{path}"', level='pwt')
 
     def restore_params(
         self, 
@@ -477,7 +491,7 @@ class ParameterServer(RayBase):
         if os.path.exists(path):
             with open(path, 'rb') as f:
                 self._params[aid][model] = cloudpickle.load(f)
-            do_logging(f'Restore parameters from "{path}"', level='pwt')
+            do_logging(f'Restoring parameters from "{path}"', level='pwt')
         else:
             self._params[aid][model] = {}
 
@@ -508,7 +522,7 @@ class ParameterServer(RayBase):
                 for models in model_paths:
                     for m in models:
                         m = ModelPath(*m)
-                        if isinstance(m.model_name, str):
+                        if not is_rule_strategy(m):
                             self.restore_params(ModelPath(*m))
             return True
         else:

@@ -73,6 +73,16 @@ def _grid_search(config, main, cmd_args):
     [p.join() for p in processes]
 
 
+def config_info(config, infos):
+    if len(infos) > 1:
+        for i, info in enumerate(infos):
+            config[f'info{i}'] = info
+    elif len(infos) == 1:
+        config['info'] = infos[0]
+    else:
+        config['info'] = None
+    return config
+
 def _run_with_configs(cmd_args):
     algo_env_config = _get_algo_env_config(cmd_args)
 
@@ -92,8 +102,7 @@ def _run_with_configs(cmd_args):
         if model_name == '':
             model_name = 'baseline'
 
-        if cmd_args.seed is not None:
-            model_name = f'{model_name}-seed={cmd_args.seed}'
+        model_name = f'{model_name}/seed={cmd_args.seed}'
 
         main = pkg.import_main('train', algo)
         
@@ -107,7 +116,7 @@ def _run_with_configs(cmd_args):
         )
         config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
 
-        config['info'] = cmd_args.info
+        config = config_info(config, cmd_args.info)
         configs.append(config)
 
     if cmd_args.grid_search or cmd_args.trials > 1:

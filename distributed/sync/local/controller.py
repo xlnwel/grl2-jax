@@ -3,7 +3,6 @@ import logging
 import cloudpickle
 import time
 from typing import List
-import numpy as np
 import ray
 
 from .agent_manager import AgentManager
@@ -12,16 +11,16 @@ from ..remote.monitor import Monitor
 from ..remote.parameter_server import ParameterServer
 from core.ckpt.base import YAMLCheckpointBase
 from core.log import do_logging
-from core.typing import ModelPath
+from core.typing import ModelPath, get_basic_model_name
 from core.utils import save_code
 from env.func import get_env_stats
 from gt.alpharank import AlphaRank
-from run.utils import search_for_all_configs
+from run.utils import search_for_all_configs, search_for_config
 from utility.process import run_ray_process
 from utility.schedule import PiecewiseSchedule
 from utility.timer import Every, Timer
 from utility.typing import AttrDict
-from utility.utils import dict2AttrDict, eval_config, modify_config
+from utility.utils import batch_dicts, dict2AttrDict, eval_config, modify_config
 from utility import yaml_op
 
 
@@ -95,7 +94,10 @@ class Controller(YAMLCheckpointBase):
         to_restore=True,
     ):
         self.config = eval_config(config.controller)
-        model_path = ModelPath(self.config.root_dir, self.config.model_name.split('/')[0])
+        model_path = ModelPath(
+            self.config.root_dir, 
+            get_basic_model_name(self.config.model_name)
+        )
         self._dir = '/'.join(model_path)
         self._path = f'{self._dir}/{name}.yaml'
         save_code(model_path)
@@ -235,6 +237,10 @@ class Controller(YAMLCheckpointBase):
         do_logging(f'Finish Publishing Model Weights', 
             logger=logger)
         self.active_models = [model for model, _ in model_weights]
+        self.active_configs = [
+            search_for_config(model, to_attrdict=False) 
+            for model in self.active_models
+        ]
         self.runner_manager.build_runners(
             self.configs, 
             remote_buffers=self.agent_manager.get_agents(),
@@ -253,6 +259,9 @@ class Controller(YAMLCheckpointBase):
         agent_manager.start_training()
         to_restart_runners = self.config.get('restart_runners_priod', None) \
             and Every(self.config.restart_runners_priod, time.time())
+        to_eval = self.config.get('eval_priod', None) \
+            and Every(self.config.eval_priod, time.time())
+        eval_pids = []
 
         while self._steps < max_steps_per_iteration:
             model_weights = ray.get(self.parameter_server.get_strategies.remote())
@@ -273,15 +282,27 @@ class Controller(YAMLCheckpointBase):
                 self.save()
             if to_restart_runners is not None and to_restart_runners(curr_time):
                 do_logging('Restarting Runners', logger=logger)
+                self.runner_manager.destroy_runners()
                 self.runner_manager.build_runners(
                     self.configs, 
                     remote_buffers=agent_manager.get_agents(),
                     active_models=self.active_models, 
                 )
+            if to_eval is not None and to_eval(curr_time):
+                eval_pids.append(self._eval(steps))
             if self._pids:
                 ready_pids, self._pids = ray.wait(self._pids, timeout=1e-5)
                 if ready_pids:
                     self._log_remote_stats(ready_pids)
+            if eval_pids:
+                ready_pids, eval_pids = ray.wait(eval_pids, timeout=1e-5)
+                if ready_pids:
+                    self._log_remote_stats_for_models(ready_pids, self.active_models)
+
+        ready_pids, eval_pids = ray.wait(eval_pids)
+        if ready_pids:
+            self._log_remote_stats_for_models(
+                ready_pids, self.active_models, record=True, step=self._steps)
 
         self._post_processing()
         ray.get([
@@ -317,17 +338,41 @@ class Controller(YAMLCheckpointBase):
         # return
         if self.suite == 'spiel':
             do_logging('Computing Nash Convergence...', logger=logger)
-            self.compute_nash_conv()
+            self._pids.append(self.compute_nash_conv(
+                self._iteration+1, avg=True, 
+                latest=True, write_to_disk=False
+            ))
 
-    def _log_remote_stats(self, pids):
+    def _log_remote_stats(self, pids, record=True):
         stats_list = ray.get(pids)
         for stats in stats_list:
             step = stats.pop('step')
             self.monitor.store_stats.remote(
-                stats, 
+                stats=stats, 
                 step=step, 
-                record=True
+                record=record
             )
+    
+    def _log_remote_stats_for_models(
+        self, 
+        pids, 
+        models: List[ModelPath], 
+        record=False, 
+        step=None
+    ):
+        stats_list = ray.get(pids)
+        stats = batch_dicts(stats_list)
+        for m in models:
+            self.monitor.store_stats_for_model.remote(
+                m, stats, record=record, step=step)
+
+    def _eval(self, step):
+        if self.suite == 'spiel':
+            pid = self.compute_nash_conv(
+                step, avg=False, latest=True, 
+                write_to_disk=False, configs=self.active_configs
+            )
+        return pid
 
     """ Evaluation """
     def evaluate_all(self, total_episodes, filename):
@@ -348,13 +393,21 @@ class Controller(YAMLCheckpointBase):
             cloudpickle.dump((payoffs, counts), f)
         do_logging(f'Payoffs have been saved at {path}', logger=logger)
 
-    def compute_nash_conv(self):
-        configs = search_for_all_configs(self._dir, to_attrdict=False)
+    def compute_nash_conv(self, step, avg, latest, write_to_disk, configs=None):
+        if configs is None:
+            configs = search_for_all_configs(self._dir, to_attrdict=False)
         from run.spiel_eval import main
         filename = '/'.join([self._dir, 'nash_conv.txt'])
-        self._pids.append(
-            run_ray_process(main, configs, step=self._iteration+1, filename=filename)
+        pid = run_ray_process(
+            main, 
+            configs, 
+            step=step, 
+            filename=filename,
+            avg=avg, 
+            latest=latest, 
+            write_to_disk=write_to_disk
         )
+        return pid
 
     """ Checkpoints """
     def save(self):

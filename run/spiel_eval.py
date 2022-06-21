@@ -29,12 +29,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.elements.builder import ElementsBuilder
 from core.log import setup_logging
 from core.tf_config import *
-from core.typing import ModelPath, get_aid, get_base_model_name
+from core.typing import ModelPath, get_aid, get_basic_model_name
 from core.ckpt.pickle import set_weights_for_agent
 from env.func import create_env
 from run.args import parse_eval_args
 from run.utils import search_for_all_configs, search_for_config
-from utility.utils import dict2AttrDict
+from utility.utils import dict2AttrDict, set_seed
 
 
 class RLPolicy(policy.Policy):
@@ -116,46 +116,57 @@ class JointPolicy(policy.Policy):
         prob_dict = {action: probs[action] for action in legal_actions}
         return prob_dict
 
-def build_policies(configs, env):
+def build_agent(builder, config, env):
+    filename = 'params.pkl'
+    model = ModelPath(config['root_dir'], config['model_name'])
+    agent = builder.build_acting_agent_from_scratch(
+        config, 
+        env_stats=env.stats(),
+        build_monitor=False, 
+        to_build_for_eval=False, 
+        to_restore=False
+    ).agent
+    set_weights_for_agent(agent, model, filename=filename)
+    return agent
+
+def get_latest_configs(configs):
+    if len(configs) == 2:
+        return configs
+    latest_configs = [None, None]
     iteration1 = -1
     iteration2 = -1
-    agent1 = None
-    agent2 = None
-    policies = [[], []]
-    latest_configs = [None, None]
-    latest_configs2 = None
-    builder = ElementsBuilder(configs[0], env.stats())
     for config in configs:
-        elements = builder.build_acting_agent_from_scratch(
-            config, 
-            env_stats=env.stats(),
-            build_monitor=False, 
-            to_build_for_eval=False, 
-            to_restore=False
-        )
-        model = ModelPath(config['root_dir'], config['model_name'])
-        aid = get_aid(model.model_name)
-        assert aid == config.aid, (aid, config.aid)
-        filename = 'params.pkl'
-        set_weights_for_agent(elements.agent, model, filename=filename)
-        policies[config.aid].append(RLPolicy(
-            env, elements.agent, config.aid))
         if config.aid == 0:
             if config.iteration > iteration1:
                 iteration1 = config.iteration
-                agent1 = elements.agent
                 latest_configs[0] = config
         else:
             if config.iteration > iteration2:
                 iteration2 = config.iteration
-                agent2 = elements.agent
                 latest_configs[1] = config
+    return latest_configs
+
+def build_latest_joint_policy(configs, env):
+    builder = ElementsBuilder(configs[0], env.stats())
+    agent1 = build_agent(builder, configs[0], env)
+    agent2 = build_agent(builder, configs[1], env)
     joint_policy = JointPolicy(env, [agent1, agent2])
+    return joint_policy
 
-    return policies, joint_policy, latest_configs
+def build_policies(configs, env):
+    policies = [[], []]
+    builder = ElementsBuilder(configs[0], env.stats())
+    for config in configs:
+        agent = build_agent(builder, config, env)
+        policies[config.aid].append(RLPolicy(
+            env, agent, config.aid))
+    probs = [np.ones(len(pls)) for pls in policies]
+    pol_agg = policy_aggregator.PolicyAggregator(env.game)
+    aggr_policy = pol_agg.aggregate([0, 1], policies, probs)
+    return aggr_policy
 
 
-def main(configs, step, filename=None):
+def main(configs, step, filename=None, avg=True, latest=True, write_to_disk=True):
     configs = [dict2AttrDict(c) for c in configs]
     for config in configs:
         config.runner.n_runners = 1
@@ -163,41 +174,44 @@ def main(configs, step, filename=None):
         config.env.n_envs = 1
     env = create_env(config.env)
 
+    set_seed(config.seed)
     silence_tf_logs()
     configure_gpu(None)
     configure_precision(config.precision)
 
-    policies, joint_policy, latest_configs = build_policies(configs, env)
-    probs = [np.ones(len(pls)) for pls in policies]
-    pol_agg = policy_aggregator.PolicyAggregator(env.game)
-    aggr_policy = pol_agg.aggregate([0, 1], policies, probs)
+    nash_conv = {'step': step}
 
-    result = exploitability.nash_conv(env.game, aggr_policy, False)
-    nash_conv = dict(
-        step=step, 
-        nash_conv=float(result.nash_conv), 
-        expl1=float(result.player_improvements[0]), 
-        expl2=float(result.player_improvements[1])
-    )
+    if avg:
+        aggr_policy = build_policies(configs, env)
+        result = exploitability.nash_conv(env.game, aggr_policy, False)
+        nash_conv.update(dict(
+            nash_conv=float(result.nash_conv), 
+            expl1=float(result.player_improvements[0]), 
+            expl2=float(result.player_improvements[1])
+        ))
 
-    result = exploitability.nash_conv(env.game, joint_policy, False)
-    nash_conv.update(dict(
-        latest_nash_conv=float(result.nash_conv), 
-        latest_expl1=float(result.player_improvements[0]), 
-        latest_expl2=float(result.player_improvements[1])
-    ))
+    latest_configs = get_latest_configs(configs)
+    if latest:
+        joint_policy = build_latest_joint_policy(configs, env)
+        result = exploitability.nash_conv(env.game, joint_policy, False)
+        nash_conv.update(dict(
+            latest_nash_conv=float(result.nash_conv), 
+            latest_expl1=float(result.player_improvements[0]), 
+            latest_expl2=float(result.player_improvements[1])
+        ))
 
-    root_dir = latest_configs[0].root_dir
-    model_name = get_base_model_name(latest_configs[0].model_name)
-    if filename is not None:
-        with open(filename, 'a') as f:
-            if os.stat(filename).st_size == 0:
-                f.write('\t'.join(['root_dir', 'model_name', *nash_conv.keys()]) + '\n')
-            f.write('\t'.join([
-                root_dir, 
-                model_name, 
-                *[f'{v:.3f}' if isinstance(v, float) else f'{v}' for v in nash_conv.values()]
-            ]) + '\n')
+    if write_to_disk:
+        root_dir = latest_configs[0].root_dir
+        model_name = get_basic_model_name(latest_configs[0].model_name)
+        if filename is not None:
+            with open(filename, 'a') as f:
+                if os.stat(filename).st_size == 0:
+                    f.write('\t'.join(['root_dir', 'model_name', *nash_conv.keys()]) + '\n')
+                f.write('\t'.join([
+                    root_dir, 
+                    model_name, 
+                    *[f'{v:.3f}' if isinstance(v, float) else f'{v}' for v in nash_conv.values()]
+                ]) + '\n')
 
     return nash_conv
 

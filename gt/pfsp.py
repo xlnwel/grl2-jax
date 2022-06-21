@@ -18,6 +18,7 @@ class PFSP:
         aid: int, 
         model_payoff: np.ndarray, 
         n_agents: int, 
+        prioritize_unmet: bool=True
     ):
         """ Prioritized Fictitous Self-Play """
         assert len(model_payoff.shape) == n_agents - 1, (model_payoff.shape, n_agents)
@@ -25,7 +26,12 @@ class PFSP:
             aid, 
             model_payoff, 
             n_agents, 
-            {'p': self._p, 'type': 'reverse_poly', 'threshold': self._threshold}
+            prioritize_unmet=prioritize_unmet, 
+            reweight_kwargs={
+                'p': self._p, 
+                'type': 'poly', 
+                'threshold': self._threshold
+            }
         )
 
         return payoffs, dists

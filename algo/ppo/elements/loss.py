@@ -14,7 +14,6 @@ class GPOLoss(ValueLossImpl, GPOLossImpl):
         logprob, 
         target_prob, 
         tr_prob, 
-        vt_prob, 
         target_prob_prime, 
         tr_prob_prime, 
         pi=None, 
@@ -44,7 +43,6 @@ class GPOLoss(ValueLossImpl, GPOLossImpl):
                 advantage=advantage, 
                 logprob=logprob, 
                 tr_prob=tr_prob, 
-                vt_prob=vt_prob, 
                 target_prob_prime=target_prob_prime,
                 tr_prob_prime=tr_prob_prime,
                 pi=pi, 
@@ -69,20 +67,7 @@ class GPOLoss(ValueLossImpl, GPOLossImpl):
             loss = actor_loss + value_loss
         
         terms = {**actor_terms, **value_terms}
-        if self.config.get('debug', True):
-            terms.update(dict(
-                target_prime_old_diff_prob=target_prob_prime - terms['prob'], 
-                trust_prime_old_diff_prob=tr_prob_prime - terms['prob'], 
-                target_prime_target_diff_prob=target_prob_prime - target_prob, 
-                trust_prime_trust_diff_prob=tr_prob_prime - tr_prob, 
-                target_prime_trust_prime_diff_prob=target_prob_prime - tr_prob_prime, 
-                target_trust_diff_prob=target_prob - tr_prob, 
-                target_prime_valid_target_diff_prob=target_prob_prime - vt_prob, 
-                trust_prime_valid_target_diff_prob=tr_prob_prime - vt_prob, 
-                target_valid_target_diff_prob=target_prob - vt_prob, 
-                trust_valid_target_diff_prob=tr_prob - vt_prob, 
-            ))
-            if life_mask is not None:
+        if self.config.get('debug', True) and life_mask is not None:
                 terms['n_alive_units'] = tf.reduce_sum(
                     life_mask, -1)
 

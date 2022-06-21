@@ -24,7 +24,7 @@ def post_wrap(env, config):
         env = ContinuousActionMapper(
             env, 
             bound_method=config.get('bound_method', 'clip'), 
-            to_rescale=False,
+            to_rescale=config.get('to_rescale', True),
             action_low=config.get('action_low', -1), 
             action_high=config.get('action_high', 1)
         )
@@ -368,9 +368,9 @@ class ContinuousActionMapper(gym.ActionWrapper):
 
         self.bound_method = bound_method
         self.to_rescale = to_rescale
-        if to_rescale:
-            assert action_low is not None, action_low
-            assert action_high is not None, action_high
+        if bound_method == 'clip':
+            action_low = -1
+            action_high = 1
         if self.is_multi_agent:
             self.env_action_low = [a.low for a in self.action_space]
             self.env_action_high = [a.high for a in self.action_space]
@@ -380,7 +380,7 @@ class ContinuousActionMapper(gym.ActionWrapper):
         self.action_low = action_low
         self.action_high = action_high
         if ContinuousActionMapper.to_print:
-            print('Continuous Action Wrapper', self.action_low, action_high)
+            print('Continuous Action Wrapper', self.action_low, self.action_high)
             ContinuousActionMapper.to_print = False
         self._is_random_action = False
 
@@ -412,7 +412,7 @@ class ContinuousActionMapper(gym.ActionWrapper):
             elif self.bound_method == 'tanh':
                 action = np.tanh(action)
             if self.to_rescale:
-                assert np.all(self.action_low <= action <= self.action_high), (action, self.action_low, self.action_high)
+                assert np.all(self.action_low <= action) and np.all(action <= self.action_high), (action, self.action_low, self.action_high)
                 size = self.env_action_high - self.env_action_low
                 action = size * (action - self.action_low) / (self.action_high - self.action_low) + self.env_action_low
                 assert np.all(self.env_action_low <= action) \
