@@ -14,9 +14,9 @@ class PERBase(Replay):
         self._data_structure = None            
         self._use_is_ratio = getattr(self, '_use_is_ratio', True)
         self._beta = float(getattr(self, 'beta0', .4))
-        if getattr(self, '_beta_schedule', None):
-            assert isinstance(self._beta_schedule, list)
-            self._beta_schedule = PiecewiseSchedule(self._beta_schedule)
+        if getattr(self, '_beta_scheduler', None):
+            assert isinstance(self._beta_scheduler, list)
+            self._beta_scheduler = PiecewiseSchedule(self._beta_scheduler)
         self._sample_i = 0   # count how many times self._sample is called
 
     @override(Replay)
@@ -27,7 +27,7 @@ class PERBase(Replay):
             f'minimum required size({self._min_size})')
         samples = self._sample(batch_size=batch_size)
         self._sample_i += 1
-        if hasattr(self, '_beta_schedule'):
+        if hasattr(self, '_beta_scheduler'):
             self._update_beta()
         return samples
 
@@ -47,7 +47,7 @@ class PERBase(Replay):
 
     """ Implementation """
     def _update_beta(self):
-        self._beta = self._beta_schedule.value(self._sample_i)
+        self._beta = self._beta_scheduler(self._sample_i)
 
     @override(Replay)
     def _merge(self, local_buffer, length):    

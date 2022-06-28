@@ -8,17 +8,20 @@ from utility.utils import dict2AttrDict, set_seed
 from utility import yaml_op
 
 
+def save_config(config, name='config.yaml'):
+    yaml_op.save_config(
+        config.asdict(), 
+        filename='/'.join([
+            config['root_dir'], 
+            config['model_name'], 
+            name
+        ])
+    )
+
 def save_configs(configs):
     for i, config in enumerate(configs):
         config.n_agents = len(configs)
-        yaml_op.save_config(
-            config.asdict(), 
-            filename='/'.join([
-                config['root_dir'], 
-                config['model_name'], 
-                f'config_p{i}.yaml'
-            ])
-        )
+        save_config(config, name=f'config_p{i}.yaml')
 
 def main(configs):
     if ray.is_initialized():
@@ -30,8 +33,9 @@ def main(configs):
         configs = [dict2AttrDict(configs[0], to_copy=True) 
             for _ in range(configs[0].n_agents)]
 
-    save_configs(configs)
     config = configs[0]
+    save_configs(configs)
+    
     seed = config.get('seed')
     print('seed', seed)
     set_seed(seed)

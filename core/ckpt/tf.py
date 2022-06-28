@@ -4,7 +4,7 @@ from core.typing import ModelPath
 from utility.display import pwc
 
 
-def restore(ckpt_manager, ckpt, ckpt_path, name='model', version='latest'):
+def restore_ckpt(ckpt_manager, ckpt, ckpt_path, name='model', version='latest'):
     """ Restores the latest parameter recorded by ckpt_manager
 
     Args:
@@ -29,7 +29,7 @@ def restore(ckpt_manager, ckpt, ckpt_path, name='model', version='latest'):
         pwc(f'No model for {name} is found at "{ckpt_path}"!', color='cyan')
     return bool(path)
 
-def save(ckpt_manager, print_terminal_info=True):
+def save_ckpt(ckpt_manager, print_terminal_info=True):
     """ Saves model
 
     Args:
@@ -87,7 +87,7 @@ class TFCheckpoint:
     def save(self, print_terminal_info=True):
         if self._has_ckpt:
             self.setup_checkpoint()
-            save(self.ckpt_manager, print_terminal_info)
+            save_ckpt(self.ckpt_manager, print_terminal_info)
         else:
             raise RuntimeError(
                 'Cannot perform <save> as either root_dir or model_name was not specified at initialization')
@@ -95,7 +95,7 @@ class TFCheckpoint:
     def restore(self):
         if self._has_ckpt:
             self.setup_checkpoint()
-            restore(self.ckpt_manager, self.ckpt, self.ckpt_path, self._name)
+            restore_ckpt(self.ckpt_manager, self.ckpt, self.ckpt_path, self._name)
         else:
             raise RuntimeError(
                 'Cannot perform <restore> as either root_dir or model_name was not specified at initialization')

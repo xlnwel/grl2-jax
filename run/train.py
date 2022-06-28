@@ -1,6 +1,5 @@
 import os, sys
 from datetime import datetime
-import numpy as np
 
 # try:
 #     from tensorflow.python.compiler.mlcompute import mlcompute
@@ -114,6 +113,7 @@ def _run_with_configs(cmd_args):
             model_name=model_name, 
             seed=cmd_args.seed
         )
+        config['date'] = raw_model_name[:4]
         config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
 
         config = config_info(config, cmd_args.info)

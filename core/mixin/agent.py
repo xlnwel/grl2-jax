@@ -69,7 +69,7 @@ class ActionScheduler:
             eps = self._eval_act_eps
         else:
             if self._schedule_act_eps:
-                eps = self._act_eps.value(self.env_step)
+                eps = self._act_eps(self.env_step)
                 self.store(act_eps=eps)
                 eps = tf.convert_to_tensor(eps, tf.float32)
             else:

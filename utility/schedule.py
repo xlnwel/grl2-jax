@@ -48,7 +48,7 @@ class PiecewiseSchedule:
                             for i in range(len(self._endpoints)-1)]
         self._outside_value = self._endpoints[-1][1]
 
-    def value(self, t):
+    def __call__(self, t):
         if t < self._endpoints[0][0]:
             return self._endpoints[0][1]
         else:

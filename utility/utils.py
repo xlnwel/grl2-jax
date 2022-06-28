@@ -8,7 +8,6 @@ import multiprocessing
 import os
 import random
 import numpy as np
-import tensorflow as tf
 
 from core.typing import ModelPath
 from utility.typing import AttrDict
@@ -490,6 +489,7 @@ def convert_batch_tuples_with_func(data, func=np.stack):
         for x in zip(*data)]
 
 def concat_map(x):
+    import tensorflow as tf
     return tf.nest.map_structure(lambda x: np.concatenate(x), x)
 
 
@@ -500,6 +500,7 @@ def get_frame(backtrack):
     return frame
 
 def set_seed(seed: int=None):
+    import tensorflow as tf
     random.seed(seed)
     np.random.seed(seed)
     tf.random.set_seed(seed)

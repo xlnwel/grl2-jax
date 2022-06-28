@@ -3,11 +3,12 @@ import itertools
 import os
 import random
 from typing import Dict, List
-import cloudpickle
 import numpy as np
 import ray
 
+
 from ..common.typing import ModelWeights
+from core.ckpt import pickle
 from core.elements.builder import ElementsBuilderVC
 from core.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
@@ -37,11 +38,12 @@ path is involved (e.g., when saving&restoring a model).
 
 """ Parameter Queue Management """
 def _divide_runners(n_agents, n_runners, online_frac):
-    n_online_runners = int(n_runners * online_frac)
-    n_rest_queues = n_runners - n_online_runners
-    n_agent_runners = n_rest_queues // n_agents
-    # assert n_agent_runners * n_agents + n_online_runners == n_runners, \
-    #     (n_agent_runners, n_agents, n_online_runners, n_runners)
+    if n_runners < n_agents:
+        return n_runners, 0
+    n_agent_runners = int(n_runners * (1 - online_frac) // n_agents)
+    n_online_runners = n_runners - n_agent_runners * n_agents
+    assert n_agent_runners * n_agents + n_online_runners == n_runners, \
+        (n_agent_runners, n_agents, n_online_runners, n_runners)
 
     return n_online_runners, n_agent_runners
 
@@ -84,7 +86,7 @@ class ParameterServer(RayBase):
         # an active model is the one under training
         self._active_models: List[ModelPath] = [None for _ in range(self.n_agents)]
         # is the first pbt iteration
-        self._first_iteration = True
+        self._iteration = 1
         self._all_strategies = None
 
         self.payoff_manager: PayoffManager = PayoffManager(
@@ -93,13 +95,8 @@ class ParameterServer(RayBase):
             self._dir,
         )
 
-        self.n_online_runners, self.n_agent_runners = \
-            _divide_runners(
-                self.n_agents, 
-                self.n_runners, 
-                self.online_frac, 
-            )
         succ = self.restore(to_restore_params)
+        self.update_runner_distribution(self._iteration)
 
         if self.config.get('rule_strategies'):
             self.add_rule_strategies(
@@ -153,6 +150,17 @@ class ParameterServer(RayBase):
         }
 
         return dists
+
+    def get_runner_stats(self):
+        stats = {
+            'online_frac': self.online_frac 
+                if isinstance(self.online_frac, (int, float)) 
+                else self.online_frac[0][1], 
+            'n_online_runners': self.n_online_runners, 
+            'n_agent_runners': self.n_agent_runners, 
+        }
+
+        return stats
 
     """ Strategy Management """
     def add_rule_strategies(self, rule_config: dict, local=False):
@@ -249,7 +257,8 @@ class ParameterServer(RayBase):
             for rid in range(n_runners):
                 self._prepared_strategies[rid][aid] = mid
                 self._ready[rid] = all(
-                    [m is not None for m in self._prepared_strategies[rid]])
+                    [m is not None for m in self._prepared_strategies[rid]]
+                )
         
         def prepare_historical_models(aid, mid, model_weights):
             rid_min = self.n_online_runners + aid * self.n_agent_runners
@@ -265,7 +274,7 @@ class ParameterServer(RayBase):
                 self._params[aid][model_weights.model].get('aux', RMSStats({}, None))
             mid = ray.put(model_weights)
 
-            if self._first_iteration or self.online_frac == 1:
+            if self._iteration == 1 or self.n_runners == self.n_online_runners:
                 # prepare the most recent model for all runners
                 prepare_recent_models(aid, mid, self.n_runners)
             else:
@@ -299,7 +308,9 @@ class ParameterServer(RayBase):
         else:
             self._params[aid][model_weights.model]['aux'] = model_weights.weights['aux']
 
-    def sample_training_strategies(self):
+    def sample_training_strategies(self, step=None):
+        if step is not None:
+            assert step == self._iteration, (step, self._iteration)
         strategies = []
         is_raw_strategy = [False for _ in range(self.n_agents)]
         if any([am is not None for am in self._active_models]):
@@ -307,7 +318,7 @@ class ParameterServer(RayBase):
         else:
             assert all([am is None for am in self._active_models]), self._active_models
             for aid in range(self.n_agents):
-                if self._first_iteration or random.random() < self.train_from_scratch_frac:
+                if self._iteration == 1 or random.random() < self.train_from_scratch_frac:
                     model_weights = self._construct_raw_strategy(aid)
                     is_raw_strategy[aid] = True
                 else:
@@ -320,6 +331,21 @@ class ParameterServer(RayBase):
             self.save()
 
         return strategies, is_raw_strategy
+
+    def update_runner_distribution(self, step):
+        if isinstance(self.online_frac, (int, float)):
+            online_frac = self.online_frac
+        else:
+            assert isinstance(self.online_frac, list), self.online_frac
+            if self.online_frac[0][0] < step and len(self.online_frac) > 1:
+                del self.online_frac[0]
+            online_frac = self.online_frac[0][1]
+        self.n_online_runners, self.n_agent_runners = \
+            _divide_runners(
+                self.n_agents, 
+                self.n_runners, 
+                online_frac, 
+            )
 
     def _restore_active_strategies(self):
         # restore active strategies 
@@ -368,7 +394,8 @@ class ParameterServer(RayBase):
             self.update_active_model(aid, None)
             if model in self._opp_dist:
                 del self._opp_dist[model]
-        self._first_iteration = False
+        self._iteration += 1
+        self.update_runner_distribution(self._iteration)
         self.save()
 
     """ Strategy Sampling """
@@ -471,14 +498,8 @@ class ParameterServer(RayBase):
     ):
         assert model in self._active_models, (model, self._active_models)
         aid, iid, vid = get_all_ids(model.model_name)
-        ps_dir = construct_model_name(self._dir, aid, iid, vid)
-        if not os.path.isdir(ps_dir):
-            os.makedirs(ps_dir)
-        
-        path = f'{ps_dir}/{filename}.pkl'
-        with open(path, 'wb') as f:
-            cloudpickle.dump(self._params[aid][model], f)
-        do_logging(f'Saving parameters in "{path}"', level='pwt')
+        filedir = construct_model_name(self._dir, aid, iid, vid)
+        pickle.save(self._params[aid][model], filedir, filename)
 
     def restore_params(
         self, 
@@ -486,14 +507,8 @@ class ParameterServer(RayBase):
         filename='params'
     ):
         aid, iid, vid = get_all_ids(model.model_name)
-        ps_dir = construct_model_name(self._dir, aid, iid, vid)
-        path = f'{ps_dir}/{filename}.pkl'
-        if os.path.exists(path):
-            with open(path, 'rb') as f:
-                self._params[aid][model] = cloudpickle.load(f)
-            do_logging(f'Restoring parameters from "{path}"', level='pwt')
-        else:
-            self._params[aid][model] = {}
+        filedir = construct_model_name(self._dir, aid, iid, vid)
+        self._params[aid][model] = pickle.restore(filedir, filename)
 
     def save(self):
         self.payoff_manager.save()
@@ -503,7 +518,9 @@ class ParameterServer(RayBase):
             self._path, 
             model_paths=model_paths, 
             active_models=active_models, 
-            first_iteration=self._first_iteration
+            iteration=self._iteration, 
+            n_online_runners=self.n_online_runners, 
+            n_agent_runners=self.n_agent_runners
         )
 
     def restore(self, to_restore_params=True):

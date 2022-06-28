@@ -6,7 +6,7 @@ from core.optimizer import create_optimizer
 from core.tf_config import build
 from utility.utils import dict2AttrDict
 from .utils import get_data_format
-from utility.adam import Adam
+from optimizers.adam import Adam
 
 
 class GPOActorTrainer(Trainer):

@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.typing import ModelPath
 from utility.file import search_for_dirs
 from utility import yaml_op
-from utility.utils import flatten_dict
+from utility.utils import flatten_dict, recursively_remove
 
 
 def get_model_path(dirpath) -> ModelPath:
@@ -23,7 +23,8 @@ def parse_args():
                         type=str,
                         default='.')
     parser.add_argument('--prefix', '-p', 
-                        type=str)
+                        type=str, 
+                        nargs='*',)
     parser.add_argument('--target', '-t', 
                         type=str,
                         default='html-logs')
@@ -32,59 +33,84 @@ def parse_args():
     return args
 
 
+def remove_lists(d):
+    to_remove_keys = []
+    dicts = []
+    for k, v in d.items():
+        if isinstance(v, list):
+            to_remove_keys.append(k)
+        elif isinstance(v, dict):
+            dicts.append((k, v))
+    for k in to_remove_keys:
+        del d[k]
+    for k, v in dicts:
+        d[k] = remove_lists(v)
+    return d
+
+
+def remove_redundancies(config: dict):
+    redundancies = [k for k in config.keys() if k.endswith('id') and '/' in k]
+    redundancies += [k for k in config.keys() if k.endswith('algorithm') and '/' in k]
+    redundancies += [k for k in config.keys() if k.endswith('env_name') and '/' in k]
+    for k in redundancies:
+        del config[k]
+    return config
+
+
+def rename_env(config: dict):
+    env_name = config['env/env_name']
+    suite = env_name.split('-', 1)[0]
+    raw_env_name = env_name.split('-', 1)[1]
+    config['env_name'] = env_name
+    config['env_suite'] = suite
+    config['raw_env_name'] = raw_env_name
+    return config
+
+
 if __name__ == '__main__':
     args = parse_args()
     
-    dirs = search_for_dirs(args.directory, args.prefix, is_suffix=False)
-    dirs = [d for d in dirs if 'a0' not in d and 'a1' not in d]
-    dirs2 = ['/'.join([d, 'a0', 'v1.1']) for d in dirs]
-    
-    for d, d2 in zip(dirs, dirs2):
-        # if d.split('/')[-1].startswith('0602'):
-        #     print(d.split('/')[-1])
-        #     continue
-        target_dir = '/'.join([args.target, d])
-        print(f'copy from {d} to {target_dir}')
-        if not os.path.isdir(target_dir):
-            Path(target_dir).mkdir(parents=True)
-        
-        # define paths
-        yaml_path = '/'.join([d2, 'config.yaml'])
-        json_path = '/'.join([target_dir, 'parameter.json'])
-        record_path = '/'.join([d, 'nash_conv.yaml'])
-        process_path = '/'.join([target_dir, 'progress.csv'])
-        print('yaml path', yaml_path)
-        if not os.path.exists(yaml_path) or not os.path.exists(record_path):
-            continue
+    for p in args.prefix:
+        config_name = 'config_p0.yaml' if p.startswith('seed') else 'config.yaml'
+        for d in search_for_dirs(args.directory, p, is_suffix=False):
+            target_dir = '/'.join([args.target, d.replace(args.directory, '')])
+            print(f'copy from {d} to {target_dir}')
+            if not os.path.isdir(target_dir):
+                Path(target_dir).mkdir(parents=True)
             
-        # save config
-        config = yaml_op.load_config(yaml_path)
-        for k, v in config.items():
-            if isinstance(v, dict):
-                for k in ['root_dir', 'model_name', 'seed']:
-                    del v[k]
+            # define paths
+            yaml_path = '/'.join([d, config_name])
+            json_path = '/'.join([target_dir, 'parameter.json'])
+            record_path = '/'.join([d, 'record.txt'])
+            process_path = '/'.join([target_dir, 'progress.csv'])
+            print('yaml path', yaml_path)
+            if not os.path.exists(yaml_path) or not os.path.exists(record_path):
+                print(f'{yaml_path} does not exist')
+                continue
+                
+            # save config
+            config = yaml_op.load_config(yaml_path)
+            to_remove_keys = ['root_dir', 'model_name', 'seed']
+            config = recursively_remove(config, to_remove_keys)
+            config = remove_lists(config)
+            config = flatten_dict(config)
+            config = rename_env(config)
+            config = remove_redundancies(config)
 
-        config = flatten_dict(config)
-        env_names = [(k, v) for k, v in config.items() if k.endswith('env_name')]
-        for k, v in env_names:
-            prefix = k.rsplit('/', 1)[0]
-            suite = v.split('-', 1)[0]
-            env_name = v.split('-', 1)[1]
-            config[f'{prefix}/suite'] = suite
-            config[k] = env_name
-        if 'model/policy/out_act' not in config:
-            config['model/policy/out_act'] = None
-        with open(json_path, 'w') as json_file:
-            json.dump(config, json_file)
+            with open(json_path, 'w') as json_file:
+                json.dump(config, json_file)
 
-        # save stats
-        try:
-            data = pd.read_table(record_path, on_bad_lines='skip')
-        except:
-            print(f'Record path ({record_path}) constains no data')
-        if len(data.keys()) == 1:
-            data = pd.read_csv(record_path)
-        if data['steps'].dtype == object:
-            data = data[data['steps'].str.contains('steps') == False]
-            data.to_csv(record_path)
-        data.to_csv(process_path)
+            # save stats
+            try:
+                data = pd.read_table(record_path, on_bad_lines='skip')
+            except:
+                print(f'Record path ({record_path}) constains no data')
+            if len(data.keys()) == 1:
+                data = pd.read_csv(record_path)
+            for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
+                if k not in data.keys():
+                    try:
+                        data[k] = data[f'{k}1'] + data[f'{k}2']
+                    except:
+                        pass
+            data.to_csv(process_path)

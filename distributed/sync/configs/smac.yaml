@@ -16,7 +16,7 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 300
+    store_period: 1e6
     restart_runners_priod: null
     max_version_iterations: 1
     max_steps_per_iteration: 3e7

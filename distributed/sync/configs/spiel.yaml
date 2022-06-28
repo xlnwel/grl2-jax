@@ -15,22 +15,26 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 30
+    store_period: 5e4
     restart_runners_priod: null
-    eval_priod: 60
+    eval_priod: 5e4
     max_version_iterations: 30
-    max_steps_per_iteration: 
-        - [0, 1e6]
-        - [20, 3e6]
+    max_steps_per_iteration: 3e6
+        # - [0, 1e6]
+        # - [20, 3e6]
     initialize_rms: &irms False
 
 parameter_server:
     root_dir: *algo
     model_name: *algo
 
-    score_metric: dense_score
+    score_metric: dense_score   # stats recorded in payoff tables
     train_from_scratch_frac: 1
     online_frac: .25
+        # - [1, 1]
+        # - [5, .75]
+        # - [10, .5]
+        # - [20, .25]
     update_interval: 1000
 
     payoff:
@@ -38,7 +42,7 @@ parameter_server:
         sampling_strategy:
             type: pfsp
             p: 1
-            threshold: 0
+            threshold: .3
 
     # rule_strategies:
     #     # agent name / config

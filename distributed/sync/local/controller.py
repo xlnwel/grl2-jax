@@ -2,7 +2,7 @@ from math import ceil
 import logging
 import cloudpickle
 import time
-from typing import List
+from typing import List, Tuple, Union
 import ray
 
 from .agent_manager import AgentManager
@@ -65,25 +65,13 @@ def _setup_configs(
     return configs
 
 
-def _compute_running_steps(config):
-    n_agents = config.n_agents
-    n_runners = config.runner.n_runners
-    n_steps = config.buffer.n_steps
-    online_frac = config.parameter_server.get('online_frac', .2)  # the fraction of runners used for self-play
-    assert n_agents <= n_runners, (n_agents, n_runners)
-
+def _compute_pbt_steps(n_runners, n_steps, n_online_runners, n_agent_runners):
     worker_steps = n_runners * n_steps
-    n_sp_workers = int(n_runners * online_frac)
-    n_individual_workers = (n_runners - n_sp_workers) // n_agents
-    assert n_sp_workers + n_individual_workers * n_agents == n_runners, \
-        (n_agents, n_sp_workers, n_individual_workers, n_runners)
-    n_agent_runners = n_sp_workers + n_individual_workers
+    n_agent_runners = n_online_runners + n_agent_runners
     n_pbt_steps = ceil(worker_steps / n_agent_runners)
-    # do_logging(worker_steps, n_sp_workers, n_agent_runners, n_pbt_steps)
-    # assert False
     assert n_agent_runners * n_pbt_steps >= worker_steps, (n_agent_runners, n_pbt_steps)
 
-    return n_agent_runners, n_pbt_steps
+    return n_pbt_steps
 
 
 class Controller(YAMLCheckpointBase):
@@ -102,12 +90,9 @@ class Controller(YAMLCheckpointBase):
         self._path = f'{self._dir}/{name}.yaml'
         save_code(model_path)
 
-        self._iteration = 0
+        self._iteration = 1
         self._steps = 0
         self._pids = []
-
-        self._to_store = Every(
-            self.config.store_period, time.time())
 
         if to_restore:
             self.restore()
@@ -135,6 +120,7 @@ class Controller(YAMLCheckpointBase):
         self, 
         configs: List[AttrDict]
     ):
+        configs = [dict2AttrDict(c) for c in configs]
         _check_configs_consistency(configs, [
             'controller', 
             'parameter_server', 
@@ -151,11 +137,11 @@ class Controller(YAMLCheckpointBase):
 
         do_logging('Computing Future Running Steps...', logger=logger)
         config = configs[0]
+
         self.n_runners = config.runner.n_runners
-        if self.config.max_version_iterations > 1:
-            self.n_agent_runners, self.n_pbt_steps = _compute_running_steps(config)
-        else:
-            self.n_agent_runners, self.n_pbt_steps = None, None
+        self.n_steps = config.runner.n_steps
+        self.n_envs = config.env.n_envs
+        self.steps_per_run = self.n_runners * self.n_envs * self.n_steps
 
         do_logging('Building Parameter Server...', logger=logger)
         self.parameter_server: ParameterServer = \
@@ -191,44 +177,51 @@ class Controller(YAMLCheckpointBase):
 
     """ Training """
     def pbt_train(self):
-        if isinstance(self.config.max_steps_per_iteration, (list, tuple)):
-            max_step_scheduler = PiecewiseSchedule(self.config.max_steps_per_iteration)
-        else:
-            max_step_scheduler = PiecewiseSchedule([(
-                self.config.max_version_iterations, 
-                self.config.max_steps_per_iteration
-            )])
+        iteration_step_scheduler = self._get_iteration_step_scheduler(
+            self.config.max_version_iterations, 
+            self.config.max_steps_per_iteration
+        )
 
-        with Timer('iteration') as it:
-            while self._iteration < self.config.max_version_iterations: 
-                do_logging(f'Iteration {self._iteration} starts', logger=logger)
+        with Timer('pbt', period=1):
+            while self._iteration <= self.config.max_version_iterations: 
+                do_logging(f'Starting Iteration {self._iteration}', logger=logger)
                 self.initialize_actors()
 
                 self.train(
                     self.agent_manager, 
                     self.runner_manager, 
-                    max_step_scheduler.value(self._iteration)
+                    iteration_step_scheduler(self._iteration)
                 )
 
                 self.cleanup()
                 self._iteration += 1
                 self.save()
         
-        do_logging(f'Training Finished. Total Iterations: {self._iteration}', 
+        do_logging(f'Training Finished. Total Iterations: {self._iteration-1}', 
             logger=logger)
-        self.monitor.store_stats.remote(it.to_stats(), self._iteration)
-        self._log_remote_stats(self._pids)
+        self._log_remote_stats(self._pids, record=True)
+
+    def _get_iteration_step_scheduler(
+        self, 
+        max_version_iterations: Union[int, List, Tuple], 
+        max_steps_per_iteration: int
+    ):
+        if isinstance(max_steps_per_iteration, (List, Tuple)):
+            iteration_step_scheduler = PiecewiseSchedule(max_steps_per_iteration)
+        else:
+            iteration_step_scheduler = PiecewiseSchedule([(
+                max_version_iterations, 
+                max_steps_per_iteration
+            )])
+        return iteration_step_scheduler
 
     def initialize_actors(self):
-        if self._iteration > 0:
-            for c in self.configs:
-                c.runner.n_steps = self.n_pbt_steps
-
         model_weights, is_raw_strategy = ray.get(
-            self.parameter_server.sample_training_strategies.remote())
+            self.parameter_server.sample_training_strategies.remote(self._iteration))
         self.current_models = [m.model for m in model_weights]
         do_logging(f'Training Strategies at Iteration {self._iteration}: {self.current_models}', 
             logger=logger)
+
         self.agent_manager.build_agents(self.configs)
         self.agent_manager.set_model_weights(model_weights, wait=True)
         do_logging(f'Finish Setting Model Weights', 
@@ -236,11 +229,18 @@ class Controller(YAMLCheckpointBase):
         self.agent_manager.publish_weights(wait=True)
         do_logging(f'Finish Publishing Model Weights', 
             logger=logger)
+
         self.active_models = [model for model, _ in model_weights]
         self.active_configs = [
             search_for_config(model, to_attrdict=False) 
             for model in self.active_models
         ]
+
+        self._prepare_runner_configs(
+            self.n_runners, 
+            self.n_steps, 
+            self.n_envs
+        )
         self.runner_manager.build_runners(
             self.configs, 
             remote_buffers=self.agent_manager.get_agents(),
@@ -254,67 +254,38 @@ class Controller(YAMLCheckpointBase):
         self, 
         agent_manager: AgentManager, 
         runner_manager: RunnerManager, 
-        max_steps_per_iteration
+        max_steps_per_iteration: int
     ):
         agent_manager.start_training()
         to_restart_runners = self.config.get('restart_runners_priod', None) \
-            and Every(self.config.restart_runners_priod, time.time())
+            and Every(self.config.restart_runners_priod, self._steps + self.config.restart_runners_priod)
         to_eval = self.config.get('eval_priod', None) \
-            and Every(self.config.eval_priod, time.time())
+            and Every(self.config.eval_priod)
+        to_store = Every(self.config.store_period, self._steps)
         eval_pids = []
 
         while self._steps < max_steps_per_iteration:
-            model_weights = ray.get(self.parameter_server.get_strategies.remote())
-            while model_weights is None:
-                time.sleep(.025)
-                model_weights = ray.get(self.parameter_server.get_strategies.remote())
-            assert len(model_weights) == runner_manager.n_runners, (len(model_weights), runner_manager.n_runners)
+            model_weights = self._retrieve_model_weights()
 
             steps = sum(runner_manager.run_with_model_weights(model_weights))
-            if self._iteration > 0:
-                # we count the total number of steps taken by each training agent
-                steps = steps // self.n_runners * self.n_agent_runners
-            self._steps += steps
+            self._steps += self.steps_per_run   # adding a fixed number of steps gives nicer logging stats for plotting
+            # self._steps += steps
 
-            curr_time = time.time()
-            if self._to_store(curr_time):
-                self.monitor.save_all.remote()
-                self.save()
-            if to_restart_runners is not None and to_restart_runners(curr_time):
-                do_logging('Restarting Runners', logger=logger)
-                self.runner_manager.destroy_runners()
-                self.runner_manager.build_runners(
-                    self.configs, 
-                    remote_buffers=agent_manager.get_agents(),
-                    active_models=self.active_models, 
-                )
-            if to_eval is not None and to_eval(curr_time):
-                eval_pids.append(self._eval(steps))
-            if self._pids:
-                ready_pids, self._pids = ray.wait(self._pids, timeout=1e-5)
-                if ready_pids:
-                    self._log_remote_stats(ready_pids)
-            if eval_pids:
-                ready_pids, eval_pids = ray.wait(eval_pids, timeout=1e-5)
-                if ready_pids:
-                    self._log_remote_stats_for_models(ready_pids, self.active_models)
+            self._post_processing(
+                to_eval, 
+                to_restart_runners, 
+                to_store, 
+                eval_pids
+            )
 
         ready_pids, eval_pids = ray.wait(eval_pids)
-        if ready_pids:
-            self._log_remote_stats_for_models(
-                ready_pids, self.active_models, record=True, step=self._steps)
+        self._log_remote_stats_for_models(
+            ready_pids, self.active_models, step=self._steps)
 
-        self._post_processing()
-        ray.get([
-            self.monitor.save_all.remote(),
-            self.monitor.save_payoff_table.remote(self._iteration+1)
-        ])
-        self.save()
-        agent_manager.stop_training(wait=True)
-        self._steps = 0
+        self._finish_iteration()
 
     def cleanup(self):
-        do_logging(f'Cleaning up for The {self._iteration+1}-th Training Iteration...', logger=logger)
+        do_logging(f'Cleaning up for Training Iteration {self._iteration}...', logger=logger)
         oids = [
             self.parameter_server.archive_training_strategies.remote(),
             self.monitor.clear_iteration_stats.remote()
@@ -322,6 +293,29 @@ class Controller(YAMLCheckpointBase):
         self.runner_manager.destroy_runners()
         self.agent_manager.destroy_agents()
         ray.get(oids)
+
+    """ Implementation for <pbt_train> """
+    def _prepare_runner_configs(
+        self, 
+        n_runners: int, 
+        n_steps: int, 
+        n_envs: int
+    ):
+        runner_stats = ray.get(self.parameter_server.get_runner_stats.remote())
+        n_online_runners = runner_stats['n_online_runners']
+        n_agent_runners = runner_stats['n_agent_runners']
+        n_pbt_steps = _compute_pbt_steps(
+            n_runners, 
+            n_steps, 
+            n_online_runners, 
+            n_agent_runners, 
+        )
+        for c in self.configs:
+            c.runner.n_steps = n_pbt_steps
+        runner_stats['n_pbt_steps'] = n_pbt_steps
+        do_logging(runner_stats, prefix=f'Runner Stats at Iteration {self._iteration}', 
+            logger=logger)
+        self._log_stats(runner_stats, self._iteration)
 
     def _initialize_rms(
         self, 
@@ -334,45 +328,101 @@ class Controller(YAMLCheckpointBase):
             self.runner_manager.set_current_models(models)
             self.runner_manager.random_run(aids)
 
-    def _post_processing(self):
-        # return
+    """ Implementation for <train> """
+    def _retrieve_model_weights(self):
+        model_weights = ray.get(self.parameter_server.get_strategies.remote())
+        while model_weights is None:
+            time.sleep(.025)
+            model_weights = ray.get(self.parameter_server.get_strategies.remote())
+        assert len(model_weights) == self.n_runners, (len(model_weights), self.n_runners)
+        return model_weights
+
+    def _post_processing(
+        self, 
+        to_eval: Every, 
+        to_restart_runners: Every, 
+        to_store: Every, 
+        eval_pids: List[ray.ObjectRef]
+    ):
+        if to_eval is not None and to_eval(self._steps):
+            eval_pids.append(self._eval(self._steps))
+        if to_restart_runners is not None and to_restart_runners(self._steps):
+            do_logging('Restarting Runners', logger=logger)
+            self.runner_manager.destroy_runners()
+            self.runner_manager.build_runners(
+                self.configs, 
+                remote_buffers=self.agent_manager.get_agents(),
+                active_models=self.active_models, 
+            )
+        if self._pids:
+            ready_pids, self._pids = ray.wait(self._pids, timeout=1e-5)
+            self._log_remote_stats(ready_pids, record=True)
+        if eval_pids:
+            ready_pids, eval_pids = ray.wait(eval_pids, timeout=1e-5)
+            self._log_remote_stats_for_models(
+                ready_pids, self.active_models, step=self._steps)
+        if to_store(self._steps):
+            self.monitor.save_all.remote(self._steps)
+            self.save()
+
+    def _finish_iteration(self):
         if self.suite == 'spiel':
             do_logging('Computing Nash Convergence...', logger=logger)
             self._pids.append(self.compute_nash_conv(
-                self._iteration+1, avg=True, 
+                self._iteration, avg=True, 
                 latest=True, write_to_disk=False
             ))
+        do_logging(f'Finishing Iteration {self._iteration}')
+        ray.get([
+            self.monitor.save_all.remote(self._steps),
+            self.monitor.save_payoff_table.remote(self._iteration)
+        ])
+        self._steps = 0
+        self.save()
 
-    def _log_remote_stats(self, pids, record=True):
-        stats_list = ray.get(pids)
-        for stats in stats_list:
-            step = stats.pop('step')
-            self.monitor.store_stats.remote(
-                stats=stats, 
-                step=step, 
-                record=record
-            )
+    """ Statistics Logging """
+    def _log_stats(
+        self, 
+        stats: dict, 
+        step: int, 
+        record: bool=False
+    ):
+        self.monitor.store_stats.remote(
+            stats=stats, 
+            step=step, 
+            record=record
+        )
+
+    def _log_remote_stats(
+        self, 
+        pids: List[ray.ObjectRef], 
+        step: int=None, 
+        record: bool=False
+    ):
+        if pids:
+            stats_list = ray.get(pids)
+            for stats in stats_list:
+                if step is None:
+                    step = stats.pop('step')
+                self.monitor.store_stats.remote(
+                    stats=stats, 
+                    step=step, 
+                    record=record
+                )
     
     def _log_remote_stats_for_models(
         self, 
-        pids, 
+        pids: List[ray.ObjectRef], 
         models: List[ModelPath], 
-        record=False, 
-        step=None
+        record: bool=False, 
+        step: int=None
     ):
-        stats_list = ray.get(pids)
-        stats = batch_dicts(stats_list)
-        for m in models:
-            self.monitor.store_stats_for_model.remote(
-                m, stats, record=record, step=step)
-
-    def _eval(self, step):
-        if self.suite == 'spiel':
-            pid = self.compute_nash_conv(
-                step, avg=False, latest=True, 
-                write_to_disk=False, configs=self.active_configs
-            )
-        return pid
+        if pids:
+            stats_list = ray.get(pids)
+            stats = batch_dicts(stats_list)
+            for m in models:
+                self.monitor.store_stats_for_model.remote(
+                    m, stats, step=step, record=record)
 
     """ Evaluation """
     def evaluate_all(self, total_episodes, filename):
@@ -392,6 +442,14 @@ class Controller(YAMLCheckpointBase):
         with open(path, 'wb') as f:
             cloudpickle.dump((payoffs, counts), f)
         do_logging(f'Payoffs have been saved at {path}', logger=logger)
+
+    def _eval(self, step):
+        if self.suite == 'spiel':
+            pid = self.compute_nash_conv(
+                step, avg=False, latest=True, 
+                write_to_disk=False, configs=self.active_configs
+            )
+        return pid
 
     def compute_nash_conv(self, step, avg, latest, write_to_disk, configs=None):
         if configs is None:

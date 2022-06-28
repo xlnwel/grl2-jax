@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 import collections
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict
 import cloudpickle
 import numpy as np
 import ray
@@ -58,13 +58,13 @@ class Monitor(RayBase):
         self, 
         model: ModelPath, 
         stats: Dict, 
+        step: int=None, 
         record=False, 
-        step=None
     ):
         self.build_monitor(model)
         self.monitors[model].store(**stats)
         if record:
-            self.monitors[model].record(step, print_terminal_info=True)
+            self.record_for_model(model, step)
 
     def store_stats(
         self, 
@@ -111,13 +111,12 @@ class Monitor(RayBase):
             model, 
             stats, 
             record=is_rule_strategy(model), 
-            step=env_steps
         )
 
-    def record(
+    def record_for_model(
         self, 
         model: ModelPath, 
-        duration: float, 
+        step, 
     ):
         n_items = 0
         size = 0
@@ -125,6 +124,7 @@ class Monitor(RayBase):
             n_items += len(d)
             for v in d.values():
                 size += v.nbytes
+        duration = time.time() - self._last_save_time
         self.monitors[model].store(**{
             'time/tps': self._train_steps_in_period[model] / duration,
             'time/fps': self._env_steps_in_period[model] / duration,
@@ -135,7 +135,9 @@ class Monitor(RayBase):
         self._train_steps_in_period[model] = 0
         self._env_steps_in_period[model] = 0
         self._episodes_in_period[model] = 0
-        self.monitors[model].record(self._env_steps[model], print_terminal_info=True)
+        self.monitors[model].set_step(step)
+        self.monitors[model].record(print_terminal_info=True)
+        self._last_save_time = time.time()
 
     def clear_iteration_stats(self):
         self._recording_stats.clear()
@@ -167,17 +169,13 @@ class Monitor(RayBase):
                 self._recording_stats
             ), f)
 
-    def save_all(self):
+    def save_all(self, step):
         def store_stats(model, stats, pids):
             assert model is not None, model
-            self.build_monitor(model)
-            self.monitors[model].store(**stats)
             pids.append(self.parameter_server.save_active_model.remote(
                 model, self._train_steps[model], self._env_steps[model]
             ))
-
-            with Timer('Monitor Recording Time', period=1):
-                self.record(model, time.time() - self._last_save_time)
+            self.store_stats_for_model(model, stats, step=step, record=True)
 
         pids = []
         oid = self.parameter_server.get_active_aux_stats.remote()

@@ -1,4 +1,8 @@
 import tensorflow as tf
+from optimizers.adam import Adam
+
+from optimizers.rmsprop import RMSprop
+
 
 class MetaGradientTest(tf.test.TestCase):
     def setUp(self):
@@ -86,3 +90,143 @@ class MetaGradientTest(tf.test.TestCase):
         self.assertAllEqual(g2[1], [317])
         mgc = t1.gradient(g, c, output_gradients=g2)
         self.assertAllEqual(mgc, -1268)
+
+    def testCustomOptimizers(self):
+        for cls in [RMSprop, Adam]:
+            inner_opt = cls(1)
+            meta_tape = tf.GradientTape(persistent=True)
+            inner_tape = tf.GradientTape(persistent=True)
+
+            l = tf.keras.layers.Dense(1)
+            c = tf.Variable(1,dtype=tf.float32)
+            def inner(x, tape):
+                with tape:
+                    x = l(x)
+                    loss = tf.reduce_mean(c * x**2)
+                grads = tape.gradient(loss, l.variables)
+                
+                return grads, loss
+
+            def compute_hessian_vector(tape, vars1, vars2, grads):
+                with tape:
+                    out = tf.reduce_sum([tf.reduce_sum(o * g) for o, g in zip(grads, vars2)])
+                new_grads = tape.gradient(out, vars1)
+                return new_grads
+            
+            def compute_grads_through_optmizer(tape, vars, grads, trans_grads, out_grads):
+                out_grads = compute_hessian_vector(
+                    tape, 
+                    grads, 
+                    trans_grads, 
+                    out_grads
+                )
+                grads = compute_hessian_vector(
+                    tape, 
+                    vars, 
+                    grads, 
+                    out_grads
+                )
+                return grads
+            @tf.function
+            def outer(x):
+                with meta_tape:
+                    grads, loss = inner(x, inner_tape)
+                    inner_opt.apply_gradients(zip(grads, l.variables))
+                    x = l(x)
+                    loss = tf.reduce_mean((1 - x)**2)
+                trans_grads = inner_opt.get_transformed_grads()
+                out_grads = meta_tape.gradient(loss, l.variables)
+                out_grads1 = meta_tape.gradient(inner_opt.get_transformed_grads(), grads, 
+                    output_gradients=out_grads)
+                out_grads1 = meta_tape.gradient(grads, c, output_gradients=out_grads1)
+                out_grads2 = compute_grads_through_optmizer(
+                    meta_tape, c, grads, trans_grads, out_grads)
+                tf.debugging.assert_equal(out_grads1, out_grads2)
+
+            x = tf.random.uniform((2, 3))
+            outer(x)
+
+    def testTwoStepCustomOptimizers(self):
+        for cls in [RMSprop, Adam]:
+            inner_opt = cls(1)
+            meta_tape = tf.GradientTape(persistent=True)
+            inner_tape = tf.GradientTape(persistent=True)
+
+            l = tf.keras.layers.Dense(1)
+            c = tf.Variable(1,dtype=tf.float32)
+
+            def inner(x, tape):
+                with tape:
+                    x = l(x)
+                    loss = tf.reduce_mean(c * x**2)
+                grads = tape.gradient(loss, l.variables)
+                
+                return grads
+
+            def compute_hessian_vector(tape, vars1, vars2, grads):
+                """ Compute the gradient of vars1
+                vars2 must be a differentiable function of vars1
+                """
+                # print(vars2, grads)
+                with tape:
+                    out = tf.reduce_sum([tf.reduce_sum(v * g) for v, g in zip(vars2, grads)])
+                new_grads = tape.gradient(out, vars1)
+                return new_grads
+
+            def compute_grads_through_optmizer(tape, vars, grads, trans_grads, out_grads):
+                print(trans_grads, out_grads)
+                out_grads = compute_hessian_vector(
+                    tape, 
+                    grads, 
+                    trans_grads, 
+                    out_grads
+                )
+                grads = compute_hessian_vector(
+                    tape, 
+                    vars, 
+                    grads, 
+                    out_grads
+                )
+                return grads
+
+            @tf.function
+            def outer(x):
+                with meta_tape:
+                    grads1 = inner(x, inner_tape)
+                    inner_opt.apply_gradients(zip(grads1, l.variables))
+                trans_grads1 = inner_opt.get_transformed_grads()
+                vars1 = l.variables
+                with meta_tape:
+                    grads2 = inner(x, inner_tape)
+                    inner_opt.apply_gradients(zip(grads2, l.variables))
+                    x = l(x)
+                    loss = tf.reduce_mean((1 - x)**2)
+                trans_grads2 = inner_opt.get_transformed_grads()
+                out_grads = meta_tape.gradient(loss, l.variables)
+                grads_list = []
+                grads_list.append(
+                    compute_grads_through_optmizer(
+                        meta_tape, c, grads2, trans_grads2, out_grads)
+                )
+                out_grads1 = meta_tape.gradient(
+                    trans_grads2, vars1, 
+                    output_gradients=out_grads)
+                out_grads1 = meta_tape.gradient(
+                    trans_grads1, grads1, 
+                    output_gradients=out_grads1)
+                out_grads1 = meta_tape.gradient(
+                    grads1, c, output_gradients=out_grads1)
+                out_grads2 = compute_hessian_vector(
+                    meta_tape,
+                    vars1, 
+                    trans_grads2, 
+                    out_grads
+                )
+                out_grads2 = compute_grads_through_optmizer(
+                    meta_tape, c, grads1, trans_grads1, out_grads2)
+                tf.debugging.assert_equal(out_grads1, out_grads2)
+
+                return out_grads2
+
+            x = tf.random.uniform((2, 3))
+            outer(x)

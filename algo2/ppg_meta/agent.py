@@ -5,7 +5,7 @@ from tensorflow_probability import distributions as tfd
 from utility.schedule import TFPiecewiseSchedule
 from utility.tf_utils import explained_variance, tensor2numpy
 from utility.rl_loss import ppo_loss
-from utility.adam import Adam
+from optimizers.adam import Adam
 from core.tf_config import build
 from core.optimizer import Optimizer
 from core.decorator import override

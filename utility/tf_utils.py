@@ -11,11 +11,6 @@ def numpy2tensor(x):
     return tf.nest.map_structure(
         lambda x: tf.convert_to_tensor(x) if x is not None else x, x)
 
-def upsample(x):
-    h, w = x.get_shape().as_list()[1:-1]
-    x = tf.image.resize_nearest_neighbor(x, [2 * h, 2 * w])
-    return x
-
 def safe_norm(m, axis=None, keepdims=None, epsilon=1e-6):
     """The gradient-safe version of tf.norm(...)
     it avoid nan gradient when m consists of zeros
@@ -172,46 +167,6 @@ def static_scan(fn, start, inputs, reverse=False):
     outputs = [tf.stack(x) for x in outputs]
     # reconstruct outputs to have the same structure as start
     return tf.nest.pack_sequence_as(start, outputs)
-
-class TFRunningMeanStd:
-    """ Different from PopArt, this is only for on-policy training, """
-    def __init__(self, axis, shape=(), clip=None, epsilon=1e-2, dtype=tf.float32):
-        # use tf.float64 to avoid overflow
-        self._sum = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float64, name='sum')
-        self._sumsq = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float64, name='sum_squares')
-        self._count = tf.Variable(np.zeros(shape), trainable=False, dtype=tf.float64, name='count')
-        self._mean = None
-        self._std = None
-        self._axis = axis
-        self._clip = clip
-        self._epsilon = epsilon
-        self._dtype = dtype
-
-    def update(self, x):
-        x = tf.cast(x, tf.float64)
-        self._sum.assign_add(tf.reduce_sum(x, axis=self._axis))
-        self._sumsq.assign_add(tf.cast(tf.reduce_sum(x**2, axis=self._axis), self._sumsq.dtype))
-        self._count.assign_add(tf.cast(tf.math.reduce_prod(tf.shape(x)[:len(self._axis)]), self._count.dtype))
-        mean = self._sum / self._count
-        std = tf.sqrt(tf.maximum(
-            self._sumsq / self._count - mean**2, self._epsilon))
-        self._mean = tf.cast(mean, self._dtype)
-        self._std = tf.cast(std, self._dtype)
-
-    def normalize(self, x, zero_center=True):
-        if zero_center:
-            x = x - self._mean
-        x = x / self._std
-        if self._clip is not None:
-            x = tf.clip_by_value(x, -self._clip, self._clip)
-        return x
-    
-    def denormalize(self, x, zero_center=True):
-        x = x * self._std
-        if zero_center:
-            x = x + self._mean
-        return x
-        
 
 def get_stoch_state(x, min_std):
     mean, std = tf.split(x, 2, -1)

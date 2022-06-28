@@ -1,8 +1,9 @@
 import tensorflow as tf
+from tensorflow.python.keras.optimizer_v2 import optimizer_v2
 
 
 """ Modified from Adabelief """
-class Adam(tf.keras.optimizers.Optimizer):
+class Adam(optimizer_v2.OptimizerV2):
     def __init__(
         self,
         learning_rate=0.001,

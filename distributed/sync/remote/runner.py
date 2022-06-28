@@ -63,9 +63,6 @@ class MultiAgentSimRunner(RayBase):
         self.is_agent_active: List[bool] = [False for _ in range(self.n_agents)]
         self.monitor: Monitor = monitor
 
-        self.n_steps = config.runner.n_steps
-        self._steps = 0
-
         self.env_output = self.env.output()
         self.scores = [[] for _ in range(self.n_agents)]
         self.score_metric = config.parameter_server.get(
@@ -83,6 +80,10 @@ class MultiAgentSimRunner(RayBase):
             configs = [dict2AttrDict(configs) for _ in range(self.n_agents)]
         config = configs[0]
         self.config = config.runner
+        
+        self.n_steps = self.config.n_steps
+        self.steps_per_run = self.n_envs * self.n_steps
+        self._steps = 0
 
         self.agents: List[Agent] = []
         self.buffers = []
@@ -158,7 +159,7 @@ class MultiAgentSimRunner(RayBase):
             assert b.is_empty(), b.size()
         with Timer('run') as rt:
             steps, n_episodes = self.run()
-        self._steps += steps
+        self._steps += self.steps_per_run
 
         self._save_time_recordings([wt, rt])
         send_stats(self._steps, n_episodes)

@@ -1,9 +1,8 @@
 from core.mixin.monitor import Recorder, TensorboardWriter
-from core.remote.base import RayBase
 from core.typing import ModelPath
 
 
-class Monitor(RayBase):
+class Monitor:
     def __init__(
         self, 
         model_path: ModelPath=None, 

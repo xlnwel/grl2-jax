@@ -15,7 +15,7 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 180
+    store_period: 1e6
     max_version_iterations: 1
     max_steps_per_iteration: 1e8
     initialize_rms: &irms False

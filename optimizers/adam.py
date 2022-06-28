@@ -73,6 +73,13 @@ class Adam(tf.keras.optimizers.Optimizer):
         else:
             return list(self._var_grad_map.values())
 
+    def set_weights(self, weights):
+        params = self.weights
+        num_vars = int((len(params) - 1) / 2)
+        if len(weights) == 3 * num_vars + 1:
+            weights = weights[: len(params)]
+        super().set_weights(weights)
+
     def _create_slots(self, var_list):
         for var in var_list:
             self.add_slot(var, "m")
@@ -81,13 +88,6 @@ class Adam(tf.keras.optimizers.Optimizer):
         if self.amsgrad:
             for var in var_list:
                 self.add_slot(var, "vhat")
-
-    def set_weights(self, weights):
-        params = self.weights
-        num_vars = int((len(params) - 1) / 2)
-        if len(weights) == 3 * num_vars + 1:
-            weights = weights[: len(params)]
-        super().set_weights(weights)
 
     def _decayed_wd(self, var_dtype):
         wd_t = self._get_hyper("weight_decay", var_dtype)

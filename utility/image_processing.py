@@ -30,6 +30,11 @@ def norm_image(image, norm_range=[0, 1]):
     else:
         raise NotImplementedError
 
+def upsample(x):
+    h, w = x.get_shape().as_list()[1:-1]
+    x = tf.image.resize_nearest_neighbor(x, [2 * h, 2 * w])
+    return x
+
 def save_image(images, path, size=None):
     assert images.shape.ndims == 4, f'images should be 4D, but get shape {images.shape}'
     num_images = images.shape[0]

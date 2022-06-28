@@ -29,7 +29,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.elements.builder import ElementsBuilder
 from core.log import setup_logging
 from core.tf_config import *
-from core.typing import ModelPath, get_aid, get_basic_model_name
+from core.typing import ModelPath, get_basic_model_name
 from core.ckpt.pickle import set_weights_for_agent
 from env.func import create_env
 from run.args import parse_eval_args
@@ -126,7 +126,19 @@ def build_agent(builder, config, env):
         to_build_for_eval=False, 
         to_restore=False
     ).agent
-    set_weights_for_agent(agent, model, filename=filename)
+    i = 0
+    while True:
+        try:
+            # Exception happens when the file is written by the training process
+            set_weights_for_agent(agent, model, filename=filename)
+            break
+        except Exception as e:
+            print('Set weights failed:', e)
+            import time
+            time.sleep(5)
+            i += 1
+            if i > 10:
+                raise e
     return agent
 
 def get_latest_configs(configs):
@@ -166,7 +178,14 @@ def build_policies(configs, env):
     return aggr_policy
 
 
-def main(configs, step, filename=None, avg=True, latest=True, write_to_disk=True):
+def main(
+    configs, 
+    step, 
+    filename=None, 
+    avg=True, 
+    latest=True, 
+    write_to_disk=True, 
+):
     configs = [dict2AttrDict(c) for c in configs]
     for config in configs:
         config.runner.n_runners = 1
@@ -183,21 +202,33 @@ def main(configs, step, filename=None, avg=True, latest=True, write_to_disk=True
 
     if avg:
         aggr_policy = build_policies(configs, env)
-        result = exploitability.nash_conv(env.game, aggr_policy, False)
+        br1 = exploitability.best_response(env.game, aggr_policy, 0)
+        br2 = exploitability.best_response(env.game, aggr_policy, 1)
         nash_conv.update(dict(
-            nash_conv=float(result.nash_conv), 
-            expl1=float(result.player_improvements[0]), 
-            expl2=float(result.player_improvements[1])
+            nash_conv=br1['nash_conv'] + br2['nash_conv'], 
+            nash_conv1=br1['nash_conv'], 
+            nash_conv2=br2['nash_conv'], 
+            expl2=br1['best_response_value'], 
+            expl1=br2['best_response_value'], 
+            # expl=br1['best_response_value'] + br2['best_response_value'], 
+            on_policy_value1=br1['on_policy_value'], 
+            on_policy_value2=br2['on_policy_value'], 
         ))
 
     latest_configs = get_latest_configs(configs)
     if latest:
-        joint_policy = build_latest_joint_policy(configs, env)
-        result = exploitability.nash_conv(env.game, joint_policy, False)
+        joint_policy = build_latest_joint_policy(latest_configs, env)
+        br1 = exploitability.best_response(env.game, joint_policy, 0)
+        br2 = exploitability.best_response(env.game, joint_policy, 1)
         nash_conv.update(dict(
-            latest_nash_conv=float(result.nash_conv), 
-            latest_expl1=float(result.player_improvements[0]), 
-            latest_expl2=float(result.player_improvements[1])
+            latest_nash_conv=br1['nash_conv'] + br2['nash_conv'], 
+            latest_nash_conv1=br1['nash_conv'], 
+            latest_nash_conv2=br2['nash_conv'], 
+            latest_expl2=br1['best_response_value'], 
+            latest_expl1=br2['best_response_value'], 
+            # latest_expl=br1['best_response_value'] + br2['best_response_value'], 
+            latest_on_policy_value1=br1['on_policy_value'], 
+            latest_on_policy_value2=br2['on_policy_value'], 
         ))
 
     if write_to_disk:

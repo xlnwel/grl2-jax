@@ -107,11 +107,13 @@ def search_for_dirs(directory, dirname, is_suffix=True):
     if not os.path.exists(directory):
         return []
     directory = directory
+    n_slashes = dirname.count('/')
     all_target_files = set()
     for root, _, _ in os.walk(directory):
         if 'src' in root:
             continue
-        endname = root.rsplit('/', 1)[-1]
+        endnames = root.rsplit('/', n_slashes+1)[1:]
+        endname = '/'.join(endnames)
         if is_suffix:
             if endname.endswith(dirname):
                 all_target_files.add(root)

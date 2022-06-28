@@ -20,14 +20,18 @@ class TargetNetOps:
         """ Synchronizes the target net with the online net """
         ons = self.get_online_nets()
         tns = self.get_target_nets()
-        do_logging(f"Sync Networks | Online networks: {[n.name for n in ons]}", logger=logger)
-        do_logging(f"Sync Networks | Target networks: {[n.name for n in tns]}", logger=logger)
+        do_logging(f"Sync Networks | Online networks: {[n.name for n in ons]}", 
+            logger=logger)
+        do_logging(f"Sync Networks | Target networks: {[n.name for n in tns]}", 
+        logger=logger)
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
-        logger.info(f"Sync Networks | Online network parameters:\n\t" 
-            + '\n\t'.join([f'{n.name}, {n.shape}' for n in ovars]))
-        logger.info(f"Sync Networks | Target network parameters:\n\t" 
-            + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]))
+        do_logging(f"Sync Networks | Online network parameters:\n\t" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in ovars]), 
+            logger=logger)
+        do_logging(f"Sync Networks | Target network parameters:\n\t" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]), 
+            logger=logger)
         assert len(tvars) == len(ovars), f'{tvars}\n{ovars}'
         [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
 
@@ -40,10 +44,12 @@ class TargetNetOps:
         do_logging(f"Update Networks | Target networks: {[n.name for n in tns]}", logger=logger)
         ovars = list(itertools.chain(*[v.variables for v in ons]))
         tvars = list(itertools.chain(*[v.variables for v in tns]))
-        logger.info(f"Update Networks | Online network parameters:\n" 
-            + '\n\t'.join([f'{n.name}, {n.shape}' for n in ovars]))
-        logger.info(f"Update Networks | Target network parameters:\n" 
-            + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]))
+        do_logging(f"Update Networks | Online network parameters:\n" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in ovars]), 
+            logger=logger)
+        do_logging(f"Update Networks | Target network parameters:\n" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]), 
+            logger=logger)
         assert len(tvars) == len(ovars), f'{tvars}\n{ovars}'
         [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
             for tvar, mvar in zip(tvars, ovars)]

@@ -35,7 +35,7 @@ ray_config:
         num_gpus: 1
 
 monitor:
-    store_period: 60
+    store_period: 1e6
 
 runner:
     n_runners: &nrunners 20
