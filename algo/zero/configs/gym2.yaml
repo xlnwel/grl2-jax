@@ -44,17 +44,7 @@ strategy:
         use_dataset: &dataset False
         n_epochs: &nepochs 1
         n_mbs: &nmbs 1
-        n_aux_epochs: &naepochs 9
-        n_pi: &npi 16
-        n_segs: &nsegs 16
-        n_aux_mbs_per_seg: &nambs 2
-        max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
-
-        # (once reuse null)
-        # "once" updates values at the end of each epoch
-        # "reuse" updates values using value from train which is staler than once
-        # null doesn't update values.
-        value_update: null
+        inner_steps: &is null
 
 model:
     rnn_type: &rnn null
@@ -84,30 +74,59 @@ model:
         kernel_initializer: orthogonal
         activation: tanh
         norm: null
+    meta:
+        nn_id: meta
+        pg_coef:
+            outer: 1
+            val: 1
+            init: null
+            act: sigmoid
+        entropy_coef:
+            outer: 0
+            val: 5e-4
+            init: 4.96
+            act: sigmoid
+        value_coef:
+            outer: 1
+            val: 1
+            init: 4.96
+            act: sigmoid
+        gamma: 
+            outer: &gamma .99
+            val: 1
+            init: 4.5
+            act: sigmoid
+        lam:
+            outer: .95
+            val: 1
+            init: 3
+            act: sigmoid
 
 loss:
     # arguments for loss
-    pg_coef: 1
-    entropy_coef: .01
-    gamma: .99
-    lam: .95
     c_clip: 1
     rho_clip: 1
     life_mask: False
 
     value_loss: mse
-    value_coef: 1
     life_mask: False
 
 trainer:
     algorithm: *algo
     sample_size: *nsteps         # BPTT length
+    inner_steps: *is
     store_state: True
 
     optimizer:
         opt_name: rmsprop
         schedule_lr: False
         lr: 7e-4
+        clip_norm: .5
+        epsilon: 1e-5
+    meta_opt:
+        opt_name: rmsprop
+        schedule_lr: False
+        lr: 1e-4
         clip_norm: .5
         epsilon: 1e-5
 
@@ -122,7 +141,7 @@ actor:
         obs_clip: 10
         normalize_reward: True
         update_reward_rms_in_time: False
-        gamma: &gamma .99
+        gamma: *gamma
 
 buffer:
     type: ppo
@@ -135,6 +154,7 @@ buffer:
     sample_size: *nsteps
     n_epochs: *nepochs
     n_mbs: *nmbs        # number of minibatches
+    inner_steps: *is
     rnn_type: *rnn
 
     sample_keys: 

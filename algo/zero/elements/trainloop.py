@@ -4,6 +4,7 @@ import numpy as np
 from core.elements.trainloop import TrainingLoopBase
 from core.log import do_logging
 from utility import div
+from utility.display import print_dict_info
 from utility.tf_utils import numpy2tensor, tensor2numpy
 
 
@@ -17,10 +18,15 @@ def _get_pi(data, is_action_discrete):
         pi = (data['mu_mean'], data['mu_std'])
     return pi
 
+
 class TrainingLoop(TrainingLoopBase):
     def _post_init(self):
         super()._post_init()
         self._prev_pi = None
+        self._step = 0
+
+    def _before_train(self, step):
+        self._train_step = step
 
     def _train(self):
         def get_data():
@@ -35,10 +41,10 @@ class TrainingLoop(TrainingLoopBase):
             
             return raw_data, data
 
-        def combine_stats(stats, data, terms, max_record_size=100):
+        def combine_stats(stats, data, terms, max_record_size=10):
             batch_size = next(iter(data.values())).shape[0]
             # we only sample a small amount of data to reduce the cost
-            if max_record_size is not None:
+            if max_record_size is not None and max_record_size < batch_size:
                 idx = np.random.randint(0, batch_size, max_record_size)
             else:
                 idx = np.arange(batch_size)
@@ -65,47 +71,37 @@ class TrainingLoop(TrainingLoopBase):
             )
             return stats
 
-        def train(max_record_size=100):
-            for i in range(self.config.n_epochs):
-                for j in range(1, self.config.n_mbs+1):
-                    raw_data, data = get_data()
-                    if data is None:
-                        return
+        def train(max_record_size=10):
+            raw_data, data = get_data()
+            if data is None:
+                return
 
-                    with self._train_timer:
-                        terms = self.trainer.train(**data)
-                    
-                    for _ in range(self.config.get('n_aux_value_updates', 0)):
-                        self.trainer.value.train(**data)
-
-                    # print(i * self.config.n_mbs + j)
-                    # ratio = terms['ratio'].numpy()
-                    # print('ratio', ratio.mean(), ratio.max(), ratio.min())
-                    # print('entropy', terms.pop('entropy').numpy())
-                        
-                    self._after_train_step()
-
-                self._after_train_epoch()
-            n = i * self.config.n_mbs + j
-
-            if raw_data is None:
-                raw_data = tensor2numpy(data)
-            
-            pi = _get_pi(raw_data, self.trainer.env_stats.is_action_discrete)
-            if self._prev_pi is not None:
-                kl = div.kl(pi, self._prev_pi, self.trainer.env_stats.is_action_discrete)
-                stats = {'kl': kl}
+            if self.config.inner_steps is not None and self._step == self.config.inner_steps:
+                with self._train_timer:
+                    terms = self.trainer.meta_train(**data)
+                self._step = 0
+                if raw_data is None:
+                    raw_data = tensor2numpy(data)
+                pi = _get_pi(raw_data, self.trainer.env_stats.is_action_discrete)
+                if self._prev_pi is not None:
+                    kl = div.kl(pi, self._prev_pi, self.trainer.env_stats.is_action_discrete)
+                    stats = {'train/kl': kl}
+                else:
+                    stats = {}
+                self._prev_pi = pi
+                stats = combine_stats(
+                    stats, 
+                    raw_data, 
+                    tensor2numpy(terms), 
+                    max_record_size=max_record_size
+                )
             else:
+                with self._train_timer:
+                    terms = self.trainer.train(**data)
+                self._step += 1
                 stats = {}
-            self._prev_pi = pi
-            stats = combine_stats(
-                stats, 
-                raw_data, 
-                tensor2numpy(terms), 
-                max_record_size=max_record_size
-            )
 
-            return n, stats
+            return 1, stats
 
         result = train()
         if result is None:

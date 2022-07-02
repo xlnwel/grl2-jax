@@ -14,6 +14,7 @@ class MetaParams(Module):
         self.config = dict2AttrDict(config)
 
         for k, v in self.config.items():
+            print(k, v)
             setattr(self, k, v.val)
             if v.init is not None:
                 init = v.init * tf.ones(v.shape) if v.get('shape') else v.init

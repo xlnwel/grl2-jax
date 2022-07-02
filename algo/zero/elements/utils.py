@@ -53,12 +53,14 @@ def get_data_format(
     env_stats: AttrDict, 
     model, 
     rnn_state_fn: FunctionType=update_data_format_with_rnn_states, 
+    meta=False
 ):
     basic_shape, shapes, dtypes, action_shape, \
         action_dim, action_dtype = \
         get_basics(config, env_stats, model)
-
-    obs_shape = [s+1 if i == 1 else s for i, s in enumerate(basic_shape)]
+    if meta:
+        basic_shape = (config.inner_steps+1,) + basic_shape
+    obs_shape = [s+1 if i == (2 if meta else 1) else s for i, s in enumerate(basic_shape)]
     data_format = {k: ((*obs_shape, *v), dtypes[k], k) 
         for k, v in shapes.items()}
 

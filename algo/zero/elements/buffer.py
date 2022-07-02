@@ -7,7 +7,7 @@ import numpy as np
 from core.elements.model import Model
 from core.log import do_logging
 from utility.typing import AttrDict
-from utility.utils import dict2AttrDict
+from utility.utils import batch_dicts, dict2AttrDict
 from algo.gpo.elements.buffer import Buffer
 
 logger = logging.getLogger(__name__)
@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 def concat_obs(obs, last_obs):
     obs = np.concatenate([obs, np.expand_dims(last_obs, 0)], 0)
     return obs
+
 
 class SamplingKeysExtractor:
     def extract_sampling_keys(self, env_stats: AttrDict, model: Model):
@@ -108,16 +109,16 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
         self.reset()
 
     def size(self):
-        return self._memlen
+        return self._size
 
     def is_empty(self):
-        return self._memlen == 0
+        return self._size == 0
 
     def is_full(self):
-        return self._memlen >= self.maxlen
+        return self._size >= self.maxlen
 
     def reset(self):
-        self._memlen = 0
+        self._size = 0
         self._buffer = collections.defaultdict(list)
         # self._train_steps = [[None for _ in range(self.n_units)] 
         #     for _ in range(self.n_envs)]
@@ -126,12 +127,12 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
         self._replace_obs_with_next_obs(data)
         for k, v in data.items():
             self._buffer[k].append(v)
-        self._memlen += 1
+        self._size += 1
         if self.n_samples > 1:
             self._cache_sample()
 
     def retrieve_all_data(self):
-        assert self._memlen == self.maxlen, (self._memlen, self.maxlen)
+        assert self._size == self.maxlen, (self._size, self.maxlen)
 
         data = {}
         for k in self.sample_keys:
@@ -158,7 +159,7 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
         return self.runner_id, data, self.n_envs * self.maxlen
 
     def _replace_obs_with_next_obs(self, data):
-        if self._memlen == 0:
+        if self._size == 0:
             for k in self._obs_keys:
                 assert data[k].shape == data[f'next_{k}'].shape, (data[k].shape, data[f'next_{k}'].shape)
                 # add the first obs when buffer is empty
@@ -214,20 +215,21 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
         self.max_wait_time = self.config.get('max_wait_time', 5)
 
     def __getitem__(self, k):
-        return self._memory[0][k]
+        return self._queue[0][k]
 
     def __contains__(self, k):
-        return k in self._memory[0]
+        return k in self._queue[0]
     
     def size(self):
         return self._buffer.size()
 
     def ready(self):
-        return len(self._memory) > 0
+        return len(self._queue) > 0
 
     def reset(self):
         self._buffers = [collections.defaultdict(list) for _ in range(self.n_runners)]
-        self._memory = collections.deque(maxlen=self.config.get('queue_size', 2))
+        self._queue = collections.deque(maxlen=self.config.get('queue_size', 2))
+        self._memory = []
         self._current_size = 0
 
     """ Filling Methods """
@@ -238,7 +240,7 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
         if self._buffer.is_full():
             _, data, n = self._buffer.retrieve_all_data()
             assert n == self.max_size, (n, self.max_size)
-            self._memory.append(data)
+            self._queue.append(data)
 
     def _add_first_obs(self, data):
         assert len(self._buffer) == 0, self._buffer
@@ -257,13 +259,13 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
             }
             for k, v in data.items():
                 assert v.shape[:2] == (self.batch_size, self.sample_size), (v.shape, self.batch_size)
-            self._memory.append(data)
+            self._queue.append(data)
             self._buffers = [collections.defaultdict(list) for _ in range(self.n_runners)]
             self._current_size = 0
 
     """ Update Data """
     def update(self, key, value):
-        self._memory[0][key] = value
+        self._queue[0][key] = value
 
     """ Sampling """
     def sample(self, sample_keys=None):
@@ -271,11 +273,16 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
         if not ready:
             return None
         sample = self._sample(sample_keys)
+        if self.config.inner_steps is not None:
+            self._memory.append(sample)
+            if len(self._memory) == self.config.inner_steps + 1:
+                sample = batch_dicts(self._memory)
+                self._memory = []
         return sample
 
     """ Implementations """
     def _wait_to_sample(self):
-        while len(self._memory) == 0 and (
+        while len(self._queue) == 0 and (
                 self._sample_wait_time < self.max_wait_time):
             time.sleep(self._sleep_time)
             self._sample_wait_time += self._sleep_time
@@ -283,18 +290,18 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
         # if not self._ready:
         #     raise RuntimeError(f'No data received in time {self.max_wait_time}; Elapsed time: {self._sample_wait_time}')
         self._sample_wait_time = 0
-        return len(self._memory) != 0
+        return len(self._queue) != 0
 
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self.sample_keys
-        sample = self._memory.popleft()
+        sample = self._queue.popleft()
         assert set(sample) == set(self.sample_keys), (self.sample_keys, list(sample))
 
         return sample
 
     def clear(self):
         self.reset()
-        self._memory.clear()
+        self._queue.clear()
 
 
 def create_buffer(config, model, env_stats, **kwargs):
