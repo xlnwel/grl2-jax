@@ -37,7 +37,7 @@ def train(config, agent, env, eval_env, buffer):
             buffer.reset()
         buffer.clear()
         agent.set_env_step(runner.step)
-        agent.save(print_terminal_info=True)
+        agent.save()
 
     if step == 0 and agent.actor.is_obs_normalized:
         initialize_rms()

@@ -200,8 +200,8 @@ class Actor:
             self.config.rms.model_path = self._model_path
             self.rms = RMS(self.config.rms)
 
-    def save(self, print_terminal_info=False):
-        self.model.save(print_terminal_info)
+    def save(self):
+        self.model.save()
         self.save_auxiliary_stats()
     
     def restore(self):

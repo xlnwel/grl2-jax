@@ -27,7 +27,13 @@ class PayoffTable:
         self.restore()
 
     """ Payoff Retrieval """
-    def get_payoffs(self):
+    def get_payoffs(self, fill_nan=False):
+        payoffs = []
+        for p in self.payoffs:
+            p = p.copy()
+            if fill_nan:
+                p[np.isnan(p)] = 0
+            payoffs.append(p)
         return self.payoffs
 
     def get_payoffs_for_agent(self, aid: int, *, sid: int=None):

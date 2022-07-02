@@ -6,6 +6,28 @@ from utility.tf_utils import static_scan, reduce_mean, \
     assert_rank, assert_rank_and_shape_compatibility
 
 
+def time_major(*args, axis):
+    dims = list(range(args[0].shape.ndims))
+    dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
+    if axis != 0:
+        args = [a if a is None else tf.transpose(a, dims) for a in args]
+    return dims, args
+
+
+def to_loss(
+    raw_stats, 
+    coef, 
+    mask=None, 
+    n=None, 
+):
+    is_unit_wise_coef = isinstance(coef, tf.Tensor) and coef.shape != ()
+    if is_unit_wise_coef:
+        raw_stats = coef * raw_stats
+    raw_loss = reduce_mean(raw_stats, mask, n)
+    loss = raw_loss if is_unit_wise_coef else coef * raw_loss
+    return raw_loss, loss
+
+
 def huber_loss(x, *, y=None, threshold=1.):
     if y is not None:   # if y is passed, take x-y as error, otherwise, take x as error
         x = x - y
@@ -71,34 +93,38 @@ def n_step_target(
 
 
 def lambda_return(
+    *, 
     reward, 
     value, 
     discount, 
+    reset=None, # reset is required for non-episodic environments, where environment resets due to time limits
+    gamma, 
     lambda_, 
     bootstrap=None, 
     axis=0
 ):
     """
-    discount includes the done signal if there is any.
+    discount = 1-done. 
     axis specifies the time dimension
     """
-    if isinstance(discount, (int, float)):
-        discount = discount * tf.ones_like(reward)
     # swap 'axis' with the 0-th dimension
-    dims = list(range(reward.shape.ndims))
-    dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
-    if axis != 0:
-        reward = tf.transpose(reward, dims)
-        value = tf.transpose(value, dims)
-        discount = tf.transpose(discount, dims)
+    dims, (reward, value, discount, reset) = \
+        time_major(reward, value, discount, reset, axis=axis)
+    
     if bootstrap is None:
         bootstrap = tf.zeros_like(value[-1])
-    next_values = tf.concat([value[1:], bootstrap[None]], 0)
-    # 1-step target: r + 𝛾 * v' * (1 - 𝝀)
-    inputs = reward + discount * next_values * (1 - lambda_)
+    next_value = tf.concat([value[1:], bootstrap[None]], 0)
+    
+    # 1-step target: r + 𝛾 * v'
+    discount = discount * gamma
+    inputs = reward + discount * next_value
+    if reset is not None:
+        discount = (1 - reset) * gamma
+    discount = discount * lambda_
+
     # lambda function computes lambda return starting from the end
     target = static_scan(
-        lambda acc, cur: cur[0] + cur[1] * lambda_ * acc,
+        lambda acc, x: x[0] + x[1] * acc,
         bootstrap, (inputs, discount), reverse=True
     )
     if axis != 0:
@@ -107,12 +133,15 @@ def lambda_return(
 
 
 def retrace(
+    *,
     reward, 
     next_qs, 
     next_action, 
     next_pi, 
     next_mu_a, 
     discount, 
+    reset=None, 
+    gamma, 
     lambda_=.95, 
     ratio_clip=1, 
     axis=0, 
@@ -121,11 +150,9 @@ def retrace(
 ):
     """
     Params:
-        discount = gamma * (1-done). 
+        discount = 1-done. 
         axis specifies the time dimension
     """
-    if isinstance(discount, (int, float)):
-        discount = discount * tf.ones_like(reward)
     if next_action.dtype.is_integer:
         next_action = tf.one_hot(next_action, next_pi.shape[-1], dtype=next_pi.dtype)
     assert_rank_and_shape_compatibility([next_action, next_pi], reward.shape.ndims + 1)
@@ -141,21 +168,20 @@ def retrace(
     if regularization is not None:
         next_v -= regularization
     next_q = tf.reduce_sum(next_qs * next_action, axis=-1)
+    discount = discount * gamma
     current = reward + discount * (next_v - next_c * next_q)
 
     # swap 'axis' with the 0-th dimension
-    dims = list(range(reward.shape.ndims))
-    dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
-    if axis != 0:
-        next_q = tf.transpose(next_q, dims)
-        current = tf.transpose(current, dims)
-        discount = tf.transpose(discount, dims)
-        next_c = tf.transpose(next_c, dims)
+    dims, (next_q, current, discount, next_c, reset) = \
+        time_major(next_q, current, discount, next_c, reset, axis=axis)
 
     assert_rank([current, discount, next_c])
+    if reset is not None:
+        discount = (1 - reset) * gamma
+    discounted_ratio = discount * next_c
     target = static_scan(
-        lambda acc, x: x[0] + x[1] * x[2] * acc,
-        next_q[-1], (current, discount, next_c), 
+        lambda acc, x: x[0] + x[1] * acc,
+        next_q[-1], (current, discounted_ratio), 
         reverse=True)
 
     if axis != 0:
@@ -168,12 +194,15 @@ def retrace(
 
 
 def v_trace(
+    *,
     reward, 
     value, 
     next_value, 
-    pi1, 
+    pi, 
     mu, 
     discount, 
+    reset=None, 
+    gamma=1, 
     lambda_=1, 
     c_clip=1, 
     rho_clip=1, 
@@ -182,21 +211,35 @@ def v_trace(
 ):
     """
     Params:
-        discount = gamma * (1-done). 
+        discount = 1-done. 
         axis specifies the time dimension
     """
-    ratio = pi1 / mu
-    return v_trace_from_ratio(reward, value, next_value, 
-        ratio, discount, lambda_, c_clip, 
-        rho_clip, rho_clip_pg, axis)
+    ratio = pi / mu
+    return v_trace_from_ratio(
+        reward=reward, 
+        value=value, 
+        next_value=next_value,
+        ratio=ratio, 
+        discount=discount, 
+        reset=reset, 
+        gamma=gamma, 
+        lambda_=lambda_, 
+        c_clip=c_clip, 
+        rho_clip=rho_clip, 
+        rho_clip_pg=rho_clip_pg, 
+        axis=axis
+    )
 
 
 def v_trace_from_ratio(
+    *, 
     reward, 
     value, 
     next_value, 
     ratio, 
     discount, 
+    reset=None, 
+    gamma=1, 
     lambda_=1, 
     c_clip=1, 
     rho_clip=1, 
@@ -205,7 +248,7 @@ def v_trace_from_ratio(
 ):
     """
     Params:
-        discount = gamma * (1-done). 
+        discount = 1-done. 
         axis specifies the time dimension
     """
     assert_rank_and_shape_compatibility(
@@ -213,28 +256,25 @@ def v_trace_from_ratio(
     
     # swap 'axis' with the 0-th dimension
     # to make all tensors time-major
-    dims = list(range(reward.shape.ndims))
-    dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
-    if axis != 0:
-        reward = tf.transpose(reward, dims)
-        value = tf.transpose(value, dims)
-        next_value = tf.transpose(next_value, dims)
-        ratio = tf.transpose(ratio, dims)
-        discount = tf.transpose(discount, dims)
+    dims, (reward, value, next_value, ratio, discount, reset) = \
+        time_major(reward, value, next_value, ratio, discount, reset, axis=axis)
     
     clipped_c = ratio if c_clip is None else tf.minimum(ratio, c_clip)
     clipped_rho = ratio if rho_clip is None else tf.minimum(ratio, rho_clip)
     if lambda_ is not None and lambda_ != 1:
-        clipped_rho = lambda_ * clipped_rho
+        clipped_c = lambda_ * clipped_c
 
+    discount = discount * gamma
     delta = clipped_rho * (reward + discount * next_value - value)
-    
+    if reset is not None:
+        discount = (1 - reset) * gamma
+    discounted_ratio = discount * clipped_c
     initial_value = tf.zeros_like(delta[-1])
 
     v_minus_V = static_scan(
-        lambda acc, x: x[0] + x[1] * x[2] * acc,
-        initial_value, (delta, discount, clipped_c),
-        reverse=True)
+        lambda acc, x: x[0] + x[1] * acc,
+        initial_value, (delta, discounted_ratio), reverse=True
+    )
     
     vs = v_minus_V + value
 
@@ -247,6 +287,41 @@ def v_trace_from_ratio(
         adv = tf.transpose(adv, dims)
     
     return vs, adv
+
+
+def pg_loss(
+    *, 
+    pg_coef, 
+    advantage, 
+    logprob, 
+    mask=None, 
+    n=None
+):
+    raw_pg = advantage * logprob
+    raw_pg_loss, pg_loss = to_loss(
+        -raw_pg, 
+        pg_coef, 
+        mask=mask, 
+        n=n
+    )
+
+    return raw_pg_loss, pg_loss
+
+
+def entropy_loss(
+    *, 
+    entropy_coef, 
+    entropy, 
+    mask=None, 
+    n=None
+):
+    raw_entropy_loss, entropy_loss = to_loss(
+        -entropy, 
+        entropy_coef, 
+        mask=mask, 
+        n=n
+    )
+    return raw_entropy_loss, entropy_loss
 
 
 def ppo_loss(

@@ -1,6 +1,5 @@
 import numpy as np
 
-import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.python.keras.optimizer_v2 import optimizer_v2
 from tensorflow.python.ops import array_ops
@@ -87,12 +86,19 @@ class RMSprop(optimizer_v2.OptimizerV2):
         self.epsilon = epsilon
         self.centered = centered
         self._var_grad_map = {}
+        self._grad_coef_map = {}
 
     def get_transformed_grads(self, variables=None):
         if variables: 
-            return [self._var_grad_map[v.name] for v in variables]
+            return {v.name: self._var_grad_map[v.name] for v in variables}
         else:
-            return list(self._var_grad_map.values())
+            return self._var_grad_map
+
+    def get_grad_coefs(self, variables=None):
+        if variables: 
+            return [self._grad_coef_map[v.name] for v in variables]
+        else:
+            return list(self._grad_coef_map.values())
 
     def set_weights(self, weights):
         params = self.weights
@@ -166,9 +172,9 @@ class RMSprop(optimizer_v2.OptimizerV2):
                 mg_t = coefficients["rho"] * mg + coefficients["one_minus_rho"] * grad
                 mg_t = state_ops.assign(mg, mg_t, use_locking=self._use_locking)
                 denom_t = rms_t - math_ops.square(mg_t)
-            coef = - coefficients["lr_t"] / (
+            self._grad_coef_map[var.name] = - coefficients["lr_t"] / (
                 math_ops.sqrt(denom_t) + coefficients["epsilon"])
-            self._var_grad_map[var.name] = transformed_grads = coef * grad
+            self._var_grad_map[var.name] = transformed_grads = self._grad_coef_map[var.name] * grad
             
             op = state_ops.assign_add(var, transformed_grads, use_locking=self._use_locking).op
             return op

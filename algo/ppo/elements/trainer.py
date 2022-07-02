@@ -60,9 +60,10 @@ class PPOTrainer(Trainer):
             mask=mask
         )
 
-        terms['norm'], terms['var_norm'], grads = \
+        terms['grads_norm'], var_norms, grads = \
             self.optimizer(tape, loss, return_var_norms=True, return_grads=True)
-        terms['grads_norm'] = tf.linalg.global_norm(list(grads.values()))
+        terms['var_norm'] = list(var_norms.values())
+        terms['clipped_grads_norm'] = tf.linalg.global_norm(list(grads.values()))
         return terms
 
 

@@ -1,8 +1,7 @@
 import os
+from typing import Dict
 import cloudpickle
 
-from core.elements.agent import Agent
-from core.elements.model import Model
 from core.log import do_logging
 from core.typing import ModelPath
 
@@ -29,37 +28,48 @@ def restore(filedir, filename):
     return data
 
 def set_weights_for_agent(
-    agent: Agent, 
+    agent, 
     model: ModelPath, 
-    filename='params.pkl'
+    filename='params'
 ):
     weights = restore('/'.join(model), filename)
     agent.set_weights(weights)
 
 
 class Checkpoint:
-    def __init__(self, config, model: Model, name='ckpt'):
-        self._model_path = ModelPath(config.get('root_dir', None), config.get('model_name', None))
-        self._model = model
+    def __init__(
+        self, 
+        config, 
+        models: Dict, 
+        name='ckpt'
+    ):
+        self._model_path = ModelPath(
+            config.get('root_dir', None), 
+            config.get('model_name', None)
+        )
+        self._models = models
         self._name = name
 
     """ Save & Restore Model """
     def reset_model_path(self, model_path: ModelPath):
         self._model_path = model_path
-        self.setup_checkpoint(force=True)
-        self._has_ckpt = True
 
     def save(self):
-        if self._has_ckpt:
-            save(self._model.get_weights(), self._model_path, self._name)
-        else:
-            raise RuntimeError(
-                'Cannot perform <save> as either root_dir or model_name was not specified at initialization')
+        path = '/'.join([
+            *self._model_path, 
+            self._name
+        ])
+        for k, m in self._models.items():
+            save(m.get_weights(), path, k)
 
     def restore(self):
-        if self._has_ckpt:
-            weights = restore(self._model_path, self._name)
-            self._model.set_weights(weights)
-        else:
-            raise RuntimeError(
-                'Cannot perform <restore> as either root_dir or model_name was not specified at initialization')
+        for k, m in self._models.items():
+            weights = restore('/'.join(self._model_path), k)
+            if weights:
+                m.set_weights(weights)
+
+    def get_filedir(self):
+        return '/'.join([
+            *self._model_path, 
+            self._name
+        ])

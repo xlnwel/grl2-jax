@@ -7,3 +7,9 @@ class Dummy(tf.Module):
 
     def __call__(self, x, **kwargs):
         return x
+
+    def get_weights(self):
+        pass
+
+    def set_weights(self, weights):
+        pass

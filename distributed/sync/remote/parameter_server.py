@@ -48,6 +48,10 @@ def _divide_runners(n_agents, n_runners, online_frac):
     return n_online_runners, n_agent_runners
 
 
+def _get_online_frac(online_frac):
+    return online_frac if isinstance(online_frac, (int, float)) \
+            else online_frac[0][1]
+
 class ParameterServer(RayBase):
     def __init__(
         self, 
@@ -144,18 +148,22 @@ class ParameterServer(RayBase):
 
     def get_opponent_distributions_for_active_models(self):
         dists = {m: 
-            self.payoff_manager.get_opponent_distribution(
-                i, m, False
-            ) for i, m in enumerate(self._active_models)
+            self.payoff_manager.get_opponent_distribution(i, m, False) 
+            for i, m in enumerate(self._active_models)
         }
+        for m, (p, d) in dists.items():
+            for x in d:
+                if x.size > 1:
+                    online_frac = _get_online_frac(self.online_frac)
+                    x /= np.nansum(x[:-1]) / (1 - online_frac)
+                    x[-1] = online_frac
+            dists[m] = (p, d)
 
         return dists
 
     def get_runner_stats(self):
         stats = {
-            'online_frac': self.online_frac 
-                if isinstance(self.online_frac, (int, float)) 
-                else self.online_frac[0][1], 
+            'online_frac': _get_online_frac(self.online_frac),
             'n_online_runners': self.n_online_runners, 
             'n_agent_runners': self.n_agent_runners, 
         }
@@ -217,38 +225,32 @@ class ParameterServer(RayBase):
         model_weights: ModelWeights, 
         step=None
     ):
-        def get_model_ids(aid, mid, model_weights: ModelWeights):
-            model = model_weights.model
-            assert aid == get_aid(model.model_name), (aid, model)
-            models = self.sample_strategies(
-                aid, 
-                model, 
-                step
-            )
-            assert model in models, (model, models)
-            assert len(models) == self.n_agents, (self.n_agents, models)
-            # We directly store mid for the agent with aid below 
-            # rather than storing the associated data
-            weights = [{} for _ in range(self.n_agents)]
+        def put_model_weights(aid, mid, models):
+            mids = []
             for i, m in enumerate(models):
                 if i == aid:
-                    weights[i] = mid
+                    # We directly store mid for the agent with aid
+                    mids.append(mid)
                 else:
                     if m in self._rule_strategies:
                         # rule-based strategy
-                        weights[i] = self._params[i][m]
+                        weights = self._params[i][m]
                     else:
-                        for k in ['model', 'train_step', 'aux']:
-                            # if error happens here
-                            # it's likely that you retrive the latest model 
-                            # in self.payoff_manager.sample_strategies
-                            weights[i][k] = self._params[i][m][k]
-            model_weights_list = [
-                mid if w == mid else ModelWeights(m, w)
-                for m, w in zip(models, weights)
-            ]
-            mids = [mid if mw == mid else ray.put(mw) 
-                for mw in model_weights_list]
+                        # if error happens here
+                        # it's likely that you retrive the latest model 
+                        # in self.payoff_manager.sample_strategies
+                        weights = {k: self._params[i][m][k] 
+                            for k in ['model', 'train_step', 'aux']}
+                    mids.append(ray.put(ModelWeights(m, weights)))
+            return mids
+
+        def get_model_ids(aid, mid, model_weights: ModelWeights):
+            model = model_weights.model
+            assert aid == get_aid(model.model_name), (aid, model)
+            models = self.sample_strategies(aid, model, step)
+            assert model in models, (model, models)
+            assert len(models) == self.n_agents, (self.n_agents, models)
+            mids = put_model_weights(aid, mid, models)
 
             return mids
         
@@ -410,9 +412,7 @@ class ParameterServer(RayBase):
             self._update_opp_distributions(aid, model)
 
         strategies = self.sample_strategies_with_opp_dists(
-            aid, 
-            model, 
-            self._opp_dist[model]
+            aid, model, self._opp_dist[model]
         )
         assert model in strategies, (model, strategies)
 
@@ -441,9 +441,9 @@ class ParameterServer(RayBase):
         model: ModelPath
     ):
         assert isinstance(model, ModelPath), model
-        self._opp_dist[model] = self.payoff_manager.\
-            get_opponent_distribution(aid, model)[1]
-        do_logging(f'Updating opponent distributions for agent {aid}: {self._opp_dist[model]}', level='pwt')
+        payoffs, self._opp_dist[model] = self.payoff_manager.\
+            get_opponent_distribution(aid, model)
+        do_logging(f'Updating opponent distributions for agent {aid}: {self._opp_dist[model]} \nwith payoffs {payoffs}', level='pwtc')
 
     def sample_strategies_for_evaluation(self):
         if self._all_strategies is None:
@@ -459,8 +459,8 @@ class ParameterServer(RayBase):
     def reset_payoffs(self, from_scratch=True):
         self.payoff_manager.reset(from_scratch=from_scratch)
 
-    def get_payoffs(self):
-        return self.payoff_manager.get_payoffs()
+    def get_payoffs(self, fill_nan=False):
+        return self.payoff_manager.get_payoffs(fill_nan=fill_nan)
 
     def get_counts(self):
         return self.payoff_manager.get_counts()

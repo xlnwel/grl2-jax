@@ -118,9 +118,9 @@ class Agent:
         stats = self.strategy.train_record()
         self.monitor.store(**stats)
 
-    def save(self, print_terminal_info=False):
+    def save(self):
         for s in self.strategies.values():
-            s.save(print_terminal_info=print_terminal_info)
+            s.save()
     
     def restore(self):
         for s in self.strategies.values():

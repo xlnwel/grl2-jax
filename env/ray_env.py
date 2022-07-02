@@ -27,7 +27,7 @@ class RayVecEnv:
         self.env = EnvType(config, env_fn)
         self.stats = self.env.stats
         self.max_episode_steps = self.env.max_episode_steps
-        self._combine_func = np.stack if isinstance(self.env, Env) else np.concatenate
+        self._combine_func = np.stack
 
         self._stats = self.env.stats()
         self._stats['n_runners'] = self.n_runners
@@ -45,7 +45,9 @@ class RayVecEnv:
         return EnvOutput(*out)
 
     def random_action(self, *args, **kwargs):
-        return self._combine_func(ray.get([env.random_action.remote() for env in self.envs]))
+        action = ray.get([env.random_action.remote() for env in self.envs])
+        action = self._process_output(action, convert_batch=True)
+        return action
 
     def step(self, actions, **kwargs):
         if isinstance(actions, (tuple, list)):
@@ -57,20 +59,15 @@ class RayVecEnv:
                 for k, v in kwargs.items()}
             kwargs = [dict(x) for x in zip(*[itertools.product([k], v) 
                 for k, v in kwargs.items()])]
-            out = ray.get([env.step.remote(a, **kw) 
+            out = ray.get([env.step.remote(a, convert_batch=False, **kw) 
                 for env, a, kw in zip(self.envs, actions, kwargs)])
         else:
-            out = ray.get([env.step.remote(a) 
+            out = ray.get([env.step.remote(a, convert_batch=False) 
                 for env, a in zip(self.envs, actions)])
-        # for i, os in enumerate(zip(*out)):
-        #     for j, o in enumerate(os):
-        #         print(i, j)
-        #         if isinstance(o, dict):
-        #             print(list(o))
-        #         else:
-        #             print(o.shape, o.dtype)
-        out = [convert_batch_with_func(o, self._combine_func) for o in zip(*out)]
-        return EnvOutput(*out)
+
+        out = self._process_list_outputs(out, convert_batch=True)
+        out = EnvOutput(*out)
+        return out
 
     def score(self, idxes=None):
         return self._remote_call('score', idxes, convert_batch=False)
@@ -90,7 +87,6 @@ class RayVecEnv:
     
     def output(self, idxes=None):
         out = self._remote_call('output', idxes, single_output=False)
-        
         return EnvOutput(*out)
 
     def _remote_call(self, name, idxes, single_output=True, convert_batch=True):
@@ -99,32 +95,44 @@ class RayVecEnv:
         """
         method = lambda e: getattr(e, name)
         if idxes is None:
-            out = ray.get([method(e).remote() for e in self.envs])
+            out = ray.get([method(e).remote(convert_batch=False) for e in self.envs])
         else:
             if isinstance(self.env, Env):
-                out = ray.get([method(self.envs[i]).remote() for i in idxes])
+                out = ray.get([
+                    method(self.envs[i]).remote(convert_batch=False) for i in idxes])
             else:
                 new_idxes = [[] for _ in range(self.n_runners)]
                 for i in idxes:
                     new_idxes[i // self.envsperworker].append(i % self.envsperworker)
-                out = ray.get([method(self.envs[i]).remote(j) 
+                out = ray.get([method(self.envs[i]).remote(j, convert_batch=False) 
                     for i, j in enumerate(new_idxes) if j])
 
         if single_output:
-            if isinstance(self.env, Env):
-                return convert_batch_with_func(out) if convert_batch else out
+            out = self._process_output(out, convert_batch=convert_batch)
+            return out
+        else:
+            out = self._process_list_outputs(out, convert_batch=convert_batch)
+            return out
+
+    def _process_output(self, out, convert_batch):
+        if not isinstance(self.env, Env):
             # for these outputs, we expect them to be of form [[out*], [out*]]
             # and we chain them into [out*]
             out = list(itertools.chain(*out))
-            if convert_batch:
-                # always stack as chain has flattened the data
-                out = convert_batch_with_func(out)
-            return out
-        else:
-            out = list(zip(*out))
-            if convert_batch:
-                out = [convert_batch_with_func(o, self._combine_func) for o in out]
-            return out
+        if convert_batch:
+            # always stack as chain has flattened the data
+            out = convert_batch_with_func(out)
+        return out
+
+    def _process_list_outputs(self, out, convert_batch):
+        if not isinstance(self.env, Env):
+            # for these outputs, we expect them to be of form [[out*], [out*]]
+            # and we chain them into [out*]
+            out = list(itertools.chain(*out))
+        out = list(zip(*out))
+        if convert_batch:
+            out = [convert_batch_with_func(o, self._combine_func) for o in out]
+        return out
 
     def close(self):
         ray.get([env.close.remote() for env in self.envs])

@@ -75,6 +75,9 @@ class Optimizer(tf.Module):
     def set_weights(self, weights):
         self._opt.set_weights(weights)
 
+    def set_variables(self, vars):
+        self._variables = vars
+
     @property
     def variables(self):
         return self._variables
@@ -110,9 +113,9 @@ class Optimizer(tf.Module):
         if tape is None:
             raise ValueError('tf.GradientTape is ')
         if self._l2_reg or return_var_norms:
-            var_norms = self._get_var_norms()
+            var_norms = self.get_var_norms()
             if self._l2_reg:
-                loss = self._add_l2_regularization(loss, var_norms)
+                loss = self._add_l2_regularization(loss, var_norms.values())
         if self._mpt:
             with tape:
                 loss = self._opt.get_scaled_loss(loss)
@@ -123,9 +126,11 @@ class Optimizer(tf.Module):
         else:
             return grads
 
-    def apply_gradients(self, grads, return_grads=False):
+    def apply_gradients(self, grads, vars=None, return_grads=False):
+        if vars is None:
+            vars = self._variables
         if None in grads:
-            raise ValueError(f'No grads for {self._variables[grads.index(None)].name}')
+            raise ValueError(f'No grads for {vars[grads.index(None)].name}')
         if self._mpt:
             grads = self._opt.get_unscaled_gradients(grads)
         if self._scales is not None:
@@ -137,10 +142,10 @@ class Optimizer(tf.Module):
         if self._weight_decay:
             self._apply_weight_decay()
         self.grads = grads
-        self._opt.apply_gradients(zip(grads, self._variables))
+        self._opt.apply_gradients(zip(grads, vars))
 
         if return_grads:
-            return norm, {v.name: g for v, g in zip(self._variables, grads)}
+            return norm, {v.name: g for v, g in zip(vars, grads)}
         else:
             return norm
 
@@ -172,10 +177,8 @@ class Optimizer(tf.Module):
         else:
             return norms
 
-    def _get_var_norms(self):
-        var_norms = []
-        for var in self._variables:
-            var_norms.append(tf.nn.l2_loss(var))
+    def get_var_norms(self):
+        var_norms = {v.name: tf.nn.l2_loss(v) for v in self._variables}
         return var_norms
         
     def _add_l2_regularization(self, loss, var_norms: List):

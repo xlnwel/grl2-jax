@@ -65,7 +65,7 @@ def train(config, agent, env, eval_env, buffer):
                     eval_score=eval_score, 
                     eval_epslen=eval_epslen)
 
-    def record_stats(step):
+    def record_stats(step, start_env_step, train_step, start_train_step):
         aux_stats = agent.actor.get_rms_stats()
         aux_stats = rms2dict(aux_stats)
         with lt:
@@ -79,6 +79,8 @@ def train(config, agent, env, eval_env, buffer):
                 'time/train_mean': tt.average(),
                 'time/eval_mean': et.average(),
                 'time/log_mean': lt.average(),
+                'time/fps': (step-start_env_step)/rt.last(), 
+                'time/tps': (train_step-start_train_step)/tt.last(),
             }, **aux_stats)
             agent.record(step=step)
             agent.save()
@@ -90,46 +92,34 @@ def train(config, agent, env, eval_env, buffer):
         assert buffer.size() == 0, buffer.size()
         with rt:
             step = runner.run(step_fn=collect)
+
         # reward normalization
         reward = np.array(buffer['reward'])
         discount = np.array(buffer['discount'])
         agent.actor.update_reward_rms(reward, discount)
         buffer.update(
-            'reward', agent.actor.normalize_reward(reward), field='all')
-        agent.record_inputs_to_vf(runner.env_output)
+            'reward', agent.actor.normalize_reward(reward))
         
         # observation normalization
-        raw_obs = buffer['obs']
-        obs = agent.actor.normalize_obs(raw_obs)
-        buffer.update('obs', obs, field='all')
-        next_obs = agent.actor.normalize_obs(buffer['next_obs'])
+        def normalize_obs(name):
+            raw_obs = buffer[name]
+            obs = agent.actor.normalize_obs(raw_obs)
+            buffer.update(name, obs)
+            return raw_obs
+        raw_obs = normalize_obs('obs')
         agent.actor.update_obs_rms(raw_obs)
-        if not config.get('timeout_done', True):
-            value = agent.compute_value({'global_state': obs})
-            next_value = agent.compute_value({'global_state': next_obs})
-            buffer.finish(
-                value=value.reshape(buffer.n_steps, buffer.n_envs), 
-                next_value=next_value.reshape(buffer.n_steps, buffer.n_envs),
-                reset=buffer['reset']
-            )
-        else:
-            value = agent.compute_value()
-            buffer.finish(last_value=value)
 
         start_train_step = agent.get_train_step()
         with tt:
             agent.train_record()
         train_step = agent.get_train_step()
-        agent.store(
-            fps=(step-start_env_step)/rt.last(),
-            tps=(train_step-start_train_step)/tt.last())
         agent.set_env_step(step)
-        buffer.reset()
-        if to_eval(train_step) or step > config.MAX_STEPS:
+        # no need to reset buffer
+        if to_eval(step) or step > config.MAX_STEPS:
             evaluate_agent(step, eval_env, agent)
 
-        if to_record(train_step) and agent.contains_stats('score'):
-            record_stats(step)
+        if to_record(step) and agent.contains_stats('score'):
+            record_stats(step, start_env_step, train_step, start_train_step)
 
 def main(configs, train=train):
     assert len(configs) == 1, configs

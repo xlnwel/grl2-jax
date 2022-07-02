@@ -20,14 +20,6 @@ def post_wrap(env, config):
     """ Does some post processing and bookkeeping. 
     Does not change anything that will affect the agent's performance 
     """
-    if isinstance(env.action_space, gym.spaces.Box):
-        env = ContinuousActionMapper(
-            env, 
-            bound_method=config.get('bound_method', 'clip'), 
-            to_rescale=config.get('to_rescale', True),
-            action_low=config.get('action_low', -1), 
-            action_high=config.get('action_high', 1)
-        )
     env = DataProcess(env, config.get('precision', 32))
     env = EnvStats(
         env, config.get('max_episode_steps', None), 
@@ -421,6 +413,120 @@ class ContinuousActionMapper(gym.ActionWrapper):
         return action
 
 
+
+class TurnBasedProcess(gym.Wrapper):
+    def __init__(self, env) -> None:
+        super().__init__(env)
+        self.env = env
+        self._current_player = -1
+
+        self._prev_action = [np.zeros(ad, dtype=np.float32) 
+            for ad in self.env.action_dim]
+        self._prev_rewards = np.zeros(self.env.n_units, dtype=np.float32)
+        self._dense_score = np.zeros(self.env.n_units, dtype=np.float32)
+        self._epslen = np.zeros(self.env.n_units, dtype=np.int32)
+
+    def reset(self):
+        self._prev_action = [np.zeros(ad, dtype=np.float32) 
+            for ad in self.env.action_dim]
+        self._prev_rewards = np.zeros(self.env.n_units, dtype=np.float32)
+        self._dense_score = np.zeros(self.env.n_units, dtype=np.float32)
+        self._epslen = np.zeros(self.env.n_units, dtype=np.int32)
+
+        obs = self.env.reset()
+        self._current_player = obs['uid']
+        obs.update({
+            'prev_action': self._prev_action[self._current_player],
+            'prev_reward': np.float32(0.),
+        })
+
+        return obs
+
+    def step(self, action):
+        assert self._current_player >= 0, self._current_player
+        self._prev_action[self._current_player] = np.zeros(
+            self.env.action_dim[self._current_player], dtype=np.float32)
+        self._prev_action[self._current_player][np.squeeze(action)] = 1
+
+        # obs is specific to the current player only, 
+        # while others are for all players
+        obs, rewards, discounts, info = self.env.step(action)
+        assert len(rewards) == len(discounts) == self.env.n_units, (len(rewards), len(discounts), self.env.n_units)
+        self._current_player = obs['uid']
+
+        acc_rewards = self._get_reward(rewards, self._current_player)
+        scores = self._get_scores(rewards)
+        self._epslen[self._current_player] += 1
+
+        info.update(scores)
+        info['current_player'] = obs['uid']
+        info['total_epslen'] = np.sum(self._epslen)
+        info['epslen'] = self._epslen
+
+        obs.update({
+            'prev_action': self._prev_action[self._current_player],
+            'prev_reward': acc_rewards[self._current_player],
+        })
+
+        return obs, acc_rewards, discounts, info
+
+    def _get_reward(self, rewards, pid):
+        self._prev_rewards += rewards
+        acc_rewards = self._prev_rewards.copy()
+        self._prev_rewards[pid] = 0
+
+        return acc_rewards
+    
+    def _get_scores(self, rewards):
+        self._dense_score += rewards
+        win_score = self._dense_score > 0
+        draw_score = self._dense_score == 0
+        score = np.sign(self._dense_score)
+
+        return dict(
+            dense_score=self._dense_score, 
+            win_score=win_score, 
+            draw_score=draw_score, 
+            score=score, 
+        )
+
+
+class Single2MultiAgent(gym.Wrapper):
+    """ Add unit dimension """
+    def __init__(self, env, obs_only=False):
+        super().__init__(env)
+        self._obs_only = obs_only
+        self.is_multi_agent = True
+
+    def random_action(self):
+        action = self.env.random_action()
+        action = np.expand_dims(action, 0)
+        return action
+
+    def reset(self):
+        obs = self.env.reset()
+        obs = self._get_obs(obs)
+
+        return obs
+
+    def step(self, action, **kwargs):
+        obs, reward, done, info = self.env.step(action, **kwargs)
+        obs = self._get_obs(obs)
+        if not self._obs_only:
+            reward = np.expand_dims(reward, 0)
+            done = np.expand_dims(done, 0)
+
+        return obs, reward, done, info
+
+    def _get_obs(self, obs):
+        if isinstance(obs, dict):
+            for k, v in obs.items():
+                obs[k] = np.expand_dims(v, 0)
+        else:
+            obs = np.expand_dims(obs, 0)
+        return obs
+
+
 class DataProcess(gym.Wrapper):
     """ Convert observation to np.float32 or np.float16 """
     def __init__(self, env, precision=32):
@@ -551,13 +657,18 @@ class EnvStatsBase(gym.Wrapper):
                 is_multi_agent=getattr(env, 'is_multi_agent', len(self.uid2aid) > 1),
                 is_simultaneous_move=getattr(env, 'is_simultaneous_move', True),
             )
+        if 'obs_keys' not in self._stats:
+            if isinstance(env.obs_shape, (list, tuple)):
+                self._stats['obs_keys'] = [list(o) for o in env.obs_shape]
+            else:
+                self._stats['obs_keys'] = list(env.obs_shape)
         if timeout_done:
             do_logging('Timeout is treated as done', logger=logger)
         self._reset()
 
     def stats(self):
         # return a copy to avoid being modified from outside
-        return dict2AttrDict(self._stats)
+        return dict2AttrDict(self._stats, to_copy=True)
 
     def reset(self):
         raise NotImplementedError
@@ -608,9 +719,14 @@ class EnvStats(EnvStatsBase):
 
     def _reset(self):
         obs = super()._reset()
-        reward = self.float_dtype(0)
-        discount = self.float_dtype(1)
-        reset = self.float_dtype(True)
+        if self._stats['is_multi_agent']:
+            reward = np.zeros(1, self.float_dtype)
+            discount = np.ones(1, self.float_dtype)
+            reset = np.ones(1, self.float_dtype)
+        else:
+            reward = self.float_dtype(0)
+            discount = self.float_dtype(1)
+            reset = self.float_dtype(True)
         self._output = EnvOutput(obs, reward, discount, reset)
 
         return self._output
@@ -619,14 +735,20 @@ class EnvStats(EnvStatsBase):
         if self._game_over:
             assert self.auto_reset == False, self.auto_reset
             # step after the game is over
-            reward = self.float_dtype(0)
-            discount = self.float_dtype(0)
-            reset = self.float_dtype(0)
+            if self._stats['is_multi_agent']:
+                reward = np.zeros(1, self.float_dtype)
+                discount = np.zeros(1, self.float_dtype)
+                reset = np.zeros(1, self.float_dtype)
+            else:
+                reward = self.float_dtype(0)
+                discount = self.float_dtype(0)
+                reset = self.float_dtype(0)
             self._output = EnvOutput(self._output.obs, reward, discount, reset)
             return self._output
 
         # assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
+        obs = self.observation(obs)
         if 'score' in info:
             self._score = info['score']
         else:
@@ -639,14 +761,19 @@ class EnvStats(EnvStatsBase):
         self._game_over = bool(info.get('game_over', done))
         if self._epslen >= self.max_episode_steps:
             self._game_over = True
-            done = self.timeout_done
+            if self._stats['is_multi_agent']:
+                done = np.ones(1, self.float_dtype) * self.timeout_done
+            else:
+                done = self.timeout_done
         reward = self.float_dtype(reward)
         discount = self.float_dtype(1-done)
         # we expect auto-reset environments, 
         # which artificially reset due to life loss,
         # return reset in info when resetting
-        reset = self.float_dtype(info.get('reset', False))
-
+        if self._stats['is_multi_agent']:
+            reset = np.array([info.get('reset', False)], dtype=self.float_dtype)
+        else:
+            reset = self.float_dtype(info.get('reset', False))
         # store previous env output for later retrieval
         self._prev_env_output = GymOutput(obs, reward, discount)
 
@@ -659,7 +786,6 @@ class EnvStats(EnvStatsBase):
                 # when resetting, we override the obs and reset but keep the others
                 obs, _, _, reset = self._reset()
 
-        obs = self.observation(obs)
         self._info = info
         
         self._output = EnvOutput(obs, reward, discount, reset)
@@ -668,111 +794,6 @@ class EnvStats(EnvStatsBase):
     def observation(self, obs):
         if not isinstance(obs, dict):
             obs = dict(obs=obs)
-        return obs
-
-
-class TurnBasedProcess(gym.Wrapper):
-    def __init__(self, env) -> None:
-        super().__init__(env)
-        self.env = env
-        self._current_player = -1
-
-        self._prev_action = [np.zeros(ad, dtype=np.float32) 
-            for ad in self.env.action_dim]
-        self._prev_rewards = np.zeros(self.env.n_units, dtype=np.float32)
-        self._dense_score = np.zeros(self.env.n_units, dtype=np.float32)
-        self._epslen = np.zeros(self.env.n_units, dtype=np.int32)
-
-    def reset(self):
-        self._prev_action = [np.zeros(ad, dtype=np.float32) 
-            for ad in self.env.action_dim]
-        self._prev_rewards = np.zeros(self.env.n_units, dtype=np.float32)
-        self._dense_score = np.zeros(self.env.n_units, dtype=np.float32)
-        self._epslen = np.zeros(self.env.n_units, dtype=np.int32)
-
-        obs = self.env.reset()
-        self._current_player = obs['uid']
-        obs.update({
-            'prev_action': self._prev_action[self._current_player],
-            'prev_reward': np.float32(0.),
-        })
-
-        return obs
-
-    def step(self, action):
-        assert self._current_player >= 0, self._current_player
-        self._prev_action[self._current_player] = np.zeros(
-            self.env.action_dim[self._current_player], dtype=np.float32)
-        self._prev_action[self._current_player][np.squeeze(action)] = 1
-
-        # obs is specific to the current player only, 
-        # while others are for all players
-        obs, rewards, discounts, info = self.env.step(action)
-        assert len(rewards) == len(discounts) == self.env.n_units, (len(rewards), len(discounts), self.env.n_units)
-        self._current_player = obs['uid']
-
-        acc_rewards = self._get_reward(rewards, self._current_player)
-        scores = self._get_scores(rewards)
-        self._epslen[self._current_player] += 1
-
-        info.update(scores)
-        info['current_player'] = obs['uid']
-        info['total_epslen'] = np.sum(self._epslen)
-        info['epslen'] = self._epslen
-
-        obs.update({
-            'prev_action': self._prev_action[self._current_player],
-            'prev_reward': acc_rewards[self._current_player],
-        })
-
-        return obs, acc_rewards, discounts, info
-
-    def _get_reward(self, rewards, pid):
-        self._prev_rewards += rewards
-        acc_rewards = self._prev_rewards.copy()
-        self._prev_rewards[pid] = 0
-
-        return acc_rewards
-    
-    def _get_scores(self, rewards):
-        self._dense_score += rewards
-        win_score = self._dense_score > 0
-        draw_score = self._dense_score == 0
-        score = np.sign(self._dense_score)
-
-        return dict(
-            dense_score=self._dense_score, 
-            win_score=win_score, 
-            draw_score=draw_score, 
-            score=score, 
-        )
-
-
-class Single2MultiAgent(gym.Wrapper):
-    """ Add unit dimension """
-    def __init__(self, env, obs_only=False):
-        super().__init__(env)
-        self._obs_only = obs_only
-
-    def reset(self):
-        obs = self.env.reset()
-        obs = self._get_obs(obs)
-
-        return obs
-
-    def step(self, action, **kwargs):
-        obs, reward, discount, info = self.env.step(action, **kwargs)
-        obs = self._get_obs(obs)
-        if not self._obs_only:
-            reward = np.expand_dims(reward, 0)
-            discount = np.expand_dims(discount, 0)
-
-        return obs, reward, discount, info
-
-    def _get_obs(self, obs):
-        for k, v in obs.items():
-            obs[k] = np.expand_dims(v, 0)
-
         return obs
 
 
@@ -796,8 +817,11 @@ class SqueezeObs(gym.Wrapper):
         return obs, reward, discount, info
 
     def _squeeze_obs(self, obs):
-        for k in self._keys:
-            obs[k] = np.squeeze(obs[k], 0)
+        if isinstance(obs, dict):
+            for k in self._keys:
+                obs[k] = np.squeeze(obs[k], 0)
+        else:
+            obs = np.squeeze(obs, 0)
         return obs
 
 class MASimEnvStats(EnvStatsBase):

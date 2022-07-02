@@ -1,9 +1,10 @@
 import tensorflow as tf
 
-from core.ckpt.tf import *
+from core.ckpt.pickle import Checkpoint
 from core.elements.loss import Loss, LossEnsemble
 from core.module import constructor, Ensemble
 from core.optimizer import create_optimizer
+from core.typing import ModelPath
 from utility.display import display_model_var_info
 from utility.typing import AttrDict
 from utility.utils import set_path
@@ -31,7 +32,7 @@ class Trainer(tf.Module):
         self.train = tf.function(self.raw_train)
         has_built = self._build_train(env_stats)
 
-        self._opt_ckpt = TFCheckpoint(
+        self._opt_ckpt = Checkpoint(
             self.config, self.ckpt_model(), self.name)
 
         if has_built and self.config.get('display_var', True):
@@ -103,15 +104,15 @@ class Trainer(tf.Module):
         self.config = set_path(self.config, model_path, max_layer=0)
         self._opt_ckpt.reset_model_path(model_path)
 
-    def save_optimizer(self, print_terminal_info=False):
+    def save_optimizer(self):
         self._opt_ckpt.save()
 
     def restore_optimizer(self):
         self._opt_ckpt.restore()
 
-    def save(self, print_terminal_info=False):
-        self.save_optimizer(print_terminal_info)
-        self.model.save(print_terminal_info)
+    def save(self):
+        self.save_optimizer()
+        self.model.save()
     
     def restore(self):
         self.restore_optimizer()
@@ -180,15 +181,15 @@ class TrainerEnsemble(Ensemble):
         super().restore()
         self.model.restore()
 
-    def save(self, print_terminal_info=False):
-        super().save(print_terminal_info)
-        self.model.save(print_terminal_info)
+    def save(self):
+        super().save()
+        self.model.save()
 
     def restore_optimizer(self):
         super().restore()
 
-    def save_optimizer(self, print_terminal_info=False):
-        super().save(print_terminal_info)
+    def save_optimizer(self):
+        super().save()
 
 
 def create_trainer(config, env_stats, loss, *, name, trainer_cls, **kwargs):

@@ -29,8 +29,8 @@ class Loss(tf.Module):
         """ Add some additional attributes and do some post processing here """
         pass
 
-    def log_for_debug(self, tape, terms, **data):
-        if self.config.get('debug', True):
+    def log_for_debug(self, tape, terms, debug=True, **data):
+        if debug and self.config.get('debug', True):
             with tape.stop_recording():
                 terms.update(data)
 

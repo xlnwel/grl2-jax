@@ -95,6 +95,9 @@ def get_data_format(
 
     return data_format
 
-def collect(buffer, env, env_step, reset, next_obs_dict, **kwargs):
-    next_obs = np.where(np.expand_dims(reset, -1), env.prev_obs(), next_obs_dict['obs'])
+def collect(buffer, env, env_step, reset, obs, next_obs, **kwargs):
+    for k, v in obs.items():
+        if k not in kwargs:
+            kwargs[k] = v
+    next_obs = np.where(np.expand_dims(reset, -1), env.prev_obs(), next_obs['obs'])
     buffer.add(**kwargs, reset=reset, next_obs=next_obs)

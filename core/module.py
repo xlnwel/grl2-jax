@@ -3,9 +3,10 @@ import functools
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from core.ckpt.tf import *
+from core.ckpt.pickle import Checkpoint
+from core.typing import ModelPath
 from utility.typing import AttrDict
-from utility.utils import set_path
+from utility.utils import dict2AttrDict, set_path
 
 
 def constructor(config, env_stats, cls, name):
@@ -94,14 +95,16 @@ class Module(tf.Module):
 
 
 class Ensemble(tf.Module):
-    def __init__(self, 
-                 *, 
-                 config: AttrDict, 
-                 env_stats: AttrDict=None,
-                 constructor=constructor, 
-                 name: str, 
-                 has_ckpt: bool=True,
-                 **classes):
+    def __init__(
+        self, 
+        *, 
+        config: AttrDict, 
+        env_stats: AttrDict=None,
+        constructor=constructor, 
+        name: str, 
+        has_ckpt: bool=None, 
+        **classes
+    ):
         """ Two ways to construct an Ensemble
         1. with <classes> specified, constructor creates a component
         at a time with a dict from <config>, a class from <classes>,
@@ -113,13 +116,16 @@ class Ensemble(tf.Module):
         """
         super().__init__(name=name.split('-')[-1])
 
-        self.config = config
+        self.config = dict2AttrDict(config, to_copy=True)
         self.env_stats = env_stats
-
         self._pre_init()
         self._init_components(constructor, classes)
-        if has_ckpt:
-            self._ckpt = TFCheckpoint(self.config, self.ckpt_model(), self.name)
+        if has_ckpt is None:
+            self._has_ckpt = 'root_dir' in config and 'model_name' in config
+        else:
+            self._has_ckpt = has_ckpt
+        if self._has_ckpt:
+            self._ckpt = Checkpoint(self.config, self.ckpt_model(), self.name)
         else:
             self._ckpt = None
         self._post_init()
@@ -202,8 +208,8 @@ class Ensemble(tf.Module):
         else:
             raise RuntimeError(f'Cannot perform <restore> as {self.name} has not setup checkpoint')
 
-    def save(self, print_terminal_info=False):
+    def save(self):
         if self._ckpt:
-            self._ckpt.save(print_terminal_info)
+            self._ckpt.save()
         else:
             raise RuntimeError(f'Cannot perform <save> as {self.name} has not setup checkpoint')

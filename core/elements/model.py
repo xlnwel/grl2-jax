@@ -1,6 +1,5 @@
 from typing import Union
 
-from core.ckpt.tf import *
 from core.module import Ensemble, constructor
 from utility.typing import AttrDict
 
@@ -35,7 +34,6 @@ class Model(Ensemble):
             constructor=constructor, 
             name=name)
 
-        self._has_ckpt = 'root_dir' in config and 'model_name' in config
         if to_build:
             self._build(env_stats)
             self.to_build = True

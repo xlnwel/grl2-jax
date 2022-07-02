@@ -52,6 +52,7 @@ def remove_redundancies(config: dict):
     redundancies = [k for k in config.keys() if k.endswith('id') and '/' in k]
     redundancies += [k for k in config.keys() if k.endswith('algorithm') and '/' in k]
     redundancies += [k for k in config.keys() if k.endswith('env_name') and '/' in k]
+    redundancies += [k for k in config.keys() if k.endswith('model_name') and '/' in k]
     for k in redundancies:
         del config[k]
     return config
@@ -90,12 +91,13 @@ if __name__ == '__main__':
                 
             # save config
             config = yaml_op.load_config(yaml_path)
-            to_remove_keys = ['root_dir', 'model_name', 'seed']
+            to_remove_keys = ['root_dir', 'seed']
             config = recursively_remove(config, to_remove_keys)
             config = remove_lists(config)
             config = flatten_dict(config)
             config = rename_env(config)
             config = remove_redundancies(config)
+            config['model_name'] = config['model_name'].split('/')[0]
 
             with open(json_path, 'w') as json_file:
                 json.dump(config, json_file)
@@ -110,7 +112,7 @@ if __name__ == '__main__':
             for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:
                 if k not in data.keys():
                     try:
-                        data[k] = data[f'{k}1'] + data[f'{k}2']
+                        data[k] = (data[f'{k}1'] + data[f'{k}2']) / 2
                     except:
                         pass
             data.to_csv(process_path)

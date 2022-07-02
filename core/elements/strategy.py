@@ -117,7 +117,7 @@ class Strategy:
             self.step_counter.set_env_step(weights['env_step'])
 
     def train_record(self):
-        n, stats = self.train_loop.train()
+        n, stats = self.train_loop.train(self.step_counter.get_train_step())
         self.step_counter.add_train_step(n)
         return stats
 
@@ -161,13 +161,13 @@ class Strategy:
             self.trainer.restore_optimizer()
         self.step_counter.restore_step()
 
-    def save(self, print_terminal_info=False):
+    def save(self):
         if self.model is not None:
-            self.model.save(print_terminal_info)
+            self.model.save()
         if self.actor is not None:
             self.actor.save_auxiliary_stats()
         if self.trainer is not None:
-            self.trainer.save_optimizer(print_terminal_info)
+            self.trainer.save_optimizer()
         self.step_counter.save_step()
 
 

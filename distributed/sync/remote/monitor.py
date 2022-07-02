@@ -19,6 +19,11 @@ from utility.timer import Timer
 from utility.utils import dict2AttrDict
 
 
+def _fill_nan(stats):
+    stats[np.isnan(stats)] = np.nanmin(stats)
+    return stats
+
+
 class Monitor(RayBase):
     def __init__(
         self, 
@@ -41,7 +46,7 @@ class Monitor(RayBase):
         self._episodes: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
         self._episodes_in_period: Dict[ModelPath, int] = collections.defaultdict(lambda: 0)
 
-        self._last_save_time = time.time()
+        self._last_save_time: Dict[ModelPath, float] = collections.defaultdict(lambda: time.time())
 
         self._dir = '/'.join([self.config.root_dir, self.config.model_name])
         self._path = '/'.join([self._dir, 'monitor.pkl'])
@@ -52,6 +57,7 @@ class Monitor(RayBase):
         if model_path not in self.monitors:
             self.monitors[model_path] = ModelMonitor(
                 model_path, name=model_path.model_name)
+            self._last_save_time[model_path] = time.time()
 
     """ Stats Management """
     def store_stats_for_model(
@@ -124,11 +130,13 @@ class Monitor(RayBase):
             n_items += len(d)
             for v in d.values():
                 size += v.nbytes
-        duration = time.time() - self._last_save_time
+        duration = time.time() - self._last_save_time[model]
+        assert duration > 0, duration
         self.monitors[model].store(**{
             'time/tps': self._train_steps_in_period[model] / duration,
             'time/fps': self._env_steps_in_period[model] / duration,
             'time/eps': self._episodes_in_period[model] / duration,
+            # 'stats/env_step': self._env_steps[model],
             'stats/train_step': self._train_steps[model],
             'run/n_episodes': self._episodes[model],
         })
@@ -137,11 +145,12 @@ class Monitor(RayBase):
         self._episodes_in_period[model] = 0
         self.monitors[model].set_step(step)
         self.monitors[model].record(print_terminal_info=True)
-        self._last_save_time = time.time()
+        self._last_save_time[model] = time.time()
 
     def clear_iteration_stats(self):
         self._recording_stats.clear()
         self.monitors.clear()
+        self._last_save_time.clear()
 
     """ Checkpoints """
     def restore(self):
@@ -197,7 +206,6 @@ class Monitor(RayBase):
                     self.plot_recording_stats(model, 'opp_dist', dist)
 
         ray.get(pids)
-        self._last_save_time = time.time()
         with open('check.txt', 'w') as f:
             f.write(datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S'))
 
@@ -206,15 +214,15 @@ class Monitor(RayBase):
             with Timer('Monitor Retrieval Time', period=1):
                 models, payoffs, counts = ray.get([
                     self.parameter_server.get_active_models.remote(), 
-                    self.parameter_server.get_payoffs.remote(), 
+                    self.parameter_server.get_payoffs.remote(fill_nan=True), 
                     self.parameter_server.get_counts.remote()
                 ])
             with Timer('Monitor Matrix Plot Time', period=1):
                 for m, p, c in zip(models, payoffs, counts):
-                    stats = {}
-                    for i, (pp, cc) in enumerate(zip(p, c)):
-                        stats[f'payoff{i}'] = pp
-                        stats[f'count{i}'] = cc
+                    # stats = {}
+                    # for i, (pp, cc) in enumerate(zip(p, c)):
+                    #     stats[f'payoff{i}'] = pp
+                    #     stats[f'count{i}'] = cc
 
                     self.monitors[m].store(payoff=p, count=c)
                     self.plot_stats(
@@ -267,7 +275,7 @@ class Monitor(RayBase):
             hist_stats[model] = new_stats
         
         if fill_nan:
-            hist_stats[model][np.isnan(hist_stats[model])] = np.nanmin(hist_stats[model])
+            hist_stats[model] = _fill_nan(hist_stats[model])
         
         return hist_stats
         

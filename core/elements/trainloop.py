@@ -28,7 +28,8 @@ class TrainingLoopBase:
     def _post_init(self):
         pass
 
-    def train(self):
+    def train(self, step):
+        self._before_train(step)
         train_step, stats = self._train()
         self._after_train()
 
@@ -36,6 +37,9 @@ class TrainingLoopBase:
 
     def _train(self):
         raise NotImplementedError
+
+    def _before_train(self, step):
+        pass
 
     def _after_train(self):
         pass

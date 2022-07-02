@@ -1,3 +1,5 @@
+import gym
+
 from env import wrappers
 
 
@@ -16,6 +18,15 @@ def process_single_agent_env(env, config):
         gray_scale_residual = config.setdefault('gray_scale_residual', False)
         distance = config.setdefault('distance', 1)
         env = wrappers.FrameDiff(env, gray_scale_residual, distance)
+    if isinstance(env.action_space, gym.spaces.Box):
+        env = wrappers.ContinuousActionMapper(
+            env, 
+            bound_method=config.get('bound_method', 'clip'), 
+            to_rescale=config.get('to_rescale', True),
+            action_low=config.get('action_low', -1), 
+            action_high=config.get('action_high', 1)
+        )
+    env = wrappers.Single2MultiAgent(env)
     env = wrappers.post_wrap(env, config)
 
     return env
@@ -44,7 +55,6 @@ def make_gym(config):
         env.spec.max_episode_steps)
 
     env = process_single_agent_env(env, config)
-    print(env)
     return env
 
 

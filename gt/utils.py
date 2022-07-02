@@ -23,16 +23,12 @@ def compute_prioritized_weights(w, type: str, p: float=None, threshold=0):
     else:
         raise NotImplementedError(f'Unknown type {type}')
 
-def compute_opponent_weights(
+def get_opponent_payoffs(
     aid: int, 
     model_payoff: np.ndarray, 
     n_agents: int=None, 
-    prioritize_unmet=True, 
-    reweight_kwargs: dict={},
 ):
-    """ Weights for Prioritized Fictitous Self-Play """
     payoffs = []
-    weights = []
     if n_agents is None:
         n_agents = len(model_payoff.shape) + 1
     assert len(model_payoff.shape) == n_agents - 1, (model_payoff.shape, n_agents)
@@ -40,50 +36,48 @@ def compute_opponent_weights(
         if i == aid:
             continue
         else:
-            payoff_i = model_payoff.mean(axis=tuple([
+            p = np.nanmean(model_payoff, axis=tuple([
                 j if j < aid else j-1 
                 for j in range(n_agents) 
                 if j != i and j != aid
             ]))
-            payoffs.append(payoff_i)
-            assert len(payoff_i.shape) == 1, (payoff_i.size, model_payoff.shape)
-            assert payoff_i.size == model_payoff.shape[0], (payoff_i.size, model_payoff.shape)
-            if prioritize_unmet and np.any(np.isnan(payoff_i)):
-                # prioritize unmet opponents
-                weights_i = np.isnan(payoff_i)
-            else:
-                if np.any(payoff_i > 1) or np.any(payoff_i < 0):
-                    pmax = np.nanmax(payoff_i)
-                    pmin = np.nanmin(payoff_i)
-                    if pmax == pmin:
-                        payoff_i = np.ones_like(payoff_i, dtype=np.float32)
-                    else:
-                        payoff_i = (payoff_i - pmin) / (pmax - pmin)
-                weights_i = 1 - payoff_i
-                weights_i[np.isnan(weights_i)] = np.nanmax(weights_i)
-                weights_i = compute_prioritized_weights(weights_i, **reweight_kwargs)
-            weights.append(weights_i)
-            # if not np.any(np.isnan(payoff_i)):
-            #     assert np.all(weights_i > 0), (payoff_i, weights_i)
+            payoffs.append(p)
     payoffs = np.stack(payoffs)
+
+    return payoffs
+
+def compute_opponent_weights(
+    opp_payoff: np.ndarray, 
+    prioritize_unmet=True, 
+    reweight_kwargs: dict={},
+    filter_recent=True
+):
+    """ Weights for Prioritized Fictitous Self-Play """
+    weights = []
+    for p in opp_payoff:
+        assert p.shape != (), p
+        if prioritize_unmet and np.any(
+                np.isnan(p[:-1] if filter_recent else p)):
+            # prioritize unmet opponents
+            weights_i = np.isnan(p)
+        else:
+            if np.any(p > 1) or np.any(p < 0):
+                pmax = np.nanmax(p)
+                pmin = np.nanmin(p)
+                if pmax == pmin:
+                    p = np.ones_like(p, dtype=np.float32)
+                else:
+                    p = (p - pmin) / (pmax - pmin)
+            weights_i = 1 - p
+            weights_i[np.isnan(weights_i)] = np.nanmax(weights_i)
+            weights_i = compute_prioritized_weights(weights_i, **reweight_kwargs)
+        weights.append(weights_i)
+        # if not np.any(np.isnan(p)):
+        #     assert np.all(weights_i > 0), (p, weights_i)
     weights = np.stack(weights)
 
-    return payoffs, weights
+    return weights
 
-def compute_opponent_distribution(
-    aid: int, 
-    model_payoff: np.ndarray, 
-    n_agents: int, 
-    prioritize_unmet: bool=True, 
-    reweight_kwargs: dict={},
-):
-    payoffs, weights = compute_opponent_weights(
-        aid=aid, 
-        model_payoff=model_payoff, 
-        n_agents=n_agents, 
-        prioritize_unmet=prioritize_unmet, 
-        reweight_kwargs=reweight_kwargs
-    )
-
-    dists = weights / np.sum(weights, -1, keepdims=True)
-    return payoffs, dists
+def compute_opponent_distribution(weights):
+    dists = weights / np.nansum(weights, -1, keepdims=True)
+    return dists

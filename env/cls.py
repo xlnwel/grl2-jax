@@ -56,13 +56,13 @@ class Env:
     def mask(self, *args):
         return self.env.mask()
 
-    def prev_obs(self):
+    def prev_obs(self, *args, **kwargs):
         return self.env.prev_obs()
 
-    def info(self, *args):
+    def info(self, *args, **kwargs):
         return self.env.info(*args)
 
-    def output(self):
+    def output(self, *args, **kwargs):
         return self.env.output()
 
     def game_over(self):
@@ -150,7 +150,8 @@ class VecEnv(VecEnvBase):
             actions = zip(*actions)
         outs = [e.step(a) for e, a in zip(self.envs, actions)]
 
-        return self.process_output(outs, convert_batch=convert_batch)
+        out = self.process_output(outs, convert_batch=convert_batch)
+        return out
 
     def manual_reset(self):
         [e.manual_reset() for e in self.envs]
@@ -170,10 +171,10 @@ class VecEnv(VecEnvBase):
     def game_over(self):
         return np.stack([env.game_over() for env in self.envs])
 
-    def prev_obs(self, idxes=None):
+    def prev_obs(self, idxes=None, convert_batch=True):
         idxes = self._get_idxes(idxes)
         obs = [self.envs[i].prev_obs() for i in idxes]
-        if isinstance(obs[0], dict):
+        if convert_batch:
             obs = batch_dicts(obs)
         return obs
 
@@ -187,8 +188,8 @@ class VecEnv(VecEnvBase):
     def output(self, idxes=None, convert_batch=True):
         idxes = self._get_idxes(idxes)
         out = [self.envs[i].output() for i in idxes]
-
-        return self.process_output(out, convert_batch=convert_batch)
+        out = self.process_output(out, convert_batch=convert_batch)
+        return out
 
     def get_screen(self, size=None, convert_batch=True):
         if hasattr(self.env, 'get_screen'):
@@ -272,10 +273,10 @@ class MASimVecEnv(VecEnvBase):
     def game_over(self):
         return np.stack([env.game_over() for env in self.envs])
 
-    def prev_obs(self, idxes=None):
+    def prev_obs(self, idxes=None, convert_batch=True):
         idxes = self._get_idxes(idxes)
         obs = [self.envs[i].prev_obs() for i in idxes]
-        if isinstance(obs[0], dict):
+        if convert_batch:
             obs = batch_dicts(obs)
         return obs
 
@@ -410,10 +411,10 @@ class MATBVecEnv(VecEnvBase):
     def game_over(self):
         return np.stack([env.game_over() for env in self.envs])
 
-    def prev_obs(self, idxes=None):
+    def prev_obs(self, idxes=None, convert_batch=False):
         idxes = self._get_idxes(idxes)
         obs = [self.envs[i].prev_obs() for i in idxes]
-        if isinstance(obs[0], dict):
+        if convert_batch:
             obs = batch_dicts(obs)
         return obs
 

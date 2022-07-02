@@ -511,8 +511,6 @@ class LocalBufferBase(
         self.config = config
         self.config.gae_discount = self.config.gamma * self.config.lam
         self.config.epsilon = self.config.get('epsilon', 1e-5)
-        self.config.valid_clip = self.config.get(
-            'valid_clip', env_stats.is_action_discrete)
         self.runner_id = runner_id
         self.n_units = n_units
 
@@ -606,8 +604,6 @@ class TurnBasedLocalBufferBase(
         self.config = config
         self.config.gae_discount = self.config.gamma * self.config.lam
         self.config.epsilon = self.config.get('epsilon', 1e-5)
-        self.config.valid_clip = self.config.get(
-            'valid_clip', env_stats.is_action_discrete)
         self.runner_id = runner_id
         self.n_units = n_units
 
@@ -725,7 +721,6 @@ class PPOBufferBase(
         self.config = dict2AttrDict(config)
         self.config.gae_discount = self.config.gamma * self.config.lam
         self.config.epsilon = self.config.get('epsilon', 1e-5)
-        self.config.is_action_discrete = env_stats.is_action_discrete
 
         AdvantageCalculator.__init__(self, config)
 

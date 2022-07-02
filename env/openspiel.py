@@ -63,7 +63,6 @@ class OpenSpiel:
         
 
     def seed(self, seed=None):
-        print('Open-Spiel seed:', seed)
         self.env.seed(seed)
 
     def reset(self):

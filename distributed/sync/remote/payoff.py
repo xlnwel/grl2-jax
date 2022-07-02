@@ -70,6 +70,7 @@ class PayoffManager:
             aid, 
             self.payoff_table.get_payoffs_for_agent(aid, model=model), 
             self.n_agents, 
-            prioritize_unmet
+            prioritize_unmet, 
+            filter_recent=True
         )
         return payoffs, dist

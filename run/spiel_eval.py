@@ -117,7 +117,7 @@ class JointPolicy(policy.Policy):
         return prob_dict
 
 def build_agent(builder, config, env):
-    filename = 'params.pkl'
+    filename = 'params'
     model = ModelPath(config['root_dir'], config['model_name'])
     agent = builder.build_acting_agent_from_scratch(
         config, 
@@ -205,12 +205,12 @@ def main(
         br1 = exploitability.best_response(env.game, aggr_policy, 0)
         br2 = exploitability.best_response(env.game, aggr_policy, 1)
         nash_conv.update(dict(
-            nash_conv=br1['nash_conv'] + br2['nash_conv'], 
+            nash_conv=(br1['nash_conv'] + br2['nash_conv']) / 2, 
             nash_conv1=br1['nash_conv'], 
             nash_conv2=br2['nash_conv'], 
             expl2=br1['best_response_value'], 
             expl1=br2['best_response_value'], 
-            # expl=br1['best_response_value'] + br2['best_response_value'], 
+            expl=(br1['best_response_value'] + br2['best_response_value']) / 2, 
             on_policy_value1=br1['on_policy_value'], 
             on_policy_value2=br2['on_policy_value'], 
         ))
@@ -221,12 +221,12 @@ def main(
         br1 = exploitability.best_response(env.game, joint_policy, 0)
         br2 = exploitability.best_response(env.game, joint_policy, 1)
         nash_conv.update(dict(
-            latest_nash_conv=br1['nash_conv'] + br2['nash_conv'], 
+            latest_nash_conv=(br1['nash_conv'] + br2['nash_conv']) / 2, 
             latest_nash_conv1=br1['nash_conv'], 
             latest_nash_conv2=br2['nash_conv'], 
             latest_expl2=br1['best_response_value'], 
             latest_expl1=br2['best_response_value'], 
-            # latest_expl=br1['best_response_value'] + br2['best_response_value'], 
+            latest_expl=(br1['best_response_value'] + br2['best_response_value']) / 2, 
             latest_on_policy_value1=br1['on_policy_value'], 
             latest_on_policy_value2=br2['on_policy_value'], 
         ))

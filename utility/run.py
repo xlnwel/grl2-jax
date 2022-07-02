@@ -139,8 +139,13 @@ class Runner:
         next_obs, reward, discount, reset = self.env_output
 
         if step_fn:
-            kwargs = dict(**obs, action=action, reward=reward,
-                discount=discount, next_obs_dict=next_obs)
+            kwargs = dict(
+                obs=obs, 
+                action=action, 
+                reward=reward,
+                discount=discount, 
+                next_obs=next_obs
+            )
             assert 'reward' not in terms, 'reward in terms is from the preivous timestep and should not be used to override here'
             # allow terms to overwrite the values in kwargs
             kwargs.update(terms)
