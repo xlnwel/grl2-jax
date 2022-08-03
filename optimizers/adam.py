@@ -69,9 +69,9 @@ class Adam(tf.keras.optimizers.Optimizer):
 
     def get_transformed_grads(self, variables=None):
         if variables: 
-            return [self._var_grad_map[v.name] for v in variables]
+            return {v.name: self._var_grad_map[v.name] for v in variables}
         else:
-            return list(self._var_grad_map.values())
+            return self._var_grad_map
 
     def set_weights(self, weights):
         params = self.weights

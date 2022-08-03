@@ -115,6 +115,7 @@ class RunningMeanStd:
             self.update_from_moments(batch_mean, batch_var, batch_count)
 
     def update_from_moments(self, batch_mean, batch_var, batch_count):
+        assert np.all(batch_var >= 0), batch_var[batch_var < 0]
         if self._count == self._epsilon:
             self._mean = np.zeros_like(batch_mean, 'float64')
             self._var = np.ones_like(batch_var, 'float64')

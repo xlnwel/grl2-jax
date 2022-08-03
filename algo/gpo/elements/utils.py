@@ -14,7 +14,7 @@ def update_data_format_with_rnn_states(
     if config.get('store_state'):
         if config.get('actor_rnn_type') or config.get('value_rnn_type'):
             data_format['mask'] = (basic_shape, tf.float32, 'mask')
-            dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
+            dtype = tf.keras.mixed_precision.global_policy().compute_dtype
         if config.get('actor_rnn_type'):
             data_format['actor_state'] = model.policy.state_type(
                 *[((None, sz), dtype, name) 

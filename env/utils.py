@@ -4,8 +4,17 @@ from env.typing import EnvOutput
 from utility.utils import convert_batch_with_func
 
 
-def batch_env_output(out):
-    return EnvOutput(*[convert_batch_with_func(o) for o in zip(*out)])
+def batch_env_output(out, func=np.stack):
+    return EnvOutput(*[convert_batch_with_func(o, func=func) for o in zip(*out)])
+
+
+def batch_ma_env_output(out, func=np.stack):
+    obs = [convert_batch_with_func(o, func=func) for o in zip(*out[0])]
+    reward = [convert_batch_with_func(r, func=func) for r in zip(*out[1])]
+    discount = [convert_batch_with_func(d, func=func) for d in zip(*out[2])]
+    reset = [convert_batch_with_func(r, func=func) for r in zip(*out[3])]
+    
+    return EnvOutput(obs, reward, discount, reset)
 
 
 def compute_aid2uids(uid2aid):

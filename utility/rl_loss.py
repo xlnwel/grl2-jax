@@ -1,10 +1,15 @@
+import collections
+from typing import Tuple
 import tensorflow as tf
-from tensorflow_probability import distributions as tfd
 
 from utility import tf_div
 from utility.tf_utils import static_scan, reduce_mean, \
-    assert_rank, assert_rank_and_shape_compatibility
+    standard_normalization, assert_rank, \
+        assert_rank_and_shape_compatibility
 
+
+DiceCache = collections.namedtuple('DiceCache', 'w deps')
+DiceInput = collections.namedtuple('DiceInput', 'logprob lam')
 
 def time_major(*args, axis):
     dims = list(range(args[0].shape.ndims))
@@ -28,13 +33,55 @@ def to_loss(
     return raw_loss, loss
 
 
+def magic_box(logprob):
+    return tf.exp(logprob - tf.stop_gradient(logprob))
+
+
+def _dice_impl(
+    acc: DiceCache, 
+    x: Tuple[tf.Tensor, float], 
+):
+    v = acc.w * x.lam
+    w = v + x.logprob
+    deps = magic_box(w) - magic_box(v)
+    return DiceCache(w, deps)
+
+
+def dice(
+    logprob, 
+    axis: int=None, 
+    lam: float=1, 
+):
+    """ The DiCE operator
+    axis: the time dimension. If None, we do not consider the time dimension
+    lam: the discount factor to reduce the effect of distant causal dependencies
+        so as to trade-off bias and variance.
+    exclusive: exclusive cumulative sum
+    """
+    if axis is not None:
+        dims, (logprob, ) = time_major(logprob, axis=axis)
+        lam = tf.ones_like(logprob) * lam
+        res = static_scan(
+            _dice_impl, DiceCache(0, 0), DiceInput(logprob, lam), reverse=False
+        )
+        if axis != 0:
+            deps = tf.transpose(res.deps, dims)
+    else:
+        deps = magic_box(logprob)
+    
+    return deps
+
+
 def huber_loss(x, *, y=None, threshold=1.):
     if y is not None:   # if y is passed, take x-y as error, otherwise, take x as error
         x = x - y
-    return tf.where(tf.abs(x) <= threshold, 
-                    0.5 * tf.square(x), 
-                    threshold * (tf.abs(x) - 0.5 * threshold), 
-                    name='huber_loss')
+    huber_loss = tf.where(
+        tf.abs(x) <= threshold, 
+        0.5 * tf.square(x), 
+        threshold * (tf.abs(x) - 0.5 * threshold), 
+        name='huber_loss'
+    )
+    return huber_loss
 
 
 def quantile_regression_loss(
@@ -99,7 +146,7 @@ def lambda_return(
     discount, 
     reset=None, # reset is required for non-episodic environments, where environment resets due to time limits
     gamma, 
-    lambda_, 
+    lam, 
     bootstrap=None, 
     axis=0
 ):
@@ -120,7 +167,7 @@ def lambda_return(
     inputs = reward + discount * next_value
     if reset is not None:
         discount = (1 - reset) * gamma
-    discount = discount * lambda_
+    discount = discount * lam
 
     # lambda function computes lambda return starting from the end
     target = static_scan(
@@ -128,22 +175,23 @@ def lambda_return(
         bootstrap, (inputs, discount), reverse=True
     )
     if axis != 0:
-         target = tf.transpose(target, dims)
+        target = tf.transpose(target, dims)
+
     return target
 
 
 def retrace(
     *,
     reward, 
+    q,  
     next_qs, 
-    next_action, 
     next_pi, 
-    next_mu_a, 
+    ratio, 
     discount, 
     reset=None, 
     gamma, 
-    lambda_=.95, 
-    ratio_clip=1, 
+    lam=.95, 
+    c_clip=1, 
     axis=0, 
     tbo=False, 
     regularization=None
@@ -153,36 +201,34 @@ def retrace(
         discount = 1-done. 
         axis specifies the time dimension
     """
-    if next_action.dtype.is_integer:
-        next_action = tf.one_hot(next_action, next_pi.shape[-1], dtype=next_pi.dtype)
-    assert_rank_and_shape_compatibility([next_action, next_pi], reward.shape.ndims + 1)
-    next_pi_a = tf.reduce_sum(next_pi * next_action, axis=-1)
-    next_ratio = next_pi_a / next_mu_a
-    if ratio_clip is not None:
-        next_ratio = tf.minimum(next_ratio, ratio_clip)
-    next_c = next_ratio * lambda_
+    assert_rank_and_shape_compatibility(
+        [reward, q, next_qs, discount])
+
+    # swap 'axis' with the 0-th dimension
+    dims, (next_q, ratio, discount, reset) = \
+        time_major(next_q, ratio, discount, reset, axis=axis)
 
     if tbo:
         next_qs = inverse_h(next_qs)
     next_v = tf.reduce_sum(next_qs * next_pi, axis=-1)
     if regularization is not None:
         next_v -= regularization
-    next_q = tf.reduce_sum(next_qs * next_action, axis=-1)
     discount = discount * gamma
-    current = reward + discount * (next_v - next_c * next_q)
+    delta = reward + discount * next_v - q
+    next_c = lam * tf.minimum(ratio[1:], c_clip)
+    initial_value = delta[-1]
 
-    # swap 'axis' with the 0-th dimension
-    dims, (next_q, current, discount, next_c, reset) = \
-        time_major(next_q, current, discount, next_c, reset, axis=axis)
-
-    assert_rank([current, discount, next_c])
+    assert_rank([delta[:-1], next_c])
     if reset is not None:
-        discount = (1 - reset) * gamma
-    discounted_ratio = discount * next_c
-    target = static_scan(
+        discounted_ratio = (1 - reset[1:]) * gamma * next_c
+    else:
+        discounted_ratio = discount[1:] * next_c
+    diff = static_scan(
         lambda acc, x: x[0] + x[1] * acc,
-        next_q[-1], (current, discounted_ratio), 
-        reverse=True)
+        initial_value, (delta[:-1], discounted_ratio), reverse=True
+    )
+
+    target = diff + q
 
     if axis != 0:
         target = tf.transpose(target, dims)
@@ -192,6 +238,60 @@ def retrace(
         
     return target
 
+
+def gae(
+    *, 
+    reward, 
+    value, 
+    next_value, 
+    discount, 
+    reset=None, 
+    gamma=1, 
+    lam=1, 
+    norm_adv=False, 
+    zero_center=True, 
+    epsilon=1e-8, 
+    clip=None, 
+    mask=None, 
+    n=None, 
+    axis=0
+):
+    assert_rank_and_shape_compatibility(
+        [reward, value, next_value, discount])
+    
+    # swap 'axis' with the 0-th dimension
+    # to make all tensors time-major
+    dims, (reward, value, next_value, discount, reset) = \
+        time_major(reward, value, next_value, discount, reset, axis=axis)
+
+    gae_discount = gamma * lam
+    delta = reward + discount * gamma * next_value - value
+    discount = (discount if reset is None else (1 - reset)) * gae_discount
+    initial_value = tf.zeros_like(delta[-1])
+
+    adv = static_scan(
+        lambda acc, x: x[0] + x[1] * acc,
+        initial_value, (delta, discount), reverse=True
+    )
+    vs = adv + value
+
+    if norm_adv:
+        if mask is not None:
+            mask = tf.transpose(mask, dims)
+        adv = standard_normalization(
+            adv, 
+            zero_center=zero_center, 
+            mask=mask, 
+            n=n, 
+            epsilon=epsilon, 
+            clip=clip
+        )
+
+    if axis != 0:
+        vs = tf.transpose(vs, dims)
+        adv = tf.transpose(adv, dims)
+
+    return vs, adv
 
 def v_trace(
     *,
@@ -203,10 +303,17 @@ def v_trace(
     discount, 
     reset=None, 
     gamma=1, 
-    lambda_=1, 
+    lam=1, 
     c_clip=1, 
     rho_clip=1, 
     rho_clip_pg=1, 
+    adv_type='vtrace', 
+    norm_adv=False, 
+    zero_center=True, 
+    epsilon=1e-8, 
+    clip=None, 
+    mask=None, 
+    n=None, 
     axis=0
 ):
     """
@@ -223,10 +330,17 @@ def v_trace(
         discount=discount, 
         reset=reset, 
         gamma=gamma, 
-        lambda_=lambda_, 
+        lam=lam, 
         c_clip=c_clip, 
         rho_clip=rho_clip, 
         rho_clip_pg=rho_clip_pg, 
+        adv_type=adv_type, 
+        norm_adv=norm_adv, 
+        zero_center=zero_center, 
+        epsilon=epsilon, 
+        clip=clip, 
+        mask=mask, 
+        n=n, 
         axis=axis
     )
 
@@ -240,10 +354,17 @@ def v_trace_from_ratio(
     discount, 
     reset=None, 
     gamma=1, 
-    lambda_=1, 
+    lam=1, 
     c_clip=1, 
     rho_clip=1, 
     rho_clip_pg=1, 
+    adv_type='vtrace', 
+    norm_adv=False, 
+    zero_center=True, 
+    epsilon=1e-8, 
+    clip=None, 
+    mask=None, 
+    n=None, 
     axis=0
 ):
     """
@@ -261,14 +382,15 @@ def v_trace_from_ratio(
     
     clipped_c = ratio if c_clip is None else tf.minimum(ratio, c_clip)
     clipped_rho = ratio if rho_clip is None else tf.minimum(ratio, rho_clip)
-    if lambda_ is not None and lambda_ != 1:
-        clipped_c = lambda_ * clipped_c
+    if lam is not None and lam != 1:
+        clipped_c = lam * clipped_c
 
     discount = discount * gamma
     delta = clipped_rho * (reward + discount * next_value - value)
     if reset is not None:
-        discount = (1 - reset) * gamma
-    discounted_ratio = discount * clipped_c
+        discounted_ratio = (1 - reset) * gamma * clipped_c
+    else:
+        discounted_ratio = discount * clipped_c
     initial_value = tf.zeros_like(delta[-1])
 
     v_minus_V = static_scan(
@@ -280,7 +402,22 @@ def v_trace_from_ratio(
 
     next_vs = tf.concat([vs[1:], next_value[-1:]], axis=0)
     clipped_rho_pg = ratio if rho_clip_pg is None else tf.minimum(ratio, rho_clip_pg)
-    adv = clipped_rho_pg * (reward + discount * next_vs - value)
+    if adv_type == 'vtrace':
+        adv = clipped_rho_pg * (reward + discount * next_vs - value)
+    elif adv_type == 'gae':
+        adv = v_minus_V
+
+    if norm_adv:
+        if mask is not None:
+            mask = tf.transpose(mask, dims)
+        adv = standard_normalization(
+            adv, 
+            zero_center=zero_center, 
+            mask=mask, 
+            n=n, 
+            epsilon=epsilon, 
+            clip=clip
+        )
 
     if axis != 0:
         vs = tf.transpose(vs, dims)
@@ -294,10 +431,11 @@ def pg_loss(
     pg_coef, 
     advantage, 
     logprob, 
+    ratio=1., 
     mask=None, 
     n=None
 ):
-    raw_pg = advantage * logprob
+    raw_pg = advantage * ratio * logprob
     raw_pg_loss, pg_loss = to_loss(
         -raw_pg, 
         pg_coef, 
@@ -327,44 +465,88 @@ def entropy_loss(
 def ppo_loss(
     *, 
     pg_coef, 
-    entropy_coef, 
-    log_ratio, 
     advantage, 
+    ratio, 
     clip_range, 
-    entropy, 
     mask=None, 
     n=None,
 ):
-    is_unit_wise_coef = isinstance(pg_coef, tf.Tensor) and pg_coef.shape != ()
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
         assert_rank_and_shape_compatibility([advantage, mask])
-    assert_rank_and_shape_compatibility([log_ratio, advantage])
-    ratio, pg_loss, clipped_loss = _compute_ppo_policy_losses(
-        log_ratio, advantage, clip_range)
+    assert_rank_and_shape_compatibility([ratio, advantage])
+    pg_loss, clipped_loss = _compute_ppo_policy_losses(
+        advantage, ratio, clip_range)
 
     raw_ppo = tf.maximum(pg_loss, clipped_loss)
-    if is_unit_wise_coef:
-        raw_ppo = pg_coef * raw_ppo
-    tf.debugging.assert_all_finite(raw_ppo, 'Bad raw_ppo')
-    raw_ppo_loss = reduce_mean(raw_ppo, mask=mask, n=n)
-    ppo_loss = raw_ppo_loss if is_unit_wise_coef else pg_coef * raw_ppo_loss
-    is_unit_wise_coef = isinstance(entropy_coef, tf.Tensor) and entropy_coef.shape != ()
-    if is_unit_wise_coef:
-        entropy = entropy_coef * entropy
-    raw_entropy_loss = - reduce_mean(entropy, mask, n)
-    entropy_loss = raw_entropy_loss if is_unit_wise_coef else entropy_coef * raw_entropy_loss
+    raw_ppo_loss, ppo_loss = to_loss(
+        raw_ppo, 
+        pg_coef, 
+        mask=mask, 
+        n=n
+    )
 
-    # debug stats: KL between old and current policy and fraction of data being clipped
-    approx_kl = .5 * reduce_mean((-log_ratio)**2, mask, n)
     # We still count how much will be clipped by range .2 when clipping is off
     if clip_range is None:
         clip_range = .2
     clip_frac = reduce_mean(tf.cast(tf.greater(
         tf.abs(ratio - 1.), clip_range), ratio.dtype), mask, n)
 
-    return ratio, pg_loss, clipped_loss, raw_ppo_loss, ppo_loss, \
-        raw_entropy_loss, entropy_loss, approx_kl, clip_frac
+    return pg_loss, clipped_loss, raw_ppo_loss, ppo_loss, clip_frac
+
+
+def high_order_ppo_loss(
+    *, 
+    pg_coef, 
+    advantage, 
+    ratio, 
+    dice_op, 
+    clip_range, 
+    mask=None, 
+    n=None,
+):
+    if mask is not None and n is None:
+        n = tf.reduce_sum(mask)
+        assert_rank_and_shape_compatibility([advantage, mask])
+    assert_rank_and_shape_compatibility([ratio, dice_op, advantage])
+    if clip_range is None:
+        clip_mask = tf.zeros_like(ratio, dtype=tf.bool)
+    else:
+        clip_mask = tf.greater(tf.abs(ratio - 1.), clip_range)
+    neg_adv = -advantage
+    pg_loss = neg_adv * tf.stop_gradient(ratio) * dice_op
+    clipped_loss = neg_adv * tf.where(clip_mask, 0., dice_op)
+
+    raw_ppo = tf.maximum(pg_loss, clipped_loss)
+    raw_ppo_loss, ppo_loss = to_loss(
+        raw_ppo, 
+        pg_coef, 
+        mask=mask, 
+        n=n
+    )
+
+    clip_frac = reduce_mean(tf.cast(clip_mask, ratio.dtype), mask, n)
+
+    return pg_loss, clipped_loss, raw_ppo_loss, ppo_loss, clip_frac
+
+
+def _compute_ppo_value_losses(
+    value, 
+    traj_ret, 
+    old_value, 
+    clip_range, 
+    huber_threshold=None
+):
+    value_diff = value - old_value
+    value_clipped = old_value + tf.clip_by_value(value_diff, -clip_range, clip_range)
+    if huber_threshold is None:
+        loss1 = .5 * tf.square(value - traj_ret)
+        loss2 = .5 * tf.square(value_clipped - traj_ret)
+    else:
+        loss1 = huber_loss(value, y=traj_ret, threshold=huber_threshold)
+        loss2 = huber_loss(value_clipped, y=traj_ret, threshold=huber_threshold)
+
+    return value_diff, loss1, loss2
 
 
 def clipped_value_loss(
@@ -375,19 +557,12 @@ def clipped_value_loss(
     mask=None, 
     n=None, 
     huber_threshold=None,
-    reduce=True,
 ):
-    if mask is not None and n is None:
-        n = tf.reduce_sum(mask)
-        assert_rank_and_shape_compatibility([value, mask])
     assert_rank_and_shape_compatibility([value, traj_ret, old_value])
     value_diff, loss1, loss2 = _compute_ppo_value_losses(
         value, traj_ret, old_value, clip_range, huber_threshold)
     
-    if reduce:
-        value_loss = reduce_mean(tf.maximum(loss1, loss2), mask, n)
-    else:
-        value_loss = tf.maximum(loss1, loss2)
+    value_loss = tf.maximum(loss1, loss2)
     clip_frac = reduce_mean(
         tf.cast(tf.greater(tf.abs(value_diff), clip_range), value.dtype), mask, n)
 
@@ -418,34 +593,14 @@ def tppo_loss(
     return policy_loss, entropy, clip_frac
 
 
-def _compute_ppo_policy_losses(log_ratio, advantages, clip_range):
-    ratio = tf.exp(log_ratio)
+def _compute_ppo_policy_losses(advantages, ratio, clip_range):
     neg_adv = -advantages
     loss1 = neg_adv * ratio
     if clip_range is None:
         loss2 = loss1
     else:
         loss2 = neg_adv * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
-    return ratio, loss1, loss2
-
-
-def _compute_ppo_value_losses(
-    value, 
-    traj_ret, 
-    old_value, 
-    clip_range, 
-    huber_threshold=None
-):
-    value_diff = value - old_value
-    value_clipped = old_value + tf.clip_by_value(value_diff, -clip_range, clip_range)
-    if huber_threshold is None:
-        loss1 = .5 * tf.square(value - traj_ret)
-        loss2 = .5 * tf.square(value_clipped - traj_ret)
-    else:
-        loss1 = huber_loss(value, y=traj_ret, threshold=huber_threshold)
-        loss2 = huber_loss(value_clipped, y=traj_ret, threshold=huber_threshold)
-
-    return value_diff, loss1, loss2
+    return loss1, loss2
 
 
 def compute_kl(
@@ -465,7 +620,6 @@ def compute_kl(
     sample_mask=None,
     n=None, 
 ):
-    is_unit_wise_coef = isinstance(kl_coef, tf.Tensor) and kl_coef.shape != ()
     if kl_coef is not None:
         if kl_type == 'forward_approx':
             kl = tf_div.kl_from_samples(
@@ -501,11 +655,12 @@ def compute_kl(
             )
         else:
             raise NotImplementedError(f'Unknown kl {kl_type}')
-        if is_unit_wise_coef:
-            kl = kl_coef * kl
-        raw_kl_loss = reduce_mean(kl, mask=sample_mask, n=n)
-        tf.debugging.assert_all_finite(raw_kl_loss, 'Bad raw_kl_loss')
-        kl_loss = raw_kl_loss if is_unit_wise_coef else kl_coef * raw_kl_loss
+        raw_kl_loss, kl_loss = to_loss(
+            kl, 
+            kl_coef, 
+            mask=sample_mask, 
+            n=n
+        )
     else:
         kl = 0.
         raw_kl_loss = 0.
@@ -527,7 +682,6 @@ def compute_js(
     sample_mask=None, 
     n=None
 ):
-    is_unit_wise_coef = isinstance(js_coef, tf.Tensor) and js_coef.shape != ()
     if js_coef is not None:
         if js_type == 'approx':
             js = tf_div.js_from_samples(
@@ -541,11 +695,12 @@ def compute_js(
             )
         else:
             raise NotImplementedError(f'Unknown JS type {js_type}')
-        if is_unit_wise_coef:
-            js = js_coef * js
-        raw_js_loss = reduce_mean(js, mask=sample_mask, n=n)
-        tf.debugging.assert_all_finite(raw_js_loss, 'Bad raw_js_loss')
-        js_loss = raw_js_loss if is_unit_wise_coef else js_coef * raw_js_loss
+        raw_js_loss, js_loss = to_loss(
+            js, 
+            js_coef, 
+            mask=sample_mask, 
+            n=n
+        )
     else:
         js = 0,
         raw_js_loss = 0.
@@ -572,7 +727,6 @@ def compute_tsallis(
     sample_mask=None,
     n=None, 
 ):
-    is_unit_wise_coef = isinstance(tsallis_coef, tf.Tensor) and tsallis_coef.shape != ()
     if tsallis_coef is not None:
         if tsallis_type == 'forward_approx':
             tsallis = tf_div.tsallis_from_samples(
@@ -612,14 +766,33 @@ def compute_tsallis(
             )
         else:
             raise NotImplementedError(f'Unknown Tsallis {tsallis_type}')
-        if is_unit_wise_coef:
-            tsallis = tsallis_coef * tsallis
-        raw_tsallis_loss = reduce_mean(tsallis, mask=sample_mask, n=n)
+        raw_tsallis_loss, tsallis_loss = to_loss(
+            tsallis, 
+            tsallis_coef, 
+            mask=sample_mask, 
+            n=n
+        )
         tf.debugging.assert_all_finite(raw_tsallis_loss, 'Bad raw_tsallis_loss')
-        tsallis_loss = raw_tsallis_loss if is_unit_wise_coef else tsallis_coef * raw_tsallis_loss
     else:
         tsallis = 0.
         raw_tsallis_loss = 0.
         tsallis_loss = 0.
 
     return tsallis, raw_tsallis_loss, tsallis_loss
+
+
+def dr_loss(
+    reward, 
+    value, 
+    next_value, 
+    ratio, 
+    discount, 
+    reset=None, 
+    gamma=1, 
+    lam=1, 
+    c_clip=1, 
+    rho_clip=1, 
+    rho_clip_pg=1, 
+    axis=0
+):
+    pass

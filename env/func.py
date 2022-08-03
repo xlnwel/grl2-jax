@@ -75,37 +75,18 @@ def get_env_stats(config):
 
 
 if __name__ == '__main__':
-    import time
     import numpy as np
-    import collections
-    State = collections.namedtuple('State', 'h c')
-    def run(config):
-        env = create_env(config)
-        start = time.time()
-        env.record_default_state(np.zeros(2), State(np.zeros((2, 2)), np.ones((2, 2))))
-        env.record_default_state(np.ones(2), State(np.zeros((2, 2)), np.ones((2, 2))))
-        obs = env.reset()
-        print(obs)
-        return time.time() - start
-        # st = time.time()
-        # for _ in range(10000):
-        #     a = env.random_action()
-        #     _, _, d, _ = env.step(a)
-        #     if np.any(d == 0):
-        #         idx = [i for i, dd in enumerate(d) if dd == 0]
-        #         # print(idx)
-        #         env.reset(idx)
-        # return time.time() - st
-        env.close()
-    import ray
-    # performance test
     config = dict(
-        env_name='overcooked-asymmetric_advantages',
-        max_episode_steps=400,
-        n_envs=4,
-        dense_reward=True,
-        featurize=False,
-        record_state=True,
-        uid2aid=[0, 1]
+        env_name='gym-Ant-v4',
+        n_runners=2,
+        n_envs=2,
+        to_multi_agent=True,
     )
-    run(config)
+    env = create_env(config)
+    for k in range(100):
+        a = env.random_action()
+        print(a)
+        o, r, d, re = env.step(a)
+        if np.any(re):
+            print('discount at reset', d, re)
+            print('epslen', env.epslen())

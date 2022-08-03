@@ -5,7 +5,7 @@ import cv2
 from utility.utils import batch_dicts, dict2AttrDict, convert_batch_with_func
 from env import make_env
 from env.typing import EnvOutput
-from env.utils import batch_env_output
+from env.utils import batch_env_output, batch_ma_env_output
 
 
 class Env:
@@ -36,7 +36,7 @@ class Env:
             else self.env.action_space.sample()
         return action
         
-    def step(self, action, **kwargs):
+    def step(self, action, *, convert_batch=False, **kwargs):
         output = self.env.step(action, **kwargs)
         return output
 
@@ -103,6 +103,10 @@ class VecEnvBase():
         self.max_episode_steps = self.env.max_episode_steps
         self.env_type = 'VecEnv'
 
+        self._stats = self.env.stats()
+        self._stats['n_runners'] = 1
+        self._stats['n_envs'] = self.n_envs
+
     def __getattr__(self, name):
         if name.startswith("_"):
             raise AttributeError(
@@ -122,7 +126,11 @@ class VecEnvBase():
     
     def process_output(self, out, convert_batch=True):
         if convert_batch:
-            return batch_env_output(out)
+            if self._stats.is_multi_agent:
+                out = list(zip(*out))
+                return batch_ma_env_output(out)
+            else:
+                return batch_env_output(out)
         else:
             return out
 
@@ -130,10 +138,6 @@ class VecEnvBase():
 class VecEnv(VecEnvBase):
     def __init__(self, config, env_fn=make_env, agents={}):
         super().__init__(config, env_fn, agents)
-        self._stats = self.env.stats()
-        self._stats['n_runners'] = 1
-        self._stats['n_envs'] = self.n_envs
-        self._stats['is_multi_agent'] = False
 
     def random_action(self, *args, **kwargs):
         return np.stack([env.random_action() if hasattr(env, 'random_action') \
@@ -149,18 +153,17 @@ class VecEnv(VecEnvBase):
         if isinstance(actions, (tuple, list)):
             actions = zip(*actions)
         outs = [e.step(a) for e, a in zip(self.envs, actions)]
-
         out = self.process_output(outs, convert_batch=convert_batch)
         return out
 
     def manual_reset(self):
         [e.manual_reset() for e in self.envs]
 
-    def score(self, idxes=None):
+    def score(self, idxes=None, **kwargs):
         idxes = self._get_idxes(idxes)
         return [self.envs[i].score() for i in idxes]
 
-    def epslen(self, idxes=None):
+    def epslen(self, idxes=None, **kwargs):
         idxes = self._get_idxes(idxes)
         return [self.envs[i].epslen() for i in idxes]
 
@@ -175,7 +178,10 @@ class VecEnv(VecEnvBase):
         idxes = self._get_idxes(idxes)
         obs = [self.envs[i].prev_obs() for i in idxes]
         if convert_batch:
-            obs = batch_dicts(obs)
+            if self._stats.is_multi_agent:
+                obs = [convert_batch_with_func(o) for o in zip(*obs)]
+            else:
+                obs = batch_dicts(obs)
         return obs
 
     def info(self, idxes=None, convert_batch=False):
@@ -234,9 +240,6 @@ class VecEnv(VecEnvBase):
 class MASimVecEnv(VecEnvBase):
     def __init__(self, config, env_fn=make_env, agents={}):
         super().__init__(config, env_fn, agents)
-        self._stats = self.env.stats()
-        self._stats['n_runners'] = 1
-        self._stats['n_envs'] = self.n_envs
 
     def random_action(self, *args, **kwargs):
         actions = list(zip(*[env.random_action() for env in self.envs]))
@@ -374,9 +377,6 @@ class MATBVecEnv(VecEnvBase):
     """
     def __init__(self, config, env_fn=make_env, agents={}):
         super().__init__(config, env_fn, agents)
-        self._stats = self.env.stats()
-        self._stats['n_runners'] = 1
-        self._stats['n_envs'] = self.n_envs
 
     def random_action(self, *args, **kwargs):
         actions = [env.random_action() for env in self.envs]
@@ -496,18 +496,16 @@ class MATBVecEnv(VecEnvBase):
 
 if __name__ == '__main__':
     config = dict(
-        env_name='smac_6h_vs_8z',
-        n_runners=8,
-        n_envs=1,
-        use_state_agent=True,
-        use_mustalive=True,
-        add_center_xy=True,
-        timeout_done=True,
-        add_agent_id=False,
-        obs_agent_id=False,
+        env_name='gym-Ant-v4',
+        n_runners=2,
+        n_envs=2,
+        to_multi_agent=True,
     )
-    env = Env(config)
+    env = VecEnv(config)
     for k in range(100):
-        o, r, d, re = env.step(env.random_action())
-        print(k, d, re, o['episodic_mask'])
-        print(r, env.score(), env.epslen())
+        a = env.random_action()
+        o, r, d, re = env.step((a))
+        if np.any(re):
+            eids = [i for i, r in enumerate(re)]
+            discounts = d[eids]
+            print('reset envs', eids, re, discounts[:, 0], env.epslen(eids))

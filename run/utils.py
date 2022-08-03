@@ -79,7 +79,7 @@ def change_config_with_kw_string(kw, config, model_name=''):
             modified_configs = change_config_with_key_value(config, key, value)
             do_logging(
                 f'All "{key}" appeared in the following configs will be changed to "{value}": {modified_configs}', 
-                logger=logger, 
+                level='print', 
                 color='cyan'
             )
             assert modified_configs != [], modified_configs

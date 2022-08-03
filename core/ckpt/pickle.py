@@ -63,8 +63,12 @@ class Checkpoint:
             save(m.get_weights(), path, k)
 
     def restore(self):
+        path = '/'.join([
+            *self._model_path, 
+            self._name
+        ])
         for k, m in self._models.items():
-            weights = restore('/'.join(self._model_path), k)
+            weights = restore(path, k)
             if weights:
                 m.set_weights(weights)
 

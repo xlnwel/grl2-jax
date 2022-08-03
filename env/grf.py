@@ -22,7 +22,7 @@ class GRF:
         number_of_left_players_agent_controls=1,
         number_of_right_players_agent_controls=0,
         # custom grf configs
-        shared_ckpt_reward=False, 
+        shared_ckpt_reward=False,  
         # required configs for grl
         max_episode_steps=3000,
         use_action_mask=False,
@@ -34,7 +34,9 @@ class GRF:
         self.representation = representation
         if representation != 'simple115v2':
             representation = 'raw'
-            if self.representation == 'mat':
+            if self.representation == 'event':
+                pass
+            elif self.representation == 'mat':
                 from env.grf_env.mat_obs import FeatureEncoder
                 self.feat_encoder = FeatureEncoder()
             else:
@@ -85,6 +87,8 @@ class GRF:
             other_config_options=other_config_options
         )
 
+        self._prev_event = [[10 for _ in range(self.n_units)] for _ in range(self.n_agents)]
+
         self.max_episode_steps = max_episode_steps
 
         self.use_action_mask = use_action_mask  # if action mask is used
@@ -121,17 +125,27 @@ class GRF:
         self._collected_checkpoints = [0, 0]
 
     def _get_observation_shape(self):
-        if self.representation == 'mat':
+        if self.representation == 'event':
+            obs_shape = (112, )
+        elif self.representation == 'mat':
             obs_shape = self.feat_encoder.obs_shape
         else:
             obs_shape = self.env.observation_space.shape \
                 if self.n_units == 1 else self.env.observation_space.shape[1:]
-        shape = [dict(
-            obs=obs_shape, 
-            global_state=obs_shape, 
-            prev_reward=(), 
-            prev_action=(self.action_dim[i],), 
-        ) for i in range(self.n_agents)]
+        shape = []
+        for i in range(self.n_agents):
+            s = dict(
+                obs=obs_shape, 
+                global_state=obs_shape, 
+                prev_reward=(), 
+                prev_action=(self.action_dim[i],), 
+            )
+            if self.representation == 'event':
+                s.update(dict(
+                    event=(3,), 
+                    initial_event=(1), 
+                ))
+            shape.append(s)
 
         if self.use_action_mask:
             for aid in range(self.n_agents):
@@ -140,16 +154,22 @@ class GRF:
         return shape
 
     def _get_observation_dtype(self):
-        if self.representation == 'mat':
-            obs_dtype = np.float32
-        else:
-            obs_dtype = self.env.observation_space.dtype
-        dtype = [dict(
-            obs=obs_dtype,
-            global_state=obs_dtype,
-            prev_reward=np.float32, 
-            prev_action=np.float32, 
-        ) for _ in range(self.n_agents)]
+        obs_dtype = np.float32
+
+        dtype = []
+        for _ in range(self.n_agents):
+            d = dict(
+                obs=obs_dtype, 
+                global_state=obs_dtype, 
+                prev_reward=np.float32, 
+                prev_action=np.float32, 
+            )
+            if self.representation == 'event':
+                d.update(dict(
+                    event=np.float32, 
+                    initial_event=np.float32, 
+                ))
+            dtype.append(d)
 
         if self.use_action_mask:
             for aid in range(self.n_agents):
@@ -249,7 +269,9 @@ class GRF:
         if reward is None:
             reward = [np.zeros(len(uids), np.float32) for uids in self.aid2uids]
 
-        if self.representation == 'mat':
+        if self.representation == 'event':
+            agent_obs = self._get_event_obs(obs, action, reward)
+        elif self.representation == 'mat':
             obs_array = []
             act_masks = []
             for i, o in enumerate(obs):
@@ -271,7 +293,6 @@ class GRF:
         else:
             if self.n_units == 1:
                 obs = np.expand_dims(obs, 0)
-
             agent_obs = [dict(
                 obs=obs[uids], 
                 global_state=obs[uids], 
@@ -279,6 +300,68 @@ class GRF:
                 prev_action=action[aid], 
             ) for aid, uids in enumerate(self.aid2uids)]
 
+        return agent_obs
+
+    def _get_event_obs(self, observation, action, reward):
+        def do_flatten(obj):
+            """Run flatten on either python list or numpy array."""
+            if type(obj) == list:
+                return np.array(obj).flatten()
+            return obj.flatten()
+
+        agent_obs = []
+        for aid, uids in enumerate(self.aid2uids):
+            units_obs = []
+            units_events = []
+            units_initial_event_signals = []
+            for u in uids:
+                obs = observation[u]
+                o = []
+                for i, name in enumerate(['left_team', 'left_team_direction',
+                                        'right_team', 'right_team_direction']):
+                    o.extend(do_flatten(obs[name]))
+                    # If there were less than 11vs11 players we backfill missing values
+                    # with -1.
+                    if len(o) < (i + 1) * 22:
+                        o.extend([-1] * ((i + 1) * 22 - len(o)))
+
+                # If there were less than 11vs11 players we backfill missing values with
+                # -1.
+                # 88 = 11 (players) * 2 (teams) * 2 (positions & directions) * 2 (x & y)
+                if len(o) < 88:
+                    o.extend([-1] * (88 - len(o)))
+
+                # ball position
+                o.extend(obs['ball'])
+                # ball direction
+                o.extend(obs['ball_direction'])
+
+                active = [0] * 11
+                if obs['active'] != -1:
+                    active[obs['active']] = 1
+                o.extend(active)
+
+                game_mode = [0] * 7
+                game_mode[obs['game_mode']] = 1
+                o.extend(game_mode)
+                units_obs.append(o)
+
+                e = obs['ball_owned_team']
+                units_events.append(np.zeros(3, np.float32))
+                units_events[-1][e] = 1
+                units_initial_event_signals.append(self._prev_event[aid][u] != e)
+                self._prev_event[aid][u] = e
+
+                assert len(o) == 112, len(o)
+            units_obs = np.stack(units_obs)
+            agent_obs.append(dict(
+                obs=units_obs, 
+                global_state=units_obs, 
+                event=np.stack(units_events), 
+                initial_event=np.expand_dims(units_initial_event_signals, -1).astype(np.float32), 
+                prev_action=action[aid], 
+                prev_reward=reward[aid], 
+            ))
         return agent_obs
 
     def _get_reward(self, reward, info):
@@ -334,7 +417,7 @@ if __name__ == '__main__':
     args = parse_args()
     config = {
         'env_name': '11_vs_11_easy_stochastic',
-        'representation': 'mat',
+        'representation': 'event',
         'rewards': 'scoring,checkpoints', 
         'number_of_left_players_agent_controls': args.left,
         'number_of_right_players_agent_controls': args.right,
@@ -352,14 +435,14 @@ if __name__ == '__main__':
     n = env.obs_shape
     print(n)
     obs = env.reset()
-    for o in obs:
-        for k, v in o.items():
-            print(k, v.shape)
+    print('obs event', obs[0]['event'], obs[0]['initial_event'])
     random.seed(0)
     np.random.seed(0)
+    shift = 0
     for i in range(args.step):
         a = env.random_action()
         o, r, d, info = env.step(a)
+        print('obs event', o[0]['event'], o[0]['initial_event'])
         idx = np.where(o[0]['obs'][0] != o[0]['obs'][1])
         if np.any(d):
             env.reset()

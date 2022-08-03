@@ -21,7 +21,7 @@ def select_optimizer(name):
     return name
 
 
-def create_optimizer(modules, config):
+def create_optimizer(modules, config, name=None):
     if config.pop('schedule_lr', False):
         if not isinstance(config['lr'], (list, tuple)) \
                 or not isinstance(config['lr'][0], (list, tuple)):
@@ -29,7 +29,10 @@ def create_optimizer(modules, config):
         config['lr'] = TFPiecewiseSchedule(config['lr'])
     do_logging(f'The optimizer for modules{tuple(m.name for m in modules)} is constructed with arguments:', logger=logger)
     do_logging(config, prefix='\t', logger=logger)
-    opt = Optimizer(modules, **config)
+    if name:
+        opt = Optimizer(modules, **config, name=name)
+    else:
+        opt = Optimizer(modules, **config)
     return opt
 
 

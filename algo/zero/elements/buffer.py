@@ -4,11 +4,12 @@ import time
 from typing import Dict, List, Type
 import numpy as np
 
+from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from utility.typing import AttrDict
 from utility.utils import batch_dicts, dict2AttrDict
-from algo.gpo.elements.buffer import Buffer
+from .utils import compute_inner_steps, collect
 
 logger = logging.getLogger(__name__)
 
@@ -87,16 +88,18 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
         env_stats: AttrDict,  
         model: Model,
         runner_id: int,
+        aid: int, 
         n_units: int,
     ):
         self.config = config
         self.runner_id = runner_id
+        self.aid = aid
         self.n_units = n_units
 
         self._add_attributes(env_stats, model)
 
     def _add_attributes(self, env_stats, model):
-        self._obs_keys = env_stats.obs_keys
+        self._obs_keys = env_stats.obs_keys[self.aid]
         self.extract_sampling_keys(env_stats, model)
 
         self.maxlen = self.config.n_steps
@@ -123,6 +126,9 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
         # self._train_steps = [[None for _ in range(self.n_units)] 
         #     for _ in range(self.n_envs)]
 
+    def collect(self, env, **kwargs):
+        collect(self, env, 0, **kwargs)
+
     def add(self, data: dict):
         self._replace_obs_with_next_obs(data)
         for k, v in data.items():
@@ -131,8 +137,11 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
         if self.n_samples > 1:
             self._cache_sample()
 
-    def retrieve_all_data(self):
+    def retrieve_all_data(self, latest_obs=None):
         assert self._size == self.maxlen, (self._size, self.maxlen)
+        if latest_obs is not None:
+            for k, v in latest_obs.items():
+                self._buffer[k].append(v)
 
         data = {}
         for k in self.sample_keys:
@@ -143,12 +152,9 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
             else:
                 if k not in self._buffer:
                     continue
-                try:
-                    v = np.stack(self._buffer[k])
-                except:
-                    assert False
+                v = np.stack(self._buffer[k])
                 v = np.swapaxes(v, 0, 1)
-            if k in self._obs_keys:
+            if self.config.timeout_done and k in self._obs_keys:
                 assert v.shape[:3] == (self.n_envs * self.n_samples, self.sample_size+1, self.n_units), \
                     (k, v.shape, (self.n_envs, self.n_samples, self.sample_size+1, self.n_units))
             else:
@@ -159,15 +165,21 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
         return self.runner_id, data, self.n_envs * self.maxlen
 
     def _replace_obs_with_next_obs(self, data):
-        if self._size == 0:
-            for k in self._obs_keys:
-                assert data[k].shape == data[f'next_{k}'].shape, (data[k].shape, data[f'next_{k}'].shape)
-                # add the first obs when buffer is empty
-                self._buffer[k].append(data[k])
-                data[k] = data.pop(f'next_{k}')
-        else:
-            for k in self._obs_keys:
-                data[k] = data.pop(f'next_{k}')
+        if f'next_{self._obs_keys[0]}' not in data:
+            return
+        if self.config.timeout_done:
+            # for environments that treat timeout as done, 
+            # we do not separately record obs and next obs
+            # instead, we record n+1 obs 
+            if self._size == 0:
+                for k in self._obs_keys:
+                    assert data[k].shape == data[f'next_{k}'].shape, (data[k].shape, data[f'next_{k}'].shape)
+                    # add the first obs when buffer is empty
+                    self._buffer[k].append(data[k])
+                    data[k] = data.pop(f'next_{k}')
+            else:
+                for k in self._obs_keys:
+                    data[k] = data.pop(f'next_{k}')
     
     def _cache_sample(self):
         assert self.sample_size < self.maxlen, (self.sample_size, self.maxlen)
@@ -191,12 +203,14 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
 
         self.extract_sampling_keys(env_stats, model)
 
+        self.config = compute_inner_steps(self.config)
+
         self.n_runners = self.config.n_runners
         self.n_envs = self.n_runners * self.config.n_envs
         self.n_steps = self.config.n_steps
         self.max_size = self.config.get('max_size', self.n_envs * self.n_steps)
         if self.sample_size:
-            assert self.max_size % self.sample_size == 0, (self.max_size, self.sample_size)
+            assert self.n_steps % self.sample_size == 0, (self.max_size, self.sample_size)
         self.batch_size = self.max_size // self.sample_size if self.sample_size else self.max_size
 
         self.config.n_envs = self.n_envs
@@ -204,6 +218,7 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
             self.config, 
             env_stats, 
             model, 
+            0, 
             0, 
             env_stats.n_units
         )
@@ -257,8 +272,6 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
                 [np.concatenate(b[k]) for b in self._buffers if b]
                 )[-self.batch_size:] for k in self.sample_keys
             }
-            for k, v in data.items():
-                assert v.shape[:2] == (self.batch_size, self.sample_size), (v.shape, self.batch_size)
             self._queue.append(data)
             self._buffers = [collections.defaultdict(list) for _ in range(self.n_runners)]
             self._current_size = 0
@@ -275,9 +288,10 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
         sample = self._sample(sample_keys)
         if self.config.inner_steps is not None:
             self._memory.append(sample)
-            if len(self._memory) == self.config.inner_steps + 1:
+            if len(self._memory) == self.config.inner_steps + self.config.extra_meta_step:
                 sample = batch_dicts(self._memory)
                 self._memory = []
+
         return sample
 
     """ Implementations """
@@ -295,6 +309,7 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
     def _sample(self, sample_keys=None):
         sample_keys = sample_keys or self.sample_keys
         sample = self._queue.popleft()
+        assert len(self._queue) == 0, len(self._queue)
         assert set(sample) == set(self.sample_keys), (self.sample_keys, list(sample))
 
         return sample

@@ -14,6 +14,7 @@ from env.func import create_env
 
 
 def train(config, agent, env, eval_env, buffer):
+    print('start training')
     collect_fn = pkg.import_module(
         'elements.utils', algo=config.algorithm).collect
     collect = functools.partial(collect_fn, buffer)
@@ -57,8 +58,12 @@ def train(config, agent, env, eval_env, buffer):
             with TempStore(agent.model.get_states, agent.model.reset_states):
                 with et:
                     eval_score, eval_epslen, video = evaluate(
-                        eval_env, agent, n=config.N_EVAL_EPISODES, 
-                        record_video=config.RECORD_VIDEO, size=(64, 64))
+                        eval_env, 
+                        agent, 
+                        n=config.N_EVAL_EPISODES, 
+                        record_video=config.RECORD_VIDEO, 
+                        size=config.get('size', (64, 64))
+                    )
                 if config.RECORD_VIDEO:
                     agent.video_summary(video, step=step)
                 agent.store(
@@ -70,7 +75,7 @@ def train(config, agent, env, eval_env, buffer):
         aux_stats = rms2dict(aux_stats)
         with lt:
             agent.store(**{
-                'misc/train_step': agent.get_train_step(),
+                'stats/train_step': agent.get_train_step(),
                 'time/run': rt.total(), 
                 'time/train': tt.total(),
                 'time/eval': et.total(),
@@ -107,6 +112,8 @@ def train(config, agent, env, eval_env, buffer):
             buffer.update(name, obs)
             return raw_obs
         raw_obs = normalize_obs('obs')
+        if 'next_obs' in buffer:
+            normalize_obs('next_obs')
         agent.actor.update_obs_rms(raw_obs)
 
         start_train_step = agent.get_train_step()
@@ -130,28 +137,30 @@ def main(configs, train=train):
     set_seed(seed)
     configure_gpu()
     configure_precision(config.precision)
-
     use_ray = config.env.get('n_runners', 1) > 1
     if use_ray:
         import ray
         from utility.ray_setup import sigint_shutdown_ray
-        ray.init()
+        ray.init(num_cpus=config.env.n_runners)
         sigint_shutdown_ray()
 
     def build_envs():
         env = create_env(config.env, force_envvec=True)
         eval_env_config = config.env.copy()
-        if config.env.pop('do_evaluation', False):
-            if 'num_levels' in eval_env_config:
-                eval_env_config['num_levels'] = 0
-            if 'seed' in eval_env_config \
-                and eval_env_config['seed'] is not None:
-                eval_env_config['seed'] += 1000
+        if config.routine.get('EVAL_PERIOD', False):
+            if config.env.env_name.startswith('procgen'):
+                if 'num_levels' in eval_env_config:
+                    eval_env_config['num_levels'] = 0
+                if 'seed' in eval_env_config \
+                    and eval_env_config['seed'] is not None:
+                    eval_env_config['seed'] += 1000
+                for k in list(eval_env_config.keys()):
+                    # pop reward hacks
+                    if 'reward' in k:
+                        eval_env_config.pop(k)
+            else:
+                eval_env_config['n_envs'] = 1
             eval_env_config['n_runners'] = 1
-            for k in list(eval_env_config.keys()):
-                # pop reward hacks
-                if 'reward' in k:
-                    eval_env_config.pop(k)
             
             eval_env = create_env(eval_env_config, force_envvec=True)
         else: 
@@ -163,7 +172,9 @@ def main(configs, train=train):
 
     env_stats = env.stats()
     builder = ElementsBuilder(config, env_stats)
+    print('start building')
     elements = builder.build_agent_from_scratch()
+    print('building elements')
 
     train(config.routine, elements.agent, env, eval_env, elements.buffer)
 

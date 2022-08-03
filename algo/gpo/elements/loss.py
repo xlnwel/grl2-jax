@@ -84,24 +84,28 @@ class GPOLossImpl(Loss):
         raw_entropy = act_dist.entropy()
         tf.debugging.assert_all_finite(raw_entropy, 'Bad entropy')
         log_ratio = new_logprob - logprob
-        ratio, loss_pg, loss_clip, raw_ppo_loss, ppo_loss, \
-            raw_entropy_loss, entropy_loss, approx_kl, clip_frac = \
+        ratio = tf.exp(log_ratio)
+        loss_pg, loss_clip, raw_ppo_loss, ppo_loss, clip_frac = \
             rl_loss.ppo_loss(
                 pg_coef=self.config.pg_coef, 
-                entropy_coef=self.config.entropy_coef, 
-                log_ratio=log_ratio, 
                 advantage=advantage, 
+                ratio=ratio, 
                 clip_range=self.config.ppo_clip_range, 
-                entropy=raw_entropy, 
                 mask=sample_mask, 
                 n=n, 
             )
+        raw_entropy_loss, entropy_loss = rl_loss.entropy_loss(
+            entropy_coef=self.config.entropy_coef, 
+            entropy=raw_entropy, 
+            mask=sample_mask, 
+            n=n
+        )
         self.log_for_debug(
             tape, 
             terms, 
             ratio=ratio,
             entropy=raw_entropy,
-            approx_kl=approx_kl,
+            approx_kl=.5 * reduce_mean((log_ratio)**2, sample_mask, n),
             new_logprob=new_logprob, 
             p_clip_frac=clip_frac,
             raw_pg_loss=loss_pg, 
@@ -305,32 +309,25 @@ class ValueLossImpl(Loss):
             )
         elif value_loss_type == 'mse':
             raw_value_loss = .5 * (value - traj_ret)**2
-        elif value_loss_type == 'clip':
+        elif value_loss_type == 'clip' or value_loss_type == 'clip_huber':
             raw_value_loss, v_clip_frac = rl_loss.clipped_value_loss(
                 value, 
                 traj_ret, 
                 old_value, 
                 self.config.value_clip_range, 
+                huber_threshold=self.config.get('huber_threshold', None), 
                 mask=sample_mask, 
                 n=n,
-                reduce=False
-            )
-        elif value_loss_type == 'clip_huber':
-            raw_value_loss, v_clip_frac = rl_loss.clipped_value_loss(
-                value, 
-                traj_ret, 
-                old_value, 
-                self.config.value_clip_range, 
-                mask=sample_mask, 
-                n=n, 
-                huber_threshold=self.config.huber_threshold,
-                reduce=False
             )
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
-
-        loss = reduce_mean(raw_value_loss, sample_mask, n)
-        loss = self.config.value_coef * loss
+        
+        raw_value_loss, value_loss = rl_loss.to_loss(
+            raw_value_loss, 
+            coef=self.config.value_coef, 
+            mask=sample_mask, 
+            n=n
+        )
 
         if self.config.get('debug', True):
             with tape.stop_recording():
@@ -338,7 +335,7 @@ class ValueLossImpl(Loss):
                 terms = dict(
                     value=value,
                     raw_v_loss=raw_value_loss,
-                    v_loss=loss,
+                    v_loss=value_loss,
                     explained_variance=ev,
                     traj_ret_std=tf.math.reduce_std(traj_ret, axis=-1), 
                     v_clip_frac=v_clip_frac,
@@ -347,7 +344,7 @@ class ValueLossImpl(Loss):
         else:
             terms = {}
 
-        return terms, loss
+        return terms, value_loss
 
 
 class GPOPolicyLoss(GPOLossImpl):

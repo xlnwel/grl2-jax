@@ -224,6 +224,7 @@ def moments(x, axis=None, mask=None):
         x_mean = np.sum(x_mask, axis=axis) / n
         x2_mean = np.sum(x_mask**2, axis=axis) / n
     x_var = x2_mean - x_mean**2
+    x_var = np.maximum(x_var, 0)
 
     return x_mean, x_var
     
@@ -500,10 +501,13 @@ def get_frame(backtrack):
     return frame
 
 def set_seed(seed: int=None):
-    import tensorflow as tf
-    random.seed(seed)
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
+    if seed is not None:
+        import tensorflow as tf
+        random.seed(seed)
+        np.random.seed(seed)
+        tf.random.set_seed(seed)
+        tf.keras.utils.set_random_seed(seed)
+        tf.config.experimental.enable_op_determinism()
 
 class TempStore:
     def __init__(self, get_fn, set_fn):

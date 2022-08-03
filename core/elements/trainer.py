@@ -2,6 +2,7 @@ import tensorflow as tf
 
 from core.ckpt.pickle import Checkpoint
 from core.elements.loss import Loss, LossEnsemble
+from core.mixin.model import NetworkSyncOps
 from core.module import constructor, Ensemble
 from core.optimizer import create_optimizer
 from core.typing import ModelPath
@@ -27,6 +28,8 @@ class Trainer(tf.Module):
         self.loss = loss
         self.env_stats = env_stats
 
+        self._add_attributes()
+
         self.construct_optimizers()
 
         self.train = tf.function(self.raw_train)
@@ -37,8 +40,9 @@ class Trainer(tf.Module):
 
         if has_built and self.config.get('display_var', True):
             display_model_var_info(self.model)
+        self.sync_ops = NetworkSyncOps()
         self._post_init()
-        self.model.sync_nets()
+        self.sync_nets()
 
     def __getattr__(self, name):
         if name.startswith('_'):
@@ -46,6 +50,9 @@ class Trainer(tf.Module):
         elif hasattr(self._opt_ckpt, name):
             return getattr(self._opt_ckpt, name)
         raise AttributeError(f"Attempted to get missing attribute '{name}'")
+
+    def _add_attributes(self):
+        pass
 
     def _build_train(self, env_stats):
         return False
@@ -65,6 +72,9 @@ class Trainer(tf.Module):
     def _post_init(self):
         """ Add some additional attributes and do some post processing here """
         pass
+
+    def sync_nets(self):
+        self.model.sync_nets()
 
     """ Weights Access """
     def get_weights(self, identifier=None):

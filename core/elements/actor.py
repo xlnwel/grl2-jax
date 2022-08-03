@@ -143,7 +143,7 @@ class Actor:
                 })
         else:
             action, terms = tensor2numpy((action, terms))
-        if self.config.get('update_obs_rms_at_execution', True) \
+        if self.config.get('update_obs_at_execution', True) \
             and not evaluation and self.rms is not None \
                 and self.rms.is_obs_normalized:
             terms.update({k: inp[k] 

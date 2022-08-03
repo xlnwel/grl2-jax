@@ -1,7 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
 algorithm: &algo sync-gpo
-name: sync-gpo
+name: gpo
 version: 0
 
 precision: 32
@@ -16,7 +16,7 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 1e6
+    store_period: 5e4
     restart_runners_priod: null
     max_version_iterations: 1
     max_steps_per_iteration: 3e7
@@ -30,8 +30,11 @@ parameter_server:
     online_frac: .2
 
     payoff:
-        step_size: .1
-        sampling_strategy: fsp
+        step_size: 1e-2     # step size towards the most recent data, 0 or null average payoff over the entire history
+        update_interval: 180
+        sampling_strategy:
+            type: pfsp
+            p: 1
 
 ray_config:
     runner:
@@ -77,8 +80,8 @@ strategy:
         value_update: null
 
 model:
-    actor_rnn_type: &arnn rnn_mlstm
-    value_rnn_type: &vrnn rnn_mlstm
+    actor_rnn_type: &arnn null
+    value_rnn_type: &vrnn null
     sample_size: &ss 10
 
     policy:
@@ -137,15 +140,29 @@ model:
 loss:
     policy:
         ppo_clip_range: .2
+        pg_coef: 1
         entropy_coef: .01
         aux_l1_coef: 0
         aux_l2_coef: 0
+        weighted_l_dist: False
         kl_prior_coef: 0
-        aux_pg_coef: 0
-        pg_coef: 1
         kl_prior: reverse
+        kl_target_coef: 0
+        kl_target: reverse_approx
+        new_po_coef: 0
+        target_prob: target_prob_prime
+        js_target_coef: 0
+        js_target: approx
+        tsallis_target_coef: 0
+        tsallis_target: reverse_approx
+        tsallis_q: 1.2
         life_mask: True
-        norm_adv: True
+
+        normalize_adv: True
+        zero_center_adv: True
+        process_adv: null
+        adv_clip_range: null
+
     value:
         value_loss: clip_huber
         huber_threshold: 10
@@ -206,20 +223,31 @@ buffer:
     value_rnn_type: *vrnn
     sample_size: *ss
     
+    normalize_adv: False
+    zero_center_adv: True
+    process_adv: null
+    adv_clip: null
 
     # Trust region arguments
-    target_type: exp
-    adv_tau: 1
-    alpha: .2
-    pr_lower_clip: .2
-    pr_upper_clip: .2
-    exp_lower_clip: 1
-    exp_upper_clip: 1
-    adv_lower_clip: 0
-    adv_upper_clip: null
-    lin_lower_clip: .5
-    lin_upper_clip: 3
-    lin_weights: 1
+    target_pi:
+        target_type: pr
+        adv_tau: 1
+        alpha: .2
+        pr_lower_clip: .2
+        pr_upper_clip: .2
+        exp_lower_clip: 1
+        exp_upper_clip: 1
+        adv_lower_clip: 1
+        adv_upper_clip: 1
+        lin_lower_clip: .5
+        lin_upper_clip: 3
+        lin_weights: 1
+        normalize_adv: False
+        zero_center: True
+        process_adv: null
+        step_size: .1
+
+        target_prob_key: target_prob_prime
 
     # PPG configs
     n_pi: *npi
@@ -242,7 +270,6 @@ buffer:
         - advantage
         - target_prob
         - tr_prob
-        - vt_prob
         - target_prob_prime
         - tr_prob_prime
         - logprob

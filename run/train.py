@@ -95,6 +95,7 @@ def _run_with_configs(cmd_args):
 
     configs = []
     for algo, env, config in algo_env_config:
+        do_logging(f'Setup configs for {algo} and {env}', level='pwt')
         algo = _get_algo_name(algo)
         config = load_config_with_algo_env(algo, env, config)
         model_name = change_config_with_kw_string(cmd_args.kwargs, config, raw_model_name)
@@ -117,6 +118,10 @@ def _run_with_configs(cmd_args):
         config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
 
         config = config_info(config, cmd_args.info)
+        if config['info'] is None:
+            info = model_name.split('-', 1)[-1]
+            info = info.split('/')[0]
+            config['info'] = info
         configs.append(config)
 
     if cmd_args.grid_search or cmd_args.trials > 1:

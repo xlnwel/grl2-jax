@@ -23,32 +23,36 @@ class PGLossImpl(Loss):
         advantage, 
         logprob, 
         action_mask=None, 
-        mask=None, 
+        sample_mask=None, 
         n=None, 
         name=None,
     ):
         with tape.stop_recording():
             raw_adv = advantage
             if self.config.norm_adv:
-                advantage = standard_normalization(advantage, mask=mask)
+                advantage = standard_normalization(advantage, mask=sample_mask)
 
         new_logprob = act_dist.log_prob(action)
         tf.debugging.assert_all_finite(new_logprob, 'Bad new_logprob')
         raw_entropy = act_dist.entropy()
         tf.debugging.assert_all_finite(raw_entropy, 'Bad entropy')
         log_ratio = new_logprob - logprob
-        ratio, loss_pg, loss_clip, raw_ppo_loss, ppo_loss, \
-            raw_entropy_loss, entropy_loss, approx_kl, clip_frac = \
+        ratio = tf.exp(log_ratio)
+        loss_pg, loss_clip, raw_ppo_loss, ppo_loss, clip_frac = \
             rl_loss.ppo_loss(
                 pg_coef=self.config.pg_coef, 
-                entropy_coef=self.config.entropy_coef, 
-                log_ratio=log_ratio, 
                 advantage=advantage, 
+                ratio=ratio, 
                 clip_range=self.config.ppo_clip_range, 
-                entropy=raw_entropy, 
-                mask=mask, 
+                mask=sample_mask, 
                 n=n, 
             )
+        raw_entropy_loss, entropy_loss = rl_loss.entropy_loss(
+            entropy_coef=self.config.entropy_coef, 
+            entropy=raw_entropy, 
+            mask=sample_mask, 
+            n=n
+        )
         loss = ppo_loss + entropy_loss
 
         if self.config.get('debug', True):
@@ -60,8 +64,10 @@ class PGLossImpl(Loss):
                     raw_entropy=raw_entropy,
                     entropy=raw_entropy,
                     raw_entropy_loss=raw_entropy_loss,
-                    approx_kl=approx_kl,
+                    approx_kl=.5 * reduce_mean((log_ratio)**2, sample_mask, n),
                     new_logprob=new_logprob, 
+                    raw_pg_loss=loss_pg, 
+                    raw_clipped_loss=loss_clip, 
                     p_clip_frac=clip_frac,
                     raw_ppo_loss=raw_ppo_loss,
                     ppo_loss=ppo_loss,
@@ -91,7 +97,7 @@ class ValueLossImpl(Loss):
         value, 
         traj_ret, 
         old_value, 
-        mask=None,
+        sample_mask=None,
         n=None, 
         name=None, 
     ):
@@ -105,33 +111,25 @@ class ValueLossImpl(Loss):
             )
         elif value_loss_type == 'mse':
             raw_value_loss = .5 * (value - traj_ret)**2
-        elif value_loss_type == 'clip':
+        elif value_loss_type == 'clip' or value_loss_type == 'clip_huber':
             raw_value_loss, v_clip_frac = rl_loss.clipped_value_loss(
                 value, 
                 traj_ret, 
                 old_value, 
                 self.config.value_clip_range, 
-                mask=mask, 
+                huber_threshold=self.config.get('huber_threshold', None), 
+                mask=sample_mask, 
                 n=n,
-                reduce=False
-            )
-        elif value_loss_type == 'clip_huber':
-            raw_value_loss, v_clip_frac = rl_loss.clipped_value_loss(
-                value, 
-                traj_ret, 
-                old_value, 
-                self.config.value_clip_range, 
-                mask=mask, 
-                n=n, 
-                huber_threshold=self.config.huber_threshold,
-                reduce=False
             )
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
-
-        value_loss = reduce_mean(raw_value_loss, mask)
-        loss = reduce_mean(value_loss, mask, n)
-        loss = self.config.value_coef * loss
+        
+        raw_value_loss, value_loss = rl_loss.to_loss(
+            raw_value_loss, 
+            coef=self.config.value_coef, 
+            mask=sample_mask, 
+            n=n
+        )
 
         if self.config.get('debug', True):
             with tape.stop_recording():
@@ -139,7 +137,7 @@ class ValueLossImpl(Loss):
                 terms = dict(
                     value=value,
                     raw_v_loss=raw_value_loss,
-                    v_loss=loss,
+                    v_loss=value_loss,
                     explained_variance=ev,
                     traj_ret_std=tf.math.reduce_std(traj_ret, axis=-1), 
                     v_clip_frac=v_clip_frac,
@@ -148,7 +146,7 @@ class ValueLossImpl(Loss):
         else:
             terms = {}
 
-        return terms, loss
+        return terms, value_loss
 
 
 class PPOPolicyLoss(PGLossImpl):
@@ -165,8 +163,8 @@ class PPOPolicyLoss(PGLossImpl):
         life_mask=None, 
         mask=None
     ):
-        loss_mask = life_mask if self.config.life_mask else None
-        n = None if loss_mask is None else tf.reduce_sum(loss_mask)
+        sample_mask = life_mask if self.config.life_mask else None
+        n = None if sample_mask is None else tf.reduce_sum(sample_mask)
         with tf.GradientTape() as tape:
             x, _ = self.model.encode(
                 x=obs, 
@@ -183,7 +181,7 @@ class PPOPolicyLoss(PGLossImpl):
                 advantage=advantage, 
                 logprob=logprob, 
                 action_mask=action_mask, 
-                mask=loss_mask, 
+                sample_mask=sample_mask, 
                 n=n
             )
 
@@ -207,8 +205,8 @@ class PPOValueLoss(ValueLossImpl):
         mask=None
     ):
         old_value = value
-        loss_mask = life_mask if self.config.life_mask else None
-        n = None if loss_mask is None else tf.reduce_sum(loss_mask)
+        sample_mask = life_mask if self.config.life_mask else None
+        n = None if sample_mask is None else tf.reduce_sum(sample_mask)
         with tf.GradientTape() as tape:
             value, _ = self.model.compute_value(
                 global_state=global_state,
@@ -223,7 +221,7 @@ class PPOValueLoss(ValueLossImpl):
                 value=value, 
                 traj_ret=traj_ret, 
                 old_value=old_value, 
-                mask=loss_mask,
+                sample_mask=sample_mask,
                 n=n,
             )
 

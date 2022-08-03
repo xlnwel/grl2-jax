@@ -41,13 +41,15 @@ class LossEnsemble(Ensemble):
         *, 
         config, 
         model: ModelEnsemble,
-        constructor, 
+        constructor=None, 
+        components=None, 
         name, 
         **classes
     ):
         super().__init__(
             config=config,
             constructor=constructor,
+            components=components, 
             name=name,
             has_ckpt=False, 
             **classes

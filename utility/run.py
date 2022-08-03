@@ -2,6 +2,8 @@ import collections
 import logging
 import numpy as np
 
+from utility.utils import batch_dicts
+
 logger = logging.getLogger(__name__)
 
 class RunMode:
@@ -35,6 +37,7 @@ class Runner:
         self._frame_skip = getattr(env, 'frame_skip', 1)
         self._frames_per_step = self.env.n_envs * self._frame_skip
         self._default_nsteps = nsteps or env.max_episode_steps // self._frame_skip
+        self._is_multi_agent = self.env.stats().is_multi_agent
 
         record_envs = record_envs or self.env.n_envs
         self._record_envs = list(range(record_envs))
@@ -140,32 +143,22 @@ class Runner:
 
         if step_fn:
             kwargs = dict(
-                obs=obs, 
-                action=action, 
-                reward=reward,
-                discount=discount, 
-                next_obs=next_obs
+                obs=obs[0] if self._is_multi_agent else obs, 
+                action=action[0] if self._is_multi_agent and isinstance(action, list) else action, 
+                reward=reward[0] if self._is_multi_agent else reward,
+                discount=discount[0] if self._is_multi_agent else discount, 
+                next_obs=next_obs[0] if self._is_multi_agent else next_obs
             )
             assert 'reward' not in terms, 'reward in terms is from the preivous timestep and should not be used to override here'
             # allow terms to overwrite the values in kwargs
             kwargs.update(terms)
-            step_fn(self.env, self.step, reset, **kwargs)
+            step_fn(self.env, self.step, reset[0] if self._is_multi_agent else reset, **kwargs)
 
         return next_obs, reset
     
     def store_info(self, info):
-        if isinstance(info, list):
-            score = [i['score'] for i in info]
-            dense_score = [i['dense_score'] for i in info]
-            epslen = [i['epslen'] for i in info]
-        else:
-            score = info['score']
-            dense_score = info['dense_score']
-            epslen = info['epslen']
-        self.agent.store(
-            score=score, 
-            dense_score=dense_score, 
-            epslen=epslen)
+        info = batch_dicts(info)
+        self.agent.store(**info)
         if self._info_func is not None:
             self._info_func(self.agent, info)
 

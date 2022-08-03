@@ -4,9 +4,9 @@ from core.module import Ensemble, constructor
 from utility.typing import AttrDict
 
 
-def construct_components(config):
+def construct_components(config, name):
     from nn.func import create_network
-    networks = {k: create_network(v, name=k) 
+    networks = {k: create_network(v, name=f'{name}/{k}') 
         for k, v in config.items() if isinstance(v, dict)}
     return networks
 
@@ -46,14 +46,17 @@ class Model(Ensemble):
     def ckpt_model(self):
         return self.components
 
+    def build(self, env_stats: AttrDict):
+        self._build(env_stats)
+
     def _build(self, env_stats: AttrDict, evaluation=False):
         pass
 
     def sync_nets(self):
         """ Sync target network """
-        if hasattr(self, '_sync_nets'):
+        if hasattr(self, '_sync_target_nets'):
             # defined in TargetNetOps
-            self._sync_nets()
+            self.sync_target_nets()
 
     def get_weights(self, name: str=None):
         """ Returns a list/dict of weights
@@ -88,8 +91,7 @@ class Model(Ensemble):
         else:
             if len(weights) == 0:
                 return
-            assert len(self.variables) == len(weights), \
-                (len(self.variables), len(weights))
+            assert len(self.variables) == len(weights), (len(self.variables), len(weights))
             [v.assign(w) for v, w in zip(self.variables, weights)]
 
     def get_states(self):
@@ -119,6 +121,10 @@ class Model(Ensemble):
     def state_type(self):
         return self.rnn.state_type if hasattr(self, 'rnn') else None
 
+    def log_for_debug(self, terms, debug=True, **data):
+        if debug and self.config.get('debug', True):
+            terms.update(data)
+
 
 class ModelEnsemble(Ensemble):
     def __init__(
@@ -127,6 +133,7 @@ class ModelEnsemble(Ensemble):
         config: dict, 
         env_stats: dict,
         constructor=constructor, 
+        components=None, 
         name: str, 
         to_build=False, 
         to_build_for_eval=False,
@@ -136,9 +143,11 @@ class ModelEnsemble(Ensemble):
             config=config, 
             env_stats=env_stats, 
             constructor=constructor, 
+            components=components, 
             name=name, 
             **classes
         )
+
         if to_build:
             self._build(env_stats)
             self.to_build = True
@@ -148,29 +157,26 @@ class ModelEnsemble(Ensemble):
         else:
             self.to_build = False
 
+    def _build(self, env_stats: AttrDict):
+        pass
+
     def get_weights(self, name: Union[dict, list]=None):
+        weights = {}
         if name:
-            weights = {}
             if isinstance(name, dict):
                 for model_name, comp_name in name.items():
                     weights[model_name] = self.components[model_name].get_weights(comp_name)
             elif isinstance(name, list):
                 for model_name in name:
                     weights[model_name] = self.components[model_name].get_weights()
-            return weights
         else:
-            return [v.numpy() for v in self.variables]
+            for k, v in self.components.items():
+                weights[k] = v.get_weights()
+        return weights
 
     def set_weights(self, weights: Union[list, dict], default_initialization=None):
-        if isinstance(weights, dict):
-            for n, m in self.components.items():
-                if n in weights:
-                    m.set_weights(weights[n], default_initialization)
-                elif default_initialization:
-                    m.set_weights({}, default_initialization)
-        else:
-            if len(weights) == 0:
-                return
-            assert len(self.variables) == len(weights), \
-                (len(self.variables), len(weights))
-            [v.assign(w) for v, w in zip(self.variables, weights)]
+        for n, m in self.components.items():
+            if n in weights:
+                m.set_weights(weights[n], default_initialization)
+            elif default_initialization:
+                m.set_weights({}, default_initialization)

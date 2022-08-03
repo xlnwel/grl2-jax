@@ -26,7 +26,8 @@ def process_single_agent_env(env, config):
             action_low=config.get('action_low', -1), 
             action_high=config.get('action_high', 1)
         )
-    env = wrappers.Single2MultiAgent(env)
+    if config.get('to_multi_agent', False):
+        env = wrappers.Single2MultiAgent(env)
     env = wrappers.post_wrap(env, config)
 
     return env
@@ -53,8 +54,8 @@ def make_gym(config):
     env = DummyEnv(env)    # useful for hidding unexpected frame_skip
     config.setdefault('max_episode_steps', 
         env.spec.max_episode_steps)
-
     env = process_single_agent_env(env, config)
+
     return env
 
 
@@ -147,6 +148,7 @@ def make_smac(config):
     config = _change_env_name(config)
     env = SMAC(**config)
     env = wrappers.MASimEnvStats(env)
+
     return env
 
 
@@ -156,6 +158,7 @@ def make_smac2(config):
     config = _change_env_name(config)
     env = SMAC(**config)
     env = wrappers.MASimEnvStats(env)
+
     return env
 
 def make_overcooked(config):
@@ -169,6 +172,17 @@ def make_overcooked(config):
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
     
+    return env
+
+def make_matrix(config):
+    assert 'matrix' in config['env_name'], config['env_name']
+    from env.matrix import env_map
+    config = config.copy()
+    config = _change_env_name(config)
+    env = env_map[config['env_name']](**config)
+    env = wrappers.DataProcess(env)
+    env = wrappers.MASimEnvStats(env)
+
     return env
 
 def make_grf(config):
@@ -195,4 +209,21 @@ def make_unity(config):
         action_high=config.get('action_high', 1)
     )
     env = wrappers.UnityEnvStats(env)
+
     return env
+
+if __name__ == '__main__':
+    config = dict(
+        env_name='matrix-ipd', 
+        uid2aid=[0, 0], 
+        max_episode_steps=150,
+    )
+    env = make_matrix(config)
+    print(env.action_shape)
+    for _ in range(1):
+        a = env.random_action()
+        o, r, d, re = env.step(a)
+        print(o)
+        if re:
+            print('discount at reset', d)
+            print('epslen', env.epslen())

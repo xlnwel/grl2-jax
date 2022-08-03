@@ -106,8 +106,8 @@ class Recorder:
             k_std, k_min, k_max = std, min, max
             if (k.endswith('score') or k.endswith('epslen')) and not k.startswith('metrics/'):
                 k = f'metrics/{k}'
-            if adaptive and (k.startswith('train/') \
-                or k.startswith('metrics/')) or k.startswith('data/'):
+            if adaptive and not k.startswith('aux/') \
+                and not k.startswith('misc/') and not k.startswith('time/'):
                 k_std = k_min = k_max = True
             if isscalar(v):
                 stats[k] = v
@@ -117,7 +117,11 @@ class Recorder:
             if k_std:
                 stats[f'{k}_std'] = np.std(v).astype(np.float32)
             if k_min:
-                stats[f'{k}_min'] = np.min(v).astype(np.float32)
+                try:
+                    stats[f'{k}_min'] = np.min(v).astype(np.float32)
+                except:
+                    print(k, v)
+                    assert False
             if k_max:
                 stats[f'{k}_max'] = np.max(v).astype(np.float32)
         self._store_dict.clear()
@@ -131,10 +135,9 @@ class Recorder:
             if self._first_row:
                 do_logging(f'All previous records are erased because stats does not match the first row\n'
                     f'stats = {set(stats)}\nfirst row = {set(self._headers)}', 
-                    logger=logger, level='WARNING')
+                    logger=logger, level='pwt')
             self._out_file.seek(0)
             self._out_file.truncate()
-            self._headers.clear()
             self._first_row = True
         [self.record_tabular(k, v) for k, v in stats.items()]
         self.dump_tabular(print_terminal_info=print_terminal_info)
@@ -149,7 +152,8 @@ class Recorder:
         stdout (otherwise they will not get saved anywhere).
         """
         if self._first_row:
-            self._headers.append(key)
+            if key not in self._headers:
+                self._headers.append(key)
         else:
             assert key in self._headers, \
                 f"Trying to introduce a new key {key} " \

@@ -72,7 +72,7 @@ if __name__ == '__main__':
     args = parse_args()
     
     for p in args.prefix:
-        config_name = 'config_p0.yaml' if p.startswith('seed') else 'config.yaml'
+        config_name = 'config.yaml' 
         for d in search_for_dirs(args.directory, p, is_suffix=False):
             target_dir = '/'.join([args.target, d.replace(args.directory, '')])
             print(f'copy from {d} to {target_dir}')

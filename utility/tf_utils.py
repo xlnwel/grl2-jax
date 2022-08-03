@@ -11,6 +11,9 @@ def numpy2tensor(x):
     return tf.nest.map_structure(
         lambda x: tf.convert_to_tensor(x) if x is not None else x, x)
 
+def safe_ratio(pi, mu, eps=1e-8):
+    return pi / (mu + eps)
+
 def safe_norm(m, axis=None, keepdims=None, epsilon=1e-6):
     """The gradient-safe version of tf.norm(...)
     it avoid nan gradient when m consists of zeros
@@ -33,10 +36,17 @@ def reduce_moments(x, mask=None, n=None, axis=None):
     var = reduce_mean((x - mean)**2, mask=mask, n=n, axis=axis)
     return mean, var
 
-def standard_normalization(x, zero_center=True, 
-        mask=None, n=None, axis=None, clip=None):
+def standard_normalization(
+    x, 
+    zero_center=True, 
+    mask=None, 
+    n=None, 
+    axis=None, 
+    epsilon=1e-8, 
+    clip=None
+):
     mean, var = reduce_moments(x, mask=mask, n=n, axis=axis)
-    std = tf.sqrt(var + 1e-8)
+    std = tf.sqrt(var + epsilon)
     if zero_center:
         x = x - mean
     x = x / std
@@ -153,7 +163,7 @@ def static_scan(fn, start, inputs, reverse=False):
     """
     last = start
     outputs = [[] for _ in tf.nest.flatten(start)]
-    indices = range(len(tf.nest.flatten(inputs)[0]))
+    indices = range(tf.nest.flatten(inputs)[0].shape[0])
     if reverse:
         indices = reversed(indices)
     for index in indices:

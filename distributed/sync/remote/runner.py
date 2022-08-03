@@ -111,6 +111,7 @@ class MultiAgentSimRunner(RayBase):
                     config=config, 
                     env_stats=self.env_stats, 
                     runner_id=self.id, 
+                    aid=aid, 
                     n_units=self.n_units_per_agent[aid], 
                 )
                 self.buffers.append(buffer)
@@ -227,14 +228,14 @@ class MultiAgentSimRunner(RayBase):
         assert len(model_paths) == len(self.current_models), (model_paths, self.current_models)
         self.current_models = model_paths
 
-    def set_weights_from_configs(self, configs: List[dict], filename='params.pkl'):
+    def set_weights_from_configs(self, configs: List[dict], filename='params'):
         assert len(configs) == len(self.current_models) == self.n_agents, (configs, self.current_models)
         for aid, (config, agent) in enumerate(zip(configs, self.agents)):
             model = ModelPath(config['root_dir'], config['model_name'])
             set_weights_for_agent(agent, model, filename=filename)
             self.current_models[aid] = model
 
-    def set_weights_from_model_paths(self, models: List[ModelPath], filename='params.pkl'):
+    def set_weights_from_model_paths(self, models: List[ModelPath], filename='params'):
         assert len(models) == len(self.current_models) == self.n_agents, (models, self.current_models)
         for aid, (model, agent) in enumerate(zip(models, self.agents)):
             set_weights_for_agent(agent, model, filename=filename)

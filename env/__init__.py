@@ -1,12 +1,12 @@
 import os
 import importlib
 
-from gym.envs.registration import register
+# from gym.envs.registration import register
 
-register(
-    id='Overcooked-v0',
-    entry_point='env.overcooked.overcooked:OvercookedMultiEnv',
-)
+# register(
+#     id='Overcooked-v0',
+#     entry_point='env.overcooked.overcooked:OvercookedMultiEnv',
+# )
 
 
 def retrieve_all_make_env():

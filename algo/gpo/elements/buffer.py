@@ -10,7 +10,7 @@ from utility import div
 from utility.rms import RunningMeanStd
 from utility.typing import AttrDict
 from utility.utils import batch_dicts, dict2AttrDict, moments, standardize
-
+from .utils import collect
 
 logger = logging.getLogger(__name__)
 
@@ -502,11 +502,12 @@ class LocalBufferBase(
 ):
     def __init__(
         self, 
-        config: AttrDict,
-        env_stats: AttrDict,  
-        model: Model,
-        runner_id: int,
-        n_units: int,
+        config: AttrDict, 
+        env_stats: AttrDict, 
+        model: Model, 
+        runner_id: int, 
+        aid: int, 
+        n_units: int, 
     ):
         self.config = config
         self.config.gae_discount = self.config.gamma * self.config.lam
@@ -551,6 +552,9 @@ class LocalBufferBase(
         self._buffers = [collections.defaultdict(list) for _ in range(self.n_envs)]
         # self._train_steps = [[None for _ in range(self.n_units)] 
         #     for _ in range(self.n_envs)]
+
+    def collect(self, env, **kwargs):
+        collect(self, env, 0, **kwargs)
 
     def add(self, data: dict):
         for k, v in data.items():

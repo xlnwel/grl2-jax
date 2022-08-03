@@ -8,6 +8,33 @@ from nn.func import mlp, nn_registry
 """ Source this file to register Networks """
 
 
+@nn_registry.register('hpembed')
+class HPEmbed(Module):
+    def __init__(self, name='hp_mebed', **config):
+        super().__init__(name=name)
+        config = config.copy()
+
+        self._layers = mlp(
+            **config, 
+            use_bias=False, 
+            out_dtype='float32',
+            name=name
+        )
+
+    def call(self, x, *args):
+        for v in args:
+            tf.debugging.assert_all_finite(v, f'Bad value {x}')
+        hp = tf.stop_gradient(tf.expand_dims(tf.stack(args), 0))
+        embed = self._layers(hp)
+        ones = (1 for _ in x.shape[:-1])
+        embed = tf.reshape(embed, [*ones, embed.shape[-1]])
+        zeros = tf.zeros_like(x)
+        embed = embed + zeros[..., :1]
+        x = tf.concat([x, embed], -1)
+
+        return x
+
+
 @nn_registry.register('policy')
 class Policy(Module):
     def __init__(self, name='policy', **config):
@@ -38,7 +65,7 @@ class Policy(Module):
                 initial_value=np.log(self.init_std)*np.ones(self.action_dim), 
                 dtype='float32', 
                 trainable=True, 
-                name=f'policy/logstd')
+                name=f'{name}/policy/logstd')
         config.setdefault('out_gain', .01)
         self._layers = mlp(
             **config, 
@@ -48,7 +75,9 @@ class Policy(Module):
         )
 
     def call(self, x, action_mask=None, evaluation=False):
+        tf.debugging.assert_all_finite(x, 'Bad input')
         x = self._layers(x)
+        tf.debugging.assert_all_finite(x, 'Bad policy output')
         if self.is_action_discrete:
             if self.attention_action:
                 x = tf.matmul(x, self.embed, transpose_b=True)
@@ -61,11 +90,13 @@ class Policy(Module):
         else:
             if self.out_act == 'tanh':
                 x = tf.tanh(x)
-            else:
-                assert self.out_act is None, 'Unknown output activation '
+            tf.debugging.assert_all_finite(self.logstd, 'Bad action logstd')
             std = tf.exp(self.logstd)
             if evaluation and self.eval_act_temp:
                 std = std * self.eval_act_temp
+            tf.debugging.assert_all_finite(x, 'Bad action mean')
+            tf.debugging.assert_all_finite(std, 'Bad action std')
+            std = tf.ones_like(x) * std
             act_dist = tfd.MultivariateNormalDiag(x, std)
         self.act_dist = act_dist
         return act_dist

@@ -10,7 +10,14 @@ class DummyEnv:
     def __init__(self, env):
         self.env = env
         self.observation_space = env.observation_space
+        self.obs_shape = self.observation_space.shape
+        self.obs_dtype = np.float32 if np.issubdtype(self.observation_space.dtype, np.floating) else self.observation_space.dtype
         self.action_space = env.action_space
+        self.action_shape = self.action_space.shape
+        self.action_dtype = self.action_space.dtype
+        self.is_action_discrete = isinstance(
+            self.env.action_space, gym.spaces.Discrete)
+        self.action_dim = self.action_space.n if self.is_action_discrete else self.action_shape[0]
         self.spec = env.spec
         self.reward_range = env.reward_range
         self.metadata = env.metadata

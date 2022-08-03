@@ -413,7 +413,6 @@ class ContinuousActionMapper(gym.ActionWrapper):
         return action
 
 
-
 class TurnBasedProcess(gym.Wrapper):
     def __init__(self, env) -> None:
         super().__init__(env)
@@ -497,33 +496,36 @@ class Single2MultiAgent(gym.Wrapper):
         super().__init__(env)
         self._obs_only = obs_only
         self.is_multi_agent = True
+        self.obs_shape = {'obs': env.obs_shape}
+        self.obs_dtype = {'obs': env.obs_dtype}
 
     def random_action(self):
         action = self.env.random_action()
         action = np.expand_dims(action, 0)
-        return action
+        return [action]
 
     def reset(self):
         obs = self.env.reset()
         obs = self._get_obs(obs)
 
-        return obs
+        return [obs]
 
     def step(self, action, **kwargs):
+        action = np.squeeze(action)
         obs, reward, done, info = self.env.step(action, **kwargs)
         obs = self._get_obs(obs)
         if not self._obs_only:
             reward = np.expand_dims(reward, 0)
             done = np.expand_dims(done, 0)
 
-        return obs, reward, done, info
+        return [obs], [reward], [done], info
 
     def _get_obs(self, obs):
         if isinstance(obs, dict):
             for k, v in obs.items():
                 obs[k] = np.expand_dims(v, 0)
         else:
-            obs = np.expand_dims(obs, 0)
+            obs = {'obs': np.expand_dims(obs, 0)}
         return obs
 
 
@@ -554,8 +556,8 @@ class DataProcess(gym.Wrapper):
                 else infer_dtype(self.action_space.dtype, self.precision)
 
     def observation(self, observation):
-        if isinstance(observation, np.ndarray):
-            return convert_dtype(observation, self.precision)
+        if isinstance(observation, list):
+            return [self.observation(o) for o in observation]
         elif isinstance(observation, dict):
             for k, v in observation.items():
                 observation[k] = convert_dtype(v, self.precision)
@@ -658,7 +660,9 @@ class EnvStatsBase(gym.Wrapper):
                 is_simultaneous_move=getattr(env, 'is_simultaneous_move', True),
             )
         if 'obs_keys' not in self._stats:
-            if isinstance(env.obs_shape, (list, tuple)):
+            if getattr(env, 'obs_keys', None):
+                self._stats['obs_keys'] = env.obs_keys
+            elif isinstance(env.obs_shape, (list, tuple)):
                 self._stats['obs_keys'] = [list(o) for o in env.obs_shape]
             else:
                 self._stats['obs_keys'] = list(env.obs_shape)
@@ -720,9 +724,9 @@ class EnvStats(EnvStatsBase):
     def _reset(self):
         obs = super()._reset()
         if self._stats['is_multi_agent']:
-            reward = np.zeros(1, self.float_dtype)
-            discount = np.ones(1, self.float_dtype)
-            reset = np.ones(1, self.float_dtype)
+            reward = [np.zeros(1, self.float_dtype)]
+            discount = [np.ones(1, self.float_dtype)]
+            reset = [np.ones(1, self.float_dtype)]
         else:
             reward = self.float_dtype(0)
             discount = self.float_dtype(1)
@@ -735,10 +739,10 @@ class EnvStats(EnvStatsBase):
         if self._game_over:
             assert self.auto_reset == False, self.auto_reset
             # step after the game is over
-            if self._stats['is_multi_agent']:
-                reward = np.zeros(1, self.float_dtype)
-                discount = np.zeros(1, self.float_dtype)
-                reset = np.zeros(1, self.float_dtype)
+            if self._stats.is_multi_agent:
+                reward = [np.zeros(1, self.float_dtype)]
+                discount = [np.zeros(1, self.float_dtype)]
+                reset = [np.zeros(1, self.float_dtype)]
             else:
                 reward = self.float_dtype(0)
                 discount = self.float_dtype(0)
@@ -748,7 +752,6 @@ class EnvStats(EnvStatsBase):
 
         # assert not np.any(np.isnan(action)), action
         obs, reward, done, info = self.env.step(action, **kwargs)
-        obs = self.observation(obs)
         if 'score' in info:
             self._score = info['score']
         else:
@@ -757,22 +760,26 @@ class EnvStats(EnvStatsBase):
         if 'epslen' in info:
             self._epslen = info['epslen']
         else:
-            self._epslen += info.get('frame_skip', 1)
-        self._game_over = bool(info.get('game_over', done))
+            self._epslen += 1
+        self._game_over = bool(info.get(
+            'game_over', done[0] if self._stats.is_multi_agent else done))
         if self._epslen >= self.max_episode_steps:
             self._game_over = True
             if self._stats['is_multi_agent']:
-                done = np.ones(1, self.float_dtype) * self.timeout_done
+                done = [np.ones(1, self.float_dtype) * self.timeout_done]
             else:
                 done = self.timeout_done
-        reward = self.float_dtype(reward)
-        discount = self.float_dtype(1-done)
+        
         # we expect auto-reset environments, 
         # which artificially reset due to life loss,
         # return reset in info when resetting
-        if self._stats['is_multi_agent']:
-            reset = np.array([info.get('reset', False)], dtype=self.float_dtype)
+        if self._stats.is_multi_agent:
+            reward = [self.float_dtype(reward[0])]
+            discount = [self.float_dtype(1-done[0])]
+            reset = [np.array([info.get('reset', False)], dtype=self.float_dtype)]
         else:
+            reward = self.float_dtype(reward)
+            discount = self.float_dtype(1-done)
             reset = self.float_dtype(info.get('reset', False))
         # store previous env output for later retrieval
         self._prev_env_output = GymOutput(obs, reward, discount)
@@ -790,11 +797,6 @@ class EnvStats(EnvStatsBase):
         
         self._output = EnvOutput(obs, reward, discount, reset)
         return self._output
-
-    def observation(self, obs):
-        if not isinstance(obs, dict):
-            obs = dict(obs=obs)
-        return obs
 
 
 class SqueezeObs(gym.Wrapper):

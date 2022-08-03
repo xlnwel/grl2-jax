@@ -6,7 +6,7 @@ from tensorflow.keras import layers
 from core.ckpt.pickle import Checkpoint
 from core.typing import ModelPath
 from utility.typing import AttrDict
-from utility.utils import dict2AttrDict, set_path
+from utility.utils import dict2AttrDict, flatten_dict, set_path
 
 
 def constructor(config, env_stats, cls, name):
@@ -101,6 +101,7 @@ class Ensemble(tf.Module):
         config: AttrDict, 
         env_stats: AttrDict=None,
         constructor=constructor, 
+        components=None, 
         name: str, 
         has_ckpt: bool=None, 
         **classes
@@ -114,12 +115,17 @@ class Ensemble(tf.Module):
         with <config> as its only argument. See for an example:
         <core.elements.construct_components>
         """
-        super().__init__(name=name.split('-')[-1])
+        super().__init__(name=name.split('-')[-1].split('/')[-1])
 
         self.config = dict2AttrDict(config, to_copy=True)
         self.env_stats = env_stats
         self._pre_init()
-        self._init_components(constructor, classes)
+        if components is not None:
+            assert isinstance(components, dict), components
+            self.components = components
+            [setattr(self, n, m) for n, m in self.components.items()]
+        else:
+            self._init_components(constructor, classes)
         if has_ckpt is None:
             self._has_ckpt = 'root_dir' in config and 'model_name' in config
         else:
@@ -157,7 +163,7 @@ class Ensemble(tf.Module):
                 self.components[k] = obj
                 setattr(self, k, obj)
         else:
-            self.components = constructor(self.config)
+            self.components = constructor(self.config, self.name)
             [setattr(self, n, m) for n, m in self.components.items()]
 
     def _post_init(self):
@@ -193,9 +199,7 @@ class Ensemble(tf.Module):
 
     """ Checkpoint Operations """
     def ckpt_model(self):
-        ckpt_models = {f'{k}_{kk}': vv
-            for k, v in self.components.items() 
-            for kk, vv in v.ckpt_model().items()}
+        ckpt_models = flatten_dict(self.components)
         return ckpt_models
 
     def reset_model_path(self, model_path: ModelPath):

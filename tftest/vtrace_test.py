@@ -15,7 +15,7 @@ def _softmax(logits):
     """Applies softmax non-linearity on inputs."""
     return np.exp(logits) / np.sum(np.exp(logits), axis=-1, keepdims=True)
 
-def _ground_truth_calculation(reward, value, next_value, pi, mu, discount, gamma=1, lambda_=1,
+def _ground_truth_calculation(reward, value, next_value, pi, mu, discount, gamma=1, lam=1,
         c_clip=1, rho_clip=1, rho_clip_pg=1, axis=0):
     log_rhos = tf.convert_to_tensor(tf.math.log(pi/mu), dtype=tf.float32)
     discounts = tf.convert_to_tensor(discount, dtype=tf.float32)
@@ -44,7 +44,7 @@ def _ground_truth_calculation(reward, value, next_value, pi, mu, discount, gamma
     else:
         clipped_rhos = rhos
 
-    cs = lambda_ * tf.minimum(c_clip, rhos, name='cs')
+    cs = lam * tf.minimum(c_clip, rhos, name='cs')
     # Append bootstrapped value to get [v1, ..., v_t+1]
     values_t_plus_1 = tf.concat(
         [values[1:], tf.expand_dims(bootstrap_value, 0)], axis=0)
@@ -150,7 +150,7 @@ class VRetraceTest(tf.test.TestCase):
                             for b in range(batch_size)]
                             for _ in range(seq_len)]),
                 'gamma': .99, 
-                'lambda_': .95, 
+                'lam': .95, 
                 'c_clip': 3.7,
                 'rho_clip': 2.2,
                 'rho_clip_pg': 4.1,

@@ -3,6 +3,7 @@ import ray
 
 from env.cls import *
 from env.typing import EnvOutput
+from env.utils import batch_ma_env_output
 from utility.utils import AttrDict2dict, convert_batch_with_func
 
 
@@ -25,7 +26,6 @@ class RayVecEnv:
             self.envs.append(RayEnvType.remote(config))
 
         self.env = EnvType(config, env_fn)
-        self.stats = self.env.stats
         self.max_episode_steps = self.env.max_episode_steps
         self._combine_func = np.stack
 
@@ -86,8 +86,11 @@ class RayVecEnv:
             'info', idxes, convert_batch=convert_batch)
     
     def output(self, idxes=None):
-        out = self._remote_call('output', idxes, single_output=False)
-        return EnvOutput(*out)
+        out = self._remote_call('output', idxes, single_output=False, 
+            convert_batch=not self._stats.is_multi_agent)
+        if self._stats.is_multi_agent:
+            out = batch_ma_env_output(out, func=self._combine_func)
+        return out
 
     def _remote_call(self, name, idxes, single_output=True, convert_batch=True):
         """
@@ -120,8 +123,11 @@ class RayVecEnv:
             # and we chain them into [out*]
             out = list(itertools.chain(*out))
         if convert_batch:
-            # always stack as chain has flattened the data
-            out = convert_batch_with_func(out)
+            if self._stats.is_multi_agent:
+                out = [convert_batch_with_func(o, func=self._combine_func) for o in zip(*out)]
+            else:
+                # always stack as chain has flattened the data
+                out = convert_batch_with_func(out)
         return out
 
     def _process_list_outputs(self, out, convert_batch):
@@ -129,9 +135,16 @@ class RayVecEnv:
             # for these outputs, we expect them to be of form [[out*], [out*]]
             # and we chain them into [out*]
             out = list(itertools.chain(*out))
-        out = list(zip(*out))
+
         if convert_batch:
-            out = [convert_batch_with_func(o, self._combine_func) for o in out]
+            if self._stats.is_multi_agent:
+                out = list(zip(*out))
+                out = batch_ma_env_output(out, func=self._combine_func)
+            else:
+                out = batch_env_output(out, func=self._combine_func)
+        else:
+            out = list(zip(*out))
+
         return out
 
     def close(self):

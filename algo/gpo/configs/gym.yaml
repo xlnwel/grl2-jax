@@ -25,7 +25,7 @@ routine:
     update_obs_rms_at_execution: &uorae False
 
 env:
-    env_name: &env_name HalfCheetah-v3
+    env_name: &env_name HalfCheetah-v4
     n_runners: &nrunners 4
     n_envs: &nenvs 16
     seed: 0

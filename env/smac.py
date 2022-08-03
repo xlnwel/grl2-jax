@@ -365,7 +365,7 @@ class SMAC(gym.Env):
             action_mask=bool,
             life_mask=np.float32
         )]
-        
+
         if self.use_stacked_frames:
             self.stacked_local_obs = np.zeros((self.n_units, self.stacked_frames, int(self.get_obs_size()[0]/self.stacked_frames)), dtype=np.float32)
             self.stacked_global_state = np.zeros((self.n_units, self.stacked_frames, int(self.get_state_size()[0]/self.stacked_frames)), dtype=np.float32)

@@ -3,56 +3,72 @@ import itertools
 import tensorflow as tf
 
 from core.log import *
-from utility.timer import Every
 
 
 logger = logging.getLogger(__name__)
 
 
 """ Model Mixins """
-class TargetNetOps:
-    def _setup_target_net_sync(self):
-        self._to_sync = Every(self._target_update_period) \
-            if hasattr(self, '_target_update_period') else None
+class NetworkSyncOps:
+    def __init__(self, config={}):
+        self.config = config
 
     @tf.function
-    def _sync_nets(self):
+    def sync_target_nets(self):
+        ons = self.get_online_nets()
+        tns = self.get_target_nets()
+        self.sync_nets(ons, tns)
+
+    @tf.function
+    def sync_nets(self, source, target):
         """ Synchronizes the target net with the online net """
-        ons = self.get_online_nets()
-        tns = self.get_target_nets()
-        do_logging(f"Sync Networks | Online networks: {[n.name for n in ons]}", 
-            logger=logger)
-        do_logging(f"Sync Networks | Target networks: {[n.name for n in tns]}", 
-        logger=logger)
-        ovars = list(itertools.chain(*[v.variables for v in ons]))
-        tvars = list(itertools.chain(*[v.variables for v in tns]))
-        do_logging(f"Sync Networks | Online network parameters:\n\t" 
-            + '\n\t'.join([f'{n.name}, {n.shape}' for n in ovars]), 
-            logger=logger)
-        do_logging(f"Sync Networks | Target network parameters:\n\t" 
-            + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]), 
-            logger=logger)
-        assert len(tvars) == len(ovars), f'{tvars}\n{ovars}'
-        [tvar.assign(ovar) for tvar, ovar in zip(tvars, ovars)]
+        do_logging(f"Sync Networks | Source Networks: {[n.name for n in source]}", 
+            logger=logger, level='print', backtrack=20)
+        do_logging(f"Sync Networks | Target Networks: {[n.name for n in target]}", 
+            logger=logger, level='print', backtrack=20)
+        svars = sum([v.variables for v in source], ())
+        tvars = sum([v.variables for v in target], ())
+        self.sync_vars(svars, tvars)
 
     @tf.function
-    def _update_nets(self):
-        """ Updates the target net towards online net using exponentially moving average """
+    def sync_vars(self, svars, tvars):
+        do_logging(f"Sync Parameters | Source Parameters:\n\t" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in svars]), 
+            logger=logger, level='print', backtrack=20)
+        do_logging(f"Sync Parameters | Target Parameters:\n\t" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]), 
+            logger=logger, level='print', backtrack=20)
+        assert len(tvars) == len(svars), f'{tvars}\n{svars}'
+        [tvar.assign(ovar) for tvar, ovar in zip(tvars, svars)]
+
+    @tf.function
+    def update_target_nets(self):
         ons = self.get_online_nets()
         tns = self.get_target_nets()
-        do_logging(f"Update Networks | Online networks: {[n.name for n in ons]}", logger=logger)
-        do_logging(f"Update Networks | Target networks: {[n.name for n in tns]}", logger=logger)
-        ovars = list(itertools.chain(*[v.variables for v in ons]))
-        tvars = list(itertools.chain(*[v.variables for v in tns]))
-        do_logging(f"Update Networks | Online network parameters:\n" 
-            + '\n\t'.join([f'{n.name}, {n.shape}' for n in ovars]), 
-            logger=logger)
-        do_logging(f"Update Networks | Target network parameters:\n" 
+        self.update_nets(ons, tns)
+
+    @tf.function
+    def update_nets(self, source, target):
+        """ Updates the target net towards online net using exponentially moving average """
+        do_logging(f"Update Networks | Source Networks: {[n.name for n in source]}", 
+            logger=logger, level='print', backtrack=20)
+        do_logging(f"Update Networks | Target Networks: {[n.name for n in target]}", 
+            logger=logger, level='print', backtrack=20)
+        svars = list(itertools.chain(*[v.variables for v in source]))
+        tvars = list(itertools.chain(*[v.variables for v in target]))
+        self.update_vars(svars, tvars)
+
+    @tf.function
+    def update_vars(self, svars, tvars):
+        do_logging(f"Update Networks | Source Parameters:\n" 
+            + '\n\t'.join([f'{n.name}, {n.shape}' for n in svars]), 
+            logger=logger, level='print', backtrack=20)
+        do_logging(f"Update Networks | Target Parameters:\n" 
             + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]), 
-            logger=logger)
-        assert len(tvars) == len(ovars), f'{tvars}\n{ovars}'
+            logger=logger, level='print', backtrack=20)
+        assert len(tvars) == len(svars), f'{tvars}\n{svars}'
         [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
-            for tvar, mvar in zip(tvars, ovars)]
+            for tvar, mvar in zip(tvars, svars)]
 
     def get_online_nets(self):
         """ Gets the online networks """
