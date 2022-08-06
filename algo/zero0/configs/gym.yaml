@@ -92,8 +92,8 @@ model:
             init: null
             act: sigmoid
         value_coef:
-            outer: 1
-            default: 1
+            outer: .5
+            default: .5
             scale: 1
             bias: 0
             init: null
@@ -130,6 +130,8 @@ loss:
 
 trainer:
     algorithm: *algo
+    n_runners: *nrunners
+    n_envs: *nenvs
     sample_size: *nsteps         # BPTT length
     timeout_done: *td
     meta_type: plain

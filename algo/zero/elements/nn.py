@@ -4,13 +4,15 @@ from tensorflow_probability import distributions as tfd
 
 from core.module import Module
 from nn.func import mlp, nn_registry
+from nn.hyper import HyperNet
+from utility.utils import dict2AttrDict
 
 """ Source this file to register Networks """
 
 
 @nn_registry.register('hpembed')
 class HPEmbed(Module):
-    def __init__(self, name='hp_mebed', **config):
+    def __init__(self, name='hp_embed', **config):
         super().__init__(name=name)
         config = config.copy()
 
@@ -33,6 +35,36 @@ class HPEmbed(Module):
         x = tf.concat([x, embed], -1)
 
         return x
+
+
+class IndexedHead(Module):
+    def __init__(self, name='indexed_head', **config):
+        super().__init__(name=name)
+
+        self.out_size = config.pop('out_size')
+        self.use_bias = config.pop('use_bias', True)
+        self.config = dict2AttrDict(config)
+    
+    def build(self, x, id):
+        w_config = self.config.copy()
+        w_config['w_in'] = x[-1]
+        w_config['w_out'] = self.out_size
+        self._wlayer = HyperNet(**w_config, name=f'{self.name}_w')
+
+        if self.use_bias:
+            b_config = self.config.copy()
+            b_config['w_in'] = None
+            b_config['w_out'] = self.out_size
+            self._blayer = HyperNet(**b_config, name=f'{self.name}_b')
+
+    def call(self, x, id):
+        w = self._wlayer(id)
+        eqt = 'esuh,esuho->esuo' if len(x.shape) == 4 else 'euh,euho->euo'
+        out = tf.einsum(eqt, x, w)
+        if self.use_bias:
+            out = out + self._blayer(id)
+
+        return out
 
 
 @nn_registry.register('policy')
@@ -67,16 +99,28 @@ class Policy(Module):
                 trainable=True, 
                 name=f'{name}/policy/logstd')
         config.setdefault('out_gain', .01)
-        self._layers = mlp(
-            **config, 
-            out_size=embed_dim if self.attention_action else self.action_dim, 
-            out_dtype='float32',
-            name=name
-        )
 
-    def call(self, x, action_mask=None, evaluation=False):
+        self.indexed_head = config.pop('indexed_head', False)
+        if self.indexed_head:
+            config['out_size'] = self.action_dim
+            self._layers = IndexedHead(
+                **config, 
+                name=name
+            )
+        else:
+            self._layers = mlp(
+                **config, 
+                out_size=embed_dim if self.attention_action else self.action_dim, 
+                out_dtype='float32',
+                name=name
+            )
+
+    def call(self, x, id=None, action_mask=None, evaluation=False):
         tf.debugging.assert_all_finite(x, 'Bad input')
-        x = self._layers(x)
+        if self.indexed_head:
+            x = self._layers(x, id)
+        else:
+            x = self._layers(x)
         tf.debugging.assert_all_finite(x, 'Bad policy output')
         if self.is_action_discrete:
             if self.attention_action:
@@ -126,14 +170,24 @@ class Value(Module):
         config.setdefault('out_gain', 1)
         if 'out_size' not in config:
             config['out_size'] = 1
-        self._layers = mlp(
-            **config,
-            out_dtype='float32',
-            name=name
-        )
+        self.indexed_head = config.pop('indexed_head', False)
+        if self.indexed_head:
+            self._layers = IndexedHead(
+                **config, 
+                name=name
+            )
+        else:
+            self._layers = mlp(
+                **config, 
+                out_dtype='float32',
+                name=name
+            )
 
-    def call(self, x):
-        value = self._layers(x)
+    def call(self, x, id=None):
+        if self.indexed_head:
+            value = self._layers(x, id)
+        else:
+            value = self._layers(x)
         if value.shape[-1] == 1:
             value = tf.squeeze(value, -1)
         return value

@@ -59,7 +59,9 @@ class Model(ModelBase):
     def action(
         self, 
         obs, 
+        id=None, 
         global_state=None, 
+        hidden_state=None, 
         action_mask=None, 
         life_mask=None, 
         prev_reward=None,
@@ -70,7 +72,7 @@ class Model(ModelBase):
         return_eval_stats=False
     ):
         x, state = self.encode(obs, state=state, mask=mask)
-        act_dist = self.policy(x, action_mask=action_mask, evaluation=evaluation)
+        act_dist = self.policy(x, id=id, action_mask=action_mask, evaluation=evaluation)
         action = self.policy.action(act_dist, evaluation)
 
         if self.policy.is_action_discrete:
@@ -86,13 +88,15 @@ class Model(ModelBase):
                 'mu_std': std * tf.ones_like(mean), 
             }
 
+        if global_state is None:
+            global_state = x
         if evaluation:
-            value = self.value(global_state)
+            value = self.value(global_state, id=id)
             return action, {'value': value}, state
         else:
             logprob = act_dist.log_prob(action)
             tf.debugging.assert_all_finite(logprob, 'Bad logprob')
-            value = self.value(global_state)
+            value = self.value(global_state, id=id)
             terms.update({'mu_logprob': logprob, 'value': value})
 
             return action, terms, state    # keep the batch dimension for later use
@@ -100,27 +104,17 @@ class Model(ModelBase):
     def forward(
         self, 
         obs, 
+        id=None, 
+        global_state=None, 
         state: Tuple[tf.Tensor]=None,
         mask: tf.Tensor=None,
     ):
         x, state = self.encode(obs, state=state, mask=mask)
-        act_dist = self.policy(x)
-        value = self.value(x)
+        act_dist = self.policy(x, id=id)
+        if global_state is None:
+            global_state = x
+        value = self.value(global_state)
         return x, act_dist, value
-
-    @tf.function
-    def compute_value(
-        self, 
-        obs, 
-        state: Tuple[tf.Tensor]=None,
-        mask: tf.Tensor=None
-    ):
-        shape = obs.shape
-        x = tf.reshape(obs, [-1, *shape[2:]])
-        x, state = self.encode(x, state, mask)
-        value = self.value(x)
-        value = tf.reshape(value, (-1, shape[1]))
-        return value, state
 
     def encode(
         self, 
@@ -171,9 +165,8 @@ class ModelEnsemble(ModelEnsembleBase):
 
     @tf.function
     def sync_meta_nets(self):
-        keys = sorted([k for k in self.meta.keys() if k.startswith('meta')])
-        source = [self.meta[k] for k in keys]
-        target = [self.rl[k] for k in keys]
+        source = [self.meta[k] for k in ['meta', 'meta_reward']]
+        target = [self.rl[k] for k in ['meta', 'meta_reward']]
         self.sync_ops.sync_nets(source, target)
 
     @tf.function
@@ -226,8 +219,8 @@ def create_model(
         config=config, 
         env_stats=env_stats, 
         name='meta',
-        to_build=False, 
-        to_build_for_eval=False,
+        to_build=to_build, 
+        to_build_for_eval=to_build_for_eval,
         **kwargs
     )
     return ModelEnsemble(

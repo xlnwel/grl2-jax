@@ -96,7 +96,7 @@ class TrainingLoop(TrainingLoopBase):
                 #             np.testing.assert_allclose(d1, d2[i])
                 #     self._prev_data = []
                 #     rl_vars = self._prev_rl_opt_vars
-                #     meta_vars = self.trainer.meta_rl_opt.opt_variables
+                #     meta_vars = self.trainer.optimizers['meta_rl'].opt_variables
                 #     for v1, v2 in zip(rl_vars, meta_vars):
                 #         np.testing.assert_allclose(v1, v2.numpy())
                 #     rl_vars = self._prev_rl_vars
@@ -116,12 +116,12 @@ class TrainingLoop(TrainingLoopBase):
                     else:
                         self.trainer.sync_nets(forward=False)
                 # if self.config.get('debug', False):
-                #     rl_vars = self.trainer.rl_opt.variables
-                #     meta_vars = self.trainer.meta_rl_opt.variables
+                #     rl_vars = self.trainer.optimizers['rl'].variables
+                #     meta_vars = self.trainer.optimizers['meta_rl'].variables
                 #     for v1, v2 in zip(rl_vars, meta_vars):
                 #         np.testing.assert_allclose(v1.numpy(), v2.numpy(), err_msg=v1.name)
-                #     rl_vars = self.trainer.rl_opt.opt_variables
-                #     meta_vars = self.trainer.meta_rl_opt.opt_variables
+                #     rl_vars = self.trainer.optimizers['rl'].opt_variables
+                #     meta_vars = self.trainer.optimizers['meta_rl'].opt_variables
                 #     for v1, v2 in zip(rl_vars, meta_vars):
                 #         np.testing.assert_allclose(v1.numpy(), v2.numpy(), err_msg=v1.name)
                 #     rl_vars = self.trainer.model['rl'].variables
@@ -134,8 +134,8 @@ class TrainingLoop(TrainingLoopBase):
                 # if self.config.get('debug', False):
                 #     self._prev_data.append(data)
                 #     if self._new_iter:
-                #         rl_vars = self.trainer.rl_opt.opt_variables
-                #         meta_vars = self.trainer.meta_rl_opt.opt_variables
+                #         rl_vars = self.trainer.optimizers['rl'].opt_variables
+                #         meta_vars = self.trainer.optimizers['meta_rl'].opt_variables
                 #         self._prev_rl_opt_vars = [v.numpy() for v in rl_vars]
                 #         for v1, v2 in zip(rl_vars, meta_vars):
                 #             np.testing.assert_allclose(v1.numpy(), v2.numpy(), err_msg=v1.name)

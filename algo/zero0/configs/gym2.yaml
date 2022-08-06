@@ -133,6 +133,8 @@ loss:
 
 trainer:
     algorithm: *algo
+    n_runners: *nrunners
+    n_envs: *nenvs
     sample_size: *nsteps         # BPTT length
     timeout_done: *td
     meta_type: plain

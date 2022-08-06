@@ -180,6 +180,7 @@ def make_matrix(config):
     config = config.copy()
     config = _change_env_name(config)
     env = env_map[config['env_name']](**config)
+    env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
 

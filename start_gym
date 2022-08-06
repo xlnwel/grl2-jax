@@ -9,53 +9,58 @@ algos=(
 )
 suite=gym
 envs=(
-    Ant-v3
-    HalfCheetah-v3
-    # Humanoid-v3
-    # Walker2d-v3
-    # Hopper-v3
-    # Swimmer-v3
+    Ant-v4
+    HalfCheetah-v4
+    Hopper-v4
+    Humanoid-v4
+    Swimmer-v4
+    Walker2d-v4
 )
 config=gym
-seeds=(0 1 2 3 4)
+seeds=(0 1 2 3)
 args1=(10)
 args2=(4)
 args3=(None)
 args4=(0)
 date=$(date +"%m%d")
+info=""
+
+if [ -z "$info" ]; then
+    n=$date
+else
+    n="$date-$info"
+fi
+
+kws="$@"
+shift
+kw1=""
+kwstr=""
+for item in $@; do
+    if [ -z != $kwstr ]; then
+        kwstr="$kwstr-$item"
+    else
+        kwstr="$item"
+    fi
+done
 
 i=0
-j=1
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
-        for a1 in "${args1[@]}"; do
-            for a2 in "${args2[@]}"; do
-                for a3 in "${args3[@]}"; do
-                    for a4 in "${args4[@]}"; do
-                        for seed in "${seeds[@]}"; do
-                            kw1="n_epochs=$a1"
-                            kw2="n_mbs=$a2"
-                            kws="$kw1-$kw2"
-                            env="${suite}-${e}"
-                            n="$date"
-                            ld="logs-$suite"
-                            gpus=$(nvidia-smi -L | wc -l)
-                            # gpu=$(($i % $gpus))
-                            gpu=1
-                            dir="$ld/$env/$a/$n-$kws-seed=$seed"
-                            # dir="$ld/$env/$a/$n-seed=$seed"
-                            # mkdir -p $dir
-                            # py_script="python run/train.py -a ${a} -e $env -c $config -kw $kw1 $kw2 $kw3 $kw4 -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
-                            # py_script="python run/train.py -a ${a} -e $env -c $config -kw norm_adv=minibatch -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
-                            # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld -kw $@ --gpu $i -n $n -s $seed &"
-                            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $seed $@ &"
-                            echo $py_script
-                            eval $py_script
-                            sleep 3
-                        done
-                    done
-                done
-            done
+        for s in "${seeds[@]}"; do
+            env="${suite}-${e}"
+            ld="$suite-logs"
+            if [ 0 != $# ]; then
+                dir="$ld/$env/$a/$n-$kwstr/seed=$s"
+            else
+                dir="$ld/$env/$a/$n/seed=$s"
+            fi
+            mkdir -p $dir
+            gpus=$(nvidia-smi -L | wc -l)
+            gpu=$(($s % $gpus))
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $s $kws 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
+            echo $py_script
+            eval $py_script
+            sleep 3
         done
         ((i=(i+1) ))
     done

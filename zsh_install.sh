@@ -31,19 +31,19 @@ conda config --add envs_dirs $HOME/chenxinwei/conda/envs
 
 # conda activate grl
 
-# yes y | conda install cudnn
-# pip install --upgrade pip
+yes y | conda install cudnn
+pip install --upgrade pip
 
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --upgrade setuptools psutil wheel
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple opencv-python
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py procgen mujoco-py mujoco
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gfootball
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tensorflow-gpu tensorflow-probability
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ray
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple scipy pandas Pillow matplotlib plotly
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ipython
-# pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tqdm
-# pip install pysc2
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --upgrade setuptools psutil wheel
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple opencv-python
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gym atari_py procgen mujoco-py mujoco
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple gfootball
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tensorflow-gpu tensorflow-probability
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ray
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple scipy pandas Pillow matplotlib plotly
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ipython
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple tqdm
+pip install pysc2
 
 rsync -avz ~/chenxinwei/StarCraftII ~/
 rsync -avz ~/chenxinwei/.mujoco ~/

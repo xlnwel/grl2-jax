@@ -132,9 +132,9 @@ model:
         norm_after_activation: True
         norm_kwargs:
             epsilon: 1.e-5
-    embed: 
-        nn_id: hpembed
-        out_size: 16
+    embed: null
+        # nn_id: hpembed
+        # out_size: 16
     meta:
         nn_id: meta
         pg_coef:
@@ -143,10 +143,12 @@ model:
             init: null
             act: sigmoid
         entropy_coef:
-            outer: 0
-            default: 0
+            outer: 5e-4
+            default: 5e-4
+            scale: 5e-4
+            bias: 5e-4
             init: null
-            act: sigmoid
+            act: tanh
         value_coef:
             outer: 1
             default: 1
@@ -156,14 +158,14 @@ model:
             act: sigmoid
         gamma: 
             outer: &gamma .995
-            default: .995
+            default: *gamma
             scale: 1
             bias: 0
             init: null
             act: sigmoid
         lam:
             outer: &lam .95
-            default: .95
+            default: *lam
             scale: 1
             bias: 0
             init: null
@@ -215,6 +217,8 @@ loss:
 
 trainer:
     algorithm: *algo
+    n_runners: *nrunners
+    n_envs: *nenvs
     sample_size: *ss         # BPTT length
     timeout_done: True
     meta_type: plain
@@ -223,6 +227,7 @@ trainer:
     extra_meta_step: *ems
     store_state: True
     n_epochs: 5
+    n_meta_epochs: 1
 
     optimizer:
         opt_name: adam

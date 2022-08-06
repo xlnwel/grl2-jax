@@ -339,12 +339,12 @@ class MultiAgentSimRunner(RayBase):
                         # if self.config.get('partner_action'):
                         #     stats['plogits'] = agent_plogits[aid]
                         #     stats['paction'] = agent_pactions[aid]
-                        assert np.all(agent_terms[aid]['obs'] <= 5) and np.all(agent_terms[aid]['obs'] >= -5), f"{env_out.obs['life_mask']}\n{agent_terms[aid]['obs']}"
-                        assert np.all(agent_terms[aid]['global_state'] <= 5) and np.all(agent_terms[aid]['global_state'] >= -5), agent_terms[aid]['global_state']
                         stats.update(agent_terms[aid])
+                        assert np.all(stats['obs'] <= 5) and np.all(stats['obs'] >= -5), f"{env_out.obs['life_mask']}\n{stats['obs']}"
+                        # assert np.all(stats['global_state'] <= 5) and np.all(stats['global_state'] >= -5), stats['global_state']
                         obs = agent.actor.process_obs_with_rms(env_out.obs, mask=env_out.obs.get('life_mask'))
                         np.testing.assert_allclose(obs['obs'], stats['obs'])
-                        np.testing.assert_allclose(obs['global_state'], stats['global_state'])
+                        # np.testing.assert_allclose(obs['global_state'], stats['global_state'])
                         buffer.add(stats)
 
         step = 0

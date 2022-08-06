@@ -61,13 +61,13 @@ def _grid_search(config, main, cmd_args):
 
     processes = []
     processes += gs(
-        kw_dict={
-            # 'sampling_strategy:type': ['fsp', 'pfsp'],
-            'sampling_strategy:p': [1, 2],
-        }, 
-        step_size=[1e-1, 1e-2, 1e-3], 
-        update_interval=[None, 60], 
-        seed=range(3)
+        # kw_dict={
+        #     # 'sampling_strategy:type': ['fsp', 'pfsp'],
+        #     'lr': [.1, 1e-2],
+        # }, 
+        lr=[1e-1, 1e-2, 1e-3], 
+        n_mbs=[1, 4], 
+        seed=list(range(50))
     )
     [p.join() for p in processes]
 

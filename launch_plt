@@ -1,0 +1,5 @@
+#!/bin/zsh
+
+source activate plt
+
+python -m smart_logger.htmlpage -u cxw -pw imin -wks ~/chenxinwei/cache -p 7006

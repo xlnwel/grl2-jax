@@ -29,13 +29,14 @@ env:
     max_episode_steps: 150
     uid2aid: [0, 0]
     use_id: True
+    use_hidden: True
 
 agent: {}
 
 strategy:
     train_loop:
         use_dataset: &dataset False
-        K: &K null
+        K: &K 1
         L: &L 0
         extra_meta_step: &ems 0 # 0/1
 
@@ -73,6 +74,19 @@ model:
         norm: null
         indexed_head: True
         use_bias: True
+    meta_reward: 
+        nn_id: value
+        units_list: []
+        kernel_initializer: orthogonal
+        activation: tanh
+        use_bias: False
+        norm: null
+    meta_value:
+        nn_id: value
+        units_list: []
+        kernel_initializer: orthogonal
+        activation: tanh
+        norm: null
     meta:
         nn_id: meta
         pg_coef:
@@ -212,6 +226,7 @@ buffer:
     sample_keys: 
         - obs
         - id
+        - hidden_state
         - action
         - value
         - reward

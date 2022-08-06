@@ -529,6 +529,40 @@ class Single2MultiAgent(gym.Wrapper):
         return obs
 
 
+class MultiAgentUnitsDivision(gym.Wrapper):
+    def __init__(self, env, uid2aid):
+        self.env = env
+
+        self.uid2aid = uid2aid
+        self.aid2uids = compute_aid2uids(self.uid2aid)
+        self.n_units = len(self.uid2aid)
+        self.n_agents = len(self.aid2uids)
+
+        self.action_space = [self.env.action_space for _ in range(self.n_agents)]
+        self.action_shape = [a.shape for a in self.action_space]
+        self.action_dim = [a.n for a in self.action_space]
+        self.action_dtype = [np.int32 for _ in self.action_space]
+        self.is_action_discrete = [True for _ in self.action_space]
+
+        self.obs_shape = [self.env.obs_shape for _ in range(self.n_agents)]
+        self.obs_dtype = [self.env.obs_dtype for _ in range(self.n_agents)]
+    
+    def reset(self):
+        obs = super().reset()
+        obs = self._convert_obs(obs)
+        return obs
+    
+    def step(self, action):
+        obs, reward, done, info = super().step(action)
+        obs = self._convert_obs(obs)
+        reward = [reward[uids] for uids in self.aid2uids]
+        done = [done[uids] for uids in self.aid2uids]
+
+        return obs, reward, done, info
+    
+    def _convert_obs(self, obs):
+        return [{k: v[uids] for k, v in obs.items()} for uids in self.aid2uids]
+
 class DataProcess(gym.Wrapper):
     """ Convert observation to np.float32 or np.float16 """
     def __init__(self, env, precision=32):

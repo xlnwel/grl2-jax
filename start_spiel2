@@ -11,13 +11,19 @@ envs=(
 )
 config=spiel
 seeds=(0 1 2)
-date=$(date +"%m%d")
+# date=$(date +"%m%d")
+date=0701
+info="online_frac=schedule"
+if [ -z "$info" ]; then
+    n=$date
+else
+    n="$date-$info"
+fi
 
 kws="$@"
 shift
-kw1="step_size=1e-3"
-kwstr="$kw1"
-kws="$kws $kw1"
+kw1=""
+kwstr=""
 for item in $@; do
     if [ -z != $kwstr ]; then
         kwstr="$item-$kwstr"
@@ -30,17 +36,16 @@ for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
         for s in "${seeds[@]}"; do
             env="${suite}-${e}"
-            n="$date"
             ld="logs-$suite"
             if [ 0 != $# ]; then
-                dir="$ld/$env/$a/$n-$kwstr-seed=$s"
+                dir="$ld/$env/$a/$n-$kwstr/seed=$s"
             else
-                dir="$ld/$env/$a/$n-seed=$s"
+                dir="$ld/$env/$a/$n/seed=$s"
             fi
             mkdir -p $dir
             # gpus=$(nvidia-smi -L | wc -l)
             # gpu=$(($seed % $gpus))
-            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld $kws -s $s -v info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
+            py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld $kws -s $s -n $n -v info -i $info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
             echo $py_script
             eval $py_script
             sleep 3

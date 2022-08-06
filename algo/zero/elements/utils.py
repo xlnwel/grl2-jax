@@ -109,12 +109,14 @@ def collect(buffer, env, env_step, reset, obs, next_obs, **kwargs):
         if k not in kwargs:
             kwargs[k] = v
     if buffer.config.timeout_done:
-        next_obs = next_obs['obs']
+        for k, v in next_obs.items():
+            kwargs[f'next_{k}'] = v
     else:
-        next_obs = np.where(
-            np.expand_dims(reset, -1), 
-            env.prev_obs()[0]['obs'], 
-            next_obs['obs']
-        )
+        for k, v in next_obs.items():
+            kwargs[f'next_{k}'] = np.where(
+                np.expand_dims(reset, -1), 
+                env.prev_obs()[buffer.aid][k], 
+                next_obs[k]
+            )
 
-    buffer.add(**kwargs, reset=reset, next_obs=next_obs)
+    buffer.add(**kwargs, reset=reset)

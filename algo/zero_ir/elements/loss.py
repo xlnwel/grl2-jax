@@ -15,6 +15,8 @@ def prefix_name(terms, name):
         for k, v in terms.items():
             if '/' not in k:
                 new_terms[f'{name}/{k}'] = v
+            else:
+                new_terms[k] = v
         return new_terms
     return terms
 
@@ -23,8 +25,7 @@ class POLossImpl(LossBase):
     def _pg_loss(
         self, 
         tape, 
-        act_dist,
-        action, 
+        act_dist, 
         advantage, 
         ratio, 
         pi_logprob, 
@@ -70,7 +71,7 @@ class POLossImpl(LossBase):
             )
         else:
             dice_op = pi_logprob
-        if self.config.pg_type == 'vtrace':
+        if self.config.pg_type == 'pg':
             raw_pg_loss, pg_loss = rl_loss.pg_loss(
                 pg_coef=pg_coef, 
                 advantage=advantage, 
@@ -203,14 +204,16 @@ class Loss(ValueLossImpl, POLossImpl):
         discount, 
         reset, 
         value, 
-        old_value, 
         next_value, 
         ratio, 
         gamma, 
         lam, 
-        mask, 
-        n
+        mask=None, 
+        n=None
     ):
+        assert_rank_and_shape_compatibility([
+            reward, discount, reset, value, next_value, ratio
+        ])
         if self.config.target_type == 'vtrace':
             v_target, advantage = rl_loss.v_trace_from_ratio(
                 reward=reward, 
@@ -260,8 +263,11 @@ class Loss(ValueLossImpl, POLossImpl):
         *, 
         tape, 
         obs, 
+        id=None, 
         global_state, 
         next_obs=None, 
+        next_id=None, 
+        next_global_state=None, 
         action, 
         old_value, 
         reward, 
@@ -292,17 +298,21 @@ class Loss(ValueLossImpl, POLossImpl):
         )
         if global_state is None:
             global_state = x
-        value = self.value(global_state)
+        value = self.value(global_state, id=id)
         if next_obs is None:
             x = x[:, :-1]
+            if id is not None:
+                id = id[:, :-1]
             next_value = value[:, 1:]
             value = value[:, :-1]
         else:
             with tape.stop_recording():
                 assert state is None, 'unexpected states'
-                next_x, _ = self.model.encode(next_obs)
-                next_value = self.value(next_x)
-        act_dist = self.policy(x, action_mask=action_mask)
+                if next_global_state is None:
+                    next_global_state = next_obs
+                next_x, _ = self.model.encode(next_global_state)
+                next_value = self.value(next_x, next_id)
+        act_dist = self.policy(x, id=id, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob
@@ -316,7 +326,6 @@ class Loss(ValueLossImpl, POLossImpl):
                 discount=discount, 
                 reset=reset, 
                 value=value, 
-                old_value=old_value, 
                 next_value=next_value, 
                 ratio=ratio, 
                 gamma=gamma, 
@@ -328,7 +337,6 @@ class Loss(ValueLossImpl, POLossImpl):
         actor_loss, actor_terms = self._pg_loss(
             tape=tape, 
             act_dist=act_dist, 
-            action=action, 
             advantage=advantage, 
             ratio=ratio, 
             pi_logprob=pi_logprob, 
@@ -355,8 +363,160 @@ class Loss(ValueLossImpl, POLossImpl):
         )
 
         loss = actor_loss + value_loss
-        
+
         terms = {**actor_terms, **value_terms}
+        self.log_for_debug(
+            tape, 
+            terms, 
+            debug=debug, 
+            gamma=gamma, 
+            lam=lam, 
+            pi_logprob=pi_logprob, 
+            ratio=ratio, 
+            approx_kl=.5 * reduce_mean((log_ratio)**2, sample_mask, n), 
+            loss=loss, 
+        )
+
+        if debug:
+            with tape.stop_recording():
+                if sample_mask is not None:
+                    n_alive_units = tf.reduce_sum(sample_mask, -1)
+                    terms['n_alive_units'] = n_alive_units
+                if mu is not None:
+                    terms['diff_pi'] = tf.nn.softmax(act_dist.logits) - mu
+                elif mu_mean is not None:
+                    terms['pi_mean'] = act_dist.loc
+                    terms['diff_pi_mean'] = act_dist.loc - mu_mean
+                    pi_std = tf.exp(self.policy.logstd)
+                    terms['pi_std'] = pi_std
+                    terms['diff_pi_std'] = pi_std - mu_std
+                    # tf.debugging.assert_equal(pi_std, mu_std)
+                    # tf.debugging.assert_equal(act_dist.loc, mu_mean)
+        terms = prefix_name(terms, name)
+
+        return loss, terms
+
+    def outer_loss(
+        self, 
+        *, 
+        tape, 
+        obs, 
+        id=None, 
+        hidden_state, 
+        next_obs=None, 
+        next_id=None, 
+        next_hidden_state=None, 
+        action, 
+        old_value, 
+        reward, 
+        discount, 
+        reset, 
+        mu_logprob, 
+        mu=None, 
+        mu_mean=None, 
+        mu_std=None, 
+        action_mask=None, 
+        sample_mask=None, 
+        prev_reward=None,
+        prev_action=None,
+        state=None, 
+        mask=None, 
+        name=None, 
+        use_meta=None, 
+        debug=True, 
+    ):
+        n = None if sample_mask is None else tf.reduce_sum(sample_mask)
+        gamma = self.model.meta('gamma', inner=use_meta)
+        lam = self.model.meta('lam', inner=use_meta)
+        terms = {}
+
+        x, _ = self.model.encode(
+            x=obs, 
+            state=state, 
+            mask=mask
+        )
+        tf.debugging.assert_equal(
+            tf.gather(hidden_state, 0, axis=-2), 
+            tf.gather(hidden_state, 1, axis=-2), 
+        )
+        hidden_state = tf.gather(hidden_state, [0], axis=2)
+        value = self.meta_value(hidden_state)
+        if next_hidden_state is None:
+            x = x[:, :-1]
+            if id is not None:
+                id = id[:, :-1]
+            next_value = value[:, 1:]
+            value = value[:, :-1]
+        else:
+            with tape.stop_recording():
+                assert state is None, 'unexpected states'
+                tf.debugging.assert_equal(
+                    tf.gather(next_hidden_state, 0, axis=2), 
+                    tf.gather(next_hidden_state, 1, axis=2), 
+                )
+                next_hidden_state = tf.gather(next_hidden_state, [0], axis=2)
+                next_value = self.meta_value(next_hidden_state)
+        act_dist = self.policy(x, id=id, action_mask=action_mask)
+        pi_logprob = act_dist.log_prob(action)
+        assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
+        log_ratio = pi_logprob - mu_logprob
+        ratio = tf.exp(log_ratio)
+        if sample_mask is not None:
+            bool_mask = tf.cast(sample_mask, tf.bool)
+            ratio = tf.where(bool_mask, ratio, 1.)
+            pi_logprob = tf.where(bool_mask, pi_logprob, 0.)
+        joint_ratio = tf.math.reduce_prod(ratio, axis=2, keepdims=True)
+        joint_pi_logprob = tf.math.reduce_sum(pi_logprob, axis=2, keepdims=True)
+        assert joint_ratio.shape[-1] == 1, joint_ratio.shape
+        assert joint_pi_logprob.shape[-1] == 1, joint_pi_logprob.shape
+        # tf.debugging.assert_near(
+        #     tf.where(tf.cast(reset, bool), 0., log_ratio), 0., 1e-5, 1e-5)
+
+        with tape.stop_recording():
+            v_target, advantage = self.compute_target_advantage(
+                reward=tf.reduce_mean(reward, axis=-1, keepdims=True), 
+                discount=tf.math.reduce_max(discount, axis=-1, keepdims=True), 
+                reset=tf.gather(reset, [0], axis=-1), 
+                value=value, 
+                next_value=next_value, 
+                ratio=joint_ratio, 
+                gamma=gamma, 
+                lam=lam, 
+            )
+
+        pg_coef = self.model.meta('pg_coef', inner=False)
+        loss_pg, loss_clip, raw_pg_loss, actor_loss, clip_frac = \
+            rl_loss.ppo_loss(
+                pg_coef=pg_coef, 
+                advantage=advantage, 
+                ratio=joint_ratio, 
+                clip_range=self.config.ppo_clip_range, 
+                mask=sample_mask, 
+                n=n, 
+            )
+        self.log_for_debug(
+            tape, 
+            terms, 
+            debug=debug, 
+            loss_pg=loss_pg, 
+            loss_clip=loss_clip, 
+            clip_frac=clip_frac, 
+        )
+        value_loss, value_terms = self._value_loss(
+            tape=tape, 
+            value=value,
+            target=v_target, 
+            old_value=None, 
+            sample_mask=sample_mask, 
+            n=n, 
+            name=name, 
+            use_meta=use_meta, 
+            debug=debug
+        )
+
+        loss = actor_loss + value_loss
+        
+        terms.update(value_terms)
         self.log_for_debug(
             tape, 
             terms, 

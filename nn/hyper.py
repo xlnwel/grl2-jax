@@ -13,7 +13,10 @@ class HyperNet(Module):
         config = config.copy()
         self.w_in = config.pop('w_in')
         self.w_out = config.pop('w_out')
-        config['out_size'] = self.w_in * self.w_out
+        if self.w_in is None:
+            config['out_size'] = self.w_out
+        else:
+            config['out_size'] = self.w_in * self.w_out
 
         self._layers = MLP(
             **config, 
@@ -22,6 +25,9 @@ class HyperNet(Module):
 
     def call(self, x):
         x = self._layers(x)
-        x = tf.reshape(x, (-1, *x.shape[1:-1], self.w_in, self.w_out))
+        if self.w_in is None:
+            x = tf.reshape(x, (-1, *x.shape[1:-1], self.w_out))
+        else:
+            x = tf.reshape(x, (-1, *x.shape[1:-1], self.w_in, self.w_out))
 
         return x
