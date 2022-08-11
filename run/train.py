@@ -1,5 +1,6 @@
 import os, sys
 from datetime import datetime
+import numpy as np
 
 # try:
 #     from tensorflow.python.compiler.mlcompute import mlcompute
@@ -61,13 +62,11 @@ def _grid_search(config, main, cmd_args):
 
     processes = []
     processes += gs(
-        # kw_dict={
-        #     # 'sampling_strategy:type': ['fsp', 'pfsp'],
-        #     'lr': [.1, 1e-2],
-        # }, 
-        lr=[1e-1, 1e-2, 1e-3], 
-        n_mbs=[1, 4], 
-        seed=list(range(50))
+        kw_dict={
+            # 'optimizer:lr': np.linspace(1e-4, 1e-3, 2),
+            # 'meta_opt:lr': np.linspace(1e-4, 1e-3, 2),
+            # 'value_coef:default': [.5, 1]
+        }, 
     )
     [p.join() for p in processes]
 
@@ -95,14 +94,15 @@ def _run_with_configs(cmd_args):
 
     configs = []
     for algo, env, config in algo_env_config:
-        do_logging(f'Setup configs for {algo} and {env}', level='pwt')
+        do_logging(f'Setup configs for algo({algo}) and env({env})', level='pwt')
         algo = _get_algo_name(algo)
         config = load_config_with_algo_env(algo, env, config)
         model_name = change_config_with_kw_string(cmd_args.kwargs, config, raw_model_name)
         if model_name == '':
             model_name = 'baseline'
 
-        model_name = f'{model_name}/seed={cmd_args.seed}'
+        if not cmd_args.grid_search and not cmd_args.trials > 1:
+            model_name = f'{model_name}/seed={cmd_args.seed}'
 
         main = pkg.import_main('train', algo)
         
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     cmd_args = parse_train_args()
 
     setup_logging(cmd_args.verbose)
-    if cmd_args.gpu is not None:
+    if not (cmd_args.grid_search and cmd_args.multiprocess) and cmd_args.gpu is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = f"{cmd_args.gpu}"
 
     processes = []

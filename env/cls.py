@@ -140,8 +140,13 @@ class VecEnv(VecEnvBase):
         super().__init__(config, env_fn, agents)
 
     def random_action(self, *args, **kwargs):
-        return np.stack([env.random_action() if hasattr(env, 'random_action') \
-            else env.action_space.sample() for env in self.envs])
+        if self._stats.is_multi_agent:
+            return list(
+                np.stack([env.random_action() if hasattr(env, 'random_action') \
+                else env.action_space.sample() for env in self.envs], 1))
+        else:
+            return [np.stack([env.random_action() if hasattr(env, 'random_action') \
+                else env.action_space.sample() for env in self.envs])]
 
     def reset(self, idxes=None, convert_batch=True, **kwargs):
         idxes = self._get_idxes(idxes)
@@ -201,7 +206,7 @@ class VecEnv(VecEnvBase):
         if hasattr(self.env, 'get_screen'):
             imgs = [env.get_screen() for env in self.envs]
         else:
-            imgs = [env.render(mode='rgb_array') for env in self.envs]
+            imgs = [env.render() for env in self.envs]
 
         if size is not None:
             # cv2 receive size of form (width, height)

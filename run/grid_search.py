@@ -1,7 +1,9 @@
 import time
 import logging
 import copy
+import re
 from multiprocessing import Process
+import subprocess
 import numpy as np
 
 from run.utils import change_config_with_kw_string
@@ -39,6 +41,10 @@ class GridSearch:
         self.dir_prefix = dir_prefix
         self.separate_process = separate_process
         self.delay=delay
+        self._pid = 0
+        p = subprocess.Popen(['nvidia-smi', '-L'], stdout=subprocess.PIPE)
+        gpus, _ = p.communicate()
+        self.n_gpus = len(re.findall('GPU [0-9]', str(gpus)))
 
         if multiprocess:
             self.processes = []
@@ -51,12 +57,14 @@ class GridSearch:
         for k, v in kw_dict.items():
             if isinstance(v, np.ndarray):
                 if np.issubdtype(v.dtype, np.floating):
-                    type = float 
+                    v_type = float 
                 elif np.issubdtype(v.dtype, np.integer): 
-                    type = int
+                    v_type = int
                 else:
-                    raise TypeError(f'Unknown type for {v}: {type}')
-                kw_dict[k] = [type(x) for x in v]
+                    raise TypeError(f'Unknown type for {v}: {v_type}')
+                kw_dict[k] = [v_type(x) for x in v]
+            elif isinstance(v, str):
+                kw_dict[k] = [v]
             else:
                 kw_dict[k] = list(v)
         if kw_dict == {} and self.n_trials == 1 and not self.separate_process:
@@ -64,8 +72,18 @@ class GridSearch:
             if self.processes is None:
                 self.train_func([self.config])
             else:
-                p = Process(target=self.train_func, args=([self.config],))
-                self.processes.append(p)
+                for i in range(self.n_trials):
+                    config = self.config.copy()
+                    modify_config(
+                        config, 
+                        root_dir=self.root_dir, 
+                        model_name=f'{config.model_name}/seed={i}', 
+                        seed=i
+                    )
+                    self.processes.append(
+                        Process(target=self.train_func, 
+                        args=([self.config],), 
+                        kwargs={'gpu': self._pid % self.n_gpus}))
         else:
             # do grid search
             model_name = self.config.model_name
@@ -101,10 +119,11 @@ class GridSearch:
 
             for i in range(n_trials):
                 config2 = dict2AttrDict(config, to_copy=True)
-                mn = new_model_name
 
                 if n_trials > 1:
-                    mn += f'-seed={i}' if model_name else f'seed={i}'
+                    mn = f'{new_model_name}/seed={i}'
+                else:
+                    mn = f'seed=None/{new_model_name}'
                 if 'video_path' in config2['env']:
                     config2['env']['video_path'] = \
                         f'{self.root_dir}/{mn}/{config2["env"]["video_path"]}'
@@ -119,7 +138,8 @@ class GridSearch:
                 if self.processes is None:
                     self.train_func([config2])
                 else:
-                    p = Process(target=self.train_func, args=([config2],))
+                    p = Process(target=self.train_func, args=([config2],), kwargs={'gpu': self._pid % self.n_gpus})
                     p.start()
                     self.processes.append(p)
                     time.sleep(self.delay)   # ensure sub-processs starts in order
+                    self._pid += 1

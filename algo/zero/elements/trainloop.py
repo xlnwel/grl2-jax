@@ -65,7 +65,6 @@ class TrainingLoop(TrainingLoopBase):
                     stats[f'data/{k}'] = np.take(v, idx, axis) \
                         if len(v_shape) > axis and v_shape[axis] == batch_size else v
 
-            
             stats.update(
                 **{k if '/' in k else f'train/{k}': np.take(v, idx, axis) 
                     if len(np.shape(v)) > axis and np.shape(v)[axis] == batch_size else v 

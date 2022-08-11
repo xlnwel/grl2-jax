@@ -82,132 +82,162 @@ agent: {}
 strategy:
     train_loop:
         use_dataset: &dataset False
-        n_epochs: &nepochs 5
-        n_mbs: &nmbs 1
-        n_aux_epochs: &naepochs 9
-        n_pi: &npi 16
-        n_segs: &nsegs 16
-        n_aux_mbs_per_seg: &nambs 2
-        max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
-
-        # (once reuse null)
-        # "once" updates values at the end of each epoch
-        # "reuse" updates values using value from train which is staler than once
-        # null doesn't update values.
-        value_update: null
+        K: &K null
+        L: &L 0
+        extra_meta_step: &ems 0 # 0/1
 
 model:
-    actor_rnn_type: &arnn null
-    value_rnn_type: &vrnn null
-    sample_size: &ss 16
+    aid: 0
+    rnn_type: &rnn null
+    sample_size: &ss 64
+    K: *K
+    L: *L
+    extra_meta_step: *ems
 
+    encoder: 
+        nn_id: mlp
+        units_list: []
+        kernel_initializer: orthogonal
+        activation: relu
+        norm: layer
+        norm_after_activation: True
+        norm_kwargs:
+            epsilon: 1e-5
+    rnn:
+        nn_id: *rnn
+        units: 256
+        kernel_initializer: orthogonal
+        recurrent_initializer: orthogonal
+        use_ln: True
     policy:
-        use_prev_reward: True
-        use_prev_action: True
-        encoder: 
-            nn_id: mlp
-            units_list: [256, 256, 256]
-            kernel_initializer: orthogonal
-            activation: relu
-            norm: layer
-            norm_after_activation: True
-            norm_kwargs:
-                epsilon: 1e-5
-        rnn:
-            nn_id: *arnn
-            units: 256
-            kernel_initializer: orthogonal
-            recurrent_initializer: orthogonal
-            use_ln: True
-        policy:
-            nn_id: policy
-            units_list: []
-            kernel_initializer: orthogonal
-            activation: relu
-            norm: null
-            eval_act_temp: 1
-            out_gain: .01
-            init_std: 1
-
+        nn_id: policy
+        units_list: [256, 256, 256]
+        kernel_initializer: orthogonal
+        activation: relu
+        norm: layer
+        norm_after_activation: True
+        norm_kwargs:
+            epsilon: 1.e-5
+        eval_act_temp: 1
+        out_gain: .01
+        init_std: 1
     value:
-        use_prev_reward: True
-        use_prev_action: True
-
-        encoder:
-            nn_id: mlp
-            units_list: [256, 256, 256]
-            kernel_initializer: orthogonal
-            activation: relu
-            norm: layer
-            norm_after_activation: True
-            norm_kwargs:
-                epsilon: 1e-5
-        rnn:
-            nn_id: *vrnn
-            units: 256
-            kernel_initializer: orthogonal
-            recurrent_initializer: orthogonal
-            use_ln: True
-        value:
-            nn_id: value
-            units_list: []
-            kernel_initializer: orthogonal
-            activation: relu
-            norm: null
+        nn_id: value
+        units_list: [256, 256, 256]
+        kernel_initializer: orthogonal
+        activation: relu
+        norm: layer
+        norm_after_activation: True
+        norm_kwargs:
+            epsilon: 1.e-5
+    embed: null
+    meta:
+        nn_id: meta
+        pg_coef:
+            outer: 1
+            default: 1
+            init: null
+            act: sigmoid
+        entropy_coef:
+            outer: 5e-4
+            default: 5e-4
+            init: null
+            act: sigmoid
+        value_coef:
+            outer: 1
+            default: 1
+            scale: 1
+            bias: 0
+            init: null
+            act: sigmoid
+        gamma: 
+            outer: &gamma .995
+            default: *gamma
+            scale: 1
+            bias: 0
+            init: null
+            act: sigmoid
+        lam:
+            outer: &lam .95
+            default: *lam
+            scale: 1
+            bias: 0
+            init: null
+            act: sigmoid
 
 loss:
-    policy:
-        pg_coef: 1
-        ppo_clip_range: .2
-        entropy_coef: 5e-4
-        aux_l1_coef: 0
-        aux_l2_coef: 0
-        weighted_l_dist: False
-        kl_prior_coef: 0
-        kl_prior: reverse
-        kl_target_coef: 0
-        kl_target: reverse_approx
-        new_po_coef: 0
-        target_prob: target_prob_prime
-        js_target_coef: 0
-        js_target: approx
-        tsallis_target_coef: 0
-        tsallis_target: reverse_approx
-        tsallis_q: 1.2
-        life_mask: False
+    rl:
+        # arguments for value target and advantage
+        target_type: gae
+        c_clip: 1
+        rho_clip: 1
+        adv_type: vtrace
+        norm_adv: True
 
-        normalize_adv: True
-        zero_center_adv: True
-        process_adv: null
-        adv_clip_range: null
-    value:
+        # arguments for policy optimization
+        pg_type: ppo
+        ppo_clip_range: .2
+        use_dice: False
+        dice_axis: null
+        dice_lam: 1
+        kl: reverse
+        kl_coef: 1
+
+        # arguments for value learning
         value_loss: clip
         value_clip_range: .2
-        value_coef: 1
+        life_mask: False
+    meta:
+        # arguments for value target and advantage
+        target_type: gae
+        c_clip: 1
+        rho_clip: 1
+        adv_type: vtrace
+        norm_adv: True
+
+        # arguments for policy optimization
+        pg_type: ppo
+        ppo_clip_range: .2
+        use_dice: False
+        dice_axis: null
+        dice_lam: 1
+        kl: reverse
+        kl_coef: 1
+
+        # arguments for value learning
+        value_loss: clip
+        value_clip_range: .2
         life_mask: False
 
 trainer:
     algorithm: *algo
-
-    actor_rnn_type: *arnn
-    value_rnn_type: *vrnn
+    aid: 0
+    n_runners: *nrunners
+    n_envs: *nenvs
+    n_epochs: &nepochs 5
+    n_mbs: &nmbs 1
+    n_meta_epochs: 1
     sample_size: *ss         # BPTT length
+    timeout_done: True
+    meta_type: plain
+    K: *K
+    L: *L
+    extra_meta_step: *ems
     store_state: True
-    policy:
-        optimizer:
-            opt_name: adam
-            schedule_lr: False
-            lr: 1e-4
-            clip_norm: .5
-            epsilon: 1.e-5
-            weight_decay: 0
-    value:
-        optimizer:
-            opt_name: adam
-            schedule_lr: False
-            lr: 1e-4
-            clip_norm: .5
-            epsilon: 1.e-5
+
+    optimizer:
+        opt_name: adam
+        schedule_lr: False
+        lr: 1e-4
+        clip_norm: .5
+        epsilon: 1.e-5
+        weight_decay: 0
+    meta_opt:
+        opt_name: adam
+        schedule_lr: False
+        lr: 1e-4
+        clip_norm: .5
+        epsilon: 1.e-5
 
 actor:
     algorithm: *algo
@@ -219,57 +249,23 @@ actor:
         obs_normalized_axis: [0, 1]
         reward_normalized_axis: [0, 1]
         update_reward_rms_in_time: True
-        gamma: &gamma .995
+        gamma: *gamma
 
 buffer:
     type: ppo
     use_dataset: *dataset
 
-    # PPO configs
-    adv_type: gae     # nae or gae
-    gamma: *gamma
-    lam: .95
     n_runners: *nrunners
     n_envs: *nenvs
     n_steps: *nsteps
-    n_epochs: *nepochs
-    n_mbs: *nmbs        # number of minibatches
     fragment_size: null
-    actor_rnn_type: *arnn
-    value_rnn_type: *vrnn
     sample_size: *ss
-
-    normalize_adv: False
-    zero_center_adv: True
-    process_adv: null
-    adv_clip: null
-
-    # Trust region arguments
-    target_pi:
-        target_type: pr
-        adv_tau: 1
-        alpha: .2
-        pr_lower_clip: .2
-        pr_upper_clip: .2
-        exp_lower_clip: 1
-        exp_upper_clip: 1
-        adv_lower_clip: 1
-        adv_upper_clip: 1
-        lin_lower_clip: .5
-        lin_upper_clip: 3
-        lin_weights: 1
-        normalize_adv: False
-        zero_center: True
-        process_adv: null
-        step_size: .1
-
-        target_prob_key: target_prob_prime
-
-    # PPG configs
-    n_pi: *npi
-    n_segs: *nsegs
-    n_aux_mbs_per_seg: *nambs
-    n_aux_epochs: *naepochs
+    K: *K
+    L: *L
+    extra_meta_step: *ems
+    queue_size: 2
+    timeout_done: True
+    rnn_type: *rnn
 
     # mini-batch size = n_runners * n_envs * epslen / n_mbs
     sample_keys:
@@ -280,18 +276,11 @@ buffer:
         - action_mask
         - action
         - reward
+        - discount
+        - reset
         - value
-        - traj_ret
-        - advantage
-        - target_prob
-        - tr_prob
-        - target_prob_prime
-        - tr_prob_prime
-        - logprob
-        - pi
-        - target_pi
+        - mu_logprob
+        - mu
         - mask
-        - actor_h
-        - actor_c
-        - value_h
-        - value_c
+        - h
+        - c

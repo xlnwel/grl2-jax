@@ -1,12 +1,8 @@
 ---
-# NOTE: root_dir and model_name will be specified to all configs in run.train.py
 algorithm: &algo zero
 name: zero
-version: 0
 
 precision: 32
-
-n_agents: 1
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -14,42 +10,21 @@ n_agents: 1
 root_dir: *algo
 model_name: *algo
 
-controller:
-    store_period: 5e4
-    restart_runners_priod: null
-    max_version_iterations: 1
-    max_steps_per_iteration: 3e7
-    initialize_rms: &irms True
+routine:
+    algorithm: *algo
 
-parameter_server:
-    root_dir: *algo
-    model_name: *algo
-
-    train_from_scratch_frac: 1
-    online_frac: .2
-
-    payoff:
-        step_size: 1e-2     # step size towards the most recent data, 0 or null average payoff over the entire history
-        update_interval: 180
-        sampling_strategy:
-            type: pfsp
-            p: 1
-
-ray_config:
-    runner:
-        num_cpus: 1
-    agent:
-        num_gpus: 1
-
-monitor: {}
-
-runner:
-    n_runners: &nrunners 8
+    MAX_STEPS: 3e7
     n_steps: &nsteps 400
-    push_every_episode: False
+    LOG_PERIOD: 3e5
+    EVAL_PERIOD: False
+
+    RECORD_VIDEO: True
+    N_EVAL_EPISODES: 1
+    size: [256, 256]
 
 env:
-    env_name: &env_name smac-3s5z_vs_3s6z
+    env_name: &env_name smac-corridor
+    n_runners: &nrunners 8
     n_envs: &nenvs 1
     use_state_agent: True
     use_mustalive: True
@@ -69,24 +44,18 @@ strategy:
         extra_meta_step: &ems 0 # 0/1
 
 model:
+    aid: 0
     rnn_type: &rnn null
-    sample_size: &ss 400
+    sample_size: *nsteps
     K: *K
     L: *L
     extra_meta_step: *ems
 
     encoder: 
-        nn_id: mlp
-        units_list: []
-        kernel_initializer: orthogonal
-        activation: relu
-        norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1e-5
+        nn_id: null
     rnn:
         nn_id: *rnn
-        units: 256
+        units: 64
         kernel_initializer: orthogonal
         recurrent_initializer: orthogonal
         use_ln: True
@@ -95,23 +64,19 @@ model:
         units_list: [64, 64]
         kernel_initializer: orthogonal
         activation: relu
-        norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1e-5
+        norm: null
         eval_act_temp: 1
         out_gain: .01
-        init_std: 1
+        indexed_head: False
+        use_bias: True
     value:
         nn_id: value
         units_list: [64, 64]
         kernel_initializer: orthogonal
         activation: relu
-        norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1e-5
-    embed: null
+        norm: null
+        indexed_head: False
+        use_bias: True
     meta:
         nn_id: meta
         pg_coef:
@@ -125,22 +90,22 @@ model:
             init: null
             act: sigmoid
         value_coef:
-            outer: 1
-            default: 1
+            outer: .5
+            default: .5
             scale: 1
             bias: 0
             init: null
             act: sigmoid
         gamma: 
-            outer: &gamma .995
-            default: *gamma
+            outer: &gamma .99
+            default: .99
             scale: 1
             bias: 0
             init: null
             act: sigmoid
         lam:
-            outer: &lam .95
-            default: *lam
+            outer: .95
+            default: .95
             scale: 1
             bias: 0
             init: null
@@ -153,7 +118,7 @@ loss:
         c_clip: 1
         rho_clip: 1
         adv_type: vtrace
-        norm_adv: True
+        norm_adv: False
 
         # arguments for policy optimization
         pg_type: ppo
@@ -165,7 +130,7 @@ loss:
         kl_coef: 1
 
         # arguments for value learning
-        value_loss: clip
+        value_loss: mse
         value_clip_range: .2
         life_mask: False
     meta:
@@ -174,7 +139,7 @@ loss:
         c_clip: 1
         rho_clip: 1
         adv_type: vtrace
-        norm_adv: True
+        norm_adv: False
 
         # arguments for policy optimization
         pg_type: ppo
@@ -186,7 +151,7 @@ loss:
         kl_coef: 1
 
         # arguments for value learning
-        value_loss: clip
+        value_loss: mse
         value_clip_range: .2
         life_mask: False
 
@@ -198,38 +163,39 @@ trainer:
     n_epochs: &nepochs 5
     n_mbs: &nmbs 1
     n_meta_epochs: 1
-    sample_size: *ss         # BPTT length
-    timeout_done: True
+    sample_size: *nsteps         # BPTT length
+    timeout_done: &td True
     meta_type: plain
     K: *K
     L: *L
     extra_meta_step: *ems
     store_state: True
-
+    
     optimizer:
         opt_name: adam
         schedule_lr: False
         lr: 5e-4
+        # rho: .99
         clip_norm: 10
         epsilon: 1e-5
-        weight_decay: 0
     meta_opt:
         opt_name: adam
         schedule_lr: False
-        lr: 5e-4
+        lr: 1e-3
         clip_norm: 10
-        epsilon: 1e-5
+        epsilon: 1e-4
 
 actor:
-    algorithm: *algo
-
+    update_obs_rms_at_execution: False
+    update_obs_at_execution: False
     rms:
         obs_names: [obs, global_state]
-        normalize_obs: *irms
-        normalize_reward: True
-        obs_normalized_axis: [0, 1]
-        reward_normalized_axis: [0, 1]
-        update_reward_rms_in_time: True
+        obs_normalized_axis: [0, 1, 2]
+        reward_normalized_axis: [0, 1, 2]
+        normalize_obs: True
+        obs_clip: 10
+        normalize_reward: False
+        update_reward_rms_in_time: False
         gamma: *gamma
 
 buffer:
@@ -239,17 +205,15 @@ buffer:
     n_runners: *nrunners
     n_envs: *nenvs
     n_steps: *nsteps
-    fragment_size: null
-    sample_size: *ss
+    sample_size: *nsteps
+    queue_size: 2
     K: *K
     L: *L
     extra_meta_step: *ems
-    queue_size: 2
-    timeout_done: True
+    timeout_done: *td
     rnn_type: *rnn
 
-    # mini-batch size = n_runners * n_envs * epslen / n_mbs
-    sample_keys:
+    sample_keys: 
         - obs
         - global_state
         - prev_reward
@@ -257,10 +221,10 @@ buffer:
         - action_mask
         - life_mask
         - action
+        - value
         - reward
         - discount
         - reset
-        - value
         - mu_logprob
         - mu
         - mask

@@ -530,14 +530,14 @@ class SMAC(gym.Env):
 
     def step(self, action):
         """A single environment step. Returns reward, terminated, info."""
-        assert len(action) == 1, action
-        assert isinstance(action, tuple), action
+        if isinstance(action, (list, tuple)) and len(action) == 1:
+            action = action[0]
         terminated = False
         infos = [{} for i in range(self.n_units)]
         life_mask = np.ones(self.n_units, np.float32)
         dones = np.zeros(self.n_units, bool)
 
-        actions_int = [int(a) for a in action[0]]
+        actions_int = [int(a) for a in action]
 
         self.last_action = np.eye(self.n_actions)[np.array(actions_int)]
 

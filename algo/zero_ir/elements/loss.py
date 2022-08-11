@@ -39,7 +39,7 @@ class POLossImpl(LossBase):
         use_meta=False, 
         debug=True
     ):
-        if not self.config.get('life_mask'):
+        if not self.config.get('policy_life_mask', True):
             sample_mask = None
         terms = {}
         tf.debugging.assert_all_finite(advantage, 'Bad advantage')
@@ -145,7 +145,7 @@ class ValueLossImpl(LossBase):
         use_meta=False, 
         debug=False
     ):
-        if not self.config.get('life_mask'):
+        if not self.config.get('value_life_mask', False):
             sample_mask = None
         value_loss_type = getattr(self.config, 'value_loss', 'mse')
         value_coef = self.model.meta('value_coef', inner=use_meta)
@@ -263,10 +263,10 @@ class Loss(ValueLossImpl, POLossImpl):
         *, 
         tape, 
         obs, 
-        id=None, 
+        idx=None, 
         global_state, 
         next_obs=None, 
-        next_id=None, 
+        next_idx=None, 
         next_global_state=None, 
         action, 
         old_value, 
@@ -298,11 +298,11 @@ class Loss(ValueLossImpl, POLossImpl):
         )
         if global_state is None:
             global_state = x
-        value = self.value(global_state, id=id)
+        value = self.value(global_state, idx=idx)
         if next_obs is None:
             x = x[:, :-1]
-            if id is not None:
-                id = id[:, :-1]
+            if idx is not None:
+                idx = idx[:, :-1]
             next_value = value[:, 1:]
             value = value[:, :-1]
         else:
@@ -311,8 +311,8 @@ class Loss(ValueLossImpl, POLossImpl):
                 if next_global_state is None:
                     next_global_state = next_obs
                 next_x, _ = self.model.encode(next_global_state)
-                next_value = self.value(next_x, next_id)
-        act_dist = self.policy(x, id=id, action_mask=action_mask)
+                next_value = self.value(next_x, next_idx)
+        act_dist = self.policy(x, idx=idx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob
@@ -401,10 +401,10 @@ class Loss(ValueLossImpl, POLossImpl):
         *, 
         tape, 
         obs, 
-        id=None, 
+        idx=None, 
         hidden_state, 
         next_obs=None, 
-        next_id=None, 
+        next_idx=None, 
         next_hidden_state=None, 
         action, 
         old_value, 
@@ -443,8 +443,8 @@ class Loss(ValueLossImpl, POLossImpl):
         value = self.meta_value(hidden_state)
         if next_hidden_state is None:
             x = x[:, :-1]
-            if id is not None:
-                id = id[:, :-1]
+            if idx is not None:
+                idx = idx[:, :-1]
             next_value = value[:, 1:]
             value = value[:, :-1]
         else:
@@ -456,7 +456,7 @@ class Loss(ValueLossImpl, POLossImpl):
                 )
                 next_hidden_state = tf.gather(next_hidden_state, [0], axis=2)
                 next_value = self.meta_value(next_hidden_state)
-        act_dist = self.policy(x, id=id, action_mask=action_mask)
+        act_dist = self.policy(x, idx=idx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob

@@ -5,6 +5,7 @@ from tensorflow_probability import distributions as tfd
 from core.module import Module
 from nn.func import mlp, nn_registry
 from nn.hyper import HyperNet
+from nn.utils import get_activation
 from utility.utils import dict2AttrDict
 
 """ Source this file to register Networks """
@@ -40,29 +41,30 @@ class HPEmbed(Module):
 class IndexedHead(Module):
     def __init__(self, name='indexed_head', **config):
         super().__init__(name=name)
-
+        self._raw_name = name
+        
         self.out_size = config.pop('out_size')
         self.use_bias = config.pop('use_bias', True)
         self.config = dict2AttrDict(config)
     
-    def build(self, x, id):
+    def build(self, x, idx):
         w_config = self.config.copy()
         w_config['w_in'] = x[-1]
         w_config['w_out'] = self.out_size
-        self._wlayer = HyperNet(**w_config, name=f'{self.name}_w')
+        self._wlayer = HyperNet(**w_config, name=f'{self._raw_name}_w')
 
         if self.use_bias:
             b_config = self.config.copy()
             b_config['w_in'] = None
             b_config['w_out'] = self.out_size
-            self._blayer = HyperNet(**b_config, name=f'{self.name}_b')
+            self._blayer = HyperNet(**b_config, name=f'{self._raw_name}_b')
 
-    def call(self, x, id):
-        w = self._wlayer(id)
-        eqt = 'esuh,esuho->esuo' if len(x.shape) == 4 else 'euh,euho->euo'
+    def call(self, x, idx):
+        w = self._wlayer(idx)
+        eqt = 'esuh,esuho->esuo' if len(x.shape) == 4 else ('euh,euho->euo' if len(x.shape) == 3 else 'uh,uho->uo')
         out = tf.einsum(eqt, x, w)
         if self.use_bias:
-            out = out + self._blayer(id)
+            out = out + self._blayer(idx)
 
         return out
 
@@ -90,7 +92,7 @@ class Policy(Module):
                 tf.random.uniform((self.action_dim, embed_dim), -0.01, 0.01), 
                 dtype='float32',
                 trainable=True,
-                name='embed')
+                name=f'{name}/embed')
 
         if not self.is_action_discrete:
             self.logstd = tf.Variable(
@@ -100,11 +102,22 @@ class Policy(Module):
                 name=f'{name}/policy/logstd')
         config.setdefault('out_gain', .01)
 
-        self.indexed_head = config.pop('indexed_head', False)
-        if self.indexed_head:
-            config['out_size'] = self.action_dim
-            self._layers = IndexedHead(
+        self.indexed = config.pop('indexed', False)
+        if self.indexed == 'all':
+            units_list = config.pop('units_list', [])
+            units_list.append(self.action_dim)
+            self._layers = [IndexedHead(**config, out_size=u, name=f'{name}_l{i}') 
+                for i, u in enumerate(units_list)]
+        elif self.indexed == 'head':
+            self._layers = mlp(
                 **config, 
+                name=name
+            )
+            config.pop('units_list')
+            self._head = IndexedHead(
+                **config, 
+                out_size=self.action_dim, 
+                out_dtype='float32',
                 name=name
             )
         else:
@@ -115,10 +128,14 @@ class Policy(Module):
                 name=name
             )
 
-    def call(self, x, id=None, action_mask=None, evaluation=False):
+    def call(self, x, idx=None, action_mask=None, evaluation=False):
         tf.debugging.assert_all_finite(x, 'Bad input')
-        if self.indexed_head:
-            x = self._layers(x, id)
+        if self.indexed == 'all':
+            for l in self._layers:
+                x = l(x, idx)
+        elif self.indexed == 'head':
+            x = self._layers(x)
+            x = self._head(x, idx)
         else:
             x = self._layers(x)
         tf.debugging.assert_all_finite(x, 'Bad policy output')
@@ -168,26 +185,48 @@ class Value(Module):
         config = config.copy()
         
         config.setdefault('out_gain', 1)
-        if 'out_size' not in config:
-            config['out_size'] = 1
-        self.indexed_head = config.pop('indexed_head', False)
-        if self.indexed_head:
-            self._layers = IndexedHead(
+        self._out_act = config.pop('out_act', None)
+        if self._out_act:
+            self._out_act = get_activation(self._out_act)
+        self.indexed = config.pop('indexed', [])
+        out_size = config.pop('out_size', 1)
+        if self.indexed == 'all':
+            units_list = config.pop('units_list', [])
+            units_list.append(out_size)
+            self._layers = [IndexedHead(**config, out_size=u, name=f'{name}_l{i}') 
+                for i, u in enumerate(units_list)]
+        elif self.indexed == 'head':
+            self._layers = mlp(
                 **config, 
+                name=name
+            )
+            config.pop('units_list')
+            self._head = IndexedHead(
+                **config, 
+                out_size=out_size, 
+                out_dtype='float32',
                 name=name
             )
         else:
             self._layers = mlp(
                 **config, 
+                out_size=out_size, 
                 out_dtype='float32',
                 name=name
             )
 
-    def call(self, x, id=None):
-        if self.indexed_head:
-            value = self._layers(x, id)
+    def call(self, x, idx=None):
+        if self.indexed == 'all':
+            for l in self._layers:
+                x = l(x, idx)
+        elif self.indexed == 'head':
+            x = self._layers(x)
+            x = self._head(x, idx)
         else:
-            value = self._layers(x)
+            x = self._layers(x)
+        value = x
         if value.shape[-1] == 1:
             value = tf.squeeze(value, -1)
+        if self._out_act is not None:
+            value = self._out_act(value)
         return value

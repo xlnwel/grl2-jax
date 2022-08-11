@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from core.module import Module
-from nn.mlp import MLP
+from nn.func import mlp
 from nn.registry import nn_registry
 
 
@@ -18,7 +18,7 @@ class HyperNet(Module):
         else:
             config['out_size'] = self.w_in * self.w_out
 
-        self._layers = MLP(
+        self._layers = mlp(
             **config, 
             name=self.name
         )

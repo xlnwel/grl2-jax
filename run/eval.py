@@ -17,8 +17,9 @@ from run.args import parse_eval_args
 from run.utils import search_for_config
 
 
-def main(config, n, record=False, size=(128, 128), video_len=1000, 
+def main(configs, n, record=False, size=(128, 128), video_len=1000, 
         fps=30, save=False):
+    config = configs[0]
     use_ray = config.env.get('n_runners', 0) > 1
     if use_ray:
         import ray

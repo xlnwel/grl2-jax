@@ -73,11 +73,15 @@ class Runner:
         for t in range(nsteps):
             action = action_selector(self.env_output, evaluation=False)
             obs, reset = self.step_env(obs, action, step_fn)
-            
+
             # logging when any env is reset 
+            if self._is_multi_agent:
+                reset = reset[0]
+
             done_env_ids = [i for i, r in enumerate(reset)
                 if (np.all(r) if isinstance(r, np.ndarray) else r) 
-                and i in self._record_envs]
+            and i in self._record_envs]
+
             if done_env_ids:
                 info = self.env.info(done_env_ids)
                 if info:
@@ -157,7 +161,7 @@ class Runner:
         return next_obs, reset
     
     def store_info(self, info):
-        info = batch_dicts(info)
+        info = batch_dicts(info, list)
         self.agent.store(**info)
         if self._info_func is not None:
             self._info_func(self.agent, info)

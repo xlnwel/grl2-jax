@@ -92,7 +92,9 @@ if __name__ == '__main__':
             # save config
             config = yaml_op.load_config(yaml_path)
             to_remove_keys = ['root_dir', 'seed']
+            seed = config['seed']
             config = recursively_remove(config, to_remove_keys)
+            config['seed'] = seed
             config = remove_lists(config)
             config = flatten_dict(config)
             config = rename_env(config)
@@ -107,6 +109,7 @@ if __name__ == '__main__':
                 data = pd.read_table(record_path, on_bad_lines='skip')
             except:
                 print(f'Record path ({record_path}) constains no data')
+                continue
             if len(data.keys()) == 1:
                 data = pd.read_csv(record_path)
             for k in ['expl', 'latest_expl', 'nash_conv', 'latest_nash_conv']:

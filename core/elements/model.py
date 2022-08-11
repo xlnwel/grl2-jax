@@ -157,7 +157,7 @@ class ModelEnsemble(Ensemble):
         else:
             self.to_build = False
 
-    def _build(self, env_stats: AttrDict):
+    def _build(self, env_stats: AttrDict, evaluation=False):
         pass
 
     def get_weights(self, name: Union[dict, list]=None):

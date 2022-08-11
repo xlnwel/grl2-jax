@@ -12,20 +12,16 @@ class IteratedPrisonersDilemma:
     # Possible actions
     NUM_AGENTS = 2
     NUM_ACTIONS = 2
-    NUM_OBS = 7
-    NUM_STATES = 4
+    NUM_OBS = 5
+    NUM_STATES = 5
 
-    def __init__(self, max_episode_steps, uid2aid, use_hidden=False, **kwargs):
+    def __init__(self, max_episode_steps, use_idx=False, use_hidden=False, **kwargs):
         self.max_episode_steps = max_episode_steps
 
-        self.payout_mat1 = np.array([[-1., 0.], [-3., -2.]])
-        self.payout_mat2 = np.array([[-1., -3.], [0., -2.]])
+        self.payout_mat1 = np.array([[-1., -3.], [0., -2.]])
+        self.payout_mat2 = np.array([[-1., 0.], [-3., -2.]])
 
-        self.uid2aid = uid2aid
-        self.aid2uids = compute_aid2uids(self.uid2aid)
-        self.n_units = len(self.uid2aid)
-        self.n_agents = len(self.aid2uids)
-
+        self.use_idx = use_idx
         self.use_hidden = use_hidden
 
         self.action_space = Discrete(self.NUM_ACTIONS)
@@ -40,6 +36,9 @@ class IteratedPrisonersDilemma:
         self.obs_dtype = dict(
             obs=np.float32, 
         )
+        if use_idx:
+            self.obs_shape['idx'] = (self.NUM_AGENTS,)
+            self.obs_dtype['idx'] = np.float32
         if use_hidden:
             self.obs_shape['hidden_state'] = (self.NUM_STATES, )
             self.obs_dtype['hidden_state'] = np.float32
@@ -109,24 +108,27 @@ class IteratedPrisonersDilemma:
         obs = {
             'obs': np.zeros((self.NUM_AGENTS, self.NUM_OBS), np.float32), 
         }
+        if self.use_idx:
+            obs['idx'] = np.eye(self.NUM_AGENTS, dtype=np.float32)
         if self.use_hidden:
             obs['hidden_state'] = np.zeros((self.NUM_AGENTS, self.NUM_STATES), np.float32)
 
         if action is None:
             obs['obs'][:, -1] = 1
-            if self.use_hidden:
-                obs['hidden_state'][:, -1] = 1
+            # if self.use_hidden:
+            #     obs['hidden_state'][:, -1] = 1
         else:
             a0, a1 = action
             
             obs['obs'][0, a0 * 2 + a1] = 1
             obs['obs'][1, a1 * 2 + a0] = 1
             if self.use_hidden:
-                obs['hidden_state'][0, a0 * 2 + a1] = 1
-                obs['hidden_state'][1, a1 * 2 + a0] = 1
+                obs['hidden_state'][:, a0 * 2 + a1] = 1
 
         obs['obs'][0, -3] = 1
         obs['obs'][1, -2] = 1
+        if self.use_hidden:
+            obs['hidden_state'][:, -1] = self._epslen / self.max_episode_steps
 
         return obs
 

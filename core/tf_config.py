@@ -14,29 +14,32 @@ def configure_gpu(idx=-1):
     Args:
         idx: index(es) of PhysicalDevice objects returned by `list_physical_devices`
     """
+    # if idx is not None and idx >= 0:
+    #     os.environ["CUDA_VISIBLE_DEVICES"] = f"{idx}"
+    if idx is None:
+        tf.config.experimental.set_visible_devices([], 'GPU')
+        do_logging('No gpu is used', logger=logger, level='warning')
+        return False
     gpus = tf.config.list_physical_devices('GPU')
-    if gpus and idx is not None:
+    n_gpus = len(gpus)
+    if idx >= 0:
+        gpus = [gpus[idx % n_gpus]]
+    # restrict TensorFlow to only use the i-th GPU
+    tf.config.experimental.set_visible_devices(gpus, 'GPU')
+    if gpus:
         try:
             # memory growth
             for gpu in gpus:
                 tf.config.experimental.set_memory_growth(gpu, True)
-            # restrict TensorFlow to only use the i-th GPU
-            if idx >= 0:
-                gpus = gpus[idx]
-            tf.config.experimental.set_visible_devices(gpus, 'GPU')
             logical_gpus = tf.config.experimental.list_logical_devices('GPU')
             do_logging(
-                f'{len(gpus)} Physical GPUs, {len(logical_gpus)} Logical GPU', 
+                f'{n_gpus} Physical GPUs, {len(logical_gpus)} Logical GPU', 
                 logger=logger, 
             )
         except RuntimeError as e:
             # visible devices must be set before GPUs have been initialized
             do_logging(e, logger=logger, level='warning')
         return True
-    else:
-        tf.config.experimental.set_visible_devices([], 'GPU')
-        do_logging('No gpu is used', logger=logger, level='warning')
-        return False
 
 def configure_threads(intra_num_threads, inter_num_threads):
     tf.config.threading.set_intra_op_parallelism_threads(intra_num_threads)

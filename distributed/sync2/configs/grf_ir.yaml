@@ -1,6 +1,6 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo zero
+algorithm: &algo sync-gpo
 name: zero
 version: 0
 
@@ -15,10 +15,10 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 5e4
+    store_period: 1e6
     restart_runners_priod: null
     max_version_iterations: 1
-    max_steps_per_iteration: 3e7
+    max_steps_per_iteration: 2e8
     initialize_rms: &irms True
 
 parameter_server:
@@ -35,6 +35,14 @@ parameter_server:
             type: pfsp
             p: 1
 
+    # rule_strategies:
+    #     # agent name / config
+    #     random:
+    #         aid: 1
+    #         vid: 1
+    #         path: rule/random   # path to the file that defines Strategy
+    #         # other configs
+
 ray_config:
     runner:
         num_cpus: 1
@@ -44,20 +52,30 @@ ray_config:
 monitor: {}
 
 runner:
-    n_runners: &nrunners 8
-    n_steps: &nsteps 400
+    n_runners: &nrunners 60
+    n_steps: &nsteps 64
     push_every_episode: False
 
 env:
-    env_name: &env_name smac-3s5z_vs_3s6z
+    env_name: &env_name grf-11_vs_11_hard_stochastic
+    representation: simple115v2
+    rewards: scoring,checkpoints
+    render: False
+    write_full_episode_dumps: False
+    write_video: False
+    dump_frequency: 1000
+    logdir: data/grf
+    extra_players: null
+    number_of_left_players_agent_controls: 11
+    number_of_right_players_agent_controls: 0
+    add_role_to_obs: False
+    shared_ckpt_reward: False
+
+    max_episode_steps: 3000
+    use_action_mask: False
+    uid2aid: null
+
     n_envs: &nenvs 1
-    use_state_agent: True
-    use_mustalive: True
-    add_center_xy: True
-    timeout_done: True
-    add_agent_id: True
-    do_evaluation: False
-    life_mask_at_done: 0
 
 agent: {}
 
@@ -66,11 +84,12 @@ strategy:
         use_dataset: &dataset False
         K: &K null
         L: &L 0
-        extra_meta_step: &ems 0 # 0/1
+        extra_meta_step: &ems 1 # 0/1
 
 model:
+    aid: 0
     rnn_type: &rnn null
-    sample_size: &ss 400
+    sample_size: &ss 64
     K: *K
     L: *L
     extra_meta_step: *ems
@@ -92,25 +111,40 @@ model:
         use_ln: True
     policy:
         nn_id: policy
-        units_list: [64, 64]
+        units_list: [256, 256, 256]
         kernel_initializer: orthogonal
         activation: relu
         norm: layer
         norm_after_activation: True
         norm_kwargs:
-            epsilon: 1e-5
+            epsilon: 1.e-5
         eval_act_temp: 1
         out_gain: .01
         init_std: 1
     value:
         nn_id: value
-        units_list: [64, 64]
+        units_list: [256, 256, 256]
         kernel_initializer: orthogonal
         activation: relu
         norm: layer
         norm_after_activation: True
         norm_kwargs:
-            epsilon: 1e-5
+            epsilon: 1.e-5
+    meta_reward: 
+        nn_id: value
+        units_list: [256, 256]
+        kernel_initializer: orthogonal
+        activation: relu
+        use_bias: False
+        norm: null
+        out_act: null
+        indexed_head: True
+    meta_value:
+        nn_id: value
+        units_list: [256, 256]
+        kernel_initializer: orthogonal
+        activation: relu
+        norm: null
     embed: null
     meta:
         nn_id: meta
@@ -120,8 +154,8 @@ model:
             init: null
             act: sigmoid
         entropy_coef:
-            outer: 1e-2
-            default: 1e-2
+            outer: 5e-4
+            default: 5e-4
             init: null
             act: sigmoid
         value_coef:
@@ -209,16 +243,16 @@ trainer:
     optimizer:
         opt_name: adam
         schedule_lr: False
-        lr: 5e-4
-        clip_norm: 10
-        epsilon: 1e-5
+        lr: 1e-4
+        clip_norm: .5
+        epsilon: 1.e-5
         weight_decay: 0
     meta_opt:
         opt_name: adam
         schedule_lr: False
-        lr: 5e-4
-        clip_norm: 10
-        epsilon: 1e-5
+        lr: 1e-4
+        clip_norm: .5
+        epsilon: 1.e-5
 
 actor:
     algorithm: *algo
@@ -255,7 +289,6 @@ buffer:
         - prev_reward
         - prev_action
         - action_mask
-        - life_mask
         - action
         - reward
         - discount

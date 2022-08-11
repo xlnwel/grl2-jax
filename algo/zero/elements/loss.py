@@ -259,10 +259,10 @@ class Loss(ValueLossImpl, POLossImpl):
         *, 
         tape, 
         obs, 
-        id=None, 
+        idx=None, 
         global_state=None, 
         next_obs=None, 
-        next_id=None, 
+        next_idx=None, 
         next_global_state=None, 
         action, 
         old_value, 
@@ -294,19 +294,19 @@ class Loss(ValueLossImpl, POLossImpl):
         )
         if global_state is None:
             global_state = x
-        value = self.value(global_state, id)
+        value = self.value(global_state, idx)
         if next_obs is None:
             x = x[:, :-1]
-            if id is not None:
-                id = id[:, :-1]
+            if idx is not None:
+                idx = idx[:, :-1]
             next_value = value[:, 1:]
             value = value[:, :-1]
         else:
             with tape.stop_recording():
                 assert state is None, 'unexpected states'
                 next_x, _ = self.model.encode(next_obs)
-                next_value = self.value(next_x, next_id)
-        act_dist = self.policy(x, id=id, action_mask=action_mask)
+                next_value = self.value(next_x, next_idx)
+        act_dist = self.policy(x, idx=idx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob
@@ -397,10 +397,10 @@ class Loss(ValueLossImpl, POLossImpl):
         *, 
         tape, 
         obs, 
-        id=None, 
+        idx=None, 
         hidden_state=None, 
         next_obs=None, 
-        next_id=None, 
+        next_idx=None, 
         next_hidden_state=None, 
         action, 
         old_value, 
@@ -422,7 +422,7 @@ class Loss(ValueLossImpl, POLossImpl):
     ):
         _, act_dist, value = self.model.forward(
             obs=obs[:, :-1] if next_obs is None else obs, 
-            id=id[:, :-1] if next_id is None else id, 
+            idx=idx[:, :-1] if next_idx is None else idx, 
             global_state=hidden_state[:, :-1] if hidden_state is None else hidden_state, 
             state=state, 
             mask=mask

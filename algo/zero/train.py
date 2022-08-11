@@ -32,7 +32,8 @@ def train(config, agent, env, eval_env, buffer):
         print('Start to initialize running stats...')
         for _ in range(10):
             runner.run(action_selector=env.random_action, step_fn=collect)
-            agent.actor.update_obs_rms({'obs': buffer['obs']})
+            agent.actor.update_obs_rms(
+                {name: buffer[name] for name in agent.actor.obs_names})
             agent.actor.update_reward_rms(
                 np.array(buffer['reward']), np.array(buffer['discount']))
             buffer.reset()
@@ -108,13 +109,14 @@ def train(config, agent, env, eval_env, buffer):
         # observation normalization
         def normalize_obs(name):
             raw_obs = buffer[name]
-            obs = agent.actor.normalize_obs(raw_obs)
+            obs = agent.actor.normalize_obs(raw_obs, name=name)
             buffer.update(name, obs)
             return raw_obs
-        raw_obs = normalize_obs('obs')
-        if 'next_obs' in buffer:
-            normalize_obs('next_obs')
-        agent.actor.update_obs_rms(raw_obs)
+        for name in agent.actor.obs_names:
+            raw_obs = normalize_obs(name)
+            if f'next_{name}' in buffer:
+                normalize_obs(f'next_{name}')
+            agent.actor.update_obs_rms(raw_obs, name)
 
         start_train_step = agent.get_train_step()
         with tt:
@@ -128,14 +130,14 @@ def train(config, agent, env, eval_env, buffer):
         if to_record(step) and agent.contains_stats('score'):
             record_stats(step, start_env_step, train_step, start_train_step)
 
-def main(configs, train=train):
+def main(configs, train=train, gpu=-1):
     assert len(configs) == 1, configs
     config = configs[0]
     silence_tf_logs()
     seed = config.get('seed')
     print('seed', seed)
     set_seed(seed)
-    configure_gpu()
+    configure_gpu(gpu)
     configure_precision(config.precision)
     use_ray = config.env.get('n_runners', 1) > 1
     if use_ray:
@@ -172,9 +174,7 @@ def main(configs, train=train):
 
     env_stats = env.stats()
     builder = ElementsBuilder(config, env_stats)
-    print('start building')
     elements = builder.build_agent_from_scratch()
-    print('building elements')
 
     train(config.routine, elements.agent, env, eval_env, elements.buffer)
 

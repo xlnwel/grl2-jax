@@ -257,8 +257,8 @@ class TensorboardWriter:
         args[0] = f'{self.name}/{sum_type}/{args[0]}'
         graph_summary(self._writer, sum_type, args, step=step)
 
-    def video_summary(self, video, step=None):
-        graph.video_summary(f'{self.name}/sim', video, step=step)
+    def video_summary(self, video, step=None, fps=30):
+        graph.video_summary(f'{self.name}/sim', video, fps=fps, step=step)
 
     def matrix_summary(
         self, 

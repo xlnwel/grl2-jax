@@ -14,16 +14,16 @@ class IteratedMatchingPennies:
     NUM_ACTIONS = 2
     NUM_STATES = 7
 
-    def __init__(self, env_name, max_episode_steps, uid2aid, **kwargs):
+    def __init__(self, max_episode_steps, uid2aid, **kwargs):
         self.max_episode_steps = max_episode_steps
-
-        self.payout_mat1 = np.array([[1., -1.], [-1., 1.]])
-        self.payout_mat2 = np.array([[-1., 1.], [1., -1.]])
 
         self.uid2aid = uid2aid
         self.aid2uids = compute_aid2uids(self.uid2aid)
         self.n_units = len(self.uid2aid)
         self.n_agents = len(self.aid2uids)
+
+        self.payout_mat1 = np.array([[1., -1.], [-1., 1.]])
+        self.payout_mat2 = np.array([[-1., 1.], [1., -1.]])
 
         self.action_space = [
             Discrete(self.NUM_ACTIONS) for _ in range(self.NUM_AGENTS)

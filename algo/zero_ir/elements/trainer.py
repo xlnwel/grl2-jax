@@ -110,10 +110,10 @@ class Trainer(TrainerBase):
         opt, 
         loss_fn, 
         obs, 
-        id=None, 
+        idx=None, 
         global_state=None, 
         next_obs=None, 
-        next_id=None, 
+        next_idx=None, 
         next_global_state=None, 
         action, 
         value, 
@@ -141,29 +141,29 @@ class Trainer(TrainerBase):
             indices = tf.random.shuffle(indices)
             indices = tf.reshape(indices, (n_mbs, -1))
             for i in range(n_mbs):
-                idx = indices[i]
+                k = indices[i]
                 with tf.GradientTape() as tape:
                     loss, terms = loss_fn(
                         tape=tape, 
-                        obs=tf.gather(obs, idx), 
-                        id=id if id is None else tf.gather(id, idx), 
-                        global_state=global_state if global_state is None else tf.gather(global_state, idx), 
-                        next_obs=next_obs if next_obs is None else tf.gather(next_obs, idx), 
-                        next_id=next_id if next_id is None else tf.gather(next_id, idx), 
-                        next_global_state=next_global_state if next_global_state is None else tf.gather(next_global_state, idx), 
-                        action=tf.gather(action, idx), 
-                        old_value=tf.gather(value, idx), 
-                        reward=tf.gather(reward, idx), 
-                        discount=tf.gather(discount, idx), 
-                        reset=reset if reset is None else tf.gather(reset, idx), 
-                        mu_logprob=mu_logprob if mu_logprob is None else tf.gather(mu_logprob, idx), 
-                        mu=mu if mu is None else tf.gather(mu, idx), 
-                        mu_mean=mu_mean if mu_mean is None else tf.gather(mu_mean, idx), 
-                        mu_std=mu_std if mu_std is None else tf.gather(mu_std, idx), 
-                        action_mask=action_mask if action_mask is None else tf.gather(action_mask, idx), 
-                        sample_mask=life_mask if life_mask is None else tf.gather(life_mask, idx), 
-                        prev_reward=prev_reward if prev_reward is None else tf.gather(prev_reward, idx), 
-                        prev_action=prev_action if prev_action is None else tf.gather(prev_action, idx), 
+                        obs=tf.gather(obs, k), 
+                        idx=idx if idx is None else tf.gather(idx, k), 
+                        global_state=global_state if global_state is None else tf.gather(global_state, k), 
+                        next_obs=next_obs if next_obs is None else tf.gather(next_obs, k), 
+                        next_idx=next_idx if next_idx is None else tf.gather(next_idx, k), 
+                        next_global_state=next_global_state if next_global_state is None else tf.gather(next_global_state, k), 
+                        action=tf.gather(action, k), 
+                        old_value=tf.gather(value, k), 
+                        reward=tf.gather(reward, k), 
+                        discount=tf.gather(discount, k), 
+                        reset=reset if reset is None else tf.gather(reset, k), 
+                        mu_logprob=mu_logprob if mu_logprob is None else tf.gather(mu_logprob, k), 
+                        mu=mu if mu is None else tf.gather(mu, k), 
+                        mu_mean=mu_mean if mu_mean is None else tf.gather(mu_mean, k), 
+                        mu_std=mu_std if mu_std is None else tf.gather(mu_std, k), 
+                        action_mask=action_mask if action_mask is None else tf.gather(action_mask, k), 
+                        sample_mask=life_mask if life_mask is None else tf.gather(life_mask, k), 
+                        prev_reward=prev_reward if prev_reward is None else tf.gather(prev_reward, k), 
+                        prev_action=prev_action if prev_action is None else tf.gather(prev_action, k), 
                         state=state, 
                         mask=mask, 
                         use_meta=use_meta, 
@@ -185,10 +185,10 @@ class Trainer(TrainerBase):
                 loss, terms = loss_fn(
                     tape=tape, 
                     obs=obs, 
-                    id=id, 
+                    idx=idx, 
                     global_state=global_state, 
                     next_obs=next_obs, 
-                    next_id=next_id, 
+                    next_idx=next_idx, 
                     next_global_state=next_global_state, 
                     action=action, 
                     old_value=value, 
@@ -206,7 +206,7 @@ class Trainer(TrainerBase):
                     state=state, 
                     mask=mask, 
                     use_meta=use_meta, 
-                    debug=not self._use_meta
+                    debug=debug
                 )
                 terms['grads_norm'], var_norms = opt(
                     tape, loss, return_var_norms=True
@@ -231,10 +231,10 @@ class Trainer(TrainerBase):
         tape, 
         grads_list, 
         obs, 
-        id=None, 
+        idx=None, 
         hidden_state=None, 
         next_obs=None, 
-        next_id=None, 
+        next_idx=None, 
         next_hidden_state=None, 
         action, 
         value, 
@@ -255,10 +255,10 @@ class Trainer(TrainerBase):
         meta_loss, terms = self.loss.meta.outer_loss(
             tape=tape, 
             obs=obs, 
-            id=id, 
+            idx=idx, 
             hidden_state=hidden_state, 
             next_obs=next_obs, 
-            next_id=next_id, 
+            next_idx=next_idx, 
             next_hidden_state=next_hidden_state, 
             action=action, 
             old_value=value, 
@@ -324,11 +324,11 @@ class Trainer(TrainerBase):
         self, 
         *, 
         obs, 
-        id=None, 
+        idx=None, 
         global_state=None, 
         hidden_state=None, 
         next_obs=None, 
-        next_id=None, 
+        next_idx=None, 
         next_global_state=None, 
         next_hidden_state=None, 
         action, 
@@ -353,18 +353,19 @@ class Trainer(TrainerBase):
         if life_mask is not None:
             life_mask = life_mask[:, :-1]
         action_oh = tf.one_hot(action, self.model['rl'].policy.action_dim)
-        # x = tf.concat([obs[:, :-1], action_oh], -1)
-        x = action_oh
-        in_reward = self.model['rl'].meta_reward(x)
+        x = tf.concat([obs[:, :-1], action_oh], -1)
+        # x = action_oh
+
+        in_reward = self.model['rl'].meta_reward(x, idx=idx[:, :-1])
         for _ in range(self.config.n_epochs):
             terms = self._inner_epoch(
                 opt=self.optimizers['rl'], 
                 loss_fn=self.loss.rl.loss, 
                 obs=obs, 
-                id=id, 
+                idx=idx, 
                 global_state=global_state, 
                 next_obs=next_obs, 
-                next_id=next_id, 
+                next_idx=next_idx, 
                 next_global_state=next_global_state, 
                 action=action, 
                 value=value, 
@@ -385,8 +386,11 @@ class Trainer(TrainerBase):
                 use_meta=use_meta, 
             )
         terms['in_reward'] = in_reward
-        fake_act = tf.one_hot(tf.convert_to_tensor([[0], [1]]), self.model['rl'].policy.action_dim)
-        fake_in_reward = self.model['rl'].meta_reward(fake_act)
+        fake_act = tf.one_hot(tf.convert_to_tensor([0, 1]), self.model['rl'].policy.action_dim)
+        i = tf.random.uniform((), 0, 2, dtype=tf.int32)
+        fake_obs = obs[0, i]
+        x = tf.concat([fake_obs, fake_act], -1)
+        fake_in_reward = self.model['rl'].meta_reward(x, idx=idx[0, i])
         terms['in_reward1'] = fake_in_reward[0]
         terms['in_reward2'] = fake_in_reward[1]
 
@@ -396,11 +400,11 @@ class Trainer(TrainerBase):
         self, 
         *, 
         obs, 
-        id=None, 
+        idx=None, 
         global_state=None, 
         hidden_state=None, 
         next_obs=None, 
-        next_id=None, 
+        next_idx=None, 
         next_global_state=None, 
         next_hidden_state=None, 
         action, 
@@ -427,19 +431,19 @@ class Trainer(TrainerBase):
         with tf.GradientTape(persistent=True) as meta_tape:
             for i in range(inner_steps):
                 action_oh = tf.one_hot(action[i], self.model['rl'].policy.action_dim)
-                # x = tf.concat([obs[:, :-1], action_oh], -1)
-                x = action_oh
-                in_reward = self.model['meta'].meta_reward(x)
+                x = tf.concat([obs[i, :, :-1], action_oh], -1)
+                # x = action_oh
+                in_reward = self.model['meta'].meta_reward(x, idx=idx[i, :, :-1])
                 meta_grads = []
                 for j in range(self.config.n_epochs):
                     terms, grads_list = self._inner_epoch(
                         opt=self.optimizers['meta_rl'], 
                         loss_fn=self.loss.meta.loss, 
                         obs=obs[i], 
-                        id=None if id is None else id[i], 
+                        idx=None if idx is None else idx[i], 
                         global_state=None if global_state is None else global_state[i], 
                         next_obs=None if next_obs is None else next_obs[i],
-                        next_id=None if next_id is None else next_id[i],
+                        next_idx=None if next_idx is None else next_idx[i],
                         next_global_state=None if next_global_state is None else next_global_state[i], 
                         action=action[i], 
                         value=value[i], 
@@ -464,10 +468,10 @@ class Trainer(TrainerBase):
                         tape=meta_tape, 
                         grads_list=grads_list, 
                         obs=obs[-1], 
-                        id=None if id is None else id[-1], 
+                        idx=None if idx is None else idx[-1], 
                         hidden_state=None if hidden_state is None else hidden_state[-1], 
                         next_obs=None if next_obs is None else next_obs[-1],
-                        next_id=None if next_id is None else next_id[-1],
+                        next_idx=None if next_idx is None else next_idx[-1],
                         next_hidden_state= None if next_hidden_state is None else next_hidden_state[-1], 
                         action=action[-1], 
                         value=value[-1], 
@@ -490,8 +494,11 @@ class Trainer(TrainerBase):
                 meta_terms = self._apply_meta_grads(meta_grads, meta_vars, meta_terms)
 
         terms['in_reward'] = in_reward
-        fake_act = tf.one_hot(tf.convert_to_tensor([[0], [1]]), self.model['rl'].policy.action_dim)
-        fake_in_reward = self.model['meta'].meta_reward(fake_act)
+        fake_act = tf.one_hot(tf.convert_to_tensor([0, 1]), self.model['rl'].policy.action_dim)
+        i = tf.random.uniform((), 0, 2, dtype=tf.int32)
+        fake_obs = obs[0, 0, i]
+        x = tf.concat([fake_obs, fake_act], -1)
+        fake_in_reward = self.model['meta'].meta_reward(x, idx=idx[0, 0, i])
         terms['in_reward1'] = fake_in_reward[0]
         terms['in_reward2'] = fake_in_reward[1]
         terms['in_reward_diff'] = fake_in_reward[0] - fake_in_reward[1]

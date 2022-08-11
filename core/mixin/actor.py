@@ -204,14 +204,17 @@ class RMS:
     def update_obs_rms(self, obs, name=None, mask=None, axis=None):
         if self._normalize_obs:
             if not isinstance(obs, dict):
-                self._obs_rms['obs'].update(obs, mask=mask, axis=axis)
-            elif name is None:
-                for k in self._obs_names:
-                    assert not obs[k].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
-                    self._obs_rms[k].update(obs[k], mask, axis=axis)
+                if name is None:
+                    name = 'obs'
+                self._obs_rms[name].update(obs, mask=mask, axis=axis)
             else:
-                assert not obs[name].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
-                self._obs_rms[name].update(obs[name], mask=mask, axis=axis)
+                if name is None:
+                    for k in self._obs_names:
+                        assert not obs[k].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
+                        self._obs_rms[k].update(obs[k], mask, axis=axis)
+                else:
+                    assert not obs[name].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
+                    self._obs_rms[name].update(obs[name], mask=mask, axis=axis)
 
     def update_reward_rms(self, reward, discount=None, mask=None, axis=None):
         def forward_discounted_sum(next_ret, reward, discount, gamma):

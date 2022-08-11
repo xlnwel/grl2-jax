@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class MLP(Module):
     def __init__(
         self, 
-        units_list, 
+        units_list=[], 
         out_size=None, 
         layer_type='dense', 
         norm=None, 

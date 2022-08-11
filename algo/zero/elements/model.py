@@ -59,7 +59,7 @@ class Model(ModelBase):
     def action(
         self, 
         obs, 
-        id=None, 
+        idx=None, 
         global_state=None, 
         hidden_state=None, 
         action_mask=None, 
@@ -72,7 +72,7 @@ class Model(ModelBase):
         return_eval_stats=False
     ):
         x, state = self.encode(obs, state=state, mask=mask)
-        act_dist = self.policy(x, id=id, action_mask=action_mask, evaluation=evaluation)
+        act_dist = self.policy(x, idx=idx, action_mask=action_mask, evaluation=evaluation)
         action = self.policy.action(act_dist, evaluation)
 
         if self.policy.is_action_discrete:
@@ -91,12 +91,12 @@ class Model(ModelBase):
         if global_state is None:
             global_state = x
         if evaluation:
-            value = self.value(global_state, id)
+            value = self.value(global_state, idx)
             return action, {'value': value}, state
         else:
             logprob = act_dist.log_prob(action)
             tf.debugging.assert_all_finite(logprob, 'Bad logprob')
-            value = self.value(global_state, id)
+            value = self.value(global_state, idx)
             terms.update({'mu_logprob': logprob, 'value': value})
 
             return action, terms, state    # keep the batch dimension for later use
@@ -104,16 +104,16 @@ class Model(ModelBase):
     def forward(
         self, 
         obs, 
-        id=None, 
+        idx=None, 
         global_state=None, 
         state: Tuple[tf.Tensor]=None,
         mask: tf.Tensor=None,
     ):
         x, state = self.encode(obs, state=state, mask=mask)
-        act_dist = self.policy(x, id)
+        act_dist = self.policy(x, idx)
         if global_state is None:
             global_state = x
-        value = self.value(global_state, id)
+        value = self.value(global_state, idx)
         return x, act_dist, value
 
     @tf.function

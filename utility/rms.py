@@ -141,8 +141,6 @@ class RunningMeanStd:
         # assert x.ndim == self._var.ndim + (0 if self._axis is None else len(self._axis)), \
         #     (x.shape, self._var.shape, self._axis)
         x_new = x.astype(np.float32)
-        if mask is not None:
-            assert mask.ndim == len(self._axis), (mask.shape, self._axis)
         if zero_center:
             x_new -= self._mean
         x_new /= self._std

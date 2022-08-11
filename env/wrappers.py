@@ -538,14 +538,35 @@ class MultiAgentUnitsDivision(gym.Wrapper):
         self.n_units = len(self.uid2aid)
         self.n_agents = len(self.aid2uids)
 
-        self.action_space = [self.env.action_space for _ in range(self.n_agents)]
-        self.action_shape = [a.shape for a in self.action_space]
-        self.action_dim = [a.n for a in self.action_space]
-        self.action_dtype = [np.int32 for _ in self.action_space]
-        self.is_action_discrete = [True for _ in self.action_space]
+        if isinstance(self.env.action_space, list):
+            self.action_space = self.env.action_space
+        else:
+            self.action_space = [self.env.action_space for _ in range(self.n_agents)]
+        if isinstance(self.env.action_shape, list):
+            self.action_shape = self.env.action_shape
+        else:
+            self.action_shape = [self.env.action_shape for _ in range(self.n_agents)]
+        if isinstance(self.env.action_dim, list):
+            self.action_dim = self.env.action_dim
+        else:
+            self.action_dim = [self.env.action_dim for _ in range(self.n_agents)]
+        if isinstance(self.env.action_dtype, list):
+            self.action_dtype = self.env.action_dtype
+        else:
+            self.action_dtype = [self.env.action_dtype for _ in range(self.n_agents)]
+        if isinstance(self.env.is_action_discrete, list):
+            self.is_action_discrete = self.env.is_action_discrete
+        else:
+            self.is_action_discrete = [self.env.is_action_discrete for _ in range(self.n_agents)]
 
-        self.obs_shape = [self.env.obs_shape for _ in range(self.n_agents)]
-        self.obs_dtype = [self.env.obs_dtype for _ in range(self.n_agents)]
+        if isinstance(self.env.obs_shape, list):
+            self.obs_shape = self.env.obs_shape
+        else:
+            self.obs_shape = [self.env.obs_shape for _ in range(self.n_agents)]
+        if isinstance(self.env.obs_dtype, list):
+            self.obs_dtype = self.env.obs_dtype
+        else:
+            self.obs_dtype = [self.env.obs_dtype for _ in range(self.n_agents)]
     
     def reset(self):
         obs = super().reset()

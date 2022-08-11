@@ -1,12 +1,12 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo zero
+algorithm: &algo sync-gpo
 name: zero
 version: 0
 
 precision: 32
 
-n_agents: 1
+n_agents: 2
 
 # model path: root_dir/model_name/name
 # tensorboard path: root_dir/model_name/logs
@@ -15,11 +15,11 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 5e4
+    store_period: 1e4
     restart_runners_priod: null
     max_version_iterations: 1
-    max_steps_per_iteration: 3e7
-    initialize_rms: &irms True
+    max_steps_per_iteration: 2e5
+    initialize_rms: &irms False
 
 parameter_server:
     root_dir: *algo
@@ -35,6 +35,14 @@ parameter_server:
             type: pfsp
             p: 1
 
+    # rule_strategies:
+    #     # agent name / config
+    #     random:
+    #         aid: 1
+    #         vid: 1
+    #         path: rule/random   # path to the file that defines Strategy
+    #         # other configs
+
 ray_config:
     runner:
         num_cpus: 1
@@ -44,33 +52,28 @@ ray_config:
 monitor: {}
 
 runner:
-    n_runners: &nrunners 8
-    n_steps: &nsteps 400
+    n_runners: &nrunners 1
+    n_steps: &nsteps 32
     push_every_episode: False
 
 env:
-    env_name: &env_name smac-3s5z_vs_3s6z
-    n_envs: &nenvs 1
-    use_state_agent: True
-    use_mustalive: True
-    add_center_xy: True
-    timeout_done: True
-    add_agent_id: True
-    do_evaluation: False
-    life_mask_at_done: 0
+    env_name: &env_name matrix-ipd
+    n_envs: &nenvs 8
+    max_episode_steps: 150
+    uid2aid: [0, 1]
 
 agent: {}
 
 strategy:
     train_loop:
         use_dataset: &dataset False
-        K: &K null
+        K: &K 1
         L: &L 0
         extra_meta_step: &ems 0 # 0/1
 
 model:
     rnn_type: &rnn null
-    sample_size: &ss 400
+    sample_size: &ss 32
     K: *K
     L: *L
     extra_meta_step: *ems
@@ -87,31 +90,41 @@ model:
     rnn:
         nn_id: *rnn
         units: 256
-        kernel_initializer: orthogonal
+        kernel_initialiszer: orthogonal
         recurrent_initializer: orthogonal
         use_ln: True
     policy:
         nn_id: policy
-        units_list: [64, 64]
+        units_list: []
         kernel_initializer: orthogonal
         activation: relu
         norm: layer
         norm_after_activation: True
         norm_kwargs:
-            epsilon: 1e-5
+            epsilon: 1.e-5
         eval_act_temp: 1
         out_gain: .01
-        init_std: 1
     value:
         nn_id: value
-        units_list: [64, 64]
+        units_list: []
         kernel_initializer: orthogonal
         activation: relu
         norm: layer
         norm_after_activation: True
         norm_kwargs:
-            epsilon: 1e-5
-    embed: null
+            epsilon: 1.e-5
+    meta_reward: 
+        nn_id: value
+        units_list: []
+        kernel_initializer: orthogonal
+        activation: tanh
+        norm: null
+    meta_value:
+        nn_id: value
+        units_list: []
+        kernel_initializer: orthogonal
+        activation: tanh
+        norm: null
     meta:
         nn_id: meta
         pg_coef:
@@ -120,10 +133,12 @@ model:
             init: null
             act: sigmoid
         entropy_coef:
-            outer: 1e-2
-            default: 1e-2
+            outer: 1e-5
+            default: 1e-5
+            scale: 5e-4
+            bias: 5e-4
             init: null
-            act: sigmoid
+            act: tanh
         value_coef:
             outer: 1
             default: 1
@@ -132,7 +147,7 @@ model:
             init: null
             act: sigmoid
         gamma: 
-            outer: &gamma .995
+            outer: &gamma .99
             default: *gamma
             scale: 1
             bias: 0
@@ -153,7 +168,7 @@ loss:
         c_clip: 1
         rho_clip: 1
         adv_type: vtrace
-        norm_adv: True
+        norm_adv: False
 
         # arguments for policy optimization
         pg_type: ppo
@@ -174,7 +189,7 @@ loss:
         c_clip: 1
         rho_clip: 1
         adv_type: vtrace
-        norm_adv: True
+        norm_adv: False
 
         # arguments for policy optimization
         pg_type: ppo
@@ -192,14 +207,12 @@ loss:
 
 trainer:
     algorithm: *algo
-    aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
     n_epochs: &nepochs 5
-    n_mbs: &nmbs 1
-    n_meta_epochs: 1
+    n_mbs: &nmbs 4
     sample_size: *ss         # BPTT length
-    timeout_done: True
+    timeout_done: &td True
     meta_type: plain
     K: *K
     L: *L
@@ -209,24 +222,24 @@ trainer:
     optimizer:
         opt_name: adam
         schedule_lr: False
-        lr: 5e-4
-        clip_norm: 10
-        epsilon: 1e-5
+        lr: 1e-1
+        clip_norm: .5
+        epsilon: 1.e-5
         weight_decay: 0
     meta_opt:
         opt_name: adam
         schedule_lr: False
-        lr: 5e-4
-        clip_norm: 10
-        epsilon: 1e-5
+        lr: 1e-3
+        clip_norm: .5
+        epsilon: 1.e-5
 
 actor:
     algorithm: *algo
 
     rms:
-        obs_names: [obs, global_state]
+        obs_names: [obs]
         normalize_obs: *irms
-        normalize_reward: True
+        normalize_reward: False
         obs_normalized_axis: [0, 1]
         reward_normalized_axis: [0, 1]
         update_reward_rms_in_time: True
@@ -245,22 +258,16 @@ buffer:
     L: *L
     extra_meta_step: *ems
     queue_size: 2
-    timeout_done: True
+    timeout_done: *td
     rnn_type: *rnn
 
-    # mini-batch size = n_runners * n_envs * epslen / n_mbs
-    sample_keys:
+    sample_keys: 
         - obs
-        - global_state
-        - prev_reward
-        - prev_action
-        - action_mask
-        - life_mask
         - action
+        - value
         - reward
         - discount
         - reset
-        - value
         - mu_logprob
         - mu
         - mask

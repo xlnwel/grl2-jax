@@ -186,6 +186,18 @@ def make_matrix(config):
 
     return env
 
+def make_grid_world(config):
+    assert 'grid_world' in config['env_name'], config['env_name']
+    from env.grid_world import env_map
+    config = config.copy()
+    config = _change_env_name(config)
+    env = env_map[config['env_name']](**config)
+    env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+    env = wrappers.DataProcess(env)
+    env = wrappers.MASimEnvStats(env)
+
+    return env
+
 def make_grf(config):
     assert 'grf' in config['env_name'], config['env_name']
     from env.grf import GRF
