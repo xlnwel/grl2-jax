@@ -6,6 +6,7 @@ from core.log import do_logging
 from utility import rl_loss
 from utility.tf_utils import assert_rank_and_shape_compatibility, reduce_mean, \
     explained_variance
+from .utils import get_hx
 
 logger = logging.getLogger(__name__)
 
@@ -264,9 +265,11 @@ class Loss(ValueLossImpl, POLossImpl):
         tape, 
         obs, 
         idx=None, 
+        event=None, 
         global_state, 
         next_obs=None, 
         next_idx=None, 
+        next_event=None, 
         next_global_state=None, 
         action, 
         old_value, 
@@ -298,11 +301,14 @@ class Loss(ValueLossImpl, POLossImpl):
         )
         if global_state is None:
             global_state = x
-        value = self.value(global_state, idx=idx)
+        hx = get_hx(idx, event)
+        value = self.value(global_state, hx=hx)
         if next_obs is None:
             x = x[:, :-1]
             if idx is not None:
                 idx = idx[:, :-1]
+            if event is not None:
+                event = event[:, :-1]
             next_value = value[:, 1:]
             value = value[:, :-1]
         else:
@@ -311,8 +317,9 @@ class Loss(ValueLossImpl, POLossImpl):
                 if next_global_state is None:
                     next_global_state = next_obs
                 next_x, _ = self.model.encode(next_global_state)
-                next_value = self.value(next_x, next_idx)
-        act_dist = self.policy(x, idx=idx, action_mask=action_mask)
+                next_value = self.value(next_x, hx=next_idx)
+        hx = get_hx(idx, event)
+        act_dist = self.policy(x, hx=hx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob
@@ -402,9 +409,11 @@ class Loss(ValueLossImpl, POLossImpl):
         tape, 
         obs, 
         idx=None, 
+        event=None, 
         hidden_state, 
         next_obs=None, 
         next_idx=None, 
+        next_event=None, 
         next_hidden_state=None, 
         action, 
         old_value, 
@@ -445,6 +454,8 @@ class Loss(ValueLossImpl, POLossImpl):
             x = x[:, :-1]
             if idx is not None:
                 idx = idx[:, :-1]
+            if event is not None:
+                event = event[:, :-1]
             next_value = value[:, 1:]
             value = value[:, :-1]
         else:
@@ -456,7 +467,8 @@ class Loss(ValueLossImpl, POLossImpl):
                 )
                 next_hidden_state = tf.gather(next_hidden_state, [0], axis=2)
                 next_value = self.meta_value(next_hidden_state)
-        act_dist = self.policy(x, idx=idx, action_mask=action_mask)
+        hx = get_hx(idx, event)
+        act_dist = self.policy(x, hx=hx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob

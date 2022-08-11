@@ -60,6 +60,7 @@ class Model(ModelBase):
         self, 
         obs, 
         idx=None, 
+        event=None, 
         global_state=None, 
         hidden_state=None, 
         action_mask=None, 
@@ -72,7 +73,11 @@ class Model(ModelBase):
         return_eval_stats=False
     ):
         x, state = self.encode(obs, state=state, mask=mask)
-        act_dist = self.policy(x, idx=idx, action_mask=action_mask, evaluation=evaluation)
+        act_dist = self.policy(
+            x, hx=idx, 
+            action_mask=action_mask, 
+            evaluation=evaluation
+        )
         action = self.policy.action(act_dist, evaluation)
 
         if self.policy.is_action_discrete:
@@ -91,12 +96,12 @@ class Model(ModelBase):
         if global_state is None:
             global_state = x
         if evaluation:
-            value = self.value(global_state, idx)
+            value = self.value(global_state, hx=idx)
             return action, {'value': value}, state
         else:
             logprob = act_dist.log_prob(action)
             tf.debugging.assert_all_finite(logprob, 'Bad logprob')
-            value = self.value(global_state, idx)
+            value = self.value(global_state, hx=idx)
             terms.update({'mu_logprob': logprob, 'value': value})
 
             return action, terms, state    # keep the batch dimension for later use
@@ -105,30 +110,17 @@ class Model(ModelBase):
         self, 
         obs, 
         idx=None, 
+        event=None, 
         global_state=None, 
         state: Tuple[tf.Tensor]=None,
         mask: tf.Tensor=None,
     ):
         x, state = self.encode(obs, state=state, mask=mask)
-        act_dist = self.policy(x, idx)
+        act_dist = self.policy(x, hx=idx)
         if global_state is None:
             global_state = x
-        value = self.value(global_state, idx)
+        value = self.value(global_state, hx=idx)
         return x, act_dist, value
-
-    @tf.function
-    def compute_value(
-        self, 
-        obs, 
-        state: Tuple[tf.Tensor]=None,
-        mask: tf.Tensor=None
-    ):
-        shape = obs.shape
-        x = tf.reshape(obs, [-1, *shape[2:]])
-        x, state = self.encode(x, state, mask)
-        value = self.value(x)
-        value = tf.reshape(value, (-1, shape[1]))
-        return value, state
 
     def encode(
         self, 

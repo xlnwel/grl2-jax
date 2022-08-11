@@ -1,3 +1,4 @@
+import string
 import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
@@ -47,7 +48,7 @@ class IndexedHead(Module):
         self.use_bias = config.pop('use_bias', True)
         self.config = dict2AttrDict(config)
     
-    def build(self, x, idx):
+    def build(self, x, hx):
         w_config = self.config.copy()
         w_config['w_in'] = x[-1]
         w_config['w_out'] = self.out_size
@@ -59,12 +60,15 @@ class IndexedHead(Module):
             b_config['w_out'] = self.out_size
             self._blayer = HyperNet(**b_config, name=f'{self._raw_name}_b')
 
-    def call(self, x, idx):
-        w = self._wlayer(idx)
-        eqt = 'esuh,esuho->esuo' if len(x.shape) == 4 else ('euh,euho->euo' if len(x.shape) == 3 else 'uh,uho->uo')
+    def call(self, x, hx):
+        w = self._wlayer(hx)
+        pre = string.ascii_lowercase[:len(x.shape)-1]
+        eqt = f'{pre}h,{pre}ho->{pre}o'
+        # eqt = 'esuh,esuho->esuo' if len(x.shape) == 4 else (
+        #     'euh,euho->euo' if len(x.shape) == 3 else 'uh,uho->uo')
         out = tf.einsum(eqt, x, w)
         if self.use_bias:
-            out = out + self._blayer(idx)
+            out = out + self._blayer(hx)
 
         return out
 
@@ -128,14 +132,14 @@ class Policy(Module):
                 name=name
             )
 
-    def call(self, x, idx=None, action_mask=None, evaluation=False):
+    def call(self, x, hx=None, action_mask=None, evaluation=False):
         tf.debugging.assert_all_finite(x, 'Bad input')
         if self.indexed == 'all':
             for l in self._layers:
-                x = l(x, idx)
+                x = l(x, hx)
         elif self.indexed == 'head':
             x = self._layers(x)
-            x = self._head(x, idx)
+            x = self._head(x, hx)
         else:
             x = self._layers(x)
         tf.debugging.assert_all_finite(x, 'Bad policy output')
@@ -215,13 +219,13 @@ class Value(Module):
                 name=name
             )
 
-    def call(self, x, idx=None):
+    def call(self, x, hx=None):
         if self.indexed == 'all':
             for l in self._layers:
-                x = l(x, idx)
+                x = l(x, hx)
         elif self.indexed == 'head':
             x = self._layers(x)
-            x = self._head(x, idx)
+            x = self._head(x, hx)
         else:
             x = self._layers(x)
         value = x

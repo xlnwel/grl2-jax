@@ -135,6 +135,7 @@ class Trainer(TrainerBase):
         state=None, 
         mask=None, 
         use_meta=False, 
+        debug=True, 
         return_grads=False
     ):
         n_mbs = self.config.get('n_mbs', 1)
@@ -170,7 +171,7 @@ class Trainer(TrainerBase):
                         state=state, 
                         mask=mask, 
                         use_meta=use_meta, 
-                        debug=not self._use_meta
+                        debug=debug
                     )
                 terms['grads_norm'], var_norms = opt(
                     tape, loss, return_var_norms=True
@@ -209,7 +210,7 @@ class Trainer(TrainerBase):
                     state=state, 
                     mask=mask, 
                     use_meta=use_meta, 
-                    debug=not self._use_meta
+                    debug=debug
                 )
                 terms['grads_norm'], var_norms = opt(
                     tape, loss, return_var_norms=True
@@ -220,7 +221,7 @@ class Trainer(TrainerBase):
                     grads = list(grads.values())
                     for g in grads:
                         tf.debugging.assert_all_finite(g, f'Bad {g.name}')
-                    terms[f'trans_grads_norm'] = tf.linalg.global_norm(grads)
+                    terms['trans_grads_norm'] = tf.linalg.global_norm(grads)
                     grads_list.append(grads)
 
         if return_grads:

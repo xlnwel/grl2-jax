@@ -193,8 +193,10 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
         config: AttrDict, 
         env_stats: AttrDict, 
         model: Model, 
+        aid: int=0, 
     ):
         self.config = dict2AttrDict(config)
+        self.aid = aid
         self._add_attributes(env_stats, model)
 
     def _add_attributes(self, env_stats, model):
@@ -219,7 +221,7 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
             env_stats, 
             model, 
             0, 
-            0, 
+            self.aid, 
             env_stats.n_units
         )
 

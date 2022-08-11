@@ -7,7 +7,7 @@ from core.mixin.model import NetworkSyncOps
 from core.tf_config import build
 from utility.file import source_file
 from utility.typing import AttrDict
-from .utils import compute_inner_steps
+from .utils import compute_inner_steps, get_hx
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -60,6 +60,7 @@ class Model(ModelBase):
         self, 
         obs, 
         idx=None, 
+        event=None, 
         global_state=None, 
         hidden_state=None, 
         action_mask=None, 
@@ -72,7 +73,12 @@ class Model(ModelBase):
         return_eval_stats=False
     ):
         x, state = self.encode(obs, state=state, mask=mask)
-        act_dist = self.policy(x, idx=idx, action_mask=action_mask, evaluation=evaluation)
+        hx = get_hx(idx, event)
+        act_dist = self.policy(
+            x, hx=hx, 
+            action_mask=action_mask, 
+            evaluation=evaluation
+        )
         action = self.policy.action(act_dist, evaluation)
 
         if self.policy.is_action_discrete:
@@ -91,12 +97,12 @@ class Model(ModelBase):
         if global_state is None:
             global_state = x
         if evaluation:
-            value = self.value(global_state, idx=idx)
+            value = self.value(global_state, hx=hx)
             return action, {'value': value}, state
         else:
             logprob = act_dist.log_prob(action)
             tf.debugging.assert_all_finite(logprob, 'Bad logprob')
-            value = self.value(global_state, idx=idx)
+            value = self.value(global_state, hx=hx)
             terms.update({'mu_logprob': logprob, 'value': value})
 
             return action, terms, state    # keep the batch dimension for later use
@@ -105,15 +111,17 @@ class Model(ModelBase):
         self, 
         obs, 
         idx=None, 
+        event=None, 
         global_state=None, 
         state: Tuple[tf.Tensor]=None,
         mask: tf.Tensor=None,
     ):
         x, state = self.encode(obs, state=state, mask=mask)
-        act_dist = self.policy(x, idx=idx)
+        hx = get_hx(idx, event)
+        act_dist = self.policy(x, hx=hx)
         if global_state is None:
             global_state = x
-        value = self.value(global_state)
+        value = self.value(global_state, hx=hx)
         return x, act_dist, value
 
     def encode(
@@ -167,8 +175,9 @@ class ModelEnsemble(ModelEnsembleBase):
 
     @tf.function
     def sync_meta_nets(self):
-        source = [self.meta[k] for k in ['meta', 'meta_reward']]
-        target = [self.rl[k] for k in ['meta', 'meta_reward']]
+        keys = ['meta', 'meta_reward']
+        source = [self.meta[k] for k in keys]
+        target = [self.rl[k] for k in keys]
         self.sync_ops.sync_nets(source, target)
 
     @tf.function

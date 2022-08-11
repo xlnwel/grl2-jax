@@ -15,6 +15,8 @@ def prefix_name(terms, name):
         for k, v in terms.items():
             if '/' not in k:
                 new_terms[f'{name}/{k}'] = v
+            else:
+                new_terms[k] = v
         return new_terms
     return terms
 
@@ -24,7 +26,6 @@ class POLossImpl(LossBase):
         self, 
         tape, 
         act_dist, 
-        action, 
         advantage, 
         ratio, 
         pi_logprob, 
@@ -38,7 +39,7 @@ class POLossImpl(LossBase):
         use_meta=False, 
         debug=True
     ):
-        if not self.config.get('life_mask'):
+        if not self.config.get('policy_life_mask', True):
             sample_mask = None
         terms = {}
         tf.debugging.assert_all_finite(advantage, 'Bad advantage')
@@ -70,7 +71,7 @@ class POLossImpl(LossBase):
             )
         else:
             dice_op = pi_logprob
-        if self.config.pg_type == 'vtrace':
+        if self.config.pg_type == 'pg':
             raw_pg_loss, pg_loss = rl_loss.pg_loss(
                 pg_coef=pg_coef, 
                 advantage=advantage, 
@@ -80,10 +81,11 @@ class POLossImpl(LossBase):
             )
         elif self.config.pg_type == 'ppo':
             loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
-                rl_loss.ppo_loss(
+                rl_loss.high_order_ppo_loss(
                     pg_coef=pg_coef, 
                     advantage=advantage, 
                     ratio=ratio, 
+                    dice_op=dice_op, 
                     clip_range=self.config.ppo_clip_range, 
                     mask=sample_mask, 
                     n=n, 
@@ -143,7 +145,7 @@ class ValueLossImpl(LossBase):
         use_meta=False, 
         debug=False
     ):
-        if not self.config.get('life_mask'):
+        if not self.config.get('value_life_mask', False):
             sample_mask = None
         value_loss_type = getattr(self.config, 'value_loss', 'mse')
         value_coef = self.model.meta('value_coef', inner=use_meta)
@@ -306,7 +308,7 @@ class Loss(ValueLossImpl, POLossImpl):
                 assert state is None, 'unexpected states'
                 next_x, _ = self.model.encode(next_obs)
                 next_value = self.value(next_x, next_idx)
-        act_dist = self.policy(x, idx=idx, action_mask=action_mask)
+        act_dist = self.policy(x, hx=idx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob
@@ -332,7 +334,6 @@ class Loss(ValueLossImpl, POLossImpl):
         actor_loss, actor_terms = self._pg_loss(
             tape=tape, 
             act_dist=act_dist, 
-            action=action, 
             advantage=advantage, 
             ratio=ratio, 
             pi_logprob=pi_logprob, 

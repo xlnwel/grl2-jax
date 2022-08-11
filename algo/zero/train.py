@@ -66,7 +66,7 @@ def train(config, agent, env, eval_env, buffer):
                         size=config.get('size', (64, 64))
                     )
                 if config.RECORD_VIDEO:
-                    agent.video_summary(video, step=step)
+                    agent.video_summary(video, step=step, fps=1)
                 agent.store(
                     eval_score=eval_score, 
                     eval_epslen=eval_epslen)
@@ -127,7 +127,8 @@ def train(config, agent, env, eval_env, buffer):
         if to_eval(step) or step > config.MAX_STEPS:
             evaluate_agent(step, eval_env, agent)
 
-        if to_record(step) and agent.contains_stats('score'):
+        if (to_record(step) or step > config.MAX_STEPS) \
+            and agent.contains_stats('score'):
             record_stats(step, start_env_step, train_step, start_train_step)
 
 def main(configs, train=train, gpu=-1):
