@@ -230,7 +230,7 @@ buffer:
     sample_keys: 
         - obs
         - idx
-        # - event
+        - event
         - hidden_state
         - action
         - value

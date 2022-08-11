@@ -517,8 +517,8 @@ class Trainer(TrainerBase):
                         mask=mask[-1] if mask is not None else mask, 
                     )
                     meta_grads.append(mgs)
-                meta_grads = [sum(mg) / len(mg) for mg in zip(*meta_grads)]
-                meta_terms = self._apply_meta_grads(meta_grads, meta_vars, meta_terms)
+            meta_grads = [sum(mg) / len(mg) for mg in zip(*meta_grads)]
+            meta_terms = self._apply_meta_grads(meta_grads, meta_vars, meta_terms)
         terms['in_reward'] = in_reward
         if event is not None:
             fake_event = tf.one_hot(tf.convert_to_tensor([[0, 1], [1, 0]]), 2)
