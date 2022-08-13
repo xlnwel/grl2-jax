@@ -67,7 +67,7 @@ class Model(Ensemble):
             returns a list of all weights
         """
         if name is None:
-            return [v.numpy() for v in self.variables]
+            name = list(self.components.keys())
         elif isinstance(name, str):
             name = [name]
         assert isinstance(name, (tuple, list))

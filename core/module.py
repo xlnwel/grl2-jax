@@ -1,6 +1,8 @@
 import inspect
+import logging
 import functools
 import tensorflow as tf
+from core.log import do_logging
 from tensorflow.keras import layers
 
 from core.ckpt.pickle import Checkpoint
@@ -8,6 +10,7 @@ from core.typing import ModelPath
 from utility.typing import AttrDict
 from utility.utils import dict2AttrDict, flatten_dict, set_path
 
+logger = logging.getLogger(__name__)
 
 def constructor(config, env_stats, cls, name):
     return cls(config=config, env_stats=env_stats, name=name)
@@ -72,6 +75,10 @@ class Module(tf.Module):
     def set_weights(self, weights):
         if isinstance(weights, str):
             self.initialize(weights)
+        elif len(self.variables) == 0:
+            do_logging(f"Skipping setting weights for {self.scope_name} because it's not initialized", logger=logger)
+        elif len(weights) == 0:
+            do_logging(f"Skipping setting weights for {self.scope_name} due to missing weights", logger=logger)
         else:
             assert len(self.variables) == len(weights), (len(self.variables), len(weights))
             [v.assign(w if v.shape == w.shape else

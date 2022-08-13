@@ -33,14 +33,15 @@ class Model(ModelBase):
         dtypes = env_stats['obs_dtype'][aid]
         TensorSpecs = {k: ((*basic_shape, *v), dtypes[k], k) 
             for k, v in shapes.items()}
-
+        TensorSpecs.update(dict(
+            evaluation=evaluation,
+            return_eval_stats=evaluation,
+        ))
         if self.has_rnn:
             TensorSpecs.update(dict(
                 state=self.state_type(*[((None, sz), dtype, name) 
                     for name, sz in self.state_size._asdict().items()]),
                 mask=(basic_shape, tf.float32, 'mask'),
-                evaluation=evaluation,
-                return_eval_stats=evaluation,
             ))
         if env_stats.use_action_mask:
             TensorSpecs['action_mask'] = (

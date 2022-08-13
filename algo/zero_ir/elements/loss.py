@@ -293,6 +293,9 @@ class Loss(ValueLossImpl, POLossImpl):
         n = None if sample_mask is None else tf.reduce_sum(sample_mask)
         gamma = self.model.meta('gamma', inner=use_meta)
         lam = self.model.meta('lam', inner=use_meta)
+        reward_scale = self.model.meta('reward_scale', inner=use_meta)
+        reward_bias = self.model.meta('reward_bias', inner=use_meta)
+        reward = reward_scale * reward + reward_bias
 
         x, _ = self.model.encode(
             x=obs, 
@@ -417,6 +420,7 @@ class Loss(ValueLossImpl, POLossImpl):
         next_hidden_state=None, 
         action, 
         old_value, 
+        in_reward, 
         reward, 
         discount, 
         reset, 
@@ -512,6 +516,7 @@ class Loss(ValueLossImpl, POLossImpl):
             debug=debug, 
             loss_pg=loss_pg, 
             loss_clip=loss_clip, 
+            pg_loss=actor_loss, 
             clip_frac=clip_frac, 
         )
         value_loss, value_terms = self._value_loss(
@@ -526,7 +531,14 @@ class Loss(ValueLossImpl, POLossImpl):
             debug=debug
         )
 
-        loss = actor_loss + value_loss
+        in_reward = tf.math.abs(in_reward)
+        raw_in_reward_loss, in_reward_loss = rl_loss.to_loss(
+            in_reward, 
+            self.config.in_reward_coef, 
+            mask=mask, 
+            n=n
+        )
+        loss = actor_loss + value_loss + in_reward_loss
         
         terms.update(value_terms)
         self.log_for_debug(
@@ -536,6 +548,8 @@ class Loss(ValueLossImpl, POLossImpl):
             gamma=gamma, 
             lam=lam, 
             pi_logprob=pi_logprob, 
+            raw_in_reward_loss=raw_in_reward_loss,
+            in_reward_loss=in_reward_loss,
             ratio=ratio, 
             approx_kl=.5 * reduce_mean((log_ratio)**2, sample_mask, n), 
             loss=loss, 

@@ -3,6 +3,7 @@ from typing import Tuple
 import tensorflow as tf
 
 from core.elements.model import Model as ModelBase, ModelEnsemble as ModelEnsembleBase
+from core.log import do_logging
 from core.mixin.model import NetworkSyncOps
 from core.tf_config import build
 from utility.file import source_file
@@ -33,14 +34,15 @@ class Model(ModelBase):
         dtypes = env_stats['obs_dtype'][aid]
         TensorSpecs = {k: ((*basic_shape, *v), dtypes[k], k) 
             for k, v in shapes.items()}
-
+        TensorSpecs.update(dict(
+            evaluation=evaluation,
+            return_eval_stats=evaluation,
+        ))
         if self.has_rnn:
             TensorSpecs.update(dict(
                 state=self.state_type(*[((None, sz), dtype, name) 
                     for name, sz in self.state_size._asdict().items()]),
                 mask=(basic_shape, tf.float32, 'mask'),
-                evaluation=evaluation,
-                return_eval_stats=evaluation,
             ))
         if env_stats.use_action_mask:
             TensorSpecs['action_mask'] = (
@@ -50,6 +52,7 @@ class Model(ModelBase):
             TensorSpecs['life_mask'] = (
                 basic_shape, tf.float32, 'life_mask'
             )
+        do_logging(TensorSpecs, prefix='Tensor Specifications', level='print')
         self.action = build(self.action, TensorSpecs)
 
     def _post_init(self):
@@ -84,7 +87,7 @@ class Model(ModelBase):
         if self.policy.is_action_discrete:
             pi = tf.nn.softmax(act_dist.logits)
             terms = {
-                'mu': pi
+                'mu': pi, 
             }
         else:
             mean = act_dist.mean()
@@ -98,7 +101,17 @@ class Model(ModelBase):
             global_state = x
         if evaluation:
             value = self.value(global_state, hx=hx)
-            return action, {'value': value}, state
+            action_oh = tf.one_hot(action, self.policy.action_dim)
+            x = tf.concat([hidden_state, action_oh], -1)
+            in_reward = self.meta_reward(x, hx=hx)
+            # reward_scale = self.meta('reward_scale', inner=True)
+            # reward_bias = self.meta('reward_bias', inner=True)
+            # in_reward = reward_scale * in_reward + reward_bias
+            in_reward = tf.squeeze(in_reward)
+            value = tf.squeeze(value)
+            terms = {'in_reward': in_reward, 'value': value, 'action': action}
+            
+            return action, terms, state
         else:
             logprob = act_dist.log_prob(action)
             tf.debugging.assert_all_finite(logprob, 'Bad logprob')

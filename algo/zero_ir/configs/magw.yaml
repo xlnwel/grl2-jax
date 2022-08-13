@@ -13,20 +13,22 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 1e7
+    MAX_STEPS: 5e7
     n_steps: &nsteps 32
     LOG_PERIOD: 1e5
-    EVAL_PERIOD: False
+    EVAL_PERIOD: 1e6
 
     RECORD_VIDEO: True
-    N_EVAL_EPISODES: 5
+    N_EVAL_EPISODES: 1
     size: [256, 256]
 
 env:
     env_name: &env_name gw-staghunt
     n_runners: &nrunners 1
-    n_envs: &nenvs 128
+    n_envs: &nenvs 64
     max_episode_steps: 50
+    share_reward: False
+    stag_stay_still: True
 
     uid2aid: [0, 0]
     use_idx: True
@@ -82,7 +84,7 @@ model:
         kernel_initializer: orthogonal
         activation: relu
         norm: null
-        out_act: null
+        out_act: tanh
         indexed: head
         use_bias: True
     meta_value:
@@ -124,6 +126,20 @@ model:
             bias: 0
             init: null
             act: sigmoid
+        reward_scale:
+            outer: 1
+            default: 1
+            scale: 5
+            bias: 0
+            init: null
+            act: sigmoid
+        reward_bias:
+            outer: 0
+            default: 0
+            scale: 5
+            bias: 0
+            init: null
+            act: tanh
 
 loss:
     rl:
@@ -169,6 +185,8 @@ loss:
         value_clip_range: .2
         life_mask: False
 
+        in_reward_coef: 0
+
 trainer:
     algorithm: *algo
     aid: 0
@@ -184,6 +202,7 @@ trainer:
     L: *L
     extra_meta_step: *ems
     store_state: True
+    event_done: False
     
     optimizer:
         opt_name: adam
@@ -198,6 +217,7 @@ trainer:
         lr: 1e-3
         clip_norm: .5
         epsilon: 1e-4
+        weight_decay: null
 
 actor:
     update_obs_rms_at_execution: False
@@ -208,7 +228,7 @@ actor:
         reward_normalized_axis: [0, 1, 2]
         normalize_obs: True
         obs_clip: 10
-        normalize_reward: True
+        normalize_reward: False
         update_reward_rms_in_time: False
         gamma: *gamma
 
@@ -230,7 +250,7 @@ buffer:
     sample_keys: 
         - obs
         - idx
-        - event
+        # - event
         - hidden_state
         - action
         - value

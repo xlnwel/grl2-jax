@@ -50,7 +50,7 @@ class Trainer(TrainerBase):
         config.optimizer.opt_name = opts[opt_name]
         modules = _get_rl_modules(self.model['rl'])
         do_logging(modules, prefix='RL modules', level='print')
-        self.optimizers: Dict[Optimizer] = {}
+        self.optimizers: Dict[str, Optimizer] = {}
         self.optimizers['rl'] = create_optimizer(
             modules, config.optimizer, f'rl/{opt_name}'
         )
@@ -527,7 +527,7 @@ class Trainer(TrainerBase):
 
     def set_optimizer_weights(self, weights):
         for k, v in weights.items():
-            self.optimizers[k] = v
+            self.optimizers[k].set_weights(v)
 
 
 create_trainer = functools.partial(create_trainer,

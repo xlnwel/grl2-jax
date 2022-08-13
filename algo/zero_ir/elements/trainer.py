@@ -51,7 +51,7 @@ class Trainer(TrainerBase):
         config.optimizer.opt_name = opts[opt_name]
         modules = _get_rl_modules(self.model['rl'])
         do_logging(modules, prefix='RL modules', level='print')
-        self.optimizers: Dict[Optimizer] = {}
+        self.optimizers: Dict[str, Optimizer] = {}
         self.optimizers['rl'] = create_optimizer(
             modules, config.optimizer, f'rl/{opt_name}'
         )
@@ -247,6 +247,7 @@ class Trainer(TrainerBase):
         next_hidden_state=None, 
         action, 
         value, 
+        in_reward, 
         reward, 
         discount, 
         reset, 
@@ -273,6 +274,7 @@ class Trainer(TrainerBase):
             next_hidden_state=next_hidden_state, 
             action=action, 
             old_value=value, 
+            in_reward=in_reward, 
             reward=reward, 
             discount=discount, 
             reset=reset, 
@@ -289,7 +291,6 @@ class Trainer(TrainerBase):
             name='meta', 
             use_meta=False
         )
-
         with tape.stop_recording():
             meta_vars = sum([m.variables for m in self.meta_modules], ())
             self.optimizers['meta'].set_variables(meta_vars)
@@ -402,15 +403,6 @@ class Trainer(TrainerBase):
                 debug=not self._use_meta, 
                 use_meta=use_meta, 
             )
-        terms['in_reward'] = in_reward
-        # fake_act = tf.one_hot(tf.convert_to_tensor([0, 1]), self.model['rl'].policy.action_dim)
-        # i = tf.random.uniform((), 0, 2, dtype=tf.int32)
-        # fake_obs = hidden_state[0, i]
-        # x = tf.concat([fake_obs, fake_act], -1)
-        # hx = get_hx(idx[0, i], None if event is None else event[0, i])
-        # fake_in_reward = self.model['rl'].meta_reward(x, hx=hx)
-        # terms['in_reward1'] = fake_in_reward[0]
-        # terms['in_reward2'] = fake_in_reward[1]
 
         return terms
 
@@ -456,10 +448,16 @@ class Trainer(TrainerBase):
             action_oh = tf.one_hot(action, self.model['rl'].policy.action_dim)
             x = tf.concat([hidden_state[:, :, :-1], action_oh], -1)
             in_reward = self.model['meta'].meta_reward(x, hx=hx)
+            if event is not None and self.config.event_done:
+                event_idx = tf.argmax(event, -1)
+                in_discount = tf.cast(event_idx[:, :, :-1] == event_idx[:, :, 1:], tf.float32)
+            else:
+                in_discount = discount
             for i in range(inner_steps):
                 meta_grads = []
+                grads_list = []
                 for j in range(self.config.n_epochs):
-                    terms, grads_list = self._inner_epoch(
+                    terms, gs = self._inner_epoch(
                         opt=self.optimizers['meta_rl'], 
                         loss_fn=self.loss.meta.loss, 
                         obs=obs[i], 
@@ -473,7 +471,7 @@ class Trainer(TrainerBase):
                         action=action[i], 
                         value=value[i], 
                         reward=in_reward[i], 
-                        discount=discount[i], 
+                        discount=in_discount[i], 
                         reset=reset[i], 
                         mu_logprob=mu_logprob[i], 
                         mu=mu[i] if mu is not None else mu, 
@@ -488,6 +486,7 @@ class Trainer(TrainerBase):
                         use_meta=True, 
                         return_grads=True
                     )
+                    grads_list += gs
 
                     mgs, meta_vars, meta_terms = self._outer_grads(
                         tape=meta_tape, 
@@ -502,6 +501,7 @@ class Trainer(TrainerBase):
                         next_hidden_state= None if next_hidden_state is None else next_hidden_state[-1], 
                         action=action[-1], 
                         value=value[-1], 
+                        in_reward=in_reward, 
                         reward=reward[-1], 
                         discount=discount[-1], 
                         reset=reset[-1], 
@@ -520,21 +520,21 @@ class Trainer(TrainerBase):
             meta_grads = [sum(mg) / len(mg) for mg in zip(*meta_grads)]
             meta_terms = self._apply_meta_grads(meta_grads, meta_vars, meta_terms)
         terms['in_reward'] = in_reward
-        if event is not None:
-            fake_event = tf.one_hot(tf.convert_to_tensor([[0, 1], [1, 0]]), 2)
-            fake_idx = tf.one_hot(tf.convert_to_tensor([[0, 1], [0, 1]]), 2)
-            hx = get_hx(fake_idx, fake_event)
-        else:
-            hx = tf.one_hot(tf.convert_to_tensor([[0, 1], [0, 1]]), 2)
-        fake_obs = hidden_state[0, 0, :2]
-        fake_act = tf.one_hot(action[0, 0, :2], self.model['rl'].policy.action_dim)
-        x = tf.concat([fake_obs, fake_act], -1)
-        fake_in_reward = self.model['meta'].meta_reward(x, hx=hx)
-        terms['in_reward11'] = fake_in_reward[0, 0]
-        terms['in_reward21'] = fake_in_reward[1, 0]
-        if event is not None:
-            terms['in_reward12'] = fake_in_reward[0, 1]
-            terms['in_reward22'] = fake_in_reward[1, 1]
+        # if event is not None:
+        #     fake_event = tf.one_hot(tf.convert_to_tensor([[0, 1], [1, 0]]), 2)
+        #     fake_idx = tf.one_hot(tf.convert_to_tensor([[0, 1], [0, 1]]), 2)
+        #     hx = get_hx(fake_idx, fake_event)
+        # else:
+        #     hx = tf.one_hot(tf.convert_to_tensor([[0, 1], [0, 1]]), 2)
+        # fake_obs = hidden_state[0, 0, :2]
+        # fake_act = tf.one_hot(action[0, 0, :2], self.model['rl'].policy.action_dim)
+        # x = tf.concat([fake_obs, fake_act], -1)
+        # fake_in_reward = self.model['meta'].meta_reward(x, hx=hx)
+        # terms['in_reward11'] = fake_in_reward[0, 0]
+        # terms['in_reward21'] = fake_in_reward[1, 0]
+        # if event is not None:
+        #     terms['in_reward12'] = fake_in_reward[0, 1]
+        #     terms['in_reward22'] = fake_in_reward[1, 1]
 
         terms.update(meta_terms)
 
@@ -549,7 +549,7 @@ class Trainer(TrainerBase):
 
     def set_optimizer_weights(self, weights):
         for k, v in weights.items():
-            self.optimizers[k] = v
+            self.optimizers[k].set_weights(v)
 
 
 create_trainer = functools.partial(create_trainer,
