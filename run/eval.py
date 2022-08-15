@@ -8,8 +8,10 @@ from core.elements.builder import ElementsBuilder
 from core.log import setup_logging
 from core.tf_config import *
 from utility.display import pwc
+from utility.plot import plot_data_dict
 from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
+from utility.utils import dict2AttrDict
 from utility.graph import save_video
 from utility import pkg
 from env.func import create_env
@@ -17,9 +19,14 @@ from run.args import parse_eval_args
 from run.utils import search_for_config
 
 
+def plot(data: dict, outdir: str, figname: str):
+    data = {k: np.squeeze(v) for k, v in data.items()}
+    data = {k: np.swapaxes(v, 0, 1) if v.ndim == 2 else v for k, v in data.items()}
+    plot_data_dict(data, outdir=outdir, figname=figname)
+
 def main(configs, n, record=False, size=(128, 128), video_len=1000, 
-        fps=30, save=False):
-    config = configs[0]
+        fps=30, out_dir='results', info=''):
+    config = dict2AttrDict(configs[0])
     use_ray = config.env.get('n_runners', 0) > 1
     if use_ray:
         import ray
@@ -41,15 +48,23 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
 
     env_stats = env.stats()
 
+    print('start building')
     builder = ElementsBuilder(config, env_stats, config.algorithm)
     elements = builder.build_acting_agent_from_scratch(to_build_for_eval=True)
     agent = elements.agent
+    print('start evaluation')
 
     if n < env.n_envs:
         n = env.n_envs
     start = time.time()
-    scores, epslens, video = evaluate(
-        env, agent, n, record_video=record, size=size, video_len=video_len)
+    scores, epslens, data, video = evaluate(
+        env, 
+        agent, 
+        n, 
+        record_video=record, 
+        size=size, 
+        video_len=video_len
+    )
 
     pwc(f'After running {n} episodes',
         f'Score: {np.mean(scores):.3g}',
@@ -57,8 +72,16 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
         f'Time: {time.time()-start:.3g}',
         color='cyan')
 
+    filename = f'{algo_name}-{env_name}'
+    if config.get('info'):
+        out_dir = f'{out_dir}/{filename}'
+        filename = f"{config['info']}"
+    if info:
+        out_dir = f'{out_dir}/{filename}'
+        filename = f'{info}'
     if record:
-        save_video(f'{algo_name}-{env_name}', video, fps=fps)
+        plot(data, out_dir, filename)
+        save_video(filename, video, fps=fps, out_dir=out_dir)
     if use_ray:
         ray.shutdown()
 
@@ -94,4 +117,5 @@ if __name__ == '__main__':
         n = max(args.n_runners * args.n_envs, n)
 
     main(configs, n=n, record=args.record, size=args.size, 
-        video_len=args.video_len, fps=args.fps, save=args.save)
+        video_len=args.video_len, fps=args.fps, 
+        info=args.info)

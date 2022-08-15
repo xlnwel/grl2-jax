@@ -208,6 +208,7 @@ trainer:
             lr: 1e-4
             clip_norm: .5
             epsilon: 1.e-5
+            weight_decay: null
 
 actor:
     algorithm: *algo

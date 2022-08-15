@@ -1,6 +1,6 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo sync-gpo
+algorithm: &algo sync2-zero
 name: zero
 version: 0
 
@@ -58,7 +58,7 @@ runner:
 
 env:
     env_name: &env_name grf-11_vs_11_hard_stochastic
-    representation: simple115v2
+    representation: custom
     rewards: scoring,checkpoints
     render: False
     write_full_episode_dumps: False
@@ -77,14 +77,19 @@ env:
 
     n_envs: &nenvs 1
 
+    use_idx: True
+    use_hidden: True
+    use_event: False
+    agentwise_global_state: False
+
 agent: {}
 
 strategy:
     train_loop:
         use_dataset: &dataset False
-        K: &K null
+        K: &K 1
         L: &L 0
-        extra_meta_step: &ems 1 # 0/1
+        extra_meta_step: &ems 0 # 0/1
 
 model:
     aid: 0
@@ -117,10 +122,11 @@ model:
         norm: layer
         norm_after_activation: True
         norm_kwargs:
-            epsilon: 1.e-5
+            epsilon: 1e-5
         eval_act_temp: 1
         out_gain: .01
-        init_std: 1
+        indexed: head
+        use_bias: True
     value:
         nn_id: value
         units_list: [256, 256, 256]
@@ -130,21 +136,24 @@ model:
         norm_after_activation: True
         norm_kwargs:
             epsilon: 1.e-5
+        indexed: head
+        use_bias: True
     meta_reward: 
         nn_id: value
-        units_list: [256, 256]
+        units_list: [256, 256, 256]
         kernel_initializer: orthogonal
         activation: relu
         use_bias: False
-        norm: null
+        norm: layer
         out_act: null
-        indexed_head: True
+        indexed: head
+        use_bias: True
     meta_value:
         nn_id: value
-        units_list: [256, 256]
+        units_list: [256, 256, 256]
         kernel_initializer: orthogonal
         activation: relu
-        norm: null
+        norm: layer
     embed: null
     meta:
         nn_id: meta
@@ -156,8 +165,10 @@ model:
         entropy_coef:
             outer: 5e-4
             default: 5e-4
+            scale: 5e-4
+            bias: 5e-4
             init: null
-            act: sigmoid
+            act: tanh
         value_coef:
             outer: 1
             default: 1
@@ -179,6 +190,27 @@ model:
             bias: 0
             init: null
             act: sigmoid
+        reward_scale:
+            outer: 1
+            default: 1
+            scale: 5
+            bias: 0
+            init: null
+            act: sigmoid
+        reward_bias:
+            outer: 0
+            default: 0
+            scale: 5
+            bias: 0
+            init: null
+            act: tanh
+        reward_coef:
+            outer: 1
+            default: 1
+            scale: 1
+            bias: 0
+            init: 5
+            act: sigmoid
 
 loss:
     rl:
@@ -199,7 +231,7 @@ loss:
         kl_coef: 1
 
         # arguments for value learning
-        value_loss: clip
+        value_loss: mse
         value_clip_range: .2
         life_mask: False
     meta:
@@ -220,9 +252,11 @@ loss:
         kl_coef: 1
 
         # arguments for value learning
-        value_loss: clip
+        value_loss: mse
         value_clip_range: .2
         life_mask: False
+
+        meta_reward_coef: 0
 
 trainer:
     algorithm: *algo
@@ -245,22 +279,22 @@ trainer:
         schedule_lr: False
         lr: 1e-4
         clip_norm: .5
-        epsilon: 1.e-5
+        epsilon: 1e-5
         weight_decay: 0
     meta_opt:
         opt_name: adam
         schedule_lr: False
         lr: 1e-4
         clip_norm: .5
-        epsilon: 1.e-5
+        epsilon: 1e-5
 
 actor:
     algorithm: *algo
 
     rms:
-        obs_names: [obs, global_state]
+        obs_names: [obs, global_state, hidden_state]
         normalize_obs: *irms
-        normalize_reward: True
+        normalize_reward: False
         obs_normalized_axis: [0, 1]
         reward_normalized_axis: [0, 1]
         update_reward_rms_in_time: True
@@ -285,15 +319,17 @@ buffer:
     # mini-batch size = n_runners * n_envs * epslen / n_mbs
     sample_keys:
         - obs
+        - idx
         - global_state
+        - hidden_state
         - prev_reward
         - prev_action
         - action_mask
         - action
+        - value
         - reward
         - discount
         - reset
-        - value
         - mu_logprob
         - mu
         - mask

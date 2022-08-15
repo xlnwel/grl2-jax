@@ -8,7 +8,7 @@ from core.tf_config import \
     configure_gpu, configure_precision, silence_tf_logs
 from utility.display import pwt
 from utility.utils import AttrDict2dict, TempStore, set_seed
-from utility.run import Runner, evaluate
+from utility.run import Runner
 from utility.timer import Every, Timer
 from utility import pkg
 from env.func import create_env
@@ -68,7 +68,7 @@ def train(config, agent, env, eval_env_config, buffer):
                     routine_config.N_EVAL_EPISODES, 
                     record=routine_config.RECORD_VIDEO, 
                     fps=1, 
-                    info=step
+                    info=step // routine_config.EVAL_PERIOD * routine_config.EVAL_PERIOD
                 )
                 return p
 

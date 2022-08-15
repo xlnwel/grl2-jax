@@ -118,10 +118,12 @@ def _run_with_configs(cmd_args):
         config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
 
         config = config_info(config, cmd_args.info)
-        if config['info'] is None:
-            info = model_name.split('-', 1)[-1]
-            info = info.split('/')[0]
+        info = model_name.split('-', 1)[-1]
+        info = info.split('/')[0]
+        if not config['info'] or config['info'] in info:
             config['info'] = info
+        else:
+            config['info'] = config['info'] + info
         configs.append(config)
 
     if cmd_args.grid_search or cmd_args.trials > 1:
@@ -143,5 +145,6 @@ if __name__ == '__main__':
     if cmd_args.directory != '':
         configs = [search_for_config(d) for d in cmd_args.directory]
         main = pkg.import_main('train', config=configs[0])
+        main(configs)
     else:
         _run_with_configs(cmd_args)

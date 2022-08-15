@@ -188,7 +188,7 @@ class ModelEnsemble(ModelEnsembleBase):
 
     @tf.function
     def sync_meta_nets(self):
-        keys = ['meta', 'meta_reward']
+        keys = ['meta']
         source = [self.meta[k] for k in keys]
         target = [self.rl[k] for k in keys]
         self.sync_ops.sync_nets(source, target)

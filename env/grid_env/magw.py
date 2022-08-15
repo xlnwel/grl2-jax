@@ -26,7 +26,7 @@ DEFAULT_COLOURS = {' ': [0, 0, 0],  # Black background
                    'S': [238, 133, 114], 
 
                    # Colours for agents. R value is a unique identifier
-                   '1': [166, 90, 3],  
+                   '1': [30, 191, 252],  
                    '2': [30, 191, 252],  # Blue
                    '3': [204, 168, 0],
                    '4': [154, 157, 252]}
@@ -50,6 +50,7 @@ class MultiAgentGridWorldEnv:
         use_idx=True, 
         use_hidden=False, 
         use_event=False, 
+        stag_stay_still=True, 
         **kwargs
     ):
         if env_name == 'staghunt':
@@ -82,13 +83,15 @@ class MultiAgentGridWorldEnv:
                 self.gore = gore[choose]
 
         self.max_life = 20
-        self.coop_num = 0       
+        self.coop_num = 0
+        self.together_num = 0
         self.reset_map()
         self.setup_agents()
 
         self.use_idx = use_idx
         self.use_hidden = use_hidden
         self.use_event = use_event
+        self.stag_stay_still = stag_stay_still
 
         self._event = np.zeros((self.num_agents, self.NUM_EVENTS))
 
@@ -178,8 +181,6 @@ class MultiAgentGridWorldEnv:
         self.hare2_points += 1
         self.hare2_pos = np.array(points[-1])
 
-
-
     def map_to_colors(self, base_map=None, color_map=None):
         """Converts a map to an array of RGB values.
         Parameters
@@ -228,7 +229,6 @@ class MultiAgentGridWorldEnv:
             hare1_pos = self.hare1_pos.tolist()
             hare2_pos = self.hare2_pos.tolist()
             return np.concatenate([my_pos]+[other_pos]+[stag_pos]+[hare1_pos]+[hare2_pos])
-        
 
     def get_map_with_agents(self):
         """Gets a version of the environment map where generic
@@ -245,7 +245,7 @@ class MultiAgentGridWorldEnv:
                 map_with_agents[self.agents[i].pos[0], self.agents[i].pos[1]] = char_id
 
         return map_with_agents
-   
+
     def update_moves(self, agent_actions):
         for agent_id, action in agent_actions.items():
             agent = self.agents[agent_id]
@@ -255,75 +255,67 @@ class MultiAgentGridWorldEnv:
             agent.update_agent_pos(new_pos)
 
     def update_stag(self):
-        if self.stag_points > 0:
-            minimum = 100
-            for i in range(self.num_agents):
-                x = self.agents[i].get_pos() - self.stag_pos
-                dist = np.sum(np.square(x))
-                if dist < minimum:
-                    minimum = dist
-                    minimum_index = i
-            # move
-            x = self.agents[minimum_index].get_pos() - self.stag_pos
-            sign_x = np.sign(x)
+        assert self.stag_points > 0, self.stag_points
+        if self.stag_stay_still and np.all(
+                self.agents[0].get_pos() == self.agents[1].get_pos()):
+            return
+        minimum = 100
+        
+        for i in range(self.num_agents):
+            x = self.agents[i].get_pos() - self.stag_pos
+            dist = np.sum(np.square(x))
+            if dist < minimum:
+                minimum = dist
+                minimum_index = i
+        # move
+        x = self.agents[minimum_index].get_pos() - self.stag_pos
+        sign_x = np.sign(x)
 
-            if 0 in sign_x:
-                if sign_x[0]==0 and sign_x[1]==0:
-                    pass
-                else:
-                    temp_pos = self.stag_pos + sign_x 
-                    if self.base_map[temp_pos[0],temp_pos[1]] == ' ':
-                        if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare1'
-                        elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare2':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare2'
-                        else:
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = ' '
-                        
-                        self.stag_pos = temp_pos
-                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag'
-                    else:
-                        if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare1'
-                        elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare2'
-                        else:
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = ' '
-                        self.stag_pos = temp_pos
-                        if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Hare1':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag_with_hare1'
-                        elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Hare2':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag_with_hare2'
+        if 0 in sign_x:
+            if sign_x[0]==0 and sign_x[1]==0:
+                pass
             else:
-                temp_sign = np.copy(sign_x)
-                choose = np.random.randint(0,2)
-                temp_sign[choose] = 0
-                temp_pos = self.stag_pos + temp_sign
-                if self.base_map[temp_pos[0],temp_pos[1]] == 'Hare1' or self.base_map[temp_pos[0],temp_pos[1]] == 'Hare2':
-                    temp_sign1 = np.copy(sign_x)
-                    temp_sign1[1-choose] = 0
-                    temp_pos1 = self.stag_pos + temp_sign1 
-                    if self.base_map[temp_pos1[0],temp_pos1[1]] == ' ':                    
-                        if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare1'
-                        elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare2':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare2'
-                        else:
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = ' '
-                        self.stag_pos = temp_pos1
-                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag'
+                temp_pos = self.stag_pos + sign_x 
+                if self.base_map[temp_pos[0],temp_pos[1]] == ' ':
+                    if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare1'
+                    elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare2':
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare2'
                     else:
-                        if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare1'
-                        elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare2':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare2'
-                        else:
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = ' '
-                        self.stag_pos = temp_pos1
-                        if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Hare1':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag_with_hare1'
-                        elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Hare2':
-                            self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag_with_hare2'
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = ' '
+                    
+                    self.stag_pos = temp_pos
+                    self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag'
+                else:
+                    if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare1'
+                    elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare2'
+                    else:
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = ' '
+                    self.stag_pos = temp_pos
+                    if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Hare1':
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag_with_hare1'
+                    elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Hare2':
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag_with_hare2'
+        else:
+            temp_sign = np.copy(sign_x)
+            choose = np.random.randint(0,2)
+            temp_sign[choose] = 0
+            temp_pos = self.stag_pos + temp_sign
+            if self.base_map[temp_pos[0],temp_pos[1]] == 'Hare1' or self.base_map[temp_pos[0],temp_pos[1]] == 'Hare2':
+                temp_sign1 = np.copy(sign_x)
+                temp_sign1[1-choose] = 0
+                temp_pos1 = self.stag_pos + temp_sign1 
+                if self.base_map[temp_pos1[0],temp_pos1[1]] == ' ':                    
+                    if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare1'
+                    elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare2':
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare2'
+                    else:
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = ' '
+                    self.stag_pos = temp_pos1
+                    self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag'
                 else:
                     if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
                         self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare1'
@@ -331,10 +323,23 @@ class MultiAgentGridWorldEnv:
                         self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare2'
                     else:
                         self.base_map[self.stag_pos[0],self.stag_pos[1]] = ' '
-                    self.stag_pos = temp_pos
-                    self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag'
+                    self.stag_pos = temp_pos1
+                    if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Hare1':
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag_with_hare1'
+                    elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Hare2':
+                        self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag_with_hare2'
+            else:
+                if self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare1':
+                    self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare1'
+                elif self.base_map[self.stag_pos[0],self.stag_pos[1]] == 'Stag_with_hare2':
+                    self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Hare2'
+                else:
+                    self.base_map[self.stag_pos[0],self.stag_pos[1]] = ' '
+                self.stag_pos = temp_pos
+                self.base_map[self.stag_pos[0],self.stag_pos[1]] = 'Stag'
 
     def StagHuntUpdateMap(self):
+        """ Adds the Stag or Hare back if any was eaten """
         while self.stag_points < 1:
             index = np.random.randint(0, self.length, (2)).tolist()
             map_with_agents = self.get_map_with_agents()
@@ -355,7 +360,6 @@ class MultiAgentGridWorldEnv:
                 self.hare2_points += 1
                 self.hare2_pos = np.array(index)
 
-    
     def StagHuntConsume(self, pos):
         """Defines how an agent interacts with the char it is standing on"""
         char_agents=[]
@@ -367,10 +371,13 @@ class MultiAgentGridWorldEnv:
         indexs = [i for i in range(self.num_agents)]
         #coop
         coop_flag=True
+        together_flag = True
         for i in range(self.num_agents-1):
+            if pos[i] != pos[i+1]:
+                together_flag = False
             if pos[i]!=pos[i+1] or pos[i]!=list(self.stag_pos):
                 coop_flag=False
-
+        self.together_num += together_flag
         if coop_flag:
             self.coop_num += 1
             for i in range(self.num_agents):
@@ -411,7 +418,6 @@ class MultiAgentGridWorldEnv:
                     self.hare2_points -= 1
                     self.base_map[self.hare2_pos[0], self.hare2_pos[1]] = ' '
 
-
     def close(self):
         self.agents = []
         return None
@@ -421,6 +427,11 @@ class MultiAgentGridWorldEnv:
             np.random.seed(1)
         else:
             np.random.seed(seed)
+
+    def get_screen(self):
+        map_with_agents = self.get_map_with_agents()
+        rgb_arr = self.map_to_colors(map_with_agents)
+        return rgb_arr.astype(np.uint8)
 
     def render(self, filename=None):
         """ Creates an image of the map to plot or save.
@@ -487,13 +498,8 @@ class MultiAgentGridWorldEnv:
 
         rewards = []
         dones = []
-        infos = {'collective_return': [], 'coop&coop_num': []}
-        for i in range(self.num_agents):
-            key='gore{0}_num'.format(i)
-            infos.update({key:[]})
-            key = 'hare{0}_num'.format(i)
-            infos.update({key: []})
-
+        infos = {}
+        
         for i in range(self.num_agents):
             reward = self.agents[i].compute_reward() * 0.1
             rewards.append(reward)
@@ -504,13 +510,16 @@ class MultiAgentGridWorldEnv:
             collective_return += self.agents[i].collective_return
 
         infos['collective_return'] = collective_return
-        infos['coop&coop_num'] = self.coop_num
+        infos['coop'] = self.coop_num
         if self.env_name == 'multi_StagHuntGW':
             for i in range(self.num_agents):
-                infos['gore{0}_num'.format(i)] = self.agents[i].gore_num
-                infos['hare{0}_num'.format(i)] = self.agents[i].hare_num
+                infos[f'dead{i}'] = self.agents[i].gore_num
+                infos[f'defect{i}'] = self.agents[i].hare_num
+        infos['dead'] = [infos[f'dead{i}'] for i in range(self.num_agents)]
+        infos['defect'] = [infos[f'defect{i}'] for i in range(self.num_agents)]
+        infos['together'] = self.together_num
             
-        global_reward = np.sum(rewards)
+        global_reward = np.mean(rewards)
         if self.share_reward:
             rewards = [global_reward] * self.num_agents
 
@@ -540,8 +549,9 @@ class MultiAgentGridWorldEnv:
             obs['idx'] = np.eye(self.num_agents, dtype=np.float32)
         if self.use_hidden:
             obs['hidden_state'] = np.repeat(obs['obs'][:1], self.num_agents, axis=0)
+        event = self._set_event(o)
         if self.use_event:
-            obs['event'] = self._set_event(o)
+            obs['event'] = event
         return obs
     
     def _set_event(self, obs):
@@ -605,7 +615,7 @@ class MultiAgentGridWorldEnv:
                     "n_agents": self.num_agents,
                     "episode_limit": self.max_episode_steps}
         return env_info
-    
+
 
 if __name__ == '__main__':
     env = MultiAgentGridWorldEnv(

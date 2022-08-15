@@ -15,8 +15,8 @@ routine:
 
     MAX_STEPS: 5e7
     n_steps: &nsteps 32
-    LOG_PERIOD: 1e5
-    EVAL_PERIOD: 1e6
+    LOG_PERIOD: 5e5
+    EVAL_PERIOD: 5e6
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
@@ -84,7 +84,7 @@ model:
         kernel_initializer: orthogonal
         activation: relu
         norm: null
-        out_act: tanh
+        out_act: null
         indexed: head
         use_bias: True
     meta_value:
@@ -140,6 +140,13 @@ model:
             bias: 0
             init: null
             act: tanh
+        reward_coef:
+            outer: 1
+            default: 1
+            scale: 1
+            bias: 0
+            init: 5
+            act: sigmoid
 
 loss:
     rl:
@@ -170,6 +177,7 @@ loss:
         rho_clip: 1
         adv_type: vtrace
         norm_adv: True
+        norm_meta_adv: True
 
         # arguments for policy optimization
         pg_type: ppo
@@ -185,7 +193,7 @@ loss:
         value_clip_range: .2
         life_mask: False
 
-        in_reward_coef: 0
+        meta_reward_coef: 0
 
 trainer:
     algorithm: *algo

@@ -4,13 +4,24 @@ import gfootball.env as football_env
 
 from env.utils import *
 
+def do_flatten(obj):
+    """Run flatten on either python list or numpy array."""
+    if type(obj) == list:
+        return np.array(obj).flatten()
+    return obj.flatten()
+
+class Representation:
+    RAW='raw'
+    CUSTOM='custom'
+    MAT='mat'
+    SIMPLE115='simple115v2'
 
 class GRF:
     def __init__(
         self,
         # built-in configs for grf
         env_name,
-        representation='simple115v2',
+        representation=Representation.SIMPLE115,
         rewards='scoring,checkpoints',
         write_goal_dumps=False,
         write_full_episode_dumps=False,
@@ -28,21 +39,15 @@ class GRF:
         use_action_mask=False,
         uid2aid=None,
         seed=None, 
+        use_idx=False, 
+        use_hidden=False, 
+        use_event=False, 
+        agentwise_global_state=False, 
         **kwargs,
     ):
         self.name = env_name
         self.representation = representation
-        if representation != 'simple115v2':
-            representation = 'raw'
-            if self.representation == 'event':
-                pass
-            elif self.representation == 'mat':
-                from env.grf_env.mat_obs import FeatureEncoder
-                self.feat_encoder = FeatureEncoder()
-            else:
-                raise NotImplementedError(f'Unknown representation {self.representation}')
-        else:
-            self.feat_encoder = lambda x: x
+
         assert number_of_left_players_agent_controls in (1, 11), \
             number_of_left_players_agent_controls
         assert number_of_right_players_agent_controls in (0, 1, 11), \
@@ -58,6 +63,30 @@ class GRF:
         self.aid2uids = compute_aid2uids(self.uid2aid)
         self.n_units = len(self.uid2aid)
         self.n_agents = len(self.aid2uids)
+
+        if representation != Representation.SIMPLE115:
+            representation = Representation.RAW
+            if self.representation == Representation.CUSTOM:
+                assert number_of_left_players_agent_controls in (1, 11), number_of_left_players_agent_controls
+                assert number_of_right_players_agent_controls in (0, 11), number_of_right_players_agent_controls
+                from env.grf_env.custom_obs import FeatureEncoder
+                self.feat_encoder = FeatureEncoder(
+                    self.aid2uids, 
+                    use_idx=use_idx, 
+                    use_hidden=use_hidden, 
+                    use_event=use_event, 
+                    use_action_mask=use_action_mask, 
+                    agentwise_global_state=agentwise_global_state
+                )
+            elif self.representation == Representation.MAT:
+                from env.grf_env.mat_obs import FeatureEncoder
+                self.feat_encoder = FeatureEncoder()
+            elif self.representation == Representation.RAW:
+                pass
+            else:
+                raise NotImplementedError(f'Unknown representation {self.representation}')
+        else:
+            self.feat_encoder = lambda x: x
 
         self.number_of_left_players_agent_controls = number_of_left_players_agent_controls
         self.number_of_right_players_agent_controls = number_of_right_players_agent_controls
@@ -87,12 +116,13 @@ class GRF:
             other_config_options=other_config_options
         )
 
-        self._prev_event = [[10 for _ in range(self.n_units)] for _ in range(self.n_agents)]
-
         self.max_episode_steps = max_episode_steps
 
         self.use_action_mask = use_action_mask  # if action mask is used
         self.use_life_mask = False              # if life mask is used
+        self.use_idx = use_idx
+        self.use_hidden = use_hidden
+        self.use_event = use_event
 
         self.action_space = [
             self.env.action_space[0] 
@@ -125,9 +155,9 @@ class GRF:
         self._collected_checkpoints = [0, 0]
 
     def _get_observation_shape(self):
-        if self.representation == 'event':
-            obs_shape = (112, )
-        elif self.representation == 'mat':
+        if self.representation == Representation.CUSTOM:
+            return self.feat_encoder.get_obs_shape(self.n_agents)
+        elif self.representation == Representation.MAT:
             obs_shape = self.feat_encoder.obs_shape
         else:
             obs_shape = self.env.observation_space.shape \
@@ -140,20 +170,21 @@ class GRF:
                 prev_reward=(), 
                 prev_action=(self.action_dim[i],), 
             )
-            if self.representation == 'event':
-                s.update(dict(
-                    event=(3,), 
-                    initial_event=(1), 
-                ))
+            if self.use_action_mask:
+                s['action_mask'] = (self.action_space[i].n,)
+            if self.use_idx:
+                s['idx'] = (self.n_units,)
+            if self.use_hidden:
+                s['hidden_state'] = obs_shape
+            if self.use_event:
+                s['event'] = (3,)
             shape.append(s)
-
-        if self.use_action_mask:
-            for aid in range(self.n_agents):
-                shape[aid]['action_mask'] = (self.action_space[aid].n,)
 
         return shape
 
     def _get_observation_dtype(self):
+        if self.representation == Representation.CUSTOM:
+            return self.feat_encoder.get_obs_dtype(self.n_agents)
         obs_dtype = np.float32
 
         dtype = []
@@ -164,16 +195,15 @@ class GRF:
                 prev_reward=np.float32, 
                 prev_action=np.float32, 
             )
-            if self.representation == 'event':
-                d.update(dict(
-                    event=np.float32, 
-                    initial_event=np.float32, 
-                ))
+            if self.use_action_mask:
+                d['action_mask'] = bool
+            if self.use_idx:
+                d['idx'] = np.float32
+            if self.use_hidden:
+                d['hidden_state'] = obs_dtype
+            if self.use_event:
+                d['event'] = np.float32
             dtype.append(d)
-
-        if self.use_action_mask:
-            for aid in range(self.n_agents):
-                dtype[aid]['action_mask'] = bool
 
         return dtype
 
@@ -259,6 +289,10 @@ class GRF:
 
         return agent_obs, agent_rewards, agent_dones, info
 
+    def render(self):
+        obs = self._raw_obs()[0]
+        return obs['frame']
+
     def close(self):
         return self.env.close()
 
@@ -269,9 +303,10 @@ class GRF:
         if reward is None:
             reward = [np.zeros(len(uids), np.float32) for uids in self.aid2uids]
 
-        if self.representation == 'event':
-            agent_obs = self._get_event_obs(obs, action, reward)
-        elif self.representation == 'mat':
+        if self.representation == Representation.CUSTOM:
+            agent_obs = self.feat_encoder.construct_observations(
+                obs, action, reward)
+        elif self.representation == Representation.MAT:
             obs_array = []
             act_masks = []
             for i, o in enumerate(obs):
@@ -299,70 +334,29 @@ class GRF:
                 prev_reward=reward[aid], 
                 prev_action=action[aid], 
             ) for aid, uids in enumerate(self.aid2uids)]
+            if self.use_idx:
+                for o, uids in zip(agent_obs, self.aid2uids):
+                    o['idx'] = np.eye(len(uids), dtype=np.float32)
+            if self.use_event:
+                event = self._get_event()
+                for o, uids in zip(agent_obs, self.aid2uids):
+                    o['event'] = event[uids]
+            if self.use_hidden:
+                for o in agent_obs:
+                    o['hidden_state'] = o['global_state']
 
         return agent_obs
 
-    def _get_event_obs(self, observation, action, reward):
-        def do_flatten(obj):
-            """Run flatten on either python list or numpy array."""
-            if type(obj) == list:
-                return np.array(obj).flatten()
-            return obj.flatten()
-
-        agent_obs = []
+    def _get_event(self):
+        observations = self._raw_obs()
+        events = []
         for aid, uids in enumerate(self.aid2uids):
-            units_obs = []
-            units_events = []
-            units_initial_event_signals = []
             for u in uids:
-                obs = observation[u]
-                o = []
-                for i, name in enumerate(['left_team', 'left_team_direction',
-                                        'right_team', 'right_team_direction']):
-                    o.extend(do_flatten(obs[name]))
-                    # If there were less than 11vs11 players we backfill missing values
-                    # with -1.
-                    if len(o) < (i + 1) * 22:
-                        o.extend([-1] * ((i + 1) * 22 - len(o)))
+                e = observations[u]['ball_owned_team']
+                events.append(np.zeros(3, np.float32))
+                events[-1][e] = 1
 
-                # If there were less than 11vs11 players we backfill missing values with
-                # -1.
-                # 88 = 11 (players) * 2 (teams) * 2 (positions & directions) * 2 (x & y)
-                if len(o) < 88:
-                    o.extend([-1] * (88 - len(o)))
-
-                # ball position
-                o.extend(obs['ball'])
-                # ball direction
-                o.extend(obs['ball_direction'])
-
-                active = [0] * 11
-                if obs['active'] != -1:
-                    active[obs['active']] = 1
-                o.extend(active)
-
-                game_mode = [0] * 7
-                game_mode[obs['game_mode']] = 1
-                o.extend(game_mode)
-                units_obs.append(o)
-
-                e = obs['ball_owned_team']
-                units_events.append(np.zeros(3, np.float32))
-                units_events[-1][e] = 1
-                units_initial_event_signals.append(self._prev_event[aid][u] != e)
-                self._prev_event[aid][u] = e
-
-                assert len(o) == 112, len(o)
-            units_obs = np.stack(units_obs)
-            agent_obs.append(dict(
-                obs=units_obs, 
-                global_state=units_obs, 
-                event=np.stack(units_events), 
-                initial_event=np.expand_dims(units_initial_event_signals, -1).astype(np.float32), 
-                prev_action=action[aid], 
-                prev_reward=reward[aid], 
-            ))
-        return agent_obs
+        return np.stack(events)
 
     def _get_reward(self, reward, info):
         def add_ckpt_reward(reward, side):
@@ -399,6 +393,9 @@ class GRF:
 
         return reward
 
+    def _raw_obs(self):
+        return self.env.unwrapped.observation()
+
     def seed(self, seed):
         return seed
 
@@ -417,32 +414,52 @@ if __name__ == '__main__':
     args = parse_args()
     config = {
         'env_name': '11_vs_11_easy_stochastic',
-        'representation': 'event',
+        'representation': 'custom',
         'rewards': 'scoring,checkpoints', 
         'number_of_left_players_agent_controls': args.left,
         'number_of_right_players_agent_controls': args.right,
         'shared_ckpt_reward': True, 
         'use_action_mask':True, 
         'uid2aid': None,
+        'use_idx': True,
+        'use_hidden': False, 
+        'agentwise_global_state': False, 
+        'render': True, 
         'seed': 1
     }
 
     from utility.display import print_dict_info, print_dict
     env = GRF(**config)
-    import random
-    random.seed(0)
-    np.random.seed(0)
-    n = env.obs_shape
-    print(n)
     obs = env.reset()
-    print('obs event', obs[0]['event'], obs[0]['initial_event'])
-    random.seed(0)
-    np.random.seed(0)
-    shift = 0
-    for i in range(args.step):
-        a = env.random_action()
-        o, r, d, info = env.step(a)
-        print('obs event', o[0]['event'], o[0]['initial_event'])
-        idx = np.where(o[0]['obs'][0] != o[0]['obs'][1])
-        if np.any(d):
-            env.reset()
+    print(env.render().shape)
+    # o = []
+    # o.extend(do_flatten(env._raw_obs()[0]['left_team']))
+    # for k, v in env._raw_obs()[0].items():
+    #     print(k, v)
+    # print('obs event', obs[0]['event'], obs[0]['initial_event'])
+    # random.seed(0)
+    # np.random.seed(0)
+    # shift = 0
+    # for i in range(args.step):
+    #     a = env.random_action()
+    #     o, r, d, info = env.step(a)
+    #     print('obs event', o[0]['event'], o[0]['initial_event'])
+    #     idx = np.where(o[0]['obs'][0] != o[0]['obs'][1])
+    #     if np.any(d):
+    #         env.reset()
+
+    # raw_env = football_env.create_environment(
+    #     config['env_name'], 
+    #     representation=config['representation'],
+    #     rewards=config['rewards'],
+    #     number_of_left_players_agent_controls=args.left,
+    #     number_of_right_players_agent_controls=args.right,
+    # )
+    # obs = raw_env.reset()
+    # for i, o in enumerate(obs):
+    #     print(i, 'active', o['active'])
+    # for k, v in o.items():
+    #     if isinstance(v, np.ndarray):
+    #         print(k, v.shape)
+    #     else:
+    #         print(k, v)

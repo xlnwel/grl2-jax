@@ -32,10 +32,15 @@ def compute_meta_gradients(
     grads_list, 
     theta, 
     eta, 
+    return_out_grads=False, 
 ):
     inner_steps = len(grads_list)
     out_grads = meta_tape.gradient(meta_loss, theta)
+    for gs in out_grads:
+        for g in gs:
+            tf.debugging.assert_all_finite(g, f'Bad {g.name}')
     grads = [meta_tape.gradient(meta_loss, eta)]
+    out_grads_list = [out_grads]
     for i in reversed(range(inner_steps)):
         eta_grads, out_grads = compute_meta_grads_at_single_step(
             meta_tape, 
@@ -45,10 +50,17 @@ def compute_meta_gradients(
             out_grads, 
             i
         )
+        for gs in out_grads:
+            for g in gs:
+                tf.debugging.assert_all_finite(g, f'Bad {g.name}')
         grads.append(eta_grads)
+        out_grads_list.append(out_grads)
     if isinstance(grads[0], (tuple, list)):
         grads = [[g for g in mg if g is not None] for mg in zip(*grads)]
         for gs in grads:
             for g in gs:
                 tf.debugging.assert_all_finite(g, f'Bad {g.name}')
-    return grads
+    if return_out_grads:
+        return grads, out_grads
+    else:
+        return grads

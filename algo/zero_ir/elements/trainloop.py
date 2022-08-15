@@ -23,7 +23,7 @@ class TrainingLoop(TrainingLoopBase):
     def _post_init(self):
         super()._post_init()
         self.config = compute_inner_steps(self.config)
-        self._use_meta = self.config.inner_steps is not None
+        self._use_meta = bool(self.config.inner_steps)
         self._meta_train_timer = Timer('meta_train')
         self._sync_timer = Timer('sync_train')
         self._prev_data = []

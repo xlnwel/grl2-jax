@@ -118,6 +118,8 @@ class SMAC(gym.Env):
         window_size_y=1200,
         heuristic_ai=False,
         heuristic_rest=False,
+        use_idx=False, 
+        use_hidden=False, 
         debug=False,
         **kwargs,
     ):
@@ -237,6 +239,8 @@ class SMAC(gym.Env):
         self.use_stacked_frames = use_stacked_frames
         self.stacked_frames = stacked_frames
         self.life_mask_at_done = life_mask_at_done
+        self.use_idx = use_idx
+        self.use_hidden = use_hidden
 
         map_params = get_map_params(self.name)
         self.n_agents = 1
@@ -365,6 +369,12 @@ class SMAC(gym.Env):
             action_mask=bool,
             life_mask=np.float32
         )]
+        if self.use_idx:
+            self.obs_shape[0]['idx'] = (self.n_units,)
+            self.obs_dtype[0]['idx'] = np.float32
+        if self.use_hidden:
+            self.obs_shape[0]['hidden_state'] = self.obs_shape[0]['global_state']
+            self.obs_dtype[0]['hidden_state'] = np.float32
 
         if self.use_stacked_frames:
             self.stacked_local_obs = np.zeros((self.n_units, self.stacked_frames, int(self.get_obs_size()[0]/self.stacked_frames)), dtype=np.float32)
@@ -508,7 +518,10 @@ class SMAC(gym.Env):
             prev_action=np.zeros((self.n_units, self.action_dim[0]), np.float32),
             life_mask=life_mask
         )
-
+        if self.use_idx:
+            obs_dict['idx'] = np.eye(self.n_units, dtype=np.float32)
+        if self.use_hidden:
+            obs_dict['hidden_state'] = np.array(global_state, np.float32)
         return [obs_dict]
 
     def _restart(self):
@@ -606,6 +619,10 @@ class SMAC(gym.Env):
                 prev_action=np.zeros((self.n_units, self.action_dim[0]), np.float32),
                 life_mask=life_mask
             )
+            if self.use_idx:
+                obs_dict['idx'] = np.eye(self.n_units, dtype=np.float32)
+            if self.use_hidden:
+                obs_dict['hidden_state'] = np.array(global_state, np.float32)
             rewards = np.zeros(self.n_units, np.float32)
             info = {
                 'dense_score': self._score * np.ones(self.n_units, np.float32),
@@ -712,6 +729,10 @@ class SMAC(gym.Env):
             prev_action=action_oh,
             life_mask=life_mask
         )
+        if self.use_idx:
+            obs_dict['idx'] = np.eye(self.n_units, dtype=np.float32)
+        if self.use_hidden:
+            obs_dict['hidden_state'] = np.array(global_state, np.float32)
         info = {
             'dense_score': self._score * np.ones(self.n_units, np.float32),
             'score': self.win_counted * np.ones(self.n_units, np.float32),

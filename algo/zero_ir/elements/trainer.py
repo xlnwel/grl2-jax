@@ -23,7 +23,7 @@ def _get_rl_modules(model):
 
 def _get_meta_modules(model):
     modules = tuple([
-        v for k, v in model.items() if k.startswith('meta')
+        v for k, v in model.items() if k.startswith('meta') #and k != 'meta'
     ])
     return modules
 
@@ -57,15 +57,20 @@ class Trainer(TrainerBase):
         )
         if self._use_meta:
             modules = _get_rl_modules(self.model['meta'])
-            do_logging(modules, prefix='Meta RL modules', level='print')
+            do_logging(modules, prefix='Meta RL Modules', level='print')
             self.optimizers['meta_rl'] = create_optimizer(
                 modules, config.optimizer, f'meta_rl/{opt_name}'
             )
 
             opt_name = config.meta_opt.opt_name
             config.meta_opt.opt_name = opts[opt_name]
+            # self.meta_param_module = self.model['meta'].meta
+            # do_logging(self.meta_param_module, prefix='Meta Parameter Modules', level='print')
+            # self.optimizers['meta'] = create_optimizer(
+            #     self.meta_param_module, config.meta_param_opt, f'meta/{opt_name}'
+            # )
             self.meta_modules = _get_meta_modules(self.model['meta'])
-            do_logging(self.meta_modules, prefix='Meta modules', level='print')
+            do_logging(self.meta_modules, prefix='Meta Modules', level='print')
             self.optimizers['meta'] = create_optimizer(
                 self.meta_modules, config.meta_opt, f'meta/{opt_name}'
             )
@@ -247,7 +252,7 @@ class Trainer(TrainerBase):
         next_hidden_state=None, 
         action, 
         value, 
-        in_reward, 
+        meta_reward, 
         reward, 
         discount, 
         reset, 
@@ -274,7 +279,7 @@ class Trainer(TrainerBase):
             next_hidden_state=next_hidden_state, 
             action=action, 
             old_value=value, 
-            in_reward=in_reward, 
+            meta_reward=meta_reward, 
             reward=reward, 
             discount=discount, 
             reset=reset, 
@@ -362,17 +367,25 @@ class Trainer(TrainerBase):
         mask=None, 
         use_meta=False, 
     ):
-        if action_mask is not None:
-            action_mask = action_mask[:, :-1]
-        if life_mask is not None:
-            life_mask = life_mask[:, :-1]
-        action_oh = tf.one_hot(action, self.model['rl'].policy.action_dim)
-        x = tf.concat([hidden_state[:, :-1], action_oh], -1)
-        if next_obs is None:
-            hx = get_hx(idx[:, :-1], None if event is None else event[:, :-1])
+        if next_hidden_state is None:
+            curr_hidden_state = hidden_state[:, :-1]
+            curr_idx = idx[:, :-1]
+            curr_event = None if event is None else event[:, :-1]
+            if action_mask is not None:
+                action_mask = action_mask[:, :-1]
+            if life_mask is not None:
+                life_mask = life_mask[:, :-1]
         else:
-            hx = get_hx(idx, event)
-        in_reward = self.model['rl'].meta_reward(x, hx=hx)
+            curr_hidden_state = hidden_state
+            curr_idx = idx
+            curr_event = event
+        _, rl_reward = self._compute_rl_reward(
+            curr_hidden_state, 
+            action, 
+            curr_idx, 
+            curr_event, 
+            reward
+        )
         for _ in range(self.config.n_epochs):
             terms = self._inner_epoch(
                 opt=self.optimizers['rl'], 
@@ -387,7 +400,7 @@ class Trainer(TrainerBase):
                 next_global_state=next_global_state, 
                 action=action, 
                 value=value, 
-                reward=in_reward, 
+                reward=rl_reward, 
                 discount=discount, 
                 reset=reset, 
                 mu_logprob=mu_logprob, 
@@ -435,19 +448,27 @@ class Trainer(TrainerBase):
         prev_reward=None,
         prev_action=None,
     ):
-        if action_mask is not None:
-            action_mask = action_mask[:, :, :-1]
-        if life_mask is not None:
-            life_mask = life_mask[:, :, :-1]
         inner_steps = self.config.K
-        if next_obs is None:
-            hx = get_hx(idx[:, :, :-1], None if event is None else event[:, :, :-1])
+        if next_hidden_state is None:
+            curr_hidden_state = hidden_state[:, :, :-1]
+            curr_idx = idx[:, :, :-1]
+            curr_event = None if event is None else event[:, :, :-1]
+            if action_mask is not None:
+                action_mask = action_mask[:, :, :-1]
+            if life_mask is not None:
+                life_mask = life_mask[:, :, :-1]
         else:
-            hx = get_hx(idx, event)
+            curr_hidden_state = hidden_state
+            curr_idx = idx
+            curr_event = event
         with tf.GradientTape(persistent=True) as meta_tape:
-            action_oh = tf.one_hot(action, self.model['rl'].policy.action_dim)
-            x = tf.concat([hidden_state[:, :, :-1], action_oh], -1)
-            in_reward = self.model['meta'].meta_reward(x, hx=hx)
+            meta_reward, rl_reward = self._compute_rl_reward(
+                curr_hidden_state, 
+                action, 
+                curr_idx, 
+                curr_event, 
+                reward
+            )
             if event is not None and self.config.event_done:
                 event_idx = tf.argmax(event, -1)
                 in_discount = tf.cast(event_idx[:, :, :-1] == event_idx[:, :, 1:], tf.float32)
@@ -470,7 +491,7 @@ class Trainer(TrainerBase):
                         next_global_state=None if next_global_state is None else next_global_state[i], 
                         action=action[i], 
                         value=value[i], 
-                        reward=in_reward[i], 
+                        reward=rl_reward[i], 
                         discount=in_discount[i], 
                         reset=reset[i], 
                         mu_logprob=mu_logprob[i], 
@@ -501,7 +522,7 @@ class Trainer(TrainerBase):
                         next_hidden_state= None if next_hidden_state is None else next_hidden_state[-1], 
                         action=action[-1], 
                         value=value[-1], 
-                        in_reward=in_reward, 
+                        meta_reward=meta_reward, 
                         reward=reward[-1], 
                         discount=discount[-1], 
                         reset=reset[-1], 
@@ -519,7 +540,9 @@ class Trainer(TrainerBase):
                     meta_grads.append(mgs)
             meta_grads = [sum(mg) / len(mg) for mg in zip(*meta_grads)]
             meta_terms = self._apply_meta_grads(meta_grads, meta_vars, meta_terms)
-        terms['in_reward'] = in_reward
+        terms['meta_reward'] = meta_reward
+        terms['rl_reward'] = meta_reward
+        terms['reward_coef'] = self.model['meta'].meta('reward_coef', inner=True)
         # if event is not None:
         #     fake_event = tf.one_hot(tf.convert_to_tensor([[0, 1], [1, 0]]), 2)
         #     fake_idx = tf.one_hot(tf.convert_to_tensor([[0, 1], [0, 1]]), 2)
@@ -551,6 +574,20 @@ class Trainer(TrainerBase):
         for k, v in weights.items():
             self.optimizers[k].set_weights(v)
 
+    def _compute_rl_reward(self, hidden_state, action, idx, event, reward):
+        if self.config.K:
+            action_oh = tf.one_hot(action, self.model['meta'].policy.action_dim)
+            x = tf.concat([hidden_state, action_oh], -1)
+            hx = get_hx(idx, event)
+            meta_reward = self.model['meta'].meta_reward(x, hx=hx)
+            reward_scale = self.model['meta'].meta('reward_scale', inner=True)
+            reward_bias = self.model['meta'].meta('reward_bias', inner=True)
+            reward = reward_scale * reward + reward_bias
+            reward_coef = self.model['meta'].meta('reward_coef', inner=True)
+            rl_reward = reward_coef * reward + (1-reward_coef) * meta_reward
+            return meta_reward, rl_reward
+        else:
+            return None, reward
 
 create_trainer = functools.partial(create_trainer,
     name='zero', trainer_cls=Trainer

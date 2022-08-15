@@ -62,7 +62,7 @@ class RunningMeanStd:
         self._epsilon = epsilon
         self.reset_rms_stats()
         self._clip = clip
-        self._ndim = ndim # expected number of dimensions o
+        self._ndim = ndim # expected number of dimensions
 
     @property
     def axis(self):

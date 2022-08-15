@@ -1,6 +1,6 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo sync-gpo
+algorithm: &algo sync2-zero
 name: zero
 version: 0
 
@@ -77,19 +77,22 @@ env:
 
     n_envs: &nenvs 1
 
+    use_idx: False
+    use_hidden: False
+    use_event: False
+    agentwise_global_state: False
+
 agent: {}
 
 strategy:
     train_loop:
         use_dataset: &dataset False
-        n_epochs: &nepochs 1
-        n_mbs: &nmbs 1
-
         K: &K null
         L: &L 0
-        extra_meta_step: &ems 1 # 0/1
+        extra_meta_step: &ems 0 # 0/1
 
 model:
+    aid: 0
     rnn_type: &rnn null
     sample_size: &ss 64
     K: *K
@@ -122,7 +125,6 @@ model:
             epsilon: 1.e-5
         eval_act_temp: 1
         out_gain: .01
-        init_std: 1
     value:
         nn_id: value
         units_list: [256, 256, 256]
@@ -133,8 +135,6 @@ model:
         norm_kwargs:
             epsilon: 1.e-5
     embed: null
-        # nn_id: hpembed
-        # out_size: 16
     meta:
         nn_id: meta
         pg_coef:
@@ -217,8 +217,11 @@ loss:
 
 trainer:
     algorithm: *algo
+    aid: 0
     n_runners: *nrunners
     n_envs: *nenvs
+    n_epochs: &nepochs 5
+    n_mbs: &nmbs 1
     sample_size: *ss         # BPTT length
     timeout_done: True
     meta_type: plain
@@ -226,8 +229,6 @@ trainer:
     L: *L
     extra_meta_step: *ems
     store_state: True
-    n_epochs: 5
-    n_meta_epochs: 1
 
     optimizer:
         opt_name: adam
@@ -279,10 +280,10 @@ buffer:
         - prev_action
         - action_mask
         - action
+        - value
         - reward
         - discount
         - reset
-        - value
         - mu_logprob
         - mu
         - mask

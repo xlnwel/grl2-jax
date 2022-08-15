@@ -47,6 +47,7 @@ class RayVecEnv:
     def random_action(self, *args, **kwargs):
         action = ray.get([env.random_action.remote() for env in self.envs])
         action = self._process_output(action, convert_batch=True)
+        action = action[0]
         return action
 
     def step(self, actions, **kwargs):

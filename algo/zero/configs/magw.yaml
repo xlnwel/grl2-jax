@@ -15,8 +15,8 @@ routine:
 
     MAX_STEPS: 5e7
     n_steps: &nsteps 32
-    LOG_PERIOD: 1e5
-    EVAL_PERIOD: 1e6
+    LOG_PERIOD: 5e5
+    EVAL_PERIOD: 5e6
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1

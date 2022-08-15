@@ -23,6 +23,7 @@ def parse_train_args():
     parser.add_argument('--directory', '-d',
                         type=str,
                         default='',
+                        nargs='*', 
                         help='directory where checkpoints and "config.yaml" exist')
     parser.add_argument('--kwargs', '-kw',
                         type=str,
@@ -96,6 +97,9 @@ def parse_eval_args():
     parser.add_argument('--fps', 
                         type=int, 
                         default=30)
+    parser.add_argument('--info', '-i', 
+                        type=str, 
+                        default='')
     parser.add_argument('--verbose', '-v', 
                         type=str, 
                         default='warning')

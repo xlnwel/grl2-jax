@@ -217,7 +217,7 @@ def encode_gif(frames, fps):
     return out
 
 
-def save_video(name, video, fps=30):
+def save_video(name, video, fps=30, out_dir='results'):
     name = name if isinstance(name, str) else name.decode('utf-8')
     video = np.array(video, copy=False)
     if np.issubdtype(video.dtype, np.floating):
@@ -234,9 +234,9 @@ def save_video(name, video, fps=30):
     else:
         frames = video.transpose((1, 2, 0, 3, 4)).reshape((T, H, W, C))
     f1, *frames = [Image.fromarray(f) for f in frames]
-    if not os.path.isdir('results'):
-        os.mkdir('results')
-    path = f'results/{name}.gif'
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
+    path = f'{out_dir}/{name}.gif'
     f1.save(fp=path, format='GIF', append_images=frames,
          save_all=True, duration=1000//fps, loop=0)
     print(f"video is saved to '{path}'")

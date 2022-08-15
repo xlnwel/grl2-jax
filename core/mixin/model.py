@@ -38,7 +38,7 @@ class NetworkSyncOps:
         do_logging(f"Sync Parameters | Target Parameters:\n\t" 
             + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]), 
             logger=logger, level='print', backtrack=20)
-        assert len(tvars) == len(svars), f'{tvars}\n{svars}'
+        assert len(svars) == len(tvars), f'{svars}\n{tvars}'
         [tvar.assign(ovar) for tvar, ovar in zip(tvars, svars)]
 
     @tf.function
@@ -66,9 +66,9 @@ class NetworkSyncOps:
         do_logging(f"Update Networks | Target Parameters:\n" 
             + '\n\t'.join([f'{n.name}, {n.shape}' for n in tvars]), 
             logger=logger, level='print', backtrack=20)
-        assert len(tvars) == len(svars), f'{tvars}\n{svars}'
-        [tvar.assign(self._polyak * tvar + (1. - self._polyak) * mvar) 
-            for tvar, mvar in zip(tvars, svars)]
+        assert len(svars) == len(tvars), f'{svars}\n{tvars}'
+        [tvar.assign(self._polyak * tvar + (1. - self._polyak) * svar) 
+            for tvar, svar in zip(tvars, svars)]
 
     def get_online_nets(self):
         """ Gets the online networks """

@@ -177,6 +177,7 @@ def evaluate(env,
              n_windows=4):
     scores = []
     epslens = []
+    term_list = []
     max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
     frames = [collections.deque(maxlen=video_len) 
         for _ in range(min(n_windows, env.n_envs))]
@@ -187,7 +188,6 @@ def evaluate(env,
     n_run_eps = env.n_envs  # count the number of episodes that has begun to run
     n = max(n, env.n_envs)
     n_done_eps = 0
-    frame_skip = None
     obs = env_output.obs
     prev_done = np.zeros(env.n_envs)
     while n_done_eps < n:
@@ -200,24 +200,21 @@ def evaluate(env,
                     for i in range(len(frames)):
                         frames[i].append(img[i])
                     
-            action = agent(
+            action, terms = agent(
                 env_output, 
                 evaluation=True, 
-                return_eval_stats=record_stats)
-            terms = {}
-            if isinstance(action, tuple):
-                if len(action) == 2:
-                    action, terms = action
-                elif len(action) == 3:
-                    action, frame_skip, terms = action
-                else:
-                    raise ValueError(f'Unkown model return: {action}')
-            if frame_skip is not None:
-                frame_skip += 1     # plus 1 as values returned start from zero
-                env_output = env.step(action, frame_skip=frame_skip)
-            else:
-                env_output = env.step(action)
+                return_eval_stats=record_stats
+            )
+            term_list.append(terms)
+            env_output = env.step(action)
             next_obs, reward, discount, reset = env_output
+            terms['reward'] = np.squeeze(reward)
+            info = env.info()
+            if isinstance(info, list):
+                for i in info:
+                    terms.update(i)
+            else:
+                terms.update(info)
 
             if step_fn:
                 step_fn(obs=obs, action=action, reward=reward, 
@@ -261,6 +258,7 @@ def evaluate(env,
                         break
                 prev_done = done
 
+    terms = batch_dicts(term_list)
     if record_video:
         max_len = np.max([len(f) for f in frames])
         # padding to make all sequences of the same length
@@ -269,6 +267,6 @@ def evaluate(env,
                 f.append(f[-1])
             frames[i] = np.array(f)
         frames = np.array(frames)
-        return scores, epslens, frames
+        return scores, epslens, terms, frames
     else:
-        return scores, epslens, None
+        return scores, epslens, terms, None

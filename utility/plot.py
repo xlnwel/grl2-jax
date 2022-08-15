@@ -1,4 +1,6 @@
 import os, sys, glob
+import math
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -8,32 +10,76 @@ from tensorboard.backend.event_processing import event_accumulator
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
-def plot_data(data, x, y, outdir, tag, title, timing=None):
-    if isinstance(data, list):
-        data = pd.concat(data, ignore_index=True)
-        if timing:
-            data = data[data.Timing == timing].drop('Timing', axis=1)
+def plot_data_dict(data, *, x='step', outdir='results', figname='data'):
+    fig = plt.figure(figsize=(40, 30))
+    nrows = math.ceil(np.sqrt(len(data)))
+    ncols = math.ceil(len(data) / nrows)
 
+    keys  = sorted(list(data))
+    for i, k in enumerate(keys):
+        v = data[k]
+        plot_data(v, x=x, y=k, outdir=outdir, title=k, 
+            fig=fig, nrows=nrows, ncols=ncols, idx=i+1, 
+            savefig=False
+        )
     if not os.path.isdir(outdir):
-        os.mkdir(outdir)
-    fig = plt.figure(figsize=(20, 10))
-    ax = fig.add_subplot(111)
+        os.makedirs(outdir)
+    fig.savefig(f'{outdir}/{figname}.png')
+
+def plot_data(
+    data, 
+    *, 
+    x='step', 
+    y, 
+    outdir='results', 
+    title, 
+    fig=None, 
+    nrows=1, 
+    ncols=1, 
+    idx=1, 
+    avg_data=True,
+    savefig=True
+):
+    if isinstance(data, np.ndarray):
+        seqlen = data.shape[-1]
+        x_val = np.arange(seqlen)
+        if data.ndim == 1:
+            data = pd.DataFrame({x: x_val, y: data})
+        elif data.ndim == 2:
+            n = data.shape[0]
+            tag = [np.full((seqlen,), y)] if avg_data else []
+            for i in range(1, n+1):
+                tag.append(np.full((seqlen,), f'{y}{i}'))
+            tag = np.concatenate(tag)
+            x_val = np.concatenate([x_val]*(n+1 if avg_data else n))
+            y_val = np.concatenate(data)
+            if avg_data:
+                y_val = np.concatenate([data.mean(0), y_val])
+            data = pd.DataFrame({x: x_val, 'tag': tag, y: y_val})
+            data = data.pivot(x, 'tag', y)
+            x = None
+            y = None
+        else:
+            raise ValueError(f'Error data dimension: {data.ndim}')
+    assert isinstance(data, pd.DataFrame), type(data)
+    
+    if fig is None:
+        fig = plt.figure(figsize=(20, 10))
+    ax = fig.add_subplot(nrows, ncols, idx)
     sns.set(style="whitegrid", font_scale=1.5)
     sns.set_palette('Set2') # or husl
-    if 'Timing' in data.columns:
-        sns.lineplot(x=x, y=y, ax=ax, data=data, hue=tag, style='Timing')
-    else:
-        sns.lineplot(x=x, y=y, ax=ax, data=data, hue=tag)
+    sns.lineplot(x=x, y=y, ax=ax, data=data, dashes=False, linewidth=3)
     ax.grid(True, alpha=0.8, linestyle=':')
     ax.legend(loc='best').set_draggable(True)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    if timing:
-        title = f'{title}-{timing}'
-    outpath = f'{outdir}/{title}.png'
     ax.set_title(title)
-    fig.savefig(outpath)
-    print(f'Plot Path: {outpath}')
+    if savefig:
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        outpath = f'{outdir}/{title}.png'
+        fig.savefig(outpath)
+        print(f'Plot Path: {outpath}')
 
 def get_datasets(filedir, tag, condition=None):
     unit = 0
