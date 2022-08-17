@@ -48,6 +48,7 @@ class POLossImpl(LossBase):
         debug=True, 
         use_dice=None
     ):
+        use_dice = self.config.use_dice and use_dice
         if not self.config.get('policy_life_mask', True):
             sample_mask = None
         terms = {}
@@ -72,7 +73,7 @@ class POLossImpl(LossBase):
         pg_coef = self.model.meta('pg_coef', inner=use_meta)
         entropy_coef = self.model.meta('entropy_coef', inner=use_meta)
 
-        if self.config.use_dice and use_dice:
+        if use_dice:
             dice_op = rl_loss.dice(
                 pi_logprob, 
                 axis=self.config.dice_axis, 
@@ -89,16 +90,27 @@ class POLossImpl(LossBase):
                 n=n, 
             )
         elif self.config.pg_type == 'ppo':
-            loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
-                rl_loss.high_order_ppo_loss(
-                    pg_coef=pg_coef, 
-                    advantage=advantage, 
-                    ratio=ratio, 
-                    dice_op=dice_op, 
-                    clip_range=self.config.ppo_clip_range, 
-                    mask=sample_mask, 
-                    n=n, 
-                )
+            if use_dice:
+                loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
+                    rl_loss.high_order_ppo_loss(
+                        pg_coef=pg_coef, 
+                        advantage=advantage, 
+                        ratio=ratio, 
+                        dice_op=dice_op, 
+                        clip_range=self.config.ppo_clip_range, 
+                        mask=sample_mask, 
+                        n=n, 
+                    )
+            else:
+                loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
+                    rl_loss.ppo_loss(
+                        pg_coef=pg_coef, 
+                        advantage=advantage, 
+                        ratio=ratio, 
+                        clip_range=self.config.ppo_clip_range, 
+                        mask=sample_mask, 
+                        n=n, 
+                    )
             self.log_for_debug(
                 tape, 
                 terms, 

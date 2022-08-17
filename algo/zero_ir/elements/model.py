@@ -208,14 +208,7 @@ class ModelEnsemble(ModelEnsembleBase):
         self.sync_ops.sync_nets(source, target)
 
 
-def create_model(
-    config, 
-    env_stats, 
-    name='zero', 
-    to_build=False, 
-    to_build_for_eval=False, 
-    **kwargs
-):
+def setup_config_from_envstats(config, env_stats):
     if 'aid' in config:
         aid = config['aid']
         config.policy.action_dim = env_stats.action_dim[aid]
@@ -225,6 +218,18 @@ def create_model(
         config.policy.is_action_discrete = env_stats.is_action_discrete
         config.policy.action_low = env_stats.get('action_low')
         config.policy.action_high = env_stats.get('action_high')
+    return config
+
+
+def create_model(
+    config, 
+    env_stats, 
+    name='zero', 
+    to_build=False, 
+    to_build_for_eval=False, 
+    **kwargs
+): 
+    config = setup_config_from_envstats(config, env_stats)
 
     if config['rnn_type'] is None:
         config.pop('rnn', None)

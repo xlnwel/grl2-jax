@@ -372,6 +372,7 @@ class Trainer(TrainerBase):
                         state=self.model.state_type(*[s[i] for s in state]) if state is not None else state, 
                         mask=mask[i] if mask is not None else mask, 
                         use_meta=True, 
+                        use_dice=j == 1,
                         return_grads=True
                     )
                     grads_list += gl

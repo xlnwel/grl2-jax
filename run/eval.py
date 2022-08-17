@@ -72,10 +72,8 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
         f'Time: {time.time()-start:.3g}',
         color='cyan')
 
-    filename = f'{algo_name}-{env_name}'
-    if config.get('info'):
-        out_dir = f'{out_dir}/{filename}'
-        filename = f"{config['info']}"
+    out_dir = f'{out_dir}/{algo_name}-{env_name}'
+    filename = config['model_name']
     if info:
         out_dir = f'{out_dir}/{filename}'
         filename = f'{info}'

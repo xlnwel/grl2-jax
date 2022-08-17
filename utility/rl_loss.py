@@ -507,6 +507,7 @@ def high_order_ppo_loss(
     n=None,
 ):
     ratio = tf.stop_gradient(ratio)
+    tf.debugging.assert_near(dice_op, 1.)
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
         assert_rank_and_shape_compatibility([advantage, mask])

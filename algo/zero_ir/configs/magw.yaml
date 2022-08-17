@@ -50,6 +50,7 @@ model:
     sample_size: *nsteps
     K: *K
     L: *L
+    rl_reward: &rlreward sum
     extra_meta_step: *ems
 
     encoder: 
@@ -142,7 +143,7 @@ model:
             act: tanh
         reward_coef:
             outer: 1
-            default: 1
+            default: 0
             scale: 1
             bias: 0
             init: null
@@ -214,7 +215,7 @@ trainer:
     extra_meta_step: *ems
     store_state: True
     event_done: False
-    meta_reward_only: False
+    rl_reward: *rlreward
 
     optimizer:
         opt_name: adam

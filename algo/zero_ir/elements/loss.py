@@ -49,6 +49,7 @@ class POLossImpl(LossBase):
         debug=True, 
         use_dice=None
     ):
+        use_dice = self.config.use_dice and use_dice
         if not self.config.get('policy_life_mask', True):
             sample_mask = None
         terms = {}
@@ -73,7 +74,7 @@ class POLossImpl(LossBase):
         pg_coef = self.model.meta('pg_coef', inner=use_meta)
         entropy_coef = self.model.meta('entropy_coef', inner=use_meta)
 
-        if self.config.use_dice and use_dice:
+        if use_dice:
             dice_op = rl_loss.dice(
                 pi_logprob, 
                 axis=self.config.dice_axis, 
@@ -90,16 +91,27 @@ class POLossImpl(LossBase):
                 n=n, 
             )
         elif self.config.pg_type == 'ppo':
-            loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
-                rl_loss.high_order_ppo_loss(
-                    pg_coef=pg_coef, 
-                    advantage=advantage, 
-                    ratio=ratio, 
-                    dice_op=dice_op, 
-                    clip_range=self.config.ppo_clip_range, 
-                    mask=sample_mask, 
-                    n=n, 
-                )
+            if use_dice:
+                loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
+                    rl_loss.high_order_ppo_loss(
+                        pg_coef=pg_coef, 
+                        advantage=advantage, 
+                        ratio=ratio, 
+                        dice_op=dice_op, 
+                        clip_range=self.config.ppo_clip_range, 
+                        mask=sample_mask, 
+                        n=n, 
+                    )
+            else:
+                loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
+                    rl_loss.ppo_loss(
+                        pg_coef=pg_coef, 
+                        advantage=advantage, 
+                        ratio=ratio, 
+                        clip_range=self.config.ppo_clip_range, 
+                        mask=sample_mask, 
+                        n=n, 
+                    )
             self.log_for_debug(
                 tape, 
                 terms, 
@@ -480,6 +492,7 @@ class Loss(ValueLossImpl, POLossImpl):
         hx = get_hx(idx, event)
         act_dist = self.policy(obs, hx=hx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
+        entropy = act_dist.entropy()
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob
         ratio = tf.exp(log_ratio)
@@ -504,6 +517,8 @@ class Loss(ValueLossImpl, POLossImpl):
             )
 
         pg_coef = self.model.meta('pg_coef', inner=False)
+        entropy_coef = self.model.meta('entropy_coef', inner=False)
+
         loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
             rl_loss.ppo_loss(
                 pg_coef=pg_coef, 
@@ -513,6 +528,12 @@ class Loss(ValueLossImpl, POLossImpl):
                 mask=sample_mask, 
                 n=n, 
             )
+        raw_entropy_loss, entropy_loss = rl_loss.entropy_loss(
+            entropy_coef=entropy_coef, 
+            entropy=entropy, 
+            mask=sample_mask, 
+            n=n
+        )
         self.log_for_debug(
             tape, 
             terms, 
@@ -522,6 +543,8 @@ class Loss(ValueLossImpl, POLossImpl):
             raw_pg_loss=raw_pg_loss, 
             pg_loss=pg_loss, 
             clip_frac=clip_frac, 
+            raw_entropy_loss=raw_entropy_loss, 
+            entropy_loss=entropy_loss,
         )
         value_loss, value_terms = self._value_loss(
             tape=tape, 
@@ -543,7 +566,7 @@ class Loss(ValueLossImpl, POLossImpl):
             n=n
         )
         plain_loss = value_loss + meta_reward_loss
-        meta_loss = pg_loss
+        meta_loss = pg_loss + entropy_loss
         
         terms.update(value_terms)
         self.log_for_debug(

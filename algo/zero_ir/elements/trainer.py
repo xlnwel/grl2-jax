@@ -23,7 +23,7 @@ def _get_rl_modules(model):
 
 def _get_outer_modules(model):
     modules = tuple([
-        v for k, v in model.items() if k.startswith('meta') or k.startswith('outer')
+        v for k, v in model.items() if (k.startswith('meta') or k.startswith('outer')) and k != 'meta'
     ])
     return modules
 
@@ -489,12 +489,13 @@ class Trainer(TrainerBase):
             reward_scale = self.model['meta'].meta('reward_scale', inner=True)
             reward_bias = self.model['meta'].meta('reward_bias', inner=True)
             reward = reward_scale * reward + reward_bias
-            if self.config['meta_reward_only']:
-                reward_coef = self.model['meta'].meta('reward_coef', inner=True)
+            reward_coef = self.model['meta'].meta('reward_coef', inner=True)
+            if self.config['rl_reward'] == 'meta':
                 rl_reward = reward_coef * meta_reward
-            else:
-                reward_coef = self.model['meta'].meta('reward_coef', inner=True)
+            elif self.config['rl_reward'] == 'sum':
                 rl_reward = reward + reward_coef * meta_reward
+            elif self.config['rl_reward'] == 'interpolated':
+                rl_reward = (1 - reward_coef) * reward + reward_coef * meta_reward
             return meta_reward, rl_reward
         else:
             return None, reward

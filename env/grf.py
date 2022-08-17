@@ -424,7 +424,7 @@ if __name__ == '__main__':
         'use_idx': True,
         'use_hidden': False, 
         'agentwise_global_state': False, 
-        'render': True, 
+        'render': False, 
         'seed': 1
     }
 
