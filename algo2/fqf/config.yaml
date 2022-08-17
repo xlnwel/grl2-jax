@@ -58,7 +58,7 @@ agent:
     target_update_period: 2000  # trainning step
     tbo: False                              # transformed Bellman Operator
     
-    # arguments for optimizer
+    # hyperparams for optimizer
     iqn_opt: adam
     schedule_lr: False
     value_lr: 5e-5
@@ -67,19 +67,19 @@ agent:
     ent_coef: .001
     clip_norm: 10
 
-    # arguments for PER
+    # hyperparams for PER
     per_alpha: .5
     per_epsilon: 1.e-4
 
 buffer:
     replay_type: *replay
     precision: 32
-    # arguments for PER
+    # hyperparams for PER
     beta0: .4
     beta_steps: 1e5
     to_update_top_priority: True
 
-    # arguments for general replay
+    # hyperparams for general replay
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs

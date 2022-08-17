@@ -62,11 +62,11 @@ if __name__ == '__main__':
     config = dict(
         type='sper',                      # per or uniform
         precision=32,
-        # arguments for PER
+        # hyperparams for PER
         beta0=0.4,
         to_update_top_priority=False,
 
-        # arguments for general replay
+        # hyperparams for general replay
         batch_size=0,
         sample_size=7,
         burn_in_size=2,

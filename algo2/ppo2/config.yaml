@@ -57,14 +57,14 @@ agent:
     model_name: *algo
     RECORD: False
     
-    # arguments for optimizer
+    # hyperparams for optimizer
     opt_name: adam
     schedule_lr: False
     lr: 3e-4
     clip_norm: .5
     opt_kwargs:
         epsilon: 1.e-7
-    # arguments for loss
+    # hyperparams for loss
     value_loss: clip
     value_clip_range: .2          # clip range for ppo
     entropy_coef: .0

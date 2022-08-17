@@ -86,9 +86,7 @@ class Model(ModelBase):
 
         if self.policy.is_action_discrete:
             pi = tf.nn.softmax(act_dist.logits)
-            terms = {
-                'mu': pi, 
-            }
+            terms = {'mu': pi}
         else:
             mean = act_dist.mean()
             std = tf.exp(self.policy.logstd)
@@ -181,28 +179,30 @@ class ModelEnsemble(ModelEnsembleBase):
             self.sync_meta_nets()
             if forward:
                 self.sync_meta_rl_nets()
-            if forward is None:
+            elif forward is None:
                 return
             else:
                 self.sync_rl_meta_nets()
 
     @tf.function
     def sync_meta_nets(self):
-        keys = ['meta']
+        keys = ['meta'] # meta_reward is not synced since the meta_reward is being use in both loop
         source = [self.meta[k] for k in keys]
         target = [self.rl[k] for k in keys]
         self.sync_ops.sync_nets(source, target)
 
     @tf.function
     def sync_rl_meta_nets(self):
-        keys = sorted([k for k in self.meta.keys() if not k.startswith('meta')])
+        keys = sorted([k for k in self.meta.keys()
+            if not k.startswith('meta') and not k.startswith('outer')])
         source = [self.rl[k] for k in keys]
         target = [self.meta[k] for k in keys]
         self.sync_ops.sync_nets(source, target)
 
     @tf.function
     def sync_meta_rl_nets(self):
-        keys = sorted([k for k in self.meta.keys() if not k.startswith('meta')])
+        keys = sorted([k for k in self.meta.keys() 
+            if not k.startswith('meta') and not k.startswith('outer')])
         source = [self.meta[k] for k in keys]
         target = [self.rl[k] for k in keys]
         self.sync_ops.sync_nets(source, target)

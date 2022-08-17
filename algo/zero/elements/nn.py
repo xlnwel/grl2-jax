@@ -1,13 +1,10 @@
-import string
 import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
 from core.module import Module
 from nn.func import mlp, nn_registry
-from nn.hyper import HyperNet
 from nn.utils import get_activation
-from utility.utils import dict2AttrDict
 
 """ Source this file to register Networks """
 
@@ -37,40 +34,6 @@ class HPEmbed(Module):
         x = tf.concat([x, embed], -1)
 
         return x
-
-
-class IndexedHead(Module):
-    def __init__(self, name='indexed_head', **config):
-        super().__init__(name=name)
-        self._raw_name = name
-        
-        self.out_size = config.pop('out_size')
-        self.use_bias = config.pop('use_bias', True)
-        self.config = dict2AttrDict(config)
-    
-    def build(self, x, hx):
-        w_config = self.config.copy()
-        w_config['w_in'] = x[-1]
-        w_config['w_out'] = self.out_size
-        self._wlayer = HyperNet(**w_config, name=f'{self._raw_name}_w')
-
-        if self.use_bias:
-            b_config = self.config.copy()
-            b_config['w_in'] = None
-            b_config['w_out'] = self.out_size
-            self._blayer = HyperNet(**b_config, name=f'{self._raw_name}_b')
-
-    def call(self, x, hx):
-        w = self._wlayer(hx)
-        pre = string.ascii_lowercase[:len(x.shape)-1]
-        eqt = f'{pre}h,{pre}ho->{pre}o'
-        # eqt = 'esuh,esuho->esuo' if len(x.shape) == 4 else (
-        #     'euh,euho->euo' if len(x.shape) == 3 else 'uh,uho->uo')
-        out = tf.einsum(eqt, x, w)
-        if self.use_bias:
-            out = out + self._blayer(hx)
-
-        return out
 
 
 @nn_registry.register('policy')
@@ -107,10 +70,11 @@ class Policy(Module):
         config.setdefault('out_gain', .01)
 
         self.indexed = config.pop('indexed', False)
+        IndexedNet = nn_registry.get('index')
         if self.indexed == 'all':
             units_list = config.pop('units_list', [])
             units_list.append(self.action_dim)
-            self._layers = [IndexedHead(**config, out_size=u, name=f'{name}_l{i}') 
+            self._layers = [IndexedNet(**config, out_size=u, name=f'{name}_l{i}') 
                 for i, u in enumerate(units_list)]
         elif self.indexed == 'head':
             self._layers = mlp(
@@ -118,7 +82,7 @@ class Policy(Module):
                 name=name
             )
             config.pop('units_list')
-            self._head = IndexedHead(
+            self._head = IndexedNet(
                 **config, 
                 out_size=self.action_dim, 
                 out_dtype='float32',
@@ -194,10 +158,11 @@ class Value(Module):
             self._out_act = get_activation(self._out_act)
         self.indexed = config.pop('indexed', [])
         out_size = config.pop('out_size', 1)
+        IndexedNet = nn_registry.get('index')
         if self.indexed == 'all':
             units_list = config.pop('units_list', [])
             units_list.append(out_size)
-            self._layers = [IndexedHead(**config, out_size=u, name=f'{name}_l{i}') 
+            self._layers = [IndexedNet(**config, out_size=u, name=f'{name}_l{i}') 
                 for i, u in enumerate(units_list)]
         elif self.indexed == 'head':
             self._layers = mlp(
@@ -205,7 +170,7 @@ class Value(Module):
                 name=name
             )
             config.pop('units_list')
-            self._head = IndexedHead(
+            self._head = IndexedNet(
                 **config, 
                 out_size=out_size, 
                 out_dtype='float32',

@@ -69,7 +69,7 @@ def dnc_rnn(output_size,
         clip_value: Clips controller and core output value to between
             `[-clip_value, clip_value]` if specified
         name: module name
-        rnn_config: specifies extra arguments for keras.layers.RNN
+        rnn_config: specifies extra hyperparams for keras.layers.RNN
     """
     dnc_cell = DNC(access_config, 
                 controller_config, 

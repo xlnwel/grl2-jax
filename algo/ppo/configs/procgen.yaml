@@ -79,7 +79,7 @@ model:
         activation: relu
 
 loss:
-    # arguments for loss
+    # hyperparams for loss
     value_loss: clip
     ppo_clip_range: .2          # clip range for ppo
     value_clip_range: .2          # clip range for ppo

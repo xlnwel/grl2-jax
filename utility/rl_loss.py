@@ -506,6 +506,7 @@ def high_order_ppo_loss(
     mask=None, 
     n=None,
 ):
+    ratio = tf.stop_gradient(ratio)
     if mask is not None and n is None:
         n = tf.reduce_sum(mask)
         assert_rank_and_shape_compatibility([advantage, mask])
@@ -515,8 +516,9 @@ def high_order_ppo_loss(
     else:
         clip_mask = tf.greater(tf.abs(ratio - 1.), clip_range)
     neg_adv = -advantage
-    pg_loss = neg_adv * tf.stop_gradient(ratio) * dice_op
-    clipped_loss = neg_adv * tf.where(clip_mask, 0., dice_op)
+    pg_loss = neg_adv * ratio * dice_op
+    clipped_loss = neg_adv * tf.where(clip_mask, 1., dice_op) \
+        * tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
 
     raw_ppo = tf.maximum(pg_loss, clipped_loss)
     raw_ppo_loss, ppo_loss = to_loss(

@@ -6,13 +6,14 @@ algos=(
     # ppo
     # gpo
     # zero
-    zero_ir
+    $1
     # sync2-zero
 )
 suite=matrix
 envs=(
     ipd
 )
+shift
 config=matrix
 seeds=(0 1 2 3)
 args1=(1 5)
@@ -98,7 +99,7 @@ done
 
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
-        for ((s=1; s<=24; s++)); do
+        for ((s=1; s<=4; s++)); do
             env="${suite}-${e}"
             ld="$suite-logs"
             if [ 0 != $# ]; then
@@ -108,7 +109,7 @@ for e in "${envs[@]}"; do
             fi
             mkdir -p $dir
             gpus=$(nvidia-smi -L | wc -l)
-            gpu=$(($s % $gpus))
+            gpu=$((($s-1) % $gpus))
             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $s $kws -i $info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
             echo $py_script
             eval $py_script

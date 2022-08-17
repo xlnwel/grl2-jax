@@ -102,7 +102,7 @@ model:
             act: sigmoid
 
 loss:
-    # arguments for loss
+    # hyperparams for loss
     c_clip: 1
     rho_clip: 1
     life_mask: False

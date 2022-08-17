@@ -24,7 +24,11 @@ def parse_args():
                         default='.')
     parser.add_argument('--prefix', '-p', 
                         type=str, 
-                        nargs='*',)
+                        default=['seed'], 
+                        nargs='*')
+    parser.add_argument('--name', '-n', 
+                        type=str, 
+                        default=None)
     parser.add_argument('--target', '-t', 
                         type=str,
                         default='html-logs')
@@ -71,19 +75,22 @@ def rename_env(config: dict):
 if __name__ == '__main__':
     args = parse_args()
     
+    config_name = 'config.yaml' 
+    js_name = 'parameter.json'
+    record_name = 'record.txt'
+    process_name = 'progress.csv'
     for p in args.prefix:
-        config_name = 'config.yaml' 
-        for d in search_for_dirs(args.directory, p, is_suffix=False):
-            target_dir = '/'.join([args.target, d.replace(args.directory, '')])
+        for d in search_for_dirs(args.directory, p, is_suffix=False, name=args.name):
+            target_dir = d.replace(args.directory, args.target)
             print(f'copy from {d} to {target_dir}')
             if not os.path.isdir(target_dir):
                 Path(target_dir).mkdir(parents=True)
             
             # define paths
             yaml_path = '/'.join([d, config_name])
-            json_path = '/'.join([target_dir, 'parameter.json'])
-            record_path = '/'.join([d, 'record.txt'])
-            process_path = '/'.join([target_dir, 'progress.csv'])
+            json_path = '/'.join([target_dir, js_name])
+            record_path = '/'.join([d, record_name])
+            process_path = '/'.join([target_dir, process_name])
             print('yaml path', yaml_path)
             if not os.path.exists(yaml_path) or not os.path.exists(record_path):
                 print(f'{yaml_path} does not exist')

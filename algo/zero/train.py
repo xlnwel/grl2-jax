@@ -7,6 +7,7 @@ from core.mixin.actor import rms2dict
 from core.tf_config import \
     configure_gpu, configure_precision, silence_tf_logs
 from utility.display import pwt
+from utility.tf_utils import tensor2numpy
 from utility.utils import AttrDict2dict, TempStore, set_seed
 from utility.run import Runner
 from utility.timer import Every, Timer
@@ -74,6 +75,15 @@ def train(config, agent, env, eval_env_config, buffer):
 
     def record_stats(step, start_env_step, train_step, start_train_step):
         aux_stats = agent.actor.get_rms_stats()
+        # actor_vars = agent.trainer.model['meta'].policy.variables
+        # actor_vars = tensor2numpy(actor_vars)
+        # assert len(actor_vars) == 2, actor_vars
+        # agent.store(
+        #     policy11=actor_vars[0][0, 0],
+        #     policy12=actor_vars[0][0, 1],
+        #     policy21=actor_vars[0][1, 0],
+        #     policy22=actor_vars[0][1, 1]
+        # )
         aux_stats = rms2dict(aux_stats)
         with lt:
             agent.store(**{

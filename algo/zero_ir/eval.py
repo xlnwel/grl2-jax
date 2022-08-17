@@ -75,7 +75,7 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
     if config.get('info'):
         out_dir = f'{out_dir}/{filename}'
         filename = f"{config['info']}"
-    if info:
+    if info != "" and info is not None:
         out_dir = f'{out_dir}/{filename}'
         filename = f'{info}'
     if record:

@@ -1,5 +1,7 @@
 set -e
 
+cp ~/chenxinwei/.zshrc ~/.zshrc
+
 apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub
 sudo apt-key del 7fa2af80
 sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F60F4B3D7FA2AF80

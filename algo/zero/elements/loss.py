@@ -9,6 +9,7 @@ from utility.tf_utils import assert_rank_and_shape_compatibility, reduce_mean, \
 
 logger = logging.getLogger(__name__)
 
+
 def prefix_name(terms, name):
     if name is not None:
         new_terms = {}
@@ -20,6 +21,13 @@ def prefix_name(terms, name):
         return new_terms
     return terms
 
+def split_data(x, next_x=None):
+    if x is None:
+        return None, None
+    if next_x is None:
+        next_x = x[:, 1:]
+        x = x[:, :-1]
+    return x, next_x
 
 class POLossImpl(LossBase):
     def _pg_loss(
@@ -37,7 +45,8 @@ class POLossImpl(LossBase):
         n=None, 
         name=None, 
         use_meta=False, 
-        debug=True
+        debug=True, 
+        use_dice=None
     ):
         if not self.config.get('policy_life_mask', True):
             sample_mask = None
@@ -63,7 +72,7 @@ class POLossImpl(LossBase):
         pg_coef = self.model.meta('pg_coef', inner=use_meta)
         entropy_coef = self.model.meta('entropy_coef', inner=use_meta)
 
-        if self.config.use_dice:
+        if self.config.use_dice and use_dice:
             dice_op = rl_loss.dice(
                 pi_logprob, 
                 axis=self.config.dice_axis, 
@@ -204,14 +213,17 @@ class Loss(ValueLossImpl, POLossImpl):
         discount, 
         reset, 
         value, 
-        old_value, 
         next_value, 
         ratio, 
         gamma, 
         lam, 
-        mask, 
-        n
+        norm_adv, 
+        mask=None, 
+        n=None
     ):
+        assert_rank_and_shape_compatibility([
+            reward, discount, reset, value, next_value, ratio
+        ])
         if self.config.target_type == 'vtrace':
             v_target, advantage = rl_loss.v_trace_from_ratio(
                 reward=reward, 
@@ -226,7 +238,7 @@ class Loss(ValueLossImpl, POLossImpl):
                 rho_clip=self.config.rho_clip, 
                 rho_clip_pg=self.config.rho_clip, 
                 adv_type=self.config.get('adv_type', 'vtrace'), 
-                norm_adv=self.config.get('norm_adv', False), 
+                norm_adv=norm_adv, 
                 zero_center=self.config.get('zero_center', True), 
                 epsilon=self.config.get('epsilon', 1e-8), 
                 clip=self.config.get('clip', None), 
@@ -243,7 +255,7 @@ class Loss(ValueLossImpl, POLossImpl):
                 reset=reset, 
                 gamma=gamma, 
                 lam=lam, 
-                norm_adv=self.config.get('norm_adv', False), 
+                norm_adv=norm_adv, 
                 zero_center=self.config.get('zero_center', True), 
                 epsilon=self.config.get('epsilon', 1e-8), 
                 clip=self.config.get('clip', None), 
@@ -255,6 +267,17 @@ class Loss(ValueLossImpl, POLossImpl):
             raise NotImplementedError
         
         return v_target, advantage
+
+    def _compute_values(self, func, x, next_x, 
+            idx=None, next_idx=None):
+        value = func(x, hx=idx)
+        if next_x is None:
+            value, next_value = split_data(value)
+        else:
+            next_value = func(next_x, hx=next_idx)
+        next_value = tf.stop_gradient(next_value)
+        
+        return value, next_value
 
     def loss(
         self, 
@@ -283,32 +306,27 @@ class Loss(ValueLossImpl, POLossImpl):
         mask=None, 
         name=None, 
         use_meta=None, 
+        use_dice=None, 
         debug=True, 
     ):
         n = None if sample_mask is None else tf.reduce_sum(sample_mask)
         gamma = self.model.meta('gamma', inner=use_meta)
         lam = self.model.meta('lam', inner=use_meta)
 
-        x, _ = self.model.encode(
-            x=obs, 
-            state=state, 
-            mask=mask
-        )
         if global_state is None:
-            global_state = x
-        value = self.value(global_state, idx)
-        if next_obs is None:
-            x = x[:, :-1]
-            if idx is not None:
-                idx = idx[:, :-1]
-            next_value = value[:, 1:]
-            value = value[:, :-1]
-        else:
-            with tape.stop_recording():
-                assert state is None, 'unexpected states'
-                next_x, _ = self.model.encode(next_obs)
-                next_value = self.value(next_x, next_idx)
-        act_dist = self.policy(x, hx=idx, action_mask=action_mask)
+            global_state = obs
+        if next_global_state is None:
+            next_global_state = next_obs
+        value, next_value = self._compute_values(
+            self.value, 
+            global_state, 
+            next_global_state, 
+            idx, 
+            next_idx, 
+        )
+        idx, _ = split_data(idx, next_idx)
+        obs, _ = split_data(obs, next_obs)
+        act_dist = self.policy(obs, hx=idx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob
@@ -322,11 +340,11 @@ class Loss(ValueLossImpl, POLossImpl):
                 discount=discount, 
                 reset=reset, 
                 value=value, 
-                old_value=old_value, 
                 next_value=next_value, 
                 ratio=ratio, 
                 gamma=gamma, 
                 lam=lam, 
+                norm_adv=self.config.get('norm_adv', False), 
                 mask=sample_mask, 
                 n=n
             )
@@ -345,12 +363,13 @@ class Loss(ValueLossImpl, POLossImpl):
             n=n, 
             name=name, 
             use_meta=use_meta, 
-            debug=debug
+            debug=debug, 
+            use_dice=use_dice
         )
         value_loss, value_terms = self._value_loss(
             tape=tape, 
             value=value,
-            target=v_target, 
+            target=tf.stop_gradient(v_target), 
             old_value=old_value, 
             sample_mask=sample_mask, 
             n=n, 

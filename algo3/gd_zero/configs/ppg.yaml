@@ -173,7 +173,7 @@ model:
 
 loss:
     training: *training
-    # arguments for loss
+    # hyperparams for loss
     value_loss: clip
     value_clip_range: .2          # clip range for ppo
     entropy_coef: .01

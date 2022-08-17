@@ -3,6 +3,7 @@ from typing import Tuple
 import tensorflow as tf
 
 from core.elements.model import Model as ModelBase, ModelEnsemble as ModelEnsembleBase
+from core.log import do_logging
 from core.mixin.model import NetworkSyncOps
 from core.tf_config import build
 from utility.file import source_file
@@ -51,6 +52,7 @@ class Model(ModelBase):
             TensorSpecs['life_mask'] = (
                 basic_shape, tf.float32, 'life_mask'
             )
+        do_logging(TensorSpecs, prefix='Tensor Specifications', level='print')
         self.action = build(self.action, TensorSpecs)
 
     def _post_init(self):
@@ -83,9 +85,7 @@ class Model(ModelBase):
 
         if self.policy.is_action_discrete:
             pi = tf.nn.softmax(act_dist.logits)
-            terms = {
-                'mu': pi
-            }
+            terms = {'mu': pi}
         else:
             mean = act_dist.mean()
             std = tf.exp(self.policy.logstd)
@@ -167,6 +167,8 @@ class ModelEnsemble(ModelEnsembleBase):
             self.sync_meta_nets()
             if forward:
                 self.sync_meta_rl_nets()
+            elif forward is None:
+                return
             else:
                 self.sync_rl_meta_nets()
 
@@ -179,14 +181,16 @@ class ModelEnsemble(ModelEnsembleBase):
 
     @tf.function
     def sync_rl_meta_nets(self):
-        keys = sorted([k for k in self.meta.keys() if not k.startswith('meta')])
+        keys = sorted([k for k in self.meta.keys()
+            if not k.startswith('meta') and not k.startswith('outer')])
         source = [self.rl[k] for k in keys]
         target = [self.meta[k] for k in keys]
         self.sync_ops.sync_nets(source, target)
 
     @tf.function
     def sync_meta_rl_nets(self):
-        keys = sorted([k for k in self.meta.keys() if not k.startswith('meta')])
+        keys = sorted([k for k in self.meta.keys()
+            if not k.startswith('meta') and not k.startswith('outer')])
         source = [self.meta[k] for k in keys]
         target = [self.rl[k] for k in keys]
         self.sync_ops.sync_nets(source, target)

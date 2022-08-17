@@ -5,10 +5,11 @@ from core.elements.loss import Loss as LossBase, LossEnsemble
 from core.log import do_logging
 from utility import rl_loss
 from utility.tf_utils import assert_rank_and_shape_compatibility, reduce_mean, \
-    explained_variance
+    explained_variance, static_scan, standard_normalization
 from .utils import get_hx
 
 logger = logging.getLogger(__name__)
+
 
 def prefix_name(terms, name):
     if name is not None:
@@ -21,6 +22,13 @@ def prefix_name(terms, name):
         return new_terms
     return terms
 
+def split_data(x, next_x=None):
+    if x is None:
+        return None, None
+    if next_x is None:
+        next_x = x[:, 1:]
+        x = x[:, :-1]
+    return x, next_x
 
 class POLossImpl(LossBase):
     def _pg_loss(
@@ -38,7 +46,8 @@ class POLossImpl(LossBase):
         n=None, 
         name=None, 
         use_meta=False, 
-        debug=True
+        debug=True, 
+        use_dice=None
     ):
         if not self.config.get('policy_life_mask', True):
             sample_mask = None
@@ -64,7 +73,7 @@ class POLossImpl(LossBase):
         pg_coef = self.model.meta('pg_coef', inner=use_meta)
         entropy_coef = self.model.meta('entropy_coef', inner=use_meta)
 
-        if self.config.use_dice:
+        if self.config.use_dice and use_dice:
             dice_op = rl_loss.dice(
                 pi_logprob, 
                 axis=self.config.dice_axis, 
@@ -255,10 +264,28 @@ class Loss(ValueLossImpl, POLossImpl):
                 n=n, 
                 axis=1, 
             )
+        elif self.config.target_type == 'td':
+            if reset is not None:
+                discount = 1 - reset
+            v_target = reward + discount * gamma * next_value
+            advantage = v_target - value
         else:
             raise NotImplementedError
         
         return v_target, advantage
+
+    def _compute_values(self, func, x, next_x, 
+            idx=None, next_idx=None, event=None, next_event=None):
+        hx = get_hx(idx, event)
+        value = func(x, hx=hx)
+        if next_x is None:
+            value, next_value = split_data(value)
+        else:
+            next_hx = get_hx(next_idx, next_event)
+            next_value = func(next_x, hx=next_hx)
+        next_value = tf.stop_gradient(next_value)
+        
+        return value, next_value
 
     def loss(
         self, 
@@ -290,37 +317,30 @@ class Loss(ValueLossImpl, POLossImpl):
         name=None, 
         use_meta=None, 
         debug=True, 
+        use_dice=None
     ):
         n = None if sample_mask is None else tf.reduce_sum(sample_mask)
         gamma = self.model.meta('gamma', inner=use_meta)
         lam = self.model.meta('lam', inner=use_meta)
 
-        x, _ = self.model.encode(
-            x=obs, 
-            state=state, 
-            mask=mask
-        )
         if global_state is None:
-            global_state = x
+            global_state = obs
+        if next_global_state is None:
+            next_global_state = next_obs
+        value, next_value = self._compute_values(
+            self.value, 
+            global_state, 
+            next_global_state, 
+            idx, 
+            next_idx, 
+            event,
+            next_event
+        )
+        idx, _ = split_data(idx, next_idx)
+        event, _ = split_data(event, next_event)
         hx = get_hx(idx, event)
-        value = self.value(global_state, hx=hx)
-        if next_obs is None:
-            x = x[:, :-1]
-            if idx is not None:
-                idx = idx[:, :-1]
-            if event is not None:
-                event = event[:, :-1]
-            next_value = value[:, 1:]
-            value = value[:, :-1]
-        else:
-            with tape.stop_recording():
-                assert state is None, 'unexpected states'
-                if next_global_state is None:
-                    next_global_state = next_obs
-                next_x, _ = self.model.encode(next_global_state)
-                next_value = self.value(next_x, hx=next_idx)
-        hx = get_hx(idx, event)
-        act_dist = self.policy(x, hx=hx, action_mask=action_mask)
+        obs, _ = split_data(obs, next_obs)
+        act_dist = self.policy(obs, hx=hx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob
@@ -357,12 +377,13 @@ class Loss(ValueLossImpl, POLossImpl):
             n=n, 
             name=name, 
             use_meta=use_meta, 
-            debug=debug
+            debug=debug, 
+            use_dice=use_dice
         )
         value_loss, value_terms = self._value_loss(
             tape=tape, 
             value=value,
-            target=v_target, 
+            target=tf.stop_gradient(v_target), 
             old_value=old_value, 
             sample_mask=sample_mask, 
             n=n, 
@@ -385,7 +406,7 @@ class Loss(ValueLossImpl, POLossImpl):
             approx_kl=.5 * reduce_mean((log_ratio)**2, sample_mask, n), 
             loss=loss, 
         )
-
+       
         if debug:
             with tape.stop_recording():
                 if sample_mask is not None:
@@ -434,44 +455,30 @@ class Loss(ValueLossImpl, POLossImpl):
         state=None, 
         mask=None, 
         name=None, 
-        use_meta=None, 
         debug=True, 
     ):
         n = None if sample_mask is None else tf.reduce_sum(sample_mask)
-        gamma = self.model.meta('gamma', inner=use_meta)
-        lam = self.model.meta('lam', inner=use_meta)
+        gamma = self.model.meta('gamma', inner=False)
+        lam = self.model.meta('lam', inner=False)
         terms = {}
 
-        x, _ = self.model.encode(
-            x=obs, 
-            state=state, 
-            mask=mask
-        )
         tf.debugging.assert_equal(
             tf.gather(hidden_state, 0, axis=-2), 
             tf.gather(hidden_state, 1, axis=-2), 
         )
-        hidden_state = tf.gather(hidden_state, [0], axis=2)
-        value = self.meta_value(hidden_state)
-        if next_hidden_state is None:
-            x = x[:, :-1]
-            if idx is not None:
-                idx = idx[:, :-1]
-            if event is not None:
-                event = event[:, :-1]
-            next_value = value[:, 1:]
-            value = value[:, :-1]
-        else:
-            with tape.stop_recording():
-                assert state is None, 'unexpected states'
-                tf.debugging.assert_equal(
-                    tf.gather(next_hidden_state, 0, axis=2), 
-                    tf.gather(next_hidden_state, 1, axis=2), 
-                )
-                next_hidden_state = tf.gather(next_hidden_state, [0], axis=2)
-                next_value = self.meta_value(next_hidden_state)
+        hidden_state = tf.gather(hidden_state, 0, axis=2)
+        if next_hidden_state is not None:
+            next_hidden_state = tf.gather(next_hidden_state, 0, axis=2)
+        value, next_value = self._compute_values(
+            self.outer_value, 
+            hidden_state, 
+            next_hidden_state
+        )
+        obs, _ = split_data(obs, next_obs)
+        idx, _ = split_data(idx, next_idx)
+        event, _ = split_data(event, next_event)
         hx = get_hx(idx, event)
-        act_dist = self.policy(x, hx=hx, action_mask=action_mask)
+        act_dist = self.policy(obs, hx=hx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob
@@ -480,18 +487,14 @@ class Loss(ValueLossImpl, POLossImpl):
             bool_mask = tf.cast(sample_mask, tf.bool)
             ratio = tf.where(bool_mask, ratio, 1.)
             pi_logprob = tf.where(bool_mask, pi_logprob, 0.)
-        joint_ratio = tf.math.reduce_prod(ratio, axis=2, keepdims=True)
-        joint_pi_logprob = tf.math.reduce_sum(pi_logprob, axis=2, keepdims=True)
-        assert joint_ratio.shape[-1] == 1, joint_ratio.shape
-        assert joint_pi_logprob.shape[-1] == 1, joint_pi_logprob.shape
-        # tf.debugging.assert_near(
-        #     tf.where(tf.cast(reset, bool), 0., log_ratio), 0., 1e-5, 1e-5)
+        joint_ratio = tf.math.reduce_prod(ratio, axis=-1)
+        joint_pi_logprob = tf.math.reduce_sum(pi_logprob, axis=-1)
 
         with tape.stop_recording():
             v_target, advantage = self.compute_target_advantage(
-                reward=tf.reduce_mean(reward, axis=-1, keepdims=True), 
-                discount=tf.math.reduce_max(discount, axis=-1, keepdims=True), 
-                reset=tf.gather(reset, [0], axis=-1), 
+                reward=tf.reduce_mean(reward, axis=-1), 
+                discount=tf.math.reduce_max(discount, axis=-1), 
+                reset=tf.gather(reset, 0, axis=-1), 
                 value=value, 
                 next_value=next_value, 
                 ratio=joint_ratio, 
@@ -501,7 +504,7 @@ class Loss(ValueLossImpl, POLossImpl):
             )
 
         pg_coef = self.model.meta('pg_coef', inner=False)
-        loss_pg, loss_clip, raw_pg_loss, actor_loss, clip_frac = \
+        loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
             rl_loss.ppo_loss(
                 pg_coef=pg_coef, 
                 advantage=advantage, 
@@ -516,7 +519,8 @@ class Loss(ValueLossImpl, POLossImpl):
             debug=debug, 
             loss_pg=loss_pg, 
             loss_clip=loss_clip, 
-            pg_loss=actor_loss, 
+            raw_pg_loss=raw_pg_loss, 
+            pg_loss=pg_loss, 
             clip_frac=clip_frac, 
         )
         value_loss, value_terms = self._value_loss(
@@ -527,7 +531,7 @@ class Loss(ValueLossImpl, POLossImpl):
             sample_mask=sample_mask, 
             n=n, 
             name=name, 
-            use_meta=use_meta, 
+            use_meta=False, 
             debug=debug
         )
 
@@ -538,7 +542,8 @@ class Loss(ValueLossImpl, POLossImpl):
             mask=mask, 
             n=n
         )
-        loss = actor_loss + value_loss + meta_reward_loss
+        plain_loss = value_loss + meta_reward_loss
+        meta_loss = pg_loss
         
         terms.update(value_terms)
         self.log_for_debug(
@@ -547,32 +552,18 @@ class Loss(ValueLossImpl, POLossImpl):
             debug=debug, 
             gamma=gamma, 
             lam=lam, 
-            pi_logprob=pi_logprob, 
+            joint_ratio=joint_ratio, 
+            joint_pi_logprob=joint_pi_logprob, 
             raw_meta_reward_loss=raw_meta_reward_loss,
             meta_reward_loss=meta_reward_loss,
-            ratio=ratio, 
             approx_kl=.5 * reduce_mean((log_ratio)**2, sample_mask, n), 
-            loss=loss, 
+            plain_loss=plain_loss, 
+            meta_loss=meta_loss, 
         )
 
-        if debug:
-            with tape.stop_recording():
-                if sample_mask is not None:
-                    n_alive_units = tf.reduce_sum(sample_mask, -1)
-                    terms['n_alive_units'] = n_alive_units
-                if mu is not None:
-                    terms['diff_pi'] = tf.nn.softmax(act_dist.logits) - mu
-                elif mu_mean is not None:
-                    terms['pi_mean'] = act_dist.loc
-                    terms['diff_pi_mean'] = act_dist.loc - mu_mean
-                    pi_std = tf.exp(self.policy.logstd)
-                    terms['pi_std'] = pi_std
-                    terms['diff_pi_std'] = pi_std - mu_std
-                    # tf.debugging.assert_equal(pi_std, mu_std)
-                    # tf.debugging.assert_equal(act_dist.loc, mu_mean)
         terms = prefix_name(terms, name)
 
-        return loss, terms
+        return plain_loss, meta_loss, terms
 
     def bmg_loss(
         self, 

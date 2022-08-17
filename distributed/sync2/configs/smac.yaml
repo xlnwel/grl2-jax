@@ -147,14 +147,14 @@ model:
 
 loss:
     rl:
-        # arguments for value target and advantage
+        # hyperparams for value target and advantage
         target_type: gae
         c_clip: 1
         rho_clip: 1
         adv_type: vtrace
         norm_adv: True
 
-        # arguments for policy optimization
+        # hyperparams for policy optimization
         pg_type: ppo
         ppo_clip_range: .2
         use_dice: False
@@ -164,19 +164,19 @@ loss:
         kl_coef: 1
         policy_life_mask: True
 
-        # arguments for value learning
+        # hyperparams for value learning
         value_loss: clip
         value_clip_range: .2
         value_life_mask: False
     meta:
-        # arguments for value target and advantage
+        # hyperparams for value target and advantage
         target_type: gae
         c_clip: 1
         rho_clip: 1
         adv_type: vtrace
         norm_adv: True
 
-        # arguments for policy optimization
+        # hyperparams for policy optimization
         pg_type: ppo
         ppo_clip_range: .2
         use_dice: False
@@ -186,7 +186,7 @@ loss:
         kl_coef: 1
         policy_life_mask: True
 
-        # arguments for value learning
+        # hyperparams for value learning
         value_loss: clip
         value_clip_range: .2
         value_life_mask: False

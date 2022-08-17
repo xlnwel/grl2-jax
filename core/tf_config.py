@@ -130,7 +130,7 @@ def get_TensorSpecs(
         name = None
         tensorspecs = TensorSpecs
     assert isinstance(tensorspecs, (list, tuple)), (
-        'Expect tensorspecs to be a dict/list/tuple of arguments for tf.TensorSpec, '
+        'Expect tensorspecs to be a dict/list/tuple of hyperparams for tf.TensorSpec, '
         f'but get {TensorSpecs}\n')
     tensorspecs = [construct(x, default_shape) for x in tensorspecs]
     if name:
@@ -145,7 +145,7 @@ def build(func, TensorSpecs, sequential=False, batch_size=None, print_terminal_i
 
     Args:
         func: A function decorated by @tf.function
-        TensorSpecs: A dict/list/tuple of arguments for tf.TensorSpec
+        TensorSpecs: A dict/list/tuple of hyperparams for tf.TensorSpec
         sequential: A boolean, if True, batch_size must be specified, and 
             the result TensorSpec will have fixed batch_size and a time dimension
         batch_size: Specifies the batch size

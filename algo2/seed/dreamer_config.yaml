@@ -69,7 +69,7 @@ agent:
     root_dir: *algo                         # root path for tensorboard logs
     model_name: *algo
 
-    # arguments for optimizer
+    # hyperparams for optimizer
     opt_name: adam
     clip_norm: 100.
     weight_decay: 0.
@@ -80,7 +80,7 @@ agent:
 buffer:
     type: episodic
 
-    # arguments for general replay
+    # hyperparams for general replay
     batch_size: *bs
     sample_size: *ss
     max_episodes: 1000

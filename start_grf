@@ -3,14 +3,17 @@
 source activate grl
 
 algos=(
-    sync2-zero
+    $1
 )
 suite=grf
 envs=(
     11_vs_11_hard_stochastic
 )
-config=grf_mg
-seeds=(2 3)
+config=$2
+for x in $(seq 1 2); do
+    shift
+done
+seed=1
 args1=(None)
 args2=(1)
 args3=(True)
@@ -68,7 +71,7 @@ done
 
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
-        for s in "${seeds[@]}"; do
+        for ((s=1; s<=$seed; s++)); do
             env="${suite}-${e}"
             n="$date"
             ld="$suite-logs"

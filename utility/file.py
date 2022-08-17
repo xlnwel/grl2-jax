@@ -103,7 +103,7 @@ def search_for_all_files(directory, filename, is_suffix=True):
     
     return all_target_files
 
-def search_for_dirs(directory, dirname, is_suffix=True):
+def search_for_dirs(directory, dirname, is_suffix=True, name=None):
     if not os.path.exists(directory):
         return []
     directory = directory
@@ -111,6 +111,8 @@ def search_for_dirs(directory, dirname, is_suffix=True):
     all_target_files = set()
     for root, _, _ in os.walk(directory):
         if 'src' in root:
+            continue
+        if name is not None and name not in root:
             continue
         endnames = root.rsplit('/', n_slashes+1)[1:]
         endname = '/'.join(endnames)

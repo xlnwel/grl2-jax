@@ -1,5 +1,7 @@
 import numpy as np
 
+from utility.feature import xy2tri
+
 
 def do_flatten(obj):
     """Run flatten on either python list or numpy array."""
@@ -9,9 +11,10 @@ def do_flatten(obj):
 
 
 class FeatureEncoder:
-    OBS_SHAPE = (195,)
+    OBS_SHAPE = (194,)
+    HIDDEN_SHAPE = (192,)
     ACTION_DIM = 19
-    HIDDEN_SHAPE = (176,)
+
     def __init__(
         self, 
         aid2uids, 
@@ -116,9 +119,9 @@ class FeatureEncoder:
         team = 'left_team' if side == 0 else 'right_team'
         player_pos_x, player_pos_y = obs[team][player_num]
         player_pos = np.array([player_pos_x, player_pos_y], dtype=np.float32)
-        player_direction = obs[f"{team}_direction"][player_num]
-        player_speed = np.linalg.norm(player_direction)
-        player_speed_vec = np.array([*player_direction, player_speed], dtype=np.float32)
+        player_dir_x, player_dir_y = obs[f"{team}_direction"][player_num]
+        player_direction = xy2tri(player_dir_y, player_dir_x)
+        player_direction = np.array(player_direction, dtype=np.float32)
         player_role = obs[f"{team}_roles"][player_num]
         player_role_onehot = self._encode_role_onehot(player_role)
         player_tired = obs[f"{team}_tired_factor"][player_num]
@@ -128,23 +131,23 @@ class FeatureEncoder:
         player_state = np.concatenate(
             (
                 player_pos,
-                player_speed_vec,
+                player_direction,
                 player_role_onehot,
                 player_prop,
             )
         )
-        assert player_state.shape == (18,), player_state
+        assert player_state.shape == (17,), player_state
 
         ball_x, ball_y, ball_z = obs["ball"]
         ball_x_relative = ball_x - player_pos_x
         ball_y_relative = ball_y - player_pos_y
-        ball_xy_relative = [ball_x_relative, ball_y_relative]
-        ball_distance = np.linalg.norm(ball_xy_relative)
-        ball_dist_vec = np.array([*ball_xy_relative, ball_distance], dtype=np.float32)
+        ball_pos = xy2tri(ball_y_relative, ball_x_relative)
+        ball_distance = np.linalg.norm([ball_x_relative, ball_y_relative])
+        ball_dist_vec = np.array([*ball_pos, ball_distance], dtype=np.float32)
         ball_x_speed, ball_y_speed, _ = obs["ball_direction"]
-        ball_xy_speed = [ball_x_speed, ball_y_speed]
-        ball_speed = np.linalg.norm(ball_xy_relative)
-        ball_speed_vec = np.array([*ball_xy_speed, ball_speed], dtype=np.float32)
+        ball_speed_dir = xy2tri(ball_y_speed, ball_x_speed)
+        ball_speed = np.linalg.norm([ball_x_speed, ball_y_speed])
+        ball_speed_vec = np.array([*ball_speed_dir, ball_speed], dtype=np.float32)
         ball_owned = np.zeros(3, dtype=np.float32)
         ball_owned[obs["ball_owned_team"]] = 1
         ball_zone = self._encode_ball_which_zone(ball_x, ball_y)
@@ -169,25 +172,21 @@ class FeatureEncoder:
             )
             left_team_tired = np.delete(
                 obs["left_team_tired_factor"], player_num, axis=0
-            ).reshape(-1, 1)
+            )
         else:
             obs_left_team = obs["left_team"]
             obs_left_team_direction = obs["left_team_direction"]
-            left_team_tired = obs["left_team_tired_factor"].reshape(-1, 1)
+            left_team_tired = obs["left_team_tired_factor"]
 
         left_team_relative = obs_left_team - player_pos
-        left_team_distance = np.linalg.norm(
-            left_team_relative, axis=1, keepdims=True
-        )
-        left_team_dist_vec = np.concatenate([left_team_relative, left_team_distance], -1)
-        left_team_speed = np.linalg.norm(obs_left_team_direction, axis=1, keepdims=True)
-        left_team_speed_vec = np.concatenate([obs_left_team_direction, left_team_speed], axis=-1)
-        left_team_state = np.concatenate(
-            (
-                left_team_dist_vec,
-                left_team_speed_vec,
-                left_team_tired,
-            ),
+        left_team_pos = xy2tri(left_team_relative[:, 1], left_team_relative[:, 0])
+        left_team_distance = np.linalg.norm(left_team_relative, axis=1)
+        left_team_dist_vec = [*left_team_pos, left_team_distance]
+        left_team_speed_dir = xy2tri(obs_left_team_direction[:, 1], obs_left_team_direction[:, 0])
+        left_team_speed = np.linalg.norm(obs_left_team_direction, axis=1)
+        left_team_speed_vec = [*left_team_speed_dir, left_team_speed]
+        left_team_state = np.stack(
+            left_team_dist_vec + left_team_speed_vec + [left_team_tired],
             axis=1,
         ).astype(np.float32)
         assert left_team_state.shape == (10 if side == 0 else 11, 7), left_team_state.shape
@@ -199,24 +198,21 @@ class FeatureEncoder:
             )
             right_team_tired = np.delete(
                 obs["right_team_tired_factor"], player_num, axis=0
-            ).reshape(-1, 1)
+            )
         else:
             obs_right_team = np.array(obs["right_team"])
             obs_right_team_direction = np.array(obs["right_team_direction"])
-            right_team_tired = np.array(obs["right_team_tired_factor"]).reshape(-1, 1)
+            right_team_tired = np.array(obs["right_team_tired_factor"])
+        
         right_team_relative = obs_right_team - player_pos
-        right_team_distance = np.linalg.norm(
-            right_team_relative, axis=1, keepdims=True
-        )
-        right_team_dist_vec = np.concatenate([right_team_relative, right_team_distance], -1)
-        right_team_speed = np.linalg.norm(obs_right_team_direction, axis=1, keepdims=True)
-        right_team_speed_vec = np.concatenate([obs_right_team_direction, right_team_speed], axis=-1)
-        right_team_state = np.concatenate(
-            (
-                right_team_dist_vec,
-                right_team_speed_vec,
-                right_team_tired,
-            ),
+        right_team_pos = xy2tri(right_team_relative[:, 1], right_team_relative[:, 0])
+        right_team_distance = np.linalg.norm(right_team_relative, axis=1)
+        right_team_dist_vec = [*right_team_pos, right_team_distance]
+        right_team_speed_dir = xy2tri(obs_right_team_direction[:, 1], obs_right_team_direction[:, 0])
+        right_team_speed = np.linalg.norm(obs_right_team_direction, axis=1)
+        right_team_speed_vec = [*right_team_speed_dir, right_team_speed]
+        right_team_state = np.stack(
+            right_team_dist_vec + right_team_speed_vec + [right_team_tired], 
             axis=1,
         ).astype(np.float32)
         assert right_team_state.shape == (10 if side == 1 else 11, 7), right_team_state.shape
@@ -258,16 +254,22 @@ class FeatureEncoder:
         hidden_state.extend(do_flatten(ball))
         hidden_state.extend(ball_to_goal)
         hidden_state.extend(do_flatten(obs['ball_direction']))
-        hidden_state.append(obs['ball_owned_team'])
-        hidden_state.append(obs['ball_owned_player'])
+        ball_owned_team = [0] * 3
+        ball_owned_team[obs['ball_owned_team']] = 1
+        hidden_state.extend(ball_owned_team)
+        ball_owned_player = [0] * 11
+        ball_owned_player[obs['ball_owned_player']] = 1
+        hidden_state.extend(ball_owned_player)
 
         score = self.get_score(obs)
         hidden_state.extend(do_flatten(score))
-        hidden_state.append(obs['steps_left'])
+        steps_left = [0] * 5
+        steps_left[-1 if obs['steps_left'] else obs['steps_left'] // 600 ] = 1
+        hidden_state.extend(steps_left)
 
-        game_mode = np.zeros(7, np.float32)
+        game_mode = [0] * 7
         game_mode[obs['game_mode']] = 1
-        hidden_state.extend(do_flatten(game_mode))
+        hidden_state.extend(game_mode)
 
         return np.array(hidden_state, dtype=np.float32)
 

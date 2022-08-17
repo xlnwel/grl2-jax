@@ -28,7 +28,7 @@ class GRF:
         render=False,
         write_video=False,
         dump_frequency=1000,
-        logdir='data/grf',
+        logdir='results/grf',
         extra_players=None,
         number_of_left_players_agent_controls=1,
         number_of_right_players_agent_controls=0,
@@ -431,7 +431,7 @@ if __name__ == '__main__':
     from utility.display import print_dict_info, print_dict
     env = GRF(**config)
     obs = env.reset()
-    print(env.render().shape)
+    print_dict_info(obs[0])
     # o = []
     # o.extend(do_flatten(env._raw_obs()[0]['left_team']))
     # for k, v in env._raw_obs()[0].items():

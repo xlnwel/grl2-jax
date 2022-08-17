@@ -38,23 +38,23 @@ agent:
     target_update_period: 3000
     tbo: False                              # transformed Bellman Operator
     
-    # arguments for optimizer
+    # hyperparams for optimizer
     opt_name: adam
     schedule_lr: False
     value_lr: 1e-4
     clip_norm: 10
     
-    # arguments for PER
+    # hyperparams for PER
     per_alpha: 0.5
     per_epsilon: 1.e-4
 
 buffer:
     replay_type: *replay
-    # arguments for PER
+    # hyperparams for PER
     beta0: 0.4
     to_update_top_priority: True
 
-    # arguments for general replay
+    # hyperparams for general replay
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs

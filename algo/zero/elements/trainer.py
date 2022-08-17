@@ -34,6 +34,9 @@ def _add_norm(terms, d, norm_name=None):
         terms[f'{norm_name}'] = tf.linalg.global_norm(list(d.values()))
     return terms
 
+def _gather(data, i):
+    data = tf.nest.map_structure(lambda x: x if x is None else tf.gather(x, i), data)
+    return data
 
 class Trainer(TrainerBase):
     def _add_attributes(self):
@@ -56,7 +59,7 @@ class Trainer(TrainerBase):
         )
         if self._use_meta:
             modules = _get_rl_modules(self.model['meta'])
-            do_logging(modules, prefix='Meta RL modules', level='print')
+            do_logging(modules, prefix='Meta RL Modules', level='print')
             self.optimizers['meta_rl'] = create_optimizer(
                 modules, config.optimizer, f'meta_rl/{opt_name}'
             )
@@ -64,7 +67,7 @@ class Trainer(TrainerBase):
             opt_name = config.meta_opt.opt_name
             config.meta_opt.opt_name = opts[opt_name]
             self.meta_modules = _get_meta_modules(self.model['meta'])
-            do_logging(self.meta_modules, prefix='Meta modules', level='print')
+            do_logging(self.meta_modules, prefix='Meta Modules', level='print')
             self.optimizers['meta'] = create_optimizer(
                 self.meta_modules, config.meta_opt, f'meta/{opt_name}'
             )
@@ -113,64 +116,27 @@ class Trainer(TrainerBase):
         *, 
         opt, 
         loss_fn, 
-        obs, 
-        idx=None, 
-        global_state=None, 
-        next_obs=None, 
-        next_idx=None, 
-        next_global_state=None, 
-        action, 
-        value, 
-        reward, 
-        discount, 
-        reset, 
-        mu_logprob, 
-        mu=None, 
-        mu_mean=None, 
-        mu_std=None, 
-        action_mask=None, 
-        life_mask=None, 
-        prev_reward=None,
-        prev_action=None,
-        state=None, 
-        mask=None, 
         use_meta=False, 
         debug=True, 
-        return_grads=False
+        use_dice=None, 
+        return_grads=False, 
+        **data,
     ):
         n_mbs = self.config.get('n_mbs', 1)
         grads_list = []
         if n_mbs > 1:
-            indices = tf.range(obs.shape[0], dtype=tf.int32)
+            indices = tf.range(data['obs'].shape[0], dtype=tf.int32)
             indices = tf.random.shuffle(indices)
             indices = tf.reshape(indices, (n_mbs, -1))
             for i in range(n_mbs):
                 k = indices[i]
+                data_k = _gather(data, k)
                 with tf.GradientTape() as tape:
                     loss, terms = loss_fn(
                         tape=tape, 
-                        obs=tf.gather(obs, k), 
-                        idx=idx if idx is None else tf.gather(idx, k), 
-                        global_state=global_state if global_state is None else tf.gather(global_state, k), 
-                        next_obs=next_obs if next_obs is None else tf.gather(next_obs, k), 
-                        next_idx=next_idx if next_idx is None else tf.gather(next_idx, k), 
-                        next_global_state=next_global_state if next_global_state is None else tf.gather(next_global_state, k), 
-                        action=tf.gather(action, k), 
-                        old_value=tf.gather(value, k), 
-                        reward=tf.gather(reward, k), 
-                        discount=tf.gather(discount, k), 
-                        reset=reset if reset is None else tf.gather(reset, k), 
-                        mu_logprob=mu_logprob if mu_logprob is None else tf.gather(mu_logprob, k), 
-                        mu=mu if mu is None else tf.gather(mu, k), 
-                        mu_mean=mu_mean if mu_mean is None else tf.gather(mu_mean, k), 
-                        mu_std=mu_std if mu_std is None else tf.gather(mu_std, k), 
-                        action_mask=action_mask if action_mask is None else tf.gather(action_mask, k), 
-                        sample_mask=life_mask if life_mask is None else tf.gather(life_mask, k), 
-                        prev_reward=prev_reward if prev_reward is None else tf.gather(prev_reward, k), 
-                        prev_action=prev_action if prev_action is None else tf.gather(prev_action, k), 
-                        state=state, 
-                        mask=mask, 
+                        **data_k,
                         use_meta=use_meta, 
+                        use_dice=use_dice, 
                         debug=debug
                     )
                 terms['grads_norm'], var_norms = opt(
@@ -188,28 +154,9 @@ class Trainer(TrainerBase):
             with tf.GradientTape() as tape:
                 loss, terms = loss_fn(
                     tape=tape, 
-                    obs=obs, 
-                    idx=idx, 
-                    global_state=global_state, 
-                    next_obs=next_obs, 
-                    next_idx=next_idx, 
-                    next_global_state=next_global_state, 
-                    action=action, 
-                    old_value=value, 
-                    reward=reward, 
-                    discount=discount, 
-                    reset=reset, 
-                    mu_logprob=mu_logprob, 
-                    mu=mu, 
-                    mu_mean=mu_mean, 
-                    mu_std=mu_std, 
-                    action_mask=action_mask, 
-                    sample_mask=life_mask, 
-                    prev_reward=prev_reward, 
-                    prev_action=prev_action, 
-                    state=state, 
-                    mask=mask, 
+                    **data, 
                     use_meta=use_meta, 
+                    use_dice=use_dice, 
                     debug=debug
                 )
                 terms['grads_norm'], var_norms = opt(
@@ -234,79 +181,19 @@ class Trainer(TrainerBase):
         *, 
         tape, 
         grads_list, 
-        obs, 
-        idx=None, 
-        global_state=None, 
-        next_obs=None, 
-        next_idx=None, 
-        next_global_state=None, 
-        action, 
-        value, 
-        reward, 
-        discount, 
-        reset, 
-        mu_logprob, 
-        mu=None, 
-        mu_mean=None, 
-        mu_std=None, 
-        state=None, 
-        mask=None, 
-        action_mask=None, 
-        life_mask=None, 
-        prev_reward=None,
-        prev_action=None,
+        **data
     ):
         if self.config.meta_type == 'plain':
             meta_loss, terms = self.loss.meta.loss(
                 tape=tape, 
-                obs=obs, 
-                idx=idx, 
-                global_state=global_state, 
-                next_obs=next_obs,
-                next_idx=next_idx,
-                next_global_state=next_global_state,
-                action=action, 
-                old_value=value, 
-                reward=reward, 
-                discount=discount, 
-                reset=reset, 
-                mu_logprob=mu_logprob, 
-                mu=mu, 
-                mu_mean=mu_mean, 
-                mu_std=mu_std, 
-                action_mask=action_mask, 
-                sample_mask=life_mask, 
-                prev_reward=prev_reward, 
-                prev_action=prev_action, 
-                state=state, 
-                mask=mask, 
+                **data, 
                 name='meta', 
                 use_meta=False
             )
         elif self.config.meta_type == 'bmg':
             meta_loss, terms = self.loss.meta.bmg_loss(
                 tape=tape, 
-                obs=obs, 
-                idx=idx, 
-                global_state=global_state, 
-                next_obs=next_obs,
-                next_idx=next_idx,
-                next_global_state=next_global_state,
-                action=action, 
-                old_value=value, 
-                reward=reward, 
-                discount=discount, 
-                reset=reset, 
-                mu_logprob=mu_logprob, 
-                mu=mu, 
-                mu_mean=mu_mean, 
-                mu_std=mu_std, 
-                action_mask=action_mask, 
-                life_mask=life_mask, 
-                prev_reward=prev_reward, 
-                prev_action=prev_action, 
-                state=state, 
-                mask=mask, 
+                **data, 
                 name='meta', 
                 use_meta=False
             )
@@ -407,7 +294,7 @@ class Trainer(TrainerBase):
                 next_idx=next_idx, 
                 next_global_state=next_global_state, 
                 action=action, 
-                value=value, 
+                old_value=value, 
                 reward=reward, 
                 discount=discount, 
                 reset=reset, 
@@ -416,7 +303,7 @@ class Trainer(TrainerBase):
                 mu_mean=mu_mean, 
                 mu_std=mu_std, 
                 action_mask=action_mask, 
-                life_mask=life_mask, 
+                sample_mask=life_mask, 
                 prev_reward=prev_reward, 
                 prev_action=prev_action, 
                 state=state, 
@@ -459,7 +346,7 @@ class Trainer(TrainerBase):
         with tf.GradientTape(persistent=True) as meta_tape:
             grads_list = []
             for i in range(inner_steps):
-                for j in range(self.config.n_epochs):
+                for j in range(1, self.config.n_epochs+1):
                     terms, gl = self._inner_epoch(
                         opt=self.optimizers['meta_rl'], 
                         loss_fn=self.loss.meta.loss, 
@@ -470,7 +357,7 @@ class Trainer(TrainerBase):
                         next_idx=None if next_idx is None else next_idx[i],
                         next_global_state=None if next_global_state is None else next_global_state[i],
                         action=action[i], 
-                        value=value[i], 
+                        old_value=value[i], 
                         reward=reward[i], 
                         discount=discount[i], 
                         reset=reset[i], 
@@ -479,7 +366,7 @@ class Trainer(TrainerBase):
                         mu_mean=mu_mean[i] if mu_mean is not None else mu_mean, 
                         mu_std=mu_std[i] if mu_std is not None else mu_std, 
                         action_mask=action_mask[i] if action_mask is not None else action_mask, 
-                        life_mask=life_mask[i] if life_mask is not None else life_mask, 
+                        sample_mask=life_mask[i] if life_mask is not None else life_mask, 
                         prev_reward=prev_reward[i] if prev_reward is not None else prev_reward, 
                         prev_action=prev_action[i] if prev_action is not None else prev_action, 
                         state=self.model.state_type(*[s[i] for s in state]) if state is not None else state, 

@@ -56,7 +56,7 @@ agent:
     target_update_period: 1500
     tbo: False
 
-    # arguments for optimizer
+    # hyperparams for optimizer
     q_opt: adam
     schedule_lr: False
     value_lr: 5e-5
@@ -65,7 +65,7 @@ agent:
     ent_coef: .001
     clip_norm: 40
 
-    # arguments for PER
+    # hyperparams for PER
     per_alpha: .5
     per_epsilon: 1.e-4
 
@@ -74,11 +74,11 @@ buffer:
     seqlen: 100
     precision: 32
 
-    # arguments for PER
+    # hyperparams for PER
     beta0: 0.4
     to_update_top_priority: False
 
-    # arguments for general replay
+    # hyperparams for general replay
     n_steps: *nsteps
     gamma: *gamma
     batch_size: *bs

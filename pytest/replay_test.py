@@ -132,7 +132,7 @@ class TestClass:
     def test_sequential_buffer(self):
         config = dict(
             replay_type='seqper',                      # per or uniform
-            # arguments for general replay
+            # hyperparams for general replay
             n_envs=32,
             seqlen=16,
             reset_shift=2,
@@ -168,7 +168,7 @@ class TestClass:
     def test_sequential_buffer_random(self):
         config = dict(
             replay_type='seqper',                      # per or uniform
-            # arguments for general replay
+            # hyperparams for general replay
             n_envs=32,
             seqlen=16,
             reset_shift=2,
@@ -221,11 +221,11 @@ class TestClass:
         config = dict(
             replay_type='seqper',                      # per or uniform
             precision=32,
-            # arguments for PER
+            # hyperparams for PER
             beta0=0.4,
             to_update_top_priority=False,
 
-            # arguments for general replay
+            # hyperparams for general replay
             batch_size=2,
             sample_size=7,
             burn_in_size=2,

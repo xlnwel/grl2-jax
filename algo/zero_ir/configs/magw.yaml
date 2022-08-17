@@ -23,7 +23,7 @@ routine:
     size: [256, 256]
 
 env:
-    env_name: &env_name gw-staghunt
+    env_name: &env_name grid_world-staghunt
     n_runners: &nrunners 1
     n_envs: &nenvs 64
     max_episode_steps: 50
@@ -87,7 +87,7 @@ model:
         out_act: null
         indexed: head
         use_bias: True
-    meta_value:
+    outer_value:
         nn_id: value
         units_list: [64, 64]
         kernel_initializer: orthogonal
@@ -145,19 +145,19 @@ model:
             default: 1
             scale: 1
             bias: 0
-            init: 5
-            act: sigmoid
+            init: null
+            act: tanh
 
 loss:
     rl:
-        # arguments for value target and advantage
+        # hyperparams for value target and advantage
         target_type: gae
         c_clip: 1
         rho_clip: 1
         adv_type: vtrace
         norm_adv: True
 
-        # arguments for policy optimization
+        # hyperparams for policy optimization
         pg_type: ppo
         ppo_clip_range: .2
         use_dice: False
@@ -165,13 +165,14 @@ loss:
         dice_lam: 1
         kl: reverse
         kl_coef: 1
+        policy_life_mask: True
 
-        # arguments for value learning
+        # hyperparams for value learning
         value_loss: mse
         value_clip_range: .2
-        life_mask: False
+        value_life_mask: False
     meta:
-        # arguments for value target and advantage
+        # hyperparams for value target and advantage
         target_type: gae
         c_clip: 1
         rho_clip: 1
@@ -179,7 +180,7 @@ loss:
         norm_adv: True
         norm_meta_adv: True
 
-        # arguments for policy optimization
+        # hyperparams for policy optimization
         pg_type: ppo
         ppo_clip_range: .2
         use_dice: False
@@ -187,12 +188,14 @@ loss:
         dice_lam: 1
         kl: reverse
         kl_coef: 1
+        policy_life_mask: True
 
-        # arguments for value learning
+        # hyperparams for value learning
         value_loss: mse
         value_clip_range: .2
-        life_mask: False
+        value_life_mask: False
 
+        # hyperparams for value learning
         meta_reward_coef: 0
 
 trainer:
@@ -211,7 +214,8 @@ trainer:
     extra_meta_step: *ems
     store_state: True
     event_done: False
-    
+    meta_reward_only: False
+
     optimizer:
         opt_name: adam
         schedule_lr: False

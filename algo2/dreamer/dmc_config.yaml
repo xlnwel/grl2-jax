@@ -68,7 +68,7 @@ agent:
     model_name: *algo
     RECORD: True
 
-    # arguments for optimizer
+    # hyperparams for optimizer
     opt_name: adam
     clip_norm: 100.
     weight_decay: 0.
@@ -79,7 +79,7 @@ agent:
 buffer:
     replay_type: episodic                      # per or uniform
 
-    # arguments for general replay
+    # hyperparams for general replay
     batch_size: *bs
     sample_size: *ss
     max_episodes: 800
