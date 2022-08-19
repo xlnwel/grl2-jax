@@ -18,12 +18,19 @@ def prefix_name(terms, name):
         return new_terms
     return terms
 
-def split_data(x, next_x=None):
+def split_data(x, next_x=None, axis=1):
+    if isinstance(x, (list, tuple)):
+        if next_x is None:
+            next_x = [None for _ in x]
+        x, next_x = list(zip(*[split_data(xx, next_xx, axis=axis) 
+            for xx, next_xx in zip(x, next_x)]))
+        return x, next_x
     if x is None:
         return None, None
     if next_x is None:
-        next_x = x[:, 1:]
-        x = x[:, :-1]
+        n = x.shape[axis]
+        _, next_x = tf.split(x, [1, n-1], axis=axis)
+        x, _ = tf.split(x, [n-1, 1], axis=axis)
     return x, next_x
 
 class POLossImpl(LossBase):

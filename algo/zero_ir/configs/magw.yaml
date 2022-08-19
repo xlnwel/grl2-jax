@@ -52,6 +52,8 @@ model:
     K: *K
     L: *L
     rl_reward: &rlreward sum
+    gamma: &gamma .99
+    meta_reward_type: intrinsic
     extra_meta_step: *ems
 
     encoder: 
@@ -127,8 +129,8 @@ model:
             init: null
             act: sigmoid
         gamma: 
-            outer: &gamma .99
-            default: .99
+            outer: *gamma
+            default: *gamma
             scale: 1
             bias: 0
             init: null

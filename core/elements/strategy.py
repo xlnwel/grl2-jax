@@ -142,7 +142,7 @@ class Strategy:
         self._record_output(out)
         return out[:2]
 
-    def _prepare_input_to_actor(self, env_output):
+    def _prepare_input_to_actor(self, env_output: EnvOutput):
         """ Extract data from env_output as the input 
         to Actor for inference """
         inp = copy.deepcopy(env_output.obs)

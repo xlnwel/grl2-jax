@@ -1,6 +1,7 @@
 import functools
 from typing import Dict
 import tensorflow as tf
+from algo.zero.elements.loss import split_data
 
 from core.elements.trainer import Trainer as TrainerBase, create_trainer
 from core.decorator import override
@@ -264,31 +265,30 @@ class Trainer(TrainerBase):
         mu_mean=None, 
         mu_std=None, 
         action_mask=None, 
+        next_action_mask=None, 
         life_mask=None, 
+        next_life_mask=None, 
         prev_reward=None,
         prev_action=None,
         state=None, 
         mask=None, 
         use_meta=False, 
     ):
-        if next_hidden_state is None:
-            curr_hidden_state = hidden_state[:, :-1]
-            curr_idx = idx[:, :-1]
-            curr_event = None if event is None else event[:, :-1]
-            if action_mask is not None:
-                action_mask = action_mask[:, :-1]
-            if life_mask is not None:
-                life_mask = life_mask[:, :-1]
-        else:
-            curr_hidden_state = hidden_state
-            curr_idx = idx
-            curr_event = event
+        (action_mask, life_mask), _ = split_data(
+            [action_mask, life_mask], 
+            [next_action_mask, next_life_mask], 
+            axis=1
+        )
         _, _, rl_reward = self._compute_rl_reward(
-            curr_hidden_state, 
+            hidden_state, 
+            next_hidden_state, 
             action, 
-            curr_idx, 
-            curr_event, 
-            reward
+            idx, 
+            next_idx, 
+            event, 
+            next_event, 
+            reward, 
+            axis=1
         )
         for _ in range(self.config.n_epochs):
             terms = self._inner_epoch(
@@ -348,30 +348,29 @@ class Trainer(TrainerBase):
         state=None, 
         mask=None, 
         action_mask=None, 
+        next_action_mask=None, 
         life_mask=None, 
+        next_life_mask=None, 
         prev_reward=None,
         prev_action=None,
     ):
         inner_steps = self.config.K
-        if next_hidden_state is None:
-            curr_hidden_state = hidden_state[:, :, :-1]
-            curr_idx = idx[:, :, :-1]
-            curr_event = None if event is None else event[:, :, :-1]
-            if action_mask is not None:
-                action_mask = action_mask[:, :, :-1]
-            if life_mask is not None:
-                life_mask = life_mask[:, :, :-1]
-        else:
-            curr_hidden_state = hidden_state
-            curr_idx = idx
-            curr_event = event
+        (action_mask, life_mask), _ = split_data(
+            [action_mask, life_mask], 
+            [next_action_mask, next_life_mask], 
+            axis=2
+        )
         with tf.GradientTape(persistent=True) as meta_tape:
             meta_reward, trans_reward, rl_reward = self._compute_rl_reward(
-                curr_hidden_state, 
+                hidden_state, 
+                next_hidden_state, 
                 action, 
-                curr_idx, 
-                curr_event, 
-                reward
+                idx, 
+                next_idx, 
+                event, 
+                next_event, 
+                reward, 
+                axis=2
             )
             if event is not None and self.config.event_done:
                 event_idx = tf.argmax(event, -1)
@@ -482,10 +481,29 @@ class Trainer(TrainerBase):
         for k, v in weights.items():
             self.optimizers[k].set_weights(v)
 
-    def _compute_rl_reward(self, hidden_state, action, idx, event, reward):
+    def _compute_rl_reward(
+        self, 
+        hidden_state, 
+        next_hidden_state, 
+        action, 
+        idx, 
+        next_idx, 
+        event, 
+        next_event, 
+        reward, 
+        axis,   # sequential axis
+    ):
+        [idx, event, hidden_state], [next_idx, next_event, next_hidden_state] = \
+            split_data(
+                [idx, event, hidden_state], 
+                [next_idx, next_event, next_hidden_state], 
+                axis=axis
+            )
         if self.config.K:
             meta_reward, trans_reward = self.model['meta'].compute_meta_reward(
-                hidden_state, action, idx, event)
+                hidden_state, next_hidden_state, action, 
+                idx, next_idx, event, next_event
+            )
             if self.config['rl_reward'] == 'meta':
                 rl_reward = trans_reward
             elif self.config['rl_reward'] == 'sum':
