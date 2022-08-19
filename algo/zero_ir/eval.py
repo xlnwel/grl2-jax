@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings("ignore")
 import os, sys
 import time
 import numpy as np
@@ -20,7 +22,7 @@ def plot(data: dict, outdir: str, figname: str):
     data = {k: np.squeeze(v) for k, v in data.items()}
     data = {k: np.swapaxes(v, 0, 1) if v.ndim == 2 else v for k, v in data.items()}
     plot_data_dict(data, outdir=outdir, figname=figname)
-    all_reward = np.concatenate([data['reward'], data['in_reward']])
+    all_reward = np.concatenate([data['reward'], data['meta_reward'], data['trans_reward']])
     plot_data(all_reward, y='reward', outdir=outdir, 
         title=f'{figname}-reward', avg_data=False)
 
@@ -71,11 +73,11 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
         f'Time: {time.time()-start:.3g}',
         color='cyan')
 
-    out_dir = f'{out_dir}/{algo_name}-{env_name}'
-    filename = config['model_name']
+    filename = f'{out_dir}/{algo_name}-{env_name}/{config["model_name"]}'
+    out_dir, filename = filename.rsplit('/', maxsplit=1)
     if info != "" and info is not None:
-        out_dir = f'{out_dir}/{filename}'
-        filename = f'{info}'
+        filename = f'{out_dir}/{filename}/{info}'
+        out_dir, filename = filename.rsplit('/', maxsplit=1)
     if record:
         plot(data, out_dir, filename)
         save_video(filename, video, fps=fps, out_dir=out_dir)

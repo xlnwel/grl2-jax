@@ -37,6 +37,7 @@ env:
 agent: {}
 
 strategy:
+    algorithm: *algo
     train_loop:
         use_dataset: &dataset False
         K: &K null
@@ -68,7 +69,11 @@ model:
         eval_act_temp: 1
         out_gain: .01
         indexed: head
-        use_bias: True
+        indexed_config:
+            use_shared_bias: False
+            use_bias: True
+            kernel_initializer: orthogonal
+            activation: relu
     value:
         nn_id: value
         units_list: [64, 64]
@@ -76,7 +81,11 @@ model:
         activation: relu
         norm: null
         indexed: head
-        use_bias: True
+        indexed_config:
+            use_shared_bias: False
+            use_bias: True
+            kernel_initializer: orthogonal
+            activation: relu
     meta:
         nn_id: meta
         pg_coef:
@@ -85,8 +94,8 @@ model:
             init: null
             act: sigmoid
         entropy_coef:
-            outer: 1e-2
-            default: 1e-2
+            outer: 5e-2
+            default: 5e-2
             init: null
             act: sigmoid
         value_coef:

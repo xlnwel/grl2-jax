@@ -4,6 +4,7 @@ from tensorflow_probability import distributions as tfd
 
 from core.module import Module
 from nn.func import mlp, nn_registry
+from nn.index import IndexedModule
 from nn.utils import get_activation
 
 """ Source this file to register Networks """
@@ -37,7 +38,7 @@ class HPEmbed(Module):
 
 
 @nn_registry.register('policy')
-class Policy(Module):
+class Policy(IndexedModule):
     def __init__(self, name='policy', **config):
         super().__init__(name=name)
         config = config.copy()
@@ -69,32 +70,7 @@ class Policy(Module):
                 name=f'{name}/policy/logstd')
         config.setdefault('out_gain', .01)
 
-        self.indexed = config.pop('indexed', False)
-        IndexedNet = nn_registry.get('index')
-        if self.indexed == 'all':
-            units_list = config.pop('units_list', [])
-            units_list.append(self.action_dim)
-            self._layers = [IndexedNet(**config, out_size=u, name=f'{name}_l{i}') 
-                for i, u in enumerate(units_list)]
-        elif self.indexed == 'head':
-            self._layers = mlp(
-                **config, 
-                name=name
-            )
-            config.pop('units_list')
-            self._head = IndexedNet(
-                **config, 
-                out_size=self.action_dim, 
-                out_dtype='float32',
-                name=name
-            )
-        else:
-            self._layers = mlp(
-                **config, 
-                out_size=embed_dim if self.attention_action else self.action_dim, 
-                out_dtype='float32',
-                name=name
-            )
+        self._build_nets(config, out_size=self.action_dim)
 
     def call(self, x, hx=None, action_mask=None, evaluation=False):
         tf.debugging.assert_all_finite(x, 'Bad input')
@@ -147,7 +123,7 @@ class Policy(Module):
         return action
 
 @nn_registry.register('value')
-class Value(Module):
+class Value(IndexedModule):
     def __init__(self, name='value', **config):
         super().__init__(name=name)
         config = config.copy()
@@ -156,33 +132,9 @@ class Value(Module):
         self._out_act = config.pop('out_act', None)
         if self._out_act:
             self._out_act = get_activation(self._out_act)
-        self.indexed = config.pop('indexed', [])
         out_size = config.pop('out_size', 1)
-        IndexedNet = nn_registry.get('index')
-        if self.indexed == 'all':
-            units_list = config.pop('units_list', [])
-            units_list.append(out_size)
-            self._layers = [IndexedNet(**config, out_size=u, name=f'{name}_l{i}') 
-                for i, u in enumerate(units_list)]
-        elif self.indexed == 'head':
-            self._layers = mlp(
-                **config, 
-                name=name
-            )
-            config.pop('units_list')
-            self._head = IndexedNet(
-                **config, 
-                out_size=out_size, 
-                out_dtype='float32',
-                name=name
-            )
-        else:
-            self._layers = mlp(
-                **config, 
-                out_size=out_size, 
-                out_dtype='float32',
-                name=name
-            )
+
+        self._build_nets(config, out_size=out_size)
 
     def call(self, x, hx=None):
         if self.indexed == 'all':

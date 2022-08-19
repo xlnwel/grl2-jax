@@ -16,7 +16,7 @@ AGENT_ACTIONS = {0: 'MOVE_LEFT',  # Move left
 
 class Agent(object):
 
-    def __init__(self, agent_id, start_pos, grid, env_name, num_agents):
+    def __init__(self, agent_id, start_pos, grid, env_name, num_agents, representation):
         """Superclass for all agents.
 
         Parameters
@@ -44,7 +44,11 @@ class Agent(object):
         self.action_space = Discrete(5)
 
         if 'StagHunt' in self.env_name:
-            self.observation_space = Box(0, 5, [10+2*(num_agents-2)])
+            if representation == 'one_hot':
+                self.observation_space = Box(
+                    0, 1, [(10+2*(num_agents-2)) * grid.shape[0]])
+            else:
+                self.observation_space = Box(0, 5, [(10+2*(num_agents-2))])
             self.gore_num = 0
             self.hare_num = 0
 

@@ -41,3 +41,35 @@ class IndexedNet(Module):
             out = out + self._blayer(hx)
 
         return out
+
+
+class IndexedModule(Module):
+    def _build_nets(self, config, out_size):
+        self.indexed = config.pop('indexed', None)
+        indexed_config = config.pop('indexed_config', {})
+        if self.indexed == 'all':
+            assert indexed_config, self.scope_name
+            units_list = config.pop('units_list', [])
+            units_list.append(out_size)
+            self._layers = [IndexedNet(
+                **indexed_config, out_size=u, name=f'{self.scope_name}_l{i}') 
+                for i, u in enumerate(units_list)]
+        elif self.indexed == 'head':
+            assert indexed_config, indexed_config
+            self._layers = mlp(
+                **config, 
+                name=self.scope_name
+            )
+            self._head = IndexedNet(
+                **indexed_config, 
+                out_size=out_size, 
+                out_dtype='float32',
+                name=self.scope_name
+            )
+        else:
+            self._layers = mlp(
+                **config, 
+                out_size=out_size, 
+                out_dtype='float32',
+                name=self.scope_name
+            )

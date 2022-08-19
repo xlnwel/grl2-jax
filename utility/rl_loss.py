@@ -534,6 +534,44 @@ def high_order_ppo_loss(
     return pg_loss, clipped_loss, raw_ppo_loss, ppo_loss, clip_frac
 
 
+def joint_ppo_loss(
+    *, 
+    pg_coef, 
+    advantage, 
+    ratio, 
+    clip_range, 
+    mask=None, 
+    n=None,
+):
+    if mask is not None and n is None:
+        mask = tf.math.reduce_prod(mask, axis=-1)
+        n = tf.reduce_sum(mask)
+        assert_rank_and_shape_compatibility([advantage, mask])
+    joint_ratio = tf.math.reduce_prod(ratio, axis=-1)
+    clipped_ratio = tf.clip_by_value(ratio, 1. - clip_range, 1. + clip_range)
+    joint_clipped_ratio = tf.math.reduce_prod(clipped_ratio, axis=-1)
+    assert_rank_and_shape_compatibility([joint_ratio, advantage])
+    neg_adv = -advantage
+    pg_loss = neg_adv * joint_ratio
+    clipped_loss = neg_adv * joint_clipped_ratio
+
+    raw_ppo = tf.maximum(pg_loss, clipped_loss)
+    raw_ppo_loss, ppo_loss = to_loss(
+        raw_ppo, 
+        pg_coef, 
+        mask=mask, 
+        n=n
+    )
+
+    # We still count how much will be clipped by range .2 when clipping is off
+    if clip_range is None:
+        clip_range = .2
+    clip_frac = reduce_mean(tf.cast(tf.greater(
+        tf.abs(ratio - 1.), clip_range), ratio.dtype), mask, n)
+
+    return pg_loss, clipped_loss, raw_ppo_loss, ppo_loss, clip_frac
+
+
 def _compute_ppo_value_losses(
     value, 
     traj_ret, 

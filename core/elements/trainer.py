@@ -34,6 +34,7 @@ class Trainer(tf.Module):
 
         self.train = tf.function(self.raw_train)
         has_built = self._build_train(env_stats)
+        print('Trainer built:', has_built)
 
         self._opt_ckpt = Checkpoint(
             self.config, self.ckpt_model(), self.name)

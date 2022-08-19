@@ -138,14 +138,17 @@ class LoggerTimer:
 
 
 class Every:
-    def __init__(self, period, start=0):
+    def __init__(self, period, start=0, final=None):
         self._period = period
         self._curr = start
         self._next = start
+        self._final = final
         self._diff = 0
     
     def __call__(self, step):
-        if self._period is not None and step >= self._next:
+        if self._period is None:
+            return False
+        if step >= self._next or (self._final is not None and step > self._final):
             self._diff = step - self._curr
             self._curr = step
             self._next = step + self._period

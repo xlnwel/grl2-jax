@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings("ignore")
+
 import os, sys
 import time
 import numpy as np
@@ -48,7 +51,6 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
 
     env_stats = env.stats()
 
-    print('start building')
     builder = ElementsBuilder(config, env_stats, config.algorithm)
     elements = builder.build_acting_agent_from_scratch(to_build_for_eval=True)
     agent = elements.agent
@@ -72,11 +74,11 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
         f'Time: {time.time()-start:.3g}',
         color='cyan')
 
-    out_dir = f'{out_dir}/{algo_name}-{env_name}'
-    filename = config['model_name']
-    if info:
-        out_dir = f'{out_dir}/{filename}'
-        filename = f'{info}'
+    filename = f'{out_dir}/{algo_name}-{env_name}/{config["model_name"]}'
+    out_dir, filename = filename.rsplit('/', maxsplit=1)
+    if info != "" and info is not None:
+        filename = f'{out_dir}/{filename}/{info}'
+        out_dir, filename = filename.rsplit('/', maxsplit=1)
     if record:
         plot(data, out_dir, filename)
         save_video(filename, video, fps=fps, out_dir=out_dir)

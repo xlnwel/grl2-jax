@@ -29,9 +29,10 @@ class TrainingLoop(TrainingLoopBase):
         self._prev_data = []
         self._new_iter = True
         self.config.debug = True
+        self._step = 0
 
     def _before_train(self, step):
-        self._step = step
+        self._step += 1
 
     def _train(self):
         def get_data():
@@ -81,7 +82,7 @@ class TrainingLoop(TrainingLoopBase):
         def train(max_record_size=10):
             raw_data, data = get_data()
             do_meta_step = self._use_meta and \
-                (self._step + 1) % (self.config.inner_steps + self.config.extra_meta_step) == 0
+                self._step % (self.config.inner_steps + self.config.extra_meta_step) == 0
             # print(self._step, self.config.inner_steps, self.config.extra_meta_step)
             # print(do_meta_step)
             if data is None:
@@ -90,11 +91,11 @@ class TrainingLoop(TrainingLoopBase):
             if do_meta_step:
                 # if self.config.get('debug', False):
                 #     # test data consistency
-                #     for i in range(self.config.inner_steps):
-                #         for k, d1, d2 in zip(self._prev_data[i].keys(), self._prev_data[i].values(), data.values()):
-                #             assert len(d2) == self.config.inner_steps + self.config.extra_meta_step, len(d2)
-                #             np.testing.assert_allclose(d1, d2[i])
-                #     self._prev_data = []
+                #     # for i in range(self.config.inner_steps):
+                #     #     for k, d1, d2 in zip(self._prev_data[i].keys(), self._prev_data[i].values(), data.values()):
+                #     #         assert len(d2) == self.config.inner_steps + self.config.extra_meta_step, len(d2)
+                #     #         np.testing.assert_allclose(d1, d2[i])
+                #     # self._prev_data = []
                 #     # test consistency of rl optimizer's variables
                 #     rl_vars = self._prev_rl_opt_vars
                 #     meta_vars = self.trainer.optimizers['meta_rl'].opt_variables
@@ -108,8 +109,10 @@ class TrainingLoop(TrainingLoopBase):
                 with self._meta_train_timer:
                     terms = self.trainer.meta_train(**data)
                 with self._sync_timer:
-                    if self.trainer.config.inner_steps == 1 and self.config.extra_meta_step == 0:
+                    if self.config.inner_steps == 1 and self.config.extra_meta_step == 0:
                         pass
+                    elif self.config.extra_meta_step == 0:
+                        self.trainer.sync_nets(forward=True)
                     elif self.trainer.config.L == 0:
                         self.trainer.sync_nets(forward=None)
                     else:
@@ -134,7 +137,7 @@ class TrainingLoop(TrainingLoopBase):
                 #     print('meta train step')
             else:
                 # if self.config.get('debug', False):
-                #     self._prev_data.append(data)
+                #     # self._prev_data.append(data)
                 #     if self._new_iter:
                 #         # test consistency of rl optimizer's variables
                 #         rl_vars = self.trainer.optimizers['rl'].opt_variables
@@ -157,7 +160,6 @@ class TrainingLoop(TrainingLoopBase):
                 with self._train_timer:
                     terms = self.trainer.train(**data, use_meta=use_meta)
                 # if self.config.get('debug', False):
-                #     self._prev_grads_norm = terms['grads_norm']
                 #     print('raw train step')
                 #     self._new_iter = False
 

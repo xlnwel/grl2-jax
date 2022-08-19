@@ -6,6 +6,15 @@ import tensorflow as tf
 from utility.typing import AttrDict
 
 
+def get_hx(idx, event):
+    if idx is None:
+        hx = event
+    elif event is None:
+        hx = idx
+    else:
+        hx = tf.concat([idx, event], -1)
+    return hx
+
 def compute_inner_steps(config):
     if config.K is not None and config.L is not None:
         config.inner_steps = config.K + config.L
@@ -89,7 +98,9 @@ def get_data_format(
         reset=(basic_shape, tf.float32, 'reset'),
         mu_logprob=(basic_shape, tf.float32, 'mu_logprob'),
     ))
-    if env_stats.is_action_discrete:
+
+    is_action_discrete = env_stats.is_action_discrete[config['aid']] if isinstance(env_stats.is_action_discrete, list) else env_stats.is_action_discrete
+    if is_action_discrete:
         data_format['mu'] = ((*basic_shape, action_dim), tf.float32, 'mu')
     else:
         data_format['mu_mean'] = ((*basic_shape, action_dim), tf.float32, 'mu_mean')

@@ -10,6 +10,7 @@ from core.typing import ModelPath
 from env.typing import EnvOutput
 from utility.utils import set_path
 from utility.typing import AttrDict
+from utility import pkg
 
 
 class Strategy:
@@ -186,7 +187,9 @@ def create_strategy(
         if dataset is None:
             raise ValueError('Missing dataset')
         if training_loop_cls is None:
-            raise ValueError('Missing TrainingLoop Class')
+            algo = config.algorithm.split('-')[-1]
+            training_loop_cls = pkg.import_module(
+                'elements.trainloop', algo=algo).TrainingLoop
         train_loop = training_loop_cls(
             config=config.train_loop, 
             dataset=dataset, 

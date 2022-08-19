@@ -52,7 +52,7 @@ class Trainer(TrainerBase):
         opt_name = config.optimizer.opt_name
         config.optimizer.opt_name = opts[opt_name]
         modules = _get_rl_modules(self.model['rl'])
-        do_logging(modules, prefix='RL modules', level='print')
+        do_logging(modules, prefix='RL Modules', level='print')
         self.optimizers: Dict[str, Optimizer] = {}
         self.optimizers['rl'] = create_optimizer(
             modules, config.optimizer, f'rl/{opt_name}'
@@ -75,10 +75,6 @@ class Trainer(TrainerBase):
     def sync_opt_vars(self):
         self.sync_ops.sync_vars(
             self.optimizers['rl'].opt_variables, self.optimizers['meta_rl'].opt_variables)
-
-    def sync_meta_vars(self):
-        self.sync_ops.sync_nets(
-            self.meta_modules, _get_meta_modules(self.model['rl']))
 
     def sync_nets(self, forward=True):
         if self._use_meta:
@@ -176,7 +172,7 @@ class Trainer(TrainerBase):
         else:
             return terms
 
-    def _outer_epoch(
+    def _outer_grads(
         self, 
         *, 
         tape, 
@@ -184,14 +180,14 @@ class Trainer(TrainerBase):
         **data
     ):
         if self.config.meta_type == 'plain':
-            meta_loss, terms = self.loss.meta.loss(
+            plain_loss, meta_loss, terms = self.loss.meta.loss(
                 tape=tape, 
                 **data, 
                 name='meta', 
                 use_meta=False
             )
         elif self.config.meta_type == 'bmg':
-            meta_loss, terms = self.loss.meta.bmg_loss(
+            plain_loss, meta_loss, terms = self.loss.meta.bmg_loss(
                 tape=tape, 
                 **data, 
                 name='meta', 
@@ -215,53 +211,41 @@ class Trainer(TrainerBase):
             for v, g in zip(meta_vars, meta_grads_tensors):
                 terms[f'{v.name.split(":")[0]}:step_grads'] = g
             assert len(meta_grads) == len(meta_vars), (len(meta_grads), len(meta_vars))
-            terms['meta/grads_norm'], clipped_meta_grads = \
-                self.optimizers['meta'].apply_gradients(
-                    meta_grads, vars=meta_vars, return_grads=True)
-
-            def record_meta_stats(terms):
-                for v, mg in zip(meta_vars, meta_grads_list):
-                    mg = {f'{v.name.split(":")[0]}/step_grads{i}': g for i, g in enumerate(mg)}
-                    terms = _add_norm(terms, mg)
-                mg = {f'{v.name.split(":")[0]}/grads': g for v, g in zip(meta_vars, meta_grads)}
-                terms = _add_norm(
-                    terms, mg, None
-                )
-                mv = {f'{v.name.split(":")[0]}/var': v for v in meta_vars}
-                terms = _add_norm(
-                    terms, mv, None
-                )
-                terms['meta/var'] = meta_vars
-                cmg = {f'{k.split(":")[0]}/clipped_grads': v for k, v in clipped_meta_grads.items()}
-                terms = _add_norm(
-                    terms, cmg, 'meta/clipped_grads_norm'
-                )
-                trans_meta_grads = self.optimizers['meta'].get_transformed_grads()
-                trans_meta_grads = {f'{k.split(":")[0]}/trans_grads': v for k, v in trans_meta_grads.items()}
-                terms = _add_norm(
-                    terms, trans_meta_grads, 'meta/trans_grads_norm'
-                )
-                var_norms = self.optimizers['meta'].get_var_norms()
-                var_norms = {f'{k.split(":")[0]}/var_norm': v for k, v in var_norms.items()}
-                terms = _add_norm(
-                    terms, var_norms, None
-                )
-                terms['meta/var_norm'] = list(var_norms.values())
-                return terms
-            
-            terms = record_meta_stats(terms)
-            
-            return terms
+        
+        return meta_grads, meta_vars, terms
+    
+    def _apply_meta_grads(self, meta_grads, meta_vars, terms):
+        terms['meta/grads_norm'], clipped_meta_grads = \
+            self.optimizers['meta'].apply_gradients(
+                meta_grads, return_grads=True)
+        mg = {f'{v.name.split(":")[0]}/grads': g for v, g in zip(meta_vars, meta_grads)}
+        terms = _add_norm(terms, mg)
+        mv = {f'{v.name.split(":")[0]}/var': v for v in meta_vars}
+        terms = _add_norm(terms, mv)
+        cmg = {f'{k.split(":")[0]}/clipped_grads': v for k, v in clipped_meta_grads.items()}
+        terms = _add_norm(terms, cmg, 'meta/clipped_grads_norm')
+        trans_meta_grads = self.optimizers['meta'].get_transformed_grads()
+        trans_meta_grads = {f'{k.split(":")[0]}/trans_grads': v for k, v in trans_meta_grads.items()}
+        terms = _add_norm(terms, trans_meta_grads, 'meta/trans_grads_norm')
+        var_norms = self.optimizers['meta'].get_var_norms()
+        var_norms = {f'{k.split(":")[0]}/var_norm': v for k, v in var_norms.items()}
+        terms = _add_norm(terms, var_norms)
+        terms['meta/var_norm'] = list(var_norms.values())
+        return terms
 
     def raw_train(
         self, 
         *, 
         obs, 
         idx=None, 
+        event=None, 
         global_state=None, 
+        hidden_state=None, 
         next_obs=None, 
         next_idx=None, 
+        next_event=None, 
         next_global_state=None, 
+        next_hidden_state=None, 
         action, 
         value, 
         reward, 
@@ -308,6 +292,7 @@ class Trainer(TrainerBase):
                 prev_action=prev_action, 
                 state=state, 
                 mask=mask, 
+                debug=not self._use_meta, 
                 use_meta=use_meta, 
             )
 
@@ -338,11 +323,11 @@ class Trainer(TrainerBase):
         prev_reward=None,
         prev_action=None,
     ):
+        inner_steps = self.config.K
         if action_mask is not None:
             action_mask = action_mask[:, :, :-1]
         if life_mask is not None:
             life_mask = life_mask[:, :, :-1]
-        inner_steps = self.config.K
         with tf.GradientTape(persistent=True) as meta_tape:
             grads_list = []
             for i in range(inner_steps):
@@ -377,7 +362,7 @@ class Trainer(TrainerBase):
                     )
                     grads_list += gl
 
-                    meta_terms = self._outer_epoch(
+                    mgs, meta_vars, meta_terms = self._outer_grads(
                         tape=meta_tape, 
                         grads_list=grads_list, 
                         obs=obs[-1], 
@@ -396,12 +381,15 @@ class Trainer(TrainerBase):
                         mu_mean=mu_mean[-1] if mu_mean is not None else mu_mean, 
                         mu_std=mu_std[-1] if mu_std is not None else mu_std, 
                         action_mask=action_mask[-1] if action_mask is not None else action_mask, 
-                        life_mask=life_mask[-1] if life_mask is not None else life_mask, 
+                        sample_mask=life_mask[-1] if life_mask is not None else life_mask, 
                         prev_reward=prev_reward[-1] if prev_reward is not None else prev_reward, 
                         prev_action=prev_action[-1] if prev_action is not None else prev_action, 
                         state=self.model.state_type(*[s[-1] for s in state]) if state is not None else state, 
                         mask=mask[-1] if mask is not None else mask, 
                     )
+                    meta_grads.append(mgs)
+            meta_grads = [sum(mg) / len(mg) for mg in zip(*meta_grads)]
+            meta_terms = self._apply_meta_grads(meta_grads, meta_vars, meta_terms)
         terms.update(meta_terms)
 
         return terms

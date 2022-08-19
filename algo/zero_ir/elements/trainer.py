@@ -12,7 +12,6 @@ from optimizers.adam import Adam
 from optimizers.rmsprop import RMSprop
 from utility.meta import compute_meta_gradients
 from utility.utils import dict2AttrDict
-from .utils import get_hx
 
 
 def _get_rl_modules(model):
@@ -59,7 +58,7 @@ class Trainer(TrainerBase):
         opt_name = config.optimizer.opt_name
         config.optimizer.opt_name = opts[opt_name]
         modules = _get_rl_modules(self.model['rl'])
-        do_logging(modules, prefix='RL modules', level='print')
+        do_logging(modules, prefix='RL Modules', level='print')
         self.optimizers: Dict[str, Optimizer] = {}
         self.optimizers['rl'] = create_optimizer(
             modules, config.optimizer, f'rl/{opt_name}'
@@ -284,7 +283,7 @@ class Trainer(TrainerBase):
             curr_hidden_state = hidden_state
             curr_idx = idx
             curr_event = event
-        _, rl_reward = self._compute_rl_reward(
+        _, _, rl_reward = self._compute_rl_reward(
             curr_hidden_state, 
             action, 
             curr_idx, 
@@ -367,7 +366,7 @@ class Trainer(TrainerBase):
             curr_idx = idx
             curr_event = event
         with tf.GradientTape(persistent=True) as meta_tape:
-            meta_reward, rl_reward = self._compute_rl_reward(
+            meta_reward, trans_reward, rl_reward = self._compute_rl_reward(
                 curr_hidden_state, 
                 action, 
                 curr_idx, 
@@ -447,7 +446,10 @@ class Trainer(TrainerBase):
             meta_grads = [sum(mg) / len(mg) for mg in zip(*meta_grads)]
             meta_terms = self._apply_meta_grads(meta_grads, meta_vars, meta_terms)
         terms['meta_reward'] = meta_reward
+        terms['trans_meta_reward'] = trans_reward
         terms['rl_reward'] = rl_reward
+        terms['reward_scale'] = self.model['meta'].meta('reward_scale', inner=True)
+        terms['reward_bias'] = self.model['meta'].meta('reward_bias', inner=True)
         terms['reward_coef'] = self.model['meta'].meta('reward_coef', inner=True)
         # if event is not None:
         #     fake_event = tf.one_hot(tf.convert_to_tensor([[0, 1], [1, 0]]), 2)
@@ -482,23 +484,20 @@ class Trainer(TrainerBase):
 
     def _compute_rl_reward(self, hidden_state, action, idx, event, reward):
         if self.config.K:
-            action_oh = tf.one_hot(action, self.model['meta'].policy.action_dim)
-            x = tf.concat([hidden_state, action_oh], -1)
-            hx = get_hx(idx, event)
-            meta_reward = self.model['meta'].meta_reward(x, hx=hx)
-            reward_scale = self.model['meta'].meta('reward_scale', inner=True)
-            reward_bias = self.model['meta'].meta('reward_bias', inner=True)
-            reward = reward_scale * reward + reward_bias
-            reward_coef = self.model['meta'].meta('reward_coef', inner=True)
+            meta_reward, trans_reward = self.model['meta'].compute_meta_reward(
+                hidden_state, action, idx, event)
             if self.config['rl_reward'] == 'meta':
-                rl_reward = reward_coef * meta_reward
+                rl_reward = trans_reward
             elif self.config['rl_reward'] == 'sum':
-                rl_reward = reward + reward_coef * meta_reward
+                rl_reward = reward + trans_reward
             elif self.config['rl_reward'] == 'interpolated':
+                reward_coef = self.model['meta'].meta('reward_coef', inner=True)
                 rl_reward = (1 - reward_coef) * reward + reward_coef * meta_reward
-            return meta_reward, rl_reward
+            else:
+                raise ValueError(f"Unknown rl reward type: {self.config['rl_reward']}")
+            return meta_reward, trans_reward, rl_reward
         else:
-            return None, reward
+            return None, None, reward
 
 create_trainer = functools.partial(create_trainer,
     name='zero', trainer_cls=Trainer

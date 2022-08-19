@@ -72,7 +72,8 @@ class Model(Ensemble):
             name = [name]
         assert isinstance(name, (tuple, list))
 
-        return {n: self.components[n].get_weights() for n in name}
+        weights = {n: self.components[n].get_weights() for n in name}
+        return weights
 
     def set_weights(self, weights: Union[list, dict], default_initialization=None):
         """ Sets weights

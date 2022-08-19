@@ -4,7 +4,7 @@ from core.tf_config import \
     configure_gpu, configure_precision, silence_tf_logs
 from .local.controller import Controller
 from utility.ray_setup import sigint_shutdown_ray
-from utility.utils import dict2AttrDict, set_seed
+from utility.utils import dict2AttrDict, modify_config, set_seed
 from utility import yaml_op
 
 
@@ -32,6 +32,8 @@ def main(configs):
     if len(configs) == 1:
         configs = [dict2AttrDict(configs[0], to_copy=True) 
             for _ in range(configs[0].n_agents)]
+        for i, c in enumerate(configs):
+            modify_config(c, overwrite_existed_only=True, aid=i)
 
     config = configs[0]
     save_configs(configs)

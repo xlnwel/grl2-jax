@@ -3,7 +3,6 @@ import logging
 from typing import Dict
 import numpy as np
 
-from .trainloop import TrainingLoop
 from core.elements.strategy import Strategy as StrategyBase, create_strategy
 from core.mixin.strategy import Memory
 
@@ -33,5 +32,4 @@ class Strategy(StrategyBase):
 create_strategy = functools.partial(
     create_strategy, 
     strategy_cls=Strategy,
-    training_loop_cls=TrainingLoop
 )

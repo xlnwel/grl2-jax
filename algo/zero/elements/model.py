@@ -8,7 +8,7 @@ from core.mixin.model import NetworkSyncOps
 from core.tf_config import build
 from utility.file import source_file
 from utility.typing import AttrDict
-from .utils import compute_inner_steps
+from .utils import compute_inner_steps, get_hx
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -76,8 +76,9 @@ class Model(ModelBase):
         return_eval_stats=False
     ):
         x, state = self.encode(obs, state=state, mask=mask)
+        hx = get_hx(idx, event)
         act_dist = self.policy(
-            x, hx=idx, 
+            x, hx=hx, 
             action_mask=action_mask, 
             evaluation=evaluation
         )
@@ -97,12 +98,13 @@ class Model(ModelBase):
         if global_state is None:
             global_state = x
         if evaluation:
-            value = self.value(global_state, hx=idx)
-            return action, {'value': value}, state
+            terms = self.compute_eval_terms(global_state, hidden_state, action, hx)
+            
+            return action, terms, state
         else:
             logprob = act_dist.log_prob(action)
             tf.debugging.assert_all_finite(logprob, 'Bad logprob')
-            value = self.value(global_state, hx=idx)
+            value = self.value(global_state, hx=hx)
             terms.update({'mu_logprob': logprob, 'value': value})
 
             return action, terms, state    # keep the batch dimension for later use
@@ -117,10 +119,11 @@ class Model(ModelBase):
         mask: tf.Tensor=None,
     ):
         x, state = self.encode(obs, state=state, mask=mask)
-        act_dist = self.policy(x, hx=idx)
+        hx = get_hx(idx, event)
+        act_dist = self.policy(x, hx=hx)
         if global_state is None:
             global_state = x
-        value = self.value(global_state, hx=idx)
+        value = self.value(global_state, hx=hx)
         return x, act_dist, value
 
     def encode(
@@ -145,6 +148,12 @@ class Model(ModelBase):
             return x, state
         else:
             return x, None
+
+    def compute_eval_terms(self, global_state, hidden_state, action, hx):
+        value = self.value(global_state, hx=hx)
+        value = tf.squeeze(value)
+        terms = {'value': value, 'action': action}
+        return terms
 
 
 class ModelEnsemble(ModelEnsembleBase):
@@ -174,7 +183,7 @@ class ModelEnsemble(ModelEnsembleBase):
 
     @tf.function
     def sync_meta_nets(self):
-        keys = sorted([k for k in self.meta.keys() if k.startswith('meta')])
+        keys = ['meta'] # meta_reward is not synced since the meta_reward is being use in both loop
         source = [self.meta[k] for k in keys]
         target = [self.rl[k] for k in keys]
         self.sync_ops.sync_nets(source, target)
@@ -196,14 +205,7 @@ class ModelEnsemble(ModelEnsembleBase):
         self.sync_ops.sync_nets(source, target)
 
 
-def create_model(
-    config, 
-    env_stats, 
-    name='zero', 
-    to_build=False, 
-    to_build_for_eval=False, 
-    **kwargs
-):
+def setup_config_from_envstats(config, env_stats):
     if 'aid' in config:
         aid = config['aid']
         config.policy.action_dim = env_stats.action_dim[aid]
@@ -213,26 +215,40 @@ def create_model(
         config.policy.is_action_discrete = env_stats.is_action_discrete
         config.policy.action_low = env_stats.get('action_low')
         config.policy.action_high = env_stats.get('action_high')
+    return config
+
+
+def create_model(
+    config, 
+    env_stats, 
+    name='zero', 
+    to_build=False, 
+    to_build_for_eval=False, 
+    **kwargs
+):
+    config = setup_config_from_envstats(config, env_stats)
+    config = compute_inner_steps(config)
 
     if config['rnn_type'] is None:
         config.pop('rnn', None)
     else:
         config['rnn']['nn_id'] = config['actor_rnn_type']
 
+    build_meta = config.inner_steps == 1 and config.extra_meta_step == 0
     rl = Model(
         config=config, 
         env_stats=env_stats, 
         name='rl',
-        to_build=to_build, 
-        to_build_for_eval=to_build_for_eval,
+        to_build=not build_meta and to_build, 
+        to_build_for_eval=not build_meta and to_build_for_eval,
         **kwargs
     )
     meta = Model(
         config=config, 
         env_stats=env_stats, 
         name='meta',
-        to_build=to_build, 
-        to_build_for_eval=to_build_for_eval,
+        to_build=build_meta and to_build, 
+        to_build_for_eval=build_meta and to_build_for_eval,
         **kwargs
     )
     return ModelEnsemble(

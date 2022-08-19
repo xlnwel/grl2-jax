@@ -16,7 +16,6 @@ from env.func import create_env
 
 
 def train(config, agent, env, eval_env_config, buffer):
-    print('start training')
     routine_config = config.routine
     config.env = eval_env_config
     collect_fn = pkg.import_module(
@@ -51,8 +50,8 @@ def train(config, agent, env, eval_env_config, buffer):
     runner.step = step
     # print("Initial running stats:", 
     #     *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_record = Every(routine_config.LOG_PERIOD)
-    to_eval = Every(routine_config.EVAL_PERIOD)
+    to_record = Every(routine_config.LOG_PERIOD, final=routine_config.MAX_STEPS)
+    to_eval = Every(routine_config.EVAL_PERIOD, final=routine_config.MAX_STEPS)
     rt = Timer('run')
     tt = Timer('train')
     et = Timer('eval')

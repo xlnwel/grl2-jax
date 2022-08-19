@@ -85,6 +85,7 @@ env:
 agent: {}
 
 strategy:
+    algorithm: *algo
     train_loop:
         use_dataset: &dataset False
         K: &K 1

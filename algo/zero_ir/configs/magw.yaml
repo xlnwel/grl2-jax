@@ -38,6 +38,7 @@ env:
 agent: {}
 
 strategy:
+    algorithm: *algo
     train_loop:
         use_dataset: &dataset False
         K: &K 1
@@ -70,7 +71,11 @@ model:
         eval_act_temp: 1
         out_gain: .01
         indexed: head
-        use_bias: True
+        indexed_config:
+            use_shared_bias: False
+            use_bias: True
+            kernel_initializer: orthogonal
+            activation: relu
     value:
         nn_id: value
         units_list: [64, 64]
@@ -78,7 +83,11 @@ model:
         activation: relu
         norm: null
         indexed: head
-        use_bias: True
+        indexed_config:
+            use_shared_bias: False
+            use_bias: True
+            kernel_initializer: orthogonal
+            activation: relu
     meta_reward: 
         nn_id: value
         units_list: [64, 64]
@@ -87,7 +96,11 @@ model:
         norm: null
         out_act: null
         indexed: head
-        use_bias: True
+        indexed_config:
+            use_shared_bias: False
+            use_bias: True
+            kernel_initializer: orthogonal
+            activation: relu
     outer_value:
         nn_id: value
         units_list: [64, 64]
@@ -102,8 +115,8 @@ model:
             init: null
             act: sigmoid
         entropy_coef:
-            outer: 1e-2
-            default: 1e-2
+            outer: 5e-2
+            default: 5e-2
             init: null
             act: sigmoid
         value_coef:
@@ -130,20 +143,20 @@ model:
         reward_scale:
             outer: 1
             default: 1
-            scale: 5
-            bias: 0
-            init: null
-            act: sigmoid
-        reward_bias:
-            outer: 0
-            default: 0
-            scale: 5
+            scale: 1
             bias: 0
             init: null
             act: tanh
+        reward_bias:
+            outer: 0
+            default: 0
+            scale: 1
+            bias: 0
+            init: null
+            act: null
         reward_coef:
             outer: 1
-            default: 0
+            default: 1
             scale: 1
             bias: 0
             init: null

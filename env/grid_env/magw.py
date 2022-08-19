@@ -1,4 +1,6 @@
 import numpy as np
+
+from utility.feature import one_hot
 from .Agent import Agent
 # import matplotlib
 # matplotlib.use('TkAgg')
@@ -51,6 +53,7 @@ class MultiAgentGridWorldEnv:
         use_hidden=False, 
         use_event=False, 
         stag_stay_still=True, 
+        representation='raw', 
         **kwargs
     ):
         if env_name == 'staghunt':
@@ -60,6 +63,7 @@ class MultiAgentGridWorldEnv:
         self.aid2uids = compute_aid2uids(self.uid2aid)
         self.n_units = len(self.uid2aid)
         self.n_agents = len(self.aid2uids)
+        self.representation = representation
 
         self.num_agents = self.n_units
         self.max_episode_steps = max_episode_steps
@@ -130,7 +134,10 @@ class MultiAgentGridWorldEnv:
         self.coop_num = 0
         self.agents = []
         for i in range(self.num_agents):
-            agent = Agent(i, self.agents_start_pos[i], self.base_map, self.env_name,self.num_agents)
+            agent = Agent(
+                i, self.agents_start_pos[i], self.base_map, 
+                self.env_name,self.num_agents, 
+                representation=self.representation)
             self.agents.append(agent)
 
 
@@ -220,15 +227,19 @@ class MultiAgentGridWorldEnv:
                 if i ==agent_id:
                     continue
                 else:
-                    other_pos.append(self.agents[i].pos.tolist())
-            other_pos=np.concatenate(other_pos)
+                    other_pos += self.agents[i].pos.tolist()
 
             # stag_pos
             stag_pos = self.stag_pos.tolist()
             # plant_pos
             hare1_pos = self.hare1_pos.tolist()
             hare2_pos = self.hare2_pos.tolist()
-            return np.concatenate([my_pos]+[other_pos]+[stag_pos]+[hare1_pos]+[hare2_pos])
+            pos = my_pos + other_pos + stag_pos + hare1_pos + hare2_pos
+            if self.representation == 'one_hot':
+                pos = [one_hot(p, self.length) for p in pos]
+                return np.concatenate(pos)
+            else:
+                return np.stack(pos)
 
     def get_map_with_agents(self):
         """Gets a version of the environment map where generic

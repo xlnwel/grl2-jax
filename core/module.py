@@ -80,7 +80,7 @@ class Module(tf.Module):
         elif len(weights) == 0:
             do_logging(f"Skipping setting weights for {self.scope_name} due to missing weights", logger=logger)
         else:
-            assert len(self.variables) == len(weights), (len(self.variables), len(weights))
+            assert len(self.variables) == len(weights), (self.scope_name, len(self.variables), len(weights))
             [v.assign(w if v.shape == w.shape else
                 tf.pad(w, [(0, v_dim - w_dim) for v_dim, w_dim in zip(v.shape, w.shape)]))
                 for v, w in zip(self.variables, weights)]

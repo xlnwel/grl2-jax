@@ -1,13 +1,10 @@
-import logging
 import tensorflow as tf
 
 from core.elements.loss import Loss as LossBase, LossEnsemble
-from core.log import do_logging
 from utility import rl_loss
 from utility.tf_utils import assert_rank_and_shape_compatibility, reduce_mean, \
     explained_variance
-
-logger = logging.getLogger(__name__)
+from .utils import get_hx
 
 
 def prefix_name(terms, name):
@@ -275,18 +272,25 @@ class Loss(ValueLossImpl, POLossImpl):
                 n=n, 
                 axis=1, 
             )
+        elif self.config.target_type == 'td':
+            if reset is not None:
+                discount = 1 - reset
+            v_target = reward + discount * gamma * next_value
+            advantage = v_target - value
         else:
             raise NotImplementedError
         
         return v_target, advantage
 
     def _compute_values(self, func, x, next_x, 
-            idx=None, next_idx=None):
-        value = func(x, hx=idx)
+            idx=None, next_idx=None, event=None, next_event=None):
+        hx = get_hx(idx, event)
+        value = func(x, hx=hx)
         if next_x is None:
             value, next_value = split_data(value)
         else:
-            next_value = func(next_x, hx=next_idx)
+            next_hx = get_hx(next_idx, next_event)
+            next_value = func(next_x, hx=next_hx)
         next_value = tf.stop_gradient(next_value)
         
         return value, next_value
@@ -297,9 +301,11 @@ class Loss(ValueLossImpl, POLossImpl):
         tape, 
         obs, 
         idx=None, 
+        event=None, 
         global_state=None, 
         next_obs=None, 
         next_idx=None, 
+        next_event=None, 
         next_global_state=None, 
         action, 
         old_value, 
@@ -335,10 +341,14 @@ class Loss(ValueLossImpl, POLossImpl):
             next_global_state, 
             idx, 
             next_idx, 
+            event,
+            next_event
         )
         idx, _ = split_data(idx, next_idx)
+        event, _ = split_data(event, next_event)
+        hx = get_hx(idx, event)
         obs, _ = split_data(obs, next_obs)
-        act_dist = self.policy(obs, hx=idx, action_mask=action_mask)
+        act_dist = self.policy(obs, hx=hx, action_mask=action_mask)
         pi_logprob = act_dist.log_prob(action)
         assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
         log_ratio = pi_logprob - mu_logprob
@@ -430,9 +440,11 @@ class Loss(ValueLossImpl, POLossImpl):
         tape, 
         obs, 
         idx=None, 
+        event=None, 
         hidden_state=None, 
         next_obs=None, 
         next_idx=None, 
+        next_event=None, 
         next_hidden_state=None, 
         action, 
         old_value, 
@@ -455,6 +467,7 @@ class Loss(ValueLossImpl, POLossImpl):
         _, act_dist, value = self.model.forward(
             obs=obs[:, :-1] if next_obs is None else obs, 
             idx=idx[:, :-1] if next_idx is None else idx, 
+            event=event[:, :-1] if next_event is None else event, 
             global_state=hidden_state[:, :-1] if hidden_state is None else hidden_state, 
             state=state, 
             mask=mask
