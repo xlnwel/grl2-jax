@@ -193,6 +193,7 @@ def make_grid_world(config):
     config = _change_env_name(config)
     env = env_map[config['env_name']](**config)
     env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
+    env = wrappers.PopulationSelection(env, config.pop('population', 1))
     env = wrappers.DataProcess(env)
     env = wrappers.MASimEnvStats(env)
 

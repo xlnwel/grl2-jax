@@ -96,7 +96,7 @@ model:
         kernel_initializer: orthogonal
         activation: relu
         norm: null
-        out_act: null
+        out_act: atan
         indexed: head
         indexed_config:
             use_shared_bias: False
@@ -187,6 +187,9 @@ loss:
         value_loss: mse
         value_clip_range: .2
         value_life_mask: False
+        stop_target_grads: False
+
+        joint_objective: True
     meta:
         # hyperparams for value target and advantage
         target_type: gae
@@ -210,9 +213,11 @@ loss:
         value_loss: mse
         value_clip_range: .2
         value_life_mask: False
+        stop_target_grads: False
 
-        # hyperparams for value learning
+        # hyperparams for meta-learning
         meta_reward_coef: 0
+        joint_objective: True
 
 trainer:
     algorithm: *algo
@@ -227,6 +232,7 @@ trainer:
     meta_type: plain
     K: *K
     L: *L
+    msmg_type: avg
     extra_meta_step: *ems
     store_state: True
     event_done: False
@@ -235,14 +241,14 @@ trainer:
     optimizer:
         opt_name: adam
         schedule_lr: False
-        lr: 1e-3
+        lr: 3e-3
         # rho: .99
         clip_norm: .5
         epsilon: 1e-5
     meta_opt:
         opt_name: adam
         schedule_lr: False
-        lr: 1e-3
+        lr: 1e-4
         clip_norm: .5
         epsilon: 1e-4
         weight_decay: null

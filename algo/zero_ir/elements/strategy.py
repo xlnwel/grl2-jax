@@ -30,10 +30,10 @@ class Strategy(StrategyBase):
         super()._record_output(out)
         _, terms, _ = out
         if 'idx' in terms:
-            self._prev_idx = terms['idx']
+            self._prev_idx = terms.pop('idx')
         if 'event' in terms:
-            self._prev_event = terms['event']
-        self._prev_hidden_state = terms['hidden_state']
+            self._prev_event = terms.pop('event')
+        self._prev_hidden_state = terms.pop('hidden_state')
 
 
 create_strategy = functools.partial(

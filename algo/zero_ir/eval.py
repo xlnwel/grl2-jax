@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.elements.builder import ElementsBuilder
 from core.tf_config import *
-from utility.display import pwc
+from utility.display import print_dict_info, pwc
 from utility.plot import plot_data, plot_data_dict
 from utility.ray_setup import sigint_shutdown_ray
 from utility.run import evaluate
@@ -21,8 +21,10 @@ from env.func import create_env
 def plot(data: dict, outdir: str, figname: str):
     data = {k: np.squeeze(v) for k, v in data.items()}
     data = {k: np.swapaxes(v, 0, 1) if v.ndim == 2 else v for k, v in data.items()}
+    print_dict_info(data)
     plot_data_dict(data, outdir=outdir, figname=figname)
-    all_reward = np.concatenate([data['reward'], data['meta_reward'], data['trans_reward']])
+    all_reward = np.concatenate([
+        data['reward'], data['meta_reward'], data['trans_reward']])
     plot_data(all_reward, y='reward', outdir=outdir, 
         title=f'{figname}-reward', avg_data=False)
 
@@ -83,3 +85,5 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
         save_video(filename, video, fps=fps, out_dir=out_dir)
     if use_ray:
         ray.shutdown()
+    
+    return scores, epslens, video

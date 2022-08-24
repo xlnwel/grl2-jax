@@ -18,6 +18,7 @@ def get_activation(act_name, return_cls=False, **kwargs):
         'lrelu': layers.LeakyReLU,
         'hsigmoid': lambda name='hsigmoid': layers.Lambda(lambda x: tf.nn.relu6(x+3) / 6, name=name), # see MobileNet3
         'hswish': lambda name='hswish': layers.Lambda(lambda x: x * (tf.nn.relu6(x+3) / 6), name=name), # see MobileNet3
+        'atan': lambda name='atan': layers.Lambda(lambda x: tf.math.atan(x), name=name)
     }
     if isinstance(act_name, str):
         act_name = act_name.lower()

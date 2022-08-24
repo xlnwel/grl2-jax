@@ -85,6 +85,8 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
     if use_ray:
         ray.shutdown()
 
+    return scores, epslens, video
+
 
 if __name__ == '__main__':
     args = parse_eval_args()

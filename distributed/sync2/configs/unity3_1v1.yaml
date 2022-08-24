@@ -50,7 +50,7 @@ runner:
     push_every_episode: False
 
 env:
-    env_name: &env_name unity-combat2d
+    env_name: &env_name unity-combat3d_1v1
     max_episode_steps: 500
     frame_skip: 1
     unity_config:
@@ -134,8 +134,8 @@ model:
             init: null
             act: sigmoid
         entropy_coef:
-            outer: 1e-2
-            default: 1e-2
+            outer: 1e-4
+            default: 1e-4
             scale: 1
             bias: 0
             init: null

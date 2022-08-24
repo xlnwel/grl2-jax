@@ -288,11 +288,12 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
         if not ready:
             return None
         sample = self._sample(sample_keys)
-        if self.config.inner_steps is not None:
+        if self.config.inner_steps:
             self._memory.append(sample)
             if len(self._memory) == self.config.inner_steps + self.config.extra_meta_step:
                 sample = batch_dicts(self._memory)
                 self._memory = []
+            assert len(self._memory) <= self.config.inner_steps + self.config.extra_meta_step
 
         return sample
 

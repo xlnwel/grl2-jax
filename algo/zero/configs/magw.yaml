@@ -18,7 +18,7 @@ routine:
     LOG_PERIOD: 5e5
     EVAL_PERIOD: 5e6
 
-    RECORD_VIDEO: Truea
+    RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
@@ -143,6 +143,7 @@ loss:
         value_loss: mse
         value_clip_range: .2
         value_life_mask: False
+        stop_target_grads: True
     meta:
         # hyperparams for value target and advantage
         target_type: gae
@@ -165,6 +166,7 @@ loss:
         value_loss: mse
         value_clip_range: .2
         value_life_mask: False
+        stop_target_grads: True
 
 trainer:
     algorithm: *algo
@@ -185,7 +187,7 @@ trainer:
     optimizer:
         opt_name: adam
         schedule_lr: False
-        lr: 1e-3
+        lr: 3e-3
         # rho: .99
         clip_norm: .5
         epsilon: 1e-5

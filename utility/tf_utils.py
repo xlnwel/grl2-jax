@@ -11,6 +11,11 @@ def numpy2tensor(x):
     return tf.nest.map_structure(
         lambda x: tf.convert_to_tensor(x) if x is not None else x, x)
 
+def gather(data, i, axis=0):
+    data = tf.nest.map_structure(
+        lambda x: x if x is None else tf.gather(x, i, axis=axis), data)
+    return data
+
 def safe_ratio(pi, mu, eps=1e-8):
     return pi / (mu + eps)
 
@@ -190,6 +195,8 @@ def assert_rank(tensors, rank=None):
 
     rank = rank or tensors[0].shape.ndims
     for tensor in tensors:
+        if tensor is None:
+            continue
         tensor_shape = tf.TensorShape(tensor.shape)
         tensor_shape.assert_has_rank(rank)
 
@@ -197,6 +204,8 @@ def assert_shape_compatibility(tensors):
     assert isinstance(tensors, (list, tuple)), tensors
     union_of_shapes = tf.TensorShape(None)
     for tensor in tensors:
+        if tensor is None:
+            continue
         tensor_shape = tf.TensorShape(tensor.shape)
         union_of_shapes = union_of_shapes.merge_with(tensor_shape)
 
@@ -221,6 +230,24 @@ def assert_rank_and_shape_compatibility(tensors: List[tf.Tensor], rank=None):
     rank = rank or tensors[0].shape.ndims
     union_of_shapes = tf.TensorShape(None)
     for tensor in tensors:
+        if tensor is None:
+            continue
         tensor_shape = tf.TensorShape(tensor.shape)
         tensor_shape.assert_has_rank(rank)
         union_of_shapes = union_of_shapes.merge_with(tensor_shape)
+
+def split_data(x, next_x=None, axis=1):
+    if isinstance(x, (list, tuple)):
+        if next_x is None:
+            next_x = [None for _ in x]
+        x, next_x = list(zip(*[split_data(xx, next_xx, axis=axis) 
+            for xx, next_xx in zip(x, next_x)]))
+        return x, next_x
+    if x is None:
+        return None, None
+    if next_x is None:
+        n = x.shape[axis]
+        _, next_x = tf.split(x, [1, n-1], axis=axis)
+        x, _ = tf.split(x, [n-1, 1], axis=axis)
+
+    return x, next_x

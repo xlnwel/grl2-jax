@@ -126,6 +126,12 @@ model:
             epsilon: 1e-5
         eval_act_temp: 1
         out_gain: .01
+        indexed: null
+        indexed_config:
+            use_shared_bias: True
+            use_bias: True
+            kernel_initializer: orthogonal
+            activation: relu
     value:
         nn_id: value
         units_list: [256, 256, 256]
@@ -134,7 +140,13 @@ model:
         norm: layer
         norm_after_activation: True
         norm_kwargs:
-            epsilon: 1.e-5
+            epsilon: 1e-5
+        indexed: null
+        indexed_config:
+            use_shared_bias: False
+            use_bias: True
+            kernel_initializer: orthogonal
+            activation: relu
     embed: null
     meta:
         nn_id: meta
@@ -210,11 +222,12 @@ loss:
         dice_lam: 1
         kl: reverse
         kl_coef: 1
+        policy_life_mask: True
 
         # hyperparams for value learning
         value_loss: mse
         value_clip_range: .2
-        life_mask: False
+        value_life_mask: False
 
 trainer:
     algorithm: *algo

@@ -134,9 +134,10 @@ def train(config, agent, env, eval_env_config, buffer):
         train_step = agent.get_train_step()
         agent.set_env_step(step)
         # no need to reset buffer
-        if to_eval(step) or step > routine_config.MAX_STEPS:
+        if to_eval(step):
             if eval_process is not None:
-                ray.get(eval_process)
+                _, _, video = ray.get(eval_process)
+                agent.video_summary(video, step=step, fps=1)
             eval_process = evaluate_agent(step, agent)
 
         if (to_record(step) or step > routine_config.MAX_STEPS) \

@@ -10,8 +10,10 @@ from core.tf_config import build
 from utility import pkg
 from optimizers.adam import Adam
 from optimizers.rmsprop import RMSprop
-from utility.meta import compute_meta_gradients
+from optimizers.sgd import SGD
+from utility.meta import compute_meta_gradients, inner_epoch
 from utility.utils import dict2AttrDict
+from utility import tf_utils
 
 
 def _get_rl_modules(model):
@@ -34,9 +36,6 @@ def _add_norm(terms, d, norm_name=None):
         terms[f'{norm_name}'] = tf.linalg.global_norm(list(d.values()))
     return terms
 
-def _gather(data, i):
-    data = tf.nest.map_structure(lambda x: x if x is None else tf.gather(x, i), data)
-    return data
 
 class Trainer(TrainerBase):
     def _add_attributes(self):
@@ -47,7 +46,8 @@ class Trainer(TrainerBase):
         config = dict2AttrDict(self.config, to_copy=True)
         opts = {
             'adam': Adam, 
-            'rmsprop': RMSprop
+            'rmsprop': RMSprop, 
+            'sgd': SGD
         }
         opt_name = config.optimizer.opt_name
         config.optimizer.opt_name = opts[opt_name]
@@ -106,71 +106,6 @@ class Trainer(TrainerBase):
             do_logging(TensorSpecs, prefix='Meta Tensor Specifications', level='print')
             self.meta_train = build(meta_train, TensorSpecs)
         return True
-
-    def _inner_epoch(
-        self, 
-        *, 
-        opt, 
-        loss_fn, 
-        use_meta=False, 
-        debug=True, 
-        use_dice=None, 
-        return_grads=False, 
-        **data,
-    ):
-        n_mbs = self.config.get('n_mbs', 1)
-        grads_list = []
-        if n_mbs > 1:
-            indices = tf.range(data['obs'].shape[0], dtype=tf.int32)
-            indices = tf.random.shuffle(indices)
-            indices = tf.reshape(indices, (n_mbs, -1))
-            for i in range(n_mbs):
-                k = indices[i]
-                data_k = _gather(data, k)
-                with tf.GradientTape() as tape:
-                    loss, terms = loss_fn(
-                        tape=tape, 
-                        **data_k,
-                        use_meta=use_meta, 
-                        use_dice=use_dice, 
-                        debug=debug
-                    )
-                terms['grads_norm'], var_norms = opt(
-                    tape, loss, return_var_norms=True
-                )
-                terms['var_norm'] = list(var_norms.values())
-                if return_grads:
-                    grads = opt.get_transformed_grads()
-                    grads = list(grads.values())
-                    for g in grads:
-                        tf.debugging.assert_all_finite(g, f'Bad {g.name}')
-                    terms[f'trans_grads_norm'] = tf.linalg.global_norm(grads)
-                    grads_list.append(grads)
-        else:
-            with tf.GradientTape() as tape:
-                loss, terms = loss_fn(
-                    tape=tape, 
-                    **data, 
-                    use_meta=use_meta, 
-                    use_dice=use_dice, 
-                    debug=debug
-                )
-                terms['grads_norm'], var_norms = opt(
-                    tape, loss, return_var_norms=True
-                )
-                terms['var_norm'] = list(var_norms.values())
-                if return_grads:
-                    grads = opt.get_transformed_grads()
-                    grads = list(grads.values())
-                    for g in grads:
-                        tf.debugging.assert_all_finite(g, f'Bad {g.name}')
-                    terms['trans_grads_norm'] = tf.linalg.global_norm(grads)
-                    grads_list.append(grads)
-
-        if return_grads:
-            return terms, grads_list
-        else:
-            return terms
 
     def _outer_grads(
         self, 
@@ -256,19 +191,23 @@ class Trainer(TrainerBase):
         mu_mean=None, 
         mu_std=None, 
         action_mask=None, 
+        next_action_mask=None, 
         life_mask=None, 
+        next_life_mask=None, 
         prev_reward=None,
         prev_action=None,
         state=None, 
         mask=None, 
         use_meta=False, 
     ):
-        if action_mask is not None:
-            action_mask = action_mask[:, :-1]
-        if life_mask is not None:
-            life_mask = life_mask[:, :-1]
+        (action_mask, life_mask), _ = tf_utils.split_data(
+            [action_mask, life_mask], 
+            [next_action_mask, next_life_mask], 
+            axis=1
+        )
         for _ in range(self.config.n_epochs):
-            terms = self._inner_epoch(
+            terms = inner_epoch(
+                config=self.config, 
                 opt=self.optimizers['rl'], 
                 loss_fn=self.loss.rl.loss, 
                 obs=obs, 
@@ -319,43 +258,50 @@ class Trainer(TrainerBase):
         state=None, 
         mask=None, 
         action_mask=None, 
+        next_action_mask=None, 
         life_mask=None, 
+        next_life_mask=None, 
         prev_reward=None,
         prev_action=None,
     ):
         inner_steps = self.config.K
-        if action_mask is not None:
-            action_mask = action_mask[:, :, :-1]
-        if life_mask is not None:
-            life_mask = life_mask[:, :, :-1]
+        (action_mask, life_mask), _ = tf_utils.split_data(
+            [action_mask, life_mask], 
+            [next_action_mask, next_life_mask], 
+            axis=2
+        )
+        data = dict(
+            obs=obs, 
+            idx=idx, 
+            global_state=global_state, 
+            next_obs=next_obs,
+            next_idx=next_idx,
+            next_global_state=next_global_state, 
+            action=action, 
+            old_value=value, 
+            reward=reward, 
+            discount=discount, 
+            reset=reset, 
+            mu_logprob=mu_logprob, 
+            mu=mu, 
+            mu_mean=mu_mean, 
+            mu_std=mu_std, 
+            action_mask=action_mask, 
+            sample_mask=life_mask, 
+            prev_reward=prev_reward, 
+            prev_action=prev_action, 
+            state=state, 
+            mask=mask, 
+        )
         with tf.GradientTape(persistent=True) as meta_tape:
             grads_list = []
             for i in range(inner_steps):
                 for j in range(1, self.config.n_epochs+1):
-                    terms, gl = self._inner_epoch(
+                    terms, gl = inner_epoch(
+                        config=self.config, 
                         opt=self.optimizers['meta_rl'], 
                         loss_fn=self.loss.meta.loss, 
-                        obs=obs[i], 
-                        idx=None if idx is None else idx[i], 
-                        global_state=None if global_state is None else global_state[i], 
-                        next_obs=None if next_obs is None else next_obs[i],
-                        next_idx=None if next_idx is None else next_idx[i],
-                        next_global_state=None if next_global_state is None else next_global_state[i],
-                        action=action[i], 
-                        old_value=value[i], 
-                        reward=reward[i], 
-                        discount=discount[i], 
-                        reset=reset[i], 
-                        mu_logprob=mu_logprob[i], 
-                        mu=mu[i] if mu is not None else mu, 
-                        mu_mean=mu_mean[i] if mu_mean is not None else mu_mean, 
-                        mu_std=mu_std[i] if mu_std is not None else mu_std, 
-                        action_mask=action_mask[i] if action_mask is not None else action_mask, 
-                        sample_mask=life_mask[i] if life_mask is not None else life_mask, 
-                        prev_reward=prev_reward[i] if prev_reward is not None else prev_reward, 
-                        prev_action=prev_action[i] if prev_action is not None else prev_action, 
-                        state=self.model.state_type(*[s[i] for s in state]) if state is not None else state, 
-                        mask=mask[i] if mask is not None else mask, 
+                        **tf_utils.gather(data, i), 
                         use_meta=True, 
                         use_dice=j == 1,
                         return_grads=True
@@ -365,31 +311,11 @@ class Trainer(TrainerBase):
                     mgs, meta_vars, meta_terms = self._outer_grads(
                         tape=meta_tape, 
                         grads_list=grads_list, 
-                        obs=obs[-1], 
-                        idx=idx[-1], 
-                        global_state=None if global_state is None else global_state[-1], 
-                        next_obs=None if next_obs is None else next_obs[-1],
-                        next_idx=None if next_idx is None else next_idx[-1],
-                        next_global_state=None if next_global_state is None else next_global_state[-1],
-                        action=action[-1], 
-                        value=value[-1], 
-                        reward=reward[-1], 
-                        discount=discount[-1], 
-                        reset=reset[-1], 
-                        mu_logprob=mu_logprob[-1], 
-                        mu=mu[-1] if mu is not None else mu, 
-                        mu_mean=mu_mean[-1] if mu_mean is not None else mu_mean, 
-                        mu_std=mu_std[-1] if mu_std is not None else mu_std, 
-                        action_mask=action_mask[-1] if action_mask is not None else action_mask, 
-                        sample_mask=life_mask[-1] if life_mask is not None else life_mask, 
-                        prev_reward=prev_reward[-1] if prev_reward is not None else prev_reward, 
-                        prev_action=prev_action[-1] if prev_action is not None else prev_action, 
-                        state=self.model.state_type(*[s[-1] for s in state]) if state is not None else state, 
-                        mask=mask[-1] if mask is not None else mask, 
+                        **tf_utils.gather(data, i+self.config.extra_meta_step), 
                     )
                     meta_grads.append(mgs)
-            meta_grads = [sum(mg) / len(mg) for mg in zip(*meta_grads)]
-            meta_terms = self._apply_meta_grads(meta_grads, meta_vars, meta_terms)
+        meta_grads = [sum(mg) / len(mg) for mg in zip(*meta_grads)]
+        meta_terms = self._apply_meta_grads(meta_grads, meta_vars, meta_terms)
         terms.update(meta_terms)
 
         return terms

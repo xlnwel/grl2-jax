@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+from utility.tf_utils import gather
+
 
 def filter_null_grads(grads, out_grads):
     new_grads, new_out_grads = [], []
@@ -68,3 +70,69 @@ def compute_meta_gradients(
         return eta_grads_list, out_grads_list
     else:
         return eta_grads_list
+
+
+def inner_epoch(
+    *, 
+    config, 
+    opt, 
+    loss_fn,  
+    use_meta=False, 
+    debug=True, 
+    use_dice=None, 
+    return_grads=False, 
+    **data,
+):
+    n_mbs = config.get('n_mbs', 1)
+    grads_list = []
+    if n_mbs > 1:
+        indices = tf.range(next(iter(data.values())).shape[0], dtype=tf.int32)
+        indices = tf.random.shuffle(indices)
+        indices = tf.reshape(indices, (n_mbs, -1))
+        for i in range(n_mbs):
+            k = indices[i]
+            data_k = gather(data, k)
+            with tf.GradientTape() as tape:
+                loss, terms = loss_fn(
+                    tape=tape, 
+                    **data_k, 
+                    use_meta=use_meta, 
+                    use_dice=use_dice, 
+                    debug=debug
+                )
+            terms['grads_norm'], var_norms = opt(
+                tape, loss, return_var_norms=True
+            )
+            terms['var_norm'] = list(var_norms.values())
+            if return_grads:
+                grads = opt.get_transformed_grads()
+                grads = list(grads.values())
+                for g in grads:
+                    tf.debugging.assert_all_finite(g, f'Bad {g.name}')
+                terms[f'trans_grads_norm'] = tf.linalg.global_norm(grads)
+                grads_list.append(grads)
+    else:
+        with tf.GradientTape() as tape:
+            loss, terms = loss_fn(
+                tape=tape, 
+                **data, 
+                use_meta=use_meta, 
+                use_dice=use_dice, 
+                debug=debug
+            )
+        terms['grads_norm'], var_norms = opt(
+            tape, loss, return_var_norms=True
+        )
+        terms['var_norm'] = list(var_norms.values())
+        if return_grads:
+            grads = opt.get_transformed_grads()
+            grads = list(grads.values())
+            for g in grads:
+                tf.debugging.assert_all_finite(g, f'Bad {g.name}')
+            terms['trans_grads_norm'] = tf.linalg.global_norm(grads)
+            grads_list.append(grads)
+
+    if return_grads:
+        return terms, grads_list
+    else:
+        return terms

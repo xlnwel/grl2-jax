@@ -531,7 +531,7 @@ class Single2MultiAgent(gym.Wrapper):
 
 class MultiAgentUnitsDivision(gym.Wrapper):
     def __init__(self, env, uid2aid):
-        self.env = env
+        super().__init__(env)
 
         self.uid2aid = uid2aid
         self.aid2uids = compute_aid2uids(self.uid2aid)
@@ -583,6 +583,56 @@ class MultiAgentUnitsDivision(gym.Wrapper):
     
     def _convert_obs(self, obs):
         return [{k: v[uids] for k, v in obs.items()} for uids in self.aid2uids]
+
+
+class PopulationSelection(gym.Wrapper):
+    def __init__(self, env, population=1):
+        super().__init__(env)
+
+        self.population = population
+
+        self.obs_shape = self.env.obs_shape
+        self.obs_dtype = self.env.obs_dtype
+        if self.population > 1:
+            if isinstance(self.obs_shape, list):
+                for o in self.obs_shape:
+                    o['pid'] = (self.population,)
+            else:
+                self.obs_shape['pid'] = (self.population,)
+            if isinstance(self.obs_dtype, list):
+                for o in self.obs_shape:
+                    o['pid'] = np.float32
+            else:
+                self.obs_dtype['pid'] = np.float32
+    
+    def reset(self):
+        obs = super().reset()
+
+        obs = self._add_population_idx(obs)
+
+        return obs
+    
+    def step(self, action):
+        obs, reward, done, info = super().step(action)
+
+        obs = self._add_population_idx(obs)
+
+        return obs, reward, done, info
+
+    def _add_population_idx(self, obs):
+        if self.population == 1:
+            return obs
+        if isinstance(obs, (list, tuple)):
+            for o in obs:
+                o['population'] = np.zeros(self.population, np.float32)
+                i = np.random.randint(self.population)
+                o['population'][i] = 1
+        else:
+            obs['population'] = np.zeros(self.population, np.float32)
+            i = np.random.randint(self.population)
+            obs['population'][i] = 1
+        return obs
+
 
 class DataProcess(gym.Wrapper):
     """ Convert observation to np.float32 or np.float16 """

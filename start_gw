@@ -5,13 +5,13 @@ source activate grl
 algos=($1)
 suite=grid_world
 envs=(staghunt)
-config=magw
-args1=()
-args2=()
-args3=(None)
+config=magw_a2c
+args1=(5e-4 1e-4)
+args2=(True False)
+args3=(meta)
 args4=(0)
 date=$(date +"%m%d")
-date=0817
+# date=0820
 info=""
 
 for x in $(seq 1 1); do
@@ -33,6 +33,42 @@ for item in $@; do
     fi
 done
 
+
+# i=0
+# for e in "${envs[@]}"; do
+#     for a in "${algos[@]}"; do
+#         for a1 in "${args1[@]}"; do
+#             for a2 in "${args2[@]}"; do
+#                 for a3 in "${args3[@]}"; do
+#                     for a4 in "${args4[@]}"; do
+#                         for ((s=1; s<=4; s++)); do
+#                             kw1="meta_opt:lr=$a1"
+#                             kw2="stop_target_grads=$a2"
+#                             kw3="rl_reward=$a3"
+#                             kw4="reward_scale:init=$a4"
+#                             kwstr="$kw1-$kw2-$kw3"
+#                             kws="$kw1 $kw2 $kw3"
+#                             env="${suite}-${e}"
+#                             ld="${suite}-logs"
+#                             gpus=$(nvidia-smi -L | wc -l)
+#                             gpu=$(($i % $gpus))
+#                             dir="$ld/$env/$a/$n-$kwstr/seed=$s"
+#                             # dir="$ld/$env/$a/$n-seed=$s"
+#                             mkdir -p $dir
+#                             # py_script="python run/train.py -a ${a} -e $env -c $config -kw $kw1 $kw2 $kw3 $kw4 -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
+#                             # py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $i -n $n -s $seed | tee ${dir}/outputs.txt &"
+#                             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $s -kw $kws -i $info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
+#                             echo $py_script
+#                             eval $py_script
+#                             sleep 3
+#                             ((i=(i+1) ))
+#                         done
+#                     done
+#                 done
+#             done
+#         done
+#     done
+# done
 
 kws="$@"
 shift

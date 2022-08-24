@@ -12,6 +12,7 @@ DiceCache = collections.namedtuple('DiceCache', 'w deps')
 DiceInput = collections.namedtuple('DiceInput', 'logprob lam')
 
 def time_major(*args, axis):
+    assert_rank_and_shape_compatibility(args)
     dims = list(range(args[0].shape.ndims))
     dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
     if axis != 0:
@@ -202,7 +203,7 @@ def retrace(
         axis specifies the time dimension
     """
     assert_rank_and_shape_compatibility(
-        [reward, q, next_qs, discount])
+        [reward, q, next_qs, discount, reset])
 
     # swap 'axis' with the 0-th dimension
     dims, (next_q, ratio, discount, reset) = \
@@ -257,7 +258,7 @@ def gae(
     axis=0
 ):
     assert_rank_and_shape_compatibility(
-        [reward, value, next_value, discount])
+        [reward, value, next_value, discount, reset])
     
     # swap 'axis' with the 0-th dimension
     # to make all tensors time-major
@@ -373,7 +374,7 @@ def v_trace_from_ratio(
         axis specifies the time dimension
     """
     assert_rank_and_shape_compatibility(
-        [reward, value, next_value, ratio, discount])
+        [reward, value, next_value, ratio, discount, reset])
     
     # swap 'axis' with the 0-th dimension
     # to make all tensors time-major
@@ -424,6 +425,74 @@ def v_trace_from_ratio(
         adv = tf.transpose(adv, dims)
     
     return vs, adv
+
+
+def compute_target_advantage(
+    *, 
+    config, 
+    reward, 
+    discount, 
+    reset, 
+    value, 
+    next_value, 
+    ratio, 
+    gamma, 
+    lam, 
+    norm_adv, 
+    mask=None, 
+    n=None
+):
+    assert_rank_and_shape_compatibility([
+        reward, discount, value, next_value, ratio, reset
+    ])
+    if config.target_type == 'vtrace':
+        v_target, advantage = v_trace_from_ratio(
+            reward=reward, 
+            value=value, 
+            next_value=next_value, 
+            ratio=ratio, 
+            discount=discount, 
+            reset=reset, 
+            gamma=gamma, 
+            lam=lam, 
+            c_clip=config.c_clip, 
+            rho_clip=config.rho_clip, 
+            rho_clip_pg=config.rho_clip, 
+            adv_type=config.get('adv_type', 'vtrace'), 
+            norm_adv=norm_adv, 
+            zero_center=config.get('zero_center', True), 
+            epsilon=config.get('epsilon', 1e-8), 
+            clip=config.get('clip', None), 
+            mask=mask, 
+            n=n, 
+            axis=1, 
+        )
+    elif config.target_type == 'gae':
+        v_target, advantage = gae(
+            reward=reward, 
+            value=value, 
+            next_value=next_value, 
+            discount=discount, 
+            reset=reset, 
+            gamma=gamma, 
+            lam=lam, 
+            norm_adv=norm_adv, 
+            zero_center=config.get('zero_center', True), 
+            epsilon=config.get('epsilon', 1e-8), 
+            clip=config.get('clip', None), 
+            mask=mask, 
+            n=n, 
+            axis=1, 
+        )
+    elif config.target_type == 'td':
+        if reset is not None:
+            discount = 1 - reset
+        v_target = reward + discount * gamma * next_value
+        advantage = v_target - value
+    else:
+        raise NotImplementedError
+    
+    return v_target, advantage
 
 
 def pg_loss(

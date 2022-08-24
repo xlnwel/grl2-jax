@@ -6,6 +6,7 @@ from core.tf_config import build
 from utility.file import source_file
 from .utils import compute_inner_steps, get_hx
 from algo.zero.elements.model import Model as ModelBase, ModelEnsemble
+
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 
@@ -94,6 +95,8 @@ class Model(ModelBase):
         if evaluation:
             if self.config.meta_reward_type == 'shaping':
                 prev_hx = get_hx(prev_idx, prev_event)
+            else:
+                prev_hx = None
             terms = self.compute_eval_terms(
                 global_state, 
                 prev_hidden_state, 
@@ -156,7 +159,7 @@ class Model(ModelBase):
         elif self.config.meta_reward_type == 'intrinsic':
             action_oh = tf.one_hot(action, self.policy.action_dim)
             x = tf.concat([next_hidden_state if shift else hidden_state, action_oh], -1)
-            meta_reward = self.meta_reward(x, hx=hx)
+            meta_reward = self.meta_reward(x, hx=next_hx if shift else hx)
         else:
             raise ValueError(f"Unknown meta rewared type: {self.config.meta_reward_type}")
         reward_scale = self.meta('reward_scale', inner=True)

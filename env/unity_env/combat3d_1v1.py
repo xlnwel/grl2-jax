@@ -28,7 +28,7 @@ EDGE_X = [-50000, 50000]
 EDGE_Y = [2000, 20000]
 EDGE_Z = [-80000, 80000]
 MISSILE_PENALTY = 0.1
-TURN_PENALTY = 0.5
+TURN_PENALTY = 0.03
 RADAR_REWARD = 0.5
 FLY_NAME = '0819'
 UPPER_INTERVAL = 1
@@ -227,10 +227,11 @@ class UnityEnv:
         return self._get_obs(decision_steps)
 
     def init_red_fly_model(self):
+        ubuntu_dir = f"/home/ubuntu/chenxinwei/grl/unity-logs/unity-fly_control/sync2-zero/{FLY_NAME}/seed=None/a0/i1-v1"
         if platform.system() == 'Windows':
-            directory = [f"D:\FlightCombat\CombatTrain/logs/unity-combat_fly_control/sync-hm/{FLY_NAME}/seed=None/a0/i1-v1"]
+            directory = [f"D:\FlightCombat\CombatTrain/logs/unity-fly_control/sync-hm/{FLY_NAME}/seed=None/a0/i1-v1"]
         else:
-            directory = [f"/home/ubuntu/chenxinwei/grl/unity-logs/unity-combat_fly_control/sync2-zero/{FLY_NAME}/seed=None/a0/i1-v1"]
+            directory = [ubuntu_dir]
 
         configs = [search_for_config(d) for d in directory]
         config = configs[0]
@@ -254,13 +255,13 @@ class UnityEnv:
             prev_action=np.float32,
         )]
 
-        builder = ElementsBuilder(config, env_stats, config.algorithm)
+        builder = ElementsBuilder(config, env_stats, to_save_code=False)
         elements = builder.build_acting_agent_from_scratch(to_build_for_eval=True)
         agent = elements.agent
         if platform.system() == 'Windows':
             path = f"D:\FlightCombat\CombatTrain/logs/unity-combat_fly_control/sync-hm/{FLY_NAME}/seed=None/a0/i1-v1/params.pkl"
         else:
-            path = f"/home/ubuntu/wuyunkun/hm/logs/unity-combat_fly_control/sync-hm/{FLY_NAME}/seed=None/a0/i1-v1/params.pkl"
+            path = f"{ubuntu_dir}/params.pkl"
 
 
         with open(path, 'rb') as f:
@@ -713,8 +714,6 @@ class UnityEnv:
 
             # 获取蓝方射线信息、状态信息、导弹信息
             blue_all_info = np.array([i[0] for i in blue_info[team]]).squeeze(1)
-            print('red', red_all_info.shape)
-            print('blue', blue_all_info.shape)
             plain_info = np.concatenate([red_all_info, blue_all_info], 0)
 
             blue_self = blue_all_info[:, 0:21]

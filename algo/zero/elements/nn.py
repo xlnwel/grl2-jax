@@ -122,6 +122,7 @@ class Policy(IndexedModule):
                     action, self.action_low, self.action_high)
         return action
 
+
 @nn_registry.register('value')
 class Value(IndexedModule):
     def __init__(self, name='value', **config):

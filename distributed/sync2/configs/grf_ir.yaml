@@ -1,7 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo sync2-zero
-name: zero
+algorithm: &algo sync2-zero_ir
+name: zero_ir
 version: 0
 
 precision: 32
@@ -53,7 +53,7 @@ monitor: {}
 
 runner:
     n_runners: &nrunners 60
-    n_steps: &nsteps 64
+    n_steps: &nsteps 16
     push_every_episode: False
 
 env:
@@ -95,9 +95,12 @@ strategy:
 model:
     aid: 0
     rnn_type: &rnn null
-    sample_size: &ss 64
+    sample_size: *nsteps
     K: *K
     L: *L
+    rl_reward: &rlreward sum
+    gamma: &gamma .995
+    meta_reward_type: intrinsic
     extra_meta_step: *ems
 
     encoder: 
@@ -127,7 +130,11 @@ model:
         eval_act_temp: 1
         out_gain: .01
         indexed: head
-        use_bias: True
+        indexed_config:
+            use_shared_bias: True
+            use_bias: True
+            kernel_initializer: orthogonal
+            activation: relu
     value:
         nn_id: value
         units_list: [256, 256, 256]
@@ -136,25 +143,38 @@ model:
         norm: layer
         norm_after_activation: True
         norm_kwargs:
-            epsilon: 1.e-5
+            epsilon: 1e-5
         indexed: head
-        use_bias: True
+        indexed_config:
+            use_shared_bias: True
+            use_bias: True
+            kernel_initializer: orthogonal
+            activation: relu
     meta_reward: 
         nn_id: value
         units_list: [256, 256, 256]
         kernel_initializer: orthogonal
         activation: relu
-        use_bias: False
         norm: layer
-        out_act: null
+        norm_after_activation: True
+        norm_kwargs:
+            epsilon: 1e-5
+        out_act: atan
         indexed: head
-        use_bias: True
-    meta_value:
+        indexed_config:
+            use_shared_bias: False
+            use_bias: True
+            kernel_initializer: orthogonal
+            activation: relu
+    outer_value:
         nn_id: value
         units_list: [256, 256, 256]
         kernel_initializer: orthogonal
         activation: relu
         norm: layer
+        norm_after_activation: True
+        norm_kwargs:
+            epsilon: 1e-5
     embed: null
     meta:
         nn_id: meta
@@ -178,7 +198,7 @@ model:
             init: null
             act: sigmoid
         gamma: 
-            outer: &gamma .995
+            outer: *gamma
             default: *gamma
             scale: 1
             bias: 0
@@ -194,14 +214,14 @@ model:
         reward_scale:
             outer: 1
             default: 1
-            scale: 5
+            scale: 1
             bias: 0
             init: null
             act: sigmoid
         reward_bias:
             outer: 0
             default: 0
-            scale: 5
+            scale: 1
             bias: 0
             init: null
             act: tanh
@@ -210,7 +230,7 @@ model:
             default: 1
             scale: 1
             bias: 0
-            init: 5
+            init: null
             act: sigmoid
 
 loss:
@@ -230,11 +250,15 @@ loss:
         dice_lam: 1
         kl: reverse
         kl_coef: 1
+        policy_life_mask: True
 
         # hyperparams for value learning
         value_loss: mse
         value_clip_range: .2
-        life_mask: False
+        value_life_mask: False
+        stop_target_grads: False
+
+        joint_objective: True
     meta:
         # hyperparams for value target and advantage
         target_type: gae
@@ -242,6 +266,7 @@ loss:
         rho_clip: 1
         adv_type: vtrace
         norm_adv: True
+        norm_meta_adv: True
 
         # hyperparams for policy optimization
         pg_type: ppo
@@ -251,13 +276,17 @@ loss:
         dice_lam: 1
         kl: reverse
         kl_coef: 1
+        policy_life_mask: True
 
         # hyperparams for value learning
         value_loss: mse
         value_clip_range: .2
-        life_mask: False
+        value_life_mask: False
+        stop_target_grads: False
 
+        # hyperparams for meta-learning
         meta_reward_coef: 0
+        joint_objective: True
 
 trainer:
     algorithm: *algo
@@ -267,13 +296,15 @@ trainer:
     n_epochs: &nepochs 5
     n_mbs: &nmbs 1
     n_meta_epochs: 1
-    sample_size: *ss         # BPTT length
+    sample_size: *nsteps         # BPTT length
     timeout_done: True
     meta_type: plain
     K: *K
     L: *L
+    msmg_type: last
     extra_meta_step: *ems
     store_state: True
+    rl_reward: *rlreward
 
     optimizer:
         opt_name: adam
@@ -309,7 +340,7 @@ buffer:
     n_envs: *nenvs
     n_steps: *nsteps
     fragment_size: null
-    sample_size: *ss
+    sample_size: *nsteps
     K: *K
     L: *L
     extra_meta_step: *ems

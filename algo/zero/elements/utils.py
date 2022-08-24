@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 from utility.typing import AttrDict
+from utility import tf_utils
 
 
 def get_hx(idx, event):
@@ -15,11 +16,55 @@ def get_hx(idx, event):
         hx = tf.concat([idx, event], -1)
     return hx
 
+def compute_values(func, x, next_x, 
+    idx=None, next_idx=None, event=None, next_event=None
+):
+    hx = get_hx(idx, event)
+    value = func(x, hx=hx)
+    if next_x is None:
+        value, next_value = tf_utils.split_data(value)
+    else:
+        next_hx = get_hx(next_idx, next_event)
+        next_value = func(next_x, hx=next_hx)
+    next_value = tf.stop_gradient(next_value)
+
+    return value, next_value
+
+def compute_policy(func, obs, next_obs, 
+    action, mu_logprob, idx=None, next_idx=None, 
+    event=None, next_event=None, action_mask=None
+):
+    idx, _ = tf_utils.split_data(idx, next_idx)
+    event, _ = tf_utils.split_data(event, next_event)
+    hx = get_hx(idx, event)
+    obs, _ = tf_utils.split_data(obs, next_obs)
+    act_dist = func(obs, hx=hx, action_mask=action_mask)
+    pi_logprob = act_dist.log_prob(action)
+    tf_utils.assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
+    log_ratio = pi_logprob - mu_logprob
+    ratio = tf.exp(log_ratio)
+
+    return act_dist, pi_logprob, log_ratio, ratio
+
+def prefix_name(terms, name):
+    if name is not None:
+        new_terms = {}
+        for k, v in terms.items():
+            if '/' not in k:
+                new_terms[f'{name}/{k}'] = v
+            else:
+                new_terms[k] = v
+        return new_terms
+    return terms
+
 def compute_inner_steps(config):
     if config.K is not None and config.L is not None:
         config.inner_steps = config.K + config.L
     else:
         config.inner_steps = None
+    if config.inner_steps == 0:
+        config.inner_steps = None
+
     return config
 
 def get_basics(

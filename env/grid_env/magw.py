@@ -122,6 +122,8 @@ class MultiAgentGridWorldEnv:
         self.is_action_discrete = True
         self._event1 = 0
         self._event2 = 0
+        # self.use_life_mask = False
+        # self.use_action_mask = True
 
     def reset_map(self):
         """Resets the map to be empty as well as a custom reset set by subclasses"""

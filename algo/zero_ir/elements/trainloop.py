@@ -87,7 +87,6 @@ class TrainingLoop(TrainingLoopBase):
             # print(do_meta_step)
             if data is None:
                 return
-            
             if do_meta_step:
                 # if self.config.get('debug', False):
                 #     # test data consistency
@@ -113,7 +112,7 @@ class TrainingLoop(TrainingLoopBase):
                         pass
                     elif self.config.extra_meta_step == 0:
                         self.trainer.sync_nets(forward=True)
-                    elif self.trainer.config.L == 0:
+                    elif self.config.L == 0:
                         self.trainer.sync_nets(forward=None)
                     else:
                         self.trainer.sync_nets(forward=False)

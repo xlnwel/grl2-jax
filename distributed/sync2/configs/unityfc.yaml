@@ -52,7 +52,7 @@ runner:
 env:
     env_name: &env_name unity-fly_control
     max_episode_steps: 500
-    frame_skip: 1
+    frame_skip: 5
     unity_config:
         worker_id: 20000
         file_name: '/home/ubuntu/wuyunkun/hm/env/unity_env/data/blue_fly/3d.x86_64'
@@ -122,7 +122,7 @@ model:
         norm: layer
         norm_after_activation: True
         norm_kwargs:
-            epsilon: 1.e-5
+            epsilon: 1e-5
     embed: null
     meta:
         nn_id: meta
@@ -132,8 +132,8 @@ model:
             init: null
             act: sigmoid
         entropy_coef:
-            outer: 5e-4
-            default: 5e-4
+            outer: 0
+            default: 0
             scale: 1
             bias: 0
             init: null

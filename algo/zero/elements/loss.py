@@ -1,37 +1,9 @@
 import tensorflow as tf
 
 from core.elements.loss import Loss as LossBase, LossEnsemble
-from utility import rl_loss
-from utility.tf_utils import assert_rank_and_shape_compatibility, reduce_mean, \
-    explained_variance
-from .utils import get_hx
+from utility import tf_utils, rl_loss
+from .utils import compute_values, compute_policy, prefix_name
 
-
-def prefix_name(terms, name):
-    if name is not None:
-        new_terms = {}
-        for k, v in terms.items():
-            if '/' not in k:
-                new_terms[f'{name}/{k}'] = v
-            else:
-                new_terms[k] = v
-        return new_terms
-    return terms
-
-def split_data(x, next_x=None, axis=1):
-    if isinstance(x, (list, tuple)):
-        if next_x is None:
-            next_x = [None for _ in x]
-        x, next_x = list(zip(*[split_data(xx, next_xx, axis=axis) 
-            for xx, next_xx in zip(x, next_x)]))
-        return x, next_x
-    if x is None:
-        return None, None
-    if next_x is None:
-        n = x.shape[axis]
-        _, next_x = tf.split(x, [1, n-1], axis=axis)
-        x, _ = tf.split(x, [n-1, 1], axis=axis)
-    return x, next_x
 
 class POLossImpl(LossBase):
     def _pg_loss(
@@ -204,7 +176,7 @@ class ValueLossImpl(LossBase):
 
         if debug and self.config.get('debug', True):
             with tape.stop_recording():
-                ev = explained_variance(target, value)
+                ev = tf_utils.explained_variance(target, value)
                 terms = dict(
                     value_coef=value_coef, 
                     value=value,
@@ -223,85 +195,6 @@ class ValueLossImpl(LossBase):
 
 
 class Loss(ValueLossImpl, POLossImpl):
-    def compute_target_advantage(
-        self, 
-        reward, 
-        discount, 
-        reset, 
-        value, 
-        next_value, 
-        ratio, 
-        gamma, 
-        lam, 
-        norm_adv, 
-        mask=None, 
-        n=None
-    ):
-        assert_rank_and_shape_compatibility([
-            reward, discount, reset, value, next_value, ratio
-        ])
-        if self.config.target_type == 'vtrace':
-            v_target, advantage = rl_loss.v_trace_from_ratio(
-                reward=reward, 
-                value=value, 
-                next_value=next_value, 
-                ratio=ratio, 
-                discount=discount, 
-                reset=reset, 
-                gamma=gamma, 
-                lam=lam, 
-                c_clip=self.config.c_clip, 
-                rho_clip=self.config.rho_clip, 
-                rho_clip_pg=self.config.rho_clip, 
-                adv_type=self.config.get('adv_type', 'vtrace'), 
-                norm_adv=norm_adv, 
-                zero_center=self.config.get('zero_center', True), 
-                epsilon=self.config.get('epsilon', 1e-8), 
-                clip=self.config.get('clip', None), 
-                mask=mask, 
-                n=n, 
-                axis=1, 
-            )
-        elif self.config.target_type == 'gae':
-            v_target, advantage = rl_loss.gae(
-                reward=reward, 
-                value=value, 
-                next_value=next_value, 
-                discount=discount, 
-                reset=reset, 
-                gamma=gamma, 
-                lam=lam, 
-                norm_adv=norm_adv, 
-                zero_center=self.config.get('zero_center', True), 
-                epsilon=self.config.get('epsilon', 1e-8), 
-                clip=self.config.get('clip', None), 
-                mask=mask, 
-                n=n, 
-                axis=1, 
-            )
-        elif self.config.target_type == 'td':
-            if reset is not None:
-                discount = 1 - reset
-            v_target = reward + discount * gamma * next_value
-            advantage = v_target - value
-        else:
-            raise NotImplementedError
-        
-        return v_target, advantage
-
-    def _compute_values(self, func, x, next_x, 
-            idx=None, next_idx=None, event=None, next_event=None):
-        hx = get_hx(idx, event)
-        value = func(x, hx=hx)
-        if next_x is None:
-            value, next_value = split_data(value)
-        else:
-            next_hx = get_hx(next_idx, next_event)
-            next_value = func(next_x, hx=next_hx)
-        next_value = tf.stop_gradient(next_value)
-        
-        return value, next_value
-
     def loss(
         self, 
         *, 
@@ -310,10 +203,12 @@ class Loss(ValueLossImpl, POLossImpl):
         idx=None, 
         event=None, 
         global_state=None, 
+        hidden_state=None, 
         next_obs=None, 
         next_idx=None, 
         next_event=None, 
         next_global_state=None, 
+        next_hidden_state=None, 
         action, 
         old_value, 
         reward, 
@@ -342,7 +237,7 @@ class Loss(ValueLossImpl, POLossImpl):
             global_state = obs
         if next_global_state is None:
             next_global_state = next_obs
-        value, next_value = self._compute_values(
+        value, next_value = compute_values(
             self.value, 
             global_state, 
             next_global_state, 
@@ -351,20 +246,16 @@ class Loss(ValueLossImpl, POLossImpl):
             event,
             next_event
         )
-        idx, _ = split_data(idx, next_idx)
-        event, _ = split_data(event, next_event)
-        hx = get_hx(idx, event)
-        obs, _ = split_data(obs, next_obs)
-        act_dist = self.policy(obs, hx=hx, action_mask=action_mask)
-        pi_logprob = act_dist.log_prob(action)
-        assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
-        log_ratio = pi_logprob - mu_logprob
-        ratio = tf.exp(log_ratio)
+        act_dist, pi_logprob, log_ratio, ratio = compute_policy(
+            self.policy, obs, next_obs, action, mu_logprob, 
+            idx, next_idx, event, next_event, action_mask
+        )
         # tf.debugging.assert_near(
         #     tf.where(tf.cast(reset, bool), 0., log_ratio), 0., 1e-5, 1e-5)
 
         with tape.stop_recording():
-            v_target, advantage = self.compute_target_advantage(
+            v_target, advantage = rl_loss.compute_target_advantage(
+                config=self.config, 
                 reward=reward, 
                 discount=discount, 
                 reset=reset, 
@@ -398,7 +289,8 @@ class Loss(ValueLossImpl, POLossImpl):
         value_loss, value_terms = self._value_loss(
             tape=tape, 
             value=value,
-            target=tf.stop_gradient(v_target), 
+            target=tf.stop_gradient(v_target) \
+                if self.config.get('stop_target_grads', True) else v_target, 
             old_value=old_value, 
             sample_mask=sample_mask, 
             n=n, 
@@ -418,7 +310,7 @@ class Loss(ValueLossImpl, POLossImpl):
             lam=lam, 
             pi_logprob=pi_logprob, 
             ratio=ratio, 
-            approx_kl=.5 * reduce_mean((log_ratio)**2, sample_mask, n), 
+            approx_kl=.5 * tf_utils.reduce_mean((log_ratio)**2, sample_mask, n), 
             loss=loss, 
         )
 

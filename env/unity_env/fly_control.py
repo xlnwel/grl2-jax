@@ -72,7 +72,7 @@ class UnityEnv:
         self.aid2uids = compute_aid2uids(self.uid2aid)
         self.n_agents = len(self.aid2uids)  # the number of agents
         self.n_units = len(self.uid2aid)
-        self.frame_skip = 10
+        self.frame_skip = frame_skip
         self.unity_config = unity_config
         if platform.system() == 'Windows':
             # self.unity_config['file_name'] = 'D:/FlightCombat/fly_win/T2.exe'

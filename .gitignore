@@ -11,3 +11,4 @@ tmp**
 .ipynb_checkpoints
 src
 data
+results

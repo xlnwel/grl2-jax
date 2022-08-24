@@ -13,7 +13,7 @@ config=$2
 for x in $(seq 1 2); do
     shift
 done
-seed=1
+seed=2
 args1=(None)
 args2=(1)
 args3=(True)
@@ -82,7 +82,8 @@ for e in "${envs[@]}"; do
             fi
             mkdir -p $dir
             gpus=$(nvidia-smi -L | wc -l)
-            gpu=$(($s % $gpus))
+            gpu=$((($s-1) % $gpus))
+            # gpu=1
             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -n $n -s $s $kws 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
             echo $py_script
             eval $py_script
