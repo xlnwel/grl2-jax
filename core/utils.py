@@ -16,8 +16,8 @@ def save_code(model_path: ModelPath):
     shutil.copytree('.', dest_dir, 
         ignore=shutil.ignore_patterns(
             '*logs*', '*data*', '.*', '*.md',
-            '*pycache*', '*.pyc', '*test*', '*outs*',
-            '*results*'))
+            '*pycache*', '*.pyc', '*test*', '*outs*', 
+            '*results*', '*env*'))
     do_logging(
         f'Save code: {model_path}', 
         level='print', 
@@ -49,3 +49,6 @@ def save_config(config, model_path=None, config_name='config.yaml'):
     config = simplify_datatype(config)
     yaml_op.save_config(config, 
         filename='/'.join([*model_path, config_name]))
+
+def get_vars_for_modules(modules):
+    return sum([m.variables for m in modules], ())

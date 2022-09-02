@@ -43,7 +43,6 @@ class Trainer(tf.Module):
             display_model_var_info(self.model)
         self.sync_ops = NetworkSyncOps()
         self._post_init()
-        self.sync_nets()
 
     def __getattr__(self, name):
         if name.startswith('_'):
@@ -69,10 +68,11 @@ class Trainer(tf.Module):
         modules = tuple(self.model[k] for k in keys)
         self.optimizer = create_optimizer(
             modules, self.config.optimizer)
+        self.optimizers = {'rl': self.optimizer}
         
     def _post_init(self):
         """ Add some additional attributes and do some post processing here """
-        pass
+        self.sync_nets()
 
     def sync_nets(self):
         self.model.sync_nets()
@@ -100,15 +100,22 @@ class Trainer(tf.Module):
         self.model.set_weights(weights)
 
     def get_optimizer_weights(self):
-        return self.optimizer.get_weights()
+        weights = {
+            k: v.get_weights()
+            for k, v in self.optimizers.items()
+        }
+        return weights
 
     def set_optimizer_weights(self, weights):
-        self.optimizer.set_weights(weights)
+        for k, v in weights.items():
+            self.optimizers[k].set_weights(v)
 
     def ckpt_model(self):
-        return {
-            f'{self._raw_name}_opt': self.optimizer, 
+        opts = {
+            f'{self._raw_name}_{k}_opt': v
+            for k, v in self.optimizers.items()
         }
+        return opts
 
     """ Checkpoints """
     def reset_model_path(self, model_path: ModelPath):

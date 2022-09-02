@@ -8,7 +8,7 @@ from core.mixin.model import NetworkSyncOps
 from core.tf_config import build
 from utility.file import source_file
 from utility.typing import AttrDict
-from .utils import compute_inner_steps, get_hx
+from .utils import compute_inner_steps, get_hx, get_rl_module_names
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -173,7 +173,6 @@ class ModelEnsemble(ModelEnsembleBase):
 
     def sync_nets(self, forward=True):
         if self.config.inner_steps is not None:
-            self.sync_meta_nets()
             if forward:
                 self.sync_meta_rl_nets()
             elif forward is None:
@@ -182,24 +181,15 @@ class ModelEnsemble(ModelEnsembleBase):
                 self.sync_rl_meta_nets()
 
     @tf.function
-    def sync_meta_nets(self):
-        keys = ['meta'] # meta_reward is not synced since the meta_reward is being use in both loop
-        source = [self.meta[k] for k in keys]
-        target = [self.rl[k] for k in keys]
-        self.sync_ops.sync_nets(source, target)
-
-    @tf.function
     def sync_rl_meta_nets(self):
-        keys = sorted([k for k in self.meta.keys()
-            if not k.startswith('meta') and not k.startswith('outer')])
+        keys = get_rl_module_names(self.meta)
         source = [self.rl[k] for k in keys]
         target = [self.meta[k] for k in keys]
         self.sync_ops.sync_nets(source, target)
 
     @tf.function
     def sync_meta_rl_nets(self):
-        keys = sorted([k for k in self.meta.keys()
-            if not k.startswith('meta') and not k.startswith('outer')])
+        keys = get_rl_module_names(self.meta)
         source = [self.meta[k] for k in keys]
         target = [self.rl[k] for k in keys]
         self.sync_ops.sync_nets(source, target)

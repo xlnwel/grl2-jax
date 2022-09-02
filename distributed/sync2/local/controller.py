@@ -257,11 +257,16 @@ class Controller(YAMLCheckpointBase):
         max_steps_per_iteration: int
     ):
         agent_manager.start_training()
-        to_restart_runners = self.config.get('restart_runners_priod', None) \
-            and Every(self.config.restart_runners_priod, self._steps + self.config.restart_runners_priod)
-        to_eval = self.config.get('eval_priod', None) \
-            and Every(self.config.eval_priod)
-        to_store = Every(self.config.store_period, self._steps)
+        to_restart_runners = Every(
+            self.config.get('restart_runners_priod', None), 
+            0 if self.config.restart_runners_priod is None \
+                else self._steps + self.config.restart_runners_priod
+        )
+        to_eval = Every(
+            self.config.get('eval_priod', None), 
+            final=max_steps_per_iteration
+        )
+        to_store = Every(self.config.store_period, final=max_steps_per_iteration)
         eval_pids = []
 
         while self._steps < max_steps_per_iteration:

@@ -15,6 +15,7 @@ def select_optimizer(name):
     opts = dict(
         adam=tf.keras.optimizers.Adam,
         rmsprop=tf.keras.optimizers.RMSprop,
+        sgd=tf.keras.optimizers.SGD,
     )
     if isinstance(name, str):
         return opts[name.lower()]
@@ -92,6 +93,14 @@ class Optimizer(tf.Module):
     def get_transformed_grads(self, var_list=[]):
         assert hasattr(self._opt, 'get_transformed_grads'), f'{self._opt} does not support "get_transformed_grads"'
         return self._opt.get_transformed_grads(var_list or self._variables)
+
+    def get_old_vars(self, var_list=[]):
+        assert hasattr(self._opt, 'get_old_vars'), f'{self._opt} does not support "get_old_vars"'
+        return self._opt.get_old_vars(var_list or self._variables)
+
+    def get_new_vars(self, var_list=[]):
+        assert hasattr(self._opt, 'get_new_vars'), f'{self._opt} does not support "get_new_vars"'
+        return self._opt.get_new_vars(var_list or self._variables)
 
     def compute_gradients(
         self, 

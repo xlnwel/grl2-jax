@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
+from utility import tf_utils
 
 def epsilon_greedy(action, epsilon, is_action_discrete, 
                     action_mask=None, action_dim=None):
@@ -112,3 +113,18 @@ def compute_act_temp(min_temp, max_temp, n_exploit_envs, worker_id, n_runners, e
 
 def q_log_prob(x, q):
     return (x**(q-1) - 1) / (q-1)
+
+def normalize_adv(config, raw_adv, norm_adv, sample_mask=None, n=None):
+    if norm_adv:
+        adv = tf_utils.standard_normalization(
+            raw_adv, 
+            zero_center=config.get('zero_center', True), 
+            mask=sample_mask, 
+            n=n, 
+            epsilon=config.get('epsilon', 1e-8), 
+            clip=config.get('clip', None)
+        )
+    else:
+        adv = raw_adv
+
+    return adv

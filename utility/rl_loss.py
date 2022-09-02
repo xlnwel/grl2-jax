@@ -4,8 +4,7 @@ import tensorflow as tf
 
 from utility import tf_div
 from utility.tf_utils import static_scan, reduce_mean, \
-    standard_normalization, assert_rank, \
-        assert_rank_and_shape_compatibility
+    assert_rank, assert_rank_and_shape_compatibility
 
 
 DiceCache = collections.namedtuple('DiceCache', 'w deps')
@@ -30,6 +29,7 @@ def to_loss(
     if is_unit_wise_coef:
         raw_stats = coef * raw_stats
     raw_loss = reduce_mean(raw_stats, mask, n)
+    tf.debugging.assert_all_finite(raw_loss, 'Infinite loss')
     loss = raw_loss if is_unit_wise_coef else coef * raw_loss
     return raw_loss, loss
 
@@ -249,12 +249,6 @@ def gae(
     reset=None, 
     gamma=1, 
     lam=1, 
-    norm_adv=False, 
-    zero_center=True, 
-    epsilon=1e-8, 
-    clip=None, 
-    mask=None, 
-    n=None, 
     axis=0
 ):
     assert_rank_and_shape_compatibility(
@@ -275,18 +269,6 @@ def gae(
         initial_value, (delta, discount), reverse=True
     )
     vs = adv + value
-
-    if norm_adv:
-        if mask is not None:
-            mask = tf.transpose(mask, dims)
-        adv = standard_normalization(
-            adv, 
-            zero_center=zero_center, 
-            mask=mask, 
-            n=n, 
-            epsilon=epsilon, 
-            clip=clip
-        )
 
     if axis != 0:
         vs = tf.transpose(vs, dims)
@@ -309,12 +291,6 @@ def v_trace(
     rho_clip=1, 
     rho_clip_pg=1, 
     adv_type='vtrace', 
-    norm_adv=False, 
-    zero_center=True, 
-    epsilon=1e-8, 
-    clip=None, 
-    mask=None, 
-    n=None, 
     axis=0
 ):
     """
@@ -336,12 +312,6 @@ def v_trace(
         rho_clip=rho_clip, 
         rho_clip_pg=rho_clip_pg, 
         adv_type=adv_type, 
-        norm_adv=norm_adv, 
-        zero_center=zero_center, 
-        epsilon=epsilon, 
-        clip=clip, 
-        mask=mask, 
-        n=n, 
         axis=axis
     )
 
@@ -360,12 +330,6 @@ def v_trace_from_ratio(
     rho_clip=1, 
     rho_clip_pg=1, 
     adv_type='vtrace', 
-    norm_adv=False, 
-    zero_center=True, 
-    epsilon=1e-8, 
-    clip=None, 
-    mask=None, 
-    n=None, 
     axis=0
 ):
     """
@@ -408,18 +372,6 @@ def v_trace_from_ratio(
     elif adv_type == 'gae':
         adv = v_minus_V
 
-    if norm_adv:
-        if mask is not None:
-            mask = tf.transpose(mask, dims)
-        adv = standard_normalization(
-            adv, 
-            zero_center=zero_center, 
-            mask=mask, 
-            n=n, 
-            epsilon=epsilon, 
-            clip=clip
-        )
-
     if axis != 0:
         vs = tf.transpose(vs, dims)
         adv = tf.transpose(adv, dims)
@@ -438,9 +390,6 @@ def compute_target_advantage(
     ratio, 
     gamma, 
     lam, 
-    norm_adv, 
-    mask=None, 
-    n=None
 ):
     assert_rank_and_shape_compatibility([
         reward, discount, value, next_value, ratio, reset
@@ -459,12 +408,6 @@ def compute_target_advantage(
             rho_clip=config.rho_clip, 
             rho_clip_pg=config.rho_clip, 
             adv_type=config.get('adv_type', 'vtrace'), 
-            norm_adv=norm_adv, 
-            zero_center=config.get('zero_center', True), 
-            epsilon=config.get('epsilon', 1e-8), 
-            clip=config.get('clip', None), 
-            mask=mask, 
-            n=n, 
             axis=1, 
         )
     elif config.target_type == 'gae':
@@ -476,12 +419,6 @@ def compute_target_advantage(
             reset=reset, 
             gamma=gamma, 
             lam=lam, 
-            norm_adv=norm_adv, 
-            zero_center=config.get('zero_center', True), 
-            epsilon=config.get('epsilon', 1e-8), 
-            clip=config.get('clip', None), 
-            mask=mask, 
-            n=n, 
             axis=1, 
         )
     elif config.target_type == 'td':
@@ -504,6 +441,7 @@ def pg_loss(
     mask=None, 
     n=None
 ):
+    ratio = tf.stop_gradient(ratio)
     raw_pg = advantage * ratio * logprob
     raw_pg_loss, pg_loss = to_loss(
         -raw_pg, 

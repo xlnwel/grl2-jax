@@ -58,7 +58,7 @@ runner:
 
 env:
     env_name: &env_name grf-11_vs_11_hard_stochastic
-    representation: custom
+    representation: simple115v2
     rewards: scoring,checkpoints
     render: False
     write_full_episode_dumps: False
@@ -95,7 +95,6 @@ strategy:
 model:
     aid: 0
     rnn_type: &rnn null
-    sample_size: &ss 64
     K: *K
     L: *L
     extra_meta_step: *ems

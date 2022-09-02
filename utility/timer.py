@@ -146,10 +146,10 @@ class Every:
         self._diff = 0
     
     def __call__(self, step):
+        self._diff = step - self._curr
         if self._period is None:
             return False
-        if step >= self._next or (self._final is not None and step > self._final):
-            self._diff = step - self._curr
+        if step >= self._next or (self._final is not None and step >= self._final):
             self._curr = step
             self._next = step + self._period
             return True

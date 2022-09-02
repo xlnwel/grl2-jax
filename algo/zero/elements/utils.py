@@ -7,37 +7,57 @@ from utility.typing import AttrDict
 from utility import tf_utils
 
 
-def get_hx(idx, event):
-    if idx is None:
-        hx = event
-    elif event is None:
-        hx = idx
+def get_hx(*args):
+    hx = [a for a in args if a is not None]
+    if len(hx) == 0:
+        return None
+    elif len(hx) == 1:
+        return hx[0]
     else:
-        hx = tf.concat([idx, event], -1)
+        hx = tf.concat(hx, -1)
     return hx
 
-def compute_values(func, x, next_x, 
-    idx=None, next_idx=None, event=None, next_event=None
+def compute_values(
+    func, 
+    x, 
+    next_x, 
+    sid=None, 
+    next_sid=None, 
+    idx=None, 
+    next_idx=None, 
+    event=None, 
+    next_event=None
 ):
-    hx = get_hx(idx, event)
+    hx = get_hx(sid, idx, event)
     value = func(x, hx=hx)
     if next_x is None:
         value, next_value = tf_utils.split_data(value)
     else:
-        next_hx = get_hx(next_idx, next_event)
+        next_hx = get_hx(next_sid, next_idx, next_event)
         next_value = func(next_x, hx=next_hx)
     next_value = tf.stop_gradient(next_value)
 
     return value, next_value
 
-def compute_policy(func, obs, next_obs, 
-    action, mu_logprob, idx=None, next_idx=None, 
-    event=None, next_event=None, action_mask=None
+def compute_policy(
+    func, 
+    obs, 
+    next_obs, 
+    action, 
+    mu_logprob, 
+    sid=None, 
+    next_sid=None, 
+    idx=None, 
+    next_idx=None, 
+    event=None, 
+    next_event=None, 
+    action_mask=None
 ):
-    idx, _ = tf_utils.split_data(idx, next_idx)
-    event, _ = tf_utils.split_data(event, next_event)
-    hx = get_hx(idx, event)
-    obs, _ = tf_utils.split_data(obs, next_obs)
+    [obs, sid, idx, event], _ = tf_utils.split_data(
+        [obs, sid, idx, event], 
+        [next_obs, next_sid, next_idx, next_event]
+    )
+    hx = get_hx(sid, idx, event)
     act_dist = func(obs, hx=hx, action_mask=action_mask)
     pi_logprob = act_dist.log_prob(action)
     tf_utils.assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
@@ -67,6 +87,33 @@ def compute_inner_steps(config):
 
     return config
 
+def get_rl_module_names(model):
+    keys = [k for k in model.keys() if not k.startswith('meta')]
+    return keys
+
+def get_meta_module_names(model):
+    keys = [k for k in model.keys() if k.startswith('meta') and k != 'meta']
+    return keys
+
+def get_meta_param_module_names(model):
+    keys = [k for k in model.keys() if k == 'meta']
+    return keys
+
+def get_rl_modules(model):
+    keys = get_rl_module_names(model)
+    modules = tuple([model[k] for k in keys])
+    return modules
+
+def get_meta_modules(model):
+    keys = get_meta_module_names(model)
+    modules = tuple([model[k] for k in keys])
+    return modules
+
+def get_meta_param_modules(model):
+    keys = get_meta_param_module_names(model)
+    modules = tuple([model[k] for k in keys])
+    return modules
+
 def get_basics(
     config: AttrDict, 
     env_stats: AttrDict, 
@@ -76,7 +123,7 @@ def get_basics(
         aid = config.aid
         n_units = len(env_stats.aid2uids[aid])
         n_envs = config.n_runners * config.n_envs
-        basic_shape = (n_envs, config['sample_size'], n_units)
+        basic_shape = (n_envs, config['n_steps'], n_units)
         shapes = env_stats['obs_shape'][aid]
         dtypes = env_stats['obs_dtype'][aid]
 
@@ -85,7 +132,7 @@ def get_basics(
         action_dtype = env_stats.action_dtype[aid]
     else:
         n_envs = config.n_runners * config.n_envs
-        basic_shape = (n_envs, config['sample_size'], 1)
+        basic_shape = (n_envs, config['n_steps'], 1)
         shapes = env_stats['obs_shape']
         dtypes = env_stats['obs_dtype']
 

@@ -10,8 +10,10 @@ class DummyEnv:
     def __init__(self, env):
         self.env = env
         self.observation_space = env.observation_space
-        self.obs_shape = self.observation_space.shape
-        self.obs_dtype = np.float32 if np.issubdtype(self.observation_space.dtype, np.floating) else self.observation_space.dtype
+        self.obs_shape = {'obs': self.observation_space.shape}
+        self.obs_dtype = {
+            'obs': np.float32 if np.issubdtype(self.observation_space.dtype, np.floating) else self.observation_space.dtype
+        }
         self.action_space = env.action_space
         self.action_shape = self.action_space.shape
         self.action_dtype = self.action_space.dtype
@@ -22,8 +24,6 @@ class DummyEnv:
         self.reward_range = env.reward_range
         self.metadata = env.metadata
 
-        self.reset = env.reset
-        self.step = env.step
         self.render = env.render
         self.close = env.close
         self.seed = env.seed
@@ -34,6 +34,16 @@ class DummyEnv:
 
     def random_action(self):
         return self.action_space.sample()
+    
+    def reset(self):
+        obs = self.env.reset()
+        obs = {'obs': obs}
+        return obs
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        obs = {'obs': obs}
+        return obs, reward, done, info
 
 
 class RandomEnv():

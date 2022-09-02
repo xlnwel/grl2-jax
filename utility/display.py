@@ -1,5 +1,6 @@
 from datetime import datetime
 import numpy as np
+import tensorflow as tf
 
 
 color2num = dict(
@@ -114,5 +115,7 @@ def print_dict_info(d, prefix=''):
             print_dict_info(v._asdict(), prefix+'\t')
         elif isinstance(v, (tuple, list)):
             print(f'{prefix} {k}: {len(v)}')
-        else:
+        elif isinstance(v, (np.ndarray, tf.Tensor)):
             print(f'{prefix} {k}: {v.shape} {v.dtype}')
+        else:
+            print(f'{prefix} {k}: {v}')

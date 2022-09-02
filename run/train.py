@@ -110,6 +110,7 @@ def _run_with_configs(cmd_args):
         root_dir = f'{logdir}/{dir_prefix}{config.env.env_name}/{config.algorithm}'
         config = modify_config(
             config, 
+            max_layer=1, 
             root_dir=root_dir, 
             model_name=model_name, 
             seed=cmd_args.seed

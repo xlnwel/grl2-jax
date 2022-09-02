@@ -52,7 +52,7 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
 
     env_stats = env.stats()
 
-    builder = ElementsBuilder(config, env_stats, config.algorithm)
+    builder = ElementsBuilder(config, env_stats)
     elements = builder.build_acting_agent_from_scratch(to_build_for_eval=True)
     agent = elements.agent
     print('start evaluation')

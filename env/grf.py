@@ -48,10 +48,10 @@ class GRF:
         self.name = env_name
         self.representation = representation
 
-        assert number_of_left_players_agent_controls in (1, 11), \
-            number_of_left_players_agent_controls
-        assert number_of_right_players_agent_controls in (0, 1, 11), \
-            number_of_right_players_agent_controls
+        # assert number_of_left_players_agent_controls in (1, 11), \
+        #     number_of_left_players_agent_controls
+        # assert number_of_right_players_agent_controls in (0, 1, 11), \
+        #     number_of_right_players_agent_controls
 
         if uid2aid is None:
             if number_of_left_players_agent_controls > 0:

@@ -1,7 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo hm
-name: hm
+algorithm: &algo zero
+name: zero
 version: 0
 
 precision: 32
@@ -53,6 +53,7 @@ env:
     env_name: &env_name unity-combat3d_1v1
     max_episode_steps: 500
     frame_skip: 1
+    fly_control_dir: 0821-entropy_coef=0-frame_skip=5
     unity_config:
         worker_id: 20000
         file_name: '/home/ubuntu/wuyunkun/hm/env/unity_env/data/3d/3d.x86_64'

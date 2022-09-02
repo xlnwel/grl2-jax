@@ -2,7 +2,6 @@ import string
 import tensorflow as tf
 
 from core.module import Module
-from nn.hyper import HyperNet
 from nn.func import mlp, nn_registry
 from nn.utils import get_initializer
 from utility.utils import dict2AttrDict
@@ -22,7 +21,8 @@ class IndexedLayer(Module):
 
     def build(self, x):
         w_in = 1 if self.w_in is None else self.w_in
-        init = self.initializer((x[-1] * w_in, self.w_out))
+        inits = [self.initializer((w_in, self.w_out)) for _ in range(x[-1])]
+        init = tf.stack(inits)
         self.w = tf.Variable(
             init, 
             name=f'{self.scope_name}_w', 
@@ -30,26 +30,26 @@ class IndexedLayer(Module):
             trainable=True
         )
         if self.use_bias:
+            init = (self.w_out,) if self.w_in is None else (w_in, self.w_out)
             self.b = tf.Variable(
-                self.initializer((w_in, self.w_out)),
+                tf.zeros(init),
                 name=f'{self.scope_name}_b', 
                 dtype=tf.float32, 
                 trainable=True
             )
 
     def call(self, x):
-        tf.debugging.assert_equal(tf.reduce_sum(x, -1), tf.cast(self.n, tf.float32))
-        w_in = 1 if self.w_in is None else self.w_in
-        matrix = tf.reshape(self.w, (-1, w_in * self.w_out))
-        x = tf.matmul(x, matrix)
+        # tf.debugging.assert_equal(tf.reduce_sum(x, -1), tf.cast(self.n, tf.float32))
+        pre = string.ascii_lowercase[:len(x.shape)-1]
+        eqt = f'{pre}h,hio->{pre}io'
+        x = tf.einsum(eqt, x, self.w)
         if self.w_in is None:
-            x = tf.reshape(x, (-1, *x.shape[1:-1], self.w_out))
-        else:
-            x = tf.reshape(x, (-1, *x.shape[1:-1], self.w_in, self.w_out))
+            x = tf.reshape(x, (-1, *x.shape[1:-2], self.w_out))
         if self.use_bias:
             x = x + self.b
 
         return x
+
 
 @nn_registry.register('index')
 class IndexedNet(Module):
@@ -77,6 +77,7 @@ class IndexedNet(Module):
             self._blayer = IndexedLayer(**b_config, name=f'{self._raw_name}_b')
 
     def call(self, x, hx):
+        assert hx is not None, hx
         w = self._wlayer(hx)
         pre = string.ascii_lowercase[:len(x.shape)-1]
         eqt = f'{pre}h,{pre}ho->{pre}o'
@@ -125,3 +126,15 @@ class IndexedModule(Module):
                 out_dtype='float32',
                 name=self.scope_name
             )
+
+    def call(self, x, hx):
+        if self.indexed == 'all':
+            for l in self._layers:
+                x = l(x, hx)
+        elif self.indexed == 'head':
+            x = self._layers(x)
+            x = self._head(x, hx)
+        else:
+            x = self._layers(x)
+        
+        return x

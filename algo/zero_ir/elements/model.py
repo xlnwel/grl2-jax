@@ -103,7 +103,8 @@ class Model(ModelBase):
                 hidden_state, 
                 action, 
                 prev_hx, 
-                hx)
+                hx
+            )
             
             return action, terms, state
         else:
@@ -125,7 +126,7 @@ class Model(ModelBase):
     ):
         value = self.value(global_state, hx=hx)
         value = tf.squeeze(value)
-        meta_reward, trans_reward = self.compute_meta_reward(
+        _, meta_reward, trans_reward = self.compute_meta_reward(
             prev_hidden_state, hidden_state, action, 
             hx=prev_hx, next_hx=hx, shift=True
         )
@@ -155,18 +156,17 @@ class Model(ModelBase):
                 next_hx = get_hx(next_idx, next_event)
             phi = self.meta_reward(hidden_state, hx=hx)
             next_phi = self.meta_reward(next_hidden_state, hx=next_hx)
-            meta_reward = self.config.gamma * next_phi - phi
+            x, meta_reward = self.config.gamma * next_phi - phi
         elif self.config.meta_reward_type == 'intrinsic':
-            action_oh = tf.one_hot(action, self.policy.action_dim)
-            x = tf.concat([next_hidden_state if shift else hidden_state, action_oh], -1)
-            meta_reward = self.meta_reward(x, hx=next_hx if shift else hx)
+            x = next_hidden_state if shift else hidden_state
+            x, meta_reward = self.meta_reward(x, action, hx=next_hx if shift else hx)
         else:
             raise ValueError(f"Unknown meta rewared type: {self.config.meta_reward_type}")
         reward_scale = self.meta('reward_scale', inner=True)
         reward_bias = self.meta('reward_bias', inner=True)
         reward = reward_scale * meta_reward + reward_bias
 
-        return meta_reward, reward
+        return x, meta_reward, reward
 
 
 def setup_config_from_envstats(config, env_stats):
@@ -174,6 +174,7 @@ def setup_config_from_envstats(config, env_stats):
         aid = config['aid']
         config.policy.action_dim = env_stats.action_dim[aid]
         config.policy.is_action_discrete = env_stats.is_action_discrete[aid]
+        config.meta_reward.out_size = env_stats.action_dim[aid]
         config.meta.reward_scale.shape = len(env_stats.aid2uids[aid])
         config.meta.reward_bias.shape = len(env_stats.aid2uids[aid])
         config.meta.reward_coef.shape = len(env_stats.aid2uids[aid])
@@ -182,6 +183,7 @@ def setup_config_from_envstats(config, env_stats):
         config.policy.is_action_discrete = env_stats.is_action_discrete
         config.policy.action_low = env_stats.get('action_low')
         config.policy.action_high = env_stats.get('action_high')
+        config.meta_reward.out_size = env_stats.action_dim
         config.meta.reward_scale.shape = env_stats.n_units
         config.meta.reward_bias.shape = env_stats.n_units
         config.meta.reward_coef.shape = env_stats.n_units

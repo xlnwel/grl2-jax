@@ -12,6 +12,8 @@ def default_path(filename):
 
 # load arguments from config.yaml
 def load_config(filename='config.yaml', to_attrdict=True):
+    if not filename.endswith('.yaml'):
+        filename = filename + '.yaml'
     if not Path(default_path(filename)).exists():
         raise RuntimeError(f'No configuration is found at: {filename}')
     with open(default_path(filename), 'r') as f:

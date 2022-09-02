@@ -25,6 +25,14 @@ BOMB_PENALTY = -10
 SUCCESS_REWARD = 10
 STEP_PENALTY = 0.002
 DELTA_V = [0.2, 1, 0.5, 0.5]
+DRAW_LINE = False
+
+TOLERANCE = 1000
+
+MAX_SPEED = 700
+MIN_SPEED = 10
+MAX_ANGLE_SPEED = 12
+MAX_ANGLE = 180
 
 
 def compute_aid2uids(uid2aid):
@@ -40,6 +48,59 @@ def compute_aid2uids(uid2aid):
     aid2uids = [np.array(uids, np.int32) for uids in aid2uids]
 
     return aid2uids
+
+
+def x2tri(x):
+    return np.cos(x), np.sin(x)
+
+
+def xyz2tri(x, y, z, return_length=False):
+    r = np.linalg.norm([x, y, z])
+    theta = np.arccos(z / r) if r != 0 else 0
+    phi = np.arctan2(y, x)
+    if return_length:
+        return np.cos(theta), np.sin(theta), np.cos(phi), np.sin(phi), r
+    else:
+        return np.cos(theta), np.sin(theta), np.cos(phi), np.sin(phi)
+
+
+def get_velocity(state):
+    vel = state[..., 5:8]
+    vel_scalar = np.linalg.norm(vel)
+    assert np.all(vel_scalar < MAX_SPEED), vel
+    assert np.all(vel_scalar > MIN_SPEED), vel
+    return vel / 1000, vel_scalar / 1000
+
+
+def get_angle_velocity(state):
+    av = state[..., 8:11]
+    assert np.all(av <= MAX_ANGLE_SPEED), av
+    assert np.all(av >= -MAX_ANGLE_SPEED), av
+    return av
+
+
+def get_angle(state):
+    angel = state[..., 11:14]
+    assert np.all(angel <= MAX_ANGLE), angel
+    assert np.all(angel >= -MAX_ANGLE), angel
+    return angel
+
+
+def get_height(state):
+    h = state[..., 3:4]
+    assert 1500 < h < 21000, h
+    return h / 1000
+
+
+def get_xyz(state):
+    xyz = state[..., 2:5]
+    return xyz / 1000
+
+
+def get_overload(state):
+    o = state[..., 14:15]
+    # assert -3 < o < 9, o
+    return o
 
 
 # NOTE: Keep the class name fixed; do not invent a new one!
@@ -72,13 +133,16 @@ class UnityEnv:
         self.aid2uids = compute_aid2uids(self.uid2aid)
         self.n_agents = len(self.aid2uids)  # the number of agents
         self.n_units = len(self.uid2aid)
-        self.frame_skip = frame_skip
+        self.frame_skip = 10
         self.unity_config = unity_config
         if platform.system() == 'Windows':
             # self.unity_config['file_name'] = 'D:/FlightCombat/fly_win/T2.exe'
             # self.unity_config['worker_id'] = 100
             self.unity_config['file_name'] = None
             self.unity_config['worker_id'] = 0
+        #        else:
+        #            self.unity_config['file_name'] = '/home/ubuntu/wuyunkun/hm/env/unity_env/data/blue_fly/3d.x86_64'
+        #            self.unity_config['worker_id'] = 10
 
         # unity_config['n_envs'] = n_envs
         self.env = UnityInterface(**self.unity_config)
@@ -139,14 +203,12 @@ class UnityEnv:
         self.prev_action = None
         self._target_vel = np.array((self.n_envs, 4), np.float32)
         self.name = 'E0_Red_0?team=0'
-        self.last_angle = np.array((self.n_envs, 3), np.float32)
         self.last_v = np.array((self.n_envs, 4), np.float32)
         self._v = np.array((self.n_envs, 4), np.float32)
-        self._angle = np.array((self.n_envs, 3), np.float32)
         self._info = {}
         self._height = 6
         self._dense_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
-        #self.draw_target = [[0.4, 0.3, 0.05, 0], [0.25, -0.3, -0.05, 0], [0.333, 0, 0, 0], [0.333, -1, 0, 0]]
+        self.draw_target = [[0.4, 0.3, 0.05, 0], [0.25, -0.3, -0.05, 0], [0.333, 0, 0, 0], [0.333, -1, 0, 0]]
 
     def random_action(self):
         actions = []
@@ -158,9 +220,7 @@ class UnityEnv:
     def reset(self):
         self._epslen = np.zeros(self.n_envs, np.int32)
         self.last_v = np.zeros((self.n_envs, 4), np.float32)
-        self.last_angle = np.zeros((self.n_envs, 3), np.float32)
         self._v = np.zeros((self.n_envs, 4), np.float32)
-        self._angle = np.zeros((self.n_envs, 3), np.float32)
 
         self._target_vel = np.zeros((self.n_envs, 4))
 
@@ -176,21 +236,27 @@ class UnityEnv:
         return obs
 
     def _generate_target_velocity(self):
-        if self._height <= 2.5:
-            target_phi = np.random.uniform(0.03, PHI_RANGE[1])
+        if DRAW_LINE:
+            time.sleep(5)
+            i = np.random.randint(4)
+            self._target_vel[0] = np.array(self.draw_target[i])
+            # del self.draw_target[0]
         else:
-            target_phi = np.random.uniform(0.03, PHI_RANGE[1]) * np.random.choice([-1, 1])
+            if self._height <= 2.5:
+                target_phi = np.random.uniform(0.03, PHI_RANGE[1])
+            else:
+                target_phi = np.random.uniform(0.03, PHI_RANGE[1]) * np.random.choice([-1, 1])
 
-        target_v = np.random.uniform(MIN_V, MAX_V)
+            target_v = np.random.uniform(MIN_V, MAX_V)
 
-        target_theta = np.random.uniform(0.03, THETA_RANGE[1]) * np.random.choice([-1, 1])
-        target_roll = np.random.uniform(0.0, ROLL_RANGE[1]) * np.random.choice([-1, 1])
+            target_theta = np.random.uniform(0.03, THETA_RANGE[1]) * np.random.choice([-1, 1])
+            target_roll = np.random.uniform(0.0, ROLL_RANGE[1]) * np.random.choice([-1, 1])
 
-        self._target_vel[0] = np.hstack((target_v, target_theta, target_phi, target_roll))
+            self._target_vel[0] = np.hstack((target_v, target_theta, target_phi, target_roll))
 
     def step(self, action):
         for i in range(self.frame_skip):
-            self.set_actions(action)
+            self.set_actions(action, i)
             reset, decision_steps, terminal_steps = self.env.step()
             if reset:
                 break
@@ -231,6 +297,7 @@ class UnityEnv:
             obs_now_v1=np.array([self._v[0][1]] * self.n_units),
             obs_now_v2=np.array([self._v[0][2]] * self.n_units),
             obs_now_v3=np.array([self._v[0][3]] * self.n_units)
+            # obs_now_height=np.array(np.array([self._height]) * self.n_units)
             # obs_overload=np.array([agent_obs[0]['obs'][0][0][14]] * self.n_units),
         ) for i in range(self.n_envs)]
         agent_reward = [rewards[:, uids] for uids in self.aid2uids]
@@ -258,83 +325,69 @@ class UnityEnv:
     def _get_global_state_shape(self, aid):
         return (self._global_state_dim[aid],)
 
-    def get_obs(self, ds, reward=None, action=None):
-        obs = [{} for _ in range(self.n_agents)]
+    def get_obs(self, d_s, reward=None, action=None):
+        ds = d_s[self.name].obs[0][0]
+        _, v_scalar = get_velocity(ds)
+        angle_v = get_angle_velocity(ds)
+        angle = get_angle(ds)
 
-        all_states = ds[self.name].obs[0][0]
-        vel = all_states[5:8]
-        # print(vel)
-        v_scalar = np.linalg.norm(vel)
-        angle_v = all_states[8:11]
-        angle = all_states[11:14]
+        theta = angle[1]
+        phi = angle[0]
+        roll = angle[2]
 
-        for i in range(3):
-            while abs(angle[i]) > 180:
-                angle[i] = angle[i] - math.copysign(360, angle[i])
+        now_v = np.stack([v_scalar, theta / 180, phi / 180, roll / 180], -1)
+        dis = self._target_vel[0] - now_v
+        dis[..., 1:] = dis[..., 1:] - np.copysign(dis[..., 1:], 2)
+        # assert dis.shape == (self.n_envs, self.n_units, 4), dis.shape
 
-        theta = angle[1] / 180
-        phi = angle[0] / 180
-        roll = angle[2] / 180
-        v = np.array([v_scalar, theta, phi, roll])
-        v_ = np.array([v_scalar, phi, roll])
-        #v_ = np.array([v_scalar, phi])
+        v_ = np.expand_dims(v_scalar, -1)
 
-        posture = np.concatenate((np.sin(np.deg2rad([phi, roll])), np.cos(np.deg2rad([phi, roll]))))
-        height = all_states[3]
-        np.set_printoptions(suppress=True)
-        overload = all_states[14]
-        self._angle[0] = angle.copy()
-        self._v[0] = v.copy()
-        self._height = height
-        self.xyz = all_states[2:5]
-
-        self.overload = np.clip(overload, -2, 2)
-        # print(v)
-        dis = self._target_vel[0] - v
-        if abs(dis[1]) > 1:
-            dis[1] = dis[1] - math.copysign(2, dis[1])
-        if abs(dis[2]) > 1:
-            dis[2] = dis[2] - math.copysign(2, dis[2])
-
-        one_obs = np.hstack((
-            v_,
-            angle_v,
-            posture,
-            height / 20,
-            dis,
-            # self.overload / 2,
-            # oil
-        ))
-        # print('obs:' + str(one_obs))
+        posture = np.concatenate([
+            x2tri(np.deg2rad(theta)) + x2tri(np.deg2rad(phi)) + x2tri(np.deg2rad(roll))
+        ], -1)
+        # assert posture.shape == (self.n_envs, self.n_units, 6), dis.shape
+        height = get_height(ds)
+        # assert height.shape == (self.n_envs, self.n_units, 1), height.shape
+        obs = np.concatenate((
+            v_,  # 1
+            angle_v,  # 3
+            posture,  # 6
+            height,  # 1
+            dis,  # 4
+        ), -1)
         observations = {}
-        observations['obs'] = one_obs
-        observations['global_state'] = one_obs
-        observations['life_mask'] = [1]
-        mask = [1, 1, 1]
-        if v[0] < MIN_V:
-            mask = [0, 1, 1]
-        if v[0] > MAX_V:
-            mask = [1, 1, 0]
-        observations['action_mask'] = mask
+        observations['obs'] = obs
+        observations['global_state'] = obs
         observations['prev_reward'] = np.zeros(self.n_units, np.float32)
         observations['prev_action'] = np.zeros((self.action_dim[self.uid2aid[0]]), np.float32)
         all_obs = [observations]
 
+        self._v[0] = now_v.copy()
+        self.xyz = get_xyz(ds)
+
+        r_obs = [{} for _ in range(self.n_agents)]
+
         for aid in range(self.n_agents):
             for k in self.obs_shape[aid].keys():
-                obs[aid][k] = np.zeros(
+                r_obs[aid][k] = np.zeros(
                     (self.n_envs, len(self.aid2uids[aid]), *self.obs_shape[aid][k]),
                     dtype=self.obs_dtype[aid][k]
                 )
-                obs[aid][k][0] = all_obs[0][k]
+                r_obs[aid][k][0] = all_obs[0][k]
 
-        return obs
+        return r_obs
 
-    def set_actions(self, action):
+    def set_actions(self, action, i):
         action_tuple = self.env.get_action_tuple()
         action_tuple.add_discrete(np.zeros((1, 4)))
         a = action[0][0]
-        a[0][4] = (a[0][4] + 1)/2 
+
+        a[0][4] = (a[0][4] + 1) / 2
+        # for j in range(3):
+        #     # a[0][j] = (i + 1) * a[0][j] / 10
+        #     a[0][j] = a[0][j] / 2
+        # if np.abs(a[0][i]) > 0.8:
+        #     a[0][i] = a[0][i] - 0.2
         action = np.hstack((a.reshape((1, 5)), np.zeros((1, 2))))
         action_tuple.add_continuous(action)
         self.env.set_actions(self.name, action_tuple)
@@ -355,15 +408,17 @@ class UnityEnv:
             done[0] = True
             edge[0] = 1
             return done, reward, score, fail, edge
-        if self._height <= LOW_HEIGHT or self.overload > 9 or self.overload < -3 or self.xyz[1] > 15:
+
+        if self.xyz[1] <= LOW_HEIGHT or self.xyz[1] > 15:
             done[0] = True
             reward[0] += BOMB_PENALTY
             fail[0] = 1
+            # print('crash')
             return done, reward, score, fail, edge
 
         if self._epslen[0] > self.max_episode_steps:
             done[0] = True
-            print('max')
+            # print('max')
 
             return done, reward, score, fail, edge
 
@@ -383,7 +438,7 @@ class UnityEnv:
             done[0] = True
             score[0] = 1
             reward[0] += SUCCESS_REWARD
-            print('success')
+            # print('success')
 
             return done, reward, score, fail, edge
 
@@ -413,7 +468,7 @@ class UnityEnv:
                      + (delta_roll_t - delta_roll_t1) / DELTA_V[3]
         # print(reward)
         self.last_v = self._v.copy()
-        self.last_angle = self._angle.copy()
+
         if v[0] < MIN_V or v[0] > MAX_V:
             reward[0] -= STEP_PENALTY
 

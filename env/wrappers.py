@@ -7,6 +7,7 @@ import cv2
 
 from core.log import do_logging
 from env.utils import compute_aid2uids
+from utility.feature import one_hot
 from utility.utils import dict2AttrDict, infer_dtype, convert_dtype
 from utility.typing import AttrDict
 from env.typing import EnvOutput, GymOutput
@@ -586,51 +587,66 @@ class MultiAgentUnitsDivision(gym.Wrapper):
 
 
 class PopulationSelection(gym.Wrapper):
-    def __init__(self, env, population=1):
+    def __init__(self, env, population_size=1):
         super().__init__(env)
 
-        self.population = population
+        self.population_size = population_size
+        self.sids = None
 
         self.obs_shape = self.env.obs_shape
         self.obs_dtype = self.env.obs_dtype
-        if self.population > 1:
+        if self.population_size > 1:
             if isinstance(self.obs_shape, list):
                 for o in self.obs_shape:
-                    o['pid'] = (self.population,)
+                    o['sid'] = (self.population_size,)
             else:
-                self.obs_shape['pid'] = (self.population,)
+                self.obs_shape['sid'] = (self.population_size,)
             if isinstance(self.obs_dtype, list):
-                for o in self.obs_shape:
-                    o['pid'] = np.float32
+                for o in self.obs_dtype:
+                    o['sid'] = np.float32
             else:
-                self.obs_dtype['pid'] = np.float32
+                self.obs_dtype['sid'] = np.float32
     
     def reset(self):
-        obs = super().reset()
+        obs = self.env.reset()
 
+        self.reset_sids()
         obs = self._add_population_idx(obs)
+
+        # self._dense_score = np.zeros((self.population_size, self.env.n_units))
+        # self._score = np.zeros((self.population_size, self.env.n_units))
 
         return obs
     
     def step(self, action):
-        obs, reward, done, info = super().step(action)
+        obs, reward, done, info = self.env.step(action)
 
         obs = self._add_population_idx(obs)
 
         return obs, reward, done, info
 
+    def reset_sids(self):
+        if self.population_size == 1:
+            return
+        if isinstance(self.obs_shape, (list, tuple)):
+            self.sids = []
+            for uids in self.env.aid2uids:
+                sids = np.random.randint(0, self.population_size, len(uids))
+                self.sids.append(np.array([
+                    one_hot(sid, self.population_size) for sid in sids
+                ], np.float32))
+        else:
+            sid = np.random.randint(0, self.population_size)
+            self.sids = np.array(one_hot(sid, self.population_size), np.float32)
+
     def _add_population_idx(self, obs):
-        if self.population == 1:
+        if self.population_size == 1:
             return obs
         if isinstance(obs, (list, tuple)):
-            for o in obs:
-                o['population'] = np.zeros(self.population, np.float32)
-                i = np.random.randint(self.population)
-                o['population'][i] = 1
+            for o, sid in zip(obs, self.sids):
+                o['sid'] = sid
         else:
-            obs['population'] = np.zeros(self.population, np.float32)
-            i = np.random.randint(self.population)
-            obs['population'][i] = 1
+            obs['sid'] = sid
         return obs
 
 
@@ -767,7 +783,7 @@ class EnvStatsBase(gym.Wrapper):
         if 'obs_keys' not in self._stats:
             if getattr(env, 'obs_keys', None):
                 self._stats['obs_keys'] = env.obs_keys
-            elif isinstance(env.obs_shape, (list, tuple)):
+            elif isinstance(env.obs_shape, list):
                 self._stats['obs_keys'] = [list(o) for o in env.obs_shape]
             else:
                 self._stats['obs_keys'] = list(env.obs_shape)

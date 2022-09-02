@@ -1,8 +1,8 @@
-from core.elements.actor import Actor
+from core.elements.actor import Actor as ActorBase
 from utility.tf_utils import numpy2tensor
 
 
-class PPOActor(Actor):
+class Actor(ActorBase):
     """ Calling Methods """
     def _process_input(self, inp: dict, evaluation: bool):
         inp = self.rms.process_obs_with_rms(
@@ -33,4 +33,4 @@ class PPOActor(Actor):
 
 
 def create_actor(config, model, name='zero'):
-    return PPOActor(config=config, model=model, name=name)
+    return Actor(config=config, model=model, name=name)

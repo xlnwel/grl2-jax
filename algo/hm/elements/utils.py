@@ -61,7 +61,7 @@ def get_data_format(
     basic_shape, shapes, dtypes, action_shape, \
         action_dim, action_dtype = \
         get_basics(config, env_stats, model)
-    
+
     data_format = {k: ((*basic_shape, *v), dtypes[k], k) 
         for k, v in shapes.items()}
 
@@ -83,6 +83,19 @@ def get_data_format(
 
     return data_format
 
-def collect(buffer, env, env_step, reset, next_obs_dict, **kwargs):
-    next_obs = np.where(np.expand_dims(reset, -1), env.prev_obs(), next_obs_dict['obs'])
-    buffer.add(**kwargs, reset=reset, next_obs=next_obs)
+def collect(buffer, env, env_step, reset, obs, next_obs, **kwargs):
+    for k, v in obs.items():
+        if k not in kwargs:
+            kwargs[k] = v
+    if buffer.config.timeout_done:
+        for k, v in next_obs.items():
+            kwargs[f'next_{k}'] = v
+    else:
+        for k, v in next_obs.items():
+            kwargs[f'next_{k}'] = np.where(
+                np.expand_dims(reset, -1), 
+                env.prev_obs()[k], 
+                next_obs[k]
+            )
+
+    buffer.add(**kwargs, reset=reset)

@@ -38,6 +38,7 @@ TRUN_DEATH = 0.3
 
 class MultiAgentGridWorldEnv:
     NUM_EVENTS = 2
+    EID = 0
 
     def __init__(self, 
         env_name, 
@@ -54,8 +55,12 @@ class MultiAgentGridWorldEnv:
         use_event=False, 
         stag_stay_still=True, 
         representation='raw', 
+        reward_scale=.1, 
+        is_multi_agent=True,
         **kwargs
     ):
+        self.eid = MultiAgentGridWorldEnv.EID
+        MultiAgentGridWorldEnv.EID += 1
         if env_name == 'staghunt':
             self.env_name = 'multi_StagHuntGW'
 
@@ -64,6 +69,7 @@ class MultiAgentGridWorldEnv:
         self.n_units = len(self.uid2aid)
         self.n_agents = len(self.aid2uids)
         self.representation = representation
+        self.reward_scale = reward_scale
 
         self.num_agents = self.n_units
         self.max_episode_steps = max_episode_steps
@@ -122,6 +128,8 @@ class MultiAgentGridWorldEnv:
         self.is_action_discrete = True
         self._event1 = 0
         self._event2 = 0
+
+        self.is_multi_agent = is_multi_agent
         # self.use_life_mask = False
         # self.use_action_mask = True
 
@@ -241,7 +249,7 @@ class MultiAgentGridWorldEnv:
                 pos = [one_hot(p, self.length) for p in pos]
                 return np.concatenate(pos)
             else:
-                return np.stack(pos)
+                return np.array(pos, np.float32)
 
     def get_map_with_agents(self):
         """Gets a version of the environment map where generic
@@ -491,6 +499,8 @@ class MultiAgentGridWorldEnv:
         """A single environment step. Returns reward, terminated, info."""
         if isinstance(actions, (tuple, list)) or len(actions.shape) == 2:
             actions = actions[0]
+        if self.eid == -1:
+            print('step', actions[0])
         agent_actions = {}
         for i in range(self.num_agents):
             agent_action = self.agents[i].action_map(actions[i]) 
@@ -514,7 +524,7 @@ class MultiAgentGridWorldEnv:
         infos = {}
         
         for i in range(self.num_agents):
-            reward = self.agents[i].compute_reward() * 0.1
+            reward = self.agents[i].compute_reward() * self.reward_scale
             rewards.append(reward)
             dones.append(self.agents[i].get_done())
             
@@ -543,6 +553,9 @@ class MultiAgentGridWorldEnv:
         rewards = np.stack(rewards).astype(np.float32)
         dones = np.stack(dones).astype(np.float32)
 
+        if self.eid == -1:
+            print('next obs', observations['obs'][0][:2])
+
         self._dense_score += reward
         self._score = collective_return
         self._epslen += 1
@@ -568,7 +581,7 @@ class MultiAgentGridWorldEnv:
         return obs
     
     def _set_event(self, obs):
-        if self._event[0, 0] == 1 and np.all(obs[0] == obs[1]):
+        if self._event[0, 0] == -1 and np.all(obs[0] == obs[1]):
             self._event[:, 0] = 0
             self._event[:, 1] = 1
         self._event1 += self._event[0, 0]
@@ -592,6 +605,9 @@ class MultiAgentGridWorldEnv:
         self._epslen = 0
         self._event1 = 1
         self._event2 = 0
+        
+        if self.eid == -1:
+            print('reset', observations['obs'][0][:2])
 
         return observations
 

@@ -129,7 +129,7 @@ class Ensemble(tf.Module):
         self._pre_init()
         if components is not None:
             assert isinstance(components, dict), components
-            self.components = components
+            self.components = AttrDict(components)
             [setattr(self, n, m) for n, m in self.components.items()]
         else:
             self._init_components(constructor, classes)
@@ -211,7 +211,8 @@ class Ensemble(tf.Module):
 
     def reset_model_path(self, model_path: ModelPath):
         self.config = set_path(self.config, model_path, max_layer=0)
-        self._ckpt.reset_model_path(model_path)
+        if self._ckpt is not None:
+            self._ckpt.reset_model_path(model_path)
 
     def restore(self):
         if self._ckpt:

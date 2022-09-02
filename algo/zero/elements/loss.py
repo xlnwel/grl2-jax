@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from core.elements.loss import Loss as LossBase, LossEnsemble
-from utility import tf_utils, rl_loss
+from utility import tf_utils, rl_utils, rl_loss
 from .utils import compute_values, compute_policy, prefix_name
 
 
@@ -62,6 +62,7 @@ class POLossImpl(LossBase):
                 pg_coef=pg_coef, 
                 advantage=advantage, 
                 logprob=dice_op, 
+                ratio=ratio, 
                 mask=sample_mask, 
                 n=n, 
             )
@@ -241,10 +242,10 @@ class Loss(ValueLossImpl, POLossImpl):
             self.value, 
             global_state, 
             next_global_state, 
-            idx, 
-            next_idx, 
-            event,
-            next_event
+            idx=idx, 
+            next_idx=next_idx, 
+            event=event, 
+            next_event=next_event
         )
         act_dist, pi_logprob, log_ratio, ratio = compute_policy(
             self.policy, obs, next_obs, action, mu_logprob, 
@@ -254,7 +255,7 @@ class Loss(ValueLossImpl, POLossImpl):
         #     tf.where(tf.cast(reset, bool), 0., log_ratio), 0., 1e-5, 1e-5)
 
         with tape.stop_recording():
-            v_target, advantage = rl_loss.compute_target_advantage(
+            v_target, raw_adv = rl_loss.compute_target_advantage(
                 config=self.config, 
                 reward=reward, 
                 discount=discount, 
@@ -264,15 +265,19 @@ class Loss(ValueLossImpl, POLossImpl):
                 ratio=ratio, 
                 gamma=gamma, 
                 lam=lam, 
+            )
+            adv = rl_utils.normalize_adv(
+                self.config, 
+                raw_adv, 
                 norm_adv=self.config.get('norm_adv', False), 
-                mask=sample_mask, 
+                sample_mask=sample_mask, 
                 n=n
             )
 
         actor_loss, actor_terms = self._pg_loss(
             tape=tape, 
             act_dist=act_dist, 
-            advantage=advantage, 
+            advantage=adv, 
             ratio=ratio, 
             pi_logprob=pi_logprob, 
             mu=mu, 
@@ -308,6 +313,7 @@ class Loss(ValueLossImpl, POLossImpl):
             debug=debug, 
             gamma=gamma, 
             lam=lam, 
+            raw_advantage=raw_adv, 
             pi_logprob=pi_logprob, 
             ratio=ratio, 
             approx_kl=.5 * tf_utils.reduce_mean((log_ratio)**2, sample_mask, n), 

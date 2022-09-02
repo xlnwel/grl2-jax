@@ -339,7 +339,6 @@ def create_model(
         config['value'].pop('rnn', None)
     else:
         config['value']['rnn']['nn_id'] = config['value_rnn_type']
-
     return PPOModelEnsemble(
         config=config, 
         env_stats=env_stats, 

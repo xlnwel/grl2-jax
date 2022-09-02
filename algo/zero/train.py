@@ -3,11 +3,11 @@ import numpy as np
 import ray
 
 from core.elements.builder import ElementsBuilder
+from core.log import do_logging
 from core.mixin.actor import rms2dict
 from core.tf_config import \
     configure_gpu, configure_precision, silence_tf_logs
 from utility.display import pwt
-from utility.tf_utils import tensor2numpy
 from utility.utils import AttrDict2dict, TempStore, set_seed
 from utility.run import Runner
 from utility.timer import Every, Timer
@@ -140,8 +140,7 @@ def train(config, agent, env, eval_env_config, buffer):
                 agent.video_summary(video, step=step, fps=1)
             eval_process = evaluate_agent(step, agent)
 
-        if (to_record(step) or step > routine_config.MAX_STEPS) \
-            and agent.contains_stats('score'):
+        if agent.contains_stats('score') and to_record(step):
             record_stats(step, start_env_step, train_step, start_train_step)
 
 def main(configs, train=train, gpu=-1):
@@ -149,7 +148,7 @@ def main(configs, train=train, gpu=-1):
     config = configs[0]
     silence_tf_logs()
     seed = config.get('seed')
-    print('seed', seed)
+    do_logging(f'seed={seed}', level='print')
     set_seed(seed)
     configure_gpu(gpu)
     configure_precision(config.precision)
@@ -182,7 +181,7 @@ def main(configs, train=train, gpu=-1):
     env, eval_env_config = build_envs()
 
     env_stats = env.stats()
-    builder = ElementsBuilder(config, env_stats)
+    builder = ElementsBuilder(config, env_stats, to_save_code=True)
     elements = builder.build_agent_from_scratch()
 
     train(config, elements.agent, env, eval_env_config, elements.buffer)

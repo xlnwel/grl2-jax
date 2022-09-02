@@ -5,6 +5,7 @@ from core.log import do_logging
 from core.module import Module
 from nn.registry import nn_registry
 from nn.utils import get_activation
+from utility.typing import AttrDict
 from utility.utils import dict2AttrDict
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,13 @@ class MetaParams(Module):
         self.n_meta_params = 0
         for k, v in self.config.items():
             do_logging(f'{k}: {v}', prefix=name, logger=logger)
-            if v.init is not None:
+            if isinstance(v, (int, float)):
+                self.config[k] = AttrDict(
+                    outer=v, 
+                    default=v, 
+                    init=None, 
+                )
+            elif v.init is not None:
                 init = v.init * tf.ones(v.shape) if v.get('shape') else v.init
                 setattr(self, f'{k}_var', tf.Variable(
                     init, dtype='float32', name=f'{name}/{k}'))
@@ -39,7 +46,7 @@ class MetaParams(Module):
             
             return scale * act(var) + bias
         else:
-            val = float(self.config[name]['outer'])
+            val = float(self.config[name].outer)
             return val
 
     def get_var(self, name):

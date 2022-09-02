@@ -16,9 +16,9 @@ class Strategy(StrategyBase):
             assert len(inp) == 1, inp
             inp = inp[0]
         if 'idx' in inp and self._prev_idx is None:
-            self._prev_idx = np.zeros_like(inp['idx'])
+            self._prev_idx = inp['idx'].copy()
         if 'event' in inp and self._prev_event is None:
-            self._prev_event = np.zeros_like(inp['event'])
+            self._prev_event = inp['event'].copy()
         if self._prev_hidden_state is None:
             self._prev_hidden_state = np.zeros_like(inp['hidden_state'])
         inp['prev_idx'] = self._prev_idx

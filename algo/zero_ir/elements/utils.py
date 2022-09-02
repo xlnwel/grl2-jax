@@ -25,7 +25,6 @@ def compute_joint_stats(
             ratio=joint_ratio, 
             gamma=gamma, 
             lam=lam, 
-            norm_adv=config.get('norm_meta_adv', False)
         )
     
     return joint_ratio, joint_pi_logprob, v_target, advantage

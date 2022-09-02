@@ -146,6 +146,7 @@ class ModelEnsemble(Ensemble):
             constructor=constructor, 
             components=components, 
             name=name, 
+            has_ckpt=False, 
             **classes
         )
 
@@ -181,3 +182,11 @@ class ModelEnsemble(Ensemble):
                 m.set_weights(weights[n], default_initialization)
             elif default_initialization:
                 m.set_weights({}, default_initialization)
+
+    def restore(self):
+        for v in self.components.values():
+            v.restore()
+
+    def save(self):
+        for v in self.components.values():
+            v.save()

@@ -43,7 +43,7 @@ class TrainingLoop(TrainingLoopBase):
             else:
                 with self._sample_timer:
                     raw_data = self._sample_data()
-                    data = None if raw_data is None else numpy2tensor(raw_data)
+                    data = numpy2tensor(raw_data)
             
             return raw_data, data
 
@@ -81,12 +81,13 @@ class TrainingLoop(TrainingLoopBase):
 
         def train(max_record_size=10):
             raw_data, data = get_data()
+            if data is None:
+                self._step -= 1
+                return
             do_meta_step = self._use_meta and \
                 self._step % (self.config.inner_steps + self.config.extra_meta_step) == 0
             # print(self._step, self.config.inner_steps, self.config.extra_meta_step)
             # print(do_meta_step)
-            if data is None:
-                return
             # print_dict_info(data)
             
             if do_meta_step:

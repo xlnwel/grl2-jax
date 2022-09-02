@@ -24,14 +24,21 @@ class SamplingKeysExtractor:
         self.state_keys = tuple([k for k in model.state_keys])
         self.state_type = model.state_type
         self.sample_keys, self.sample_size = self._get_sample_keys_size()
-        if env_stats.use_action_mask:
-            self.sample_keys.append('action_mask')
-        elif 'action_mask' in self.sample_keys:
-            self.sample_keys.remove('action_mask')
-        if env_stats.use_life_mask:
-            self.sample_keys.append('life_mask')
-        elif 'life_mask' in self.sample_keys:
-            self.sample_keys.remove('life_mask')
+        self.sample_keys = set(self.sample_keys)
+        obs_keys = env_stats.obs_keys[model.config.aid] if 'aid' in model.config else env_stats.obs_keys
+        for k in obs_keys:
+            self.sample_keys.add(k)
+        if bool([k for k in self.sample_keys if k.startswith('next')]):
+            for k in obs_keys:
+                self.sample_keys.add(f'next_{k}')
+        # if env_stats.use_action_mask:
+        #     self.sample_keys.append('action_mask')
+        # elif 'action_mask' in self.sample_keys:
+        #     self.sample_keys.remove('action_mask')
+        # if env_stats.use_life_mask:
+        #     self.sample_keys.append('life_mask')
+        # elif 'life_mask' in self.sample_keys:
+        #     self.sample_keys.remove('life_mask')
 
     def _get_sample_keys_size(self):
         state_keys = ['h', 'c']
@@ -44,7 +51,7 @@ class SamplingKeysExtractor:
             )
             if 'mask' in sample_keys:
                 sample_keys.remove('mask')
-        sample_size = self.config.sample_size
+        sample_size = self.config.n_steps
 
         return sample_keys, sample_size
 
@@ -102,11 +109,7 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
         self._obs_keys = env_stats.obs_keys[self.aid]
         self.extract_sampling_keys(env_stats, model)
 
-        self.maxlen = self.config.n_steps
-        assert self.maxlen % self.sample_size == 0, (self.maxlen, self.sample_size)
-        self.n_samples = self.maxlen // self.sample_size
-        if self.n_samples > 1:
-            self._cache = []
+        self.n_steps = self.config.n_steps
         self.n_envs = self.config.n_envs
 
         self.reset()
@@ -118,7 +121,7 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
         return self._size == 0
 
     def is_full(self):
-        return self._size >= self.maxlen
+        return self._size >= self.n_steps
 
     def reset(self):
         self._size = 0
@@ -134,35 +137,28 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
         for k, v in data.items():
             self._buffer[k].append(v)
         self._size += 1
-        if self.n_samples > 1:
-            self._cache_sample()
 
     def retrieve_all_data(self, latest_obs=None):
-        assert self._size == self.maxlen, (self._size, self.maxlen)
+        assert self._size == self.n_steps, (self._size, self.n_steps)
         if latest_obs is not None:
             for k, v in latest_obs.items():
                 self._buffer[k].append(v)
 
         data = {}
         for k in self.sample_keys:
-            if self.n_samples > 1:
-                if k not in self._cache[0]:
-                    continue
-                v = np.swapaxes(np.concatenate([b[k] for b in self._cache], 1), 0, 1)
-            else:
-                if k not in self._buffer:
-                    continue
-                v = np.stack(self._buffer[k])
-                v = np.swapaxes(v, 0, 1)
+            if k not in self._buffer:
+                continue
+            v = np.stack(self._buffer[k])
+            v = np.swapaxes(v, 0, 1)
             if self.config.timeout_done and k in self._obs_keys:
-                assert v.shape[:3] == (self.n_envs * self.n_samples, self.sample_size+1, self.n_units), \
-                    (k, v.shape, (self.n_envs, self.n_samples, self.sample_size+1, self.n_units))
+                assert v.shape[:3] == (self.n_envs, self.n_steps+1, self.n_units), \
+                    (k, v.shape, (self.n_envs, self.n_steps+1, self.n_units))
             else:
-                assert v.shape[:3] == (self.n_envs * self.n_samples, self.sample_size, self.n_units), \
-                    (k, v.shape, (self.n_envs, self.n_samples, self.sample_size, self.n_units))
+                assert v.shape[:3] == (self.n_envs, self.n_steps, self.n_units), \
+                    (k, v.shape, (self.n_envs, self.n_steps, self.n_units))
             data[k] = v
         self.reset()
-        return self.runner_id, data, self.n_envs * self.maxlen
+        return self.runner_id, data, self.n_envs * self.n_steps
 
     def _replace_obs_with_next_obs(self, data):
         if f'next_{self._obs_keys[0]}' not in data:
@@ -180,11 +176,6 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
             else:
                 for k in self._obs_keys:
                     data[k] = data.pop(f'next_{k}')
-    
-    def _cache_sample(self):
-        assert self.sample_size < self.maxlen, (self.sample_size, self.maxlen)
-        self._cache.append(self._buffer)
-        self._buffer = collections.defaultdict(list)
 
 
 class ACBuffer(SamplingKeysExtractor, Buffer):
@@ -211,9 +202,7 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
         self.n_envs = self.n_runners * self.config.n_envs
         self.n_steps = self.config.n_steps
         self.max_size = self.config.get('max_size', self.n_envs * self.n_steps)
-        if self.sample_size:
-            assert self.n_steps % self.sample_size == 0, (self.max_size, self.sample_size)
-        self.batch_size = self.max_size // self.sample_size if self.sample_size else self.max_size
+        self.batch_size = self.max_size // self.n_steps if self.n_steps else self.max_size
 
         self.config.n_envs = self.n_envs
         self._buffer = LocalBuffer(

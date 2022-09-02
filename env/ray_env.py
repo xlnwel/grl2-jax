@@ -46,8 +46,14 @@ class RayVecEnv:
 
     def random_action(self, *args, **kwargs):
         action = ray.get([env.random_action.remote() for env in self.envs])
-        action = self._process_output(action, convert_batch=True)
-        action = action[0]
+        if self._stats.is_multi_agent:
+            # get a list of agent-wise actions
+            action = [np.concatenate(a) for a in zip(*action)]
+        elif isinstance(self.env, Env):
+            action = np.stack(action)
+        else:
+            action = np.concatenate(action)
+        # action = action[0]
         return action
 
     def step(self, actions, **kwargs):
@@ -119,10 +125,7 @@ class RayVecEnv:
             return out
 
     def _process_output(self, out, convert_batch):
-        if not isinstance(self.env, Env):
-            # for these outputs, we expect them to be of form [[out*], [out*]]
-            # and we chain them into [out*]
-            out = list(itertools.chain(*out))
+        out = self._get_vectorized_outputs(out)
         if convert_batch:
             if self._stats.is_multi_agent:
                 out = [convert_batch_with_func(o, func=self._combine_func) for o in zip(*out)]
@@ -132,11 +135,7 @@ class RayVecEnv:
         return out
 
     def _process_list_outputs(self, out, convert_batch):
-        if not isinstance(self.env, Env):
-            # for these outputs, we expect them to be of form [[out*], [out*]]
-            # and we chain them into [out*]
-            out = list(itertools.chain(*out))
-
+        out = self._get_vectorized_outputs(out)
         if convert_batch:
             if self._stats.is_multi_agent:
                 out = list(zip(*out))
@@ -146,6 +145,13 @@ class RayVecEnv:
         else:
             out = list(zip(*out))
 
+        return out
+
+    def _get_vectorized_outputs(self, out):
+        if not isinstance(self.env, Env):
+            # for these outputs, we expect them to be of form [[out*], [out*]]
+            # and we chain them into [out*]
+            out = list(itertools.chain(*out))
         return out
 
     def close(self):

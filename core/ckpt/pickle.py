@@ -13,7 +13,7 @@ def save(data, filedir, filename):
     path = f'{filedir}/{filename}.pkl'
     with open(path, 'wb') as f:
         cloudpickle.dump(data, f)
-    do_logging(f'Saving parameters in "{path}"', level='pwt', backtrack=3)
+    do_logging(f'Saving parameters in "{path}"', level='info', time=True, backtrack=3)
 
 def restore(filedir, filename):
     path = f'{filedir}/{filename}.pkl'
@@ -55,25 +55,16 @@ class Checkpoint:
         self._model_path = model_path
 
     def save(self):
-        path = '/'.join([
-            *self._model_path, 
-            self._name
-        ])
+        path = self.get_filedir()
         for k, m in self._models.items():
             save(m.get_weights(), path, k)
 
     def restore(self):
-        path = '/'.join([
-            *self._model_path, 
-            self._name
-        ])
+        path = self.get_filedir()
         for k, m in self._models.items():
             weights = restore(path, k)
             if weights:
                 m.set_weights(weights)
 
     def get_filedir(self):
-        return '/'.join([
-            *self._model_path, 
-            self._name
-        ])
+        return '/'.join([*self._model_path, self._name])

@@ -11,9 +11,8 @@ def do_flatten(obj):
 
 
 class FeatureEncoder:
-    OBS_SHAPE = (241,)
+    OBS_SHAPE = (242,)
     HIDDEN_SHAPE = (240,)
-    IDX_SHAPE = (10, )# number of roles
     ACTION_DIM = 19
 
     def __init__(
@@ -27,8 +26,7 @@ class FeatureEncoder:
     ):
         self.aid2uids = aid2uids
         assert len(self.aid2uids) in (1, 2), len(self.aid2uids)
-        for uids in self.aid2uids:
-            assert len(uids) == 11, len(uids)
+        self.num_left = len(self.aid2uids[0])
         self.use_idx = use_idx
         self.use_hidden = use_hidden
         self.use_event = use_event
@@ -37,7 +35,7 @@ class FeatureEncoder:
 
     def get_obs_shape(self, n_agents):
         shape = []
-        for _ in range(n_agents):
+        for i in range(n_agents):
             s = dict(
                 obs=self.OBS_SHAPE, 
                 global_state=self.OBS_SHAPE if self.agentwise_global_state else self.HIDDEN_SHAPE, 
@@ -47,7 +45,7 @@ class FeatureEncoder:
             if self.use_action_mask:
                 s['action_mask'] = (self.ACTION_DIM,)
             if self.use_idx:
-                s['idx'] = self.IDX_SHAPE
+                s['idx'] = (len(self.aid2uids[i]),)
             if self.use_hidden:
                 s['hidden_state'] = self.HIDDEN_SHAPE
             if self.use_event:
@@ -82,13 +80,13 @@ class FeatureEncoder:
         hidden_array = []
         idx_array = []
         for i, o in enumerate(observations):
-            side = i >= 11
-            uid = i - side * 11
+            side = i >= self.num_left
+            uid = i - side * self.num_left
             obs_array.append(self.get_obs(o, side, uid))
             if self.use_hidden or not self.agentwise_global_state:
                 hidden_array.append(self.get_hidden_state(o))
             if self.use_idx:
-                idx_array.append(self._encode_player_role(o, side, uid))
+                idx_array.append(self._encode_idx(side, uid))
         obs_array = np.stack(obs_array)
         final_obs = [dict(
             obs=obs_array[uids], 
@@ -126,7 +124,7 @@ class FeatureEncoder:
         player_pos = [player_pos_x, player_pos_y]   # 2
         player_dir_x, player_dir_y = obs[f"{team}_direction"][player_num]
         player_direction = player_dir_y, player_dir_x   # 2
-        player_role = self._encode_player_role(obs, team, player_num)  # 10
+        player_role = self._encode_idx(side, player_num)  # 10
         player_tired = obs[f"{team}_tired_factor"][player_num]
         is_dribbling = obs["sticky_actions"][9]
         is_sprinting = obs["sticky_actions"][8]
@@ -134,7 +132,7 @@ class FeatureEncoder:
         player_state = player_pos + list(player_direction) \
             + player_role + player_prop
         observation.extend(player_state)
-        assert len(player_state) == 17, len(player_state)
+        assert len(player_state) == 18, len(player_state)
 
         ball_x, ball_y, ball_z = obs["ball"]
         ball_x_relative = ball_x - player_pos_x
@@ -176,7 +174,7 @@ class FeatureEncoder:
         left_team_state = left_team_pos + left_team_speed + [left_team_tired]
         left_team_state = do_flatten(left_team_state)
         observation.extend(left_team_state)
-        assert len(left_team_state) == (10 if side == 0 else 11) * 7, len(left_team_state)
+        # assert len(left_team_state) == (10 if side == 0 else 11) * 7, len(left_team_state)
 
         if side == 1:
             obs_right_team = np.delete(obs["right_team"], player_num, axis=0)
@@ -202,7 +200,7 @@ class FeatureEncoder:
         right_team_state = right_team_pos + right_team_speed + [right_team_tired]
         right_team_state = do_flatten(right_team_state)
         observation.extend(right_team_state)
-        assert len(right_team_state) == (10 if side == 1 else 11) * 7, len(right_team_state)
+        # assert len(right_team_state) == (10 if side == 1 else 11) * 7, len(right_team_state)
         
         observation.extend(do_flatten(obs['left_team_yellow_card']))
         observation.extend(do_flatten(obs['right_team_yellow_card']))
@@ -214,8 +212,8 @@ class FeatureEncoder:
         observation.extend(self._encode_game_mode(obs))
         
         obs = np.array(observation, dtype=np.float32)
-        assert obs.shape == self.OBS_SHAPE, obs.shape
-        assert obs.dtype == np.float32, obs.dtype
+        # assert obs.shape == self.OBS_SHAPE, obs.shape
+        # assert obs.dtype == np.float32, obs.dtype
 
         return obs
 
@@ -325,13 +323,9 @@ class FeatureEncoder:
         game_mode[obs['game_mode']] = 1
         return game_mode
 
-    def _encode_player_role(self, obs, team, player_num):
-        if isinstance(team, int):
-            team = 'left_team' if team == 0 else 'right_team'
-        assert team in ('left_team', 'right_team')
-        i = obs[f"{team}_roles"][player_num]
-        role = [0] * 10
-        role[i] = 1.0
+    def _encode_idx(self, side, player_num):
+        role = [0] * len(self.aid2uids[side])
+        role[player_num] = 1.0
         return role
 
     def get_avail_action(self, obs, ball_distance):

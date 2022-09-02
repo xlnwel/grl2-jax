@@ -181,7 +181,7 @@ buffer:
     actor_rnn_type: *arnn
     value_rnn_type: *vrnn
     normalize_value: True
-    
+    timeout_done: *td
 
     sample_keys: 
         - obs

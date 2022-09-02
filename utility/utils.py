@@ -493,7 +493,6 @@ def concat_map(x):
     import tensorflow as tf
     return tf.nest.map_structure(lambda x: np.concatenate(x), x)
 
-
 def get_frame(backtrack):
     frame = inspect.currentframe()
     for _ in range(backtrack):

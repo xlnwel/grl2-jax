@@ -14,6 +14,7 @@ from core.monitor import Monitor, create_monitor
 from core.typing import ModelPath, construct_model_name_from_version, get_vid
 from core.utils import save_code, save_config
 from env.func import get_env_stats
+from utility.timer import timeit
 from utility.utils import AttrDict2dict, dict2AttrDict, set_path
 from utility.typing import AttrDict
 from utility import pkg, yaml_op
@@ -41,7 +42,7 @@ class ElementsBuilder:
         self.constructors = self.retrieve_constructor(algo)
 
         if to_save_code:
-            save_code(self._model_path)
+            timeit(save_code, self._model_path)
 
     @property
     def name(self):

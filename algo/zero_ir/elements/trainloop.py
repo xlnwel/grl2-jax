@@ -3,6 +3,7 @@ import numpy as np
 
 from core.elements.trainloop import TrainingLoopBase
 from core.log import do_logging
+from utility.display import print_dict_info
 from utility.tf_utils import numpy2tensor, tensor2numpy
 from utility.timer import Timer
 from .utils import compute_inner_steps
@@ -43,7 +44,7 @@ class TrainingLoop(TrainingLoopBase):
             else:
                 with self._sample_timer:
                     raw_data = self._sample_data()
-                    data = None if raw_data is None else numpy2tensor(raw_data)
+                    data = numpy2tensor(raw_data)
             
             return raw_data, data
 
@@ -65,7 +66,7 @@ class TrainingLoop(TrainingLoopBase):
                     v_shape = np.shape(v)
                     stats[f'data/{k}'] = np.take(v, idx, axis) \
                         if len(v_shape) > axis and v_shape[axis] == batch_size else v
-            
+
             stats.update(
                 **{k if '/' in k else f'train/{k}': np.take(v, idx, axis) 
                     if len(np.shape(v)) > axis and np.shape(v)[axis] == batch_size else v 
@@ -81,20 +82,25 @@ class TrainingLoop(TrainingLoopBase):
 
         def train(max_record_size=10):
             raw_data, data = get_data()
+            if data is None:
+                self._step -= 1
+                return
             do_meta_step = self._use_meta and \
                 self._step % (self.config.inner_steps + self.config.extra_meta_step) == 0
             # print(self._step, self.config.inner_steps, self.config.extra_meta_step)
             # print(do_meta_step)
-            if data is None:
-                return
+            # print_dict_info(raw_data)
+            
             if do_meta_step:
                 # if self.config.get('debug', False):
                 #     # test data consistency
-                #     # for i in range(self.config.inner_steps):
-                #     #     for k, d1, d2 in zip(self._prev_data[i].keys(), self._prev_data[i].values(), data.values()):
-                #     #         assert len(d2) == self.config.inner_steps + self.config.extra_meta_step, len(d2)
-                #     #         np.testing.assert_allclose(d1, d2[i])
-                #     # self._prev_data = []
+                #     assert len(self._prev_data) in (
+                #         self.config.inner_steps, self.config.inner_steps - 1), len(self._prev_data)
+                #     for i, pd in enumerate(self._prev_data):
+                #         for k, d1, d2 in zip(pd.keys(), pd.values(), data.values()):
+                #             assert len(d2) == self.config.inner_steps + self.config.extra_meta_step, (k, len(d2))
+                #             np.testing.assert_allclose(d1, d2[i])
+                #     self._prev_data = []
                 #     # test consistency of rl optimizer's variables
                 #     rl_vars = self._prev_rl_opt_vars
                 #     meta_vars = self.trainer.optimizers['meta_rl'].opt_variables
@@ -108,14 +114,7 @@ class TrainingLoop(TrainingLoopBase):
                 with self._meta_train_timer:
                     terms = self.trainer.meta_train(**data)
                 with self._sync_timer:
-                    if self.config.inner_steps == 1 and self.config.extra_meta_step == 0:
-                        pass
-                    elif self.config.extra_meta_step == 0:
-                        self.trainer.sync_nets(forward=True)
-                    elif self.config.L == 0:
-                        self.trainer.sync_nets(forward=None)
-                    else:
-                        self.trainer.sync_nets(forward=False)
+                    self.trainer.sync_nets()
                 # if self.config.get('debug', False):
                 #     # test consistency of variables stored by optimizers
                 #     rl_vars = self.trainer.optimizers['rl'].variables
@@ -136,7 +135,7 @@ class TrainingLoop(TrainingLoopBase):
                 #     print('meta train step')
             else:
                 # if self.config.get('debug', False):
-                #     # self._prev_data.append(data)
+                #     self._prev_data.append(data)
                 #     if self._new_iter:
                 #         # test consistency of rl optimizer's variables
                 #         rl_vars = self.trainer.optimizers['rl'].opt_variables
@@ -152,6 +151,9 @@ class TrainingLoop(TrainingLoopBase):
                 #             np.testing.assert_allclose(v1.numpy(), v2.numpy(), err_msg=v1.name)
                 if not self._use_meta:
                     use_meta = numpy2tensor(False)
+                elif self.trainer.config.meta_type == 'bmg':
+                    use_meta = (self._step + 1) % (self.config.inner_steps + self.config.extra_meta_step) != 0
+                    use_meta = numpy2tensor(use_meta)
                 elif self.trainer.config.meta_type == 'plain':
                     use_meta = numpy2tensor(True)
                 else:
@@ -159,6 +161,7 @@ class TrainingLoop(TrainingLoopBase):
                 with self._train_timer:
                     terms = self.trainer.train(**data, use_meta=use_meta)
                 # if self.config.get('debug', False):
+                #     self._prev_grads_norm = terms['grads_norm']
                 #     print('raw train step')
                 #     self._new_iter = False
 
@@ -190,13 +193,11 @@ class TrainingLoop(TrainingLoopBase):
 
     def _rl_vars(self):
         return self.trainer.model['rl'].policy.variables \
-            + self.trainer.model['rl'].value.variables \
-                + self.trainer.model['rl'].meta_reward.variables
+            + self.trainer.model['rl'].value.variables
 
     def _meta_vars(self):
         return self.trainer.model['meta'].policy.variables \
-            + self.trainer.model['meta'].value.variables \
-                + self.trainer.model['meta'].meta_reward.variables
+            + self.trainer.model['meta'].value.variables
 
     def _sample_data(self):
         return self.dataset.sample()

@@ -251,3 +251,15 @@ def split_data(x, next_x=None, axis=1):
         x, _ = tf.split(x, [n-1, 1], axis=axis)
 
     return x, next_x
+
+def assert_finite(vars, prefix="", name=None):
+    if isinstance(vars, (list, tuple)):
+        for v in vars:
+            assert_finite(v, prefix)
+    elif isinstance(vars, dict):
+        for k, v in vars.items():
+            assert_finite(v, prefix, k)
+    elif vars is not None:
+        if name is None:
+            name = vars.name
+        tf.debugging.assert_all_finite(vars, f'{prefix}: Bad {name}')
