@@ -1,5 +1,5 @@
 from core.elements.actor import Actor as ActorBase
-from utility.tf_utils import numpy2tensor
+from tools.tf_utils import numpy2tensor
 
 
 class Actor(ActorBase):
@@ -23,11 +23,14 @@ class Actor(ActorBase):
         evaluation: bool
     ):
         action, terms, state = super()._process_output(inp, out, evaluation)
+        if 'sid' in inp:
+            terms['sid'] = inp['sid']
         if 'idx' in inp:
             terms['idx'] = inp['idx']
         if 'event' in inp:
             terms['event'] = inp['event']
-        terms['hidden_state'] = inp['hidden_state']
+        if 'hidden_state' in inp:
+            terms['hidden_state'] = inp['hidden_state']
         
         return action, terms, state
 

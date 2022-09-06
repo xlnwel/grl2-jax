@@ -203,7 +203,7 @@ if __name__ == '__main__':
         n_envs=4,
         unity_config={},
     )
-    # from utility.display import print_dict, print_dict_info
+    # from tools.display import print_dict, print_dict_info
     def print_dict(d, prefix=''):
         for k, v in d.items():
             if isinstance(v, dict):

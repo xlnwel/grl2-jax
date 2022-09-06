@@ -8,9 +8,9 @@ from core.elements.trainloop import TrainingLoopBase
 from core.mixin.strategy import StepCounter
 from core.typing import ModelPath
 from env.typing import EnvOutput
-from utility.utils import set_path
-from utility.typing import AttrDict
-from utility import pkg
+from tools.utils import set_path
+from core.typing import AttrDict
+from tools import pkg
 
 
 class Strategy:
@@ -133,11 +133,9 @@ class Strategy:
         self, 
         env_output: EnvOutput, 
         evaluation: bool=False,
-        return_eval_stats: bool=False
     ):
         inp = self._prepare_input_to_actor(env_output)
-        out = self.actor(inp, evaluation=evaluation, 
-            return_eval_stats=return_eval_stats)
+        out = self.actor(inp, evaluation=evaluation)
         
         self._record_output(out)
         return out[:2]

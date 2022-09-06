@@ -4,7 +4,7 @@ import numpy as np
 
 from .multi_discrete import MultiDiscrete
 from env.envspec import EnvSpec
-from utility.utils import batch_dicts
+from tools.utils import batch_dicts
 
 
 # update bounds to center around agent

@@ -6,7 +6,7 @@ import numpy as np
 from algo.ppo.elements.buffer import compute_indices
 from core.elements.model import Model
 from core.log import do_logging
-from utility.utils import config_attr, standardize
+from tools.utils import config_attr, standardize
 
 logger = logging.getLogger(__name__)
 

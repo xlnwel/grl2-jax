@@ -4,7 +4,7 @@ from core.elements.trainer import Trainer, TrainerEnsemble
 from core.decorator import override
 from core.optimizer import create_optimizer
 from core.tf_config import build
-from utility.utils import dict2AttrDict
+from tools.utils import dict2AttrDict
 from .utils import get_data_format
 from optimizers.adam import Adam
 

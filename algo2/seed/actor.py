@@ -7,11 +7,11 @@ import psutil
 import tensorflow as tf
 import ray
 
-from utility.ray_setup import cpu_affinity
-from utility.utils import Every, config_attr, batch_dicts
-from utility.timer import Timer
-from utility.typing import EnvOutput
-from utility import pkg
+from tools.ray_setup import cpu_affinity
+from tools.utils import Every, config_attr, batch_dicts
+from tools.timer import Timer
+from core.typing import EnvOutput
+from tools import pkg
 from core.tf_config import *
 from env.func import create_env
 from replay.func import create_local_buffer

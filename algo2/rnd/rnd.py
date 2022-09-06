@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 from core.agent import backward_discounted_sum
-from utility.utils import RunningMeanStd
+from tools.utils import RunningMeanStd
 
 
 logger = logging.getLogger(__name__)

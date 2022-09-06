@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 
-from utility.utils import to_int
+from tools.utils import to_int
 from replay.base import Replay
 from replay.uniform import UniformReplay
 from replay.per import ProportionalPER

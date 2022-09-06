@@ -1,7 +1,7 @@
 import numpy as np
 import gym
 
-from utility import pkg
+from tools import pkg
 
 
 class Unity:
@@ -35,7 +35,7 @@ if __name__ == '__main__':
         max_episode_steps=100,
         n_envs=4,
     )
-    from utility.display import print_dict, print_dict_info
+    from tools.display import print_dict, print_dict_info
     def print_dict_info(d, prefix=''):
         for k, v in d.items():
             if isinstance(v, dict):

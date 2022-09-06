@@ -428,7 +428,7 @@ if __name__ == '__main__':
         'seed': 1
     }
 
-    from utility.display import print_dict_info, print_dict
+    from tools.display import print_dict_info, print_dict
     env = GRF(**config)
     obs = env.reset()
     print_dict_info(obs[0])

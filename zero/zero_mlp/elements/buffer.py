@@ -1,6 +1,6 @@
 import numpy as np
 
-from utility.utils import dict2AttrDict, standardize
+from tools.utils import dict2AttrDict, standardize
 from algo.gpo.elements.buffer import \
     LocalBufferBase, PPOBufferBase
 

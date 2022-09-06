@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from utility.tf_utils import assert_rank
-from core.module import Ensemble
+from tools.tf_utils import assert_rank
+from core.ensemble import Ensemble
 from nn.func import rnn
 from algo.ppo.nn import Encoder, Actor, Value
 

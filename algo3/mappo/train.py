@@ -4,7 +4,7 @@ import functools
 import numpy as np
 import tensorflow as tf
 
-from utility.timer import Every, Timer
+from tools.timer import Every, Timer
 from algo.ppo.train import main
 
 

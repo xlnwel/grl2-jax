@@ -6,8 +6,9 @@ from multiprocessing import Process
 import subprocess
 import numpy as np
 
+from core.typing import AttrDict2dict, dict2AttrDict
+from tools.utils import modify_config, product_flatten_dict
 from run.utils import change_config_with_kw_string
-from utility.utils import AttrDict2dict, dict2AttrDict, modify_config, product_flatten_dict
 
 logger = logging.getLogger(__name__)
 

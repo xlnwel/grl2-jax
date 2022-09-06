@@ -1,222 +1,188 @@
-import re
+import collections
 import logging
-from typing import List, Tuple, Union
-import tensorflow as tf
-from tensorflow.keras import mixed_precision as prec
+from typing import Dict, List, Tuple, Union
+import jax
+import jax.numpy as jnp
+import optax
 
 from core.log import do_logging
-from utility.schedule import TFPiecewiseSchedule
+from core.typing import AttrDict
+from tools.utils import is_empty
 
 
 logger = logging.getLogger(__name__)
 
 def select_optimizer(name):
     # add custom optimizers here
-    opts = dict(
-        adam=tf.keras.optimizers.Adam,
-        rmsprop=tf.keras.optimizers.RMSprop,
-        sgd=tf.keras.optimizers.SGD,
-    )
     if isinstance(name, str):
-        return opts[name.lower()]
+        return getattr(optax, name.lower())
     return name
 
 
-def create_optimizer(modules, config, name=None):
-    if config.pop('schedule_lr', False):
-        if not isinstance(config['lr'], (list, tuple)) \
-                or not isinstance(config['lr'][0], (list, tuple)):
-            raise ValueError(f"Require a list of tuples to schedule learning rate, but get lr={config['lr']}")
-        config['lr'] = TFPiecewiseSchedule(config['lr'])
-    do_logging(f'The optimizer for modules{tuple(m.name for m in modules)} is constructed with arguments:', logger=logger)
-    do_logging(config, prefix='\t', logger=logger)
-    if name:
-        opt = Optimizer(modules, **config, name=name)
-    else:
-        opt = Optimizer(modules, **config)
+def chain(
+    *args: optax.GradientTransformation,
+    name: str
+) -> optax.GradientTransformation:
+    """Applies a list of chainable update transformations.
+
+    Given a sequence of chainable transforms, `chain` returns an `init_fn`
+    that constructs a `state` by concatenating the states of the individual
+    transforms, and returns an `update_fn` which chains the update transformations
+    feeding the appropriate state to each.
+
+    Args:
+        *args: a sequence of chainable (init_fn, update_fn) tuples.
+        name: name for namedtuple
+    Returns:
+        A single (names, (init_fn, update_fn)) tuple.
+    """
+
+    init_fns, update_fns = zip(*args)
+    NT = collections.namedtuple(name, [
+        a.init.__qualname__.split('.', 1)[0] for a in args])
+    def init_fn(params):
+        return NT(*[fn(params) for fn in init_fns])
+
+    def update_fn(updates, state, params=None):
+        if len(update_fns) != len(state):
+            raise ValueError('The number of updates and states has to be the same in '
+                'chain! Make sure you have called init first!')
+
+        updates_list = []
+        new_state = []
+        for s, fn in zip(state, update_fns):
+            updates, new_s = fn(updates, s, params)
+            updates_list.append(updates)
+            new_state.append(new_s)
+        return NT(*updates_list), NT(*new_state)
+
+    return optax.GradientTransformation(init_fn, update_fn)
+
+
+def build_optimizer(
+    *,
+    params=None, 
+    opt_name='adam', 
+    lr, 
+    clip_norm: float=None, 
+    weight_decay: float=None, 
+    name: str, 
+    **opt_kwargs, 
+):
+    opts = []
+    if weight_decay:
+        opts.append(optax.add_decayed_weights(weight_decay))
+    if clip_norm:
+        opts.append(optax.clip_by_global_norm(clip_norm))
+    opt = chain(
+        *opts, 
+        select_optimizer(opt_name)(lr, **opt_kwargs), 
+        name=name
+    )
+
+    if params is not None:
+        state = opt.init(params)
+        return opt, state
     return opt
 
+def compute_gradients(
+    loss_fn, 
+    params: Dict, 
+    kwargs: Dict, 
+    name: str, 
+    by_part=False, 
+):
+    grads, stats = jax.grad(loss_fn, has_aux=True)(params, **kwargs)
+    stats = _record_grads(stats, grads, name, by_part)
+    return grads, stats
 
-class Optimizer(tf.Module):
-    def __init__(
-        self, 
-        modules, 
-        *, 
-        opt_name='adam', 
-        lr, 
-        clip_norm: float=None, 
-        weight_decay: float=None, 
-        l2_reg: float=None,
-        wdpattern: str=r'.*', 
-        scales: Union[List[float], Tuple[float]]=None, 
-        **kwargs
-    ):
-        self._modules = modules if isinstance(modules, (list, tuple)) else [modules]
-        self._clip_norm = clip_norm
-        self._weight_decay = weight_decay
-        self._l2_reg = l2_reg
-        self._wdpattern = wdpattern
-        if scales is not None:
-            assert isinstance(scales, (list, tuple)), scales
-            assert len(scales) == len(self._modules), (len(scales), len(self._modules))
-        self._scales = scales
-        self._opt: tf.optimizers.Optimizer = select_optimizer(opt_name)(lr, **kwargs)
-        # useful for mixed precision training on GPUs to
-        # avoid numerical underflow caused by using float16 gradients
-        prec_policy = prec.global_policy()
-        self._mpt = prec_policy.compute_dtype != prec_policy.variable_dtype
-        if self._mpt:
-            do_logging(
-                'Mixed precision training will be performed', 
-                logger=logger)
-            self._opt = prec.LossScaleOptimizer(self._opt)
-        # we do not initialize variables here as modules may not be initialized at this point
-        self._variables = None
+def compute_meta_gradients(
+    loss_fn, 
+    params: Dict, 
+    kwargs: Dict, 
+    name: str, 
+    by_part=False
+):
+    grads, (stats, inner_opt_state) = jax.grad(
+        loss_fn, has_aux=True)(params, **kwargs)
+    stats = _record_grads(stats, grads, name, by_part)
+    return grads, (stats, inner_opt_state)
 
-    def get_weights(self):
-        return self._opt.get_weights()
-    
-    def set_weights(self, weights):
-        self._opt.set_weights(weights)
+def compute_updates(
+    grads: Dict, 
+    state, 
+    opt, 
+    stats, 
+    name: str
+):
+    updates, state = opt.update(grads, state)
+    for k, v in updates._asdict().items():
+        v, _ = jax.tree_util.tree_flatten(v)
+        if is_empty(v):
+            continue
+        v = jnp.stack(jax.tree_map(jnp.linalg.norm, v))
+        stats[f'{name}/{k}/updates_norm'] = v
+        stats[f'{name}/{k}/total_updates_norm'] = jnp.sum(v)
 
-    def set_variables(self, vars):
-        self._variables = vars
+    return updates[-1], state, stats
 
-    @property
-    def variables(self):
-        return self._variables
-    
-    @property
-    def opt_variables(self):
-        return self._opt.variables()
-    
-    def get_transformed_grads(self, var_list=[]):
-        assert hasattr(self._opt, 'get_transformed_grads'), f'{self._opt} does not support "get_transformed_grads"'
-        return self._opt.get_transformed_grads(var_list or self._variables)
+def apply_updates(params, updates):
+    params = optax.apply_updates(params, updates)
 
-    def get_old_vars(self, var_list=[]):
-        assert hasattr(self._opt, 'get_old_vars'), f'{self._opt} does not support "get_old_vars"'
-        return self._opt.get_old_vars(var_list or self._variables)
+    return params
 
-    def get_new_vars(self, var_list=[]):
-        assert hasattr(self._opt, 'get_new_vars'), f'{self._opt} does not support "get_new_vars"'
-        return self._opt.get_new_vars(var_list or self._variables)
+def optimize(
+    loss_fn, 
+    params: Dict, 
+    state: Union[Dict, Tuple, List], 
+    kwargs: Dict, 
+    opt, 
+    name
+):
+    grads, stats = compute_gradients(
+        loss_fn=loss_fn, params=params, kwargs=kwargs, name=name)
+    updates, state, stats = compute_updates(
+        grads, state, opt, stats, name)
+    params = apply_updates(params, updates)
+    return params, state, stats
 
-    def compute_gradients(
-        self, 
-        tape, 
-        loss, 
-        output_gradients=None, 
-        return_var_norms=False
-    ):
-        if isinstance(loss, tf.Tensor) and loss.shape != ():
-            raise ValueError(f'loss is expected to be a scalar Tensor, but get {loss}')
-
-        if self._variables is None:
-            variables = [m.trainable_variables for m in self._modules]
-            for v, m in zip(variables, self._modules):
-                do_logging(f'Found {len(v)} parameters for {m.name}', logger=logger)
-            self._variables = tf.nest.flatten(variables)
-            if self._scales is not None:
-                scales = [[self._scales[i] for _ in m.trainable_variables] 
-                    for i, m in enumerate(self._modules)]
-                self._scales = tf.nest.flatten(scales)
-
-        if tape is None:
-            raise ValueError('tf.GradientTape is ')
-        if self._l2_reg or return_var_norms:
-            var_norms = self.get_var_norms()
-            if self._l2_reg:
-                loss = self._add_l2_regularization(loss, var_norms.values())
-        if self._mpt:
-            with tape:
-                loss = self._opt.get_scaled_loss(loss)
-        grads = tape.gradient(loss, self._variables, output_gradients=output_gradients)
-
-        if return_var_norms:
-            return grads, var_norms
-        else:
-            return grads
-
-    def apply_gradients(self, grads, vars=None, return_grads=False):
-        if vars is None:
-            vars = self._variables
-        if None in grads:
-            raise ValueError(f'No grads for {vars[grads.index(None)].name}')
-        if self._mpt:
-            grads = self._opt.get_unscaled_gradients(grads)
-        if self._scales is not None:
-            assert len(grads) == len(self._scales), (len(grads), len(self._scales))
-            grads = [g * s for g, s in zip(grads, self._scales)]
-        norm = tf.linalg.global_norm(grads)
-        if self._clip_norm:
-            grads, _ = tf.clip_by_global_norm(grads, self._clip_norm, norm)
-        if self._weight_decay:
-            self._apply_weight_decay()
-        self.grads = grads
-        self._opt.apply_gradients(zip(grads, vars))
-
-        if return_grads:
-            return norm, {v.name: g for v, g in zip(vars, grads)}
-        else:
-            return norm
-
-    def __call__(
-        self, 
-        tape: tf.GradientTape=None, 
-        loss: tf.Tensor=None, 
-        output_gradients=None, 
-        return_var_norms=False, 
-        return_grads=False, 
-    ):
-        grads = self.compute_gradients(
-            tape, 
-            loss, 
-            output_gradients=output_gradients, 
-            return_var_norms=return_var_norms
-        )
-        if return_var_norms:
-            grads, var_norms = grads
-        norms = self.apply_gradients(grads, return_grads=return_grads)
-        if return_grads:
-            norms, grads = norms
-        if return_var_norms and return_grads:
-            return norms, var_norms, grads
-        elif return_var_norms:
-            return norms, var_norms
-        elif return_grads:
-            return norms, grads
-        else:
-            return norms
-
-    def get_var_norms(self):
-        var_norms = {v.name: tf.nn.l2_loss(v) for v in self._variables}
-        return var_norms
-        
-    def _add_l2_regularization(self, loss, var_norms: List):
-        do_logging(f'Apply L2 regularization with coefficient: {self._l2_reg}\n" \
-            "Wait, are you sure you want to apply l2 regularization instead of weight decay?',
-            logger=logger)
-        loss += tf.reduce_sum([self._l2_reg * norm for norm in var_norms])
-        return loss
-
-    def _apply_weight_decay(self):
-        do_logging(f'Apply weight decay with coefficient: {self._weight_decay}',
-            logger=logger)
-        for var in self._variables:
-            if re.search(self._wdpattern, var.name):
-                print(var.name, self._weight_decay)
-                var.assign((1 - self._weight_decay) * var)
+def _record_grads(stats, grads, name, by_part):
+    if by_part:
+        for k, v in grads.items():
+            v, _ = jax.tree_util.tree_flatten(v)
+            if v:
+                grads_norm = jnp.stack(jax.tree_map(jnp.linalg.norm, v))
+                stats[f'{name}/{k}/grads_norm'] = grads_norm
+                stats[f'{name}/{k}/total_grads_norm'] = jnp.sum(grads_norm)
+    else:
+        raw_grads, _ = jax.tree_util.tree_flatten(grads)
+        if raw_grads:
+            grads_norm = jnp.stack(jax.tree_map(jnp.linalg.norm, raw_grads))
+            stats[f'{name}/grads_norm'] = grads_norm
+            stats[f'{name}/total_grads_norm'] = jnp.sum(grads_norm)
+    return stats
 
 
 if __name__ == '__main__':
-    l = tf.keras.layers.Dense(1, kernel_regularizer=tf.keras.regularizers.l2(.01))
-    tf.random.set_seed(0)
-    opt = Optimizer('adam', l, 1, weight_decay=.1)
-    x = tf.random.normal((32, 2))
-    with tf.GradientTape() as t:
-        y = l(x)
-        loss = tf.reduce_mean((y - 1)**2)
-    opt(t, loss)
-    print(l.variables)
-    
+    import numpy as np
+    import haiku as hk
+    import jax.numpy as jnp
+    eta = np.array(1, dtype='float32')
+    x = np.random.uniform(size=(2, 3))
+    data = AttrDict()
+    data.x = x
+    def layer(data):
+        l = hk.Linear(2)
+        return l(data['x'])
+    net = hk.transform(layer)
+    rng = jax.random.PRNGKey(42)
+    theta = net.init(rng, data)
+    def loss(params, data):
+        x = net.apply(params, None, data)
+        l = jnp.mean((1. - x)**2)
+        return l, {}
+    opt, state = create_optimizer(params=theta, opt_name='adam', lr=1)
+    params, state, stats = optimize(loss, theta, state, **data)
+    print(params)
+    params, state, stats = optimize(loss, theta, state, **data)
+    print(params)

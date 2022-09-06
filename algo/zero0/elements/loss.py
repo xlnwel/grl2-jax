@@ -3,8 +3,8 @@ import tensorflow as tf
 
 from core.elements.loss import LossEnsemble
 from core.log import do_logging
-from utility import rl_loss
-from utility.tf_utils import assert_shape_compatibility, explained_variance
+from jax_utils import jax_loss
+from tools.tf_utils import assert_shape_compatibility, explained_variance
 from algo.zero.elements.loss import prefix_name, POLossImpl, ValueLossImpl
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ class Loss(ValueLossImpl, POLossImpl):
         #     tf.where(tf.cast(reset, bool), 0., log_ratio), 0., 1e-5, 1e-5)
 
         with tape.stop_recording():
-            v_target, advantage = rl_loss.v_trace_from_ratio(
+            v_target, advantage = loss.v_trace_from_ratio(
                 reward=reward, 
                 value=value, 
                 next_value=next_value, 
@@ -180,7 +180,7 @@ class Loss(ValueLossImpl, POLossImpl):
             pi_mean = act_dist.loc
             pi_std = tf.exp(self.model.policy.logstd)
 
-        kl, raw_kl_loss, kl_loss = rl_loss.compute_kl(
+        kl, raw_kl_loss, kl_loss = loss.compute_kl(
             kl_type=self.config.kl,
             kl_coef=self.config.kl_coef,
             logp=mu_logprob, 

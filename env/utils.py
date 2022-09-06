@@ -1,7 +1,7 @@
 import numpy as np
 
 from env.typing import EnvOutput
-from utility.utils import convert_batch_with_func
+from tools.utils import convert_batch_with_func
 
 
 def batch_env_output(out, func=np.stack):

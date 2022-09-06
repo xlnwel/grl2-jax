@@ -3,7 +3,7 @@ import functools
 from core.elements.trainer import Trainer, create_trainer
 from core.decorator import override
 from core.tf_config import build
-from utility import pkg
+from tools import pkg
 
 
 class PPOTrainer(Trainer):

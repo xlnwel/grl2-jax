@@ -1,11 +1,11 @@
 import numpy as np
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
-from utility.utils import Every, TempStore
-from utility.graph import video_summary, image_summary
-from utility.run import Runner, evaluate
-from utility.timer import Timer
-from utility import pkg
+from tools.utils import Every, TempStore
+from tools.graph import video_summary, image_summary
+from tools.run import Runner, evaluate
+from tools.timer import Timer
+from tools import pkg
 from algo.rnd.env import make_env
 from env.func import create_env
 
@@ -116,7 +116,7 @@ def main(env_config, model_config, agent_config, buffer_config):
     use_ray = env_config.get('n_runners', 1) > 1
     if use_ray:
         import ray
-        from utility.ray_setup import sigint_shutdown_ray
+        from tools.ray_setup import sigint_shutdown_ray
         ray.init()
         sigint_shutdown_ray()
 

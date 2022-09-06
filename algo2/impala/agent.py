@@ -4,8 +4,8 @@ from core.tf_config import build
 from core.decorator import override
 from core.agent import RMSAgentBase
 from core.mixin import Memory
-from utility.tf_utils import explained_variance
-from utility.rl_loss import v_trace_from_ratio, ppo_loss
+from tools.tf_utils import explained_variance
+from jax_utils.jax_loss import v_trace_from_ratio, ppo_loss
 
 
 def collect(buffer, env, env_step, reset, next_obs, **kwargs):

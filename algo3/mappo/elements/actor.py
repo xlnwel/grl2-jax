@@ -1,7 +1,7 @@
 import numpy as np
 
 from core.elements.actor import Actor
-from utility.tf_utils import numpy2tensor, tensor2numpy
+from tools.tf_utils import numpy2tensor, tensor2numpy
 
 
 class MAPPOActor(Actor):

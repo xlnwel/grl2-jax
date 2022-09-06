@@ -1,11 +1,11 @@
 import numpy as np
 
 from core.tf_config import *
-from utility.display import pwc
-from utility.ray_setup import sigint_shutdown_ray
-from utility.run import evaluate
-from utility import pkg
-from utility.graph import save_video
+from tools.display import pwc
+from tools.ray_setup import sigint_shutdown_ray
+from tools.run import evaluate
+from tools import pkg
+from tools.graph import save_video
 from env.func import create_env
 from replay.func import create_replay
 

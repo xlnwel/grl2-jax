@@ -910,7 +910,7 @@ if __name__ == '__main__':
                 print(f'{prefix} {k}: {v.shape} {v.dtype}')
 
 
-    from utility import yaml_op
+    from tools import yaml_op
     config = yaml_op.load_config('distributed/sync2/configs/unity3_1v1.yaml')
     config = config['env']
     n_unity_file = 1

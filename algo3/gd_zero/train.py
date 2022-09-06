@@ -1,5 +1,5 @@
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
-from utility import pkg
+from tools import pkg
 
 
 def main(config):

@@ -6,7 +6,7 @@ from env.overcooked_env.mdp.overcooked_mdp import OvercookedGridworld
 from env.overcooked_env.mdp.overcooked_env import OvercookedEnv
 from env.overcooked_env.planning.planners import MediumLevelActionManager, NO_COUNTERS_PARAMS
 from env.utils import compute_aid2uids
-from utility.utils import AttrDict2dict
+from tools.utils import AttrDict2dict
 
 
 REW_SHAPING_PARAMS = {

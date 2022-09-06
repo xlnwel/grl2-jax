@@ -1,7 +1,7 @@
 from core.elements.builder import ElementsBuilder
 from core.utils import save_config
 from env.func import get_env_stats
-from utility.timer import Every, Timer
+from tools.timer import Every, Timer
 
 
 def main(config):

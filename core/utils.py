@@ -1,11 +1,52 @@
 import os, shutil
+import random
 import numpy as np
 
 from core.log import do_logging
 from core.typing import ModelPath
-from utility import yaml_op
-from utility.typing import AttrDict
+from tools import yaml_op
+from core.typing import AttrDict
 
+
+def configure_gpu(idx=-1):
+    import tensorflow as tf
+    """ Configures gpu for Tensorflow/JAX
+        The standard way described in the document of JAX does not work for TF. Since 
+        we utilize the later for data visualization in Tensorboard, we 
+    Args:
+        idx: index(es) of PhysicalDevice objects returned by `list_physical_devices`
+    """
+    # if idx is not None and idx >= 0:
+    #     os.environ["CUDA_VISIBLE_DEVICES"] = f"{idx}"
+    if idx is None:
+        tf.config.experimental.set_visible_devices([], 'GPU')
+        do_logging('No gpu is used', level='pwt')
+        return False
+    gpus = tf.config.list_physical_devices('GPU')
+    n_gpus = len(gpus)
+    if idx >= 0:
+        gpus = [gpus[idx % n_gpus]]
+    # restrict TensorFlow to only use the i-th GPU
+    tf.config.experimental.set_visible_devices(gpus, 'GPU')
+    if gpus:
+        try:
+            # memory growth
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+            do_logging(
+                f'{n_gpus} Physical GPUs, {len(logical_gpus)} Logical GPU', 
+                level='pwt'
+            )
+        except RuntimeError as e:
+            # visible devices must be set before GPUs have been initialized
+            do_logging(e, level='pwt')
+        return True
+
+def set_seed(seed: int=None):
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
 
 def save_code(model_path: ModelPath):
     """ Saves the code so that we can check the chagnes latter """
@@ -48,7 +89,7 @@ def save_config(config, model_path=None, config_name='config.yaml'):
         assert model_path.model_name == config.model_name, (model_path.model_name, config.model_name)
     config = simplify_datatype(config)
     yaml_op.save_config(config, 
-        filename='/'.join([*model_path, config_name]))
+        path='/'.join([*model_path, config_name]))
 
 def get_vars_for_modules(modules):
     return sum([m.variables for m in modules], ())

@@ -3,8 +3,8 @@ import tensorflow as tf
 
 from algo.zero.elements.model import ModelImpl, MAPPOActorModel, \
     MAPPOModelEnsemble as MAPPOModelBase
-from utility.file import source_file
-from utility.tf_utils import assert_rank_and_shape_compatibility
+from tools.file import source_file
+from tools.tf_utils import assert_rank_and_shape_compatibility
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 

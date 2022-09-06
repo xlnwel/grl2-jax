@@ -2,10 +2,10 @@ from algo.dqn.train import *
 # import time
 
 # from core.tf_config import *
-# from utility.utils import Every
-# from utility.graph import video_summary
-# from utility.run import Runner, evaluate
-# from utility import pkg
+# from tools.utils import Every
+# from tools.graph import video_summary
+# from tools.run import Runner, evaluate
+# from tools import pkg
 # from env.func import create_env
 # from replay.func import create_replay
 # from core.dataset import create_dataset
@@ -85,7 +85,7 @@ from algo.dqn.train import *
 #     out = env.reset()
 #     obs, _, _, _ = out
 #     epslen = 0
-#     from utility.utils import Every
+#     from tools.utils import Every
 #     to_record = Every(agent.LOG_PERIOD)
 #     for t in range(int(agent.MAX_STEPS)):
 #         if t > 1e4:

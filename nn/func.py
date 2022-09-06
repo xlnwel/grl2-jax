@@ -1,9 +1,6 @@
-from tensorflow.keras import layers
+import haiku as hk
 
-from nn.mlp import *
-from nn.rnns.lstm import MLSTM
-from nn.rnns.gru import MGRU
-from nn.dnc.dnc import DNC
+from nn.mlp import MLP
 from nn.registry import nn_registry
 
 
@@ -28,52 +25,18 @@ def create_network(config, name):
     else:
         registry = nn_registry
     network = registry.get(nn_id)
-    if not issubclass(network, tf.Module):
+    if not issubclass(network, hk.Module):
         raise TypeError(f'create_network returns invalid network: {network}')
     return network(**config, name=name)
 
+
+def construct_components(config, name):
+    from nn.func import create_network
+    networks = {k: create_network(v, name=f'{name}/{k}') 
+        for k, v in config.items() if isinstance(v, dict)}
+    return networks
+
+
+@hk.transparent
 def mlp(units_list=[], out_size=None, **kwargs) -> MLP:
     return MLP(units_list, out_size=out_size, **kwargs)
-
-def rnn(config, name='rnn'):
-    config = config.copy()
-    rnn_name = config.pop('rnn_name')
-    if rnn_name == 'gru':
-        return layers.GRU(**config, name=name)
-    elif rnn_name == 'mgru':
-        return MGRU(**config, name=name)
-    elif rnn_name == 'lstm':
-        return layers.LSTM(**config, name=name)
-    elif rnn_name == 'mlstm':
-        return MLSTM(**config, name=name)
-    else:
-        raise ValueError(f'Unkown rnn: {rnn_name}')
-
-def dnc_rnn(output_size, 
-            access_config=dict(memory_size=128, word_size=16, num_reads=4, num_writes=1), 
-            controller_config=dict(hidden_size=128),
-            clip_value=20,
-            name='dnc',
-            rnn_config={}):
-    """Return an RNN that encapsulates DNC
-    
-    Args:
-        output_size: Output dimension size of dnc
-        access_config: A dictionary of access module configuration. 
-            memory_size: The number of memory slots
-            word_size: The size of each memory slot
-            num_reads: The number of read heads
-            num_writes: The number of write heads
-            name: name of the access module, optionally
-        controller_config: A dictionary of controller(LSTM) module configuration
-        clip_value: Clips controller and core output value to between
-            `[-clip_value, clip_value]` if specified
-        name: module name
-        rnn_config: specifies extra hyperparams for keras.layers.RNN
-    """
-    dnc_cell = DNC(access_config, 
-                controller_config, 
-                output_size, 
-                clip_value, 
-                name)
-    return layers.RNN(dnc_cell, **rnn_config)

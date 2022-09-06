@@ -2,8 +2,8 @@ import os
 import time
 import ray
 
-from utility.ray_setup import sigint_shutdown_ray
-from utility import pkg
+from tools.ray_setup import sigint_shutdown_ray
+from tools import pkg
 from replay.func import create_replay_center
 
 

@@ -9,14 +9,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.elements.builder import ElementsBuilder
 from core.log import setup_logging
-from core.tf_config import *
-from utility.display import pwc
-from utility.plot import plot_data_dict
-from utility.ray_setup import sigint_shutdown_ray
-from utility.run import evaluate
-from utility.utils import dict2AttrDict
-from utility.graph import save_video
-from utility import pkg
+from core.typing import dict2AttrDict
+from core.utils import configure_gpu
+from tools.display import pwc
+from tools.plot import plot_data_dict
+from tools.ray_setup import sigint_shutdown_ray
+from tools.run import evaluate
+from tools.graph import save_video
+from tools import pkg
 from env.func import create_env
 from run.args import parse_eval_args
 from run.utils import search_for_config
@@ -103,9 +103,7 @@ if __name__ == '__main__':
     except:
         print('Default main is used for evaluation')
 
-    silence_tf_logs()
     configure_gpu()
-    configure_precision(config.precision)
 
     # set up env_config
     for config in configs:

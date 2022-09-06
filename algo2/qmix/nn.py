@@ -1,9 +1,9 @@
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from utility.tf_utils import assert_rank
-from utility.rl_utils import epsilon_greedy, epsilon_scaled_logits
-from core.module import Module, Ensemble
+from tools.tf_utils import assert_rank
+from tools.rl_utils import epsilon_greedy, epsilon_scaled_logits
+from core.ensemble import Module, Ensemble
 from nn.func import Encoder, mlp, rnn
 from nn.rnns import *
 from algo.dqn.nn import Q as QBase

@@ -1,4 +1,6 @@
 import os, sys
+os.environ["XLA_FLAGS"] = '--xla_dump_to=/tmp/foo'
+
 from datetime import datetime
 import numpy as np
 
@@ -12,8 +14,8 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.log import setup_logging, do_logging
-from utility import pkg
-from utility.utils import modify_config
+from tools import pkg
+from tools.utils import modify_config
 from run.args import parse_train_args
 from run.grid_search import GridSearch
 from run.utils import *
@@ -94,7 +96,7 @@ def _run_with_configs(cmd_args):
 
     configs = []
     for algo, env, config in algo_env_config:
-        do_logging(f'Setup configs for algo({algo}) and env({env})', level='pwt')
+        do_logging(f'Setup configs for algo({algo}) and env({env})')
         algo = _get_algo_name(algo)
         config = load_config_with_algo_env(algo, env, config)
         model_name = change_config_with_kw_string(cmd_args.kwargs, config, raw_model_name)
@@ -115,8 +117,8 @@ def _run_with_configs(cmd_args):
             model_name=model_name, 
             seed=cmd_args.seed
         )
-        config['date'] = raw_model_name[:4]
-        config.buffer['root_dir'] = config.buffer['root_dir'].replace('logs', 'data')
+        config.date = raw_model_name[:4]
+        config.buffer.root_dir = config.buffer.root_dir.replace('logs', 'data')
 
         config = config_info(config, cmd_args.info)
         info = model_name.split('-', 1)[-1]
@@ -131,7 +133,7 @@ def _run_with_configs(cmd_args):
         assert len(configs) == 1, 'No support for multi-agent grid search.'
         _grid_search(config, main, cmd_args)
     else:
-        do_logging(config, level='DEBUG')
+        do_logging(config)
         main(configs)
 
 

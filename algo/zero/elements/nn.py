@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from core.module import Module
+from core.ensemble import Module
 from nn.func import mlp, nn_registry
 from nn.index import IndexedModule
 from nn.utils import get_activation

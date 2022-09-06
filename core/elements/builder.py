@@ -11,13 +11,12 @@ from core.elements.strategy import Strategy
 from core.elements.trainer import Trainer
 from core.log import do_logging
 from core.monitor import Monitor, create_monitor
-from core.typing import ModelPath, construct_model_name_from_version, get_vid
+from core.typing import *
 from core.utils import save_code, save_config
 from env.func import get_env_stats
-from utility.timer import timeit
-from utility.utils import AttrDict2dict, dict2AttrDict, set_path
-from utility.typing import AttrDict
-from utility import pkg, yaml_op
+from tools.timer import timeit
+from tools.utils import set_path
+from tools import pkg, yaml_op
 
 
 logger = logging.getLogger(__name__)
@@ -75,16 +74,13 @@ class ElementsBuilder:
         self, 
         config: dict=None, 
         env_stats: dict=None, 
-        to_build: bool=False, 
-        to_build_for_eval: bool=False, 
         constructors: Dict[str, FunctionType]=None
     ):
         constructors = constructors or self.constructors
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
         model = constructors.model(
-            config.model, env_stats, name=config.name,
-            to_build=to_build, to_build_for_eval=to_build_for_eval)
+            config.model, env_stats, name=config.name)
         
         return model
 
@@ -247,8 +243,6 @@ class ElementsBuilder:
         elements.model = self.build_model(
             config=config, 
             env_stats=env_stats, 
-            to_build=not to_build_for_eval, 
-            to_build_for_eval=to_build_for_eval,
             constructors=constructors)
         elements.actor = self.build_actor(
             model=elements.model, 

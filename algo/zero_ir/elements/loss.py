@@ -1,157 +1,10 @@
 import tensorflow as tf
 
 from core.elements.loss import LossEnsemble
-from utility import tf_utils, rl_utils, rl_loss
+from jax_utils import jax_loss
+from tools import tf_utils, rl_utils
 from .utils import compute_joint_stats, compute_values, compute_policy, prefix_name
 from algo.zero.elements.loss import ValueLossImpl, POLossImpl
-
-
-class Loss(ValueLossImpl, POLossImpl):
-    def loss(
-        self, 
-        *, 
-        tape, 
-        obs, 
-        idx=None, 
-        event=None, 
-        global_state=None, 
-        hidden_state=None, 
-        next_obs=None, 
-        next_idx=None, 
-        next_event=None, 
-        next_global_state=None, 
-        next_hidden_state=None, 
-        action, 
-        old_value, 
-        reward, 
-        discount, 
-        reset, 
-        mu_logprob, 
-        mu=None, 
-        mu_mean=None, 
-        mu_std=None, 
-        action_mask=None, 
-        sample_mask=None, 
-        prev_reward=None,
-        prev_action=None,
-        state=None, 
-        mask=None, 
-        name=None, 
-        use_meta=None, 
-        use_dice=None, 
-        debug=True, 
-    ):
-        n = None if sample_mask is None else tf.reduce_sum(sample_mask)
-        gamma = self.model.meta('gamma', inner=use_meta)
-        lam = self.model.meta('lam', inner=use_meta)
-
-        if global_state is None:
-            global_state = obs
-        if next_global_state is None:
-            next_global_state = next_obs
-        value, next_value = compute_values(
-            self.value, 
-            global_state, 
-            next_global_state, 
-            idx=idx, 
-            next_idx=next_idx, 
-            event=event, 
-            next_event=next_event
-        )
-        act_dist, pi_logprob, log_ratio, ratio = compute_policy(
-            self.policy, obs, next_obs, action, mu_logprob, 
-            idx, next_idx, event, next_event, action_mask
-        )
-        # tf.print('reward', rl_reward[0, -1, -1])
-        # tf.print('mu logprob', mu_logprob[0, -1, -1])
-        # tf.print('pi logprob', pi_logprob[0, -1, -1])
-        # tf.print('max diff', tf.math.reduce_max(pi_logprob - mu_logprob))
-        # tf.debugging.assert_near(pi_logprob, mu_logprob, 1e-5, 1e-5)
-
-        with tape.stop_recording():
-            v_target, raw_adv = rl_loss.compute_target_advantage(
-                config=self.config, 
-                reward=reward, 
-                discount=discount, 
-                reset=reset, 
-                value=value, 
-                next_value=next_value, 
-                ratio=ratio, 
-                gamma=gamma, 
-                lam=lam, 
-            )
-            adv = rl_utils.normalize_adv(
-                self.config, 
-                raw_adv, 
-                norm_adv=self.config.get('norm_adv', False), 
-                sample_mask=sample_mask, 
-                n=n
-            )
-
-        actor_loss, actor_terms = self._pg_loss(
-            tape=tape, 
-            act_dist=act_dist, 
-            advantage=adv, 
-            ratio=ratio, 
-            pi_logprob=pi_logprob, 
-            mu=mu, 
-            mu_mean=mu_mean, 
-            mu_std=mu_std, 
-            action_mask=action_mask, 
-            sample_mask=sample_mask, 
-            n=n, 
-            name=name, 
-            use_meta=use_meta, 
-            debug=debug, 
-            use_dice=use_dice
-        )
-        value_loss, value_terms = self._value_loss(
-            tape=tape, 
-            value=value,
-            target=tf.stop_gradient(v_target) \
-                if self.config.get('stop_target_grads', True) else v_target, 
-            old_value=old_value, 
-            sample_mask=sample_mask, 
-            n=n, 
-            name=name, 
-            use_meta=use_meta, 
-            debug=debug
-        )
-
-        loss = actor_loss + value_loss
-
-        self.log_for_debug(
-            tape, 
-            terms, 
-            debug=debug, 
-            raw_advantage=raw_adv, 
-            gamma=gamma, 
-            lam=lam, 
-            pi_logprob=pi_logprob, 
-            ratio=ratio, 
-            approx_kl=.5 * tf_utils.reduce_mean((log_ratio)**2, sample_mask, n), 
-            approx_kl_max=.5 * tf.math.reduce_max((log_ratio)**2), 
-            loss=loss, 
-        )
-
-        if debug:
-            with tape.stop_recording():
-                if sample_mask is not None:
-                    n_alive_units = tf.reduce_sum(sample_mask, -1)
-                    terms['n_alive_units'] = n_alive_units
-                if mu is not None:
-                    terms['diff_pi'] = tf.nn.softmax(act_dist.logits) - mu
-                elif mu_mean is not None:
-                    terms['pi_mean'] = act_dist.loc
-                    terms['diff_pi_mean'] = act_dist.loc - mu_mean
-                    pi_std = tf.exp(self.policy.logstd)
-                    terms['pi_std'] = pi_std
-                    terms['diff_pi_std'] = pi_std - mu_std
-                    # tf.debugging.assert_equal(pi_std, mu_std)
-                    # tf.debugging.assert_equal(act_dist.loc, mu_mean)
-        terms = prefix_name(terms, name)
-
-        return loss, terms
 
 
 class MetaLoss(ValueLossImpl, POLossImpl):
@@ -160,11 +13,13 @@ class MetaLoss(ValueLossImpl, POLossImpl):
         *, 
         tape, 
         obs, 
+        sid=None, 
         idx=None, 
         event=None, 
         global_state=None, 
         hidden_state=None, 
         next_obs=None, 
+        next_sid=None, 
         next_idx=None, 
         next_event=None, 
         next_global_state=None, 
@@ -204,23 +59,37 @@ class MetaLoss(ValueLossImpl, POLossImpl):
             self.value, 
             global_state, 
             next_global_state, 
-            idx=idx, 
+            sid=sid, 
+            next_sid=next_sid, 
+            idx=idx,  
             next_idx=next_idx, 
             event=event, 
             next_event=next_event
         )
+
         act_dist, pi_logprob, log_ratio, ratio = compute_policy(
-            self.policy, obs, next_obs, action, mu_logprob, 
-            idx, next_idx, event, next_event, action_mask
+            self.policy, 
+            obs, 
+            next_obs, 
+            action, 
+            mu_logprob, 
+            sid=sid, 
+            next_sid=next_sid, 
+            idx=idx, 
+            next_idx=next_idx, 
+            event=event, 
+            next_event=next_event, 
+            action_mask=action_mask
         )
         # tf.print('reward', rl_reward[0, -1, -1])
         # tf.print('mu logprob', mu_logprob[0, -1, -1])
         # tf.print('pi logprob', pi_logprob[0, -1, -1])
         # tf.print('max diff', tf.math.reduce_max(pi_logprob - mu_logprob))
+        # tf.print('diff_frac', tf.math.reduce_sum(tf.cast(pi_logprob != mu_logprob, tf.float32)) / tf.math.reduce_sum(tf.ones_like(pi_logprob)))
         # tf.debugging.assert_near(pi_logprob, mu_logprob, 1e-5, 1e-5)
 
         with tape.stop_recording():
-            v_target, raw_adv = rl_loss.compute_target_advantage(
+            v_target, raw_adv = loss.compute_target_advantage(
                 config=self.config, 
                 reward=rl_reward, 
                 discount=rl_discount, 
@@ -279,7 +148,11 @@ class MetaLoss(ValueLossImpl, POLossImpl):
                 if next_hidden_state is not None:
                     next_hidden_state = tf.gather(next_hidden_state, 0, axis=2)
                 outer_value, next_outer_value = compute_values(
-                    self.outer_value, hidden_state, next_hidden_state
+                    self.outer_value, 
+                    hidden_state, 
+                    next_hidden_state, 
+                    sid=sid, 
+                    next_sid=next_sid
                 )
 
                 _, _, outer_v_target, _ = compute_joint_stats(
@@ -310,6 +183,8 @@ class MetaLoss(ValueLossImpl, POLossImpl):
                     self.outer_value, 
                     global_state, 
                     next_global_state, 
+                    sid=sid, 
+                    next_sid=next_sid, 
                     idx=idx, 
                     next_idx=next_idx, 
                     event=event, 
@@ -317,7 +192,7 @@ class MetaLoss(ValueLossImpl, POLossImpl):
                 )
 
                 with tape.stop_recording():
-                    outer_v_target, _ = rl_loss.compute_target_advantage(
+                    outer_v_target, _ = loss.compute_target_advantage(
                         config=self.config, 
                         reward=reward, 
                         discount=discount, 
@@ -351,7 +226,8 @@ class MetaLoss(ValueLossImpl, POLossImpl):
             lam=lam, 
             raw_advantage=raw_adv, 
             pi_logprob=pi_logprob, 
-            ratio=ratio, 
+            ratio=ratio,
+            diff_frac=tf.math.reduce_sum(tf.cast(tf.math.abs(pi_logprob - mu_logprob) > 1e-5, tf.float32)) / tf.math.reduce_sum(tf.ones_like(pi_logprob)), 
             approx_kl=.5 * tf_utils.reduce_mean((log_ratio)**2, sample_mask, n), 
             approx_kl_max=.5 * tf.math.reduce_max((log_ratio)**2), 
             loss=loss, 
@@ -386,6 +262,8 @@ class MetaLoss(ValueLossImpl, POLossImpl):
         ratio, 
         hidden_state, 
         next_hidden_state, 
+        sid, 
+        next_sid, 
         reward, 
         discount, 
         reset, 
@@ -408,7 +286,8 @@ class MetaLoss(ValueLossImpl, POLossImpl):
         if next_hidden_state is not None:
             next_hidden_state = tf.gather(next_hidden_state, 0, axis=2)
         value, next_value = compute_values(
-            self.outer_value, hidden_state, next_hidden_state
+            self.outer_value, hidden_state, next_hidden_state, 
+            sid=sid, next_sid=next_sid
         )
 
         joint_ratio, joint_pi_logprob, _, raw_adv = compute_joint_stats(
@@ -435,7 +314,7 @@ class MetaLoss(ValueLossImpl, POLossImpl):
             )
 
         loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
-            rl_loss.joint_ppo_loss(
+            jax_loss.joint_ppo_loss(
                 pg_coef=pg_coef, 
                 advantage=adv, 
                 ratio=ratio, 
@@ -444,7 +323,7 @@ class MetaLoss(ValueLossImpl, POLossImpl):
                 n=n, 
             )
         entropy = act_dist.entropy()
-        raw_entropy_loss, entropy_loss = rl_loss.entropy_loss(
+        raw_entropy_loss, entropy_loss = jax_loss.entropy_loss(
             entropy_coef=entropy_coef, 
             entropy=entropy, 
             mask=sample_mask, 
@@ -475,11 +354,13 @@ class MetaLoss(ValueLossImpl, POLossImpl):
         *, 
         tape, 
         obs, 
+        sid=None, 
         idx=None, 
         event=None, 
         global_state=None, 
         hidden_state, 
         next_obs=None, 
+        next_sid=None, 
         next_idx=None, 
         next_event=None, 
         next_global_state=None, 
@@ -508,8 +389,18 @@ class MetaLoss(ValueLossImpl, POLossImpl):
         lam = self.model.meta('lam', inner=False)
 
         act_dist, pi_logprob, log_ratio, ratio = compute_policy(
-            self.policy, obs, next_obs, action, mu_logprob, 
-            idx, next_idx, event, next_event, action_mask
+            self.policy, 
+            obs, 
+            next_obs, 
+            action, 
+            mu_logprob, 
+            sid=sid, 
+            next_sid=next_sid, 
+            idx=idx, 
+            next_idx=next_idx, 
+            event=event, 
+            next_event=next_event, 
+            action_mask=action_mask
         )
 
         if self.config.joint_objective:
@@ -522,9 +413,11 @@ class MetaLoss(ValueLossImpl, POLossImpl):
                 ratio, 
                 hidden_state, 
                 next_hidden_state, 
-                reward, 
-                discount, 
-                reset, 
+                sid=sid, 
+                next_sid=next_sid, 
+                reward=reward, 
+                discount=discount, 
+                reset=reset, 
                 sample_mask=sample_mask, 
                 n=n, 
                 name=None, 
@@ -542,14 +435,16 @@ class MetaLoss(ValueLossImpl, POLossImpl):
                 self.outer_value, 
                 global_state, 
                 next_global_state, 
-                idx=idx, 
+                sid=sid, 
+                next_sid=next_sid, 
+                idx=idx,  
                 next_idx=next_idx, 
                 event=event, 
                 next_event=next_event
             )
 
             with tape.stop_recording():
-                _, raw_adv = rl_loss.compute_target_advantage(
+                _, raw_adv = jax_loss.compute_target_advantage(
                     config=self.config, 
                     reward=reward, 
                     discount=discount, 
@@ -595,7 +490,7 @@ class MetaLoss(ValueLossImpl, POLossImpl):
             )
 
         meta_reward = tf.math.abs(meta_reward)
-        raw_meta_reward_loss, meta_reward_loss = rl_loss.to_loss(
+        raw_meta_reward_loss, meta_reward_loss = jax_loss.to_loss(
             meta_reward, 
             self.config.meta_reward_coef, 
             mask=mask, 
@@ -611,6 +506,7 @@ class MetaLoss(ValueLossImpl, POLossImpl):
             lam=lam, 
             raw_meta_reward_loss=raw_meta_reward_loss,
             meta_reward_loss=meta_reward_loss,
+            diff_frac=tf.math.reduce_sum(tf.cast(tf.math.abs(pi_logprob - mu_logprob) > 1e-5, tf.float32)) / tf.math.reduce_sum(tf.ones_like(pi_logprob)), 
             approx_kl=.5 * tf_utils.reduce_mean((log_ratio)**2, sample_mask, n), 
             meta_loss=meta_loss, 
         )

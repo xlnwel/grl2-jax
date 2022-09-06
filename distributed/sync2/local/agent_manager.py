@@ -6,8 +6,7 @@ from ..remote.parameter_server import ParameterServer
 from ..common.typing import ModelWeights
 from core.monitor import Monitor
 from core.remote.base import ManagerBase
-from utility.typing import AttrDict
-from utility.utils import AttrDict2dict
+from core.typing import AttrDict, AttrDict2dict
 
 
 class AgentManager(ManagerBase):

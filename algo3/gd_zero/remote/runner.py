@@ -12,9 +12,9 @@ from core.typing import ModelPath
 from env.func import create_env, get_env_stats
 from env.utils import batch_env_output
 from run.utils import search_for_config
-from utility import pkg
-from utility.timer import Timer
-from utility.utils import AttrDict2dict, batch_dicts, dict2AttrDict
+from tools import pkg
+from tools.timer import Timer
+from tools.utils import AttrDict2dict, batch_dicts, dict2AttrDict
 
 
 class RunnerManager(RayBase):

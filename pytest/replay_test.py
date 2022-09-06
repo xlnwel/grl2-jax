@@ -3,7 +3,7 @@ import gym
 
 from replay.func import create_replay, create_local_buffer
 from replay.ds.sum_tree import SumTree
-from utility.utils import set_global_seed
+from tools.utils import set_global_seed
 
 
 n_steps = 1

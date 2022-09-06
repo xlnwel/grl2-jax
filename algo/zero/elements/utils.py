@@ -3,8 +3,8 @@ from typing import Tuple
 import numpy as np
 import tensorflow as tf
 
-from utility.typing import AttrDict
-from utility import tf_utils
+from core.typing import AttrDict
+from tools import tf_utils
 
 
 def get_hx(*args):

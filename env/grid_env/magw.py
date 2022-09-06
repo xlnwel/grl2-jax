@@ -1,6 +1,6 @@
 import numpy as np
 
-from utility.feature import one_hot
+from tools.feature import one_hot
 from .Agent import Agent
 # import matplotlib
 # matplotlib.use('TkAgg')

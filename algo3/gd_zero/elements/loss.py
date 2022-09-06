@@ -2,8 +2,8 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
 from core.elements.loss import Loss
-from utility.rl_loss import huber_loss, ppo_loss, clipped_value_loss
-from utility.tf_utils import assert_rank, assert_rank_and_shape_compatibility, explained_variance, reduce_mean
+from jax_utils.jax_loss import huber_loss, ppo_loss, clipped_value_loss
+from tools.tf_utils import assert_rank, assert_rank_and_shape_compatibility, explained_variance, reduce_mean
 from algo.ppo.elements.loss import ValueLossImpl
 
 
@@ -416,7 +416,7 @@ if __name__ == '__main__':
     from tensorflow.keras import layers
     from algo.gd.elements.model import create_model
     from env.func import create_env
-    from utility.yaml_op import load_config
+    from tools.yaml_op import load_config
     config = load_config('algo/gd/configs/guandan.yaml')
     env = create_env(config['env'])
     env_stats = env.stats()

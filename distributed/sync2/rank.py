@@ -2,7 +2,7 @@ import time
 import ray
 
 from .local.controller import Controller
-from utility.ray_setup import sigint_shutdown_ray
+from tools.ray_setup import sigint_shutdown_ray
 
 
 def main(config, payoff_name, n):

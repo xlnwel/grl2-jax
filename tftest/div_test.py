@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from utility import rl_loss
+from jax_utils import jax_loss
 
 class MetaGradientTest(tf.test.TestCase):
     def setUp(self):
@@ -30,7 +30,7 @@ class MetaGradientTest(tf.test.TestCase):
             dy = tfd.Categorical(y)
             loss1 = dx.kl_divergence(dy)
             loss1 = tf.reduce_mean(loss1)
-            kl, _, loss2 = rl_loss.compute_kl(
+            kl, _, loss2 = jax_loss.compute_kl(
                 kl_type='forward', 
                 kl_coef=1, 
                 pi1=tf.nn.softmax(x), 
@@ -78,7 +78,7 @@ class MetaGradientTest(tf.test.TestCase):
             loss1 = dx.kl_divergence(avg) + dy.kl_divergence(avg)
             loss1 = .5 * loss1
             loss1 = tf.reduce_mean(loss1)
-            _, _, loss2 = rl_loss.compute_js(
+            _, _, loss2 = jax_loss.compute_js(
                 js_type='exact', 
                 js_coef=1, 
                 pi1=px, 

@@ -1,7 +1,7 @@
 import os
 import tensorflow as tf
 
-from utility.file import source_file
+from tools.file import source_file
 from algo.zero.elements.model import PPOValueModel as PPOValueBase, \
     PPOActorModel, PPOModelEnsemble
 

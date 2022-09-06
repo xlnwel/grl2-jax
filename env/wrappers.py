@@ -7,9 +7,9 @@ import cv2
 
 from core.log import do_logging
 from env.utils import compute_aid2uids
-from utility.feature import one_hot
-from utility.utils import dict2AttrDict, infer_dtype, convert_dtype
-from utility.typing import AttrDict
+from tools.feature import one_hot
+from tools.utils import infer_dtype, convert_dtype
+from core.typing import AttrDict, dict2AttrDict
 from env.typing import EnvOutput, GymOutput
 
 # stop using GPU
@@ -694,6 +694,7 @@ class DataProcess(gym.Wrapper):
         return self.observation(obs)
 
     def step(self, action, **kwargs):
+        action = np.asarray(action)
         obs, reward, done, info = self.env.step(action, **kwargs)
         return self.observation(obs), reward, done, info
 

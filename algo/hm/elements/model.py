@@ -4,8 +4,8 @@ import tensorflow as tf
 
 from core.elements.model import Model, ModelEnsemble
 from core.tf_config import build
-from utility.file import source_file
-from utility.tf_utils import assert_rank
+from tools.file import source_file
+from tools.tf_utils import assert_rank
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
 

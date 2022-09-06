@@ -2,10 +2,10 @@ import time
 import numpy as np
 import ray
 
-from utility.timer import Timer
+from tools.timer import Timer
 
 from .local.runner_manager import RunnerManager
-from utility.ray_setup import sigint_shutdown_ray
+from tools.ray_setup import sigint_shutdown_ray
 
 
 def main(configs, n, **kwargs):

@@ -1,6 +1,6 @@
 import numpy as np
 
-from utility.feature import xy2tri
+from tools.feature import xy2tri
 
 
 def do_flatten(obj):

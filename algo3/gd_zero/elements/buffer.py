@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 from core.log import do_logging
-from utility.utils import batch_dicts, config_attr, dict2AttrDict, standardize
+from tools.utils import batch_dicts, config_attr, dict2AttrDict, standardize
 
 
 logger = logging.getLogger(__name__)

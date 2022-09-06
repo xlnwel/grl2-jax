@@ -4,8 +4,8 @@ import ray
 from distributed.coordinator import Coordinator
 from distributed.remote.trainer import create_remote_trainer
 from env.func import get_env_stats
-from utility.yaml_op import load_config
-from utility.utils import AttrDict2dict
+from tools.yaml_op import load_config
+from tools.utils import AttrDict2dict
 
 
 class TestClass:

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from utility.tf_utils import tensor2numpy
+from tools.tf_utils import tensor2numpy
 from core.tf_config import build
 from core.decorator import override
 from core.mixin import Memory

@@ -1,6 +1,6 @@
 import numpy as np
 
-from utility.utils import config_attr
+from tools.utils import config_attr
 from algo.ppo.buffer import *
 
 

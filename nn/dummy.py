@@ -1,9 +1,6 @@
-import tensorflow as tf
-
-
-class Dummy(tf.Module):
+class Dummy:
     def __init__(self, **kwargs):
-        super().__init__(name='dummy')
+        pass
 
     def __call__(self, x, **kwargs):
         return x

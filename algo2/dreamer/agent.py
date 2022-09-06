@@ -2,9 +2,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from utility.utils import AttrDict, Every
-from utility.rl_loss import lambda_return
-from utility.tf_utils import static_scan
+from tools.utils import AttrDict, Every
+from jax_utils.jax_loss import lambda_return
+from tools.tf_utils import static_scan
 from core.tf_config import build
 from core.agent import AgentBase
 from core.mixin import Memory

@@ -1,6 +1,6 @@
 import numpy as np
 
-from utility.rms import *
+from tools.rms import *
 
 
 class TestClass:

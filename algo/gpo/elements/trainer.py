@@ -5,7 +5,7 @@ from core.decorator import override
 from core.optimizer import create_optimizer
 from core.tf_config import build
 from .utils import get_data_format
-from utility.display import print_dict
+from tools.display import print_dict
 
 
 class GPOActorTrainer(Trainer):

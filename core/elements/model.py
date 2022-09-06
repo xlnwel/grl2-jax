@@ -1,7 +1,11 @@
-from typing import Union
+import jax
+import haiku as hk
+from typing import Dict, Union
 
-from core.module import Ensemble, constructor
-from utility.typing import AttrDict
+from core.log import do_logging
+from core.ckpt.base import ParamsCheckpointBase
+from core.ensemble import Ensemble, constructor
+from core.typing import AttrDict, dict2AttrDict
 
 
 def construct_components(config, name):
@@ -11,7 +15,7 @@ def construct_components(config, name):
     return networks
 
 
-class Model(Ensemble):
+class Model(ParamsCheckpointBase):
     """ A model, consisting of multiple modules, is a 
     self-contained unit for network inference. Its 
     subclass is expected to implement some methods 
@@ -21,42 +25,29 @@ class Model(Ensemble):
         self, 
         *,
         config: AttrDict,
-        env_stats: AttrDict=None,
-        constructor=construct_components,
+        env_stats: AttrDict,
         name: str,
-        to_build=False,
-        to_build_for_eval=False
     ):
-        assert env_stats is not None, env_stats
-        super().__init__(
-            config=config, 
-            env_stats=env_stats,
-            constructor=constructor, 
-            name=name)
+        super().__init__(config, name)
+        self.env_stats = dict2AttrDict(env_stats, to_copy=True)
+        self.modules: Dict[str, hk.Module] = AttrDict()
+        self.rng = self._prngkey()
+        self.build_nets()
+        self.jit_model()
 
-        if to_build:
-            self._build(env_stats)
-            self.to_build = True
-        elif to_build_for_eval:
-            self._build(env_stats, evaluation=True)
-            self.to_build = True
-        else:
-            self.to_build = False
+    def _prngkey(self, seed=None):
+        if seed is None:
+            if self.config.seed is None:
+                self.config.seed = 42
+            seed = self.config.seed
+        do_logging(f'Model seed: {seed}')
+        return jax.random.PRNGKey(seed)
 
-    def ckpt_model(self):
-        return self.components
+    def build_nets(self):
+        raise NotImplementedError
 
-    def build(self, env_stats: AttrDict):
-        self._build(env_stats)
-
-    def _build(self, env_stats: AttrDict, evaluation=False):
+    def jit_model(self):
         pass
-
-    def sync_nets(self):
-        """ Sync target network """
-        if hasattr(self, '_sync_target_nets'):
-            # defined in TargetNetOps
-            self.sync_target_nets()
 
     def get_weights(self, name: str=None):
         """ Returns a list/dict of weights
@@ -67,15 +58,15 @@ class Model(Ensemble):
             returns a list of all weights
         """
         if name is None:
-            name = list(self.components.keys())
+            name = list(self.params.keys())
         elif isinstance(name, str):
             name = [name]
         assert isinstance(name, (tuple, list))
 
-        weights = {n: self.components[n].get_weights() for n in name}
+        weights = {n: self.params[n] for n in name}
         return weights
 
-    def set_weights(self, weights: Union[list, dict], default_initialization=None):
+    def set_weights(self, weights: dict):
         """ Sets weights
 
         Args:
@@ -83,17 +74,10 @@ class Model(Ensemble):
             it sets weights for models specified by the keys.
             Otherwise, it sets all weights 
         """
-        if isinstance(weights, dict):
-            for n, m in self.components.items():
-                if n in weights:
-                    m.set_weights(weights[n])
-                elif default_initialization:
-                    m.set_weights(default_initialization)
-        else:
-            if len(weights) == 0:
-                return
-            assert len(self.variables) == len(weights), (len(self.variables), len(weights))
-            [v.assign(w) for v, w in zip(self.variables, weights)]
+        assert set(weights).issubset(set(self.params)) or set(self.params).issubset(set(weights)), (list(self.params), list(weights))
+        for name in self.params.keys():
+            if name in weights:
+                self.params[name] = weights[name]
 
     def get_states(self):
         pass
@@ -121,10 +105,6 @@ class Model(Ensemble):
     @property
     def state_type(self):
         return self.rnn.state_type if hasattr(self, 'rnn') else None
-
-    def log_for_debug(self, terms, debug=True, **data):
-        if debug and self.config.get('debug', True):
-            terms.update(data)
 
 
 class ModelEnsemble(Ensemble):

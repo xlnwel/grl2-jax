@@ -4,8 +4,8 @@ import tensorflow as tf
 
 from core.elements.model import Model
 from core.tf_config import build
-from utility.file import source_file
-from utility.typing import AttrDict
+from tools.file import source_file
+from core.typing import AttrDict
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))

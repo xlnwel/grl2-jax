@@ -1,8 +1,8 @@
 import tensorflow as tf
 
 from core.elements.loss import Loss, LossEnsemble
-from utility import rl_loss
-from utility.tf_utils import reduce_mean, explained_variance, standard_normalization
+from jax_utils import jax_loss
+from tools.tf_utils import reduce_mean, explained_variance, standard_normalization
 
 
 def prefix_name(terms, name):
@@ -39,7 +39,7 @@ class PGLossImpl(Loss):
         log_ratio = new_logprob - logprob
         ratio = tf.exp(log_ratio)
         loss_pg, loss_clip, raw_ppo_loss, ppo_loss, clip_frac = \
-            rl_loss.ppo_loss(
+            loss.ppo_loss(
                 pg_coef=self.config.pg_coef, 
                 advantage=advantage, 
                 ratio=ratio, 
@@ -47,7 +47,7 @@ class PGLossImpl(Loss):
                 mask=sample_mask, 
                 n=n, 
             )
-        raw_entropy_loss, entropy_loss = rl_loss.entropy_loss(
+        raw_entropy_loss, entropy_loss = loss.entropy_loss(
             entropy_coef=self.config.entropy_coef, 
             entropy=raw_entropy, 
             mask=sample_mask, 
@@ -104,7 +104,7 @@ class ValueLossImpl(Loss):
         value_loss_type = getattr(self.config, 'value_loss', 'mse')
         v_clip_frac = 0
         if value_loss_type == 'huber':
-            raw_value_loss = rl_loss.huber_loss(
+            raw_value_loss = jax_loss.huber_loss(
                 value, 
                 traj_ret, 
                 threshold=self.config.huber_threshold
@@ -112,7 +112,7 @@ class ValueLossImpl(Loss):
         elif value_loss_type == 'mse':
             raw_value_loss = .5 * (value - traj_ret)**2
         elif value_loss_type == 'clip' or value_loss_type == 'clip_huber':
-            raw_value_loss, v_clip_frac = rl_loss.clipped_value_loss(
+            raw_value_loss, v_clip_frac = jax_loss.clipped_value_loss(
                 value, 
                 traj_ret, 
                 old_value, 
@@ -124,7 +124,7 @@ class ValueLossImpl(Loss):
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
         
-        raw_value_loss, value_loss = rl_loss.to_loss(
+        raw_value_loss, value_loss = jax_loss.to_loss(
             raw_value_loss, 
             coef=self.config.value_coef, 
             mask=sample_mask, 

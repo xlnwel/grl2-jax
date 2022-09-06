@@ -2,9 +2,9 @@ import logging
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from utility.schedule import TFPiecewiseSchedule
-from utility.tf_utils import explained_variance, tensor2numpy
-from utility.rl_loss import ppo_loss
+from tools.schedule import TFPiecewiseSchedule
+from tools.tf_utils import explained_variance, tensor2numpy
+from jax_utils.jax_loss import ppo_loss
 from optimizers.adam import Adam
 from core.tf_config import build
 from core.optimizer import Optimizer

@@ -4,7 +4,7 @@
 import numpy as np
 import tensorflow as tf
 
-from utility.rl_loss import v_trace
+from jax_utils.jax_loss import v_trace
 
 
 def _shaped_arange(*shape):

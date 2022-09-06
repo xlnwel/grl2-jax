@@ -6,9 +6,8 @@ import numpy as np
 from typing import Dict, List, Tuple, Union
 
 from core.log import do_logging
-from core.typing import ModelPath
-from utility.rms import RunningMeanStd, combine_rms
-from utility.utils import dict2AttrDict
+from core.typing import ModelPath, dict2AttrDict
+from tools.rms import RunningMeanStd, combine_rms
 
 logger = logging.getLogger(__name__)
 

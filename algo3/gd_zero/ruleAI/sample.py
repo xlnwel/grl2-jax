@@ -16,7 +16,7 @@ from env.guandan.infoset import get_obs
 from env.guandan.utils import PASS, ActionType2Num
 from env.typing import EnvOutput
 from replay.utils import save_data, load_data
-from utility.utils import batch_dicts
+from tools.utils import batch_dicts
 
 logger = logging.getLogger(__name__)
 

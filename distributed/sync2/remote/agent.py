@@ -8,7 +8,7 @@ from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.monitor import Monitor
 from core.remote.base import RayBase
-from utility.display import print_dict_info, pwt
+from tools.display import pwt
 
 
 class Agent(RayBase):

@@ -3,7 +3,7 @@ from typing import Tuple
 import numpy as np
 import tensorflow as tf
 
-from utility.typing import AttrDict
+from core.typing import AttrDict
 
 
 def compute_inner_steps(config):

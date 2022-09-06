@@ -2,8 +2,8 @@ import logging
 import numpy as np
 import tensorflow as tf
 
-from utility.tf_utils import tensor2numpy
-from utility.rl_loss import ppo_loss
+from tools.tf_utils import tensor2numpy
+from jax_utils.jax_loss import ppo_loss
 from core.tf_config import build
 from core.decorator import override
 from core.decorator import step_track

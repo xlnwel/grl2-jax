@@ -1,7 +1,7 @@
 import numpy as np
 
 from core.elements.actor import Actor
-from utility.display import print_dict
+from tools.display import print_dict
 
 
 class MAPPOActor(Actor):

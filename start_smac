@@ -3,7 +3,7 @@
 source activate grl
 
 algos=(
-    sync2-zero
+    sync2-zero_ir
 )
 suite=smac
 envs=(

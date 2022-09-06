@@ -1,4 +1,4 @@
-from utility.typing import namedarraytuple
+from core.typing import namedarraytuple
 
 
 # for multi-processing efficiency, we do not return info at every step

@@ -1,6 +1,6 @@
 import numpy as np
 
-from utility.utils import standardize
+from tools.utils import standardize
 
 
 gamma = .99

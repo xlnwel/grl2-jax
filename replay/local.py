@@ -5,7 +5,7 @@ import math
 import numpy as np
 
 from core.decorator import config
-from utility.utils import batch_dicts
+from tools.utils import batch_dicts
 from replay.utils import *
 
 logger = logging.getLogger(__name__)

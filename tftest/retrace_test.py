@@ -19,7 +19,7 @@
 import numpy as np
 import tensorflow as tf
 
-from utility.rl_loss import retrace
+from jax_utils.jax_loss import retrace
 
 
 class RetraceTest(tf.test.TestCase):

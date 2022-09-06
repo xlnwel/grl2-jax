@@ -4,7 +4,7 @@ import ray
 
 from core.decorator import record
 from core.agent import AgentImpl
-from utility.graph import video_summary
+from tools.graph import video_summary
 
 
 class Monitor(AgentImpl):

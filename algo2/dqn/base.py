@@ -2,8 +2,8 @@ import logging
 import numpy as np
 import tensorflow as tf
 
-from utility.tf_utils import log_softmax
-from utility.schedule import TFPiecewiseSchedule
+from tools.tf_utils import log_softmax
+from tools.schedule import TFPiecewiseSchedule
 from core.tf_config import build
 from core.agent import AgentBase
 from core.mixin import ActionScheduler, TargetNetOps

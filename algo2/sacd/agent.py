@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from utility.rl_loss import n_step_target
-from utility.tf_utils import explained_variance
+from jax_utils.jax_loss import n_step_target
+from tools.tf_utils import explained_variance
 from core.decorator import override
 from algo.dqn.base import DQNBase, get_data_format, collect
 from algo.sacd.base import TempLearner

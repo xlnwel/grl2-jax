@@ -2,7 +2,7 @@ import numpy as np
 
 from core.elements.actor import Actor
 from core.elements.strategy import Strategy
-from utility.utils import dict2AttrDict
+from tools.utils import dict2AttrDict
 
 
 class RandomActor(Actor):

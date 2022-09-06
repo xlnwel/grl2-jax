@@ -9,9 +9,9 @@ from core.remote.base import RayBase
 from core.typing import ModelPath
 from core.utils import save_config
 from run.utils import search_for_all_configs, search_for_config
-from utility.display import pwc
-from utility.timer import Every
-from utility.utils import dict2AttrDict
+from tools.display import pwc
+from tools.timer import Every
+from tools.utils import dict2AttrDict
 
 
 AlgoStrategy = collections.namedtuple('algo_strategy', 'algo strategy')
@@ -209,6 +209,6 @@ class ParameterServer(RayBase):
 
 if __name__ == '__main__':
     from env.func import get_env_stats
-    from utility.yaml_op import load_config
+    from tools.yaml_op import load_config
     config = load_config('algo/gd/configs/builtin.yaml')
     ps = ParameterServer(config)

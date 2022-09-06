@@ -2,8 +2,67 @@ import os
 import logging
 from datetime import datetime
 
-from utility.display import colorize, pwt, pwc, pwtc
-from utility.utils import get_frame
+from tools.utils import get_frame
+
+
+color2num = dict(
+    gray=30,
+    red=31,
+    green=32,
+    yellow=33,
+    blue=34,
+    magenta=35,
+    cyan=36,
+    white=37,
+    crimson=38
+)
+
+def colorize(
+    string, 
+    color, 
+    bold=False, 
+    highlight=False
+):
+    """
+    Colorize a string.
+
+    This function was originally written by John Schulman.
+    """
+    attr = []
+    num = color2num[color]
+    if highlight: num += 10
+    attr.append(str(num))
+    if bold: attr.append('1')
+    return f'\x1b[{";".join(attr)}m{string}\x1b[0m'
+
+def pwc(
+    *args, 
+    color='red', 
+    bold=False, 
+    highlight=False, 
+    **kwargs
+):
+    """
+    Print with color
+    """
+    if isinstance(args, (tuple, list)):
+        for s in args:
+            print(colorize(s, color, bold, highlight), **kwargs)
+    else:
+        print(colorize(args, color, bold, highlight), **kwargs)
+
+
+def pwt(*args, **kwargs):
+    print(datetime.now(), *args, **kwargs)
+
+
+def pwtc(*args, color='red', bold=False, highlight=False, **kwargs):
+    args = (datetime.now(),) + args
+    pwc(*args, color=color, bold=bold, highlight=highlight, **kwargs)
+
+
+def assert_colorize(cond, err_msg=''):
+    assert cond, colorize(err_msg, 'red')
 
 
 """ Logging operations """
@@ -24,11 +83,12 @@ def get_sys_logger(backtrack=1):
     logger = logging.getLogger(filename)
     return logger
 
+
 def do_logging(
     x, 
     prefix='', 
     logger=None, 
-    level='INFO', 
+    level='pwt', 
     func_lineno=None, 
     backtrack=2, 
     time=False, 
@@ -77,7 +137,8 @@ def do_logging(
                 do_logging(
                     v, 
                     logger=logger, 
-                    prefix=prefix, 
+                    prefix=f'{prefix}\t', 
+                    level=level, 
                     func_lineno=func_lineno, 
                     time=time, 
                     color=color, 
@@ -93,7 +154,8 @@ def do_logging(
                 do_logging(
                     v, 
                     logger=logger, 
-                    prefix=prefix, 
+                    prefix=f'{prefix}\t', 
+                    level=level, 
                     func_lineno=func_lineno, 
                     time=time, 
                     color=color, 

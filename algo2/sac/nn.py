@@ -3,10 +3,10 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
 
-from core.module import Module, Ensemble
+from core.ensemble import Module, Ensemble
 from core.decorator import config
-from utility.rl_utils import logpi_correction, epsilon_greedy, q_log_prob
-from utility.schedule import TFPiecewiseSchedule
+from tools.rl_utils import logpi_correction, epsilon_greedy, q_log_prob
+from tools.schedule import TFPiecewiseSchedule
 from nn.func import mlp
 from nn.utils import get_initializer
 

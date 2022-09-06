@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from core.elements.loss import LossEnsemble
-from utility.tf_utils import explained_variance, reduce_mean
+from tools.tf_utils import explained_variance, reduce_mean
 from algo.gpo.elements.loss import ValueLossImpl, PPOPolicyLoss
 
 

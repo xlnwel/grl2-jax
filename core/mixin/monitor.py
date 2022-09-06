@@ -3,13 +3,13 @@ import logging
 from collections import defaultdict
 from typing import Union
 import numpy as np
+import jax.numpy as jnp
 import tensorflow as tf
 
 from core.log import do_logging
 from core.typing import ModelPath
-from utility import graph
-from utility.utils import isscalar
-
+from tools import graph
+from tools.utils import isscalar
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +55,8 @@ class Recorder:
 
     def store(self, **kwargs):
         for k, v in kwargs.items():
-            if isinstance(v, tf.Tensor):
-                v = v.numpy()
+            if isinstance(v, (jnp.DeviceArray)):
+                v = np.array(v)
             if v is None:
                 continue
             elif isinstance(v, (list, tuple)):
@@ -124,7 +124,7 @@ class Recorder:
                 try:
                     stats[f'{k}_min'] = np.min(v).astype(np.float32)
                 except:
-                    print(k, v)
+                    print(k)
                     assert False
             if k_max:
                 stats[f'{k}_max'] = np.max(v).astype(np.float32)

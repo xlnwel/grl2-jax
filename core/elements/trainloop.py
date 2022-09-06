@@ -1,7 +1,6 @@
 from core.elements.trainer import Trainer
-from utility.timer import Timer
-from utility.typing import AttrDict
-from utility.utils import dict2AttrDict
+from tools.timer import Timer
+from core.typing import AttrDict, dict2AttrDict
 
 
 class TrainingLoopBase:
@@ -15,6 +14,7 @@ class TrainingLoopBase:
         self.config = dict2AttrDict(config)
         self.dataset = dataset
         self.trainer = trainer
+        self.model = self.trainer.model
 
         self.use_dataset = self.config.get('use_dataset', False)
 

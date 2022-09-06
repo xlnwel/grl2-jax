@@ -4,8 +4,8 @@ import tensorflow as tf
 
 from core.elements.model import Model
 from core.tf_config import build
-from utility.file import source_file
-from utility.tf_utils import assert_rank
+from tools.file import source_file
+from tools.tf_utils import assert_rank
 
 
 # register networks 
@@ -380,7 +380,7 @@ if __name__ == '__main__':
     import os
     from tensorflow.keras import layers
     from env.func import create_env
-    from utility.yaml_op import load_config
+    from tools.yaml_op import load_config
     config = load_config('algo/gd/configs/builtin.yaml')
     env = create_env(config['env'])
     env_stats = env.stats()

@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from core.module import Module, Ensemble
+from core.ensemble import Module, Ensemble
 from core.decorator import config
 from algo.dqn.nn import Q
 from nn.func import Encoder, mlp

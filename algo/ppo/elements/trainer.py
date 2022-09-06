@@ -4,8 +4,8 @@ import tensorflow as tf
 from core.elements.trainer import Trainer, create_trainer
 from core.decorator import override
 from core.tf_config import build
-from utility.display import print_dict
-from utility import pkg
+from tools.display import print_dict
+from tools import pkg
 
 
 class PPOTrainer(Trainer):

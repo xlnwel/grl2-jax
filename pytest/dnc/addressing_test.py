@@ -269,7 +269,7 @@ class TestClass:
 
 
 if __name__ == '__main__':
-    from utility.timer import Timer
+    from tools.timer import Timer
     writer = tf.summary.create_file_writer(f'logs/dnc_profiler')
     writer.set_as_default()
     test = TestClass()

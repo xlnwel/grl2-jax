@@ -1,14 +1,16 @@
 import os
+import logging
 import tensorflow as tf
 
 from core.log import do_logging
 from core.tf_config import build
-from utility.file import source_file
+from tools.file import source_file
 from .utils import compute_inner_steps, get_hx
 from algo.zero.elements.model import Model as ModelBase, ModelEnsemble
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
+logger = logging.getLogger(__name__)
 
 
 class Model(ModelBase):
@@ -24,7 +26,10 @@ class Model(ModelBase):
         dtypes = env_stats['obs_dtype'][aid]
         TensorSpecs = {k: ((*basic_shape, *v), dtypes[k], k) 
             for k, v in shapes.items()}
-        TensorSpecs['prev_hidden_state'] = TensorSpecs['hidden_state']
+        if 'hidden_state' in TensorSpecs:
+            TensorSpecs['prev_hidden_state'] = TensorSpecs['hidden_state']
+        if 'sid' in TensorSpecs:
+            TensorSpecs['prev_sid'] = TensorSpecs['sid']
         if 'idx' in TensorSpecs:
             TensorSpecs['prev_idx'] = TensorSpecs['idx']
         if 'event' in TensorSpecs:
@@ -47,13 +52,14 @@ class Model(ModelBase):
             TensorSpecs['life_mask'] = (
                 basic_shape, tf.float32, 'life_mask'
             )
-        do_logging(TensorSpecs, prefix='Tensor Specifications', level='print')
+        do_logging(TensorSpecs, prefix='Tensor Specifications', logger=logger, level='info')
         self.action = build(self.action, TensorSpecs)
 
     @tf.function
     def action(
         self, 
         obs, 
+        sid=None, 
         idx=None, 
         event=None, 
         global_state=None, 
@@ -62,6 +68,7 @@ class Model(ModelBase):
         life_mask=None, 
         prev_reward=None,
         prev_action=None,
+        prev_sid=None, 
         prev_idx=None, 
         prev_event=None, 
         prev_hidden_state=None, 
@@ -71,7 +78,7 @@ class Model(ModelBase):
         return_eval_stats=False
     ):
         x, state = self.encode(obs, state=state, mask=mask)
-        hx = get_hx(idx, event)
+        hx = get_hx(sid, idx, event)
         act_dist = self.policy(
             x, hx=hx, 
             action_mask=action_mask, 
@@ -93,17 +100,16 @@ class Model(ModelBase):
         if global_state is None:
             global_state = x
         if evaluation:
-            if self.config.meta_reward_type == 'shaping':
-                prev_hx = get_hx(prev_idx, prev_event)
-            else:
-                prev_hx = None
             terms = self.compute_eval_terms(
                 global_state, 
                 prev_hidden_state, 
                 hidden_state, 
                 action, 
-                prev_hx, 
-                hx
+                hx, 
+                prev_idx, 
+                idx, 
+                prev_event, 
+                event
             )
             
             return action, terms, state
@@ -121,19 +127,35 @@ class Model(ModelBase):
         prev_hidden_state, 
         hidden_state, 
         action, 
-        prev_hx, 
-        hx
+        hx, 
+        prev_idx, 
+        idx, 
+        prev_event, 
+        event, 
     ):
         value = self.value(global_state, hx=hx)
         value = tf.squeeze(value)
-        _, meta_reward, trans_reward = self.compute_meta_reward(
-            prev_hidden_state, hidden_state, action, 
-            hx=prev_hx, next_hx=hx, shift=True
-        )
-        meta_reward = tf.squeeze(meta_reward)
-        trans_reward = tf.squeeze(trans_reward)
-        terms = {'meta_reward': meta_reward, 'trans_reward': trans_reward, 
-            'value': value, 'action': action}
+        if self.config.K:
+            _, meta_reward, trans_reward = self.compute_meta_reward(
+                prev_hidden_state, 
+                hidden_state, 
+                action, 
+                idx=prev_idx, 
+                next_idx=idx, 
+                event=prev_event, 
+                next_event=event, 
+                shift=True
+            )
+            meta_reward = tf.squeeze(meta_reward)
+            trans_reward = tf.squeeze(trans_reward)
+            terms = {
+                'meta_reward': meta_reward, 
+                'trans_reward': trans_reward, 
+                'value': value, 
+                'action': action
+            }
+        else:
+            terms = {'value': value, 'action': action}
         return terms
 
     def compute_meta_reward(
@@ -147,13 +169,13 @@ class Model(ModelBase):
         next_event=None, 
         hx=None, 
         next_hx=None, 
-        shift=False,    # if hidden_state/idx/event are shifted by one step. If so action is at the same step as the next stats
+        shift=False,    # whether to shift hidden_state/idx/event by one step. If so action is at the same step as the next stats
     ):
         if hx is None:
             hx = get_hx(idx, event)
+        if next_hx is None:
+            next_hx = get_hx(next_idx, next_event)
         if self.config.meta_reward_type == 'shaping':
-            if next_hx is None:
-                next_hx = get_hx(next_idx, next_event)
             phi = self.meta_reward(hidden_state, hx=hx)
             next_phi = self.meta_reward(next_hidden_state, hx=next_hx)
             x, meta_reward = self.config.gamma * next_phi - phi

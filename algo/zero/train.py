@@ -7,11 +7,11 @@ from core.log import do_logging
 from core.mixin.actor import rms2dict
 from core.tf_config import \
     configure_gpu, configure_precision, silence_tf_logs
-from utility.display import pwt
-from utility.utils import AttrDict2dict, TempStore, set_seed
-from utility.run import Runner
-from utility.timer import Every, Timer
-from utility import pkg
+from tools.display import pwt
+from tools.utils import AttrDict2dict, TempStore, set_seed
+from tools.run import Runner
+from tools.timer import Every, Timer
+from tools import pkg
 from env.func import create_env
 
 
@@ -154,7 +154,7 @@ def main(configs, train=train, gpu=-1):
     configure_precision(config.precision)
     use_ray = config.routine.get('EVAL_PERIOD', False)
     if use_ray:
-        from utility.ray_setup import sigint_shutdown_ray
+        from tools.ray_setup import sigint_shutdown_ray
         ray.init(num_cpus=config.env.n_runners)
         sigint_shutdown_ray()
 

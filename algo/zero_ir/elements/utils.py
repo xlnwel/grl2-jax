@@ -1,6 +1,6 @@
 from algo.zero.elements.utils import *
 
-from utility import rl_loss
+from jax_utils import jax_loss
 
 
 def compute_joint_stats(
@@ -15,7 +15,7 @@ def compute_joint_stats(
     joint_pi_logprob = tf.math.reduce_sum(pi_logprob, axis=-1)
 
     with tape.stop_recording():
-        v_target, advantage = rl_loss.compute_target_advantage(
+        v_target, advantage = jax_loss.compute_target_advantage(
             config=config, 
             reward=tf.reduce_mean(reward, axis=-1), 
             discount=tf.math.reduce_max(discount, axis=-1), 

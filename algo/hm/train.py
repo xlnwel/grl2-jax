@@ -5,11 +5,11 @@ from core.elements.builder import ElementsBuilder
 from core.mixin.actor import rms2dict
 from core.tf_config import \
     configure_gpu, configure_precision, silence_tf_logs
-from utility.display import pwt
-from utility.utils import TempStore, set_seed
-from utility.run import Runner, evaluate
-from utility.timer import Every, Timer
-from utility import pkg
+from tools.display import pwt
+from tools.utils import TempStore, set_seed
+from tools.run import Runner, evaluate
+from tools.timer import Every, Timer
+from tools import pkg
 from env.func import create_env
 
 
@@ -144,7 +144,7 @@ def main(configs, train=train):
     use_ray = config.env.get('n_runners', 1) > 1
     if use_ray:
         import ray
-        from utility.ray_setup import sigint_shutdown_ray
+        from tools.ray_setup import sigint_shutdown_ray
         ray.init()
         sigint_shutdown_ray()
 

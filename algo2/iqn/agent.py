@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from utility.tf_utils import softmax, log_softmax
-from utility.rl_loss import n_step_target, quantile_regression_loss
+from tools.tf_utils import softmax, log_softmax
+from jax_utils.jax_loss import n_step_target, quantile_regression_loss
 from core.decorator import override
 from algo.dqn.base import DQNBase, get_data_format, collect
 from algo.iqn.base import IQNOps

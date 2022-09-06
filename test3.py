@@ -1,22 +1,20 @@
 import tensorflow as tf
+from core.optimizer import create_optimizer
 from core.tf_config import configure_gpu
 from nn.func import mlp
 from optimizers.rmsprop import RMSprop
-from utility.utils import set_seed
+from tools.timer import Timer
+from tools.utils import set_seed
 
 configure_gpu(0)
 set_seed(0)
 
+eta = tf.Variable(1, dtype=tf.float32)
 
-def inner(x, meta_tape, inner_opt, eta, l):
-    with meta_tape:
-        with tf.GradientTape() as inner_tape:
-            x = l(x)
-            loss = tf.reduce_mean(eta * (x-2)**2)
-        grads = inner_tape.gradient(loss, l.variables)
-        inner_opt.apply_gradients(zip(grads, l.variables))
-    trans_grads = list(inner_opt.get_transformed_grads().values())
-    return trans_grads
+def loss_fn(tape, x, **kwargs):
+    x = l(x)
+    loss = tf.reduce_mean(eta * (x-2)**2)
+    return loss, {}
 
 
 def compute_meta_grads_at_single_step(
@@ -63,20 +61,32 @@ def compute_meta_gradients(
         grads.append(new_grads)
     return grads
 
-from utility.meta import *
+from tools.meta import *
 
-meta_opt = RMSprop(1e-3)
-inner_opt = RMSprop(1e-3)
-meta_tape = tf.GradientTape(persistent=True)
+opt_config = dict(
+    opt_name=RMSprop, 
+    lr=1e-3
+)
 l = mlp([2, 4], out_size=1, activation='relu')
+meta_opt = create_optimizer([l], opt_config, f'outer_opt')
+inner_opt = create_optimizer([l], opt_config, f'inner_opt')
+meta_tape = tf.GradientTape(persistent=True)
 # l = tf.keras.layers.Dense(1)
-eta = tf.Variable(1, dtype=tf.float32)
+# eta = tf.Variable(1, dtype=tf.float32)
 
-# @tf.function
+@tf.function
 def outer(x, n):
+    theta_list = [l.variables]
     grads_list = []
     for _ in range(n):
-        grads_list.append(inner(x, meta_tape, inner_opt, eta, l))
+        _, tl, gl = inner_epoch(
+            opt=inner_opt, 
+            loss_fn=loss_fn, 
+            x=x, 
+            return_stats_for_meta=True
+        )
+        theta_list += tl
+        grads_list += gl
     # print('grads list', *grads_list)
     with meta_tape:
         x = l(x)
@@ -87,12 +97,11 @@ def outer(x, n):
     # print(meta_tape.gradient(loss, l.variables))
 
     grads = compute_meta_gradients(
-        meta_tape, 
-        loss, 
-        grads_list, 
-        l.variables,
-        eta, 
-        # n
+        meta_tape=meta_tape, 
+        meta_loss=loss, 
+        theta_list=theta_list, 
+        grads_list=grads_list, 
+        eta=eta, 
     )
 
     return grads
@@ -101,5 +110,8 @@ def outer(x, n):
 if __name__ == '__main__':
     x = tf.random.uniform((2, 3))
     print('x', x)
+    l(x)
+    # with Timer('mg', 1):
+    #     for _ in range(1000):
     grads = outer(x, 3)
     print('grads', grads)

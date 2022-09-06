@@ -2,7 +2,7 @@ import functools
 import logging
 import numpy as np
 
-from utility.utils import config_attr
+from tools.utils import config_attr
 from algo.ppo.buffer import Buffer as PPOBuffer, reshape_to_sample, reshape_to_store, compute_indices
 
 

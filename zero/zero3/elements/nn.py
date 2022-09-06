@@ -2,10 +2,10 @@ import numpy as np
 import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
-from core.module import Module
+from core.ensemble import Module
 from nn.func import mlp, nn_registry
 from algo.ppo.elements.nn import Value
-from utility.tf_utils import assert_rank
+from tools.tf_utils import assert_rank
 
 
 @nn_registry.register('policy')

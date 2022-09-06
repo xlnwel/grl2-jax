@@ -2,7 +2,8 @@ import itertools
 import numpy as np
 import cv2
 
-from utility.utils import batch_dicts, dict2AttrDict, convert_batch_with_func
+from core.typing import dict2AttrDict
+from tools.utils import batch_dicts, convert_batch_with_func
 from env import make_env
 from env.typing import EnvOutput
 from env.utils import batch_env_output, batch_ma_env_output

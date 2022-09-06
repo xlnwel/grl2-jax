@@ -6,10 +6,10 @@ import numpy as np
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
-from utility import div
-from utility.rms import RunningMeanStd
-from utility.typing import AttrDict
-from utility.utils import batch_dicts, dict2AttrDict, moments, standardize
+from tools import div
+from tools.rms import RunningMeanStd
+from core.typing import AttrDict
+from tools.utils import batch_dicts, dict2AttrDict, moments, standardize
 from .utils import collect
 
 logger = logging.getLogger(__name__)

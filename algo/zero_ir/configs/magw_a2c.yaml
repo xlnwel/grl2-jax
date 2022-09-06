@@ -14,9 +14,9 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 5e7
-    n_steps: &nsteps 4
-    LOG_PERIOD: 1e5
-    EVAL_PERIOD: 1e6
+    n_steps: &nsteps 8
+    LOG_PERIOD: 5e5
+    EVAL_PERIOD: 5e6
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
@@ -24,12 +24,13 @@ routine:
 
 env:
     env_name: &env_name grid_world-staghunt
-    n_runners: &nrunners 4
-    n_envs: &nenvs 8
+    n_runners: &nrunners 1
+    n_envs: &nenvs 32
     max_episode_steps: 50
     share_reward: False
     stag_stay_still: True
-    reward_scale: 1
+    reward_scale: .1
+    population_size: 1
     representation: raw
 
     uid2aid: [0, 0]
@@ -43,7 +44,7 @@ strategy:
     algorithm: *algo
     train_loop:
         use_dataset: &dataset False
-        K: &K 5
+        K: &K 0
         L: &L 0
         extra_meta_step: &ems 1 # 0/1
 
@@ -73,7 +74,7 @@ model:
         norm: null
         eval_act_temp: 1
         out_gain: .01
-        indexed: head
+        indexed: all
         indexed_config:
             use_shared_bias: False
             use_bias: True
@@ -85,7 +86,7 @@ model:
         kernel_initializer: orthogonal
         activation: relu
         norm: null
-        indexed: head
+        indexed: all
         indexed_config:
             use_shared_bias: False
             use_bias: True
@@ -98,10 +99,10 @@ model:
         activation: relu
         norm: null
         out_gain: .01
-        out_scale: 1
+        out_scale: .1
         out_act: atan
         combine_sa: False
-        indexed: head
+        indexed: all
         indexed_config:
             use_shared_bias: False
             use_bias: True
@@ -113,7 +114,7 @@ model:
         kernel_initializer: orthogonal
         activation: relu
         norm: null
-        indexed: null
+        indexed: all
         indexed_config:
             use_shared_bias: False
             use_bias: True
@@ -199,7 +200,7 @@ loss:
         value_life_mask: False
         stop_target_grads: False
 
-        joint_objective: True
+        joint_objective: False
     meta:
         # hyperparams for value target and advantage
         target_type: gae
@@ -227,7 +228,7 @@ loss:
 
         # hyperparams for meta-learning
         meta_reward_coef: 0
-        joint_objective: True
+        joint_objective: False
 
 trainer:
     algorithm: *algo
@@ -298,9 +299,10 @@ buffer:
 
     sample_keys: 
         - obs
-        - idx
+        # - sid
+        # - idx
         # - event
-        - hidden_state
+        # - hidden_state
         - action
         - value
         - reward

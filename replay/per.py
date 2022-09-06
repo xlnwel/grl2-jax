@@ -1,7 +1,7 @@
 import numpy as np
 
 from core.decorator import override
-from utility.schedule import PiecewiseSchedule
+from tools.schedule import PiecewiseSchedule
 from replay.base import Replay
 from replay.ds.sum_tree import SumTree
 

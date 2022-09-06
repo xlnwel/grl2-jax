@@ -1,8 +1,8 @@
 import tensorflow as tf
-from core.tf_config import configure_gpu
-from nn.func import mlp
+from tf_core.tf_config import configure_gpu
+from tf_nn.func import mlp
 from optimizers.rmsprop import RMSprop
-from utility.utils import set_seed
+from tools.utils import set_seed
 
 configure_gpu(0)
 set_seed(0)

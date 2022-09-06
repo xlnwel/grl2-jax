@@ -7,10 +7,9 @@ from ..remote.parameter_server import ParameterServer
 from ..remote.runner import MultiAgentSimRunner
 from core.monitor import Monitor
 from core.remote.base import ManagerBase, RayBase
-from core.typing import ModelPath
-from utility.display import pwt
-from utility.typing import AttrDict
-from utility.utils import AttrDict2dict, batch_dicts
+from core.typing import ModelPath, AttrDict, AttrDict2dict
+from tools.display import pwt
+from tools.utils import batch_dicts
 
 
 class RunnerManager(ManagerBase):

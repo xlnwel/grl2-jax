@@ -11,17 +11,16 @@ from ..remote.monitor import Monitor
 from ..remote.parameter_server import ParameterServer
 from core.ckpt.base import YAMLCheckpointBase
 from core.log import do_logging
-from core.typing import ModelPath, get_basic_model_name
+from core.typing import ModelPath, get_basic_model_name, AttrDict, dict2AttrDict
 from core.utils import save_code
 from env.func import get_env_stats
 from gt.alpharank import AlphaRank
 from run.utils import search_for_all_configs, search_for_config
-from utility.process import run_ray_process
-from utility.schedule import PiecewiseSchedule
-from utility.timer import Every, Timer
-from utility.typing import AttrDict
-from utility.utils import batch_dicts, dict2AttrDict, eval_config, modify_config
-from utility import yaml_op
+from tools.process import run_ray_process
+from tools.schedule import PiecewiseSchedule
+from tools.timer import Every, Timer
+from tools.utils import batch_dicts, eval_config, modify_config
+from tools import yaml_op
 
 
 logger = logging.getLogger(__name__)

@@ -1,12 +1,11 @@
 from typing import Any, List
 import ray
 
-from core.tf_config import configure_gpu, silence_tf_logs
-from utility.utils import set_seed
+from core.utils import configure_gpu, set_seed
+
 
 class RayBase:
     def __init__(self, id=None, seed=None):
-        silence_tf_logs()
         configure_gpu()
         if seed is not None:
             if id is not None:

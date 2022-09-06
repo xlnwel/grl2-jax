@@ -1,6 +1,6 @@
 import ray
 
-from utility.utils import config_attr
+from tools.utils import config_attr
 
 
 def get_actor_base_class(AgentBase):

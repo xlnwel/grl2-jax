@@ -3,10 +3,10 @@ import functools
 import numpy as np
 import ray
 
-from utility import pkg
-from utility.ray_setup import config_actor
-from utility.run import Runner, RunMode
-from utility.timer import Timer
+from tools import pkg
+from tools.ray_setup import config_actor
+from tools.run import Runner, RunMode
+from tools.timer import Timer
 from env.func import create_env
 from algo.apex.actor.actor import get_actor_base_class
 

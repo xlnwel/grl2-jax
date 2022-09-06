@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 
 from core.log import do_logging
-from utility.utils import infer_dtype
+from tools.utils import infer_dtype
 
 
 logger = logging.getLogger(__name__)

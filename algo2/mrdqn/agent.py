@@ -1,8 +1,8 @@
 import tensorflow as tf
 
-from utility.tf_utils import softmax, log_softmax, explained_variance
-from utility.rl_utils import *
-from utility.rl_loss import retrace
+from tools.tf_utils import softmax, log_softmax, explained_variance
+from tools.rl_utils import *
+from jax_utils.jax_loss import retrace
 from core.decorator import override
 from algo.mrdqn.base import RDQNBase, get_data_format, collect
 

@@ -1,11 +1,11 @@
 import functools
 import numpy as np
 
-from utility.utils import Every, TempStore
-from utility.graph import video_summary
-from utility.run import Runner, evaluate
-from utility.timer import Timer
-from utility import pkg
+from tools.utils import Every, TempStore
+from tools.graph import video_summary
+from tools.run import Runner, evaluate
+from tools.timer import Timer
+from tools import pkg
 from replay.func import create_replay
 from algo.ppo.train import main
 

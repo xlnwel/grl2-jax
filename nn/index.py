@@ -1,140 +1,211 @@
 import string
-import tensorflow as tf
+import jax.numpy as jnp
+import haiku as hk
+import chex
 
-from core.module import Module
 from nn.func import mlp, nn_registry
+from nn.layers import Layer
 from nn.utils import get_initializer
-from utility.utils import dict2AttrDict
+from core.typing import dict2AttrDict
 
 
-class IndexedLayer(Module):
-    def __init__(self, name='indexed_layer', **config):
+class FixedInitializer(hk.initializers.Initializer):
+  """Initializes by sampling from a normal distribution."""
+
+  def __init__(self, init):
+    """Constructs a :class:`RandomNormal` initializer.
+    Args:
+      stddev: The standard deviation of the normal distribution to sample from.
+      mean: The mean of the normal distribution to sample from.
+    """
+    self.init = init
+
+  def __call__(self, shape, dtype):
+    chex.assert_shape(self.init, shape)
+    chex.assert_type(self.init, dtype)
+    return self.init
+
+
+class IndexParams(hk.Module):
+    def __init__(
+        self, 
+        *, 
+        w_in, 
+        w_out, 
+        w_init='orthogonal', 
+        use_bias, 
+        scale=1.,
+        name='index_params', 
+    ):
         super().__init__(name=name)
-        self.scope_name = name
 
-        self.w_in = config.pop('w_in')
-        self.w_out = config.pop('w_out')
-        self.n = config.pop('n', 1)
-        initializer = config.pop('kernel_initializer', 'orthogonal')
-        self.initializer = get_initializer(initializer, gain=config.pop('gain', 1.))
-        self.use_bias = config.pop('use_bias')
+        self.w_in = w_in
+        self.w_out = w_out
+        self.w_init = get_initializer(w_init, scale=scale)
+        self.use_bias = use_bias
 
-    def build(self, x):
-        w_in = 1 if self.w_in is None else self.w_in
-        inits = [self.initializer((w_in, self.w_out)) for _ in range(x[-1])]
-        init = tf.stack(inits)
-        self.w = tf.Variable(
-            init, 
-            name=f'{self.scope_name}_w', 
-            dtype=tf.float32, 
-            trainable=True
-        )
-        if self.use_bias:
-            init = (self.w_out,) if self.w_in is None else (w_in, self.w_out)
-            self.b = tf.Variable(
-                tf.zeros(init),
-                name=f'{self.scope_name}_b', 
-                dtype=tf.float32, 
-                trainable=True
-            )
+    def __call__(self, x):
+        w, b = self.build_net(x)
 
-    def call(self, x):
-        # tf.debugging.assert_equal(tf.reduce_sum(x, -1), tf.cast(self.n, tf.float32))
         pre = string.ascii_lowercase[:len(x.shape)-1]
         eqt = f'{pre}h,hio->{pre}io'
-        x = tf.einsum(eqt, x, self.w)
+        x = jnp.einsum(eqt, x, w)
         if self.w_in is None:
-            x = tf.reshape(x, (-1, *x.shape[1:-2], self.w_out))
+            x = jnp.reshape(x, (*x.shape[:-2], self.w_out))
         if self.use_bias:
-            x = x + self.b
+            x = x + b
 
         return x
 
+    @hk.transparent
+    def build_net(self, x):
+        w_in = 1 if self.w_in is None else self.w_in
+        inits = [self.w_init((w_in, self.w_out), x.dtype) 
+            for _ in range(x.shape[-1])]
+        init = jnp.stack(inits)
+        init_shape = init.shape
+        init = FixedInitializer(init)
+        w = hk.get_parameter('w', shape=init_shape, init=init)
+        if self.use_bias:
+            init_shape = (self.w_out,) if self.w_in is None else (w_in, self.w_out)
+            init = hk.initializers.Constant(0)
+            b = hk.get_parameter('b', shape=init_shape, init=init)
+        else:
+            b = 0
+
+        return w, b
+
 
 @nn_registry.register('index')
-class IndexedNet(Module):
-    def __init__(self, name='indexed_net', **config):
+class IndexLayer(hk.Module):
+    def __init__(
+        self, 
+        out_size, 
+        use_bias=True, 
+        use_shared_bias=False, 
+        name='index_layer', 
+        **config
+    ):
         super().__init__(name=name)
-        self._raw_name = name
         
-        self.out_size = config.pop('out_size')
-        self.use_bias = config.pop('use_bias', True)
-        self.use_shared_bias = config.pop('use_shared_bias', False)
-        self.config = dict2AttrDict(config)
-    
-    def build(self, x, hx):
+        self.config = dict2AttrDict(config, to_copy=True)
+        self.out_size = out_size
+        self.use_bias = use_bias
+        self.use_shared_bias = use_shared_bias
+ 
+    def __call__(self, x, hx):
+        assert hx is not None, hx
+        wlayer, blayer = self.build_net(x)
+        
+        w = wlayer(hx)
+        pre = string.ascii_lowercase[:len(x.shape)-1]
+        eqt = f'{pre}h,{pre}ho->{pre}o'
+        out = jnp.einsum(eqt, x, w)
+        if self.use_bias:
+            out = out + blayer(hx)
+
+        return out
+
+    @hk.transparent
+    def build_net(self, x):
         config = self.config.copy()
         config['use_bias'] = self.use_shared_bias  # no bias to avoid any potential parameter sharing
         w_config = config.copy()
-        w_config['w_in'] = x[-1]
+        w_config['w_in'] = x.shape[-1]
         w_config['w_out'] = self.out_size
-        self._wlayer = IndexedLayer(**w_config, name=f'{self._raw_name}_w')
+        wlayer = IndexParams(**w_config, name='w')
 
         if self.use_bias:
             b_config = config.copy()
             b_config['w_in'] = None
             b_config['w_out'] = self.out_size
-            self._blayer = IndexedLayer(**b_config, name=f'{self._raw_name}_b')
-
-    def call(self, x, hx):
-        assert hx is not None, hx
-        w = self._wlayer(hx)
-        pre = string.ascii_lowercase[:len(x.shape)-1]
-        eqt = f'{pre}h,{pre}ho->{pre}o'
-        out = tf.einsum(eqt, x, w)
-        if self.use_bias:
-            out = out + self._blayer(hx)
-
-        return out
-
-
-class IndexedModule(Module):
-    def _build_nets(self, config, out_size):
-        self.indexed = config.pop('indexed', None)
-        indexed_config = config.pop('indexed_config', {})
-        indexed_config['kernel_initializer'] = config.get(
-            'kernel_initializer', 'orthogonal')
-        if self.indexed == 'all':
-            assert indexed_config, self.scope_name
-            units_list = config.pop('units_list', [])
-            self._layers = [IndexedNet(
-                **indexed_config, out_size=u, name=f'{self.scope_name}_l{i}') 
-                for i, u in enumerate(units_list)]
-            indexed_config['gain'] = config.pop('out_gain', 1.)
-            self._layers.append(IndexedNet(
-                **indexed_config, 
-                out_size=out_size, 
-                name=f'{self.scope_name}_out'
-            ))
-        elif self.indexed == 'head':
-            assert indexed_config, indexed_config
-            self._layers = mlp(
-                **config, 
-                name=self.scope_name
-            )
-            indexed_config['gain'] = config.pop('out_gain', 1.)
-            self._head = IndexedNet(
-                **indexed_config, 
-                out_size=out_size, 
-                out_dtype='float32',
-                name=f'{self.scope_name}_out'
-            )
+            # b_config['scale'] = 1e-3
+            # b_config['w_init'] = 'zeros'
+            blayer = IndexParams(**b_config, name='b')
         else:
-            self._layers = mlp(
-                **config, 
-                out_size=out_size, 
-                out_dtype='float32',
-                name=self.scope_name
-            )
+            blayer = None
 
-    def call(self, x, hx):
-        if self.indexed == 'all':
-            for l in self._layers:
-                x = l(x, hx)
-        elif self.indexed == 'head':
-            x = self._layers(x)
-            x = self._head(x, hx)
-        else:
-            x = self._layers(x)
-        
+        return wlayer, blayer
+
+
+class IndexModule(hk.Module):
+    def __init__(self, config, out_size, name=None):
+        super().__init__(name=name)
+
+        self.config = dict2AttrDict(config, to_copy=True)
+        self.out_size = out_size
+        self.index = self.config.pop('index', None)
+        self.index_config = self.config.pop('index_config', {})
+        assert self.index_config.get('scale', 1) == 1, self.index_config
+        self.index_config['w_init'] = self.config.get('w_init', 'orthogonal')
+
+    @hk.transparent
+    def __call__(self, x, hx):
+        layers = self.build_net()
+
+        for l in layers:
+            x = l(x, hx)
+
         return x
+
+    @hk.transparent
+    def build_net(self):
+        if self.index == 'all':
+            units_list = self.config.pop('units_list', [])
+            layers = []
+            for i, u in enumerate(units_list):
+                layers += [IndexLayer(
+                    **self.index_config, out_size=u, name=f'index_layer{i}'), 
+                    Layer(layer_type=None, **self.config)]
+            self.index_config['scale'] = self.config.pop('out_scale', 1.)
+            layers.append(IndexLayer(
+                **self.index_config, 
+                out_size=self.out_size, 
+                name='out'
+            ))
+        elif self.index == 'head':
+            self.index_config['scale'] = self.config.pop('out_scale', 1.)
+            layers = [mlp(**self.config)]
+            
+            layers.append(IndexLayer(
+                **self.index_config, 
+                out_size=self.out_size, 
+                name='out'
+            ))
+        else:
+            layers = [mlp(
+                **self.config, 
+                out_size=self.out_size, 
+            )]
+
+        return layers
+
+
+if __name__ == '__main__':
+    import jax
+    config = {
+        'units_list': [2], 
+        'w_init': 'orthogonal', 
+        'activation': 'relu', 
+        'norm': 'layer', 
+        'eval_act_temp': 1, 
+        'out_scale': .01, 
+        'index': 'head', 
+        'index_config': {
+            'use_shared_bias': False, 
+            'use_bias': True, 
+            'w_init': 'orthogonal', 
+        },
+    }
+
+    def layer(x, hx):
+        layer = IndexModule(config, out_size=2)
+        return layer(x, hx)
+    rng = jax.random.PRNGKey(42)
+    hx = jax.nn.one_hot([2, 3], 3)
+    x = jax.random.normal(rng, (2, 3))
+    net = hk.transform(layer)
+    params = net.init(rng, x, hx)
+    # print(params)
+    # print(net.apply(params, rng, x, hx))
+    print(hk.experimental.tabulate(net)(x, hx))

@@ -1,8 +1,9 @@
 import logging
 import functools
 import collections
+import jax
+import jax.numpy as jnp
 import numpy as np
-import tensorflow as tf
 
 from core.log import do_logging
 
@@ -52,50 +53,27 @@ class Dataset:
         return getattr(self._buffer, name)
 
     def sample(self):
-        return next(self._iterator)
-
-    def update_priorities(self, priorities, indices):
-        self._buffer.update_priorities(priorities, indices)
-
-    def _prepare_dataset(self, process_fn, batch_size, **kwargs):
-        with tf.name_scope('data'):
-            ds = tf.data.Dataset.from_generator(
-                self._sample, self.types, self.shapes)
-            # batch data if the data has not been batched yet
-            if batch_size:
-                ds = ds.batch(batch_size, drop_remainder=True)
-            # apply processing function to a batch of data
-            if process_fn:
-                ds = ds.map(map_func=process_fn, 
-                            num_parallel_calls=tf.data.experimental.AUTOTUNE)
-            prefetch = kwargs.get('prefetch', tf.data.experimental.AUTOTUNE)
-            ds = ds.prefetch(prefetch)
-            iterator = iter(ds)
-        return iterator
-
-    def _sample(self):
         while True:
             yield self._buffer.sample()
 
 
 def process_with_env(data, env_stats, obs_range=None, 
-        one_hot_action=False, dtype=tf.float32):
-    with tf.device('cpu:0'):
-        if env_stats['obs_dtype'] == np.uint8 and obs_range is not None:
-            if obs_range == [0, 1]:
-                for k in data:
-                    if 'obs' in k:
-                        data[k] = tf.cast(data[k], dtype) / 255.
-            elif obs_range == [-.5, .5]:
-                for k in data:
-                    if 'obs' in k:
-                        data[k] = tf.cast(data[k], dtype) / 255. - .5
-            else:
-                raise ValueError(obs_range)
-        if env_stats['is_action_discrete'] and one_hot_action:
+        one_hot_action=False, dtype=np.float32):
+    if env_stats['obs_dtype'] == np.uint8 and obs_range is not None:
+        if obs_range == [0, 1]:
             for k in data:
-                if k.endswith('action'):
-                    data[k] = tf.one_hot(data[k], env_stats['action_dim'], dtype=dtype)
+                if 'obs' in k:
+                    data[k] = data[k] / 255.
+        elif obs_range == [-.5, .5]:
+            for k in data:
+                if 'obs' in k:
+                    data[k] = data[k] / 255. - .5
+        else:
+            raise ValueError(obs_range)
+    if env_stats['is_action_discrete'] and one_hot_action:
+        for k in data:
+            if k.endswith('action'):
+                data[k] = jax.nn.one_hot(data[k], env_stats['action_dim'], dtype=dtype)
     return data
 
 

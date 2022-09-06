@@ -33,5 +33,6 @@ class Reward(IndexedModule):
         reward = x * self._out_scale
         if self._out_act is not None:
             reward = self._out_act(reward)
+        reward = reward * self._out_scale
 
         return out, reward

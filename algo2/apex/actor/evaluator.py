@@ -1,8 +1,8 @@
 import collections
 
-from utility.ray_setup import config_actor
-from utility.run import evaluate
-from utility.utils import Every
+from tools.ray_setup import config_actor
+from tools.run import evaluate
+from tools.utils import Every
 from env.func import create_env
 from algo.apex.actor.actor import get_actor_base_class
 

@@ -1,8 +1,8 @@
 import logging
 
 from core.elements.model import Model
-from utility.typing import AttrDict
-from utility.utils import dict2AttrDict
+from core.typing import AttrDict
+from tools.utils import dict2AttrDict
 from algo.gpo.elements.buffer import LocalBufferBase, PPOBufferBase
 
 logger = logging.getLogger(__name__)

@@ -8,14 +8,14 @@ from core.log import do_logging
 from core.optimizer import create_optimizer, Optimizer
 from core.tf_config import build
 from core.utils import get_vars_for_modules
-from utility import pkg
+from tools import pkg
 from optimizers.adam import Adam
 from optimizers.rmsprop import RMSprop
 from optimizers.sgd import SGD
-from utility.meta import compute_meta_gradients, inner_epoch
-from utility.typing import AttrDict
-from utility.utils import dict2AttrDict
-from utility import tf_utils
+from tools.meta import compute_meta_gradients, inner_epoch
+from core.typing import AttrDict
+from tools.utils import dict2AttrDict
+from tools import tf_utils
 from .utils import compute_inner_steps, get_rl_modules, \
     get_meta_modules, get_meta_param_modules
 
@@ -124,6 +124,7 @@ class Trainer(TrainerBase):
         self, 
         *, 
         tape, 
+        theta_list, 
         grads_list, 
         iteration, 
         **data
@@ -137,6 +138,7 @@ class Trainer(TrainerBase):
                 meta_tape=tape, 
                 meta_modules=self.meta_param_modules, 
                 meta_loss=meta_loss, 
+                theta_list=theta_list, 
                 grads_list=grads_list, 
                 iteration=iteration, 
             )
@@ -144,6 +146,7 @@ class Trainer(TrainerBase):
                 meta_tape=tape, 
                 meta_modules=self.meta_reward_modules, 
                 meta_loss=meta_loss, 
+                theta_list=theta_list, 
                 grads_list=grads_list, 
                 iteration=iteration, 
             )
@@ -158,6 +161,7 @@ class Trainer(TrainerBase):
         meta_tape, 
         meta_modules, 
         meta_loss, 
+        theta_list, 
         grads_list, 
         iteration, 
     ):
@@ -166,7 +170,7 @@ class Trainer(TrainerBase):
             meta_tape=meta_tape, 
             meta_loss=meta_loss, 
             grads_list=grads_list, 
-            theta=self.optimizers.meta_rl.variables, 
+            theta_list=theta_list, 
             eta=meta_vars, 
         )
         terms = {
@@ -206,11 +210,13 @@ class Trainer(TrainerBase):
         self, 
         *, 
         obs, 
+        sid=None, 
         idx=None, 
         event=None, 
         global_state=None, 
         hidden_state=None, 
         next_obs=None, 
+        next_sid=None, 
         next_idx=None, 
         next_event=None, 
         next_global_state=None, 
@@ -259,12 +265,13 @@ class Trainer(TrainerBase):
                 opt=self.optimizers.rl, 
                 loss_fn=self.loss.rl.loss, 
                 obs=obs, 
+                sid=sid, 
                 idx=idx, 
                 event=event, 
                 global_state=global_state, 
                 hidden_state=hidden_state, 
                 next_obs=next_obs, 
-                next_idx=next_idx, 
+                next_sid=next_sid, 
                 next_event=next_event, 
                 next_global_state=next_global_state, 
                 next_hidden_state=next_hidden_state, 
@@ -296,11 +303,13 @@ class Trainer(TrainerBase):
         self, 
         *, 
         obs, 
+        sid=None, 
         idx=None, 
         event=None, 
         global_state=None, 
         hidden_state=None, 
         next_obs=None, 
+        next_sid=None, 
         next_idx=None, 
         next_event=None, 
         next_global_state=None, 
@@ -331,11 +340,13 @@ class Trainer(TrainerBase):
         )
         data = dict(
             obs=obs, 
+            sid=sid, 
             idx=idx, 
             event=event, 
             global_state=global_state, 
             hidden_state=hidden_state, 
             next_obs=next_obs,
+            next_sid=next_sid,
             next_idx=next_idx,
             next_event=next_event,
             next_global_state=next_global_state, 
@@ -384,25 +395,28 @@ class Trainer(TrainerBase):
             
             meta_param_grads = []
             meta_reward_grads = []
+            theta_list = []
             grads_list = []
             for i in range(inner_steps):
                 rl_data_i = tf_utils.gather(rl_data, i)
                 data_i = tf_utils.gather(data, i+self.config.extra_meta_step)
                 for j in range(1, self.config.n_epochs+1):
-                    terms, gl = inner_epoch(
+                    terms, tl, gl = inner_epoch(
                         config=self.config, 
                         opt=self.optimizers.meta_rl, 
                         loss_fn=self.loss.meta.loss, 
                         **rl_data_i,
                         use_meta=True, 
                         use_dice=j == 1, 
-                        return_grads=True
+                        return_stats_for_meta=True
                     )
+                    theta_list += tl
                     grads_list += gl
 
                     if self.config.msmg_type == 'avg':
                         mpgs, mrgs, meta_terms = self._outer_grads(
                             tape=meta_tape, 
+                            theta_list=theta_list, 
                             grads_list=grads_list, 
                             iteration=i, 
                             **data_i, 
@@ -414,6 +428,7 @@ class Trainer(TrainerBase):
                 for _ in range(self.config.n_epochs):
                     meta_param_grads, meta_reward_grads, meta_terms = self._outer_grads(
                         tape=meta_tape, 
+                        theta_list=theta_list, 
                         grads_list=grads_list, 
                         iteration=inner_steps, 
                         **data_final
@@ -441,7 +456,7 @@ class Trainer(TrainerBase):
                     **rl_data_final, 
                     use_meta=True, 
                     use_dice=False, 
-                    return_grads=False
+                    return_stats_for_meta=False
                 )
         # hx = tf.one_hot([0, 0, 1, 1], 2)
         # fake_obs = hidden_state[0, 0, 0, :1]
@@ -485,15 +500,20 @@ class Trainer(TrainerBase):
                     axis=axis
                 )
             x, meta_reward, trans_reward = self.model.meta.compute_meta_reward(
-                hidden_state, next_hidden_state, action, 
-                idx, next_idx, event, next_event
+                hidden_state, 
+                next_hidden_state, 
+                action, 
+                idx=idx, 
+                next_idx=next_idx, 
+                event=event, 
+                next_event=next_event
             )
             tf.debugging.assert_all_finite(meta_reward, 'meta_reward')
-            if self.config['rl_reward'] == 'meta':
+            if self.config.rl_reward == 'meta':
                 rl_reward = trans_reward
-            elif self.config['rl_reward'] == 'sum':
+            elif self.config.rl_reward == 'sum':
                 rl_reward = reward + trans_reward
-            elif self.config['rl_reward'] == 'interpolated':
+            elif self.config.rl_reward == 'interpolated':
                 reward_coef = self.model.meta.meta('reward_coef', inner=True)
                 rl_reward = reward_coef * reward + (1 - reward_coef) * meta_reward
             else:

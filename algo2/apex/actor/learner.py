@@ -4,9 +4,9 @@ import psutil
 
 from core.tf_config import *
 from core.elements.dataset import create_dataset
-from utility.utils import config_attr
-from utility.ray_setup import config_actor
-from utility import pkg
+from tools.utils import config_attr
+from tools.ray_setup import config_actor
+from tools import pkg
 from replay.func import create_replay
 from env.func import create_env
 from algo.apex.actor.actor import get_actor_base_class

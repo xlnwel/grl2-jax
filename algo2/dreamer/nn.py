@@ -5,10 +5,10 @@ from tensorflow_probability import distributions as tfd
 from tensorflow.keras import layers
 from tensorflow.keras.mixed_precision import global_policy
 
-from core.module import Module, Ensemble
+from core.ensemble import Module, Ensemble
 from core.decorator import config
-from utility.tf_utils import static_scan
-from utility.tf_distributions import Categorical, OneHotDist, TanhBijector, SampleDist
+from tools.tf_utils import static_scan
+from tools.jax_dist import Categorical, OneHotDist, TanhBijector, SampleDist
 from nn.func import mlp
 from nn.utils import convert_obs
 

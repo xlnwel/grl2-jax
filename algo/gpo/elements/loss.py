@@ -4,8 +4,8 @@ import tensorflow as tf
 
 from core.elements.loss import Loss, LossEnsemble
 from core.log import do_logging
-from utility import rl_loss
-from utility.tf_utils import reduce_mean, explained_variance, standard_normalization
+from jax_utils import jax_loss
+from tools.tf_utils import reduce_mean, explained_variance, standard_normalization
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class GPOLossImpl(Loss):
         log_ratio = new_logprob - logprob
         ratio = tf.exp(log_ratio)
         loss_pg, loss_clip, raw_ppo_loss, ppo_loss, clip_frac = \
-            rl_loss.ppo_loss(
+            loss.ppo_loss(
                 pg_coef=self.config.pg_coef, 
                 advantage=advantage, 
                 ratio=ratio, 
@@ -94,7 +94,7 @@ class GPOLossImpl(Loss):
                 mask=sample_mask, 
                 n=n, 
             )
-        raw_entropy_loss, entropy_loss = rl_loss.entropy_loss(
+        raw_entropy_loss, entropy_loss = loss.entropy_loss(
             entropy_coef=self.config.entropy_coef, 
             entropy=raw_entropy, 
             mask=sample_mask, 
@@ -159,7 +159,7 @@ class GPOLossImpl(Loss):
             new_pi_std = tf.exp(self.model.policy.logstd)
 
         kl_prior, raw_kl_prior_loss, kl_prior_loss = \
-            rl_loss.compute_kl(
+            loss.compute_kl(
                 kl_type=self.config.kl_prior,
                 kl_coef=self.config.kl_prior_coef,
                 logp=logprob,
@@ -186,7 +186,7 @@ class GPOLossImpl(Loss):
         target_prob = locals()[self.config.target_prob]
         target_logprob = tf.math.log(target_prob)
         kl_target, raw_kl_target_loss, kl_target_loss = \
-            rl_loss.compute_kl(
+            loss.compute_kl(
                 kl_type=self.config.kl_target,
                 kl_coef=self.config.kl_target_coef,
                 logp=target_logprob,
@@ -208,7 +208,7 @@ class GPOLossImpl(Loss):
         )
 
         js_target, raw_js_target_loss, js_target_loss = \
-            rl_loss.compute_js(
+            loss.compute_js(
                 js_type=self.config.js_target, 
                 js_coef=self.config.js_target_coef, 
                 p=target_prob, 
@@ -229,7 +229,7 @@ class GPOLossImpl(Loss):
         )
 
         tsallis_target, raw_tsallis_target_loss, tsallis_target_loss = \
-            rl_loss.compute_tsallis(
+            loss.compute_tsallis(
                 tsallis_type=self.config.tsallis_target,
                 tsallis_coef=self.config.tsallis_target_coef,
                 tsallis_q=self.config.tsallis_q,
@@ -302,7 +302,7 @@ class ValueLossImpl(Loss):
         value_loss_type = getattr(self.config, 'value_loss', 'mse')
         v_clip_frac = 0
         if value_loss_type == 'huber':
-            raw_value_loss = rl_loss.huber_loss(
+            raw_value_loss = jax_loss.huber_loss(
                 value, 
                 traj_ret, 
                 threshold=self.config.huber_threshold
@@ -310,7 +310,7 @@ class ValueLossImpl(Loss):
         elif value_loss_type == 'mse':
             raw_value_loss = .5 * (value - traj_ret)**2
         elif value_loss_type == 'clip' or value_loss_type == 'clip_huber':
-            raw_value_loss, v_clip_frac = rl_loss.clipped_value_loss(
+            raw_value_loss, v_clip_frac = jax_loss.clipped_value_loss(
                 value, 
                 traj_ret, 
                 old_value, 
@@ -322,7 +322,7 @@ class ValueLossImpl(Loss):
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
         
-        raw_value_loss, value_loss = rl_loss.to_loss(
+        raw_value_loss, value_loss = jax_loss.to_loss(
             raw_value_loss, 
             coef=self.config.value_coef, 
             mask=sample_mask, 

@@ -34,7 +34,7 @@ from core.ckpt.pickle import set_weights_for_agent
 from env.func import create_env
 from run.args import parse_eval_args
 from run.utils import search_for_all_configs, search_for_config
-from utility.utils import dict2AttrDict, set_seed
+from tools.utils import dict2AttrDict, set_seed
 
 
 class RLPolicy(policy.Policy):

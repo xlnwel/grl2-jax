@@ -2,11 +2,11 @@ import functools
 
 from core.tf_config import *
 from core.elements.dataset import create_dataset
-from utility.utils import Every, TempStore
-from utility.graph import video_summary
-from utility.timer import Timer
-from utility.run import Runner, evaluate
-from utility import pkg
+from tools.utils import Every, TempStore
+from tools.graph import video_summary
+from tools.timer import Timer
+from tools.run import Runner, evaluate
+from tools import pkg
 from env.func import create_env
 from replay.func import create_replay
 
@@ -85,7 +85,7 @@ def main(env_config, model_config, agent_config, replay_config):
     use_ray = env_config.get('n_runners', 1) > 1
     if use_ray:
         import ray
-        from utility.ray_setup import sigint_shutdown_ray
+        from tools.ray_setup import sigint_shutdown_ray
         ray.init()
         sigint_shutdown_ray()
 

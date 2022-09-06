@@ -6,11 +6,11 @@ from core.decorator import override
 from core.log import do_logging
 from core.optimizer import create_optimizer
 from core.tf_config import build
-from utility import pkg
+from tools import pkg
 from optimizers.adam import Adam
 from optimizers.rmsprop import RMSprop
-from utility.meta import compute_meta_gradients
-from utility.utils import dict2AttrDict
+from tools.meta import compute_meta_gradients
+from tools.utils import dict2AttrDict
 
 
 def _get_rl_modules(model):

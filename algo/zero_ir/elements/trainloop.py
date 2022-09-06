@@ -3,9 +3,8 @@ import numpy as np
 
 from core.elements.trainloop import TrainingLoopBase
 from core.log import do_logging
-from utility.display import print_dict_info
-from utility.tf_utils import numpy2tensor, tensor2numpy
-from utility.timer import Timer
+from tools.tf_utils import numpy2tensor, tensor2numpy
+from tools.timer import Timer
 from .utils import compute_inner_steps
 
 

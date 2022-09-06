@@ -7,8 +7,8 @@ import numpy as np
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
-from utility.typing import AttrDict
-from utility.utils import batch_dicts, dict2AttrDict
+from core.typing import AttrDict
+from tools.utils import batch_dicts, dict2AttrDict
 from .utils import compute_inner_steps, collect
 
 logger = logging.getLogger(__name__)

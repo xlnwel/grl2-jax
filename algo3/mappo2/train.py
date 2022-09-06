@@ -1,9 +1,9 @@
 import functools
 import numpy as np
 
-from utility.run import Runner
-from utility.timer import Timer, Every
-from utility import pkg
+from tools.run import Runner
+from tools.timer import Timer, Every
+from tools import pkg
 from algo.ppo.train import main
 
 

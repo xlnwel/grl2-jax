@@ -1,8 +1,8 @@
 import tensorflow as tf
 
 from core.elements.loss import Loss, LossEnsemble
-from utility.rl_loss import ppo_loss
-from utility.tf_utils import explained_variance
+from jax_utils.jax_loss import ppo_loss
+from tools.tf_utils import explained_variance
 from algo.ppo.elements.loss import ValueLossImpl
 
 

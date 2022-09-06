@@ -1,7 +1,8 @@
 import tensorflow as tf
 
 from core.elements.loss import Loss as LossBase, LossEnsemble
-from utility import tf_utils, rl_utils, rl_loss
+from jax_tools import jax_loss
+from tools import tf_utils, rl_utils
 from .utils import compute_values, compute_policy, prefix_name
 
 
@@ -50,7 +51,7 @@ class POLossImpl(LossBase):
         entropy_coef = self.model.meta('entropy_coef', inner=use_meta)
 
         if use_dice:
-            dice_op = rl_loss.dice(
+            dice_op = loss.dice(
                 pi_logprob, 
                 axis=self.config.dice_axis, 
                 lam=self.config.dice_lam
@@ -58,7 +59,7 @@ class POLossImpl(LossBase):
         else:
             dice_op = pi_logprob
         if self.config.pg_type == 'pg':
-            raw_pg_loss, pg_loss = rl_loss.pg_loss(
+            raw_pg_loss, pg_loss = loss.pg_loss(
                 pg_coef=pg_coef, 
                 advantage=advantage, 
                 logprob=dice_op, 
@@ -69,7 +70,7 @@ class POLossImpl(LossBase):
         elif self.config.pg_type == 'ppo':
             if use_dice:
                 loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
-                    rl_loss.high_order_ppo_loss(
+                    loss.high_order_ppo_loss(
                         pg_coef=pg_coef, 
                         advantage=advantage, 
                         ratio=ratio, 
@@ -80,7 +81,7 @@ class POLossImpl(LossBase):
                     )
             else:
                 loss_pg, loss_clip, raw_pg_loss, pg_loss, clip_frac = \
-                    rl_loss.ppo_loss(
+                    loss.ppo_loss(
                         pg_coef=pg_coef, 
                         advantage=advantage, 
                         ratio=ratio, 
@@ -102,7 +103,7 @@ class POLossImpl(LossBase):
 
         entropy = act_dist.entropy()
         tf.debugging.assert_all_finite(entropy, 'Bad entropy')
-        raw_entropy_loss, entropy_loss = rl_loss.entropy_loss(
+        raw_entropy_loss, entropy_loss = loss.entropy_loss(
             entropy_coef=entropy_coef, 
             entropy=entropy, 
             mask=sample_mask, 
@@ -149,7 +150,7 @@ class ValueLossImpl(LossBase):
         value_coef = self.model.meta('value_coef', inner=use_meta)
         v_clip_frac = 0
         if value_loss_type == 'huber':
-            raw_value_loss = rl_loss.huber_loss(
+            raw_value_loss = jax_loss.huber_loss(
                 value, 
                 target, 
                 threshold=self.config.huber_threshold
@@ -157,7 +158,7 @@ class ValueLossImpl(LossBase):
         elif value_loss_type == 'mse':
             raw_value_loss = .5 * (value - target)**2
         elif value_loss_type == 'clip' or value_loss_type == 'clip_huber':
-            raw_value_loss, v_clip_frac = rl_loss.clipped_value_loss(
+            raw_value_loss, v_clip_frac = jax_loss.clipped_value_loss(
                 value, 
                 target, 
                 old_value, 
@@ -168,7 +169,7 @@ class ValueLossImpl(LossBase):
             )
         else:
             raise ValueError(f'Unknown value loss type: {value_loss_type}')
-        raw_value_loss, value_loss = rl_loss.to_loss(
+        raw_value_loss, value_loss = jax_loss.to_loss(
             raw_value_loss, 
             coef=value_coef, 
             mask=sample_mask, 
@@ -255,7 +256,7 @@ class Loss(ValueLossImpl, POLossImpl):
         #     tf.where(tf.cast(reset, bool), 0., log_ratio), 0., 1e-5, 1e-5)
 
         with tape.stop_recording():
-            v_target, raw_adv = rl_loss.compute_target_advantage(
+            v_target, raw_adv = loss.compute_target_advantage(
                 config=self.config, 
                 reward=reward, 
                 discount=discount, 
@@ -390,7 +391,7 @@ class Loss(ValueLossImpl, POLossImpl):
             pi_mean = act_dist.loc
             pi_std = tf.exp(self.model.policy.logstd)
 
-        kl, raw_kl_loss, kl_loss = rl_loss.compute_kl(
+        kl, raw_kl_loss, kl_loss = loss.compute_kl(
             kl_type=self.config.kl,
             kl_coef=self.config.kl_coef,
             logp=mu_logprob, 

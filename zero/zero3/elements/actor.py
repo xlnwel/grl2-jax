@@ -1,4 +1,4 @@
-from utility.tf_utils import numpy2tensor, tensor2numpy
+from tools.tf_utils import numpy2tensor, tensor2numpy
 from algo.zero.elements.actor import MAPPOActor
 
 class MAPPOWithGoalActor(MAPPOActor):

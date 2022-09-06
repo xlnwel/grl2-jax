@@ -6,7 +6,7 @@ import numpy as np
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
-from utility.utils import dict2AttrDict, moments, standardize
+from tools.utils import dict2AttrDict, moments, standardize
 
 
 logger = logging.getLogger(__name__)

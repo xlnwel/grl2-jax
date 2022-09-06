@@ -2,10 +2,11 @@ import os
 import logging
 
 from core.log import do_logging
-from utility import pkg
-from utility.file import search_for_all_files, search_for_file
-from utility.utils import eval_str, dict2AttrDict, modify_config
-from utility.yaml_op import load_config
+from core.typing import dict2AttrDict
+from tools import pkg
+from tools.file import search_for_all_files, search_for_file
+from tools.utils import eval_str, modify_config
+from tools.yaml_op import load_config
 
 logger = logging.getLogger(__name__)
 

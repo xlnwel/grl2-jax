@@ -1,12 +1,10 @@
 from typing import Tuple, Dict
-import tensorflow as tf
+import jax.numpy as jnp
 
 from core.elements.model import Model
 from core.mixin.actor import RMS
-from core.typing import ModelPath
-from utility.utils import set_path
-from utility.tf_utils import numpy2tensor, tensor2numpy
-from utility.typing import AttrDict
+from core.typing import ModelPath, AttrDict, dict2AttrDict
+from tools.utils import set_path
 
 
 class Actor:
@@ -30,13 +28,13 @@ class Actor:
 
         self.model = model
         
-        self._post_init()
+        self.post_init()
 
     @property
     def name(self):
         return self._name
 
-    def _post_init(self):
+    def post_init(self):
         pass
 
     def reset_model_path(self, model_path: ModelPath):
@@ -60,7 +58,6 @@ class Actor:
         self, 
         inp: dict,
         evaluation: bool=False, 
-        return_eval_stats: bool=False
     ):
         """ The interface to interact with the environment
         
@@ -69,16 +66,12 @@ class Actor:
             evaluation: evaluation mode or not
             return_eval_stats: if return evaluation stats
         Return:
-            (action, terms, rnn_state)
+            (action, stats, rnn_state)
         """
-        inp, tf_inp = self._process_input(inp, evaluation)
-        tf_inp = self._add_eval(
-            tf_inp, 
-            evaluation=evaluation, 
-            return_eval_stats=return_eval_stats
-        )
-        
-        out = self.model.action(**tf_inp)
+        inp = dict2AttrDict(inp)
+        inp = self._process_input(inp, evaluation)
+        inp = self._add_eval(inp, evaluation=evaluation)
+        out = self.model.action(self.model.params, inp)
         out = self._process_output(inp, out, evaluation)
 
         return out
@@ -99,28 +92,23 @@ class Actor:
         """
         if self.rms is not None:
             inp = self.rms.process_obs_with_rms(
-                inp, mask=inp.get('life_mask'), 
+                inp, mask=inp.life_mask, 
                 update_rms=self.config.get('update_obs_rms_at_execution', False)
             )
-        return inp, numpy2tensor(inp)
+        return inp
 
     def _add_eval(
         self, 
-        tf_inp, 
+        inp, 
         evaluation, 
-        return_eval_stats
     ):
-        if not self.model.to_build:
-            tf_inp.update({
-                'evaluation': evaluation,
-                'return_eval_stats': return_eval_stats
-            })
-        return tf_inp
+        inp.evaluation = evaluation
+        return inp
 
     def _process_output(
         self, 
         inp: dict, 
-        out: Tuple[tf.Tensor, Dict[str, tf.Tensor]], 
+        out: Tuple[Dict[str, jnp.ndarray]], 
         evaluation: bool
     ):
         """ Post-processes output. By default, 
@@ -130,46 +118,39 @@ class Actor:
             inp: Pre-processed inputs
             out: Model output
         Returns:
-            (action, terms, rnn_state)
+            (action, stats, rnn_state)
         """
-        action, terms, state = out
+        action, stats, state = out
         if state is not None:
-            action, terms, prev_state = tensor2numpy(
-                (action, terms, inp['state']))
+            prev_state = inp['state']
             if not evaluation:
-                terms.update({
+                stats.update({
                     'mask': inp['mask'], 
                     **prev_state._asdict(),
                 })
-        else:
-            action, terms = tensor2numpy((action, terms))
         if self.config.get('update_obs_at_execution', True) \
             and not evaluation and self.rms is not None \
                 and self.rms.is_obs_normalized:
-            terms.update({k: inp[k] 
+            stats.update({k: inp[k] 
                 for k in self.config.rms.obs_names})
-        return action, terms, state
+        return action, stats, state
 
     def normalize_reward(self, reward):
         if self.rms is not None:
             return self.rms.normalize_reward(reward)
         return reward
 
-    def get_weights(self, identifier=None):
-        if identifier is None:
-            identifier = self._raw_name
+    def get_weights(self):
         weights = {
-            f'{identifier}_model': self.model.get_weights(),
-            f'{identifier}_aux': self.get_auxiliary_stats()
+            'model': self.model.get_weights(),
+            'aux': self.get_auxiliary_stats()
         }
         return weights
 
-    def set_weights(self, weights, identifier=None):
-        if identifier is None:
-            identifier = self._raw_name
-        self.model.set_weights(weights[f'{identifier}_model'])
-        if f'{identifier}_aux' in weights:
-            self.set_auxiliary_stats(weights[f'{identifier}_aux'])
+    def set_weights(self, weights):
+        self.model.set_weights(weights['model'])
+        if 'aux' in weights:
+            self.set_auxiliary_stats(weights['aux'])
 
     def get_model_weights(self, name: str=None):
         return self.model.get_weights(name)

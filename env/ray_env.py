@@ -4,7 +4,7 @@ import ray
 from env.cls import *
 from env.typing import EnvOutput
 from env.utils import batch_ma_env_output
-from utility.utils import AttrDict2dict, convert_batch_with_func
+from tools.utils import AttrDict2dict, convert_batch_with_func
 
 
 class RayVecEnv:

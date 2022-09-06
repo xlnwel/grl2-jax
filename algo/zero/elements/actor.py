@@ -1,5 +1,5 @@
 from core.elements.actor import Actor
-from utility.tf_utils import numpy2tensor
+from tools.tf_utils import numpy2tensor
 
 
 class PPOActor(Actor):

@@ -5,8 +5,8 @@ import tensorflow as tf
 from core.elements.model import Model as ModelBase, ModelEnsemble as ModelEnsembleBase
 from core.mixin.model import NetworkSyncOps
 from core.tf_config import build
-from utility.file import source_file
-from utility.typing import AttrDict
+from tools.file import source_file
+from core.typing import AttrDict
 from .utils import compute_inner_steps
 
 # register ppo-related networks 

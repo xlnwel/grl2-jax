@@ -2,7 +2,7 @@ import os
 import tensorflow as tf
 
 from core.tf_config import build
-from utility.file import source_file
+from tools.file import source_file
 from algo.zero.elements.model import ModelImpl, MAPPOModelEnsemble
 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))

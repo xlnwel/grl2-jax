@@ -4,11 +4,11 @@ import numpy as np
 from tensorflow.keras.mixed_precision import global_policy
 
 from core.tf_config import configure_gpu, configure_precision, silence_tf_logs
-from utility.ray_setup import sigint_shutdown_ray
-from utility.graph import video_summary
-from utility.utils import Every, TempStore
-from utility.run import Runner, evaluate
-from utility import pkg
+from tools.ray_setup import sigint_shutdown_ray
+from tools.graph import video_summary
+from tools.utils import Every, TempStore
+from tools.run import Runner, evaluate
+from tools import pkg
 from env.func import create_env
 from replay.func import create_replay
 from core.elements.dataset import Dataset, process_with_env

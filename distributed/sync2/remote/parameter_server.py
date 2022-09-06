@@ -13,14 +13,14 @@ from core.elements.builder import ElementsBuilderVC
 from core.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.remote.base import RayBase
-from core.typing import ModelPath, construct_model_name, \
+from core.typing import AttrDict2dict, ModelPath, construct_model_name, \
     get_aid, get_all_ids, get_basic_model_name
 from distributed.sync.remote.payoff import PayoffManager
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
-from utility.timer import Every
-from utility.utils import AttrDict2dict, config_attr, dict2AttrDict
-from utility import yaml_op
+from tools.timer import Every
+from tools.utils import config_attr, dict2AttrDict
+from tools import yaml_op
 
 
 payoff = collections.defaultdict(lambda: collections.deque(maxlen=1000))
@@ -547,7 +547,7 @@ class ParameterServer(RayBase):
 
 if __name__ == '__main__':
     from env.func import get_env_stats
-    from utility.yaml_op import load_config
+    from tools.yaml_op import load_config
     config = load_config('algo/gd/configs/builtin.yaml')
     env_stats = get_env_stats(config['env'])
     ps = ParameterServer(config, env_stats)

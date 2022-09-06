@@ -14,9 +14,9 @@ from ..common.typing import ModelStats
 from core.monitor import Monitor as ModelMonitor
 from core.remote.base import RayBase
 from core.typing import ModelPath
-from utility.graph import get_tick_labels
-from utility.timer import Timer
-from utility.utils import dict2AttrDict
+from tools.graph import get_tick_labels
+from tools.timer import Timer
+from tools.utils import dict2AttrDict
 
 
 def _fill_nan(stats):

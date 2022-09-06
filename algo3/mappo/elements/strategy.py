@@ -6,7 +6,7 @@ import numpy as np
 from .trainloop import PPOTrainingLoop
 from core.elements.strategy import Strategy, create_strategy
 from core.mixin.strategy import Memory
-from utility.utils import concat_map
+from tools.utils import concat_map
 
 
 logger = logging.getLogger(__name__)

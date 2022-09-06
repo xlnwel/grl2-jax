@@ -3,8 +3,8 @@ import ray
 from algo.gd_zero.remote.runner import RunnerManager
 from core.elements.builder import ElementsBuilder
 from env.func import get_env_stats
-from utility.ray_setup import sigint_shutdown_ray
-from utility.timer import Every, Timer
+from tools.ray_setup import sigint_shutdown_ray
+from tools.timer import Every, Timer
 
 
 def main(config):

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from core.module import Ensemble
+from core.ensemble import Ensemble
 from algo.ppo.nn import Encoder, Actor, Value
 
 

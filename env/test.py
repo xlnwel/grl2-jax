@@ -3,7 +3,7 @@ import numpy as np
 import ray
 
 from env.func import create_env
-from utility.display import print_dict
+from tools.display import print_dict
 
 
 if __name__ == '__main__':

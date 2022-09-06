@@ -2,10 +2,9 @@ import os
 from typing import NamedTuple
 import cloudpickle
 import numpy as np
-import tensorflow as tf
 
 from core.typing import ModelPath
-
+from jax_tools import jax_utils
 
 class StepCounter:
     def __init__(self, model_path: ModelPath, name='step_counter'):
@@ -78,8 +77,7 @@ class Memory:
     def apply_mask_to_state(self, state: NamedTuple, mask: np.ndarray):
         assert state is not None, state
         mask_reshaped = mask.reshape(-1, 1)
-        state = tf.nest.map_structure(lambda x: x*mask_reshaped \
-            if x is not None else x, state)
+        state = jax_utils.tree_map(lambda x: x*mask_reshaped, state)
         return state 
 
     def reset_states(self):

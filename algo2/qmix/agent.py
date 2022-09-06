@@ -1,8 +1,8 @@
 import numpy as np
 import tensorflow as tf
 
-from utility.tf_utils import reduce_mean, explained_variance
-from utility.rl_loss import n_step_target, huber_loss
+from tools.tf_utils import reduce_mean, explained_variance
+from jax_utils.jax_loss import n_step_target, huber_loss
 from core.mixin import Memory
 from core.tf_config import build
 from core.agent import override

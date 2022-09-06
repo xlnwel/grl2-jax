@@ -4,10 +4,10 @@ import tensorflow as tf
 from tensorflow_probability import distributions as tfd
 
 from core.log import do_logging
-from core.module import Module
+from core.ensemble import Module
 from nn.func import mlp, nn_registry, layer_registry
-from utility.tf_utils import assert_rank
-from utility.utils import dict2AttrDict
+from tools.tf_utils import assert_rank
+from tools.utils import dict2AttrDict
 
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ class Value(Module):
 if __name__ == '__main__':
     from tensorflow.keras import layers
     from env.func import create_env
-    from utility.yaml_op import load_config
+    from tools.yaml_op import load_config
     config = load_config('algo/gd/configs/guandan.yaml')
     env = create_env(config['env'])
     env_stats = env.stats()

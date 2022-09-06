@@ -4,8 +4,8 @@ import ray
 
 from algo.gd_zero.remote.runner import RunnerManager
 from core.typing import ModelPath
-from utility.utils import set_path
-from utility.ray_setup import sigint_shutdown_ray
+from tools.utils import set_path
+from tools.ray_setup import sigint_shutdown_ray
 
 
 def main(config, n, other_path, **kwargs):
@@ -69,7 +69,7 @@ def main(config, n, other_path, **kwargs):
 # from core.elements.builder import ElementsBuilder
 # from core.tf_config import *
 # from env.func import get_env_stats
-# from utility.utils import AttrDict2dict, dict2AttrDict
+# from tools.utils import AttrDict2dict, dict2AttrDict
 
 # @ray.remote
 # def evaluate_config(config, n):

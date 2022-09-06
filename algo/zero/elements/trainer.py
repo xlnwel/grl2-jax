@@ -8,14 +8,14 @@ from core.log import do_logging
 from core.optimizer import create_optimizer, Optimizer
 from core.tf_config import build
 from core.utils import get_vars_for_modules
-from utility import pkg
+from tools import pkg
 from optimizers.adam import Adam
 from optimizers.rmsprop import RMSprop
 from optimizers.sgd import SGD
-from utility.meta import compute_meta_gradients, inner_epoch
-from utility.typing import AttrDict
-from utility.utils import dict2AttrDict
-from utility import tf_utils
+from tools.meta import compute_meta_gradients, inner_epoch
+from core.typing import AttrDict
+from tools.utils import dict2AttrDict
+from tools import tf_utils
 from .utils import compute_inner_steps, get_rl_modules, \
     get_meta_param_modules
 

@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from utility.rl_loss import n_step_target, quantile_regression_loss
-from utility.schedule import TFPiecewiseSchedule
+from jax_utils.jax_loss import n_step_target, quantile_regression_loss
+from tools.schedule import TFPiecewiseSchedule
 from algo.dqn.base import DQNBase, get_data_format, collect
 
 

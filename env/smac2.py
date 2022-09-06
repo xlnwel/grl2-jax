@@ -23,7 +23,7 @@ from s2clientprotocol import debug_pb2 as d_pb
 from gym.spaces import Discrete
 import gym
 
-from utility.utils import batch_dicts
+from tools.utils import batch_dicts
 from env.smac_maps import get_map_params
 
 

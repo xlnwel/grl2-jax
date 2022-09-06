@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
 
-from core.module import Module, Ensemble
+from core.ensemble import Module, Ensemble
 from core.decorator import config
-from utility.rl_utils import epsilon_greedy
+from tools.rl_utils import epsilon_greedy
 from nn.func import Encoder, mlp
 from algo.iqn.nn import Value
 

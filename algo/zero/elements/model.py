@@ -6,8 +6,8 @@ from core.elements.model import Model as ModelBase, ModelEnsemble as ModelEnsemb
 from core.log import do_logging
 from core.mixin.model import NetworkSyncOps
 from core.tf_config import build
-from utility.file import source_file
-from utility.typing import AttrDict
+from tools.file import source_file
+from core.typing import AttrDict
 from .utils import compute_inner_steps, get_hx, get_rl_module_names
 
 # register ppo-related networks 

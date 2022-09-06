@@ -2,7 +2,7 @@ from types import FunctionType
 import numpy as np
 import tensorflow as tf
 
-from utility.typing import AttrDict
+from core.typing import AttrDict
 
 
 def update_data_format_with_rnn_states(

@@ -15,8 +15,8 @@ from core.remote.base import RayBase
 from core.typing import ModelPath
 from env.func import create_env
 from env.typing import EnvOutput
-from utility.timer import Timer
-from utility.utils import dict2AttrDict
+from tools.timer import Timer
+from tools.utils import dict2AttrDict
 
 
 class MultiAgentSimRunner(RayBase):
