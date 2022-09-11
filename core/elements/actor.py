@@ -70,8 +70,7 @@ class Actor:
         """
         inp = dict2AttrDict(inp)
         inp = self._process_input(inp, evaluation)
-        inp = self._add_eval(inp, evaluation=evaluation)
-        out = self.model.action(self.model.params, inp)
+        out = self.model.action(inp, evaluation)
         out = self._process_output(inp, out, evaluation)
 
         return out
@@ -97,18 +96,10 @@ class Actor:
             )
         return inp
 
-    def _add_eval(
-        self, 
-        inp, 
-        evaluation, 
-    ):
-        inp.evaluation = evaluation
-        return inp
-
     def _process_output(
         self, 
         inp: dict, 
-        out: Tuple[Dict[str, jnp.ndarray]], 
+        out: Tuple[Dict[str, jnp.DeviceArray]], 
         evaluation: bool
     ):
         """ Post-processes output. By default, 

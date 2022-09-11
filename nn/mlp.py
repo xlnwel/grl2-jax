@@ -54,7 +54,7 @@ class MLP(hk.Module):
         self.out_kwargs = dict(
             layer_type=layer_type, 
             w_init=w_init, 
-            name=f'out', 
+            name='out', 
             **kwargs
         )
 

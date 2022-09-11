@@ -1,6 +1,6 @@
 import functools
 
-from nn.dummy import Dummy
+from tf_nn.dummy import Dummy
 
 
 class Registry:

@@ -2,7 +2,7 @@ from core.elements.model import Model, Ensemble
 from core.typing import AttrDict, dict2AttrDict
 
 
-class Loss:
+class LossBase:
     def __init__(
         self,
         *,

@@ -7,6 +7,7 @@ import cv2
 
 from core.log import do_logging
 from env.utils import compute_aid2uids
+from tools.display import print_dict, print_dict_info
 from tools.feature import one_hot
 from tools.utils import infer_dtype, convert_dtype
 from core.typing import AttrDict, dict2AttrDict
@@ -497,8 +498,33 @@ class Single2MultiAgent(gym.Wrapper):
         super().__init__(env)
         self._obs_only = obs_only
         self.is_multi_agent = True
-        self.obs_shape = {'obs': env.obs_shape}
-        self.obs_dtype = {'obs': env.obs_dtype}
+        self.obs_shape = [env.obs_shape]
+        self.obs_dtype = [env.obs_dtype]
+        self.action_shape=[env.action_shape]
+        self.action_dim=[env.action_dim]
+        self.is_action_discrete = [env.is_action_discrete]
+        self.action_dtype = [env.action_dtype]
+        self._stats = AttrDict(
+            obs_shape=self.obs_shape,
+            obs_dtype=self.obs_dtype,
+            action_shape=self.action_shape,
+            action_dim=self.action_dim,
+            action_low=[getattr(env, 'action_low', None)], 
+            action_high=[getattr(env, 'action_high', None)], 
+            is_action_discrete=self.is_action_discrete,
+            action_dtype=self.action_dtype,
+            n_agents=1,
+            n_units=1,
+            uid2aid=[0],
+            aid2uids=[[0]],
+            use_life_mask=[False],
+            use_action_mask=[getattr(env, 'use_action_mask', False)],
+            is_multi_agent=True,
+            is_simultaneous_move=True,
+        )
+
+    def stats(self):
+        return self._stats
 
     def random_action(self):
         action = self.env.random_action()
@@ -757,7 +783,7 @@ class EnvStatsBase(gym.Wrapper):
         self._output = None
         self.float_dtype = getattr(self.env, 'float_dtype', np.float32)
         if hasattr(self.env, 'stats'):
-            self._stats = dict2AttrDict(self.env.stats)
+            self._stats = dict2AttrDict(self.env.stats())
         else:
             self.n_agents = getattr(self.env, 'n_agents', 1)
             self.n_units = getattr(self.env, 'n_units', 1)
@@ -1151,11 +1177,12 @@ class UnityEnvStats(EnvStatsBase):
         return self._output
 
     def step(self, action, **kwargs):
-        action = copy.deepcopy(action)
+        action = np.asarray(action)
         kwargs = copy.deepcopy(kwargs)
         # assert not np.any(np.isnan(action)), action
         obs, reward, discount, reset = self.env.step(action, **kwargs)
-        
+        discount = [d.astype(np.float32) for d in discount]
+        reset = [r.astype(np.float32) for r in reset]
         self._info = info = self.env.info()
         self._score = [i['score'] for i in info]
         self._dense_score = [i['dense_score'] for i in info]

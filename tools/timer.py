@@ -1,7 +1,8 @@
 from time import strftime, gmtime, time
 from collections import defaultdict
 
-from core.log import pwt, do_logging
+from core.log import do_logging
+from core.typing import AttrDict
 from tools.aggregator import Aggregator
 
 
@@ -86,6 +87,18 @@ class Timer:
             f'{prefix}/{self.name}_total': self.total(),
             f'{prefix}/{self.name}': self.average()
         }
+
+    @staticmethod
+    def all_stats(prefix=None):
+        if prefix:
+            prefix = f'time/{prefix}'
+        else:
+            prefix = f'time'
+        stats = AttrDict()
+        for k, v in Timer.aggregators.items():
+            stats[f'{prefix}/{k}_total'] = v.total
+            stats[f'{prefix}/{k}'] = v.average()
+        return stats
 
 
 class TBTimer:

@@ -1,13 +1,16 @@
+import os
 import threading
 import ray
+
+from tools.timer import Timer
 
 from .parameter_server import ParameterServer
 from ..common.typing import ModelStats, ModelWeights
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
+from core.log import do_logging
 from core.monitor import Monitor
 from core.remote.base import RayBase
-from tools.display import pwt
 
 
 class Agent(RayBase):
@@ -46,8 +49,8 @@ class Agent(RayBase):
         self.strategy.reset_model_path(model_weights.model)
         if model_weights.weights:
             self.strategy.set_weights(model_weights.weights)
-        pwt('Set model to', model_weights.model, 'with weights', 
-            None if model_weights.weights is None else list(model_weights.weights))
+        do_logging(f'Set model to {model_weights.model} with weights ' 
+            f'{None if model_weights.weights is None else list(model_weights.weights)}')
 
     """ Communications with Parameter Server """
     def publish_weights(self, wait=True):
@@ -76,7 +79,7 @@ class Agent(RayBase):
             self.publish_weights()
             self._send_train_stats(stats)
 
-        pwt('Training terminated')
+        do_logging('Training terminated')
 
     def stop_training(self):
         self.train_signal = False
@@ -84,6 +87,7 @@ class Agent(RayBase):
 
     def _send_train_stats(self, stats):
         stats['train_step'] = self.strategy.get_train_step()
+        stats.update(Timer.all_stats())
         model_stats = ModelStats(self.get_model_path(), stats)
         self.monitor.store_train_stats.remote(model_stats)
 

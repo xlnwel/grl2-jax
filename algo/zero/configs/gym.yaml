@@ -16,7 +16,7 @@ routine:
     MAX_STEPS: 1e7
     n_steps: &nsteps 32
     LOG_PERIOD: 1e5
-    EVAL_PERIOD: False
+    EVAL_PERIOD: None
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
@@ -49,23 +49,26 @@ strategy:
 
 model:
     rnn_type: &rnn null
-    sample_size: *nsteps
     K: *K
     L: *L
+    rl_reward: &rlreward sum
+    gamma: &gamma .99
+    meta_reward_type: intrinsic
     extra_meta_step: *ems
+    eval_act_temp: 1
 
     encoder: 
         nn_id: null
     rnn:
         nn_id: *rnn
         units: 64
-        kernel_initializer: orthogonal
+        w_init: orthogonal
         recurrent_initializer: orthogonal
         use_ln: True
     policy:
         nn_id: policy
         units_list: [64, 64]
-        kernel_initializer: orthogonal
+        w_init: orthogonal
         activation: tanh
         norm: null
         eval_act_temp: 1
@@ -75,7 +78,7 @@ model:
     value:
         nn_id: value
         units_list: [64, 64]
-        kernel_initializer: orthogonal
+        w_init: orthogonal
         activation: tanh
         norm: null
     meta:
@@ -198,7 +201,7 @@ actor:
         gamma: *gamma
 
 buffer:
-    type: ppo
+    type: ac
     use_dataset: *dataset
 
     n_runners: *nrunners

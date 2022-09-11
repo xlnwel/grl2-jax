@@ -26,6 +26,7 @@ def get_activation(act_name, **kwargs):
         return act_name
 
 
+@hk.transparent
 def get_norm(name):
     norm_layers = {
         None: Dummy,

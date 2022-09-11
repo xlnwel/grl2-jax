@@ -87,14 +87,14 @@ class RMS:
             self._rms_path = None
 
         do_logging(
-            f'Observation normalization: {self._normalize_obs}', logger=logger)
+            f'Observation normalization: {self._normalize_obs}', logger=logger, level='info')
         do_logging(
-            f'Normalized observation names: {self._obs_names}', logger=logger)
+            f'Normalized observation names: {self._obs_names}', logger=logger, level='info')
         do_logging(
-            f'Reward normalization: {self._normalize_reward}', logger=logger)
+            f'Reward normalization: {self._normalize_reward}', logger=logger, level='info')
         do_logging(
             f'Reward normalization with return: {self._normalize_reward_with_return}', 
-            logger=logger)
+            logger=logger, level='info')
 
     """ Attributes """
     @property
@@ -303,7 +303,8 @@ class RMS:
         if os.path.exists(self._rms_path):
             with open(self._rms_path, 'rb') as f:
                 self._obs_rms, self._reward_rms, self._return = cloudpickle.load(f)
-                do_logging(f'rms stats are restored from {self._rms_path}', logger=logger)
+                do_logging(f'rms stats are restored from {self._rms_path}', 
+                    logger=logger, level='info')
             if isinstance(self._reward_rms, RunningMeanStd):
                 assert self._reward_rms.axis == self._reward_normalized_axis, \
                     (self._reward_rms.axis, self._reward_normalized_axis)

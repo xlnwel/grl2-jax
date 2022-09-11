@@ -160,7 +160,7 @@ actor:
 
 buffer:
     use_dataset: False
-    type: ppo
+    type: ac
 
     adv_type: gae     # nae or gae
     gamma: *gamma

@@ -14,9 +14,9 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 5e7
-    n_steps: &nsteps 8
-    LOG_PERIOD: 5e5
-    EVAL_PERIOD: 5e6
+    n_steps: &nsteps 4
+    LOG_PERIOD: 1e5
+    EVAL_PERIOD: null
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
@@ -29,8 +29,7 @@ env:
     max_episode_steps: 50
     share_reward: False
     stag_stay_still: True
-    reward_scale: .1
-    population_size: 1
+    reward_scale: 1
     representation: raw
 
     uid2aid: [0, 0]
@@ -74,7 +73,7 @@ model:
         norm: null
         eval_act_temp: 1
         out_gain: .01
-        indexed: all
+        indexed: head
         indexed_config:
             use_shared_bias: False
             use_bias: True
@@ -86,7 +85,7 @@ model:
         kernel_initializer: orthogonal
         activation: relu
         norm: null
-        indexed: all
+        indexed: head
         indexed_config:
             use_shared_bias: False
             use_bias: True
@@ -99,10 +98,10 @@ model:
         activation: relu
         norm: null
         out_gain: .01
-        out_scale: .1
+        out_scale: 1
         out_act: atan
         combine_sa: False
-        indexed: all
+        indexed: head
         indexed_config:
             use_shared_bias: False
             use_bias: True
@@ -114,7 +113,7 @@ model:
         kernel_initializer: orthogonal
         activation: relu
         norm: null
-        indexed: all
+        indexed: null
         indexed_config:
             use_shared_bias: False
             use_bias: True
@@ -200,7 +199,7 @@ loss:
         value_life_mask: False
         stop_target_grads: False
 
-        joint_objective: False
+        joint_objective: True
     meta:
         # hyperparams for value target and advantage
         target_type: gae
@@ -228,7 +227,7 @@ loss:
 
         # hyperparams for meta-learning
         meta_reward_coef: 0
-        joint_objective: False
+        joint_objective: True
 
 trainer:
     algorithm: *algo
@@ -299,10 +298,9 @@ buffer:
 
     sample_keys: 
         - obs
-        # - sid
-        # - idx
+        - idx
         # - event
-        # - hidden_state
+        - hidden_state
         - action
         - value
         - reward

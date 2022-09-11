@@ -4,19 +4,18 @@ import logging
 from types import FunctionType
 from typing import Dict, Tuple
 
-from core.elements.actor import Actor
-from core.elements.dataset import create_dataset
-from core.elements.model import Model
-from core.elements.strategy import Strategy
-from core.elements.trainer import Trainer
+from .actor import Actor
+from .dataset import create_dataset
+from .model import Model
+from .strategy import Strategy
+from .trainer import Trainer
 from core.log import do_logging
 from core.monitor import Monitor, create_monitor
-from core.typing import ModelPath, construct_model_name_from_version, get_vid
+from core.typing import *
 from core.utils import save_code, save_config
 from env.func import get_env_stats
 from tools.timer import timeit
-from tools.utils import AttrDict2dict, dict2AttrDict, set_path
-from core.typing import AttrDict
+from tools.utils import set_path
 from tools import pkg, yaml_op
 
 
@@ -470,7 +469,7 @@ class ElementsBuilder:
                 "You are safe to neglect it if it's an intended behavior. ", 
                 logger=logger, level=level)
             module = pkg.import_module(
-                f'elements.{name}', pkg='core')
+                f'elements.{name}', pkg='tf_core')
         return module
 
 

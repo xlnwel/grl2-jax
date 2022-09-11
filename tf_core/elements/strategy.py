@@ -1,10 +1,10 @@
 import copy
 from typing import Tuple, Union
 
-from core.elements.actor import Actor
-from core.elements.model import Model
-from core.elements.trainer import Trainer, TrainerEnsemble
-from core.elements.trainloop import TrainingLoopBase
+from .actor import Actor
+from .model import Model
+from .trainer import Trainer, TrainerEnsemble
+from .trainloop import TrainingLoopBase
 from core.mixin.strategy import StepCounter
 from core.typing import ModelPath
 from env.typing import EnvOutput

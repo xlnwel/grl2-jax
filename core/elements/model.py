@@ -32,8 +32,9 @@ class Model(ParamsCheckpointBase):
         self.env_stats = dict2AttrDict(env_stats, to_copy=True)
         self.modules: Dict[str, hk.Module] = AttrDict()
         self.rng = self._prngkey()
+        self.act_rng = self.rng
         self.build_nets()
-        self.jit_model()
+        self.compile_model()
 
     def _prngkey(self, seed=None):
         if seed is None:
@@ -46,8 +47,13 @@ class Model(ParamsCheckpointBase):
     def build_nets(self):
         raise NotImplementedError
 
-    def jit_model(self):
+    def compile_model(self):
         pass
+
+    def action(self, data, evaluation):
+        self.act_rng, act_rng = jax.random.split(self.act_rng) 
+        return self.jit_action(
+            self.params, act_rng, data, evaluation)
 
     def get_weights(self, name: str=None):
         """ Returns a list/dict of weights
@@ -100,7 +106,7 @@ class Model(ParamsCheckpointBase):
 
     @property
     def state_keys(self):
-        return self.rnn.state_keys if hasattr(self, 'rnn') else {} # Empty tuple so that it can be iterable
+        return self.rnn.state_keys if hasattr(self, 'rnn') else () # Empty tuple so that it can be iterable
 
     @property
     def state_type(self):

@@ -2,10 +2,10 @@ import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers, regularizers, constraints
 from tensorflow.keras.mixed_precision import global_policy
 
-from core.ensemble import Module
-from nn.registry import rnn_registry
-from nn.typing import LSTMState
-from nn.utils import get_initializer
+from tf_core.module import Module
+from tf_nn.registry import rnn_registry
+from tf_nn.typing import LSTMState
+from tf_nn.utils import get_initializer
 from tools.tf_utils import assert_rank
 
 

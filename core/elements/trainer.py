@@ -3,7 +3,7 @@ import jax
 import optax
 
 from core.ckpt.base import ParamsCheckpointBase
-from core.elements.loss import Loss
+from core.elements.loss import LossBase
 from core.ensemble import Ensemble
 from core.optimizer import build_optimizer
 from core.typing import ModelPath, dict2AttrDict
@@ -11,44 +11,47 @@ from core.typing import AttrDict
 from tools.utils import set_path
 
 
-class Trainer(ParamsCheckpointBase):
+class TrainerBase(ParamsCheckpointBase):
     def __init__(
         self, 
         *,
         config: AttrDict,
         env_stats: AttrDict,
-        loss: Loss,
+        loss: LossBase,
         name: str
     ):
         super().__init__(config, name=f'{name}_trainer')
-
-        self.model = loss.model
-        self.loss = loss
         self.env_stats = env_stats
+
+        self.loss = loss
+        self.model = loss.model
         self.opts: Dict[str, optax.GradientTransformation] = AttrDict()
         self.opt_names: Dict[str, str] = AttrDict()
+        self.rng = self.model.rng
 
         self.add_attributes()
         self.build_optimizers()
-        self.jit_train()
+        self.compile_train()
         self.post_init()
 
     def add_attributes(self):
         pass
 
-    def jit_train(self):
-        self.train = jax.jit(self.raw_train)
-
     def raw_train(self):
         raise NotImplementedError
 
     def build_optimizers(self):
-        # keep the order fixed, otherwise you may encounter 
-        # the permutation misalignment problem when restoring from a checkpoint
-        opt, state = build_optimizer(
-            params=self.model.params, **self.config.optimizer)
-        self.opts.rl = opt
-        self.params.rl = state
+        self.opts.theta, self.params.theta = build_optimizer(
+            params=self.model.theta, 
+            **self.config.theta_opt, 
+            name='theta'
+        )
+
+    def compile_train(self):
+        self.jit_train = jax.jit(self.raw_train)
+
+    def train(self, data):
+        raise NotImplementedError
 
     def post_init(self):
         """ Add some additional attributes and do some post processing here """
@@ -57,14 +60,14 @@ class Trainer(ParamsCheckpointBase):
     """ Weights Access """
     def get_weights(self):
         weights = {
-            f'{self.name}_model': self.model.get_weights(),
-            f'{self.name}_opt': self.get_optimizer_weights(),
+            'model': self.model.get_weights(),
+            'opt': self.get_optimizer_weights(),
         }
         return weights
 
     def set_weights(self, weights):
-        self.model.set_weights(weights[f'{self.name}_model'])
-        self.set_optimizer_weights(weights[f'{self.name}_opt'])
+        self.model.set_weights(weights['model'])
+        self.set_optimizer_weights(weights['opt'])
 
     def get_model_weights(self, name: str=None):
         return self.model.get_weights(name)
@@ -79,6 +82,7 @@ class Trainer(ParamsCheckpointBase):
     def set_optimizer_weights(self, weights):
         assert set(weights).issubset(set(self.params)) or set(self.params).issubset(set(weights)), (list(self.params), list(weights))
         for k, v in weights.items():
+            assert len(self.params[k]) == len(v), (k, len(self.params[k], len(v)))
             self.params[k] = v
 
     """ Checkpoints """
@@ -107,7 +111,7 @@ class TrainerEnsemble(Ensemble):
         *, 
         config: AttrDict, 
         env_stats: AttrDict,
-        components: Dict[str, Trainer], 
+        components: Dict[str, TrainerBase], 
         name: str, 
     ):
         super().__init__(

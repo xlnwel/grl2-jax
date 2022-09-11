@@ -2,11 +2,10 @@ import logging
 import tensorflow as tf
 
 from core.log import do_logging
-from core.ensemble import Module
-from nn.registry import nn_registry
-from nn.utils import get_activation
-from core.typing import AttrDict
-from tools.utils import dict2AttrDict
+from tf_core.module import Module
+from tf_nn.registry import nn_registry
+from tf_nn.utils import get_activation
+from core.typing import AttrDict, dict2AttrDict
 
 logger = logging.getLogger(__name__)
 

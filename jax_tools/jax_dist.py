@@ -13,7 +13,7 @@ class Distribution:
     def neg_log_prob(self, x):
         raise NotImplementedError
 
-    def sample(self, *args, **kwargs):
+    def sample(self, rng, *args, **kwargs):
         raise NotImplementedError
         
     def entropy(self):
@@ -32,10 +32,9 @@ class Distribution:
 
 class Categorical(Distribution):
     """ An implementation of tfd.RelaxedOneHotCategorical """
-    def __init__(self, logits, rng=0, tau=None, epsilon=EPSILON):
+    def __init__(self, logits, tau=None, epsilon=EPSILON):
         self.logits = logits
         self.tau = tau  # tau in Gumbel-Softmax
-        self.rng = rng
         self.epsilon = epsilon
 
     def neg_log_prob(self, x, mask=None):
@@ -46,7 +45,7 @@ class Categorical(Distribution):
         else:
             return optax.softmax_cross_entropy_with_integer_labels(logits, x)
 
-    def sample(self, mask=None, one_hot=False):
+    def sample(self, rng, mask=None, one_hot=False):
         """
          A differentiable sampling method for categorical distribution
          reference paper: Categorical Reparameterization with Gumbel-Softmax
@@ -55,14 +54,14 @@ class Categorical(Distribution):
         logits = self.get_masked_logits(mask)
         if self.tau and one_hot:
             # sample Gumbel(0, 1)
-            U = random.uniform(self.rng, shape=logits.shape, 
+            U = random.uniform(rng, shape=logits.shape, 
                 dtype=logits.dtype, minval=0, maxval=1)
             g = -lax.log(-lax.log(U+self.epsilon)+self.epsilon)
             # Draw a sample from the Gumbel-Softmax distribution
             y = nn.softmax((logits + g) / self.tau)
             # draw one-hot encoded sample from the softmax
         else:
-            y = random.categorical(self.rng, logits=logits)
+            y = random.categorical(rng, logits=logits)
             if one_hot:
                 y = nn.one_hot(y, logits.shape[-1], dtype=logits.dtype)
 
@@ -102,10 +101,9 @@ class Categorical(Distribution):
 
 
 class MultivariateNormalDiag(Distribution):
-    def __init__(self, mean, logstd, rng=0, epsilon=EPSILON):
+    def __init__(self, mean, logstd, epsilon=EPSILON):
         self.mu, self.logstd = mean, logstd
         self.std = lax.exp(self.logstd)
-        self.rng = rng
         self.epsilon = epsilon
 
     def neg_log_prob(self, x):
@@ -115,9 +113,9 @@ class MultivariateNormalDiag(Distribution):
             + ((x - self.mu) / (self.std + self.epsilon))**2, 
         axis=-1)
 
-    def sample(self):
+    def sample(self, rng):
         return self.mu + self.std * random.normal(
-            self.rng, self.mu.shape, dtype=self.mu.dtype)
+            rng, self.mu.shape, dtype=self.mu.dtype)
 
     def entropy(self):
         return jnp.sum(.5 * np.log(2. * np.pi) + self.logstd + .5, axis=-1)

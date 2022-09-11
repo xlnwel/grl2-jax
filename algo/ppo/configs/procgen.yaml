@@ -14,15 +14,15 @@ model_name: *algo
 routine:
     algorithm: *algo
 
-    MAX_STEPS: 2.5e7
-    n_steps: &nsteps 256
+    MAX_STEPS: 1e7
+    n_steps: &nsteps 16
     LOG_PERIOD: 200
     EVAL_PERIOD: 200
 
     RECORD_VIDEO: False
     N_EVAL_EPISODES: 1
 
-    timeout_done: &td False
+    timeout_done: &td True
 
 env:
     env_name: &env_name procgen-coinrun
@@ -37,22 +37,21 @@ agent: {}
 
 strategy:
     train_loop:
-        n_epochs: &nepochs 3
+        n_epochs: &nepochs 1
         N_VALUE_EPOCHS: &nval_epochs 0
-        n_mbs: &nmbs 8
-        max_kl: 0            # early stop when max_kl is violated. 0 or null suggests unbound
-
-        # (once, reuse, null)
-        # "once" updates values at the end of each epoch
-        # "reuse" updates values using value from train, which is staler than once
-        # null doesn't update values.
-        value_update: null
+        n_mbs: &nmbs 1
+        K: &K null
+        L: &L 0
+        extra_meta_step: &ems 1 # 0/1
 
     RECORD_VIDEO: False
 
 model:
     rnn_type: &rnn null
     sample_size: &ss 16
+    K: *K
+    L: *L
+
     encoder: 
         nn_id: cnn_impala
         block: resv2
@@ -77,40 +76,67 @@ model:
         norm: null
         kernel_initializer: orthogonal
         activation: relu
+    embed: 
+        nn_id: hpembed
+        out_size: 16
+    meta:
+        nn_id: meta
+        pg_coef:
+            outer: 1
+            default: 1
+            init: null
+            act: sigmoid
+        entropy_coef:
+            outer: 0
+            default: 0
+            init: null
+            act: sigmoid
+        value_coef:
+            outer: 1
+            default: 1
+            scale: 1
+            bias: 0
+            init: null
+            act: sigmoid
+        gamma: 
+            outer: &gamma .99
+            default: 1
+            scale: 1
+            bias: 0
+            init: 4.5
+            act: sigmoid
+        lam:
+            outer: .95
+            default: 1
+            scale: 1
+            bias: 0
+            init: 3
+            act: sigmoid
 
 loss:
     # hyperparams for loss
-    value_loss: clip
-    ppo_clip_range: .2          # clip range for ppo
-    value_clip_range: .2          # clip range for ppo
-    entropy_coef: .01
-    value_coef: .5
-    pg_coef: 1
-    aux_l1_coef: 0
-    aux_l2_coef: 0
-    weighted_l_dist: False
-    kl_prior_coef: 0
-    kl_prior: reverse
-    kl_target_coef: 0
-    kl_target: reverse_approx
-    new_po_coef: 0
-    target_prob: target_prob_prime
-    js_target_coef: 0
-    js_target: approx
-    tsallis_target_coef: 0
-    tsallis_target: reverse_approx
-    tsallis_q: 1.2
+    c_clip: 1
+    rho_clip: 1
+    use_dice: False
+    dice_axis: null
+    dice_lam: 1
+    kl: reverse
+    kl_coef: 1
+
     life_mask: False
 
-    normalize_adv: False
-    process_adv: null
-    zero_center: True
-    adv_normalizer: 5
-    adv_scale: 10
+    value_loss: mse
+    life_mask: False
 
 trainer:
     algorithm: *algo
     sample_size: *ss         # BPTT length
+    timeout_done: *td
+    meta_type: plain
+    K: *K
+    L: *L
+    extra_meta_step: *ems
+    store_state: True
     
     optimizer:
         opt_name: adam
@@ -118,17 +144,23 @@ trainer:
         lr: 5e-4
         clip_norm: .5
         epsilon: 1.e-5
+    meta_opt:
+        opt_name: adam
+        schedule_lr: False
+        lr: 1e-3
+        clip_norm: .5
+        epsilon: 1e-4
 
 actor:
     rms:
         normalize_obs: False
         normalize_reward: True
         update_reward_rms_in_time: False
-        gamma: &gamma .999
+        gamma: *gamma
 
 buffer:
     use_dataset: False
-    type: ppo
+    type: ac
 
     adv_type: gae     # nae or gae
     gamma: *gamma
@@ -139,54 +171,23 @@ buffer:
     n_epochs: *nepochs
     N_VALUE_EPOCHS: *nval_epochs
     n_mbs: *nmbs        # number of minibatches
+    queue_size: 2
+    K: *K
+    L: *L
+    extra_meta_step: *ems
+    timeout_done: *td
     rnn_type: *rnn
-    normalize_adv: False
-    zero_center_adv: True
-    process_adv: null
-    adv_clip: null
-
-    # Trust region arguments
-    target_pi:
-        target_type: exp
-        adv_tau: 1
-        alpha: .2
-        pr_lower_clip: .2
-        pr_upper_clip: .2
-        exp_lower_clip: 1
-        exp_upper_clip: 1
-        tsallis_lower_clip: 1
-        tsallis_upper_clip: 1
-        adv_lower_clip: 1
-        adv_upper_clip: 3
-        lin_lower_clip: .5
-        lin_upper_clip: 1
-        lin_weights: 1
-        normalize_adv: False
-        zero_center: True
-        process_adv: null
-        step_size: .1
-
-        target_prob_key: target_prob_prime
-
-    aux_adv_lower_clip: null
-    aux_adv_upper_clip: null
 
     sample_keys: 
         - obs
-        - reward
         - action
         - value
-        - traj_ret
-        - advantage
-        - target_prob
-        - tr_prob
-        - vt_prob
-        - target_prob_prime
-        - tr_prob_prime
-        - logprob
-        - pi
-        - target_pi
+        - reward
+        - discount
+        - reset
+        - mu_logprob
+        - mu_mean
+        - mu_std
         - mask
         - h
         - c
-    # mini-batch size = n_runners * n_envs * epslen / n_mbs

@@ -11,7 +11,7 @@ from ..remote.monitor import Monitor
 from ..remote.parameter_server import ParameterServer
 from core.ckpt.base import YAMLCheckpointBase
 from core.log import do_logging
-from core.typing import ModelPath, get_basic_model_name
+from core.typing import ModelPath, get_basic_model_name, AttrDict, dict2AttrDict
 from core.utils import save_code
 from env.func import get_env_stats
 from gt.alpharank import AlphaRank
@@ -19,8 +19,7 @@ from run.utils import search_for_all_configs, search_for_config
 from tools.process import run_ray_process
 from tools.schedule import PiecewiseSchedule
 from tools.timer import Every, Timer
-from core.typing import AttrDict
-from tools.utils import batch_dicts, dict2AttrDict, eval_config, modify_config
+from tools.utils import batch_dicts, eval_config, modify_config
 from tools import yaml_op
 
 
@@ -259,7 +258,8 @@ class Controller(YAMLCheckpointBase):
         agent_manager.start_training()
         to_restart_runners = Every(
             self.config.get('restart_runners_priod', None), 
-            self._steps + self.config.restart_runners_priod
+            0 if self.config.restart_runners_priod is None \
+                else self._steps + self.config.restart_runners_priod
         )
         to_eval = Every(
             self.config.get('eval_priod', None), 

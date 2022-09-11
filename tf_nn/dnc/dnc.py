@@ -27,7 +27,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from nn.dnc import access
+from tf_nn.dnc import access
 
 DNCState = collections.namedtuple('DNCState', ('access_output', 'access_state',
                                                'controller_state'))

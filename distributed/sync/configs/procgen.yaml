@@ -131,7 +131,7 @@ actor:
         gamma: &gamma .99
 
 buffer:
-    type: ppo
+    type: ac
     # dir: data/gd-100000
     use_dataset: False
 

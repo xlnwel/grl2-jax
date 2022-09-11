@@ -1,10 +1,11 @@
 import numpy as np
 import ray
 
+from core.typing import AttrDict2dict
 from env.cls import *
 from env.typing import EnvOutput
 from env.utils import batch_ma_env_output
-from tools.utils import AttrDict2dict, convert_batch_with_func
+from tools.utils import convert_batch_with_func
 
 
 class RayVecEnv:

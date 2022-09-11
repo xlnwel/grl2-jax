@@ -68,10 +68,10 @@ class IndexParams(hk.Module):
         w = hk.get_parameter('w', shape=init_shape, init=init)
         if self.use_bias:
             init_shape = (self.w_out,) if self.w_in is None else (w_in, self.w_out)
-            init = hk.initializers.Constant(0)
+            init = get_initializer('zero')
             b = hk.get_parameter('b', shape=init_shape, init=init)
         else:
-            b = 0
+            b = None
 
         return w, b
 
@@ -136,10 +136,8 @@ class IndexModule(hk.Module):
         self.out_size = out_size
         self.index = self.config.pop('index', None)
         self.index_config = self.config.pop('index_config', {})
-        assert self.index_config.get('scale', 1) == 1, self.index_config
         self.index_config['w_init'] = self.config.get('w_init', 'orthogonal')
 
-    @hk.transparent
     def __call__(self, x, hx):
         layers = self.build_net()
 

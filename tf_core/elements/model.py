@@ -1,11 +1,11 @@
 from typing import Union
 
-from core.ensemble import Ensemble, constructor
+from tf_core.module import Ensemble, constructor
 from core.typing import AttrDict
 
 
 def construct_components(config, name):
-    from nn.func import create_network
+    from tf_nn.func import create_network
     networks = {k: create_network(v, name=f'{name}/{k}') 
         for k, v in config.items() if isinstance(v, dict)}
     return networks

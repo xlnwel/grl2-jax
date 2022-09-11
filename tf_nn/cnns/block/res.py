@@ -2,9 +2,9 @@ import functools
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from core.ensemble import Module
-from nn.registry import am_registry, layer_registry, block_registry, subsample_registry
-from nn.utils import *
+from tf_core.module import Module
+from tf_nn.registry import am_registry, layer_registry, block_registry, subsample_registry
+from tf_nn.utils import *
 
 
 class ResidualBase(Module):

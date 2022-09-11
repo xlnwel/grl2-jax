@@ -106,14 +106,23 @@ class Recorder:
             k_std, k_min, k_max = std, min, max
             if (k.endswith('score') or k.endswith('epslen')) and not k.startswith('metrics/'):
                 k = f'metrics/{k}'
-            if adaptive and not k.startswith('aux/') \
-                and not k.startswith('misc/') and not k.startswith('time/'):
+            if (
+                adaptive 
+                and not k.startswith('aux/') 
+                and not k.startswith('misc/') 
+                and not k.startswith('time/')
+                and not k.endswith('std')
+                and not k.endswith('min')
+                and not k.endswith('max')
+            ):
                 k_std = k_min = k_max = True
             if isscalar(v):
                 stats[k] = v
                 continue
             if mean:
                 try:
+                    if np.any(np.isnan(v)):
+                        print(k, v)
                     stats[k] = np.mean(v).astype(np.float32)
                 except:
                     print(k)

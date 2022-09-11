@@ -1,10 +1,10 @@
 from tensorflow.keras import layers
 
-from nn.mlp import *
-from nn.rnns.lstm import MLSTM
-from nn.rnns.gru import MGRU
-from nn.dnc.dnc import DNC
-from nn.registry import nn_registry
+from tf_nn.mlp import *
+from tf_nn.rnns.lstm import MLSTM
+from tf_nn.rnns.gru import MGRU
+from tf_nn.dnc.dnc import DNC
+from tf_nn.registry import nn_registry
 
 
 def create_network(config, name):

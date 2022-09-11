@@ -1,14 +1,13 @@
 import collections
 import logging
 import time
-from typing import Dict, List, Type
 import numpy as np
 
 from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
-from core.typing import AttrDict
-from tools.utils import batch_dicts, dict2AttrDict
+from core.typing import AttrDict, dict2AttrDict
+from tools.utils import batch_dicts
 from .utils import compute_inner_steps, collect
 
 logger = logging.getLogger(__name__)
@@ -19,76 +18,7 @@ def concat_obs(obs, last_obs):
     return obs
 
 
-class SamplingKeysExtractor:
-    def extract_sampling_keys(self, env_stats: AttrDict, model: Model):
-        self.state_keys = tuple([k for k in model.state_keys])
-        self.state_type = model.state_type
-        self.sample_keys, self.sample_size = self._get_sample_keys_size()
-        self.sample_keys = set(self.sample_keys)
-        obs_keys = env_stats.obs_keys[model.config.aid] if 'aid' in model.config else env_stats.obs_keys
-        for k in obs_keys:
-            self.sample_keys.add(k)
-        if bool([k for k in self.sample_keys if k.startswith('next')]):
-            for k in obs_keys:
-                self.sample_keys.add(f'next_{k}')
-        # if env_stats.use_action_mask:
-        #     self.sample_keys.append('action_mask')
-        # elif 'action_mask' in self.sample_keys:
-        #     self.sample_keys.remove('action_mask')
-        # if env_stats.use_life_mask:
-        #     self.sample_keys.append('life_mask')
-        # elif 'life_mask' in self.sample_keys:
-        #     self.sample_keys.remove('life_mask')
-
-    def _get_sample_keys_size(self):
-        state_keys = ['h', 'c']
-        if self.config.get('rnn_type'): 
-            sample_keys = self.config.sample_keys
-        else:
-            sample_keys = self._remote_state_keys(
-                self.config.sample_keys, 
-                state_keys, 
-            )
-            if 'mask' in sample_keys:
-                sample_keys.remove('mask')
-        sample_size = self.config.n_steps
-
-        return sample_keys, sample_size
-
-    def _remote_state_keys(self, sample_keys, state_keys):
-        for k in state_keys:
-            if k in sample_keys:
-                sample_keys.remove(k)
-
-        return sample_keys
-
-
-class Sampler:
-    def get_sample(
-        self, 
-        memory: Dict, 
-        sample_keys: List, 
-        state_keys: List, 
-        state_type: Type
-    ):
-        if state_type is None:
-            sample = {k: memory[k] for k in sample_keys}
-        else:
-            sample = {}
-            state = []
-            for k in sample_keys:
-                if k in state_keys:
-                    v = memory[k][:, 0]
-                    state.append(v.reshape(-1, v.shape[-1]))
-                else:
-                    sample[k] = memory[k]
-            if state:
-                sample['state'] = state_type(*state)
-
-        return sample
-
-
-class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
+class LocalBuffer(Buffer):
     def __init__(
         self, 
         config: AttrDict,
@@ -107,7 +37,9 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
 
     def _add_attributes(self, env_stats, model):
         self._obs_keys = env_stats.obs_keys[self.aid]
-        self.extract_sampling_keys(env_stats, model)
+        self.state_keys, self.state_type, \
+            self.sample_keys, self.sample_size = \
+                extract_sampling_keys(self.config, env_stats, model)
 
         self.n_steps = self.config.n_steps
         self.n_envs = self.config.n_envs
@@ -149,7 +81,7 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
             if k not in self._buffer:
                 continue
             v = np.stack(self._buffer[k])
-            v = np.swapaxes(v, 0, 1)
+            v = np.swapaxes(v, 0, 1)    # swap the env- and sequential-dimensions
             if self.config.timeout_done and k in self._obs_keys:
                 assert v.shape[:3] == (self.n_envs, self.n_steps+1, self.n_units), \
                     (k, v.shape, (self.n_envs, self.n_steps+1, self.n_units))
@@ -178,7 +110,7 @@ class LocalBuffer(SamplingKeysExtractor, Sampler, Buffer):
                     data[k] = data.pop(f'next_{k}')
 
 
-class ACBuffer(SamplingKeysExtractor, Buffer):
+class ACBuffer(Buffer):
     def __init__(
         self, 
         config: AttrDict, 
@@ -191,10 +123,9 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
         self._add_attributes(env_stats, model)
 
     def _add_attributes(self, env_stats, model):
-        self.use_dataset = self.config.get('use_dataset', False)
-        do_logging(f'Is dataset used for data pipeline: {self.use_dataset}', logger=logger)
-
-        self.extract_sampling_keys(env_stats, model)
+        self.state_keys, self.state_type, \
+            self.sample_keys, self.sample_size = \
+                extract_sampling_keys(self.config, env_stats, model)
 
         self.config = compute_inner_steps(self.config)
 
@@ -284,6 +215,7 @@ class ACBuffer(SamplingKeysExtractor, Buffer):
                 self._memory = []
             assert len(self._memory) <= self.config.inner_steps + self.config.extra_meta_step
 
+        sample = dict2AttrDict(sample, shallow=True)
         return sample
 
     """ Implementations """
@@ -315,7 +247,7 @@ def create_buffer(config, model, env_stats, **kwargs):
     config = dict2AttrDict(config)
     env_stats = dict2AttrDict(env_stats)
     BufferCls = {
-        'ppo': ACBuffer, 
+        'ac': ACBuffer, 
         'local': LocalBuffer
     }[config.type]
     return BufferCls(
@@ -324,3 +256,51 @@ def create_buffer(config, model, env_stats, **kwargs):
         model=model, 
         **kwargs
     )
+
+
+def extract_sampling_keys(
+    config: AttrDict, 
+    env_stats: AttrDict, 
+    model: Model
+):
+    state_keys = model.state_keys
+    state_type = model.state_type
+    sample_keys, sample_size = _get_sample_keys_size(config)
+    sample_keys = set(sample_keys)
+    obs_keys = env_stats.obs_keys[model.config.aid] if 'aid' in model.config else env_stats.obs_keys
+    for k in obs_keys:
+        sample_keys.add(k)
+    if bool([k for k in sample_keys if k.startswith('next')]):
+        for k in obs_keys:
+            sample_keys.add(f'next_{k}')
+    # if env_stats.use_action_mask:
+    #     self.sample_keys.append('action_mask')
+    # elif 'action_mask' in self.sample_keys:
+    #     self.sample_keys.remove('action_mask')
+    # if env_stats.use_life_mask:
+    #     self.sample_keys.append('life_mask')
+    # elif 'life_mask' in self.sample_keys:
+    #     self.sample_keys.remove('life_mask')
+    return state_keys, state_type, sample_keys, sample_size
+
+def _get_sample_keys_size(config: AttrDict):
+    state_keys = ['h', 'c']
+    if config.get('rnn_type'): 
+        sample_keys = config.sample_keys
+    else:
+        sample_keys = _remote_state_keys(
+            config.sample_keys, 
+            state_keys, 
+        )
+        if 'mask' in sample_keys:
+            sample_keys.remove('mask')
+    sample_size = config.n_steps
+
+    return sample_keys, sample_size
+
+def _remote_state_keys(sample_keys, state_keys):
+    for k in state_keys:
+        if k in sample_keys:
+            sample_keys.remove(k)
+
+    return sample_keys

@@ -155,6 +155,13 @@ loss:
         value_coef: 1
         life_mask: False
 
+    stats:
+        gamma: *gamma
+        lam: .95
+        pg_coef: 1
+        entropy_coef: .01
+        value_coef: 1
+
 trainer:
     algorithm: *algo
 
@@ -190,7 +197,7 @@ actor:
         gamma: &gamma .995
 
 buffer:
-    type: ppo
+    type: ac
     use_dataset: False
 
     # PPO configs

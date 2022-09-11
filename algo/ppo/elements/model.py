@@ -1,130 +1,166 @@
 import os
-from typing import Tuple
-import tensorflow as tf
+import math
+import logging
+import jax
+from jax import lax, nn, random
+import jax.numpy as jnp
+import haiku as hk
 
-from core.elements.model import Model
-from core.tf_config import build
+from core.log import do_logging
+from core.elements.model import Model as ModelBase
+from core.typing import dict2AttrDict
+from nn.func import create_network
 from tools.file import source_file
-from core.typing import AttrDict
+from jax_tools import jax_dist
+from .utils import get_hx
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
+logger = logging.getLogger(__name__)
 
 
-class GPOModel(Model):
-    def _pre_init(self):
-        self.has_rnn = bool(self.config.get('rnn_type'))
-        if self.config.encoder.nn_id is not None \
-            and self.config.encoder.nn_id.startswith('cnn'):
-            self.config.encoder.time_distributed = 'rnn' in self.config
+def construct_fake_data(env_stats, aid):
+    basic_shape = (1, len(env_stats.aid2uids[aid]))
+    shapes = env_stats.obs_shape[aid]
+    dtypes = env_stats.obs_dtype[aid]
+    action_dim = env_stats.action_dim[aid]
+    data = {k: jnp.zeros((*basic_shape, *v), dtypes[k]) 
+        for k, v in shapes.items()}
+    data = dict2AttrDict(data)
+    data.setdefault('global_state', data.obs)
+    data.setdefault('hidden_state', data.obs)
+    data.action = jnp.zeros((*basic_shape, action_dim), jnp.float32)
+    data.hx = get_hx(data.sid, data.idx, data.event)
 
-    def _build(
+    return data
+
+class Model(ModelBase):
+    def build_nets(self):
+        def build_fn(rng, *args, name, **kwargs):
+            def build_net(*args, **kwargs):
+                config = dict2AttrDict(self.config, to_copy=True)
+                net = create_network(config[name], name)
+                return net(*args, **kwargs)
+            net = hk.transform(build_net)
+            return net.init(rng, *args, **kwargs), net.apply
+        aid = self.config.get('aid', 0)
+        self.is_action_discrete = self.env_stats.is_action_discrete[aid]
+        data = construct_fake_data(self.env_stats, aid)
+
+        rngs = random.split(self.rng, 2)
+        self.params.policy, self.modules.policy = build_fn(
+            rngs[0], data.obs, data.hx, data.action_mask, name='policy')
+        self.params.value, self.modules.value = build_fn(
+            rngs[1], data.global_state, data.hx, name='value')
+
+    def compile_model(self):
+        self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
+    
+    @property
+    def theta(self):
+        return self.params
+
+    def raw_action(
         self, 
-        env_stats: AttrDict, 
-        evaluation: bool=False
-    ):
-        basic_shape = (None,)
-        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
-        shapes = env_stats['obs_shape']
-        dtypes = env_stats['obs_dtype']
-        TensorSpecs = {k: ((*basic_shape, *v), dtypes[k], k) 
-            for k, v in shapes.items()}
-
-        if self.state_size:
-            TensorSpecs.update(dict(
-                state=self.state_type(*[((None, sz), dtype, name) 
-                    for name, sz in self.state_size._asdict().items()]),
-                mask=(basic_shape, tf.float32, 'mask'),
-                evaluation=evaluation,
-                return_eval_stats=evaluation,
-            ))
-        self.action = build(self.action, TensorSpecs)
-
-    @tf.function
-    def action(
-        self, 
-        obs, 
-        state: Tuple[tf.Tensor]=None,
-        mask: tf.Tensor=None,
+        params, 
+        rng, 
+        data, 
         evaluation=False, 
-        return_eval_stats=False
     ):
-        x, state = self.encode(obs, state=state, mask=mask)
-        act_dist = self.policy(x, evaluation=evaluation)
-        action = self.policy.action(act_dist, evaluation)
+        data.hx = self.build_hx(data)
+        rngs = random.split(rng, 3)
+        act_dist = self.policy_dist(params.policy, rngs[0], data, evaluation)
+        action = act_dist.sample(rng=rngs[1])
 
-        if self.policy.is_action_discrete:
-            pi = tf.nn.softmax(act_dist.logits)
-            terms = {
-                'pi': pi
-            }
+        if self.is_action_discrete:
+            pi = nn.softmax(act_dist.logits)
+            stats = {'mu': pi}
         else:
             mean = act_dist.mean()
-            std = tf.exp(self.policy.logstd)
-            terms = {
-                'pi_mean': mean,
-                'pi_std': std * tf.ones_like(mean), 
+            std = lax.exp(act_dist.logstd)
+            stats = {
+                'mu_mean': mean,
+                'mu_std': jnp.broadcast_to(std, mean.shape), 
             }
 
+        state = data.state
         if evaluation:
-            value = self.value(x)
-            return action, {'value': value}, state
+            data.action = action
+            return action, stats, state
         else:
             logprob = act_dist.log_prob(action)
-            value = self.value(x)
-            terms.update({'logprob': logprob, 'value': value})
+            value = self.modules.value(
+                params.value, 
+                rngs[2], 
+                data.get('global_state', data.obs), 
+                hx=data.hx
+            )
+            stats.update({'mu_logprob': logprob, 'value': value})
 
-            return action, terms, state    # keep the batch dimension for later use
+            return action, stats, state
 
-    @tf.function
-    def compute_value(
-        self, 
-        obs, 
-        state: Tuple[tf.Tensor]=None,
-        mask: tf.Tensor=None
-    ):
-        shape = obs.shape
-        x = tf.reshape(obs, [-1, *shape[2:]])
-        x, state = self.encode(x, state, mask)
-        value = self.value(x)
-        value = tf.reshape(value, (-1, shape[1]))
-        return value, state
-
-    def encode(
-        self, 
-        x, 
-        state: Tuple[tf.Tensor]=None,
-        mask: tf.Tensor=None
-    ):
-        x = self.encoder(x)
-        if hasattr(self, 'rnn'):
-            x, state = self.rnn(x, state, mask)
-            return x, state
+    def policy_dist(self, params, rng, data, evaluation):
+        act_out = self.modules.policy(
+            params, 
+            rng, 
+            data.obs, 
+            hx=data.hx, 
+            action_mask=data.action_mask, 
+        )
+        if self.is_action_discrete:
+            if evaluation and self.config.eval_act_temp > 0:
+                act_out = act_out / self.config.eval_act_temp
+            dist = jax_dist.Categorical(act_out)
         else:
-            return x, None
+            mu, logstd = act_out
+            if evaluation and self.config.eval_act_temp > 0:
+                logstd = logstd + math.log(self.config.eval_act_temp)
+            dist = jax_dist.MultivariateNormalDiag(mu, logstd)
+
+        return dist
+    
+    def build_hx(self, data):
+        return get_hx(data.sid, data.idx, data.event)
+
+
+def setup_config_from_envstats(config, env_stats):
+    if 'aid' in config:
+        aid = config['aid']
+        config.policy.action_dim = env_stats.action_dim[aid]
+        config.policy.is_action_discrete = env_stats.is_action_discrete[aid]
+    else:
+        config.policy.action_dim = env_stats.action_dim
+        config.policy.is_action_discrete = env_stats.is_action_discrete
+        config.policy.action_low = env_stats.action_low
+        config.policy.action_high = env_stats.action_high
+
+    return config
 
 
 def create_model(
     config, 
     env_stats, 
-    name='gpo', 
-    to_build=False,
-    to_build_for_eval=False,
+    name='ppo', 
     **kwargs
-):
-    config.policy.action_dim = env_stats.action_dim
-    config.policy.is_action_discrete = env_stats.is_action_discrete
+): 
+    config = setup_config_from_envstats(config, env_stats)
 
-    if config['rnn_type'] is None:
-        config.pop('rnn', None)
-    else:
-        config['rnn']['nn_id'] = config['actor_rnn_type']
-
-    return GPOModel(
+    return Model(
         config=config, 
         env_stats=env_stats, 
         name=name,
-        to_build=to_build, 
-        to_build_for_eval=to_build_for_eval,
         **kwargs
     )
+
+
+if __name__ == '__main__':
+    from tools.yaml_op import load_config
+    from env.func import create_env
+    from tools.display import pwc
+    config = load_config('algo/zero_mr/configs/magw_a2c')
+    
+    env = create_env(config.env)
+    model = create_model(config.model, env.stats())
+    data = construct_fake_data(env.stats(), 0)
+    print(model.action(model.params, data))
+    pwc(hk.experimental.tabulate(model.raw_action)(model.params, data), color='yellow')

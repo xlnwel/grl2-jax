@@ -8,12 +8,15 @@ from .monitor import Monitor
 from ..common.typing import ModelStats, ModelWeights
 from core.ckpt.pickle import set_weights_for_agent
 from core.elements.agent import Agent
+from core.elements.buffer import Buffer
 from core.elements.builder import ElementsBuilder
+from core.log import do_logging
 from core.mixin.actor import RMS
 from core.remote.base import RayBase
 from core.typing import ModelPath
 from env.func import create_env
 from env.typing import EnvOutput
+from tools.display import print_dict_info
 from tools.timer import Timer
 from tools.utils import dict2AttrDict
 
@@ -65,8 +68,7 @@ class MultiAgentSimRunner(RayBase):
 
         self.env_output = self.env.output()
         self.scores = [[] for _ in range(self.n_agents)]
-        self.score_metric = config.parameter_server.get(
-            'score_metric', 'score')
+        self.score_metric = config.parameter_server.get('score_metric', 'score')
 
         self.builder = ElementsBuilder(config, self.env_stats)
 
@@ -86,7 +88,7 @@ class MultiAgentSimRunner(RayBase):
         self._steps = 0
 
         self.agents: List[Agent] = []
-        self.buffers = []
+        self.buffers: List[Buffer] = []
         self.rms: List[RMS] = []
 
         for aid, config in enumerate(configs):
@@ -154,15 +156,15 @@ class MultiAgentSimRunner(RayBase):
                     self._send_aux_stats(aid)
             self._update_payoffs()
 
-        with Timer('set_strategies') as wt:
+        with Timer('set_strategies'):
             set_strategies(mids)
         for b in self.buffers:
             assert b.is_empty(), b.size()
-        with Timer('run') as rt:
+        with Timer('run'):
             steps, n_episodes = self.run()
         self._steps += self.steps_per_run
 
-        self._save_time_recordings([wt, rt])
+        self._save_time_recordings()
         send_stats(self._steps, n_episodes)
 
         if n_episodes > 0:
@@ -258,13 +260,15 @@ class MultiAgentSimRunner(RayBase):
         def check_end(step):
             return step >= self.n_steps
 
-        def try_sending_data(step, terms: List[dict]):
+        def try_sending_data(step, env_outs: List[Tuple]):
             if self.store_data:
                 sent = False
                 # NOTE: currently we send all data at once
-                for aid, (term, buffer) in enumerate(zip(terms, self.buffers)):
+                for aid, (agent, out, buffer) in enumerate(
+                        zip(self.agents, env_outs, self.buffers)):
                     if self.is_agent_active[aid] and buffer.is_full():
-                        rid, data, n = buffer.retrieve_all_data(last_value=term['value'])
+                        obs = agent.actor.process_obs_with_rms(out.obs, mask=out.obs.get('life_mask'))
+                        rid, data, n = buffer.retrieve_all_data(latest_obs=obs)
                         self.remote_buffers[aid].merge_data.remote(rid, data, n)
                         sent = True
             else:
@@ -282,7 +286,6 @@ class MultiAgentSimRunner(RayBase):
                     a, t = agent(o, evaluation=self.evaluation)
                 action.append(a)
                 terms.append(t)
-                self._save_time_recordings([it])
             return action, terms
 
         def step_env(actions: List):
@@ -309,59 +312,40 @@ class MultiAgentSimRunner(RayBase):
                         len(agent_terms), len(next_agent_env_outs),
                         len(self.buffers)
                     )
-                # if self.config.get('partner_action'):
-                #     agent_logits = [t.pop('logits') for t in agent_terms]
-                #     agent_pactions = []
-                #     agent_plogits = []
-                #     for aid in range(self.n_agents):
-                #         shape = (self.n_envs, sum([n for i, n in enumerate(self.n_units_per_agent) if i != aid]))
-                #         plogits = [a for i, a in enumerate(agent_logits) if i != aid]
-                #         plogits = np.concatenate(plogits, 1)
-                #         assert plogits.shape == (*shape, self.env_stats.action_dim), \
-                #             (plogits.shape, (*shape, self.env_stats.action_dim))
-                #         agent_plogits.append(plogits)
-                #         pactions = [a for i, a in enumerate(agent_actions) if i != aid]
-                #         pactions = np.concatenate(pactions, 1)
-                #         assert pactions.shape == shape, (pactions.shape, shape)
-                #         agent_pactions.append(pactions)
                 for aid, (agent, env_out, next_env_out, buffer) in enumerate(
                         zip(self.agents, agent_env_outs, next_agent_env_outs, self.buffers)):
                     if self.is_agent_active[aid]:
                         stats = {
-                            **env_out.obs,
+                            **env_out.obs, 
                             'action': agent_actions[aid],
                             'reward': agent.actor.normalize_reward(next_env_out.reward),
                             'discount': next_env_out.discount,
+                            'reset': next_env_out.reset,
                         }
-                        # if self.config.get('partner_action'):
-                        #     stats['plogits'] = agent_plogits[aid]
-                        #     stats['paction'] = agent_pactions[aid]
-                        assert np.all(agent_terms[aid]['obs'] <= 5) and np.all(agent_terms[aid]['obs'] >= -5), f"{env_out.obs['life_mask']}\n{agent_terms[aid]['obs']}"
-                        assert np.all(agent_terms[aid]['global_state'] <= 5) and np.all(agent_terms[aid]['global_state'] >= -5), agent_terms[aid]['global_state']
                         stats.update(agent_terms[aid])
+                        obs = agent.actor.process_obs_with_rms(env_out.obs, mask=env_out.obs.get('life_mask'))
+                        np.testing.assert_allclose(obs['obs'], stats['obs'])
                         buffer.add(stats)
 
         step = 0
         n_episodes = 0
         agent_env_outs = self._divide_outs(self.env_output)
         while True:
-            with Timer('infer') as it:
+            with Timer('infer'):
                 action, terms = agents_infer(self.agents, agent_env_outs)
-            sent = try_sending_data(step, terms)
-            if sent and check_end(step):
-                break
-            with Timer('step_env') as et:
+            with Timer('step_env'):
                 next_agent_env_outs = step_env(action)
-            with Timer('update_rms') as st:
+            with Timer('update_rms'):
                 self._update_rms(next_agent_env_outs)
-            with Timer('store_data') as dt:
+            with Timer('store_data'):
                 store_data(agent_env_outs, action, terms, next_agent_env_outs)
             agent_env_outs = next_agent_env_outs
-            with Timer('log') as lt:
+            with Timer('log'):
                 n_episodes += self._log_for_done(agent_env_outs[0].reset)
             step += 1
-
-        self._save_time_recordings([it, et, st, dt, lt])
+            sent = try_sending_data(step, agent_env_outs)
+            if sent and check_end(step):
+                break
 
         return step * self.n_envs, n_episodes
 
@@ -388,7 +372,6 @@ class MultiAgentSimRunner(RayBase):
                     a, t = agent(o, evaluation=self.evaluation)
                 action.append(a)
                 terms.append(t)
-                self._save_time_recordings([it])
             return action, terms
 
         def step_env(agent_env_outs: List, agent_actions: List):
@@ -504,18 +487,16 @@ class MultiAgentSimRunner(RayBase):
         n_episodes = 0
         agent_env_outs = self._reset()
         while not check_end(step):
-            with Timer('infer') as it:
+            with Timer('infer'):
                 action, terms = agents_infer(self.agents, agent_env_outs)
-            with Timer('step_env') as et:
+            with Timer('step_env'):
                 next_agent_env_outs = step_env(agent_env_outs, action)
-            with Timer('store_data') as dt:
+            with Timer('store_data'):
                 store_data(agent_env_outs, action, terms, next_agent_env_outs)
             agent_env_outs = next_agent_env_outs
-            with Timer('log') as lt:
+            with Timer('log'):
                 n_episodes += log_for_done(agent_env_outs)
             step += 1
-        
-        self._save_time_recordings([it, et, dt, lt])
 
         send_data()
 
@@ -560,24 +541,22 @@ class MultiAgentSimRunner(RayBase):
         n_episodes = 0
         env_output = self.env_output
         while True:
-            with Timer('infer') as it:
+            with Timer('infer'):
                 action, terms = self.agents[0](env_output, evaluation=self.evaluation)
             sent = try_sending_data(terms)
             if sent and check_end(step):
                 break
-            with Timer('step_env') as et:
+            with Timer('step_env'):
                 self.env_output = step_env(action)
-            with Timer('update_rms') as st:
+            with Timer('update_rms'):
                 self._update_rms(env_output)
-            with Timer('store_data') as dt:
+            with Timer('store_data'):
                 store_data(env_output, action, terms, self.env_output)
             env_output = self.env_output
-            with Timer('log') as lt:
+            with Timer('log'):
                 n_episodes += self._log_for_done(self.env_output.reset)
             step += 1
         _, terms = self.agents[0](self.env_output, evaluation=self.evaluation)
-
-        self._save_time_recordings([it, et, st, dt, lt])
 
         if self.store_data:
             for aid, buffer in enumerate(self.buffers):
@@ -680,10 +659,8 @@ class MultiAgentSimRunner(RayBase):
                 self.current_models, self.scores)
             self.scores = [[] for _ in range(self.n_agents)]
 
-    def _save_time_recordings(self, timers: List[Timer]):
-        stats = {}
-        for s in [t.to_stats() for t in timers]:
-            stats.update(s)
+    def _save_time_recordings(self):
+        stats = Timer.all_stats()
         for aid, is_active in enumerate(self.is_agent_active):
             if is_active:
                 self.agents[aid].store(**stats)

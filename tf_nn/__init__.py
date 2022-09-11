@@ -1,6 +1,6 @@
 import os
 
-from nn.registry import *
+from tf_nn.registry import *
 from tools.file import load_files
 
 

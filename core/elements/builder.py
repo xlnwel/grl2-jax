@@ -8,7 +8,7 @@ from core.elements.actor import Actor
 from core.elements.dataset import create_dataset
 from core.elements.model import Model
 from core.elements.strategy import Strategy
-from core.elements.trainer import Trainer
+from core.elements.trainer import TrainerBase
 from core.log import do_logging
 from core.monitor import Monitor, create_monitor
 from core.typing import *
@@ -141,7 +141,7 @@ class ElementsBuilder:
     ):
         config = dict2AttrDict(config or self.config)
         env_stats = dict2AttrDict(env_stats or self.env_stats)
-        if self.config.buffer['use_dataset']:
+        if self.config.buffer.get('use_dataset'):
             am = pkg.import_module(
                 'elements.utils', algo=config.algorithm, place=-1)
             data_format = am.get_data_format(
@@ -157,7 +157,7 @@ class ElementsBuilder:
     def build_strategy(
         self, 
         actor: Actor=None, 
-        trainer: Trainer=None, 
+        trainer: TrainerBase=None, 
         dataset=None, 
         config: dict=None, 
         env_stats: dict=None, 

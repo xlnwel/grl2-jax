@@ -3,13 +3,12 @@ from typing import Tuple, Union
 
 from core.elements.actor import Actor
 from core.elements.model import Model
-from core.elements.trainer import Trainer, TrainerEnsemble
-from core.elements.trainloop import TrainingLoopBase
+from core.elements.trainer import TrainerBase, TrainerEnsemble
+from core.elements.trainloop import TrainingLoop
 from core.mixin.strategy import StepCounter
-from core.typing import ModelPath
+from core.typing import ModelPath, AttrDict
 from env.typing import EnvOutput
 from tools.utils import set_path
-from core.typing import AttrDict
 from tools import pkg
 
 
@@ -21,9 +20,9 @@ class Strategy:
         name: str,
         config: AttrDict,
         env_stats: AttrDict,
-        trainer: Union[Trainer, TrainerEnsemble]=None, 
+        trainer: Union[TrainerBase, TrainerEnsemble]=None, 
         actor: Actor=None,
-        train_loop: TrainingLoopBase=None,
+        train_loop: TrainingLoop=None,
     ):
         self._name = name
         self.config = config
@@ -32,9 +31,9 @@ class Strategy:
             raise RuntimeError('Neither trainer nor actor is provided')
 
         self.model: Model = actor.model if trainer is None else trainer.model
-        self.trainer: Trainer = trainer
+        self.trainer: TrainerBase = trainer
         self.actor: Actor = actor
-        self.train_loop: TrainingLoopBase = train_loop
+        self.train_loop: TrainingLoop = train_loop
 
         if self.config.get('root_dir'):
             self._model_path = ModelPath(
@@ -143,7 +142,12 @@ class Strategy:
     def _prepare_input_to_actor(self, env_output: EnvOutput):
         """ Extract data from env_output as the input 
         to Actor for inference """
-        inp = copy.deepcopy(env_output.obs)
+        if isinstance(env_output.obs, list):
+            assert len(env_output.obs) == 1, env_output.obs
+            inp = env_output.obs[0]
+        else:
+            inp = env_output.obs
+        inp = copy.deepcopy(inp)
         return inp
 
     def _record_output(self, out: Tuple):
@@ -175,10 +179,10 @@ def create_strategy(
         config: AttrDict,
         env_stats: AttrDict, 
         actor: Actor=None,
-        trainer: Union[Trainer, TrainerEnsemble]=None, 
+        trainer: Union[TrainerBase, TrainerEnsemble]=None, 
         dataset=None,
         *,
-        strategy_cls,
+        strategy_cls=Strategy,
         training_loop_cls=None
     ):
     if trainer is not None:

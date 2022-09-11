@@ -1,8 +1,8 @@
 import tensorflow as tf
 
-from core.ensemble import Module
-from nn.func import mlp
-from nn.registry import nn_registry
+from tf_core.module import Module
+from tf_nn.func import mlp
+from tf_nn.registry import nn_registry
 
 
 @nn_registry.register('hyper')

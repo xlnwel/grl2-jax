@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from core.elements.model import Model, Ensemble, ModelEnsemble
+from tf_core.elements.model import Model, Ensemble, ModelEnsemble
 from core.typing import AttrDict
 
 

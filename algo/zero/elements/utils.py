@@ -1,10 +1,11 @@
 from types import FunctionType
 from typing import Tuple
 import numpy as np
-import tensorflow as tf
+from jax import lax
+import jax.numpy as jnp
 
 from core.typing import AttrDict
-from tools import tf_utils
+from jax_tools import jax_assert, jax_dist, jax_loss, jax_utils
 
 
 def get_hx(*args):
@@ -14,11 +15,13 @@ def get_hx(*args):
     elif len(hx) == 1:
         return hx[0]
     else:
-        hx = tf.concat(hx, -1)
+        hx = lax.concatenate(hx, -1)
     return hx
 
 def compute_values(
     func, 
+    params, 
+    rng, 
     x, 
     next_x, 
     sid=None, 
@@ -26,23 +29,28 @@ def compute_values(
     idx=None, 
     next_idx=None, 
     event=None, 
-    next_event=None
+    next_event=None, 
+    seq_axis=1
 ):
     hx = get_hx(sid, idx, event)
-    value = func(x, hx=hx)
+    value = func(params, rng, x, hx=hx)
     if next_x is None:
-        value, next_value = tf_utils.split_data(value)
+        value, next_value = jax_utils.split_data(value, axis=seq_axis)
     else:
         next_hx = get_hx(next_sid, next_idx, next_event)
-        next_value = func(next_x, hx=next_hx)
-    next_value = tf.stop_gradient(next_value)
+        jax_assert.assert_shape_compatibility([hx, next_hx])
+        next_value = func(params, rng, next_x, hx=next_hx)
+    next_value = lax.stop_gradient(next_value)
+    jax_assert.assert_shape_compatibility([value, next_value])
 
     return value, next_value
 
 def compute_policy(
     func, 
-    obs, 
-    next_obs, 
+    params, 
+    rng, 
+    x, 
+    next_x, 
     action, 
     mu_logprob, 
     sid=None, 
@@ -51,24 +59,32 @@ def compute_policy(
     next_idx=None, 
     event=None, 
     next_event=None, 
-    action_mask=None
+    action_mask=None, 
+    next_action_mask=None, 
+    seq_axis=1
 ):
-    [obs, sid, idx, event], _ = tf_utils.split_data(
-        [obs, sid, idx, event], 
-        [next_obs, next_sid, next_idx, next_event]
-    )
+    [x, sid, idx, event, action_mask], _ = \
+        jax_utils.split_data(
+            [x, sid, idx, event, action_mask], 
+            [next_x, next_sid, next_idx, next_event, next_action_mask], 
+            axis=seq_axis
+        )
     hx = get_hx(sid, idx, event)
-    act_dist = func(obs, hx=hx, action_mask=action_mask)
+    act_out = func(params, rng, x, hx=hx, action_mask=action_mask)
+    if isinstance(act_out, tuple):
+        act_dist = jax_dist.MultivariateNormalDiag(*act_out)
+    else:
+        act_dist = jax_dist.Categorical(act_out)
     pi_logprob = act_dist.log_prob(action)
-    tf_utils.assert_rank_and_shape_compatibility([pi_logprob, mu_logprob])
+    jax_assert.assert_shape_compatibility([pi_logprob, mu_logprob])
     log_ratio = pi_logprob - mu_logprob
-    ratio = tf.exp(log_ratio)
+    ratio = lax.exp(log_ratio)
 
     return act_dist, pi_logprob, log_ratio, ratio
 
 def prefix_name(terms, name):
     if name is not None:
-        new_terms = {}
+        new_terms = AttrDict()
         for k, v in terms.items():
             if '/' not in k:
                 new_terms[f'{name}/{k}'] = v
@@ -87,37 +103,9 @@ def compute_inner_steps(config):
 
     return config
 
-def get_rl_module_names(model):
-    keys = [k for k in model.keys() if not k.startswith('meta')]
-    return keys
-
-def get_meta_module_names(model):
-    keys = [k for k in model.keys() if k.startswith('meta') and k != 'meta']
-    return keys
-
-def get_meta_param_module_names(model):
-    keys = [k for k in model.keys() if k == 'meta']
-    return keys
-
-def get_rl_modules(model):
-    keys = get_rl_module_names(model)
-    modules = tuple([model[k] for k in keys])
-    return modules
-
-def get_meta_modules(model):
-    keys = get_meta_module_names(model)
-    modules = tuple([model[k] for k in keys])
-    return modules
-
-def get_meta_param_modules(model):
-    keys = get_meta_param_module_names(model)
-    modules = tuple([model[k] for k in keys])
-    return modules
-
 def get_basics(
     config: AttrDict, 
     env_stats: AttrDict, 
-    model
 ):
     if 'aid' in config:
         aid = config.aid
@@ -150,10 +138,9 @@ def update_data_format_with_rnn_states(
 ):
     if config.get('store_state') and config.get('rnn_type'):
         assert model.state_size is not None, model.state_size
-        dtype = tf.keras.mixed_precision.experimental.global_policy().compute_dtype
         state_type = type(model.state_size)
-        data_format['mask'] = (basic_shape, tf.float32, 'mask')
-        data_format['state'] = state_type(*[((None, sz), dtype, name) 
+        data_format['mask'] = (basic_shape, np.float32, 'mask')
+        data_format['state'] = state_type(*[((None, sz), np.float32, name) 
             for name, sz in model.state_size._asdict().items()])
     
     return data_format
@@ -167,7 +154,7 @@ def get_data_format(
 ):
     basic_shape, shapes, dtypes, action_shape, \
         action_dim, action_dtype = \
-        get_basics(config, env_stats, model)
+        get_basics(config, env_stats)
     if meta:
         basic_shape = (config.inner_steps + config.extra_meta_step,) + basic_shape
     if config.timeout_done:
@@ -184,19 +171,20 @@ def get_data_format(
 
     data_format.update(dict(
         action=((*basic_shape, *action_shape), action_dtype, 'action'),
-        value=(basic_shape, tf.float32, 'value'),
-        reward=(basic_shape, tf.float32, 'reward'),
-        discount=(basic_shape, tf.float32, 'discount'),
-        reset=(basic_shape, tf.float32, 'reset'),
-        mu_logprob=(basic_shape, tf.float32, 'mu_logprob'),
+        value=(basic_shape, np.float32, 'value'),
+        reward=(basic_shape, np.float32, 'reward'),
+        discount=(basic_shape, np.float32, 'discount'),
+        reset=(basic_shape, np.float32, 'reset'),
+        mu_logprob=(basic_shape, np.float32, 'mu_logprob'),
     ))
 
-    is_action_discrete = env_stats.is_action_discrete[config['aid']] if isinstance(env_stats.is_action_discrete, list) else env_stats.is_action_discrete
+    is_action_discrete = env_stats.is_action_discrete[config['aid']] \
+        if isinstance(env_stats.is_action_discrete, list) else env_stats.is_action_discrete
     if is_action_discrete:
-        data_format['mu'] = ((*basic_shape, action_dim), tf.float32, 'mu')
+        data_format['mu'] = ((*basic_shape, action_dim), np.float32, 'mu')
     else:
-        data_format['mu_mean'] = ((*basic_shape, action_dim), tf.float32, 'mu_mean')
-        data_format['mu_std'] = ((*basic_shape, action_dim), tf.float32, 'mu_std')
+        data_format['mu_mean'] = ((*basic_shape, action_dim), np.float32, 'mu_mean')
+        data_format['mu_std'] = ((*basic_shape, action_dim), np.float32, 'mu_std')
     
     data_format = rnn_state_fn(
         data_format,
@@ -223,3 +211,55 @@ def collect(buffer, env, env_step, reset, obs, next_obs, **kwargs):
             )
 
     buffer.add(**kwargs, reset=reset)
+
+
+def compute_joint_stats(
+    config, 
+    func, 
+    params, 
+    rng, 
+    hidden_state, 
+    next_hidden_state, 
+    sid, 
+    next_sid, 
+    reward, 
+    discount, 
+    reset, 
+    ratio, 
+    pi_logprob, 
+    gamma, 
+    lam, 
+    sample_mask
+):
+    hidden_state = hidden_state[:, :, 0]
+    if next_hidden_state is not None:
+        next_hidden_state = next_hidden_state[:, :, 0]
+    value, next_value = compute_values(
+        func, 
+        params, 
+        rng, 
+        hidden_state, 
+        next_hidden_state, 
+        sid=sid, 
+        next_sid=next_sid
+    )
+    if sample_mask is not None:
+        bool_mask = jnp.asarray(sample_mask, bool)
+        ratio = jnp.where(bool_mask, ratio, 1.)
+        pi_logprob = jnp.where(bool_mask, pi_logprob, 0.)
+    joint_ratio = jnp.prod(ratio, axis=-1)
+    joint_pi_logprob = jnp.sum(pi_logprob, axis=-1)
+
+    v_target, advantage = jax_loss.compute_target_advantage(
+        config=config, 
+        reward=jnp.mean(reward, axis=-1), 
+        discount=jnp.max(discount, axis=-1), 
+        reset=reset[:, :, 0], 
+        value=lax.stop_gradient(value), 
+        next_value=next_value, 
+        ratio=lax.stop_gradient(joint_ratio), 
+        gamma=gamma, 
+        lam=lam, 
+    )
+    
+    return value, joint_ratio, joint_pi_logprob, v_target, advantage

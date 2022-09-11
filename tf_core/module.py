@@ -2,13 +2,12 @@ import inspect
 import logging
 import functools
 import tensorflow as tf
-from core.log import do_logging
 from tensorflow.keras import layers
 
-from core.ckpt.pickle import Checkpoint
-from core.typing import ModelPath
-from core.typing import AttrDict
-from tools.utils import dict2AttrDict, flatten_dict, set_path
+from tf_core.ckpt.pickle import Checkpoint
+from core.log import do_logging
+from core.typing import ModelPath, AttrDict, dict2AttrDict
+from tools.utils import flatten_dict, set_path
 
 logger = logging.getLogger(__name__)
 

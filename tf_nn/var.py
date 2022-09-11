@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from nn.registry import nn_registry
-from nn.utils import get_activation, get_initializer
+from tf_nn.registry import nn_registry
+from tf_nn.utils import get_activation, get_initializer
 
 
 @nn_registry.register('var')

@@ -5,10 +5,8 @@ import ray
 from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.mixin.actor import rms2dict
-from core.tf_config import \
-    configure_gpu, configure_precision, silence_tf_logs
-from tools.display import pwt
-from tools.utils import AttrDict2dict, TempStore, set_seed
+from core.utils import configure_gpu, set_seed
+from tools.utils import TempStore
 from tools.run import Runner
 from tools.timer import Every, Timer
 from tools import pkg
@@ -64,7 +62,7 @@ def train(config, agent, env, eval_env_config, buffer):
                 eval_main = pkg.import_main('eval', config=config)
                 eval_main = ray.remote(eval_main)
                 p = eval_main.remote(
-                    [AttrDict2dict(config)], 
+                    [config.asdict()], 
                     routine_config.N_EVAL_EPISODES, 
                     record=routine_config.RECORD_VIDEO, 
                     fps=1, 
@@ -101,7 +99,7 @@ def train(config, agent, env, eval_env_config, buffer):
             agent.record(step=step)
             agent.save()
 
-    pwt('Training starts...')
+    do_logging('Training starts...')
     train_step = agent.get_train_step()
     while step < routine_config.MAX_STEPS:
         start_env_step = agent.get_env_step()
@@ -117,20 +115,21 @@ def train(config, agent, env, eval_env_config, buffer):
             'reward', agent.actor.normalize_reward(reward))
         
         # observation normalization
-        def normalize_obs(name):
+        def normalize_obs(name, obs_name):
             raw_obs = buffer[name]
-            obs = agent.actor.normalize_obs(raw_obs, name=name)
+            obs = agent.actor.normalize_obs(raw_obs, name=obs_name)
             buffer.update(name, obs)
             return raw_obs
         for name in agent.actor.obs_names:
-            raw_obs = normalize_obs(name)
+            raw_obs = normalize_obs(name, name)
             if f'next_{name}' in buffer:
-                normalize_obs(f'next_{name}')
+                normalize_obs(f'next_{name}', name)
             agent.actor.update_obs_rms(raw_obs, name)
 
         start_train_step = agent.get_train_step()
         with tt:
             agent.train_record()
+        
         train_step = agent.get_train_step()
         agent.set_env_step(step)
         # no need to reset buffer
@@ -139,19 +138,16 @@ def train(config, agent, env, eval_env_config, buffer):
                 _, _, video = ray.get(eval_process)
                 agent.video_summary(video, step=step, fps=1)
             eval_process = evaluate_agent(step, agent)
-
         if agent.contains_stats('score') and to_record(step):
             record_stats(step, start_env_step, train_step, start_train_step)
 
 def main(configs, train=train, gpu=-1):
     assert len(configs) == 1, configs
     config = configs[0]
-    silence_tf_logs()
     seed = config.get('seed')
     do_logging(f'seed={seed}', level='print')
     set_seed(seed)
-    configure_gpu(gpu)
-    configure_precision(config.precision)
+    configure_gpu()
     use_ray = config.routine.get('EVAL_PERIOD', False)
     if use_ray:
         from tools.ray_setup import sigint_shutdown_ray
@@ -160,6 +156,7 @@ def main(configs, train=train, gpu=-1):
 
     def build_envs():
         env = create_env(config.env, force_envvec=True)
+        print(env.env)
         eval_env_config = config.env.copy()
         if config.routine.get('EVAL_PERIOD', False):
             if config.env.env_name.startswith('procgen'):

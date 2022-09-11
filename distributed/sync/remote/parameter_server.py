@@ -13,13 +13,13 @@ from core.elements.builder import ElementsBuilderVC
 from core.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.remote.base import RayBase
-from core.typing import ModelPath, construct_model_name, \
+from core.typing import AttrDict2dict, ModelPath, construct_model_name, \
     get_aid, get_all_ids, get_basic_model_name
 from distributed.sync.remote.payoff import PayoffManager
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
 from tools.timer import Every
-from tools.utils import AttrDict2dict, config_attr, dict2AttrDict
+from tools.utils import config_attr, dict2AttrDict
 from tools import yaml_op
 
 
@@ -184,9 +184,9 @@ class ParameterServer(RayBase):
             self._rule_strategies.add(model)
             self._params[aid][model] = AttrDict2dict(config)
             models.append(model)
-            do_logging(f'Adding rule strategy {model}', level='pwt')
+            do_logging(f'Adding rule strategy {model}')
             if not local:
-                do_logging(f'Adding rule strategy to payoff table', level='pwt')
+                do_logging(f'Adding rule strategy to payoff table')
                 self.payoff_manager.add_strategy(model, aid=aid)
 
     def add_strategies_to_payoff(self, models: List[ModelPath]):
@@ -357,7 +357,7 @@ class ParameterServer(RayBase):
             weights = self._params[aid][model].copy()
             weights.pop('aux', None)
             strategies.append(ModelWeights(model, weights))
-            do_logging(f'Restoring active strategy: {model}', level='pwt')
+            do_logging(f'Restoring active strategy: {model}')
             [b.save_config() for b in self.builders]
         return strategies
 
@@ -369,13 +369,13 @@ class ParameterServer(RayBase):
         self._params[aid][model] = {}
         weights = None
         model_weights = ModelWeights(model, weights)
-        do_logging(f'Sampling raw strategy for training: {model}', level='pwt')
+        do_logging(f'Sampling raw strategy for training: {model}')
         
         return model_weights
 
     def _sample_historical_strategy(self, aid):
         model = random.choice([m for m in self._params[aid] if not is_rule_strategy(m)])
-        do_logging(f'Sampling historical stratgy({model}) from {list(self._params[aid])}', level='pwt')
+        do_logging(f'Sampling historical stratgy({model}) from {list(self._params[aid])}')
         assert aid == get_aid(model.model_name), f'Inconsistent aids: {aid} vs {get_aid(model.model_name)}({model})'
         weights = self._params[aid][model].copy()
         weights.pop('aux')
@@ -479,7 +479,7 @@ class ParameterServer(RayBase):
         train_step: int, 
         env_step: int
     ):
-        do_logging(f'Saving active model: {model}', level='pwt')
+        do_logging(f'Saving active model: {model}')
         assert model in self._active_models, (model, self._active_models)
         aid = get_aid(model.model_name)
         assert model in self._params[aid], f'{model} does not in {list(self._params[aid])}'

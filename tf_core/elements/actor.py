@@ -3,10 +3,9 @@ import tensorflow as tf
 
 from core.elements.model import Model
 from core.mixin.actor import RMS
-from core.typing import ModelPath
+from core.typing import ModelPath, AttrDict
 from tools.utils import set_path
 from tools.tf_utils import numpy2tensor, tensor2numpy
-from core.typing import AttrDict
 
 
 class Actor:

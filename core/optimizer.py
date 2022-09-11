@@ -1,6 +1,6 @@
 import collections
 import logging
-from typing import Dict, List, Tuple, Union
+from typing import Dict, Sequence, Union
 import jax
 import jax.numpy as jnp
 import optax
@@ -8,6 +8,7 @@ import optax
 from core.log import do_logging
 from core.typing import AttrDict
 from tools.utils import is_empty
+from jax_tools import jax_assert
 
 
 logger = logging.getLogger(__name__)
@@ -38,15 +39,13 @@ def chain(
     """
 
     init_fns, update_fns = zip(*args)
-    NT = collections.namedtuple(name, [
+    NamedTuple = collections.namedtuple(name, [
         a.init.__qualname__.split('.', 1)[0] for a in args])
     def init_fn(params):
-        return NT(*[fn(params) for fn in init_fns])
+        return NamedTuple(*[fn(params) for fn in init_fns])
 
     def update_fn(updates, state, params=None):
-        if len(update_fns) != len(state):
-            raise ValueError('The number of updates and states has to be the same in '
-                'chain! Make sure you have called init first!')
+        assert len(update_fns) == len(state), (len(update_fns), len(state))
 
         updates_list = []
         new_state = []
@@ -54,7 +53,7 @@ def chain(
             updates, new_s = fn(updates, s, params)
             updates_list.append(updates)
             new_state.append(new_s)
-        return NT(*updates_list), NT(*new_state)
+        return NamedTuple(*updates_list), NamedTuple(*new_state)
 
     return optax.GradientTransformation(init_fn, update_fn)
 
@@ -116,13 +115,14 @@ def compute_updates(
     name: str
 ):
     updates, state = opt.update(grads, state)
-    for k, v in updates._asdict().items():
-        v, _ = jax.tree_util.tree_flatten(v)
-        if is_empty(v):
-            continue
-        v = jnp.stack(jax.tree_map(jnp.linalg.norm, v))
-        stats[f'{name}/{k}/updates_norm'] = v
-        stats[f'{name}/{k}/total_updates_norm'] = jnp.sum(v)
+    if stats is not None:
+        for k, v in updates._asdict().items():
+            v, _ = jax.tree_util.tree_flatten(v)
+            if is_empty(v):
+                continue
+            v = jnp.stack(jax.tree_map(jnp.linalg.norm, v))
+            stats[f'{name}/{k}/updates_norm'] = v
+            stats[f'{name}/{k}/total_updates_norm'] = jnp.sum(v)
 
     return updates[-1], state, stats
 
@@ -134,7 +134,7 @@ def apply_updates(params, updates):
 def optimize(
     loss_fn, 
     params: Dict, 
-    state: Union[Dict, Tuple, List], 
+    state: Union[Dict, Sequence], 
     kwargs: Dict, 
     opt, 
     name
@@ -181,7 +181,7 @@ if __name__ == '__main__':
         x = net.apply(params, None, data)
         l = jnp.mean((1. - x)**2)
         return l, {}
-    opt, state = create_optimizer(params=theta, opt_name='adam', lr=1)
+    opt, state = build_optimizer(params=theta, opt_name='adam', lr=1)
     params, state, stats = optimize(loss, theta, state, **data)
     print(params)
     params, state, stats = optimize(loss, theta, state, **data)

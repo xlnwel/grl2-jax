@@ -182,7 +182,7 @@ actor:
         gamma: &gamma .99
 
 buffer:
-    type: ppo
+    type: ac
     use_dataset: False
 
     # PPO configs

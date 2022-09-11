@@ -1,8 +1,8 @@
 import numpy as np
 import tensorflow as tf
 
-from core.ensemble import Module
-from nn.registry import nn_registry
+from tf_core.module import Module
+from tf_nn.registry import nn_registry
 from tools.tf_utils import assert_rank_and_shape_compatibility
 
 

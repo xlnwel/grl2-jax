@@ -1,1 +1,1 @@
-from algo.gpo.elements.trainloop import *
+from core.elements.trainloop import TrainingLoop

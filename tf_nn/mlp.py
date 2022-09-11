@@ -2,9 +2,9 @@ import logging
 import tensorflow as tf
 
 from core.log import do_logging
-from core.ensemble import Module
-from nn.registry import layer_registry, nn_registry
-from nn.utils import get_initializer
+from tf_core.module import Module
+from tf_nn.registry import layer_registry, nn_registry
+from tf_nn.utils import get_initializer
 
 
 logger = logging.getLogger(__name__)

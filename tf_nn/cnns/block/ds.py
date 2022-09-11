@@ -2,8 +2,8 @@ from collections import namedtuple
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from core.ensemble import Module
-from nn.registry import block_registry, subsample_registry, layer_registry
+from tf_core.module import Module
+from tf_nn.registry import block_registry, subsample_registry, layer_registry
 from tools.tf_utils import get_stoch_state
 
 State = namedtuple("State", ["deter", 'mean', 'std', 'stoch'])

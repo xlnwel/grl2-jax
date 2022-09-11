@@ -9,7 +9,6 @@ from core.typing import AttrDict
 
 
 def configure_gpu(idx=-1):
-    import tensorflow as tf
     """ Configures gpu for Tensorflow/JAX
         The standard way described in the document of JAX does not work for TF. Since 
         we utilize the later for data visualization in Tensorboard, we 
@@ -18,6 +17,8 @@ def configure_gpu(idx=-1):
     """
     # if idx is not None and idx >= 0:
     #     os.environ["CUDA_VISIBLE_DEVICES"] = f"{idx}"
+    os.environ['XLA_PYTHON_CLIENT_PREALLOCATE'] = 'false'
+    import tensorflow as tf
     if idx is None:
         tf.config.experimental.set_visible_devices([], 'GPU')
         do_logging('No gpu is used', level='pwt')

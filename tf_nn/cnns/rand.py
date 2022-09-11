@@ -1,8 +1,8 @@
 from tensorflow.keras.mixed_precision import global_policy
 
-from core.ensemble import Module
-from nn.registry import cnn_registry
-from nn.utils import *
+from tf_core.module import Module
+from tf_nn.registry import cnn_registry
+from tf_nn.utils import *
 
 
 @cnn_registry.register('rand')

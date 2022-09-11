@@ -1,9 +1,9 @@
 import string
 import tensorflow as tf
 
-from core.ensemble import Module
-from nn.func import mlp, nn_registry
-from nn.utils import get_initializer
+from tf_core.module import Module
+from tf_nn.func import mlp, nn_registry
+from tf_nn.utils import get_initializer
 from tools.utils import dict2AttrDict
 
 

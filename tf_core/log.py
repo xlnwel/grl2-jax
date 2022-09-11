@@ -2,7 +2,7 @@ import os
 import logging
 from datetime import datetime
 
-from tools.display import colorize, pwt, pwc, pwtc
+from core.log import colorize, pwt, pwc, pwtc
 from tools.utils import get_frame
 
 

@@ -35,15 +35,17 @@ def time_major(*args, axis):
     jax_assert.assert_shape_compatibility(args)
     dims = list(range(args[0].ndim))
     dims = [axis] + dims[1:axis] + [0] + dims[axis + 1:]
+    if len(args) == 1:
+        args = args[0]
     if axis != 0:
         args = tree_map(lambda x: lax.transpose(x, dims), args)
     return dims, args
 
 def undo_time_major(*args, dims, axis):
     jax_assert.assert_shape_compatibility(args)
+    if len(args) == 1:
+        args = args[0]
     if axis != 0:
-        if len(args) == 1:
-            args = args[0]
         args = tree_map(lambda x: lax.transpose(x, dims), args)
     return args
 

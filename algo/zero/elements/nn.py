@@ -1,154 +1,246 @@
-import numpy as np
-import tensorflow as tf
-from tensorflow_probability import distributions as tfd
+from jax import lax, nn
+import jax.numpy as jnp
+import haiku as hk
 
-from core.ensemble import Module
 from nn.func import mlp, nn_registry
-from nn.index import IndexedModule
+from nn.index import IndexModule
 from nn.utils import get_activation
-
+from jax_tools import jax_assert
 """ Source this file to register Networks """
 
 
 @nn_registry.register('hpembed')
-class HPEmbed(Module):
+class HyperParamEmbed(hk.Module):
     def __init__(self, name='hp_embed', **config):
         super().__init__(name=name)
-        config = config.copy()
+        self.config = config.copy()
 
-        self._layers = mlp(
-            **config, 
-            use_bias=False, 
-            out_dtype='float32',
-            name=name
-        )
-
-    def call(self, x, *args):
-        for v in args:
-            tf.debugging.assert_all_finite(v, f'Bad value {x}')
-        hp = tf.stop_gradient(tf.expand_dims(tf.stack(args), 0))
-        embed = self._layers(hp)
-        ones = (1 for _ in x.shape[:-1])
-        embed = tf.reshape(embed, [*ones, embed.shape[-1]])
-        zeros = tf.zeros_like(x)
-        embed = embed + zeros[..., :1]
-        x = tf.concat([x, embed], -1)
+    def __call__(self, x, *args):
+        layers = self.build_net()
+        hp = jnp.expand_dims(jnp.array(args), 0)
+        embed = layers(hp)
+        embed = jnp.broadcast_to(embed, [*x.shape[:-1], embed.shape[-1]])
+        x = jnp.concatenate([x, embed], -1)
 
         return x
+    
+    @hk.transparent
+    def build_net(self):
+        layers = mlp(
+            **self.config, 
+            use_bias=False, 
+        )
+        return layers
 
 
 @nn_registry.register('policy')
-class Policy(IndexedModule):
-    def __init__(self, name='policy', **config):
-        super().__init__(name=name)
-        config = config.copy()
+class Policy(IndexModule):
+    def __init__(
+        self, 
+        is_action_discrete, 
+        action_dim, 
+        out_act=None, 
+        init_std=1, 
+        out_scale=.01, 
+        name='policy', 
+        **config
+    ):
+        self.action_dim = action_dim
+        self.is_action_discrete = is_action_discrete
+        self.out_act = out_act
+        self.init_std = init_std
 
-        self.action_dim = config.pop('action_dim')
-        self.is_action_discrete = config.pop('is_action_discrete')
-        self.clip_sample_action = config.pop('clip_sample_action', False)
-        self.action_low = config.pop('action_low', None)
-        self.action_high = config.pop('action_high', None)
-        self.eval_act_temp = config.pop('eval_act_temp', 1)
-        self.attention_action = config.pop('attention_action', False)
-        self.out_act = config.pop('out_act', None)
-        embed_dim = config.pop('embed_dim', 10)
-        self.init_std = config.pop('init_std', 1)
-        assert self.eval_act_temp >= 0, self.eval_act_temp
+        config['out_scale'] = out_scale
+        assert config['index_config'].get('scale', 1) == 1, config
+        super().__init__(config=config, out_size=self.action_dim , name=name)
 
-        if self.attention_action:
-            self.embed = tf.Variable(
-                tf.random.uniform((self.action_dim, embed_dim), -0.01, 0.01), 
-                dtype='float32',
-                trainable=True,
-                name=f'{name}/embed')
+    def __call__(self, x, hx=None, action_mask=None):
+        x = super().__call__(x, hx)
 
-        if not self.is_action_discrete:
-            self.logstd = tf.Variable(
-                initial_value=np.log(self.init_std)*np.ones(self.action_dim), 
-                dtype='float32', 
-                trainable=True, 
-                name=f'{name}/policy/logstd')
-        config.setdefault('out_gain', .01)
-
-        self._build_nets(config, out_size=self.action_dim)
-
-    def call(self, x, hx=None, action_mask=None, evaluation=False):
-        tf.debugging.assert_all_finite(x, 'Bad input')
-        if self.indexed == 'all':
-            for l in self._layers:
-                x = l(x, hx)
-        elif self.indexed == 'head':
-            x = self._layers(x)
-            x = self._head(x, hx)
-        else:
-            x = self._layers(x)
-        tf.debugging.assert_all_finite(x, 'Bad policy output')
         if self.is_action_discrete:
-            if self.attention_action:
-                x = tf.matmul(x, self.embed, transpose_b=True)
-            logits = x / self.eval_act_temp \
-                if evaluation and self.eval_act_temp > 0 else x
             if action_mask is not None:
-                assert logits.shape[1:] == action_mask.shape[1:], (logits.shape, action_mask.shape)
-                logits = tf.where(action_mask, logits, -1e10)
-            act_dist = tfd.Categorical(logits)
+                jax_assert.assert_shape_compatibility([x, action_mask])
+                x = jnp.where(action_mask, x, -1e10)
+            return x
         else:
             if self.out_act == 'tanh':
-                x = tf.tanh(x)
-            tf.debugging.assert_all_finite(self.logstd, 'Bad action logstd')
-            std = tf.exp(self.logstd)
-            if evaluation and self.eval_act_temp:
-                std = std * self.eval_act_temp
-            tf.debugging.assert_all_finite(x, 'Bad action mean')
-            tf.debugging.assert_all_finite(std, 'Bad action std')
-            std = tf.ones_like(x) * std
-            act_dist = tfd.MultivariateNormalDiag(x, std)
-        self.act_dist = act_dist
-        return act_dist
-
-    def get_distribution(self, *, logits, mean, std):
-        act_dist = tfd.Categorical(logits) \
-            if self.is_action_discrete else tfd.MultivariateNormalDiag(mean, std)
-        return act_dist
-
-    def action(self, dist, evaluation):
-        if self.is_action_discrete:
-            action = dist.mode() if evaluation and self.eval_act_temp == 0 \
-                else dist.sample()
-        else:
-            action = dist.sample()
-            if self.clip_sample_action:
-                action = tf.clip_by_value(
-                    action, self.action_low, self.action_high)
-        return action
+                x = jnp.tanh(x)
+            logstd_init = hk.initializers.Constant(lax.log(self.init_std))
+            logstd = hk.get_parameter(
+                'logstd', 
+                shape=(self.action_dim,), 
+                init=logstd_init
+            )
+            return x, logstd
 
 
 @nn_registry.register('value')
-class Value(IndexedModule):
-    def __init__(self, name='value', **config):
-        super().__init__(name=name)
+class Value(IndexModule):
+    def __init__(
+        self, 
+        out_act=None, 
+        out_size=1, 
+        name='value', 
+        **config
+    ):
+        self.out_act = get_activation(out_act)
+        super().__init__(config=config, out_size=out_size, name=name)
+
+    def __call__(self, x, hx=None):
+        value = super().__call__(x, hx)
+
+        if value.shape[-1] == 1:
+            value = jnp.squeeze(value, -1)
+        value = self.out_act(value)
+        return value
+
+
+
+@nn_registry.register('reward')
+class Reward(IndexModule):
+    def __init__(
+        self, 
+        out_act=None, 
+        combine_xa=False, 
+        out_size=1, 
+        rescale=1, 
+        name='reward', 
+        **config
+    ):
         config = config.copy()
         
-        config.setdefault('out_gain', 1)
-        self._out_act = config.pop('out_act', None)
-        if self._out_act:
-            self._out_act = get_activation(self._out_act)
-        out_size = config.pop('out_size', 1)
+        self.out_act = get_activation(out_act)
+        self.combine_xa = combine_xa
+        self.out_size = 1 if self.combine_xa else out_size
+        self.rescale = rescale
+        assert config['index_config'].get('scale', 1) == 1, config['index_config']
+        super().__init__(config=config, out_size=self.out_size, name=name)
 
-        self._build_nets(config, out_size=out_size)
+    def __call__(self, x, action, hx=None):
+        if len(action.shape) < len(x.shape):
+            action = nn.one_hot(action, self.out_size)
+        if self.combine_xa:
+            x = jnp.concatenate([x, action], -1)
 
-    def call(self, x, hx=None):
-        if self.indexed == 'all':
-            for l in self._layers:
-                x = l(x, hx)
-        elif self.indexed == 'head':
-            x = self._layers(x)
-            x = self._head(x, hx)
-        else:
-            x = self._layers(x)
-        value = x
-        if value.shape[-1] == 1:
-            value = tf.squeeze(value, -1)
-        if self._out_act is not None:
-            value = self._out_act(value)
-        return value
+        x = super().__call__(x, hx)
+        out = x
+
+        if not self.combine_xa:
+            x = jnp.sum(x * action, -1)
+        if x.shape[-1] == 1:
+            x = jnp.squeeze(x, -1)
+        reward = x * self.rescale
+        reward = self.out_act(reward)
+        reward = reward / self.rescale
+
+        return out, reward
+
+
+if __name__ == '__main__':
+    import jax
+    # config = dict( 
+    #     w_init='orthogonal', 
+    #     scale=1, 
+    #     activation='relu', 
+    #     norm='layer', 
+    #     out_scale=.01, 
+    #     out_size=2
+    # )
+    # def layer_fn(x, *args):
+    #     layer = HyperParamEmbed(**config)
+    #     return layer(x, *args)
+    # import jax
+    # rng = jax.random.PRNGKey(42)
+    # x = jax.random.normal(rng, (2, 3))
+    # net = hk.transform(layer_fn)
+    # params = net.init(rng, x, 1, 2, 3.)
+    # print(params)
+    # print(net.apply(params, None, x, 1., 2, 3))
+    # print(hk.experimental.tabulate(net)(x, 1, 2, 3.))
+
+    config = {
+        'units_list': [3], 
+        'w_init': 'orthogonal', 
+        'activation': 'relu', 
+        'norm': None, 
+        'out_scale': .01,
+        'is_action_discrete': True,  
+        'action_dim': 3, 
+        'index': 'all', 
+        'index_config': {
+            'use_shared_bias': False, 
+            'use_bias': True, 
+            'w_init': 'orthogonal', 
+        }
+    }
+    def layer_fn(x, *args):
+        layer = Policy(**config)
+        return layer(x, *args)
+    import jax
+    rng = jax.random.PRNGKey(42)
+    x = jax.random.normal(rng, (2, 3, 4))
+    hx = jnp.eye(3)
+    hx = jnp.tile(hx, [2, 1, 1])
+    net = hk.transform(layer_fn)
+    params = net.init(rng, x, hx)
+    print(params)
+    print(net.apply(params, rng, x, hx))
+    print(hk.experimental.tabulate(net)(x, hx))
+
+    # config = {
+    #     'units_list': [64,64], 
+    #     'w_init': 'orthogonal', 
+    #     'activation': 'relu', 
+    #     'norm': None, 
+    #     'index': 'all', 
+    #     'index_config': {
+    #         'use_shared_bias': False, 
+    #         'use_bias': True, 
+    #         'w_init': 'orthogonal', 
+    #     }
+    # }
+    # def net_fn(x, *args):
+    #     net = Value(**config)
+    #     return net(x, *args)
+
+    # rng = jax.random.PRNGKey(42)
+    # x = jax.random.normal(rng, (2, 3, 4))
+    # hx = jnp.eye(3)
+    # hx = jnp.tile(hx, [2, 1, 1])
+    # net = hk.transform(net_fn)
+    # params = net.init(rng, x, hx)
+    # print(params)
+    # print(net.apply(params, rng, x, hx))
+    # print(hk.experimental.tabulate(net)(x, hx))
+
+    # config = {
+    #     'units_list': [2, 3], 
+    #     'w_init': 'orthogonal', 
+    #     'activation': 'relu', 
+    #     'norm': None, 
+    #     'out_scale': .01,
+    #     'rescale': .1, 
+    #     'out_act': 'atan', 
+    #     'combine_xa': True, 
+    #     'out_size': 3, 
+    #     'index': 'all', 
+    #     'index_config': {
+    #         'use_shared_bias': False, 
+    #         'use_bias': True, 
+    #         'w_init': 'orthogonal', 
+    #     }
+    # }
+    # def net_fn(x, *args):
+    #     net = Reward(**config)
+    #     return net(x, *args)
+
+    # rng = jax.random.PRNGKey(42)
+    # x = jax.random.normal(rng, (2, 3, 4))
+    # action = jax.random.randint(rng, (2, 3), minval=0, maxval=3)
+    # hx = jnp.eye(3)
+    # hx = jnp.tile(hx, [2, 1, 1])
+    # net = hk.transform(net_fn)
+    # params = net.init(rng, x, action, hx)
+    # print(params)
+    # print(net.apply(params, rng, x, action, hx))
+    # print(hk.experimental.tabulate(net)(x, action, hx))

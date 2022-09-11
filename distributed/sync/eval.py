@@ -16,6 +16,7 @@ def main(configs, n, **kwargs):
         for c in configs:
             c.env.env_name = 'grf-11_vs_11_stochastic'
             c.env.number_of_right_players_agent_controls = 0
+            c.env.render = True
             c.runner.n_steps = c.env.max_episode_steps = 3000
 
     runner = RunnerManager()

@@ -1,8 +1,8 @@
 from tensorflow.keras import layers
 
-from core.ensemble import Module
-from nn.registry import am_registry
-from nn.utils import *
+from tf_core.module import Module
+from tf_nn.registry import am_registry
+from tf_nn.utils import *
 
 
 @am_registry.register('se')

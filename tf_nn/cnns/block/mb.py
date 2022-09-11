@@ -1,7 +1,7 @@
-from core.ensemble import Module
-from nn.registry import am_registry, block_registry
-from nn.utils import *
-from nn.am.se import SE
+from tf_core.module import Module
+from tf_nn.registry import am_registry, block_registry
+from tf_nn.utils import *
+from tf_nn.am.se import SE
 
 
 @block_registry.register('mb')

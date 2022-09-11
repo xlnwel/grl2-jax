@@ -3,6 +3,8 @@ import chex
 
 def assert_rank_compatibility(tensors, rank=None):
     tensors = [t for t in tensors if t is not None]
+    if tensors == []:
+        return
     if rank:
         chex.assert_equal_rank(tensors, rank)
     else:
@@ -10,6 +12,8 @@ def assert_rank_compatibility(tensors, rank=None):
 
 def assert_shape_compatibility(tensors, shape=None):
     tensors = [t for t in tensors if t is not None]
+    if tensors == []:
+        return
     if shape:
         chex.assert_shape(tensors, shape)
     else:

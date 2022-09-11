@@ -1,4 +1,4 @@
-from nn.registry import cnn_registry
+from tf_nn.registry import cnn_registry
 
 
 def cnn(cnn_name, **kwargs):
@@ -43,7 +43,7 @@ if __name__ == '__main__':
         },
     }
     inp = tf.keras.layers.Input((64, 64, 12))
-    from nn.registry import block_registry
+    from tf_nn.registry import block_registry
     res_cls = block_registry.get('resv2')
     res = res_cls(norm='batch', rezero=True, dropout_rate=.1)
     out = res(inp)

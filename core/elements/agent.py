@@ -5,10 +5,10 @@ from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.log import do_logging
 from core.monitor import Monitor
-from core.typing import ModelPath, get_algo
+from core.typing import ModelPath, get_algo, AttrDict
 from distributed.sync.common.typing import ModelWeights
 from run.utils import search_for_config
-from core.typing import AttrDict
+from tools.display import print_dict_info
 
 
 class Agent:
@@ -40,6 +40,7 @@ class Agent:
 
         if to_restore:
             self.restore()
+        # print_dict_info(self.strategy.model.params)
 
     @property
     def name(self):

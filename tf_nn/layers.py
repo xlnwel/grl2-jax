@@ -2,9 +2,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, constraints, regularizers
 
-from core.ensemble import Module
-from nn.registry import layer_registry
-from nn.utils import *
+from tf_core.module import Module
+from tf_nn.registry import layer_registry
+from tf_nn.utils import *
 from tools import tf_utils
 
 

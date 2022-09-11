@@ -3,9 +3,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from core.ensemble import Module
-from nn.registry import layer_registry, subsample_registry, block_registry, register_all
-from nn.utils import get_norm, get_activation
+from tf_core.module import Module
+from tf_nn.registry import layer_registry, subsample_registry, block_registry, register_all
+from tf_nn.utils import get_norm, get_activation
 
 
 class BlurPool(layers.Layer):

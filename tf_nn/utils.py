@@ -4,8 +4,8 @@ import tensorflow as tf
 from tensorflow.keras import layers, activations, initializers
 
 from core.log import do_logging
-from nn.norm import EvoNorm
-from nn.dummy import Dummy
+from tf_nn.norm import EvoNorm
+from tf_nn.dummy import Dummy
 
 logger = logging.getLogger(__name__)
 

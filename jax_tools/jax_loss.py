@@ -1,3 +1,4 @@
+import jax
 from jax import lax
 import jax.numpy as jnp
 import chex
@@ -318,7 +319,7 @@ def compute_target_advantage(
     config, 
     reward, 
     discount, 
-    reset, 
+    reset=None, 
     value, 
     next_value, 
     ratio, 
@@ -326,7 +327,7 @@ def compute_target_advantage(
     lam, 
     axis=1, 
 ):
-    chex.assert_equal_shape([
+    jax_assert.assert_shape_compatibility([
         reward, discount, value, next_value, ratio, reset
     ])
     if config.target_type == 'vtrace':
@@ -343,7 +344,7 @@ def compute_target_advantage(
             rho_clip=config.rho_clip, 
             rho_clip_pg=config.get('rho_clip_pg', config.rho_clip), 
             adv_type=config.get('adv_type', 'vtrace'), 
-            axis=axis, 
+            axis=axis
         )
     elif config.target_type == 'gae':
         v_target, advantage = gae(
@@ -354,7 +355,7 @@ def compute_target_advantage(
             reset=reset, 
             gamma=gamma, 
             lam=lam, 
-            axis=axis, 
+            axis=axis
         )
     elif config.target_type == 'td':
         if reset is not None:
@@ -499,7 +500,7 @@ def _compute_ppo_policy_losses(advantages, ratio, clip_range):
     neg_adv = -advantages
     pg_loss = neg_adv * ratio
     if clip_range is None:
-        pg_loss = pg_loss
+        clipped_loss = pg_loss
     else:
         clipped_loss = neg_adv * jnp.clip(ratio, 1. - clip_range, 1. + clip_range)
     return pg_loss, clipped_loss

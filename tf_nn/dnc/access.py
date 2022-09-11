@@ -23,7 +23,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras import activations
 
-from nn.dnc import addressing
+from tf_nn.dnc import addressing
 
 
 AccessState = namedtuple('AccessState', 

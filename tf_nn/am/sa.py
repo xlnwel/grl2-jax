@@ -1,10 +1,10 @@
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from core.ensemble import Module
-from nn.func import mlp
-from nn.registry import layer_registry, block_registry, nn_registry
-from nn.utils import get_norm, call_norm
+from tf_core.module import Module
+from tf_nn.func import mlp
+from tf_nn.registry import layer_registry, block_registry, nn_registry
+from tf_nn.utils import get_norm, call_norm
 
 
 def compute_dot_product_attention(q, k, v, mask=None, scale_logits=False):

@@ -1,7 +1,6 @@
-from core.elements.trainer import Trainer
+from .trainer import Trainer
 from tools.timer import Timer
-from core.typing import AttrDict
-from tools.utils import dict2AttrDict
+from core.typing import AttrDict, dict2AttrDict
 
 
 class TrainingLoopBase:

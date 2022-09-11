@@ -2,7 +2,7 @@ import argparse
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from nn.registry import *
+from tf_nn.registry import *
 
 
 def run_module(registry, name, keras_summary=True, shape=(64, 64, 12), **kwargs):
@@ -81,7 +81,7 @@ def run_cnn(*, keras_summary=True, **new_kwargs):
         # 'out_activation': 'relu',
         # 'out_size': None,
     }
-    from nn.cnn import cnn
+    from tf_nn.cnn import cnn
     if keras_summary:
         kwargs.update(new_kwargs)
         shape = (64, 64, 3)
