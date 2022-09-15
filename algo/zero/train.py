@@ -48,8 +48,14 @@ def train(config, agent, env, eval_env_config, buffer):
     runner.step = step
     # print("Initial running stats:", 
     #     *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_record = Every(routine_config.LOG_PERIOD, final=routine_config.MAX_STEPS)
-    to_eval = Every(routine_config.EVAL_PERIOD, final=routine_config.MAX_STEPS)
+    to_record = Every(
+        routine_config.LOG_PERIOD, 
+        start=1000, 
+        final=routine_config.MAX_STEPS)
+    to_eval = Every(
+        routine_config.EVAL_PERIOD, 
+        start=1000, 
+        final=routine_config.MAX_STEPS)
     rt = Timer('run')
     tt = Timer('train')
     et = Timer('eval')
@@ -156,7 +162,6 @@ def main(configs, train=train, gpu=-1):
 
     def build_envs():
         env = create_env(config.env, force_envvec=True)
-        print(env.env)
         eval_env_config = config.env.copy()
         if config.routine.get('EVAL_PERIOD', False):
             if config.env.env_name.startswith('procgen'):

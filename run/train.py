@@ -1,5 +1,6 @@
 import os, sys
 os.environ["XLA_FLAGS"] = '--xla_dump_to=/tmp/foo'
+os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
 
 from datetime import datetime
 import numpy as np

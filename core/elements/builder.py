@@ -5,7 +5,7 @@ from types import FunctionType
 from typing import Dict, Tuple
 
 from core.elements.actor import Actor
-from core.elements.dataset import create_dataset
+# from core.elements.dataset import create_dataset
 from core.elements.model import Model
 from core.elements.strategy import Strategy
 from core.elements.trainer import TrainerBase
@@ -131,28 +131,28 @@ class ElementsBuilder:
         
         return buffer
 
-    def build_dataset(
-        self, 
-        buffer, 
-        model: Model, 
-        config: dict=None, 
-        env_stats: dict=None, 
-        central_buffer: bool=False
-    ):
-        config = dict2AttrDict(config or self.config)
-        env_stats = dict2AttrDict(env_stats or self.env_stats)
-        if self.config.buffer.get('use_dataset'):
-            am = pkg.import_module(
-                'elements.utils', algo=config.algorithm, place=-1)
-            data_format = am.get_data_format(
-                self.config.trainer, env_stats, model)
-            dataset = create_dataset(buffer, env_stats, 
-                data_format=data_format, central_buffer=central_buffer, 
-                one_hot_action=False)
-        else:
-            dataset = buffer
+    # def build_dataset(
+    #     self, 
+    #     buffer, 
+    #     model: Model, 
+    #     config: dict=None, 
+    #     env_stats: dict=None, 
+    #     central_buffer: bool=False
+    # ):
+    #     config = dict2AttrDict(config or self.config)
+    #     env_stats = dict2AttrDict(env_stats or self.env_stats)
+    #     if self.config.buffer.get('use_dataset'):
+    #         am = pkg.import_module(
+    #             'elements.utils', algo=config.algorithm, place=-1)
+    #         data_format = am.get_data_format(
+    #             self.config.trainer, env_stats, model)
+    #         dataset = create_dataset(buffer, env_stats, 
+    #             data_format=data_format, central_buffer=central_buffer, 
+    #             one_hot_action=False)
+    #     else:
+    #         dataset = buffer
 
-        return dataset
+    #     return dataset
     
     def build_strategy(
         self, 
@@ -288,14 +288,14 @@ class ElementsBuilder:
             config=config, 
             env_stats=env_stats, 
             constructors=constructors)
-        elements.dataset = self.build_dataset(
-            buffer=elements.buffer, 
-            model=elements.model, 
-            config=config,
-            env_stats=env_stats)
+        # elements.dataset = self.build_dataset(
+        #     buffer=elements.buffer, 
+        #     model=elements.model, 
+        #     config=config,
+        #     env_stats=env_stats)
         elements.strategy = self.build_strategy(
             trainer=elements.trainer, 
-            dataset=elements.dataset, 
+            dataset=elements.buffer, 
             config=config,
             env_stats=env_stats,
             constructors=constructors)
@@ -342,15 +342,15 @@ class ElementsBuilder:
             config=config, 
             env_stats=env_stats, 
             constructors=constructors)
-        elements.dataset = self.build_dataset(
-            buffer=elements.buffer, 
-            model=elements.model, 
-            config=config,
-            env_stats=env_stats)
+        # elements.dataset = self.build_dataset(
+        #     buffer=elements.buffer, 
+        #     model=elements.model, 
+        #     config=config,
+        #     env_stats=env_stats)
         elements.strategy = self.build_strategy(
             actor=elements.actor, 
             trainer=elements.trainer, 
-            dataset=elements.dataset,
+            dataset=elements.buffer,
             config=config,
             env_stats=env_stats,
             constructors=constructors)

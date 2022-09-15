@@ -1,7 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo sync2-zero_ir
-name: zero_ir
+algorithm: &algo sync2-zero
+name: zero
 version: 0
 
 precision: 32
@@ -198,8 +198,8 @@ model:
             init: null
             act: tanh
         value_coef:
-            outer: .5
-            default: .5
+            outer: 1
+            default: 1
             scale: 1
             bias: 0
             init: null

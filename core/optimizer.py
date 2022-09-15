@@ -45,6 +45,8 @@ def chain(
         return NamedTuple(*[fn(params) for fn in init_fns])
 
     def update_fn(updates, state, params=None):
+        assert updates is not None, name
+        assert state is not None, name
         assert len(update_fns) == len(state), (len(update_fns), len(state))
 
         updates_list = []
@@ -102,10 +104,10 @@ def compute_meta_gradients(
     name: str, 
     by_part=False
 ):
-    grads, (stats, inner_opt_state) = jax.grad(
+    grads, (state, stats) = jax.grad(
         loss_fn, has_aux=True)(params, **kwargs)
     stats = _record_grads(stats, grads, name, by_part)
-    return grads, (stats, inner_opt_state)
+    return grads, (state, stats)
 
 def compute_updates(
     grads: Dict, 
@@ -128,7 +130,6 @@ def compute_updates(
 
 def apply_updates(params, updates):
     params = optax.apply_updates(params, updates)
-
     return params
 
 def optimize(

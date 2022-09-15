@@ -1,8 +1,7 @@
-import copy
-import functools
-from typing import List
+import platform
 import math
-import numpy
+import time
+
 import numpy as np
 import gym
 from .interface import UnityInterface
@@ -18,12 +17,13 @@ MAX_V = 0.442  # max 1.3 min 0.7
 MIN_V = 0.238
 THETA_RANGE = [-1, 1]
 PHI_RANGE = [-0.08, 0.08]
-END_THRESHOLD = [0.01, 0.02, 0.02]
+ROLL_RANGE = [-0.5, 0.5]
+END_THRESHOLD = [0.01, 0.02, 0.02, 0.02]
 LOW_HEIGHT = 2
 BOMB_PENALTY = -10
 SUCCESS_REWARD = 10
 STEP_PENALTY = 0.002
-DELTA_V = [0.2, 1, 0.5]
+DELTA_V = [0.2, 1, 0.5, 0.5]
 
 
 def compute_aid2uids(uid2aid):
@@ -69,10 +69,16 @@ class UnityEnv:
         self.aid2uids = compute_aid2uids(self.uid2aid)
         self.n_agents = len(self.aid2uids)  # the number of agents
         self.n_units = len(self.uid2aid)
-        self.frame_skip = 1
+        self.frame_skip = 10
+        self.unity_config = unity_config
+        if platform.system() == 'Windows':
+            # self.unity_config['file_name'] = 'D:/FlightCombat/fly_win/T2.exe'
+            # self.unity_config['worker_id'] = 100
+            self.unity_config['file_name'] = None
+            self.unity_config['worker_id'] = 0
 
         # unity_config['n_envs'] = n_envs
-        self.env = UnityInterface(**unity_config)
+        self.env = UnityInterface(**self.unity_config)
         # the number of envs running in parallel, which must be the same as the number
         # of environment copies specified when compiing the Unity environment
         self.n_envs = n_envs
@@ -83,19 +89,19 @@ class UnityEnv:
         self.max_episode_steps = kwargs['max_episode_steps']
         self.reward_config = reward_config
         self.use_action_mask = False  # if action mask is used
-        self.use_life_mask = False# if life mask is used
+        self.use_life_mask = False  # if life mask is used
 
         self._unity_disc_actions = 2
         self._unity_cont_actions = 2
-        #self.is_action_discrete = is_action_discrete
-        #if is_action_discrete:
+        # self.is_action_discrete = is_action_discrete
+        # if is_action_discrete:
         #    self.action_dim = [3]
         #    self.action_space = [gym.spaces.Discrete(ad) for ad in self.action_dim]
-        #else:
+        # else:
         self.action_dim = [4]
         self.action_space = [gym.spaces.Box(low=-1, high=1, shape=(ad,)) for ad in self.action_dim]
-        self._obs_dim = [14]
-        self._global_state_dim = [14]
+        self._obs_dim = [13]
+        self._global_state_dim = [13]
         self.is_multi_agent = False
         self.obs_shape = [dict(
             obs=self._get_obs_shape(aid),
@@ -131,7 +137,7 @@ class UnityEnv:
         self._consecutive_action = np.zeros((self.n_envs, self.n_units), bool)
         self._init_vel = np.array((self.n_envs, 3), np.float32)
         self._target_vel = np.array((self.n_envs, 3), np.float32)
-        self.name = 'P1?team=0'
+        self.name = 'E0_Red_0?team=0'
         self.last_angle = np.array((self.n_envs, 3), np.float32)
         self.last_v = np.array((self.n_envs, 3), np.float32)
         self.alive = np.array((self.n_envs, 1), np.int32)
@@ -140,8 +146,7 @@ class UnityEnv:
         self._info = {}
         self._height = 6
         self._dense_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
-
-        self.is_multi_agent = True
+        self.draw_target = [[0.4, 0.3, 0.05], [0.25, -0.3, -0.05], [0.333, 0, 0], [0.333, -1, 0]]
 
     def random_action(self):
         actions = []
@@ -161,9 +166,10 @@ class UnityEnv:
 
         self._init_vel = np.zeros((self.n_envs, 3))
         self._target_vel = np.zeros((self.n_envs, 3))
+
         self._generate_target_velocity()
         self._dense_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
-        #decision_steps, terminal_steps = self.env.reset()
+        # decision_steps, terminal_steps = self.env.reset()
         done, decision_steps, terminal_steps = self.env.step()
         obs = self.get_obs(decision_steps)
         self._init_vel[0] = obs[0]['obs'][0][0][0:3]
@@ -176,19 +182,24 @@ class UnityEnv:
         return obs
 
     def _generate_target_velocity(self):
-        if self._height <= 2.5:
-            target_phi = np.random.uniform(0.03, PHI_RANGE[1])
-        else:
-            target_phi = np.random.uniform(0.03, PHI_RANGE[1]) * np.random.choice([-1, 1])
+        time.sleep(5)
 
-        target_v = np.random.uniform(MIN_V, MAX_V)
-        if abs(target_v - self._init_vel[0][0]) <= 0.01:
-            target_v = self._init_vel[0] + np.random.choice([-1, 1]) * 0.05
+        self._target_vel[0] = np.array(self.draw_target[0])
+        del self.draw_target[0]
 
-        target_theta = np.random.uniform(0.03, THETA_RANGE[1]) * np.random.choice([-1, 1])
-        self._target_vel[0] = np.hstack((target_v, target_theta, target_phi))
-        #self._target_vel[1] = self._init_vel[1]
-        #self._target_vel[2] = self._init_vel[2]
+        # if self._height <= 2.5:
+        #     target_phi = np.random.uniform(0.03, PHI_RANGE[1])
+        # else:
+        #     target_phi = np.random.uniform(0.03, PHI_RANGE[1]) * np.random.choice([-1, 1])
+        #
+        # target_v = np.random.uniform(MIN_V, MAX_V)
+        # if abs(target_v - self._init_vel[0][0]) <= 0.01:
+        #     target_v = self._init_vel[0] + np.random.choice([-1, 1]) * 0.05
+        #
+        # target_theta = np.random.uniform(0.03, THETA_RANGE[1]) * np.random.choice([-1, 1])
+        # self._target_vel[0] = np.hstack((target_v, target_theta, target_phi))
+        # # self._target_vel[1] = self._init_vel[1]
+        # # self._target_vel[2] = self._init_vel[2]
 
     def step(self, action):
         for i in range(self.frame_skip):
@@ -232,18 +243,18 @@ class UnityEnv:
             obs_now_v0=np.array([self._v[0][0]] * self.n_units),
             obs_now_v1=np.array([self._v[0][1]] * self.n_units),
             obs_now_v2=np.array([self._v[0][2]] * self.n_units),
-            obs_roll_v=np.array([agent_obs[0]['obs'][0][0][3]] * self.n_units),
-            obs_a0sin=np.array([agent_obs[0]['obs'][0][0][4]] * self.n_units),
-            obs_a1sin=np.array([agent_obs[0]['obs'][0][0][5]] * self.n_units),
-            obs_a2sin=np.array([agent_obs[0]['obs'][0][0][6]] * self.n_units),
-            obs_a0cos=np.array([agent_obs[0]['obs'][0][0][7]] * self.n_units),
-            obs_a1cos=np.array([agent_obs[0]['obs'][0][0][8]] * self.n_units),
-            obs_a2cos=np.array([agent_obs[0]['obs'][0][0][9]] * self.n_units),
-            obs_height=np.array([agent_obs[0]['obs'][0][0][10]] * self.n_units),
-            obs_dis0=np.array([agent_obs[0]['obs'][0][0][11]] * self.n_units),
-            obs_dis1=np.array([agent_obs[0]['obs'][0][0][12]] * self.n_units),
-            obs_dis2=np.array([agent_obs[0]['obs'][0][0][13]] * self.n_units),
-            #obs_overload=np.array([agent_obs[0]['obs'][0][0][14]] * self.n_units),
+            obs_roll_v=np.array([agent_obs[0]['obs'][0][0][2]] * self.n_units),
+            obs_a0sin=np.array([agent_obs[0]['obs'][0][0][3]] * self.n_units),
+            obs_a1sin=np.array([agent_obs[0]['obs'][0][0][4]] * self.n_units),
+            obs_a2sin=np.array([agent_obs[0]['obs'][0][0][5]] * self.n_units),
+            obs_a0cos=np.array([agent_obs[0]['obs'][0][0][6]] * self.n_units),
+            obs_a1cos=np.array([agent_obs[0]['obs'][0][0][7]] * self.n_units),
+            obs_a2cos=np.array([agent_obs[0]['obs'][0][0][8]] * self.n_units),
+            obs_height=np.array([agent_obs[0]['obs'][0][0][9]] * self.n_units),
+            obs_dis0=np.array([agent_obs[0]['obs'][0][0][10]] * self.n_units),
+            obs_dis1=np.array([agent_obs[0]['obs'][0][0][11]] * self.n_units),
+            obs_dis2=np.array([agent_obs[0]['obs'][0][0][12]] * self.n_units),
+            # obs_overload=np.array([agent_obs[0]['obs'][0][0][14]] * self.n_units),
         ) for i in range(self.n_envs)]
         agent_reward = [rewards[:, uids] for uids in self.aid2uids]
         agent_discount = [discounts[:, uids] for uids in self.aid2uids]
@@ -253,6 +264,7 @@ class UnityEnv:
         for i in range(self.n_envs):
             if done[i]:
                 if fail[i] or edge[i]:
+                    print('fail')
                     self.env.reset()
                 self.reset()
 
@@ -274,11 +286,12 @@ class UnityEnv:
     def get_obs(self, ds, reward=None, action=None):
         obs = [{} for _ in range(self.n_agents)]
 
-        all_states = ds[self.name].obs[0][0]        
+        all_states = ds[self.name].obs[0][0]
         self.alive[0] = all_states[1]
         vel = all_states[5:8]
         v_scalar = np.linalg.norm(vel)
-        angle = all_states[8:11]
+        angle = all_states[11:14]
+
         for i in range(3):
             while abs(angle[i]) > 180:
                 angle[i] = angle[i] - math.copysign(360, angle[i])
@@ -286,6 +299,8 @@ class UnityEnv:
         theta = angle[1] / 180
         phi = angle[0] / 180
         v = np.array([v_scalar, theta, phi])
+        v_ = np.array([v_scalar, phi])
+
         posture = np.concatenate((np.sin(np.deg2rad(angle)), np.cos(np.deg2rad(angle))))
         height = all_states[3]
         np.set_printoptions(suppress=True)
@@ -319,15 +334,15 @@ class UnityEnv:
             dis[2] = dis[2] - math.copysign(2, dis[2])
 
         one_obs = np.hstack((
-            v,
+            v_,
             roll_v,
             posture,
             height / 20,
             dis,
-            #self.overload / 2,
+            # self.overload / 2,
             # oil
         ))
-        #print('obs:' + str(one_obs))	
+        # print('obs:' + str(one_obs))
         observations = {}
         observations['obs'] = one_obs
         observations['global_state'] = one_obs
@@ -349,22 +364,20 @@ class UnityEnv:
                     dtype=self.obs_dtype[aid][k]
                 )
                 obs[aid][k][0] = all_obs[0][k]
-        
+
         return obs
 
     def set_actions(self, action):
-        #print(action)
+        # print(action)
         action_tuple = self.env.get_action_tuple()
         action_tuple.add_discrete(np.zeros((1, 4)))
-        a = np.zeros((1, 4))
         a = action[0][0]
-        #action[0][0][0][0] = 0
-        #action[0][0][0][1] = 0
-        #action[0][0][0][2] = 0
+        # action[0][0][0][0] = 0
+        # action[0][0][0][1] = 0
+        # action[0][0][0][2] = 0
         action = np.hstack((a.reshape((1, 4)), np.zeros((1, 2))))
         action_tuple.add_continuous(action)
         self.env.set_actions(self.name, action_tuple)
-
 
     def _get_done_and_reward(self):
         """  获取游戏逻辑上done和reward
@@ -401,13 +414,14 @@ class UnityEnv:
         dis_phi = abs(v[2] - self._target_vel[0][2])
         if dis_phi >= 1:
             dis_phi = 2 - dis_phi
-        
+
         if dis_theta < END_THRESHOLD[1] and \
-               abs(v[0] - self._target_vel[0][0]) < END_THRESHOLD[0] and \
-               dis_phi < END_THRESHOLD[2]:
+                abs(v[0] - self._target_vel[0][0]) < END_THRESHOLD[0] and \
+                dis_phi < END_THRESHOLD[2]:
             done[0] = True
             score[0] = 1
             reward[0] += SUCCESS_REWARD
+            print('success')
 
             return done, reward, score, fail, edge
 
@@ -427,10 +441,10 @@ class UnityEnv:
         delta_phi_t1 = abs(v[2] - self._target_vel[0][2])
         if delta_phi_t1 >= 1:
             delta_phi_t1 = 2 - delta_phi_t1
-        
-        reward[0] += (delta_theta_t - delta_theta_t1)/DELTA_V[1] \
-                          + (abs(last_v[0] - self._target_vel[0][0]) - abs(v[0] - self._target_vel[0][0])) / DELTA_V[0]  \
-                          + (delta_phi_t - delta_phi_t1) / DELTA_V[2]
+
+        reward[0] += (delta_theta_t - delta_theta_t1) / DELTA_V[1] \
+                     + (abs(last_v[0] - self._target_vel[0][0]) - abs(v[0] - self._target_vel[0][0])) / DELTA_V[0] \
+                     + (delta_phi_t - delta_phi_t1) / DELTA_V[2]
         # print(reward)
         self.last_v = self._v.copy()
         self.last_angle = self._angle.copy()
@@ -445,6 +459,7 @@ class UnityEnv:
         """Returns the random seed used by the environment."""
         self._seed = seed
 
+
 """ Test Code """
 if __name__ == '__main__':
     config = dict(
@@ -453,8 +468,8 @@ if __name__ == '__main__':
         max_episode_steps=500,
         n_envs=1,
         unity_config={
-            # 'worker_id': 0,
-            # 'file_name':'E:\FlightCombat\FightSimulator\FightSimulator\Packages\Demo\T2.exe'
+            'worker_id': 1000,
+            'file_name': '/home/ubuntu/wuyunkun/hm/env/unity_env/data/red_fly/3d.x86_64'
         },
         reward_config={
             'detect_reward': 0.1, 'main_dead_reward': -10, 'blue_dead_reward': 10, 'grid_reward': 0.1

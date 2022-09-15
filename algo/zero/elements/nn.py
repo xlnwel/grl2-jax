@@ -100,9 +100,9 @@ class Value(IndexModule):
 class Reward(IndexModule):
     def __init__(
         self, 
+        action_dim, 
         out_act=None, 
         combine_xa=False, 
-        out_size=1, 
         rescale=1, 
         name='reward', 
         **config
@@ -111,21 +111,22 @@ class Reward(IndexModule):
         
         self.out_act = get_activation(out_act)
         self.combine_xa = combine_xa
-        self.out_size = 1 if self.combine_xa else out_size
+        self.action_dim = action_dim
+        self.out_size = 1 if self.combine_xa else self.action_dim
         self.rescale = rescale
         assert config['index_config'].get('scale', 1) == 1, config['index_config']
         super().__init__(config=config, out_size=self.out_size, name=name)
 
     def __call__(self, x, action, hx=None):
         if len(action.shape) < len(x.shape):
-            action = nn.one_hot(action, self.out_size)
+            action = nn.one_hot(action, self.action_dim)
         if self.combine_xa:
             x = jnp.concatenate([x, action], -1)
 
         x = super().__call__(x, hx)
         out = x
 
-        if not self.combine_xa:
+        if action is not None and not self.combine_xa:
             x = jnp.sum(x * action, -1)
         if x.shape[-1] == 1:
             x = jnp.squeeze(x, -1)

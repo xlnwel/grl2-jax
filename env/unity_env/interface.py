@@ -1,9 +1,9 @@
 import os
+import time
 import uuid
 from copy import deepcopy
 
 from mlagents_envs.base_env import ActionTuple
-from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 from mlagents_envs.side_channel.side_channel import (
@@ -30,7 +30,7 @@ class UnityInterface:
             'width': 84,
             'height': 84,
             'quality_level': 5,
-            'time_scale': 20,
+            'time_scale': 1,
             'target_frame_rate': -1,
             'capture_frame_rate': 60
         },
@@ -74,6 +74,7 @@ class UnityInterface:
         self._behavior_names = list(self.env.behavior_specs.keys())
         self._behavior_specs = list(self.env.behavior_specs.values())
         self.last_reset = -1  # 0 means reset by id
+        self.env_step_time = 0
 
     def get_behavior_names(self):
         return self._behavior_names
@@ -94,9 +95,8 @@ class UnityInterface:
     def reset_envs_with_ids(self, eids: list):
         """ Reset environments specified by the given ids """
         key = 'reset'
-        for i in eids:
-            self._side_channel.send_string('{'f"key: \"{key}\",value:{i}"'}')
-        self.last_reset = 0
+        value = '9' + '_'.join(eids)
+        self._side_channel.send_string('{'f"key: \'{key}\',value:\'{value}\'"'}')
 
     def get_action_tuple(self) -> ActionTuple:
         """ Get an action_tuple instance"""
@@ -111,6 +111,7 @@ class UnityInterface:
         self.env.set_actions(name, action_tuple)
 
     def step(self):
+        start_time = time.time()
         self.env.step()
 
         ds, ts = self.get_obs()
@@ -120,6 +121,7 @@ class UnityInterface:
         last_ts = None
         #while loop_flag:
         #loop_flag = False
+
         for k, v in ts.items():
             if len(v) != 0:
                  #loop_flag = True
@@ -128,6 +130,8 @@ class UnityInterface:
                  ds, ts = self.get_obs()
                  break
         ts = last_ts if last_ts is not None else ts
+        end_time = time.time()
+        self.env_step_time += end_time - start_time
         if last_ts is not None:
             return True, ds, ts
         else:
@@ -141,6 +145,7 @@ class UnityInterface:
             decision_steps[bn] = ds
             terminal_steps[bn] = ts
         return decision_steps, terminal_steps
+
 
 
 class RuntimeEnvironmentParametersChannel(SideChannel):
@@ -162,20 +167,28 @@ if __name__ == '__main__':
     unity_config['n_envs'] = 1
     # unity_config['file_name'] = 'E:\FlightCombat\FightSimulator\FightSimulator\Packages\\test_view\T2.exe'
     env = UnityInterface(**unity_config)
-    names = ['blue_main?team=0', 'blue_sup_0?team=0', 'red_main?team=0', 'red_sup_0?team=0', 'red_sup_1?team=0',
-             'red_sup_2?team=0', 'red_sup_3?team=0'
-             # 'blue_main?team=1', 'blue_sup_0?team=1', 'red_main?team=1', 'red_sup_0?team=1', 'red_sup_1?team=1', 'red_sup_2?team=1', 'red_sup_3?team=1'
+    names = ['E0_Red_0?team=0'
              ]
+
+    unity_time = 0
+    start_time = time.time()
+
     for i in range(1, 1000):
-        env.reset_envs_with_ids([1])
+        #env.reset_envs_with_ids([1])
+
         # for name in names:
         #     action_tuple = env.get_action_tuple()
-        #     if name.startswith('red_main'):
-        #         action_tuple.add_discrete(np.array([[1, 1, 1]]))
+        #     action_tuple.add_continuous(np.ones((1, 6)))
+        #     if name.startswith('E0_Blue') or name.startswith('E0_Red_0'):
+        #         action_tuple.add_discrete(np.ones((1, 4), np.int32))
         #     else:
-        #         action_tuple.add_discrete(np.array([[1, 1]]))
+        #         action_tuple.add_discrete(np.ones((1, 2), np.int32))
         #
-        #     action_tuple.add_continuous(np.array([[0, 0]]))
         #     env.set_actions(name, action_tuple)
-        ds, ts = env.step()
+        env.step()
+        print(i)
+
+    end_time = time.time()
+    print(end_time - start_time)
         # print('env0:{}, env2:{}'.format(ds['blue_main?team=0'].obs[1][0][2:4], ds['blue_main?team=1'].obs[1][0][2:4]))
+    print(env.env_step_time)

@@ -21,6 +21,7 @@ class Agent(RayBase):
         parameter_server: ParameterServer=None,
         monitor: Monitor=None
     ):
+        os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
         super().__init__(config['aid'], seed=config.get('seed'))
 
         self.aid = config['aid']

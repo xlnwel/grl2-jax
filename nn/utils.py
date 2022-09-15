@@ -15,15 +15,14 @@ def get_activation(act_name, **kwargs):
         None: Dummy(),
         'relu': jax.nn.relu,
         'leaky_relu': jax.nn.leaky_relu,
+        'sigmoid': jax.nn.sigmoid, 
         'tanh': jnp.tanh, 
         'atan': jax.lax.atan, 
     }
     if isinstance(act_name, str):
         act_name = act_name.lower()
-    if act_name in activations:
-        return activations[act_name]
-    else:
-        return act_name
+    assert act_name in activations, act_name
+    return activations[act_name]
 
 
 @hk.transparent

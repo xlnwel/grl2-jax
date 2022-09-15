@@ -2,15 +2,16 @@
 
 source activate grl
 
-algos=(zero_mr)
+algos=(zero)
 suite=grid_world
 envs=(staghunt)
 config=magw_a2c
-args1=(0)
-args2=(1e-2 5e-2 1e-1)
-args3=(5e-4 1e-3 3e-3)
+args1=(1)
+args2=(5e-3 1e-2 5e-2)
+args3=(5e-4 1e-3)
 args4=(4 8)
-date=$(date +"%m%d")
+# date=$(date +"%m%d")
+date=0913
 info=""
 
 # for x in $(seq 1 2); do
@@ -40,10 +41,10 @@ for e in "${envs[@]}"; do
             for a2 in "${args2[@]}"; do
                 for a3 in "${args3[@]}"; do
                     for a4 in "${args4[@]}"; do
-                        for ((s=1; s<=4; s++)); do
+                        for ((s=1; s<=1; s++)); do
                             kw1="K=$a1"
                             kw2="entropy_coef=$a2"
-                            kw3="rl_opt:lr=$a3"
+                            kw3="meta_reward_opt:lr=$a3"
                             kw4="n_steps=$a4"
                             kwstr="$kw1-$kw2-$kw3-$kw4"
                             kws="$kw1 $kw2 $kw3 $kw4"

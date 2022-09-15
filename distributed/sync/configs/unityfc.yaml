@@ -50,7 +50,7 @@ runner:
     push_every_episode: False
 
 env:
-    env_name: &env_name unity-combat2d
+    env_name: &env_name unity-combat_fly_control
     max_episode_steps: 500
     frame_skip: 10
     unity_config:
@@ -148,9 +148,8 @@ trainer:
     timeout_done: &td True
 
     theta_opt:
-        opt_name: rmsprop
+        opt_name: adam
         lr: 1e-3
-        initial_scale: 0.
         clip_norm: 10
         eps: 1e-5
 

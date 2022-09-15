@@ -581,19 +581,21 @@ class MultiAgentSimRunner(RayBase):
 
     def _update_rms(self, agent_env_outs: Union[EnvOutput, List[EnvOutput]]):
         if isinstance(agent_env_outs, EnvOutput):
-            self.rms[0].update_obs_rms(
-                agent_env_outs.obs, 'obs', mask=out.obs.get('life_mask'))
-            self.rms[0].update_obs_rms(
-                agent_env_outs.obs, 'global_state', mask=out.obs.get('life_mask'))
+            for name in self.rms[0].obs_names:
+                self.rms[0].update_obs_rms(
+                    agent_env_outs.obs, 
+                    name, 
+                    mask=agent_env_outs.obs.get('life_mask')
+                )
             self.rms[0].update_reward_rms(agent_env_outs.reward, agent_env_outs.discount)
         else:
             assert len(self.rms) == len(agent_env_outs), (len(self.rms), len(agent_env_outs))
             for rms, out in zip(self.rms, agent_env_outs):
                 if len(out.obs) == 0:
                     continue
-                rms.update_obs_rms(
-                    out.obs, 'obs', mask=out.obs.get('life_mask'))
-                rms.update_obs_rms(out.obs, 'global_state')
+                for name in self.rms[0].obs_names:
+                    rms.update_obs_rms(
+                        out.obs, name, mask=out.obs.get('life_mask'))
                 rms.update_reward_rms(out.reward, out.discount)
 
     def _log_for_done(self, reset):

@@ -26,13 +26,14 @@ class MetaParams(hk.Module):
                 self.config[k].act = get_activation(v.act)
 
     def __call__(self, inner):
-        res = AttrDict()
         if inner:
+            res = AttrDict()
             for k, v in self.config.items():
                 if self.config[k].init is None:
                     var = float(v.default)
                 else:
                     var = self.get_var(k)
+                    res[f'{k}_var'] = var
                     var = v.act(var)
                     if v.scale:
                         var = v.scale * var
@@ -40,8 +41,7 @@ class MetaParams(hk.Module):
                         var = var + v.bias
                 res[k] = var
         else:
-            for k, v in self.config.items():
-                res[k] = float(v.outer)
+            res = dict2AttrDict({k: v.outer for k, v in self.config.items()})
         return res
 
     def get_var(self, name):

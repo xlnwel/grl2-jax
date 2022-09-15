@@ -1,7 +1,7 @@
 ---
 # NOTE: root_dir and model_name will be specified to all configs in run.train.py
-algorithm: &algo sync2-zero_ir
-name: zero_ir
+algorithm: &algo sync-zero
+name: zero
 version: 0
 
 precision: 32
@@ -15,7 +15,7 @@ root_dir: *algo
 model_name: *algo
 
 controller:
-    store_period: 1e6
+    store_period: 1e5
     restart_runners_priod: null
     max_version_iterations: 1
     max_steps_per_iteration: 2e8
@@ -52,13 +52,13 @@ ray_config:
 monitor: {}
 
 runner:
-    n_runners: &nrunners 60
+    n_runners: &nrunners 30
     n_steps: &nsteps 16
     push_every_episode: False
 
 env:
-    env_name: &env_name grf-11_vs_11_hard_stochastic
-    representation: mat
+    env_name: &env_name grf-academy_3_vs_1_with_keeper
+    representation: simple115v2
     rewards: scoring,checkpoints
     render: False
     write_full_episode_dumps: False
@@ -77,8 +77,8 @@ env:
 
     n_envs: &nenvs 1
 
-    use_idx: False
-    use_hidden: False
+    use_idx: True
+    use_hidden: True
     use_event: False
     agentwise_global_state: False
 
@@ -86,96 +86,95 @@ agent: {}
 
 strategy:
     algorithm: *algo
-    train_loop:
-        use_dataset: &dataset False
-        K: &K 5
-        L: &L 0
-        extra_meta_step: &ems 1 # 0/1
+    train_loop: {}
 
 model:
     aid: 0
     rnn_type: &rnn null
-    K: *K
-    L: *L
     rl_reward: &rlreward sum
     gamma: &gamma .99
     meta_reward_type: intrinsic
-    extra_meta_step: *ems
+    K: &K 0
+    L: &L 0
+    extra_meta_step: &ems 1 # 0/1
 
     encoder: 
         nn_id: null
     rnn:
         nn_id: *rnn
         units: 256
-        kernel_initializer: orthogonal
-        recurrent_initializer: orthogonal
+        w_init: orthogonal
         use_ln: True
     policy:
         nn_id: policy
         units_list: [256, 256, 256]
-        kernel_initializer: orthogonal
+        w_init: orthogonal
         activation: relu
         norm: layer
         norm_after_activation: True
         norm_kwargs:
-            epsilon: 1e-5
+            axis: -1
+            create_scale: True
+            create_offset: True
         eval_act_temp: 1
         out_gain: .01
-        indexed: null
-        indexed_config:
-            use_shared_bias: True
+        index: null
+        index_config:
+            use_shared_bias: False
             use_bias: True
-            kernel_initializer: orthogonal
-            activation: relu
+            w_init: orthogonal
     value:
         nn_id: value
         units_list: [256, 256, 256]
-        kernel_initializer: orthogonal
+        w_init: orthogonal
         activation: relu
         norm: layer
         norm_after_activation: True
         norm_kwargs:
-            epsilon: 1e-5
-        indexed: null
-        indexed_config:
-            use_shared_bias: True
-            use_bias: True
-            kernel_initializer: orthogonal
-            activation: relu
-    meta_reward: 
-        nn_id: reward
-        units_list: [256, 256, 256]
-        kernel_initializer: orthogonal
-        activation: relu
-        norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1e-5
-        out_gain: .01
-        out_scale: .1
-        out_act: atan
-        indexed: null
-        indexed_config:
-            use_shared_bias: True
-            use_bias: True
-            kernel_initializer: orthogonal
-            activation: relu
-    outer_value:
-        nn_id: value
-        units_list: [256, 256, 256]
-        kernel_initializer: orthogonal
-        activation: relu
-        norm: layer
-        norm_after_activation: True
-        norm_kwargs:
-            epsilon: 1e-5
-        indexed: null
-        indexed_config:
+            axis: -1
+            create_scale: True
+            create_offset: True
+        index: null
+        index_config:
             use_shared_bias: False
             use_bias: True
-            kernel_initializer: orthogonal
-            activation: relu
-    meta:
+            w_init: orthogonal
+    outer_value: 
+        nn_id: value
+        units_list: [256, 256, 256]
+        w_init: orthogonal
+        activation: relu
+        norm: layer
+        norm_after_activation: True
+        norm_kwargs:
+            axis: -1
+            create_scale: True
+            create_offset: True
+        index: null
+        index_config:
+            use_shared_bias: False
+            use_bias: True
+            w_init: orthogonal
+    meta_reward:
+        nn_id: reward
+        units_list: [256, 256, 256]
+        w_init: orthogonal
+        activation: relu
+        norm: layer
+        norm_after_activation: True
+        norm_kwargs:
+            axis: -1
+            create_scale: True
+            create_offset: True
+        out_scale: .01
+        out_act: atan
+        combine_xa: False
+        index: null
+        index_config:
+            use_shared_bias: False
+            use_bias: True
+            w_init: orthogonal
+    meta_params:
         nn_id: meta
         pg_coef:
             outer: 1
@@ -190,8 +189,8 @@ model:
             init: null
             act: tanh
         value_coef:
-            outer: .5
-            default: .5
+            outer: 1
+            default: 1
             scale: 1
             bias: 0
             init: null
@@ -233,59 +232,33 @@ model:
             act: sigmoid
 
 loss:
-    rl:
-        # hyperparams for value target and advantage
-        target_type: gae
-        c_clip: 1
-        rho_clip: 1
-        adv_type: vtrace
-        norm_adv: True
+    # hyperparams for value target and advantage
+    target_type: gae
+    c_clip: 1
+    rho_clip: 1
+    adv_type: vtrace
+    norm_adv: True
+    norm_meta_adv: True
 
-        # hyperparams for policy optimization
-        pg_type: pg
-        ppo_clip_range: .2
-        use_dice: False
-        dice_axis: null
-        dice_lam: 1
-        kl: reverse
-        kl_coef: 1
-        policy_life_mask: True
+    # hyperparams for policy optimization
+    pg_type: pg 
+    ppo_clip_range: .2
+    use_dice: True
+    dice_axis: null
+    dice_lam: 1
+    kl: reverse
+    kl_coef: 1
+    policy_life_mask: True
 
-        # hyperparams for value learning
-        value_loss: mse
-        value_clip_range: .2
-        value_life_mask: False
-        stop_target_grads: False
+    # hyperparams for value learning
+    value_loss: mse
+    value_clip_range: .2
+    value_life_mask: False
+    stop_target_grads: False
 
-        joint_objective: False
-    meta:
-        # hyperparams for value target and advantage
-        target_type: gae
-        c_clip: 1
-        rho_clip: 1
-        adv_type: vtrace
-        norm_adv: True
-        norm_meta_adv: True
-
-        # hyperparams for policy optimization
-        pg_type: pg 
-        ppo_clip_range: .2
-        use_dice: True
-        dice_axis: null
-        dice_lam: 1
-        kl: reverse
-        kl_coef: 1
-        policy_life_mask: True
-
-        # hyperparams for value learning
-        value_loss: mse
-        value_clip_range: .2
-        value_life_mask: False
-        stop_target_grads: False
-
-        # hyperparams for meta-learning
-        meta_reward_coef: 0
-        joint_objective: False
+    # hyperparams for meta-learning
+    meta_reward_coef: 0
+    joint_objective: False
 
 trainer:
     algorithm: *algo
@@ -303,27 +276,30 @@ trainer:
     msmg_type: avg
     extra_meta_step: *ems
     store_state: True
-    rl_reward: *rlreward
+    event_done: False
 
-    rl_opt:
-        opt_name: rmsprop
-        schedule_lr: False
+    theta_opt:
+        opt_name: adam
         lr: 5e-4
         clip_norm: .5
-        epsilon: 1e-5
-    meta_param_opt:
-        opt_name: rmsprop
-        schedule_lr: False
-        lr: 1e-4
+        eps: 1e-5
+        eps_root: 1e-5
+    phi_opt:
+        opt_name: adam
+        lr: 5e-4
         clip_norm: .5
-        epsilon: 1e-5
+        eps: 1e-5
+    meta_params_opt:
+        opt_name: adam
+        lr: 1e-3
+        clip_norm: .5
+        eps: 1e-5
         weight_decay: null
     meta_reward_opt:
-        opt_name: rmsprop
-        schedule_lr: False
-        lr: 1e-4
+        opt_name: adam
+        lr: 5e-4
         clip_norm: .5
-        epsilon: 1e-5
+        eps: 1e-5
         weight_decay: null
 
 actor:
@@ -340,7 +316,6 @@ actor:
 
 buffer:
     type: ac
-    use_dataset: *dataset
 
     n_runners: *nrunners
     n_envs: *nenvs
@@ -355,12 +330,6 @@ buffer:
     # mini-batch size = n_runners * n_envs * epslen / n_mbs
     sample_keys:
         - obs
-        # - idx
-        # - global_state
-        # - hidden_state
-        # - prev_reward
-        # - prev_action
-        # - action_mask
         - action
         - value
         - reward

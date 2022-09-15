@@ -129,6 +129,7 @@ class IndexLayer(hk.Module):
 
 
 class IndexModule(hk.Module):
+    @hk.transparent
     def __init__(self, config, out_size, name=None):
         super().__init__(name=name)
 

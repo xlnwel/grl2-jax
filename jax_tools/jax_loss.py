@@ -376,7 +376,7 @@ def pg_loss(
 ):
     jax_assert.assert_shape_compatibility([advantage, ratio, logprob])
     ratio = lax.stop_gradient(ratio)
-    pg = - advantage * ratio * logprob
+    pg = - (advantage * ratio * logprob)
 
     return pg
 

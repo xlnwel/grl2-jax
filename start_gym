@@ -5,16 +5,16 @@ source activate grl
 algos=(
     # ppo
     # gpo
-    zero
+    ppo
 )
 suite=gym
 envs=(
     Ant-v4
     HalfCheetah-v4
-    Hopper-v4
-    Humanoid-v4
-    Swimmer-v4
-    Walker2d-v4
+    # Hopper-v4
+    # Humanoid-v4
+    # Swimmer-v4
+    # Walker2d-v4
 )
 config=gym
 seeds=(0 1 2 3)
@@ -46,7 +46,7 @@ done
 i=0
 for e in "${envs[@]}"; do
     for a in "${algos[@]}"; do
-        for s in "${seeds[@]}"; do
+        for ((s=1; s<=4; s++)); do
             env="${suite}-${e}"
             ld="$suite-logs"
             if [ 0 != $# ]; then

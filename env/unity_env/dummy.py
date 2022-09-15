@@ -203,7 +203,7 @@ if __name__ == '__main__':
         n_envs=4,
         unity_config={},
     )
-    # from tools.display import print_dict, print_dict_info
+    # from utility.display import print_dict, print_dict_tensors
     def print_dict(d, prefix=''):
         for k, v in d.items():
             if isinstance(v, dict):
@@ -216,15 +216,15 @@ if __name__ == '__main__':
             else:
                 print(f'{prefix} {k}: {v}')
 
-    def print_dict_info(d, prefix=''):
+    def print_dict_tensors(d, prefix=''):
         for k, v in d.items():
             if isinstance(v, dict):
                 print(f'{prefix} {k}')
-                print_dict_info(v, prefix+'\t')
+                print_dict_tensors(v, prefix+'\t')
             elif isinstance(v, tuple):
                 # namedtuple is assumed
                 print(f'{prefix} {k}')
-                print_dict_info(v._asdict(), prefix+'\t')
+                print_dict_tensors(v._asdict(), prefix+'\t')
             else:
                 print(f'{prefix} {k}: {v.shape} {v.dtype}')
 
@@ -232,14 +232,14 @@ if __name__ == '__main__':
     observations = env.reset()
     print('reset observations')
     for i, o in enumerate(observations):
-        print_dict_info(o, f'\tagent{i}')
+        print_dict_tensors(o, f'\tagent{i}')
     for k in range(1, 3):
         actions = env.random_action()
         print(f'Step {k}, random actions', actions)
         observations, rewards, dones, reset = env.step(actions)
         print(f'Step {k}, observations')
         for i, o in enumerate(observations):
-            print_dict_info(o, f'\tagent{i}')
+            print_dict_tensors(o, f'\tagent{i}')
         print(f'Step {k}, rewards', rewards)
         print(f'Step {k}, dones', dones)
         print(f'Step {k}, reset', reset)

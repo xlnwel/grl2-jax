@@ -64,6 +64,7 @@ class RMS:
             assert self._normalize_reward_with_return == 'backward', self._normalize_reward
         
         self._obs_names = config.get('obs_names', ['obs'])
+        self._masked_names = config.get('masked_names', ['obs'])
         self._obs_rms: Dict[str, RunningMeanStd] = {}
         if self._normalize_obs:
             # we use dict to track a set of observation features
@@ -205,14 +206,19 @@ class RMS:
             if not isinstance(obs, dict):
                 if name is None:
                     name = 'obs'
+                if name not in self._masked_names:
+                    mask = None
                 self._obs_rms[name].update(obs, mask=mask, axis=axis)
             else:
                 if name is None:
                     for k in self._obs_names:
                         assert not obs[k].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
-                        self._obs_rms[k].update(obs[k], mask, axis=axis)
+                        rms_mask = mask if name in self._masked_names else None
+                        self._obs_rms[k].update(obs[k], mask=rms_mask, axis=axis)
                 else:
                     assert not obs[name].dtype == np.uint8, f'Unexpected normalization on {name} of type uint8.'
+                    if name not in self._masked_names:
+                        mask = None
                     self._obs_rms[name].update(obs[name], mask=mask, axis=axis)
 
     def update_reward_rms(self, reward, discount=None, mask=None, axis=None):

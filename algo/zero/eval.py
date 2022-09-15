@@ -23,8 +23,9 @@ def plot(data: dict, outdir: str, figname: str):
     data = {k: np.swapaxes(v, 0, 1) for k, v in data.items() if v.ndim == 2}
     plot_data_dict(data, outdir=outdir, figname=figname)
     if 'meta_reward' in data:
+        sum_reward = data['reward'] + data['trans_reward']
         all_reward = np.concatenate([
-            data['reward'], data['meta_reward'], data['trans_reward']])
+            data['meta_reward'], data['trans_reward'], data['reward'], sum_reward])
     else:
         all_reward = data['reward']
     plot_data(all_reward, y='reward', outdir=outdir, 

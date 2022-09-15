@@ -532,15 +532,14 @@ class MultiAgentGridWorldEnv:
         for i in range(self.num_agents):
             collective_return += self.agents[i].collective_return
 
-        infos['collective_return'] = collective_return
-        infos['coop'] = self.coop_num
+        infos['coop_score'] = self.coop_num
         if self.env_name == 'multi_StagHuntGW':
             for i in range(self.num_agents):
-                infos[f'dead{i}'] = self.agents[i].gore_num
-                infos[f'defect{i}'] = self.agents[i].hare_num
-        infos['dead'] = [infos[f'dead{i}'] for i in range(self.num_agents)]
-        infos['defect'] = [infos[f'defect{i}'] for i in range(self.num_agents)]
-        infos['together'] = self.together_num
+                infos[f'dead{i}_score'] = self.agents[i].gore_num
+                infos[f'defect{i}_score'] = self.agents[i].hare_num
+        infos['dead_score'] = [infos[f'dead{i}_score'] for i in range(self.num_agents)]
+        infos['defect_score'] = [infos[f'defect{i}_score'] for i in range(self.num_agents)]
+        infos['together_score'] = self.together_num
             
         global_reward = np.mean(rewards)
         if self.share_reward:
@@ -557,7 +556,7 @@ class MultiAgentGridWorldEnv:
             print('next obs', observations['obs'][0][:2])
 
         self._dense_score += reward
-        self._score = collective_return
+        self._score = collective_return * np.ones_like(self._score)
         self._epslen += 1
 
         infos['dense_score'] = self._dense_score
@@ -574,7 +573,7 @@ class MultiAgentGridWorldEnv:
         if self.use_idx:
             obs['idx'] = np.eye(self.num_agents, dtype=np.float32)
         if self.use_hidden:
-            obs['hidden_state'] = np.repeat(obs['obs'][:1], self.num_agents, axis=0)
+            obs['hidden_state'] = obs['obs'].copy()
         event = self._set_event(o)
         if self.use_event:
             obs['event'] = event
@@ -605,6 +604,7 @@ class MultiAgentGridWorldEnv:
         self._epslen = 0
         self._event1 = 1
         self._event2 = 0
+        self.together_num = 0
         
         if self.eid == -1:
             print('reset', observations['obs'][0][:2])

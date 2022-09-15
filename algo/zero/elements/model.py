@@ -56,22 +56,20 @@ class Model(ModelBase):
         ov_hx = data.sid if self.config.joint_objective else get_hx(data.sid, data.idx)
         self.params.outer_value, self.modules.outer_value = build_fn(
             rngs[2], ov_x, ov_hx, name='outer_value')
+        action = None if self.config.meta_reward_type == 'shaping' else data.action
         self.params.meta_reward, self.modules.meta_reward = build_fn(
-            rngs[3], data.hidden_state, data.action, get_hx(data.idx, data.event), 
+            rngs[3], data.hidden_state, action, get_hx(data.idx, data.event), 
             name='meta_reward')
         self.params.meta_params, self.modules.meta_params = build_fn(
             rngs[4], True, name='meta_params')
 
-    def compile_model(self):
-        self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
-    
     @property
-    def theta_rl(self):
+    def theta(self):
         return self.params.subdict('policy', 'value')
 
     @property
-    def theta(self):
-        return self.params.subdict('policy', 'value', 'outer_value')
+    def phi(self):
+        return self.params.subdict('outer_value')
     
     @property
     def eta(self):
@@ -138,12 +136,12 @@ class Model(ModelBase):
             action_mask=data.action_mask, 
         )
         if self.is_action_discrete:
-            if evaluation and self.config.eval_act_temp > 0:
+            if evaluation and self.config.eval_act_temp:
                 act_out = act_out / self.config.eval_act_temp
             dist = jax_dist.Categorical(act_out)
         else:
             mu, logstd = act_out
-            if evaluation and self.config.eval_act_temp > 0:
+            if evaluation and self.config.eval_act_temp:
                 logstd = logstd + math.log(self.config.eval_act_temp)
             dist = jax_dist.MultivariateNormalDiag(mu, logstd)
 
@@ -162,7 +160,7 @@ class Model(ModelBase):
         value = jnp.squeeze(value)
         if self.config.K:
             _, meta_reward, trans_reward = self.compute_meta_reward(
-                params.eta, 
+                params, 
                 rng, 
                 data.prev_hidden_state, 
                 data.hidden_state, 
@@ -205,7 +203,7 @@ class Model(ModelBase):
             hx = get_hx(idx, event)
         if next_hx is None:
             next_hx = get_hx(next_idx, next_event)
-        
+
         rngs = random.split(rng)
         meta_params = self.modules.meta_params(
             eta.meta_params, rngs[0], inner=True)
@@ -232,10 +230,10 @@ class Model(ModelBase):
             if self.config.rl_reward == 'meta':
                 rl_reward = trans_reward
             elif self.config.rl_reward == 'sum':
-                rl_reward = data.reward + trans_reward
+                rl_reward = reward + trans_reward
             elif self.config.rl_reward == 'interpolated':
-                reward_coef = self.model.meta.meta('reward_coef', inner=True)
-                rl_reward = reward_coef * data.reward + (1 - reward_coef) * meta_reward
+                reward_coef = meta_params.reward_coef
+                rl_reward = reward_coef * reward + (1 - reward_coef) * meta_reward
             else:
                 raise ValueError(f"Unknown rl reward type: {self.config['rl_reward']}")
             return x, meta_reward, trans_reward, rl_reward
@@ -245,7 +243,7 @@ def setup_config_from_envstats(config, env_stats):
         aid = config['aid']
         config.policy.action_dim = env_stats.action_dim[aid]
         config.policy.is_action_discrete = env_stats.is_action_discrete[aid]
-        config.meta_reward.out_size = env_stats.action_dim[aid]
+        config.meta_reward.action_dim = env_stats.action_dim[aid]
         config.meta_params.reward_scale.shape = (len(env_stats.aid2uids[aid]),)
         config.meta_params.reward_bias.shape = (len(env_stats.aid2uids[aid]),)
         config.meta_params.reward_coef.shape = (len(env_stats.aid2uids[aid]),)
@@ -254,7 +252,7 @@ def setup_config_from_envstats(config, env_stats):
         config.policy.is_action_discrete = env_stats.is_action_discrete
         config.policy.action_low = env_stats.action_low
         config.policy.action_high = env_stats.action_high
-        config.meta_reward.out_size = env_stats.action_dim
+        config.meta_reward.action_dim = env_stats.action_dim
         config.meta_params.reward_scale.shape = (env_stats.n_units,)
         config.meta_params.reward_bias.shape = (env_stats.n_units,)
         config.meta_params.reward_coef.shape = (env_stats.n_units,)

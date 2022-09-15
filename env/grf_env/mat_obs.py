@@ -20,7 +20,7 @@ class FeatureEncoder:
     def __call__(self, obs, player_num=None):
         if player_num is None:
             player_num = obs["active"]
-        assert player_num == obs['active'], (player_num, obs['active'])
+        # assert player_num == obs['active'], (player_num, obs['active'])
 
         player_pos_x, player_pos_y = obs["left_team"][player_num]
         player_direction = np.array(obs["left_team_direction"][player_num])

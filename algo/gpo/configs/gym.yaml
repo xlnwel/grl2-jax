@@ -183,7 +183,7 @@ actor:
         gamma: &gamma .99
 
 buffer:
-    type: ppo
+    type: ac
     use_dataset: *dataset
 
     adv_type: gae     # nae or gae

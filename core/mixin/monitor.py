@@ -55,6 +55,9 @@ class Recorder:
 
     def store(self, **kwargs):
         for k, v in kwargs.items():
+            if np.any(np.isnan(v)):
+                do_logging(f'{k}: {v}')
+                assert False
             if isinstance(v, (jnp.DeviceArray)):
                 v = np.array(v)
             if v is None:
@@ -122,7 +125,7 @@ class Recorder:
             if mean:
                 try:
                     if np.any(np.isnan(v)):
-                        print(k, v)
+                        do_logging(k)
                     stats[k] = np.mean(v).astype(np.float32)
                 except:
                     print(k)

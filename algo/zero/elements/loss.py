@@ -1,10 +1,10 @@
 from jax import lax, nn, random
 import jax.numpy as jnp
-import chex
 
 from core.elements.loss import LossBase
-from core.typing import AttrDict
+from core.typing import AttrDict, dict2AttrDict
 from jax_tools import jax_loss, jax_math
+from jax_tools.jax_utils import split_data
 from tools.utils import prefix_name
 from .utils import compute_joint_stats, compute_values, compute_policy
 
@@ -16,11 +16,11 @@ class MetaLoss(LossBase):
         eta, 
         rng, 
         data, 
-        name='train', 
+        name='theta', 
         use_meta=None, 
         use_dice=None, 
     ):
-        rngs = random.split(rng, 4)
+        rngs = random.split(rng, 3)
         stats = self.modules.meta_params(
             eta.meta_params, rngs[0], inner=use_meta
         )
@@ -66,7 +66,7 @@ class MetaLoss(LossBase):
             )
         stats = record_policy_stats(data, stats, act_dist)
 
-        v_target, stats.raw_adv = jax_loss.compute_target_advantage(
+        stats.v_target, stats.raw_adv = jax_loss.compute_target_advantage(
             config=self.config, 
             reward=data.rl_reward, 
             discount=data.rl_discount, 
@@ -78,9 +78,9 @@ class MetaLoss(LossBase):
             lam=stats.lam, 
             axis=1
         )
-        stats.v_target = lax.stop_gradient(v_target) \
-            if self.config.stop_target_grads else v_target
-        assert self.config.stop_target_grads == True, self.config.stop_target_grads
+        if self.config.stop_target_grads:
+            stats.v_target = lax.stop_gradient(stats.v_target)
+
         stats = record_target_adv(stats)
         if self.config.norm_adv:
             stats.advantage = jax_math.standard_normalization(
@@ -93,7 +93,6 @@ class MetaLoss(LossBase):
             )
         else:
             stats.advantage = stats.raw_adv
-        stats.advantage = lax.stop_gradient(stats.advantage)
 
         actor_loss, stats = compute_actor_loss(
             self.config, 
@@ -108,89 +107,30 @@ class MetaLoss(LossBase):
             stats, 
         )
         loss = actor_loss + value_loss
-        
-        if data.reward is not None:
-            if self.config.joint_objective:
-                outer_value, _, _, outer_v_target, _ = compute_joint_stats(
-                    config=self.config, 
-                    func=self.modules.outer_value, 
-                    params=theta.outer_value, 
-                    rng=rng[3], 
-                    hidden_state=data.hidden_state, 
-                    next_hidden_state=data.next_hidden_state, 
-                    sid=data.sid, 
-                    next_sid=data.next_sid, 
-                    reward=data.reward, 
-                    discount=data.discount, 
-                    reset=data.reset, 
-                    ratio=data.ratio, 
-                    pi_logprob=data.pi_logprob, 
-                    gamma=stats.gamma, 
-                    lam=stats.lam, 
-                    sample_mask=data.sample_mask
-                )
-            else:
-                outer_value, next_outer_value = compute_values(
-                    self.modules.outer_value, 
-                    theta.outer_value, 
-                    rngs[3], 
-                    data.global_state, 
-                    data.next_global_state, 
-                    sid=data.sid, 
-                    next_sid=data.next_sid, 
-                    idx=data.idx, 
-                    next_idx=data.next_idx, 
-                )
-
-                outer_v_target, _ = jax_loss.compute_target_advantage(
-                    config=self.config, 
-                    reward=data.reward, 
-                    discount=data.discount, 
-                    reset=data.reset, 
-                    value=outer_value, 
-                    next_value=next_outer_value, 
-                    ratio=stats.ratio, 
-                    gamma=stats.gamma, 
-                    lam=stats.lam, 
-                )
-            outer_v_target = lax.stop_gradient(outer_v_target)
-            outer_data = AttrDict()
-            outer_data.value = outer_value
-            outer_data.v_target = outer_v_target
-            outer_value_loss, outer_value_stats = compute_vf_loss(
-                self.config, 
-                outer_data, 
-                stats, 
-                AttrDict()
-            )
-            loss = loss + outer_value_loss
-            outer_value_stats = prefix_name(
-                outer_value_stats, 
-                'train/outer' if name is None else f'{name}/outer'
-            )
-            stats.update(outer_value_stats)
-            stats.total_loss = loss
+        stats.loss = loss
 
         stats = prefix_name(stats, name)
-
+        
         return loss, stats
-
-    def outer_loss(
+    
+    def phi_loss(
         self, 
+        phi, 
         theta, 
         rng, 
         data, 
-        name='meta', 
+        name='phi', 
     ):
         stats = self.modules.meta_params(
-            {}, rng, inner=False
+            {}, None, inner=False
         )
-        
+
+        rngs = random.split(rng, 2)
         act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
             compute_policy(
                 self.modules.policy, 
                 theta.policy, 
-                rng, 
+                rngs[0], 
                 data.obs, 
                 data.next_obs, 
                 data.action, 
@@ -201,7 +141,99 @@ class MetaLoss(LossBase):
                 next_idx=data.next_idx, 
                 event=data.event, 
                 next_event=data.next_event, 
-                action_mask=data.action_mask
+                action_mask=data.action_mask, 
+                next_action_mask=data.next_action_mask, 
+                seq_axis=1, 
+            )
+
+        config = dict2AttrDict(self.config, to_copy=True)
+        config.target_type = 'vtrace'
+        if config.joint_objective:
+            stats.value, _, _, v_target, _ = compute_joint_stats(
+                config=config, 
+                func=self.modules.outer_value, 
+                params=phi.outer_value, 
+                rng=rng[1], 
+                hidden_state=data.hidden_state, 
+                next_hidden_state=data.next_hidden_state, 
+                sid=data.sid, 
+                next_sid=data.next_sid, 
+                reward=data.reward, 
+                discount=data.discount, 
+                reset=data.reset, 
+                ratio=stats.ratio, 
+                pi_logprob=stats.pi_logprob, 
+                gamma=stats.gamma, 
+                lam=stats.lam, 
+                sample_mask=data.sample_mask
+            )
+        else:
+            stats.value, next_value = compute_values(
+                self.modules.outer_value, 
+                phi.outer_value, 
+                rngs[1], 
+                data.global_state, 
+                data.next_global_state, 
+                sid=data.sid, 
+                next_sid=data.next_sid, 
+                idx=data.idx, 
+                next_idx=data.next_idx, 
+            )
+
+            v_target, _ = jax_loss.compute_target_advantage(
+                config=config, 
+                reward=data.reward, 
+                discount=data.discount, 
+                reset=data.reset, 
+                value=stats.value, 
+                next_value=next_value, 
+                ratio=stats.ratio, 
+                gamma=stats.gamma, 
+                lam=stats.lam, 
+            )
+        stats.v_target = lax.stop_gradient(v_target)
+        value_loss, stats = compute_vf_loss(
+            config, 
+            data, 
+            stats, 
+        )
+        stats.value_loss = value_loss
+
+        stats = prefix_name(stats, name)
+
+        return value_loss, stats
+
+    def eta_loss(
+        self, 
+        theta, 
+        phi, 
+        rng, 
+        data, 
+        name='eta', 
+    ):
+        stats = self.modules.meta_params(
+            {}, rng, inner=False
+        )
+        
+        rngs = random.split(rng, 2)
+        act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
+            compute_policy(
+                self.modules.policy, 
+                theta.policy, 
+                rngs[0], 
+                data.obs, 
+                data.next_obs, 
+                data.action, 
+                data.mu_logprob, 
+                sid=data.sid, 
+                next_sid=data.next_sid, 
+                idx=data.idx, 
+                next_idx=data.next_idx, 
+                event=data.event, 
+                next_event=data.next_event, 
+                action_mask=data.action_mask, 
+                next_action_mask=data.next_action_mask, 
+                seq_axis=1, 
             )
         stats = record_policy_stats(data, stats, act_dist)
 
@@ -210,8 +242,8 @@ class MetaLoss(LossBase):
                 stats.v_target, stats.raw_adv = compute_joint_stats(
                     config=self.config, 
                     func=self.modules.outer_value, 
-                    params=theta.outer_value, 
-                    rng=rng, 
+                    params=phi.outer_value, 
+                    rng=rngs[1], 
                     hidden_state=data.hidden_state, 
                     next_hidden_state=data.next_hidden_state, 
                     sid=data.sid, 
@@ -241,19 +273,20 @@ class MetaLoss(LossBase):
                 self.config, 
                 data, 
                 stats, 
-                act_dist, 
+                act_dist=act_dist, 
             )
         else:
             stats.value, next_value = compute_values(
                 self.modules.outer_value, 
-                theta.outer_value, 
-                rng, 
+                phi.outer_value, 
+                rngs[1], 
                 data.global_state, 
                 data.next_global_state, 
                 sid=data.sid, 
                 next_sid=data.next_sid, 
                 idx=data.idx,  
                 next_idx=data.next_idx, 
+                seq_axis=1, 
             )
 
             stats.v_target, stats.raw_adv = jax_loss.compute_target_advantage(
@@ -266,8 +299,9 @@ class MetaLoss(LossBase):
                 ratio=stats.ratio, 
                 gamma=stats.gamma, 
                 lam=stats.lam, 
+                axis=1, 
             )
-            stats = record_target_adv(data, stats)
+            stats = record_target_adv(stats)
             if self.config.norm_meta_adv:
                 advantage = jax_math.standard_normalization(
                     stats.raw_adv, 
@@ -316,14 +350,18 @@ def compute_actor_loss(
     data, 
     stats, 
     act_dist, 
-    use_dice=None
+    use_dice=False
 ):
     use_dice = config.use_dice and use_dice
+    sample_mask, _ = split_data(
+        data.sample_mask, data.next_sample_mask)
     
-    if not config.get('policy_life_mask', True):
-        sample_mask = data.sample_mask
-    else:
+    if config.get('policy_life_mask', True):
         sample_mask = None
+    # stats.pi_logprob = jnp.where(
+    #     stats.pi_logprob > -1e-5, 0, stats.pi_logprob)
+    # stats.ratio = jnp.where(
+    #     stats.pi_logprob > -1e-5, 1, stats.ratio)
 
     if use_dice:
         dice_op = jax_loss.dice(
@@ -365,7 +403,6 @@ def compute_actor_loss(
         raw_pg_loss, 
         stats.pg_coef, 
         mask=sample_mask, 
-        n=data.n
     )
     stats.raw_pg_loss = raw_pg_loss
     stats.scaled_pg_loss = scaled_pg_loss
@@ -376,7 +413,6 @@ def compute_actor_loss(
         entropy_coef=stats.entropy_coef, 
         entropy=entropy, 
         mask=sample_mask, 
-        n=data.n
     )
     stats.entropy = entropy
     stats.scaled_entropy_loss = scaled_entropy_loss
@@ -444,7 +480,7 @@ def joint_pg_loss(
     config, 
     data, 
     stats, 
-    act_dist
+    act_dist, 
 ):
     if not config.get('policy_life_mask', True):
         sample_mask = data.sample_mask

@@ -119,7 +119,9 @@ class SMAC(gym.Env):
         heuristic_ai=False,
         heuristic_rest=False,
         use_idx=False, 
-        use_hidden=False, 
+        use_hidden=False,
+        use_life_mask=True,  
+        use_action_mask=True,  
         debug=False,
         **kwargs,
     ):
@@ -358,16 +360,12 @@ class SMAC(gym.Env):
             global_state=(self.get_state_size()[0],),
             prev_reward=(),
             prev_action=(self.action_dim[0],),
-            action_mask=(self.action_dim[0],),
-            life_mask=()
         )]
         self.obs_dtype = [dict(
             obs=np.float32,
             global_state=np.float32,
             prev_reward=np.float32,
             prev_action=np.float32,
-            action_mask=bool,
-            life_mask=np.float32
         )]
         if self.use_idx:
             self.obs_shape[0]['idx'] = (self.n_units,)
@@ -381,8 +379,14 @@ class SMAC(gym.Env):
             self.stacked_global_state = np.zeros((self.n_units, self.stacked_frames, int(self.get_state_size()[0]/self.stacked_frames)), dtype=np.float32)
 
         # some properties for multi-agent environments
-        self.use_life_mask = True
-        self.use_action_mask = True
+        self.use_life_mask = use_life_mask
+        self.use_action_mask = use_action_mask
+        if self.use_life_mask:
+            self.obs_shape[0]['life_mask'] = ()
+            self.obs_dtype[0]['life_mask'] = np.float32
+        if self.use_action_mask:
+            self.obs_shape[0]['action_mask'] = (self.action_dim[0],)
+            self.obs_dtype[0]['action_mask'] = bool
 
     def random_action(self):
         actions = []

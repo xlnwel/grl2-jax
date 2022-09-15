@@ -8,10 +8,9 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.elements.builder import ElementsBuilder
-from core.log import setup_logging
+from core.log import setup_logging, do_logging
 from core.typing import dict2AttrDict
 from core.utils import configure_gpu
-from tools.display import pwc
 from tools.plot import plot_data_dict
 from tools.ray_setup import sigint_shutdown_ray
 from tools.run import evaluate
@@ -68,11 +67,10 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
         video_len=video_len
     )
 
-    pwc(f'After running {n} episodes',
-        f'Score: {np.mean(scores):.3g}',
-        f'Epslen: {np.mean(epslens):.3g}', 
-        f'Time: {time.time()-start:.3g}',
-        color='cyan')
+    do_logging(f'After running {n} episodes', color='cyan')
+    do_logging(f'\tScore: {np.mean(scores):.3g}\n', color='cyan')
+    do_logging(f'\tEpslen: {np.mean(epslens):.3g}\n', color='cyan')
+    do_logging(f'\tTime: {time.time()-start:.3g}', color='cyan')
 
     filename = f'{out_dir}/{algo_name}-{env_name}/{config["model_name"]}'
     out_dir, filename = filename.rsplit('/', maxsplit=1)

@@ -48,7 +48,7 @@ class Model(ParamsCheckpointBase):
         raise NotImplementedError
 
     def compile_model(self):
-        pass
+        self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
 
     def action(self, data, evaluation):
         self.act_rng, act_rng = jax.random.split(self.act_rng) 

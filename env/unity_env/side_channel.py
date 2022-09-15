@@ -6,7 +6,6 @@ from mlagents_envs.side_channel.side_channel import (
     IncomingMessage,
     OutgoingMessage,
 )
-from numpy import random
 
 
 class RuntimeEnvironmentParametersChannel(SideChannel):
@@ -20,6 +19,7 @@ class RuntimeEnvironmentParametersChannel(SideChannel):
     def send_string(self, data: str) -> None:
         msg = OutgoingMessage()
         msg.write_string(data)
+        print('send')
         super().queue_message_to_send(msg)
 
 
@@ -27,14 +27,15 @@ string_log = RuntimeEnvironmentParametersChannel()
 
 env = UnityEnvironment(side_channels=[string_log])
 env.reset()
+
 i = 0
 while True:
     key = "reset"
     i += 1
     env.step()
-    if i % 30 == 0:
-        value = random.randint(0, 3)
-        string_log.send_string('{'f"key:\"{key}\",value:{value}"'}')
+    if i % 1 == 0:
+        value = '91_0_1'
+        string_log.send_string('{'f"key:\"{key}\",value:\"{value}\""'}')
         continue
 
     if i == 1000:

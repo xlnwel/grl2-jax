@@ -1,18 +1,21 @@
-import os, sys
 import math
+import os
+import sys
 import time
+import platform
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import cloudpickle
 import functools
 from typing import List
-from func import create_env
 from core.elements.builder import ElementsBuilder
 from env.typing import EnvOutput
 import numpy as np
 import gym
 from .interface import UnityInterface
-from .opponent3d import Opponent3d
 from run.utils import search_for_config
+from core.tf_config import configure_gpu
 
 """  Naming Conventions:
 An Agent is the one that makes decisions, it's typically a RL agent
@@ -21,8 +24,14 @@ Each agent may control a number of units.
 All ids start from 0 and increases sequentially
 """
 
-MAX_LEN = 50
-SHOT_DIS = 40
+EDGE_X = [-20, 20]
+EDGE_Y = [2, 20]
+EDGE_Z = [-80, 80]
+MISSILE_PENALTY = 0.1
+TURN_PENALTY = 0.05
+RADAR_REWARD = 0.5
+FLY_NAME = '0721-lr=1e-3-entropy_coef=5e-4'
+UPPER_INTERVAL = 1
 
 
 def compute_aid2uids(uid2aid):
@@ -58,36 +67,34 @@ class UnityEnv:
                 'blue_dead_reward': 1,
                 'grid_reward': 0
             },
-            # expand kwargs for your environment
             **kwargs
     ):
-        # uid2aid is a list whose indices are the unit ids and values are agent ids.
-        # It specifies which agent controlls the unit.
-        # We expect it to be sorted in the consecutive ascending order
-        # That is, [0, 1, 1] is valid. [0, 1, 0] and [0, 0, 2] are invalid
+        configure_gpu(None)
         self.uid2aid: list = uid2aid
         self.aid2uids = compute_aid2uids(self.uid2aid)
-        self.n_agents = len(self.aid2uids)  # the number of agents
+        self.n_agents = len(self.aid2uids)
         self.n_units = len(self.uid2aid)
-        self.frame_skip = 50
+        self.frame_skip = frame_skip
         self.n_red_main = 1
         self.n_red_allies = 4
         self.n_blue_main = 2
+        self.n_planes = 7
+
         self._seed = np.random.randint(1000) if seed is None else seed
-        self.n_planes = self.n_red_main + self.n_red_allies + self.n_blue_main
         self.n_envs = n_envs
         self.unity_config = unity_config
         self.max_episode_steps = kwargs['max_episode_steps']
         self.reward_config = reward_config
         self.use_action_mask = False  # if action mask is used
-        self.use_life_mask = False # if life mask is used
-        self.action_dim = [4, 4]
-        self.action_space = [gym.spaces.Box(low=-1, high=1, shape=(ad,)) for ad in self.action_dim]
-        self._obs_dim = [196, 196] #196 112
-        self._global_state_dim = [196, 196]
+        self.use_life_mask = False  # if life mask is used
+        if platform.system() == 'Windows':
+            self.unity_config['file_name'] = None
+            self.unity_config['worker_id'] = 0
 
-        self.blue_agent = Opponent3d(self.n_envs)
-        self.blue_missile_num = 4
+        self.action_dim = [4, 3, 4]
+        self.action_space = [gym.spaces.Box(low=-1, high=1, shape=(ad,)) for ad in self.action_dim]
+        self._obs_dim = [199, 115, 110]
+        self._global_state_dim = [199, 115, 110]
 
         self.obs_shape = [dict(
             obs=self._get_obs_shape(aid),
@@ -119,11 +126,8 @@ class UnityEnv:
         self._lose_rate = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
         self._draw_rate = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
 
-        # 不同的score，分别对应击毁蓝方、自己死亡、检测到蓝方的reward
-        self._dense_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
-        self._win_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
-        self._lose_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
-        self._detect_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
+        self._dense_score = np.zeros((self.n_envs, self.n_planes), dtype=np.float32)
+        self._dense_penalty = np.zeros((self.n_envs, self.n_planes), dtype=np.float32)
 
         # The length of the episode
         self._epslen = np.zeros(self.n_envs, np.int32)
@@ -131,33 +135,23 @@ class UnityEnv:
         # 红蓝双方存活状况
         self.alive_units = np.ones((self.n_envs, self.n_planes), np.int32)
 
-        # 红方检测到蓝方的情况
-        self.detect_units = np.zeros((self.n_envs, self.n_units), bool)
-        # 双方检测到的累计步数
-        self.detect_steps = np.zeros((self.n_envs, self.n_planes), np.int32)
-        # 存活步数
-        self.alive_steps = np.zeros((self.n_envs, self.n_planes), np.int32)
-
-        self.blue_actions = {}
-
-        # 红方是否被锁定，-1为未被锁定，非负表示锁定的蛋，-2表示锁定的已爆（计算爆炸reward，然后重新赋值为-1
-        # 锁定的蛋的距离及坐标
-        self.enemy_position = np.zeros((self.n_envs, self.n_blue_main, 4))
-
         self.pre_reward = np.zeros((self.n_envs, self.n_units), np.float32)
         self.prev_action = None
-        self._consecutive_action = np.zeros((self.n_envs, self.n_units), bool)
         self.fly_red = None
         self.fly_blue = None
-        self.fly_control_steps = 1
+        # 策略输出的动作执行1次
+        self.fly_control_steps = UPPER_INTERVAL
         self.total_steps = 0
         self.shot_steps = 0
         self.unity_shot_steps = 0
         self.total_step_time = 0
         self.env_step_time = 0
-        self.end_time = 0
-        self.total_train_time = 0
-        
+        self.locked_warning = np.zeros((self.n_envs, self.n_planes), bool)
+        # 蛋的状态，-1未发射，0-6是飞行中，代表其目标，-2表示已爆炸
+        self.missile_state = np.zeros((self.n_envs, 3, 4))
+        # 蛋的位置信息
+        self.missile_position = np.zeros((self.n_envs, 3, 4))
+
     def random_action(self):
         actions = []
         for aid, uids in enumerate(self.aid2uids):
@@ -174,31 +168,36 @@ class UnityEnv:
         self._lose_rate = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
         self._draw_rate = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
 
-        self._dense_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
-        # self._win_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
-        # self._lose_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
-        # self._detect_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
-        # self._missile_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
+        self._dense_score = np.zeros((self.n_envs, self.n_planes), dtype=np.float32)
+        self._dense_penalty = np.zeros((self.n_envs, self.n_planes), dtype=np.float32)
+
+        self._detect_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
+        self._missile_score = np.zeros((self.n_envs, self.n_units), dtype=np.float32)
 
         self._epslen = np.zeros(self.n_envs, np.int32)
 
+        # 设置发蛋间隔在20步（20s）
+        self.red_shot_time = 0
+        self.blue_shot_time = np.zeros(2)
+
+        # alive记录，1位存活，0为刚被击毁，-1为已被击毁
         self.alive_units = np.ones((self.n_envs, self.n_planes), np.int32)
         self.detect_units = np.zeros((self.n_envs, self.n_units), bool)
-        self.enemy_position = np.zeros((self.n_envs, self.n_blue_main, 4))
+
         self.pre_reward = np.zeros((self.n_envs, self.n_units), np.float32)
-        self._consecutive_action = np.zeros((self.n_envs, self.n_units), bool)
         self.prev_action = None
         self.fly_red = self.init_red_fly_model()
-
+        self.dis = np.zeros((7, 3))
         decision_steps, terminal_steps = self.env.reset()
         self.decision_steps = decision_steps
+
         return self._get_obs(decision_steps)
 
     def init_red_fly_model(self):
-        directory = ["/home/ubuntu/wuyunkun/hm/logs/unity-combat2d/sync_sim-hm/0530-frame_skip=10/a0/v1.1/"]
+        directory = [f"D:\FlightCombat\CombatTrain/logs/unity-combat2d/sync-hm/{FLY_NAME}/seed=None/a0/i1-v1"]
         configs = [search_for_config(d) for d in directory]
         config = configs[0]
-        env_stats = {'obs_shape': [{'obs': (14,), 'global_state': (14,), 'prev_reward': (), 'prev_action': (4,)}],
+        env_stats = {'obs_shape': [{'obs': (17,), 'global_state': (17,), 'prev_reward': (), 'prev_action': (4,)}],
                      'obs_dtype': [{'obs': np.float32, 'global_state': np.float32, 'prev_reward': np.float32,
                                     'prev_action': np.float32}],
                      'action_shape': [(4,)], 'action_dim': [4], 'action_low': None, 'action_high': None,
@@ -207,8 +206,8 @@ class UnityEnv:
                      'is_multi_agent': True, 'n_workers': 1, 'n_envs': 1}
         self.last_angle = np.zeros(3)
         self.fly_obs_shape = [dict(
-            obs=(14,),
-            global_state=(14,),
+            obs=(17,),
+            global_state=(17,),
             prev_reward=(),
             prev_action=(4,),
         )]
@@ -222,7 +221,7 @@ class UnityEnv:
         builder = ElementsBuilder(config, env_stats, config.algorithm)
         elements = builder.build_acting_agent_from_scratch(to_build_for_eval=True)
         agent = elements.agent
-        path = "/home/ubuntu/wuyunkun/hm/logs/unity-combat2d/sync_sim-hm/0530-frame_skip=10/a0/v1.1/params.pkl"
+        path = f"D:\FlightCombat\CombatTrain/logs/unity-combat2d/sync-hm/{FLY_NAME}/seed=None/a0/i1-v1/params.pkl"
 
         with open(path, 'rb') as f:
             weights = cloudpickle.load(f)
@@ -232,10 +231,9 @@ class UnityEnv:
     def get_fly_obs(self, ds, dis):
         obs = [{}]
         all_states = ds
-        alive = all_states[1]
         vel = all_states[5:8]
         v_scalar = np.linalg.norm(vel)
-        angle = all_states[8:11]
+        angle = all_states[11:14]
         for i in range(3):
             while abs(angle[i]) > 180:
                 angle[i] = angle[i] - math.copysign(360, angle[i])
@@ -243,6 +241,8 @@ class UnityEnv:
         theta = angle[1] / 180
         phi = angle[0] / 180
         v = np.array([v_scalar, theta, phi])
+        v_ = np.array([v_scalar, phi])
+
         posture = np.concatenate((np.sin(np.deg2rad(angle)), np.cos(np.deg2rad(angle))))
         height = all_states[3]
 
@@ -258,7 +258,7 @@ class UnityEnv:
         overload = np.clip(overload, -2, 2)
 
         one_obs = np.hstack((
-            v,
+            v_,
             roll_v,
             posture,
             height / 20,
@@ -267,7 +267,6 @@ class UnityEnv:
             # oil
         ))
         self.last_angle = angle.copy()
-        # print('obs:' + str(one_obs))
         observations = {}
         observations['obs'] = one_obs
         observations['global_state'] = one_obs
@@ -290,103 +289,122 @@ class UnityEnv:
 
     def step(self, actions):
         start = time.time()
-#        print('train time:'+ str(start-self.end_time))
-        if self.end_time !=0:
-            self.total_train_time += start-self.end_time
-        # while self._epslen < 80:
-        #     for i in range(self.frame_skip):
-        #         reset, decision_steps, terminal_steps = self.env.step()
-        #         if reset:
-        #             break
-        #     self._epslen += 1
+
         self.total_steps += 1
         if actions[0][0][0][3] > 0.5:
             self.shot_steps += 1
+
         for i in range(self.fly_control_steps):
             fly_act = {}
-            for id, name in enumerate(self._red_names[0]):
+            self.start_v = {}
+            for id, name in enumerate(self._red_names[0] + self._blue_names[0]):
+                # dis 表示各个飞机的速度改变量，action的范围是[-1,1]，实际飞控的改变量范围对齐fly control训练时的设置数值
+                self.dis[id] = np.zeros(3)
                 if id == 0:
-                    fly_obs = self.get_fly_obs(self.decision_steps[name].obs[0][0], actions[0][0][0][0:3])
-                else:
-                    fly_obs = self.get_fly_obs(self.decision_steps[name].obs[0][0], actions[0][0][id][0:3])
+                    self.dis[id][0] = actions[0][0][0][0] / 10
+                    self.dis[id][1] = actions[0][0][0][1]
+                    self.dis[id][2] = actions[0][0][0][2] / 12
+                if 0 < id < 5:
+                    self.dis[id][0] = actions[1][0][id - 1][0] / 10
+                    self.dis[id][1] = actions[1][0][id - 1][1]
+                    self.dis[id][2] = actions[1][0][id - 1][2] / 12
+                if id >= 5:
+                    self.dis[id][0] = actions[2][0][id - 5][0] / 10
+                    self.dis[id][1] = actions[2][0][id - 5][1]
+                    self.dis[id][2] = actions[2][0][id - 5][2] / 12
 
-                # batch_obs = {}
-                # for k, v in fly_obs[0].items():
-                #     batch_obs[k] = np.expand_dims(v, 0)
+                fly_obs = self.get_fly_obs(self.decision_steps[name].obs[0][0], self.dis[id])
+                self.start_v[name] = fly_obs[0]['obs'][0][0][0:3]
                 reward = np.zeros((1, 1))
                 discount = np.zeros((1, 1))
                 reset = np.zeros((1, 1))
                 env_output = EnvOutput(fly_obs[0], reward, discount, reset)
-
-                fly_act[name] = self.fly_red(
-                    env_output,
-                    evaluation=True)
-
-            for id, name in enumerate(self._blue_names[0]):
-                fly_obs = self.get_fly_obs(self.decision_steps[name].obs[0][0], self.blue_move_action[id])
-                #print(self.blue_move_action)
-                reward = np.zeros((1, 1))
-                discount = np.zeros((1, 1))
-                reset = np.zeros((1, 1))
-                env_output = EnvOutput(fly_obs[0], reward, discount, reset)
-
-                fly_act[name] = self.fly_red(
-                    env_output,
-                    evaluation=True)
-                if np.count_nonzero(self.blue_move_action[id]) == 0:
+                # 速度变化较小直接屏蔽掉，保持原样
+                if abs(self.dis[id][0]) < 0.01 and abs(self.dis[id][1]) < 0.02 and abs(self.dis[id][2]) < 0.02:
                     fly_act[name] = (np.zeros((1, 1, 4)), {})
-                #print(fly_act)
+                else:
+                    fly_act[name] = self.fly_red(
+                        env_output,
+                        evaluation=True)
 
+            # 上层每次决策后，下层飞控飞行10步
             for j in range(10):
+                # 只有第一步时进行锁定和发蛋操作
+                self.red_radar_action = {}
+                self.red_shot_action = {}
+                self.blue_radar_action = {}
+                self.blue_shot_action = {}
                 if i == 0 and j == 0:
-                    self.red_radar_action = {}
-                    self.red_shot_action = {}
                     for uid, n in enumerate(self._red_names[0]):
                         self.red_radar_action[n] = 1 if self.alive_units[0][-2] == 1 else 2
                         if uid == 0:
-                            #self.red_shot_action[n] = 1
-                            self.red_shot_action[n] = actions[0][0][0][3]
+                            if actions[0][0][0][0] > 0.5 and \
+                                    self._epslen[0] - self.red_shot_time > 20 and \
+                                    self.red_missile_left[0][0][0] > 0:
+                                self.red_shot_action[n] = 1
+                                self.red_shot_time = self._epslen[0]
+                            else:
+                                self.red_shot_action[n] = 0
                         else:
                             self.red_shot_action[n] = 0
 
-                    blue_radar_action = {}
-                    blue_shot_action = {}
                     for uid, n in enumerate(self._blue_names[0]):
-                        blue_radar_action[n] = self.blue_radar_action[uid][0]
-                        blue_shot_action[n] = self.blue_shot_action[uid][0]
+                        self.blue_radar_action[n] = 1
+                        if actions[2][0][uid][3] > 0.5 and \
+                                self._epslen[0] - self.blue_shot_time[uid] > 20 and \
+                                self.blue_missile_left[0][uid][0]:
+                            self.blue_shot_action[n] = 1
+                            self.blue_shot_time[uid] = self._epslen[0]
+                        else:
+                            self.blue_shot_action[n] = 0
 
-                    self._set_low_action(self._red_names, fly_act.copy(), self.red_radar_action.copy(), self.red_shot_action.copy())
-                    self._set_low_action(self._blue_names, fly_act.copy(), blue_radar_action.copy(), blue_shot_action.copy())
+                    self._set_low_action(self._red_names, fly_act.copy(), self.red_radar_action.copy(),
+                                         self.red_shot_action.copy())
+                    self._set_low_action(self._blue_names, fly_act.copy(), self.blue_radar_action.copy(),
+                                         self.blue_shot_action.copy())
                 else:
-                    self.red_radar_action = {}
-                    self.red_shot_action = {}
                     for uid, n in enumerate(self._red_names[0]):
-                        self.red_radar_action[n] = 1
+                        self.red_radar_action[n] = 1 if self.alive_units[0][-2] == 1 else 2
                         self.red_shot_action[n] = 0
-                    blue_radar_action = {}
-                    blue_shot_action = {}
+
                     for uid, n in enumerate(self._blue_names[0]):
-                        blue_radar_action[n] = 1
-                        blue_shot_action[n] = 0
-                    self._set_low_action(self._red_names, fly_act.copy(), self.red_radar_action.copy(), self.red_shot_action.copy())
-                    self._set_low_action(self._blue_names, fly_act.copy(), blue_radar_action.copy(), blue_shot_action.copy())
+                        self.blue_radar_action[n] = 1
+                        self.blue_shot_action[n] = 0
+                    self._set_low_action(self._red_names, fly_act.copy(), self.red_radar_action.copy(),
+                                         self.red_shot_action.copy())
+                    self._set_low_action(self._blue_names, fly_act.copy(), self.blue_radar_action.copy(),
+                                         self.blue_shot_action.copy())
+
                 start1 = time.time()
                 reset, decision_steps, terminal_steps = self.env.step()
                 end1 = time.time()
- #               print('step time:'+str(end1-start1))
                 self.env_step_time += end1 - start1
                 self.decision_steps = decision_steps
+
                 if np.count_nonzero(decision_steps['E0_Red_0?team=0'].obs[0][0]) == 0:
                     break
                 if np.count_nonzero(decision_steps['E0_Blue_0?team=0'].obs[0][0]) == 0 \
                         and np.count_nonzero(decision_steps['E0_Blue_1?team=0'].obs[0][0]) == 0:
                     break
 
+            for id, name in enumerate(self._red_names[0]):
+                # dis 表示各个飞机的速度改变量，action的范围是[-1,1]，实际飞控的改变量范围对齐fly control训练时的设置数值
+                fly_obs = self.get_fly_obs(self.decision_steps[name].obs[0][0], self.dis[id])
+                end_v = fly_obs[0]['obs'][0][0][0:3]
+                dis_v = end_v - self.start_v[name]
+                print(f"{name} need change {self.dis[id]}, change {dis_v} actually")
+                # if abs(dis_v[0] - self.dis[id][0]) < 0.02 \
+                #     and abs(dis_v[1] - self.dis[id][1]) < 0.01 \
+                #         and abs(dis_v[2] - self.dis[id][2]) < 0.01:
+                #     print('success control')
+                # else:
+                #     print('bad control')
+
         self._epslen += 1
-        # TODO: Add previous actions to the observations
+
         agent_obs = self._get_obs(self.decision_steps, self.pre_reward)
 
-        done, reward = self._get_done_and_reward()
+        done, reward, penalty = self._get_done_and_reward()
         if np.count_nonzero(self.decision_steps['E0_Red_0?team=0'].obs[0][0]) == 0:
             done[0] = True
         if np.count_nonzero(self.decision_steps['E0_Blue_0?team=0'].obs[0][0]) == 0 \
@@ -396,21 +414,19 @@ class UnityEnv:
         for i in range(self.n_envs):
             if self._epslen[i] > self.max_episode_steps:
                 done[i] = True
-                print('max steps')
                 self._draw_rate[i] += 1
 
         discount = 1 - done  # we return discount instead of done
 
-        assert reward.shape == (self.n_envs, self.n_units), reward.shape
+        assert reward.shape == (self.n_envs, self.n_planes), reward.shape
         assert discount.shape == (self.n_envs,), discount.shape
-        # obtain ndarrays of shape (n_envs, n_units)
-        # rewards = np.tile(reward.reshape(-1, 1), (1, self.n_units))
+
         rewards = reward
-        discounts = np.tile(discount.reshape(-1, 1), (1, self.n_units))
+        discounts = np.tile(discount.reshape(-1, 1), (1, self.n_planes))
 
         self._dense_score += rewards
+        self._dense_penalty += penalty
 
-        # self._score += np.where(discounts, 0, rewards > 0)  # an example for competitive games
         reset = done
         assert reset.shape == (self.n_envs,), reset.shape
         resets = np.tile(reset.reshape(-1, 1), (1, self.n_units))
@@ -433,6 +449,7 @@ class UnityEnv:
             lose_rate=self._lose_rate[i].copy(),
             draw_rate=self._draw_rate[i].copy(),
             dense_score=self._dense_score[i].copy(),
+            dense_penalty=self._dense_penalty[i].copy(),
             epslen=np.array([self._epslen[i]] * self.n_units),
             game_over=np.array([discount[i] == 0] * self.n_units),
             left_missile_red=np.hstack([self.red_missile_left[i][0][0]] * self.n_units),
@@ -444,9 +461,8 @@ class UnityEnv:
             total_steps=np.array([self.total_steps] * self.n_units),
             shot_steps=np.array([self.shot_steps] * self.n_units),
             unity_shot_steps=np.array([self.unity_shot_steps] * self.n_units),
-            total_step_time=np.array([self.total_step_time] * self.n_units),
-            total_env_time=np.array([self.env_step_time] * self.n_units),
-            total_train_time=np.array([self.total_train_time] * self.n_units),
+            total_step=np.array([self.total_step_time] * self.n_units),
+            total_env_step=np.array([self.env_step_time] * self.n_units),
         ) for i in range(self.n_envs)]
         agent_reward = [rewards[:, uids] for uids in self.aid2uids]
         agent_discount = [discounts[:, uids] for uids in self.aid2uids]
@@ -457,20 +473,20 @@ class UnityEnv:
             if done[i]:
                 reset_env.append(i + 1)
                 self._dense_score[i] = np.zeros(self.n_units, np.float32)
-
+                self._dense_penalty[i] = np.zeros(self.n_units, np.float32)
                 self._win_rate[i] = np.zeros(self.n_units, np.float32)
                 self._lose_rate[i] = np.zeros(self.n_units, np.float32)
                 self._draw_rate[i] = np.zeros(self.n_units, np.float32)
                 self.alive_units[i] = np.ones(self.n_planes, np.int32)
+                self.locked_warning = np.zeros((self.n_envs, 7), bool)
                 self._epslen[i] = 0
-
+                self.red_shot_time = 0
+                self.blue_shot_time = np.zeros(2)
                 self.prev_action = None
 
         self.env.reset_envs_with_ids(reset_env) if len(reset_env) != 0 else None
         end = time.time()
-        self.total_step_time += (end-start)
-  #      print('python time:'+str(end-start))
-        self.end_time = end
+        self.total_step_time += (end - start)
         return agent_obs, agent_reward, agent_discount, agent_reset
 
     def info(self):
@@ -547,13 +563,10 @@ class UnityEnv:
         return obs
 
     def _process_obs(self, red_info, blue_info, reward, action):
-        self.blue_actions = {}
         red_observation = []
         self.blue_missile_left = np.zeros((self.n_envs, self.n_blue_main, 3), np.int32)
         self.red_missile_left = np.zeros((self.n_envs, self.n_red_main, 3), np.int32)
 
-        # missile_end记录蛋是否已爆
-        self.missile_end = np.zeros((self.n_envs, self.n_blue_main + self.n_red_main))
         self.detect_units = np.zeros((self.n_envs, self.n_units), bool)
 
         for team in range(self.n_envs):
@@ -597,6 +610,12 @@ class UnityEnv:
             for i, name in enumerate(self._red_names[team]):
                 obs = []
                 alive = red_self[i][1]
+                position = red_self[i][2:5]
+                dis_x = np.min([position[0] + 20, 20 - position[0]])
+                dis_y = np.min([position[1] - 2, 20 - position[1]])
+                dis_z = np.min([position[2] + 80, 80 - position[2]])
+
+                edge_dis = np.array([dis_x, dis_y, dis_z])
                 self.alive_units[team][i] = alive if self.alive_units[team][i] != -1 else -1
                 vel = red_self[i][5:8]
                 angle = red_self[i][11:14]
@@ -604,11 +623,15 @@ class UnityEnv:
                     while abs(angle[tt]) > 180:
                         angle[tt] = angle[tt] - math.copysign(360, angle[tt])
                 overload = red_self[i][17]
+                overload = np.clip(overload, -2, 2)
+
                 oil = red_self[i][18]
                 locked_warning = red_self[i][19]
                 shot_warning = red_self[i][20]
+                self.locked_warning[team][i] = locked_warning
                 # me_missile = self._get_target_missile(blue_weapon, team, i, positions[i])
                 self_cont = [vel,
+                             edge_dis,
                              np.array([overload]),
                              np.concatenate([np.sin(np.deg2rad(angle)), np.sin(np.deg2rad(angle))]),
                              np.array([oil])
@@ -653,8 +676,8 @@ class UnityEnv:
                     missile_disc = np.hstack(self_miss_state).flatten()
                     obs.append(missile_cont)
                     obs.append(missile_disc)
-                else:
-                    obs.append(np.zeros(84))
+                # else:
+                #    obs.append(np.zeros(84))
                 radar_state = red_radar[i][0]
                 radar_target = red_radar[i][1]
                 radar_angle = red_radar[i][2]
@@ -696,7 +719,6 @@ class UnityEnv:
                         [np.concatenate([np.sin(np.deg2rad(k[6:9])),
                                          np.cos(np.deg2rad(k[6:9]))]) for k in except_me_enemy_info]).flatten()
                 ]
-
                 obs.append(enemy_dis)
                 obs.append(np.concatenate(enemy_cont))
 
@@ -742,16 +764,103 @@ class UnityEnv:
                 if not alive:
                     obs = np.zeros_like(obs)
                 all_obs.append(obs)
-                # print('raw velocity: ', vel)
-                # print('raw direction: ', direction)
-                # print(f'obstmp: {obs}')
-                # print(f'split res vel: {obs[0:2]}\ndirection: {obs[2:4]}\nleft missile: {obs[4:5]}\n'
-                # f'other_distance:{obs[5:7]}\ndetect_flag:{obs[7:9]}\nme_missile:{obs[9:10]}\n'
-                # f'nearest_wall:{obs[10:11]}\nother_state_info:{obs[11:21]}\nother_position:{obs[21:25]},red_missile_info:{obs[25]}')
 
                 all_global_state.append(global_state)
                 all_alive.append(alive)
                 prev_action = np.zeros((self.action_dim[self.uid2aid[i]]), np.float32)
+                all_prev_action.append(prev_action)
+
+            for i, name in enumerate(self._blue_names[team]):
+                obs = []
+                alive = blue_self[i][1]
+                position = red_self[i][2:5]
+                dis_x = np.min([position[0] + 20, 20 - position[0]])
+                dis_y = np.min([position[1] - 2, 20 - position[1]])
+                dis_z = np.min([position[2] + 80, 80 - position[2]])
+
+                edge_dis = np.array([dis_x, dis_y, dis_z])
+                self.alive_units[team][i + 5] = alive if self.alive_units[team][i + 5] != -1 else -1
+                vel = blue_self[i][5:8]
+                angle = blue_self[i][11:14]
+                for tt in range(3):
+                    while abs(angle[tt]) > 180:
+                        angle[tt] = angle[tt] - math.copysign(360, angle[tt])
+                overload = blue_self[i][17]
+                overload = np.clip(overload, -2, 2)
+
+                oil = blue_self[i][18]
+                locked_warning = blue_self[i][19]
+                shot_warning = blue_self[i][20]
+                self.locked_warning[team][i + 5] = locked_warning
+                # me_missile = self._get_target_missile(blue_weapon, team, i, positions[i])
+                self_cont = [vel,
+                             edge_dis,
+                             np.array([overload]),
+                             np.concatenate([np.sin(np.deg2rad(angle)), np.sin(np.deg2rad(angle))]),
+                             np.array([oil])
+                             ]
+                obs.append(np.concatenate(self_cont))
+                threshold = 1000
+                oil_warning = 1 if oil < threshold else 0
+                which_missile = blue_weapon[i][0]
+                mid_dis_missile = blue_weapon[i][1]
+                short_dis_missile = blue_weapon[i][2]
+                disrupt_missile = blue_weapon[i][3]
+                alive_red_num = sum(red_self[:, 1])
+
+                self_disc = np.array([oil_warning,
+                                      locked_warning,
+                                      shot_warning,
+                                      mid_dis_missile,
+                                      short_dis_missile,
+                                      disrupt_missile,
+                                      which_missile,
+                                      alive_red_num])
+                obs.append(self_disc)
+
+                self_miss_info = []
+                self_miss_state = []
+                for index in range(4, len(blue_weapon[i]), 14):
+                    miss_type = np.array([blue_weapon[i][index]])
+                    miss_pos = blue_weapon[i][index + 1:index + 4]
+                    miss_vel = blue_weapon[i][index + 4:index + 7]
+                    miss_angle = blue_weapon[i][index + 7:index + 10]
+
+                    miss_direction = blue_weapon[i][index + 10:index + 13]
+                    miss_state = np.array([blue_weapon[i][index + 13]])
+                    self_miss_info.append(miss_type)
+                    self_miss_info.append(miss_pos)
+                    self_miss_info.append(miss_vel)
+                    self_miss_info.append(
+                        np.concatenate([np.sin(np.deg2rad(miss_angle)), np.sin(np.deg2rad(miss_angle))]))
+                    self_miss_state.append(miss_state)
+                missile_cont = np.hstack(self_miss_info).flatten()
+                missile_disc = np.hstack(self_miss_state).flatten()
+                obs.append(missile_cont)
+                obs.append(missile_disc)
+                # else:
+                #    obs.append(np.zeros(84))
+                radar_state = blue_radar[i][0]
+                radar_target = blue_radar[i][1]
+                radar_angle = blue_radar[i][2]
+                radar_distance = blue_radar[i][3]
+
+                radar_cont = np.array([radar_angle, radar_distance])
+                radar_disc = np.array([radar_state, radar_target])
+                obs.append(radar_cont)
+                obs.append(radar_disc)
+
+                all_action_mask.append(np.ones(self.action_dim[self.uid2aid[i + 5]], bool))
+
+                obs = np.concatenate(obs)
+                global_state = obs
+                if not alive:
+                    obs = np.zeros_like(obs)
+                all_obs.append(obs)
+
+                all_global_state.append(global_state)
+                all_alive.append(alive)
+                prev_action = np.zeros((self.action_dim[self.uid2aid[i + 5]]), np.float32)
                 all_prev_action.append(prev_action)
 
             observations['obs'] = all_obs
@@ -762,26 +871,6 @@ class UnityEnv:
             observations['prev_action'] = all_prev_action
 
             red_observation.append(observations)
-
-            # self.detect_red = np.zeros((2, 5))
-            # self.detect_red_main_pos = red_state[0, 2:5]
-            # self.detect_red_ally_pos = red_state[1:, 2:4]
-            # self.lock_red_id = self.ray_front[:, 1]
-
-            # Update blue
-            blue_observation = [blue_radar, blue_self, blue_weapon,
-                                red_self]
-            # 获取蓝方探测到红方的数据、蓝方的决策动作
-            self.blue_move_action, self.blue_radar_action, self.blue_shot_action = self.blue_agent.choose_action(team,
-                                                                                                                 blue_observation)
-            # self.detect_steps[team][0] += 1 if detect_red[0] != 0 else 0
-            # self.detect_steps[team][1] += 1 if detect_red[1] != 0 else 0
-
-            # 更新蓝方的存活数据
-            self._update_blue_alive(team, blue_self)
-
-            # 更新蓝方蛋的生命周期
-            # self._update_missile_life(blue_missile_info, team)
 
         return red_observation
 
@@ -812,7 +901,7 @@ class UnityEnv:
 
     def _update_blue_alive(self, team, blue_state_info):
         for id, blue in enumerate(self._blue_names[team]):
-            #if blue_state_info[id][1] == 1:
+            # if blue_state_info[id][1] == 1:
             #    self.alive_steps[team][id + 5] += 1
             if blue_state_info[id][1] == 0 and self.alive_units[team][id + 5] == 1:
                 self.alive_units[team][id + 5] = 0
@@ -854,7 +943,7 @@ class UnityEnv:
             if name.startswith('E0_Red_0'):
                 dis_a = np.zeros((1, 4), np.int32)
                 if shot_action < 0.5:
-                    dis_a[0][0] = 0 if shot_action < 0.5 else 1
+                    dis_a[0][0] = 0
                 else:
                     dis_a[0][0] = 1
                     self.unity_shot_steps += 1
@@ -916,45 +1005,71 @@ class UnityEnv:
         """  获取游戏逻辑上done和reward
                 """
         done = np.array([False] * self.n_envs)
-        reward = np.zeros((self.n_envs, self.n_units), np.float32)
+        reward = np.zeros((self.n_envs, self.n_planes), np.float32)
+        penalty = np.zeros((self.n_envs, self.n_planes), np.float32)
 
         for i in range(self.n_envs):
-
             # 蓝方主机都死亡、红方主机未死亡且没有蓝方的蛋正在飞行
             if self.alive_units[i][-1] != 1 and self.alive_units[i][-2] != 1 and self.alive_units[i][0] == 1:
                 done[i] = True
-                reward[i] += self.reward_config['blue_dead_reward']
-                print('win')
+                reward[i][0:5] += self.reward_config['blue_dead_reward']
+                reward[i][5:] -= self.reward_config['blue_dead_reward']
+
                 self._win_rate[i] += 1
 
             # 红方主机死亡
             elif self.alive_units[i][0] != 1:
                 done[i] = True
-                reward[i] += self.reward_config['main_dead_reward']
+                reward[i][0:5] += self.reward_config['main_dead_reward']
+                reward[i][5:] -= self.reward_config['main_dead_reward']
+
                 # self.alive_steps[i][0] = self._epslen[i]
                 self._lose_rate[i] += 1
                 self.alive_units[i][0] = -1
-                print('lose')
+
             if done[i] == 0:
                 for j in range(len(self._blue_names[0])):
                     if self.alive_units[i][j + 5] == 0:
-                        reward[i] += self.reward_config['blue_dead_reward']
+                        reward[i][0:5] += self.reward_config['blue_dead_reward']
+                        reward[i][j + 5] -= self.reward_config['blue_dead_reward']
+
                         self.alive_units[i][j + 5] = -1
 
                 for j in range(len(self._red_names[0])):
                     if self.alive_units[i][j] == 0:
-                        reward[i] += -0.1
+                        reward[i][j] += -0.1
                         self.alive_units[i][j] = -1
+                    if self.locked_warning[i][j] == 0:
+                        if abs(self.dis[j][0]) > 0.01:
+                            reward[i][j] -= TURN_PENALTY * abs(self.dis[j][0])
+                            penalty[i][j] -= TURN_PENALTY * abs(self.dis[j][0])
+                        if abs(self.dis[j][1]) > 0.02:
+                            reward[i][j] -= 0.1 * TURN_PENALTY * abs(self.dis[j][1])
+                            penalty[i][j] -= 0.1 * TURN_PENALTY * abs(self.dis[j][1])
+                        if abs(self.dis[j][2]) > 0.02:
+                            reward[i][j] -= TURN_PENALTY * abs(self.dis[j][2])
+                            penalty[i][j] -= TURN_PENALTY * abs(self.dis[j][2])
+                for j in range(len(self._blue_names[0])):
+                    if self.locked_warning[i][j + 5] == 0:
+                        if abs(self.dis[j + 5][0]) > 0.01:
+                            reward[i][j + 5] -= TURN_PENALTY * abs(self.dis[j + 5][0])
+                            penalty[i][j + 5] -= TURN_PENALTY * abs(self.dis[j + 5][0])
+                        if abs(self.dis[j + 5][1]) > 0.02:
+                            reward[i][j + 5] -= 0.1 * TURN_PENALTY * abs(self.dis[j + 5][1])
+                            penalty[i][j + 5] -= 0.1 * TURN_PENALTY * abs(self.dis[j + 5][1])
+                        if abs(self.dis[j + 5][2]) > 0.02:
+                            reward[i][j + 5] -= TURN_PENALTY * abs(self.dis[j + 5][2])
+                            penalty[i][j + 5] -= TURN_PENALTY * abs(self.dis[j + 5][2])
 
         self.pre_reward = reward.copy()
-        return done, reward  # , detect_r
+        return done, reward, penalty  # , detect_r
 
 
 """ Test Code """
 if __name__ == '__main__':
     config = dict(
         env_name='dummy',
-        uid2aid=[0, 0, 0, 0, 0],
+        uid2aid=[0, 1, 1, 1, 1, 2, 2],
         max_episode_steps=1000,
         n_envs=1,
         unity_config={
@@ -1005,8 +1120,8 @@ if __name__ == '__main__':
     print('reset observations')
     # for i, o in enumerate(observations):
     #    print_dict_info(o, f'\tagent{i}')
-
-    for k in range(1, 50000):
+    all_start = time.time()
+    for k in range(1, 1000):
         # env.env.reset_envs_with_ids([2])
         actions = env.random_action()
         # print(f'Step {k}, random actions', actions)
@@ -1021,3 +1136,7 @@ if __name__ == '__main__':
         # print(f'Step {k}, info')
         # for aid, i in enumerate(info):
         #    print_dict(i, f'\tenv{aid}')
+    all_end = time.time()
+    print('all 100 steps = ' + str(all_end - all_start))
+    print('env step 100 steps = ' + str(env.env_step_time))
+    print('unity step 100 steps = ' + str(env.env.env_step_time))

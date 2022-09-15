@@ -200,7 +200,7 @@ def evaluate(
                 else:
                     for i in range(len(frames)):
                         frames[i].append(img[i])
-                    
+
             action, terms = agent(
                 env_output, 
                 evaluation=True, 
