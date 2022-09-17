@@ -168,3 +168,6 @@ class DeepMindControl(gym.Env):
         return self._env.physics.render(
             *size, camera_id=camera_id
         )
+    
+    def get_screen(self, size=None):
+        return self.render(size=size)

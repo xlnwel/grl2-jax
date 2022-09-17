@@ -19,12 +19,11 @@ def kl_from_distributions(
         kl = rlax.multivariate_normal_kl_divergence(
             pi1_mean, pi1_std, pi2_mean, pi2_std)
     else:
-        log_pi1 = lax.log(jnp.clip(pi1, 1e-10, 1))
-        log_pi2 = lax.log(jnp.clip(pi2, 1e-10, 1))
+        log_pi1 = lax.log(jnp.maximum(pi1, 1e-10))
+        log_pi2 = lax.log(jnp.maximum(pi2, 1e-10))
         log_ratio = log_pi1 - log_pi2
         if pi_mask is not None:
             log_ratio = jnp.where(pi_mask, log_ratio, 0)
-        chex.assert_tree_all_finite(log_ratio)
         kl = jnp.sum(pi1 * log_ratio, axis=-1)
 
     return kl

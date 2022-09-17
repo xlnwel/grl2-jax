@@ -8,11 +8,11 @@ import haiku as hk
 
 from core.log import do_logging
 from core.elements.model import Model as ModelBase
-from core.typing import dict2AttrDict
+from core.typing import AttrDict, dict2AttrDict
 from nn.func import create_network
 from tools.file import source_file
 from jax_tools import jax_dist
-from .utils import compute_inner_steps, get_hx
+from .utils import compute_inner_steps, compute_policy, compute_values, get_hx
 
 # register ppo-related networks 
 source_file(os.path.realpath(__file__).replace('model.py', 'nn.py'))
@@ -148,6 +148,46 @@ class Model(ModelBase):
 
         return dist
     
+    def forward(self, params, rng, data):
+        rngs = jax.random.split(rng, 2)
+        stats = AttrDict()
+        stats.value, stats.next_value = compute_values(
+            self.modules.value, 
+            params.value, 
+            rngs[1], 
+            data.global_state, 
+            data.next_global_state, 
+            sid=data.sid, 
+            next_sid=data.next_sid, 
+            idx=data.idx, 
+            next_idx=data.next_idx, 
+            event=data.event, 
+            next_event=data.next_event, 
+            seq_axis=1, 
+        )
+
+        act_dist, stats.pi_logprob, stats.log_ratio, stats.ratio = \
+            compute_policy(
+                self.modules.policy, 
+                params.policy, 
+                rngs[2], 
+                data.obs, 
+                data.next_obs, 
+                data.action, 
+                data.mu_logprob, 
+                sid=data.sid, 
+                next_sid=data.next_sid, 
+                idx=data.idx, 
+                next_idx=data.next_idx, 
+                event=data.event, 
+                next_event=data.next_event, 
+                action_mask=data.action_mask, 
+                next_action_mask=data.next_action_mask, 
+                seq_axis=1, 
+            )
+
+        return act_dist, stats
+
     def build_hx(self, data):
         return get_hx(data.sid, data.idx, data.event)
 
@@ -261,20 +301,6 @@ def setup_config_from_envstats(config, env_stats):
     return config
 
 
-def setup_joint_objective(config):
-    if config.joint_objective:
-        # if config.K == 0:
-        #     config.value.index = None
-        # else:
-        config.outer_value.index = None
-    else:
-        # if config.K == 0:
-        #     config.value.index = config.policy.index
-        # else:
-        config.outer_value.index = config.policy.index
-    return config
-
-
 def create_model(
     config, 
     env_stats, 
@@ -283,7 +309,6 @@ def create_model(
 ): 
     config = setup_config_from_envstats(config, env_stats)
     config = compute_inner_steps(config)
-    config = setup_joint_objective(config)
 
     return Model(
         config=config, 

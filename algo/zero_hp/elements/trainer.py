@@ -14,7 +14,7 @@ from core.typing import AttrDict, dict2AttrDict
 from jax_tools import jax_utils
 from tools.display import print_dict_info
 from tools.timer import Timer
-from .utils import compute_inner_steps, compute_meta_step_discount
+from .utils import compute_inner_steps
 
 
 def construct_fake_data(env_stats, aid, meta):
@@ -52,10 +52,9 @@ def construct_fake_data(env_stats, aid, meta):
 class Trainer(TrainerBase):
     def add_attributes(self):
         self.config = compute_inner_steps(self.config)
-        self.config = compute_meta_step_discount(self.config)
         self._use_meta = self.config.inner_steps is not None
         self._step = 0
-        assert self.config.msmg_type in ('avg', 'wavg', 'last'), self.config.msmg_type
+        assert self.config.msmg_type in ('avg', 'wavg' 'last'), self.config.msmg_type
 
     def build_optimizers(self):
         self.opts.theta, self.params.theta = optimizer.build_optimizer(
@@ -64,17 +63,6 @@ class Trainer(TrainerBase):
             name='theta'
         )
         if self._use_meta:
-            self.opts.phi, self.params.phi = optimizer.build_optimizer(
-                params=self.model.phi, 
-                **self.config.phi_opt, 
-                name='phi' 
-            )
-            self.opts.meta_reward, self.params.meta_reward = \
-                optimizer.build_optimizer(
-                    params=self.model.params.meta_reward, 
-                    **self.config.meta_reward_opt, 
-                    name='meta_reward'
-                )
             self.opts.meta_params, self.params.meta_params = \
                 optimizer.build_optimizer(
                     params=self.model.params.meta_params, 
@@ -94,7 +82,7 @@ class Trainer(TrainerBase):
         if self._use_meta:
             data = construct_fake_data(self.env_stats, 0, True)
             print(hk.experimental.tabulate(self.blo_train)(
-                self.model.eta, self.model.theta, self.model.phi, 
+                self.model.eta, self.model.theta, 
                 rng, self.params, data
             ))
         else:
@@ -106,7 +94,8 @@ class Trainer(TrainerBase):
     
 
     def post_init(self):
-        self.theta_params = self.get_theta_params()
+        self.old_theta_params = self.get_theta_params()
+        self.new_theta_params = self.get_theta_params()
 
     def train(self, data):
         self._step += 1
@@ -115,21 +104,20 @@ class Trainer(TrainerBase):
         self.rng, train_rng = random.split(self.rng)
 
         if do_meta_step:
-            self.set_theta_params(self.theta_params)
+            self.new_theta_params = self.get_theta_params()
             with Timer('meta_train'):
-                eta, theta, phi, self.params, stats = \
+                eta, theta, self.params, stats = \
                     self.jit_blo_train(
                         eta=self.model.eta, 
-                        theta=self.model.theta, 
-                        phi=self.model.phi, 
+                        theta=self.old_theta_params, 
+                        target_theta=self.new_theta_params, 
                         rng=train_rng, 
                         opt_params=self.params, 
                         data=data
                     )
             self.model.set_weights(eta)
-            self.model.set_weights(theta)
-            self.model.set_weights(phi)
-            self.theta_params = self.get_theta_params()
+            self.set_theta_params(self.new_theta_params)
+            self.old_theta_params = self.new_theta_params
         else:
             use_meta = self._use_meta
             with Timer('plain_train'):
@@ -179,12 +167,6 @@ class Trainer(TrainerBase):
         name='train/theta'
     ):
         rngs = random.split(rng, 2)
-        if 'rl_reward' not in data:
-            _, _, _, data.rl_reward = \
-                self._compute_rl_reward(eta, rngs[0], data, axis=1)
-            data.rl_discount, data.rl_reset = \
-                self._compute_rl_discount(
-                    data.discount, data.event, data.next_event, data.reset)
         n_epochs = self.config.get('n_epochs', 1)
         rngs = random.split(rngs[1], n_epochs)
         for rng in rngs:
@@ -209,30 +191,23 @@ class Trainer(TrainerBase):
 
         return theta, opt_state, stats
 
-    def blo_train(self, eta, theta, phi, rng, opt_params, data):
+    def blo_train(self, eta, theta, target_theta, rng, opt_params, data):
         rngs = random.split(rng, 3)
-        grads, ((theta, phi, opt_params.theta, opt_params.phi), stats) = \
+        grads, ((theta, opt_params.theta), stats) = \
             optimizer.compute_meta_gradients(
                 self.eta_loss, 
                 eta, 
                 kwargs={
                     'theta': theta, 
-                    'phi': phi, 
+                    'target_theta': target_theta, 
                     'rng': rngs[0], 
                     'theta_opt_state': opt_params.theta, 
-                    'phi_opt_state': opt_params.phi, 
                     'data': data, 
                 }, 
                 name='eta', 
                 by_part=True
             )
         updates = AttrDict()
-        updates.meta_reward, opt_params.meta_reward, stats = \
-            optimizer.compute_updates(
-                grads.meta_reward, opt_params.meta_reward, 
-                self.opts.meta_reward, stats, 
-                name='eta/reward'
-            )
         updates.meta_params, opt_params.meta_params, stats = \
             optimizer.compute_updates(
                 grads.meta_params, opt_params.meta_params, 
@@ -247,45 +222,35 @@ class Trainer(TrainerBase):
                 data.slice(self.config.K), name='theta', 
                 use_meta=True, use_dice=False
             )
-            phi, opt_params.phi, phi_stats = self.phi_train(
-                phi, theta, rngs[2], opt_params.phi, 
-                data.slice(self.config.K), name='phi'
-            )
             stats.update(theta_stats)
-            stats.update(phi_stats)
 
         stats.update({f'data/{k}': v 
             for k, v in data.items() if v is not None})
         stats['theta/norm'] = optax.global_norm(theta)
-        stats['phi/norm'] = optax.global_norm(phi)
         stats['eta/norm'] = optax.global_norm(eta)
 
-        return eta, theta, phi, opt_params, stats
+        return eta, theta, opt_params, stats
 
     @partial(jax.jit, static_argnums=0)
     def eta_loss(
         self, 
         eta, 
         theta, 
-        phi, 
+        target_theta, 
         rng, 
         theta_opt_state, 
         phi_opt_state, 
         data
     ):
-        assert self.config.msmg_type in ['avg', 'wavg', 'last'], self.config.msmg_type
-        rngs = random.split(rng, 3)
-        meta_reward_out, data.meta_reward, trans_reward, data.rl_reward = \
-            self._compute_rl_reward(eta, rngs[0], data, axis=2)
-        data.rl_discount, data.rl_reset = self._compute_rl_discount(
-            data.discount, data.event, data.next_event, data.reset)
+        assert self.config.msmg_type in ['last', 'avg', 'wavg'], self.config.msmg_type
+        rngs = random.split(rng, 2)
 
-        krngs = random.split(rngs[1], self.config.K)
+        krngs = random.split(rngs[0], self.config.K)
         data_slices = [data.slice(i) 
             for i in range(self.config.K+self.config.extra_meta_step)]
         eta_losses = []
         for i in range(self.config.K):
-            theta_rng, phi_rng, eta_rng = random.split(krngs[i], 3)
+            theta_rng, eta_rng = random.split(krngs[i], 2)
             data_slice = data_slices[i]
             theta, theta_opt_state, stats = self.theta_train(
                 theta, eta, theta_rng, theta_opt_state, 
@@ -293,27 +258,21 @@ class Trainer(TrainerBase):
                 use_meta=True, use_dice=True
             )
             if self.config.msmg_type == 'avg' or self.config.msmg_type == 'wavg':
-                phi, phi_opt_state, phi_stats = self.phi_train(
-                    phi, theta, phi_rng, phi_opt_state, 
-                    data_slices[i], name='phi', 
-                )
-                phi = lax.stop_gradient(phi)
                 eta_loss, eta_stats = self.loss.eta_loss(
-                    theta, phi, eta_rng, 
+                    theta, 
+                    target_theta, 
+                    eta_rng, 
                     data_slices[i+self.config.extra_meta_step], 
                     name='eta'
                 )
                 eta_losses.append(eta_loss)
         if self.config.msmg_type == 'last':
-            for i in range(self.config.K):
-                phi, phi_opt_state, phi_stats = self.phi_train(
-                    phi, theta, phi_rng, phi_opt_state, 
-                    data_slices[i], name='phi', 
-                )
-                phi = lax.stop_gradient(phi)
             last_i = self.config.K + self.config.extra_meta_step - 1
             eta_loss, eta_stats = self.loss.eta_loss(
-                theta, phi, rngs[2], data_slices[last_i], 
+                theta, 
+                target_theta, 
+                rngs[1], 
+                data_slices[last_i], 
                 name='eta'
             )
         if eta_losses != []:
@@ -330,83 +289,9 @@ class Trainer(TrainerBase):
         else:
             assert self.config.msmg_type == 'last', self.config.msmg_type
         
-        
-        stats.update(phi_stats)
         stats.update(eta_stats)
-        stats.meta_reward_out = meta_reward_out
-        stats.meta_reward = data.meta_reward
-        stats.trans_reward = trans_reward
-        stats.rl_reward = data.rl_reward
-        stats.rl_discount = data.rl_discount
-        stats.rl_reset = data.rl_reset
 
-        return eta_loss, ((theta, phi, theta_opt_state, phi_opt_state), stats)
-
-    def phi_train(
-        self, 
-        phi, 
-        theta, 
-        rng, 
-        opt_state, 
-        data, 
-        name='phi'
-    ):
-        n_epochs = self.config.get('n_epochs', 1)
-        rngs = random.split(rng, n_epochs)
-        for rng in rngs:
-            phi, opt_state, stats = optimizer.optimize(
-                self.loss.phi_loss, 
-                phi, 
-                opt_state, 
-                kwargs={
-                    'theta': theta, 
-                    'rng': rng, 
-                    'data': data, 
-                    'name': name
-                }, 
-                opt=self.opts.phi, 
-                name=name
-            )
-        return phi, opt_state, stats
-
-    def _compute_rl_reward(self, eta, rng, data, axis):
-        if self.config.K:
-            [idx, event, global_state], \
-                [next_idx, next_event, next_global_state] = \
-                jax_utils.split_data(
-                    [data.idx, data.event, data.global_state], 
-                    [data.next_idx, data.next_event, data.next_global_state], 
-                    axis=axis
-                )
-            return self.model.compute_meta_reward(
-                eta, 
-                rng, 
-                global_state, 
-                next_global_state, 
-                data.action, 
-                idx=idx, 
-                next_idx=next_idx, 
-                event=event, 
-                next_event=next_event, 
-                reward=data.reward
-            )
-        else:
-            return None, None, None, data.reward
-
-    def _compute_rl_discount(self, discount, event, next_event, reset):
-        if event is not None and self.config.event_done:
-            if reset is not None:
-                discount = 1 - reset
-            event, next_event = jax_utils.split_data(event, next_event)
-            event_idx = jnp.argmax(event, -1)
-            next_event_idx = jnp.argmax(next_event, -1)
-            rl_discount = jnp.asarray(event_idx == next_event_idx, jnp.float32)
-            rl_discount = jnp.where(jnp.asarray(discount, bool), rl_discount, discount)
-            rl_reset = None
-        else:
-            rl_discount = discount
-            rl_reset = reset
-        return rl_discount, rl_reset
+        return eta_loss, ((theta, theta_opt_state, phi_opt_state), stats)
 
 
 create_trainer = partial(create_trainer,

@@ -153,7 +153,7 @@ class MetaLoss(LossBase):
                 config=config, 
                 func=self.modules.outer_value, 
                 params=phi.outer_value, 
-                rng=rng[1], 
+                rng=rngs[1], 
                 hidden_state=data.hidden_state, 
                 next_hidden_state=data.next_hidden_state, 
                 sid=data.sid, 
@@ -257,7 +257,8 @@ class MetaLoss(LossBase):
                     lam=stats.lam, 
                     sample_mask=data.sample_mask
                 )
-            stats = record_target_adv(data, stats)
+            stats.explained_variance = jax_math.explained_variance(
+                stats.v_target, stats.value)
             if self.config.norm_meta_adv:
                 advantage = jax_math.standard_normalization(
                     stats.raw_adv, 
@@ -323,15 +324,33 @@ class MetaLoss(LossBase):
                 use_dice=False
             )
 
-        raw_meta_reward_loss, meta_reward_loss = jax_loss.to_loss(
+        stats.kl, stats.raw_kl_loss, kl_loss = jax_loss.compute_kl(
+            kl_type=self.config.kl, 
+            kl_coef=self.config.kl_coef, 
+            logp=data.mu_logprob, 
+            logq=stats.pi_logprob, 
+            sample_prob=data.mu_logprob, 
+            pi1=data.mu, 
+            pi2=stats.pi,
+            pi1_mean=data.mu_mean,  
+            pi1_std=data.mu_std,  
+            pi2_mean=stats.pi_mean,  
+            pi2_std=stats.pi_std,  
+            pi_mask=data.action_mask, 
+            sample_mask=data.sample_mask, 
+            n=data.n
+        )
+        stats.kl_loss = kl_loss
+
+        stats.raw_meta_reward_loss, meta_reward_loss = jax_loss.to_loss(
             lax.abs(data.meta_reward), 
             self.config.meta_reward_coef, 
             mask=data.sample_mask, 
             n=data.n
         )
-        loss = actor_loss + meta_reward_loss
-        stats.raw_meta_reward_loss = raw_meta_reward_loss
         stats.meta_reward_loss = meta_reward_loss
+
+        loss = actor_loss + meta_reward_loss + kl_loss
         stats.loss = loss
 
         stats = prefix_name(stats, name)
@@ -490,7 +509,8 @@ def joint_pg_loss(
     loss_pg, loss_clip, raw_pg_loss = \
         jax_loss.joint_ppo_loss(
             advantage=stats.advantage, 
-            ratio=stats.joint_ratio, 
+            ratio=stats.ratio, 
+            joint_ratio=stats.joint_ratio, 
             clip_range=config.ppo_clip_range, 
             mask=sample_mask, 
             n=data.n, 
@@ -549,7 +569,8 @@ def record_policy_stats(data, stats, act_dist):
     return stats
 
 def record_target_adv(stats):
-    stats.explained_variance = jax_math.explained_variance(stats.v_target, stats.value)
+    stats.explained_variance = jax_math.explained_variance(
+        stats.v_target, stats.value)
     stats.v_target_unit_std = jnp.std(stats.v_target, axis=-1)
     stats.raw_adv_unit_std = jnp.std(stats.raw_adv, axis=-1)
     return stats

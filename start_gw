@@ -6,14 +6,14 @@ algos=(zero)
 suite=grid_world
 envs=(staghunt)
 config=magw_a2c
-args1=(1)
-args2=(5e-3 1e-2 5e-2)
-args3=(5e-4 1e-3)
-args4=(4 8)
-# date=$(date +"%m%d")
-date=0913
-info=""
-
+args1=(3)
+args2=(True False)
+args3=(wavg)
+args4=(16 32)
+date=$(date +"%m%d")
+date=0918
+info="index=head"
+ld="${suite}-logs"
 # for x in $(seq 1 2); do
 #     shift
 # done
@@ -26,10 +26,10 @@ fi
 
 cmdkws=""
 for item in $@; do
-    if [ -z != $cmdkws ]; then
-        cmdkws="$cmdkws-$item"
-    else
+    if [ "$cmdkws" = "" ]; then
         cmdkws="$item"
+    else
+        cmdkws="$cmdkws-$item"
     fi
 done
 
@@ -41,19 +41,21 @@ for e in "${envs[@]}"; do
             for a2 in "${args2[@]}"; do
                 for a3 in "${args3[@]}"; do
                     for a4 in "${args4[@]}"; do
-                        for ((s=1; s<=1; s++)); do
+                        for ((s=1; s<=4; s++)); do
+                            if [ "$a1" -eq 1 ] && [ "$a3" = "last" ]; then
+                                break
+                            fi
                             kw1="K=$a1"
-                            kw2="entropy_coef=$a2"
-                            kw3="meta_reward_opt:lr=$a3"
+                            kw2="joint_objective=$a2"
+                            kw3="msmg_type=$a3"
                             kw4="n_steps=$a4"
                             kwstr="$kw1-$kw2-$kw3-$kw4"
                             kws="$kw1 $kw2 $kw3 $kw4"
-                            if [ 0 != $# ]; then
+                            if [ "$cmdkws" != "" ]; then
                                 kwstr="$cmdkws-$kwstr"
                                 kws="$@ $kws"
                             fi
                             env="${suite}-${e}"
-                            ld="${suite}-logs"
                             gpus=$(nvidia-smi -L | wc -l)
                             gpu=$(($i % $gpus))
                             dir="$ld/$env/$a/$n-$kwstr/seed=$s"
@@ -75,7 +77,6 @@ for e in "${envs[@]}"; do
 done
 
 # kws="$@"
-# shift
 # kw1=""
 # kwstr="$kw1"
 # kws="$kws $kw1"
@@ -100,10 +101,20 @@ done
 #             mkdir -p $dir
 #             gpus=$(nvidia-smi -L | wc -l)
 #             gpu=$((($s-1) % $gpus))
-#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -v info -n $n -s $s $kws -i $info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
+#             py_script="python run/train.py -a ${a} -e $env -c $config -ld $ld --gpu $gpu -v info -n $n -s $s -kw $kws -i $info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
 #             echo $py_script
 #             eval $py_script
 #             # sleep 3
 #         done
 #     done
 # done
+
+# a=$algos[1]
+# env=$envs[1]
+# env="${suite}-${env}"
+# python run/train.py -a ${a} -e $env -c $config -kw -ld $ld --gpu 0 -n $n -s 1 -kw K=0 n_steps=8 &
+# python run/train.py -a ${a} -e $env -c $config -kw -ld $ld --gpu 1 -n $n -s 2 -kw K=0 n_steps=8 &
+# python run/train.py -a ${a} -e $env -c $config -kw -ld $ld --gpu 0 -n $n -s 1 -kw K=0 n_steps=16 &
+# python run/train.py -a ${a} -e $env -c $config -kw -ld $ld --gpu 1 -n $n -s 2 -kw K=0 n_steps=16 &
+# python run/train.py -a ${a} -e $env -c $config -kw -ld $ld --gpu 0 -n $n -s 1 -kw K=0 n_steps=32 &
+# python run/train.py -a ${a} -e $env -c $config -kw -ld $ld --gpu 1 -n $n -s 2 -kw K=0 n_steps=32 &

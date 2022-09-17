@@ -7,9 +7,9 @@ suite=$2
 env=${suite}-$3
 config=$4
 s=$5
-gpu=$6
 date=$(date +"%m%d")
-for x in $(seq 1 6); do
+date=0916
+for x in $(seq 1 5); do
     shift
 done
 
@@ -34,30 +34,16 @@ for item in $@; do
     fi
 done
 
-# for ((s=0; s<$seed; s++)); do
-#     ld="$suite-logs"
-#     if [ 0 != $# ]; then
-#         dir="$ld/$env/$algo/$n-$kwstr/seed=$s"
-#     else
-#         dir="$ld/$env/$aalgo/$n/seed=$s"
-#     fi
-#     mkdir -p $dir
-#     gpus=$(nvidia-smi -L | wc -l)
-#     gpu=$((($s) % $gpus))
-#     py_script="python run/train.py -a $algo -e $env -c $config -ld $ld --gpu $gpu -n $n -s $s $kws -i $info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
-#     echo $py_script
-#     eval $py_script
-#     sleep 3s
-# done
+
 ld="$suite-logs"
 if [ 0 != $# ]; then
     dir="$ld/$env/$algo/$n-$kwstr/seed=$s"
 else
-    dir="$ld/$env/$aalgo/$n/seed=$s"
+    dir="$ld/$env/$algo/$n/seed=$s"
 fi
 mkdir -p $dir
-# gpus=$(nvidia-smi -L | wc -l)
-# gpu=$((($s) % $gpus))
+gpus=$(nvidia-smi -L | wc -l)
+gpu=$((($s) % $gpus))
 py_script="python run/train.py -a $algo -e $env -c $config -ld $ld --gpu $gpu -n $n -s $s $kws -i $info 2> ${dir}/err.txt | tee -a ${dir}/out.txt > /dev/null &"
 echo $py_script
 eval $py_script

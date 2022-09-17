@@ -107,9 +107,11 @@ class MultiAgentGridWorldEnv:
 
         self.obs_shape = [dict(
             obs=o.shape, 
+            global_state=o.shape, 
         ) for o in self.observation_space]
         self.obs_dtype = [dict(
             obs=np.float32, 
+            global_state=np.float32, 
         ) for o in self.observation_space]
         for shp, dtp in zip(self.obs_shape, self.obs_dtype):
             if use_idx:
@@ -139,7 +141,6 @@ class MultiAgentGridWorldEnv:
         if self.env_name == "multi_StagHuntGW":
             self.StagHunt_setup_map()
 
-
     def setup_agents(self):
         self.coop_num = 0
         self.agents = []
@@ -149,7 +150,6 @@ class MultiAgentGridWorldEnv:
                 self.env_name,self.num_agents, 
                 representation=self.representation)
             self.agents.append(agent)
-
 
     @property
     def action_space(self):
@@ -569,7 +569,7 @@ class MultiAgentGridWorldEnv:
 
     def _get_obs(self):
         o = np.stack([self.get_obs_agent(i) for i in range(self.num_agents)]).astype(np.float32)
-        obs = {'obs': o}
+        obs = {'obs': o, 'global_state': o.copy()}
         if self.use_idx:
             obs['idx'] = np.eye(self.num_agents, dtype=np.float32)
         if self.use_hidden:
@@ -591,7 +591,7 @@ class MultiAgentGridWorldEnv:
     def reset(self):
         """Reset the environment. Required after each full episode.
         Returns initial observations and states.
-        """   
+        """
         self.reset_map()
         self.setup_agents()
 

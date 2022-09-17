@@ -12,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def plot_data_dict(data, *, x='step', outdir='results', figname='data'):
     fig = plt.figure(figsize=(40, 30))
+    fig.tight_layout(pad=2)
     nrows = math.ceil(np.sqrt(len(data)))
     ncols = math.ceil(len(data) / nrows)
 
@@ -31,13 +32,14 @@ def plot_data(
     *, 
     x='step', 
     y, 
+    ys=None, 
     outdir='results', 
     title, 
     fig=None, 
     nrows=1, 
     ncols=1, 
     idx=1, 
-    avg_data=True,
+    avg_data=False,
     savefig=True
 ):
     if isinstance(data, np.ndarray):
@@ -47,25 +49,27 @@ def plot_data(
             data = pd.DataFrame({x: x_val, y: data})
         elif data.ndim == 2:
             n = data.shape[0]
-            tag = [np.full((seqlen,), y)] if avg_data else []
-            for i in range(1, n+1):
-                tag.append(np.full((seqlen,), f'{y}{i}'))
+            if ys is not None:
+                assert len(ys) == n, (len(ys), n)
+                tag = [np.full((seqlen,), f'{yy}') for yy in ys]
+            else:
+                tag = [np.full((seqlen,), f'{y}{i}') for i in range(1, n+1)]
+            assert len(tag) == n, (len(tag), n)
             tag = np.concatenate(tag)
             x_val = np.concatenate([x_val]*(n+1 if avg_data else n))
             y_val = np.concatenate(data)
-            if avg_data:
-                y_val = np.concatenate([data.mean(0), y_val])
             data = pd.DataFrame({x: x_val, 'tag': tag, y: y_val})
             data = data.pivot(x, 'tag', y)
             x = None
             y = None
         else:
-            return
-            # raise ValueError(f'Error data dimension: {data.ndim}')
+            # return
+            raise ValueError(f'Error data dimension: {data.shape}')
     assert isinstance(data, pd.DataFrame), type(data)
     
     if fig is None:
         fig = plt.figure(figsize=(20, 10))
+        fig.tight_layout(pad=2)
     ax = fig.add_subplot(nrows, ncols, idx)
     sns.set(style="whitegrid", font_scale=1.5)
     sns.set_palette('Set2') # or husl

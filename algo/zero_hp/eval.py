@@ -1,36 +1,41 @@
 import warnings
 warnings.filterwarnings("ignore")
-
 import os, sys
-os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
-
 import time
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.elements.builder import ElementsBuilder
-from core.log import setup_logging, do_logging
-from core.typing import dict2AttrDict
+from core.log import do_logging
 from core.utils import configure_gpu
-from tools.plot import plot_data_dict
+from core.typing import dict2AttrDict
+from tools.plot import plot_data, plot_data_dict
 from tools.ray_setup import sigint_shutdown_ray
 from tools.run import evaluate
 from tools.graph import save_video
 from tools import pkg
 from env.func import create_env
-from run.args import parse_eval_args
-from run.utils import search_for_config
 
 
 def plot(data: dict, outdir: str, figname: str):
     data = {k: np.squeeze(v) for k, v in data.items()}
-    data = {k: np.swapaxes(v, 0, 1) if v.ndim == 2 else v for k, v in data.items()}
+    data = {k: np.swapaxes(v, 0, 1) for k, v in data.items() if v.ndim == 2}
     plot_data_dict(data, outdir=outdir, figname=figname)
+    if 'meta_reward' in data:
+        sum_reward = data['reward'] + data['trans_reward']
+        all_reward = np.concatenate([
+            data['meta_reward'], data['trans_reward'], data['reward'], sum_reward])
+    else:
+        all_reward = data['reward']
+    plot_data(all_reward, y='reward', outdir=outdir, 
+        title=f'{figname}-reward', avg_data=False)
 
 def main(configs, n, record=False, size=(128, 128), video_len=1000, 
         fps=30, out_dir='results', info=''):
+    configure_gpu()
     config = dict2AttrDict(configs[0])
+    config.env.n_runners = 1
     use_ray = config.env.get('n_runners', 0) > 1
     if use_ray:
         import ray
@@ -42,7 +47,7 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
 
     try:
         make_env = pkg.import_module('env', algo_name, place=-1).make_env
-    except Exception as e:
+    except:
         make_env = None
     
     if env_name.startswith('procgen') and record:
@@ -84,38 +89,5 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
         save_video(filename, video, fps=fps, out_dir=out_dir)
     if use_ray:
         ray.shutdown()
-
+    
     return scores, epslens, video
-
-
-if __name__ == '__main__':
-    args = parse_eval_args()
-
-    setup_logging(args.verbose)
-
-    # load respective config
-    configs = [search_for_config(d) for d in args.directory]
-    config = configs[0]
-
-    # get the main function
-    try:
-        main = pkg.import_main('eval', config=config)
-    except Exception as e:
-        do_logging(f'default evaluation is used due to error: {e}', color='red')
-
-    configure_gpu()
-
-    # set up env_config
-    for config in configs:
-        n = args.n_episodes
-        if args.n_runners:
-            if 'runner' in config:
-                config.runner.n_runners = args.n_runners
-            config.env.n_runners = args.n_runners
-        if args.n_envs:
-            config.env.n_envs = args.n_envs
-        n = max(args.n_runners * args.n_envs, n)
-
-    main(configs, n=n, record=args.record, size=args.size, 
-        video_len=args.video_len, fps=args.fps, 
-        info=args.info)

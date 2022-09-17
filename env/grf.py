@@ -67,8 +67,8 @@ class GRF:
         if representation != Representation.SIMPLE115:
             representation = Representation.RAW
             if self.representation == Representation.CUSTOM:
-                assert number_of_left_players_agent_controls in (1, 11), number_of_left_players_agent_controls
-                assert number_of_right_players_agent_controls in (0, 11), number_of_right_players_agent_controls
+                # assert number_of_left_players_agent_controls in (1, 11), number_of_left_players_agent_controls
+                # assert number_of_right_players_agent_controls in (0, 11), number_of_right_players_agent_controls
                 from env.grf_env.custom_obs import FeatureEncoder
                 self.feat_encoder = FeatureEncoder(
                     self.aid2uids, 
@@ -134,8 +134,9 @@ class GRF:
         self.action_dtype = [np.int32 for _ in self.action_space]
         self.is_action_discrete = [isinstance(a, gym.spaces.Discrete) for a in self.action_space]
 
-        self.obs_shape = self._get_observation_shape()
-        self.obs_dtype = self._get_observation_dtype()
+        obs = self.reset()
+        self.obs_shape = [{k: v.shape[-1:] for k, v in o.items()} for o in obs]
+        self.obs_dtype = [{k: v.dtype for k, v in o.items()} for o in obs]
 
         # The following stats should be updated in self.step and be reset in self.reset
         # The episodic score we use to evaluate agent's performance. It excludes shaped rewards

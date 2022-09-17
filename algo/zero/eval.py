@@ -1,6 +1,9 @@
+import os, sys
+os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
+
 import warnings
 warnings.filterwarnings("ignore")
-import os, sys
+
 import time
 import numpy as np
 
@@ -23,12 +26,17 @@ def plot(data: dict, outdir: str, figname: str):
     data = {k: np.swapaxes(v, 0, 1) for k, v in data.items() if v.ndim == 2}
     plot_data_dict(data, outdir=outdir, figname=figname)
     if 'meta_reward' in data:
-        sum_reward = data['reward'] + data['trans_reward']
         all_reward = np.concatenate([
-            data['meta_reward'], data['trans_reward'], data['reward'], sum_reward])
+            data['meta_reward'], data['reward']])
+        y = 'reward'
+        n = data['meta_reward'].shape[0]
+        ys = [f'meta_reward{i}' for i in range(1, n+1)] \
+            + [f'reward{i}' for i in range(1, n+1)]
     else:
         all_reward = data['reward']
-    plot_data(all_reward, y='reward', outdir=outdir, 
+        y = 'reward'
+        ys = None
+    plot_data(all_reward, y=y, ys=ys, outdir=outdir, 
         title=f'{figname}-reward', avg_data=False)
 
 def main(configs, n, record=False, size=(128, 128), video_len=1000, 
@@ -75,8 +83,8 @@ def main(configs, n, record=False, size=(128, 128), video_len=1000,
     )
 
     do_logging(f'After running {n} episodes', color='cyan')
-    do_logging(f'\tScore: {np.mean(scores):.3g}\n', color='cyan')
-    do_logging(f'\tEpslen: {np.mean(epslens):.3g}\n', color='cyan')
+    do_logging(f'\tScore: {np.mean(scores):.3g}', color='cyan')
+    do_logging(f'\tEpslen: {np.mean(epslens):.3g}', color='cyan')
     do_logging(f'\tTime: {time.time()-start:.3g}', color='cyan')
 
     filename = f'{out_dir}/{algo_name}-{env_name}/{config["model_name"]}'

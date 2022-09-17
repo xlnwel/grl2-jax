@@ -47,7 +47,6 @@ strategy:
 model:
     aid: 0
     rnn_type: &rnn null
-    joint_objective: &jo False
     rl_reward: &rlreward meta
     gamma: &gamma .99
     eval_act_temp: 1
@@ -107,7 +106,6 @@ model:
         out_scale: .01
         out_act: atan
         combine_xa: False
-        rescale: 5
         index: head
         index_config:
             use_shared_bias: False
@@ -197,7 +195,7 @@ loss:
 
     # hyperparams for meta-learning
     meta_reward_coef: 0
-    joint_objective: *jo
+    joint_objective: False
 
 trainer:
     algorithm: *algo
@@ -209,7 +207,6 @@ trainer:
     n_meta_epochs: 1
     n_steps: *nsteps         # BPTT length
     timeout_done: &td True
-
     K: *K
     L: *L
     msmg_type: avg

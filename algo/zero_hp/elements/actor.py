@@ -17,9 +17,7 @@ class Actor(ActorBase):
             stats['idx'] = inp['idx']
         if 'event' in inp:
             stats['event'] = inp['event']
-        if 'global_state' in inp:
-            stats['global_state'] = inp['global_state']
-        
+
         return action, stats, state
 
 

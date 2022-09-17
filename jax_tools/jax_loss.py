@@ -22,7 +22,7 @@ def magic_box(logprob):
 
 
 def loaded_dice(logprob, lam, axis=1):
-    dims, (logprob, ) = jax_utils.time_major(logprob, axis=axis)
+    dims, logprob = jax_utils.time_major(logprob, axis=axis)
 
     w = 0
     deps = []
@@ -44,10 +44,10 @@ def dice(logprob, lam, axis=1):
     lam: the discount factor to reduce the effect of distant causal dependencies
         so as to trade-off bias and variance.
     """
-    if axis is not None:
-        deps = loaded_dice(logprob, lam)
-    else:
+    if axis is None:
         deps = magic_box(logprob)
+    else:
+        deps = loaded_dice(logprob, lam)
     
     return deps
 
@@ -438,6 +438,7 @@ def joint_ppo_loss(
     *, 
     advantage, 
     ratio, 
+    joint_ratio=None, 
     clip_range, 
     mask=None, 
     n=None,
@@ -445,7 +446,8 @@ def joint_ppo_loss(
     jax_assert.assert_shape_compatibility([ratio, mask])
     if mask is not None and n is None:
         mask = jnp.prod(mask, axis=-1)
-    joint_ratio = jnp.prod(ratio, axis=-1)
+    if joint_ratio is None:
+        joint_ratio = jnp.prod(ratio, axis=-1)
     clipped_ratio = jnp.clip(ratio, 1. - clip_range, 1. + clip_range)
     joint_clipped_ratio = jnp.prod(clipped_ratio, axis=-1)
     jax_assert.assert_shape_compatibility([joint_ratio, advantage])

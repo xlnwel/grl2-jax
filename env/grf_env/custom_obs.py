@@ -122,8 +122,7 @@ class FeatureEncoder:
         team = 'left_team' if side == 0 else 'right_team'
         player_pos_x, player_pos_y = obs[team][player_num]
         player_pos = [player_pos_x, player_pos_y]   # 2
-        player_dir_x, player_dir_y = obs[f"{team}_direction"][player_num]
-        player_direction = player_dir_y, player_dir_x   # 2
+        player_direction = obs[f"{team}_direction"][player_num] # 2
         player_role = self._encode_idx(side, player_num)  # 10
         player_tired = obs[f"{team}_tired_factor"][player_num]
         is_dribbling = obs["sticky_actions"][9]
@@ -132,7 +131,7 @@ class FeatureEncoder:
         player_state = player_pos + list(player_direction) \
             + player_role + player_prop
         observation.extend(player_state)
-        assert len(player_state) == 18, len(player_state)
+        # assert len(player_state) == 18, len(player_state)
 
         ball_x, ball_y, ball_z = obs["ball"]
         ball_x_relative = ball_x - player_pos_x
@@ -148,7 +147,7 @@ class FeatureEncoder:
         ball_state = ball_rel_pos + ball_speed \
             + ball_owned + ball_zone + ball_close
         observation.extend(ball_state)
-        assert len(ball_state) == 16, len(ball_state)
+        # assert len(ball_state) == 16, len(ball_state)
 
         if side == 0:
             obs_left_team = np.delete(obs["left_team"], player_num, axis=0)

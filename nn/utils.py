@@ -15,6 +15,7 @@ def get_activation(act_name, **kwargs):
         None: Dummy(),
         'relu': jax.nn.relu,
         'leaky_relu': jax.nn.leaky_relu,
+        'elu': jax.nn.elu,
         'sigmoid': jax.nn.sigmoid, 
         'tanh': jnp.tanh, 
         'atan': jax.lax.atan, 

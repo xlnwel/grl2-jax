@@ -18,12 +18,15 @@ def save(data, filedir, filename):
 def restore(filedir, filename):
     path = f'{filedir}/{filename}.pkl'
     if os.path.exists(path):
-        with open(path, 'rb') as f:
-            data = cloudpickle.load(f)
-        do_logging(f'Restoring parameters from "{path}"', level='pwt', backtrack=3)
+        try:
+            with open(path, 'rb') as f:
+                data = cloudpickle.load(f)
+                do_logging(f'Restoring parameters from "{path}"', backtrack=3)
+        except Exception as e:
+            do_logging(f'Failing restoring parameters from {path}', backtrack=3)
     else:
         data = {}
-        do_logging(f'No such file: {path}', level='pwt', backtrack=3)
+        do_logging(f'No such file: {path}', backtrack=3)
 
     return data
 
