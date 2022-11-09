@@ -2,6 +2,8 @@ import os, glob
 import types
 import importlib
 
+from core.log import do_logging
+
 
 def source_file(file_path):
     """
@@ -85,7 +87,7 @@ def search_for_file(directory, filename, check_duplicates=True):
 
     return target_file
 
-def search_for_all_files(directory, filename, is_suffix=True):
+def search_for_all_files(directory, filename, is_suffix=True, remove_dir=False):
     if not os.path.exists(directory):
         return []
     directory = directory
@@ -100,7 +102,8 @@ def search_for_all_files(directory, filename, is_suffix=True):
             else:
                 if f.startswith(filename):
                     all_target_files.append(os.path.join(root, f))
-    
+    if remove_dir:
+        all_target_files = [f.replace(f'{directory}/', '') for f in all_target_files]
     return all_target_files
 
 def search_for_dirs(directory, dirname, is_suffix=True, name=None):

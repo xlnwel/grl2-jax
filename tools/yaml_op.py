@@ -18,7 +18,7 @@ def load_config(path='config', to_attrdict=True):
         path = path + '.yaml'
     path = default_path(path)
     if not path.exists():
-        do_logging(f'No configuration is found at: {path}', level='pwc', backtrack=3)
+        do_logging(f'No configuration is found at: {path}', level='pwc', backtrack=4)
         return
     with open(path, 'r') as f:
         try:
@@ -29,7 +29,7 @@ def load_config(path='config', to_attrdict=True):
             else:
                 return config
         except yaml.YAMLError as exc:
-            do_logging(f'Fail loading configuration: {path}', level='pwc', backtrack=3)
+            do_logging(f'Fail loading configuration: {path}', level='pwc', backtrack=4)
             print(exc)
 
 # save config to config.yaml

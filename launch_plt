@@ -2,4 +2,4 @@
 
 source activate plt
 
-python -m smart_logger.htmlpage -u cxw -pw imin -wks ~/chenxinwei/cache -p 7006
+python -m smart_logger.htmlpage -u cxw -pw imin -wks ~/chenxinwei/cache -d ~/chenxinwei/grl/html-logs -p 7006

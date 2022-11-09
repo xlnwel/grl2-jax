@@ -7,7 +7,8 @@ import optax
 
 from core.log import do_logging
 from core.typing import AttrDict
-from tools.utils import is_empty
+from jax_tools.jax_utils import compute_norms
+from tools.utils import add_prefix, flatten_dict, is_empty
 from jax_tools import jax_assert
 
 
@@ -75,11 +76,8 @@ def build_optimizer(
         opts.append(optax.add_decayed_weights(weight_decay))
     if clip_norm:
         opts.append(optax.clip_by_global_norm(clip_norm))
-    opt = chain(
-        *opts, 
-        select_optimizer(opt_name)(lr, **opt_kwargs), 
-        name=name
-    )
+    opts.append(select_optimizer(opt_name)(lr, **opt_kwargs))
+    opt = chain(*opts, name=name)
 
     if params is not None:
         state = opt.init(params)
@@ -90,23 +88,24 @@ def compute_gradients(
     loss_fn, 
     params: Dict, 
     kwargs: Dict, 
-    name: str, 
-    by_part=False, 
+    debug=False, 
+    name=None
 ):
-    grads, stats = jax.grad(loss_fn, has_aux=True)(params, **kwargs)
-    stats = _record_grads(stats, grads, name, by_part)
+    grads, stats = jax.grad(
+        loss_fn, has_aux=True)(params, **kwargs)
+    stats = _record_grads(stats, grads, name=name, debug=debug)
     return grads, stats
 
 def compute_meta_gradients(
     loss_fn, 
     params: Dict, 
     kwargs: Dict, 
-    name: str, 
-    by_part=False
+    name=None, 
+    debug=False, 
 ):
     grads, (state, stats) = jax.grad(
         loss_fn, has_aux=True)(params, **kwargs)
-    stats = _record_grads(stats, grads, name, by_part)
+    stats = _record_grads(stats, grads, name=name, debug=debug)
     return grads, (state, stats)
 
 def compute_updates(
@@ -114,17 +113,21 @@ def compute_updates(
     state, 
     opt, 
     stats, 
-    name: str
+    name=None, 
+    debug=False, 
 ):
     updates, state = opt.update(grads, state)
-    if stats is not None:
-        for k, v in updates._asdict().items():
-            v, _ = jax.tree_util.tree_flatten(v)
+    for k, v in updates._asdict().items():
+        k = add_prefix(k, name)
+        if debug:
             if is_empty(v):
                 continue
-            v = jnp.stack(jax.tree_map(jnp.linalg.norm, v))
-            stats[f'{name}/{k}/updates_norm'] = v
-            stats[f'{name}/{k}/total_updates_norm'] = jnp.sum(v)
+            updates_norm = compute_norms(v)
+            updates_norm = flatten_dict(
+                updates_norm, prefix=k, suffix='updates/norm')
+            stats.update(updates_norm)
+        global_norm = optax.global_norm(v)
+        stats[f'{k}/total_updates/norm'] = global_norm
 
     return updates[-1], state, stats
 
@@ -138,29 +141,28 @@ def optimize(
     state: Union[Dict, Sequence], 
     kwargs: Dict, 
     opt, 
-    name
+    name=None, 
+    debug=False, 
 ):
     grads, stats = compute_gradients(
-        loss_fn=loss_fn, params=params, kwargs=kwargs, name=name)
+        loss_fn=loss_fn, params=params, 
+        kwargs=kwargs, name=name, 
+        debug=debug)
     updates, state, stats = compute_updates(
-        grads, state, opt, stats, name)
+        grads, state, opt, stats, name=name, debug=debug)
     params = apply_updates(params, updates)
     return params, state, stats
 
-def _record_grads(stats, grads, name, by_part):
-    if by_part:
-        for k, v in grads.items():
-            v, _ = jax.tree_util.tree_flatten(v)
-            if v:
-                grads_norm = jnp.stack(jax.tree_map(jnp.linalg.norm, v))
-                stats[f'{name}/{k}/grads_norm'] = grads_norm
-                stats[f'{name}/{k}/total_grads_norm'] = jnp.sum(grads_norm)
-    else:
-        raw_grads, _ = jax.tree_util.tree_flatten(grads)
-        if raw_grads:
-            grads_norm = jnp.stack(jax.tree_map(jnp.linalg.norm, raw_grads))
-            stats[f'{name}/grads_norm'] = grads_norm
-            stats[f'{name}/total_grads_norm'] = jnp.sum(grads_norm)
+def _record_grads(stats, grads, name, debug):
+    if debug:
+        grads_norm = compute_norms(grads)
+        grads_norm = flatten_dict(
+            grads_norm, prefix=name, suffix='grads/norm')
+        stats.update(grads_norm)
+    global_norm = optax.global_norm(grads)
+    k = add_prefix('total_grads/norm', name)
+    stats[k] = global_norm
+
     return stats
 
 

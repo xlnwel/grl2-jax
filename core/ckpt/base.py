@@ -1,5 +1,5 @@
 import os
-from typing import Dict
+from typing import Dict, Sequence
 
 from core.ckpt.pickle import Checkpoint
 from core.typing import AttrDict, ModelPath, dict2AttrDict
@@ -30,6 +30,10 @@ class ParamsCheckpointBase:
         self.params: Dict[str, Dict] = AttrDict()
         self._ckpt = Checkpoint(self.config, name=self.name)
 
+    @property
+    def filedir(self):
+        return self._ckpt.get_filedir()
+
     """ Checkpoint Operations """
     def set_weights(self):
         raise NotImplementedError
@@ -39,8 +43,10 @@ class ParamsCheckpointBase:
         if self._ckpt is not None:
             self._ckpt.reset_model_path(model_path)
 
-    def restore(self):
-        params = self._ckpt.restore(list(self.params))
+    def restore(self, params: Sequence[str]=None):
+        if params is None:
+            params = list(self.params)
+        params = self._ckpt.restore(params)
         self.set_weights(params)
         
     def save(self):

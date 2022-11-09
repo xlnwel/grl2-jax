@@ -16,7 +16,6 @@ from core.remote.base import RayBase
 from core.typing import ModelPath
 from env.func import create_env
 from env.typing import EnvOutput
-from tools.display import print_dict_info
 from tools.timer import Timer
 from tools.utils import dict2AttrDict
 
@@ -24,7 +23,7 @@ from tools.utils import dict2AttrDict
 class MultiAgentSimRunner(RayBase):
     def __init__(
         self, 
-        runner_id,
+        runner_id, 
         configs: Union[List[dict], dict], 
         store_data: bool, 
         evaluation: bool, 
@@ -230,17 +229,17 @@ class MultiAgentSimRunner(RayBase):
         assert len(model_paths) == len(self.current_models), (model_paths, self.current_models)
         self.current_models = model_paths
 
-    def set_weights_from_configs(self, configs: List[dict], filename='params'):
+    def set_weights_from_configs(self, configs: List[dict], name='params'):
         assert len(configs) == len(self.current_models) == self.n_agents, (configs, self.current_models)
         for aid, (config, agent) in enumerate(zip(configs, self.agents)):
             model = ModelPath(config['root_dir'], config['model_name'])
-            set_weights_for_agent(agent, model, filename=filename)
+            set_weights_for_agent(agent, model, name=name)
             self.current_models[aid] = model
 
-    def set_weights_from_model_paths(self, models: List[ModelPath], filename='params'):
+    def set_weights_from_model_paths(self, models: List[ModelPath], name='params'):
         assert len(models) == len(self.current_models) == self.n_agents, (models, self.current_models)
         for aid, (model, agent) in enumerate(zip(models, self.agents)):
-            set_weights_for_agent(agent, model, filename=filename)
+            set_weights_for_agent(agent, model, name=name)
             self.current_models[aid] = model
 
     def set_running_steps(self, n_steps):
@@ -282,7 +281,7 @@ class MultiAgentSimRunner(RayBase):
             #     for a, o in zip(agents, agent_env_outs)])
             action, terms = [], []
             for aid, (agent, o) in enumerate(zip(agents, agent_env_outs)):
-                with Timer(f'{aid}/infer') as it:
+                with Timer(f'a{aid}/infer') as it:
                     a, t = agent(o, evaluation=self.evaluation)
                 action.append(a)
                 terms.append(t)
@@ -368,7 +367,7 @@ class MultiAgentSimRunner(RayBase):
                     action.append([])
                     terms.append([])
                     continue
-                with Timer(f'{aid}/infer') as it:
+                with Timer(f'a{aid}/infer') as it:
                     a, t = agent(o, evaluation=self.evaluation)
                 action.append(a)
                 terms.append(t)
@@ -480,7 +479,6 @@ class MultiAgentSimRunner(RayBase):
                     if self.is_agent_active[aid] and buffer.is_full():
                         rid, data, n = buffer.retrieve_all_data()
                         self.remote_buffers[aid].merge_data.remote(rid, data, n)
-
                         update_rms(aid, data)
 
         step = 0
@@ -631,6 +629,9 @@ class MultiAgentSimRunner(RayBase):
 
     def _send_run_stats(self, aid, env_steps, n_episodes):
         stats = self.agents[aid].get_raw_stats()
+        train_step = self.agents[aid].strategy.step_counter.get_train_step()
+        stats['rid'] = self.id
+        stats['train_steps'] = train_step
         stats['env_steps'] = env_steps
         stats['n_episodes'] = n_episodes
         model = self.current_models[aid]

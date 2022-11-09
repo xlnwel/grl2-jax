@@ -41,6 +41,9 @@ def construct_fake_data(env_stats, aid):
 
 
 class Trainer(TrainerBase):
+    def add_attributes(self):
+        self.imaginary_theta = self.model.theta
+
     def build_optimizers(self):
         self.opts.theta, self.params.theta = optimizer.build_optimizer(
             params=self.model.theta, 
@@ -50,8 +53,9 @@ class Trainer(TrainerBase):
 
     def compile_train(self):
         self.jit_train = jax.jit(
-            self.raw_train, 
+            self.theta_train, 
         )
+        # self.haiku_tabulate()
     
     def train(self, data):
         self.rng, train_rng = jax.random.split(self.rng)
@@ -77,7 +81,7 @@ class Trainer(TrainerBase):
                 max_record_size=100, 
             )
 
-        return stats        
+        return stats    
 
     def get_theta_params(self):
         weights = {
@@ -90,7 +94,7 @@ class Trainer(TrainerBase):
         self.model.set_weights(weights['model'])
         self.params.theta = weights['opt']
 
-    def raw_train(
+    def theta_train(
         self, 
         theta, 
         rng, 
@@ -113,6 +117,33 @@ class Trainer(TrainerBase):
             for k, v in data.items() if v is not None})
 
         return theta, opt_state, stats
+
+    def imaginary_train(self, data):
+        self.rng, train_rng = jax.random.split(self.rng)
+        epoch_rngs = jax.random.split(train_rng, self.config.n_epochs)
+
+        theta = self.model.theta
+        opt_state = self.params.theta
+        for erng in epoch_rngs:
+            rngs = jax.random.split(erng, self.config.n_mbs)
+            for rng in rngs:
+                with Timer('plain_train'):
+                    theta, opt_state, _ = \
+                        self.jit_train(
+                            theta, 
+                            rng=rng, 
+                            opt_state=opt_state, 
+                            data=data, 
+                        )
+        self.imaginary_theta = theta
+
+    def haiku_tabulate(self, data=None):
+        rng = jax.random.PRNGKey(0)
+        if data is None:
+            data = construct_fake_data(self.env_stats, 0)
+        print(hk.experimental.tabulate(self.theta_train)(
+            self.model.theta, rng, self.params.theta, data
+        ))
 
 
 create_trainer = partial(create_trainer,

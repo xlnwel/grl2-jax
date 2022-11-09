@@ -414,7 +414,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     config = {
-        'env_name': '11_vs_11_easy_stochastic',
+        'env_name': 'academy_3_vs_1_with_keeper',
         'representation': 'custom',
         'rewards': 'scoring,checkpoints', 
         'number_of_left_players_agent_controls': args.left,
@@ -430,9 +430,27 @@ if __name__ == '__main__':
     }
 
     from tools.display import print_dict_info, print_dict
+    from tools.utils import batch_dicts
     env = GRF(**config)
+    left = args.left
+    obs_left = []
+    obs_right = []
     obs = env.reset()
-    print_dict_info(obs[0])
+    obs_left.append(obs[0])
+    obs_right.append(obs[1])
+    for _ in range(3000):
+        a = env.random_action()
+        obs, rew, done, info = env.step(a)
+        obs_left.append(obs[0])
+        obs_right.append(obs[1])
+        if np.all(np.concatenate(done)):
+            obs = env.reset()
+            obs_left.append(obs[0])
+            obs_right.append(obs[1])
+    obs_left = batch_dicts(obs_left)
+    obs_right = batch_dicts(obs_right)
+    print_dict_info(obs_left)
+    print_dict_info(obs_right)
     # o = []
     # o.extend(do_flatten(env._raw_obs()[0]['left_team']))
     # for k, v in env._raw_obs()[0].items():

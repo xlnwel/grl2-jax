@@ -6,18 +6,19 @@ from typing import Dict, List
 import numpy as np
 import ray
 
-
 from ..common.typing import ModelWeights
 from core.ckpt import pickle
 from core.elements.builder import ElementsBuilderVC
+from core.elements.strategy import Strategy
 from core.log import do_logging
 from core.mixin.actor import RMSStats, combine_rms_stats, rms2dict
 from core.remote.base import RayBase
-from core.typing import AttrDict2dict, ModelPath, construct_model_name, \
-    get_aid, get_all_ids, get_basic_model_name
+from core.typing import AttrDict, AttrDict2dict, ModelPath, construct_model_name, exclude_subdict, \
+    get_aid, get_basic_model_name
 from distributed.sync.remote.payoff import PayoffManager
 from rule.utils import is_rule_strategy
 from run.utils import search_for_config
+from tools.display import print_dict_info
 from tools.timer import Every
 from tools.utils import config_attr, dict2AttrDict
 from tools import yaml_op
@@ -44,7 +45,6 @@ def _divide_runners(n_agents, n_runners, online_frac):
     n_online_runners = n_runners - n_agent_runners * n_agents
     assert n_agent_runners * n_agents + n_online_runners == n_runners, \
         (n_agent_runners, n_agents, n_online_runners, n_runners)
-
     return n_online_runners, n_agent_runners
 
 
@@ -79,7 +79,7 @@ class ParameterServer(RayBase):
         self._params: List[Dict[ModelPath, Dict]] = [{} for _ in range(self.n_agents)]
         self._prepared_strategies: List[List[ModelWeights]] = \
             [[None for _ in range(self.n_agents)] for _ in range(self.n_runners)]
-        self._ready = [False for _ in range(self.n_runners)]
+        self._reset_ready()
 
         self._rule_strategies = set()
 
@@ -106,6 +106,8 @@ class ParameterServer(RayBase):
             self.add_rule_strategies(
                 self.config.rule_strategies, local=succ)
 
+    def _reset_ready(self):
+        self._ready = [False for _ in range(self.n_runners)]
 
     def build(
         self, 
@@ -162,11 +164,20 @@ class ParameterServer(RayBase):
         return dists
 
     def get_runner_stats(self):
-        stats = {
-            'online_frac': _get_online_frac(self.online_frac),
-            'n_online_runners': self.n_online_runners, 
-            'n_agent_runners': self.n_agent_runners, 
-        }
+        if self._iteration == 1:
+            stats = AttrDict({
+                'iteration': self._iteration, 
+                'online_frac': 1,
+                'n_online_runners': self.n_runners, 
+                'n_agent_runners': 0, 
+            })
+        else:
+            stats = AttrDict({
+                'iteration': self._iteration, 
+                'online_frac': _get_online_frac(self.online_frac),
+                'n_online_runners': self.n_online_runners, 
+                'n_agent_runners': self.n_agent_runners, 
+            })
 
         return stats
 
@@ -209,15 +220,14 @@ class ParameterServer(RayBase):
                 [None for _ in range(self.n_agents)] 
                 for _ in range(self.n_runners)
             ]
-            self._ready = [False] *self.n_runners
-            return strategies
+            self._ready = [False] * self.n_runners
         else:
             if not self._ready[rid]:
                 return None
             strategies = self._prepared_strategies[rid]
             self._prepared_strategies[rid] = [None for _ in range(self.n_agents)]
             self._ready[rid] = False
-            return strategies
+        return strategies
 
     def update_and_prepare_strategy(
         self, 
@@ -261,8 +271,8 @@ class ParameterServer(RayBase):
                 self._ready[rid] = all(
                     [m is not None for m in self._prepared_strategies[rid]]
                 )
-        
-        def prepare_historical_models(aid, mid, model_weights):
+
+        def prepare_historical_models(aid, mid, model_weights: ModelWeights):
             rid_min = self.n_online_runners + aid * self.n_agent_runners
             rid_max = self.n_online_runners + (aid + 1) * self.n_agent_runners
             mids = get_model_ids(aid, mid, model_weights)
@@ -397,6 +407,7 @@ class ParameterServer(RayBase):
             if model in self._opp_dist:
                 del self._opp_dist[model]
         self._iteration += 1
+        self._reset_ready()
         self.update_runner_distribution(self._iteration)
         self.save()
 
@@ -443,7 +454,7 @@ class ParameterServer(RayBase):
         assert isinstance(model, ModelPath), model
         payoffs, self._opp_dist[model] = self.payoff_manager.\
             get_opponent_distribution(aid, model)
-        do_logging(f'Updating opponent distributions for agent {aid}: {self._opp_dist[model]} \nwith payoffs {payoffs}', level='pwtc')
+        do_logging(f'Updating opponent distributions for agent {aid}: {self._opp_dist[model]} with payoffs {payoffs}')
 
     def sample_strategies_for_evaluation(self):
         if self._all_strategies is None:
@@ -494,21 +505,28 @@ class ParameterServer(RayBase):
     def save_params(
         self, 
         model: ModelPath, 
-        filename='params'
+        name='params'
     ):
         assert model in self._active_models, (model, self._active_models)
-        aid, iid, vid = get_all_ids(model.model_name)
-        filedir = construct_model_name(self._dir, aid, iid, vid)
-        pickle.save(self._params[aid][model], filedir, filename)
+        aid = get_aid(model.model_name)
+        if 'model' in self._params[aid][model]:
+            pickle.save_params(
+                self._params[aid][model]['model'], model, f'{name}/model')
+        if 'opt' in self._params[aid][model]:
+            pickle.save_params(
+                self._params[aid][model]['opt'], model, f'{name}/opt')
+        rest_params = exclude_subdict(self._params[aid][model], 'model', 'opt')
+        if rest_params:
+            pickle.save_params(rest_params, model, name)
 
     def restore_params(
         self, 
         model: ModelPath, 
-        filename='params'
+        name='params'
     ):
-        aid, iid, vid = get_all_ids(model.model_name)
-        filedir = construct_model_name(self._dir, aid, iid, vid)
-        self._params[aid][model] = pickle.restore(filedir, filename)
+        aid = get_aid(model.model_name)
+        params = pickle.restore_params(model, name)
+        self._params[aid][model] = params
 
     def save(self):
         self.payoff_manager.save()
@@ -544,6 +562,7 @@ class ParameterServer(RayBase):
             return True
         else:
             return False
+
 
 if __name__ == '__main__':
     from env.func import get_env_stats

@@ -26,11 +26,6 @@ class LossBase:
         """ Add some additional attributes and do some post processing here """
         pass
 
-    def log_for_debug(self, tape, stats, debug=True, **data):
-        if debug and self.config.get('debug', True):
-            with tape.stop_recording():
-                stats.update(data)
-
 
 class LossEnsemble(Ensemble):
     def __init__(

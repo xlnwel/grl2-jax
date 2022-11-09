@@ -1,5 +1,7 @@
 import numpy as np
 
+from core.typing import AttrDict
+
 
 class FeatureEncoder:
     def __init__(self) -> None:
@@ -22,14 +24,20 @@ class FeatureEncoder:
             player_num = obs["active"]
         # assert player_num == obs['active'], (player_num, obs['active'])
 
+        new_obs = AttrDict()
+
         player_pos_x, player_pos_y = obs["left_team"][player_num]
+        new_obs.player_pos = obs["left_team"][player_num]
         player_direction = np.array(obs["left_team_direction"][player_num])
-        player_speed = np.linalg.norm(player_direction)
+        new_obs.player_speed = player_direction
         player_role = obs["left_team_roles"][player_num]
-        player_role_onehot = self._encode_role_onehot(player_role)
+        new_obs.player_role = self._encode_role_onehot(player_role)
         player_tired = obs["left_team_tired_factor"][player_num]
+        new_obs.player_tired = player_tired
         is_dribbling = obs["sticky_actions"][9]
+        new_obs.is_dribbling = is_dribbling
         is_sprinting = obs["sticky_actions"][8]
+        new_obs.is_sprinting = is_sprinting
 
         ball_x, ball_y, ball_z = obs["ball"]
         ball_x_relative = ball_x - player_pos_x
@@ -58,29 +66,6 @@ class FeatureEncoder:
             ball_far = 0.0
 
         avail = self._get_avail_new(obs, ball_distance)
-        # avail = self._get_avail(obs, ball_distance)
-        player_state = np.concatenate(
-            (
-                # avail[2:],
-                obs["left_team"][player_num],
-                player_direction * 100,
-                [player_speed * 100],
-                player_role_onehot,
-                [ball_far, player_tired, is_dribbling, is_sprinting],
-            )
-        )
-
-        ball_state = np.concatenate(
-            (
-                np.array(obs["ball"]),
-                np.array(ball_which_zone),
-                np.array([ball_x_relative, ball_y_relative]),
-                np.array(obs["ball_direction"]) * 20,
-                np.array(
-                    [ball_speed * 20, ball_distance, ball_owned, ball_owned_by_us]
-                ),
-            )
-        )
 
         obs_left_team = np.delete(obs["left_team"], player_num, axis=0)
         obs_left_team_direction = np.delete(
@@ -96,7 +81,7 @@ class FeatureEncoder:
         ).reshape(-1, 1)
         left_team_state = np.concatenate(
             (
-                left_team_relative * 2,
+                left_team_relative,
                 obs_left_team_direction * 100,
                 left_team_speed * 100,
                 left_team_distance * 2,
@@ -323,27 +308,53 @@ class FeatureEncoder:
         if (-END_X <= ball_x and ball_x < -PENALTY_X) and (
             -PENALTY_Y < ball_y and ball_y < PENALTY_Y
         ):
-            return [1.0, 0, 0, 0, 0, 0]
+            zone = [1.0, 0, 0, 0, 0, 0]
         elif (-END_X <= ball_x and ball_x < -MIDDLE_X) and (
             -END_Y < ball_y and ball_y < END_Y
         ):
-            return [0, 1.0, 0, 0, 0, 0]
+            zone = [0, 1.0, 0, 0, 0, 0]
         elif (-MIDDLE_X <= ball_x and ball_x <= MIDDLE_X) and (
             -END_Y < ball_y and ball_y < END_Y
         ):
-            return [0, 0, 1.0, 0, 0, 0]
+            zone = [0, 0, 1.0, 0, 0, 0]
         elif (PENALTY_X < ball_x and ball_x <= END_X) and (
             -PENALTY_Y < ball_y and ball_y < PENALTY_Y
         ):
-            return [0, 0, 0, 1.0, 0, 0]
+            zone = [0, 0, 0, 1.0, 0, 0]
         elif (MIDDLE_X < ball_x and ball_x <= END_X) and (
             -END_Y < ball_y and ball_y < END_Y
         ):
-            return [0, 0, 0, 0, 1.0, 0]
+            zone = [0, 0, 0, 0, 1.0, 0]
         else:
-            return [0, 0, 0, 0, 0, 1.0]
+            zone = [0, 0, 0, 0, 0, 1.0]
+        return np.array(zone)
 
     def _encode_role_onehot(self, role_num):
         result = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         result[role_num] = 1.0
         return np.array(result)
+
+
+if __name__ == '__main__':
+    import gfootball.env as football_env
+    from tools.display import print_dict_info, print_dict
+
+    left = 3
+    right = 2
+    env = football_env.create_environment(
+        'academy_3_vs_1_with_keeper', 
+        representation='raw', 
+        number_of_left_players_agent_controls=left, 
+        number_of_right_players_agent_controls=right
+    )
+    obs = env.reset()
+    for _ in range(10):
+        a = np.random.randint(0, 19, left+right)
+        o, _, _, _ = env.step(a)
+        print([oo['left_team_active'] for oo in o])
+        print([oo['right_team_active'] for oo in o])
+    # print(len(obs))
+    # encoder = FeatureEncoder()
+    # for o in obs:
+    #     o = encoder(o)
+    #     print_dict_info(o)

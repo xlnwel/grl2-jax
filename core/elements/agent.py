@@ -8,7 +8,6 @@ from core.monitor import Monitor
 from core.typing import ModelPath, get_algo, AttrDict
 from distributed.sync.common.typing import ModelWeights
 from run.utils import search_for_config
-from tools.display import print_dict_info
 
 
 class Agent:
@@ -40,7 +39,6 @@ class Agent:
 
         if to_restore:
             self.restore()
-        # print_dict_info(self.strategy.model.params)
 
     @property
     def name(self):
@@ -123,9 +121,13 @@ class Agent:
         for s in self.strategies.values():
             s.save()
     
-    def restore(self):
+    def restore(self, skip_model=False, skip_actor=False, skip_trainer=False):
         for s in self.strategies.values():
-            s.restore()
+            s.restore(
+                skip_model=skip_model, 
+                skip_actor=skip_actor, 
+                skip_trainer=skip_trainer
+            )
 
 
 def create_agent(**kwargs):

@@ -6,25 +6,19 @@ import chex
 
 """ TODO: applying mask to logits instead of probs """
 def kl_from_distributions(
-    *,
-    pi1=None, 
-    pi2=None,
-    pi1_mean=None,  
-    pi1_std=None,  
-    pi2_mean=None,  
-    pi2_std=None,  
-    pi_mask=None,
+    *, 
+    p_logits=None, 
+    q_logits=None, 
+    p_mean=None, 
+    q_mean=None, 
+    p_std=None,  
+    q_std=None,  
 ):
-    if pi1 is None:
+    if p_logits is None:
         kl = rlax.multivariate_normal_kl_divergence(
-            pi1_mean, pi1_std, pi2_mean, pi2_std)
+            p_mean, p_std, q_mean, q_std)
     else:
-        log_pi1 = lax.log(jnp.maximum(pi1, 1e-10))
-        log_pi2 = lax.log(jnp.maximum(pi2, 1e-10))
-        log_ratio = log_pi1 - log_pi2
-        if pi_mask is not None:
-            log_ratio = jnp.where(pi_mask, log_ratio, 0)
-        kl = jnp.sum(pi1 * log_ratio, axis=-1)
+        kl = rlax.categorical_kl_divergence(p_logits, q_logits)
 
     return kl
 
@@ -34,9 +28,11 @@ def kl_from_samples(
     logq, 
     sample_prob, 
 ):
+    if sample_prob is None:
+        sample_prob = 1.
     log_ratio = logp - logq
-    approx_kl = -lax.exp(logq) * lax.stop_gradient(
-        lax.sign(log_ratio) * lax.exp(log_ratio) / sample_prob)
+    p = lax.exp(logp)
+    approx_kl = p * lax.stop_gradient((log_ratio + 1) / sample_prob)
     return approx_kl
 
 def reverse_kl_from_samples(
@@ -45,9 +41,11 @@ def reverse_kl_from_samples(
     logq, 
     sample_prob
 ):
-    log_ratio = logp - logq
-    approx_kl = lax.exp(logp) \
-        * lax.stop_gradient(log_ratio / sample_prob)
+    if sample_prob is None:
+        sample_prob = 1.
+    p = lax.exp(logp)
+    q = lax.exp(logq)
+    approx_kl = q * lax.stop_gradient(p / q / sample_prob)
     return approx_kl
 
 def js_from_samples(
@@ -127,10 +125,10 @@ def tsallis_from_distributions(
     *,
     pi1=None, 
     pi2=None,
-    pi1_mean=None,  
-    pi1_std=None,  
-    pi2_mean=None,  
-    pi2_std=None,  
+    p_mean=None,  
+    p_std=None,  
+    q_mean=None,  
+    q_std=None,  
     pi_mask=None,
     tsallis_q, 
 ):

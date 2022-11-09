@@ -44,7 +44,7 @@ def get_norm(name):
 
 
 def calculate_scale(name, param=None):
-    """ a replica of torch.nn.init.calculate_gain """
+    """ a jax replica of torch.nn.init.calculate_gain """
     m = {
         None: 1, 
         'sigmoid': 1, 
@@ -57,7 +57,7 @@ def calculate_scale(name, param=None):
 
 def get_initializer(name, **kwargs):
     """ 
-    Return a kernel initializer by name
+    Return a parameter initializer by name
     """
     scale = kwargs.get('scale', 1.)
     inits = {
@@ -71,8 +71,14 @@ def get_initializer(name, **kwargs):
     }
     if isinstance(name, str):
         name = name.lower()
-        assert name in inits, name
-        return inits[name]
+        if name in inits:
+            return inits[name]
+        elif name.startswith('const'):
+            val = float(name.split('_')[-1])
+            act = initializers.Constant(val)
+            return act
+        else:
+            ValueError(f'Unknonw initializer: {name}')
     else:
         return name
 

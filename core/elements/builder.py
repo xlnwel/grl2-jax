@@ -413,7 +413,8 @@ class ElementsBuilder:
         config: dict=None, 
         env_stats: dict=None,
         save_monitor_stats_to_disk: bool=True,
-        save_config: bool=True
+        save_config: bool=True, 
+        to_restore: bool=True, 
     ):
         elements = self.build_strategy_from_scratch(
             config=config, 
@@ -423,8 +424,9 @@ class ElementsBuilder:
         )
         elements.agent = self.build_agent(
             strategy=elements.strategy, 
-            monitor=elements.monitor,
-            config=config,
+            monitor=elements.monitor, 
+            config=config, 
+            to_restore=to_restore
         )
         
         return elements

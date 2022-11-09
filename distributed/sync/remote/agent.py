@@ -1,16 +1,15 @@
-import os
 import threading
 import ray
 
 from tools.timer import Timer
 
-from .parameter_server import ParameterServer
-from ..common.typing import ModelStats, ModelWeights
 from core.elements.builder import ElementsBuilder
 from core.elements.strategy import Strategy
 from core.log import do_logging
-from core.monitor import Monitor
 from core.remote.base import RayBase
+from .monitor import Monitor
+from .parameter_server import ParameterServer
+from ..common.typing import ModelStats, ModelWeights
 
 
 class Agent(RayBase):
@@ -21,12 +20,11 @@ class Agent(RayBase):
         parameter_server: ParameterServer=None,
         monitor: Monitor=None
     ):
-        os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
         super().__init__(config['aid'], seed=config.get('seed'))
 
         self.aid = config['aid']
         self.parameter_server = parameter_server
-        self.monitor = monitor
+        self.monitor: Monitor = monitor
 
         self.builder: ElementsBuilder = ElementsBuilder(
             config=config, 

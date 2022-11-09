@@ -6,6 +6,7 @@ import pandas as pd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from core.log import do_logging
 from core.typing import ModelPath
 from tools.file import search_for_dirs
 from tools import yaml_op
@@ -32,6 +33,9 @@ def parse_args():
     parser.add_argument('--target', '-t', 
                         type=str,
                         default='html-logs')
+    parser.add_argument('--date', '-d', 
+                        type=str,
+                        default=None)
     args = parser.parse_args()
 
     return args
@@ -76,11 +80,16 @@ if __name__ == '__main__':
     args = parse_args()
     
     config_name = 'config.yaml' 
+    player0_config_name = 'config_p0.yaml' 
     js_name = 'parameter.json'
     record_name = 'record.txt'
     process_name = 'progress.csv'
+    date = args.date
+    print('Loading logs on date:', date)
     for p in args.prefix:
         for d in search_for_dirs(args.directory, p, is_suffix=False, name=args.name):
+            if date is not None and date not in d:
+                continue
             target_dir = d.replace(args.directory, args.target)
             print(f'copy from {d} to {target_dir}')
             if not os.path.isdir(target_dir):
@@ -92,10 +101,16 @@ if __name__ == '__main__':
             record_path = '/'.join([d, record_name])
             process_path = '/'.join([target_dir, process_name])
             print('yaml path', yaml_path)
-            if not os.path.exists(yaml_path) or not os.path.exists(record_path):
-                print(f'{yaml_path} does not exist')
+            if not os.path.exists(yaml_path):
+                new_yaml_path = '/'.join([d, player0_config_name])
+                if os.path.exists(new_yaml_path):
+                    yaml_path = new_yaml_path
+                else:
+                    do_logging(f'{yaml_path} does not exist', level='pwc')
+                    continue
+            if not os.path.exists(record_path):
+                do_logging(f'{record_path} does not exist', level='pwc')
                 continue
-                
             # save config
             config = yaml_op.load_config(yaml_path)
             to_remove_keys = ['root_dir', 'seed']

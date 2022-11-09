@@ -45,6 +45,25 @@ def compute_values(
 
     return value, next_value
 
+def compute_policy_dist(
+    func, 
+    params, 
+    rng, 
+    x, 
+    sid, 
+    idx, 
+    event, 
+    action_mask=None
+):
+    hx = get_hx(sid, idx, event)
+    act_out = func(params, rng, x, hx, action_mask=action_mask)
+    if isinstance(act_out, tuple):
+        act_dist = jax_dist.MultivariateNormalDiag(*act_out)
+    else:
+        act_dist = jax_dist.Categorical(act_out)
+    return act_dist
+
+
 def compute_policy(
     func, 
     params, 
@@ -69,18 +88,25 @@ def compute_policy(
             [next_x, next_sid, next_idx, next_event, next_action_mask], 
             axis=seq_axis
         )
-    hx = get_hx(sid, idx, event)
-    act_out = func(params, rng, x, hx=hx, action_mask=action_mask)
-    if isinstance(act_out, tuple):
-        act_dist = jax_dist.MultivariateNormalDiag(*act_out)
-    else:
-        act_dist = jax_dist.Categorical(act_out)
+    act_dist = compute_policy_dist(
+        func, params, rng, x, sid, idx, event, action_mask)
     pi_logprob = act_dist.log_prob(action)
     jax_assert.assert_shape_compatibility([pi_logprob, mu_logprob])
     log_ratio = pi_logprob - mu_logprob
     ratio = lax.exp(log_ratio)
 
     return act_dist, pi_logprob, log_ratio, ratio
+
+def compute_next_obs_dist(
+    func, 
+    params, 
+    rng, 
+    x, 
+    action, 
+):
+    dist = func(params, rng, x, action)
+
+    return dist
 
 def prefix_name(terms, name):
     if name is not None:
@@ -92,23 +118,6 @@ def prefix_name(terms, name):
                 new_terms[k] = v
         return new_terms
     return terms
-
-def compute_inner_steps(config):
-    if config.K is not None and config.L is not None:
-        config.inner_steps = config.K + config.L
-    else:
-        config.inner_steps = None
-    if config.inner_steps == 0:
-        config.inner_steps = None
-
-    return config
-
-def compute_meta_step_discount(config):
-    if config.msmg_type == 'wavg':
-        config.kappa = kappa = 1 - 1 / config.K
-        config.kappa_weight = (1 - kappa) / (1 - kappa**config.K)
-
-    return config
 
 def get_basics(
     config: AttrDict, 
@@ -162,8 +171,6 @@ def get_data_format(
     basic_shape, shapes, dtypes, action_shape, \
         action_dim, action_dtype = \
         get_basics(config, env_stats)
-    if meta:
-        basic_shape = (config.inner_steps + config.extra_meta_step,) + basic_shape
     if config.timeout_done:
         obs_shape = [s+1 if i == (2 if meta else 1) else s 
             for i, s in enumerate(basic_shape)]
@@ -218,58 +225,3 @@ def collect(buffer, env, env_step, reset, obs, next_obs, **kwargs):
             )
 
     buffer.add(**kwargs, reset=reset)
-
-
-def compute_joint_stats(
-    config, 
-    func, 
-    params, 
-    rng, 
-    hidden_state, 
-    next_hidden_state, 
-    sid, 
-    next_sid, 
-    reward, 
-    discount, 
-    reset, 
-    ratio, 
-    pi_logprob, 
-    gamma, 
-    lam, 
-    sample_mask
-):
-    hidden_state = hidden_state[:, :, 0]
-    if next_hidden_state is not None:
-        next_hidden_state = next_hidden_state[:, :, 0]
-    value, next_value = compute_values(
-        func, 
-        params, 
-        rng, 
-        hidden_state, 
-        next_hidden_state, 
-        sid=sid, 
-        next_sid=next_sid
-    )
-    if sample_mask is not None:
-        bool_mask = jnp.asarray(sample_mask, bool)
-        ratio = jnp.where(bool_mask, ratio, 1.)
-        pi_logprob = jnp.where(bool_mask, pi_logprob, 0.)
-    joint_ratio = jnp.prod(ratio, axis=-1)
-    joint_pi_logprob = jnp.sum(pi_logprob, axis=-1)
-
-    v_target, advantage = jax_loss.compute_target_advantage(
-        config=config, 
-        reward=jnp.mean(reward, axis=-1), 
-        discount=jnp.max(discount, axis=-1), 
-        reset=reset[:, :, 0], 
-        value=lax.stop_gradient(value), 
-        next_value=next_value, 
-        ratio=lax.stop_gradient(joint_ratio), 
-        gamma=gamma, 
-        lam=lam, 
-    )
-    jax_assert.assert_shape_compatibility([
-        joint_ratio, joint_pi_logprob, value, v_target, advantage
-    ])
-    
-    return value, joint_ratio, joint_pi_logprob, v_target, advantage

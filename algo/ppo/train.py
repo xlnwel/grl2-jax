@@ -6,7 +6,7 @@ from core.elements.builder import ElementsBuilder
 from core.log import do_logging
 from core.mixin.actor import rms2dict
 from core.utils import configure_gpu, set_seed
-from tools.utils import TempStore
+from tools.utils import TempStore, batch_dicts
 from tools.run import Runner
 from tools.timer import Every, Timer
 from tools import pkg
@@ -14,6 +14,7 @@ from env.func import create_env
 
 
 def train(config, agent, env, eval_env_config, buffer):
+    life_long = env.stats().life_long
     routine_config = config.routine
     config.env = eval_env_config
     collect_fn = pkg.import_module(
@@ -28,6 +29,9 @@ def train(config, agent, env, eval_env_config, buffer):
     step = agent.get_env_step()
     runner = Runner(
         env, agent, step=step, nsteps=routine_config.n_steps, info_func=info_func)
+    if life_long:
+        info = batch_dicts(env.info(), list)
+        agent.store(**info)
 
     def initialize_rms():
         print('Start to initialize running stats...')
@@ -48,8 +52,14 @@ def train(config, agent, env, eval_env_config, buffer):
     runner.step = step
     # print("Initial running stats:", 
     #     *[f'{k:.4g}' for k in agent.get_rms_stats() if k])
-    to_record = Every(routine_config.LOG_PERIOD, final=routine_config.MAX_STEPS)
-    to_eval = Every(routine_config.EVAL_PERIOD, final=routine_config.MAX_STEPS)
+    to_record = Every(
+        routine_config.LOG_PERIOD, 
+        start=1000, 
+        final=routine_config.MAX_STEPS)
+    to_eval = Every(
+        routine_config.EVAL_PERIOD, 
+        start=1000, 
+        final=routine_config.MAX_STEPS)
     rt = Timer('run')
     tt = Timer('train')
     et = Timer('eval')
@@ -72,30 +82,13 @@ def train(config, agent, env, eval_env_config, buffer):
 
     def record_stats(step, start_env_step, train_step, start_train_step):
         aux_stats = agent.actor.get_rms_stats()
-        # actor_vars = agent.trainer.model['meta'].policy.variables
-        # actor_vars = tensor2numpy(actor_vars)
-        # assert len(actor_vars) == 2, actor_vars
-        # agent.store(
-        #     policy11=actor_vars[0][0, 0],
-        #     policy12=actor_vars[0][0, 1],
-        #     policy21=actor_vars[0][1, 0],
-        #     policy22=actor_vars[0][1, 1]
-        # )
         aux_stats = rms2dict(aux_stats)
         with lt:
             agent.store(**{
                 'stats/train_step': agent.get_train_step(),
-                'time/run': rt.total(), 
-                'time/train': tt.total(),
-                'time/eval': et.total(),
-                'time/log': lt.total(),
-                'time/run_mean': rt.average(), 
-                'time/train_mean': tt.average(),
-                'time/eval_mean': et.average(),
-                'time/log_mean': lt.average(),
                 'time/fps': (step-start_env_step)/rt.last(), 
                 'time/tps': (train_step-start_train_step)/tt.last(),
-            }, **aux_stats)
+            }, **Timer.all_stats(), **aux_stats)
             agent.record(step=step)
             agent.save()
 
@@ -138,7 +131,10 @@ def train(config, agent, env, eval_env_config, buffer):
                 _, _, video = ray.get(eval_process)
                 agent.video_summary(video, step=step, fps=1)
             eval_process = evaluate_agent(step, agent)
-        if agent.contains_stats('score') and to_record(step):
+        if to_record(step):
+            if life_long:
+                info = batch_dicts(env.info(), list)
+                agent.store(**info)
             record_stats(step, start_env_step, train_step, start_train_step)
 
 def main(configs, train=train, gpu=-1):

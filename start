@@ -7,8 +7,7 @@ suite=$2
 env=${suite}-$3
 config=$4
 s=$5
-date=$(date +"%m%d")
-date=0916
+date=$(date -d '+8 hour' +"%m%d")
 for x in $(seq 1 5); do
     shift
 done

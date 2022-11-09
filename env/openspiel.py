@@ -37,15 +37,11 @@ class OpenSpiel:
         self.obs_shape = [dict(
             obs=(state_size, ), 
             global_state=(state_size, ), 
-            prev_reward=(), 
-            prev_action=(ad,), 
-            action_mask=(ad, )
+            action_mask=(ad,)
         ) for ad in self.action_dim]
         self.obs_dtype = [dict(
             obs=np.float32, 
             global_state=np.float32, 
-            prev_reward=np.float32, 
-            prev_action=np.float32, 
             action_mask=bool
         ) for _ in range(self.n_agents)]
 
@@ -95,9 +91,10 @@ class OpenSpiel:
     def get_obs(self, time_step):
         uid = max(time_step.observations['current_player'], 0)
         info_state = np.array(time_step.observations['info_state'][uid], dtype=np.float32)
-        action_mask = np.zeros(self.action_dim[uid], bool)
+        info_state = np.expand_dims(info_state, 0)
+        action_mask = np.zeros((1, self.action_dim[uid]), bool)
         legal_action = time_step.observations['legal_actions'][uid]
-        action_mask[legal_action] = 1
+        action_mask[0, legal_action] = 1
         obs = dict(
             obs=info_state, 
             global_state=info_state, 

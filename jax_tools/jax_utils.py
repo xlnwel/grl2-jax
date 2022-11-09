@@ -1,18 +1,17 @@
 import numpy as np
-import jax
-from jax import lax
+from jax import lax, random, tree_util
 import jax.numpy as jnp
 
 from jax_tools import jax_assert
 
 
 def tree_map(f, x):
-    x = jax.tree_util.tree_map(
+    x = tree_util.tree_map(
         lambda x: x if x is None else f(x), x)
     return x
 
 def random_generator(seed):
-    key = jax.random.PRNGKey(seed)
+    key = random.PRNGKey(seed)
     return key
 
 def split_data(x, next_x=None, axis=1):
@@ -53,3 +52,7 @@ def jnp2np(data):
     data = tree_map(lambda x: np.array(x) 
         if isinstance(x, jnp.DeviceArray) else x, data)
     return data
+
+def compute_norms(tree):
+    tree = tree_util.tree_map(jnp.linalg.norm, tree)
+    return tree

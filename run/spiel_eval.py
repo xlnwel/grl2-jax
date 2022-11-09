@@ -23,18 +23,18 @@ from open_spiel.python import rl_environment
 from open_spiel.python.algorithms import exploitability, policy_aggregator
 import os, sys
 import numpy as np
+from jax import nn
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core.elements.builder import ElementsBuilder
 from core.log import setup_logging
-from core.tf_config import *
-from core.typing import ModelPath, get_basic_model_name
+from core.utils import *
+from core.typing import ModelPath, get_basic_model_name, dict2AttrDict
 from core.ckpt.pickle import set_weights_for_agent
 from env.func import create_env
 from run.args import parse_eval_args
 from run.utils import search_for_all_configs, search_for_config
-from tools.utils import dict2AttrDict, set_seed
 
 
 class RLPolicy(policy.Policy):
@@ -74,7 +74,7 @@ class RLPolicy(policy.Policy):
             obs[k] = np.expand_dims(np.expand_dims(v, 0), 0)
 
         _, terms, _ = self._agent.actor(obs)
-        probs = np.squeeze(terms['pi'])
+        probs = np.squeeze(nn.softmax(terms['mu_logits']))
         prob_dict = {action: probs[action] for action in legal_actions}
         return prob_dict
 
@@ -112,12 +112,12 @@ class JointPolicy(policy.Policy):
             obs[k] = np.expand_dims(np.expand_dims(v, 0), 0)
 
         _, terms, _ = self._agents[cur_player].actor(obs)
-        probs = np.squeeze(terms['pi'])
+        probs = np.squeeze(nn.softmax(terms['mu_logits']))
         prob_dict = {action: probs[action] for action in legal_actions}
         return prob_dict
 
 def build_agent(builder, config, env):
-    filename = 'params'
+    name = 'params'
     model = ModelPath(config['root_dir'], config['model_name'])
     agent = builder.build_acting_agent_from_scratch(
         config, 
@@ -130,7 +130,7 @@ def build_agent(builder, config, env):
     while True:
         try:
             # Exception happens when the file is written by the training process
-            set_weights_for_agent(agent, model, filename=filename)
+            set_weights_for_agent(agent, model, name=name)
             break
         except Exception as e:
             print('Set weights failed:', e)
@@ -194,9 +194,7 @@ def main(
     env = create_env(config.env)
 
     set_seed(config.seed)
-    silence_tf_logs()
     configure_gpu(None)
-    configure_precision(config.precision)
 
     nash_conv = {'step': step}
 

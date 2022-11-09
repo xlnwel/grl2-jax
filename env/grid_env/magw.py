@@ -2,9 +2,8 @@ import numpy as np
 
 from tools.feature import one_hot
 from .Agent import Agent
-# import matplotlib
-# matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+plt.switch_backend('Agg')
 import random
 from env.utils import compute_aid2uids
 
@@ -103,15 +102,15 @@ class MultiAgentGridWorldEnv:
         self.use_event = use_event
         self.stag_stay_still = stag_stay_still
 
-        self._event = np.zeros((self.num_agents, self.NUM_EVENTS))
-
         self.obs_shape = [dict(
             obs=o.shape, 
             global_state=o.shape, 
+            main_reward=(), 
         ) for o in self.observation_space]
         self.obs_dtype = [dict(
             obs=np.float32, 
             global_state=np.float32, 
+            main_reward=np.float32, 
         ) for o in self.observation_space]
         for shp, dtp in zip(self.obs_shape, self.obs_dtype):
             if use_idx:
@@ -123,13 +122,18 @@ class MultiAgentGridWorldEnv:
             if use_event:
                 shp['event'] = (self.NUM_EVENTS,)
                 dtp['event'] = np.float32
+                shp['event_discount'] = ()
+                dtp['event_discount'] = np.float32
 
         self.action_shape = [a.shape for a in self.action_space]
         self.action_dim = [a.n for a in self.action_space]
         self.action_dtype = [np.int32 for a in self.action_space]
         self.is_action_discrete = True
+
+        self._event = np.zeros((self.num_agents, self.NUM_EVENTS))
         self._event1 = 0
         self._event2 = 0
+        self._event_discount = np.ones((self.n_agents,), dtype=np.float32)
 
         self.is_multi_agent = is_multi_agent
         # self.use_life_mask = False
@@ -399,6 +403,7 @@ class MultiAgentGridWorldEnv:
             if pos[i]!=pos[i+1] or pos[i]!=list(self.stag_pos):
                 coop_flag=False
         self.together_num += together_flag
+        self.coop_flag = coop_flag
         if coop_flag:
             self.coop_num += 1
             for i in range(self.num_agents):
@@ -520,13 +525,11 @@ class MultiAgentGridWorldEnv:
             self.StagHuntUpdateMap()
 
         rewards = []
-        dones = []
         infos = {}
         
         for i in range(self.num_agents):
             reward = self.agents[i].compute_reward() * self.reward_scale
             rewards.append(reward)
-            dones.append(self.agents[i].get_done())
             
         collective_return = 0
         for i in range(self.num_agents):
@@ -548,16 +551,16 @@ class MultiAgentGridWorldEnv:
         if self.shape_reward:
             rewards = list(map(lambda x :x[0] * self.shape_beta + x[1] * (1-self.shape_beta), zip([global_reward] * self.num_agents, rewards)))
 
-        observations = self._get_obs()
-        rewards = np.stack(rewards).astype(np.float32)
-        dones = np.stack(dones).astype(np.float32)
-
         if self.eid == -1:
             print('next obs', observations['obs'][0][:2])
 
         self._dense_score += reward
         self._score = collective_return * np.ones_like(self._score)
         self._epslen += 1
+
+        observations = self._get_obs(self.coop_flag, self._epslen == self.max_episode_steps)
+        rewards = np.stack(rewards).astype(np.float32)
+        dones = (np.ones_like if self._epslen == self.max_episode_steps else np.zeros_like)(rewards, np.float32)
 
         infos['dense_score'] = self._dense_score
         infos['score'] = self._score
@@ -567,26 +570,39 @@ class MultiAgentGridWorldEnv:
 
         return observations, rewards, dones, infos
 
-    def _get_obs(self):
+    def _get_obs(self, coop=False, done=False):
+        if coop:
+            reward = np.ones(2, dtype=np.float32)
+        else:
+            reward = np.zeros(2, dtype=np.float32)
         o = np.stack([self.get_obs_agent(i) for i in range(self.num_agents)]).astype(np.float32)
-        obs = {'obs': o, 'global_state': o.copy()}
+        obs = {'obs': o, 'global_state': o.copy(), 'main_reward': reward}
         if self.use_idx:
             obs['idx'] = np.eye(self.num_agents, dtype=np.float32)
         if self.use_hidden:
             obs['hidden_state'] = obs['obs'].copy()
-        event = self._set_event(o)
-        if self.use_event:
-            obs['event'] = event
+        obs = self._set_event(obs, done)
         return obs
     
-    def _set_event(self, obs):
-        if self._event[0, 0] == -1 and np.all(obs[0] == obs[1]):
+    def _set_event(self, obs, done):
+        if self._event[0, 0] == 1 and np.all(obs['obs'][0] == obs['obs'][1]):
             self._event[:, 0] = 0
             self._event[:, 1] = 1
+            event_discount = np.zeros(self.n_units)
+        else:
+            event_discount = np.ones(self.n_units)
+        if done:
+            event_discount[:] = 0
         self._event1 += self._event[0, 0]
         self._event2 += self._event[0, 1]
+        assert np.all(self._event.sum(-1) == 1), self._event
+
+        if not self.use_event:
+            return obs
+        obs['event'] = self._event.copy()
+        obs['event_discount'] = event_discount
         
-        return self._event
+        return obs
 
     def reset(self):
         """Reset the environment. Required after each full episode.
@@ -597,7 +613,8 @@ class MultiAgentGridWorldEnv:
 
         self._event = np.zeros((self.num_agents, self.NUM_EVENTS), dtype=np.float32)
         self._event[:, 0] = 1
-        observations = self._get_obs()
+        self._event[:, 1] = 0
+        observations = self._get_obs(done=True)
 
         self._dense_score = np.zeros(self.num_agents, np.float32)
         self._score = np.zeros(self.num_agents, np.float32)
@@ -605,6 +622,7 @@ class MultiAgentGridWorldEnv:
         self._event1 = 1
         self._event2 = 0
         self.together_num = 0
+        self.coop_flag = 0
         
         if self.eid == -1:
             print('reset', observations['obs'][0][:2])
@@ -658,10 +676,19 @@ if __name__ == '__main__':
         use_hidden=True,
         use_event=True
     )
+    done = True
     obs = env.reset()
     print('reset obs', obs)
-    for _ in range(10):
+    for i in range(101):
+        if not np.any(obs['event_discount']):
+            print(i)
+            if not np.any(done):
+                assert np.all(obs['obs'][0] == obs['obs'][1]), (obs['obs'], done)
+            print('event', obs['event'])
+            print('event_discount', obs['event_discount'])
+            print('done', done)
         a = env.random_action()
         obs, rew, done, info = env.step(a)
-        print(obs)
-        env.render()
+        if np.all(done):
+            obs = env.reset()
+        # env.render()

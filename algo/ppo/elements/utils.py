@@ -45,6 +45,25 @@ def compute_values(
 
     return value, next_value
 
+def compute_policy_dist(
+    func, 
+    params, 
+    rng, 
+    x, 
+    sid, 
+    idx, 
+    event, 
+    action_mask=None
+):
+    hx = get_hx(sid, idx, event)
+    act_out = func(params, rng, x, hx, action_mask=action_mask)
+    if isinstance(act_out, tuple):
+        act_dist = jax_dist.MultivariateNormalDiag(*act_out)
+    else:
+        act_dist = jax_dist.Categorical(act_out)
+    return act_dist
+
+
 def compute_policy(
     func, 
     params, 
@@ -69,12 +88,8 @@ def compute_policy(
             [next_x, next_sid, next_idx, next_event, next_action_mask], 
             axis=seq_axis
         )
-    hx = get_hx(sid, idx, event)
-    act_out = func(params, rng, x, hx=hx, action_mask=action_mask)
-    if isinstance(act_out, tuple):
-        act_dist = jax_dist.MultivariateNormalDiag(*act_out)
-    else:
-        act_dist = jax_dist.Categorical(act_out)
+    act_dist = compute_policy_dist(
+        func, params, rng, x, sid, idx, event, action_mask)
     pi_logprob = act_dist.log_prob(action)
     jax_assert.assert_shape_compatibility([pi_logprob, mu_logprob])
     log_ratio = pi_logprob - mu_logprob

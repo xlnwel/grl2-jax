@@ -1,114 +1,77 @@
-import tensorflow as tf
-from tf_core.tf_config import configure_gpu
-from tf_nn.func import mlp
-from optimizers.rmsprop import RMSprop
-from tools.utils import set_seed
+import numpy as np
+import jax
+import jax.numpy as jnp
+import haiku as hk
+import optax
+from core.optimizer import build_optimizer, optimize
 
-configure_gpu(0)
-set_seed(0)
 
-meta_opt = RMSprop(1e-3)
-inner_opt = RMSprop(1e-3)
 n_steps = 2
-meta_tape = tf.GradientTape(persistent=True)
-l = mlp([2, 4], out_size=1, activation='relu')
-# l = tf.keras.layers.Dense(1)
-c = tf.Variable(1,dtype=tf.float32)
+def mlp_fn(x):
+    l = hk.Sequential([hk.Linear(1), jax.nn.relu, hk.Linear(1)])
+    return l(x)
+net = hk.transform(mlp_fn)
+rng = jax.random.PRNGKey(42)
 
 
-def compute_hessian_vector(tape, vars1, vars2, out_grads):
-    """ Compute the gradient of vars1
-    vars2 must be a differentiable function of vars1
-    """
-    # with tape:
-    #     out = tf.reduce_sum([tf.reduce_sum(v * g) for v, g in zip(vars2, out_grads)])
-    new_grads = tape.gradient(vars2, vars1, out_grads)
-    return new_grads
+def inner_loss(theta, eta, x):
+    x = net.apply(theta, None, x)
+    # print('inner x', x)
+    loss = jnp.mean(eta * (x-2)**2)
+    return loss, {}
 
-def compute_grads_through_optmizer(tape, vars, grads, trans_grads, out_grads):
-    out_grads = compute_hessian_vector(
-        tape, 
-        grads, 
-        trans_grads, 
-        out_grads
-    )
-    grads = compute_hessian_vector(
-        tape, 
-        vars, 
-        grads, 
-        out_grads
-    )
-    return grads
+def outer_loss(eta, theta, opt_state, x, opt):
+    for _ in range(n_steps):
+        theta, opt_state, _ = optimize(
+            inner_loss, 
+            params=theta, 
+            state=opt_state, 
+            kwargs=dict(
+                eta=eta, 
+                x=x, 
+            ), 
+            opt=opt, 
+            name='theta'
+        )
+    x = net.apply(theta, None, x)
+    ol = jnp.mean((1-x)**2)
+    return ol, (theta, opt_state)
 
-# @tf.function
-def inner(x):
-    with meta_tape:
-        with tf.GradientTape() as inner_tape:
-            x = l(x)
-            # print('inner x', x)
-            loss = tf.reduce_mean(c * (x-2)**2)
-        grads = inner_tape.gradient(loss, l.variables)
-        inner_opt.apply_gradients(zip(grads, l.variables))
-    trans_grads = list(inner_opt.get_transformed_grads().values())
-    return trans_grads
+def blo(theta, eta, opt_state, eta_opt_state, x, opt, eta_opt):
+    (loss, (theta, opt_state)), mg = jax.value_and_grad(
+        outer_loss, has_aux=True)(eta, theta, opt_state, x, opt)
+    update, eta_opt_state = eta_opt.update(mg, eta_opt_state)
+    print('eta state', eta_opt_state)
+    eta = optax.apply_updates(eta, update)
+    return theta, opt_state, eta, eta_opt_state, loss
 
-
-# @tf.function
-def meta(
-    x, 
-    vars1, 
-    vars2, 
-    trans_grads1, 
-    trans_grads2, 
-    trans_grads3, 
-):
-    with meta_tape:
-        x = l(x)
-        loss = tf.reduce_mean((1 - x)**2)
-    out_grads = meta_tape.gradient(loss, l.variables)
-    grads3 = meta_tape.gradient(
-        trans_grads3, c, out_grads
-    )
-    out_grads1 = meta_tape.gradient(
-        trans_grads3, vars2, out_grads
-    )
-    out_grads = [o1 + o2 for o1, o2 in zip(out_grads, out_grads1)]
-    
-    grads2 = meta_tape.gradient(
-        trans_grads2, c, out_grads
-    )
-    out_grads1 = meta_tape.gradient(
-        trans_grads2, vars1, out_grads
-    )
-    out_grads = [o1 + o2 for o1, o2 in zip(out_grads, out_grads1)]
-    grads1 = meta_tape.gradient(
-        trans_grads1, c, out_grads
-    )
-    grads_list = [
-        grads3, grads2, grads1]
-    return grads_list
-
-
-# @tf.function
-def outer(x):
-    trans_grads1 = inner(x)
-    var1 = l.variables
-    trans_grads2 = inner(x)
-    var2 = l.variables
-    trans_grads3 = inner(x)
-    # print('grads list', trans_grads1, trans_grads2, trans_grads3)
-    grads = meta(
-        x, 
-        var1,
-        var2,
-        trans_grads1,
-        trans_grads2, 
-        trans_grads3, 
-    )
-    return grads
 
 if __name__ == '__main__':
-    x = tf.random.uniform((2, 3))
-    print('x', x)
-    grads = outer(x)
-    print('grads', grads)
+    config = dict(
+        opt_name='adam', 
+        lr=3e-4, 
+        clip_norm=.5,
+        b1=0, 
+        b2=0, 
+        # eps_root=1e-4, 
+        eps=1
+    )
+    np.random.seed(42)
+    eta = np.array(1, dtype='float32')
+    x = np.random.uniform(size=(2, 3))
+    theta = net.init(rng, x)
+    print('theta', theta)
+    theta_opt, theta_state = build_optimizer(
+        params=theta, 
+        **config, 
+        name='theta'
+    )
+    eta_opt, eta_state = build_optimizer(
+        params=eta, 
+        **config, 
+        name='eta'
+    )
+    print('meta state', eta_state)
+    theta, opt_state, eta, eta_opt_state, loss = blo(
+        theta, eta, theta_state, eta_state, x, theta_opt, eta_opt)
+    # print(eta)

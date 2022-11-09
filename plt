@@ -2,12 +2,11 @@
 
 source activate grl
 
-date=$(date +"%m%d")
-date=0825
 
 while true
 do
-    rm -rf html-logs
-    python run/html_plt.py $1 -p $2
-    sleep 30m
+    date=$(date -d '+8 hour' +"%m%d")
+    # rm -rf html-logs
+    python run/html_plt.py $1 -p $2 #-d $date
+    sleep 10m
 done

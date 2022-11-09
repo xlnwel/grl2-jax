@@ -93,8 +93,9 @@ class VecEnvBase():
     def __init__(self, config, env_fn=make_env, agents={}):
         self.n_envs = n_envs = config.pop('n_envs', 1)
         self.name = config['env_name']
-        self.envs = [env_fn(
-            config, config['eid'] + eid if 'eid' in config else None, agents)
+        if 'eid' not in config:
+            config['eid'] = 0
+        self.envs = [env_fn(config, config['eid'] + eid)
             for eid in range(n_envs)]
         self.env = self.envs[0]
         if config.get('seed') is not None and hasattr(self.env, 'seed'):

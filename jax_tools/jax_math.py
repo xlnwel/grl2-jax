@@ -1,5 +1,5 @@
-import jax
-from jax import lax
+from typing import Dict, Union
+from jax import lax, nn, scipy
 import jax.numpy as jnp
 
 from . import jax_assert
@@ -38,20 +38,30 @@ def standard_normalization(
     n=None, 
     axis=None, 
     epsilon=1e-8, 
-    clip=None
 ):
     mean, var = mask_moments(x, mask=mask, n=n, axis=axis)
     std = lax.sqrt(var + epsilon)
     if zero_center:
         x = x - mean
     x = x / std
-    if clip is not None:
-        x = jnp.clip(x, -clip, clip)
+
+    return x
+
+def clip(x, clip: Union[int, float, Dict]):
+    if clip:
+        if isinstance(clip, dict):
+            pos = clip['pos']
+            neg = clip['neg']
+        else:
+            pos = clip
+            neg = -clip
+        x = jnp.clip(x, neg, pos)
+
     return x
 
 def explained_variance(y, pred, axis=None, mask=None, n=None):
     jax_assert.assert_shape_compatibility([y, pred])
-    y_var = jnp.var(y, axis=axis)
+    y_var = jnp.var(y, axis=axis) + 1e-8
     diff_var = jnp.var(y - pred, axis=axis)
     ev = jnp.maximum(-1., 1-(diff_var / y_var))
     ev = mask_mean(ev, mask=mask, n=n)
@@ -59,9 +69,9 @@ def explained_variance(y, pred, axis=None, mask=None, n=None):
 
 def softmax(x, tau, axis=-1):
     """ sfotmax(x / tau) """
-    return jax.nn.softmax(x / tau, axis=axis)
+    return nn.softmax(x / tau, axis=axis)
 
 def logsumexp(x, tau, axis=None, keepdims=False):
     """ tau * tf.logsumexp(x / tau) """
-    y = jax.scipy.special.logsumexp(x, axis=axis, keepdims=keepdims, b=tau)
+    y = scipy.special.logsumexp(x, axis=axis, keepdims=keepdims, b=tau)
     return tau * y

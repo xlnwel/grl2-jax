@@ -1,9 +1,8 @@
 from typing import List
 
-from core.typing import ModelPath
+from core.typing import ModelPath, AttrDict
 from gt.func import select_sampling_strategy
 from gt.payoff import PayoffTableWithModel
-from core.typing import AttrDict
 from tools.utils import dict2AttrDict
 
 

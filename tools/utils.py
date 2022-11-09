@@ -38,15 +38,32 @@ def deep_update(source: dict, target: dict):
             source[k] = v
     return source
 
-def flatten_dict(d: dict):
+def add_prefix(s, prefix):
+    if prefix is not None:
+        s = f'{prefix}/{s}'
+    return s
+
+def add_suffix(s, suffix):
+    if suffix is not None:
+        s = f'{s}/{suffix}'
+    return s
+
+def flatten_dict(d: dict, prefix=None, suffix=None):
     result = {}
     for k, v in d.items():
         if isinstance(v, dict):
-            v = flatten_dict(v)
+            v = flatten_dict(v, suffix=suffix)
             for kk, vv in v.items():
                 result[f'{k}/{kk}'] = vv
         else:
+            k = add_suffix(k, suffix)
             result[k] = v
+    if prefix is not None:
+        old_result = result
+        result = {}
+        for k, v in old_result.items():
+            result[add_prefix(k, prefix)] = v
+
     return result
 
 def recursively_remove(d: dict, keys: list):
@@ -459,13 +476,13 @@ def product_flatten_dict(**kwargs):
     return result
 
 def batch_dicts(x, func=np.stack, to_attrdict=False):
-    keys = x[0].keys()
-    vals = [o.values() for o in x]
-    vals = [func(v) for v in zip(*vals)]
-    x = {k: v for k, v in zip(keys, vals)}
-    if to_attrdict:
-        x = dict2AttrDict(x, shallow=True)
-    return x
+    res = AttrDict()
+    for k, v in x[0].items():
+        if isinstance(v, dict):
+            res[k] = batch_dicts([xx[k] for xx in x])
+        else:
+            res[k] = func([xx[k] for xx in x])
+    return res
 
 def convert_batch_with_func(data, func=np.stack):
     if data != []:

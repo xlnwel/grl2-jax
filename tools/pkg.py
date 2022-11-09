@@ -1,5 +1,7 @@
 import importlib
 
+from core.log import do_logging
+
 
 def pkg_str(root_dir, separator, base_name=None):
     if base_name is None:
@@ -25,7 +27,8 @@ def get_package(root_dir, base_name=None, separator='.'):
             if importlib.util.find_spec(pkg) is not None:
                 pkg = pkg_str(indexed_root_dir, separator, base_name)
                 return pkg
-        except:
+        except Exception as e:
+            do_logging(f'{e}', backtrack=3)
             return None
     return None
 

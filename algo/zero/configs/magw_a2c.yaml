@@ -14,28 +14,31 @@ routine:
     algorithm: *algo
 
     MAX_STEPS: 5e7
-    n_steps: &nsteps 4
+    n_steps: &nsteps 16
     LOG_PERIOD: 1e5
-    EVAL_PERIOD: 1e6
+    EVAL_PERIOD: null
 
     RECORD_VIDEO: True
     N_EVAL_EPISODES: 1
     size: [256, 256]
 
+    run_with_future_opponents: False
+    n_imaginary_runs: 1
+
 env:
-    env_name: &env_name grid_world-staghunt
+    env_name: &env_name magw-staghunt
     n_runners: &nrunners 1
-    n_envs: &nenvs 32
+    n_envs: &nenvs 8
     max_episode_steps: 50
     share_reward: False
     stag_stay_still: True
-    reward_scale: .1
+    reward_scale: 1
     population_size: 1
-    representation: raw
+    representation: one_hot
 
-    uid2aid: [0, 0]
-    use_idx: True
-    use_hidden: True
+    uid2aid: [0, 1]
+    use_idx: False
+    use_hidden: False
     use_event: False
 
 agent: {}
@@ -47,23 +50,12 @@ strategy:
 model:
     aid: 0
     rnn_type: &rnn null
-    joint_objective: &jo False
-    rl_reward: &rlreward meta
     gamma: &gamma .99
-    eval_act_temp: 1
-    meta_reward_type: intrinsic
-    K: &K 0
-    L: &L 0
-    extra_meta_step: &ems 1 # 0/1
 
     encoder: 
         nn_id: null
     rnn:
         nn_id: *rnn
-        units: 64
-        w_init: orthogonal
-        recurrent_initializer: orthogonal
-        use_ln: True
     policy:
         nn_id: policy
         units_list: [64, 64]
@@ -71,7 +63,7 @@ model:
         activation: relu
         norm: null
         out_scale: .01
-        index: head
+        index: null
         index_config: 
             use_shared_bias: False
             use_bias: True
@@ -82,93 +74,20 @@ model:
         w_init: orthogonal
         activation: relu
         norm: null
-        index: head
-        index_config:
-            use_shared_bias: False
-            use_bias: True
-            w_init: orthogonal
-    outer_value:
-        nn_id: value
-        units_list: [64, 64]
-        w_init: orthogonal
-        activation: relu
-        norm: null
         index: null
-        index_config:
+        index_config: 
             use_shared_bias: False
             use_bias: True
             w_init: orthogonal
-    meta_reward: 
-        nn_id: reward
+    emodels:
+        nn_id: emodels
+        n: 7
+        max_logvar: .5
+        min_logvar: -10
         units_list: [64, 64]
         w_init: orthogonal
         activation: relu
         norm: null
-        out_scale: .01
-        out_act: atan
-        combine_xa: False
-        rescale: 5
-        index: head
-        index_config:
-            use_shared_bias: False
-            use_bias: True
-            w_init: orthogonal
-    meta_params:
-        nn_id: meta
-        pg_coef:
-            outer: 1
-            default: 1
-            init: null
-            act: sigmoid
-        entropy_coef:
-            outer: 1e-2
-            default: 1e-2
-            scale: 1e-2
-            bias: 0
-            init: null
-            act: sigmoid
-        value_coef:
-            outer: 1
-            default: 1
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
-        gamma: 
-            outer: *gamma
-            default: *gamma
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
-        lam:
-            outer: .95
-            default: .95
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
-        reward_scale:
-            outer: 1
-            default: 1
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
-        reward_bias:
-            outer: 0
-            default: 0
-            scale: 1
-            bias: 0
-            init: null
-            act: null
-        reward_coef:
-            outer: 1
-            default: 1
-            scale: 1
-            bias: 0
-            init: null
-            act: sigmoid
 
 loss:
     # hyperparams for value target and advantage
@@ -177,7 +96,6 @@ loss:
     rho_clip: 1
     adv_type: vtrace
     norm_adv: False
-    norm_meta_adv: False
 
     # hyperparams for policy optimization
     pg_type: pg
@@ -193,11 +111,13 @@ loss:
     value_loss: mse
     value_clip_range: .2
     value_life_mask: False
-    stop_target_grads: False
 
-    # hyperparams for meta-learning
-    meta_reward_coef: 0
-    joint_objective: *jo
+    stats:
+        gamma: *gamma
+        lam: .95
+        pg_coef: 1
+        entropy_coef: .1
+        value_coef: .5
 
 trainer:
     algorithm: *algo
@@ -206,46 +126,23 @@ trainer:
     n_envs: *nenvs
     n_epochs: &nepochs 1
     n_mbs: &nmbs 1
-    n_meta_epochs: 1
     n_steps: *nsteps         # BPTT length
     timeout_done: &td True
 
-    K: *K
-    L: *L
-    msmg_type: avg
-    extra_meta_step: *ems
-    store_state: True
-    event_done: False
-
     theta_opt:
-        opt_name: rmsprop
-        lr: 3e-3
+        opt_name: adam
+        lr: 1e-3
         clip_norm: 10
-        eps: 1e-4
-    phi_opt:
-        opt_name: rmsprop
-        lr: 3e-3
-        clip_norm: 10
-        eps: 1e-4
-    meta_params_opt:
-        opt_name: rmsprop
-        lr: 3e-3
-        clip_norm: 1
-        eps: 1e-4
-    meta_reward_opt:
-        opt_name: rmsprop
-        lr: 3e-3
-        clip_norm: 1
-        eps: 1e-4
+        eps: 1e-5
 
 actor:
     update_obs_rms_at_execution: False
     update_obs_at_execution: False
     rms:
-        obs_names: [obs, global_state, hidden_state]
+        obs_names: [obs]
         obs_normalized_axis: [0, 1, 2]
         reward_normalized_axis: [0, 1, 2]
-        normalize_obs: True
+        normalize_obs: False
         obs_clip: 10
         normalize_reward: False
         update_reward_rms_in_time: False
@@ -258,9 +155,6 @@ buffer:
     n_envs: *nenvs
     n_steps: *nsteps
     queue_size: 2
-    K: *K
-    L: *L
-    extra_meta_step: *ems
     timeout_done: *td
     rnn_type: *rnn
 

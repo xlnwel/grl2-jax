@@ -1,3 +1,5 @@
+import os
+import warnings
 from typing import Any, List
 import ray
 
@@ -6,6 +8,8 @@ from core.utils import configure_gpu, set_seed
 
 class RayBase:
     def __init__(self, id=None, seed=None):
+        os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
+        warnings.filterwarnings("ignore")
         configure_gpu()
         if seed is not None:
             if id is not None:

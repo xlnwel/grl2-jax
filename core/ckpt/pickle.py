@@ -4,40 +4,78 @@ import cloudpickle
 from core.log import do_logging
 from core.typing import ModelPath
 from tools import yaml_op
+from tools.display import print_dict_info
+from tools.file import search_for_all_files
 
 
-def save(data, filedir, filename):
-    if not os.path.isdir(filedir):
-        os.makedirs(filedir)
-    
-    path = f'{filedir}/{filename}.pkl'
-    with open(path, 'wb') as f:
-        cloudpickle.dump(data, f)
-    do_logging(f'Saving parameters in "{path}"', level='info', time=True, backtrack=3)
-
-def restore(filedir, filename):
-    path = f'{filedir}/{filename}.pkl'
-    if os.path.exists(path):
-        try:
-            with open(path, 'rb') as f:
-                data = cloudpickle.load(f)
-                do_logging(f'Restoring parameters from "{path}"', backtrack=3)
-        except Exception as e:
-            do_logging(f'Failing restoring parameters from {path}', backtrack=3)
-    else:
-        data = {}
-        do_logging(f'No such file: {path}', backtrack=3)
-
-    return data
+def _ckpt_filename(filedir, filename):
+    if filedir is not None:
+        filename = f'{filedir}/{filename}'
+    if not filename.endswith('.pkl'):
+        filename = f'{filename}.pkl'
+    return filename
 
 def set_weights_for_agent(
     agent, 
     model: ModelPath, 
-    filename='params'
+    name='params', 
+    backtrack=5
 ):
-    weights = restore('/'.join(model), filename)
+    weights = restore_params(model, name, backtrack=backtrack)
     agent.set_weights(weights)
 
+def save(data, *, filedir, filename, backtrack=3):
+    if not os.path.isdir(filedir):
+        os.makedirs(filedir)
+    filename = _ckpt_filename(filedir, filename)
+    with open(filename, 'wb') as f:
+        cloudpickle.dump(data, f)
+    do_logging(f'Saving parameters in "{filename}"', backtrack=backtrack)
+
+def restore(*, filedir=None, filename, backtrack=3):
+    """ Retrieve data from filedir/filename
+    filename specifies the whole path if filedir is None
+    """
+    filename = _ckpt_filename(filedir, filename)
+    data = {}
+    if os.path.exists(filename):
+        try:
+            with open(filename, 'rb') as f:
+                data = cloudpickle.load(f)
+                do_logging(f'Restoring parameters from "{filename}"', backtrack=backtrack)
+        except Exception as e:
+            do_logging(f'Failing restoring parameters from {filename}', backtrack=backtrack)
+    else:
+        do_logging(f'No such file: {filename}', backtrack=backtrack)
+
+    return data
+
+def get_filedir(model_path: ModelPath, name: str, *args):
+    return '/'.join([*model_path, name, *args])
+
+def save_params(params, model_path: ModelPath, name, backtrack=4):
+    filedir = get_filedir(model_path, name)
+    for k, v in params.items():
+        save(v, filedir=filedir, filename=k, backtrack=backtrack)
+
+def restore_params(model_path: ModelPath, name, filenames=None, backtrack=4):
+    filedir = get_filedir(model_path, name)
+    if filenames is None:
+        filenames = search_for_all_files(filedir, '.pkl', remove_dir=True)
+    params = {}
+    for filename in filenames:
+        weights = restore(
+            filedir=filedir, filename=filename, backtrack=backtrack)
+        filename = filename.replace('.pkl', '')
+        if weights:
+            if '/' in filename:
+                name1, name2 = filename.split('/')
+                if name1 not in params:
+                    params[name1] = {}
+                params[name1][name2] = weights
+            else:
+                params[filename] = weights
+    return params
 
 class Checkpoint:
     def __init__(
@@ -51,43 +89,17 @@ class Checkpoint:
         else:
             self._model_path = None
         self._name = name
-        if self._model_path is not None:
-            self.filename_path = self.get_filedir('filename')
-            self.filenames = yaml_op.load_config(self.filename_path)
-        else:
-            self.filename_path = None
-            self.filenames = None
-        if self.filenames:
-            self.filenames = self.filenames['ckpt']
-        else:
-            self.filenames = []
         
     """ Save & Restore Model """
     def reset_model_path(self, model_path: ModelPath):
         self._model_path = model_path
-        self.filename_path = self.get_filedir('filename')
 
     def save(self, params):
-        path = self.get_filedir()
-        if self.filenames != list(params):
-            self.filenames = list(params)
-            yaml_op.save_config({
-                'ckpt': self.filenames}, path=self.filename_path)
-        for k, v in params.items():
-            save(v, path, k)
+        save_params(params, self._model_path, self._name)
 
     def restore(self, filenames=None):
-        if filenames is None:
-            filenames = self.filenames
-        params = {}
-        if filenames:
-            path = self.get_filedir()
-            for filename in self.filenames:
-                weights = restore(path, filename)
-                if weights:
-                    params[filename] = weights 
-        return params
+        return restore_params(self._model_path, self._name, filenames)
 
     def get_filedir(self, *args):
         assert self._model_path is not None, self._model_path
-        return '/'.join([*self._model_path, self._name, *args])
+        return get_filedir(self._model_path, self._name, *args)

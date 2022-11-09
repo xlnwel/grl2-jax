@@ -33,6 +33,8 @@ class Model(ParamsCheckpointBase):
         self.modules: Dict[str, hk.Module] = AttrDict()
         self.rng = self._prngkey()
         self.act_rng = self.rng
+
+        self.add_attributes()
         self.build_nets()
         self.compile_model()
 
@@ -44,16 +46,23 @@ class Model(ParamsCheckpointBase):
         do_logging(f'Model seed: {seed}')
         return jax.random.PRNGKey(seed)
 
+    def add_attributes(self):
+        pass
+
     def build_nets(self):
         raise NotImplementedError
 
     def compile_model(self):
-        self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
+        # self.jit_action = jax.jit(self.raw_action, static_argnames=('evaluation'))
+        self.jit_action = jax.jit(self.raw_action, static_argnums=(3))
 
     def action(self, data, evaluation):
         self.act_rng, act_rng = jax.random.split(self.act_rng) 
         return self.jit_action(
             self.params, act_rng, data, evaluation)
+
+    def raw_action(self, params, rng, data, evaluation=False):
+        raise NotImplementedError
 
     def get_weights(self, name: str=None):
         """ Returns a list/dict of weights

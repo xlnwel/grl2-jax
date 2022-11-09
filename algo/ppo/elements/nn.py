@@ -4,35 +4,34 @@ import haiku as hk
 
 from core.typing import dict2AttrDict
 from nn.func import mlp, nn_registry
+from nn.index import IndexModule
 from nn.utils import get_activation
 from jax_tools import jax_assert
 """ Source this file to register Networks """
 
 
 @nn_registry.register('policy')
-class Policy(hk.Module):
+class Policy(IndexModule):
     def __init__(
         self, 
         is_action_discrete, 
         action_dim, 
         out_act=None, 
-        init_std=1., 
+        init_std=1, 
         out_scale=.01, 
         name='policy', 
         **config
     ):
-        super().__init__(name=name)
-        self.config = dict2AttrDict(config, to_copy=True)
-        self.out_size = action_dim
-
         self.action_dim = action_dim
         self.is_action_discrete = is_action_discrete
         self.out_act = out_act
         self.init_std = init_std
 
+        config['out_scale'] = out_scale
+        super().__init__(config=config, out_size=self.action_dim , name=name)
+
     def __call__(self, x, hx=None, action_mask=None):
-        layers = self.build_net()
-        x = layers(x)
+        x = super().__call__(x, hx)
 
         if self.is_action_discrete:
             if action_mask is not None:
@@ -50,41 +49,26 @@ class Policy(hk.Module):
             )
             return x, logstd
 
-    def build_net(self):
-        layers = mlp(
-            **self.config, 
-            out_size=self.out_size, 
-        )
-        return layers
-
 
 @nn_registry.register('value')
-class Value(hk.Module):
+class Value(IndexModule):
     def __init__(
         self, 
+        out_act=None, 
         out_size=1, 
         name='value', 
         **config
     ):
-        super().__init__(name=name)
-        self.config = dict2AttrDict(config, to_copy=True)
-        self.out_size = out_size
+        self.out_act = get_activation(out_act)
+        super().__init__(config=config, out_size=out_size, name=name)
 
     def __call__(self, x, hx=None):
-        layers = self.build_net()
-        value = layers(x)
+        value = super().__call__(x, hx)
 
         if value.shape[-1] == 1:
             value = jnp.squeeze(value, -1)
-    
+        value = self.out_act(value)
         return value
-
-    def build_net(self):
-        layers = mlp(
-            **self.config, 
-            out_size=self.out_size, 
-        )
-        return layers
 
 
 if __name__ == '__main__':

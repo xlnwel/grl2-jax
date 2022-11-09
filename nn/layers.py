@@ -13,6 +13,7 @@ class Layer:
         norm=None, 
         activation=None, 
         w_init='glorot_uniform', 
+        b_init='zeros', 
         name=None, 
         norm_after_activation=False, 
         norm_kwargs={
@@ -26,6 +27,8 @@ class Layer:
         self.layer_args = args
         scale = kwargs.pop('scale', calculate_scale(activation))
         self.w_init = get_initializer(w_init, scale=scale)
+        self.b_init = get_initializer(b_init)
+        self.layer_kwargs = kwargs
 
         self.norm = norm
         self.norm_kwargs = norm_kwargs
@@ -34,7 +37,13 @@ class Layer:
 
     def __call__(self, x, is_training=True, **kwargs):
         if self.layer_args:
-            x = self.layer_cls(*self.layer_args, w_init=self.w_init, name=self.name)(x)
+            x = self.layer_cls(
+                *self.layer_args, 
+                w_init=self.w_init, 
+                b_init=self.b_init, 
+                name=self.name, 
+                **self.layer_kwargs
+            )(x)
         
         if not self._norm_after_activation:
             x = call_norm(self.norm, self.norm_kwargs, x, is_training=is_training)

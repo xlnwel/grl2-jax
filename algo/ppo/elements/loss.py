@@ -75,6 +75,7 @@ class Loss(LossBase):
         )
         stats.v_target = lax.stop_gradient(v_target)
         stats = record_target_adv(stats)
+
         if self.config.norm_adv:
             stats.advantage = jax_math.standard_normalization(
                 stats.raw_adv, 
@@ -82,7 +83,6 @@ class Loss(LossBase):
                 mask=data.sample_mask, 
                 n=data.n, 
                 epsilon=self.config.get('epsilon', 1e-8), 
-                clip=self.config.adv_clip
             )
         else:
             stats.advantage = stats.raw_adv
@@ -171,6 +171,7 @@ def compute_actor_loss(
 
     return loss, stats
 
+
 def compute_vf_loss(
     config, 
     data, 
@@ -219,6 +220,14 @@ def compute_vf_loss(
     return value_loss, new_stats
 
 
+def record_target_adv(stats):
+    stats.explained_variance = jax_math.explained_variance(
+        stats.v_target, stats.value)
+    stats.v_target_unit_std = jnp.std(stats.v_target, axis=-1)
+    stats.raw_adv_unit_std = jnp.std(stats.raw_adv, axis=-1)
+    return stats
+
+
 def record_policy_stats(data, stats, act_dist):
     stats.diff_frac = jax_math.mask_mean(
         lax.abs(stats.pi_logprob - data.mu_logprob) > 1e-5, 
@@ -235,10 +244,4 @@ def record_policy_stats(data, stats, act_dist):
         stats.pi_std = act_dist.std
         stats.diff_pi_std = act_dist.std - data.mu_std
 
-    return stats
-
-def record_target_adv(stats):
-    stats.explained_variance = jax_math.explained_variance(stats.v_target, stats.value)
-    stats.v_target_unit_std = jnp.std(stats.v_target, axis=-1)
-    stats.raw_adv_unit_std = jnp.std(stats.raw_adv, axis=-1)
     return stats

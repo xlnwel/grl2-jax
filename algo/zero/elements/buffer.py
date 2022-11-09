@@ -7,8 +7,8 @@ from core.elements.buffer import Buffer
 from core.elements.model import Model
 from core.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
-from tools.utils import batch_dicts
-from .utils import compute_inner_steps, collect
+from tools.display import print_dict_info
+from .utils import collect
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class LocalBuffer(Buffer):
         self.config = config
         self.runner_id = runner_id
         self.aid = aid
-        self.n_units = n_units
+        self.n_units = len(env_stats.aid2uids[aid])
 
         self._add_attributes(env_stats, model)
 
@@ -127,8 +127,6 @@ class ACBuffer(Buffer):
             self.sample_keys, self.sample_size = \
                 extract_sampling_keys(self.config, env_stats, model)
 
-        self.config = compute_inner_steps(self.config)
-
         self.n_runners = self.config.n_runners
         self.n_envs = self.n_runners * self.config.n_envs
         self.n_steps = self.config.n_steps
@@ -208,14 +206,8 @@ class ACBuffer(Buffer):
         if not ready:
             return None
         sample = self._sample(sample_keys)
-        if self.config.inner_steps:
-            self._memory.append(sample)
-            if len(self._memory) == self.config.inner_steps + self.config.extra_meta_step:
-                sample = batch_dicts(self._memory)
-                self._memory = []
-            assert len(self._memory) <= self.config.inner_steps + self.config.extra_meta_step
-
         sample = dict2AttrDict(sample, shallow=True)
+
         return sample
 
     """ Implementations """

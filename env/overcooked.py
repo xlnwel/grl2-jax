@@ -6,7 +6,7 @@ from env.overcooked_env.mdp.overcooked_mdp import OvercookedGridworld
 from env.overcooked_env.mdp.overcooked_env import OvercookedEnv
 from env.overcooked_env.planning.planners import MediumLevelActionManager, NO_COUNTERS_PARAMS
 from env.utils import compute_aid2uids
-from tools.utils import AttrDict2dict
+from core.typing import AttrDict2dict
 
 
 REW_SHAPING_PARAMS = {
@@ -241,6 +241,7 @@ if __name__ == '__main__':
     env = Overcooked(config)
     obs = env.reset()
     d = False
+    print(np.all(obs[0]['obs'] == obs[1]['obs']))
     while not np.all(d):
         print(env.get_screen())
         if args.interactive:

@@ -155,8 +155,8 @@ class Strategy:
         pass
 
     """ Checkpoint Ops """
-    def restore(self, skip_actor=False, skip_trainer=False):
-        if self.model is not None:
+    def restore(self, skip_model=False, skip_actor=False, skip_trainer=False):
+        if not skip_model and self.model is not None:
             self.model.restore()
         if not skip_actor and self.actor is not None:
             self.actor.restore_auxiliary_stats()

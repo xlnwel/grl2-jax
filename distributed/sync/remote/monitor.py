@@ -7,13 +7,13 @@ import cloudpickle
 import numpy as np
 import ray
 
-from rule.utils import is_rule_strategy
-
 from .parameter_server import ParameterServer
 from ..common.typing import ModelStats
+from core.log import do_logging
 from core.monitor import Monitor as ModelMonitor
 from core.remote.base import RayBase
 from core.typing import ModelPath
+from rule.utils import is_rule_strategy
 from tools.graph import get_tick_labels
 from tools.timer import Timer
 from tools.utils import dict2AttrDict
@@ -101,6 +101,8 @@ class Monitor(RayBase):
 
     def store_run_stats(self, model_stats: ModelStats):
         model, stats = model_stats
+        assert stats['train_steps'] == self._train_steps[model], (stats['train_steps'], self._train_steps[model])
+        stats.pop('train_steps', None)
         self.build_monitor(model)
         env_steps = stats.pop('env_steps')
         self._env_steps[model] += env_steps

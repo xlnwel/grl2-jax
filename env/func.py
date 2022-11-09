@@ -31,13 +31,14 @@ def create_env(
 ):
     """ Creates an Env/VecEnv from config """
     config = config.copy()
+    config.setdefault('n_envs', 1)
     env_fn = env_fn or make_env
     if config['env_name'].startswith('unity'):
         # Unity handles vectorized environments by itself
         env = Env(config, env_fn, agents=agents)
     elif no_remote or config.get('n_runners', 1) <= 1:
         config['n_runners'] = 1
-        if force_envvec or config.get('n_envs', 1) > 1:
+        if force_envvec or config.n_envs > 1:
             if is_matb_suite(config['env_name']):
                 EnvType = MATBVecEnv
             elif is_ma_suite(config['env_name']):
@@ -49,12 +50,13 @@ def create_env(
         env = EnvType(config, env_fn, agents=agents)
     else:
         from env.ray_env import RayVecEnv
-        EnvType = VecEnv if config.get('n_envs', 1) > 1 else Env
+        EnvType = VecEnv if config.n_envs else Env
         env = RayVecEnv(EnvType, config, env_fn)
     return env
 
 def get_env_stats(config):
     # TODO (cxw): store env_stats in a standalone file for costly environments
+    config.setdefault('n_envs', 1)
     tmp_env_config = config.copy()
     tmp_env_config['n_runners'] = 1
     # we cannot change n_envs for unity environments

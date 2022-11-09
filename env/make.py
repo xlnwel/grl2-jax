@@ -1,4 +1,5 @@
 import gym
+from core.typing import dict2AttrDict
 
 from env import wrappers
 
@@ -34,6 +35,7 @@ def process_single_agent_env(env, config):
 
 
 def _change_env_name(config):
+    config = dict2AttrDict(config, to_copy=True)
     config['env_name'] = config['env_name'].split('-', 1)[-1]
     return config
 
@@ -52,8 +54,16 @@ def make_gym(config):
     config = _change_env_name(config)
     env = gym.make(config['env_name']).env
     env = DummyEnv(env)    # useful for hidding unexpected frame_skip
-    config.setdefault('max_episode_steps', 
-        env.spec.max_episode_steps)
+    config.setdefault('max_episode_steps', env.spec.max_episode_steps)
+    env = process_single_agent_env(env, config)
+
+    return env
+
+
+def make_sagw(config):
+    from env.sagw import env_map
+    config = _change_env_name(config)
+    env = env_map[config['env_name']](**config)
     env = process_single_agent_env(env, config)
 
     return env
@@ -123,8 +133,7 @@ def make_spiel(config):
     from env.openspiel import OpenSpiel
     env = OpenSpiel(**config)
     env = wrappers.TurnBasedProcess(env)
-    env = wrappers.Single2MultiAgent(env, obs_only=True)
-    env = wrappers.SqueezeObs(env, config['squeeze_keys'])
+    # env = wrappers.SqueezeObs(env, config['squeeze_keys'])
     env = wrappers.MATurnBasedEnvStats(env)
 
     return env
@@ -144,7 +153,6 @@ def make_card(config):
 
 def make_smac(config):
     from env.smac import SMAC
-    config = config.copy()
     config = _change_env_name(config)
     env = SMAC(**config)
     env = wrappers.MASimEnvStats(env)
@@ -154,7 +162,6 @@ def make_smac(config):
 
 def make_smac2(config):
     from env.smac2 import SMAC
-    config = config.copy()
     config = _change_env_name(config)
     env = SMAC(**config)
     env = wrappers.MASimEnvStats(env)
@@ -164,7 +171,6 @@ def make_smac2(config):
 def make_overcooked(config):
     assert 'overcooked' in config['env_name'], config['env_name']
     from env.overcooked import Overcooked
-    config = config.copy()
     config = _change_env_name(config)
     env = Overcooked(config)
     if config.get('record_state', False):
@@ -177,7 +183,6 @@ def make_overcooked(config):
 def make_matrix(config):
     assert 'matrix' in config['env_name'], config['env_name']
     from env.matrix import env_map
-    config = config.copy()
     config = _change_env_name(config)
     env = env_map[config['env_name']](**config)
     env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
@@ -186,10 +191,9 @@ def make_matrix(config):
 
     return env
 
-def make_grid_world(config):
-    assert 'grid_world' in config['env_name'], config['env_name']
-    from env.grid_world import env_map
-    config = config.copy()
+def make_magw(config):
+    assert 'magw' in config['env_name'], config['env_name']
+    from env.magw import env_map
     config = _change_env_name(config)
     env = env_map[config['env_name']](**config)
     env = wrappers.MultiAgentUnitsDivision(env, config['uid2aid'])
@@ -202,7 +206,6 @@ def make_grid_world(config):
 def make_grf(config):
     assert 'grf' in config['env_name'], config['env_name']
     from env.grf import GRF
-    config = config.copy()
     config = _change_env_name(config)
     env = GRF(**config)
     env = wrappers.DataProcess(env)
@@ -212,7 +215,6 @@ def make_grf(config):
 
 def make_unity(config):
     from env.unity import Unity
-    config = config.copy()
     config = _change_env_name(config)
     env = Unity(config)
     env = wrappers.ContinuousActionMapper(

@@ -2,6 +2,7 @@ import jax
 from jax import lax
 import jax.numpy as jnp
 import chex
+import rlax
 
 from . import jax_assert, jax_div, jax_math, jax_utils
 
@@ -100,23 +101,6 @@ def inverse_h(x, epsilon=1e-3):
     sqrt_term = lax.sqrt(1. + 4. * epsilon * (lax.abs(x) + 1. + epsilon))
     frac_term = (sqrt_term - 1.) / (2. * epsilon)
     return lax.sign(x) * (lax.square(frac_term) - 1.)
-
-
-def n_step_target(
-    reward, 
-    nth_value, 
-    discount=1., 
-    gamma=.99, 
-    steps=1., 
-    tbo=False
-):
-    """
-    discount is only the done signal
-    """
-    if tbo:
-        return h(reward + discount * gamma**steps * inverse_h(nth_value))
-    else:
-        return reward + discount * gamma**steps * nth_value
 
 
 def retrace(
@@ -308,6 +292,8 @@ def v_trace_from_ratio(
     clipped_rho_pg = jax_math.upper_clip(ratio, rho_clip_pg)
     if adv_type == 'vtrace':
         advs = clipped_rho_pg * (reward + discount * next_vs - value)
+    else:
+        advs = clipped_rho_pg * advs
 
     vs, advs = jax_utils.undo_time_major(vs, advs, dims=dims, axis=axis)
     
@@ -374,7 +360,7 @@ def pg_loss(
     logprob, 
     ratio=1., 
 ):
-    jax_assert.assert_shape_compatibility([advantage, ratio, logprob])
+    jax_assert.assert_shape_compatibility([advantage, logprob])
     ratio = lax.stop_gradient(ratio)
     pg = - (advantage * ratio * logprob)
 
@@ -514,49 +500,46 @@ def compute_kl(
     kl_coef=None, 
     logp=None,
     logq=None, 
-    sample_prob=None, 
-    pi1=None,
-    pi2=None,
-    pi1_mean=None,
-    pi2_mean=None,
-    pi1_std=None,
-    pi2_std=None,
-    pi_mask=None, 
+    sample_prob=1., 
+    p_logits=None,
+    q_logits=None,
+    p_mean=None,
+    p_std=None,
+    q_mean=None,
+    q_std=None,
     sample_mask=None,
     n=None, 
 ):
     if kl_coef is not None:
         if kl_type == 'forward_approx':
             kl = jax_div.kl_from_samples(
-                logp=logp, 
-                logq=logq,
-                sample_prob=sample_prob, 
-            )
-        elif kl_type == 'reverse_approx':
-            kl = jax_div.reverse_kl_from_samples(
                 logp=logq, 
                 logq=logp,
                 sample_prob=sample_prob, 
             )
+        elif kl_type == 'reverse_approx':
+            kl = jax_div.reverse_kl_from_samples(
+                logp=logp, 
+                logq=logq,
+                sample_prob=sample_prob, 
+            )
         elif kl_type == 'forward':
             kl = jax_div.kl_from_distributions(
-                pi1=pi1, 
-                pi2=pi2, 
-                pi1_mean=pi1_mean, 
-                pi1_std=pi1_std, 
-                pi2_mean=pi2_mean, 
-                pi2_std=pi2_std, 
-                pi_mask=pi_mask
+                p_logits=q_logits, 
+                q_logits=p_logits, 
+                p_mean=q_mean, 
+                p_std=q_std, 
+                q_mean=p_mean, 
+                q_std=p_std, 
             )
         elif kl_type == 'reverse':
             kl = jax_div.kl_from_distributions(
-                pi1=pi2, 
-                pi2=pi1, 
-                pi1_mean=pi2_mean, 
-                pi1_std=pi2_std, 
-                pi2_mean=pi1_mean,
-                pi2_std=pi1_std, 
-                pi_mask=pi_mask
+                p_logits=p_logits, 
+                q_logits=q_logits, 
+                p_mean=p_mean, 
+                p_std=p_std, 
+                q_mean=q_mean, 
+                q_std=q_std, 
             )
         else:
             raise NotImplementedError(f'Unknown kl {kl_type}')
@@ -624,10 +607,10 @@ def compute_tsallis(
     sample_prob=None, 
     pi1=None,
     pi2=None,
-    pi1_mean=None,
-    pi2_mean=None,
-    pi1_std=None,
-    pi2_std=None,
+    p_mean=None,
+    q_mean=None,
+    p_std=None,
+    q_std=None,
     pi_mask=None, 
     sample_mask=None,
     n=None, 
@@ -651,10 +634,10 @@ def compute_tsallis(
             tsallis = jax_div.tsallis_from_distributions(
                 pi1=pi1, 
                 pi2=pi2, 
-                pi1_mean=pi1_mean, 
-                pi1_std=pi1_std, 
-                pi2_mean=pi2_mean, 
-                pi2_std=pi2_std, 
+                p_mean=p_mean, 
+                p_std=p_std, 
+                q_mean=q_mean, 
+                q_std=q_std, 
                 pi_mask=pi_mask, 
                 tsallis_q=tsallis_q, 
             )
@@ -662,10 +645,10 @@ def compute_tsallis(
             tsallis = jax_div.tsallis_from_distributions(
                 pi1=pi2, 
                 pi2=pi1, 
-                pi1_mean=pi2_mean, 
-                pi1_std=pi2_std, 
-                pi2_mean=pi1_mean,
-                pi2_std=pi1_std, 
+                p_mean=q_mean, 
+                p_std=q_std, 
+                q_mean=p_mean,
+                q_std=p_std, 
                 pi_mask=pi_mask, 
                 tsallis_q=tsallis_q
             )
@@ -683,3 +666,19 @@ def compute_tsallis(
         tsallis_loss = 0.
 
     return tsallis, raw_tsallis_loss, tsallis_loss
+
+
+def mbpo_model_loss(
+    mean, 
+    logvar, 
+    target, 
+):
+    """ Model loss from MBPO: 
+    https://github.com/jannerm/mbpo/blob/ac694ff9f1ebb789cc5b3f164d9d67f93ed8f129/mbpo/models/bnn.py#L581
+    """
+    inv_var = lax.exp(-logvar)
+
+    mean_loss = jnp.mean((mean - target)**2 * inv_var, -1)
+    var_loss = jnp.mean(logvar, -1)
+
+    return mean_loss, var_loss

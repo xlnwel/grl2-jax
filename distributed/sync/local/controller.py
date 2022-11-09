@@ -51,7 +51,6 @@ def _setup_configs(
     for aid, config in enumerate(configs):
         config.aid = aid
         config.buffer.n_envs = env_stats.n_envs
-        config.buffer.max_size = max_size
         root_dir = config.root_dir
         model_name = '/'.join([config.model_name, f'a{aid}'])
         modify_config(
@@ -221,13 +220,14 @@ class Controller(YAMLCheckpointBase):
         do_logging(f'Training Strategies at Iteration {self._iteration}: {self.current_models}', 
             logger=logger)
 
-        self.agent_manager.build_agents(self.configs)
+        configs = self._prepare_configs(
+            self.n_runners, 
+            self.n_steps, 
+        )
+
+        self.agent_manager.build_agents(configs)
         self.agent_manager.set_model_weights(model_weights, wait=True)
-        do_logging(f'Finish Setting Model Weights', 
-            logger=logger)
         self.agent_manager.publish_weights(wait=True)
-        do_logging(f'Finish Publishing Model Weights', 
-            logger=logger)
 
         self.active_models = [model for model, _ in model_weights]
         self.active_configs = [
@@ -235,13 +235,8 @@ class Controller(YAMLCheckpointBase):
             for model in self.active_models
         ]
 
-        self._prepare_runner_configs(
-            self.n_runners, 
-            self.n_steps, 
-            self.n_envs
-        )
         self.runner_manager.build_runners(
-            self.configs, 
+            configs, 
             remote_buffers=self.agent_manager.get_agents(),
             active_models=self.active_models, 
         )
@@ -262,18 +257,21 @@ class Controller(YAMLCheckpointBase):
                 else self._steps + self.config.restart_runners_priod
         )
         to_eval = Every(
-            self.config.get('eval_priod', None), 
+            self.config.get('eval_period', None), 
             final=max_steps_per_iteration
         )
-        to_store = Every(self.config.store_period, final=max_steps_per_iteration)
+        to_store = Every(
+            self.config.store_period, 
+            final=max_steps_per_iteration
+        )
         eval_pids = []
-
         while self._steps < max_steps_per_iteration:
             model_weights = self._retrieve_model_weights()
 
             steps = sum(runner_manager.run_with_model_weights(model_weights))
             self._steps += self.steps_per_run   # adding a fixed number of steps gives nicer logging stats for plotting
             # self._steps += steps
+            # do_logging(f'finishing sampling: total steps={self._steps}, steps={steps}')
 
             self._post_processing(
                 to_eval, 
@@ -299,27 +297,33 @@ class Controller(YAMLCheckpointBase):
         ray.get(oids)
 
     """ Implementation for <pbt_train> """
-    def _prepare_runner_configs(
+    def _prepare_configs(
         self, 
         n_runners: int, 
         n_steps: int, 
-        n_envs: int
     ):
+        configs = [dict2AttrDict(c, to_copy=True) for c in self.configs]
         runner_stats = ray.get(self.parameter_server.get_runner_stats.remote())
-        n_online_runners = runner_stats['n_online_runners']
-        n_agent_runners = runner_stats['n_agent_runners']
+        assert self._iteration == runner_stats.iteration, (self._iteration, runner_stats.iteration)
+        n_online_runners = runner_stats.n_online_runners
+        n_agent_runners = runner_stats.n_agent_runners
         n_pbt_steps = _compute_pbt_steps(
             n_runners, 
             n_steps, 
             n_online_runners, 
             n_agent_runners, 
         )
-        for c in self.configs:
+        for c in configs:
+            c.trainer.n_runners = n_online_runners + n_agent_runners
+            c.buffer.n_runners = n_online_runners + n_agent_runners
+            c.trainer.n_steps = n_pbt_steps
             c.runner.n_steps = n_pbt_steps
-        runner_stats['n_pbt_steps'] = n_pbt_steps
+            c.buffer.n_steps = n_pbt_steps
+        runner_stats.n_pbt_steps = n_pbt_steps
         do_logging(runner_stats, prefix=f'Runner Stats at Iteration {self._iteration}', 
             logger=logger)
         self._log_stats(runner_stats, self._iteration)
+        return configs
 
     def _initialize_rms(
         self, 
@@ -348,9 +352,9 @@ class Controller(YAMLCheckpointBase):
         to_store: Every, 
         eval_pids: List[ray.ObjectRef]
     ):
-        if to_eval is not None and to_eval(self._steps):
+        if to_eval(self._steps):
             eval_pids.append(self._eval(self._steps))
-        if to_restart_runners is not None and to_restart_runners(self._steps):
+        if to_restart_runners(self._steps):
             do_logging('Restarting Runners', logger=logger)
             self.runner_manager.destroy_runners()
             self.runner_manager.build_runners(
@@ -362,7 +366,7 @@ class Controller(YAMLCheckpointBase):
             ready_pids, self._pids = ray.wait(self._pids, timeout=1e-5)
             self._log_remote_stats(ready_pids, record=True)
         if eval_pids:
-            ready_pids, eval_pids = ray.wait(eval_pids, timeout=1e-5)
+            ready_pids, eval_pids = ray.wait(eval_pids, timeout=1)
             self._log_remote_stats_for_models(
                 ready_pids, self.active_models, step=self._steps)
         if to_store(self._steps):

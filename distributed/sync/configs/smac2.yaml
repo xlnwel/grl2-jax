@@ -39,7 +39,7 @@ ray_config:
     runner:
         num_cpus: 1
     agent:
-        num_gpus: 1
+        num_gpus: 0
 
 monitor: {}
 

@@ -1,6 +1,7 @@
 from core.elements.trainer import TrainerBase
 from core.log import do_logging
 from core.typing import AttrDict, dict2AttrDict
+from tools.display import print_dict_info
 from tools.timer import Timer
 
 
@@ -37,10 +38,10 @@ class TrainingLoop:
         pass
 
     def _train(self):
-        data = self._sample_data()
+        data = self.sample_data()
         if data is None:
             return 0, None
-        
+
         with Timer('train'):
             stats = self.trainer.train(data)
         n = self.trainer.config.n_epochs * self.trainer.config.n_mbs
@@ -50,7 +51,7 @@ class TrainingLoop:
     def _after_train(self):
         pass
 
-    def _sample_data(self):
+    def sample_data(self):
         with Timer('sample'):
             data = self.dataset.sample()
         if data is None:

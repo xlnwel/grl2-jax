@@ -143,7 +143,7 @@ def search_for_all_configs(directory, to_attrdict=True):
 def search_for_config(directory, to_attrdict=True, check_duplicates=True):
     if isinstance(directory, tuple):
         directory = '/'.join(directory)
-    print(directory)
+
     if not os.path.exists(directory):
         raise ValueError(f'Invalid directory: {directory}')
     

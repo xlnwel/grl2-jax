@@ -76,7 +76,6 @@ loss:
     c_clip: 1
     rho_clip: 1
     adv_type: vtrace
-    norm_adv: False
 
     # hyperparams for policy optimization
     pg_type: ppo

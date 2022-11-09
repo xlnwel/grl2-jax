@@ -24,6 +24,7 @@ def save_configs(configs):
         save_config(config, name=f'config_p{i}.yaml')
 
 def main(configs):
+    configure_gpu(None)
     if ray.is_initialized():
         ray.shutdown()
     ray.init()
@@ -41,7 +42,6 @@ def main(configs):
     seed = config.get('seed')
     print('seed', seed)
     set_seed(seed)
-    configure_gpu(None)
 
     controller = Controller(configs[0])
     controller.build_managers(configs)

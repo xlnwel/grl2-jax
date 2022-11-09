@@ -7,6 +7,7 @@ import tensorflow as tf
 import tensorflow.compat.v1 as tf1
 from matplotlib import colors
 import matplotlib.pyplot as plt
+plt.switch_backend('Agg')
 import pandas as pd
 import seaborn as sns
 

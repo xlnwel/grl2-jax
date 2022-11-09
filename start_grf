@@ -92,9 +92,9 @@ source activate grl
 #     done
 # done
 
-./start sync-zero grf academy_3_vs_1_with_keeper grf_3v1 0 -kw $@ norm_adv=True
-./start sync-zero grf academy_3_vs_1_with_keeper grf_3v1 1 -kw $@ norm_adv=False
-./start sync-zero grf academy_3_vs_1_with_keeper grf_3v1 1 -kw $@ norm_meta_adv=False
+./start sync-zero grf academy_3_vs_1_with_keeper grf_3v1 0 -kw $@ clip_norm=.5
+./start sync-zero grf academy_3_vs_1_with_keeper grf_3v1 1 -kw $@ clip_norm=10
+# ./start sync-zero grf academy_3_vs_1_with_keeper grf_3v1 1 -kw $@ norm_meta_adv=False
 # sleep 5h
 # ./startn sync-zero grf academy_3_vs_1_with_keeper grf_3v1 1 -kw K=1 meta_reward_opt:lr=3e-4 rl_reward=interpolated reward_coef:init=4.6
 # ./startn sync-zero grf academy_3_vs_1_with_keeper grf_3v1 1 -kw K=5 meta_reward_opt:lr=3e-4 rl_reward=interpolated reward_coef:init=4.6

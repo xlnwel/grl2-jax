@@ -2,35 +2,12 @@ from jax import lax, nn
 import jax.numpy as jnp
 import haiku as hk
 
+from core.typing import dict2AttrDict
 from nn.func import mlp, nn_registry
 from nn.index import IndexModule
 from nn.utils import get_activation
-from jax_tools import jax_assert
+from jax_tools import jax_assert, jax_dist
 """ Source this file to register Networks """
-
-
-@nn_registry.register('hpembed')
-class HyperParamEmbed(hk.Module):
-    def __init__(self, name='hp_embed', **config):
-        super().__init__(name=name)
-        self.config = config.copy()
-
-    def __call__(self, x, *args):
-        layers = self.build_net()
-        hp = jnp.expand_dims(jnp.array(args), 0)
-        embed = layers(hp)
-        embed = jnp.broadcast_to(embed, [*x.shape[:-1], embed.shape[-1]])
-        x = jnp.concatenate([x, embed], -1)
-
-        return x
-    
-    @hk.transparent
-    def build_net(self):
-        layers = mlp(
-            **self.config, 
-            use_bias=False, 
-        )
-        return layers
 
 
 @nn_registry.register('policy')
@@ -51,7 +28,6 @@ class Policy(IndexModule):
         self.init_std = init_std
 
         config['out_scale'] = out_scale
-        assert config['index_config'].get('scale', 1) == 1, config
         super().__init__(config=config, out_size=self.action_dim , name=name)
 
     def __call__(self, x, hx=None, action_mask=None):
@@ -95,44 +71,89 @@ class Value(IndexModule):
         return value
 
 
-
-@nn_registry.register('reward')
-class Reward(IndexModule):
+@nn_registry.register('model')
+class Model(hk.Module):
     def __init__(
         self, 
-        action_dim, 
-        out_act=None, 
-        combine_xa=False, 
-        rescale=5, 
-        name='reward', 
+        out_size, 
+        max_logvar, 
+        min_logvar, 
+        name='model', 
+        **config, 
+    ):
+        super().__init__(name=name)
+        self.config = dict2AttrDict(config, to_copy=True)
+        self.out_size = out_size
+        self.max_logvar = max_logvar
+        self.min_logvar = min_logvar
+
+    def __call__(self, x, action):
+        net = self.build_net()
+        x = jnp.concatenate([x, action], -1)
+
+        x = net(x)
+        mean, logvar = compute_mean_logvar(
+            x, self.max_logvar, self.min_logvar)
+        logstd = logvar / 2
+        dist = jax_dist.MultivariateNormalDiag(mean, logstd)
+
+        return dist
+
+    @hk.transparent
+    def build_net(self):
+        net = mlp(
+            **self.config,
+            out_size=2 * self.out_size
+        )
+        return net
+
+
+@nn_registry.register('emodels')
+class EnsembleModels(hk.Module):
+    def __init__(
+        self, 
+        n, 
+        out_size, 
+        max_logvar, 
+        min_logvar, 
+        name='emodels', 
         **config
     ):
-        config = config.copy()
-        
-        self.out_act = get_activation(out_act)
-        self.combine_xa = combine_xa
-        self.action_dim = action_dim
-        self.out_size = 1 if self.combine_xa else self.action_dim
-        self.rescale = rescale
-        assert config['index_config'].get('scale', 1) == 1, config['index_config']
-        super().__init__(config=config, out_size=self.out_size, name=name)
+        super().__init__(name=name)
+        self.config = dict2AttrDict(config, to_copy=True)
+        self.n = n
+        self.out_size = out_size
+        self.max_logvar = max_logvar
+        self.min_logvar = min_logvar
 
-    def __call__(self, x, action, hx=None):
-        if len(action.shape) < len(x.shape):
-            action = nn.one_hot(action, self.action_dim)
-        if self.combine_xa:
-            x = jnp.concatenate([x, action], -1)
+    def __call__(self, x, action):
+        nets = self.build_net()
+        x = jnp.concatenate([x, action], -1)
 
-        x = super().__call__(x, hx)
-        out = x
+        x = jnp.stack([net(x) for net in nets], -2)
+        mean, logvar = compute_mean_logvar(
+            x, self.max_logvar, self.min_logvar)
+        logstd = logvar / 2
+        dist = jax_dist.MultivariateNormalDiag(mean, logstd)
 
-        if action is not None and not self.combine_xa:
-            x = jnp.sum(x * action, -1)
-        if x.shape[-1] == 1:
-            x = jnp.squeeze(x, -1)
-        reward = self.rescale * self.out_act(x / self.rescale)
+        return dist
 
-        return out, reward
+    @hk.transparent
+    def build_net(self):
+        nets = [mlp(
+            **self.config,
+            out_size=2 * self.out_size, 
+            name=f'model{i}'
+        ) for i in range(self.n)]
+        return nets
+
+
+def compute_mean_logvar(x, max_logvar, min_logvar):
+    mean, logvar = jnp.split(x, -1)
+    logvar = max_logvar - nn.softplus(max_logvar - logvar)
+    logvar = min_logvar + nn.softplus(logvar - min_logvar)
+
+    return mean, logvar
 
 
 if __name__ == '__main__':
@@ -156,6 +177,9 @@ if __name__ == '__main__':
     # print(params)
     # print(net.apply(params, None, x, 1., 2, 3))
     # print(hk.experimental.tabulate(net)(x, 1, 2, 3.))
+    import os, sys
+    os.environ["XLA_FLAGS"] = '--xla_dump_to=/tmp/foo'
+    os.environ['XLA_FLAGS'] = "--xla_gpu_force_compilation_parallelism=1"
 
     config = {
         'units_list': [3], 
@@ -163,28 +187,19 @@ if __name__ == '__main__':
         'activation': 'relu', 
         'norm': None, 
         'out_scale': .01,
-        'is_action_discrete': True,  
-        'action_dim': 3, 
-        'index': 'all', 
-        'index_config': {
-            'use_shared_bias': False, 
-            'use_bias': True, 
-            'w_init': 'orthogonal', 
-        }
     }
     def layer_fn(x, *args):
-        layer = Policy(**config)
+        layer = EnsembleModels(5, 3, **config)
         return layer(x, *args)
     import jax
     rng = jax.random.PRNGKey(42)
-    x = jax.random.normal(rng, (2, 3, 4))
-    hx = jnp.eye(3)
-    hx = jnp.tile(hx, [2, 1, 1])
+    x = jax.random.normal(rng, (2, 3, 3))
+    a = jax.random.normal(rng, (2, 3, 2))
     net = hk.transform(layer_fn)
-    params = net.init(rng, x, hx)
+    params = net.init(rng, x, a)
     print(params)
-    print(net.apply(params, rng, x, hx))
-    print(hk.experimental.tabulate(net)(x, hx))
+    print(net.apply(params, rng, x, a))
+    print(hk.experimental.tabulate(net)(x, a))
 
     # config = {
     #     'units_list': [64,64], 

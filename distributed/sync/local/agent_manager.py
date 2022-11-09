@@ -28,7 +28,7 @@ class AgentManager(ManagerBase):
         if self.agents:
             return
         self.agents: List[Agent] = [self.RemoteAgent.remote(
-            config=AttrDict2dict(config),
+            config=config,
             env_stats=self.env_stats,
             parameter_server=self.parameter_server,
             monitor=self.monitor,

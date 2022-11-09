@@ -39,4 +39,5 @@ def construct_components(config, name):
 
 @hk.transparent
 def mlp(units_list=[], out_size=None, **kwargs) -> MLP:
+    kwargs.pop('nn_id', None)
     return MLP(units_list, out_size=out_size, **kwargs)

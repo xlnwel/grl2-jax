@@ -128,11 +128,11 @@ class Runner:
     def step_env(self, obs, action, step_fn):
         if isinstance(action, tuple):
             if len(action) == 2:
-                action, terms = action
+                action, stats = action
                 self.env_output = self.env.step(action)
                 self.step += self._frames_per_step
             elif len(action) == 3:
-                action, frame_skip, terms = action
+                action, frame_skip, stats = action
                 frame_skip += 1     # plus 1 as values returned start from zero
                 self.env_output = self.env.step(action, frame_skip=frame_skip)
                 self.step += np.sum(frame_skip)
@@ -141,7 +141,7 @@ class Runner:
         else:
             self.env_output = self.env.step(action)
             self.step += self._frames_per_step
-            terms = {}
+            stats = {}
 
         next_obs, reward, discount, reset = self.env_output
 
@@ -153,9 +153,9 @@ class Runner:
                 discount=discount[0] if self._is_multi_agent else discount, 
                 next_obs=next_obs[0] if self._is_multi_agent else next_obs
             )
-            assert 'reward' not in terms, 'reward in terms is from the preivous timestep and should not be used to override here'
-            # allow terms to overwrite the values in kwargs
-            kwargs.update(terms)
+            assert 'reward' not in stats, 'reward in stats is from the preivous timestep and should not be used to override here'
+            # allow stats to overwrite the values in kwargs
+            kwargs.update(stats)
             step_fn(self.env, self.step, reset[0] if self._is_multi_agent else reset, **kwargs)
 
         return next_obs, reset
@@ -178,7 +178,7 @@ def evaluate(
 ):
     scores = []
     epslens = []
-    term_list = []
+    stats_list = []
     max_steps = env.max_episode_steps // getattr(env, 'frame_skip', 1)
     frames = [collections.deque(maxlen=video_len) 
         for _ in range(min(n_windows, env.n_envs))]
@@ -201,25 +201,25 @@ def evaluate(
                     for i in range(len(frames)):
                         frames[i].append(img[i])
 
-            action, terms = agent(
+            action, stats = agent(
                 env_output, 
                 evaluation=True, 
             )
-            term_list.append(terms)
+            stats_list.append(stats)
             env_output = env.step(action)
             next_obs, reward, discount, reset = env_output
-            terms['reward'] = np.squeeze(reward)
+            stats['reward'] = np.squeeze(reward)
             info = env.info()
             if isinstance(info, list):
                 for i in info:
-                    terms.update(i)
+                    stats.update(i)
             else:
-                terms.update(info)
+                stats.update(info)
 
             if step_fn:
                 step_fn(obs=obs, action=action, reward=reward, 
                     discount=discount, next_obs=next_obs, 
-                    reset=reset, **terms)
+                    reset=reset, **stats)
             obs = next_obs
             if env.env_type == 'Env':
                 if env.game_over():
@@ -258,7 +258,7 @@ def evaluate(
                         break
                 prev_done = done
 
-    terms = batch_dicts(term_list)
+    stats = batch_dicts(stats_list)
     if record_video:
         max_len = np.max([len(f) for f in frames])
         # padding to make all sequences of the same length
@@ -267,6 +267,6 @@ def evaluate(
                 f.append(f[-1])
             frames[i] = np.array(f)
         frames = np.array(frames)
-        return scores, epslens, terms, frames
+        return scores, epslens, stats, frames
     else:
-        return scores, epslens, terms, None
+        return scores, epslens, stats, None

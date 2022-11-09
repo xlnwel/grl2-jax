@@ -55,6 +55,8 @@ class Recorder:
 
     def store(self, **kwargs):
         for k, v in kwargs.items():
+            if v is None:
+                continue
             if np.any(np.isnan(v)):
                 do_logging(f'{k}: {v}')
                 assert False

@@ -25,9 +25,9 @@ def configure_gpu(idx=-1):
         return False
     gpus = tf.config.list_physical_devices('GPU')
     n_gpus = len(gpus)
+    # restrict TensorFlow to only use the i-th GPU
     if idx >= 0:
         gpus = [gpus[idx % n_gpus]]
-    # restrict TensorFlow to only use the i-th GPU
     tf.config.experimental.set_visible_devices(gpus, 'GPU')
     if gpus:
         try:

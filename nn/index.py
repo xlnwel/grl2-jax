@@ -94,6 +94,7 @@ class IndexLayer(hk.Module):
         self.use_shared_bias = use_shared_bias
  
     def __call__(self, x, hx):
+        assert x is not None, x
         assert hx is not None, hx
         wlayer, blayer = self.build_net(x)
         

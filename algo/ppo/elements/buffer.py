@@ -22,7 +22,7 @@ class LocalBuffer(Buffer):
     def __init__(
         self, 
         config: AttrDict,
-        env_stats: AttrDict,  
+        env_stats: AttrDict,
         model: Model,
         runner_id: int,
         aid: int, 

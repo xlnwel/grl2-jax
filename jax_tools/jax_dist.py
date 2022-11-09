@@ -5,7 +5,7 @@ import optax
 
 EPSILON = 1e-8
 
-""" Legacy code, use tfp instead """
+
 class Distribution:
     def log_prob(self, x):
         return -self.neg_log_prob(x)
@@ -75,7 +75,7 @@ class Categorical(Distribution):
 
         return entropy
 
-    def kl(self, other, mask=None):
+    def kl(self, other: Distribution, mask=None):
         logits = self.get_masked_logits(mask)
         other_logits = other.get_masked_logits(mask)
         probs = nn.softmax(logits)
@@ -98,6 +98,15 @@ class Categorical(Distribution):
         else:
             logits = self.logits
         return logits
+
+    def stop_gradient(self):
+        self.logits = lax.stop_gradient(self.logits)
+
+    def get_stats(self, prefix=None):
+        if prefix is None:
+            return {'logits': self.logits}
+        else:
+            return {f'{prefix}_logits': self.logits}
 
 
 class MultivariateNormalDiag(Distribution):
@@ -130,3 +139,20 @@ class MultivariateNormalDiag(Distribution):
     
     def mode(self):
         return self.mu
+
+    def stop_gradient(self):
+        self.mu = lax.stop_gradient(self.mu)
+        self.logstd = lax.stop_gradient(self.logstd)
+        self.std = lax.stop_gradient(self.std)
+
+    def get_stats(self, prefix=None):
+        if prefix is None:
+            return {
+                f'{prefix}_mean': self.mu, 
+                f'{prefix}_std': self.std, 
+            }
+        else:
+            return {
+                f'{prefix}_mean': self.mu, 
+                f'{prefix}_std': self.std, 
+            }

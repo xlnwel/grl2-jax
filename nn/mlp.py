@@ -21,6 +21,7 @@ class MLP(hk.Module):
         norm=None, 
         activation=None, 
         w_init='glorot_uniform', 
+        b_init='zeros', 
         name=None, 
         out_scale=1, 
         norm_after_activation=False, 
@@ -29,6 +30,8 @@ class MLP(hk.Module):
             'create_scale': True, 
             'create_offset': True, 
         }, 
+        out_w_init=None, 
+        out_b_init=None, 
         **kwargs
     ):
         super().__init__(name=name)
@@ -48,12 +51,16 @@ class MLP(hk.Module):
         )
 
         self.out_size = out_size
-        kwargs.pop('scale', None)
+        kwargs['scale'] = out_scale
         do_logging(f'{self.name} out scale: {out_scale}', logger=logger, level='info')
-        w_init = get_initializer(w_init, scale=out_scale)
+        if out_w_init is None:
+            out_w_init = w_init
+        if out_b_init is None:
+            out_b_init = b_init
         self.out_kwargs = dict(
             layer_type=layer_type, 
-            w_init=w_init, 
+            w_init=out_w_init, 
+            b_init=out_b_init, 
             name='out', 
             **kwargs
         )
